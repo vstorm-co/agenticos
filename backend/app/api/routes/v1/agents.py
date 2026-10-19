@@ -40,6 +40,7 @@ from app.api.public_api import PUBLIC
 from app.api.routes.v1._stored_bytes import stored_image_response
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
+from app.db.models.agent import AgentKind
 from app.db.models.agent_run import RunSurface
 from app.schemas.agent import (
     AgentAvatarColorRequest,
@@ -234,6 +235,10 @@ async def list_agents(
         False, description="Only what was shared with the caller - never their own rows"
     ),
     include_archived: bool = Query(False),
+    kind: AgentKind = Query(
+        AgentKind.AGENT,
+        description="`agent` for the agents people use, `judge` for the ones grading evals",
+    ),
     category: Annotated[
         list[str], Query(description="Keep agents in any of these categories")
     ] = [],  # noqa: B006
@@ -251,13 +256,14 @@ async def list_agents(
         ctx,
         shared_with_me=shared_with_me,
         include_archived=include_archived,
+        kind=kind,
         categories=category,
         tags=tag,
         skip=skip,
         limit=limit,
     )
     categories, tags = await service.list_labels(
-        ctx, shared_with_me=shared_with_me, include_archived=include_archived
+        ctx, shared_with_me=shared_with_me, include_archived=include_archived, kind=kind
     )
     return AgentList(items=items, total=total, categories=categories, tags=tags)
 

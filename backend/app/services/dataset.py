@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import UTC, datetime
+from itertools import takewhile
 from typing import Any
 from uuid import UUID
 
@@ -23,15 +24,21 @@ from pydantic_ai_harness.guardrails.detectors import redact_secrets
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.isolation import capability_tools
+from app.agents.spec import AgentSpec
+from app.agents.system_agents import JUDGE
 from app.core.audit import record_audit
 from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.exceptions import ValidationError as InvalidCaseError
 from app.core.field_errors import field_problems, refused_field
 from app.core.permissions import AuthContext, Perm, Scope
+from app.db.models.conversation import Message
 from app.db.models.dataset import CaseSource, Dataset, DatasetCase, DatasetChange, DatasetVersion
 from app.db.updates import writable
 from app.repositories import (
+    agent_repo,
+    agent_run_repo,
     conversation_repo,
     dataset_repo,
     message_rating_repo,
@@ -53,8 +60,10 @@ from app.schemas.dataset import (
     DatasetUpdate,
     DatasetVersionList,
     DatasetVersionRead,
+    EditedCaseContent,
 )
 from app.schemas.resource_grant import as_visibility
+from app.schemas.scoring import DatasetScoring, ExpectedToolCall
 from app.services import dataset_files
 from app.services.access import DATASET, accessible_ids, resolve_access, visible_resource_ids
 from app.services.conversation import ConversationService
@@ -65,6 +74,8 @@ logger = logging.getLogger(__name__)
 # The most cases one dataset holds. The export cap, so every version of every
 # dataset can always be exported whole.
 MAX_CASES = MAX_EXPORT_ROWS
+_MAX_REPLY_STEPS = 50
+_MAX_EXPECTED_CALLS = 50
 
 
 def _name_taken(name: str) -> AlreadyExistsError:
@@ -172,10 +183,15 @@ def _version_read(version: DatasetVersion) -> DatasetVersionRead:
 
 
 def _dataset_read(
-    dataset: Dataset, *, can_edit: bool, stats: DatasetStats | None = None
+    dataset: Dataset,
+    *,
+    can_edit: bool,
+    judge_name: str | None,
+    stats: DatasetStats | None = None,
 ) -> DatasetRead:
     return DatasetRead(
         stats=stats or DatasetStats(),
+        judge_name=judge_name,
         id=dataset.id,
         name=dataset.name,
         description=dataset.description,
@@ -184,6 +200,7 @@ def _dataset_read(
         latest_version=dataset.latest_version,
         case_count=dataset.case_count,
         can_edit=can_edit,
+        scoring=DatasetScoring.model_validate(dataset.scoring),
         created_at=dataset.created_at,
         updated_at=dataset.updated_at,
     )
@@ -223,11 +240,42 @@ class DatasetService:
             self.db, [dataset.id for dataset in datasets], organization_id=ctx.organization_id
         )
 
+    async def _judge_names(self, ctx: AuthContext, datasets: list[Dataset]) -> dict[UUID, str]:
+        """Each dataset's judge by name: the one it picked, or the seeded default.
+
+        A read never seeds, so before the default judge exists a dataset that
+        picked none has no name here, as one whose judge was deleted has none.
+        """
+        picked = {
+            dataset.id: DatasetScoring.model_validate(dataset.scoring).judge.agent_id
+            for dataset in datasets
+        }
+        judges = await agent_repo.get_many(
+            self.db,
+            [agent_id for agent_id in set(picked.values()) if agent_id is not None],
+            organization_id=ctx.organization_id,
+        )
+        default = (
+            await agent_repo.get_system(self.db, organization_id=ctx.organization_id, key=JUDGE.key)
+            if None in picked.values()
+            else None
+        )
+        names: dict[UUID, str] = {}
+        for dataset_id, agent_id in picked.items():
+            judge = default if agent_id is None else judges.get(agent_id)
+            if judge is not None:
+                names[dataset_id] = judge.name
+        return names
+
     async def read(self, ctx: AuthContext, dataset_id: UUID) -> DatasetRead:
         dataset = await self.get(ctx, dataset_id)
         stats = await self._stats(ctx, [dataset])
+        judges = await self._judge_names(ctx, [dataset])
         return _dataset_read(
-            dataset, can_edit=await self._can_edit(ctx, dataset), stats=stats.get(dataset.id)
+            dataset,
+            can_edit=await self._can_edit(ctx, dataset),
+            judge_name=judges.get(dataset.id),
+            stats=stats.get(dataset.id),
         )
 
     async def list_readable(
@@ -237,11 +285,15 @@ class DatasetService:
         shared_with_me: bool = False,
         editable: bool = False,
         search: str | None = None,
+        judge_id: UUID | None = None,
         sort: DatasetSort = "name",
         skip: int = 0,
         limit: int = 50,
     ) -> DatasetList:
         """A page of the datasets this caller may see, each saying whether they may edit it.
+
+        `judge_id` narrows to the datasets that judge grades: those that picked
+        it, and for the seeded default judge those that picked none.
 
         Scoped like every shared resource: a role reaching the whole organization
         lists everything, anyone else their own, the org-visible ones and those
@@ -276,6 +328,8 @@ class DatasetService:
             edit_scope=ctx.scope_for(Perm.DATASETS_EDIT) if editable else None,
             edit_ids=edit_ids,
             search=search,
+            judge_id=judge_id,
+            judge_is_default=judge_id is not None and await self._is_default_judge(ctx, judge_id),
             sort=sort,
             skip=skip,
             limit=limit,
@@ -284,20 +338,32 @@ class DatasetService:
             self.db, ctx, items, Perm.DATASETS_EDIT, resource_type=DATASET
         )
         stats = await self._stats(ctx, items)
+        judges = await self._judge_names(ctx, items)
         return DatasetList(
             items=[
-                _dataset_read(item, can_edit=item.id in may_edit, stats=stats.get(item.id))
+                _dataset_read(
+                    item,
+                    can_edit=item.id in may_edit,
+                    judge_name=judges.get(item.id),
+                    stats=stats.get(item.id),
+                )
                 for item in items
             ],
             total=total,
         )
+
+    async def _is_default_judge(self, ctx: AuthContext, agent_id: UUID) -> bool:
+        default = await agent_repo.get_system(
+            self.db, organization_id=ctx.organization_id, key=JUDGE.key
+        )
+        return default is not None and default.id == agent_id
 
     async def _refuse_taken_name(self, ctx: AuthContext, name: str) -> None:
         if await dataset_repo.get_by_name(self.db, name, organization_id=ctx.organization_id):
             raise _name_taken(name)
 
     async def create(self, ctx: AuthContext, data: DatasetCreate) -> DatasetRead:
-        """An empty dataset, private to its creator until it is shared."""
+        """An empty dataset, visible to the whole organization unless `data` says otherwise."""
         await self._refuse_taken_name(ctx, data.name)
         try:
             # A savepoint, because the check above is a read two requests can both
@@ -310,6 +376,7 @@ class DatasetService:
                     owner_user_id=ctx.subject_id,
                     name=data.name,
                     description=data.description,
+                    visibility=data.visibility,
                 )
         except IntegrityError:
             raise _name_taken(data.name) from None
@@ -322,7 +389,7 @@ class DatasetService:
             target_id=str(dataset.id),
             details={"name": dataset.name},
         )
-        return _dataset_read(dataset, can_edit=True)
+        return await self.read(ctx, dataset.id)
 
     async def update(self, ctx: AuthContext, dataset_id: UUID, data: DatasetUpdate) -> DatasetRead:
         """Rename or redescribe a dataset. Its cases, and so its version, do not change."""
@@ -346,8 +413,7 @@ class DatasetService:
             target_id=str(dataset.id),
             details={"name": updated.name, "fields": sorted(update_data)},
         )
-        stats = await self._stats(ctx, [updated])
-        return _dataset_read(updated, can_edit=True, stats=stats.get(updated.id))
+        return await self.read(ctx, updated.id)
 
     async def delete(self, ctx: AuthContext, dataset_id: UUID) -> None:
         """Delete a dataset with every version and case it held."""
@@ -408,17 +474,28 @@ class DatasetService:
         version: int | None = None,
         skip: int = 0,
         limit: int = 50,
+        same_input: str | None = None,
     ) -> DatasetCaseList:
-        """A page of the cases one version holds - the newest version unless one is named."""
+        """A page of the cases one version holds - the newest version unless one is named.
+
+        `same_input` narrows to the cases asking that question, as a new case is
+        checked for one already there; `total` then counts the matches on this page.
+        """
         dataset = await self.get(ctx, dataset_id)
         held = await self._version(ctx, dataset, version)
         if held is None:
             return DatasetCaseList(items=[], total=0, version=0)
         cases = await dataset_repo.list_cases(
-            self.db, held.id, organization_id=ctx.organization_id, skip=skip, limit=limit
+            self.db,
+            held.id,
+            organization_id=ctx.organization_id,
+            skip=skip,
+            limit=limit,
+            same_input=same_input,
         )
+        total = held.case_count if same_input is None else len(cases)
         return DatasetCaseList(
-            items=[_case_read(case) for case in cases], total=held.case_count, version=held.number
+            items=[_case_read(case) for case in cases], total=total, version=held.number
         )
 
     async def _mint(
@@ -592,6 +669,42 @@ class DatasetService:
             )
         return previous, found[0], found[1]
 
+    async def read_case(
+        self, ctx: AuthContext, dataset_id: UUID, case_id: UUID, *, version: int | None = None
+    ) -> DatasetCaseRead:
+        """One case as a version holds it - the newest unless one is named. Needs
+        `datasets:view` on the dataset.
+
+        Raises:
+            NotFoundError: The dataset is not one the caller may read, or the
+                version does not hold the case.
+        """
+        dataset = await self.get(ctx, dataset_id)
+        return _case_read(await self.case_at(ctx, dataset, case_id, version=version))
+
+    async def case_at(
+        self, ctx: AuthContext, dataset: Dataset, case_id: UUID, *, version: int | None = None
+    ) -> DatasetCase:
+        """The revision of a case a version holds - the newest version unless one is named.
+
+        Raises:
+            NotFoundError: When that version does not exist or does not hold the case.
+        """
+        held = await self._version(ctx, dataset, version)
+        found = (
+            None
+            if held is None
+            else await dataset_repo.find_case(
+                self.db, held.id, case_id, organization_id=ctx.organization_id
+            )
+        )
+        if found is None:
+            raise NotFoundError(
+                message="This version of the dataset holds no such case",
+                details={"dataset_id": dataset.id, "case_id": case_id, "version": version},
+            )
+        return found[0]
+
     async def update_case(
         self, ctx: AuthContext, dataset_id: UUID, case_id: UUID, data: DatasetCaseUpdate
     ) -> DatasetCaseRead:
@@ -605,7 +718,7 @@ class DatasetService:
         # Each half is valid alone, but an edit clearing the only expectation the
         # stored case had leaves a union that is not.
         try:
-            content = DatasetCaseContent.model_validate(
+            content = EditedCaseContent.model_validate(
                 {key: merged[key] for key in DatasetCaseContent.model_fields}
             )
         except ValidationError as exc:
@@ -726,10 +839,14 @@ class DatasetService:
     ) -> DatasetCaseRead:
         """Turn an agent's answer into a case: the question, the turns before it, the answer.
 
-        The answer becomes the counter-example (or the reference answer, when
-        somebody is keeping a good one), the newest comment left with a thumbs-down
-        on it becomes the note, and the case keeps a link to the run, the
-        conversation and the message it came from.
+        The answer is the agent's whole reply to the question - every step it
+        wrote before the next question, whichever of them `message_id` names.
+        Its text becomes the counter-example (or the reference answer, when
+        somebody is keeping a good one), and a good one's tool calls become the
+        calls the case expects, by tool name - those that succeeded and that
+        change something, so a mistaken call and a read are not asked for again. The newest comment left with a
+        thumbs-down on the reply becomes the note, and the case keeps a link to
+        the run, the conversation and the reply's last step.
 
         The source is checked like any read of a transcript: it must be in the
         caller's organization, and the caller must hold `runs:view` (which reads
@@ -738,10 +855,13 @@ class DatasetService:
         Raises:
             NotFoundError: For a message that is not there, is in another
                 organization, or is in a conversation the caller may not read.
-            BadRequestError: For a message that is not an agent's answer, or that
-                has no question before it.
+            BadRequestError: For a message that is not an agent's answer, one
+                with nothing to keep - no text, nor for a reference a tool call -
+                or one with no question before it.
+            AlreadyExistsError: The dataset's newest version already holds a
+                case made from this answer.
         """
-        await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+        dataset = await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
         missing = NotFoundError(
             message="Message not found", details={"message_id": data.message_id}
         )
@@ -763,18 +883,61 @@ class DatasetService:
             raise missing from None
         if message.role != "assistant":
             raise refused_field("message_id", "Only an agent's answer can be added to a dataset")
-        if not message.content.strip():
-            raise refused_field("message_id", "This answer has no text to keep as a case")
+        before = await conversation_repo.get_messages_before(
+            self.db,
+            conversation.id,
+            organization_id=ctx.organization_id,
+            ordinal=message.ordinal,
+            limit=MAX_HISTORY_TURNS + _MAX_REPLY_STEPS + 1,
+        )
+        after = await conversation_repo.get_messages_following(
+            self.db,
+            conversation.id,
+            organization_id=ctx.organization_id,
+            ordinal=message.ordinal,
+            limit=_MAX_REPLY_STEPS,
+        )
+        asking = len(before)
+        while asking > 0 and before[asking - 1].role == "assistant":
+            asking -= 1
+        reply = [
+            *before[asking:],
+            message,
+            *takewhile(lambda turn: turn.role == "assistant", after),
+        ]
+        last = reply[-1]
+        answer = "\n\n".join(turn.content.strip() for turn in reply if turn.content.strip())
+        keeps_good = data.answer_as == "reference_answer"
+        calls = (
+            await self._expected_calls(ctx, last.run_id or message.run_id, reply)
+            if keeps_good
+            else []
+        )
+        if not answer and not calls:
+            raise refused_field(
+                "message_id",
+                "This answer has no text, nor a tool call that changed something, to keep as a case"
+                if keeps_good
+                else "This answer has no text to keep as a counter-example; keep it as a "
+                "reference answer to expect the tools it called",
+            )
+        newest = await self._version(ctx, dataset, None)
+        kept = (
+            None
+            if newest is None
+            else await dataset_repo.case_from_message(
+                self.db, newest.id, last.id, organization_id=ctx.organization_id
+            )
+        )
+        if kept is not None:
+            raise AlreadyExistsError(
+                message="This answer is already a case of this dataset",
+                details={"case_id": kept.case_id},
+            )
 
         earlier = [
             turn
-            for turn in await conversation_repo.get_messages_before(
-                self.db,
-                conversation.id,
-                organization_id=ctx.organization_id,
-                ordinal=message.ordinal,
-                limit=MAX_HISTORY_TURNS + 1,
-            )
+            for turn in before[:asking]
             if turn.role in ("user", "assistant") and turn.content.strip()
         ]
         asked = next(
@@ -784,9 +947,8 @@ class DatasetService:
         if asked is None:
             raise refused_field("message_id", "This answer has no question before it to test on")
         comments = await message_rating_repo.get_down_rating_comments_for_messages(
-            self.db, message_ids=[message.id]
+            self.db, message_ids=[turn.id for turn in reply]
         )
-        answer = message.content
         try:
             content = DatasetCaseContent(
                 input=earlier[asked].content,
@@ -794,9 +956,14 @@ class DatasetService:
                     {"role": turn.role, "content": turn.content}
                     for turn in earlier[:asked][-MAX_HISTORY_TURNS:]
                 ],
-                counter_example=answer if data.answer_as == "counter_example" else None,
-                reference_answer=answer if data.answer_as == "reference_answer" else None,
-                note=comments.get(message.id),
+                counter_example=None if keeps_good else answer,
+                reference_answer=(answer or None) if keeps_good else None,
+                expected_tool_calls=[
+                    ExpectedToolCall(tool=name) for name in calls[:_MAX_EXPECTED_CALLS]
+                ],
+                note=next(
+                    (comments[turn.id] for turn in reversed(reply) if turn.id in comments), None
+                ),
             )
         except ValidationError as exc:
             raise BadRequestError(
@@ -808,7 +975,32 @@ class DatasetService:
             dataset_id,
             content,
             source=CaseSource.CONVERSATION,
-            source_run_id=message.run_id,
+            source_run_id=last.run_id or message.run_id,
             source_conversation_id=conversation.id,
-            source_message_id=message.id,
+            source_message_id=last.id,
         )
+
+    async def _expected_calls(
+        self, ctx: AuthContext, run_id: UUID | None, reply: list[Message]
+    ) -> list[str]:
+        """The tools a good reply called that a case should expect: those that succeeded
+        and that the answering agent's spec does not declare read-only."""
+        calls = await conversation_repo.tool_calls_of_messages(self.db, [turn.id for turn in reply])
+        reads: set[str] = set()
+        run = (
+            None
+            if run_id is None
+            else await agent_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
+        )
+        if run is not None and run.agent_version_id is not None:
+            version = await agent_repo.get_version(
+                self.db, run.agent_version_id, organization_id=ctx.organization_id
+            )
+            if version is not None:
+                tools = capability_tools(AgentSpec.model_validate(version.spec))
+                reads = {name for name, tool in tools.items() if tool.read_only}
+        return [
+            call.tool_name
+            for call in calls
+            if call.status == "completed" and call.tool_name not in reads
+        ]

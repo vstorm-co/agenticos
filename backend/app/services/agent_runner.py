@@ -190,6 +190,7 @@ from app.agents.subagent_runtime import (
     ResumedDelegation,
     SubagentRuntime,
 )
+from app.agents.system_agents import refuse_system_agent
 from app.core.config import settings
 from app.core.exceptions import (
     AppException,
@@ -2666,6 +2667,10 @@ class AgentRunnerService:
         that created it - at the run's own agent (agenticos#175) and inside a nested
         delegate (agenticos#254) alike.
         """
+        # A system agent runs only through the system agent runner, on the eval
+        # surface - here, so a resumed run and every fresh surface are held to it.
+        if surface != RunSurface.EVAL:
+            refuse_system_agent(agent, action=f"a {surface.value} run")
         # A caller's override wins over the spec's choice. Only the model is
         # replaced - instructions, tools, budgets and the approval gate are the
         # agent's, so this cannot be used to run something the agent is not.
@@ -3520,6 +3525,7 @@ class AgentRunnerService:
                 message=f"A delegate this agent is pinned to, '{delegate.name}', is archived",
                 details={"agent_id": str(ref.agent_id), "slug": delegate.slug},
             )
+        refuse_system_agent(delegate, action="a delegate")
         version = await agent_repo.get_version(
             self.db, ref.agent_version_id, organization_id=ctx.organization_id
         )
@@ -4368,10 +4374,10 @@ class AgentRunnerService:
             )
             pending = [a for a in approvals if a.status == ApprovalStatus.PENDING.value]
             await notifications.approval_requested(run, agent=agent, spec=spec, approvals=pending)
-        elif RunSurface(run.surface) is not RunSurface.WEB:
-            # A chat user watching `WEB` already sees a completion or a
-            # failure on screen; every other surface is exactly the "stops
-            # silently" gap this module's own docstring names.
+        elif RunSurface(run.surface) not in (RunSurface.WEB, RunSurface.EVAL):
+            # A chat user watching `WEB` already sees the outcome on screen, and an
+            # `EVAL` run is one of many its eval reports on as a whole; every other
+            # surface is the "stops silently" gap this module's docstring names.
             if status is RunStatus.COMPLETED:
                 await notifications.run_completed(run, agent=agent)
             elif status is RunStatus.FAILED:
@@ -4401,6 +4407,7 @@ class AgentRunnerService:
         tool_calls: list[RecordedToolCall] | None = None,
         stream: RunStream | None = None,
         on_compaction: CompactionSink | None = None,
+        model_profile_id: UUID | None = None,
         isolation: RunIsolation | None = None,
         parks_questions: bool = False,
         steering: SteeringInbox | None = None,
@@ -4416,6 +4423,8 @@ class AgentRunnerService:
         of exercising a dev environment before promoting it. With `isolation` it
         is how an eval runs: on that environment's test connections, with every
         other write held and recorded.
+
+        `model_profile_id` runs it on another model, as :meth:`prepare` describes.
 
         `attachments` are files that arrived with the message. They are routed
         here rather than by the caller because where an attachment *goes* depends
@@ -4470,6 +4479,7 @@ class AgentRunnerService:
             exposure=exposure,
             environment_id=environment_id,
             on_compaction=on_compaction,
+            model_profile_id=model_profile_id,
             isolation=isolation,
             aside=aside,
         )

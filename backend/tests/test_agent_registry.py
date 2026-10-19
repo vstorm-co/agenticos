@@ -165,6 +165,8 @@ def _agent(ctx: AuthContext, **overrides):
     agent.tags = []
     agent.draft_spec = _spec().model_dump(mode="json")
     agent.current_version_id = None
+    agent.system_key = None
+    agent.kind = "agent"
     agent.created_at = None
     agent.updated_at = None
     for key, value in overrides.items():

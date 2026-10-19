@@ -21,8 +21,11 @@ import pytest
 from app.core.exceptions import NotFoundError
 from app.repositories import (
     agent_environment_repo,
+    agent_repo,
+    case_score_repo,
     channel_bot_repo,
     conversation_repo,
+    credential_repo,
     dataset_repo,
     intercepted_tool_call_repo,
     personal_data_repo,
@@ -61,6 +64,13 @@ TENANT_REQUIRED = [
     (dataset_repo, "copy_membership"),
     (conversation_repo, "get_messages_before"),
     (personal_data_repo, "unlink_dataset_cases_from_conversation"),
+    (agent_repo, "get_system"),
+    (credential_repo, "oldest_profile"),
+    (case_score_repo, "create"),
+    (case_score_repo, "get"),
+    (case_score_repo, "list_for_dataset"),
+    (case_score_repo, "list_pending"),
+    (case_score_repo, "pending_counts"),
 ]
 
 # Deliberately unscoped, each documented at its definition.

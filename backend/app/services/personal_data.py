@@ -43,6 +43,8 @@ _CONVERSATION_FIELDS = ("id", "title", "created_at", "updated_at", "is_archived"
 _MESSAGE_FIELDS = ("id", "conversation_id", "role", "content", "ordinal", "created_at")
 _TOOL_CALL_FIELDS = ("id", "message_id", "tool_name", "args", "result", "status", "started_at")
 _RATING_FIELDS = ("id", "message_id", "rating", "comment", "created_at")
+_VERDICT_FIELDS = ("id", "dataset_id", "case_id", "human_passed", "human_note", "reviewed_at")
+_SCORED_ANSWER_FIELDS = ("id", "dataset_id", "case_id", "run_id", "answer", "created_at")
 _SESSION_FIELDS = ("id", "device_name", "device_type", "ip_address", "created_at", "last_used_at")
 _RUN_FIELDS = ("id", "agent_id", "status", "surface", "cost_usd", "created_at")
 _MEMORY_FIELDS = ("id", "agent_id", "name", "content", "updated_at")
@@ -154,6 +156,13 @@ class PersonalDataService:
             memberships=await personal_data_repo.memberships_of(self.db, user_id),
             ratings=personal_data_repo.as_rows(
                 await personal_data_repo.ratings_of(self.db, user_id), _RATING_FIELDS
+            ),
+            case_verdicts=personal_data_repo.as_rows(
+                await personal_data_repo.verdicts_of(self.db, user_id), _VERDICT_FIELDS
+            ),
+            scored_answers=personal_data_repo.as_rows(
+                await personal_data_repo.scored_answers_of(self.db, user_id),
+                _SCORED_ANSWER_FIELDS,
             ),
             sessions=personal_data_repo.as_rows(
                 await personal_data_repo.sessions_of(self.db, user_id), _SESSION_FIELDS
@@ -277,7 +286,8 @@ class PersonalDataService:
             self.db, person_owner_key(user_id)
         )
         dataset_cases = await personal_data_repo.unlink_dataset_cases_of(self.db, user_id)
-        if notes or identities or workspaces or dataset_cases:
+        scored_answers = await personal_data_repo.purge_scored_answers_of(self.db, user_id)
+        if notes or identities or workspaces or dataset_cases or scored_answers:
             logger.info(
                 "personal_data_purged",
                 extra={
@@ -286,6 +296,7 @@ class PersonalDataService:
                     "identities": identities,
                     "workspaces": workspaces,
                     "dataset_cases": dataset_cases,
+                    "scored_answers": scored_answers,
                 },
             )
         return PersonalDataPurge(
@@ -293,4 +304,5 @@ class PersonalDataService:
             channel_identities=identities,
             workspaces=workspaces,
             dataset_cases=dataset_cases,
+            scored_answers=scored_answers,
         )

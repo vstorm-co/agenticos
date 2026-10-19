@@ -21,6 +21,7 @@ import { ErrorState } from "@/components/states";
 import {
   InviteLinkDialog,
   InviteMemberDialog,
+  OrgAiAssistance,
   OrgApprovalWaiver,
   OrgAssistant,
   OrgSpendingLimit,
@@ -465,6 +466,7 @@ export default function OrgMembersPage({ params }: PageProps) {
           approval in the first place. */}
       {org && <OrgApprovalWaiver org={org} />}
 
+      {org && <OrgAiAssistance org={org} />}
       {/* Whether the organization has its AI Architect, and how it greets people.
           The agent itself is edited in the Builder, which the card links to. */}
       <OrgAssistant orgId={id} />

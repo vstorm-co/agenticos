@@ -6,17 +6,23 @@ from datetime import datetime
 from typing import Literal, get_args
 from uuid import UUID
 
-from pydantic import ConfigDict, Field, JsonValue, ValidationError, field_validator, model_validator
+from pydantic import Field, ValidationError, field_validator, model_validator
 from pydantic_core import InitErrorDetails, PydanticCustomError
 
 from app.schemas.base import BaseSchema
 from app.schemas.resource_grant import VisibilityLiteral
+from app.schemas.scoring import (
+    CHECK,
+    CaseCheck,
+    DatasetScoring,
+    ExpectedToolCall,
+    ToolOrderModeLiteral,
+)
 
 CaseSourceLiteral = Literal["manual", "import", "conversation", "synthetic"]
 DatasetChangeLiteral = Literal["add", "edit", "remove", "import"]
 DatasetSort = Literal["name", "updated"]
 DatasetFileFormat = Literal["csv", "jsonl"]
-ToolOrderModeLiteral = Literal["any", "in_order", "exact"]
 
 # One field of a case. Generous enough for a long conversation turn or a whole
 # reference document, bounded so one import row cannot be a hundred megabytes.
@@ -37,33 +43,11 @@ class CaseMessage(BaseSchema):
     content: str = Field(max_length=MAX_CASE_TEXT)
 
 
-class ExpectedToolCall(BaseSchema):
-    """A tool the agent should call, and the arguments that must match.
-
-    `args` is a subset: a call passes when every key given here is present with
-    this value, whatever else the agent also sent. Empty means only the tool name
-    is checked.
-    """
-
-    tool: str = Field(min_length=1, max_length=200)
-    args: dict[str, JsonValue] = Field(default_factory=dict)
-
-
-class CaseCheck(BaseSchema):
-    """One rule a case's answer is scored against, named by `type`.
-
-    Only the shape is fixed here: an object with a `type`, and that rule's own
-    parameters beside it. Which types exist and what each requires belongs to
-    scoring, which reads these - and whatever it later refuses, it must still
-    accept the checks datasets already hold.
-    """
-
-    model_config = ConfigDict(
-        from_attributes=True, populate_by_name=True, str_strip_whitespace=True, extra="allow"
-    )
-    __pydantic_extra__: dict[str, JsonValue] = Field(init=False)
-
-    type: str = Field(min_length=1, max_length=64)
+def _known_checks(checks: list[CaseCheck]) -> list[CaseCheck]:
+    """Refuse a check scoring does not know, or one whose parameters it would refuse."""
+    for check in checks:
+        CHECK.validate_python(check.model_dump(by_alias=True))
+    return checks
 
 
 def _clean_tags(tags: list[str]) -> list[str]:
@@ -121,6 +105,11 @@ class DatasetCaseContent(BaseSchema):
     def _tags(cls, tags: list[str]) -> list[str]:
         return _clean_tags(tags)
 
+    @field_validator("checks")
+    @classmethod
+    def _checks(cls, checks: list[CaseCheck]) -> list[CaseCheck]:
+        return _known_checks(checks)
+
     @model_validator(mode="after")
     def _expects_something(self) -> DatasetCaseContent:
         """Refuse a case with only an input: nothing could score the answer to it.
@@ -164,8 +153,44 @@ class DatasetCaseUpdate(BaseSchema):
     def _tags(cls, tags: list[str] | None) -> list[str] | None:
         return None if tags is None else _clean_tags(tags)
 
+    @field_validator("checks")
+    @classmethod
+    def _checks(cls, checks: list[CaseCheck] | None) -> list[CaseCheck] | None:
+        return None if checks is None else _known_checks(checks)
 
-class DatasetCaseRead(DatasetCaseContent):
+
+class EditedCaseContent(DatasetCaseContent):
+    """An edit merged onto a stored case.
+
+    The stored tags and checks are kept as they were written, so a rule that
+    tightened since does not refuse an edit to another field; the case as a whole
+    must still expect something.
+    """
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def _tags(cls, tags: list[str]) -> list[str]:
+        # Stored tags were cleaned on the way in; re-cleaning on the way out
+        # would turn a later tightening of the rule into a listing that 500s.
+        return tags
+
+    @field_validator("checks")
+    @classmethod
+    def _checks(cls, checks: list[CaseCheck]) -> list[CaseCheck]:
+        # The same reason: a check stored before a rule tightened is still read.
+        return checks
+
+
+class StoredCaseContent(EditedCaseContent):
+    """A case's content as a stored revision holds it, read without re-judging it."""
+
+    @model_validator(mode="after")
+    def _expects_something(self) -> StoredCaseContent:
+        # Cases stored before a case had to expect something still list and export.
+        return self
+
+
+class DatasetCaseRead(StoredCaseContent):
     """One case as a version holds it.
 
     `case_id` is the case across its edits; `id` is this revision of it, which is
@@ -181,18 +206,6 @@ class DatasetCaseRead(DatasetCaseContent):
     created_by_user_id: UUID | None = None
     created_at: datetime
 
-    @field_validator("tags", mode="before")
-    @classmethod
-    def _tags(cls, tags: list[str]) -> list[str]:
-        # Stored tags were cleaned on the way in; re-cleaning on the way out
-        # would turn a later tightening of the rule into a listing that 500s.
-        return tags
-
-    @model_validator(mode="after")
-    def _expects_something(self) -> DatasetCaseRead:
-        # Cases stored before a case had to expect something still list and export.
-        return self
-
 
 class DatasetCaseList(BaseSchema):
     items: list[DatasetCaseRead]
@@ -203,6 +216,13 @@ class DatasetCaseList(BaseSchema):
 class DatasetCreate(BaseSchema):
     name: str = Field(min_length=1, max_length=120, description="Unique per organization")
     description: str | None = Field(default=None, max_length=500)
+    visibility: VisibilityLiteral = Field(
+        default="org",
+        description=(
+            "Who sees it: the whole organization unless it starts `private` to its "
+            "creator, or `team`"
+        ),
+    )
 
 
 class DatasetUpdate(BaseSchema):
@@ -217,6 +237,19 @@ class DatasetTagCount(BaseSchema):
     cases: int
 
 
+class ExpectationMix(BaseSchema):
+    """How many cases hold this combination of what a scorer reads.
+
+    `reference` is a reference answer or a counter-example: the reference
+    comparison's judge grades either.
+    """
+
+    checks: bool
+    tool_calls: bool
+    reference: bool
+    cases: int
+
+
 class DatasetStats(BaseSchema):
     """What the newest version's cases test against, counted.
 
@@ -228,6 +261,13 @@ class DatasetStats(BaseSchema):
     with_counter_example: int = Field(default=0, description="Cases with a counter-example")
     with_tool_calls: int = Field(default=0, description="Cases expecting at least one tool call")
     with_checks: int = Field(default=0, description="Cases with at least one check")
+    expectation_mix: list[ExpectationMix] = Field(
+        default_factory=list,
+        description=(
+            "Cases counted by whether each has checks, expected tool calls and a reference "
+            "answer at once - what tells which cases a grading setup would grade nothing on"
+        ),
+    )
     by_source: dict[CaseSourceLiteral, int] = Field(
         default_factory=lambda: dict.fromkeys(get_args(CaseSourceLiteral), 0)
     )
@@ -246,6 +286,16 @@ class DatasetRead(BaseSchema):
     case_count: int
     can_edit: bool = Field(
         default=False, description="Whether the caller may change this dataset's cases"
+    )
+    scoring: DatasetScoring = Field(
+        default_factory=DatasetScoring, description="How this dataset's cases are scored"
+    )
+    judge_name: str | None = Field(
+        default=None,
+        description=(
+            "The judge that grades this dataset: the one picked in its scoring, or the "
+            "default eval judge. Null when the judge it names no longer exists."
+        ),
     )
     stats: DatasetStats = Field(default_factory=DatasetStats)
     created_at: datetime

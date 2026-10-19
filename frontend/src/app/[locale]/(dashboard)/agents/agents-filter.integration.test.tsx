@@ -30,6 +30,8 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
   // The header's "?" reads the path to decide whether this page has tips.
   usePathname: () => "/agents",
+  // The Judges band opens for `?section=judges`.
+  useSearchParams: () => new URLSearchParams(),
 }));
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => true }) }));
 

@@ -35,6 +35,7 @@ from app.db.models.credential import ModelProfile
 from app.repositories import credential_repo, organization_secret_repo
 from app.services.model_catalog import models_for
 from app.services.organization_secret import OrganizationSecretService
+from app.services.system_agents import SystemAgentService
 
 logger = logging.getLogger(__name__)
 
@@ -255,6 +256,7 @@ class ModelProfileService:
             target_id=str(profile.id),
             details={"label": label, "provider": provider, "model": model},
         )
+        await SystemAgentService(self.db).adopt_model(organization_id=ctx.organization_id)
         return profile
 
     async def _context_length(self, ctx: AuthContext, provider: str, model: str) -> int | None:

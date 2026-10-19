@@ -53,6 +53,9 @@ class LockScope(IntEnum):
     #: just ingested, because the older one never saw it (#987). Session-scoped,
     #: unlike the rest: a sync spans many transactions.
     SYNC_SOURCE_RUN = 7
+    #: One case's place in its dataset's review queue: a send reads which score
+    #: waits, then queues or replaces it, and two at once must not both read none.
+    REVIEW_PER_CASE = 8
 
 
 def _key(subject: UUID) -> int:

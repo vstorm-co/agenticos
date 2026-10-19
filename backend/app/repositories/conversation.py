@@ -977,6 +977,42 @@ async def get_messages_before(
     return list(result.scalars().all())
 
 
+async def get_messages_following(
+    db: AsyncSession, conversation_id: UUID, *, organization_id: UUID, ordinal: int, limit: int
+) -> list[Message]:
+    """The first `limit` messages written after `ordinal`, oldest first.
+
+    The rest of one turn: the steps an agent wrote after one of its own, up to
+    the next question. Without the attachments, as `get_messages_before`.
+    """
+    query = (
+        select(Message)
+        .where(
+            Message.conversation_id == conversation_id,
+            Message.ordinal > ordinal,
+            Message.conversation_id.in_(
+                select(Conversation.id).where(Conversation.organization_id == organization_id)
+            ),
+        )
+        .order_by(Message.ordinal.asc())
+        .limit(limit)
+    )
+    result = await db.execute(query)
+    return list(result.scalars().all())
+
+
+async def tool_calls_of_messages(db: AsyncSession, message_ids: list[UUID]) -> list[ToolCall]:
+    """The tool calls these messages made, in the order they were made."""
+    query = (
+        select(ToolCall)
+        .join(Message, Message.id == ToolCall.message_id)
+        .where(ToolCall.message_id.in_(message_ids))
+        .order_by(Message.ordinal.asc(), ToolCall.started_at.asc())
+    )
+    result = await db.execute(query)
+    return list(result.scalars().all())
+
+
 async def get_messages_after(
     db: AsyncSession, conversation_id: UUID, *, ordinal: int, limit: int
 ) -> list[Message]:

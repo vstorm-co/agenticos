@@ -18,6 +18,7 @@ import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { RunStatusBadge } from "@/components/agents/status-badge";
 import { SurfaceIcon, surfaceLabel } from "@/components/runs/surface-icon";
 import { RunManifest } from "@/components/runs/run-manifest";
+import { RunMoreMenu } from "@/components/runs/run-more-menu";
 import { RunTimeline } from "@/components/runs/run-timeline";
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
@@ -209,6 +210,9 @@ export function FocusedRun({
                 <Play className="h-4 w-4" aria-hidden />
                 {t("resumeRun")}
               </Button>
+            )}
+            {run.conversation_id !== null && can(Perm.datasetsRun) && (
+              <RunMoreMenu runId={run.id} />
             )}
             <Button
               variant="ghost"

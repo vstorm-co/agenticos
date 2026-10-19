@@ -74,6 +74,7 @@ export default defineConfig({
         "src/components/dashboard/me-header.tsx",
         "src/components/dashboard/widgets/artifacts.tsx",
         "src/components/dashboard/widgets/datasets.tsx",
+        "src/components/dashboard/widgets/review-queue.tsx",
         "src/components/datasets/**/*.{ts,tsx}",
         // Department budgets (#2072): the dashboard card and the group page's.
         "src/components/dashboard/widgets/department-spend.tsx",

@@ -59,7 +59,14 @@ def _named(**attributes: object) -> MagicMock:
 
 
 def _agent(*, agent_id: uuid.UUID | None = None, name: str = "Nightly") -> MagicMock:
-    return _named(id=agent_id or uuid.uuid4(), name=name, has_avatar=True, avatar_color=3)
+    return _named(
+        id=agent_id or uuid.uuid4(),
+        name=name,
+        has_avatar=True,
+        avatar_color=3,
+        system_key=None,
+        kind="agent",
+    )
 
 
 def _service(agent: MagicMock | None = None) -> AgentTriggerService:

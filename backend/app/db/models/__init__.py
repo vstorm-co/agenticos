@@ -83,6 +83,7 @@ from app.db.models.artifact import (
     ArtifactMediaType,
     ArtifactVersion,
 )
+from app.db.models.case_score import CaseScore
 from app.db.models.dataset import Dataset, DatasetCase, DatasetVersion, DatasetVersionCase
 
 __all__ = [
@@ -99,6 +100,7 @@ __all__ = [
     "ArtifactFollower",
     "ArtifactMediaType",
     "ArtifactVersion",
+    "CaseScore",
     "Dataset",
     "DatasetCase",
     "DatasetVersion",

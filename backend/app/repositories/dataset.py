@@ -10,7 +10,7 @@ from collections.abc import Sequence
 from typing import Any, get_args
 from uuid import UUID
 
-from sqlalchemy import func, insert, literal, select, true
+from sqlalchemy import and_, func, insert, literal, or_, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import Scope
@@ -22,7 +22,13 @@ from app.db.models.dataset import (
 )
 from app.repositories._search import contains_ci
 from app.repositories._visibility import reached_by_scope, shared_with_caller, visible_to_caller
-from app.schemas.dataset import CaseSourceLiteral, DatasetSort, DatasetStats, DatasetTagCount
+from app.schemas.dataset import (
+    CaseSourceLiteral,
+    DatasetSort,
+    DatasetStats,
+    DatasetTagCount,
+    ExpectationMix,
+)
 
 
 async def get(db: AsyncSession, dataset_id: UUID, *, organization_id: UUID) -> Dataset | None:
@@ -66,6 +72,8 @@ async def list_visible(
     edit_scope: Scope | None = None,
     edit_ids: Sequence[UUID] = (),
     search: str | None = None,
+    judge_id: UUID | None = None,
+    judge_is_default: bool = False,
     sort: DatasetSort = "name",
     skip: int = 0,
     limit: int = 50,
@@ -79,6 +87,9 @@ async def list_visible(
         edit_scope: Narrow to the rows the caller may also edit: their role's
             scope for editing, with `edit_ids` granted at edit level. None
             narrows nothing.
+        judge_id: Narrow to the datasets of this judge: the ones that picked
+            it, grading or not, and when `judge_is_default` the ones that
+            picked none and grade with the judge or the reference comparison.
     """
     where = [Dataset.organization_id == organization_id]
     if shared_with_me:
@@ -114,6 +125,17 @@ async def list_visible(
         )
     if search:
         where.append(contains_ci(Dataset.name, search) | contains_ci(Dataset.description, search))
+    if judge_id is not None:
+        picked = Dataset.scoring["judge"]["agent_id"].astext
+        grading = or_(
+            Dataset.scoring["judge"]["enabled"].as_boolean().is_(True),
+            Dataset.scoring["reference"]["enabled"].as_boolean().is_(True),
+        )
+        where.append(
+            or_(picked == str(judge_id), and_(picked.is_(None), grading))
+            if judge_is_default
+            else picked == str(judge_id)
+        )
 
     order_by = (
         (func.coalesce(Dataset.updated_at, Dataset.created_at).desc(), Dataset.name.asc())
@@ -134,12 +156,14 @@ async def create(
     owner_user_id: UUID | None,
     name: str,
     description: str | None,
+    visibility: str,
 ) -> Dataset:
     dataset = Dataset(
         organization_id=organization_id,
         owner_user_id=owner_user_id,
         name=name,
         description=description,
+        visibility=visibility,
     )
     db.add(dataset)
     await db.flush()
@@ -226,8 +250,13 @@ async def list_cases(
     organization_id: UUID,
     skip: int = 0,
     limit: int | None = 50,
+    same_input: str | None = None,
 ) -> list[DatasetCase]:
-    """A version's cases in their order. `limit=None` reads them all, for an export."""
+    """A version's cases in their order. `limit=None` reads them all, for an export.
+
+    `same_input` keeps the cases asking that question, compared without regard
+    to case, surrounding space or how the space inside it runs.
+    """
     query = (
         select(DatasetCase)
         .join(DatasetVersionCase, DatasetVersionCase.case_revision_id == DatasetCase.id)
@@ -238,6 +267,9 @@ async def list_cases(
         .order_by(DatasetVersionCase.position.asc())
         .offset(skip)
     )
+    if same_input is not None:
+        spaced = func.btrim(func.regexp_replace(DatasetCase.input, r"\s+", " ", "g"))
+        query = query.where(func.lower(spaced) == " ".join(same_input.split()).lower())
     if limit is not None:
         query = query.limit(limit)
     result = await db.execute(query)
@@ -287,26 +319,48 @@ async def case_stats(
         .subquery()
     )
     sources: tuple[CaseSourceLiteral, ...] = get_args(CaseSourceLiteral)
+    has_reference = func.nullif(held.c.reference_answer, "").is_not(None)
+    has_counter = func.nullif(held.c.counter_example, "").is_not(None)
+    compared = has_reference | has_counter
+    has_calls = func.jsonb_array_length(held.c.expected_tool_calls) > 0
+    has_checks = func.jsonb_array_length(held.c.checks) > 0
+    mixes = [
+        (checks, calls, reference)
+        for checks in (False, True)
+        for calls in (False, True)
+        for reference in (False, True)
+    ]
     counts = await db.execute(
         select(
             held.c.dataset_id,
-            func.count().filter(func.nullif(held.c.reference_answer, "").is_not(None)),
-            func.count().filter(func.nullif(held.c.counter_example, "").is_not(None)),
-            func.count().filter(func.jsonb_array_length(held.c.expected_tool_calls) > 0),
-            func.count().filter(func.jsonb_array_length(held.c.checks) > 0),
+            func.count().filter(has_reference),
+            func.count().filter(has_counter),
+            func.count().filter(has_calls),
+            func.count().filter(has_checks),
             *(func.count().filter(held.c.source == source) for source in sources),
+            *(
+                func.count().filter(
+                    has_checks.is_(checks), has_calls.is_(calls), compared.is_(reference)
+                )
+                for checks, calls, reference in mixes
+            ),
         ).group_by(held.c.dataset_id)
     )
-    stats = {
-        row[0]: DatasetStats(
+    stats = {}
+    for row in counts.all():
+        mixed = row[5 + len(sources) :]
+        stats[row[0]] = DatasetStats(
             with_reference=row[1],
             with_counter_example=row[2],
             with_tool_calls=row[3],
             with_checks=row[4],
-            by_source=dict(zip(sources, row[5:], strict=True)),
+            by_source=dict(zip(sources, row[5 : 5 + len(sources)], strict=True)),
+            expectation_mix=[
+                ExpectationMix(checks=checks, tool_calls=calls, reference=reference, cases=cases)
+                for (checks, calls, reference), cases in zip(mixes, mixed, strict=True)
+                if cases > 0
+            ],
         )
-        for row in counts.all()
-    }
 
     tag = func.jsonb_array_elements_text(held.c.tags).table_valued("value").lateral("tag")
     used = func.count()
@@ -355,6 +409,23 @@ async def find_case(
     )
     row = result.one_or_none()
     return None if row is None else (row[0], row[1])
+
+
+async def case_from_message(
+    db: AsyncSession, version_id: UUID, message_id: UUID, *, organization_id: UUID
+) -> DatasetCase | None:
+    """The case of a version made from this agent answer, if one was."""
+    result = await db.execute(
+        select(DatasetCase)
+        .join(DatasetVersionCase, DatasetVersionCase.case_revision_id == DatasetCase.id)
+        .where(
+            DatasetVersionCase.version_id == version_id,
+            DatasetCase.source_message_id == message_id,
+            DatasetCase.organization_id == organization_id,
+        )
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
 
 
 async def last_position(db: AsyncSession, version_id: UUID, *, organization_id: UUID) -> int:

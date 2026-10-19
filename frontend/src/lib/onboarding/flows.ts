@@ -798,7 +798,7 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       {
         id: "flow-dataset-sources",
         page: DATASET_DETAIL,
-        target: "dataset-file-actions",
+        target: "datasets-menu",
         permission: Perm.datasetsEdit,
       },
     ],
@@ -935,6 +935,7 @@ export function flowForPage(pageId: string): FlowId | null {
     case ROUTES.ROUTINES:
       return "create-routine";
     case ROUTES.DATASETS:
+    case DATASET_DETAIL:
       return "create-dataset";
     case ROUTES.ORGS:
     case ORG_MEMBERS:

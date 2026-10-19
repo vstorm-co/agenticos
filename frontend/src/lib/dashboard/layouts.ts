@@ -332,8 +332,9 @@ const ME_SECTIONS: SectionDef[] = [
       { widget: "my-quality", span: "s6", rows: "r3" },
       { widget: "shared-with-you", span: "s6", rows: "r3" },
       // Every role reads datasets, and a member collecting cases from their own
-      // ratings is who this page is for.
-      { widget: "datasets", span: "s12", rows: "r3" },
+      // ratings and deciding the scores sent for review is who this page is for.
+      { widget: "datasets", span: "s6", rows: "r3" },
+      { widget: "review-queue", span: "s6", rows: "r3" },
     ],
   },
   {

@@ -66,6 +66,8 @@ def _export() -> PersonalDataExport:
         tool_calls=[],
         memberships=[],
         ratings=[],
+        case_verdicts=[],
+        scored_answers=[],
         sessions=[],
         runs=[],
         memory=[],

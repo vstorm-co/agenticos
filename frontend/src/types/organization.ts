@@ -43,6 +43,12 @@ export interface Organization {
    * take it is `approvals:decide`, which is a different question.
    */
   chat_may_waive_approvals: boolean;
+  /**
+   * Whether models may assist evals and authoring here - the eval judge, the case
+   * generator, the authoring assistant. Off, the backend refuses those runs;
+   * deterministic checks and a person's verdicts stay available.
+   */
+  ai_assistance_enabled: boolean;
   created_at: string;
   updated_at: string | null;
 }

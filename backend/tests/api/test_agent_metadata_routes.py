@@ -24,7 +24,7 @@ from httpx import ASGITransport, AsyncClient
 from app.api import deps
 from app.core.config import settings
 from app.core.permissions import AuthContext, OrgRoleName
-from app.db.models.agent import Agent, AgentStatus
+from app.db.models.agent import Agent, AgentKind, AgentStatus
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.main import app
 from app.services.agent_registry import AgentRegistryService
@@ -48,6 +48,7 @@ def _agent(*, categories: list[str] | None = None, tags: list[str] | None = None
         name="Support",
         description=None,
         status=AgentStatus.DRAFT.value,
+        kind=AgentKind.AGENT.value,
         draft_spec={},
         categories=categories or [],
         tags=tags or [],

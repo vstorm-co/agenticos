@@ -12,6 +12,7 @@ from app.agents.ask_user import QuestionItem
 from app.agents.capabilities import CapabilityToolInfo
 from app.agents.spec import AgentSpec, CapabilityBindingSpec, DelegationMode, SpecialistSpec
 from app.core.secret_kinds import SecretRequirement
+from app.db.models.agent import AgentKind
 from app.schemas.base import BaseSchema
 from app.schemas.resource_grant import AudienceChoice
 
@@ -124,6 +125,20 @@ class AgentRead(BaseSchema):
     visibility: str
     owner_user_id: UUID | None = None
     current_version_id: UUID | None = None
+    system_key: str | None = Field(
+        default=None,
+        description=(
+            "Set on an agent the platform seeded and starts itself - `eval_judge` for "
+            "the default eval judge. It is edited and shared like any agent."
+        ),
+    )
+    kind: AgentKind = Field(
+        default=AgentKind.AGENT,
+        description=(
+            "`judge` for an agent that grades evals: only the platform runs it, and "
+            "the console lists it apart, without chat, channels or delegation."
+        ),
+    )
     has_avatar: bool = Field(
         default=False,
         description=(

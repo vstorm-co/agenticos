@@ -33,6 +33,7 @@ export const qk = {
   organizations: {
     all: () => ["organizations"] as const,
     list: () => ["organizations", "list"] as const,
+    detail: (orgId: string) => ["organizations", orgId, "detail"] as const,
     members: (orgId: string) => ["organizations", orgId, "members"] as const,
     permissions: (orgId: string) => ["organizations", orgId, "permissions"] as const,
     roleCatalog: () => ["organizations", "role-catalog"] as const,
@@ -75,6 +76,7 @@ export const qk = {
     // create a trigger anywhere". Its own key, not a list page's, and under
     // "agents" so the same invalidations that move the list refresh the answer.
     anyRunnable: () => ["agents", "any-runnable"] as const,
+    judges: () => ["agents", "judges"] as const,
     detail: (id: string) => ["agents", id] as const,
     templates: () => ["agents", "templates"] as const,
     // The page is part of the key: a history past its page size is several
@@ -324,17 +326,39 @@ export const qk = {
   },
   datasets: {
     all: () => ["datasets"] as const,
+    lists: () => ["datasets", "list"] as const,
     list: (query: {
       search: string;
       sort: string;
       skip: number;
       limit: number;
       editable: boolean;
+      judge: string;
     }) => ["datasets", "list", query] as const,
     detail: (id: string) => ["datasets", id] as const,
     versions: (id: string) => ["datasets", id, "versions"] as const,
     cases: (id: string, query: { version: number | null; skip: number; limit: number }) =>
       ["datasets", id, "cases", query] as const,
+    case: (id: string, caseId: string) => ["datasets", id, "case", caseId] as const,
+    allScores: (id: string) => ["datasets", id, "scores"] as const,
+    scores: (
+      id: string,
+      query: {
+        caseId: string | null;
+        pending: boolean;
+        outcome: string | null;
+        agentId: string | null;
+        judgeId: string | null;
+        tag: string | null;
+        skip: number;
+        limit: number;
+      },
+    ) => ["datasets", id, "scores", query] as const,
+    allReviewQueue: () => ["datasets", "review-queue"] as const,
+    judgeAgreement: (judgeId: string) => ["datasets", "judge-agreement", judgeId] as const,
+    judgeTemplate: (id: string) => ["datasets", id, "judge-template"] as const,
+    reviewQueue: (query: { skip: number; limit: number }) =>
+      ["datasets", "review-queue", query] as const,
   },
   context: {
     all: () => ["context"] as const,

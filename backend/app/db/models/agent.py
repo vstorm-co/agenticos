@@ -24,6 +24,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY as PG_ARRAY
 from sqlalchemy.dialects.postgresql import JSONB
@@ -46,6 +47,19 @@ class AgentStatus(enum.StrEnum):
     DRAFT = "draft"
     PUBLISHED = "published"
     ARCHIVED = "archived"
+
+
+class AgentKind(enum.StrEnum):
+    """What an agent is for.
+
+    `AGENT` is one people use: chat, the API, channels, embeds, schedules,
+    delegation. `JUDGE` grades answers for evals; only the platform runs it, and
+    it is listed apart. An organization may hold many judges - the default one
+    the platform seeds, and one per dataset that wants its own.
+    """
+
+    AGENT = "agent"
+    JUDGE = "judge"
 
 
 class Agent(Base, TimestampMixin):
@@ -123,6 +137,13 @@ class Agent(Base, TimestampMixin):
         nullable=True,
     )
 
+    # The key, not the slug, identifies a seeded agent: the slug derives from a
+    # name people may change, and a person's own agent may already hold it.
+    system_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    kind: Mapped[str] = mapped_column(
+        String(16), nullable=False, default=AgentKind.AGENT.value, server_default="agent"
+    )
+
     # Declared here as well as in the migration: a schema built from the models
     # - which is what the integration tests and some dev setups do - would
     # otherwise accept values the production database rejects, and the tests
@@ -131,11 +152,19 @@ class Agent(Base, TimestampMixin):
         UniqueConstraint("organization_id", "slug", name="uq_agent_org_slug"),
         CheckConstraint("status IN ('draft', 'published', 'archived')", name="ck_agent_status"),
         CheckConstraint("visibility IN ('private', 'team', 'org')", name="ck_agent_visibility"),
+        CheckConstraint("kind IN ('agent', 'judge')", name="ck_agent_kind"),
         # GIN so the discovery filter's `categories && ARRAY[...]` overlap is an
         # index scan. Declared here as well as in the migration for the reason the
         # comment above says: a schema built from the models must carry them too.
         Index("ix_agents_categories", "categories", postgresql_using="gin"),
         Index("ix_agents_tags", "tags", postgresql_using="gin"),
+        Index(
+            "uq_agents_org_system_key",
+            "organization_id",
+            "system_key",
+            unique=True,
+            postgresql_where=text("system_key IS NOT NULL"),
+        ),
     )
 
     @property

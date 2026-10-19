@@ -197,13 +197,14 @@ function TimelineGroup({
       </button>
       {open && (
         <ol className="space-y-4 px-1 pt-3">
-          {group.items.map((item) => (
+          {group.items.map((item, index) => (
             <TimelineTurn
               key={item.id}
               item={item}
               runId={runId}
               ownTurn={anchored}
               locale={locale}
+              reply={replyEndingAt(group.items, index)}
             />
           ))}
         </ol>
@@ -212,11 +213,28 @@ function TimelineGroup({
   );
 }
 
+/**
+ * The agent's reply that `items[index]` ends - the steps it wrote in a row, a
+ * tool call's and the answer's alike - with whether anybody rated one of them
+ * down, or `null` when the reply goes on past it.
+ */
+function replyEndingAt(
+  items: RunTranscriptMessage[],
+  index: number,
+): { ratedDown: boolean } | null {
+  if (items[index]!.role !== "assistant" || items[index + 1]?.role === "assistant") return null;
+  let start = index;
+  while (start > 0 && items[start - 1]!.role === "assistant") start -= 1;
+  const steps = items.slice(start, index + 1);
+  return { ratedDown: steps.some((step) => (step.rating_count?.dislikes ?? 0) > 0) };
+}
+
 function TimelineTurn({
   item,
   runId,
   ownTurn,
   locale,
+  reply,
 }: {
   item: RunTranscriptMessage;
   /**
@@ -230,6 +248,8 @@ function TimelineTurn({
   /** Written by the focused run - marked, where the rest of the thread is context. */
   ownTurn: boolean;
   locale: string;
+  /** The agent's reply this turn ends, which is added to a dataset as one case. */
+  reply: { ratedDown: boolean } | null;
 }) {
   const t = useTranslations("pages.runs");
 
@@ -273,9 +293,9 @@ function TimelineTurn({
             {t("ratedDownCount", { count: dislikes })}
           </span>
         )}
-        {item.role === "assistant" && (
+        {reply !== null && (
           <span className="ml-auto">
-            <AddToDatasetButton messageId={item.id} ratedDown={dislikes > 0} />
+            <AddToDatasetButton messageId={item.id} ratedDown={reply.ratedDown} />
           </span>
         )}
       </div>

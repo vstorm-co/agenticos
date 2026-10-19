@@ -13,6 +13,7 @@ import {
   useAddToAgent,
   useCapabilityCatalog,
   useDelegationTree,
+  useJudges,
   usePromptVariables,
 } from "./use-agents";
 import { useAgentEnvironments } from "./use-agent-environments";
@@ -51,6 +52,25 @@ function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
+
+describe("useJudges", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("asks for the organization's judges alone", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [{ id: "j1", slug: "eval-judge", name: "Eval judge", system_key: "eval_judge" }],
+      total: 1,
+    });
+
+    const { result } = renderHook(() => useJudges(), { wrapper });
+
+    await waitFor(() => expect(result.current.total).toBe(1));
+    expect(result.current.agents[0]?.name).toBe("Eval judge");
+    expect(apiClient.get).toHaveBeenCalledWith("/agents", {
+      params: { kind: "judge", limit: "100" },
+    });
+  });
+});
 
 describe("useAgents", () => {
   beforeEach(() => vi.clearAllMocks());

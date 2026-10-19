@@ -64,6 +64,7 @@ def service() -> MagicMock:
     stub.list_readable = AsyncMock(return_value=DatasetList(items=[_DATASET], total=1))
     stub.create = AsyncMock(return_value=_DATASET)
     stub.read = AsyncMock(return_value=_DATASET)
+    stub.read_case = AsyncMock(return_value=_CASE)
     stub.update = AsyncMock(return_value=_DATASET)
     stub.delete = AsyncMock(return_value=None)
     stub.list_versions = AsyncMock(return_value=DatasetVersionList(items=[_VERSION], total=1))
@@ -101,7 +102,7 @@ def _url(suffix: str = "") -> str:
     return f"{settings.API_V1_STR}/datasets{suffix}"
 
 
-async def test_each_route_answers_with_its_status(client: OpenClient) -> None:
+async def test_each_route_answers_with_its_status(client: OpenClient, service: MagicMock) -> None:
     dataset = f"/{_DATASET.id}"
     case = f"{dataset}/cases/{_CASE.case_id}"
     async with client() as http:
@@ -111,6 +112,7 @@ async def test_each_route_answers_with_its_status(client: OpenClient) -> None:
         renamed = await http.patch(_url(dataset), json={"description": "x"})
         versions = await http.get(_url(f"{dataset}/versions"))
         cases = await http.get(_url(f"{dataset}/cases?version=1"))
+        twins = await http.get(_url(f"{dataset}/cases?same_input=Refund%20window%3F"))
         added = await http.post(
             _url(f"{dataset}/cases"), json={"input": "q", "reference_answer": "a"}
         )
@@ -127,6 +129,8 @@ async def test_each_route_answers_with_its_status(client: OpenClient) -> None:
     assert renamed.status_code == 200
     assert versions.json()["items"][0]["number"] == 2
     assert cases.json()["version"] == 1
+    assert twins.status_code == 200
+    assert service.list_cases.call_args.kwargs["same_input"] == "Refund window?"
     assert added.status_code == 201
     assert from_message.status_code == 201
     assert edited.status_code == 200
@@ -143,6 +147,15 @@ async def test_the_listing_narrows_to_what_the_caller_may_edit_when_asked(
     asked, plain = service.list_readable.await_args_list
     assert (asked.kwargs["editable"], asked.kwargs["limit"]) == (True, 1)
     assert plain.kwargs["editable"] is False
+
+
+async def test_the_judge_filter_reaches_the_service(client: OpenClient, service: MagicMock) -> None:
+    judge_id = uuid.uuid4()
+    async with client() as http:
+        await http.get(_url(f"?judge={judge_id}"))
+        await http.get(_url())
+    narrowed, plain = service.list_readable.await_args_list
+    assert (narrowed.kwargs["judge_id"], plain.kwargs["judge_id"]) == (judge_id, None)
 
 
 async def test_a_case_that_expects_nothing_is_refused_naming_the_field(
@@ -202,3 +215,14 @@ async def test_a_dataset_the_service_will_not_show_is_a_404(
     async with client() as http:
         response = await http.get(_url(f"/{uuid.uuid4()}"))
     assert response.status_code == 404
+
+
+async def test_one_case_is_read_at_the_version_asked(
+    client: OpenClient, service: MagicMock
+) -> None:
+    async with client() as http:
+        read = await http.get(_url(f"/{_DATASET.id}/cases/{_CASE.case_id}?version=2"))
+
+    assert read.json()["case_id"] == str(_CASE.case_id)
+    _, kwargs = service.read_case.call_args
+    assert kwargs == {"version": 2}

@@ -1,5 +1,5 @@
 ---
-source_sha: "4d7e8773dd9e"
+source_sha: "1188eccc0c95"
 ---
 
 # Governance { #governance }
@@ -1236,10 +1236,12 @@ un relay SMTP caído — sin que el otro se entere jamás.
 
 Los dos canales se activan por separado, evento a evento, en **Settings →
 Notifications** — una persona puede conservar la fila en la aplicación para
-las aprobaciones y apagar su correo, o al revés. La misma página lleva además
-cada uno de los demás eventos que entrega el buzón: un run que termina o falla
-desatendido, la ingesta de un documento que **falla**, la cifra propia de un
-ciclo completo de sincronización de un conector, y el propio
+las aprobaciones y apagar su correo, o al revés.
+
+La misma página lleva además cada uno de los demás eventos que entrega el
+buzón: un run que termina o falla desatendido (salvo un run `eval`, uno de los
+muchos que inicia una eval), la ingesta de un documento que **falla**, la cifra
+propia de un ciclo completo de sincronización de un conector, y el propio
 anuncio de un app admin - `POST /admin/announcements`, todavía sin página en
 la consola - dirigido por organización y, opcionalmente, por rol, y
 restringido a uno o ambos canales.
@@ -1439,6 +1441,37 @@ que ningún informe, porque los dos números parecen autoritativos.
 
 El envío nunca bloquea y nunca lanza hacia quien llama: un run que ya ha terminado no
 debe fallar otra vez porque SMTP estuviera caído.
+
+## Asistencia de IA { #ai-assistance }
+
+Un interruptor, en los ajustes de la organización en su página de miembros,
+decide si los modelos asisten en las evals y la autoría de la organización: el
+juez de evals que califica las [puntuaciones de datasets](datasets.md#judge), y
+el generador de casos, el asistente de autoría y los borradores de lagunas de
+conocimiento que vienen después. Está desactivado por defecto, tanto en una
+organización que existía antes del interruptor como en una nueva: si los
+modelos califican y redactan es una decisión de la organización, y lo activa
+quien tenga `org:settings`. Cada cambio queda registrado en el
+[registro de auditoría](#audit) como `organization.ai_assistance`, con quién lo
+hizo.
+
+Cuando está desactivado, el servicio que iniciaría un run así lo rechaza, sea
+cual sea el cliente que lo pida: un control oculto no es la frontera. La
+puntuación sigue ejecutando sus comprobaciones basadas en reglas y la
+comparación de llamadas a herramientas, registra los criterios del juez como
+omitidos con el motivo, y deja sin puntuar, en lugar de aprobado, un caso cuyo
+juez era obligatorio. Los veredictos de las personas siguen disponibles.
+
+Estas funciones se ejecutan como [jueces](concepts.md#system-agents). Cada run
+es un run normal: se comprueba contra el budget mensual propio del juez y el de
+la organización antes de cada llamada al modelo, su coste se registra y aparece
+en Activity bajo la superficie `eval`. Un juez empieza con un budget propio
+($5 al mes), que se puede cambiar como el de cualquier agent.
+
+Un juez nunca se expone: no se le puede conectar un canal, un
+embed, una página pública ni una programación, ningún agent puede delegar en
+él, y un run suyo en cualquier superficie que no sea `eval` se rechaza. Su gasto
+solo lo inician las funciones descritas arriba.
 
 ## Auditoría { #audit }
 
