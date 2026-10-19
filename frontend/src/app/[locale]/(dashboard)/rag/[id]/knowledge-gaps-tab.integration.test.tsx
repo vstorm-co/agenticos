@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Suspense } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -54,18 +54,22 @@ const TOPIC = {
   question_count: 4,
   last_asked_at: "2026-10-12T09:00:00Z",
   examples: [],
-  agents: [{ id: "a1", name: "HR helper" }],
+  agents: [
+    { id: "a1", name: "HR helper", slug: "hr-helper", has_avatar: false, avatar_color: null },
+  ],
   dismissed_at: null,
   has_draft: false,
+  can_edit: false,
 };
 
-function mockApi() {
+function mockApi({ canEdit = false } = {}) {
+  const topic = { ...TOPIC, can_edit: canEdit };
   vi.mocked(apiClient.get).mockImplementation((endpoint: string) => {
     if (endpoint === `/kb/${KB_ID}`) return Promise.resolve(KB);
     if (endpoint.startsWith(`/knowledge-gaps/collections/${KB_ID}`)) {
-      return Promise.resolve({ items: [TOPIC], total: 1, ungrouped: 0 });
+      return Promise.resolve({ items: [topic], total: 1, ungrouped: 0 });
     }
-    if (endpoint === "/knowledge-gaps/t1") return Promise.resolve({ ...TOPIC, questions: [] });
+    if (endpoint === "/knowledge-gaps/t1") return Promise.resolve({ ...topic, questions: [] });
     return Promise.resolve({ items: [], total: 0 });
   });
 }
@@ -125,18 +129,24 @@ describe("the knowledge gaps tab on a collection", () => {
     await userEvent.click(screen.getByRole("button", { name: /parental leave/ }));
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/knowledge-gaps/t1"));
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /dismiss/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: "More actions for this topic" })).toBeNull();
   });
 
   it("offers grouping now and Dismiss to a caller who also edits the collection", async () => {
     perms.add("collections:view").add("runs:view").add("collections:edit");
+    mockApi({ canEdit: true });
     vi.mocked(apiClient.post).mockResolvedValue({ ...TOPIC, status: "dismissed", questions: [] });
     await renderPage();
     await userEvent.click(await screen.findByRole("tab", { name: "Knowledge gaps" }));
 
     expect(await screen.findByRole("button", { name: /group now/i })).toBeInTheDocument();
     await userEvent.click(await screen.findByRole("button", { name: /parental leave/ }));
-    await userEvent.click(await screen.findByRole("button", { name: /dismiss/i }));
+    await userEvent.click(
+      within(await screen.findByRole("dialog")).getByRole("button", {
+        name: "More actions for this topic",
+      }),
+    );
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Dismiss" }));
 
     await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith("/knowledge-gaps/t1/dismiss"));
   });

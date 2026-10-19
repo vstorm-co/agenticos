@@ -1,11 +1,13 @@
 "use client";
 
-import { Bot, Database, Sparkles } from "lucide-react";
+import { Database, Sparkles } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
+import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { Badge } from "@/components/ui";
 import { timeAgo } from "@/lib/utils";
 import type { KnowledgeGapTopic } from "@/types/knowledge-gaps";
+import { KnowledgeGapActions } from "./knowledge-gap-actions";
 
 interface KnowledgeGapRowProps {
   topic: KnowledgeGapTopic;
@@ -20,13 +22,13 @@ export function KnowledgeGapRow({ topic, showKnowledgeBase, onOpen }: KnowledgeG
   const tTime = useTranslations("time");
   const locale = useLocale();
   return (
-    <li>
+    <li className="hover:bg-accent/40 flex items-start gap-2 pr-3">
       <button
         type="button"
         onClick={onOpen}
-        className="hover:bg-accent/40 flex w-full flex-col gap-1.5 px-4 py-3 text-left"
+        className="flex min-w-0 flex-1 flex-col gap-1.5 py-3 pl-4 text-left sm:pl-5"
       >
-        <span className="text-foreground text-sm font-medium">{topic.label}</span>
+        <span className="text-foreground text-sm font-medium break-words">{topic.label}</span>
         <span className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
           <span>{t("questionCount", { count: topic.question_count })}</span>
           <span>{t("lastAsked", { ago: timeAgo(topic.last_asked_at, tTime, locale) })}</span>
@@ -43,13 +45,22 @@ export function KnowledgeGapRow({ topic, showKnowledgeBase, onOpen }: KnowledgeG
             </Badge>
           )}
           {topic.agents.map((agent) => (
-            <Badge key={agent.id} variant="secondary">
-              <Bot className="h-3 w-3" aria-hidden />
+            <span key={agent.id} className="inline-flex items-center gap-1">
+              <AgentAvatar
+                agentId={agent.id}
+                slug={agent.slug}
+                hasAvatar={agent.has_avatar}
+                colorSlot={agent.avatar_color}
+                size="sm"
+              />
               {agent.name}
-            </Badge>
+            </span>
           ))}
         </span>
       </button>
+      <div className="pt-2">
+        <KnowledgeGapActions topic={topic} />
+      </div>
     </li>
   );
 }

@@ -4,8 +4,14 @@ import { useState } from "react";
 import { SearchX } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
-import { PAGE_SIZE, PaginationBar } from "@/components/ui";
+import { ErrorState, LoadingState } from "@/components/states";
+import {
+  ListCard,
+  ListCardEmpty,
+  ListCardFootRow,
+  PAGE_SIZE,
+  PaginationBar,
+} from "@/components/ui";
 import { useKnowledgeGaps, type KnowledgeGapPanelScope } from "@/hooks/use-knowledge-gaps";
 import type { KnowledgeGapStatus } from "@/types/knowledge-gaps";
 import { KnowledgeGapDialog } from "./knowledge-gap-dialog";
@@ -30,52 +36,72 @@ export function KnowledgeGapsPanel({ scope }: { scope: KnowledgeGapPanelScope })
   });
 
   return (
-    <div className="space-y-4">
-      <KnowledgeGapsToolbar
-        scope={scope}
-        status={status}
-        onStatus={(next) => {
-          setStatus(next);
-          setPage(0);
-        }}
-      />
-      {ungrouped > 0 && (
-        <p className="border-border bg-muted/40 text-muted-foreground rounded-lg border px-3 py-2 text-sm">
-          {t("ungrouped", { count: ungrouped })}
+    <>
+      <ListCard
+        title={t("title")}
+        counted={isLoading ? null : t("topicCount", { count: total })}
+        controls={
+          <KnowledgeGapsToolbar
+            scope={scope}
+            status={status}
+            onStatus={(next) => {
+              setStatus(next);
+              setPage(0);
+            }}
+          />
+        }
+        contentClassName="p-0"
+      >
+        <p className="border-border text-muted-foreground border-b px-4 py-3 text-xs sm:px-5">
+          {scope.kind === "collection" ? t("descriptionCollection") : t("descriptionAgent")}{" "}
+          {t("nothingAutomatic")}
         </p>
-      )}
-      {isLoading ? (
-        <LoadingState variant="skeleton-list" rows={3} />
-      ) : error ? (
-        <ErrorState
-          title={t("loadFailed")}
-          description={t("loadFailedBody")}
-          cta={{ label: t("retry"), onClick: () => void refetch() }}
-        />
-      ) : topics.length === 0 ? (
-        <EmptyState
-          icon={SearchX}
-          title={status === "open" ? t("emptyOpen") : t("emptyDismissed")}
-          description={status === "open" ? t("emptyOpenBody") : t("emptyDismissedBody")}
-        />
-      ) : (
-        <>
-          <ul className="border-border divide-border divide-y rounded-xl border">
-            {topics.map((topic) => (
-              <KnowledgeGapRow
-                key={topic.id}
-                topic={topic}
-                showKnowledgeBase={scope.kind === "agent"}
-                onOpen={() => setOpenTopic(topic.id)}
-              />
-            ))}
-          </ul>
-          <PaginationBar page={page} pageSize={PAGE_SIZE} total={total} onPage={setPage} />
-        </>
-      )}
+        {ungrouped > 0 && (
+          <p className="border-border bg-muted/40 text-muted-foreground border-b px-4 py-2 text-xs sm:px-5">
+            {t("ungrouped", { count: ungrouped })}
+          </p>
+        )}
+        {isLoading ? (
+          <div className="p-4 sm:p-5">
+            <LoadingState variant="skeleton-list" rows={3} />
+          </div>
+        ) : error ? (
+          <div className="p-4 sm:p-5">
+            <ErrorState
+              title={t("loadFailed")}
+              description={t("loadFailedBody")}
+              cta={{ label: t("retry"), onClick: () => void refetch() }}
+            />
+          </div>
+        ) : topics.length === 0 ? (
+          <ListCardEmpty
+            icon={SearchX}
+            title={status === "open" ? t("emptyOpen") : t("emptyDismissed")}
+            description={status === "open" ? t("emptyOpenBody") : t("emptyDismissedBody")}
+          />
+        ) : (
+          <>
+            <ul className="divide-border divide-y">
+              {topics.map((topic) => (
+                <KnowledgeGapRow
+                  key={topic.id}
+                  topic={topic}
+                  showKnowledgeBase={scope.kind === "agent"}
+                  onOpen={() => setOpenTopic(topic.id)}
+                />
+              ))}
+            </ul>
+            {total > PAGE_SIZE && (
+              <ListCardFootRow>
+                <PaginationBar page={page} pageSize={PAGE_SIZE} total={total} onPage={setPage} />
+              </ListCardFootRow>
+            )}
+          </>
+        )}
+      </ListCard>
       {openTopic !== null && (
         <KnowledgeGapDialog topicId={openTopic} onClose={() => setOpenTopic(null)} />
       )}
-    </div>
+    </>
   );
 }

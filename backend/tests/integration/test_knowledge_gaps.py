@@ -54,6 +54,7 @@ from app.db.models.knowledge_gap import (
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.rag_document import RAGDocument
+from app.db.models.resource_grant import GrantLevel, ResourceGrant
 from app.db.models.user import User
 from app.repositories import knowledge_gap_repo
 from app.schemas.dataset import DatasetCreate
@@ -700,6 +701,35 @@ async def test_an_operator_reads_gaps_but_cannot_dismiss_them(db) -> None:
     assert (await service.list_for_knowledge_base(operator, kb.id)).total == 1
     with pytest.raises(NotFoundError):
         await service.set_status(operator, topic_id, "dismissed")
+
+
+@pytest.mark.security
+async def test_an_edit_grant_on_the_knowledge_base_lets_an_operator_dismiss_its_topics(
+    db,
+) -> None:
+    ctx = await _owner(db)
+    kb, agent, topic_id = await _a_topic(db, ctx)
+    operator = await _member(db, ctx, OrgRoleName.OPERATOR)
+    service = KnowledgeGapService(db)
+
+    [before] = (await service.list_for_agent(operator, agent.id)).items
+    [owners] = (await service.list_for_agent(ctx, agent.id)).items
+    db.add(
+        ResourceGrant(
+            organization_id=ctx.organization_id,
+            subject_user_id=operator.user_id,
+            resource_type="collection",
+            resource_id=kb.id,
+            level=GrantLevel.EDIT.value,
+        )
+    )
+    await db.flush()
+    [after] = (await service.list_for_agent(operator, agent.id)).items
+    dismissed = await service.set_status(operator, topic_id, "dismissed")
+
+    assert (before.can_edit, owners.can_edit, after.can_edit) == (False, True, True)
+    assert dismissed.status == "dismissed" and dismissed.can_edit
+    assert [(a.slug, a.has_avatar) for a in after.agents] == [(agent.slug, False)]
 
 
 async def test_dismissing_a_topic_and_reopening_it(db) -> None:

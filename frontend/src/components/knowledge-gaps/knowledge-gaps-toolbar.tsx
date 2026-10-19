@@ -22,33 +22,27 @@ interface KnowledgeGapsToolbarProps {
   onStatus: (status: KnowledgeGapStatus) => void;
 }
 
-/** What the list is, that nothing is ingested on its account, and which topics to show. */
+/**
+ * The list card's controls: which topics to show and, on a knowledge base's own
+ * page, grouping its waiting questions now - gated as that page's other changes are.
+ */
 export function KnowledgeGapsToolbar({ scope, status, onStatus }: KnowledgeGapsToolbarProps) {
   const t = useTranslations("knowledgeGaps");
   const { can } = usePermissions();
   return (
-    <div className="flex flex-wrap items-start justify-between gap-3">
-      <div className="max-w-2xl space-y-1">
-        <h2 className="text-foreground text-base font-semibold">{t("title")}</h2>
-        <p className="text-muted-foreground text-sm">
-          {scope.kind === "collection" ? t("descriptionCollection") : t("descriptionAgent")}
-        </p>
-        <p className="text-muted-foreground text-sm">{t("nothingAutomatic")}</p>
-      </div>
-      <div className="flex items-center gap-2">
-        {scope.kind === "collection" && can(Perm.collectionsEdit) && (
-          <RegroupButton knowledgeBaseId={scope.id} />
-        )}
-        <Select value={status} onValueChange={(next) => onStatus(next as KnowledgeGapStatus)}>
-          <SelectTrigger className="w-36" aria-label={t("statusFilter")}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="open">{t("statusOpen")}</SelectItem>
-            <SelectItem value="dismissed">{t("statusDismissed")}</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+    <div className="flex flex-wrap items-center gap-2">
+      {scope.kind === "collection" && can(Perm.collectionsEdit) && (
+        <RegroupButton knowledgeBaseId={scope.id} />
+      )}
+      <Select value={status} onValueChange={(next) => onStatus(next as KnowledgeGapStatus)}>
+        <SelectTrigger className="w-36" aria-label={t("statusFilter")}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="open">{t("statusOpen")}</SelectItem>
+          <SelectItem value="dismissed">{t("statusDismissed")}</SelectItem>
+        </SelectContent>
+      </Select>
     </div>
   );
 }

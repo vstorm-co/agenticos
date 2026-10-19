@@ -33,7 +33,12 @@ const TOPIC: KnowledgeGapTopic = {
   agents: [],
   dismissed_at: null,
   has_draft: false,
+  can_edit: false,
 };
+
+async function openMenu() {
+  await userEvent.click(screen.getByRole("button", { name: "More actions for this topic" }));
+}
 
 describe("KnowledgeGapActions", () => {
   beforeEach(() => {
@@ -41,31 +46,38 @@ describe("KnowledgeGapActions", () => {
     state.granted = [];
   });
 
-  it("offers nothing to a caller who edits neither the collection nor a dataset", () => {
+  it("offers nothing to a caller who can change neither the topic nor read a dataset", () => {
     const { container } = render(<KnowledgeGapActions topic={TOPIC} />);
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("dismisses an open topic, for a caller who edits collections", async () => {
-    state.granted = [Perm.collectionsEdit];
-    render(<KnowledgeGapActions topic={TOPIC} />);
-    expect(screen.queryByRole("button", { name: "Add to dataset" })).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+  it("dismisses an open topic, for a caller who may change its knowledge base", async () => {
+    render(<KnowledgeGapActions topic={{ ...TOPIC, can_edit: true }} />);
+    await openMenu();
+    expect(screen.queryByRole("menuitem", { name: "Add to dataset" })).toBeNull();
+    await userEvent.click(screen.getByRole("menuitem", { name: "Dismiss" }));
     expect(state.setStatus).toHaveBeenCalledWith({ topicId: "t1", status: "dismissed" });
   });
 
-  it("reopens a dismissed one", async () => {
+  it("follows the topic rather than the role: an editor's role reaches no topic it cannot change", () => {
     state.granted = [Perm.collectionsEdit];
-    render(<KnowledgeGapActions topic={{ ...TOPIC, status: "dismissed" }} />);
-    await userEvent.click(screen.getByRole("button", { name: "Reopen" }));
+    const { container } = render(<KnowledgeGapActions topic={TOPIC} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("reopens a dismissed one", async () => {
+    render(<KnowledgeGapActions topic={{ ...TOPIC, status: "dismissed", can_edit: true }} />);
+    await openMenu();
+    await userEvent.click(screen.getByRole("menuitem", { name: "Reopen" }));
     expect(state.setStatus).toHaveBeenCalledWith({ topicId: "t1", status: "open" });
   });
 
-  it("adds to a dataset without offering Dismiss, for a caller who edits only datasets", async () => {
-    state.granted = [Perm.datasetsEdit];
+  it("adds to a dataset without offering Dismiss, for a caller who reads datasets", async () => {
+    state.granted = [Perm.datasetsView];
     render(<KnowledgeGapActions topic={TOPIC} />);
-    expect(screen.queryByRole("button", { name: "Dismiss" })).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "Add to dataset" }));
+    await openMenu();
+    expect(screen.queryByRole("menuitem", { name: "Dismiss" })).toBeNull();
+    await userEvent.click(screen.getByRole("menuitem", { name: "Add to dataset" }));
     await userEvent.click(screen.getByRole("button", { name: "choose a dataset for t1" }));
     expect(screen.queryByRole("button", { name: "choose a dataset for t1" })).toBeNull();
   });

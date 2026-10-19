@@ -30,8 +30,11 @@ export function KnowledgeGapDialog({ topicId, onClose }: KnowledgeGapDialogProps
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className={cn(DIALOG_WIDE, DIALOG_COLUMN)}>
-        <DialogHeader>
-          <DialogTitle>{topic?.label ?? t("topic")}</DialogTitle>
+        <DialogHeader className="pr-8">
+          <div className="flex items-start justify-between gap-2">
+            <DialogTitle className="break-words">{topic?.label ?? t("topic")}</DialogTitle>
+            {topic && <KnowledgeGapActions topic={topic} />}
+          </div>
           <DialogDescription>
             {topic
               ? t("topicSummary", {
@@ -52,7 +55,6 @@ export function KnowledgeGapDialog({ topicId, onClose }: KnowledgeGapDialogProps
             />
           ) : (
             <>
-              <KnowledgeGapActions topic={topic} />
               <KnowledgeGapDraftPanel topic={topic} />
               <h3 className="text-foreground text-sm font-semibold">{t("questions")}</h3>
               <ul className="space-y-3">

@@ -25,8 +25,15 @@ TopicStatusLiteral = Literal["open", "dismissed"]
 
 
 class KnowledgeGapAgent(BaseSchema):
+    """An agent that searched, with what the console draws it with."""
+
     id: UUID
     name: str
+    slug: str
+    has_avatar: bool = Field(description="Whether `/agents/{id}/avatar` answers with an image")
+    avatar_color: int | None = Field(
+        default=None, description="The default avatar's colour slot; null picks one from the id"
+    )
 
 
 MAX_DRAFT_SOURCES = 12
@@ -114,6 +121,14 @@ class KnowledgeGapTopicRead(BaseSchema):
     agents: list[KnowledgeGapAgent] = Field(description="The agents that searched for it")
     dismissed_at: datetime | None = None
     has_draft: bool = False
+    can_edit: bool = Field(
+        default=False,
+        description=(
+            "Whether THIS caller may dismiss or reopen the topic: they may change its "
+            "knowledge base, by their role or a grant on it. Hides controls; the "
+            "server re-checks."
+        ),
+    )
 
 
 class KnowledgeGapCollectionCount(BaseSchema):

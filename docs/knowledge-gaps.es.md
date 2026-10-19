@@ -1,5 +1,5 @@
 ---
-source_sha: "74eb8874477e"
+source_sha: "cab676070fd6"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, agrupadas por tema, para saber qué documento falta."
 ---
@@ -13,7 +13,7 @@ las que un agent buscó en su [base de conocimiento](file-processing.md) y no
 encontró nada relevante, agrupadas por tema, con cuántas veces se hizo cada una
 y qué agents la hicieron.
 
-Una laguna dice qué falta. Nunca añade nada a una colección por sí misma. Una
+Una laguna dice qué falta. Nunca añade nada a una base de conocimiento por sí misma. Una
 persona escribe o encuentra el documento que falta - un modelo puede redactar
 un borrador - y lo añade, y antes puede
 convertir las preguntas del tema en casos de un [dataset](datasets.md), para
@@ -22,7 +22,7 @@ que un eval muestre si el nuevo documento cambió las respuestas.
 ## Cómo una pregunta se convierte en laguna { #how-a-question-becomes-a-gap }
 
 Cada vez que un agent busca en su base de conocimiento durante un run, la
-plataforma registra la búsqueda: la consulta que envió el agent, las colecciones
+plataforma registra la búsqueda: la consulta que envió el agent, las bases de conocimiento
 en las que buscó, cuántos fragmentos devolvió y cuánto se parecía el fragmento
 más cercano a la consulta. Una búsqueda es un **fallo** cuando no devolvió nada,
 o cuando su fragmento más cercano se parece a la consulta menos que
@@ -43,7 +43,7 @@ búsquedas por debajo del ajuste actual.
 
 Solo se registran las búsquedas que un agent hace mientras ejecuta un run, y
 solo para preguntas que hicieron personas: una búsqueda a través de
-`/rag/search` de la HTTP API, una vista previa en la página de la colección y
+`/rag/search` de la HTTP API, una vista previa en la página de la base de conocimiento y
 una búsqueda de un run de eval no se registran. Se guardan los primeros 1.000
 caracteres de una consulta.
 
@@ -51,20 +51,20 @@ caracteres de una consulta.
 
 Los fallos se agrupan en **temas** según el significado de la consulta. Cada 15
 minutos, un proceso en segundo plano toma los fallos nuevos de cada base de
-conocimiento, los convierte en embeddings con el modelo propio de esa colección
+conocimiento, los convierte en embeddings con el modelo propio de esa base de conocimiento
 y coloca cada uno en el tema más cercano de esa base de conocimiento, o abre uno
 nuevo. Una pasada procesa como mucho 500 fallos por base de conocimiento; el
 resto espera a la siguiente. Una base de conocimiento sin fallos nuevos no
 cuesta ninguna llamada de embeddings.
 
-- Una búsqueda en dos colecciones se convierte en una pregunta en un tema de
+- Una búsqueda en dos bases de conocimiento se convierte en una pregunta en un tema de
   cada una.
-- Una colección que pasa a otro modelo de embeddings empieza temas nuevos,
+- Una base de conocimiento que pasa a otro modelo de embeddings empieza temas nuevos,
   porque los vectores de dos modelos no se pueden comparar.
 - Un tema conserva su identidad cuando se le añaden preguntas, así que una
   decisión que tomaste sobre él sigue valiendo.
 
-**Agrupar ahora**, en la pestaña de lagunas de conocimiento de la colección,
+**Agrupar ahora**, en la pestaña de lagunas de conocimiento de la base de conocimiento,
 ejecuta la pasada de esa base de conocimiento de inmediato, en lugar de esperar
 al calendario. Hasta que una pregunta se coloca en un tema, la pestaña la cuenta
 como aún sin agrupar.
@@ -73,13 +73,18 @@ como aún sin agrupar.
 
 Las lagunas aparecen en tres lugares:
 
-- la pestaña **Lagunas de conocimiento** de una colección: todos los temas de
-  esa base de conocimiento;
+- la pestaña **Lagunas de conocimiento** de una base de conocimiento: todos
+  sus temas;
 - la pestaña **Lagunas de conocimiento** de un agent: solo las preguntas que
   hizo ese agent, en las bases de conocimiento que puedes leer;
-- el widget **Lagunas de conocimiento** del panel por defecto: los temas más
-  preguntados de toda la organización y cuántos temas tiene cada base de
-  conocimiento.
+- el widget **Lagunas de conocimiento**, que se añade desde **Customize**: los
+  temas más preguntados de toda la organización y cuántos temas tiene cada base
+  de conocimiento.
+
+Un tema pertenece a su base de conocimiento, así que quién lo lee depende de
+quién lee esa base de conocimiento. No hay un filtro aparte por departamento:
+un departamento ve las lagunas de las bases de conocimiento compartidas con
+él.
 
 Un tema muestra cuántas veces se preguntó, cuándo fue la última vez, qué agents
 lo preguntaron y hasta tres de sus preguntas. Ábrelo para ver las preguntas más
@@ -89,10 +94,13 @@ respuesta.
 
 ## Qué hacer con una laguna { #acting-on-a-gap }
 
+**Añadir al dataset** y **Descartar** están en el menú **…** de un tema, en su
+fila y en el propio tema.
+
 | Acción | Qué hace |
 |---|---|
-| Añadir el documento que falta | Súbelo a la colección, o a una fuente que la colección sincroniza. No se añade nada por ti |
-| **Añadir al dataset** | Convierte las preguntas más recientes del tema (hasta 200) en casos del dataset que elijas, como una versión nueva. Cada caso es la pregunta de la persona, con la respuesta del agent como contraejemplo. Una pregunta hecha a través de la HTTP API no guarda respuesta y se omite |
+| Añadir el documento que falta | Súbelo a la base de conocimiento, o a una fuente que la base de conocimiento sincroniza. No se añade nada por ti |
+| **Añadir al dataset** | Convierte las preguntas más recientes del tema (hasta 200) en casos de un dataset que puedes cambiar, como una versión nueva. Cada caso es la pregunta de la persona, con la respuesta del agent como contraejemplo. Una pregunta hecha a través de la HTTP API no guarda respuesta y se omite |
 | **Descartar** | Marca un tema como uno que no necesita contenido. Un tema descartado conserva las preguntas que le pertenecen, así que no vuelve como tema nuevo. **Reabrir** lo deshace |
 
 Después de añadir el documento, ejecuta un eval sobre el dataset. Los casos que
@@ -110,10 +118,12 @@ dejado con una valoración negativa.
 
 El borrador se guarda en el tema, marcado como borrador, con un enlace a su
 run. Puedes copiarlo o descargarlo como Markdown. Nunca se añade a la
-colección. El redactor no conoce los datos de tu
+base de conocimiento. El redactor no conoce los datos de tu
 empresa: donde una respuesta necesita una cifra, una fecha o una regla, escribe
 entre corchetes un marcador para que lo completes. Redactar de nuevo sustituye
-el borrador.
+el borrador. Quien puede editar el drafter encuentra **Edit the drafter's
+instructions** en el borrador, y el propio drafter en **System agents**, en la
+página Agents.
 
 Un borrador nombra sus fuentes: los documentos de la base de conocimiento en
 los que se apoya y las preguntas del tema que responde. Cada una se verifica
@@ -139,13 +149,13 @@ miembro sin él no ve la pestaña ni el widget, y la API se lo deniega.
 
 | Para | Necesitas |
 |---|---|
-| Leer las lagunas de una colección | `runs:view` y `collections:view` en esa colección |
-| Leer las lagunas de un agent | `runs:view` y `agents:view` en el agent; se omiten los temas de colecciones que no puedes leer |
-| Descartar, reabrir o reagrupar | `runs:view` y `collections:edit` en la colección |
+| Leer las lagunas de una base de conocimiento | `runs:view` y `collections:view` en esa base de conocimiento |
+| Leer las lagunas de un agent | `runs:view` y `agents:view` en el agent; se omiten los temas de bases de conocimiento que no puedes leer |
+| Descartar, reabrir o reagrupar | `runs:view` y `collections:edit` en la base de conocimiento, por tu rol o por un grant de edición sobre ella |
 | Añadir un tema a un dataset | `runs:view` y `datasets:edit` en el dataset |
-| Redactar el contenido que falta | `runs:view`, `collections:view` en la colección y `agents:run` en el Knowledge gap drafter |
+| Redactar el contenido que falta | `runs:view`, `collections:view` en la base de conocimiento y `agents:run` en el Knowledge gap drafter |
 
-Una colección, un agent, un tema o un dataset al que no tienes acceso responde
+Una base de conocimiento, un agent, un tema o un dataset al que no tienes acceso responde
 «no encontrado», igual que uno de otra organización. Consulta
 [Permisos](permissions.md).
 

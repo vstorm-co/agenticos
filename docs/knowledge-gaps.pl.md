@@ -1,5 +1,5 @@
 ---
-source_sha: "74eb8874477e"
+source_sha: "cab676070fd6"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -12,7 +12,7 @@ wiedzy** pokazują takie pytania: te, dla których agent przeszukał swoją
 [bazę wiedzy](file-processing.md) i nie znalazł nic trafnego. Są pogrupowane
 w tematy, z liczbą zadań każdego pytania i agentami, którzy je zadali.
 
-Luka mówi, czego brakuje. Sama nigdy niczego nie dodaje do kolekcji. Człowiek
+Luka mówi, czego brakuje. Sama nigdy niczego nie dodaje do bazy wiedzy. Człowiek
 pisze albo znajduje brakujący dokument - może go naszkicować model - i go
 dodaje. Wcześniej może zamienić pytania z tematu na przypadki
 [datasetu](datasets.md), żeby eval pokazał, czy nowy dokument zmienił
@@ -21,7 +21,7 @@ odpowiedzi.
 ## Jak pytanie staje się luką { #how-a-question-becomes-a-gap }
 
 Za każdym razem, gdy agent w trakcie runa przeszukuje bazę wiedzy, platforma
-zapisuje to wyszukiwanie: zapytanie wysłane przez agenta, przeszukane kolekcje,
+zapisuje to wyszukiwanie: zapytanie wysłane przez agenta, przeszukane bazy wiedzy,
 liczbę zwróconych fragmentów i to, jak bardzo najbliższy fragment był podobny
 do zapytania. Wyszukiwanie jest **chybione**, gdy nic nie zwróciło albo gdy
 najbliższy fragment jest mniej podobny do zapytania niż
@@ -42,26 +42,26 @@ wyszukiwania poniżej bieżącego ustawienia.
 
 Zapisywane są tylko wyszukiwania, które agent wykonuje w trakcie runa, i tylko
 dla pytań zadanych przez ludzi: wyszukiwanie przez `/rag/search` w HTTP API,
-podgląd na stronie kolekcji ani wyszukiwanie wykonane przez run evala nie są
+podgląd na stronie bazy wiedzy ani wyszukiwanie wykonane przez run evala nie są
 zapisywane. Z zapytania zachowywane jest pierwsze 1000 znaków.
 
 ## Tematy { #topics }
 
 Chybione wyszukiwania są grupowane w **tematy** według znaczenia zapytania. Co
 15 minut proces w tle bierze nowe chybione wyszukiwania każdej bazy wiedzy,
-tworzy ich embeddingi modelem tej kolekcji i umieszcza każde w najbliższym
+tworzy ich embeddingi modelem tej bazy wiedzy i umieszcza każde w najbliższym
 temacie tej bazy albo zakłada nowy. Jedno przejście tworzy embeddingi dla
 najwyżej 500 chybionych wyszukiwań na bazę wiedzy; reszta czeka na następne.
 Baza wiedzy bez nowych chybionych wyszukiwań nie kosztuje żadnego wywołania
 embeddingów.
 
-- Wyszukiwanie w dwóch kolekcjach staje się pytaniem w temacie każdej z nich.
-- Kolekcja przeniesiona na inny model embeddingów zaczyna nowe tematy, bo
+- Wyszukiwanie w dwóch bazach wiedzy staje się pytaniem w temacie każdej z nich.
+- Baza wiedzy przeniesiona na inny model embeddingów zaczyna nowe tematy, bo
   wektorów z dwóch modeli nie da się porównać.
 - Temat zachowuje tożsamość, gdy dochodzą do niego pytania, więc decyzja,
   którą o nim podjąłeś, nadal obowiązuje.
 
-**Grupuj teraz** na karcie luk w wiedzy kolekcji od razu uruchamia przejście
+**Grupuj teraz** na karcie luk w wiedzy bazy wiedzy od razu uruchamia przejście
 dla tej bazy wiedzy, zamiast czekać na harmonogram. Dopóki pytanie nie trafi do
 tematu, karta liczy je jako jeszcze niepogrupowane.
 
@@ -69,11 +69,15 @@ tematu, karta liczy je jako jeszcze niepogrupowane.
 
 Luki są widoczne w trzech miejscach:
 
-- na karcie **Luki w wiedzy** kolekcji: wszystkie tematy tej bazy wiedzy;
+- na karcie **Luki w wiedzy** bazy wiedzy: wszystkie jej tematy;
 - na karcie **Luki w wiedzy** agenta: tylko pytania tego agenta, w bazach
   wiedzy, które możesz czytać;
-- w widżecie **Luki w wiedzy** na domyślnym pulpicie: najczęściej zadawane
+- w widżecie **Luki w wiedzy**, dodawanym w **Dostosuj**: najczęściej zadawane
   tematy w całej organizacji i liczba tematów w każdej bazie wiedzy.
+
+Temat należy do swojej bazy wiedzy, więc kto go czyta, wynika z tego, kto
+czyta tę bazę wiedzy. Nie ma osobnego filtra według działu: dział widzi luki
+baz wiedzy, które mu udostępniono.
 
 Temat pokazuje, ile razy go zadano, kiedy ostatnio, którzy agenci go zadali, i
 do trzech jego pytań. Otwórz go, żeby zobaczyć najnowsze pytania: o co zapytała
@@ -82,10 +86,13 @@ każdego, kto ocenił odpowiedź łapką w dół.
 
 ## Co zrobić z luką { #acting-on-a-gap }
 
+**Dodaj do datasetu** i **Odrzuć** są w menu **…** tematu, w jego wierszu i w
+samym temacie.
+
 | Działanie | Co robi |
 |---|---|
-| Dodaj brakujący dokument | Wgraj go do kolekcji albo do źródła, z którego kolekcja się synchronizuje. Nic nie jest dodawane za ciebie |
-| **Dodaj do datasetu** | Zamienia najnowsze pytania tematu (do 200) na przypadki wybranego datasetu, jako jedną nową wersję. Każdy przypadek to pytanie osoby, a odpowiedź agenta jest kontrprzykładem. Pytanie zadane przez HTTP API nie ma zapisanej odpowiedzi i jest pomijane |
+| Dodaj brakujący dokument | Wgraj go do bazy wiedzy albo do źródła, z którego baza wiedzy się synchronizuje. Nic nie jest dodawane za ciebie |
+| **Dodaj do datasetu** | Zamienia najnowsze pytania tematu (do 200) na przypadki wybranego datasetu, który możesz zmieniać, jako jedną nową wersję. Każdy przypadek to pytanie osoby, a odpowiedź agenta jest kontrprzykładem. Pytanie zadane przez HTTP API nie ma zapisanej odpowiedzi i jest pomijane |
 | **Odrzuć** | Oznacza temat jako niewymagający treści. Odrzucony temat zatrzymuje należące do niego pytania, więc nie wraca jako nowy temat. **Otwórz ponownie** to odwraca |
 
 Po dodaniu dokumentu uruchom eval na datasecie. Przypadki, które nie
@@ -102,10 +109,11 @@ osoba i komentarz zostawiony przy ocenie łapką w dół.
 
 Szkic zostaje przy temacie, oznaczony jako szkic, z odnośnikiem do jego runa.
 Możesz go skopiować albo pobrać jako Markdown. Nigdy nie jest dodawany do
-kolekcji. Agent nie zna faktów
+bazy wiedzy. Agent nie zna faktów
 twojej firmy: tam, gdzie odpowiedź wymaga liczby, daty albo reguły, wpisuje w
 nawiasach kwadratowych miejsce do uzupełnienia. Ponowny szkic zastępuje
-poprzedni.
+poprzedni. Kto może edytować draftera, znajdzie przy szkicu **Edytuj instrukcje
+draftera**, a samego draftera w sekcji **Agenci systemowi** na stronie Agents.
 
 Szkic podaje swoje źródła: dokumenty bazy wiedzy, na których się opiera, i
 pytania tematu, na które odpowiada. Każde źródło jest weryfikowane przed
@@ -130,13 +138,13 @@ bez niego nie widzi karty ani widżetu, a API mu odmawia.
 
 | Żeby | Potrzebujesz |
 |---|---|
-| Czytać luki kolekcji | `runs:view` i `collections:view` na tej kolekcji |
-| Czytać luki agenta | `runs:view` i `agents:view` na agencie; tematy kolekcji, których nie możesz czytać, są pomijane |
-| Odrzucić, otworzyć ponownie albo pogrupować | `runs:view` i `collections:edit` na kolekcji |
+| Czytać luki bazy wiedzy | `runs:view` i `collections:view` na tej bazie wiedzy |
+| Czytać luki agenta | `runs:view` i `agents:view` na agencie; tematy baz wiedzy, których nie możesz czytać, są pomijane |
+| Odrzucić, otworzyć ponownie albo pogrupować | `runs:view` i `collections:edit` na bazie wiedzy, z twojej roli albo z grantu edycji na niej |
 | Dodać temat do datasetu | `runs:view` i `datasets:edit` na datasecie |
-| Napisać szkic brakującej treści | `runs:view`, `collections:view` na kolekcji i `agents:run` na Knowledge gap drafter |
+| Napisać szkic brakującej treści | `runs:view`, `collections:view` na bazie wiedzy i `agents:run` na Knowledge gap drafter |
 
-Kolekcja, agent, temat albo dataset, do którego nie masz dostępu, odpowiada „nie
+Baza wiedzy, agent, temat albo dataset, do którego nie masz dostępu, odpowiada „nie
 znaleziono”; tak samo ten z innej organizacji. Zobacz
 [Uprawnienia](permissions.md).
 

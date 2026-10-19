@@ -39,6 +39,7 @@ const TOPIC: KnowledgeGapTopicDetail = {
   agents: [],
   dismissed_at: null,
   has_draft: false,
+  can_edit: false,
   questions: [],
   draft: null,
 };

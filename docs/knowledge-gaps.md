@@ -11,7 +11,7 @@ that. **Knowledge gaps** show those questions: the ones an agent searched its
 [knowledge base](file-processing.md) for and found nothing relevant to,
 grouped by topic, with how often each was asked and by which agents.
 
-A gap tells you what is missing. It never adds anything to a collection by
+A gap tells you what is missing. It never adds anything to a knowledge base by
 itself. A person writes or finds the missing document - a model can draft it -
 and adds it, and can first turn the topic's questions into
 [dataset](datasets.md) cases, so an eval can show whether the new document
@@ -20,7 +20,7 @@ changed the answers.
 ## How a question becomes a gap { #how-a-question-becomes-a-gap }
 
 Every time an agent searches its knowledge base during a run, the platform
-records the search: the query the agent sent, the collections it searched,
+records the search: the query the agent sent, the knowledge bases it searched,
 how many passages came back, and how similar the closest passage was to the
 query. A search is a **miss** when it returned nothing, or when its closest
 passage is less similar to the query than `KNOWLEDGE_GAP_MIN_SIMILARITY`.
@@ -39,25 +39,25 @@ searches that fall below the current setting.
 
 Only searches an agent makes while it runs are recorded, and only for
 questions people asked: a search through the HTTP API's `/rag/search`, a
-preview in the collection page, and a search made by an eval run are not. The
+preview on the knowledge base's page, and a search made by an eval run are not. The
 first 1,000 characters of a query are kept.
 
 ## Topics { #topics }
 
 Misses are grouped into **topics** by the meaning of the query. Every 15
 minutes a background pass takes each knowledge base's new misses, embeds them
-with that collection's own embedding model, and puts each in the closest topic
+with that knowledge base's own embedding model, and puts each in the closest topic
 of that knowledge base, or starts a new one. A pass embeds at most 500 misses
 per knowledge base; the rest wait for the next one. A knowledge base with no
 new misses costs no embedding call.
 
-- A search over two collections becomes a question in a topic of each.
-- A collection moved to another embedding model starts new topics, because
+- A search over two knowledge bases becomes a question in a topic of each.
+- A knowledge base moved to another embedding model starts new topics, because
   vectors from two models cannot be compared.
 - A topic keeps its identity as questions are added to it, so a decision you
   made about it still applies.
 
-**Group now** on the collection's Knowledge gaps tab runs the pass for that
+**Group now** on the knowledge base's Knowledge gaps tab runs the pass for that
 knowledge base at once, instead of waiting for the schedule. Until a question
 has been placed in a topic, the tab counts it as not grouped yet.
 
@@ -65,13 +65,17 @@ has been placed in a topic, the tab counts it as not grouped yet.
 
 Gaps are shown in three places:
 
-- the **Knowledge gaps** tab of a collection: every topic of that knowledge
-  base;
+- the **Knowledge gaps** tab of a knowledge base: every topic of that
+  knowledge base;
 - the **Knowledge gaps** tab of an agent: only the questions that agent asked,
   in the knowledge bases you can read;
-- the **Knowledge gaps** dashboard widget, on the default dashboard: the most
+- the **Knowledge gaps** dashboard widget, added from **Customize**: the most
   asked topics across the organization, and how many topics each knowledge
   base holds.
+
+A topic belongs to its knowledge base, so who reads it follows who reads that
+knowledge base. There is no separate filter by department: a department sees
+the gaps of the knowledge bases shared with it.
 
 A topic shows how many times it was asked, when it was last asked, which
 agents asked it, and up to three of its questions. Open it to see the most
@@ -81,10 +85,13 @@ down.
 
 ## Acting on a gap { #acting-on-a-gap }
 
+**Add to dataset** and **Dismiss** are in a topic's **…** menu, on its row and
+in the topic itself.
+
 | Action | What it does |
 |---|---|
-| Add the missing document | Upload it to the collection, or to a source the collection syncs from. Nothing is added for you |
-| **Add to dataset** | Turns the topic's most recent questions (up to 200) into cases of a dataset you choose, as one new version. Each case is the person's question, with the agent's answer as the counter-example. A question asked over the HTTP API keeps no answer and is skipped |
+| Add the missing document | Upload it to the knowledge base, or to a source the knowledge base syncs from. Nothing is added for you |
+| **Add to dataset** | Turns the topic's most recent questions (up to 200) into cases of a dataset you may change, as one new version. Each case is the person's question, with the agent's answer as the counter-example. A question asked over the HTTP API keeps no answer and is skipped |
 | **Dismiss** | Marks a topic as needing no content. A dismissed topic keeps the questions that belong to it, so it does not come back as a new topic. **Reopen** reverses it |
 
 After you add the document, run an eval over the dataset. The cases that
@@ -101,10 +108,11 @@ person got, and any comment left with a thumbs-down.
 
 The draft is kept on the topic, labelled as a draft, with a link to its run.
 You can copy it or download it as Markdown. It is never added to the
-collection. The drafter does not know your
+knowledge base. The drafter does not know your
 company's facts: where an answer needs a number, a date or a rule, it writes a
 placeholder in square brackets for you to fill in. Drafting again replaces the
-draft.
+draft. Whoever may edit the drafter finds **Edit the drafter's instructions** on
+the draft, and the drafter itself under **System agents** on the Agents page.
 
 A draft names its sources: the documents of the knowledge base it builds on,
 and the topic's questions it answers. Each one is verified before the draft is
@@ -129,13 +137,13 @@ without it does not see the tab or the widget, and the API refuses them.
 
 | To | You need |
 |---|---|
-| Read a collection's gaps | `runs:view` and `collections:view` on that collection |
-| Read an agent's gaps | `runs:view` and `agents:view` on the agent; topics of collections you cannot read are left out |
-| Dismiss, reopen or regroup | `runs:view` and `collections:edit` on the collection |
+| Read a knowledge base's gaps | `runs:view` and `collections:view` on that knowledge base |
+| Read an agent's gaps | `runs:view` and `agents:view` on the agent; topics of knowledge bases you cannot read are left out |
+| Dismiss, reopen or regroup | `runs:view` and `collections:edit` on the knowledge base, from your role or an edit grant on it |
 | Add a topic to a dataset | `runs:view` and `datasets:edit` on the dataset |
-| Draft the missing content | `runs:view`, `collections:view` on the collection, and `agents:run` on the Knowledge gap drafter |
+| Draft the missing content | `runs:view`, `collections:view` on the knowledge base, and `agents:run` on the Knowledge gap drafter |
 
-A collection, agent, topic or dataset you may not reach answers "not found",
+A knowledge base, agent, topic or dataset you may not reach answers "not found",
 and so does one in another organization. See [Permissions](permissions.md).
 
 ## Personal data { #personal-data }

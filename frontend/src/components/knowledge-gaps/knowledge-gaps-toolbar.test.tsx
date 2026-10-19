@@ -36,7 +36,6 @@ describe("KnowledgeGapsToolbar", () => {
         onStatus={vi.fn()}
       />,
     );
-    expect(screen.getByText(/searched this knowledge base for/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Group now" }));
     expect(state.regroupedFor).toContain("kb1");
     expect(state.regroup).toHaveBeenCalled();
@@ -62,7 +61,6 @@ describe("KnowledgeGapsToolbar", () => {
         onStatus={vi.fn()}
       />,
     );
-    expect(screen.getByText(/this agent searched its knowledge bases/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Group now" })).toBeNull();
   });
 

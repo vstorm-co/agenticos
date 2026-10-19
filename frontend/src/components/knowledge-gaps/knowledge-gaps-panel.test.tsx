@@ -15,6 +15,7 @@ vi.mock("@/hooks/use-knowledge-gaps", () => ({
     return state.list;
   },
   useRegroupKnowledgeGaps: () => ({ mutate: vi.fn(), isPending: false }),
+  useSetKnowledgeGapStatus: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({ can: (perm: string) => state.granted.includes(perm) }),
@@ -36,9 +37,12 @@ const TOPIC = {
   question_count: 4,
   last_asked_at: "2026-10-12T09:00:00Z",
   examples: [],
-  agents: [{ id: "a1", name: "HR helper" }],
+  agents: [
+    { id: "a1", name: "HR helper", slug: "hr-helper", has_avatar: false, avatar_color: null },
+  ],
   dismissed_at: null,
   has_draft: false,
+  can_edit: false,
 };
 
 function answer(overrides: Record<string, unknown> = {}) {

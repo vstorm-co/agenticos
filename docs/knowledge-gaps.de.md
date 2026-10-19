@@ -1,5 +1,5 @@
 ---
-source_sha: "74eb8874477e"
+source_sha: "cab676070fd6"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -13,7 +13,7 @@ Wissensbasis enthält die Antwort nicht, und keine Änderung am Prompt behebt da
 hat, nach Thema gruppiert, mit der Häufigkeit jeder Frage und den Agents, die
 sie gestellt haben.
 
-Eine Lücke sagt, was fehlt. Sie fügt einer Collection nie selbst etwas hinzu.
+Eine Lücke sagt, was fehlt. Sie fügt einer Wissensdatenbank nie selbst etwas hinzu.
 Ein Mensch schreibt oder findet das fehlende Dokument - ein Modell kann es
 entwerfen - und fügt es hinzu. Vorher
 lassen sich die Fragen des Themas in Fälle eines [Datasets](datasets.md)
@@ -24,7 +24,7 @@ hat.
 
 Jedes Mal, wenn ein Agent während eines Runs seine Wissensbasis durchsucht,
 zeichnet die Plattform die Suche auf: die Anfrage, die der Agent geschickt hat,
-die durchsuchten Collections, wie viele Passagen zurückkamen und wie ähnlich die
+die durchsuchten Wissensdatenbanken, wie viele Passagen zurückkamen und wie ähnlich die
 nächste Passage der Anfrage war. Eine Suche ist ein **Fehltreffer**, wenn sie
 nichts zurückgegeben hat oder wenn ihre nächste Passage der Anfrage weniger
 ähnlich ist als `KNOWLEDGE_GAP_MIN_SIMILARITY`.
@@ -44,7 +44,7 @@ Lücken, die du liest, sind immer die Suchen unter der aktuellen Einstellung.
 
 Gespeichert werden nur Suchen, die ein Agent während seines Runs macht, und nur
 zu Fragen, die Menschen gestellt haben: Eine Suche über `/rag/search` der HTTP
-API, eine Vorschau auf der Seite der Collection und eine Suche eines Eval-Runs
+API, eine Vorschau auf der Seite der Wissensdatenbank und eine Suche eines Eval-Runs
 werden nicht gespeichert. Von einer Anfrage werden die ersten 1.000 Zeichen
 behalten.
 
@@ -52,20 +52,20 @@ behalten.
 
 Fehltreffer werden nach der Bedeutung der Anfrage zu **Themen** gruppiert. Alle
 15 Minuten nimmt ein Hintergrundlauf die neuen Fehltreffer jeder Wissensbasis,
-bettet sie mit dem eigenen Embedding-Modell dieser Collection ein und legt jeden
+bettet sie mit dem eigenen Embedding-Modell dieser Wissensdatenbank ein und legt jeden
 in das nächste Thema dieser Wissensbasis oder beginnt ein neues. Ein Lauf bettet
 höchstens 500 Fehltreffer pro Wissensbasis ein; der Rest wartet auf den
 nächsten. Eine Wissensbasis ohne neue Fehltreffer kostet keinen
 Embedding-Aufruf.
 
-- Eine Suche über zwei Collections wird zu einer Frage in einem Thema jeder der
+- Eine Suche über zwei Wissensdatenbanken wird zu einer Frage in einem Thema jeder der
   beiden.
-- Eine Collection, die auf ein anderes Embedding-Modell umgestellt wurde,
+- Eine Wissensdatenbank, die auf ein anderes Embedding-Modell umgestellt wurde,
   beginnt neue Themen, weil Vektoren zweier Modelle nicht vergleichbar sind.
 - Ein Thema behält seine Identität, wenn Fragen hinzukommen, sodass eine
   Entscheidung, die du dazu getroffen hast, weiter gilt.
 
-**Jetzt gruppieren** im Tab der Wissenslücken einer Collection führt den Lauf
+**Jetzt gruppieren** im Tab der Wissenslücken einer Wissensdatenbank führt den Lauf
 für diese Wissensbasis sofort aus, statt auf den Zeitplan zu warten. Bis eine
 Frage einem Thema zugeordnet ist, zählt der Tab sie als noch nicht gruppiert.
 
@@ -73,12 +73,17 @@ Frage einem Thema zugeordnet ist, zählt der Tab sie als noch nicht gruppiert.
 
 Lücken erscheinen an drei Stellen:
 
-- im Tab **Wissenslücken** einer Collection: alle Themen dieser Wissensbasis;
+- im Tab **Wissenslücken** einer Wissensdatenbank: alle ihre Themen;
 - im Tab **Wissenslücken** eines Agents: nur die Fragen dieses Agents, in den
   Wissensbasen, die du lesen darfst;
-- im Dashboard-Widget **Wissenslücken** auf dem Standard-Dashboard: die am
+- im Dashboard-Widget **Wissenslücken**, hinzugefügt über **Anpassen**: die am
   häufigsten gestellten Themen in der ganzen Organisation und wie viele Themen
   jede Wissensbasis hat.
+
+Ein Thema gehört zu seiner Wissensdatenbank, also folgt, wer es liest, daraus,
+wer diese Wissensdatenbank liest. Einen eigenen Filter nach Abteilung gibt es
+nicht: Eine Abteilung sieht die Lücken der Wissensdatenbanken, die mit ihr
+geteilt sind.
 
 Ein Thema zeigt, wie oft es gestellt wurde, wann zuletzt, welche Agents es
 gestellt haben, und bis zu drei seiner Fragen. Öffne es, um die neuesten Fragen
@@ -88,10 +93,13 @@ haben.
 
 ## Was mit einer Lücke zu tun ist { #acting-on-a-gap }
 
+**Zum Dataset hinzufügen** und **Verwerfen** stehen im Menü **…** eines Themas,
+in seiner Zeile und im Thema selbst.
+
 | Aktion | Was sie tut |
 |---|---|
-| Fehlendes Dokument hinzufügen | Lade es in die Collection hoch oder in eine Quelle, aus der die Collection synchronisiert. Nichts wird für dich hinzugefügt |
-| **Zum Dataset hinzufügen** | Wandelt die neuesten Fragen des Themas (bis zu 200) in Fälle eines Datasets deiner Wahl um, als eine neue Version. Jeder Fall ist die Frage der Person, mit der Antwort des Agents als Gegenbeispiel. Eine über die HTTP API gestellte Frage hat keine gespeicherte Antwort und wird übersprungen |
+| Fehlendes Dokument hinzufügen | Lade es in die Wissensdatenbank hoch oder in eine Quelle, aus der die Wissensdatenbank synchronisiert. Nichts wird für dich hinzugefügt |
+| **Zum Dataset hinzufügen** | Wandelt die neuesten Fragen des Themas (bis zu 200) in Fälle eines Datasets um, das du ändern darfst, als eine neue Version. Jeder Fall ist die Frage der Person, mit der Antwort des Agents als Gegenbeispiel. Eine über die HTTP API gestellte Frage hat keine gespeicherte Antwort und wird übersprungen |
 | **Verwerfen** | Markiert ein Thema als eines, das keinen Inhalt braucht. Ein verworfenes Thema behält die Fragen, die zu ihm gehören, und kommt deshalb nicht als neues Thema zurück. **Wieder öffnen** macht das rückgängig |
 
 Nachdem du das Dokument hinzugefügt hast, führe ein Eval über das Dataset aus.
@@ -110,10 +118,12 @@ Kommentar zu einer negativen Bewertung.
 
 Der Entwurf bleibt beim Thema, als Entwurf gekennzeichnet, mit einem Link zu
 seinem Run. Du kannst ihn kopieren oder als Markdown herunterladen. Er wird nie
-der Collection hinzugefügt. Der Entwerfer kennt die Fakten deines Unternehmens nicht: Wo eine
+der Wissensdatenbank hinzugefügt. Der Entwerfer kennt die Fakten deines Unternehmens nicht: Wo eine
 Antwort eine Zahl, ein Datum oder eine Regel braucht, schreibt er einen
 Platzhalter in eckigen Klammern, den du ausfüllst. Ein neuer Entwurf ersetzt den
-alten.
+alten. Wer den Drafter bearbeiten darf, findet am Entwurf **Anweisungen des
+Drafters bearbeiten** und den Drafter selbst unter **System-Agents** auf der
+Seite Agents.
 
 Ein Entwurf nennt seine Quellen: die Dokumente der Wissensbasis, auf die er
 sich stützt, und die Fragen des Themas, die er beantwortet. Jede wird geprüft,
@@ -140,13 +150,13 @@ und die API verweigert ihm den Zugriff.
 
 | Um | Brauchst du |
 |---|---|
-| Die Lücken einer Collection zu lesen | `runs:view` und `collections:view` auf dieser Collection |
-| Die Lücken eines Agents zu lesen | `runs:view` und `agents:view` auf dem Agent; Themen von Collections, die du nicht lesen darfst, werden ausgelassen |
-| Zu verwerfen, wieder zu öffnen oder neu zu gruppieren | `runs:view` und `collections:edit` auf der Collection |
+| Die Lücken einer Wissensdatenbank zu lesen | `runs:view` und `collections:view` auf dieser Wissensdatenbank |
+| Die Lücken eines Agents zu lesen | `runs:view` und `agents:view` auf dem Agent; Themen von Wissensdatenbanken, die du nicht lesen darfst, werden ausgelassen |
+| Zu verwerfen, wieder zu öffnen oder neu zu gruppieren | `runs:view` und `collections:edit` auf der Wissensdatenbank, aus deiner Rolle oder einem Bearbeitungs-Grant darauf |
 | Ein Thema zu einem Dataset hinzuzufügen | `runs:view` und `datasets:edit` auf dem Dataset |
-| Den fehlenden Inhalt zu entwerfen | `runs:view`, `collections:view` auf der Collection und `agents:run` auf dem Knowledge gap drafter |
+| Den fehlenden Inhalt zu entwerfen | `runs:view`, `collections:view` auf der Wissensdatenbank und `agents:run` auf dem Knowledge gap drafter |
 
-Eine Collection, ein Agent, ein Thema oder ein Dataset, auf das du keinen
+Eine Wissensdatenbank, ein Agent, ein Thema oder ein Dataset, auf das du keinen
 Zugriff hast, antwortet mit „nicht gefunden“, ebenso eines aus einer anderen
 Organisation. Siehe [Berechtigungen](permissions.md).
 

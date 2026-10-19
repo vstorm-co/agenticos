@@ -234,7 +234,14 @@ class KnowledgeGapService:
     async def _agents(self, ctx: AuthContext, ids: list[UUID]) -> dict[UUID, KnowledgeGapAgent]:
         found = await agent_repo.get_many(self.db, ids, organization_id=ctx.organization_id)
         return {
-            agent_id: KnowledgeGapAgent(id=agent_id, name=a.name) for agent_id, a in found.items()
+            agent_id: KnowledgeGapAgent(
+                id=agent_id,
+                name=a.name,
+                slug=a.slug,
+                has_avatar=a.has_avatar,
+                avatar_color=a.avatar_color,
+            )
+            for agent_id, a in found.items()
         }
 
     async def _reads(self, ctx: AuthContext, rows: list[TopicRow]) -> list[KnowledgeGapTopicRead]:
@@ -242,6 +249,7 @@ class KnowledgeGapService:
         bases = await knowledge_base_repo.get_by_ids(
             self.db, sorted({row.topic.knowledge_base_id for row in rows})
         )
+        writable = {kb_id for kb_id, kb in bases.items() if await writable_kb(self.db, ctx, kb)}
         return [
             KnowledgeGapTopicRead(
                 id=row.topic.id,
@@ -255,6 +263,7 @@ class KnowledgeGapService:
                 agents=[agents[a] for a in row.agent_ids if a in agents],
                 dismissed_at=row.topic.dismissed_at,
                 has_draft=row.topic.draft_content is not None,
+                can_edit=row.topic.knowledge_base_id in writable,
             )
             for row in rows
         ]

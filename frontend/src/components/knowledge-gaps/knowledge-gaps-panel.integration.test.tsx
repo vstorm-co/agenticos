@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -28,9 +28,12 @@ const TOPIC = {
   question_count: 3,
   last_asked_at: "2026-10-12T09:00:00Z",
   examples: [],
-  agents: [{ id: "a1", name: "HR helper" }],
+  agents: [
+    { id: "a1", name: "HR helper", slug: "hr-helper", has_avatar: false, avatar_color: null },
+  ],
   dismissed_at: null,
   has_draft: false,
+  can_edit: false,
 };
 
 beforeEach(() => {
@@ -69,12 +72,11 @@ describe("an agent's knowledge gaps, by what the caller may do", () => {
   it("lets a caller who only reads runs look, and change nothing", async () => {
     perms.add(Perm.runsView);
     await openTopic();
-    expect(screen.queryByRole("button", { name: "Dismiss" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Add to dataset" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "More actions for this topic" })).toBeNull();
   });
 
   it("turns the topic into cases of a dataset the caller edits, and counts them", async () => {
-    perms.add(Perm.runsView).add(Perm.datasetsEdit);
+    perms.add(Perm.runsView).add(Perm.datasetsView);
     vi.mocked(apiClient.post).mockResolvedValue({
       dataset_id: "d1",
       version: 2,
@@ -82,8 +84,13 @@ describe("an agent's knowledge gaps, by what the caller may do", () => {
       skipped: 1,
     });
     await openTopic();
-    expect(screen.queryByRole("button", { name: "Dismiss" })).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "Add to dataset" }));
+    await userEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "More actions for this topic",
+      }),
+    );
+    expect(screen.queryByRole("menuitem", { name: "Dismiss" })).toBeNull();
+    await userEvent.click(screen.getByRole("menuitem", { name: "Add to dataset" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Add" })).toBeEnabled());
     await userEvent.click(screen.getByRole("button", { name: "Add" }));
 

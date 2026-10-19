@@ -11,6 +11,9 @@ export type KnowledgeGapStatus = "open" | "dismissed";
 export interface KnowledgeGapAgent {
   id: string;
   name: string;
+  slug: string;
+  has_avatar: boolean;
+  avatar_color: number | null;
 }
 
 export interface KnowledgeGapTopic {
@@ -27,6 +30,8 @@ export interface KnowledgeGapTopic {
   agents: KnowledgeGapAgent[];
   dismissed_at: string | null;
   has_draft: boolean;
+  /** Whether the caller may dismiss or reopen it: they may change its knowledge base. */
+  can_edit: boolean;
 }
 
 /** How many topics one knowledge base holds, under the list's filters. */
