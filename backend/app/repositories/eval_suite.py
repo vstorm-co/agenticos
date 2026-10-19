@@ -365,3 +365,23 @@ async def open_results(
         .ext(distinct_on(EvalSuiteResult.suite_id))
     )
     return {row.suite_id: row for row in result.scalars().all()}
+
+
+async def started_runs(
+    db: AsyncSession, eval_run_ids: Sequence[UUID], *, organization_id: UUID
+) -> dict[UUID, tuple[EvalSuite, EvalSuiteResult]]:
+    """For each of these eval runs a suite started, the suite and the result it ran for."""
+    if not eval_run_ids:
+        return {}
+    result = await db.execute(
+        select(EvalSuite, EvalSuiteResult)
+        .join(EvalSuiteResult, EvalSuiteResult.suite_id == EvalSuite.id)
+        .where(
+            EvalSuiteResult.eval_run_id.in_(list(eval_run_ids)),
+            EvalSuiteResult.organization_id == organization_id,
+        )
+    )
+    return {
+        row.EvalSuiteResult.eval_run_id: (row.EvalSuite, row.EvalSuiteResult)
+        for row in result.all()
+    }

@@ -16,6 +16,7 @@ from app.db.models.eval_run import (
     EvalRunPurpose,
     EvalRunStatus,
 )
+from app.db.models.eval_suite import EvalSuiteTrigger
 from app.schemas.base import BaseSchema
 from app.schemas.dataset import StoredCaseContent
 from app.schemas.scoring import CaseScoreRead
@@ -213,6 +214,14 @@ class RoutingErrorRead(BaseSchema):
     message: str
 
 
+class EvalRunSuiteRead(BaseSchema):
+    """The eval suite that started a run, and what made it run."""
+
+    id: UUID
+    name: str
+    trigger: EvalSuiteTrigger
+
+
 class EvalRunRead(BaseSchema):
     """One eval run, with each arm's results so far."""
 
@@ -274,6 +283,10 @@ class EvalRunRead(BaseSchema):
             "scorer reached no verdict - the judge errored or was skipped - and no "
             "person decided: what grading again can settle"
         ),
+    )
+    suite: EvalRunSuiteRead | None = Field(
+        default=None,
+        description="The eval suite that started this run; null for one started by hand",
     )
     draft_changed: bool | None = Field(
         default=None,

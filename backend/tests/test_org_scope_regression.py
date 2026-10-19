@@ -113,6 +113,7 @@ TENANT_REQUIRED = [
     (eval_suite_repo, "list_results"),
     (eval_suite_repo, "latest_results"),
     (eval_suite_repo, "open_results"),
+    (eval_suite_repo, "started_runs"),
 ]
 
 # Deliberately unscoped, each documented at its definition.

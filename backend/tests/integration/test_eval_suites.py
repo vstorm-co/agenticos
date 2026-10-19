@@ -335,6 +335,10 @@ async def test_a_daily_suite_runs_once_a_day_and_records_its_result(db) -> None:
     read = await service.get(ctx, agent.id, suite.id)
     assert read.last_result is not None and read.last_result.id == results[1].id
     assert read.schedule is not None and read.schedule.timezone == "Europe/Warsaw"
+    assert results[0].eval_run_id is not None
+    run = await service.evals.get(ctx, results[0].eval_run_id)
+    assert run.suite is not None
+    assert (run.suite.id, run.suite.trigger) == (suite.id, "schedule")
 
 
 async def test_a_paused_suite_does_not_run(db) -> None:

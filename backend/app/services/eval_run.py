@@ -68,11 +68,13 @@ from app.db.models.eval_run import (
     EvalRunPurpose,
     EvalRunStatus,
 )
+from app.db.models.eval_suite import EvalSuiteTrigger
 from app.repositories import (
     agent_repo,
     agent_run_repo,
     dataset_repo,
     eval_run_repo,
+    eval_suite_repo,
     organization_repo,
 )
 from app.schemas.dataset import StoredCaseContent
@@ -94,6 +96,7 @@ from app.schemas.eval_run import (
     EvalRunList,
     EvalRunRead,
     EvalRunRequest,
+    EvalRunSuiteRead,
     EvalUngradedCaseRead,
     RoutingErrorRead,
 )
@@ -1170,6 +1173,9 @@ class EvalRunService:
         numbers = await eval_run_repo.dataset_version_numbers(
             self.db, sorted({run.dataset_version_id for run in runs}), organization_id=org
         )
+        suites = await eval_suite_repo.started_runs(
+            self.db, [run.id for run in runs], organization_id=org
+        )
         reads = []
         for run in runs:
             attempts = await eval_run_repo.list_cases(self.db, run.id, organization_id=org)
@@ -1271,6 +1277,15 @@ class EvalRunService:
                     ),
                     ungraded_score_ids=sorted(
                         borrowed | {score.id for score in scores.values() if _not_graded(score)}
+                    ),
+                    suite=(
+                        EvalRunSuiteRead(
+                            id=suites[run.id][0].id,
+                            name=suites[run.id][0].name,
+                            trigger=EvalSuiteTrigger(suites[run.id][1].trigger),
+                        )
+                        if run.id in suites
+                        else None
                     ),
                     error=run.error,
                     created_by_user_id=run.created_by_user_id,
