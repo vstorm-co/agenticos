@@ -31,6 +31,7 @@ import {
 import { cn } from "@/lib/utils";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { DEFAULT_ENV, EnvironmentField } from "@/components/triggers/environment-field";
+import { OverlapField } from "@/components/triggers/overlap-field";
 import { RunAsCreatorField } from "@/components/triggers/run-as-creator-field";
 import { EventSourceMark } from "@/components/triggers/event-source-mark";
 import { TriggerTemplatePicker } from "@/components/triggers/trigger-template-picker";
@@ -55,6 +56,7 @@ import type {
   Trigger,
   TriggerCreate,
   TriggerCreated,
+  TriggerOverlap,
   TriggerType,
   TriggerUpdate,
 } from "@/types/triggers";
@@ -192,6 +194,7 @@ export function TriggerFormDialog({
   const [name, setName] = useState(trigger?.name ?? "");
   const [environmentId, setEnvironmentId] = useState(trigger?.environment_id ?? DEFAULT_ENV);
   const [runsAsCreator, setRunsAsCreator] = useState(trigger?.runs_as_creator ?? false);
+  const [overlap, setOverlap] = useState<TriggerOverlap>(trigger?.overlap ?? "skip");
   // A new trigger is the caller's own; an existing one is whoever made it.
   const me = useAuthStore((state) => state.user?.id ?? null);
   const isCreator = trigger === null || trigger.created_by_user_id === me;
@@ -390,7 +393,7 @@ export function TriggerFormDialog({
       ...(runsAsCreator ? { runs_as_creator: true } : {}),
     };
     if (type === "schedule") {
-      return { ...base, ...scheduleCadence() };
+      return { ...base, ...scheduleCadence(), overlap };
     }
     return {
       ...base,
@@ -413,6 +416,9 @@ export function TriggerFormDialog({
         const env = environmentId === DEFAULT_ENV ? null : environmentId;
         if (env !== (trigger.environment_id ?? null)) patch.environment_id = env;
         if (runsAsCreator !== trigger.runs_as_creator) patch.runs_as_creator = runsAsCreator;
+        if (trigger.trigger_type === "schedule" && overlap !== trigger.overlap) {
+          patch.overlap = overlap;
+        }
         // A schedule's cadence, only when a cadence control was actually touched.
         // The server recomputes next_fire_at on any cadence field it receives, so
         // echoing the cadence on a prompt-only edit would needlessly reset the
@@ -571,6 +577,9 @@ export function TriggerFormDialog({
             <PromptField value={prompt} onChange={setPrompt} />
 
             {scheduleFields}
+            {trigger.trigger_type === "schedule" && (
+              <OverlapField value={overlap} onChange={setOverlap} />
+            )}
 
             {trigger.trigger_type === "event" && trigger.webhook_url && (
               <WebhookField url={trigger.webhook_url} />
@@ -768,6 +777,7 @@ export function TriggerFormDialog({
                 onApply={applyPreset}
               />
               {scheduleFields}
+              <OverlapField value={overlap} onChange={setOverlap} />
             </div>
           )}
         </div>

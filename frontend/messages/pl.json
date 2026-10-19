@@ -5944,7 +5944,18 @@
     "stepMessage": "Wiadomość",
     "templateScratchHelpEvent": "Napisz własną wiadomość.",
     "sourceEmail": "Przychodzącym e-mailu",
-    "sourceHelpEmail": "Skieruj przekaźnik poczty przychodzącej na ten webhook. Przekaźnik musi podpisać każdą dostawę (HMAC) - Zapier i Make potrafią to tylko przez krok z kodem; zwykła akcja webhooka bez kodu przychodzi niepodpisana i jest odrzucana."
+    "sourceHelpEmail": "Skieruj przekaźnik poczty przychodzącej na ten webhook. Przekaźnik musi podpisać każdą dostawę (HMAC) - Zapier i Make potrafią to tylko przez krok z kodem; zwykła akcja webhooka bez kodu przychodzi niepodpisana i jest odrzucana.",
+    "overlapLabel": "Jeśli poprzednie uruchomienie wciąż trwa",
+    "overlap": {
+      "skip": "Pomiń to uruchomienie",
+      "queue": "Uruchom, gdy się skończy",
+      "allow": "Uruchom mimo to"
+    },
+    "overlapHint": {
+      "skip": "Harmonogram czeka na kolejny termin. Wolny agent działa tak często, jak zdąży skończyć.",
+      "queue": "Uruchamia się raz po zakończeniu poprzedniego, niezależnie od liczby pominiętych terminów.",
+      "allow": "Startuje o czasie obok trwającego uruchomienia. Płacisz za oba."
+    }
   },
   "portals": {
     "title": "Portale",

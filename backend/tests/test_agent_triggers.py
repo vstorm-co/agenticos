@@ -125,6 +125,7 @@ def _trigger(**overrides: object) -> MagicMock:
         "provider_webhook_id": None,
         "provider_target": None,
         "runs_as_creator": False,
+        "overlap": "skip",
     }
     defaults.update(overrides)
     return MagicMock(**defaults)
@@ -868,7 +869,7 @@ class TestClaiming:
         now = datetime(2026, 6, 1, tzinfo=UTC)
         trigger = _trigger(interval_seconds=300)
         with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
-            repo.claim_due = AsyncMock(return_value=[trigger])
+            repo.claim_due = AsyncMock(return_value=[(trigger, False)])
             claimed = await service.claim_and_advance(now=now)
         assert trigger.next_fire_at == now + timedelta(seconds=300)
         # Claiming is not firing: `last_fired_at` is stamped by `fire`, not here.
@@ -890,7 +891,7 @@ class TestClaiming:
         now = datetime(2026, 6, 1, tzinfo=UTC)
         trigger = _trigger(interval_seconds=300, fire_in_flight_since=None)
         with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
-            repo.claim_due = AsyncMock(return_value=[trigger])
+            repo.claim_due = AsyncMock(return_value=[(trigger, False)])
             await service.claim_and_advance(now=now)
         assert trigger.fire_in_flight_since == now
 
@@ -905,7 +906,7 @@ class TestClaiming:
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
             patch("app.services.agent_trigger.record_audit", new=audit),
         ):
-            repo.claim_due = AsyncMock(return_value=[orphan])
+            repo.claim_due = AsyncMock(return_value=[(orphan, False)])
             claimed = await service.claim_and_advance(now=datetime(2026, 6, 1, tzinfo=UTC))
         assert orphan.is_active is False
         assert claimed == []
@@ -925,13 +926,52 @@ class TestClaiming:
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
             patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
         ):
-            repo.claim_due = AsyncMock(return_value=[live[0], orphan, live[1]])
+            repo.claim_due = AsyncMock(
+                return_value=[(live[0], False), (orphan, False), (live[1], False)]
+            )
             await service.claim_and_advance(now=now)
 
         assert queued_fires == [
             FireTrigger(trigger_id=trigger.id, event_context=None, claimed_at=now)
             for trigger in live
         ]
+
+    async def test_a_skipping_trigger_that_is_busy_lets_the_occurrence_pass(
+        self, queued_fires: list[FireTrigger]
+    ):
+        """#2219: advanced past the occurrence, nothing queued, and the marker
+        left to the fire still running."""
+        service = _service()
+        now = datetime(2026, 6, 1, tzinfo=UTC)
+        earlier = now - timedelta(minutes=2)
+        busy = _trigger(interval_seconds=300, overlap="skip", fire_in_flight_since=earlier)
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.claim_due = AsyncMock(return_value=[(busy, True)])
+            claimed = await service.claim_and_advance(now=now)
+
+        assert claimed == []
+        assert queued_fires == []
+        assert busy.next_fire_at == now + timedelta(seconds=300)
+        assert busy.fire_in_flight_since == earlier
+
+    async def test_an_allowing_trigger_that_is_busy_fires_without_a_ticket(
+        self, queued_fires: list[FireTrigger]
+    ):
+        """#2219: it fires on time, as `run_now` does - with no claim ticket, so
+        it neither renews nor clears the marker the running fire relies on."""
+        service = _service()
+        now = datetime(2026, 6, 1, tzinfo=UTC)
+        earlier = now - timedelta(minutes=2)
+        busy = _trigger(interval_seconds=300, overlap="allow", fire_in_flight_since=earlier)
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.claim_due = AsyncMock(return_value=[(busy, True)])
+            claimed = await service.claim_and_advance(now=now)
+
+        assert claimed == [busy]
+        assert queued_fires == [
+            FireTrigger(trigger_id=busy.id, event_context=None, claimed_at=None)
+        ]
+        assert busy.fire_in_flight_since == earlier
 
 
 class TestQueueingDeliveredFires:
@@ -1664,7 +1704,7 @@ class TestEventTriggerSchema:
     def test_a_schedule_read_has_no_webhook_url(self):
         assert _read().webhook_url is None
 
-    @pytest.mark.parametrize("field", ["prompt", "is_active"])
+    @pytest.mark.parametrize("field", ["prompt", "is_active", "overlap"])
     def test_an_explicit_null_for_a_not_null_field_is_a_422(self, field):
         """`{"is_active": null}` maps to a NOT NULL column; caught here it is a 422
         naming the field, not an IntegrityError 500 the update guard exists to
@@ -1907,6 +1947,40 @@ class TestEventTriggerRestrictions:
                     _ctx(), agent.id, trigger.id, TriggerUpdate(interval_seconds=600)
                 )
             repo.update.assert_not_called()
+
+    async def test_an_overlap_policy_on_an_event_trigger_is_refused(self):
+        """Nothing claims an event trigger, so a policy on one would be stored to
+        mean nothing (#2219)."""
+        agent = _agent()
+        service = _service(agent)
+        trigger = _event_trigger(agent_id=agent.id)
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock()
+            with pytest.raises(BadRequestError, match="overlap"):
+                await service.update(_ctx(), agent.id, trigger.id, TriggerUpdate(overlap="allow"))
+            repo.update.assert_not_called()
+        with pytest.raises(PydanticValidationError, match="overlap is not valid"):
+            TriggerCreate(
+                prompt="triage it",
+                trigger_type="event",
+                event_source="github",
+                event_secret="s" * 16,
+                overlap="queue",
+            )
+
+    async def test_a_schedules_overlap_policy_changes_without_moving_its_next_fire(self):
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(agent_id=agent.id)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock(return_value=trigger)
+            await service.update(_ctx(), agent.id, trigger.id, TriggerUpdate(overlap="queue"))
+        assert repo.update.call_args.kwargs["update_data"] == {"overlap": "queue"}
 
     async def test_retiming_a_cron_schedule_to_an_interval_switches_it(self):
         """Sending an interval to a cron schedule switches its kind in place -
@@ -3316,6 +3390,19 @@ class TestRunningAsTheCreator:
                 _ctx(), uuid.uuid4(), _interval().model_copy(update={"runs_as_creator": True})
             )
         assert repo.create.call_args.kwargs["runs_as_creator"] is True
+
+    @pytest.mark.parametrize(("sent", "stored"), [(None, "skip"), ("allow", "allow")])
+    async def test_a_new_schedule_skips_a_busy_occurrence_unless_told_otherwise(self, sent, stored):
+        service = _service()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.create = AsyncMock(return_value=_trigger(conversation_id=uuid.uuid4()))
+            await service.create(
+                _ctx(), uuid.uuid4(), _interval().model_copy(update={"overlap": sent})
+            )
+        assert repo.create.call_args.kwargs["overlap"] == stored
 
     @pytest.mark.security
     @pytest.mark.parametrize("through", ["api_key", "impersonation"])

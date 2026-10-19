@@ -6170,7 +6170,18 @@
     "presetWeekdays9": "Weekdays 09:00",
     "stepConfigure": "Configure",
     "stepMessage": "Message",
-    "templateScratchHelpEvent": "Write your own message."
+    "templateScratchHelpEvent": "Write your own message.",
+    "overlapLabel": "If the previous run is still going",
+    "overlap": {
+      "skip": "Skip this run",
+      "queue": "Run when it finishes",
+      "allow": "Run anyway"
+    },
+    "overlapHint": {
+      "skip": "The schedule waits for its next time. A slow agent runs as often as it can finish.",
+      "queue": "Runs once the previous run ends, however many times were missed.",
+      "allow": "Starts on time alongside the run still going. Both runs are paid for."
+    }
   },
   "portals": {
     "title": "Portals",

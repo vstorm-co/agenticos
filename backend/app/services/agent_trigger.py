@@ -60,7 +60,13 @@ from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import GithubAppSecret, SecretKind
 from app.core.vault import VaultScope, seal, unseal
 from app.db.models.agent_run import RunStatus, RunSurface
-from app.db.models.agent_trigger import AgentTrigger, EventSource, ScheduleKind, TriggerType
+from app.db.models.agent_trigger import (
+    AgentTrigger,
+    EventSource,
+    ScheduleKind,
+    TriggerOverlap,
+    TriggerType,
+)
 from app.db.models.mcp_connection import McpConnection
 from app.db.session import get_db_context
 from app.db.updates import writable
@@ -671,6 +677,7 @@ class AgentTriggerService:
             portal_key=portal_key,
             delivery_mode=delivery_mode,
             runs_as_creator=data.runs_as_creator,
+            overlap=data.overlap or TriggerOverlap.SKIP.value,
         )
         # Open the run-log conversation now, not on the first fire, so a new
         # trigger is a clickable item in the sidebar the moment it exists - empty
@@ -903,6 +910,11 @@ class AgentTriggerService:
         if touches_cadence and trigger.trigger_type != TriggerType.SCHEDULE.value:
             raise BadRequestError(
                 message="only a schedule has a cadence to change",
+                details={"trigger_id": str(trigger.id)},
+            )
+        if "overlap" in changes and trigger.trigger_type != TriggerType.SCHEDULE.value:
+            raise BadRequestError(
+                message="only a schedule has an overlap policy",
                 details={"trigger_id": str(trigger.id)},
             )
 
@@ -1534,14 +1546,26 @@ class AgentTriggerService:
 
         The fire is queued in the claim's own transaction, so a trigger is never
         advanced without its run queued, nor queued twice: the two commit together.
+
+        A trigger whose previous fire is still busy is claimed only when its
+        `overlap` lets it be (`claim_due`), and then: `skip` advances past the
+        occurrence without firing; `allow` fires with no claim ticket, as
+        `run_now` does, leaving the marker to the fire still relying on it.
+        Returns the triggers that fired.
         """
-        triggers = await agent_trigger_repo.claim_due(self.db, now=now, limit=limit)
-        live: list[AgentTrigger] = []
-        for trigger in triggers:
+        claimed = await agent_trigger_repo.claim_due(self.db, now=now, limit=limit)
+        fired: list[tuple[AgentTrigger, datetime | None]] = []
+        for trigger, busy in claimed:
             if trigger.created_by_user_id is None:
                 await self._disable(trigger, reason="creator_not_active")
                 continue
             trigger.next_fire_at = _next_fire_from(trigger, now=now)
+            if busy:
+                if trigger.overlap == TriggerOverlap.SKIP.value:
+                    logger.info("trigger_occurrence_skipped", extra={"trigger_id": str(trigger.id)})
+                    continue
+                fired.append((trigger, None))
+                continue
             # Mark the fire in flight in the same committed UPDATE that advances the
             # schedule, so no window opens in which a slow run's trigger looks
             # claimable to the next tick. This timestamp is the claim's ticket: the
@@ -1549,13 +1573,13 @@ class AgentTriggerService:
             # and clears the marker only while it still matches (`fire`), so a fire
             # that outran the lease cannot clear a newer claim's marker.
             trigger.fire_in_flight_since = now
-            live.append(trigger)
+            fired.append((trigger, now))
         await self.db.flush()
-        for trigger in live:
+        for trigger, ticket in fired:
             await self.queue_fire(
-                trigger.id, organization_id=trigger.organization_id, claimed_at=now
+                trigger.id, organization_id=trigger.organization_id, claimed_at=ticket
             )
-        return live
+        return [trigger for trigger, _ticket in fired]
 
     async def fire(
         self,
