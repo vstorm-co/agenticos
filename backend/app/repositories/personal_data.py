@@ -17,7 +17,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Select, and_, func, or_, select, update
+from sqlalchemy import ColumnElement, Select, and_, func, or_, select, update
 from sqlalchemy import delete as sa_delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -199,24 +199,30 @@ async def runs_started_by(db: AsyncSession, user_id: UUID) -> list[AgentRun]:
     return list(result.scalars().all())
 
 
+def _proposals_drafted_from(user_id: UUID) -> ColumnElement[bool]:
+    """A proposal drafted from this person: from a question they typed, a thread they
+    own or a run they started. A project's chat is continued by its members, so the
+    thread's owner alone does not say whose question it was."""
+    return or_(
+        CaseProposal.source_message_id.in_(
+            select(Message.id).where(Message.author_user_id == user_id)
+        ),
+        CaseProposal.source_conversation_id.in_(
+            select(Conversation.id).where(Conversation.user_id == user_id)
+        ),
+        CaseProposal.source_run_id.in_(select(AgentRun.id).where(AgentRun.user_id == user_id)),
+    )
+
+
 async def case_proposals_from(db: AsyncSession, user_id: UUID) -> list[CaseProposal]:
-    """Drafted dataset cases taken from their conversations or runs, still waiting.
+    """Drafted dataset cases taken from their questions, conversations or runs, still waiting.
 
     Unscoped by organization on purpose, like every read of an export: it is
     about one person, in every organization they were in.
     """
     result = await db.execute(
         select(CaseProposal)
-        .where(
-            or_(
-                CaseProposal.source_conversation_id.in_(
-                    select(Conversation.id).where(Conversation.user_id == user_id)
-                ),
-                CaseProposal.source_run_id.in_(
-                    select(AgentRun.id).where(AgentRun.user_id == user_id)
-                ),
-            )
-        )
+        .where(_proposals_drafted_from(user_id))
         .order_by(CaseProposal.created_at.desc(), CaseProposal.id)
     )
     return list(result.scalars().all())
@@ -429,7 +435,7 @@ async def delete_case_proposals_from_conversation(
 
 
 async def delete_case_proposals_of(db: AsyncSession, user_id: UUID) -> int:
-    """Delete every proposed case drafted from this person's conversations or runs.
+    """Delete every proposed case drafted from this person's questions, conversations or runs.
 
     Unscoped by organization on purpose, like :func:`unlink_dataset_cases_of`:
     an erasure is about one person, in every organization they were in.
@@ -437,18 +443,7 @@ async def delete_case_proposals_of(db: AsyncSession, user_id: UUID) -> int:
     Returns:
         How many proposals were deleted.
     """
-    result = await db.execute(
-        sa_delete(CaseProposal).where(
-            or_(
-                CaseProposal.source_conversation_id.in_(
-                    select(Conversation.id).where(Conversation.user_id == user_id)
-                ),
-                CaseProposal.source_run_id.in_(
-                    select(AgentRun.id).where(AgentRun.user_id == user_id)
-                ),
-            )
-        )
-    )
+    result = await db.execute(sa_delete(CaseProposal).where(_proposals_drafted_from(user_id)))
     await db.flush()
     return result.rowcount or 0  # ty: ignore[unresolved-attribute]
 

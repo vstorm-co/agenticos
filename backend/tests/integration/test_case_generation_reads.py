@@ -303,3 +303,22 @@ async def test_erasing_a_person_takes_the_proposals_drafted_from_them(db) -> Non
 
     assert await personal_data_repo.delete_case_proposals_of(db, person.id) == 2
     assert await db.scalar(select(func.count(CaseProposal.id))) == 1
+
+
+async def test_a_question_typed_in_someone_else_s_thread_is_its_author_s(db) -> None:
+    """In a project chat the thread's starter is not who asked, so the author's
+    export lists the draft and erasing the author takes it."""
+    starter = await world.user(db)
+    member = await world.user(db)
+    org = await world.org(db, starter)
+    agent = await world.agent(db, org)
+    dataset = await world.dataset(db, org)
+    _, _, asked = await world.asked(db, org, agent, starter, "Ours", minutes=1, author=member)
+    _, [drafted] = await world.proposals(db, org, dataset, agent, 1, source_message_id=asked.id)
+
+    assert [p.id for p in await personal_data_repo.case_proposals_from(db, member.id)] == [
+        drafted.id
+    ]
+    assert await personal_data_repo.case_proposals_from(db, starter.id) == []
+    assert await personal_data_repo.delete_case_proposals_of(db, member.id) == 1
+    assert await db.scalar(select(func.count(CaseProposal.id))) == 0

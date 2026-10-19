@@ -1,5 +1,5 @@
 ---
-source_sha: "52f9a8331e8f"
+source_sha: "f5d0a13fbd05"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -584,7 +584,7 @@ Wygenerowany przypadek, który wciąż czeka na decyzję, nie jest tak
 zachowywany. Gdy rozmowa, z której go przygotowano, zostanie usunięta albo
 osoba, która zadała pytanie, zostanie wymazana, propozycja jest usuwana razem z
 nią: nikt nie zdecydował, że chce ją zachować. Eksport danych osoby zawiera
-propozycje wzięte z jej rozmów. Generowanie z rozmów wysyła
+propozycje wzięte z jej pytań i rozmów. Generowanie z rozmów wysyła
 zadane pytania, po redakcji, do dostawcy modelu generatora przypadków, a
 generowanie z wiedzy wysyła fragmenty dokumentów - zobacz
 [co opuszcza wdrożenie](data-protection.md#what-leaves-the-deployment).

@@ -1,5 +1,5 @@
 ---
-source_sha: "52f9a8331e8f"
+source_sha: "f5d0a13fbd05"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -619,7 +619,7 @@ Ein generierter Fall, der noch auf eine Entscheidung wartet, wird nicht so
 aufbewahrt. Wird das Gespräch gelöscht, aus dem er entworfen wurde, oder die
 Person gelöscht, die die Frage gestellt hat, wird der Entwurf mit gelöscht:
 Niemand hat entschieden, ihn zu behalten. Der Datenexport einer Person enthält
-die Entwürfe aus ihren Gesprächen. Eine Generierung aus Gesprächen
+die Entwürfe aus ihren Fragen und Gesprächen. Eine Generierung aus Gesprächen
 schickt die gestellten Fragen, geschwärzt, an den Modellanbieter des
 Fallgenerators, und eine Generierung aus dem Wissen schickt Abschnitte der
 Dokumente - siehe

@@ -1,5 +1,5 @@
 ---
-source_sha: "52f9a8331e8f"
+source_sha: "f5d0a13fbd05"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -594,7 +594,7 @@ Un caso generado que aún espera una decisión no se conserva así. Cuando se
 borra la conversación de la que se redactó, o se borra a la persona que hizo la
 pregunta, el borrador se elimina con ella: nadie decidió conservarlo. La
 exportación de datos de una persona incluye los borradores tomados de sus
-conversaciones. Generar
+preguntas y conversaciones. Generar
 desde conversaciones envía las preguntas que hizo la gente, con las credenciales
 ocultas, al provider del modelo del generador de casos, y generar desde el
 conocimiento envía fragmentos de los documentos; consulta

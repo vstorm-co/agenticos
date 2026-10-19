@@ -74,8 +74,13 @@ async def asked(
     rating: int | None = None,
     comment: str | None = None,
     surface: str = "web",
+    author: User | None = None,
 ) -> tuple[AgentRun, Conversation, Message]:
-    """A conversation in which `person` asked `agent` one question and got an answer."""
+    """A conversation in which `person` asked `agent` one question and got an answer.
+
+    `author` typed the question in `person`'s thread, the way a project member
+    continues a project chat somebody else started.
+    """
     conversation = Conversation(
         id=uuid.uuid4(), user_id=person.id, organization_id=org.id, title="Support"
     )
@@ -99,6 +104,7 @@ async def asked(
         run_id=run.id,
         role="user",
         content=question,
+        author_user_id=(author or person).id,
         created_at=START + timedelta(minutes=minutes),
     )
     answer = Message(

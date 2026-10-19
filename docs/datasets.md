@@ -554,7 +554,7 @@ it graded.
 A generated case that is still waiting for a decision is not kept that way.
 When the conversation it was drafted from is deleted, or the person who asked
 the question is erased, the draft is deleted with it: nobody chose to keep it.
-A person's data export lists the drafts taken from their conversations.
+A person's data export lists the drafts taken from their questions and conversations.
 Generating from conversations sends the questions people asked, redacted, to
 the case generator's model provider, and generating from knowledge sends
 passages of the documents - see
