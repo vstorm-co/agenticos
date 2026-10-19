@@ -35,7 +35,6 @@ from app.services import skill_library
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.file_storage import avatar_filename, get_file_storage
 from app.services.skills import SkillService
-from app.services.system_agents import SystemAgentService
 
 if TYPE_CHECKING:
     from app.services.rag.vectorstore import BaseVectorStore
@@ -165,8 +164,15 @@ class OrganizationService:
             role=OrgRole.OWNER.value,
         )
         await self._seed_bundled_skills(org.id, owner_id)
-        await SystemAgentService(self.db).seed(organization_id=org.id, owner_id=owner_id)
+        await self._seed_system_agents(org.id, owner_id)
         return org
+
+    async def _seed_system_agents(self, organization_id: UUID, owner_id: UUID) -> None:
+        # Imported locally: the system agents reach the agent registry, whose
+        # browser capability imports this module back through the user service.
+        from app.services.system_agents import SystemAgentService
+
+        await SystemAgentService(self.db).seed(organization_id=organization_id, owner_id=owner_id)
 
     async def _seed_bundled_skills(self, organization_id: UUID, owner_id: UUID) -> None:
         """Copy every bundled skill into a brand-new organization.
@@ -256,7 +262,7 @@ class OrganizationService:
             role=OrgRole.OWNER.value,
         )
         await self._seed_bundled_skills(org.id, user_id)
-        await SystemAgentService(self.db).seed(organization_id=org.id, owner_id=user_id)
+        await self._seed_system_agents(org.id, user_id)
         return org
 
     async def update(
