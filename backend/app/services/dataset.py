@@ -186,6 +186,7 @@ def _dataset_read(
     dataset: Dataset,
     *,
     can_edit: bool,
+    can_run: bool,
     judge_name: str | None,
     stats: DatasetStats | None = None,
 ) -> DatasetRead:
@@ -200,6 +201,7 @@ def _dataset_read(
         latest_version=dataset.latest_version,
         case_count=dataset.case_count,
         can_edit=can_edit,
+        can_run=can_run,
         scoring=DatasetScoring.model_validate(dataset.scoring),
         created_at=dataset.created_at,
         updated_at=dataset.updated_at,
@@ -274,6 +276,9 @@ class DatasetService:
         return _dataset_read(
             dataset,
             can_edit=await self._can_edit(ctx, dataset),
+            can_run=await resolve_access(
+                self.db, ctx, dataset, Perm.DATASETS_RUN, resource_type=DATASET
+            ),
             judge_name=judges.get(dataset.id),
             stats=stats.get(dataset.id),
         )
@@ -337,6 +342,9 @@ class DatasetService:
         may_edit = await accessible_ids(
             self.db, ctx, items, Perm.DATASETS_EDIT, resource_type=DATASET
         )
+        may_run = await accessible_ids(
+            self.db, ctx, items, Perm.DATASETS_RUN, resource_type=DATASET
+        )
         stats = await self._stats(ctx, items)
         judges = await self._judge_names(ctx, items)
         return DatasetList(
@@ -344,6 +352,7 @@ class DatasetService:
                 _dataset_read(
                     item,
                     can_edit=item.id in may_edit,
+                    can_run=item.id in may_run,
                     judge_name=judges.get(item.id),
                     stats=stats.get(item.id),
                 )

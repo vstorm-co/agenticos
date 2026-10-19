@@ -287,6 +287,14 @@ class DatasetRead(BaseSchema):
     can_edit: bool = Field(
         default=False, description="Whether the caller may change this dataset's cases"
     )
+    can_run: bool = Field(
+        default=False,
+        description=(
+            "Whether the caller may run this dataset - start an eval on it, or score "
+            "an answer against it. Resolved per caller: a run grant on one dataset "
+            "reads true where the role alone would not, and a read grant reads false."
+        ),
+    )
     scoring: DatasetScoring = Field(
         default_factory=DatasetScoring, description="How this dataset's cases are scored"
     )
