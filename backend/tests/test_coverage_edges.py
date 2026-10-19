@@ -283,7 +283,9 @@ class TestRunNotifications:
         eval starts; a notification per run would bury the eval's own report."""
         run = MagicMock(surface=RunSurface.EVAL.value)
         for status in (RunStatus.COMPLETED, RunStatus.FAILED):
-            with patch("app.services.agent_runner.NotificationService") as notifications:
+            with patch(
+                "app.services.agent_runner.NotificationService", new=_notifier()
+            ) as notifications:
                 await AgentRunnerService(MagicMock())._notify(
                     run,
                     agent=MagicMock(),

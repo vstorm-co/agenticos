@@ -539,7 +539,9 @@ class TestPrepare:
         workspace of theirs."""
         ctx = replace(_ctx(), api_key_id=uuid.uuid4(), key_scopes=frozenset(Perm))
         service = AgentRunnerService(_db())
-        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        agent = MagicMock(
+            id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None, kind="agent"
+        )
 
         with (
             patch.object(
@@ -582,7 +584,9 @@ class TestPrepare:
             fired_as_creator="event",
         )
         service = AgentRunnerService(_db())
-        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        agent = MagicMock(
+            id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None, kind="agent"
+        )
         spec = AgentSpec(name="Inbox", mcp_servers=[OrgMcpServerRef(connection_id=uuid.uuid4())])
 
         with (
@@ -4506,7 +4510,9 @@ class TestTheBrowsersStepModel:
     @staticmethod
     async def _built(spec: AgentSpec) -> tuple[dict[str, Any], AsyncMock]:
         service = AgentRunnerService(_db())
-        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        agent = MagicMock(
+            id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None, kind="agent"
+        )
         step_model = MagicMock(name="fast-model")
         resolve = AsyncMock(
             side_effect=lambda ctx, profile_id=None: MagicMock(
@@ -5707,7 +5713,9 @@ class TestParkedQuestions:
             ),
             patch("app.services.agent_runner.build_agent", return_value=built),
             patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
-            patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
+            patch.object(
+                service.registry, "get", new=AsyncMock(return_value=MagicMock(kind="agent"))
+            ),
             patch.object(
                 service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
             ),
@@ -5798,7 +5806,9 @@ class TestAddingToARunAndAskingAside:
     @pytest.mark.anyio
     async def test_prepare_answers_aside_on_the_stripped_spec(self):
         service = AgentRunnerService(_db())
-        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        agent = MagicMock(
+            id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None, kind="agent"
+        )
         spec = AgentSpec(name="Ops", capabilities=[CapabilityBindingSpec(id="web_search")])
 
         with (
