@@ -220,6 +220,7 @@ async def main() -> None:
         await group_knowledge_gaps_flow.ato_deployment(
             name="group-knowledge-gaps",
             schedules=[_every(900)],
+            concurrency_limit=_ONE_AT_A_TIME,
         )
     )
     # Hourly, against a threshold measured in days: precision here buys nothing,
