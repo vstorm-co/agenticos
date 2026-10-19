@@ -1375,14 +1375,14 @@ async def get_active_organization_ws(
             if org is None:
                 raise WebSocketException(code=4001, reason="Personal organization not found")
         else:
-            membership = await _member_repo.get(
+            # One query, as `get_active_organization` reads it: the foreign key
+            # means a membership always names an organization that exists.
+            found = await _member_repo.get_with_organization(
                 db, organization_id=organization_id, user_id=user.id
             )
-            if membership is None:
+            if found is None:
                 raise WebSocketException(code=4003, reason="Organization access denied")
-            org = await organization_repo.get_by_id(db, organization_id)
-            if org is None:
-                raise WebSocketException(code=4003, reason="Organization access denied")
+            _membership, org = found
 
         # Detach so attribute access survives the session closing (same reason as
         # the user in get_current_user_ws).
