@@ -143,6 +143,15 @@ export interface FlowStep {
   permission?: Permission;
   signal?: FlowSignal;
   /**
+   * The target may not be on the page, for a reason the flow cannot know ahead -
+   * Test draft shows only while the draft differs from what is live. Not found
+   * after a moment, the card says the step's `absent` copy, the page is left
+   * usable so the reader can bring the control about, and the walk can be ended
+   * there; the coach keeps watching, and picks the step up once the control
+   * appears.
+   */
+  optional?: boolean;
+  /**
    * Run this step only when the organization's state calls for it. It is handed
    * `can` as well as the state, for the rare step that turns on a permission the
    * caller *lacks* — the model dead-end step, shown only to a builder who has no
@@ -909,6 +918,7 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         target: "agent-test-draft",
         permission: Perm.runsView,
         include: testable,
+        optional: true,
         signal: { kind: "opened" },
       },
       {

@@ -3882,7 +3882,8 @@
       },
       "flow-test-draft": {
         "title": "Test the draft",
-        "body": "This draft differs from the live version. Test it on a dataset before publishing."
+        "body": "This draft differs from the live version. Test it on a dataset before publishing.",
+        "absent": "The draft is the same as the live version, so there is nothing to test yet. Change something in Build, then test it - or finish here."
       },
       "flow-test-target": {
         "title": "What you are testing",

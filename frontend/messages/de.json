@@ -3764,7 +3764,8 @@
       },
       "flow-test-draft": {
         "title": "Den Entwurf testen",
-        "body": "Dieser Entwurf unterscheidet sich von der Live-Version. Teste ihn auf einem Dataset, bevor du veröffentlichst."
+        "body": "Dieser Entwurf unterscheidet sich von der Live-Version. Teste ihn auf einem Dataset, bevor du veröffentlichst.",
+        "absent": "Der Entwurf gleicht der Live-Version, es gibt also noch nichts zu testen. Ändere etwas unter Build und teste ihn dann - oder beende hier."
       },
       "flow-test-target": {
         "title": "Was du testest",

@@ -35,6 +35,9 @@ import { useSidebarStore } from "@/stores/sidebar-store";
  * thing with air between, so it stands off and keeps a soft corner even where the
  * control has none.
  */
+/** How long an `optional` step's control may take to appear before the card says it is not there. */
+const OPTIONAL_WAIT_MS = 1500;
+
 const RING_OFFSET = 6;
 const RING_MIN_RADIUS = 12;
 
@@ -202,6 +205,8 @@ export function OnboardingCoach() {
   const [dialogCount, setDialogCount] = useState(0);
   const [dialogNode, setDialogNode] = useState<HTMLElement | null>(null);
   const [blockRect, setBlockRect] = useState<Rect | null>(null);
+  /** The `optional` step whose control did not appear; its card says so. */
+  const [absent, setAbsent] = useState<string | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   /** The control this step spotlights, once found — what the freeze leaves usable. */
   const targetRef = useRef<HTMLElement | null>(null);
@@ -373,8 +378,13 @@ export function OnboardingCoach() {
       // that lapsed on a cold query or a slow builder left the freeze full-viewport
       // with no cut-out and no Next — closing the flow the only way out. The abort
       // on step change or flow end already bounds this wait.
-      const target = await waitForElement(selector, signal, null);
+      let target = await waitForElement(selector, signal, step.optional ? OPTIONAL_WAIT_MS : null);
+      if (target === null && step.optional && !signal.aborted) {
+        setAbsent(sid);
+        target = await waitForElement(selector, signal, null);
+      }
       if (signal.aborted || !(target instanceof HTMLElement)) return;
+      setAbsent(null);
       // Held for the keyboard trap below, which has to let Tab reach the one
       // control the cut-out leaves clickable.
       targetRef.current = target;
@@ -589,7 +599,8 @@ export function OnboardingCoach() {
   const isQuestion = !!step.question;
   const inOverlay = !!step.inOverlay;
   const roam = !!step.roam;
-  const frozen = !roam && !inOverlay && !overlayOpen;
+  const missing = absent === stepId;
+  const frozen = !roam && !inOverlay && !overlayOpen && !missing;
   const current = isQuestion ? null : rect?.stepId === stepId ? rect : null;
 
   // An `inOverlay` step whose dialog is gone — the reader pressed Cancel or the
@@ -657,7 +668,9 @@ export function OnboardingCoach() {
           <X className="h-4 w-4" />
         </IconButton>
         <h2 className="pr-6 text-sm font-semibold">{t(`steps.${step.id}.title`)}</h2>
-        <p className="text-muted-foreground mt-1 text-sm">{t(`steps.${step.id}.body`)}</p>
+        <p className="text-muted-foreground mt-1 text-sm">
+          {t(`steps.${step.id}.${missing ? "absent" : "body"}`)}
+        </p>
         {isQuestion ? (
           <div className="mt-3 flex items-center justify-end gap-2">
             <Button size="sm" variant="ghost" onClick={() => answer(step.id, "skip")}>
@@ -679,10 +692,16 @@ export function OnboardingCoach() {
             ) : (
               <span />
             )}
-            {(!step.signal || strandedInOverlay) && (
-              <Button size="sm" onClick={next}>
-                {isLast ? t("finish") : t("next")}
+            {missing ? (
+              <Button size="sm" onClick={finish}>
+                {t("finish")}
               </Button>
+            ) : (
+              (!step.signal || strandedInOverlay) && (
+                <Button size="sm" onClick={next}>
+                  {isLast ? t("finish") : t("next")}
+                </Button>
+              )
             )}
           </div>
         )}
@@ -692,7 +711,7 @@ export function OnboardingCoach() {
 
   return (
     <>
-      {!roam && !overlayOpen && !inOverlay && <FreezeLayer rect={current} />}
+      {!roam && !overlayOpen && !inOverlay && !missing && <FreezeLayer rect={current} />}
       {!roam && (inOverlay ? overlayOpen : !overlayOpen) && !isQuestion && ringRect && (
         <div
           aria-hidden

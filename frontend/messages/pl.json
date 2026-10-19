@@ -4357,7 +4357,8 @@
       },
       "flow-test-draft": {
         "title": "Przetestuj draft",
-        "body": "Ten draft różni się od wersji produkcyjnej. Przetestuj go na datasecie, zanim opublikujesz."
+        "body": "Ten draft różni się od wersji produkcyjnej. Przetestuj go na datasecie, zanim opublikujesz.",
+        "absent": "Draft jest taki sam jak wersja na żywo, więc na razie nie ma czego testować. Zmień coś w Build, a potem go przetestuj - albo zakończ tutaj."
       },
       "flow-test-target": {
         "title": "Co testujesz",
