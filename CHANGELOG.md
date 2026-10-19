@@ -92,6 +92,12 @@ Two things are versioned separately from this file and worth knowing about:
   rows on each refresh. It now loads only what the list shows. Postgres ran the
   query in under a millisecond; the time was the transfer and the decoding on
   the API's event loop.
+- **A console page no longer waits on the backend for the deployment's name.**
+  The root layout read `/api/v1/branding` on every render, uncached, so a
+  backend round trip - 2.3 s at p95 on the production host - stood in front of
+  every page. The answer is now kept in Next's data cache and expired by an
+  administrator's save under **Admin → Settings**, with a five-minute bound for
+  a change made another way.
 - **A busy schedule now skips by default.** Before, a schedule whose run was
   still going fired once as soon as it ended; existing schedules take `skip`.
   Set `overlap` to `queue` for the old behaviour.
