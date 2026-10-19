@@ -7,126 +7,168 @@
 <title>Choosing a Task Engine for AgenticOS</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600&family=Geist+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap">
 <style>
-/* Layout: a single reading column of ~68ch, with figures and tables allowed to run wider. */
+/* Layout: a hero across the page, then two columns - a sticky contents rail and the paper itself. */
 :root {
-  --bg: #ffffff;
-  --ink: #161a20;
-  --muted: #5a6370;
-  --rule: #e2e5ea;
-  --panel: #f5f7f9;
-  --pg: #2c66c9;
-  --redis: #c4501b;
-  --prefect: #8b919a;
-  --bad: #b8322f;
-  --good: #1d7f55;
-  --band: rgba(184, 50, 47, 0.10);
-  --serif: "Source Serif 4", "Iowan Old Style", Georgia, serif;
-  --sans: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #0f1216; --ink: #e5e8ec; --muted: #9aa3ae; --rule: #262c34; --panel: #161b21;
-    --pg: #6fa2ff; --redis: #f08a52; --prefect: #7f8792; --bad: #ef6b66; --good: #4cc08a;
-    --band: rgba(239, 107, 102, 0.14); color-scheme: dark;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #0f1216; --ink: #e5e8ec; --muted: #9aa3ae; --rule: #262c34; --panel: #161b21;
-  --pg: #6fa2ff; --redis: #f08a52; --prefect: #7f8792; --bad: #ef6b66; --good: #4cc08a;
-  --band: rgba(239, 107, 102, 0.14); color-scheme: dark;
+  --paper: #f6f5f1;
+  --card: #ffffff;
+  --ink: #16141f;
+  --ink-soft: #3b3846;
+  --muted: #6e6b79;
+  --faint: #96929f;
+  --line: #e7e4dd;
+  --line-strong: #d6d2c9;
+  --violet: #2b2547;
+  --blob: #bbd1ff;
+  --pg: #4a67d6;
+  --redis: #e07a45;
+  --prefect: #a7a3b0;
+  --bad: #c8423a;
+  --good: #1f9d63;
+  --band: rgba(200, 66, 58, 0.11);
+  --display: "Bricolage Grotesque", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  color-scheme: light;
 }
 * { box-sizing: border-box; }
+html { -webkit-font-smoothing: antialiased; scroll-behavior: smooth; }
 body {
-  margin: 0; background: var(--bg); color: var(--ink);
-  font: 18px/1.62 var(--serif);
+  margin: 0; background: var(--paper); color: var(--ink);
+  font: 16.5px/1.65 var(--sans);
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-block: 48px 96px;
+  padding-block: 40px 96px;
 }
-main { max-width: 1040px; margin: 0 auto; }
-.col { max-width: 68ch; margin: 0 auto; }
-h1, h2, h3, .label, figcaption, table, .meta, nav { font-family: var(--sans); }
-h1 { font-size: clamp(30px, 4.6vw, 44px); line-height: 1.12; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 18px; text-wrap: balance; }
-h2 { font-size: 24px; font-weight: 600; margin: 56px 0 12px; text-wrap: balance; }
-h3 { font-size: 18px; font-weight: 600; margin: 32px 0 6px; }
-h2 .num, h3 .num { color: var(--muted); font-weight: 500; margin-right: 10px; font-variant-numeric: tabular-nums; }
+::selection { background: var(--blob); color: var(--violet); }
+:focus-visible { outline: 2px solid var(--violet); outline-offset: 3px; border-radius: 6px; }
+.page { max-width: 1240px; margin: 0 auto; }
+a { color: var(--pg); text-underline-offset: 3px; }
+code { font: 0.84em var(--mono); background: var(--card); border: 1px solid var(--line); padding: 1px 6px; border-radius: 6px; }
 p { margin: 0 0 16px; }
-a { color: var(--pg); text-underline-offset: 2px; }
-code { font: 0.86em var(--mono); background: var(--panel); padding: 1px 5px; border-radius: 3px; }
-.meta { color: var(--muted); font-size: 15px; display: flex; flex-wrap: wrap; gap: 6px 18px; margin-bottom: 32px; }
-.abstract { border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); padding: 20px 0 6px; margin: 0 auto 8px; }
-.abstract .label { display: block; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; font-weight: 600; }
-nav { font-size: 14px; color: var(--muted); margin: 28px auto 0; }
-nav ol { margin: 6px 0 0; padding-left: 20px; columns: 2; column-gap: 32px; }
-nav a { color: var(--muted); text-decoration: none; }
-nav a:hover, nav a:focus-visible { color: var(--ink); text-decoration: underline; }
-figure { margin: 36px 0; }
-figcaption { font-size: 14px; line-height: 1.5; color: var(--muted); max-width: 68ch; margin: 10px auto 0; }
-figcaption b { color: var(--ink); font-weight: 600; }
-.chart { width: 100%; overflow-x: auto; }
-.chart svg { display: block; width: 100%; height: auto; min-width: 560px; font-family: var(--sans); }
-.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font: 13px var(--sans); color: var(--muted); justify-content: center; margin: 4px 0 0; }
-.legend span { display: inline-flex; align-items: center; gap: 6px; }
-.legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
-.tbl { overflow-x: auto; margin: 24px 0; }
-table { border-collapse: collapse; font-size: 14px; width: 100%; font-variant-numeric: tabular-nums; }
-th, td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--rule); white-space: nowrap; }
-th:first-child, td:first-child { text-align: left; }
-thead th { font-weight: 600; color: var(--muted); font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; border-bottom: 1px solid var(--ink); }
-td.bad { color: var(--bad); font-weight: 600; }
-td.prose { text-align: left; white-space: normal; min-width: 18ch; }
-td.good { color: var(--good); }
-.tag { display: inline-block; font: 500 11px var(--sans); letter-spacing: 0.04em; padding: 1px 6px; border-radius: 3px; border: 1px solid currentColor; margin-left: 6px; vertical-align: 1px; }
-.fam-pg { color: var(--pg); } .fam-redis { color: var(--redis); } .fam-prefect { color: var(--prefect); }
-.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 8px; vertical-align: 1px; }
-.findings { padding-left: 22px; }
+
+.kicker { display: inline-flex; align-items: center; gap: 8px; font: 500 11px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; }
+.kicker::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--good); }
+.hero h1 { font: 600 clamp(36px, 5.6vw, 64px)/1.04 var(--display); letter-spacing: -0.025em; margin: 18px 0 18px; max-width: 16ch; text-wrap: balance; }
+.hero h1 span { color: var(--faint); }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 20px; color: var(--muted); font-size: 14px; margin-bottom: 32px; }
+.hero-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 1px 2px rgba(22, 20, 31, 0.04); }
+.abstract { padding: 26px 30px 12px; }
+.label { display: block; font: 500 11px var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+.abstract p { font-size: 15.5px; color: var(--ink-soft); }
+.stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.stat { padding: 18px 18px 16px; display: flex; flex-direction: column; gap: 6px; }
+.stat b { font: 600 34px/1 var(--display); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.stat span { font-size: 13px; line-height: 1.45; color: var(--muted); }
+.stat.pg b { color: var(--pg); } .stat.prefect b { color: var(--ink); } .stat.bad b { color: var(--bad); } .stat.good b { color: var(--good); }
+
+.layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 56px; margin-top: 56px; }
+.rail { position: sticky; top: calc(24px + env(safe-area-inset-top, 0px)); align-self: start; font-size: 13.5px; }
+.rail ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; counter-reset: s; }
+.rail li a { display: flex; gap: 10px; padding: 6px 10px; border-radius: 10px; color: var(--muted); text-decoration: none; }
+.rail li a::before { counter-increment: s; content: counter(s); font: 12px var(--mono); color: var(--faint); min-width: 1.4em; padding-top: 1px; }
+.rail li.appx a::before { content: "A"; }
+.rail li a:hover { background: var(--card); color: var(--ink); }
+.rail li a.on { background: var(--card); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+.rail .legend { justify-content: flex-start; margin-top: 18px; padding: 12px 10px 0; border-top: 1px solid var(--line); flex-direction: column; gap: 6px; }
+
+article { min-width: 0; }
+.col { max-width: 68ch; }
+h2 { font: 600 30px/1.15 var(--display); letter-spacing: -0.015em; margin: 72px 0 14px; text-wrap: balance; scroll-margin-top: 24px; }
+section:first-child h2 { margin-top: 0; }
+h2 .num { display: block; font: 500 12px var(--mono); letter-spacing: 0.08em; color: var(--faint); margin-bottom: 8px; }
+h3 { font: 600 17px var(--display); margin: 30px 0 6px; }
+h3 .num { color: var(--faint); font: 500 13px var(--mono); margin-right: 8px; }
+section[id] { scroll-margin-top: 24px; }
+.findings { padding-left: 20px; }
 .findings li { margin-bottom: 10px; }
-.callout { background: var(--panel); border-radius: 6px; padding: 18px 22px; margin: 24px auto; }
+.findings li::marker { color: var(--faint); }
+
+figure { margin: 28px 0; }
+.chart, .small-multiples, .tbl { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 18px 20px; }
+.chart { overflow-x: auto; }
+.chart svg { display: block; width: 100%; height: auto; min-width: 560px; font-family: var(--sans); }
+figcaption { font-size: 13.5px; line-height: 1.55; color: var(--muted); max-width: 72ch; margin: 12px 4px 0; }
+figcaption b { color: var(--ink); font-weight: 600; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font: 12.5px var(--sans); color: var(--muted); justify-content: center; margin: 10px 0 0; }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.tbl { overflow-x: auto; margin: 24px 0; padding: 8px 8px; }
+.tbl > p { padding: 0 12px; }
+table { border-collapse: collapse; font-size: 13.5px; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { padding: 9px 12px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
+th:first-child, td:first-child { text-align: left; }
+thead th { font: 500 11px var(--mono); color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; border-bottom: 1px solid var(--line-strong); }
+td.bad { color: var(--bad); font-weight: 600; }
+th.prose, td.prose { text-align: left; white-space: normal; min-width: 18ch; color: var(--ink-soft); }
+.fam-pg { color: var(--pg); font-weight: 500; } .fam-redis { color: var(--redis); font-weight: 500; } .fam-prefect { color: var(--muted); font-weight: 500; }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 9px; vertical-align: 0; }
+.callout { background: var(--violet); color: #f1effa; border-radius: 18px; padding: 22px 26px; margin: 24px 0; }
+.callout b { color: #ffffff; }
 .callout p:last-child { margin-bottom: 0; }
-pre { font: 13.5px/1.55 var(--mono); background: var(--panel); padding: 14px 16px; border-radius: 6px; overflow-x: auto; }
-.small-multiples { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 18px 20px; }
-.small-multiples svg { min-width: 0; }
+pre { font: 13px/1.6 var(--mono); background: var(--violet); color: #e9e6f7; padding: 16px 18px; border-radius: 14px; overflow-x: auto; }
+.small-multiples { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 20px 22px; }
+.small-multiples svg { display: block; width: 100%; height: auto; }
 .sm-title { font: 600 13px var(--sans); display: flex; justify-content: space-between; gap: 8px; margin-bottom: 2px; }
-.sm-title span:last-child { color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
-svg .axis { stroke: var(--rule); stroke-width: 1; }
-svg .grid { stroke: var(--rule); stroke-width: 1; stroke-dasharray: 2 3; }
-svg .tick { fill: var(--muted); font-size: 11px; }
+.sm-title span:last-child { color: var(--muted); font: 400 12px var(--mono); }
+.appendix h3 { margin-top: 28px; }
+svg .axis { stroke: var(--line-strong); stroke-width: 1; }
+svg .grid { stroke: var(--line); stroke-width: 1; }
+svg .tick { fill: var(--faint); font-size: 11px; }
 svg .name { fill: var(--ink); font-size: 12.5px; }
 svg .val { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 svg .pg { fill: var(--pg); stroke: var(--pg); }
 svg .redis { fill: var(--redis); stroke: var(--redis); }
 svg .prefect { fill: var(--prefect); stroke: var(--prefect); }
-svg .whisker { stroke-width: 2; fill: none; }
+svg .whisker { stroke-width: 2; fill: none; stroke-linecap: round; }
 svg .band { fill: var(--band); }
-svg .area { fill: var(--rule); }
-svg .bandlabel { fill: var(--bad); font-size: 10.5px; }
-@media (max-width: 640px) {
-  body { font-size: 17px; padding-block: 28px 64px; }
-  nav ol { columns: 1; }
+svg .area { fill: #ece9e2; }
+
+@media (max-width: 980px) {
+  .hero-grid { grid-template-columns: 1fr; }
+  .layout { grid-template-columns: 1fr; gap: 24px; margin-top: 36px; }
+  .rail { position: static; }
+  .rail ol { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
 }
-@media (prefers-reduced-motion: no-preference) {
-  .chart svg .mark { transition: opacity 0.15s; }
+@media (max-width: 560px) {
+  body { font-size: 16px; padding-block: 24px 64px; }
+  .stats { grid-template-columns: 1fr 1fr; }
+  .stat b { font-size: 28px; }
+  .abstract { padding: 20px 20px 8px; }
+  h2 { font-size: 25px; margin-top: 56px; }
 }
 </style>
 </head>
 <body>
-<main>
-<header class="col">
-  <h1>Choosing a Task Engine for AgenticOS</h1>
+<div class="page">
+<header class="hero">
+  <span class="kicker">Research · AgenticOS #2219</span>
+  <h1>Choosing a task engine <span>for AgenticOS.</span></h1>
   <div class="meta">
-    <span>Kacper Włodarczyk · AgenticOS</span>
+    <span>Kacper Włodarczyk</span>
     <span>19 October 2026</span>
     <span>Issue <a href="https://github.com/vstorm-co/agenticos/issues/2219">#2219</a></span>
     <span>Branch <code>spike/task-queue-benchmark</code></span>
   </div>
-  <div class="abstract">
-    <span class="label">Abstract</span>
-    <p>AgenticOS runs its background work on Prefect, which starts a new Python process for every run. On 18 October 2026 that design stalled production: about 1,650 late runs piled up on a VPS with heavy CPU steal, each paying a multi-second application import. We compared fourteen configurations of nine engines on three workloads drawn from the product: workflow chains, a mix of waiting model calls and CPU-bound ingestion, and a tenant flood with a worker crash in the middle. All ran under the same CPU and memory budget. Every task imports the real application. Every measurement comes from one event table on one clock. Process-per-run Prefect never finished the workflow scenario: 0.2 steps per second, against 500 to 1,300 for long-lived workers. Hatchet behaved correctly, but each workflow hop cost about ten times more, and it wrote 15 to 30 times the write-ahead log. With its fair scheduling on, the small tenant still waited longer than on the simple queues. A plain Postgres queue and Taskiq on Redis came through every scenario with no lost or duplicated work, at the lowest cost. We recommend one of the two, and record a duplication defect in our fair-queue prototype that must be fixed before it is used.</p>
+  <div class="hero-grid">
+    <div class="card abstract">
+      <span class="label">Abstract</span>
+      <p>AgenticOS runs its background work on Prefect, which starts a new Python process for every run. On 18 October 2026 that design stalled production: about 1,650 late runs piled up on a VPS with heavy CPU steal, each paying a multi-second application import. We compared fourteen configurations of nine engines on three workloads drawn from the product: workflow chains, a mix of waiting model calls and CPU-bound ingestion, and a tenant flood with a worker crash in the middle. All ran under the same CPU and memory budget. Every task imports the real application. Every measurement comes from one event table on one clock. Process-per-run Prefect never finished the workflow scenario: 0.2 steps per second, against 500 to 1,300 for long-lived workers. Hatchet behaved correctly, but each workflow hop cost about ten times more, and it wrote 15 to 30 times the write-ahead log. With its fair scheduling on, the small tenant still waited longer than on the simple queues. A plain Postgres queue and Taskiq on Redis came through every scenario with no lost or duplicated work, at the lowest cost. We recommend one of the two, and record a duplication defect in our fair-queue prototype that must be fixed before it is used.</p>
+    </div>
+    <div class="stats">
+      <div class="card stat prefect"><b>0.2</b><span>workflow steps per second for process-per-run Prefect, against 948 for Taskiq</span></div>
+      <div class="card stat pg"><b>16×</b><span>longer hop between workflow steps on Hatchet than on a Postgres queue</span></div>
+      <div class="card stat bad"><b>28 MB</b><span>of write-ahead log from Hatchet in the five-minute mix, against 1.9 MB</span></div>
+      <div class="card stat good"><b>0</b><span>jobs lost or duplicated by the Postgres queue and Taskiq after a worker crash</span></div>
+    </div>
   </div>
-  <nav aria-label="Contents">
+</header>
+
+<div class="layout">
+  <nav class="rail" aria-label="Contents">
     <span class="label">Contents</span>
     <ol>
       <li><a href="#intro">Why this study</a></li>
@@ -140,26 +182,27 @@ svg .bandlabel { fill: var(--bad); font-size: 10.5px; }
       <li><a href="#discussion">Discussion and recommendation</a></li>
       <li><a href="#validity">Threats to validity</a></li>
       <li><a href="#reproduce">Reproducing the results</a></li>
-      <li><a href="#appendix">Appendix: every number</a></li>
+      <li class="appx"><a href="#appendix">every number</a></li>
     </ol>
+    <div class="legend" data-legend></div>
   </nav>
-</header>
+  <article>
 
 <section class="col" id="intro">
-  <h2><span class="num">1</span>Why this study</h2>
+  <h2><span class="num">Section 1</span>Why this study</h2>
   <p>AgenticOS runs three kinds of background work: periodic sweeps (expiring approvals, retrying sandbox teardown, delivering notifications), ingestion of uploaded documents into the knowledge base, and the agent runs that workflows (<a href="https://github.com/vstorm-co/agenticos/issues/1925">#1925</a>) and triggers start without a person waiting. Today they go through Prefect 3's <code>serve()</code>, which starts a fresh Python process for every flow run.</p>
   <p>A fresh process imports the whole application before it does any work. That takes 4.2 seconds on a laptop and 14 to 90 seconds on the production VPS, where CPU steal ran between 23% and 68%. On 18 October 2026 the runs fell behind faster than they finished. About 1,650 late runs starved the host, and the site went down until the backlog was deleted. The incident is written up separately. This study answers the question it left: what should run this work once workflows multiply it?</p>
   <p>We did not want to decide from feature lists. Every candidate below runs the same tasks, importing the same application, under the same budget, and is measured from the same event log.</p>
 </section>
 
 <section class="col" id="candidates">
-  <h2><span class="num">2</span>Candidates</h2>
+  <h2><span class="num">Section 2</span>Candidates</h2>
   <p>Nine engines, fourteen configurations. They fall into three families, and the figures colour them that way throughout: queues on <span class="fam-pg">Postgres</span>, which AgenticOS already runs; queues on <span class="fam-redis">Redis</span>, which it also runs; and <span class="fam-prefect">Prefect</span>, the incumbent.</p>
 </section>
 <div class="tbl" id="candidates-table"></div>
 
 <section class="col" id="method">
-  <h2><span class="num">3</span>Method</h2>
+  <h2><span class="num">Section 3</span>Method</h2>
   <h3><span class="num">3.1</span>The tasks</h3>
   <p>Every engine runs the same five task kinds from <code>bench/workload.py</code>. A <em>step</em> is one workflow node: a database round trip and a sliver of CPU, after which it submits the next step of its chain through the engine's own client, the way the #1925 dispatcher advances a graph. An <em>agent</em> task stands in for a model call: it awaits for 2 to 10 seconds and then writes. A <em>parse</em> task is real ingestion: PyMuPDF extracts every page of a real PDF, about a second of CPU. A <em>sweep</em> is a scheduled one-query tick. A <em>burst</em> item is a short wait.</p>
   <p>Every task process imports the real AgenticOS application first (<code>bench/heavy.py</code>). Process-per-run pays that import on every run, so a benchmark without it would hide the cost under study.</p>
@@ -176,7 +219,7 @@ svg .bandlabel { fill: var(--bad); font-size: 10.5px; }
 </section>
 
 <section class="col" id="overhead">
-  <h2><span class="num">4</span>Per-hop overhead</h2>
+  <h2><span class="num">Section 4</span>Per-hop overhead</h2>
   <p>The workflow scenario isolates what an engine adds between two steps of a chain. Engines with long-lived workers hand the next step over in 10 to 60 milliseconds. Hatchet takes 420. Prefect's background tasks take 2.6 seconds. Process-per-run Prefect takes 218 seconds, because each hop waits for a process slot and then an application import. In 20 minutes it finished 273 of the 500 steps.</p>
 </section>
 <figure>
@@ -190,7 +233,7 @@ svg .bandlabel { fill: var(--bad); font-size: 10.5px; }
 </figure>
 
 <section class="col" id="mix">
-  <h2><span class="num">5</span>Waiting and CPU work together</h2>
+  <h2><span class="num">Section 5</span>Waiting and CPU work together</h2>
   <p>Agent runs mostly wait on a model; ingestion mostly burns CPU. An engine has to keep the first from starving the second. Almost every engine starts an agent call within a fraction of a second at the 95th percentile. Celery's prefork pool is the exception: each process sits blocked on a waiting call, so a new agent task waits 279 seconds at p95. Celery with a thread pool has no such problem.</p>
   <p>The one-minute sweep separates the schedulers. Taskiq, SAQ, Hatchet and our Postgres queue fired on time. Procrastinate drifted by up to 29 seconds, and Celery Beat on the blocked prefork pool by 63. Dramatiq and Prefect's background tasks have no built-in scheduler, so in this configuration no sweep ran at all.</p>
 </section>
@@ -201,9 +244,9 @@ svg .bandlabel { fill: var(--bad); font-size: 10.5px; }
 </figure>
 
 <section class="col" id="tenants">
-  <h2><span class="num">6</span>Fairness and a crash</h2>
+  <h2><span class="num">Section 6</span>Fairness and a crash</h2>
   <p>In the tenant scenario a large organization floods the queue while a small one keeps sending a job a second, and every worker is killed at second 20. With a first-in, first-out queue, the small organization's jobs land behind the flood, so its wait climbs until the flood drains. Fair scheduling should flatten that climb. A good recovery should leave no gap in completions beyond the ten seconds the workers are down.</p>
-  <p>The small organization's p95 wait came out between 10 and 13 seconds for most engines. Hatchet's round-robin fairness improved on plain Hatchet, 18 seconds against 21, but stayed above the simple queues. Our fair Postgres queue reached the lowest p95, but re-ran 141 jobs and finished 137 of them twice. That is a defect in the prototype's claim path after the crash, and it disqualifies the variant until it is fixed. SAQ lost no work, but after the crash 551 seconds passed between two completions, so its last job finished more than ten minutes in.</p>
+  <p>The small organization's p95 wait came out between 10 and 13 seconds for most engines. Hatchet's round-robin fairness improved on plain Hatchet, 18 seconds against 21, but stayed above the simple queues. Our fair Postgres queue came out near the bottom, at 10.1 seconds, level with SAQ. Only Prefect's background tasks were lower, at 8.6 seconds, in a run that did not finish in time. But the fair queue re-ran 141 jobs and finished 137 of them twice. That is a defect in the prototype's claim path after the crash, and it disqualifies the variant until it is fixed. SAQ lost no work, but after the crash 551 seconds passed between two completions, so its last job finished more than ten minutes in.</p>
 </section>
 <figure>
   <div class="small-multiples" id="fig-tenants"></div>
@@ -212,7 +255,7 @@ svg .bandlabel { fill: var(--bad); font-size: 10.5px; }
 <div class="tbl" id="crash-table"></div>
 
 <section class="col" id="cost">
-  <h2><span class="num">7</span>What each engine costs</h2>
+  <h2><span class="num">Section 7</span>What each engine costs</h2>
   <p>On a host that already loses a third of its CPU to steal, an engine's own appetite matters. In the steady mix scenario most engines spent 20 to 30% of a CPU on the whole stack and wrote 1 to 3 MB of write-ahead log. Hatchet wrote 28 MB, about 15 times as much, because it keeps its own queue, state and history in Postgres. In the workflow scenario its stack, engine and database together averaged 278% CPU.</p>
 </section>
 <figure>
@@ -222,7 +265,7 @@ svg .bandlabel { fill: var(--bad); font-size: 10.5px; }
 </figure>
 
 <section class="col" id="coldstart">
-  <h2><span class="num">8</span>Cold start</h2>
+  <h2><span class="num">Section 8</span>Cold start</h2>
   <p>Every run first measures how long a freshly started worker takes to finish its first job. The engines with long-lived workers come up in 4 to 10 seconds, most of it the application import. Hatchet takes 9 to 16 seconds, and Prefect <code>serve()</code> about 20, because its first run starts a second process and imports everything again.</p>
 </section>
 <figure>
@@ -231,12 +274,13 @@ svg .bandlabel { fill: var(--bad); font-size: 10.5px; }
 </figure>
 
 <section class="col" id="discussion">
-  <h2><span class="num">9</span>Discussion and recommendation</h2>
+  <h2><span class="num">Section 9</span>Discussion and recommendation</h2>
   <ul class="findings">
-    <li><b>Prefect is out in every form.</b> Process-per-run cannot keep up with chained work, and its background-task mode is an order of magnitude slower per hop than the alternatives while still needing its server.</li>
+    <li><b>Prefect is out in every form.</b> Process-per-run cannot keep up with chained work, and its background-task mode is about a hundred times slower per hop than the alternatives, 2.6 seconds against 26 milliseconds, while still needing its server.</li>
     <li><b>Celery's prefork pool does not suit waiting work.</b> The thread pool fixes that, but Celery has no native asyncio, and AgenticOS is async throughout.</li>
     <li><b>Hatchet is correct but expensive here.</b> It brings a panel, retries, schedules and fairness, which are all things we would otherwise build. On this budget it costs ten times more per hop and 15 to 30 times more WAL, and even with fairness the small tenant waited longer than on the simple queues.</li>
     <li><b>A Postgres queue and Taskiq give the best value.</b> Both were clean in every scenario, among the fastest per hop, and among the cheapest to run. A Postgres queue adds no service, and it can claim work in the same transaction as the outbox from #1925, which removes a class of lost-message bugs. Taskiq adds nothing either, since Redis is already deployed, and comes with a scheduler.</li>
+    <li><b>Between those two, architecture decides, not speed.</b> Taskiq, Dramatiq, SAQ, the Postgres queue and Procrastinate are within tens of percent of each other on every measure, and one run per cell does not rank them. What separates the two finalists is whether work is claimed in the outbox's transaction, or whether a ready scheduler matters more.</li>
   </ul>
   <div class="callout">
     <p><b>Recommendation.</b> Move background work to long-lived async workers on either our own Postgres queue or Taskiq, and retire Prefect. Fairness per organization has to be written properly, with fencing, before it ships: the prototype duplicated work after a crash. These measurements contradict the earlier direction of Hatchet with Taskiq as plan B. That choice is the maintainers' to make with this data.</p>
@@ -244,18 +288,19 @@ svg .bandlabel { fill: var(--bad); font-size: 10.5px; }
 </section>
 
 <section class="col" id="validity">
-  <h2><span class="num">10</span>Threats to validity</h2>
+  <h2><span class="num">Section 10</span>Threats to validity</h2>
   <ul class="findings">
     <li><b>One machine.</b> Docker Desktop on Apple silicon, not the VPS. Absolute numbers will differ there. CPU steal slows every process start, which can only widen the gap for process-per-run.</li>
     <li><b>One run per cell.</b> Where engines differ by orders of magnitude one run ranks them. Where they are within a few tens of percent, as most long-lived engines are on hop latency and tenant wait, the order between them is not significant.</li>
     <li><b>Idiomatic, not identical, concurrency.</b> A process pool and an async loop have no common unit. Each engine ran its production-style configuration under the same CPU and memory limits.</li>
+    <li><b>CPU in the shortest runs.</b> Resources are sampled once a second. Most workflow runs finished in about a second, too short for a reading, so the appendix shows no CPU for them. Costs are compared on the five-minute mix instead.</li>
     <li><b>Unfinished runs.</b> Procrastinate finished 1,089 of 1,090 tenant jobs before the 20-minute timeout, and Prefect's background tasks 1,088. Whether the remainder was lost or late is not established, so the tables report them as timed out rather than as losses.</li>
     <li><b>Defects not yet diagnosed.</b> The duplication in the fair Postgres queue and SAQ's 551-second stall are reported as observed. Their causes have not been traced.</li>
   </ul>
 </section>
 
 <section class="col" id="reproduce">
-  <h2><span class="num">11</span>Reproducing the results</h2>
+  <h2><span class="num">Section 11</span>Reproducing the results</h2>
   <p>The harness, the raw results and this page are on the branch <code>spike/task-queue-benchmark</code> under <code>experiments/task-queues/</code>. Each run leaves <code>&lt;variant&gt;-&lt;scenario&gt;.json</code> (settings, Postgres counters, resource samples) and <code>.events.csv</code> (every enqueued, started and finished event). The worker logs are packed in <code>results/logs.tar.gz</code>.</p>
 <pre>docker build -f backend/Dockerfile -t agenticos-backend:bench-base .   # from the repository root
 cd experiments/task-queues
@@ -266,12 +311,14 @@ python3 -m bench.report results > results/TABLES.md
 python3 -m bench.site results report/template.html > report/index.html</pre>
 </section>
 
-<section id="appendix">
-  <div class="col"><h2><span class="num">A</span>Appendix: every number</h2>
-  <p>The tables <code>bench/report.py</code> produces, from the same data as the figures.</p></div>
+<section id="appendix" class="appendix">
+  <div class="col"><h2><span class="num">Appendix</span>Appendix: every number</h2>
+  <p>The tables <code>bench/report.py</code> produces, from the same data as the figures. A dash in a CPU column marks a run shorter than three seconds, too short for one-second samples to measure.</p></div>
   <div class="tbl" id="appendix-tables"></div>
 </section>
-</main>
+  </article>
+</div>
+</div>
 
 <script>
 const DATA = /*__BENCH_DATA__*/null;
@@ -487,7 +534,7 @@ function figCold() {
 }
 
 function table(columns, rows) {
-  const head = columns.map((c) => `<th scope="col">${c[0]}</th>`).join("");
+  const head = columns.map((c) => `<th scope="col"${c[3] ? ` class="${c[3]}"` : ""}>${c[0]}</th>`).join("");
   const body = rows.map((r) => `<tr>${columns.map((c, i) => {
     const raw = c[1](r);
     const cls = [c[2] ? c[2](r) : "", c[3] || ""].join(" ").trim();
@@ -522,14 +569,17 @@ function crashTable() {
 }
 function appendix() {
   const order = (s) => Object.keys(ENGINES).indexOf(s.variant);
-  const res = (r, k) => n(r.resources.roles.workers?.[k] ?? null, 0);
+  // A run shorter than a few one-second samples has no meaningful CPU reading.
+  const sampled = (r) => r.makespan_s >= 3;
+  const res = (r, k) => (sampled(r) ? n(r.resources.roles.workers?.[k] ?? null, 0) : "–");
+  const cpu = (r) => (sampled(r) ? n(r.resources.total.cpu_avg, 0) : "–");
   const sections = [
     ["Workflow", "workflow", [
       ["Engine", (r) => engineCell(r.variant)],
       ["Steps", (r) => `${r.finished}${r.timed_out ? " (timed out)" : ""}`],
       ["Hop p50 s", (r) => n(r.hop_p50)], ["Hop p95 s", (r) => n(r.hop_p95)],
       ["Chain p50 s", (r) => n(r.chain_p50, 1)], ["Steps/s", (r) => n(r.throughput_per_s, 1)],
-      ["Workers CPU %", (r) => res(r, "cpu_avg")], ["Stack CPU %", (r) => n(r.resources.total.cpu_avg, 0)],
+      ["Workers CPU %", (r) => res(r, "cpu_avg")], ["Stack CPU %", cpu],
       ["Stack RAM MB", (r) => n(r.resources.total.mem_max, 0)], ["WAL MB", (r) => mb(r.pg.wal_bytes)],
     ]],
     ["Mix", "mix", [
@@ -552,11 +602,25 @@ function appendix() {
     ]],
   ];
   document.getElementById("appendix-tables").innerHTML = sections.map(([title, scenario, cols], i) =>
-    `<h3 class="col" style="max-width:none"><span class="num">A.${i + 1}</span>${title}</h3>` +
+    `<h3><span class="num">A.${i + 1}</span>${title}</h3>` +
     table(cols, by(scenario).sort((a, b) => order(a) - order(b)))).join("");
 }
 
+// Marks the contents entry of the section being read.
+function scrollSpy() {
+  const links = new Map([...document.querySelectorAll(".rail a")].map((a) => [a.getAttribute("href").slice(1), a]));
+  const seen = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      links.forEach((a) => a.classList.remove("on"));
+      links.get(entry.target.id)?.classList.add("on");
+    }
+  }, { rootMargin: "-20% 0px -70% 0px" });
+  links.forEach((_, id) => { const s = document.getElementById(id); if (s) seen.observe(s); });
+}
+
 if (DATA) {
+  scrollSpy();
   document.querySelectorAll("[data-legend]").forEach(legend);
   candidates(); figHop(); figThroughput(); figMix(); figTenants(); crashTable(); figCost(); figCold(); appendix();
 }
