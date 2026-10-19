@@ -926,6 +926,8 @@ class TestOpeningAndClosing:
     ):
         original = StateBackend()
         original.write_bytes("/workspace/skills/a/SKILL.md", b"same")
+        # And a file nobody touched, which is compared by identity alone.
+        original.write_bytes("/workspace/notes.md", b"untouched")
         row = _row(version=1)
         row.files = dict(original.files)
         row.directories = sorted(original.directories)
@@ -1039,6 +1041,9 @@ class TestOpeningAndClosing:
         service = SandboxWorkspaceService(mock_db_session)
 
         workspace = await service.open(_spec(), ctx=_ctx(), identity=_identity())
+        # A change to store, or the flush is skipped and never reaches the failure.
+        assert workspace is not None and workspace.document is not None
+        workspace.document.write_bytes("/workspace/out.txt", b"kept")
 
         await service.close(workspace)
 
@@ -4910,11 +4915,15 @@ class TestTheSharedSandboxdClient:
         assert first is not second
         asyncio.run(sandbox_workspace.close_sandboxd_client())
 
-    def test_closing_from_another_loop_drops_it_rather_than_raising(self):
+    def test_closing_from_another_loop_drops_it_rather_than_raising(self, monkeypatch):
         import asyncio
 
         async def warm() -> None:
-            sandbox_workspace._sandboxd_http()
+            client = sandbox_workspace._sandboxd_http()
+            # What `aclose` says for connections whose loop has gone.
+            monkeypatch.setattr(
+                client, "aclose", AsyncMock(side_effect=RuntimeError("Event loop is closed"))
+            )
 
         asyncio.run(warm())
         asyncio.run(sandbox_workspace.close_sandboxd_client())
