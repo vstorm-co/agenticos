@@ -4972,7 +4972,11 @@
       "sandboxConnections": "Sandbox connections",
       "sandboxes2": "Sandboxes",
       "tabConnections": "Connections",
-      "tabRunning": "Running"
+      "tabRunning": "Running",
+      "deleteFailed": "Could not delete the connection",
+      "strandedTitle": "{count, plural, one {A sandbox is} other {# sandboxes are}} still on the provider",
+      "strandedBody": "AgenticOS could not remove {count, plural, one {a sandbox} other {# sandboxes}} from the provider behind {name}, and the provider may still be billing for {count, plural, one {it} other {them}}. Delete {count, plural, one {it} other {them}} in the provider's console first, then confirm here to forget {count, plural, one {it} other {them}} and delete the connection.",
+      "strandedConfirm": "I deleted them, delete the connection"
     },
     "settings": {
       "absencesWorthStatingBecause": "Absences worth stating, because a settings page implies the opposite.",

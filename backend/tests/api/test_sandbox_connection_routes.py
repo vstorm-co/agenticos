@@ -179,6 +179,19 @@ class TestEditing:
 
         assert response.status_code == 204
         service.delete.assert_awaited_once()
+        assert service.delete.await_args.kwargs == {"forget_pending_destroys": False}
+
+    async def test_sandboxes_removed_by_hand_are_said_so_in_the_query(
+        self, client, service
+    ) -> None:
+        """#2250: the way out for tombstones no retry can ever clear."""
+        async with client() as opened:
+            response = await opened.delete(
+                _url(f"/{_CONNECTION_ID}"), params={"forget_pending_destroys": "true"}
+            )
+
+        assert response.status_code == 204
+        assert service.delete.await_args.kwargs == {"forget_pending_destroys": True}
 
 
 class TestThePolicy:

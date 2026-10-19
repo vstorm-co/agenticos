@@ -157,6 +157,14 @@ Two things are versioned separately from this file and worth knowing about:
   per-event read cancelled the query and the connection's close with it, and
   the pool handed the closed connection to the next request on that worker, a
   500. The read now finishes before the stream stops.
+- **Sandbox tombstones no longer stall the sweep, vanish in a race, or pin a
+  connection for good** (#2250). The retry pause overflowed after about 41
+  failed attempts and aborted every sweep from then on; a tombstone written
+  while its connection was being deleted was erased with it; and a connection
+  whose credential was gone could never be deleted. The pause is capped, the
+  foreign key now refuses the delete, and deleting a connection can confirm that
+  its sandboxes were removed on the provider by hand. The console asks, where a
+  refused delete used to vanish without a word.
 
 ## [1.7.1] - 2026-10-19
 

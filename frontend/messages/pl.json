@@ -4742,7 +4742,11 @@
       "sandboxConnections": "Połączenia sandboxów",
       "sandboxes2": "Sandboxy",
       "tabConnections": "Połączenia",
-      "tabRunning": "Działające"
+      "tabRunning": "Działające",
+      "deleteFailed": "Nie udało się usunąć połączenia",
+      "strandedTitle": "{count, plural, one {Sandbox wciąż jest} few {# sandboxy wciąż są} many {# sandboxów wciąż jest} other {# sandboxa wciąż jest}} u dostawcy",
+      "strandedBody": "AgenticOS nie zdołał usunąć {count, plural, one {sandboxa} few {# sandboxów} many {# sandboxów} other {# sandboxa}} u dostawcy połączenia {name}, a dostawca może wciąż za nie naliczać opłaty. Najpierw usuń je w konsoli dostawcy, potem potwierdź tutaj, żeby o nich zapomnieć i usunąć połączenie.",
+      "strandedConfirm": "Są usunięte, usuń połączenie"
     },
     "settings": {
       "absencesWorthStatingBecause": "Braki warte wymienienia, bo strona ustawień sugeruje coś przeciwnego.",

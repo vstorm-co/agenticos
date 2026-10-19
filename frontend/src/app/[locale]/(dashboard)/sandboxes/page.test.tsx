@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import SandboxesPage from "./page";
+import { ApiError } from "@/lib/api-error";
 import type { SandboxConnectionRecord } from "@/lib/sandbox-connections-api";
 
 /**
@@ -19,7 +20,11 @@ const state = vi.hoisted(() => ({
   canManage: true,
   urlParams: new URLSearchParams(),
   sessionsAsked: [] as (string | null)[],
+  remove: vi.fn(),
 }));
+
+const { toastError } = vi.hoisted(() => ({ toastError: vi.fn() }));
+vi.mock("sonner", () => ({ toast: { error: toastError } }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
@@ -43,7 +48,7 @@ vi.mock("@/hooks", async (importOriginal) => ({
     refresh: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
-    remove: vi.fn(),
+    remove: state.remove,
   }),
   useSandboxSessions: (id: string | null) => {
     state.sessionsAsked.push(id);
@@ -79,6 +84,8 @@ beforeEach(() => {
   state.canManage = true;
   state.urlParams = new URLSearchParams();
   state.sessionsAsked = [];
+  state.remove = vi.fn().mockResolvedValue(undefined);
+  toastError.mockReset();
   window.history.replaceState({}, "", "/sandboxes");
 });
 
@@ -174,5 +181,41 @@ describe("the sandboxes page", () => {
     render(<SandboxesPage />);
 
     expect(screen.queryByRole("button", { name: /Add connection/ })).toBeNull();
+  });
+
+  it("asks whether sandboxes left on the provider were deleted there, then forgets them", async () => {
+    // #2250: a refused delete used to vanish without a word, and nothing could
+    // ever clear tombstones whose credential was gone.
+    state.remove = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new ApiError(400, "pending", {
+          error: { code: "BAD_REQUEST", message: "pending", details: { pending_destroys: 2 } },
+        }),
+      )
+      .mockResolvedValueOnce(undefined);
+    render(<SandboxesPage />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Delete Local Docker" }));
+    expect(await screen.findByText("2 sandboxes are still on the provider")).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: "I deleted them, delete the connection" }),
+    );
+
+    expect(state.remove).toHaveBeenLastCalledWith("c-1", { forgetPendingDestroys: true });
+    expect(screen.queryByText("2 sandboxes are still on the provider")).toBeNull();
+  });
+
+  it("says why any other refused delete was refused", async () => {
+    state.remove = vi.fn().mockRejectedValue(
+      new ApiError(400, "Projects keep their files here.", {
+        error: { code: "BAD_REQUEST", message: "Projects keep their files here.", details: null },
+      }),
+    );
+    render(<SandboxesPage />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Delete Local Docker" }));
+
+    expect(toastError).toHaveBeenCalledTimes(1);
   });
 });

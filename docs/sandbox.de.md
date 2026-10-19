@@ -1,5 +1,5 @@
 ---
-source_sha: "852d8bf0dfea"
+source_sha: "b05e4ec832fa"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -625,7 +625,11 @@ gelingt. Hinter einer Daytona-Sandbox steht keine TTL, also beendet nur das sie.
 Auch eine abgeschaltete Verbindung bekommt ihre Sandboxes entfernt, denn
 Abschalten stoppt neue Arbeit, nicht die Rechnung. Eine Verbindung mit
 verbliebenen Tombstones lässt sich nicht löschen: Die Tombstones gingen mit ihr,
-und sie sind die einzige Aufzeichnung dessen, was beim Anbieter noch läuft.
+und sie sind die einzige Aufzeichnung dessen, was beim Anbieter noch läuft. Kann
+der Sweep nie gelingen, weil die Zugangsdaten der Verbindung gelöscht oder
+widerrufen wurden, lösche die Sandboxes in der Konsole des Anbieters. Lösche dann
+die Verbindung erneut und bestätige das: Ihre Tombstones werden vergessen, und
+ihre Anzahl landet im Audit-Log.
 
 ## Zusammenfassung { #recap }
 

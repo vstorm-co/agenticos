@@ -4854,7 +4854,11 @@
       "sandboxConnections": "Sandbox-Verbindungen",
       "sandboxes2": "Sandboxes",
       "tabConnections": "Verbindungen",
-      "tabRunning": "Laufend"
+      "tabRunning": "Laufend",
+      "deleteFailed": "Die Verbindung konnte nicht gelöscht werden",
+      "strandedTitle": "{count, plural, one {Eine Sandbox ist} other {# Sandboxes sind}} noch beim Anbieter",
+      "strandedBody": "AgenticOS konnte {count, plural, one {eine Sandbox} other {# Sandboxes}} beim Anbieter hinter {name} nicht entfernen, und der Anbieter berechnet sie möglicherweise noch. Lösche sie zuerst in der Konsole des Anbieters und bestätige dann hier, um sie zu vergessen und die Verbindung zu löschen.",
+      "strandedConfirm": "Ich habe sie gelöscht, Verbindung löschen"
     },
     "settings": {
       "absencesWorthStatingBecause": "Auslassungen, die es wert sind genannt zu werden, weil eine Einstellungsseite das Gegenteil nahelegt.",

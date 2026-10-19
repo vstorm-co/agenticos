@@ -569,7 +569,10 @@ Daytona sandbox has no TTL behind it, so this is the only thing that ends one.
 A connection that is switched off still has its sandboxes destroyed, because
 off stops new work and not the bill. A connection with tombstones left cannot
 be deleted: the tombstones would go with it, and they are the only record of
-what is still running on the provider.
+what is still running on the provider. When the sweep can never succeed - the
+connection's credential was deleted or revoked - delete the sandboxes in the
+provider's console. Then delete the connection again and confirm that you did:
+its tombstones are forgotten, and how many goes in the audit log.
 
 ## Recap
 

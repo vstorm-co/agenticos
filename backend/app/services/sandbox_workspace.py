@@ -1991,9 +1991,20 @@ RETRY_CAP = timedelta(hours=6)
 """The longest pause between two attempts at one sandbox."""
 
 
+_RETRY_CAP_EXPONENT = 9
+"""2**9 minutes is past `RETRY_CAP` already, so no larger power is ever needed."""
+
+
 def next_destroy_attempt(attempts: int, now: datetime) -> datetime:
-    """When to try a sandbox again after `attempts` failures: 2, 4, 8 minutes, up to six hours."""
-    return now + min(timedelta(minutes=2**attempts), RETRY_CAP)
+    """When to try a sandbox again after `attempts` failures: 2, 4, 8 minutes, up to six hours.
+
+    The exponent is capped before the `timedelta` is built (#2250): from about
+    41 attempts `timedelta(minutes=2**attempts)` overflows, the row was never
+    postponed, and as the oldest due row it aborted the sweep every minute for
+    every tenant behind it.
+    """
+    exponent = min(attempts, _RETRY_CAP_EXPONENT)
+    return now + min(timedelta(minutes=2**exponent), RETRY_CAP)
 
 
 async def retry_pending_destroys() -> int:

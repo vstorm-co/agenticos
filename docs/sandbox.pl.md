@@ -1,5 +1,5 @@
 ---
-source_sha: "852d8bf0dfea"
+source_sha: "b05e4ec832fa"
 ---
 
 # Sandbox { #the-sandbox }
@@ -591,7 +591,10 @@ tylko to go kończy.
 Połączenie wyłączone dalej ma swoje sandboxy usuwane, bo wyłączenie wstrzymuje
 nową pracę, a nie rachunek. Połączenia, na którym zostały tombstone'y, nie da się
 usunąć: zniknęłyby razem z nim, a to jedyny zapis tego, co nadal działa u
-dostawcy.
+dostawcy. Gdy sweep nie ma szans się udać, bo poświadczenie połączenia zostało
+usunięte albo unieważnione, usuń sandboxy w konsoli dostawcy. Potem usuń
+połączenie jeszcze raz i potwierdź, że to zrobiono: tombstone'y zostaną
+zapomniane, a ich liczba trafi do logu audytu.
 
 ## Podsumowanie { #recap }
 

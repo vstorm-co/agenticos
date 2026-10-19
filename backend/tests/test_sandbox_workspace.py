@@ -4841,6 +4841,13 @@ class TestADestroyThatFailsIsRetried:
         assert next_destroy_attempt(3, now) - now == timedelta(minutes=8)
         assert next_destroy_attempt(20, now) - now == RETRY_CAP
 
+    def test_a_row_failing_for_weeks_is_still_postponed(self):
+        """#2250: from about 41 attempts the uncapped power overflowed `timedelta`."""
+        now = datetime(2026, 10, 19, tzinfo=UTC)
+
+        assert next_destroy_attempt(41, now) - now == RETRY_CAP
+        assert next_destroy_attempt(10_000, now) - now == RETRY_CAP
+
 
 class TestTheWaitSink:
     """#2222: the sandbox client is handed the surface's sink as it is built."""

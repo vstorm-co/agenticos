@@ -1,5 +1,5 @@
 ---
-source_sha: "852d8bf0dfea"
+source_sha: "b05e4ec832fa"
 ---
 
 # La sandbox { #the-sandbox }
@@ -608,7 +608,11 @@ no tiene TTL detrás, así que solo esto lo termina.
 A una conexión apagada se le siguen eliminando sus sandboxes, porque apagarla
 detiene el trabajo nuevo y no la factura. Una conexión a la que le quedan
 tombstones no se puede borrar: se irían con ella, y son el único registro de lo
-que sigue en marcha en el proveedor.
+que sigue en marcha en el proveedor. Cuando el barrido no puede tener éxito
+nunca, porque la credencial de la conexión se borró o se revocó, borra los
+sandboxes en la consola del proveedor. Después vuelve a borrar la conexión y
+confirma que lo hiciste: sus tombstones se olvidan, y cuántos eran queda en el
+registro de auditoría.
 
 ## Resumen { #recap }
 
