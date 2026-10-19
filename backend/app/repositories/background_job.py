@@ -13,8 +13,6 @@ keeps. The two that matter most:
   nothing, and the job's new holder is not overwritten.
 """
 
-from __future__ import annotations
-
 import enum
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -246,6 +244,31 @@ async def fail(
     if row is None:
         return FailOutcome.LOST
     return FailOutcome.DEAD if row == "dead" else FailOutcome.RETRYING
+
+
+async def bury(db: AsyncSession, job_id: UUID, *, fence: int, error: str) -> bool:
+    """End a job now, whatever attempts it has left: it can never succeed as queued.
+
+    For a payload that no longer validates or a kind no worker knows - retrying
+    either would only spend the attempts on the same refusal.
+    """
+    result = await db.execute(
+        update(BackgroundJob)
+        .where(
+            BackgroundJob.id == job_id,
+            BackgroundJob.status == "running",
+            BackgroundJob.attempts == fence,
+        )
+        .values(
+            status="dead",
+            finished_at=func.now(),
+            lease_until=None,
+            worker_id=None,
+            last_error=error[:ERROR_LIMIT],
+        )
+        .returning(BackgroundJob.id)
+    )
+    return result.scalar_one_or_none() is not None
 
 
 async def release(db: AsyncSession, job_id: UUID, *, fence: int) -> bool:

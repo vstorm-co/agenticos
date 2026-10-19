@@ -1,7 +1,5 @@
 """Data access for the worker processes that run background jobs (#2219)."""
 
-from __future__ import annotations
-
 from collections.abc import Sequence
 from datetime import datetime
 

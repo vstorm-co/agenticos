@@ -1,7 +1,5 @@
 """Data access for the deployment's own recurring jobs (#2219)."""
 
-from __future__ import annotations
-
 from collections.abc import Sequence
 from datetime import datetime, timedelta
 from uuid import UUID

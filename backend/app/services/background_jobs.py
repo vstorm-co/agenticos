@@ -12,8 +12,6 @@ queued it, and a Prefect submission made after the commit was lost if the
 process died between the two (#1349).
 """
 
-from __future__ import annotations
-
 from datetime import datetime
 from uuid import UUID
 

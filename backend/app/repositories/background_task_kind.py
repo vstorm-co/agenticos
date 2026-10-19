@@ -1,7 +1,5 @@
 """Data access for the circuit breaker on each kind of background job (#2219)."""
 
-from __future__ import annotations
-
 from collections.abc import Sequence
 
 from sqlalchemy import func, select, update

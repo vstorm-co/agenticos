@@ -12,8 +12,6 @@ An attempt is spent at the claim, so a job that kills its worker spends one
 too; see `app.db.models.background_job`.
 """
 
-from __future__ import annotations
-
 import enum
 from dataclasses import dataclass
 from datetime import datetime, timedelta
