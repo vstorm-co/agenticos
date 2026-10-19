@@ -502,6 +502,10 @@ class ChatAgentRunner:
             # run believing it has consent it was never given (#925).
             approval_mode=approval_mode,
             request_connection=request_connection,
+            # A sandbox whose image is still being built is minutes in which no
+            # token and no tool step arrives. Passed in rather than set on the
+            # prepared run: preparing already opens the session.
+            on_sandbox_wait=on_sandbox_wait,
             person_time_zone=person_time_zone,
             draft=testing.draft,
             test=testing.test,
@@ -521,10 +525,6 @@ class ChatAgentRunner:
         # the only tool call where watching it is how somebody notices it acting
         # on a page they did not expect.
         prepared.deps.browser_events = browser_events
-        # And the fifth: a sandbox whose image is still being built is minutes in
-        # which no token and no tool step arrives.
-        if prepared.workspace is not None:
-            prepared.workspace.wait_notice.sink = on_sandbox_wait
         # And what the person adds while it works: the surface fills it, the next
         # model request reads it.
         prepared.deps.steering = steering

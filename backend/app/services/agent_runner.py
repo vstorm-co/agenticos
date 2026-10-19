@@ -267,6 +267,7 @@ from app.services.project import ProjectService
 from app.services.sandbox_workspace import (
     SANDBOX_CAPABILITY_ID,
     OpenWorkspace,
+    SandboxWaitSink,
     SandboxWorkspaceService,
     project_sandbox,
 )
@@ -2453,6 +2454,7 @@ class AgentRunnerService:
         environment_id: UUID | None = None,
         approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
         on_compaction: CompactionSink | None = None,
+        on_sandbox_wait: SandboxWaitSink | None = None,
         request_connection: ConnectionCallback | None = None,
         person_time_zone: str | None = None,
         draft: bool = False,
@@ -2496,6 +2498,10 @@ class AgentRunnerService:
                 the length of it - which is the failure `CompactionSink`'s own
                 docstring was written for, and which the widget's socket had
                 because only the dashboard's chat passed one (#936).
+            on_sandbox_wait: Where to tell a live surface that the run's sandbox
+                is still opening, usually its image being built. Handed to the
+                workspace as it is opened, since preparing already opens the
+                session to snapshot it (#2222).
             environment_id: Run the version this environment pins instead of
                 the default. Falls back to the exposure's environment - a bot
                 bound to `dev` serves dev without every caller re-deriving it -
@@ -2569,6 +2575,8 @@ class AgentRunnerService:
             # Passed in rather than set on the built deps like `on_compaction`:
             # whether a gap is briefed or offered as a tool decides what is built.
             request_connection=request_connection,
+            # And this one because preparing already opens the sandbox session.
+            on_sandbox_wait=on_sandbox_wait,
             person_time_zone=person_time_zone,
             is_test=test or draft,
             test_spec=test_spec,
@@ -2686,6 +2694,7 @@ class AgentRunnerService:
         person_time_zone: str | None = None,
         is_test: bool = False,
         test_spec: dict[str, Any] | None = None,
+        on_sandbox_wait: SandboxWaitSink | None = None,
     ) -> PreparedRun:
         """Build the agent for a run, opening its row unless one is being resumed.
 
@@ -3023,6 +3032,7 @@ class AgentRunnerService:
                 if exposure is not None and exposure.session_scope
                 else None
             ),
+            on_wait=on_sandbox_wait,
         )
         materialised: MaterialisedSkills | None = None
         started_with: set[str] | None = None

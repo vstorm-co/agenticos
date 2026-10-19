@@ -4837,33 +4837,31 @@ class TestADestroyThatFailsIsRetried:
         assert next_destroy_attempt(20, now) - now == RETRY_CAP
 
 
-class TestTheWaitNotice:
-    """#2222: the sandbox client is handed this before the chat that could fill it exists."""
+class TestTheWaitSink:
+    """#2222: the sandbox client is handed the surface's sink as it is built."""
 
-    async def test_with_no_surface_it_says_nothing(self):
-        await sandbox_workspace.WaitNotice()()
-
-    async def test_it_tells_whatever_surface_filled_it(self):
-        heard = AsyncMock()
-        notice = sandbox_workspace.WaitNotice()
-        notice.sink = heard
-
-        await notice()
-
-        heard.assert_awaited_once_with()
-
-    async def test_a_sandboxd_workspace_is_handed_the_runs_notice(
+    async def test_a_sandboxd_workspace_is_handed_the_runs_sink(
         self, monkeypatch, mock_db_session, sandboxes
     ):
         _serve(monkeypatch, _resolved())
         _a_row_is_created(monkeypatch)
+        heard = AsyncMock()
 
-        opened = await SandboxWorkspaceService(mock_db_session).open(
+        await SandboxWorkspaceService(mock_db_session).open(
+            _spec(backend="service"), ctx=_ctx(), identity=_identity(), on_wait=heard
+        )
+
+        assert sandboxes.made[0]["on_wait"] is heard
+
+    async def test_with_no_surface_there_is_no_sink(self, monkeypatch, mock_db_session, sandboxes):
+        _serve(monkeypatch, _resolved())
+        _a_row_is_created(monkeypatch)
+
+        await SandboxWorkspaceService(mock_db_session).open(
             _spec(backend="service"), ctx=_ctx(), identity=_identity()
         )
 
-        assert opened is not None
-        assert sandboxes.made[0]["on_wait"] is opened.wait_notice
+        assert sandboxes.made[0]["on_wait"] is None
 
 
 async def test_the_real_client_is_handed_the_notice_and_the_shared_client():
@@ -4871,7 +4869,7 @@ async def test_the_real_client_is_handed_the_notice_and_the_shared_client():
     pydantic-ai-backend 0.2.34, and an older one would refuse the keyword."""
     from pydantic_ai_backends.workspaces import SandboxdWorkspace as RealSandboxd
 
-    notice = sandbox_workspace.WaitNotice()
+    notice = AsyncMock()
     made = SandboxWorkspaceService._service_capability(_resolved(), "sc-1", on_wait=notice)
     again = SandboxWorkspaceService._service_capability(_resolved(), "sc-2")
 

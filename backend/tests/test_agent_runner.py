@@ -570,6 +570,7 @@ class TestPrepare:
             runtime=None,
         )
         project.name = "Launch"
+        heard = AsyncMock()
 
         with (
             patch.object(
@@ -598,9 +599,13 @@ class TestPrepare:
             patch("app.services.agent_runner.build_agent"),
             patch.object(service.workspaces, "open", new=AsyncMock(return_value=None)) as opened,
         ):
-            await service.prepare(ctx, agent.id, conversation_id=uuid.uuid4())
+            await service.prepare(
+                ctx, agent.id, conversation_id=uuid.uuid4(), on_sandbox_wait=heard
+            )
 
         assert opened.await_args.kwargs["scope_override"] == "project"
+        # Handed to the open itself: preparing already opens the session (#2222).
+        assert opened.await_args.kwargs["on_wait"] is heard
         assert opened.await_args.kwargs["identity"].project_id == project.id
         opened_spec = opened.await_args.args[0]
         assert [binding.id for binding in opened_spec.capabilities] == ["sandbox"]

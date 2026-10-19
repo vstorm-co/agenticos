@@ -366,25 +366,11 @@ class FlatFileListing:
 
 
 SandboxWaitSink = Callable[[], Awaitable[None]]
-"""Told that a run's sandbox is still being opened - usually its image being built."""
+"""Told that a run's sandbox is still being opened - usually its image being built.
 
-
-@dataclass
-class WaitNotice:
-    """Who to tell that a sandbox is still opening, filled in once a surface exists.
-
-    The workspace is built while the run is prepared, and the chat that could say
-    "preparing the sandbox" attaches its sinks only after that. The session opens
-    on the first tool call, though, by which time the chat is attached - so the
-    sandbox client is handed this object, and it is filled in between the two
-    (#2222). With no surface it says nothing, as `on_compaction` does.
-    """
-
-    sink: SandboxWaitSink | None = None
-
-    async def __call__(self) -> None:
-        if self.sink is not None:
-            await self.sink()
+Handed in when the workspace is opened, not attached afterwards: the run's
+preparation already opens the session - it snapshots the workspace before the
+first model request - and that open is where an image build waits (#2222)."""
 
 
 @dataclass
@@ -405,9 +391,6 @@ class OpenWorkspace:
 
     connection_id: UUID | None = None
     """Which registered connection it runs on, for a workspace that is not `state`."""
-
-    wait_notice: WaitNotice = field(default_factory=WaitNotice)
-    """Where a sandboxd session says it is still opening; see `WaitNotice`."""
 
     briefing: str | None = None
     """What this run should tell its model about the container it works in.
@@ -603,6 +586,7 @@ class SandboxWorkspaceService:
         ctx: AuthContext,
         identity: WorkspaceIdentity,
         scope_override: SessionScope | None = None,
+        on_wait: SandboxWaitSink | None = None,
     ) -> OpenWorkspace | None:
         """The workspace this run should use, or `None` when it has no sandbox.
 
@@ -625,7 +609,11 @@ class SandboxWorkspaceService:
         if config is None:
             return None
         return await self._open_config(
-            config, ctx=ctx, identity=identity, scope=scope_override or config.session_scope
+            config,
+            ctx=ctx,
+            identity=identity,
+            scope=scope_override or config.session_scope,
+            on_wait=on_wait,
         )
 
     async def _open_config(
@@ -635,6 +623,7 @@ class SandboxWorkspaceService:
         ctx: AuthContext,
         identity: WorkspaceIdentity,
         scope: SessionScope,
+        on_wait: SandboxWaitSink | None = None,
     ) -> OpenWorkspace:
         """`open`, for a configuration already read out of a spec or a project."""
         if config.backend == "state":
@@ -652,7 +641,7 @@ class SandboxWorkspaceService:
         # a row that names the host it has left.
         resolved = await self.connections.resolve(ctx, config.connection_id)
         key = self._key(identity, scope, "service", resolved.row.id)
-        return await self._open_service(config, identity, key, scope, resolved)
+        return await self._open_service(config, identity, key, scope, resolved, on_wait=on_wait)
 
     @staticmethod
     def _key(
@@ -707,6 +696,8 @@ class SandboxWorkspaceService:
         key: str,
         scope: SessionScope,
         resolved: ResolvedConnection,
+        *,
+        on_wait: SandboxWaitSink | None = None,
     ) -> OpenWorkspace:
         """A workspace on one of the organization's registered connections.
 
@@ -730,13 +721,12 @@ class SandboxWorkspaceService:
         """
         briefing: str | None = None
         parses_documents = False
-        notice = WaitNotice()
         sandbox = self._service_capability(
             resolved,
             key,
             runtime=config.runtime,
             tenant=str(identity.organization_id),
-            on_wait=notice,
+            on_wait=on_wait,
         )
         if resolved.kind != "daytona":
             alias = config.runtime or resolved.row.default_runtime or None
@@ -772,7 +762,6 @@ class SandboxWorkspaceService:
             connection_id=resolved.row.id,
             briefing=briefing,
             parses_documents=parses_documents,
-            wait_notice=notice,
         )
 
     @staticmethod
