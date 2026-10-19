@@ -1,5 +1,5 @@
 ---
-source_sha: "c002e273dc7b"
+source_sha: "eb529dfb0b4c"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -128,6 +128,11 @@ worker calla y cuyos casos no han avanzado durante
 colgados, que además libera sus plazas. Un run en cola aún no tiene worker -
 espera un runner libre - así que el barrido lo abandona solo tras
 `EVAL_QUEUED_ABANDONED_AFTER_HOURS`.
+
+Mientras un run está en cola o en marcha, no se pueden eliminar el entorno que
+nombra ni el perfil de modelo en que corre alguno de sus lados: sus casos
+restantes responderían contra las conexiones de producción, o con otro modelo
+que los casos anteriores.
 
 ## Resultados { #results }
 

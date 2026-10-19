@@ -121,6 +121,11 @@ sweep, which also frees its slots. A queued run has no worker yet - it waits for
 a runner slot - so the sweep gives up on it only after
 `EVAL_QUEUED_ABANDONED_AFTER_HOURS`.
 
+While a run is queued or running, the environment it names and the model profile
+any of its sides runs on cannot be removed: its remaining cases would answer
+against production's connections, or on another model than the cases before
+them.
+
 ## Results { #results }
 
 Every attempt keeps the answer, the calls it made - each marked executed,

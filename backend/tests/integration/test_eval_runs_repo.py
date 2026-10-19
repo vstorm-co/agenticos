@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent, AgentVersion
+from app.db.models.credential import ModelProfile
 from app.db.models.eval_run import (
     ArmRole,
     ArmSource,
@@ -428,3 +429,25 @@ async def test_an_attempt_is_read_and_updated_in_place(db) -> None:
         eval_run_repo.dataset_version_numbers,
     ):
         assert await empty(db, [], organization_id=ctx.organization_id) == {}
+
+
+async def test_a_live_run_is_counted_on_the_model_its_side_runs_on(db) -> None:
+    ctx, *_, run, arm = await _setup(db)
+    profile = ModelProfile(
+        organization_id=ctx.organization_id, label="nano", provider="openai", model="nano"
+    )
+    db.add(profile)
+    await db.flush()
+    arm.model_profile_id = profile.id
+    await db.flush()
+
+    count = await eval_run_repo.count_live_with_model(
+        db, model_profile_id=profile.id, organization_id=ctx.organization_id
+    )
+    assert count == 1
+    run.status = EvalRunStatus.COMPLETED.value
+    await db.flush()
+    count = await eval_run_repo.count_live_with_model(
+        db, model_profile_id=profile.id, organization_id=ctx.organization_id
+    )
+    assert count == 0

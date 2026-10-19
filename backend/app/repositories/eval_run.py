@@ -543,6 +543,23 @@ async def count_live_in_environment(
     return count or 0
 
 
+async def count_live_with_model(
+    db: AsyncSession, *, model_profile_id: UUID, organization_id: UUID
+) -> int:
+    """How many queued or running eval runs have a side that runs on this model."""
+    count = await db.scalar(
+        select(func.count(func.distinct(EvalRun.id)))
+        .select_from(EvalRunArm)
+        .join(EvalRun, EvalRun.id == EvalRunArm.eval_run_id)
+        .where(
+            EvalRunArm.model_profile_id == model_profile_id,
+            EvalRunArm.organization_id == organization_id,
+            EvalRun.status.in_(_LIVE),
+        )
+    )
+    return count or 0
+
+
 async def heartbeat(
     db: AsyncSession, eval_run_id: UUID, *, organization_id: UUID, now: datetime
 ) -> None:

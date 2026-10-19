@@ -1,5 +1,5 @@
 ---
-source_sha: "c002e273dc7b"
+source_sha: "eb529dfb0b4c"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -134,6 +134,11 @@ vom stündlichen Sweep für hängende Runs als fehlgeschlagen beendet, der auch
 seine Plätze freigibt. Ein Run in der Warteschlange hat noch keinen Worker - er
 wartet auf einen freien Runner - daher gibt der Sweep ihn erst nach
 `EVAL_QUEUED_ABANDONED_AFTER_HOURS` auf.
+
+Solange ein Run wartet oder läuft, lassen sich die Umgebung, die er nennt, und
+das Modellprofil, auf dem eine seiner Seiten läuft, nicht entfernen: Seine
+übrigen Fälle würden sonst gegen die Verbindungen der Produktion antworten oder
+auf einem anderen Modell als die Fälle davor.
 
 ## Ergebnisse { #results }
 

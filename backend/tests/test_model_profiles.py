@@ -27,7 +27,12 @@ from app.agents.model_resolver import (
     build_model,
     get_provider,
 )
-from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    BadRequestError,
+    ConcurrentChangeError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext, OrgRoleName
 from app.core.secret_kinds import (
     ApiKeySecret,
@@ -47,6 +52,8 @@ from app.services.model_profile import (
     provider_catalog,
     validate_endpoint_url,
 )
+
+_LIVE_EVALS = "app.services.model_profile.eval_run_repo.count_live_with_model"
 
 
 def _ctx(org_id=None) -> AuthContext:
@@ -463,6 +470,7 @@ class TestProfileCreation:
                 new=AsyncMock(return_value=False),
             ),
             patch("app.services.model_profile.record_audit", new=AsyncMock()) as audit,
+            patch(_LIVE_EVALS, new=AsyncMock(return_value=0)),
             pytest.raises(NotFoundError) as refused,
         ):
             await ModelProfileService(_db()).delete_profile(_ctx(), uuid.uuid4())
@@ -481,12 +489,27 @@ class TestProfileCreation:
                 new=AsyncMock(return_value=True),
             ) as delete,
             patch("app.services.model_profile.record_audit", new=AsyncMock()) as audit,
+            patch(_LIVE_EVALS, new=AsyncMock(return_value=0)),
         ):
             await ModelProfileService(_db()).delete_profile(ctx, profile_id)
 
         assert delete.call_args.kwargs["organization_id"] == ctx.organization_id
         assert audit.call_args.kwargs["action"] == "model_profile.deleted"
         assert audit.call_args.kwargs["target_id"] == str(profile_id)
+
+    @pytest.mark.anyio
+    async def test_a_profile_a_live_eval_runs_on_is_kept(self):
+        """Its remaining cases would otherwise answer on another model than the first."""
+        with (
+            patch(
+                "app.services.model_profile.credential_repo.delete_profile", new=AsyncMock()
+            ) as delete,
+            patch(_LIVE_EVALS, new=AsyncMock(return_value=2)),
+            pytest.raises(ConcurrentChangeError, match="2 eval run"),
+        ):
+            await ModelProfileService(_db()).delete_profile(_ctx(), uuid.uuid4())
+
+        delete.assert_not_awaited()
 
 
 class TestProfileListing:

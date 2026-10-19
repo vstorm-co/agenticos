@@ -1,5 +1,5 @@
 ---
-source_sha: "c002e273dc7b"
+source_sha: "eb529dfb0b4c"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -127,6 +127,11 @@ przez `EVAL_ABANDONED_AFTER_MINUTES`, kończy się błędem w cogodzinnym sweepi
 zawieszonych runów, który zwalnia też jego miejsca. Run w kolejce nie ma jeszcze
 workera - czeka na wolny runner - więc sweep rezygnuje z niego dopiero po
 `EVAL_QUEUED_ABANDONED_AFTER_HOURS`.
+
+Dopóki run czeka w kolejce albo działa, nie da się usunąć środowiska, które
+wskazuje, ani profilu modelu, na którym działa któraś z jego stron: pozostałe
+przypadki odpowiadałyby na połączeniach produkcji albo na innym modelu niż
+przypadki przed nimi.
 
 ## Wyniki { #results }
 
