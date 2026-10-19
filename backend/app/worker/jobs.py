@@ -1,0 +1,223 @@
+"""Every kind of background job, what it carries and where it runs (#2219).
+
+A service enqueues one of these with `app.services.background_jobs.enqueue`;
+a worker runs it with the handler `app/worker/handlers.py` binds to its kind.
+The split is deliberate: this module imports Pydantic and nothing else, so a
+route that queues an ingestion does not import the parser that will run it.
+
+Attempts follow one rule (decided for #2219): three by default, two for
+ingestion - a parse that failed twice will fail a third time, and each try
+costs embeddings - and one for a scheduled sweep, whose next tick is its retry.
+An attempt is spent at the claim, so a job that kills its worker spends one
+too; see `app.db.models.background_job`.
+"""
+
+from __future__ import annotations
+
+import enum
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, JsonValue
+
+
+class Pool(enum.StrEnum):
+    """Which workers run a job. Each pool has its own concurrency, so one cannot starve another."""
+
+    AGENT = "agent"
+    """Agent runs: long, waiting on models, cheap in memory."""
+    INGEST = "ingest"
+    """Parsing and embedding: CPU and memory heavy, each job in a child process."""
+    SYSTEM = "system"
+    """Sweeps, cleanups and reports: short, and nearly always idle."""
+
+
+class Priority(enum.IntEnum):
+    """Within a pool, lower goes first."""
+
+    INTERACTIVE = 0
+    SCHEDULED = 1
+    BULK = 2
+
+
+class Payload(BaseModel):
+    """What a job carries: identifiers and primitives, never a row or a session."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+
+class NoPayload(Payload):
+    """For a job whose work is to look at the current state."""
+
+
+class Tick(Payload):
+    """A scheduled job: the occurrence it was fired for, the same on every attempt."""
+
+    scheduled_for: datetime
+
+
+class IngestDocument(Payload):
+    rag_document_id: UUID
+    collection_name: str
+    filepath: str
+    source_path: str
+    replace: bool
+    attempt: int
+    """Which dispatch of the document this is (#1598) - not the job's attempt."""
+
+
+class SyncCollection(Payload):
+    sync_log_id: UUID
+    source: str
+    collection_name: str
+    mode: str
+    path: str
+    knowledge_base_id: UUID | None
+
+
+class SyncSource(Payload):
+    source_id: UUID
+    sync_log_id: UUID | None
+
+
+class FireTrigger(Payload):
+    trigger_id: UUID
+    event_context: str | None = None
+    claimed_at: datetime | None = None
+    """The `fire_in_flight_since` the scheduled claim stamped - its claim ticket."""
+
+
+class Restamp(Payload):
+    collection: str
+    organization_id: UUID
+    knowledge_base_id: UUID
+
+
+class CleanupExternalState(Payload):
+    storage_paths: list[str]
+    collections: list[str]
+    restamps: list[Restamp]
+
+
+@dataclass(frozen=True)
+class TaskKind:
+    """What a worker needs to know about a claimed job: where it runs, for how long, how often."""
+
+    kind: str
+    payload_type: type[Payload]
+    pool: Pool
+    max_attempts: int
+    timeout: timedelta
+    priority: Priority
+
+
+@dataclass(frozen=True)
+class Task[P: Payload](TaskKind):
+    """One kind of job, typed by its payload, as a service enqueues it."""
+
+    payload_type: type[P]
+
+    def dump(self, payload: P) -> dict[str, JsonValue]:
+        return payload.model_dump(mode="json")
+
+    def load(self, raw: dict[str, JsonValue]) -> P:
+        return self.payload_type.model_validate(raw)
+
+
+def _sweep(kind: str, *, timeout: timedelta = timedelta(minutes=15)) -> Task[Tick]:
+    return Task(
+        kind=kind,
+        payload_type=Tick,
+        pool=Pool.SYSTEM,
+        max_attempts=1,
+        timeout=timeout,
+        priority=Priority.SCHEDULED,
+    )
+
+
+INGEST_DOCUMENT = Task(
+    kind="ingest-document",
+    payload_type=IngestDocument,
+    pool=Pool.INGEST,
+    max_attempts=2,
+    timeout=timedelta(hours=1),
+    priority=Priority.INTERACTIVE,
+)
+SYNC_COLLECTION = Task(
+    kind="sync-collection",
+    payload_type=SyncCollection,
+    pool=Pool.INGEST,
+    max_attempts=2,
+    timeout=timedelta(hours=4),
+    priority=Priority.BULK,
+)
+SYNC_SOURCE = Task(
+    kind="sync-source",
+    payload_type=SyncSource,
+    pool=Pool.INGEST,
+    max_attempts=2,
+    timeout=timedelta(hours=4),
+    priority=Priority.BULK,
+)
+FIRE_TRIGGER = Task(
+    kind="fire-trigger",
+    payload_type=FireTrigger,
+    pool=Pool.AGENT,
+    max_attempts=3,
+    timeout=timedelta(hours=3),
+    priority=Priority.SCHEDULED,
+)
+CLEANUP_EXTERNAL_STATE = Task(
+    kind="cleanup-external-state",
+    payload_type=CleanupExternalState,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=30),
+    priority=Priority.SCHEDULED,
+)
+
+CHECK_AGENT_TRIGGERS = _sweep("check-agent-triggers")
+POLL_PORTAL_GRANTS = _sweep("poll-portal-grants")
+DELIVER_NOTIFICATIONS = _sweep("deliver-notifications")
+DISPATCH_DUE_SYNCS = _sweep("dispatch-due-syncs")
+RETRY_SANDBOX_DESTROYS = _sweep("retry-sandbox-destroys")
+SWEEP_SANDBOX_OPERATIONS = _sweep("sweep-sandbox-operations")
+SWEEP_MCP_CONNECTIONS = _sweep("sweep-mcp-connections")
+EXPIRE_APPROVALS = _sweep("expire-approvals")
+EXPIRE_INVITATIONS = _sweep("expire-invitations")
+REAP_STALE_RUNS = _sweep("reap-stale-runs")
+SWEEP_TEARDOWN_RESERVATIONS = _sweep("sweep-teardown-reservations")
+APPLY_RETENTION = _sweep("apply-retention", timeout=timedelta(hours=2))
+SWEEP_NOTIFICATIONS = _sweep("sweep-notifications")
+SWEEP_BACKGROUND_JOBS = _sweep("sweep-background-jobs")
+WEEKLY_USAGE_REPORT = _sweep("weekly-usage-report", timeout=timedelta(hours=1))
+MONTHLY_USAGE_REPORT = _sweep("monthly-usage-report", timeout=timedelta(hours=1))
+
+TASKS: dict[str, TaskKind] = {
+    task.kind: task
+    for task in (
+        INGEST_DOCUMENT,
+        SYNC_COLLECTION,
+        SYNC_SOURCE,
+        FIRE_TRIGGER,
+        CLEANUP_EXTERNAL_STATE,
+        CHECK_AGENT_TRIGGERS,
+        POLL_PORTAL_GRANTS,
+        DELIVER_NOTIFICATIONS,
+        DISPATCH_DUE_SYNCS,
+        RETRY_SANDBOX_DESTROYS,
+        SWEEP_SANDBOX_OPERATIONS,
+        SWEEP_MCP_CONNECTIONS,
+        EXPIRE_APPROVALS,
+        EXPIRE_INVITATIONS,
+        REAP_STALE_RUNS,
+        SWEEP_TEARDOWN_RESERVATIONS,
+        APPLY_RETENTION,
+        SWEEP_NOTIFICATIONS,
+        SWEEP_BACKGROUND_JOBS,
+        WEEKLY_USAGE_REPORT,
+        MONTHLY_USAGE_REPORT,
+    )
+}
+"""Every kind, by name: what a worker looks a claimed job up in."""

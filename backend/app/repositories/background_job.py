@@ -1,0 +1,432 @@
+"""Data access for the background job queue (#2219).
+
+The statements here are the queue's guarantees, so each says which one it
+keeps. The two that matter most:
+
+* `claim` counts the attempt in the `UPDATE` that hands the job out. Nothing a
+  job does afterwards - including killing the process that runs it - can take
+  that attempt back, so a job that crashes its worker reaches `max_attempts`
+  and stops rather than being handed out for ever.
+* every write a worker makes about a job it holds carries the attempt count it
+  claimed with (`fence`). A worker that lost its lease - stalled long enough
+  for the rescuer to give the job to someone else - finds its write matches
+  nothing, and the job's new holder is not overwritten.
+"""
+
+from __future__ import annotations
+
+import enum
+from collections.abc import Sequence
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from uuid import UUID
+
+from pydantic import JsonValue
+from sqlalchemy import ColumnElement, case, delete, func, select, text, update
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.models.background_job import BackgroundJob
+
+NOTIFY_CHANNEL = "background_jobs"
+"""What a worker `LISTEN`s on; the payload is the pool that has new work."""
+
+ERROR_LIMIT = 4000
+"""Characters of an error kept on the row: enough for a traceback's last frames."""
+
+ACTIVE_STATUSES = ("queued", "running")
+
+
+@dataclass(frozen=True)
+class ClaimedJob:
+    """A job a worker now holds, with the attempt count that fences its writes."""
+
+    id: UUID
+    kind: str
+    payload: dict[str, JsonValue]
+    attempts: int
+    max_attempts: int
+    organization_id: UUID | None
+    schedule_name: str | None
+
+
+class FailOutcome(enum.StrEnum):
+    """What a failed attempt led to."""
+
+    RETRYING = "retrying"
+    DEAD = "dead"
+    LOST = "lost"
+    """The worker no longer held the job: its write matched nothing."""
+
+
+@dataclass(frozen=True)
+class RescuedJob:
+    """A running job whose lease ran out, as the rescuer left it."""
+
+    id: UUID
+    kind: str
+    dead: bool
+
+
+async def add(
+    db: AsyncSession,
+    *,
+    kind: str,
+    pool: str,
+    payload: dict[str, JsonValue],
+    max_attempts: int,
+    priority: int,
+    organization_id: UUID | None = None,
+    run_after: datetime | None = None,
+    dedupe_key: str | None = None,
+    dedupe_active: bool = False,
+    concurrency_key: str | None = None,
+    schedule_name: str | None = None,
+) -> UUID | None:
+    """Queue a job in the caller's transaction, and wake the pool's workers when it commits.
+
+    Answers the new job's id, or `None` when the enqueue was dropped: a queued
+    job already carries `dedupe_key`, or - with `dedupe_active` - a queued or
+    *running* one does. Dropping is the contract, not an error. `NOTIFY` is
+    transactional in Postgres: a rolled-back enqueue wakes nobody, and a
+    committed one wakes the workers only once the row is there to claim.
+    """
+    if dedupe_key is not None and dedupe_active and await _active_with_key(db, dedupe_key):
+        return None
+    values: dict[str, object] = {
+        "kind": kind,
+        "pool": pool,
+        "payload": payload,
+        "max_attempts": max_attempts,
+        "priority": priority,
+        "organization_id": organization_id,
+        "dedupe_key": dedupe_key,
+        "concurrency_key": concurrency_key,
+        "schedule_name": schedule_name,
+    }
+    if run_after is not None:
+        values["run_after"] = run_after
+    statement = (
+        insert(BackgroundJob)
+        .values(**values)
+        .on_conflict_do_nothing(
+            index_elements=["dedupe_key"],
+            index_where=text("status = 'queued' AND dedupe_key IS NOT NULL"),
+        )
+        .returning(BackgroundJob.id)
+    )
+    job_id = (await db.execute(statement)).scalar_one_or_none()
+    if job_id is not None:
+        await _notify(db, pool)
+    return job_id
+
+
+# The subquery locks one claimable row and skips any another worker holds, and
+# `FOR UPDATE` rechecks its own `WHERE` against the row's latest version once
+# the lock is taken - so a job another claim moved on between the snapshot and
+# the lock is not handed out twice. A kind that is paused is not claimed; nor is
+# a job whose `concurrency_key` is already running somewhere, and the partial
+# unique index on running keys turns the one race left there - two claims of two
+# such jobs at once - into a unique violation for the second, not a duplicate.
+_CLAIM = text(
+    """
+    UPDATE background_jobs
+    SET status = 'running',
+        attempts = attempts + 1,
+        lease_until = now() + make_interval(secs => :lease_seconds),
+        worker_id = :worker_id,
+        started_at = now(),
+        updated_at = now()
+    WHERE id = (
+        SELECT j.id FROM background_jobs j
+        WHERE j.status = 'queued'
+          AND j.pool = :pool
+          AND j.run_after <= now()
+          AND NOT EXISTS (
+              SELECT 1 FROM background_task_kinds k
+              WHERE k.kind = j.kind AND k.paused_at IS NOT NULL
+          )
+          AND (
+              j.concurrency_key IS NULL
+              OR NOT EXISTS (
+                  SELECT 1 FROM background_jobs r
+                  WHERE r.status = 'running' AND r.concurrency_key = j.concurrency_key
+              )
+          )
+        ORDER BY j.priority, j.run_after, j.id
+        FOR UPDATE SKIP LOCKED
+        LIMIT 1
+    )
+    RETURNING id, kind, payload, attempts, max_attempts, organization_id, schedule_name
+    """
+)
+
+
+async def claim(
+    db: AsyncSession, *, pool: str, worker_id: str, lease: timedelta
+) -> ClaimedJob | None:
+    """Hand the next job of `pool` to `worker_id`, counting the attempt. `None` when there is none."""
+    row = (
+        await db.execute(
+            _CLAIM,
+            {"pool": pool, "worker_id": worker_id, "lease_seconds": lease.total_seconds()},
+        )
+    ).one_or_none()
+    if row is None:
+        return None
+    return ClaimedJob(
+        id=row.id,
+        kind=row.kind,
+        payload=row.payload,
+        attempts=row.attempts,
+        max_attempts=row.max_attempts,
+        organization_id=row.organization_id,
+        schedule_name=row.schedule_name,
+    )
+
+
+async def extend_leases(db: AsyncSession, *, worker_id: str, lease: timedelta) -> int:
+    """Push out the lease of every job `worker_id` still runs. Answers how many.
+
+    Keyed on the worker, not on a list of jobs: a job the rescuer has given to
+    someone else no longer names this worker, so it is not extended.
+    """
+    rows = await db.execute(
+        update(BackgroundJob)
+        .where(BackgroundJob.worker_id == worker_id, BackgroundJob.status == "running")
+        .values(lease_until=func.now() + lease)
+        .returning(BackgroundJob.id)
+    )
+    return len(rows.all())
+
+
+async def complete(db: AsyncSession, job_id: UUID, *, fence: int) -> bool:
+    """Record a job done. `False` when the worker no longer held it."""
+    result = await db.execute(
+        update(BackgroundJob)
+        .where(
+            BackgroundJob.id == job_id,
+            BackgroundJob.status == "running",
+            BackgroundJob.attempts == fence,
+        )
+        .values(
+            status="succeeded",
+            finished_at=func.now(),
+            lease_until=None,
+            last_error=None,
+        )
+        .returning(BackgroundJob.id)
+    )
+    return result.scalar_one_or_none() is not None
+
+
+async def fail(
+    db: AsyncSession, job_id: UUID, *, fence: int, error: str, retry_in: timedelta
+) -> FailOutcome:
+    """Record a failed attempt: queued again after `retry_in`, or dead at the last attempt."""
+    row = (
+        await db.execute(
+            update(BackgroundJob)
+            .where(
+                BackgroundJob.id == job_id,
+                BackgroundJob.status == "running",
+                BackgroundJob.attempts == fence,
+            )
+            .values(
+                status=_after_attempt(),
+                run_after=func.now() + retry_in,
+                finished_at=_finished_if_dead(),
+                lease_until=None,
+                worker_id=None,
+                last_error=error[:ERROR_LIMIT],
+            )
+            .returning(BackgroundJob.status)
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        return FailOutcome.LOST
+    return FailOutcome.DEAD if row == "dead" else FailOutcome.RETRYING
+
+
+async def release(db: AsyncSession, job_id: UUID, *, fence: int) -> bool:
+    """Put a job back as it was before the claim: the worker is stopping, not failing.
+
+    The attempt is given back, because a shutdown said nothing about the job.
+    Fenced like every other write, so a job already taken over stays taken.
+    """
+    result = await db.execute(
+        update(BackgroundJob)
+        .where(
+            BackgroundJob.id == job_id,
+            BackgroundJob.status == "running",
+            BackgroundJob.attempts == fence,
+        )
+        .values(
+            status="queued",
+            attempts=BackgroundJob.attempts - 1,
+            lease_until=None,
+            worker_id=None,
+            started_at=None,
+        )
+        .returning(BackgroundJob.id)
+    )
+    return result.scalar_one_or_none() is not None
+
+
+# Locked and skipped like the claim, so two rescuers sweeping at once never
+# write the same death twice. The error says what is known and no more: the
+# worker stopped renewing the lease, which is a crash, an OOM kill or a host
+# that froze - the rescuer cannot tell which.
+_RESCUE = text(
+    """
+    UPDATE background_jobs
+    SET status = CASE WHEN attempts >= max_attempts THEN 'dead' ELSE 'queued' END,
+        finished_at = CASE WHEN attempts >= max_attempts THEN now() ELSE NULL END,
+        run_after = now() + make_interval(secs => :retry_seconds),
+        last_error = 'worker lost: no heartbeat from ' || coalesce(worker_id, 'unknown worker')
+            || ' since the lease ran out at ' || to_char(lease_until, 'YYYY-MM-DD HH24:MI:SS TZ')
+            || ' (attempt ' || attempts || ' of ' || max_attempts || ')',
+        lease_until = NULL,
+        worker_id = NULL,
+        updated_at = now()
+    WHERE id IN (
+        SELECT id FROM background_jobs
+        WHERE status = 'running' AND lease_until < now()
+        ORDER BY lease_until
+        FOR UPDATE SKIP LOCKED
+        LIMIT :limit
+    )
+    RETURNING id, kind, status
+    """
+)
+
+
+async def rescue_expired(
+    db: AsyncSession, *, retry_in: timedelta, limit: int = 100
+) -> list[RescuedJob]:
+    """Take back every running job whose lease ran out, and say what became of each."""
+    rows = (
+        await db.execute(_RESCUE, {"retry_seconds": retry_in.total_seconds(), "limit": limit})
+    ).all()
+    return [RescuedJob(id=row.id, kind=row.kind, dead=row.status == "dead") for row in rows]
+
+
+async def _active_with_key(db: AsyncSession, dedupe_key: str) -> bool:
+    result = await db.execute(
+        select(BackgroundJob.id)
+        .where(BackgroundJob.dedupe_key == dedupe_key, BackgroundJob.status.in_(ACTIVE_STATUSES))
+        .limit(1)
+    )
+    return result.scalar_one_or_none() is not None
+
+
+async def has_active_for_schedule(db: AsyncSession, schedule_name: str) -> bool:
+    """Whether a job a schedule fired is still queued or running."""
+    result = await db.execute(
+        select(BackgroundJob.id)
+        .where(
+            BackgroundJob.schedule_name == schedule_name,
+            BackgroundJob.status.in_(ACTIVE_STATUSES),
+        )
+        .limit(1)
+    )
+    return result.scalar_one_or_none() is not None
+
+
+async def get(db: AsyncSession, job_id: UUID) -> BackgroundJob | None:
+    return await db.get(BackgroundJob, job_id)
+
+
+async def list_page(
+    db: AsyncSession,
+    *,
+    status: str | None,
+    kind: str | None,
+    pool: str | None,
+    organization_id: UUID | None,
+    before: datetime | None,
+    limit: int,
+) -> Sequence[BackgroundJob]:
+    """Jobs newest first, filtered, a keyset page at a time (`before` is the last row's `created_at`)."""
+    statement = select(BackgroundJob)
+    if status is not None:
+        statement = statement.where(BackgroundJob.status == status)
+    if kind is not None:
+        statement = statement.where(BackgroundJob.kind == kind)
+    if pool is not None:
+        statement = statement.where(BackgroundJob.pool == pool)
+    if organization_id is not None:
+        statement = statement.where(BackgroundJob.organization_id == organization_id)
+    if before is not None:
+        statement = statement.where(BackgroundJob.created_at < before)
+    statement = statement.order_by(BackgroundJob.created_at.desc(), BackgroundJob.id.desc())
+    return (await db.execute(statement.limit(limit))).scalars().all()
+
+
+async def count_by_status(db: AsyncSession) -> dict[str, int]:
+    """How many jobs are in each status, every status present even at zero."""
+    result = await db.execute(
+        select(BackgroundJob.status, func.count()).group_by(BackgroundJob.status)
+    )
+    counts = dict.fromkeys(("queued", "running", "succeeded", "dead", "cancelled"), 0)
+    counts.update(dict(result.tuples().all()))
+    return counts
+
+
+async def requeue_dead(db: AsyncSession, job_id: UUID) -> bool:
+    """Give a dead job a fresh set of attempts. `False` when it is not dead."""
+    pool = (
+        await db.execute(
+            update(BackgroundJob)
+            .where(BackgroundJob.id == job_id, BackgroundJob.status == "dead")
+            .values(status="queued", attempts=0, run_after=func.now(), finished_at=None)
+            .returning(BackgroundJob.pool)
+        )
+    ).scalar_one_or_none()
+    if pool is None:
+        return False
+    await _notify(db, pool)
+    return True
+
+
+async def cancel_queued(db: AsyncSession, job_id: UUID) -> bool:
+    """Withdraw a job nobody has started. `False` when it is not queued."""
+    result = await db.execute(
+        update(BackgroundJob)
+        .where(BackgroundJob.id == job_id, BackgroundJob.status == "queued")
+        .values(status="cancelled", finished_at=func.now())
+        .returning(BackgroundJob.id)
+    )
+    return result.scalar_one_or_none() is not None
+
+
+async def delete_finished_before(db: AsyncSession, *, cutoff: datetime, limit: int) -> int:
+    """Forget finished jobs older than `cutoff`, at most `limit` per call. Answers how many."""
+    doomed = (
+        select(BackgroundJob.id)
+        .where(
+            BackgroundJob.status.in_(("succeeded", "dead", "cancelled")),
+            BackgroundJob.finished_at < cutoff,
+        )
+        .limit(limit)
+        .scalar_subquery()
+    )
+    rows = await db.execute(
+        delete(BackgroundJob).where(BackgroundJob.id.in_(doomed)).returning(BackgroundJob.id)
+    )
+    return len(rows.all())
+
+
+async def _notify(db: AsyncSession, pool: str) -> None:
+    await db.execute(
+        text("SELECT pg_notify(:channel, :pool)"), {"channel": NOTIFY_CHANNEL, "pool": pool}
+    )
+
+
+def _after_attempt() -> ColumnElement[str]:
+    """`dead` once the attempt just made was the last, `queued` otherwise."""
+    return case((BackgroundJob.attempts >= BackgroundJob.max_attempts, "dead"), else_="queued")
+
+
+def _finished_if_dead() -> ColumnElement[datetime | None]:
+    return case((BackgroundJob.attempts >= BackgroundJob.max_attempts, func.now()), else_=None)
