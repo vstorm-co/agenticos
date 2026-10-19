@@ -91,8 +91,20 @@ export function ArtifactThumbnail({
   const box = useRef<HTMLDivElement>(null);
   const seen = useSeen(box);
   const scale = useFitScale(box);
-  const view = useArtifactView(artifactId, versionId, seen);
+  // The first address is kept, and the query stops once there is one: a refetch
+  // - on reconnect, say - mints a new address, and a new `src` reloads the page.
+  const [src, setSrc] = useState<string | null>(null);
+  const view = useArtifactView(artifactId, versionId, seen && src === null);
   const [loaded, setLoaded] = useState(false);
+  const page = `${artifactId}:${versionId ?? ""}`;
+  const [shownPage, setShownPage] = useState(page);
+  if (shownPage !== page) {
+    setShownPage(page);
+    setSrc(null);
+    setLoaded(false);
+  } else if (src === null && view.data !== undefined) {
+    setSrc(view.data.url);
+  }
   const line = cn("bg-muted rounded", !view.isError && "animate-pulse");
 
   return (
@@ -109,9 +121,9 @@ export function ArtifactThumbnail({
           </div>
         </div>
       )}
-      {seen && view.data !== undefined && (
+      {src !== null && (
         <iframe
-          src={view.data.url}
+          src={src}
           title={title}
           sandbox={THUMBNAIL_SANDBOX}
           referrerPolicy="no-referrer"

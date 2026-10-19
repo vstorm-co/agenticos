@@ -36,7 +36,9 @@ export function OpenedArtifact({ artifact }: { artifact: OpenPublicArtifact }) {
         </p>
       </header>
       <div className="flex min-h-0 flex-1 flex-col">
-        <ArtifactFrameView url={artifact.view.url} title={artifact.title} />
+        {/* No minimum: on a short window the frame shrinks with it rather than
+            pushing the page into a scroll. */}
+        <ArtifactFrameView url={artifact.view.url} title={artifact.title} className="min-h-0" />
       </div>
     </main>
   );

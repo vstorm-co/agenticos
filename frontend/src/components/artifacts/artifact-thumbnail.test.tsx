@@ -99,7 +99,38 @@ describe("ArtifactThumbnail", () => {
     expect(container.querySelector("iframe")).toBe(frame);
     expect(frame).toHaveAttribute("data-loaded", "true");
     expect(container.querySelector("[data-unavailable]")).toBeNull();
-    expect(useArtifactViewMock).toHaveBeenLastCalledWith("a1", null, true);
+    // With an address in hand the query stops, so nothing mints another.
+    expect(useArtifactViewMock).toHaveBeenLastCalledWith("a1", null, false);
+  });
+
+  it("keeps the first address when the query answers with a new one", () => {
+    // A reconnect refetches every enabled query; a new address as `src` would
+    // reload every thumbnail a reader had scrolled past.
+    const seen = installObservers();
+    useArtifactViewMock.mockReturnValue({ data: { url: "https://content.test/first" } });
+    const { container, rerender } = render(<ArtifactThumbnail artifactId="a1" title="Report" />);
+    act(() => seen.intersection?.([{ isIntersecting: true, contentRect: { width: 0 } }]));
+
+    useArtifactViewMock.mockReturnValue({ data: { url: "https://content.test/second" } });
+    rerender(<ArtifactThumbnail artifactId="a1" title="Report" />);
+
+    expect(container.querySelector("iframe")).toHaveAttribute("src", "https://content.test/first");
+  });
+
+  it("asks for a new address when it is pointed at another version", () => {
+    const seen = installObservers();
+    useArtifactViewMock.mockReturnValue({ data: { url: "https://content.test/v1" } });
+    const { container, rerender } = render(
+      <ArtifactThumbnail artifactId="a1" title="Report" versionId="v1" />,
+    );
+    act(() => seen.intersection?.([{ isIntersecting: true, contentRect: { width: 0 } }]));
+    fireEvent.load(container.querySelector("iframe")!);
+
+    useArtifactViewMock.mockReturnValue({ data: { url: "https://content.test/v2" } });
+    rerender(<ArtifactThumbnail artifactId="a1" title="Report" versionId="v2" />);
+
+    expect(container.querySelector("iframe")).toHaveAttribute("src", "https://content.test/v2");
+    expect(container.querySelector("iframe")).toHaveAttribute("data-loaded", "false");
   });
 
   it("ignores an observer call that reports no entry", () => {
