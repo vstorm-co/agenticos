@@ -1,5 +1,5 @@
 ---
-source_sha: "541c482c0fed"
+source_sha: "3e72c1a525be"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -55,8 +55,7 @@ Medido sobre un despliegue en reposo, no estimado:
 |---|---|---|
 | `app` (2 workers de uvicorn) | ~1,0 GB | 2,5 GB con los 4 workers por defecto |
 | `db` | ~1,3 GB con el ajuste de abajo | 2 GB |
-| `prefect-runner` | 241 MiB | 1,5 GB |
-| `prefect-server` | 245 MiB | 768 MB |
+| `worker` (un proceso hijo de ingesta) | 387 MiB | 2,5 GB (`WORKER_MEMORY_LIMIT`) |
 | `frontend` | ~300 MB | 1 GB |
 | `redis` | 9 MiB | 512 MB |
 
@@ -97,6 +96,13 @@ Dos ajustes mantienen diagnosticable un despliegue lento:
     colección agota, informando `could not resize shared memory segment`. Si
     mueves el límite, mueve el ajuste con él; están escritos uno al lado del otro
     por esa razón.
+
+    También fija `max_connections=200`, porque los pools pueden abrir más que
+    los 100 de serie de Postgres: dos pools de 15 por worker de uvicorn, o sea
+    120 con los cuatro por defecto, y 30 más para el worker de tareas en segundo
+    plano. Súbelo junto con `UVICORN_WORKERS` o `DB_POOL_SIZE`, o Postgres
+    rechazará conexiones con «too many clients» antes de que un pool pueda
+    encolarlas o descartar la carga.
 
 ## Apunta los nombres al host { #point-the-names-at-the-host }
 

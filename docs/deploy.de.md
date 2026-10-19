@@ -1,5 +1,5 @@
 ---
-source_sha: "541c482c0fed"
+source_sha: "3e72c1a525be"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
@@ -56,8 +56,7 @@ Auf einem im Leerlauf befindlichen Deployment gemessen, nicht geschätzt:
 |---|---|---|
 | `app` (2 uvicorn workers) | ~1,0 GB | 2,5 GB bei den standardmäßigen 4 Workern |
 | `db` | ~1,3 GB mit dem Tuning unten | 2 GB |
-| `prefect-runner` | 241 MiB | 1,5 GB |
-| `prefect-server` | 245 MiB | 768 MB |
+| `worker` (ein Ingest-Kindprozess) | 387 MiB | 2,5 GB (`WORKER_MEMORY_LIMIT`) |
 | `frontend` | ~300 MB | 1 GB |
 | `redis` | 9 MiB | 512 MB |
 
@@ -99,6 +98,13 @@ Zwei Einstellungen halten ein langsames Deployment diagnostizierbar:
     ein paralleler Scan über die Vektoren einer Collection erschöpft, mit der Meldung
     `could not resize shared memory segment`. Verschieben Sie das Limit, verschieben
     Sie das Tuning mit; sie stehen aus diesem Grund nebeneinander.
+
+    Außerdem setzt sie `max_connections=200`, denn die Pools können mehr
+    öffnen als die 100 von Postgres ab Werk: zwei Pools zu 15 je uvicorn-Worker,
+    also 120 bei den standardmäßigen vier, und 30 weitere für den
+    Hintergrund-Worker. Erhöhen Sie den Wert mit `UVICORN_WORKERS` oder
+    `DB_POOL_SIZE`, sonst lehnt Postgres Verbindungen mit „too many clients“ ab,
+    bevor ein Pool sie einreihen oder die Last abwerfen kann.
 
 ## Die Namen auf den Host zeigen lassen { #point-the-names-at-the-host }
 

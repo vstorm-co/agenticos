@@ -1,5 +1,5 @@
 ---
-source_sha: "541c482c0fed"
+source_sha: "3e72c1a525be"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -53,8 +53,7 @@ Zmierzone na bezczynnym wdrożeniu, nie oszacowane:
 |---|---|---|
 | `app` (2 workery uvicorna) | ~1,0 GB | 2,5 GB przy domyślnych 4 workerach |
 | `db` | ~1,3 GB przy strojeniu poniżej | 2 GB |
-| `prefect-runner` | 241 MiB | 1,5 GB |
-| `prefect-server` | 245 MiB | 768 MB |
+| `worker` (jeden proces potomny ingestu) | 387 MiB | 2,5 GB (`WORKER_MEMORY_LIMIT`) |
 | `frontend` | ~300 MB | 1 GB |
 | `redis` | 9 MiB | 512 MB |
 
@@ -94,6 +93,12 @@ Dwa ustawienia sprawiają, że wolne wdrożenie da się zdiagnozować:
     równoległy skan po wektorach kolekcji, raportując
     `could not resize shared memory segment`. Przesuwasz limit — przesuń strojenie
     razem z nim; są zapisane obok siebie właśnie dlatego.
+
+    Ustawia też `max_connections=200`, bo pule potrafią otworzyć więcej niż
+    domyślne 100 Postgresa: dwie pule po 15 na worker uvicorna, czyli 120 przy
+    domyślnych czterech, i 30 więcej dla workera zadań w tle. Podnieś je razem z
+    `UVICORN_WORKERS` albo `DB_POOL_SIZE`, inaczej Postgres odrzuci połączenia
+    z „too many clients”, zanim pula zdąży je zakolejkować albo zrzucić nadmiar.
 
 ## Skieruj nazwy na host { #point-the-names-at-the-host }
 

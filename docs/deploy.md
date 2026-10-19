@@ -47,8 +47,7 @@ Measured on an idle deployment, not estimated:
 |---|---|---|
 | `app` (2 uvicorn workers) | ~1.0 GB | 2.5 GB at the default 4 workers |
 | `db` | ~1.3 GB with the tuning below | 2 GB |
-| `prefect-runner` | 241 MiB | 1.5 GB |
-| `prefect-server` | 245 MiB | 768 MB |
+| `worker` (one ingest child) | 387 MiB | 2.5 GB (`WORKER_MEMORY_LIMIT`) |
 | `frontend` | ~300 MB | 1 GB |
 | `redis` | 9 MiB | 512 MB |
 
@@ -86,6 +85,12 @@ Two settings keep a slow deployment diagnosable:
     which a parallel scan over a collection's vectors exhausts, reporting
     `could not resize shared memory segment`. Move the limit and move the tuning
     with it; they are written next to each other for that reason.
+
+    It also sets `max_connections=200`, because the pools can open more than
+    Postgres' stock 100: two pools of 15 per uvicorn worker, so 120 at the
+    default four, and 30 more for the background worker. Raise it with
+    `UVICORN_WORKERS` or `DB_POOL_SIZE`, or Postgres refuses connections with
+    "too many clients" before a pool can queue them or shed the load.
 
 ## Point the names at the host
 
