@@ -94,8 +94,17 @@ async def _org_and_agent(db) -> tuple[Organization, Agent]:
     return organization, agent
 
 
-async def _scored_answer(db, organization: Organization, agent: Agent, *, run_by: UUID | None):
-    """A score of a run `run_by` started, keeping the answer it graded."""
+async def _scored_answer(
+    db,
+    organization: Organization,
+    agent: Agent,
+    *,
+    run_by: UUID | None,
+    for_a_visitor: bool = False,
+    results: list[dict[str, object]] | None = None,
+):
+    """A score of a run `run_by` started - or a visitor did, in `run_by`'s name -
+    keeping the answer it graded."""
     owner = AuthContext(
         user_id=organization.created_by_user_id,
         organization_id=organization.id,
@@ -106,7 +115,13 @@ async def _scored_answer(db, organization: Organization, agent: Agent, *, run_by
     case = await datasets.add_case(
         owner, dataset.id, DatasetCaseCreate(input="Where is my refund?", reference_answer="a")
     )
-    run = AgentRun(id=uuid4(), organization_id=organization.id, agent_id=agent.id, user_id=run_by)
+    run = AgentRun(
+        id=uuid4(),
+        organization_id=organization.id,
+        agent_id=agent.id,
+        user_id=run_by,
+        initiated_by_publisher_fallback=for_a_visitor,
+    )
     db.add(run)
     await db.flush()
     return await case_score_repo.create(
@@ -119,7 +134,7 @@ async def _scored_answer(db, organization: Organization, agent: Agent, *, run_by
         eval_run_id=None,
         answer="Your refund is on its way.",
         scoring={},
-        results=[],
+        results=results or [],
         judge=None,
         passed=False,
         review_state="none",
@@ -698,6 +713,45 @@ class TestWhatDeletionRemoves:
         await db.refresh(others)
         assert (theirs.answer, theirs.passed) == (None, False)
         assert others.answer == "Your refund is on its way."
+
+    async def test_a_score_of_their_run_loses_what_its_results_quoted_of_the_answer(self, db):
+        """A judge's reason, quotes and unreadable answer can repeat the answer
+        word for word, so they go with it; the verdict each reached stays."""
+        user = await _person(db, "purge-reasons@example.com")
+        organization, agent = await _org_and_agent(db)
+        graded = {
+            "scorer": "judge",
+            "name": "tone",
+            "required": True,
+            "status": "fail",
+            "reason": "2/5: says 'Your refund is on its way.'",
+            "unverified_quotes": ["Your refund is on its way"],
+            "judge_said": "Your refund is on its way.",
+        }
+        theirs = await _scored_answer(db, organization, agent, run_by=user.id, results=[graded])
+
+        await PersonalDataService(db).purge(user.id)
+
+        await db.refresh(theirs)
+        [kept] = theirs.results
+        assert (kept["reason"], kept["unverified_quotes"], kept["judge_said"]) == ("", [], None)
+        assert (kept["status"], kept["name"]) == ("fail", "tone")
+
+    async def test_a_visitors_answer_on_their_published_surface_is_not_theirs(self, db):
+        """An embed or a hosted page runs a visitor's message in its publisher's
+        name; what the visitor was answered is neither exported to nor erased with
+        the publisher."""
+        user = await _person(db, "purge-visitor@example.com")
+        organization, agent = await _org_and_agent(db)
+        visitors = await _scored_answer(db, organization, agent, run_by=user.id, for_a_visitor=True)
+
+        export = await PersonalDataService(db).export(user.id, actor_user_id=user.id)
+        purged = await PersonalDataService(db).purge(user.id)
+
+        assert export.scored_answers == []
+        assert purged.scored_answers == 0
+        await db.refresh(visitors)
+        assert visitors.answer == "Your refund is on its way."
 
     async def test_an_identity_that_was_never_linked_is_left_where_it_is(self, db):
         """An unlinked identity is not this person's residue - it is a platform
