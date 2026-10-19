@@ -42,11 +42,13 @@ const state = vi.hoisted(() => ({
   score: vi.fn(),
   pending: false,
   turns: [] as { id: string; role: string; content: string }[] | null,
+  transcriptOptions: undefined as { tail?: boolean } | undefined,
 }));
 vi.mock("@/hooks/use-runs", () => ({
-  useRunTranscript: () => ({
-    transcript: state.turns === null ? undefined : { items: state.turns },
-  }),
+  useRunTranscript: (_runId: string, _scope: string, options?: { tail?: boolean }) => {
+    state.transcriptOptions = options;
+    return { transcript: state.turns === null ? undefined : { items: state.turns } };
+  },
 }));
 vi.mock("./add-to-dataset-dialog", () => ({
   AddToDatasetDialog: ({ messageId }: { messageId: string }) => (
@@ -169,6 +171,7 @@ describe("Score against a case", () => {
 
     await waitFor(() => expect(screen.getByText("Matches the schema")).toBeInTheDocument());
     expect(state.score).toHaveBeenCalledWith({ datasetId: "d1", caseId: "c1", runId: "run-1" });
+    expect(state.transcriptOptions).toEqual({ tail: true });
     // The footer's and the dialog's own close both answer to the name.
     await userEvent.click(screen.getAllByRole("button", { name: "Close" })[0]!);
     expect(screen.queryByText("Matches the schema")).toBeNull();

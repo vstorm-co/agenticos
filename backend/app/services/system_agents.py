@@ -34,10 +34,11 @@ from app.core.exceptions import (
     NotFoundError,
     SystemAgentUnavailableError,
 )
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent, AgentKind
 from app.db.models.resource_grant import Visibility
 from app.repositories import agent_repo, credential_repo, member_repo
+from app.services.access import AGENT, resolve_access
 from app.services.agent_registry import AgentRegistryService
 
 logger = logging.getLogger(__name__)
@@ -198,14 +199,17 @@ class SystemAgentService:
         name: str,
         description: str,
         instructions: str,
+        visibility: Visibility,
         model_profile_id: UUID | None = None,
     ) -> Agent:
         """A judge of the organization's own, created by the caller from the judge definition.
 
         It runs on `model_profile_id`, or on the organization's oldest model, at
-        the definition's temperature, and publishes straight away when it has a
-        model - a draft otherwise, like the seeded judge. The caller has already
-        been allowed to create agents.
+        the definition's temperature, and is as widely visible as `visibility` -
+        the dataset's it grades, whose name and description its prompt holds. It
+        publishes straight away when it has a model and the caller may publish
+        it - a draft otherwise, like the seeded judge, for somebody who may. The
+        caller has already been allowed to create agents.
 
         Raises:
             AlreadyExistsError: Another agent of the organization holds the name.
@@ -234,13 +238,14 @@ class SystemAgentService:
             model_settings=ModelSettingsSpec(temperature=JUDGE.temperature),
             budget=BudgetSpec(monthly_usd=JUDGE.monthly_usd),
         )
-        agent = await self.registry.create(ctx, spec, visibility=Visibility.ORG)
+        agent = await self.registry.create(ctx, spec, visibility=visibility)
         agent = await agent_repo.update(
             self.db, agent=agent, update_data={"kind": AgentKind.JUDGE.value}
         )
-        return await self._publish(
-            ctx, agent, published=model_profile_id is not None, note="Created"
+        publishes = model_profile_id is not None and await resolve_access(
+            self.db, ctx, agent, Perm.AGENTS_PUBLISH, resource_type=AGENT
         )
+        return await self._publish(ctx, agent, published=publishes, note="Created")
 
     async def _publish(
         self, ctx: AuthContext, agent: Agent, *, published: bool, note: str

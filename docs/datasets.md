@@ -271,6 +271,10 @@ list - on the organization's first model or one you pick. The prompt is shown to
 edit before it is created (`GET /datasets/{id}/judge-template`). Creating it
 needs `agents:edit` as well as `datasets:edit`.
 
+The judge is as widely visible as the dataset, since its prompt holds the
+dataset's name and description, and it stays a draft for somebody who may
+publish it (`agents:publish`) when its creator may not.
+
 The model is picked in the same panel as an agent's: a provider, its full list
 of models and a key for whoever may add a model (`connections:manage`), and the
 saved models for anyone else.
@@ -345,11 +349,12 @@ A grade may quote the answer, up to 12 passages; a quote the answer does not
 contain word for word is kept beside the grade as unverified, shown on its own
 line under the reason, and the grade stands.
 
-What backs a grade never sinks it: an empty or overlong quote is dropped,
-quotes past twelve and a rule past 300 characters are cut, and only a missing
-criterion id or grade makes a verdict unreadable. The judge's run in Activity
-says which fields could not be read, never the answer, which can repeat a case
-of a dataset its reader may not see.
+What backs a grade never sinks it: an empty or overlong quote is dropped, quotes
+past twelve and a rule past 300 characters are cut, and only a missing criterion
+id or grade makes a verdict unreadable. A criterion graded more than once is an
+error, rather than whichever grade came last. The judge's run in Activity says
+which fields could not be read, never the answer, which can repeat a case of a
+dataset its reader may not see.
 
 Each score records the judge that graded it - the judge agent, its model
 profile, its spec version, a hash of the rubric and the version of the task the
@@ -464,7 +469,8 @@ well: a reader of the dataset who may not view the agent that answered
 (`agents:view` on it, by role or by a grant) reads the score's outcome, status
 and case, and the answer is hidden - with every reason, quote and judge's answer
 that can repeat it. This holds wherever scores are read: the Review tab, the
-review queue and a judge's Datasets tab.
+review queue and a judge's Datasets tab. An answer whose run or agent is gone is
+shown only to somebody who may view every agent of the organization.
 
 ## Personal data { #personal-data }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "8f0c46cd2246"
+source_sha: "1935eea9fc70"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -297,9 +297,13 @@ Bewerter: **Bewerter für dieses Dataset anlegen** auf der Karte Bewerter legt
 einen an, dessen Prompt der des Eval judge mit seinen Bewertungsregeln ist,
 gefolgt von Namen und Beschreibung des Datasets und dem, was der Bewerter laut
 Ihnen zum Bewerten wissen muss - einer Richtlinie, einer Preisliste -, auf dem
-ersten Modell der Organisation oder einem, das Sie wählen. Der Prompt lässt
-sich vor dem Anlegen bearbeiten (`GET /datasets/{id}/judge-template`). Dafür
-braucht es `agents:edit` und `datasets:edit`.
+ersten Modell der Organisation oder einem, das Sie wählen. Der Prompt lässt sich
+vor dem Anlegen bearbeiten (`GET /datasets/{id}/judge-template`). Dafür braucht
+es `agents:edit` und `datasets:edit`.
+
+Der Bewerter ist so weit sichtbar wie das Dataset, da sein Prompt dessen Namen
+und Beschreibung enthält, und bleibt ein Entwurf für jemanden, der ihn
+veröffentlichen darf (`agents:publish`), wenn sein Ersteller es nicht darf.
 
 Das Modell wird im selben Panel wie bei einem Agent gewählt: ein Provider, seine
 vollständige Modellliste und ein Schlüssel für alle, die ein Modell hinzufügen
@@ -392,9 +396,10 @@ Bewertung bleibt bestehen.
 Was eine Bewertung stützt, macht sie nie ungültig: Ein leeres oder zu langes
 Zitat wird verworfen, Zitate über zwölf und eine Regel über 300 Zeichen werden
 gekürzt, und nur eine fehlende Kriteriums-ID oder Note macht ein Urteil
-unlesbar. Der Run des Bewerters in Activity nennt die Felder, die sich nicht
-lesen ließen, nie die Antwort selbst, die einen Fall eines Datasets wiederholen
-kann, das sein Leser nicht sehen darf.
+unlesbar. Ein mehrfach bewertetes Kriterium ist ein Fehler, nicht die zuletzt
+gekommene Note. Der Run des Bewerters in Activity nennt die Felder, die sich
+nicht lesen ließen, nie die Antwort selbst, die einen Fall eines Datasets
+wiederholen kann, das sein Leser nicht sehen darf.
 
 Jedes Ergebnis hält den Bewerter fest, der es bewertet hat - den Bewerter-Agent,
 sein Modellprofil, die Version seines Specs, einen Hash der Rubrik und die
@@ -522,7 +527,8 @@ nicht sehen darf (`agents:view` darauf, per Rolle oder Grant), liest Ergebnis,
 Status und Fall, und die Antwort ist ausgeblendet - mit jeder Begründung, jedem
 Zitat und jeder Antwort des Bewerters, die sie wiederholen kann. Das gilt
 überall, wo Ergebnisse gelesen werden: im Tab Prüfung, in der Prüfwarteschlange
-und im Tab Datasets eines Bewerters.
+und im Tab Datasets eines Bewerters. Eine Antwort, deren Run oder Agent nicht
+mehr existiert, sieht nur, wer jeden Agent der Organisation sehen darf.
 
 ## Personenbezogene Daten { #personal-data }
 

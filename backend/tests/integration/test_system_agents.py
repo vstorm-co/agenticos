@@ -345,7 +345,11 @@ class TestADatasetsOwnJudge:
         ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
 
         judge = await SystemAgentService(db).create_judge(
-            ctx, name="Refunds judge", description="Grades refunds.", instructions="Be strict."
+            ctx,
+            name="Refunds judge",
+            description="Grades refunds.",
+            visibility=Visibility.ORG,
+            instructions="Be strict.",
         )
 
         assert (judge.kind, judge.system_key, judge.status) == (
@@ -368,6 +372,7 @@ class TestADatasetsOwnJudge:
 
         judge = await SystemAgentService(db).create_judge(
             ctx,
+            visibility=Visibility.ORG,
             name="Refunds judge",
             description="Grades refunds.",
             instructions="Be strict.",
@@ -383,7 +388,11 @@ class TestADatasetsOwnJudge:
         ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
 
         judge = await SystemAgentService(db).create_judge(
-            ctx, name="Refunds judge", description="Grades refunds.", instructions="Be strict."
+            ctx,
+            name="Refunds judge",
+            description="Grades refunds.",
+            visibility=Visibility.ORG,
+            instructions="Be strict.",
         )
 
         assert judge.status == AgentStatus.DRAFT.value
@@ -397,6 +406,7 @@ class TestADatasetsOwnJudge:
         with pytest.raises(NotFoundError):
             await SystemAgentService(db).create_judge(
                 ctx,
+                visibility=Visibility.ORG,
                 name="Refunds judge",
                 description="Grades refunds.",
                 instructions="Be strict.",

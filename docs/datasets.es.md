@@ -1,5 +1,5 @@
 ---
-source_sha: "8f0c46cd2246"
+source_sha: "1935eea9fc70"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -283,10 +283,14 @@ que la plataforma añade a cada organización, o con un juez propio: **Create a
 judge for this dataset**, en la tarjeta Judge, crea uno cuyo prompt es el del
 Eval judge, con sus reglas de calificación, seguido del nombre y la descripción
 del dataset y de lo que indiques que el juez debe saber para calificar (una
-política, una lista de precios), sobre el primer modelo de la organización o
-uno que elijas. El prompt se puede editar antes de crearlo (`GET
+política, una lista de precios), sobre el primer modelo de la organización o uno
+que elijas. El prompt se puede editar antes de crearlo (`GET
 /datasets/{id}/judge-template`). Crearlo requiere `agents:edit` además de
 `datasets:edit`.
+
+El juez es tan visible como el dataset, porque su prompt contiene el nombre y la
+descripción del dataset, y queda como borrador para quien pueda publicarlo
+(`agents:publish`) cuando su creador no puede.
 
 El modelo se elige en el mismo panel que el de un agent: un provider, su lista
 completa de modelos y una clave para quien puede añadir un modelo
@@ -373,10 +377,11 @@ calificación se mantiene.
 
 Lo que respalda una calificación nunca la anula: una cita vacía o demasiado
 larga se descarta, las citas más allá de doce y una regla de más de 300
-caracteres se recortan, y solo la falta de un identificador de criterio o de
-una nota hace ilegible un veredicto. El run del juez en Activity indica qué
-campos no se pudieron leer, nunca la respuesta, que puede repetir un caso de un
-dataset que quien lo lee no puede ver.
+caracteres se recortan, y solo la falta de un identificador de criterio o de una
+nota hace ilegible un veredicto. Un criterio calificado más de una vez es un
+error, en lugar de la nota que llegó la última. El run del juez en Activity
+indica qué campos no se pudieron leer, nunca la respuesta, que puede repetir un
+caso de un dataset que quien lo lee no puede ver.
 
 Cada puntuación registra el juez que la calificó - el agent juez, su perfil de
 modelo, la versión de su spec, un hash de la rúbrica y la versión de la tarea
@@ -498,7 +503,9 @@ a ese agent: quien lee el dataset pero no puede ver el agent que respondió
 (`agents:view` sobre él, por rol o por un grant) lee el resultado, el estado y
 el caso, y la respuesta queda oculta, junto con cada motivo, cita y respuesta
 del juez que pueda repetirla. Vale en todo lugar donde se leen puntuaciones: la
-pestaña Review, la cola de revisión y la pestaña Datasets de un juez.
+pestaña Review, la cola de revisión y la pestaña Datasets de un juez. Una
+respuesta cuyo run o agent ya no existe solo la ve quien puede ver todos los
+agents de la organización.
 
 ## Datos personales { #personal-data }
 
