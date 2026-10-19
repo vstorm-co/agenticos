@@ -89,9 +89,10 @@ async def test_every_check_says_what_it_verified(
     from types import SimpleNamespace
 
     from app.repositories import background_schedule, background_task_kind, background_worker
+    from app.worker.jobs import Pool
 
     async def alive(*_: object, **__: object) -> list[SimpleNamespace]:
-        return [SimpleNamespace(id="w1")]
+        return [SimpleNamespace(id="w1", pools=[pool.value for pool in Pool])]
 
     async def fired(*_: object) -> list[SimpleNamespace]:
         return [SimpleNamespace(name="m", interval_seconds=60, last_fired_at=datetime.now(UTC))]
