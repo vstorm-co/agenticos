@@ -6408,6 +6408,7 @@
       "agentGone": "Ein Agent, den es nicht mehr gibt",
       "agentVersion": "{name} · v{version}",
       "answer": "Antwort",
+      "answerHidden": "Antwort ausgeblendet: Sie können den Agent, der sie gab, nicht sehen, daher fehlen sie und die Begründungen, die sie zitieren.",
       "answerGone": "Die Antwort ist nicht gespeichert.",
       "showAll": "Alles anzeigen",
       "showLess": "Weniger anzeigen",

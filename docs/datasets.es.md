@@ -1,5 +1,5 @@
 ---
-source_sha: "1bceab74e881"
+source_sha: "91e836989c4b"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -488,6 +488,13 @@ que sea lo que su rol permita en otros sitios: si un dataset privado existe es
 algo que no debe saber. Un grant amplía el acceso a un dataset y nunca cambia un
 rol. Consulta [Permisos](permissions.md) para ver cómo se combinan los ámbitos y
 los grants.
+
+La respuesta de una puntuación es del agent, así que leerla exige también acceso
+a ese agent: quien lee el dataset pero no puede ver el agent que respondió
+(`agents:view` sobre él, por rol o por un grant) lee el resultado, el estado y
+el caso, y la respuesta queda oculta, junto con cada motivo, cita y respuesta
+del juez que pueda repetirla. Vale en todo lugar donde se leen puntuaciones: la
+pestaña Review, la cola de revisión y la pestaña Datasets de un juez.
 
 ## Datos personales { #personal-data }
 

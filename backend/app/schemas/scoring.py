@@ -356,6 +356,11 @@ class CaseScoreRead(BaseSchema):
     by hand. `judge_model` is the name of the model the judge graded on, while
     that model exists; beside `run_model` it says when a judge graded the model
     it runs on.
+
+    `answer_hidden` is true for a reader who may not view the agent that
+    answered: `answer` is then empty, and so is every result's reason, quotes
+    and what the judge said, which can repeat the answer; the outcome and the
+    case stay.
     """
 
     id: UUID
@@ -388,6 +393,7 @@ class CaseScoreRead(BaseSchema):
     agent_name: str | None = None
     agent_version: int | None = None
     judge_model: str | None = None
+    answer_hidden: bool = False
     eval_run_id: UUID | None = None
     results: list[ScorerResult]
     judge: JudgePin | None = None
