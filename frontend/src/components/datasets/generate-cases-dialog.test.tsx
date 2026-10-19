@@ -85,7 +85,6 @@ describe("GenerateCasesDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Estimate cost" }));
     await screen.findByText("20 cases, estimated $0.12");
 
-    // How many cases is folded: twenty unless somebody asks for another number.
     expect(screen.queryByLabelText("Number of cases")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "More options · 20 cases" }));
     const count = screen.getByLabelText("Number of cases");

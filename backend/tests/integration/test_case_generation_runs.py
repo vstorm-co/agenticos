@@ -475,7 +475,6 @@ async def test_a_queued_generation_runs_on_a_session_of_its_own(db, monkeypatch)
 
     await db.refresh(row)
     assert row.status == "ready"
-    # Its end is announced, so an open dataset page reads the drafts.
     [event] = published
     assert (event.resource, event.id, event.action, event.surface) == (
         "dataset",
