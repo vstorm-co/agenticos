@@ -123,6 +123,9 @@ vi.mock("@/hooks/use-eval-runs", () => ({ useEvalArmSpec: () => ({ spec: undefin
 vi.mock("@/components/evals/draft-eval-note", () => ({ DraftEvalNote: () => null }));
 vi.mock("@/components/evals/evals-panel", () => ({ EvalsPanel: () => null }));
 vi.mock("@/components/evals/start-eval-dialog", () => ({ StartEvalDialog: () => null }));
+vi.mock("@/components/knowledge-gaps/knowledge-gaps-panel", () => ({
+  KnowledgeGapsPanel: () => null,
+}));
 vi.mock("@/hooks/use-context", () => ({
   useContextFiles: () => ({ files: [], total: 0 }),
 }));
@@ -189,6 +192,19 @@ describe("the detail page's Evals tab gate", () => {
     await mount();
 
     expect(await screen.findByRole("tab", { name: "Build" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
+});
+
+describe("the detail page's Knowledge gaps tab", () => {
+  it("opens when a link names it for a caller who may read runs", async () => {
+    allowed = new Set([Perm.runsView]);
+    page.params = "tab=gaps";
+    await mount();
+
+    expect(await screen.findByRole("tab", { name: "Knowledge gaps" })).toHaveAttribute(
       "aria-selected",
       "true",
     );

@@ -364,6 +364,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
     "limits",
     ...(canViewRuns && !isJudge ? ["evals"] : []),
     "history",
+    ...(canViewRuns && !isJudge ? ["gaps"] : []),
   ];
   const tab = tabParam !== null && tabs.includes(tabParam) ? tabParam : "build";
   // Testing the draft runs it - the editors' work in progress - on a dataset.
