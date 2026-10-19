@@ -3257,7 +3257,8 @@
     "documents": "Dokumente",
     "signIns": "Anmeldungen",
     "projects": "Projekte",
-    "allProjects": "Alle Projekte"
+    "allProjects": "Alle Projekte",
+    "backgroundJobs": "Hintergrund-Jobs"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -5079,6 +5080,53 @@
       "siteLabel": "Website",
       "sitePlaceholder": "linkedin.com/login",
       "title": "Browser-Anmeldungen"
+    },
+    "backgroundJobs": {
+      "status": {
+        "queued": "Wartend",
+        "running": "Laufend",
+        "succeeded": "Erledigt",
+        "dead": "Tot",
+        "cancelled": "Abgebrochen"
+      },
+      "pools": {
+        "agent": "Agent-Runs",
+        "ingest": "Ingestion",
+        "system": "System"
+      },
+      "kind": "Art",
+      "statusColumn": "Status",
+      "attempts": "Versuche",
+      "attemptsOf": "{attempts} von {max}",
+      "pool": "Pool",
+      "queued": "Eingereiht",
+      "actions": "Aktionen",
+      "retry": "Wiederholen",
+      "cancel": "Abbrechen",
+      "jobs": "Jobs",
+      "newestFirst": "Neueste zuerst",
+      "filterByPool": "Nach Pool filtern",
+      "allPools": "Alle Pools",
+      "jobsCouldNotBeRead": "Die Jobs konnten nicht gelesen werden.",
+      "noJobs": "Hier sind keine Jobs.",
+      "loadMore": "Mehr laden",
+      "workers": "Worker",
+      "workersAlive": "{count, plural, =0 {keiner aktiv} =1 {1 aktiv} other {# aktiv}}",
+      "noWorkers": "Kein Worker hat sich in den letzten zwei Minuten gemeldet, also läuft nichts aus der Warteschlange.",
+      "workerLine": "{pools} · zuletzt {beat}",
+      "schedules": "Zeitpläne",
+      "schedulesCount": "{count, plural, =1 {1 Zeitplan} other {# Zeitpläne}}",
+      "every": "{unit, select, day {{count, plural, =1 {täglich} other {alle # Tage}}} hour {{count, plural, =1 {stündlich} other {alle # Stunden}}} other {{count, plural, =1 {jede Minute} other {alle # Minuten}}}}",
+      "nextRun": "nächster {time}",
+      "pausedTitle": "{count, plural, =1 {Eine Job-Art ist pausiert} other {# Job-Arten sind pausiert}}",
+      "pausedSince": "Pausiert seit {time}",
+      "resume": "Fortsetzen",
+      "retried": "Der Job ist wieder eingereiht.",
+      "cancelled": "Der Job ist abgebrochen.",
+      "resumed": "Jobs dieser Art werden wieder abgeholt.",
+      "actionFailed": "Das hat nicht geklappt.",
+      "couldNotRead": "Die Warteschlange konnte nicht gelesen werden",
+      "couldNotReadBody": "Die Hintergrund-Jobs konnten nicht abgerufen werden. Die Datenbank ist möglicherweise nicht erreichbar."
     }
   },
   "profile": {

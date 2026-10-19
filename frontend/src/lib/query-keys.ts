@@ -578,6 +578,11 @@ export const qk = {
     // read by everybody: invalidating one must not refetch the other, since the
     // form and the banner answer different questions about it.
     settings: () => ["admin", "settings"] as const,
+    // The deployment's job queue (#2219). One root, so a retry or a resume
+    // refreshes the header's counts and every filtered page under it at once.
+    backgroundJobs: () => ["admin", "background-jobs"] as const,
+    backgroundJobList: (filters: { status?: string; pool?: string }) =>
+      ["admin", "background-jobs", "list", filters] as const,
   },
   branding: {
     // The announcement banner. Not the public branding read - that one is

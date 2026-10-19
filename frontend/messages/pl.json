@@ -3145,7 +3145,8 @@
     "documents": "Dokumenty",
     "signIns": "Logowania",
     "projects": "Projekty",
-    "allProjects": "Wszystkie projekty"
+    "allProjects": "Wszystkie projekty",
+    "backgroundJobs": "Zadania w tle"
   },
   "navigation": {
     "dashboard": "Panel",
@@ -4967,6 +4968,53 @@
       "siteLabel": "Strona",
       "sitePlaceholder": "linkedin.com/login",
       "title": "Logowania w przeglądarce"
+    },
+    "backgroundJobs": {
+      "status": {
+        "queued": "W kolejce",
+        "running": "W trakcie",
+        "succeeded": "Zakończone",
+        "dead": "Martwe",
+        "cancelled": "Anulowane"
+      },
+      "pools": {
+        "agent": "Runy agentów",
+        "ingest": "Ingestion",
+        "system": "Systemowe"
+      },
+      "kind": "Rodzaj",
+      "statusColumn": "Status",
+      "attempts": "Próby",
+      "attemptsOf": "{attempts} z {max}",
+      "pool": "Pula",
+      "queued": "Dodane",
+      "actions": "Akcje",
+      "retry": "Ponów",
+      "cancel": "Anuluj",
+      "jobs": "Zadania",
+      "newestFirst": "Od najnowszych",
+      "filterByPool": "Filtruj po puli",
+      "allPools": "Wszystkie pule",
+      "jobsCouldNotBeRead": "Nie udało się odczytać zadań.",
+      "noJobs": "Brak zadań.",
+      "loadMore": "Pokaż więcej",
+      "workers": "Workery",
+      "workersAlive": "{count, plural, =0 {żaden nie działa} one {1 działa} few {# działają} many {# działa} other {# działa}}",
+      "noWorkers": "Żaden worker nie odezwał się w ciągu ostatnich dwóch minut, więc nic z kolejki się nie wykonuje.",
+      "workerLine": "{pools} · widziany {beat}",
+      "schedules": "Harmonogramy",
+      "schedulesCount": "{count, plural, one {1 harmonogram} few {# harmonogramy} many {# harmonogramów} other {# harmonogramu}}",
+      "every": "{unit, select, day {{count, plural, =1 {codziennie} other {co # dni}}} hour {{count, plural, =1 {co godzinę} few {co # godziny} many {co # godzin} other {co # godziny}}} other {{count, plural, =1 {co minutę} few {co # minuty} many {co # minut} other {co # minuty}}}}",
+      "nextRun": "następne {time}",
+      "pausedTitle": "{count, plural, one {Jeden rodzaj zadań jest wstrzymany} few {# rodzaje zadań są wstrzymane} many {# rodzajów zadań jest wstrzymanych} other {# rodzaju zadań jest wstrzymane}}",
+      "pausedSince": "Wstrzymane od {time}",
+      "resume": "Wznów",
+      "retried": "Zadanie wróciło do kolejki.",
+      "cancelled": "Zadanie anulowane.",
+      "resumed": "Zadania tego rodzaju znów są pobierane.",
+      "actionFailed": "Nie udało się.",
+      "couldNotRead": "Nie udało się odczytać kolejki",
+      "couldNotReadBody": "Nie udało się pobrać zadań w tle. Baza danych może być niedostępna."
     }
   },
   "profile": {

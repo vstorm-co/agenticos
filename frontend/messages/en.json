@@ -3375,7 +3375,8 @@
     "documents": "Documents",
     "signIns": "Sign-ins",
     "projects": "Projects",
-    "allProjects": "All projects"
+    "allProjects": "All projects",
+    "backgroundJobs": "Background jobs"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -5197,6 +5198,53 @@
       "siteLabel": "Site",
       "sitePlaceholder": "linkedin.com/login",
       "title": "Browser sign-ins"
+    },
+    "backgroundJobs": {
+      "status": {
+        "queued": "Queued",
+        "running": "Running",
+        "succeeded": "Succeeded",
+        "dead": "Dead",
+        "cancelled": "Cancelled"
+      },
+      "pools": {
+        "agent": "Agent runs",
+        "ingest": "Ingestion",
+        "system": "System"
+      },
+      "kind": "Kind",
+      "statusColumn": "Status",
+      "attempts": "Attempts",
+      "attemptsOf": "{attempts} of {max}",
+      "pool": "Pool",
+      "queued": "Queued",
+      "actions": "Actions",
+      "retry": "Retry",
+      "cancel": "Cancel",
+      "jobs": "Jobs",
+      "newestFirst": "Newest first",
+      "filterByPool": "Filter by pool",
+      "allPools": "All pools",
+      "jobsCouldNotBeRead": "The jobs could not be read.",
+      "noJobs": "No jobs here.",
+      "loadMore": "Load more",
+      "workers": "Workers",
+      "workersAlive": "{count, plural, =0 {none alive} =1 {1 alive} other {# alive}}",
+      "noWorkers": "No worker has said it is alive in the last two minutes, so nothing in the queue is running.",
+      "workerLine": "{pools} · seen {beat}",
+      "schedules": "Schedules",
+      "schedulesCount": "{count, plural, =1 {1 schedule} other {# schedules}}",
+      "every": "{unit, select, day {{count, plural, =1 {every day} other {every # days}}} hour {{count, plural, =1 {every hour} other {every # hours}}} other {{count, plural, =1 {every minute} other {every # minutes}}}}",
+      "nextRun": "next {time}",
+      "pausedTitle": "{count, plural, =1 {A kind of job is paused} other {# kinds of job are paused}}",
+      "pausedSince": "Paused since {time}",
+      "resume": "Resume",
+      "retried": "The job is queued again.",
+      "cancelled": "The job is cancelled.",
+      "resumed": "Jobs of this kind are claimed again.",
+      "actionFailed": "That did not go through.",
+      "couldNotRead": "Couldn't read the queue",
+      "couldNotReadBody": "The background jobs could not be fetched. The database may be unreachable."
     }
   },
   "profile": {
