@@ -40,6 +40,7 @@ from app.core.exceptions import (
 )
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm, Scope
+from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import AgentKind
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.case_score import CaseScore
@@ -989,6 +990,8 @@ class ScoringService:
             held = newest.get(score.case_id)
             if held is None or _rank(score) > _rank(held):
                 newest[score.case_id] = score
+        for case_id in sorted(newest):
+            await hold_subject(self.db, LockScope.REVIEW_PER_CASE, case_id)
         waiting = await case_score_repo.waiting_for_cases(
             self.db, list(newest), organization_id=ctx.organization_id, dataset_id=dataset_id
         )

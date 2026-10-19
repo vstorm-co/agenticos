@@ -7,6 +7,7 @@ its run row and its surface is what the platform does, not what a stub was told.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 import uuid
@@ -19,6 +20,7 @@ import pytest
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.spec import AgentSpec
@@ -1575,6 +1577,43 @@ class TestVerdicts:
         assert (routed.queued, routed.replaced, routed.already) == (1, 1, 1)
         waiting = (await service.list_scores(tenant.ctx, dataset.id, pending=True)).items
         assert [score.id for score in waiting] == [regression.id]
+
+    async def test_two_sends_of_one_case_at_once_leave_one_score_waiting(
+        self, db, engine, judge
+    ) -> None:
+        """Each send reads which of the case's scores waits before it queues; racing,
+        both read none and both queued, until the case is locked for the read."""
+        tenant = await _tenant(db)
+        dataset, case = await _dataset(db, tenant, scoring=DatasetScoring())
+        run = await _scored_run(db, tenant)
+        older = await _score_for_an_eval(db, tenant, dataset, case, run, uuid.uuid4())
+        newer = await _score_for_an_eval(db, tenant, dataset, case, run, uuid.uuid4())
+        await case_score_repo.update(
+            db, score=older, update_data={"created_at": datetime.now(UTC) - timedelta(days=1)}
+        )
+        await db.commit()
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        first_sent = asyncio.Event()
+
+        async def send(score_id: uuid.UUID, *, first: bool) -> None:
+            async with factory() as session:
+                if not first:
+                    await first_sent.wait()
+                await ScoringService(session).route_to_review(
+                    tenant.ctx, dataset_id=dataset.id, score_ids=[score_id]
+                )
+                if first:
+                    first_sent.set()
+                    await asyncio.sleep(0.3)
+                await session.commit()
+
+        await asyncio.gather(send(older.id, first=True), send(newer.id, first=False))
+
+        async with factory() as fresh:
+            waiting = await case_score_repo.waiting_for_cases(
+                fresh, [case.case_id], organization_id=tenant.organization.id, dataset_id=dataset.id
+            )
+        assert [score.id for score in waiting] == [newer.id]
 
     async def test_an_older_score_sent_by_hand_leaves_the_newer_one_waiting(
         self, db, judge
