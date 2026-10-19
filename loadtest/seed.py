@@ -298,7 +298,7 @@ def ingest(*, name: str, count: int) -> int:
 
     Through `agenticos cmd rag-ingest` rather than through the upload endpoint,
     and the difference is the whole reason this note exists. An upload answers
-    202 and hands the parse and the embedding to a Prefect flow, so seeding that
+    202 and hands the parse and the embedding to a background job, so seeding that
     way needs the worker stack up and finishes whenever it finishes. The command
     does the same work synchronously and reports when the corpus is actually
     searchable, which is what a run has to know before it starts timing

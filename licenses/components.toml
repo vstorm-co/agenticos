@@ -240,16 +240,6 @@ fulfilled_by = "Pulled by the operator from Docker Hub; named here with its sour
 tracked_in = "https://github.com/vstorm-co/agenticos/issues/1603"
 
 [[component]]
-name = "prefecthq/prefect"
-version = "3.8.8-python3.12"
-kind = "service image, deployment"
-license = "Apache-2.0"
-source = "https://github.com/PrefectHQ/prefect"
-status = "accepted"
-obligations = "Attribution and the licence text. Not redistributed by this project."
-fulfilled_by = "Pulled by the operator; named here with its source."
-
-[[component]]
 name = "traefik"
 version = "v3.7"
 kind = "service image, deployment (optional reverse proxy)"

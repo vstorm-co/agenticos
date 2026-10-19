@@ -627,7 +627,7 @@ class Settings(BaseSettings):
     # looping; this stops a kind from killing workers job after job.
     WORKER_BREAKER_DEATHS: int = Field(default=5, ge=2)
     # The file the container's health check reads: touched after every heartbeat
-    # that reached the database.
+    # that reached the database. The compose probes read the same variable.
     WORKER_HEALTH_FILE: str = "/tmp/agenticos-worker-alive"  # noqa: S108 - per-container
     # Finished jobs kept for the panel; older ones are deleted daily.
     BACKGROUND_JOB_RETENTION_DAYS: int = Field(default=14, ge=1)

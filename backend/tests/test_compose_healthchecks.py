@@ -23,6 +23,7 @@ container started.
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -182,8 +183,8 @@ class TestWaitingForHealthIgnoresAProbeFromBeforeThisStart:
 @pytest.mark.parametrize("file_name", ["docker-compose.yml", "docker-compose-dev.yml"])
 def test_the_browser_shares_a_network_only_with_what_drives_it(file_name: str) -> None:
     """A page the browser is sent to - or redirected to - must not reach Postgres,
-    Redis, Prefect or MinIO (Codex review of #2062). It sits on a network of its
-    own, which only the API and the runner join to reach its DevTools port - and
+    Redis or MinIO (Codex review of #2062). It sits on a network of its own,
+    which only the API and the worker join to reach its DevTools port - and
     its egress proxy, the way out it is given, which joins nothing else."""
     services = _services(file_name)
 
@@ -194,7 +195,7 @@ def test_the_browser_shares_a_network_only_with_what_drives_it(file_name: str) -
     assert networks("browser") == {"browser"}
     assert networks("browser-egress") == {"browser"}
     on_it = {name for name in services if "browser" in networks(name)}
-    assert on_it == {"browser", "browser-egress", "app", "prefect-runner"}
+    assert on_it == {"browser", "browser-egress", "app", "worker"}
 
 
 @pytest.mark.security
@@ -202,18 +203,22 @@ def test_the_browser_shares_a_network_only_with_what_drives_it(file_name: str) -
 def test_the_browser_goes_out_through_the_egress_proxy_by_default(compose_file: str) -> None:
     """Codex on #2062: the proxy service existed and nothing selected it.
 
-    Whatever drives the shared browser - the API for a live browse, the runner
+    Whatever drives the shared browser - the API for a live browse, the worker
     for a scheduled one - starts it behind `browser-egress` unless the root
     `.env` says otherwise.
     """
     services = yaml.safe_load((REPO_ROOT / compose_file).read_text())["services"]
 
     assert "browser-egress" in services
-    for name in ("app", "prefect-runner"):
+    for name in ("app", "worker"):
         environment = services[name]["environment"]
         assert (
             "BROWSER_EGRESS_PROXY=${BROWSER_EGRESS_PROXY-http://browser-egress:3128}" in environment
         ), name
+
+
+_STANDARD_PROBE_MODULES = {"urllib.request", "os", "sys", "time"}
+"""What a probe may import: an HTTP check needs `urllib`, the worker's file check the rest."""
 
 
 @pytest.mark.parametrize("file_name", COMPOSE_FILES)
@@ -228,7 +233,13 @@ def test_a_python_probe_imports_only_the_standard_library(file_name: str) -> Non
     ]
     assert probes, f"{file_name}: no Python probe - the parametrization is stale"
     for name, probe in probes:
-        assert "import urllib.request" in probe, f"{file_name}: {name} probes with {probe}"
+        imported = {
+            module.strip()
+            for statement in re.findall(r"import ([\w., ]+?);", probe)
+            for module in statement.split(",")
+        }
+        assert imported, f"{file_name}: {name} probes with {probe}"
+        assert imported <= _STANDARD_PROBE_MODULES, f"{file_name}: {name} imports {imported}"
 
 
 @pytest.mark.parametrize(
