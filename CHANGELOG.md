@@ -47,6 +47,10 @@ Two things are versioned separately from this file and worth knowing about:
     polling this bot's token".
 
   The log now names the worker each stream opens and closes on (#2224).
+- **An idle deployment queries its bots a third as often.** Every API worker
+  checks for polling bots nobody serves every 10 seconds. That was one query
+  per platform, three per pass, and most of an idle prod's transactions. One
+  query now covers all three (#2227).
 
 ## [1.6.3] - 2026-10-18
 
