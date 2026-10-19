@@ -79,7 +79,7 @@ describe("ArtifactThumbnail", () => {
     expect(screen.getByTitle("Report")).toBe(frame);
   });
 
-  it("unmounts the page when the card leaves the viewport, and paints it again on return", () => {
+  it("keeps the page it loaded when the card leaves the viewport and comes back", () => {
     const seen = installObservers();
     useArtifactViewMock.mockReturnValue({
       data: { url: "https://content.test/t" },
@@ -88,16 +88,18 @@ describe("ArtifactThumbnail", () => {
     const { container } = render(<ArtifactThumbnail artifactId="a1" title="Report" />);
 
     act(() => seen.intersection?.([{ isIntersecting: true, contentRect: { width: 0 } }]));
-    fireEvent.load(container.querySelector("iframe")!);
-    expect(container.querySelector("[data-unavailable]")).toBeNull();
+    const frame = container.querySelector("iframe")!;
+    fireEvent.load(frame);
 
-    // A scripted page in a card nobody can see is stopped, not left running.
+    // Scrolling past and back neither asks for a new address nor reloads the
+    // page: each of those was a request to the server per card per scroll.
     act(() => seen.intersection?.([{ isIntersecting: false, contentRect: { width: 0 } }]));
-    expect(container.querySelector("iframe")).toBeNull();
-    expect(container.querySelector("[data-unavailable]")).not.toBeNull();
-
     act(() => seen.intersection?.([{ isIntersecting: true, contentRect: { width: 0 } }]));
-    expect(container.querySelector("iframe")).toHaveAttribute("data-loaded", "false");
+
+    expect(container.querySelector("iframe")).toBe(frame);
+    expect(frame).toHaveAttribute("data-loaded", "true");
+    expect(container.querySelector("[data-unavailable]")).toBeNull();
+    expect(useArtifactViewMock).toHaveBeenLastCalledWith("a1", null, true);
   });
 
   it("ignores an observer call that reports no entry", () => {

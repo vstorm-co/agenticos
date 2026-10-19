@@ -17,6 +17,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **A public app link fills the window.** The page behind `/a/…` was framed
+  in a box about 500 pixels tall and scrolled inside it, because the frame's
+  height resolved against a container with no definite height. It now takes
+  the window below its title, as the console's viewer does.
+- **App thumbnails load once.** A card's preview was unmounted whenever it
+  scrolled out of view, so scrolling back asked the server for a new signed
+  address and loaded the whole page again, on every card, every time. A
+  thumbnail now loads when its card first comes near the viewport and keeps
+  the page; the listing is paged, and the browser throttles frames off screen.
+
 ## [1.8.0] - 2026-10-19
 
 ### Added
