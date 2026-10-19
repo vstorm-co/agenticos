@@ -21,7 +21,26 @@ def _each_tick(sweep: Callable[[], Awaitable[object]]) -> Callable[[Tick], Await
     return run
 
 
+def ingest() -> Handlers:
+    """What an ingest child loads: its pool's three kinds, and nothing that runs an agent.
+
+    A child holds its imports for its whole life, once per child, so loading
+    only the parsing and embedding stack - not the agent runtime the other pools
+    need - is a quarter of its memory and half its start-up (#2229).
+    """
+    from app.worker.tasks import rag_tasks
+
+    return by_kind(
+        [
+            Handler(jobs.INGEST_DOCUMENT, rag_tasks.ingest_document),
+            Handler(jobs.SYNC_COLLECTION, rag_tasks.sync_collection),
+            Handler(jobs.SYNC_SOURCE, rag_tasks.sync_source),
+        ]
+    )
+
+
 def production() -> Handlers:
+    """Every kind, for a worker that runs the agent and system pools on its own loop."""
     from app.services.sandbox_workspace import retry_pending_destroys
     from app.worker.tasks import (
         approval_tasks,
@@ -38,9 +57,7 @@ def production() -> Handlers:
 
     return by_kind(
         [
-            Handler(jobs.INGEST_DOCUMENT, rag_tasks.ingest_document),
-            Handler(jobs.SYNC_COLLECTION, rag_tasks.sync_collection),
-            Handler(jobs.SYNC_SOURCE, rag_tasks.sync_source),
+            *ingest().values(),
             Handler(jobs.FIRE_TRIGGER, trigger_tasks.fire_trigger),
             Handler(jobs.RUN_AGENT, run_tasks.run_agent),
             Handler(jobs.CLEANUP_EXTERNAL_STATE, teardown_tasks.run_external_state_cleanup),

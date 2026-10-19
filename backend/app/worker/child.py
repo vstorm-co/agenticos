@@ -2,7 +2,7 @@
 
 Run by `app.worker.executors.ChildPool`, never by hand:
 
-    python -m app.worker.child app.worker.handlers:production
+    python -m app.worker.child app.worker.handlers:ingest
 
 Parsing and embedding run here rather than in the worker itself because they
 are what runs out of memory. When a child is killed - by the parent's memory
@@ -105,7 +105,7 @@ def main(
     from app.core.logging import setup_logging
 
     setup_logging()
-    handlers = load_handlers(argv[1] if len(argv) > 1 else "app.worker.handlers:production")
+    handlers = load_handlers(argv[1] if len(argv) > 1 else "app.worker.handlers:ingest")
     asyncio.run(serve(handlers, sys.stdin, replies))
 
 

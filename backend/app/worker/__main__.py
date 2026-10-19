@@ -46,13 +46,15 @@ def pools_from(value: str) -> list[Pool]:
 
 
 def executors_for(pools: list[Pool]) -> dict[Pool, Executor]:
-    handlers = production()
+    # A worker serving only ingestion runs no handler itself; its children load
+    # their own, so the parent does not import the agent runtime for nothing.
+    handlers = production() if any(pool is not Pool.INGEST for pool in pools) else {}
     executors: dict[Pool, Executor] = {}
     for pool in pools:
         if pool is Pool.INGEST:
             executors[pool] = ChildPool(
                 size=settings.WORKER_INGEST_CHILDREN,
-                handlers="app.worker.handlers:production",
+                handlers="app.worker.handlers:ingest",
                 memory_limit_bytes=settings.WORKER_INGEST_MEMORY_MB * 2**20,
                 max_jobs=settings.WORKER_INGEST_MAX_JOBS,
             )

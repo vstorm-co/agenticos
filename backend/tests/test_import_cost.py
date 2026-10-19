@@ -44,3 +44,33 @@ def test_importing_the_app_loads_none_of_the_deferred_sdks() -> None:
 
     loaded = json.loads(result.stdout.strip().splitlines()[-1])
     assert loaded == [], {name: DEFERRED[name] for name in loaded}
+
+
+AGENT_RUNTIME = {
+    "app.services.agent_runner": "running an agent",
+    "app.services.api_runs": "an asynchronous API run",
+    "app.services.agent_trigger": "firing a routine",
+}
+
+
+def test_an_ingest_child_loads_no_agent_runtime() -> None:
+    """A child holds what it imported for its whole life (#2229).
+
+    It parses and embeds; the agent runtime the other pools need would be a
+    quarter of its memory, held once per child for nothing.
+    """
+    probe = (
+        "import json, sys; from app.worker.handlers import ingest; ingest(); "
+        f"print(json.dumps([name for name in {sorted(AGENT_RUNTIME)!r} if name in sys.modules]))"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", probe],
+        cwd=BACKEND,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=120,
+    )
+
+    loaded = json.loads(result.stdout.strip().splitlines()[-1])
+    assert loaded == [], {name: AGENT_RUNTIME[name] for name in loaded}

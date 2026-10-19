@@ -34,6 +34,26 @@ def test_ingestion_runs_in_child_processes_and_the_rest_on_the_loop() -> None:
     assert isinstance(executors[Pool.AGENT], InProcessExecutor)
     assert isinstance(executors[Pool.SYSTEM], InProcessExecutor)
 
+    ingest = executors[Pool.INGEST]
+    assert isinstance(ingest, ChildPool)
+    assert ingest.handlers == "app.worker.handlers:ingest"
+
+
+def test_a_worker_serving_only_ingestion_loads_no_handler_itself() -> None:
+    with patch.object(worker_main, "production") as production:
+        executors = worker_main.executors_for([Pool.INGEST])
+    production.assert_not_called()
+    assert list(executors) == [Pool.INGEST]
+
+
+def test_the_ingest_handlers_are_exactly_the_ingest_pools_kinds() -> None:
+    from app.worker import handlers, jobs
+
+    assert set(handlers.ingest()) == {
+        task.kind for task in jobs.TASKS.values() if task.pool is Pool.INGEST
+    }
+    assert set(handlers.ingest()) <= set(handlers.production())
+
 
 def test_main_sets_redaction_and_tracing_up_before_it_serves() -> None:
     order: list[str] = []
