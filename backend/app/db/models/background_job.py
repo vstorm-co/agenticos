@@ -2,6 +2,7 @@
 
 import uuid
 from datetime import datetime
+from typing import Literal, get_args
 
 from pydantic import JsonValue
 from sqlalchemy import CheckConstraint, DateTime, Index, Integer, SmallInteger, String, Text, func
@@ -10,6 +11,9 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
+
+JobStatus = Literal["queued", "running", "succeeded", "dead", "cancelled"]
+JOB_STATUSES: tuple[JobStatus, ...] = get_args(JobStatus)
 
 
 class BackgroundJob(Base, TimestampMixin):

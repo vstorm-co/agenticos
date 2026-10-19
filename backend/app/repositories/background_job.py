@@ -20,11 +20,11 @@ from datetime import datetime, timedelta
 from uuid import UUID
 
 from pydantic import JsonValue
-from sqlalchemy import ColumnElement, case, delete, func, select, text, update
+from sqlalchemy import ColumnElement, case, delete, func, select, text, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.background_job import BackgroundJob
+from app.db.models.background_job import JOB_STATUSES, BackgroundJob, JobStatus
 
 NOTIFY_CHANNEL = "background_jobs"
 """What a worker `LISTEN`s on; the payload is the pool that has new work."""
@@ -367,10 +367,15 @@ async def list_page(
     kind: str | None,
     pool: str | None,
     organization_id: UUID | None,
-    before: datetime | None,
+    before: tuple[datetime, UUID] | None,
     limit: int,
 ) -> Sequence[BackgroundJob]:
-    """Jobs newest first, filtered, a keyset page at a time (`before` is the last row's `created_at`)."""
+    """Jobs newest first, filtered, a keyset page at a time.
+
+    `before` is the last row's `(created_at, id)`. Both, because one transaction
+    queues many jobs under the same `created_at` - `now()` is the transaction's
+    clock - and a cursor on the time alone would skip the rest of them.
+    """
     statement = select(BackgroundJob)
     if status is not None:
         statement = statement.where(BackgroundJob.status == status)
@@ -381,19 +386,18 @@ async def list_page(
     if organization_id is not None:
         statement = statement.where(BackgroundJob.organization_id == organization_id)
     if before is not None:
-        statement = statement.where(BackgroundJob.created_at < before)
+        statement = statement.where(tuple_(BackgroundJob.created_at, BackgroundJob.id) < before)
     statement = statement.order_by(BackgroundJob.created_at.desc(), BackgroundJob.id.desc())
     return (await db.execute(statement.limit(limit))).scalars().all()
 
 
-async def count_by_status(db: AsyncSession) -> dict[str, int]:
+async def count_by_status(db: AsyncSession) -> dict[JobStatus, int]:
     """How many jobs are in each status, every status present even at zero."""
     result = await db.execute(
         select(BackgroundJob.status, func.count()).group_by(BackgroundJob.status)
     )
-    counts = dict.fromkeys(("queued", "running", "succeeded", "dead", "cancelled"), 0)
-    counts.update(dict(result.tuples().all()))
-    return counts
+    found = dict(result.tuples().all())
+    return {status: found.get(status, 0) for status in JOB_STATUSES}
 
 
 async def requeue_dead(db: AsyncSession, job_id: UUID) -> bool:

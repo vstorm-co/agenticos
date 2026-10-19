@@ -1599,3 +1599,12 @@ def get_announcement_service(db: DBSession) -> AnnouncementService:
 
 
 AnnouncementSvc = Annotated[AnnouncementService, Depends(get_announcement_service)]
+from app.services.background_jobs import BackgroundJobService
+
+
+def get_background_job_service(db: DBSession) -> BackgroundJobService:
+    """Create BackgroundJobService instance with database session."""
+    return BackgroundJobService(db)
+
+
+BackgroundJobSvc = Annotated[BackgroundJobService, Depends(get_background_job_service)]
