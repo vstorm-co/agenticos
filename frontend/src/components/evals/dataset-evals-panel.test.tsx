@@ -10,10 +10,14 @@ const state = vi.hoisted(() => ({
   runs: {} as Record<string, unknown>,
   allowed: new Set<string>(),
   dialog: [] as unknown[],
+  skips: [] as number[],
 }));
 vi.mock("@/hooks/use-eval-runs", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/use-eval-runs")>()),
-  useDatasetEvalRuns: () => state.runs,
+  useDatasetEvalRuns: (_id: string, { skip }: { skip: number }) => {
+    state.skips.push(skip);
+    return state.runs;
+  },
 }));
 vi.mock("@/hooks", () => ({
   useAgents: () => ({
@@ -37,8 +41,9 @@ vi.mock("./start-eval-dialog", () => ({
 beforeEach(() => {
   vi.clearAllMocks();
   state.dialog = [];
+  state.skips = [];
   state.allowed = new Set([Perm.datasetsRun]);
-  state.runs = { runs: [], isLoading: false, error: null, refetch: vi.fn() };
+  state.runs = { runs: [], total: 0, isLoading: false, error: null, refetch: vi.fn() };
 });
 
 describe("DatasetEvalsPanel", () => {
@@ -50,6 +55,7 @@ describe("DatasetEvalsPanel", () => {
         evalRun(),
         evalRun({ id: "run-3", agent_id: "hidden" }),
       ],
+      total: 3,
     };
     render(<DatasetEvalsPanel datasetId="ds-1" title="Evals" />);
 
@@ -65,6 +71,15 @@ describe("DatasetEvalsPanel", () => {
     const other = screen.getByText("An agent you cannot see · 1 run").closest("details")!;
     expect(other).not.toHaveAttribute("open");
     expect(other.querySelector("summary .rounded-full")).toBeNull();
+  });
+
+  it("pages through a history longer than one page, counting every run", async () => {
+    state.runs = { ...state.runs, runs: [evalRun()], total: 150 };
+    render(<DatasetEvalsPanel datasetId="ds-1" title="Evals" />);
+    expect(screen.getAllByText("150 runs")[0]).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Next page" }));
+    expect(state.skips.at(-1)).toBe(100);
   });
 
   it("offers the first run when no agent was tested on it", async () => {

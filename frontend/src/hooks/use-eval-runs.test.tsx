@@ -329,9 +329,10 @@ describe("useEvalArmSpec", () => {
 describe("useDatasetEvalRuns", () => {
   it("lists a dataset's runs, and polls only while one is live", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [evalRun()], total: 1 });
-    const { result } = renderHook(() => useDatasetEvalRuns("ds-1"), { wrapper });
+    const { result } = renderHook(() => useDatasetEvalRuns("ds-1", { skip: 100 }), { wrapper });
     await waitFor(() => expect(result.current.runs).toHaveLength(1));
-    expect(apiClient.get).toHaveBeenCalledWith("/datasets/ds-1/eval-runs?limit=100");
+    expect(result.current.total).toBe(1);
+    expect(apiClient.get).toHaveBeenCalledWith("/datasets/ds-1/eval-runs?skip=100&limit=100");
 
     const { query, next } = polling();
     expect(next()).toBe(false);

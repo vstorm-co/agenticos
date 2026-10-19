@@ -305,16 +305,21 @@ export function useEvalArmSpec(runId: string | null, armId: string | null) {
 }
 
 /** A dataset's runs over the agents the caller may see, newest first. */
-export function useDatasetEvalRuns(datasetId: string, { limit = 100, enabled = true } = {}) {
+export function useDatasetEvalRuns(
+  datasetId: string,
+  { skip = 0, limit = 100, enabled = true } = {},
+) {
   const query = useQuery({
-    queryKey: qk.evalRuns.forDataset(datasetId, limit),
-    queryFn: () => apiClient.get<EvalRunList>(`/datasets/${datasetId}/eval-runs?limit=${limit}`),
+    queryKey: qk.evalRuns.forDataset(datasetId, { skip, limit }),
+    queryFn: () =>
+      apiClient.get<EvalRunList>(`/datasets/${datasetId}/eval-runs?skip=${skip}&limit=${limit}`),
     enabled,
     refetchInterval: (current) =>
       current.state.data?.items.some((run) => isLive(run.status)) ? LIVE_POLL_MS : false,
   });
   return {
     runs: query.data?.items ?? [],
+    total: query.data?.total ?? 0,
     isLoading: query.isLoading,
     error: query.error,
     refetch: query.refetch,

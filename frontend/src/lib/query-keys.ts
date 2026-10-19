@@ -370,8 +370,8 @@ export const qk = {
     forAgent: (agentId: string, query: { skip: number; limit: number }) =>
       ["eval-runs", "agent", agentId, query] as const,
     recent: (limit: number) => ["eval-runs", "recent", limit] as const,
-    forDataset: (datasetId: string, limit: number) =>
-      ["eval-runs", "dataset", datasetId, limit] as const,
+    forDataset: (datasetId: string, query: { skip: number; limit: number }) =>
+      ["eval-runs", "dataset", datasetId, query] as const,
     forDraft: (agentId: string) => ["eval-runs", "draft", agentId] as const,
     armSpec: (runId: string, armId: string) => ["eval-runs", runId, "arm", armId, "spec"] as const,
     detail: (id: string) => ["eval-runs", id] as const,

@@ -6,7 +6,7 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
-import { Button, ListCard } from "@/components/ui";
+import { Button, ListCard, Pager } from "@/components/ui";
 import { useAgents } from "@/hooks";
 import { useDatasetEvalRuns } from "@/hooks/use-eval-runs";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -38,6 +38,9 @@ export function DatasetRunEvalsButton({ datasetId }: { datasetId: string }) {
   );
 }
 
+/** As many runs as one page of the tab reads - the API's own ceiling. */
+const RUN_PAGE = 100;
+
 /** Runs by agent, each group in the order its newest run came. */
 function byAgent(runs: EvalRun[]): { id: string; runs: EvalRun[] }[] {
   const groups = new Map<string, EvalRun[]>();
@@ -52,15 +55,22 @@ function byAgent(runs: EvalRun[]): { id: string; runs: EvalRun[] }[] {
  */
 export function DatasetEvalsPanel({ datasetId, title }: { datasetId: string; title: string }) {
   const t = useTranslations("evals");
-  const { runs, isLoading, error, refetch } = useDatasetEvalRuns(datasetId);
+  const [page, setPage] = useState(0);
+  const { runs, total, isLoading, error, refetch } = useDatasetEvalRuns(datasetId, {
+    skip: page * RUN_PAGE,
+    limit: RUN_PAGE,
+  });
   const { agents } = useAgents();
   const known = new Map(agents.map((agent) => [agent.id, agent]));
   const groups = byAgent(runs);
+  // Past one page the agents on it are not every agent measured, so only the runs are counted.
   const counted = isLoading
     ? null
     : error
       ? ""
-      : t("dataset.counted", { runs: runs.length, agents: groups.length });
+      : total > RUN_PAGE
+        ? t("runCount", { count: total })
+        : t("dataset.counted", { runs: total, agents: groups.length });
   return (
     <ListCard title={title} counted={counted}>
       {isLoading ? (
@@ -72,6 +82,16 @@ export function DatasetEvalsPanel({ datasetId, title }: { datasetId: string; tit
           known={known}
           error={error}
           onRetry={() => void refetch()}
+        />
+      )}
+      {!isLoading && !error && (
+        <Pager
+          page={page}
+          pageCount={Math.ceil(total / RUN_PAGE)}
+          matched={total}
+          total={total}
+          onPage={setPage}
+          counted={t("runCount", { count: total })}
         />
       )}
     </ListCard>
