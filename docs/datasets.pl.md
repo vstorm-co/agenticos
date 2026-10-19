@@ -1,5 +1,5 @@
 ---
-source_sha: "99918c787149"
+source_sha: "8f0c46cd2246"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -485,6 +485,13 @@ niezależnie od tego, na co pozwala mu rola gdzie indziej - samo istnienie
 prywatnego datasetu jest czymś, czego nie może się dowiedzieć. Grant poszerza
 dostęp do jednego datasetu i nigdy nie zmienia roli. Jak łączą się zakresy i
 granty, opisuje strona [Uprawnienia](permissions.md).
+
+Odpowiedź w wyniku należy do agenta, więc jej odczyt wymaga też dostępu do tego
+agenta: czytelnik datasetu, który nie może zobaczyć agenta, który odpowiedział
+(`agents:view` na nim, z roli albo z grantu), widzi wynik, status i przypadek, a
+odpowiedź jest ukryta - razem z każdym uzasadnieniem, cytatem i odpowiedzią
+sędziego, które mogą ją powtarzać. Dotyczy to każdego miejsca, w którym czyta
+się wyniki: zakładki Przegląd, kolejki przeglądu i zakładki Datasets sędziego.
 
 ## Dane osobowe { #personal-data }
 

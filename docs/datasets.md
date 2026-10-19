@@ -459,6 +459,13 @@ itself something they may not learn. A grant widens access to one dataset and
 never changes a role. See [Permissions](permissions.md) for how scopes and
 grants combine.
 
+A score's answer is the agent's, so reading it takes access to that agent as
+well: a reader of the dataset who may not view the agent that answered
+(`agents:view` on it, by role or by a grant) reads the score's outcome, status
+and case, and the answer is hidden - with every reason, quote and judge's answer
+that can repeat it. This holds wherever scores are read: the Review tab, the
+review queue and a judge's Datasets tab.
+
 ## Personal data { #personal-data }
 
 A case taken from a conversation is a copy of what a person wrote and what the

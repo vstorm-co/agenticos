@@ -1,5 +1,5 @@
 ---
-source_sha: "99918c787149"
+source_sha: "8f0c46cd2246"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -515,6 +515,14 @@ gefunden“, gleich was seine Rolle anderswo erlaubt - ob ein privates Dataset
 existiert, ist selbst etwas, das es nicht erfahren darf. Ein Grant erweitert den
 Zugriff auf ein Dataset und ändert nie eine Rolle. Wie Scopes und Grants
 zusammenwirken, steht unter [Berechtigungen](permissions.md).
+
+Die Antwort eines Ergebnisses gehört dem Agent, also braucht ihr Lesen auch
+Zugriff auf diesen Agent: Wer das Dataset lesen, den antwortenden Agent aber
+nicht sehen darf (`agents:view` darauf, per Rolle oder Grant), liest Ergebnis,
+Status und Fall, und die Antwort ist ausgeblendet - mit jeder Begründung, jedem
+Zitat und jeder Antwort des Bewerters, die sie wiederholen kann. Das gilt
+überall, wo Ergebnisse gelesen werden: im Tab Prüfung, in der Prüfwarteschlange
+und im Tab Datasets eines Bewerters.
 
 ## Personenbezogene Daten { #personal-data }
 
