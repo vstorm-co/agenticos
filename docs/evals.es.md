@@ -1,5 +1,5 @@
 ---
-source_sha: "f266859926c0"
+source_sha: "a7213b0ce36f"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -426,10 +426,14 @@ Un resultado cuya comparación es
 pudo puntuar ningún caso, queda **sin conclusión**, nunca aprobado. Un resultado **no se ejecutó** cuando costaría
 más de lo que le queda a un presupuesto o más que el límite propio de la
 suite, cuando solo el juez podría puntuarlo y la asistencia de IA está
-desactivada, o cuando no hay una versión publicada que comprobar. Las
+desactivada, o cuando no hay una versión publicada que comprobar.
+
+Las
 ejecuciones por horario y por dependencia se comparan con la última ejecución
-de la suite sobre la misma versión, así que miden la deriva; una publicación o
-una promoción ejecutan su baseline en el mismo run.
+aprobada de la suite sobre la misma versión - el último estado que se sabe
+bueno, así que un caso que se rompió sigue roto hasta que alguien lo arregla -
+y así miden la deriva; una publicación o una promoción ejecutan su baseline en
+el mismo run.
 
 ### Como quién se ejecuta y a quién se avisa { #who-it-runs-as-and-who-is-told }
 

@@ -263,8 +263,8 @@ Both sides are labelled with their date, model and dataset version, because the
 two may differ in any of them.
 
 A run may instead name an **earlier run** of the same agent and dataset as its
-baseline (`baseline_run_id`). Its flips are then rerun and confirmed against
-that run - which is how an [eval suite](#suites) checking the same version
+baseline (`baseline_run_id`), one that completed. Its flips are then rerun
+and confirmed against that run - which is how an [eval suite](#suites) checking the same version
 every day sees it drift.
 
 ### A baseline in the same run { #a-baseline-in-the-same-run }
@@ -397,9 +397,12 @@ A result whose comparison is [invalid](#a-different-judge-invalidates-the-compar
 or in which no case could be graded, is **inconclusive**, never passed. A result **did not run** when it would cost
 more than a budget has left or more than the suite's own ceiling, when only
 the judge could grade it and AI assistance is off, or when there is no
-published version to check. Scheduled and dependency runs are compared with
-the suite's last run of the same version, so they measure drift; a publish or
-a promotion runs its baseline in the same run.
+published version to check.
+
+Scheduled and dependency runs are compared with
+the suite's last passing run of the same version - the last state known to be
+good, so a case that broke stays broken until it is fixed - and so measure
+drift; a publish or a promotion runs its baseline in the same run.
 
 ### Who it runs as, and who is told { #who-it-runs-as-and-who-is-told }
 

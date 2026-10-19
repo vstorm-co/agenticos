@@ -2128,6 +2128,13 @@ async def test_an_earlier_run_named_as_the_baseline_must_match_and_stand_alone(d
     earlier = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=7))
     elsewhere = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=other.id, version=7))
 
+    with pytest.raises(BadRequestError, match="a run that completed"):
+        await service.estimate(
+            ctx,
+            agent.id,
+            EvalRunRequest(dataset_id=dataset.id, version=7, baseline_run_id=earlier.id),
+        )
+    await _run_to_end(db, Model(db), elsewhere.id, ctx)
     with pytest.raises(BadRequestError, match="not both"):
         await service.estimate(
             ctx,

@@ -284,11 +284,12 @@ async def previous_settled(
     agent_version_id: UUID | None,
     before: datetime,
     organization_id: UUID,
-    with_run: bool = False,
+    passed_on_dataset: UUID | None = None,
 ) -> EvalSuiteResult | None:
     """The last result of this suite on this version that came out one way or another.
 
-    `with_run` narrows to one whose eval run is still there to compare with.
+    `passed_on_dataset` narrows to the last one that passed, with its eval run
+    still there and answering that dataset: the last state known to be good.
     """
     query = select(EvalSuiteResult).where(
         EvalSuiteResult.suite_id == suite_id,
@@ -301,16 +302,10 @@ async def previous_settled(
         EvalSuiteResult.status.in_(_SETTLED),
         EvalSuiteResult.settled_at < before,
     )
-    if with_run:
-        query = query.where(
-            EvalSuiteResult.eval_run_id.is_not(None),
-            EvalSuiteResult.status.in_(
-                (
-                    EvalSuiteResultStatus.PASSED.value,
-                    EvalSuiteResultStatus.FAILED.value,
-                    EvalSuiteResultStatus.INCONCLUSIVE.value,
-                )
-            ),
+    if passed_on_dataset is not None:
+        query = query.join(EvalRun, EvalRun.id == EvalSuiteResult.eval_run_id).where(
+            EvalSuiteResult.status == EvalSuiteResultStatus.PASSED.value,
+            EvalRun.dataset_id == passed_on_dataset,
         )
     result = await db.execute(query.order_by(EvalSuiteResult.settled_at.desc()).limit(1))
     return result.scalar_one_or_none()

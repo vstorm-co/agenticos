@@ -1026,22 +1026,23 @@ class EvalSuiteService:
     async def _earlier_run(
         self, suite: EvalSuite, version_id: UUID, *, now: datetime
     ) -> UUID | None:
-        """The eval run of this suite's last result on the same version and dataset, to
-        measure drift against - none once the suite moved to another dataset."""
-        previous = await eval_suite_repo.previous_settled(
+        """The eval run of this suite's last passing result on the same version and
+        dataset, to measure drift against.
+
+        The last state known to be good, not merely the last run: measured against
+        yesterday's failure, a case still broken today would not have flipped, and
+        a suite that had just gone red would read green again with the agent
+        unchanged.
+        """
+        passed = await eval_suite_repo.previous_settled(
             self.db,
             suite_id=suite.id,
             agent_version_id=version_id,
             before=now,
             organization_id=suite.organization_id,
-            with_run=True,
+            passed_on_dataset=suite.dataset_id,
         )
-        if previous is None or previous.eval_run_id is None:
-            return None
-        run = await eval_run_repo.get(
-            self.db, previous.eval_run_id, organization_id=suite.organization_id
-        )
-        return run.id if run is not None and run.dataset_id == suite.dataset_id else None
+        return passed.eval_run_id if passed is not None else None
 
     async def settle_finished(self, *, now: datetime) -> int:
         """Hold every result whose eval run has ended to its threshold."""

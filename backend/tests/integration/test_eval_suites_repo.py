@@ -328,17 +328,26 @@ async def test_the_previous_result_on_the_same_version_is_found(db) -> None:
         before=_NOW,
         organization_id=ctx.organization_id,
     )
-    with_run = await eval_suite_repo.previous_settled(
+    passed = await eval_suite_repo.previous_settled(
         db,
         suite_id=suite.id,
         agent_version_id=version.id,
         before=_NOW,
         organization_id=ctx.organization_id,
-        with_run=True,
+        passed_on_dataset=suite.dataset_id,
+    )
+    elsewhere = await eval_suite_repo.previous_settled(
+        db,
+        suite_id=suite.id,
+        agent_version_id=version.id,
+        before=_NOW,
+        organization_id=ctx.organization_id,
+        passed_on_dataset=uuid.uuid4(),
     )
 
     assert found is not None and found.id == newer.id
-    assert with_run is not None and with_run.id == older.id
+    assert passed is not None and passed.id == older.id
+    assert elsewhere is None
 
 
 async def test_each_suite_reads_its_latest_and_its_open_result(db) -> None:

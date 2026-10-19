@@ -1334,12 +1334,22 @@ async def test_a_case_that_breaks_overnight_on_the_same_version_fails_the_daily_
     drifted = Model(db, answer=lambda prompt: _FAIL if prompt == "Question 2" else _PASS)
     await _sweep(db, drifted, now=day + timedelta(days=1))
 
-    first, second = await _results(db, suite.id)
-    assert (first.status, second.status) == ("passed", "failed")
+    # Nothing changes on the third day: the case is still broken.
+    await _sweep(db, drifted, now=day + timedelta(days=2))
+
+    first, second, third = await _results(db, suite.id)
+    assert (first.status, second.status, third.status) == ("passed", "failed", "failed")
     assert second.summary is not None
     assert second.summary["regressions_confirmed"] == 1
     assert second.summary["baseline_run_id"] == str(first.eval_run_id)
     assert second.summary["failing_cases"][0]["kind"] == "regression"
+    # Measured against the last good day, not against yesterday's failure.
+    assert third.summary is not None
+    assert third.summary["baseline_run_id"] == str(first.eval_run_id)
+    assert third.summary["regressions_confirmed"] == 1
+    # One notice for the run of failures, on the day it began.
+    assert (second.notified_at is not None, third.notified_at) == (True, None)
+    assert len(await _notifications(db, ctx.user_id)) == 1
 
 
 async def test_a_suite_moved_to_another_dataset_is_not_measured_against_the_old_one(db) -> None:

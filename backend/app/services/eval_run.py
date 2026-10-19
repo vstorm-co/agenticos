@@ -417,6 +417,11 @@ class EvalRunService:
                 details={"baseline_run_id": run_id},
             )
         earlier = await self._readable(ctx, run_id)
+        if earlier.status != EvalRunStatus.COMPLETED.value:
+            raise BadRequestError(
+                message="A baseline must be a run that completed",
+                details={"baseline_run_id": run_id},
+            )
         if earlier.agent_id != agent.id or earlier.dataset_id != dataset.id:
             raise BadRequestError(
                 message="A baseline must be a run of the same agent on the same dataset",
@@ -1495,7 +1500,8 @@ class EvalRunService:
         The baseline that ran in this run, if one did. One reused from an
         earlier run is that run's arm, so the comparison names where it came
         from and when it finished. Then the earlier run the run was started
-        against, if it named one. Otherwise the cheap default: the last
+        against, if it named one - its first candidate arm, the one its own
+        verdict reads. Otherwise the cheap default: the last
         completed run of this dataset on the version before the candidate's
         (the published one, for a draft), whatever its model and dataset
         version - the comparison says both.

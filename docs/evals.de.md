@@ -1,5 +1,5 @@
 ---
-source_sha: "f266859926c0"
+source_sha: "a7213b0ce36f"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -447,10 +447,14 @@ Ein Ergebnis, dessen Vergleich
 Fall bewertet werden konnte, ist **ohne Ergebnis**, nie bestanden. Ein Ergebnis **ist nicht gelaufen**, wenn es mehr
 kosten würde, als ein Budget oder die eigene Grenze der Suite hergibt, wenn nur
 der Judge es bewerten könnte und die KI-Unterstützung aus ist, oder wenn es
-keine veröffentlichte Version zum Prüfen gibt. Geplante Läufe und Läufe nach
-einer Abhängigkeit werden mit dem letzten Lauf der Suite auf derselben Version
-verglichen und messen so die Drift; eine Veröffentlichung oder Promotion lässt
-ihre Baseline im selben Run laufen.
+keine veröffentlichte Version zum Prüfen gibt.
+
+Geplante Läufe und Läufe nach
+einer Abhängigkeit werden mit dem letzten bestandenen Lauf der Suite auf
+derselben Version verglichen - dem letzten als gut bekannten Stand, sodass ein
+gebrochener Fall gebrochen bleibt, bis ihn jemand behebt - und messen so die
+Drift; eine Veröffentlichung oder Promotion lässt ihre Baseline im selben Run
+laufen.
 
 ### Als wer sie läuft, und wer benachrichtigt wird { #who-it-runs-as-and-who-is-told }
 

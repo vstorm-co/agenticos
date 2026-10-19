@@ -1,5 +1,5 @@
 ---
-source_sha: "f266859926c0"
+source_sha: "a7213b0ce36f"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -428,9 +428,13 @@ udało się ocenić żadnego przypadku, jest **bez rozstrzygnięcia**, nigdy
 zaliczony. Wynik **nie został uruchomiony**, gdy
 kosztowałby więcej, niż zostało w budżecie albo niż własny limit suity, gdy
 ocenić go mógłby tylko sędzia, a wsparcie AI jest wyłączone, albo gdy nie ma
-opublikowanej wersji do sprawdzenia. Runy z harmonogramu i po zmianie
-zależności porównuje się z ostatnim runem suity na tej samej wersji, więc
-mierzą dryf; publikacja i promocja uruchamiają baseline w tym samym runie.
+opublikowanej wersji do sprawdzenia.
+
+Runy z harmonogramu i po zmianie
+zależności porównuje się z ostatnim zaliczonym runem suity na tej samej
+wersji - ostatnim stanem znanym jako dobry, więc przypadek, który się zepsuł,
+pozostaje zepsuty, dopóki ktoś go nie naprawi - i dzięki temu mierzą dryf;
+publikacja i promocja uruchamiają baseline w tym samym runie.
 
 ### Jako kto działa i kto dostaje wiadomość { #who-it-runs-as-and-who-is-told }
 
