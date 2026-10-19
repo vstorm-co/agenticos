@@ -173,6 +173,9 @@ export const qk = {
   },
   runs: {
     all: () => ["runs"] as const,
+    // The AI Architect's bubble: approvals waiting, no agents yet, the reader's
+    // failed run. Under `runs` because two of the three are run events.
+    assistantSignals: (orgId: string) => ["runs", "assistant-signals", orgId] as const,
     // The window is part of the key: the same agent over two windows is two
     // answers, and caching one as the other is how a figure ends up describing a
     // period nobody asked for. The sort, the minimum-duration filter and the

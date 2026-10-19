@@ -155,6 +155,11 @@ Two things are versioned separately from this file and worth knowing about:
   budget's spend reads take a pooled connection instead of a new one each (two
   or three per run), and presence does not query to name the socket's own
   person.
+- **The AI Architect's bubble costs one request on every page instead of
+  three.** To say whether approvals were waiting, the organization had no agent
+  yet, or the reader's run had failed, the widget fetched every agent, the
+  approval queue and the reader's failed runs. `GET /assistant/signals` answers
+  all three, each through the scope its own page uses.
 - **Every request in an organization reads the caller's membership once.**
   The membership and the organization come in one query, and the
   authorization context reuses that membership instead of reading it again:

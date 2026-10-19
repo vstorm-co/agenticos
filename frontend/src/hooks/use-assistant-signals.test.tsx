@@ -2,39 +2,32 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { STUCK_AFTER_MS, useAssistantSignals } from "./use-assistant-signals";
+import { apiClient } from "@/lib/api-client";
 
 const state = vi.hoisted(() => ({
-  can: (_: string): boolean => true,
-  agents: [{ id: "a" }] as { id: string }[],
-  agentsLoading: false,
-  approvals: 0,
-  failed: [] as { id: string }[],
-  userId: "u-1" as string | null,
-  runsOptions: null as unknown,
+  data: undefined as
+    { pending_approvals: number; has_agents: boolean; failed_run_id: string | null } | undefined,
+  orgId: "org-1" as string | null,
+  options: null as { queryKey: unknown; enabled: boolean; queryFn: () => unknown } | null,
 }));
 
-vi.mock("@/hooks", () => ({
-  usePermissions: () => ({ can: state.can }),
-  useAgents: () => ({ agents: state.agents, isLoading: state.agentsLoading }),
-  useApprovals: () => ({ total: state.approvals }),
-  useRuns: (_agent: unknown, options: unknown) => {
-    state.runsOptions = options;
-    return { runs: state.failed };
+vi.mock("@tanstack/react-query", () => ({
+  useQuery: (options: { queryKey: unknown; enabled: boolean; queryFn: () => unknown }) => {
+    state.options = options;
+    return { data: options.enabled ? state.data : undefined };
   },
 }));
+vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn() } }));
 vi.mock("@/stores", () => ({
-  useAuthStore: (pick: (s: { user: { id: string } | null }) => unknown) =>
-    pick({ user: state.userId === null ? null : { id: state.userId } }),
+  useOrgStore: (pick: (s: { activeOrgId: string | null }) => unknown) =>
+    pick({ activeOrgId: state.orgId }),
 }));
 
 beforeEach(() => {
   vi.useFakeTimers();
-  state.can = () => true;
-  state.agents = [{ id: "a" }];
-  state.agentsLoading = false;
-  state.approvals = 0;
-  state.failed = [];
-  state.userId = "u-1";
+  state.data = { pending_approvals: 0, has_agents: true, failed_run_id: null };
+  state.orgId = "org-1";
+  state.options = null;
 });
 
 afterEach(() => {
@@ -50,38 +43,38 @@ function wait(ms: number) {
 
 describe("useAssistantSignals", () => {
   it("reports what is waiting and an organization with nothing in it yet", () => {
-    state.approvals = 3;
-    state.agents = [];
+    state.data = { pending_approvals: 3, has_agents: false, failed_run_id: null };
     const { result } = renderHook(() => useAssistantSignals());
 
     expect(result.current).toMatchObject({ pendingApprovals: 3, noAgents: true });
   });
 
-  it("does not call a still-loading organization empty", () => {
-    state.agents = [];
-    state.agentsLoading = true;
+  it("does not call an organization empty before the answer arrives", () => {
+    state.data = undefined;
     const { result } = renderHook(() => useAssistantSignals());
 
-    expect(result.current.noAgents).toBe(false);
+    expect(result.current).toMatchObject({ pendingApprovals: 0, noAgents: false });
   });
 
   it("names the reader's own latest failed run of the last day", () => {
-    state.failed = [{ id: "run-2" }, { id: "run-1" }];
+    state.data = { pending_approvals: 0, has_agents: true, failed_run_id: "run-2" };
     const { result } = renderHook(() => useAssistantSignals());
 
     expect(result.current.failedRunId).toBe("run-2");
-    expect(state.runsOptions).toMatchObject({ enabled: true, statuses: ["failed"], userId: "u-1" });
   });
 
-  it("asks for no runs without runs:view or a signed-in reader", () => {
-    state.can = () => false;
+  it("asks once, under runs, and not before there is an organization", async () => {
     renderHook(() => useAssistantSignals());
-    expect(state.runsOptions).toMatchObject({ enabled: false });
+    expect(state.options).toMatchObject({
+      queryKey: ["runs", "assistant-signals", "org-1"],
+      enabled: true,
+    });
+    await state.options?.queryFn();
+    expect(apiClient.get).toHaveBeenCalledWith("/assistant/signals");
 
-    state.can = () => true;
-    state.userId = null;
+    state.orgId = null;
     renderHook(() => useAssistantSignals());
-    expect(state.runsOptions).toMatchObject({ enabled: false, userId: undefined });
+    expect(state.options).toMatchObject({ enabled: false });
   });
 
   it("notices a form left open for a minute, by its title", () => {
