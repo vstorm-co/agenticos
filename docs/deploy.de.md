@@ -1,5 +1,5 @@
 ---
-source_sha: "64fce98b00b5"
+source_sha: "541c482c0fed"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
@@ -33,8 +33,9 @@ niemand betrieben hat.
 | **Einen Reverse Proxy** | [Traefik](#option-a-traefik) oder [Nginx](#option-b-nginx). Er terminiert TLS |
 | **Keinen Provider-Key** | Chat-Modelle und Embeds werden beide pro Organisation im Vault des Produkts hinterlegt. Die Umgebung hält für keines von beiden Zugangsdaten — siehe [Datenschutz](data-protection.md#nothing-leaves-by-default) |
 
-Der Host braucht außerdem die Ports 80 und 443 offen, und sonst nichts. Postgres,
-Redis und die Prefect-API sind auf keiner Schnittstelle veröffentlicht.
+Der Host braucht außerdem die Ports 80 und 443 offen, und sonst nichts. Postgres
+und Redis sind auf keiner Schnittstelle veröffentlicht, und der Worker bedient
+nichts.
 
 ### Warum zwei Hostnamen { #why-two-hostnames }
 
@@ -148,7 +149,7 @@ veröffentlicht.
 
 | | |
 |---|---|
-| `ghcr.io/vstorm-co/agenticos-backend` | Die API, der Prefect-Runner und die Migrationen - ein Image, drei Kommandos |
+| `ghcr.io/vstorm-co/agenticos-backend` | Die API, der Worker und die Migrationen - ein Image, drei Kommandos |
 | `ghcr.io/vstorm-co/agenticos-frontend` | Die Konsole |
 
 Beide werden von `.github/workflows/images.yml` für `linux/amd64` und
@@ -250,7 +251,7 @@ annahm.
 
     Es ist die eine Einstellung in `traefik/traefik.yml`, die es sich zu lesen lohnt,
     bevor Sie ihn betreiben. Nur `app` und `frontend` tragen `traefik.enable=true`,
-    also sind Postgres, Redis, der Prefect-Server und der Sandbox-Daemon von nichts
+    also sind Postgres, Redis, der Worker und der Sandbox-Daemon von nichts
     außerhalb des Hosts erreichbar — und das ist eine Eigenschaft davon, *nicht
     gelabelt zu sein*, sie überlebt also, dass jemand einen Dienst hinzufügt, ohne an
     den Proxy zu denken.
@@ -288,7 +289,7 @@ terminiert.
     `agenticos` — und das Hochfahren des Frontends meldete dann die fünf
     Backend-Container als **Waisen**, mit Composes eigenem Vorschlag, das Kommando
     erneut mit `--remove-orphans` auszuführen. Diesem Rat zu folgen stoppt die API,
-    die Datenbank, Redis und beide Prefect-Dienste. Die `make`-Targets und
+    die Datenbank, Redis und den Worker. Die `make`-Targets und
     `scripts/deploy.sh` übergeben `-p agenticos-frontend`, die Warnung ist damit weg.
     Die Compose-Dateien legen auch keine Containernamen fest - jedes Projekt benennt
     seine eigenen, zwei Stacks auf einem Host können einander also nicht die
@@ -497,7 +498,6 @@ Ein Volume zählt, und welches, ist nicht offensichtlich:
 |---|---|---|
 | `postgres_data` | alles — Agents, Unterhaltungen, versiegelte Zugangsdaten | **ja** |
 | `media_data` | hochgeladene Dateien, vor der Ingestion | ja |
-| `prefect_data` | die Datenbank von Prefect: Deployments, Run-Historie, wartende Runs | nein |
 
 Der Cache hat überhaupt kein Volume mehr. Rate-Limit-Buckets, Dedupe-Claims der
 Kanäle und Mitgliedschaftsantworten tragen alle eine TTL und bauen sich selbst

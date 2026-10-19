@@ -1,5 +1,5 @@
 ---
-source_sha: "53546688c766"
+source_sha: "f9aed6805833"
 ---
 
 # Pruebas de carga y resiliencia { #load-and-resilience-testing }
@@ -111,9 +111,9 @@ cualquiera de ellas en vez de medir un despliegue que no puede hacer el trabajo:
 1. una base de datos migrada y Redis;
 2. el modelo stub respondiendo, **en una dirección que la API alcance** — ver abajo;
 3. la fixture — `make load-seed`, una vez;
-4. Prefect, si la carga `trigger_fire` va a significar algo. Sin él un webhook se
-   acepta y su despacho falla, cosa que el informe muestra como 500 en esa carga en
-   lugar de esconderlo.
+4. un worker (`python -m app.worker`), si la carga `trigger_fire` va a significar
+   algo. Sin él un webhook se acepta y su disparo espera en la cola, así que la
+   carga mide la puerta y no el run.
 
 ### Dónde tiene que escuchar el stub { #where-the-stub-has-to-listen }
 

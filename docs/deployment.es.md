@@ -1,5 +1,5 @@
 ---
-source_sha: "11e8f02699df"
+source_sha: "cbe651025f7e"
 ---
 
 # El despliegue en sí { #the-deployment-itself }
@@ -563,6 +563,30 @@ proporciona, para esa rama, el mismo valor de reserva que upstream ya usa en la
 rama que sí protegió. Sigue sin arreglarse en upstream a fecha de 0.65b0, y
 `tests/test_otel_route_details.py` falla cuando se arregle, que es cuando el
 módulo desaparece.
+
+## Jobs en segundo plano { #background-jobs }
+
+**Admin → Background jobs** (`/admin/background-jobs`) es la cola tal como la ve
+el propietario del despliegue, y solo un app admin puede abrirla: la cola es del
+despliegue, así que al propietario de una organización se le rechaza. La
+cabecera cuenta los jobs en cada estado, nombra cada tipo pausado y el motivo,
+lista los workers vivos y la próxima vez que se dispara cada programación.
+Debajo están los jobs, del más reciente al más antiguo, filtrados por estado y
+pool, cada uno con sus intentos y el error con el que terminó por última vez.
+
+Tres acciones, cada una auditada con quién la hizo:
+
+- **Retry** da a un job muerto una nueva serie de intentos.
+- **Cancel** retira un job que nadie ha empezado.
+- **Resume** deja que los workers vuelvan a recoger un tipo pausado.
+
+Un tipo lo pausa el cortacircuitos del worker: sus jobs mataron a su worker
+`WORKER_BREAKER_DEATHS` veces seguidas, casi siempre un documento cuyo parseo se
+queda sin memoria. Cada propietario recibe un aviso en la aplicación y por
+correo, y la notificación no se puede desactivar: el trabajo de ese tipo se
+acumula hasta que uno de ellos lo reanuda. Reintenta los jobs muertos solo
+cuando la causa esté resuelta, o morirán igual. Los ajustes están en
+[Configuración](configuration.md#background-work).
 
 ## Resumen { #recap }
 

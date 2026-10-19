@@ -1,5 +1,5 @@
 ---
-source_sha: "4d356103b6b2"
+source_sha: "9aaadca44156"
 ---
 
 <div class="agenticos-hero" markdown>
@@ -290,8 +290,8 @@ przyszło pytanie.
 ## Stack { #stack }
 
 FastAPI i Pydantic v2 na PostgreSQL, [Pydantic AI](https://ai.pydantic.dev) jako
-środowisko uruchomieniowe agentów, pgvector do wyszukiwania, Prefect do pracy w
-tle i Next.js 15 dla konsoli.
+środowisko uruchomieniowe agentów, pgvector do wyszukiwania, kolejka zadań w tym
+samym PostgreSQL do pracy w tle i Next.js 15 dla konsoli.
 
 Zewnętrzne miejsca przetwarzania zależą od konfiguracji modeli, parserów, embeddingów, narzędzi, kanałów, sandboxów i tracingu. Sprawdź [przepływ danych](security.md).
 

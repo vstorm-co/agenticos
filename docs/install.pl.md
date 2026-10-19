@@ -1,5 +1,5 @@
 ---
-source_sha: "fcddf28be3f1"
+source_sha: "21c8388d1983"
 ---
 
 # Instalacja { #install }
@@ -62,8 +62,8 @@ curl -fsSLO https://raw.githubusercontent.com/vstorm-co/agenticos/main/docker-co
 docker compose up -d
 ```
 
-To ściąga obrazy i uruchamia **Postgresa (z pgvector), Redisa, serwer i runner
-Prefect, API oraz konsolę**, wykonuje migracje i odpowiada pod
+To ściąga obrazy i uruchamia **Postgresa (z pgvector), Redisa, API, workera w
+tle oraz konsolę**, wykonuje migracje i odpowiada pod
 <http://localhost:3000>. Pierwsze pobranie to około 2 GB.
 
 ```mermaid
@@ -72,9 +72,7 @@ flowchart LR
     A --> PG[("postgres<br/>pgvector")]
     A --> RD[("redis")]
     A --> SD["sandboxd<br/><i>holds the Docker socket</i>"]
-    A --> PF["prefect server"]
-    PF --> WK["prefect runner"]
-    WK --> PG
+    WK["worker<br/><i>claims jobs</i>"] --> PG
     M["migrate<br/><i>runs once, exits</i>"] --> PG
 ```
 
@@ -137,9 +135,7 @@ flowchart LR
     A --> PG[("postgres<br/>pgvector, :5432")]
     A --> RD[("redis<br/>:6379")]
     A --> SD["sandboxd<br/><i>holds the Docker socket</i>"]
-    A --> PF["prefect server<br/>:4200"]
-    PF --> WK["prefect runner"]
-    WK --> PG
+    WK["worker<br/><i>claims jobs</i>"] --> PG
 ```
 
 Migracje działają jako usługa `migrate` przy każdym starcie stacka i nic nie robią,
@@ -291,7 +287,7 @@ A oto gdzie wszystko jest:
 | API | <http://localhost:8000> |
 | Dokumentacja OpenAPI | <http://localhost:8000/docs> |
 | Panel administracyjny w stylu Django | <http://localhost:8000/admin> |
-| UI Prefect | <http://localhost:4200> |
+| Background jobs | <http://localhost:3000/admin/background-jobs> - jako właściciel wdrożenia |
 | Postgres | `localhost:5432` (`postgres` / `postgres`) - publikowany wyłącznie przez plik override klona |
 | Redis | `localhost:6379` - tak samo |
 

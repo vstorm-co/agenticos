@@ -1,5 +1,5 @@
 ---
-source_sha: "4d356103b6b2"
+source_sha: "9aaadca44156"
 ---
 
 <div class="agenticos-hero" markdown>
@@ -302,8 +302,8 @@ vino la pregunta.
 ## Stack { #stack }
 
 FastAPI y Pydantic v2 sobre PostgreSQL, [Pydantic AI](https://ai.pydantic.dev)
-para el runtime del agent, pgvector para retrieval, Prefect para el trabajo en
-segundo plano y Next.js 15 para la consola.
+para el runtime del agent, pgvector para retrieval, una cola de jobs en el mismo
+PostgreSQL para el trabajo en segundo plano y Next.js 15 para la consola.
 
 Los destinos externos dependen de modelos, parsers, embeddings, herramientas, canales, sandboxes y trazas configurados. Revisa el [flujo de datos](security.md).
 

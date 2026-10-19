@@ -1,5 +1,5 @@
 ---
-source_sha: "64fce98b00b5"
+source_sha: "541c482c0fed"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -33,8 +33,8 @@ ha ejecutado.
 | **Un proxy inverso** | [Traefik](#option-a-traefik) o [Nginx](#option-b-nginx). Termina el TLS |
 | **Ninguna clave de provider** | los modelos de chat y los embeds llevan ambos su clave por organización, en el vault del producto. El entorno no guarda credenciales para ninguno de los dos — consulta [Protección de datos](data-protection.md#nothing-leaves-by-default) |
 
-El host también necesita los puertos 80 y 443 abiertos, y nada más. Postgres,
-Redis y la API de Prefect no se publican en ninguna interfaz.
+El host también necesita los puertos 80 y 443 abiertos, y nada más. Postgres y
+Redis no se publican en ninguna interfaz, y el worker no sirve nada.
 
 ### Por qué dos nombres de host { #why-two-hostnames }
 
@@ -146,7 +146,7 @@ repositorio.
 
 | | |
 |---|---|
-| `ghcr.io/vstorm-co/agenticos-backend` | La API, el runner de Prefect y las migraciones - una imagen, tres comandos |
+| `ghcr.io/vstorm-co/agenticos-backend` | La API, el worker y las migraciones - una imagen, tres comandos |
 | `ghcr.io/vstorm-co/agenticos-frontend` | La consola |
 
 Las dos se construyen para `linux/amd64` y `linux/arm64` en
@@ -245,7 +245,7 @@ proxy con el que se configuró este host y no el que asumiera un script.
 
     Es el único ajuste de `traefik/traefik.yml` que merece la pena leer antes de
     ejecutarlo. Solo `app` y `frontend` llevan `traefik.enable=true`, así que
-    Postgres, Redis, el servidor de Prefect y el demonio de la sandbox no son
+    Postgres, Redis, el worker y el demonio de la sandbox no son
     alcanzables desde nada fuera del host — y eso es una propiedad de *no estar
     etiquetados*, así que sobrevive a que alguien añada un servicio sin pensar en
     el proxy.
@@ -282,8 +282,7 @@ deja deliberadamente a lo que termine el TLS.
     `agenticos` — y levantar el frontend informaba entonces de los cinco
     contenedores del backend como **orphans**, con la propia sugerencia de
     compose de volver a ejecutar el comando con `--remove-orphans`. Seguir ese
-    consejo detiene la API, la base de datos, Redis y los dos servicios de
-    Prefect. Los targets de `make` y `scripts/deploy.sh` pasan
+    consejo detiene la API, la base de datos, Redis y el worker. Los targets de `make` y `scripts/deploy.sh` pasan
     `-p agenticos-frontend`, así que el aviso ha desaparecido. Los archivos de
     compose tampoco fijan nombres de contenedor - cada proyecto nombra los suyos,
     así que dos stacks en un host no pueden apropiarse de los contenedores del
@@ -490,7 +489,6 @@ Un volumen importa, y no es obvio cuál:
 |---|---|---|
 | `postgres_data` | todo — agents, conversaciones, credenciales selladas | **sí** |
 | `media_data` | archivos subidos, antes de la ingesta | sí |
-| `prefect_data` | la base de datos de Prefect: deployments, historial de ejecuciones, ejecuciones en cola | no |
 
 La caché ya no tiene ningún volumen. Los buckets del límite de peticiones, las
 marcas de deduplicación de los canales y las respuestas de pertenencia llevan

@@ -1,5 +1,5 @@
 ---
-source_sha: "d6244bf5e175"
+source_sha: "64760597cdc5"
 ---
 
 # Architektura { #architecture }
@@ -269,77 +269,64 @@ rozstrzyga, a czego celowo nie rusza.
 
 ### Zlecanie pracy w tle z żądania { #dispatching-background-work-from-a-request }
 
-**Praca, która będzie czytać wiersz zapisany przez to żądanie, jest przekazywana
-przez `spawn_after_commit`, nigdy przez `spawn`** (oba w
-`app/core/background.py`):
+**Praca, która musi się wydarzyć, jest zadaniem kolejkowanym we własnej
+transakcji żądania.** `app.services.background_jobs.enqueue` zapisuje wiersz
+zadania w sesji żądania, więc zostaje zatwierdzony razem z wierszami, które
+wskazuje, albo wcale:
 
 ```python
-from app.core.background import spawn_after_commit
+from app.services.background_jobs import enqueue
+from app.worker.jobs import FIRE_TRIGGER, FireTrigger
 
-spawn_after_commit(self.db, ingest_document_flow(rag_document_id=str(doc.id)), name=...)
+await enqueue(self.db, FIRE_TRIGGER, FireTrigger(trigger_id=trigger.id), organization_id=org_id)
 ```
 
-`spawn` tworzy zadanie natychmiast, a pętla startuje je w najbliższym punkcie
-zawieszenia — czyli w kroku 1 albo 2 powyżej, przed commitem. Flow otwiera własną
-sesję, i słusznie, więc pod `READ COMMITTED` nie widzi wiersza, którego to
-żądanie nie zacommitowało: szuka dokumentu, którego id dostał, nic nie znajduje
-i kończy. To jest [#417][417], a jego widoczna postać to wgranie pliku, na które
-odpowiedziano `{"status": "processing"}` i tak już zostaje na zawsze.
+Wycofane żądanie niczego nie kolejkuje, a zatwierdzone budzi workery puli przez
+`NOTIFY`, które PostgreSQL dostarcza dopiero przy commicie - więc żaden worker
+nie pobierze zadania, zanim istnieje wiersz, który ono czyta. To zamyka
+[#417][417] przez samą konstrukcję: wgranie odpowiadające
+`{"status": "processing"}`, które już takie zostawało, bo praca ruszała przed
+commitem i jej własna sesja nie widziała dokumentu. Wgranie, synchronizacja
+uruchomiona przez kogoś, każde odpalenie triggera - z harmonogramu, z
+dostarczenia albo „run now” - asynchroniczny run przez API i sprzątanie tego, co
+leży poza bazą, po usunięciu, są przekazywane właśnie tak.
 
-`spawn_after_commit` zamiast tego kolejkuje korutynę na sesji. Nic jej nie
-startuje aż do kroku 3, dwie instrukcje po tym, jak `commit()` wróci, więc flow
-zlecony w ten sposób czyta wiersz, na który baza danych już się zgodziła. Tak
-przekazywane są: wgranie dokumentu, synchronizacja, którą ktoś uruchomił,
-strumień połączenia kanału i ręczne „run now” triggera. Ta kolejność jest
-dowodzona na prawdziwej bazie danych w
-`tests/integration/test_flow_starts_after_commit.py`.
+Ręczne odpalenie triggera jest tu z drugiego powodu, który warto nazwać: `POST
+/agents/{id}/triggers/{id}/run` kiedyś *czekał* na run, który uruchomił, więc
+agent wolniejszy niż limit czasu odczytu proxy odpowiadał 504, podczas gdy run
+trwał dalej i się zatwierdzał - błąd zgłoszony dla czegoś, co działało, i
+zaproszenie, żeby nacisnąć przycisk jeszcze raz ([#658][658]). Trasa odpowiada
+`202`, gdy zadanie jest już w kolejce.
 
-Na drugim końcu życia procesu pętlę domyka lifespan aplikacji: po zatrzymaniu
-przyjmowania żądań i opróżnieniu obsługi robi `await` na `background.drain()` dla
-wszystkiego, co `spawn` przekazał, a co wciąż jest w locie — **zanim** zwolni
-magazyn wektorów, Redis i sesję, z których te zadania czytają. Bez tego
-wyłączenie w trakcie ingestii anulowało flow i zostawiało dokument
-w `processing` — ten sam zablokowany wiersz co w [#417][417], osiągnięty
-z drugiej strony.
+**Usunięcie, którego dane wejściowe niszczy jego własny commit, kolejkuje
+sprzątanie w tym commicie.** Usunięcie organizacji przekazuje dalej ścieżki w
+magazynie i nazwy kolekcji, których ostatni zapis usuwa jego transakcja, więc
+`queue_external_state_cleanup` wpisuje je do zadań sprzątających w tej samej
+sesji: awaria między commitem a sprzątaniem niczego nie gubi, a zadanie jest
+ponawiane, dopóki pliki i kolekcje wektorowe nie znikną.
 
-Ręczne odpalenie triggera jest na tej liście z drugiego powodu, który warto
-nazwać, bo to druga połowa odpowiedzi na pytanie, po co żądanie w ogóle
-przekazuje pracę dalej: `POST /agents/{id}/triggers/{id}/run` kiedyś *czekał* na
-run, który uruchomił, więc agent wolniejszy niż read timeout proxy odpowiadał
-504, podczas gdy run szedł dalej i commitował — awaria zgłoszona dla czegoś, co
-działało, i zaproszenie do naciśnięcia przycisku jeszcze raz i odpalenia
-harmonogramu dwa razy ([#658][658]). Route odpowiada `202`, a odpalenie startuje
-po commicie.
+**Praca, którą można stracić, idzie przez `spawn_after_commit`**
+(`app/core/background.py`): krótka praca bez gwarancji w pętli samego API, jak
+zapisanie osiągalności serwera MCP albo usunięcie plików, do których artefakt już
+się nie odwołuje. Kolejkuje korutynę na sesji i uruchamia ją dwie instrukcje po
+`commit()`; kolejność jest udowodniona na prawdziwej bazie w
+`tests/integration/test_flow_starts_after_commit.py`. Przy zamknięciu lifespan
+czeka na `background.drain()`, zanim zlikwiduje to, co te taski czytają.
 
-!!! warning "To nie jest kolejka, która przeżywa proces"
+Z tego, gdzie leży ta kolejka, wynikają dwie rzeczy:
 
-    `spawn_after_commit` wykona pracę tylko wtedy, gdy proces pożyje dość długo,
-    by ją zacząć. To w porządku dla pracy, którą późniejsze żądanie może
-    odtworzyć, i nie w porządku dla pracy, której *wejście* właśnie zniszczył
-    commit — czyszczenie organizacji przekazuje dalej ścieżki i nazwy kolekcji,
-    po których jego własny commit usunął ostatni ślad, więc awaria między jednym
-    a drugim gubi je na dobre.
+- **Należy do sesji, nie do żądania.** Serwis, który przekazuje pracę, nie musi
+  wiedzieć, czy wywołano go z trasy, handlera WebSocketu, CLI czy workera - i
+  dlatego to nie są `BackgroundTasks` z FastAPI, których gwarancja dotyczy
+  odpowiedzi, a tamte trzy miejsca jej nie mają.
+- **Wycofana transakcja niczego nie zleca.** Zakolejkowane korutyny są
+  zamykane, bo wykonanie pracy, której wiersz wyrzucono, tylko przenosi błąd w
+  miejsce trudniejsze do wyjaśnienia.
 
-    Tam, gdzie to obowiązuje, zamiar jest zapisywany jako wiersz w tej samej
-    transakcji, a przekazanie staje się optymalizacją: `teardown_intents` nazywa
-    to, co zostało do zwolnienia, flow kasuje wiersz, gdy to zrobi, a zamiatanie
-    zleca ponownie to, czego nic nie dokończyło. Brak wiersza jest ukończeniem,
-    więc pusta tabela znaczy, że nic nie zostało do zrobienia.
-
-Z tego, gdzie mieszka ta kolejka, wynikają dwie rzeczy:
-
-- **Należy do sesji, a nie do żądania.** Serwis zlecający flow nie musi wiedzieć,
-  czy wywołano go z route'a, z handlera WebSocketu, z CLI czy z workera — i
-  dlatego nie są to `BackgroundTasks` z FastAPI, których gwarancja dotyczy
-  odpowiedzi i których te trzy pozostałe wywołania nie mają.
-- **Wycofana transakcja nie zleca niczego.** Krok 3 zostaje pominięty,
-  a zakolejkowane korutyny zamknięte, bo uruchomienie pracy, której wiersz
-  wyrzucono, tylko przenosi awarię w miejsce trudniejsze do wytłumaczenia.
-
-`spawn` pozostaje właściwy dla pracy, która ma wszystko, czego potrzebuje — maile
-z powiadomieniami w `app/services/notifications.py` niosą własny kontekst i nie
-dotykają żadnego wiersza. Żadne z nich nie jest kolejką zadań: wszystko, co musi
-przetrwać restart, jest deploymentem Prefecta.
+`spawn` zostaje właściwy dla pracy, która ma wszystko, czego potrzebuje, i nie
+dotyka żadnego wiersza - webhooki kanałów przekazują mu każde dostarczenie, żeby
+provider dostał odpowiedź od razu. Żadne z nich nie przetrwa restartu; zadanie
+tak. Zob. [Dodaj zadanie w tle](howto/add-background-task.md).
 
 [3]: https://github.com/vstorm-co/agenticos/issues/3
 [12]: https://github.com/vstorm-co/agenticos/issues/12
@@ -958,7 +945,9 @@ opracowany przykład.
   `SessionService.detect_refresh_reuse` commituje sesję, którą właśnie unieważnił,
   i wpis mówiący dlaczego — bo jego wywołujący natychmiast podnosi 401, a wycofanie
   cofnęłoby oba.
-- Praca w tle, która czyta wiersz zapisany przez to żądanie, jest przekazywana
-  przez **`spawn_after_commit`**, nigdy przez `spawn`.
+- Praca w tle, która musi się wydarzyć, jest **zadaniem kolejkowanym w
+  transakcji żądania** (`enqueue`); praca bez gwarancji, która czyta wiersz
+  zapisany przez to żądanie, jest przekazywana przez **`spawn_after_commit`**,
+  nigdy przez `spawn`.
 - Cienka domena to moduł; gruba to podpakiet z fasadą, a nic spoza niego nie
   importuje jego podmodułów.

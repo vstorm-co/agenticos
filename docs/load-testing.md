@@ -106,9 +106,9 @@ them rather than measuring a deployment that cannot do the work:
 1. a migrated database and Redis;
 2. the stub model answering, **at an address the API can reach** — see below;
 3. the fixture — `make load-seed`, once;
-4. Prefect, if the `trigger_fire` workload is to mean anything. Without it a
-   webhook is accepted and its dispatch fails, which the report shows as 500s on
-   that workload rather than hiding.
+4. a worker (`python -m app.worker`), if the `trigger_fire` workload is to mean
+   anything. Without one a webhook is accepted and its fire waits in the queue,
+   so the workload measures the door and not the run.
 
 ### Where the stub has to listen
 

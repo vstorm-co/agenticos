@@ -287,8 +287,8 @@ came from.
 ## Stack
 
 FastAPI and Pydantic v2 on PostgreSQL, [Pydantic AI](https://ai.pydantic.dev) for
-the agent runtime, pgvector for retrieval, Prefect for background work, and
-Next.js 15 for the console.
+the agent runtime, pgvector for retrieval, a job queue in the same PostgreSQL for
+background work, and Next.js 15 for the console.
 
 External destinations depend on model, parser, embedding, tool, channel, sandbox and tracing configuration. Review the [data-flow statement](security.md).
 

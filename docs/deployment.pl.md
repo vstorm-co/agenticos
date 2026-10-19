@@ -1,5 +1,5 @@
 ---
-source_sha: "11e8f02699df"
+source_sha: "cbe651025f7e"
 ---
 
 # Samo wdrożenie { #the-deployment-itself }
@@ -555,6 +555,30 @@ dostarcza dla tej gałęzi to samo zastępcze zachowanie, którego upstream uży
 w gałęzi zabezpieczonej. Wciąż niepoprawione w upstreamie na 0.65b0,
 a `tests/test_otel_route_details.py` zawodzi, gdy zostanie poprawione — i wtedy
 moduł znika.
+
+## Zadania w tle { #background-jobs }
+
+**Admin → Background jobs** (`/admin/background-jobs`) to kolejka widziana oczami
+właściciela wdrożenia i tylko app admin może ją otworzyć: kolejka należy do
+wdrożenia, więc właściciel organizacji dostaje odmowę. Nagłówek liczy zadania w
+każdym stanie, wskazuje każdy wstrzymany rodzaj i powód, wymienia żyjące workery
+i najbliższy termin każdego harmonogramu. Pod nim są zadania, od najnowszych,
+filtrowane po stanie i puli, każde z liczbą prób i błędem, na którym ostatnio się
+skończyło.
+
+Trzy akcje, każda zapisywana w audycie z tym, kto ją wykonał:
+
+- **Retry** daje martwemu zadaniu nowy zestaw prób.
+- **Cancel** wycofuje zadanie, którego nikt jeszcze nie zaczął.
+- **Resume** pozwala workerom znowu pobierać wstrzymany rodzaj.
+
+Rodzaj wstrzymuje bezpiecznik workera: jego zadania zabiły swojego workera
+`WORKER_BREAKER_DEATHS` razy z rzędu, najczęściej dokument, przy którym
+parsowanie kończy się brakiem pamięci. Każdy właściciel dostaje powiadomienie w
+aplikacji i e-mailem, którego nie da się wyłączyć - praca tego rodzaju gromadzi
+się, dopóki któryś z nich jej nie wznowi. Martwe zadania ponawiaj dopiero po
+usunięciu przyczyny, inaczej zginą tak samo. Ustawienia są w
+[Konfiguracji](configuration.md#background-work).
 
 ## Podsumowanie { #recap }
 

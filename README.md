@@ -374,14 +374,14 @@ There are two common setups. **Self-hosted, with hosted models:** AgenticOS, doc
 
 ## 🛠️ For developers and operators
 
-AgenticOS is built with FastAPI, Pydantic AI, PostgreSQL with pgvector, Redis, Prefect and Next.js. Engineers add capabilities, sync connectors and MCP catalog entries in typed Python; teams compose agents from the registered capabilities in the console.
+AgenticOS is built with FastAPI, Pydantic AI, PostgreSQL with pgvector, Redis and Next.js. Engineers add capabilities, sync connectors and MCP catalog entries in typed Python; teams compose agents from the registered capabilities in the console.
 
 | Layer | What runs there |
 |---|---|
 | Console | Next.js |
 | API | FastAPI |
 | Agent runtime | [Pydantic AI](https://ai.pydantic.dev) and [pydantic-ai-harness](https://github.com/pydantic/pydantic-ai-harness), one runner behind every surface |
-| Background work | Prefect workers, Redis or Valkey |
+| Background work | A job queue in PostgreSQL, served by `python -m app.worker` |
 | Data | PostgreSQL with pgvector |
 | Code execution | Containers started by `sandboxd` |
 

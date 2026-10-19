@@ -1,5 +1,5 @@
 ---
-source_sha: "07546cc9dfde"
+source_sha: "7f6dd97b4209"
 ---
 
 # Konfiguration { #configuration }
@@ -374,7 +374,7 @@ Hostnamen an der URL selbst, statt beides den Voreinstellungen von redis-py zu
 
 !!! note "Jeder Dienst, der eine Verbindung zu einem Store öffnet, braucht die Änderung"
 
-    `app`, `migrate` und `prefect-runner` verbinden sich jeweils mit Postgres und
+    `app`, `migrate` und `worker` verbinden sich jeweils mit Postgres und
     Redis, und die mitgelieferten Compose-Dateien pinnen `POSTGRES_HOST=db` und
     `REDIS_HOST=redis` in der `environment` jedes einzelnen, was eine Env-Datei
     übersteuert. Ein verwalteter Store ist deshalb eine Override-Datei, die alle
@@ -397,7 +397,7 @@ x-managed: &managed
 services:
   app: *managed
   migrate: *managed
-  prefect-runner: *managed
+  worker: *managed
 ```
 
 Die mitgelieferten Dienste `db` und `redis` starten weiter, ungenutzt;
@@ -443,44 +443,60 @@ angewiesen ist, hört still auf, ohne dass einer davon es ankündigt:
     Handshake im Klartext an und jeder Versand würde scheitern. `starttls` ist der
     spiegelbildliche Fall.
 
-## Hintergrundarbeit (Prefect) { #background-work-prefect }
+## Hintergrundarbeit { #background-work }
+
+Jobs warten in PostgreSQL und laufen in einem Worker, `python -m app.worker`,
+aus demselben Image wie die API. Es gibt keinen Server, auf den er zeigen muss,
+und keinen Schlüssel: Der Worker erreicht dieselbe Datenbank wie die API. Jede
+Einstellung unten gilt pro Worker-Prozess.
 
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|
-| `PREFECT_API_URL` | `http://localhost:4200/api` | Der selbst gehostete Server oder die URL eines Workspace in Prefect Cloud |
-| `PREFECT_API_KEY` | (none) | Nur für Prefect Cloud |
-| `PREFECT_RUNNER_LIMIT` | `5` | Wie viele Flow Runs gleichzeitig laufen; der Rest wartet in der Warteschlange |
-| `PREFECT_RUNNER_SERVER_HOST` | `127.0.0.1` in compose | Interface, auf dem der Runner seinen eigenen Health-Endpunkt bedient |
-| `PREFECT_RUNNER_SERVER_PORT` | `8080` | Port dafür |
+| `WORKER_POOLS` | `agent,ingest,system` | Die Pools, die dieser Prozess bedient. Ein zweiter Worker mit `ingest` legt das Parsen auf einen eigenen Host |
+| `WORKER_AGENT_CONCURRENCY` | `10` | Runs von Agents und ausgelöste Trigger gleichzeitig |
+| `WORKER_SYSTEM_CONCURRENCY` | `4` | Aufräumläufe, Bereinigungen und Berichte gleichzeitig |
+| `WORKER_INGEST_CHILDREN` | `2` (`1` in den mitgelieferten Compose-Dateien) | Kindprozesse für Parsen und Embeddings, jeder mit einem Job zur Zeit |
+| `WORKER_INGEST_MEMORY_MB` | `1536` | Wie viel ein Kindprozess samt allem, was er gestartet hat, halten darf, bevor der Watchdog ihn stoppt |
+| `WORKER_INGEST_MAX_JOBS` | `100` | Jobs, die ein Kindprozess ausführt, bevor er ersetzt wird |
+| `WORKER_LEASE_SECONDS` | `60` | Wie lange ein abgeholter Job ohne Heartbeat gehalten wird |
+| `WORKER_BREAKER_DEATHS` | `5` | Tode des Workers in Folge, über die Jobs einer Art, die diese Art pausieren |
+| `WORKER_HEALTH_FILE` | `/tmp/agenticos-worker-alive` | Die Datei, die die Probe des Containers liest |
+| `WORKER_MEMORY_LIMIT` | `4g`, `2560M` im Produktions-Compose | Das eigene Speicherlimit des Containers - eine Compose-Variable, keine Einstellung |
+| `BACKGROUND_JOB_RETENTION_DAYS` | `14` | Beendete Jobs, die für die Seite Background jobs aufbewahrt werden |
 
-`PREFECT_RUNNER_LIMIT` ist eine Speicherobergrenze, kein Regler für den
-Durchsatz. Jeder Run ist ein eigener Prozess, der die gesamte Anwendung
-importiert — rund 120 MB —, und die Zahl, auf die es ankommt, ist nicht der
-Normalbetrieb, sondern der Neustart: Der Runner kommt hoch, findet jeden Run, der
-während seiner Abwesenheit geplant wurde, und startet so viele, wie das Limit
-zulässt. Ohne Cap waren drei Tage Ausfall 71 Prozesse und 6 GiB. Heben Sie es an,
-wenn die Ingestion auf einer Maschine mit freiem Speicher hinter Syncs wartet;
-senken Sie es auf einem kleinen Host.
+**Planen Sie den Speicher nach den Kindprozessen, nicht nach der Zahl der
+Jobs.** Ein Worker hält etwa 450 MB für seine importierte Anwendung, jeder
+Ingestion-Kindprozess noch einmal so viel plus das Dokument, das er parst.
+`WORKER_INGEST_MEMORY_MB` liegt absichtlich unter dem Limit des Containers: Der
+Watchdog stoppt einen Kindprozess, der darüber wächst, und schreibt den Grund an
+den Job, wo der OOM-Killer des Kernels nur einen toten Prozess hinterließe. Auf
+einem Host mit freiem Speicher erhöhen Sie `WORKER_INGEST_CHILDREN` und das
+Limit des Containers mit.
 
-Geplante Sweeps tragen wenig zu diesem Rückstand bei: Jeder läuft mit einem
-Tick zur Zeit, und die übrigen überfälligen Ticks weist der Server ab, bevor der
-Runner einen Prozess dafür startet. Ausgenommen sind die Nutzungsberichte, weil
-jeder Run einen eigenen Zeitraum abdeckt.
+**Ein Job, der seinen Prozess umbringt, kann sich nicht im Kreis drehen.** Sein
+Versuch wird beim Abholen gezählt, ein Kindprozess, den der Kernel mitten im
+Parsen tötet, hat also einen verbraucht, und nach `max_attempts` ist der Job
+tot. Eine Art, deren Jobs ihren Worker `WORKER_BREAKER_DEATHS`-mal in Folge
+umbringen, wird pausiert, und jeder Eigentümer des Deployments erfährt es;
+nichts holt sie ab, bis einer von ihnen sie auf der Seite Background jobs
+fortsetzt.
 
-Die beiden `PREFECT_RUNNER_SERVER_*`-Variablen gehören Prefect, und die
-Compose-Dateien pinnen sie, damit der Container des Runners einen Health-Status
-hat, der etwas bedeutet. Der Runner startet den Runner-Webserver von Prefect,
-dessen `GET /health` mit 503 antwortet, sobald er zwei Abfragen der Prefect-API
-verpasst hat — ein Prozess, der lebt, aber keine Arbeit mehr annimmt, liest sich
-damit als `unhealthy` statt als in Ordnung. Er ist an das Loopback gebunden, weil
-derselbe Webserver auch `POST /shutdown` anbietet; die Probe läuft im Container,
-und nichts außerhalb erreicht eines von beiden. Den Port zu verschieben heißt,
-die Probe in den Compose-Dateien mitzuverschieben.
+Ein Worker, der stirbt, gibt seine Jobs innerhalb von `WORKER_LEASE_SECONDS`
+zurück: Die Rettung eines anderen Workers übernimmt den abgelaufenen Lease und
+schreibt den Job als Tod eines Workers auf. Ein Deploy kostet einen Job keinen
+Versuch - der Worker hört auf abzuholen, lässt laufende Jobs 30 Sekunden lang
+fertig werden und gibt den Rest zurück. Die Compose-Dateien geben ihm 45
+Sekunden, bevor sie ihn beenden.
 
-In `backend/Dockerfile` gibt es kein `HEALTHCHECK`. Das Image wird als zwei
-verschiedene Prozesse gestartet — die API und dieser Runner —, und eine Probe für
-den einen ist ein Dauerfehlalarm für den anderen, also trägt jede
-Service-Definition ihre eigene.
+Der Health-Check des Containers liest `WORKER_HEALTH_FILE`, die der Heartbeat
+nach jedem Schlag berührt, der die Datenbank erreicht hat, sodass ein Worker,
+der lebt, aber von Postgres abgeschnitten ist, als `unhealthy` gilt. Es ist eine
+Datei und kein HTTP-Endpunkt, weil der Worker nichts bedient.
+
+In `backend/Dockerfile` gibt es kein `HEALTHCHECK`. Das Image wird als
+verschiedene Prozesse gestartet - die API, der Worker und die Migrationen -, und
+eine Probe für den einen wäre ein dauerhafter Fehlalarm für den anderen, also
+trägt jede Service-Definition ihre eigene.
 
 ### Ablauf einer Freigabe { #approval-expiry }
 
@@ -553,8 +569,8 @@ Drei Dinge können Runs auf ein Projekt richten, und sie überlagern sich:
 
 - `LOGFIRE_TOKEN` hier instrumentiert Pydantic AI global, jeder Run exportiert
   also in das Projekt des Deployments selbst. Zwei Prozesse konfigurieren es: die
-  API beim Start (`app/main.py`) und ein ausgelöster Run im Prefect-Worker, der
-  sich selbst einrichtet, weil jeder Flow-Run einen eigenen Subprozess bekommt.
+  API beim Start (`app/main.py`) und der Worker, einmal beim Start
+  (`app/worker/__main__.py`), da er den Lifespan der API nie durchläuft.
   Die Spans des Workers tragen `<Dienstname>-worker`, ein Projekt kann einen
   langsamen geplanten Run also von einer langsamen Chat-Runde unterscheiden.
 - Eine [Umgebung](environments.md#tracing-per-environment) kann ein eigenes

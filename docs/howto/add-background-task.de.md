@@ -1,118 +1,176 @@
 ---
-source_sha: "0698462cb81b"
+source_sha: "957a4208f188"
 ---
 
 # Einen Hintergrund-Task hinzufügen { #add-a-background-task }
 
-Hintergrundarbeit läuft außerhalb des Request-Response-Zyklus. Dieses Projekt
-nutzt **Prefect** für alles Geplante oder Langlaufende und
-`app/core/background.py` für Arbeit, die eine Anfrage übergibt.
+Arbeit, die länger dauert als eine Anfrage, ist ein **Job** in der Tabelle
+`background_jobs`: Ein Service reiht ihn in seiner eigenen Transaktion ein, und
+ein Worker (`python -m app.worker`) holt ihn ab, führt ihn aus und hält fest, wie
+er endete. Dieselbe Tabelle trägt die wiederkehrenden Jobs des Deployments.
+`app/core/background.py` bleibt für die kleine Arbeit ohne Garantie, die eine
+Anfrage an ihren eigenen Prozess übergibt.
+
+Ein Job ist dauerhaft, wo ein Task auf der Event-Loop der API es nicht ist. Er
+übersteht einen Neustart, wird mit wachsendem Abstand wiederholt, und ein Job,
+der seinen Worker umbringt - auch durch einen Out-of-Memory-Kill -, hat den
+Versuch bereits verbraucht und kann sich daher nicht im Kreis drehen. Was er
+getan hat, steht auf der Seite Background jobs.
 
 ## Schritt für Schritt { #step-by-step }
 
-### 1. Den Task anlegen { #1-create-the-task }
-```python
-# app/worker/tasks/notifications.py
-from uuid import UUID
+### 1. Den Job deklarieren { #1-declare-the-job }
 
-from prefect import flow
-
-from app.db.session import get_db_context
-from app.repositories import notification_repo
-
-
-@flow(name="send-notification", log_prints=True)
-async def send_notification_flow(notification_id: str) -> dict:
-    """Send a notification that a request has already written."""
-    # A flow opens its own session: the request's is long gone by now.
-    async with get_db_context() as db:
-        notification = await notification_repo.get_by_id(db, UUID(notification_id))
-        if notification is None:
-            # Reachable, and the whole reason for `spawn_after_commit` below.
-            raise ValueError(f"notification {notification_id} not found")
-        print(f"Sending {notification.title} on {notification.channel}")
-    return {"status": "sent", "notification_id": notification_id}
-```
-
-Der Flow nimmt eine **Id entgegen und liest die Zeile**, was die Form ist, die
-fast jeder echte Flow hat, und der Grund, warum die Übergabe weiter unten wichtig
-ist. Ein Flow, der nur seine Argumente ausgibt, würde in beiden Fällen
-funktionieren und nichts lehren.
-
-### 2. Ihn aus einem Service aufrufen { #2-call-it-from-a-service }
-
-!!! danger "Arbeit, die eine Zeile liest, die diese Anfrage geschrieben hat, nimmt `spawn_after_commit`"
-
-    `spawn` erzeugt den Task sofort, und die Schleife startet ihn, bevor die
-    Anfrage committet; der Flow öffnet also seine eigene Session und kann die
-    Zeile nicht sehen, deren Id er bekommen hat - ein Upload, der `processing`
-    antwortete und dabei blieb
-    ([#417](https://github.com/vstorm-co/agenticos/issues/417)). Ein nacktes
-    `asyncio.create_task` hat dieses Problem *und* verliert die Exception, weil
-    nichts eine Referenz auf den Task hält oder sein Ergebnis liest.
+Eine Job-Art wird in `app/worker/jobs.py` deklariert: ihr Payload, ihr Pool, ihre
+Versuche, ihr Zeitlimit und ihre Priorität. Das Modul importiert nur Pydantic,
+sodass der Service, der den Job einreiht, nie den Code importiert, der ihn
+ausführt.
 
 ```python
-from app.core.background import spawn, spawn_after_commit
-from app.worker.tasks.notifications import send_notification_flow
-from app.worker.tasks.reports import nightly_digest_flow
+# app/worker/jobs.py
+class SendNotification(Payload):
+    notification_id: UUID
 
-# A row this request just wrote. The flow reads it by id, so the task must not
-# start before the commit that makes it readable.
-spawn_after_commit(
-    self.db,
-    send_notification_flow(str(notification.id)),
-    name=f"notify:{notification.id}",
+
+SEND_NOTIFICATION = Task(
+    kind="send-notification",
+    payload_type=SendNotification,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=5),
+    priority=Priority.INTERACTIVE,
 )
-
-# Work that reads nothing this request wrote can start immediately.
-spawn(nightly_digest_flow(), name="digest:nightly")
 ```
 
-Beide halten eine Referenz auf den Task, damit er nicht mitten im Flug von der Garbage
-Collection eingesammelt wird, und beide loggen einen Fehlschlag mit dem `name`, den Sie
-ihnen gegeben haben - der einzige Kontext, den dieser Fehler je tragen wird, seien
-Sie also konkret.
+Ein Payload trägt **Kennungen und einfache Werte**, nie eine Zeile oder eine
+Session. Der Job liest die Zeile erst, wenn er läuft, und stellt dann die Rechte
+wieder her, die er braucht: Bis ein Worker ihn abholt, kann sich die Zeile
+geändert haben, und wer ihn angefordert hat, darf es vielleicht nicht mehr.
 
-### 3. Einen Zeitplan ergänzen (optional) { #3-add-scheduling-optional }
+Wählen Sie den Pool danach, was der Job verbraucht:
 
-Ein Zeitplan feuert mit **festen** Parametern, der Flow, den er nennt, muss also
-einer sein, der keine braucht — `send_notification_flow` oben nimmt die Id einer
-Zeile entgegen, die jemand geschrieben hat, und um neun Uhr morgens gibt es keine
-solche Id. Registrieren Sie den Flow, der sich seine Arbeit selbst sucht:
+| Pool | Wofür | Wie er läuft |
+|---|---|---|
+| `agent` | Runs von Agents und ausgelöste Trigger: lang, warten auf Modelle | Auf der Loop des Workers, `WORKER_AGENT_CONCURRENCY` gleichzeitig |
+| `ingest` | Parsen und Embeddings: viel CPU und Speicher | Ein Job pro Kindprozess, unter `WORKER_INGEST_MEMORY_MB` |
+| `system` | Aufräumläufe, Bereinigungen, Berichte: kurz | Auf der Loop des Workers, `WORKER_SYSTEM_CONCURRENCY` gleichzeitig |
+
+### 2. Den Handler schreiben und binden { #2-write-the-handler-and-bind-it }
 
 ```python
-from prefect.client.schemas.schedules import CronSchedule
-
-from app.worker.tasks.reports import nightly_digest_flow
-
-deployments.append(await nightly_digest_flow.ato_deployment(
-    name="daily-digest",
-    schedules=[CronSchedule(cron="0 9 * * *")],  # Daily at 9 AM
-))
+# app/worker/tasks/notification_tasks.py
+async def send_notification(job: SendNotification) -> None:
+    async with get_worker_db_context() as db:
+        notification = await notification_repo.get_by_id(db, job.notification_id)
+        if notification is None:
+            return  # deleted since it was queued: nothing left to send
+        await NotificationDelivery(db).send(notification)
 ```
 
-### 4. Den Worker starten { #4-run-the-worker }
+Binden Sie ihn in `production()` in `app/worker/handlers.py` an seine Art:
+
+```python
+Handler(jobs.SEND_NOTIFICATION, notification_tasks.send_notification),
+```
+
+Eine Exception lässt den Versuch scheitern, und der Job wird bis `max_attempts`
+wiederholt; Typ, Meldung und die letzten Frames landen in der Zeile des Jobs.
+Ein Payload, der sich nicht mehr validieren lässt, oder eine Art, die kein Worker
+kennt, scheitert sofort und ohne Wiederholung - er würde nur auf dieselbe Weise
+erneut scheitern. Ein Handler kann ein Pydantic-Modell zurückgeben, das als
+Ergebnis des Jobs gespeichert wird.
+
+### 3. Ihn aus einem Service einreihen { #3-queue-it-from-a-service }
+
+```python
+from app.services.background_jobs import enqueue
+from app.worker.jobs import SEND_NOTIFICATION, SendNotification
+
+await enqueue(
+    self.db,
+    SEND_NOTIFICATION,
+    SendNotification(notification_id=notification.id),
+    organization_id=notification.organization_id,
+)
+```
+
+Der Job wird in der Transaktion der Anfrage geschrieben, er existiert also genau
+dann, wenn die Zeile existiert, die er nennt: Eine zurückgerollte Anfrage reiht
+nichts ein, und eine committete weckt die Worker des Pools per `NOTIFY` erst,
+wenn die Zeile lesbar ist. Das war das Wettrennen aus
+[#417](https://github.com/vstorm-co/agenticos/issues/417), geschlossen durch die
+Konstruktion statt durch `spawn_after_commit`.
+
+Drei Optionen bestimmen, wie sich Kopien eines Jobs verhalten:
+
+- `dedupe_key` hält höchstens eine eingereihte Kopie. Mit `dedupe_active=True`
+  verwirft auch eine laufende Kopie die neue - ein Sync, der bereits läuft, macht
+  eine zweite Anforderung überflüssig.
+- `concurrency_key` lässt Kopien warten, führt sie aber nacheinander aus, etwa
+  zwei Syncs derselben Quelle.
+- `run_after` verzögert den ersten Versuch.
+
+### 4. Ihn planen (optional) { #4-schedule-it-optional }
+
+Ein wiederkehrender Job wird in `SCHEDULES` in `app/worker/schedules.py`
+deklariert. Sein Payload ist ein `Tick`, der das Vorkommen nennt, für das er
+ausgelöst wurde, sodass ein Job über einen Zeitraum - ein Wochenbericht - weiß,
+welcher Zeitraum gemeint ist:
+
+```python
+Schedule("send-digest", jobs.SEND_DIGEST, timedelta(days=1)),
+```
+
+Jeder Zeitplan ist ein Intervall auf einem festen Raster, das in
+`background_schedules` liegt; nach einem Neustart geht es dort weiter, wo der
+letzte Worker aufgehört hat. Zwei Einstellungen bestimmen, was ein ungünstiges
+Vorkommen tut:
+
+- **`misfire`**, für eines, das mehr als `grace` (eine Minute) zu spät kommt:
+  `latest` löst einmal für den ganzen Rückstand aus, `skip` wartet auf das
+  nächste. Nichts wird je einmal pro verpasstem Vorkommen ausgelöst.
+- **`overlap`**, für eines, das eintrifft, während der vorige Job wartet oder
+  läuft: `skip` verwirft es, `queue` lässt eines dahinter warten, `allow` führt
+  es parallel aus.
+
+Aufräumläufe über den aktuellen Zustand bleiben bei den Vorgaben `latest` und
+`skip`. Ein Job, dessen Run einen eigenen Zeitraum abdeckt, wie die
+Nutzungsberichte, bekommt `overlap=QUEUE`, damit eine langsame Woche keine Woche
+wird, deren Bericht niemand erhält.
+
+### 5. Den Worker starten { #5-run-the-worker }
 
 ```bash
-# The prefect-server + prefect-runner containers start with `make dev`.
-# To run the runner directly (registers deployments + polls for work):
-uv run --directory backend python -m app.worker.prefect_app
-# Prefect UI: http://localhost:4200
+make dev                                   # API, worker, frontend, Postgres, Redis
+uv run --directory backend python -m app.worker   # the worker on its own
 ```
 
-!!! warning "Ein kurzer Zeitplan ist billig hinzugefügt, aber nicht umsonst"
+`WORKER_POOLS` begrenzt, welche Pools ein Worker bedient, sodass ein Deployment
+Ingestion auf einem größeren Host laufen lassen kann. Jeder Worker führt die
+Zeitpläne aus; ihr Abholen nimmt jeden fälligen Zeitplan genau einmal, egal wie
+viele Worker im selben Moment ticken.
 
-    Höchstens `PREFECT_RUNNER_LIMIT` Runs laufen gleichzeitig (Voreinstellung 5),
-    der Rest wartet in der Warteschlange. Jeder Run ist ein Prozess, der die
-    ganze Anwendung importiert, wählen Sie also das längste Intervall, das die
-    Frage noch beantwortet.
+## Wenn etwas schiefgeht { #when-something-goes-wrong }
 
-Das Intervall entscheidet auch darüber, wie viel Arbeit sich nach einer Ausfallzeit
-angesammelt hat. Übergeben Sie `concurrency_limit=_ONE_AT_A_TIME`, wenn der
-Flow den aktuellen Zustand durchsucht, wie die Sweeps in `prefect_app.py`: Der
-Server weist dann einen Tick ab, der eintrifft, während der vorige noch läuft,
-bevor der Runner einen Prozess dafür startet, sodass ein Host, der nicht
-nachkommt, Ticks verwirft, statt jeden auszuführen. Lassen Sie es bei einem
-Deployment auf Abruf weg, bei dem jeder Run eigene Arbeit ist, und bei einem
-Flow, dessen Run einen eigenen Zeitraum abdeckt, wie die Nutzungsberichte oder
-der Digest oben.
+Ein Job, der seinen Worker fünfmal hintereinander umgebracht hat, pausiert seine
+**Art**: Kein Worker holt sie ab, bis der Eigentümer des Deployments sie auf der
+Seite Background jobs fortsetzt, und jeder Eigentümer erfährt es in der App und
+per E-Mail. Ein toter Job lässt sich dort erneut versuchen, ein eingereihter
+abbrechen. Jede dieser Aktionen wird auditiert.
+
+!!! note "Wann `spawn_after_commit` weiterhin richtig ist"
+
+    Arbeit, deren Verlust bei einem Neustart niemandem schadet - ein Cache, der
+    vorgewärmt wird, eine Benachrichtigung über etwas, das auch anderswo sichtbar
+    ist -, kann weiterhin an `spawn_after_commit` gehen. Sie läuft auf der Loop der
+    API selbst, halten Sie sie also kurz, und machen Sie alles, was geschehen
+    muss, zu einem Job.
+
+## Tests { #testing }
+
+Führen Sie den Handler eines Jobs direkt in einem Unit-Test aus; er ist eine
+gewöhnliche Coroutine. Einreihen und Abholen werden gegen die echte Datenbank in
+`backend/tests/integration/test_background_job_queue.py` getestet, ein Worker,
+der wirklich umgebracht wird, in
+`backend/tests/integration/test_worker_runtime.py` - beginnen Sie dort, wenn eine
+Änderung die Warteschlange selbst berührt.

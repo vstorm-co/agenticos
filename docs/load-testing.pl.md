@@ -1,5 +1,5 @@
 ---
-source_sha: "53546688c766"
+source_sha: "f9aed6805833"
 ---
 
 # Testy obciążeniowe i odpornościowe { #load-and-resilience-testing }
@@ -110,9 +110,9 @@ nich, zamiast mierzyć wdrożenie, które nie może wykonać pracy:
 1. zmigrowana baza i Redis;
 2. odpowiadający model stub, **pod adresem, do którego API sięgnie** — patrz niżej;
 3. fikstura — `make load-seed`, raz;
-4. Prefect, jeśli obciążenie `trigger_fire` ma cokolwiek znaczyć. Bez niego
-   webhook jest przyjmowany, a jego dyspozycja zawodzi, co raport pokazuje jako
-   500 na tym obciążeniu, zamiast to ukrywać.
+4. worker (`python -m app.worker`), jeśli obciążenie `trigger_fire` ma cokolwiek
+   znaczyć. Bez niego webhook jest przyjmowany, a jego odpalenie czeka w kolejce,
+   więc obciążenie mierzy drzwi, a nie run.
 
 ### Gdzie ma słuchać stub { #where-the-stub-has-to-listen }
 

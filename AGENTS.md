@@ -19,7 +19,7 @@ agent through its spec; change Python when implementing platform behaviour or
 capabilities. Tools reach models through the capability registry.
 
 **Stack:** FastAPI, Pydantic v2, Pydantic AI, PostgreSQL with pgvector, Redis,
-Prefect, Next.js, React, bun, next-intl and MkDocs Material. Use versions from the
+Next.js, React, bun, next-intl and MkDocs Material. Use versions from the
 repository manifests and lockfiles; Python is pinned in `backend/.python-version`.
 
 The repository originated from the Full-Stack AI Agent Template. Platform and
@@ -53,9 +53,12 @@ template-inherited subsystems have different coverage gates, described below.
   explicitly commit before the model call and in terminal cleanup, and
   `SessionService.detect_refresh_reuse` commits the security response its caller
   is about to raise past. See `docs/architecture.md#the-requests-transaction`.
-- Dispatch background work needing rows written by the request with
-  `spawn_after_commit`, so its own session can see those rows. See
-  `docs/architecture.md#dispatching-background-work-from-a-request`.
+- Queue background work that must happen as a job with
+  `app.services.background_jobs.enqueue`, in the request's own transaction, so it
+  commits with the rows it reads. Best-effort work that may be lost goes to
+  `spawn_after_commit`. See
+  `docs/architecture.md#dispatching-background-work-from-a-request` and the
+  `background-task` skill.
 - Collection routes use `require(...)` gates. Per-resource routes for agents, skills
   and collections delegate to a service using `resolve_access`; a role gate must
   not reject access allowed by a resource grant. Follow `permissions-rbac`.
@@ -101,7 +104,7 @@ Skills live in `.claude/skills/<name>/SKILL.md`. Read the skills matching the ta
 | MCP servers, or an integration with a SaaS product | `mcp-connections` |
 | Ingestion, retrieval, connectors, parsers | `rag-knowledge` |
 | Telegram / Slack / Mattermost | `channel-bot` |
-| Prefect flows, or work that outlives a request | `background-task` |
+| Background jobs, schedules, or work that outlives a request | `background-task` |
 | A schema change or a backfill | `alembic-migration` |
 | Backend tests, or a failing coverage gate | `backend-tests` |
 | A Playwright spec | `e2e-tests` |

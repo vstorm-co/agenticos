@@ -1,5 +1,5 @@
 ---
-source_sha: "9121fc5ca757"
+source_sha: "716cdf4abccd"
 title: "Eingehende Support-Anfragen aus Ihrer eigenen App triagieren"
 description: "Lösen Sie einen Agent aus Ihrem eigenen Backend mit einem signierten Webhook aus und lassen Sie ihn klassifizieren, eine Antwort entwerfen und Sicherheitsmeldungen markieren."
 ---
@@ -87,7 +87,7 @@ Wiederholen Sie das für T-1002 und T-1003. Jede angenommene Zustellung antworte
 ## Wenn etwas schiefgeht { #when-it-goes-wrong }
 
 - **Jede Zustellung kommt als `403` zurück.** Die Signatur deckt die *genauen* gesendeten Bytes ab. `echo` hängt einen abschließenden Zeilenumbruch an, der zum Signierten passen kann oder nicht. Verwenden Sie `printf '%s'` und `curl --data-raw`, und lassen Sie nie zu, dass ein Client ein Dictionary neu kodiert, nachdem Sie den String signiert haben.
-- **`202`, aber kein Run erscheint.** Das heißt angenommen, nicht fertig: Ein Prefect-Flow führt ihn im Worker aus. Geben Sie ihm ein paar Sekunden und prüfen Sie Activity, gefiltert auf den Agent.
+- **`202`, aber kein Run erscheint.** Das heißt angenommen, nicht fertig: Ein Job führt ihn im Worker aus. Geben Sie ihm ein paar Sekunden und prüfen Sie Activity, gefiltert auf den Agent; erscheint nie etwas, suchen Sie den `fire-trigger`-Job auf der Seite Background jobs.
 - **Die Sicherheitsmarkierung hat nicht ausgelöst.** Die Markierung kommt aus den Instruktionen, nicht aus einem eingebauten Klassifikator. Lesen Sie den Prompt des Triggers erneut und schärfen Sie, was als Sicherheitsmeldung zählt, wenn ein synthetischer Fall wie T-1003 übersehen wird.
 - **Sie wollen nur den Prompt testen, nicht den Zustellweg.** Nutzen Sie zuerst **Run now** am Trigger. Es löst den Basis-Prompt des Agents ohne Zustellungskontext, ohne Signatur und ohne Webhook aus. Das prüft die Klassifizierung nicht, weil es kein Ticket-JSON zum Klassifizieren gibt, bestätigt aber, dass Agent, Budget und Veröffentlichungsstatus funktionieren.
 - **Zapier oder Make statt eines Skripts.** Keines von beiden hat eine eingebaute HMAC-Aktion. Planen Sie eine Stunde für einen Code-Schritt ein, der den Body signiert, nicht fünf Minuten Klicken. Siehe [Trigger](../triggers.md#zapier-and-make-cannot-do-this-without-a-code-step).

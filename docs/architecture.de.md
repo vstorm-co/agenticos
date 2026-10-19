@@ -1,5 +1,5 @@
 ---
-source_sha: "d6244bf5e175"
+source_sha: "64760597cdc5"
 ---
 
 # Architektur { #architecture }
@@ -274,82 +274,68 @@ und was er bewusst in Ruhe lässt.
 
 ### Hintergrundarbeit aus einer Anfrage heraus anstoßen { #dispatching-background-work-from-a-request }
 
-**Arbeit, die eine Zeile lesen wird, die diese Anfrage geschrieben hat, wird mit
-`spawn_after_commit` übergeben, nie mit `spawn`** (beide in
-`app/core/background.py`):
+**Arbeit, die geschehen muss, ist ein Job, eingereiht in der eigenen Transaktion
+der Anfrage.** `app.services.background_jobs.enqueue` schreibt die Zeile des Jobs
+auf die Session der Anfrage, sie wird also mit den Zeilen committet, die sie
+nennt, oder gar nicht:
 
 ```python
-from app.core.background import spawn_after_commit
+from app.services.background_jobs import enqueue
+from app.worker.jobs import FIRE_TRIGGER, FireTrigger
 
-spawn_after_commit(self.db, ingest_document_flow(rag_document_id=str(doc.id)), name=...)
+await enqueue(self.db, FIRE_TRIGGER, FireTrigger(trigger_id=trigger.id), organization_id=org_id)
 ```
 
-`spawn` erzeugt den Task sofort, und die Loop startet ihn am nächsten
-Unterbrechungspunkt — das ist Schritt 1 oder 2 oben, vor dem Commit. Der Flow
-öffnet korrekterweise eine eigene Session, kann unter `READ COMMITTED` also keine
-Zeile sehen, die diese Anfrage nicht committet hat: Er sucht das Dokument, dessen
-Id er bekommen hat, findet nichts und hört auf. Das ist [#417][417], und seine
-sichtbare Gestalt ist ein Upload, der mit `{"status": "processing"}` beantwortet
-wird und für immer so bleibt.
+Eine zurückgerollte Anfrage reiht nichts ein, und eine committete weckt die
+Worker des Pools per `NOTIFY`, das PostgreSQL erst beim Commit zustellt - kein
+Worker kann einen Job also abholen, bevor die Zeile existiert, die er liest. Das
+schließt [#417][417] durch die Konstruktion: ein Upload, der mit
+`{"status": "processing"}` antwortete und so blieb, weil die Arbeit vor dem
+Commit begann und ihre eigene Session das Dokument nicht sehen konnte. Ein
+Upload, ein Sync, den jemand gestartet hat, jedes Auslösen eines Triggers -
+geplant, zugestellt oder „run now“ -, ein asynchroner API-Run und das Aufräumen
+dessen, was außerhalb der Datenbank liegt, nach einem Löschen werden alle so
+übergeben.
 
-`spawn_after_commit` stellt die Coroutine stattdessen auf der Session in die
-Warteschlange. Nichts startet sie vor Schritt 3, zwei Statements nachdem
-`commit()` zurückgekehrt ist, sodass ein so angestoßener Flow eine Zeile liest,
-der die Datenbank bereits zugestimmt hat. So werden ein Dokument-Upload, eine von
-jemandem gestartete Synchronisation, der Stream einer Channel-Connection und das
-manuelle „run now“ eines Triggers allesamt übergeben. Die Reihenfolge ist gegen
-eine echte Datenbank in `tests/integration/test_flow_starts_after_commit.py`
-nachgewiesen.
+Das manuelle Auslösen eines Triggers steht hier aus einem zweiten Grund, der
+einen Namen verdient: `POST /agents/{id}/triggers/{id}/run` hat früher auf den
+gestarteten Run *gewartet*, sodass ein Agent, der langsamer war als das
+Lese-Timeout eines Proxys, mit 504 antwortete, während der Run weiterlief und
+committete - ein Fehler, gemeldet für etwas, das funktionierte, und eine
+Einladung, den Knopf noch einmal zu drücken ([#658][658]). Die Route antwortet
+mit `202`, sobald der Job eingereiht ist.
 
-Am anderen Ende des Prozesslebens schließt die Lifespan der Anwendung den Kreis:
-Nachdem die Annahme gestoppt und das Ausliefern abgeflossen ist, `await`et sie
-`background.drain()` für alles, was `spawn` übergeben hat und noch unterwegs ist,
-**bevor** sie den Vector Store, Redis und die Session verwirft, aus denen diese
-Tasks lesen. Ohne das brach ein Herunterfahren mitten in der Ingestion den Flow ab
-und ließ das Dokument in `processing` zurück — dieselbe feststeckende Zeile wie
-[#417][417], vom anderen Ende her erreicht.
+**Ein Löschen, dessen Eingabe der eigene Commit zerstört, reiht sein Aufräumen in
+diesem Commit ein.** Das Löschen einer Organisation reicht die Speicherpfade und
+Collection-Namen weiter, deren letzten Eintrag seine Transaktion entfernt, also
+schreibt `queue_external_state_cleanup` sie in Aufräum-Jobs auf derselben
+Session: Ein Absturz zwischen Commit und Aufräumen verliert nichts, und der Job
+wird wiederholt, bis die Dateien und Vektor-Collections weg sind.
 
-Die manuelle Auslösung des Triggers steht dort aus einem zweiten, nennenswerten
-Grund, denn er ist die andere Hälfte davon, warum eine Anfrage überhaupt Arbeit
-übergibt: `POST /agents/{id}/triggers/{id}/run` hat den gestarteten Run früher
-*abgewartet*, sodass ein Agent, der langsamer war als das Lesezeitlimit eines
-Proxys, mit 504 antwortete, während der Run weiterlief und committete — ein
-Fehlschlag, gemeldet für etwas, das funktionierte, und eine Einladung, die
-Schaltfläche erneut zu drücken und den Zeitplan zweimal auszulösen ([#658][658]).
-Die Route antwortet mit `202`, und die Auslösung startet nach dem Commit.
+**Arbeit, die verloren gehen darf, nutzt `spawn_after_commit`**
+(`app/core/background.py`): kurze Arbeit ohne Garantie auf der Loop der API
+selbst, etwa die Erreichbarkeit eines MCP-Servers festzuhalten oder Dateien zu
+löschen, auf die ein Artefakt nicht mehr verweist. Sie reiht die Coroutine an der
+Session ein und startet sie zwei Anweisungen nach `commit()`; die Reihenfolge ist
+gegen eine echte Datenbank in `tests/integration/test_flow_starts_after_commit.py`
+belegt. Beim Herunterfahren wartet die Lifespan auf `background.drain()`, bevor
+sie verwirft, was diese Tasks lesen.
 
-!!! warning "Es ist keine Warteschlange, die den Prozess überlebt"
+Zwei Dinge folgen daraus, wo diese Queue liegt:
 
-    `spawn_after_commit` führt die Arbeit nur aus, wenn der Prozess lange genug
-    lebt, um sie zu starten. Das ist in Ordnung für Arbeit, die eine spätere
-    Anfrage reproduzieren kann, und nicht in Ordnung für Arbeit, deren *Eingabe*
-    der Commit gerade zerstört hat - eine Organisationslöschung übergibt die Pfade
-    und Collection-Namen, deren letzten Nachweis ihr eigener Commit entfernt hat,
-    ein Absturz zwischen beiden verliert sie also endgültig.
+- **Sie gehört der Session, nicht der Anfrage.** Ein Service, der Arbeit
+  übergibt, muss nicht wissen, ob er aus einer Route, einem WebSocket-Handler,
+  der CLI oder einem Worker aufgerufen wurde - deshalb sind das nicht die
+  `BackgroundTasks` von FastAPI, deren Zusicherung die Antwort betrifft und die
+  jene drei anderen Aufrufer nicht haben.
+- **Eine zurückgerollte Transaktion stößt nichts an.** Die eingereihten
+  Coroutines werden geschlossen, denn Arbeit auszuführen, deren Zeile verworfen
+  wurde, verschiebt den Fehler nur an eine schwerer erklärbare Stelle.
 
-    Wo das zutrifft, wird die Absicht als Zeile in derselben Transaktion
-    geschrieben, und die Übergabe wird zur Optimierung: `teardown_intents` benennt,
-    was noch freizugeben ist, der Flow löscht die Zeile, sobald er es getan hat,
-    und ein Durchlauf stößt erneut an, was nichts zu Ende gebracht hat. Das Fehlen
-    der Zeile ist der Abschluss, eine leere Tabelle heißt also, dass nichts
-    aussteht.
-
-Aus dem Ort der Warteschlange folgen zwei Dinge:
-
-- **Sie gehört zur Session, nicht zur Anfrage.** Ein Service, der einen Flow
-  anstößt, muss nicht wissen, ob er von einer Route, einem WebSocket-Handler, der
-  CLI oder einem Worker aufgerufen wurde — und darum ist das nicht FastAPIs
-  `BackgroundTasks`, dessen Garantie sich auf die Antwort bezieht und das jene
-  drei anderen Aufrufer nicht haben.
-- **Eine zurückgerollte Transaktion stößt nichts an.** Schritt 3 wird übersprungen
-  und die eingereihten Coroutinen werden geschlossen, denn Arbeit auszuführen,
-  deren Zeile verworfen wurde, verschiebt den Fehlschlag nur an eine Stelle, an der
-  er weniger erklärlich ist.
-
-`spawn` bleibt richtig für Arbeit, die alles Nötige selbst besitzt — die
-Benachrichtigungs-E-Mails in `app/services/notifications.py` tragen ihren eigenen
-Kontext und berühren keine Zeile. Keines von beiden ist eine Job-Queue: Alles, was
-einen Neustart überleben muss, ist ein Prefect-Deployment.
+`spawn` bleibt richtig für Arbeit, die alles Nötige selbst besitzt und keine
+Zeile berührt - die Kanal-Webhooks übergeben ihm jede Zustellung, damit der
+Provider sofort eine Antwort bekommt. Nichts davon übersteht einen Neustart; ein
+Job schon. Siehe [Einen Hintergrund-Task hinzufügen](howto/add-background-task.md).
 
 [3]: https://github.com/vstorm-co/agenticos/issues/3
 [12]: https://github.com/vstorm-co/agenticos/issues/12
@@ -981,7 +967,9 @@ durchgearbeitetes Beispiel.
   `SessionService.detect_refresh_reuse` committet die soeben widerrufene Session
   und den Eintrag, der sagt warum — denn sein Aufrufer wirft unmittelbar danach
   einen 401, und das Zurückrollen würde beides rückgängig machen.
-- Hintergrundarbeit, die eine Zeile liest, die diese Anfrage geschrieben hat, wird
-  mit **`spawn_after_commit`** übergeben, nie mit `spawn`.
+- Hintergrundarbeit, die geschehen muss, ist ein **Job, eingereiht in der
+  Transaktion der Anfrage** (`enqueue`); Arbeit ohne Garantie, die eine Zeile
+  liest, die diese Anfrage geschrieben hat, wird mit **`spawn_after_commit`**
+  übergeben, nie mit `spawn`.
 - Eine dünne Domäne ist ein Modul; eine dicke ist ein Subpackage mit einer Fassade,
   und nichts außerhalb importiert deren Sub-Module.

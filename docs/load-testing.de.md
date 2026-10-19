@@ -1,5 +1,5 @@
 ---
-source_sha: "53546688c766"
+source_sha: "f9aed6805833"
 ---
 
 # Last- und Belastbarkeitstests { #load-and-resilience-testing }
@@ -114,9 +114,9 @@ Start, statt ein Deployment zu messen, das die Arbeit nicht tun kann:
 1. eine migrierte Datenbank und Redis;
 2. das antwortende Stub-Modell, **unter einer Adresse, die die API erreicht** — siehe unten;
 3. die Fixture — `make load-seed`, einmal;
-4. Prefect, wenn die Last `trigger_fire` etwas bedeuten soll. Ohne ihn wird ein
-   Webhook angenommen und seine Weitergabe scheitert, was der Bericht als 500er auf
-   dieser Last zeigt, statt es zu verbergen.
+4. ein Worker (`python -m app.worker`), wenn die Last `trigger_fire` etwas
+   bedeuten soll. Ohne ihn wird ein Webhook angenommen, und sein Auslösen wartet
+   in der Queue, die Last misst also die Tür und nicht den Run.
 
 ### Wo der Stub lauschen muss { #where-the-stub-has-to-listen }
 

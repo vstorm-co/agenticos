@@ -29,6 +29,56 @@ Two things are versioned separately from this file and worth knowing about:
   organization (404) and a move out of the base. A config key patched to
   `null` is now removed rather than kept by the merge, so a field cleared in
   the form is cleared on the source. Contributed by @henfircreo in #2199.
+- **An agent run over the API can answer at once and be polled.** Sent with
+  `Prefer: respond-async`, `POST /agents/{id}/run` answers `202` with a run
+  request and a `Location` of `GET /api/v1/run-requests/{id}`, and a worker
+  runs the agent through the same runner, budget and approvals. An
+  `Idempotency-Key` makes a retry safe: the same key and body answer the same
+  request, a different body is a `409`. The key's authority is checked again
+  when the run starts, so a key revoked while its run waited does not run it
+  (#2219).
+- **A schedule says what to do when its last run is still going.** *If the
+  previous run is still going* - `overlap` in the API - is `skip` (the new
+  default), `queue` or `allow` (#2219).
+- **Admin → Background jobs**, for the deployment's owner: jobs by state and
+  pool with their attempts and last error, the workers alive, the schedules,
+  and Retry, Cancel and Resume, each audited (#2219).
+- **A kind of job that keeps killing its worker is paused, and the owners are
+  told.** After `WORKER_BREAKER_DEATHS` (5) deaths in a row, nothing claims
+  that kind until an owner resumes it; every app admin gets an in-app and an
+  email notification that cannot be switched off (#2219).
+
+### Changed
+
+- **BREAKING: background work runs on a job queue in PostgreSQL instead of
+  Prefect** (#2219). A worker, `python -m app.worker` from the backend image,
+  replaces the `prefect-server` and `prefect-runner` services. A job's attempt
+  is counted when it is claimed, so a job that runs its process out of memory
+  cannot loop; ingestion runs in child processes under a memory watchdog
+  (`WORKER_INGEST_MEMORY_MB`), so one heavy document no longer takes the worker
+  with it. Uploads, syncs, trigger fires and a delete's cleanup are queued in
+  the request's own transaction. A deployment upgrading from 1.7 has to:
+  - replace its compose files, so the `worker` service exists and the two
+    Prefect services do not;
+  - drop the `PREFECT_*` variables and `WORKER_MIN_INTERVAL_SECONDS`, and
+    size the worker with the `WORKER_*` settings in
+    [Configuration](docs/configuration.md#background-work);
+  - run the migrations, which add `background_jobs`, `background_schedules`,
+    `background_task_kinds`, `background_workers` and `agent_triggers.overlap`.
+  Runs Prefect still held queued are not carried over, so stop new uploads
+  while upgrading; the schedules pick up on their next occurrence.
+- **A busy schedule now skips by default.** Before, a schedule whose run was
+  still going fired once as soon as it ended; existing schedules take `skip`.
+  Set `overlap` to `queue` for the old behaviour.
+- **`agenticos cmd doctor` and the health probe read the queue.** They fail
+  when no worker has beaten for two minutes, a minute schedule has not fired
+  for five intervals, or a kind of job is paused.
+
+### Removed
+
+- **Prefect.** The `prefect` dependency and the 39 Python distributions only it
+  needed, the Prefect UI on port 4200, the `prefect_data` volume and the
+  `PREFECT_*` settings are gone (#2219).
 
 ## [1.7.1] - 2026-10-19
 

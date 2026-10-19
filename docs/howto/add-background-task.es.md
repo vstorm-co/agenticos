@@ -1,114 +1,171 @@
 ---
-source_sha: "0698462cb81b"
+source_sha: "957a4208f188"
 ---
 
 # Añade una tarea en segundo plano { #add-a-background-task }
 
-El trabajo en segundo plano corre fuera del ciclo petición-respuesta. Este
-proyecto usa **Prefect** para todo lo programado o de larga duración, y
-`app/core/background.py` para el trabajo que una petición entrega.
+El trabajo que dura más que una petición es un **job** en la tabla
+`background_jobs`: un servicio lo encola en su propia transacción, y un worker
+(`python -m app.worker`) lo recoge, lo ejecuta y anota cómo terminó. La misma
+tabla guarda los jobs recurrentes del despliegue. `app/core/background.py` queda
+para el trabajo pequeño y sin garantías que una petición entrega a su propio
+proceso.
+
+Un job es duradero donde una tarea en el bucle de la API no lo es. Sobrevive a
+un reinicio, se reintenta con esperas crecientes, y un job que mata a su worker
+- también por falta de memoria - ya ha gastado su intento, así que no puede
+entrar en bucle. Lo que hizo aparece en la página Background jobs.
 
 ## Paso a paso { #step-by-step }
 
-### 1. Crea la tarea { #1-create-the-task }
-```python
-# app/worker/tasks/notifications.py
-from uuid import UUID
+### 1. Declara el job { #1-declare-the-job }
 
-from prefect import flow
-
-from app.db.session import get_db_context
-from app.repositories import notification_repo
-
-
-@flow(name="send-notification", log_prints=True)
-async def send_notification_flow(notification_id: str) -> dict:
-    """Send a notification that a request has already written."""
-    # A flow opens its own session: the request's is long gone by now.
-    async with get_db_context() as db:
-        notification = await notification_repo.get_by_id(db, UUID(notification_id))
-        if notification is None:
-            # Reachable, and the whole reason for `spawn_after_commit` below.
-            raise ValueError(f"notification {notification_id} not found")
-        print(f"Sending {notification.title} on {notification.channel}")
-    return {"status": "sent", "notification_id": notification_id}
-```
-
-El flow recibe un **id y lee la fila**, que es la forma que tiene casi todo flow
-real y el motivo por el que importa la entrega de más abajo. Un flow que solo
-imprimiera sus argumentos funcionaría de cualquiera de las dos maneras y no
-enseñaría nada.
-
-### 2. Llámalo desde un servicio { #2-call-it-from-a-service }
-
-!!! danger "El trabajo que lee una fila escrita por esta petición se lanza con `spawn_after_commit`"
-
-    `spawn` crea la tarea de inmediato y el bucle la arranca antes de que la
-    petición haga commit, así que el flow abre su propia sesión y no puede ver
-    la fila cuyo id recibió: una subida que respondía `processing` y se quedaba
-    así ([#417](https://github.com/vstorm-co/agenticos/issues/417)). Un
-    `asyncio.create_task` pelado tiene ese problema *y además* pierde la
-    excepción, porque nada guarda una referencia a la tarea ni lee su resultado.
+Un tipo de job se declara en `app/worker/jobs.py`: su payload, su pool, sus
+intentos, su tiempo límite y su prioridad. El módulo solo importa Pydantic, de
+modo que el servicio que encola el job nunca importa el código que lo ejecuta.
 
 ```python
-from app.core.background import spawn, spawn_after_commit
-from app.worker.tasks.notifications import send_notification_flow
-from app.worker.tasks.reports import nightly_digest_flow
+# app/worker/jobs.py
+class SendNotification(Payload):
+    notification_id: UUID
 
-# A row this request just wrote. The flow reads it by id, so the task must not
-# start before the commit that makes it readable.
-spawn_after_commit(
-    self.db,
-    send_notification_flow(str(notification.id)),
-    name=f"notify:{notification.id}",
+
+SEND_NOTIFICATION = Task(
+    kind="send-notification",
+    payload_type=SendNotification,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=5),
+    priority=Priority.INTERACTIVE,
 )
-
-# Work that reads nothing this request wrote can start immediately.
-spawn(nightly_digest_flow(), name="digest:nightly")
 ```
 
-Ambos guardan una referencia a la tarea para que el recolector de basura no se la
-lleve a medio vuelo, y ambos registran un fallo con el `name` que les hayas
-dado: el único contexto que ese error llevará nunca, así que sé concreto.
+Un payload lleva **identificadores y valores simples**, nunca una fila ni una
+sesión. El job lee la fila cuando se ejecuta y en ese momento recupera los
+permisos que necesita: para cuando un worker lo recoge, la fila puede haber
+cambiado y quien lo pidió puede haber perdido el acceso.
 
-### 3. Añade una programación (opcional) { #3-add-scheduling-optional }
+Elige el pool según lo que gasta el job:
 
-Una programación se dispara con parámetros **fijos**, así que el flow que nombra
-tiene que ser uno que no necesite ninguno: `send_notification_flow`, más arriba,
-recibe el id de una fila que alguien escribió, y a las nueve de la mañana no
-existe tal id. Registra el flow que sale a buscar su propio trabajo:
+| Pool | Para qué | Cómo se ejecuta |
+|---|---|---|
+| `agent` | Runs de agents y disparos de triggers: largos, esperan a los modelos | En el bucle del worker, `WORKER_AGENT_CONCURRENCY` a la vez |
+| `ingest` | Parseo y embeddings: mucha CPU y memoria | Un job por proceso hijo, bajo `WORKER_INGEST_MEMORY_MB` |
+| `system` | Barridos, limpiezas, informes: cortos | En el bucle del worker, `WORKER_SYSTEM_CONCURRENCY` a la vez |
+
+### 2. Escribe el handler y enlázalo { #2-write-the-handler-and-bind-it }
 
 ```python
-from prefect.client.schemas.schedules import CronSchedule
-
-from app.worker.tasks.reports import nightly_digest_flow
-
-deployments.append(await nightly_digest_flow.ato_deployment(
-    name="daily-digest",
-    schedules=[CronSchedule(cron="0 9 * * *")],  # Daily at 9 AM
-))
+# app/worker/tasks/notification_tasks.py
+async def send_notification(job: SendNotification) -> None:
+    async with get_worker_db_context() as db:
+        notification = await notification_repo.get_by_id(db, job.notification_id)
+        if notification is None:
+            return  # deleted since it was queued: nothing left to send
+        await NotificationDelivery(db).send(notification)
 ```
 
-### 4. Arranca el worker { #4-run-the-worker }
+Enlázalo a su tipo en `production()` en `app/worker/handlers.py`:
+
+```python
+Handler(jobs.SEND_NOTIFICATION, notification_tasks.send_notification),
+```
+
+Una excepción hace fallar el intento, y el job se reintenta hasta
+`max_attempts`; su tipo, su mensaje y los últimos frames quedan en la fila del
+job. Un payload que ya no valida, o un tipo que ningún worker conoce, falla de
+inmediato y sin reintentos: solo volvería a fallar igual. Un handler puede
+devolver un modelo de Pydantic, que se guarda como resultado del job.
+
+### 3. Encólalo desde un servicio { #3-queue-it-from-a-service }
+
+```python
+from app.services.background_jobs import enqueue
+from app.worker.jobs import SEND_NOTIFICATION, SendNotification
+
+await enqueue(
+    self.db,
+    SEND_NOTIFICATION,
+    SendNotification(notification_id=notification.id),
+    organization_id=notification.organization_id,
+)
+```
+
+El job se escribe en la transacción de la petición, así que existe exactamente
+cuando existe la fila que nombra: una petición revertida no encola nada, y una
+confirmada despierta a los workers del pool mediante `NOTIFY` solo cuando la
+fila ya se puede leer. Esa era la carrera de
+[#417](https://github.com/vstorm-co/agenticos/issues/417), cerrada por la propia
+construcción y no por `spawn_after_commit`.
+
+Tres opciones deciden cómo se comportan las copias de un job:
+
+- `dedupe_key` mantiene como mucho una copia encolada. Con `dedupe_active=True`,
+  también una copia en ejecución descarta la nueva: una sincronización que ya
+  está en marcha hace innecesaria una segunda petición.
+- `concurrency_key` deja que las copias esperen en cola, pero las ejecuta de una
+  en una, como dos sincronizaciones de la misma fuente.
+- `run_after` retrasa el primer intento.
+
+### 4. Prográmalo (opcional) { #4-schedule-it-optional }
+
+Un job recurrente se declara en `SCHEDULES` en `app/worker/schedules.py`. Su
+payload es un `Tick`, que nombra la ocurrencia para la que se disparó, de modo
+que un job que cubre un periodo - un informe semanal - sabe de qué periodo se
+trata:
+
+```python
+Schedule("send-digest", jobs.SEND_DIGEST, timedelta(days=1)),
+```
+
+Cada programación es un intervalo sobre una cuadrícula fija, guardada en
+`background_schedules`, así que tras un reinicio se sigue donde lo dejó el
+último worker. Dos ajustes deciden qué hace una ocurrencia incómoda:
+
+- **`misfire`**, para una que llega más tarde que `grace` (un minuto): `latest`
+  dispara una vez por todo el retraso acumulado, `skip` espera a la siguiente.
+  Nada se dispara nunca una vez por cada ocurrencia perdida.
+- **`overlap`**, para una que llega mientras el job anterior está en cola o en
+  ejecución: `skip` la descarta, `queue` deja que una espere detrás, `allow` la
+  ejecuta a la vez.
+
+Los barridos sobre el estado actual se quedan con los valores por defecto,
+`latest` y `skip`. Un job cuyo run cubre un periodo propio, como los informes de
+uso, lleva `overlap=QUEUE`, para que una semana lenta no sea una semana cuyo
+informe no recibe nadie.
+
+### 5. Arranca el worker { #5-run-the-worker }
 
 ```bash
-# The prefect-server + prefect-runner containers start with `make dev`.
-# To run the runner directly (registers deployments + polls for work):
-uv run --directory backend python -m app.worker.prefect_app
-# Prefect UI: http://localhost:4200
+make dev                                   # API, worker, frontend, Postgres, Redis
+uv run --directory backend python -m app.worker   # the worker on its own
 ```
 
-!!! warning "Una programación corta es barata de añadir, pero no gratis"
+`WORKER_POOLS` limita los pools que atiende un worker, de modo que un despliegue
+puede ejecutar la ingesta en un host más grande. Todos los workers ejecutan las
+programaciones; su recogida toma cada programación vencida una sola vez, por
+muchos workers que hagan tic en el mismo instante.
 
-    Como mucho se ejecutan a la vez `PREFECT_RUNNER_LIMIT` runs (5 por defecto) y
-    el resto hace cola. Cada run es un proceso que importa la aplicación entera,
-    así que prefiere el intervalo más largo que siga respondiendo a la pregunta.
+## Cuando algo sale mal { #when-something-goes-wrong }
 
-El intervalo decide también cuánto trabajo queda esperando tras una caída. Pasa
-`concurrency_limit=_ONE_AT_A_TIME` cuando el flow recorre el estado actual, como
-los sweeps de `prefect_app.py`: el servidor rechaza entonces un tick que llega
-mientras el anterior sigue en marcha, antes de que el runner arranque un proceso
-para él, así que una máquina que no da abasto descarta ticks en lugar de
-ejecutarlos todos. No lo pongas en un deployment bajo demanda, donde cada run es
-un trabajo propio, ni en un flow cuyo run cubre un periodo propio, como los
-informes de uso o el digest de arriba.
+Un job que ha matado a su worker cinco veces seguidas pausa su **tipo**: ningún
+worker lo recoge hasta que el propietario del despliegue lo reanuda en la página
+Background jobs, y cada propietario recibe un aviso en la aplicación y por
+correo. Desde esa página, un job muerto se puede reintentar y uno encolado,
+cancelar. Cada acción queda auditada.
+
+!!! note "Cuándo `spawn_after_commit` sigue siendo la opción correcta"
+
+    El trabajo cuya pérdida en un reinicio no perjudica a nadie - una caché que se
+    precalienta, un aviso de algo que también se ve en otro sitio - puede seguir
+    yendo a `spawn_after_commit`. Se ejecuta en el propio bucle de la API, así que
+    mantenlo corto y haz que todo lo que tenga que ocurrir sea un job.
+
+## Pruebas { #testing }
+
+Ejecuta el handler de un job directamente en una prueba unitaria; es una
+corrutina corriente. El encolado y la recogida se prueban contra la base de
+datos real en `backend/tests/integration/test_background_job_queue.py`, y un
+worker al que se mata de verdad en
+`backend/tests/integration/test_worker_runtime.py`: empieza por ahí cuando un
+cambio toca la propia cola.

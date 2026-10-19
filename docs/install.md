@@ -56,8 +56,8 @@ curl -fsSLO https://raw.githubusercontent.com/vstorm-co/agenticos/main/docker-co
 docker compose up -d
 ```
 
-That pulls the images and starts **Postgres (with pgvector), Redis, the Prefect
-server and runner, the API and the console**, runs the migrations, and answers on
+That pulls the images and starts **Postgres (with pgvector), Redis, the API, the
+background worker and the console**, runs the migrations, and answers on
 <http://localhost:3000>. The first pull is about 2 GB.
 
 ```mermaid
@@ -66,9 +66,7 @@ flowchart LR
     A --> PG[("postgres<br/>pgvector")]
     A --> RD[("redis")]
     A --> SD["sandboxd<br/><i>holds the Docker socket</i>"]
-    A --> PF["prefect server"]
-    PF --> WK["prefect runner"]
-    WK --> PG
+    WK["worker<br/><i>claims jobs</i>"] --> PG
     M["migrate<br/><i>runs once, exits</i>"] --> PG
 ```
 
@@ -132,9 +130,7 @@ flowchart LR
     A --> PG[("postgres<br/>pgvector, :5432")]
     A --> RD[("redis<br/>:6379")]
     A --> SD["sandboxd<br/><i>holds the Docker socket</i>"]
-    A --> PF["prefect server<br/>:4200"]
-    PF --> WK["prefect runner"]
-    WK --> PG
+    WK["worker<br/><i>claims jobs</i>"] --> PG
 ```
 
 Migrations run as the `migrate` service every time the stack starts, and are a
@@ -283,7 +279,7 @@ And where everything is:
 | API | <http://localhost:8000> |
 | OpenAPI docs | <http://localhost:8000/docs> |
 | Django-style admin | <http://localhost:8000/admin> |
-| Prefect UI | <http://localhost:4200> |
+| Background jobs | <http://localhost:3000/admin/background-jobs> - as the deployment's owner |
 | Postgres | `localhost:5432` (`postgres` / `postgres`) - published by the clone's override file only |
 | Redis | `localhost:6379` - the same |
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "4d356103b6b2"
+source_sha: "9aaadca44156"
 ---
 
 <div class="agenticos-hero" markdown>
@@ -304,8 +304,8 @@ Frage kam.
 ## Stack { #stack }
 
 FastAPI und Pydantic v2 auf PostgreSQL, [Pydantic AI](https://ai.pydantic.dev)
-für die Agent-Laufzeit, pgvector für Retrieval, Prefect für Hintergrundarbeit und
-Next.js 15 für die Konsole.
+für die Agent-Laufzeit, pgvector für Retrieval, eine Job-Queue in demselben
+PostgreSQL für Hintergrundarbeit und Next.js 15 für die Konsole.
 
 Externe Ziele hängen von Modell-, Parser-, Embedding-, Werkzeug-, Kanal-, Sandbox- und Tracing-Konfiguration ab. Prüfen Sie den [Datenfluss](security.md).
 

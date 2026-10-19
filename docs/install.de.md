@@ -1,5 +1,5 @@
 ---
-source_sha: "fcddf28be3f1"
+source_sha: "21c8388d1983"
 ---
 
 # Installation { #install }
@@ -65,8 +65,8 @@ curl -fsSLO https://raw.githubusercontent.com/vstorm-co/agenticos/main/docker-co
 docker compose up -d
 ```
 
-Das holt die Images und startet **Postgres (mit pgvector), Redis, den
-Prefect-Server und -Runner, die API und die Konsole**, führt die Migrationen aus
+Das holt die Images und startet **Postgres (mit pgvector), Redis, die API, den
+Hintergrund-Worker und die Konsole**, führt die Migrationen aus
 und antwortet unter <http://localhost:3000>. Der erste Pull umfasst rund 2 GB.
 
 ```mermaid
@@ -75,9 +75,7 @@ flowchart LR
     A --> PG[("postgres<br/>pgvector")]
     A --> RD[("redis")]
     A --> SD["sandboxd<br/><i>holds the Docker socket</i>"]
-    A --> PF["prefect server"]
-    PF --> WK["prefect runner"]
-    WK --> PG
+    WK["worker<br/><i>claims jobs</i>"] --> PG
     M["migrate<br/><i>runs once, exits</i>"] --> PG
 ```
 
@@ -144,9 +142,7 @@ flowchart LR
     A --> PG[("postgres<br/>pgvector, :5432")]
     A --> RD[("redis<br/>:6379")]
     A --> SD["sandboxd<br/><i>holds the Docker socket</i>"]
-    A --> PF["prefect server<br/>:4200"]
-    PF --> WK["prefect runner"]
-    WK --> PG
+    WK["worker<br/><i>claims jobs</i>"] --> PG
 ```
 
 Die Migrationen laufen bei jedem Start des Stacks als `migrate`-Dienst und tun
@@ -303,7 +299,7 @@ Und wo alles liegt:
 | API | <http://localhost:8000> |
 | OpenAPI-Dokumentation | <http://localhost:8000/docs> |
 | Admin im Django-Stil | <http://localhost:8000/admin> |
-| Prefect-UI | <http://localhost:4200> |
+| Background jobs | <http://localhost:3000/admin/background-jobs> - als Eigentümer des Deployments |
 | Postgres | `localhost:5432` (`postgres` / `postgres`) - nur von der Override-Datei des Klons veröffentlicht |
 | Redis | `localhost:6379` - dasselbe |
 
