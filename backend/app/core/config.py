@@ -247,7 +247,12 @@ class Settings(BaseSettings):
 
     DB_POOL_SIZE: int = 5
     DB_MAX_OVERFLOW: int = 10
-    DB_POOL_TIMEOUT: int = 30
+    # How long a caller waits for a free connection. Five seconds, not thirty:
+    # under a burst a request that waited thirty was lost anyway, and the queue
+    # of waiters held every connection long after the burst had passed - the
+    # load suite's recovery phase failed 65-78% at 30 s and 5-20% at 5 s (#2219).
+    # The handler answers the timeout `503` with `Retry-After`.
+    DB_POOL_TIMEOUT: int = 5
 
     SECRET_KEY: str = "change-me-in-production-use-openssl-rand-hex-32"
 

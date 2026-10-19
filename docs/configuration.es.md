@@ -1,5 +1,5 @@
 ---
-source_sha: "7f6dd97b4209"
+source_sha: "e439e97ab671"
 ---
 
 # Configuración { #configuration }
@@ -305,7 +305,7 @@ El frontend muestra el botón con `kerberos` en `OAUTH_PROVIDERS`, y lo nombra c
 | `POSTGRES_SSLMODE` | (empty) | Cifra la conexión: `require`, `verify-ca` o `verify-full`. Vacío es texto plano. Ver [Conexiones cifradas](#encrypted-connections-tls) |
 | `DB_POOL_SIZE` | `5` | Tamaño del pool de conexiones |
 | `DB_MAX_OVERFLOW` | `10` | Máximo de conexiones de desbordamiento |
-| `DB_POOL_TIMEOUT` | `30` | Tiempo de espera del pool, en segundos |
+| `DB_POOL_TIMEOUT` | `5` | Segundos que una petición espera una conexión libre antes de recibir `503` con `Retry-After`. Corto a propósito: una petición que esperó 30 s ya estaba perdida, y la cola de peticiones en espera mantenía el pool lleno después de un pico |
 
 Propiedades calculadas:
 - `DATABASE_URL` -- cadena de conexión asíncrona (`postgresql+asyncpg://...`)

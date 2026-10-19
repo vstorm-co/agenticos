@@ -1,5 +1,5 @@
 ---
-source_sha: "7f6dd97b4209"
+source_sha: "e439e97ab671"
 ---
 
 # Konfiguracja { #configuration }
@@ -297,7 +297,7 @@ według `KERBEROS_DISPLAY_NAME` (domyślnie `Kerberos`).
 | `POSTGRES_SSLMODE` | (empty) | Szyfruj połączenie: `require`, `verify-ca` albo `verify-full`. Pusta wartość to plaintext. Zobacz [Szyfrowane połączenia](#encrypted-connections-tls) |
 | `DB_POOL_SIZE` | `5` | Rozmiar puli połączeń |
 | `DB_MAX_OVERFLOW` | `10` | Maksymalna liczba połączeń ponad pulę |
-| `DB_POOL_TIMEOUT` | `30` | Timeout puli w sekundach |
+| `DB_POOL_TIMEOUT` | `5` | Ile sekund żądanie czeka na wolne połączenie, zanim dostanie `503` z `Retry-After`. Celowo krótko: żądanie, które czekało 30 s, i tak było stracone, a kolejka czekających trzymała pulę pełną jeszcze po burście |
 
 Właściwości wyliczane:
 - `DATABASE_URL` -- asynchroniczny connection string (`postgresql+asyncpg://...`)

@@ -113,6 +113,16 @@ Two things are versioned separately from this file and worth knowing about:
   socket is connected.** A thread's running state already arrives over the
   socket; the poll is the fallback for when it is down, and goes back to 4 s
   then. Next.js 16.4.2.
+- **An API out of database connections answers `503` within five seconds.**
+  `DB_POOL_TIMEOUT` defaults to 5 instead of 30, and a request that waited it
+  out gets `503 SERVICE_BUSY` with `Retry-After: 5` instead of a 500 and a
+  logged traceback. Thirty seconds of waiting kept a queue of requests holding
+  the pool after a burst had passed: in the load suite at twice the burst rate,
+  65-78% of requests still failed in the recovery phase, and 5-20% do now.
+- **The production compose file gives Postgres `max_connections=200`.** The
+  default four API workers can open 120 connections between their two pools,
+  and the worker another 30; at the stock 100 Postgres refused them before any
+  pool could queue or shed the load.
 - **A busy schedule now skips by default.** Before, a schedule whose run was
   still going fired once as soon as it ended; existing schedules take `skip`.
   Set `overlap` to `queue` for the old behaviour.

@@ -1,5 +1,5 @@
 ---
-source_sha: "7f6dd97b4209"
+source_sha: "e439e97ab671"
 ---
 
 # Konfiguration { #configuration }
@@ -307,7 +307,7 @@ mit `KERBEROS_DISPLAY_NAME` (Standard `Kerberos`).
 | `POSTGRES_SSLMODE` | (empty) | Die Verbindung verschlüsseln: `require`, `verify-ca` oder `verify-full`. Leer heißt Klartext. Siehe [Verschlüsselte Verbindungen](#encrypted-connections-tls) |
 | `DB_POOL_SIZE` | `5` | Größe des Connection Pools |
 | `DB_MAX_OVERFLOW` | `10` | Maximale Overflow-Verbindungen |
-| `DB_POOL_TIMEOUT` | `30` | Pool-Timeout in Sekunden |
+| `DB_POOL_TIMEOUT` | `5` | Sekunden, die eine Anfrage auf eine freie Verbindung wartet, bevor sie mit `503` und `Retry-After` beantwortet wird. Absichtlich kurz: Eine Anfrage, die 30 s wartete, war ohnehin verloren, und die Schlange der Wartenden hielt den Pool nach einer Lastspitze voll |
 
 Berechnete Eigenschaften:
 - `DATABASE_URL` -- asynchroner Connection String (`postgresql+asyncpg://...`)

@@ -165,12 +165,21 @@ services:
     # be holding on top. `random_page_cost` and `effective_io_concurrency` say
     # the storage is an SSD, which every deployment of this now is.
     #
+    # `max_connections` is sized to what the pools can open, not left at 100.
+    # Each API worker holds two pools of `DB_POOL_SIZE + DB_MAX_OVERFLOW` (15) -
+    # the session's and the vector store's - so the default four workers can open
+    # 120, and the background worker another 30 plus its listener and its ingest
+    # children. Past 100, Postgres refuses the connection outright with "too many
+    # clients", before any pool timeout or 503 can shed the load in order. Raise
+    # it with `UVICORN_WORKERS` or the pool settings.
+    #
     # `pg_stat_statements` records what each statement costs, which is the only
     # place a slow query shows up without reading logs (#2228). It has to be
     # loaded at server start; the migration that creates the extension is
     # `0143_pg_stat_statements`, and `doctor` says whether it is recording.
     command: >-
       postgres
+      -c max_connections=200
       -c shared_preload_libraries=pg_stat_statements
       -c shared_buffers=512MB
       -c effective_cache_size=1536MB
