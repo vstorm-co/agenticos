@@ -87,7 +87,7 @@ class TestTheRouteListIsFlattenedOnce:
 
     def test_a_list_that_grows_is_flattened_again(self, monkeypatch):
         """A test adding a route to the app must see it matched."""
-        monkeypatch.setattr(otel_compat, "_upstream_flatten_routes", lambda routes: iter(routes))
+        monkeypatch.setattr(otel_compat, "_upstream_flatten_routes", iter)
         monkeypatch.setattr(otel_compat, "_flattened", {})
         routes = ["a"]
         otel_compat.flatten_routes(routes)
