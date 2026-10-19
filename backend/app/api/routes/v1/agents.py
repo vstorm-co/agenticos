@@ -322,9 +322,12 @@ async def get_agent(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> Any
     agent = await service.get(ctx, agent_id)
     # `model_validate` reads the row's columns and parses `draft_spec` (JSONB) into
     # `AgentSpec` off the schema field, so this route names only the one value the
-    # row does not carry: `can_run` is this caller's, not the agent's (#545).
+    # row does not carry: `can_run` and `can_edit` are this caller's, not the agent's.
     return AgentDetail.model_validate(agent).model_copy(
-        update={"can_run": await service.may_run(ctx, agent)}
+        update={
+            "can_run": await service.may_run(ctx, agent),
+            "can_edit": await service.may_edit(ctx, agent),
+        }
     )
 
 

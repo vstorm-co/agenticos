@@ -2049,3 +2049,30 @@ async def test_a_run_cancelled_before_its_reruns_queues_none(db) -> None:
         select(EvalRunCase).where(EvalRunCase.eval_run_id == v7.id, EvalRunCase.attempt > 0)
     )
     assert reruns.all() == []
+
+
+@pytest.mark.security
+async def test_who_may_edit_an_agent_is_read_per_agent_not_off_the_role(db) -> None:
+    """What the console reads to offer Test draft, Stop and Publish on an eval run."""
+    owner = await _owner(db)
+    agent, _ = await _agent(db, owner)
+    agent.visibility = "private"
+    editor = await _member(db, owner, OrgRoleName.VIEWER)
+    reader = await _member(db, owner, OrgRoleName.VIEWER)
+    for member, level in ((editor, GrantLevel.EDIT), (reader, GrantLevel.READ)):
+        db.add(
+            ResourceGrant(
+                organization_id=owner.organization_id,
+                subject_user_id=member.user_id,
+                resource_type="agent",
+                resource_id=agent.id,
+                level=level.value,
+            )
+        )
+    await db.flush()
+    registry = AgentRegistryService(db)
+
+    for ctx, editable in ((owner, True), (editor, True), (reader, False)):
+        assert await registry.may_edit(ctx, agent) is editable
+        rows, _ = await registry.list_agents(ctx)
+        assert [(row.id, row.can_edit) for row in rows] == [(agent.id, editable)]
