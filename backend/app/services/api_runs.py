@@ -1,0 +1,210 @@
+"""Running an agent over the API without holding the connection open (#2219).
+
+`POST /agents/{id}/run` answers when the run does, which a run of minutes - a
+browse, a long tool chain - turns into a proxy timeout. Sent with
+`Prefer: respond-async`, it answers `202` with a request to poll instead, and a
+worker runs the agent through the same runner, the same budget and the same
+books as the synchronous call.
+
+What is checked when, deliberately: the conversation and the attachments are
+checked in the request, so an unknown conversation is a `404` the caller sees at
+once rather than a failure it polls for. The caller's authority is checked
+again when the run starts - by the worker, from the key's current state - so a
+key revoked while its run waited does not run it.
+
+An `Idempotency-Key` makes a retry safe: the same key and the same request answer
+the same run request, in any state; the same key with a different request is a
+`409`, never a second run.
+"""
+
+import hashlib
+import json
+from uuid import UUID
+
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.exceptions import AlreadyExistsError, AuthenticationError, NotFoundError
+from app.core.permissions import AuthContext
+from app.db.models.agent_run import RunSurface
+from app.db.models.background_job import BackgroundJob, JobStatus
+from app.repositories import background_job as background_job_repo
+from app.repositories import member as member_repo
+from app.repositories import user as user_repo
+from app.schemas.agent import AgentRunRequest, AgentRunResult, RunRequestRead, RunRequestStatus
+from app.services.agent_runner import AgentRunnerService
+from app.services.api_key import ApiKeyService
+from app.services.attachments import load_attached_files
+from app.services.background_jobs import enqueue
+from app.services.conversation import ConversationService
+from app.worker.jobs import RUN_AGENT, RunAgent
+
+_STATUS: dict[JobStatus, RunRequestStatus] = {
+    "queued": "queued",
+    "running": "running",
+    "succeeded": "completed",
+    "dead": "failed",
+    "cancelled": "cancelled",
+}
+
+
+def digest(agent_id: UUID, request: AgentRunRequest) -> str:
+    """A request's fingerprint, the same for the same agent and body however it is sent."""
+    body = {"agent_id": str(agent_id), **request.model_dump(mode="json")}
+    return hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()
+
+
+class ApiRunService:
+    def __init__(self, db: AsyncSession) -> None:
+        self.db = db
+
+    async def queue(
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        request: AgentRunRequest,
+        *,
+        idempotency_key: str | None,
+    ) -> RunRequestRead:
+        """Check what can be checked now, queue the run, and answer the request to poll.
+
+        Raises:
+            AlreadyExistsError: `idempotency_key` was used for a different request.
+            NotFoundError: The conversation is unknown or not the caller's.
+            BadRequestError: The conversation was not opened over the API.
+        """
+        fingerprint = digest(agent_id, request)
+        if idempotency_key is not None:
+            existing = await background_job_repo.get_by_idempotency_key(
+                self.db, organization_id=ctx.organization_id, idempotency_key=idempotency_key
+            )
+            if existing is not None:
+                return self._replay(existing, fingerprint)
+        conversation_id, _history = await ConversationService(self.db).for_api_run(
+            ctx, request.conversation_id, prompt=request.prompt
+        )
+        attached = await load_attached_files(
+            self.db, [str(file_id) for file_id in request.file_ids], user_id=ctx.subject_id
+        )
+        payload = RunAgent(
+            agent_id=agent_id,
+            organization_id=ctx.organization_id,
+            user_id=ctx.subject_id,
+            api_key_id=ctx.api_key_id,
+            prompt=request.prompt,
+            conversation_id=conversation_id,
+            environment_id=request.environment_id,
+            file_ids=[file.id for file in attached],
+            digest=fingerprint,
+        )
+        try:
+            async with self.db.begin_nested():
+                job_id = await enqueue(
+                    self.db,
+                    RUN_AGENT,
+                    payload,
+                    organization_id=ctx.organization_id,
+                    idempotency_key=idempotency_key,
+                )
+        except IntegrityError:
+            # Another request with the same key won the race between the lookup
+            # above and this insert; answer as its replay.
+            assert idempotency_key is not None
+            winner = await background_job_repo.get_by_idempotency_key(
+                self.db, organization_id=ctx.organization_id, idempotency_key=idempotency_key
+            )
+            assert winner is not None
+            return self._replay(winner, fingerprint)
+        assert job_id is not None, "a run request carries no dedupe key that could drop it"
+        job = await background_job_repo.get(self.db, job_id)
+        assert job is not None
+        await self.db.refresh(job)
+        return self._read(job)
+
+    async def get(self, ctx: AuthContext, request_id: UUID) -> RunRequestRead:
+        """The caller's own run request, wherever it has got to.
+
+        Somebody else's - another organization's, or another person's in this
+        one - answers as missing, so a request id cannot be probed.
+        """
+        job = await background_job_repo.get(self.db, request_id)
+        if job is None or job.kind != RUN_AGENT.kind or job.organization_id != ctx.organization_id:
+            raise NotFoundError(message="Run request not found", details={"id": str(request_id)})
+        if RUN_AGENT.load(job.payload).user_id != ctx.subject_id:
+            raise NotFoundError(message="Run request not found", details={"id": str(request_id)})
+        return self._read(job)
+
+    async def run(self, job: RunAgent) -> AgentRunResult:
+        """What the worker does with a queued request: the synchronous call, made now."""
+        ctx = await self._context(job, ApiKeyService(self.db))
+        _conversation_id, history = await ConversationService(self.db).for_api_run(
+            ctx, job.conversation_id, prompt=job.prompt
+        )
+        attachments = await load_attached_files(
+            self.db, [str(file_id) for file_id in job.file_ids], user_id=ctx.subject_id
+        )
+        runner = AgentRunnerService(self.db)
+        output, run = await runner.execute(
+            ctx,
+            job.agent_id,
+            job.prompt,
+            surface=RunSurface.API,
+            conversation_id=job.conversation_id,
+            message_history=history,
+            environment_id=job.environment_id,
+            attachments=attachments,
+            reports_failure=True,
+        )
+        return AgentRunResult(
+            run_id=run.id,
+            conversation_id=job.conversation_id,
+            output=output,
+            status=run.status,
+            cost_usd=run.cost_usd,
+            cost_is_partial=run.cost_is_partial,
+            input_tokens=run.input_tokens,
+            output_tokens=run.output_tokens,
+            cache_read_tokens=run.cache_read_tokens,
+            cache_write_tokens=run.cache_write_tokens,
+            parked=await runner.parked_calls(ctx, run),
+        )
+
+    async def _context(self, job: RunAgent, keys: ApiKeyService) -> AuthContext:
+        """The asker's authority as it stands now, not as it stood when they asked."""
+        if job.api_key_id is not None:
+            return await keys.context_for_key(job.api_key_id, organization_id=job.organization_id)
+        membership = await member_repo.get_active(
+            self.db, organization_id=job.organization_id, user_id=job.user_id
+        )
+        user = await user_repo.get_by_id(self.db, job.user_id)
+        if membership is None or user is None or not user.is_active:
+            raise AuthenticationError(
+                message="The person who asked for this run can no longer run it"
+            )
+        return AuthContext(
+            user_id=job.user_id,
+            organization_id=job.organization_id,
+            role=membership.role,
+            is_app_admin=user.is_app_admin,
+        )
+
+    def _replay(self, job: BackgroundJob, fingerprint: str) -> RunRequestRead:
+        if job.kind != RUN_AGENT.kind or RUN_AGENT.load(job.payload).digest != fingerprint:
+            raise AlreadyExistsError(
+                message="This Idempotency-Key was already used for a different request",
+                details={"id": str(job.id)},
+            )
+        return self._read(job)
+
+    @staticmethod
+    def _read(job: BackgroundJob) -> RunRequestRead:
+        payload = RUN_AGENT.load(job.payload)
+        return RunRequestRead(
+            id=job.id,
+            status=_STATUS[job.status],
+            conversation_id=payload.conversation_id,
+            created_at=job.created_at,
+            finished_at=job.finished_at,
+            error=job.last_error if job.status == "dead" else None,
+            result=None if job.result is None else AgentRunResult.model_validate(job.result),
+        )

@@ -80,6 +80,7 @@ async def add(
     dedupe_active: bool = False,
     concurrency_key: str | None = None,
     schedule_name: str | None = None,
+    idempotency_key: str | None = None,
 ) -> UUID | None:
     """Queue a job in the caller's transaction, and wake the pool's workers when it commits.
 
@@ -101,6 +102,7 @@ async def add(
         "dedupe_key": dedupe_key,
         "concurrency_key": concurrency_key,
         "schedule_name": schedule_name,
+        "idempotency_key": idempotency_key,
     }
     if run_after is not None:
         values["run_after"] = run_after
@@ -198,9 +200,11 @@ async def extend_leases(db: AsyncSession, *, worker_id: str, lease: timedelta) -
     return len(rows.all())
 
 
-async def complete(db: AsyncSession, job_id: UUID, *, fence: int) -> bool:
-    """Record a job done. `False` when the worker no longer held it."""
-    result = await db.execute(
+async def complete(
+    db: AsyncSession, job_id: UUID, *, fence: int, result: dict[str, JsonValue] | None = None
+) -> bool:
+    """Record a job done, with what it answered. `False` when the worker no longer held it."""
+    done = await db.execute(
         update(BackgroundJob)
         .where(
             BackgroundJob.id == job_id,
@@ -212,10 +216,11 @@ async def complete(db: AsyncSession, job_id: UUID, *, fence: int) -> bool:
             finished_at=func.now(),
             lease_until=None,
             last_error=None,
+            result=result,
         )
         .returning(BackgroundJob.id)
     )
-    return result.scalar_one_or_none() is not None
+    return done.scalar_one_or_none() is not None
 
 
 async def fail(
@@ -358,6 +363,19 @@ async def has_active_for_schedule(db: AsyncSession, schedule_name: str) -> bool:
 
 async def get(db: AsyncSession, job_id: UUID) -> BackgroundJob | None:
     return await db.get(BackgroundJob, job_id)
+
+
+async def get_by_idempotency_key(
+    db: AsyncSession, *, organization_id: UUID, idempotency_key: str
+) -> BackgroundJob | None:
+    """The job an organization already queued under this key, if any."""
+    result = await db.execute(
+        select(BackgroundJob).where(
+            BackgroundJob.organization_id == organization_id,
+            BackgroundJob.idempotency_key == idempotency_key,
+        )
+    )
+    return result.scalar_one_or_none()
 
 
 async def list_page(

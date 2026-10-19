@@ -48,6 +48,7 @@ async def enqueue[P: Payload](
     dedupe_active: bool = False,
     concurrency_key: str | None = None,
     schedule_name: str | None = None,
+    idempotency_key: str | None = None,
 ) -> UUID | None:
     """Queue `task` with `payload` in `db`'s transaction. `None` when a dedupe key dropped it.
 
@@ -70,6 +71,7 @@ async def enqueue[P: Payload](
         dedupe_active=dedupe_active,
         concurrency_key=concurrency_key,
         schedule_name=schedule_name,
+        idempotency_key=idempotency_key,
     )
 
 

@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class Succeeded:
-    pass
+    result: dict[str, JsonValue] | None = None
 
 
 @dataclass(frozen=True)
@@ -78,13 +78,13 @@ async def run_handler(handlers: Handlers, kind: str, payload: dict[str, JsonValu
     if handler is None:
         return Failed(f"no handler for the job kind {kind!r}", permanent=True)
     try:
-        await handler.execute(payload)
+        result = await handler.execute(payload)
     except ValidationError as exc:
         return Failed(describe(exc), permanent=True)
     except Exception as exc:
         logger.exception("background_job_failed", extra={"kind": kind})
         return Failed(describe(exc))
-    return Succeeded()
+    return Succeeded(result)
 
 
 @dataclass
@@ -268,7 +268,7 @@ class ChildPool:
             return Failed(f"the child process answered something unreadable: {line[:200]!r}")
         child.jobs_run += 1
         if reply.ok:
-            return Succeeded()
+            return Succeeded(reply.result)
         return Failed(reply.error or "the job failed without saying why", permanent=reply.permanent)
 
     async def _died(self, child: _Child) -> Died:

@@ -91,6 +91,22 @@ class FireTrigger(Payload):
     """The `fire_in_flight_since` the scheduled claim stamped - its claim ticket."""
 
 
+class RunAgent(Payload):
+    """An asynchronous `POST /agents/{id}/run`: who asked, and what they sent."""
+
+    agent_id: UUID
+    organization_id: UUID
+    user_id: UUID
+    api_key_id: UUID | None
+    """The key that asked, so the worker re-establishes its narrowed context; `None` for a session."""
+    prompt: str
+    conversation_id: UUID
+    environment_id: UUID | None
+    file_ids: list[UUID]
+    digest: str
+    """The request's fingerprint: an idempotent retry must send the same one."""
+
+
 class Restamp(Payload):
     collection: str
     organization_id: UUID
@@ -171,6 +187,17 @@ FIRE_TRIGGER = Task(
     timeout=timedelta(hours=3),
     priority=Priority.SCHEDULED,
 )
+# One attempt: a run a worker died under has already spent, and a second would
+# run the agent again - its model calls and its tools' side effects with it. The
+# caller reads `failed` and decides; that is what idempotency keys are for.
+RUN_AGENT = Task(
+    kind="run-agent",
+    payload_type=RunAgent,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(hours=3),
+    priority=Priority.INTERACTIVE,
+)
 CLEANUP_EXTERNAL_STATE = Task(
     kind="cleanup-external-state",
     payload_type=CleanupExternalState,
@@ -204,6 +231,7 @@ TASKS: dict[str, TaskKind] = {
         SYNC_COLLECTION,
         SYNC_SOURCE,
         FIRE_TRIGGER,
+        RUN_AGENT,
         CLEANUP_EXTERNAL_STATE,
         CHECK_AGENT_TRIGGERS,
         POLL_PORTAL_GRANTS,

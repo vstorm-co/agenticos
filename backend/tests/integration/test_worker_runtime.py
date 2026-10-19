@@ -188,6 +188,15 @@ async def test_a_job_runs_and_is_recorded_done_and_the_worker_says_it_is_alive(
         )
 
 
+async def test_what_a_job_finishes_with_is_kept_on_its_row(
+    sessions, tmp_path: Path, pauses: list[tuple[str, str]]
+) -> None:
+    async with running(sessions, tmp_path, pauses):
+        job_id = await _enqueue(sessions, SYSTEM_TASKS["answer"], Note(text="forty-two"))
+        job = await _until_status(sessions, job_id, "succeeded")
+    assert job.result == {"text": "forty-two"}
+
+
 async def test_a_failing_job_is_retried_and_left_dead_with_its_error(
     sessions, tmp_path: Path, pauses: list[tuple[str, str]]
 ) -> None:

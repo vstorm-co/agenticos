@@ -21,7 +21,8 @@ private variant, which is what keeps "the Builder is just another client" true.
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Header, Query, Response, UploadFile, status
+from fastapi.responses import JSONResponse
 
 from app.agents.capabilities import all_capabilities
 from app.agents.prompt_variables import SYSTEM_VARIABLES
@@ -29,17 +30,20 @@ from app.agents.spec import AgentSpec
 from app.api.deps import (
     AgentRegistrySvc,
     AgentRunnerSvc,
+    ApiRunSvc,
     Auth,
     ConversationSvc,
     DBSession,
     KnowledgeReachSvc,
     MentionSvc,
+    PrefersAsync,
     limit_agent_run,
     require,
 )
 from app.api.public_api import PUBLIC
 from app.api.routes.v1._stored_bytes import stored_image_response
-from app.core.exceptions import NotFoundError
+from app.core.config import settings
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import Perm
 from app.db.models.agent_run import RunSurface
 from app.schemas.agent import (
@@ -72,6 +76,7 @@ from app.schemas.agent import (
     PlatformMcpToolList,
     PromptVariableCatalog,
     PromptVariableRead,
+    RunRequestRead,
     SpecialistPromote,
     TemplateInstallRequest,
     TemplateInstallResult,
@@ -651,6 +656,14 @@ async def delete_agent(
             "500": "The run started and failed. `details.run_id` names it, and `message` says why.",
             "502": "The model provider refused or failed the run's request. "
             "`details.run_id` names the run, which is recorded as failed.",
+            "409": "With `Idempotency-Key`: the key was already used for a different request.",
+        }
+    },
+    responses={
+        202: {
+            "model": RunRequestRead,
+            "description": "Sent with `Prefer: respond-async`: the run is queued. Poll "
+            "`Location` (`GET /api/v1/run-requests/{id}`) for its outcome.",
         }
     },
     # Not a permission gate - see the boundary about `require(...)` on
@@ -663,8 +676,19 @@ async def run_agent(
     data: AgentRunRequest,
     service: AgentRunnerSvc,
     conversations: ConversationSvc,
+    api_runs: ApiRunSvc,
     db: DBSession,
     ctx: Auth,
+    respond_async: PrefersAsync,
+    idempotency_key: Annotated[
+        str | None,
+        Header(
+            alias="Idempotency-Key",
+            max_length=255,
+            description="With `Prefer: respond-async`: a retry under the same key answers "
+            "the same run request instead of starting another run.",
+        ),
+    ] = None,
 ) -> Any:
     """Run a published agent and return its answer.
 
@@ -680,7 +704,28 @@ async def run_agent(
     other. The surface whose whole purpose is "run it from your own backend" was
     the one that could not send a document, and a caller whose run stopped for an
     approval got an empty string and a status.
+
+    **Sent with `Prefer: respond-async` it answers `202` at once** (#2219): the run
+    is queued for a worker and the answer is a run request to poll, so a run of
+    minutes does not hold a connection - or a proxy's read timeout - open. Only
+    then is `Idempotency-Key` honoured; a synchronous call carrying one is refused
+    rather than letting the caller believe a retry is safe when it is not.
     """
+    if respond_async:
+        queued = await api_runs.queue(ctx, agent_id, data, idempotency_key=idempotency_key)
+        return JSONResponse(
+            status_code=status.HTTP_202_ACCEPTED,
+            content=queued.model_dump(mode="json"),
+            headers={
+                "Location": f"{settings.API_V1_STR}/run-requests/{queued.id}",
+                "Preference-Applied": "respond-async",
+            },
+        )
+    if idempotency_key is not None:
+        raise BadRequestError(
+            message="Idempotency-Key is honoured only with Prefer: respond-async",
+            details={"header": "Idempotency-Key"},
+        )
     # The caller's own conversation, checked - an unknown id was a foreign-key
     # 500, and somebody else's would have handed this run its workspace and its
     # plan (#1796) - or a new one, so the next call can continue it (#2122).

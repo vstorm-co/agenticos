@@ -46,6 +46,7 @@ class ChildReply(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     ok: bool
+    result: dict[str, JsonValue] | None = None
     error: str | None = None
     permanent: bool = False
     """The job can never succeed as queued - an unknown kind, a payload that does not validate."""
@@ -66,13 +67,13 @@ async def run_one(handlers: Handlers, request: ChildRequest) -> ChildReply:
             ok=False, error=f"no handler for the job kind {request.kind!r}", permanent=True
         )
     try:
-        await handler.execute(request.payload)
+        result = await handler.execute(request.payload)
     except ValidationError as exc:
         return ChildReply(ok=False, error=describe(exc), permanent=True)
     except Exception as exc:
         logger.exception("child_job_failed", extra={"kind": request.kind})
         return ChildReply(ok=False, error=describe(exc))
-    return ChildReply(ok=True)
+    return ChildReply(ok=True, result=result)
 
 
 async def serve(handlers: Handlers, requests: IO[str], replies: IO[str]) -> None:

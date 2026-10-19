@@ -219,8 +219,8 @@ class Worker:
     async def _record(self, db: AsyncSession, job: ClaimedJob, outcome: Outcome) -> None:
         fence = job.attempts
         match outcome:
-            case Succeeded():
-                if not await job_repo.complete(db, job.id, fence=fence):
+            case Succeeded(result=result):
+                if not await job_repo.complete(db, job.id, fence=fence, result=result):
                     await self._lost(db, job)
                     return
                 await kind_repo.record_survival(db, job.kind)

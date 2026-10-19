@@ -51,7 +51,7 @@ class BackgroundJob(Base, TimestampMixin):
     """Which workers run it: `agent`, `ingest` or `system`."""
     priority: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default="1")
     """`0` interactive, `1` scheduled, `2` bulk. Lower goes first."""
-    status: Mapped[str] = mapped_column(String(16), nullable=False, server_default="queued")
+    status: Mapped[JobStatus] = mapped_column(String(16), nullable=False, server_default="queued")
     payload: Mapped[dict[str, JsonValue]] = mapped_column(
         JSONB, nullable=False, server_default="{}"
     )
@@ -73,6 +73,10 @@ class BackgroundJob(Base, TimestampMixin):
     """At most one *running* job carries a given key: the rest wait their turn."""
     schedule_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
     """The schedule that fired it, when one did."""
+    idempotency_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    """A caller's own key for the request this job is: one job per key per organization."""
+    result: Mapped[dict[str, JsonValue] | None] = mapped_column(JSONB, nullable=True)
+    """What a job that answers someone - an asynchronous run - finished with."""
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
@@ -114,6 +118,13 @@ class BackgroundJob(Base, TimestampMixin):
         ),
         # The panel's listing, newest first, and the retention sweep's cutoff.
         Index("background_jobs_status_created_idx", "status", sa_text("created_at DESC")),
+        Index(
+            "background_jobs_idempotency_idx",
+            "organization_id",
+            "idempotency_key",
+            unique=True,
+            postgresql_where=sa_text("idempotency_key IS NOT NULL"),
+        ),
         Index(
             "background_jobs_schedule_idx",
             "schedule_name",

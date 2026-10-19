@@ -87,6 +87,8 @@ def upgrade() -> None:
         sa.Column("dedupe_key", sa.String(length=255), nullable=True),
         sa.Column("concurrency_key", sa.String(length=255), nullable=True),
         sa.Column("schedule_name", sa.String(length=64), nullable=True),
+        sa.Column("idempotency_key", sa.String(length=255), nullable=True),
+        sa.Column("result", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("finished_at", sa.DateTime(timezone=True), nullable=True),
         *_timestamps(),
@@ -134,6 +136,13 @@ def upgrade() -> None:
         "background_jobs_status_created_idx",
         "background_jobs",
         ["status", sa.text("created_at DESC")],
+    )
+    op.create_index(
+        "background_jobs_idempotency_idx",
+        "background_jobs",
+        ["organization_id", "idempotency_key"],
+        unique=True,
+        postgresql_where=sa.text("idempotency_key IS NOT NULL"),
     )
     op.create_index(
         "background_jobs_schedule_idx",
@@ -214,6 +223,7 @@ def downgrade() -> None:
     op.drop_table("background_task_kinds")
     op.drop_table("background_schedules")
     op.drop_index("background_jobs_schedule_idx", table_name="background_jobs")
+    op.drop_index("background_jobs_idempotency_idx", table_name="background_jobs")
     op.drop_index("background_jobs_status_created_idx", table_name="background_jobs")
     op.drop_index("background_jobs_concurrency_key_idx", table_name="background_jobs")
     op.drop_index("background_jobs_dedupe_key_idx", table_name="background_jobs")

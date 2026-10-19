@@ -810,6 +810,28 @@ class AgentRunResult(BaseSchema):
     )
 
 
+RunRequestStatus = Literal["queued", "running", "completed", "failed", "cancelled"]
+
+
+class RunRequestRead(BaseSchema):
+    """An asynchronous run: where it is, and once it has finished, what it answered."""
+
+    id: UUID = Field(description="The request to poll: `GET /api/v1/run-requests/{id}`.")
+    status: RunRequestStatus
+    conversation_id: UUID = Field(
+        description="The conversation the run files under, known from the moment it is queued."
+    )
+    created_at: datetime
+    finished_at: datetime | None = None
+    error: str | None = Field(
+        default=None, description="Why a failed request failed, in the platform's words."
+    )
+    result: AgentRunResult | None = Field(
+        default=None,
+        description="What the synchronous call would have answered, once the run has completed.",
+    )
+
+
 class AgentTemplateRead(BaseSchema):
     """One shipped template as the picker shows it - never the instructions."""
 

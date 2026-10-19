@@ -4,7 +4,7 @@ from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass
 from typing import Protocol
 
-from pydantic import JsonValue
+from pydantic import BaseModel, JsonValue
 
 from app.worker.jobs import Payload, Task, TaskKind
 
@@ -15,20 +15,29 @@ class JobHandler(Protocol):
     @property
     def task(self) -> TaskKind: ...
 
-    async def execute(self, raw: dict[str, JsonValue]) -> None:
-        """Validate `raw` as the task's payload and run it. Raises what the work raises."""
+    async def execute(self, raw: dict[str, JsonValue]) -> dict[str, JsonValue] | None:
+        """Validate `raw` as the task's payload and run it, answering what it reported.
+
+        Raises what the work raises.
+        """
         ...
 
 
 @dataclass(frozen=True)
 class Handler[P: Payload]:
-    """`run` bound to the task whose payload it takes."""
+    """`run` bound to the task whose payload it takes.
+
+    A run that answers a Pydantic model has that model kept on the job as its
+    result - the answer an asynchronous caller reads back. Anything else it
+    returns (a sweep's counts) is for its own tests and logs, and is not kept.
+    """
 
     task: Task[P]
     run: Callable[[P], Awaitable[object]]
 
-    async def execute(self, raw: dict[str, JsonValue]) -> None:
-        await self.run(self.task.load(raw))
+    async def execute(self, raw: dict[str, JsonValue]) -> dict[str, JsonValue] | None:
+        answer = await self.run(self.task.load(raw))
+        return answer.model_dump(mode="json") if isinstance(answer, BaseModel) else None
 
 
 Handlers = Mapping[str, JobHandler]

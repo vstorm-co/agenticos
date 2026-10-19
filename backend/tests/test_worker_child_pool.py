@@ -73,6 +73,12 @@ async def test_a_job_that_succeeds_in_a_child_says_so(pool: ChildPool) -> None:
     assert await _run(pool, "test-ok") == Succeeded()
 
 
+async def test_a_job_that_answers_in_a_child_sends_the_answer_back(pool: ChildPool) -> None:
+    assert await _run(pool, "test-answer", {"text": "forty-two"}) == Succeeded(
+        result={"text": "forty-two"}
+    )
+
+
 async def test_a_job_that_raises_reports_the_error_and_the_child_lives_on(pool: ChildPool) -> None:
     outcome = await _run(pool, "test-fail", {"text": "disk full"})
     assert isinstance(outcome, Failed)

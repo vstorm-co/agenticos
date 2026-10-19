@@ -1608,3 +1608,29 @@ def get_background_job_service(db: DBSession) -> BackgroundJobService:
 
 
 BackgroundJobSvc = Annotated[BackgroundJobService, Depends(get_background_job_service)]
+from app.services.api_runs import ApiRunService
+
+
+def get_api_run_service(db: DBSession) -> ApiRunService:
+    """Create ApiRunService instance with database session."""
+    return ApiRunService(db)
+
+
+ApiRunSvc = Annotated[ApiRunService, Depends(get_api_run_service)]
+
+
+def prefers_async(
+    prefer: Annotated[
+        str | None, Header(description="`respond-async` (RFC 7240) queues the request.")
+    ] = None,
+) -> bool:
+    """Whether the caller's `Prefer` header asks for `respond-async`, among whatever else it asks."""
+    if prefer is None:
+        return False
+    return any(
+        token.strip().split("=", 1)[0].strip().lower() == "respond-async"
+        for token in prefer.split(",")
+    )
+
+
+PrefersAsync = Annotated[bool, Depends(prefers_async)]

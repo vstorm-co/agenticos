@@ -42,6 +42,7 @@ def production() -> Handlers:
             Handler(jobs.SYNC_COLLECTION, rag_tasks.sync_collection),
             Handler(jobs.SYNC_SOURCE, rag_tasks.sync_source),
             Handler(jobs.FIRE_TRIGGER, trigger_tasks.fire_trigger),
+            Handler(jobs.RUN_AGENT, run_tasks.run_agent),
             Handler(jobs.CLEANUP_EXTERNAL_STATE, teardown_tasks.run_external_state_cleanup),
             Handler(jobs.CHECK_AGENT_TRIGGERS, _each_tick(trigger_tasks.check_agent_triggers)),
             Handler(jobs.POLL_PORTAL_GRANTS, _each_tick(trigger_tasks.poll_portal_grants)),
