@@ -14,6 +14,7 @@ interface Batch {
   timer: ReturnType<typeof setTimeout>;
   done: Promise<void>;
   resolve: () => void;
+  reject: (error: unknown) => void;
 }
 
 const batches = new WeakMap<QueryClient, Batch>();
@@ -27,19 +28,23 @@ function covers(prefix: QueryKey, key: QueryKey): boolean {
  * once each. A key a shorter one already covers is not sent twice.
  *
  * Resolves when the batch it joined has been refetched, so a caller that awaited
- * `invalidateQueries` still reads fresh data afterwards.
+ * `invalidateQueries` still reads fresh data afterwards - and rejects with the
+ * refetch's error, as `invalidateQueries` itself would have.
  */
 export function invalidateSoon(client: QueryClient, queryKey: QueryKey): Promise<void> {
   let batch = batches.get(client);
   if (batch === undefined) {
     let resolve!: () => void;
-    const done = new Promise<void>((settle) => {
+    let reject!: (error: unknown) => void;
+    const done = new Promise<void>((settle, fail) => {
       resolve = settle;
+      reject = fail;
     });
     const fresh: Batch = {
       keys: new Map(),
       done,
       resolve,
+      reject,
       timer: setTimeout(() => void flush(client, fresh), COALESCE_MS),
     };
     batches.set(client, fresh);
@@ -58,7 +63,9 @@ async function flush(client: QueryClient, batch: Batch): Promise<void> {
   }
   try {
     await Promise.all(sent.map((queryKey) => client.invalidateQueries({ queryKey })));
-  } finally {
-    batch.resolve();
+  } catch (error) {
+    batch.reject(error);
+    return;
   }
+  batch.resolve();
 }

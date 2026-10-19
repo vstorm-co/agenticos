@@ -39,14 +39,16 @@ describe("invalidateSoon", () => {
     expect(invalidate).toHaveBeenCalledTimes(2);
   });
 
-  it("resolves its callers even when the refetch fails", async () => {
+  it("hands a failed refetch to every caller of its batch, as invalidateQueries would", async () => {
     vi.useFakeTimers();
     const client = new QueryClient();
     vi.spyOn(client, "invalidateQueries").mockRejectedValue(new Error("offline"));
 
-    const settled = invalidateSoon(client, ["a"]).catch(() => "rejected");
+    const first = invalidateSoon(client, ["a"]).catch((error: Error) => error.message);
+    const second = invalidateSoon(client, ["b"]).catch((error: Error) => error.message);
     await vi.advanceTimersByTimeAsync(COALESCE_MS);
 
-    await expect(settled).resolves.toBeUndefined();
+    await expect(first).resolves.toBe("offline");
+    await expect(second).resolves.toBe("offline");
   });
 });
