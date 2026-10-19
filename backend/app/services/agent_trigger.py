@@ -42,7 +42,6 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, Literal, cast
 from uuid import UUID
 
-from croniter import croniter
 from fastapi.encoders import jsonable_encoder
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -51,6 +50,7 @@ from app.agents.system_agents import refuse_system_agent
 from app.core.audit import current_impersonator, record_audit, set_acting_trigger
 from app.core.background import spawn_after_commit
 from app.core.config import settings
+from app.core.cron import cron_has_next, cron_next
 from app.core.exceptions import (
     AppException,
     AuthorizationError,
@@ -80,7 +80,6 @@ from app.schemas.agent_trigger import (
     TriggerCreate,
     TriggerRead,
     TriggerUpdate,
-    _cron_has_next,
 )
 from app.schemas.portal import PortalPresetRead, PortalRead
 from app.services import portal_catalog, portals, trigger_dedupe, trigger_events
@@ -167,18 +166,6 @@ class EventFireDecision:
     event_context: str
 
 
-def _cron_next(expression: str, *, now: datetime) -> datetime:
-    """The first instant a cron expression matches strictly after `now`.
-
-    Evaluated in UTC: `now` is tz-aware UTC and croniter carries that tzinfo
-    through, so `0 9 * * *` fires at 09:00 UTC. The expression is validated when
-    the trigger is created (:class:`app.schemas.agent_trigger.TriggerCreate`), so
-    one read back off a row parses here.
-    """
-    # croniter ships no type information; the cast is what annotates the result.
-    return cast(datetime, croniter(expression, now).get_next(datetime))
-
-
 def _next_fire(
     *, schedule_kind: str, interval_seconds: int | None, cron_expression: str | None, now: datetime
 ) -> datetime:
@@ -193,7 +180,7 @@ def _next_fire(
     guard here would be an untestable branch under the 100% gate.
     """
     if schedule_kind == ScheduleKind.CRON.value:
-        return _cron_next(cast(str, cron_expression), now=now)
+        return cron_next(cast(str, cron_expression), now=now)
     return now + timedelta(seconds=cast(int, interval_seconds))
 
 
@@ -239,7 +226,7 @@ def _resolve_cadence(trigger: AgentTrigger, changes: dict[str, Any]) -> None:
         changes["cron_expression"] = None
     else:
         cron = changes.get("cron_expression", trigger.cron_expression)
-        if not cron or not _cron_has_next(cron):
+        if not cron or not cron_has_next(cron):
             raise BadRequestError(
                 message="a cron schedule needs a valid crontab expression that ever fires",
                 details={"trigger_id": str(trigger.id)},

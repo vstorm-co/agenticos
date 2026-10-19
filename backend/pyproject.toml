@@ -899,6 +899,7 @@ include = [
     "app/services/eval_run.py",
     "app/services/eval_run_worker.py",
     "app/api/routes/v1/eval_runs.py",
+    "app/core/cron.py",
     # Which past conversations an agent may search, and the full-text query over
     # them. The predicate is the whole of it - a way in added here is a way in for
     # every agent at once - so it is held to the same bar as the permission code
@@ -1385,6 +1386,7 @@ include = [
     "app/services/eval_run.py",
     "app/services/eval_run_worker.py",
     "app/api/routes/v1/eval_runs.py",
+    "app/core/cron.py",
     # Which past conversations an agent may search, and the full-text query over
     # them. The predicate is the whole of it - a way in added here is a way in for
     # every agent at once - so it is held to the same bar as the permission code
