@@ -95,8 +95,10 @@ export function DatasetsWidget({ title, hint, seeAll, options }: DashboardWidget
         <ul className="divide-border divide-y">
           {datasets.map((dataset) => (
             <li key={dataset.id}>
+              {/* Drafts waiting are what this card asks of its reader, so the row
+                  opens on them. */}
               <Link
-                href={`${ROUTES.DATASETS}/${dataset.id}`}
+                href={`${ROUTES.DATASETS}/${dataset.id}${dataset.pending_proposals > 0 ? "?tab=generated" : ""}`}
                 className="hover:bg-accent/40 flex flex-col gap-1 rounded-md px-1 py-2"
               >
                 <span className="flex items-center justify-between gap-3">

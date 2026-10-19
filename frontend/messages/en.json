@@ -7082,6 +7082,8 @@
     "generatedTab": "{count, plural, =0 {Generated} other {Generated · #}}",
     "generateIntro": "The case generator drafts cases for this dataset from the sources you pick. You see the estimated cost first, and every draft waits here until you accept, edit or dismiss it.",
     "generateAiOff": "Generating cases needs AI assistance, which is off for this organization.",
+    "editGenerator": "Edit the generator's instructions",
+    "generateMore": "{count, plural, =1 {More options · 1 case} other {More options · # cases}}",
     "moreActions": "More actions",
     "share": "Share",
     "delete": "Delete",

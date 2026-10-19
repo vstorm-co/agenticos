@@ -48,6 +48,20 @@ export function useJudges({ enabled = true } = {}) {
 }
 
 /**
+ * The organization's case generator, the system agent that drafts dataset cases;
+ * null where the caller cannot see it. Every other agent list leaves it out.
+ */
+export function useCaseGenerator({ enabled = true } = {}) {
+  const { data } = useQuery({
+    queryKey: qk.agents.generators(),
+    queryFn: () =>
+      apiClient.get<AgentList>("/agents", { params: { kind: "generator", limit: "100" } }),
+    enabled,
+  });
+  return data?.items.find((agent) => agent.system_key === "case_generator") ?? null;
+}
+
+/**
  * The agent registry.
  *
  * Mutations invalidate rather than patch the cache. An agent's status and

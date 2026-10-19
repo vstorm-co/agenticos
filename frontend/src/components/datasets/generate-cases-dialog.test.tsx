@@ -85,6 +85,9 @@ describe("GenerateCasesDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Estimate cost" }));
     await screen.findByText("20 cases, estimated $0.12");
 
+    // How many cases is folded: twenty unless somebody asks for another number.
+    expect(screen.queryByLabelText("Number of cases")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "More options · 20 cases" }));
     const count = screen.getByLabelText("Number of cases");
     await userEvent.clear(count);
     await userEvent.type(count, "8");
@@ -127,6 +130,24 @@ describe("GenerateCasesDialog", () => {
     start.mutateAsync.mockRejectedValueOnce(new Error("offline"));
     await userEvent.click(await screen.findByRole("button", { name: "Generate" }));
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
+  });
+
+  it("opens the folded count when the count is what was refused", async () => {
+    estimate.mutateAsync.mockRejectedValueOnce(
+      new ApiError(400, "refused", {
+        error: {
+          code: "BAD_REQUEST",
+          message: "refused",
+          details: { fields: [{ field: "count", message: "Ask for at most 12 cases here" }] },
+        },
+      }),
+    );
+    mount();
+    await chooseAgent();
+    await userEvent.click(screen.getByRole("button", { name: "Estimate cost" }));
+
+    expect(await screen.findByText("Ask for at most 12 cases here")).toBeInTheDocument();
+    expect(screen.getByLabelText("Number of cases")).toBeInTheDocument();
   });
 
   it("closes on cancel", async () => {

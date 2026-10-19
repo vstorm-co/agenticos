@@ -90,7 +90,7 @@ describe("DatasetsWidget", () => {
     expect(within(screen.getByRole("link", { name: /empty/ })).queryByText(/from chat/)).toBeNull();
   });
 
-  it("says how many drafted cases wait on a dataset, and nothing when none do", () => {
+  it("says how many drafted cases wait on a dataset, and opens it on them", () => {
     answer({
       datasets: [
         {
@@ -114,6 +114,11 @@ describe("DatasetsWidget", () => {
     widget();
     expect(screen.getByText("4 to review")).toBeInTheDocument();
     expect(screen.queryByText("0 to review")).toBeNull();
+    expect(screen.getByRole("link", { name: /refunds/ })).toHaveAttribute(
+      "href",
+      "/datasets/d1?tab=generated",
+    );
+    expect(screen.getByRole("link", { name: /billing/ })).toHaveAttribute("href", "/datasets/d2");
   });
 
   it("says what appears here when there is nothing yet, and offers to start one", async () => {

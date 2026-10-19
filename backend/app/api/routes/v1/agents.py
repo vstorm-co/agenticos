@@ -263,7 +263,10 @@ async def list_agents(
     include_archived: bool = Query(False),
     kind: AgentKind = Query(
         AgentKind.AGENT,
-        description="`agent` for the agents people use, `judge` for the ones grading evals",
+        description=(
+            "`agent` for the agents people use, `judge` for the ones grading evals, "
+            "`generator` for the one drafting dataset cases"
+        ),
     ),
     category: Annotated[
         list[str], Query(description="Keep agents in any of these categories")

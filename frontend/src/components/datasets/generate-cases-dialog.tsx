@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
+import { MoreOptions } from "@/components/ui/more-options";
 import { useAgents } from "@/hooks/use-agents";
 import { useGenerateCases } from "@/hooks/use-case-generation";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -148,24 +149,30 @@ export function GenerateCasesDialog({ datasetId, open, onOpenChange }: GenerateC
               })}
             </div>
           </FormField>
-          <FormField
-            htmlFor="generate-count"
-            label={t("caseNumber")}
-            description={t("caseNumberHint", { max: MAX_GENERATED })}
-            error={errors.count}
+          {/* Opened by a refusal of the count, so the field it names is in view. */}
+          <MoreOptions
+            label={t("generateMore", { count })}
+            open={errors.count !== undefined ? true : undefined}
           >
-            <Input
-              id="generate-count"
-              type="number"
-              min={1}
-              max={MAX_GENERATED}
-              value={count}
-              onChange={(event) => {
-                setCount(Number(event.target.value));
-                changed();
-              }}
-            />
-          </FormField>
+            <FormField
+              htmlFor="generate-count"
+              label={t("caseNumber")}
+              description={t("caseNumberHint", { max: MAX_GENERATED })}
+              error={errors.count}
+            >
+              <Input
+                id="generate-count"
+                type="number"
+                min={1}
+                max={MAX_GENERATED}
+                value={count}
+                onChange={(event) => {
+                  setCount(Number(event.target.value));
+                  changed();
+                }}
+              />
+            </FormField>
+          </MoreOptions>
           {estimated !== null && <GenerationEstimate estimate={estimated} />}
         </div>
         <DialogFooter>

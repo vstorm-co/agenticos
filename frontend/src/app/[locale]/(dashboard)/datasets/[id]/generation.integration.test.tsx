@@ -16,9 +16,10 @@ import DatasetPage from "./page";
  * a member who may edit the dataset - and a reader's page never asks for them.
  */
 
-const { get, orgs, search } = vi.hoisted(() => ({
+const { get, orgs, generators, search } = vi.hoisted(() => ({
   get: vi.fn(),
   orgs: { current: [] as unknown[] },
+  generators: { current: [] as unknown[] },
   search: { current: null as string | null },
 }));
 vi.mock("next/navigation", () => ({
@@ -93,10 +94,12 @@ const DRAFT = {
 };
 
 function answer(dataset: typeof DATASET) {
-  get.mockImplementation((path: string) => {
+  get.mockImplementation((path: string, options?: { params?: Record<string, string> }) => {
     if (path === "/datasets/d1") return Promise.resolve(dataset);
     if (path === "/datasets/d1/proposals") return Promise.resolve({ items: [DRAFT], total: 1 });
     if (path === "/datasets/d1/generations") return Promise.resolve({ items: [] });
+    if (path === "/agents" && options?.params?.kind === "generator")
+      return Promise.resolve({ items: generators.current, total: generators.current.length });
     if (path === "/agents") return Promise.resolve({ items: [], total: 0 });
     if (path === "/orgs")
       return Promise.resolve({ items: orgs.current, total: orgs.current.length });
@@ -115,6 +118,7 @@ describe("generated cases on the dataset page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     orgs.current = [];
+    generators.current = [];
     useOrgStore.setState({ activeOrgId: "o1" });
   });
 
@@ -166,5 +170,27 @@ describe("generated cases on the dataset page", () => {
     await mount();
     expect(await screen.findByRole("tab", { name: "Cases", selected: true })).toBeInTheDocument();
     search.current = null;
+  });
+
+  it("points whoever may edit the generator at its instructions", async () => {
+    generators.current = [{ id: "g9", system_key: "case_generator", can_edit: true }];
+    answer({ ...DATASET, can_edit: true });
+    await mount();
+    await userEvent.click(await screen.findByRole("tab", { name: "Generated" }));
+    expect(
+      await screen.findByRole("link", { name: "Edit the generator's instructions" }),
+    ).toHaveAttribute("href", "/agents/g9");
+  });
+
+  it("leaves the generator's instructions to whoever may edit them", async () => {
+    generators.current = [{ id: "g9", system_key: "case_generator", can_edit: false }];
+    answer({ ...DATASET, can_edit: true });
+    await mount();
+    await userEvent.click(await screen.findByRole("tab", { name: "Generated" }));
+    await screen.findByRole("button", { name: "Generate cases" });
+    await waitFor(() =>
+      expect(get.mock.calls.some(([, o]) => o?.params?.kind === "generator")).toBe(true),
+    );
+    expect(screen.queryByRole("link", { name: "Edit the generator's instructions" })).toBeNull();
   });
 });
