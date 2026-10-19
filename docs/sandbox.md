@@ -506,7 +506,8 @@ itself is indistinguishable from a person, and nothing stops it.
 
 ### Listing a container costs round trips, so two things are bounded
 
-The archive's `ls` reads one directory, so the listing walks: breadth-first, six
+The archive's `ls` reads one directory, so the listing asks the host for its
+`tree` instead: one request, walked breadth-first on the host's own disk, six
 levels deep at most, stopping at 2,000 entries — because a host holding a
 `node_modules` must not turn one workspace into ten thousand rows.
 
@@ -514,8 +515,8 @@ levels deep at most, stopping at 2,000 entries — because a host holding a
 every file, because a tree that stops without saying so is one somebody reads as
 everything the agent is keeping.
 
-A directory that will not answer is logged and skipped. Only the *root* refusing
-makes the workspace unreadable, because one folder the agent chmod'ed away is not a
+A directory that will not answer is skipped, and the listing reports itself
+incomplete. Only the *root* refusing makes the workspace unreadable, because one folder the agent chmod'ed away is not a
 host nobody can read.
 
 And an image's thumbnail is a `read_bytes` for that file: the suffix and the size

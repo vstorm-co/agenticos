@@ -1,5 +1,5 @@
 ---
-source_sha: "05107985887a"
+source_sha: "7092d48636e8"
 ---
 
 # Sandbox { #the-sandbox }
@@ -526,16 +526,17 @@ nie do odróżnienia od człowieka i nic go przed tym nie powstrzymuje.
 
 ### Wypisanie zawartości kontenera kosztuje obiegi, więc dwie rzeczy są ograniczone { #listing-a-container-costs-round-trips-so-two-things-are-bounded }
 
-`ls` z archiwum czyta jeden katalog, więc zestawienie chodzi po drzewie: wszerz,
-najwyżej na sześć poziomów w głąb, zatrzymując się na 2000 wpisach — bo host
-trzymający `node_modules` nie może zamienić jednego workspace'u w dziesięć tysięcy
-wierszy.
+`ls` z archiwum czyta jeden katalog, więc zestawienie prosi hosta o `tree`:
+jedno żądanie, drzewo przechodzone wszerz na dysku samego hosta, najwyżej na sześć
+poziomów w głąb, z zatrzymaniem na 2000 wpisach — bo host trzymający
+`node_modules` nie może zamienić jednego workspace'u w dziesięć tysięcy wierszy.
 
 **Oba ograniczenia są raportowane.** Strona workspace'u mówi wprost, że to nie są
 wszystkie pliki, bo drzewo, które zatrzymuje się bez uprzedzenia, ktoś przeczyta
 jako wszystko, co agent trzyma.
 
-Katalog, który nie chce odpowiedzieć, jest logowany i pomijany. Dopiero odmowa
+Katalog, który nie chce odpowiedzieć, jest pomijany, a zestawienie zgłasza, że jest
+niepełne. Dopiero odmowa
 *korzenia* czyni workspace nieczytelnym, bo jeden folder, któremu agent zabrał
 prawa, to nie jest host, którego nikt nie potrafi odczytać.
 

@@ -22,7 +22,7 @@ Two things are versioned separately from this file and worth knowing about:
 - **Backend dependencies move up.**
   - Pydantic AI 2.57.0 and the harness 0.57.0, FastAPI 0.143.2, pydantic-settings 2.16.0, Authlib 1.9.1, LiteParse 2.16.0, google-auth 2.62.0, google-genai 2.31.0, boto3 1.43.114 and aiohttp 3.14.5.
   - The tools: ruff 0.17.1, ty 0.0.88, pre-commit 4.7.0 and mkdocstrings 1.0.7.
-  - pydantic-ai-backend 0.2.34 for the sandbox changes below.
+  - pydantic-ai-backend 0.2.35 for the sandbox changes below.
   - The floors in `pyproject.toml` follow. ty 0.0.88 flags the narrowed `visibility` on `ProjectCreate`; it is suppressed with the reason beside it.
   - Replaces Dependabot's #2233 and #2234.
 - **A chat's workspace holds 32 MiB, up from 4.** `SANDBOX_STATE_MAX_BYTES` is
@@ -38,6 +38,13 @@ Two things are versioned separately from this file and worth knowing about:
   without a client of its own opened a new connection, and built an SSL context,
   for every command and file operation of a run. One client per event loop now
   serves every `sandboxd` workspace, and the API closes it at shutdown.
+- **A container workspace's files are listed in one request.** The listing
+  walked the host with one `ls` per directory, up to six levels deep. It now
+  asks `sandboxd` for the whole bounded tree at once (pydantic-ai-backend
+  0.2.35). A folder below the root that cannot be read now marks the listing
+  incomplete instead of disappearing from it silently. The same release serves
+  an agent's file reads and writes from the host's disk, at ~4 ms instead of
+  50-500 ms through `docker exec`, and ships the `sandboxd` image with BuildKit.
 
 ### Fixed
 

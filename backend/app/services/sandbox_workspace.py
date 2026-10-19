@@ -90,7 +90,7 @@ STATE_PROVIDER = "state"
 """`WorkspaceRef.provider` of a stored document, as `StateWorkspace` names it."""
 
 _MAX_LISTED_DEPTH = 6
-"""How deep a workspace listing walks. A directory is a round trip to the host."""
+"""How many levels of a workspace a listing shows, the root being the first."""
 
 _MAX_LISTED_ENTRIES = 2000
 """Where a listing stops. A host holding a `node_modules` must not turn one
@@ -1791,17 +1791,16 @@ class SandboxWorkspaceService:
 
         **The archive's `ls` lists one directory.** It was called once, on the root,
         so a workspace whose files are all under `uploads/` reported a single
-        directory entry and nothing else - the folder opened empty in the browser,
-        the file count read zero, and the only place the files appeared was the flat
-        view of a *stored* workspace, where the paths come out of a JSONB column
-        whole.
+        directory entry and nothing else. Walking it with `ls` fixed that at a round
+        trip per directory; `tree` is the same walk done by the service, on its own
+        disk, in one request.
 
-        A directory costs a round trip, so the walk is bounded twice over: by depth,
-        because a workspace three deep is the shape this product produces, and by
-        entries, because a host holding a `node_modules` must not turn a listing into
-        ten thousand of them. `glob` would be one call rather than several, and it is
-        not available here: it needs a running session, and browsing deliberately
-        never starts one.
+        Bounded twice over: by depth, because a workspace three deep is the shape
+        this product produces, and by entries, because a host holding a
+        `node_modules` must not turn a listing into ten thousand of them. A
+        directory below the root that cannot be read is left out and marks the
+        listing truncated; the root's failure is the host's and belongs to the
+        caller, which turns it into `unreadable_reason`.
 
         Off the loop, because `WorkspaceArchive` is a synchronous `httpx.Client`:
         `flat_files` runs this for up to 25 workspaces in one request, so a blocking
@@ -1810,43 +1809,25 @@ class SandboxWorkspaceService:
         take the default executor's threads; see there.
 
         Returns:
-            What was found, and whether either bound stopped it - because a
-            listing that is shorter than the workspace and does not say so is one
-            a person reads as complete.
+            What was found, and whether a bound or an unreadable directory left
+            something out - because a listing that is shorter than the workspace
+            and does not say so is one a person reads as complete.
         """
-        found: list[FileInfo] = []
-        truncated = False
-        queue: list[tuple[str, int]] = [(".", 0)]
-        while queue:
-            path, depth = queue.pop(0)
-            try:
-                entries = await _on_host_thread(archive.ls, session, path)
-            except Exception:
-                # The root's failure is the host's and belongs to the caller, which
-                # turns it into `unreadable_reason`. One directory below it refusing
-                # is not: dropping the whole listing for a subdirectory the agent
-                # made unreadable would report a workspace nobody can read.
-                if depth == 0:
-                    raise
-                logger.warning("workspace_listing_subtree_unreadable", extra={"path": path})
-                continue
-            for entry in entries:
-                found.append(entry)
-                if len(found) >= _MAX_LISTED_ENTRIES:
-                    logger.warning(
-                        "workspace_listing_truncated",
-                        extra={"session": session, "listed": len(found)},
-                    )
-                    return found, True
-                if not entry.get("is_dir"):
-                    continue
-                if depth + 1 < _MAX_LISTED_DEPTH:
-                    queue.append((str(entry.get("path")), depth + 1))
-                else:
-                    # A directory the walk will not open. It is in the listing as a
-                    # folder, so what is missing is everything under it.
-                    truncated = True
-        return found, truncated
+        tree = await _on_host_thread(
+            partial(
+                archive.tree,
+                session,
+                ".",
+                max_depth=_MAX_LISTED_DEPTH,
+                max_entries=_MAX_LISTED_ENTRIES,
+            )
+        )
+        if tree.truncated:
+            logger.warning(
+                "workspace_listing_truncated",
+                extra={"session": session, "listed": len(tree.entries)},
+            )
+        return list(tree.entries), tree.truncated
 
     async def _remote_entries(self, ctx: AuthContext, row: AgentWorkspace) -> WorkspaceContents:
         try:

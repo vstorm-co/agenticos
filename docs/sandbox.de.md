@@ -1,5 +1,5 @@
 ---
-source_sha: "05107985887a"
+source_sha: "7092d48636e8"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -557,16 +557,18 @@ ihn davon ab.
 
 ### Einen Container aufzulisten kostet Roundtrips, deshalb sind zwei Dinge begrenzt { #listing-a-container-costs-round-trips-so-two-things-are-bounded }
 
-Das `ls` des Archivs liest ein Verzeichnis, die Auflistung läuft also: in die Breite
-zuerst, höchstens sechs Ebenen tief, mit Halt bei 2.000 Einträgen — denn ein Host,
-der ein `node_modules` hält, darf aus einem Workspace nicht zehntausend Zeilen
-machen.
+Das `ls` des Archivs liest ein Verzeichnis, die Auflistung fragt den Host deshalb
+nach seinem `tree`: eine Anfrage, in die Breite zuerst auf der eigenen Platte des
+Hosts durchlaufen, höchstens sechs Ebenen tief, mit Halt bei 2.000 Einträgen — denn
+ein Host, der ein `node_modules` hält, darf aus einem Workspace nicht zehntausend
+Zeilen machen.
 
 **Beide Grenzen werden gemeldet.** Die Seite eines Workspace sagt klar, dass dies
 nicht jede Datei ist, denn ein Baum, der ohne Ankündigung aufhört, ist einer, den
 jemand als alles liest, was der Agent aufbewahrt.
 
-Ein Verzeichnis, das nicht antwortet, wird geloggt und übersprungen. Nur wenn die
+Ein Verzeichnis, das nicht antwortet, wird übersprungen, und die Auflistung meldet
+sich als unvollständig. Nur wenn die
 *Wurzel* sich weigert, wird der Workspace unlesbar, denn ein Ordner, den der Agent
 weg-chmodet hat, ist kein Host, den niemand lesen kann.
 

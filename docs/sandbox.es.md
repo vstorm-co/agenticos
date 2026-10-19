@@ -1,5 +1,5 @@
 ---
-source_sha: "05107985887a"
+source_sha: "7092d48636e8"
 ---
 
 # La sandbox { #the-sandbox }
@@ -541,15 +541,17 @@ es indistinguible de una persona, y nada se lo impide.
 
 ### Listar un contenedor cuesta viajes de ida y vuelta, así que dos cosas están acotadas { #listing-a-container-costs-round-trips-so-two-things-are-bounded }
 
-El `ls` del archivo lee un directorio, así que el listado camina: en anchura, seis
-niveles de profundidad como mucho, parando a las 2.000 entradas, porque un host
-con un `node_modules` no debe convertir un workspace en diez mil filas.
+El `ls` del archivo lee un directorio, así que el listado pide al host su `tree`:
+una petición, recorrida en anchura sobre el propio disco del host, seis niveles de
+profundidad como mucho, parando a las 2.000 entradas, porque un host con un
+`node_modules` no debe convertir un workspace en diez mil filas.
 
 **Las dos cotas se informan.** La página de un workspace dice claramente que esto
 no es todo archivo, porque un árbol que se detiene sin decirlo es uno que alguien
 lee como todo lo que el agent guarda.
 
-Un directorio que no responde se registra y se salta. Solo si se niega la *raíz*
+Un directorio que no responde se salta, y el listado avisa de que está incompleto.
+Solo si se niega la *raíz*
 el workspace se vuelve ilegible, porque una carpeta a la que el agent quitó los
 permisos no es un host que nadie pueda leer.
 

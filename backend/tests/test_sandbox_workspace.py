@@ -20,7 +20,7 @@ from collections.abc import AsyncGenerator, Mapping
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
@@ -39,6 +39,7 @@ from pydantic_ai.workspaces import (
     WorkspaceUnavailableError,
 )
 from pydantic_ai_backends import ConsoleCapability, FileInfo, StateBackend
+from pydantic_ai_backends.remote import WorkspaceTree
 
 from app.agents.capabilities import build as build_capabilities
 from app.agents.capabilities import get as get_capability
@@ -149,6 +150,41 @@ class _ClosesItsClient:
 
     def close(self) -> None:
         self.closed = True
+
+    def ls(self, session_id: str, path: str = ".") -> list[dict[str, object]]:
+        return []
+
+    def tree(
+        self, session_id: str, path: str = ".", *, max_depth: int, max_entries: int
+    ) -> WorkspaceTree:
+        """The service's `/tree`, walked over this fake's `ls` the way it walks disk.
+
+        A directory below the start that raises is left out and marks the
+        listing truncated; the start's failure is raised.
+        """
+        found: list[FileInfo] = []
+        truncated = False
+        queue = [(path, 1)]
+        while queue:
+            directory, depth = queue.pop(0)
+            try:
+                entries = self.ls(session_id, directory)
+            except Exception:
+                if depth == 1:
+                    raise
+                truncated = True
+                continue
+            for entry in entries:
+                if len(found) == max_entries:
+                    return WorkspaceTree(entries=found, truncated=True)
+                found.append(cast(FileInfo, entry))
+                if not entry.get("is_dir"):
+                    continue
+                if depth < max_depth:
+                    queue.append((str(entry.get("path")), depth + 1))
+                else:
+                    truncated = True
+        return WorkspaceTree(entries=found, truncated=truncated)
 
 
 class TestWhoSharesAWorkspace:
@@ -3843,16 +3879,13 @@ class TestWalkingAHostsDirectories:
     def _archive(monkeypatch, tree: dict[str, list[dict[str, object]]], asked: list[str]):
         from pydantic_ai_backends import remote as remote_module
 
-        class _Archive:
+        class _Archive(_ClosesItsClient):
             def __init__(self, url, token="", timeout=None):
                 pass
 
             def ls(self, session_id, path="."):
                 asked.append(path)
                 return tree.get(path, [])
-
-            def close(self):
-                pass
 
         monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
 
@@ -3952,7 +3985,8 @@ class TestWalkingAHostsDirectories:
 
         Walking every level made every level able to fail the whole listing, so a
         single directory the agent chmod'ed away would report a workspace nobody
-        can read - where before the walk it reported the root's files.
+        can read - where before the walk it reported the root's files. What it
+        held is missing from the page, so the listing says it is incomplete.
         """
         from pydantic_ai_backends import remote as remote_module
 
@@ -3963,7 +3997,7 @@ class TestWalkingAHostsDirectories:
             ]
         }
 
-        class _Archive:
+        class _Archive(_ClosesItsClient):
             def __init__(self, url, token="", timeout=None):
                 pass
 
@@ -3987,7 +4021,7 @@ class TestWalkingAHostsDirectories:
         assert found is not None
         _, contents = found
         assert contents.unreadable_reason is None
-        assert contents.truncated is False
+        assert contents.truncated is True
         assert [str(entry.get("path")) for entry in contents.entries] == ["notes.md", "locked"]
 
     async def test_a_root_that_refuses_is_still_the_hosts_failure(
@@ -3995,7 +4029,7 @@ class TestWalkingAHostsDirectories:
     ):
         from pydantic_ai_backends import remote as remote_module
 
-        class _Archive:
+        class _Archive(_ClosesItsClient):
             def __init__(self, url, token="", timeout=None):
                 pass
 
@@ -4044,7 +4078,7 @@ class TestDrawingAHostsImages:
 
         png = self._png()
 
-        class _Archive:
+        class _Archive(_ClosesItsClient):
             def __init__(self, url, token="", timeout=None):
                 pass
 
@@ -4289,7 +4323,7 @@ class TestDrawingAHostsImages:
 
         from app.repositories import agent as agent_repo
 
-        class _Archive:
+        class _Archive(_ClosesItsClient):
             def __init__(self, url, token="", timeout=None):
                 pass
 
@@ -4328,7 +4362,7 @@ class TestDrawingAHostsImages:
 
         from app.repositories import agent as agent_repo
 
-        class _Archive:
+        class _Archive(_ClosesItsClient):
             def __init__(self, url, token="", timeout=None):
                 pass
 
