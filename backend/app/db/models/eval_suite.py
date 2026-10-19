@@ -185,7 +185,6 @@ class EvalSuiteResult(Base):
         PG_UUID(as_uuid=True), ForeignKey("eval_suites.id", ondelete="CASCADE"), nullable=False
     )
     trigger: Mapped[str] = mapped_column(String(16), nullable=False)
-    # What exactly made it due - `{"kind": "skill", "id": ...}` for a dependency.
     trigger_detail: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB(none_as_null=True), nullable=True
     )
@@ -196,8 +195,6 @@ class EvalSuiteResult(Base):
         index=True,
     )
     version_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    # The version a publish or a promotion is measured against, run beside the
-    # candidate in the same eval run.
     baseline_version_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
     environment_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -207,10 +204,8 @@ class EvalSuiteResult(Base):
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default=EvalSuiteResultStatus.PENDING.value
     )
-    # A code the console words: `budget`, `over_cost_cap`, `ai_assistance_off`...
     reason: Mapped[str | None] = mapped_column(String(48), nullable=True)
     due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    # Who the eval run ran as: the owner for a trigger, the person for "Run now".
     run_as_user_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
@@ -220,8 +215,6 @@ class EvalSuiteResult(Base):
         nullable=True,
         index=True,
     )
-    # The earlier eval run a schedule or dependency result is compared with -
-    # the last one of this suite on the same version - when none ran beside it.
     baseline_eval_run_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("eval_runs.id", ondelete="SET NULL"), nullable=True
     )
@@ -249,10 +242,8 @@ class EvalSuiteResult(Base):
             "'skipped', 'error')",
             name="ck_eval_suite_result_status",
         ),
-        # One waiting result per suite and version: a publish and the promotion of
-        # the same version a moment later, or ten knowledge-base edits in a row,
-        # are one run. A running one does not count, so a change that lands while
-        # the suite runs is checked by the next run rather than lost.
+        # A burst of triggers for one version is one run; a running result does not
+        # count, so a change that lands mid-run is checked by the next run.
         Index(
             "uq_eval_suite_results_pending",
             "suite_id",

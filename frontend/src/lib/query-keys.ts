@@ -402,7 +402,6 @@ export const qk = {
   evalSuites: {
     all: () => ["eval-suites"] as const,
     forAgent: (agentId: string) => ["eval-suites", "agent", agentId] as const,
-    // Every suite on an agent the reader may see, for the dashboard.
     visible: () => ["eval-suites", "visible"] as const,
     results: (agentId: string, suiteId: string, query: { skip: number; limit: number }) =>
       ["eval-suites", "agent", agentId, suiteId, "results", query] as const,

@@ -81,8 +81,7 @@ SWEEPS = (
     Sweep("notification-delivery-sweep", 60, deliver_due_notifications),
     # Start the sync check when a source is due; the syncs stay a flow run.
     Sweep("rag-sync-check", 60, dispatch_due_syncs),
-    # Queue the eval suites whose schedule came due, start what is due as eval
-    # runs, and hold the runs that ended to their suite's threshold.
+    # Schedule, start and settle the eval suites.
     Sweep("eval-suites-check", 60, check_eval_suites),
 )
 """The minute-scale work, in this process - see `app/worker/sweeps.py`."""
