@@ -210,7 +210,7 @@ from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Message
 from app.db.models.project import Project
 from app.db.models.run_manifest import RunManifest
-from app.db.session import get_worker_db_context
+from app.db.session import get_db_context
 from app.repositories import (
     agent_environment_repo,
     agent_exposure_repo,
@@ -2948,11 +2948,12 @@ class AgentRunnerService:
         # that then sits `idle in transaction` for the rest of the run, holding
         # the very connection the opening commit in `_run` exists to hand back:
         # measured under 18 concurrent runs, the three past the pool waited 26
-        # seconds at this read (#12). The worker context and not the pooled one,
-        # because a trigger fires runs inside the worker: a pooled connection
-        # made on one event loop breaks whoever checks it out on another, and
-        # this read happens on whatever loop the run is on. One
-        # connect per run, next to a model call.
+        # seconds at this read (#12). A session of its own from `get_db_context`:
+        # a pooled connection checked out for the read and handed straight back,
+        # on the loop that owns the pools, and a `NullPool` engine on any other -
+        # the case a trigger's run in the worker used to need this to be the
+        # worker context for. That was a new connection, a SCRAM handshake and
+        # four statements of dialect start-up, two or three times per run (#2248).
         # Both leave this run's own row out. A baseline is what *other* runs have
         # already spent; what this one spends is the ledger's, and on a resume
         # the two are the same money. A run that spent $6 and parked has
@@ -2963,7 +2964,7 @@ class AgentRunnerService:
         # fresh run the row is there too, at zero, so this changes nothing and
         # needs no branch.
         async def agent_period_spend() -> Decimal:
-            async with get_worker_db_context() as db:
+            async with get_db_context() as db:
                 return await agent_run_repo.sum_cost_since(
                     db,
                     organization_id=ctx.organization_id,
@@ -2974,7 +2975,7 @@ class AgentRunnerService:
                 )
 
         async def org_period_spend() -> Decimal:
-            async with get_worker_db_context() as db:
+            async with get_db_context() as db:
                 return await organization_monthly_spend(
                     db, ctx.organization_id, exclude_run_id=run.id
                 )
@@ -4411,7 +4412,7 @@ class AgentRunnerService:
 
         def period_spend(group_id: UUID) -> PeriodSpendLookup:
             async def lookup() -> Decimal:
-                async with get_worker_db_context() as db:
+                async with get_db_context() as db:
                     return await agent_run_repo.sum_cost_since(
                         db,
                         organization_id=ctx.organization_id,
