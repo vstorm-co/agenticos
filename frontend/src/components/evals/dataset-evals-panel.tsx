@@ -7,8 +7,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Button, ListCard, Pager } from "@/components/ui";
-import { useAgents } from "@/hooks";
-import { useDatasetEvalRuns } from "@/hooks/use-eval-runs";
+import { useDatasetEvalRuns, useEveryAgent } from "@/hooks/use-eval-runs";
 import { usePermissions } from "@/hooks/use-permissions";
 import { getErrorMessage } from "@/lib/api-error";
 import type { Agent } from "@/types/agents";
@@ -60,7 +59,7 @@ export function DatasetEvalsPanel({ datasetId, title }: { datasetId: string; tit
     skip: page * RUN_PAGE,
     limit: RUN_PAGE,
   });
-  const { agents } = useAgents();
+  const { agents } = useEveryAgent();
   const known = new Map(agents.map((agent) => [agent.id, agent]));
   const groups = byAgent(runs);
   // Past one page the agents on it are not every agent measured, so only the runs are counted.

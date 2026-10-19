@@ -18,9 +18,7 @@ vi.mock("@/hooks/use-eval-runs", async (importOriginal) => ({
     state.skips.push(skip);
     return state.runs;
   },
-}));
-vi.mock("@/hooks", () => ({
-  useAgents: () => ({
+  useEveryAgent: () => ({
     agents: [{ id: "agent-1", name: "Refund desk", slug: "refund-desk", has_avatar: true }],
   }),
 }));
