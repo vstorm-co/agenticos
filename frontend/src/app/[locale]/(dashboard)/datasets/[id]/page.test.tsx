@@ -268,6 +268,13 @@ describe("the dataset page", () => {
     expect(screen.queryByRole("button", { name: "run evals" })).toBeNull();
   });
 
+  it("opens on Cases when a link names Evals to who may not read runs", async () => {
+    state.runsView = false;
+    state.tab = "evals";
+    await mount();
+    expect(screen.getByRole("tab", { name: "Cases" })).toHaveAttribute("aria-selected", "true");
+  });
+
   it("opens the tab the address names, in reading order", async () => {
     state.tab = "review";
     await mount();

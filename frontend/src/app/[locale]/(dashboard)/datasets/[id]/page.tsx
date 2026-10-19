@@ -120,7 +120,11 @@ export default function DatasetPage({ params }: PageProps) {
       />
 
       <Tabs
-        defaultValue={asked !== null && TABS.includes(asked) ? asked : "cases"}
+        defaultValue={
+          asked !== null && TABS.includes(asked) && (asked !== "evals" || canViewRuns)
+            ? asked
+            : "cases"
+        }
         className="space-y-4"
       >
         <TabsList>
