@@ -147,6 +147,11 @@ Two things are versioned separately from this file and worth knowing about:
   The notice waited for a `sandbox_ready` the lost socket could never bring, and
   stayed through later turns on the open sandbox, which send no preparation
   frames.
+- **A Telegram bot reads `up` again as soon as a polling conflict clears** (#2252).
+  The first successful poll after another process stopped polling the token now
+  records the recovery; the channels listing used to keep naming the other
+  poller for up to five minutes, and the heartbeat could read `up` while the
+  conflict still lasted.
 
 ## [1.7.1] - 2026-10-19
 
