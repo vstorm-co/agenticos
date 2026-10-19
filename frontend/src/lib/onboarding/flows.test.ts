@@ -255,7 +255,7 @@ describe("create-dataset", () => {
     expect(save?.blockSubmit).toBeUndefined();
     expect(sources?.target).toBe("datasets-menu");
     expect(sources?.signal).toBeUndefined();
-    expect(next).toMatchObject({ target: "datasets-scoring-tab", page: DATASET_DETAIL });
+    expect(next).toMatchObject({ target: "datasets-grading-tab", page: DATASET_DETAIL });
     expect(generate).toMatchObject({
       target: "datasets-generate",
       activate: "datasets-generated-tab",
