@@ -631,21 +631,30 @@ def _within(part: str, whole: str) -> bool:
     return f" {part} " in f" {whole} "
 
 
-def copies(answer: str, counter_example: str) -> bool:
-    """Whether the answer repeats the counter-example word for word, or is a part of it.
+def repeats(answer: str, counter_example: str) -> bool:
+    """Whether the answer says nothing the counter-example does not: it is the
+    counter-example, or a part of it of at least `_COPY_MIN_WORDS` words.
 
     Case, spacing and punctuation aside, so a curly apostrophe or a dash for a
-    comma is still a copy. Words shared in another order are not: "I have not
-    refunded your gift code" shares nearly every word of "Sure, I have refunded
-    your gift code" and says the opposite. Nor is a part shorter than
-    `_COPY_MIN_WORDS` words.
+    comma is still the same answer. Words shared in another order are not: "I
+    have not refunded your gift code" shares nearly every word of "Sure, I have
+    refunded your gift code" and says the opposite.
     """
     said, bad = _sequence(answer), _sequence(counter_example)
     if not said or not bad:
         return False
-    if _within(bad, said):
-        return True
-    return len(said.split()) >= _COPY_MIN_WORDS and _within(said, bad)
+    return said == bad or (len(said.split()) >= _COPY_MIN_WORDS and _within(said, bad))
+
+
+def copies(answer: str, counter_example: str) -> bool:
+    """Whether the answer repeats the counter-example word for word, or is a part of it.
+
+    As `repeats`, and also an answer that holds the whole counter-example with
+    more around it - which may be the fix as much as the mistake, so it takes a
+    quote to tell which.
+    """
+    said, bad = _sequence(answer), _sequence(counter_example)
+    return repeats(answer, counter_example) or bool(said and bad and _within(bad, said))
 
 
 def _counter_unsupported(quotes: Sequence[str], answer: str, counter_example: str) -> bool:
@@ -682,15 +691,30 @@ def graded(
     whose reason is mostly the criterion's own words, with no quote the answer
     holds, is an error: nothing shows the judge read the answer; its words are
     kept as `judge_said`. A grade at the top of the scale with no such quote
-    stands, marked `unverified`. A pass on not repeating `counter_example` with
-    nothing quoted is unverified at any grade, and an error when the answer
-    copies the counter-example; so is one whose every quote is a passage the
-    two share - that is the mistake, not evidence against it.
+    stands, marked `unverified`. An answer that `repeats` the counter-example
+    fails on it whatever the judge said. A pass on not repeating
+    `counter_example` with nothing quoted is unverified at any grade, and an
+    error when the answer still copies the counter-example; so is one whose
+    every quote is a passage the two share - that is the mistake, not evidence
+    against it.
     """
     grades = {grade.id: grade for grade in verdict.grades}
     shown = answer[:MAX_MATCH_TEXT]
     results = []
     for criterion in criteria:
+        if criterion.id == COUNTER_ID and repeats(shown, counter_example or ""):
+            results.append(
+                ScorerResult(
+                    scorer=criterion.scorer,
+                    name=criterion.name,
+                    required=criterion.required,
+                    status="fail",
+                    score=1 / scale_max,
+                    reason="The answer repeats the counter-example",
+                    judge_run_id=run_id,
+                )
+            )
+            continue
         grade = grades.get(criterion.id)
         if grade is None or not 1 <= grade.score <= scale_max:
             results.append(

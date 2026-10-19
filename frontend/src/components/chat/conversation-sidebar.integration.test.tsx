@@ -11,14 +11,19 @@
  * was what a deployment holding hundreds reported.
  */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ConversationSidebar } from "./conversation-sidebar";
 import { apiClient } from "@/lib/api-client";
-import { useConversationStore } from "@/stores";
+import {
+  useAgentSelectionStore,
+  useChatBandsStore,
+  useConversationStore,
+  useWorkingStore,
+} from "@/stores";
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
@@ -35,7 +40,9 @@ vi.mock("@/components/agents/agent-avatar", () => ({
   AgentAvatar: ({ name }: { name: string }) => <span>{name}</span>,
 }));
 vi.mock("@/components/agents/conversation-agents", () => ({
-  ConversationAgents: () => null,
+  ConversationAgents: ({ agents }: { agents: Array<{ name: string }> }) => (
+    <span data-testid="row-agents">{agents.map((agent) => agent.name).join(", ")}</span>
+  ),
 }));
 // The event path is the portal grid, covered by the portal tests; stubbed here so
 // the sidebar menu's own job - opening it - is what this suite checks.
@@ -99,58 +106,19 @@ beforeEach(() => {
   urlParams = new URLSearchParams();
   window.history.replaceState({}, "", "/chat");
   useConversationStore.getState().reset();
+  useWorkingStore.getState().reset();
+  useChatBandsStore.setState({ folded: [], opened: [] });
   mockAgents = [{ id: "a-1", name: "Analyst", status: "published", can_run: true }];
   serve([conversation("c-1", "Quarterly numbers")]);
 });
 
-describe("searching the conversation list", () => {
-  it("asks the server, rather than filtering the page it holds", async () => {
-    mount();
-    await screen.findAllByText("Quarterly numbers");
-
-    await userEvent.type(
-      within(list()).getByRole("textbox", { name: "Search conversations" }),
-      "refund",
-    );
-
-    await waitFor(() => expect(listRequests().at(-1)).toContain("search=refund"));
-  });
-
-  it("waits for the typing to stop rather than asking per keystroke", async () => {
-    mount();
-    await screen.findAllByText("Quarterly numbers");
-    const before = listRequests().length;
-
-    await userEvent.type(
-      within(list()).getByRole("textbox", { name: "Search conversations" }),
-      "refunds",
-    );
-
-    // Seven characters, and not seven requests: the settled value is what the
-    // key is built from, so nothing is fetched until the box stops moving.
-    expect(listRequests().length).toBeLessThan(before + 7);
-    await waitFor(() => expect(listRequests().at(-1)).toContain("search=refunds"));
-  });
-
-  it("writes the search to the URL, so a reload lands on the same list", async () => {
-    mount();
-    await screen.findAllByText("Quarterly numbers");
-
-    await userEvent.type(
-      within(list()).getByRole("textbox", { name: "Search conversations" }),
-      "refund",
-    );
-
-    await waitFor(() => expect(window.location.search).toContain("q=refund"));
-  });
-
+describe("the list the URL asks for", () => {
   it("starts from the URL it was given", async () => {
-    urlParams = new URLSearchParams("q=refund&agent=a-1&sort=title:asc&view=archived");
+    urlParams = new URLSearchParams("agent=a-1&sort=title:asc&view=archived");
     mount();
 
     await waitFor(() => {
       const request = listRequests().at(-1) ?? "";
-      expect(request).toContain("search=refund");
       expect(request).toContain("agent_id=a-1");
       expect(request).toContain("sort_by=title&sort_dir=asc");
       expect(request).toContain("archived_only=true");
@@ -167,61 +135,172 @@ describe("searching the conversation list", () => {
   });
 });
 
+describe("a link to another thread followed from this page", () => {
+  it("opens the thread the address now names", async () => {
+    // A notification's link is a same-page navigation: nothing remounts (#2108).
+    urlParams = new URLSearchParams("id=c-1");
+    window.history.replaceState({}, "", "/chat?id=c-1");
+    serve([conversation("c-1", "First one"), conversation("c-2", "Answered while away")]);
+    const { rerender } = mount();
+    await screen.findAllByText("First one");
+    await waitFor(() => expect(useConversationStore.getState().currentConversationId).toBe("c-1"));
+
+    urlParams = new URLSearchParams("id=c-2");
+    rerender(<ConversationSidebar />);
+
+    await waitFor(() => expect(useConversationStore.getState().currentConversationId).toBe("c-2"));
+  });
+});
+
 describe("what the sidebar says about the list", () => {
-  it("counts what matches, not what it fetched", async () => {
-    serve([conversation("c-1", "Quarterly numbers")], 214);
+  it("says a thread is at work, in place of when it last moved", async () => {
+    serve([
+      {
+        ...conversation("c-1", "Busy one"),
+        running_since: new Date(Date.now() - 12_000).toISOString(),
+      },
+      conversation("c-2", "Quiet one"),
+    ] as unknown as ReturnType<typeof conversation>[]);
     mount();
+    await screen.findAllByText("Busy one");
 
-    expect(await screen.findAllByText("214 conversations")).not.toHaveLength(0);
+    const busy = within(list()).getByText("Busy one").closest("[class*='group']") as HTMLElement;
+    expect(within(busy).getByText(/Working/)).toBeInTheDocument();
+    const quiet = within(list()).getByText("Quiet one").closest("[class*='group']") as HTMLElement;
+    expect(within(quiet).queryByText(/Working/)).toBeNull();
   });
 
-  it("puts no count on the tabs, because it never knew one", async () => {
-    serve([conversation("c-1", "Quarterly numbers")], 214);
+  it("says a thread is at work the moment this tab asks in it, before the server does", async () => {
+    // A turn of a few seconds can start and end between two listings, or while
+    // the live-update socket reconnects; the tab that asked knows (#2108).
+    useWorkingStore.getState().start("c-2", new Date(Date.now() - 3_000).toISOString());
+    serve([conversation("c-1", "Other one"), conversation("c-2", "Just asked")]);
     mount();
-    await screen.findAllByText("Quarterly numbers");
+    await screen.findAllByText("Just asked");
 
-    expect(within(list()).getByRole("button", { name: "Active" })).toHaveTextContent(/^Active$/);
-    expect(within(list()).getByRole("button", { name: "Archived" })).toHaveTextContent(
-      /^Archived$/,
+    const asked = within(list()).getByText("Just asked").closest("[class*='group']") as HTMLElement;
+    expect(within(asked).getByText(/Working/)).toBeInTheDocument();
+    const other = within(list()).getByText("Other one").closest("[class*='group']") as HTMLElement;
+    expect(within(other).queryByText(/Working/)).toBeNull();
+
+    act(() => useWorkingStore.getState().stop("c-2"));
+    expect(within(asked).queryByText(/Working/)).toBeNull();
+  });
+
+  it("hands a thread this tab left mid-answer to the listing once it has the run", async () => {
+    useWorkingStore.getState().start("c-2", new Date(Date.now() - 3_000).toISOString());
+    useWorkingStore.getState().handOff("c-2");
+    serve([
+      {
+        ...conversation("c-2", "Left mid-answer"),
+        running_since: new Date(Date.now() - 3_000).toISOString(),
+      },
+    ] as unknown as ReturnType<typeof conversation>[]);
+    mount();
+    await screen.findAllByText("Left mid-answer");
+
+    await waitFor(() => expect(useWorkingStore.getState().handedOff).toEqual({}));
+    expect(useWorkingStore.getState().since).toEqual({});
+    const row = within(list())
+      .getByText("Left mid-answer")
+      .closest("[class*='group']") as HTMLElement;
+    expect(within(row).getByText(/Working/)).toBeInTheDocument();
+  });
+
+  it("lets a handed-off mark go when the listing never shows the run", async () => {
+    // A turn short enough to end between two listings: after the grace, the
+    // listing that says nothing is running is right.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      useWorkingStore.getState().start("c-2", new Date(Date.now() - 3_000).toISOString());
+      useWorkingStore.getState().handOff("c-2");
+      serve([conversation("c-2", "Quick one")]);
+      mount();
+      await screen.findAllByText("Quick one");
+      const row = within(list()).getByText("Quick one").closest("[class*='group']") as HTMLElement;
+      expect(within(row).getByText(/Working/)).toBeInTheDocument();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(20_000);
+      });
+
+      expect(within(row).queryByText(/Working/)).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("marks a thread with an answer the reader has not seen, but not the open one", async () => {
+    useConversationStore.getState().setCurrentConversationId("c-2");
+    serve([
+      { ...conversation("c-1", "New answer here"), unread: true },
+      { ...conversation("c-2", "Open one"), unread: true },
+      conversation("c-3", "Seen one"),
+    ] as unknown as ReturnType<typeof conversation>[]);
+    mount();
+    await screen.findAllByText("New answer here");
+
+    const row = (title: string) =>
+      within(list()).getByText(title).closest("[class*='group']") as HTMLElement;
+    expect(within(row("New answer here")).getByRole("status", { name: "New answer" })).toBeTruthy();
+    expect(within(row("Open one")).queryByRole("status", { name: "New answer" })).toBeNull();
+    expect(within(row("Seen one")).queryByRole("status", { name: "New answer" })).toBeNull();
+  });
+
+  it("reads the plain list by day, with no count over it", async () => {
+    serve(
+      [
+        { ...conversation("c-1", "This morning"), updated_at: new Date().toISOString() },
+        conversation("c-2", "Back in July"),
+      ] as unknown as ReturnType<typeof conversation>[],
+      214,
     );
+    mount();
+    await screen.findAllByText("This morning");
+
+    expect(within(list()).getByText("Today")).toBeInTheDocument();
+    expect(within(list()).getByText("Older")).toBeInTheDocument();
+    expect(within(list()).queryByText("214 conversations")).toBeNull();
   });
 
-  it("distinguishes an empty deployment from an empty search", async () => {
+  it("keeps one run, without days, in an order that is not by date", async () => {
+    urlParams = new URLSearchParams("sort=title:asc");
+    serve([
+      { ...conversation("c-1", "Alpha"), updated_at: new Date().toISOString() },
+    ] as unknown as ReturnType<typeof conversation>[]);
+    mount();
+    await screen.findAllByText("Alpha");
+
+    expect(within(list()).queryByText("Today")).toBeNull();
+  });
+
+  it("distinguishes an empty deployment from an empty filter", async () => {
     serve([]);
     mount();
 
     expect(await screen.findAllByText("No conversations yet")).not.toHaveLength(0);
     expect(screen.queryByText("Nothing matches")).not.toBeInTheDocument();
-
-    await userEvent.type(
-      within(list()).getByRole("textbox", { name: "Search conversations" }),
-      "refund",
-    );
-
-    expect((await screen.findAllByText("Nothing matches"))[0]).toBeVisible();
   });
 
   it("offers a way out of a filter that matches nothing", async () => {
+    urlParams = new URLSearchParams("agent=a-1");
     serve([]);
     mount();
-    await userEvent.type(
-      within(list()).getByRole("textbox", { name: "Search conversations" }),
-      "refund",
-    );
     await screen.findAllByText("Nothing matches");
 
     serve([conversation("c-1", "Quarterly numbers")]);
     await userEvent.click(within(list()).getAllByRole("button", { name: "Clear filters" })[0]!);
 
     expect((await screen.findAllByText("Quarterly numbers"))[0]).toBeVisible();
-    await waitFor(() => expect(window.location.search).not.toContain("q="));
+    await waitFor(() => expect(window.location.search).not.toContain("agent="));
   });
 
   it("says the archive is empty rather than that nothing matched", async () => {
     serve([]);
     mount();
 
-    await userEvent.click(within(list()).getByRole("button", { name: "Archived" }));
+    await userEvent.click(within(list()).getByRole("button", { name: "Filter and sort" }));
+    await userEvent.click(screen.getByRole("button", { name: "Archived" }));
 
     expect((await screen.findAllByText("No archived conversations"))[0]).toBeVisible();
     await waitFor(() => expect(listRequests().at(-1)).toContain("archived_only=true"));
@@ -244,7 +323,8 @@ describe("the collapsed rail", () => {
     await userEvent.click(
       within(list()).getByRole("button", { name: "Collapse conversations sidebar" }),
     );
-    return screen.getByRole("button", { name: "Expand conversations sidebar" })
+    // The chevron sits in the rail's header, one level under the rail itself.
+    return screen.getByRole("button", { name: "Expand conversations sidebar" }).parentElement!
       .parentElement as HTMLElement;
   }
 
@@ -288,97 +368,95 @@ describe("the collapsed rail", () => {
     expect(await within(rail).findByRole("button", { name: "New conversation" })).toBeVisible();
   });
 
-  it("expands with the cursor already in the search box", async () => {
-    // Otherwise the button is a second Expand, and costs a click to reach the
-    // thing it is named after.
+  it("switches to the archive through the same filters the list has", async () => {
     const rail = await collapse();
 
-    await userEvent.click(within(rail).getByRole("button", { name: "Search conversations" }));
-
-    const box = within(list()).getByRole("textbox", { name: "Search conversations" });
-    await waitFor(() => expect(box).toHaveFocus());
-  });
-
-  it("expands onto the archived tab", async () => {
-    const rail = await collapse();
-
-    await userEvent.click(within(rail).getByRole("button", { name: "Archived" }));
+    await userEvent.click(within(rail).getByRole("button", { name: "Filter and sort" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Archived" }));
 
     await waitFor(() => expect(listRequests().at(-1)).toContain("archived_only=true"));
+    expect(await within(rail).findByRole("img", { name: "Archived" })).toBeVisible();
   });
 
-  it("does not steal the cursor when it is expanded with the chevron", async () => {
-    // The search button's focus is a one-shot. Left set, every later expand would
-    // take the cursor out of whatever somebody was typing in the composer.
+  it("keeps the list's bands, its order and its unread dot", async () => {
+    serve([
+      conversation("c-1", "Quarterly numbers", true),
+      { ...conversation("c-2", "Refund policy"), unread: true } as never,
+    ]);
     const rail = await collapse();
+
+    const unread = await within(rail).findByRole("button", { name: "Unread" });
+    const favourites = within(rail).getByRole("button", { name: "Favourites" });
+    const refund = within(rail).getByRole("button", { name: "Refund policy" });
+    const numbers = within(rail).getByRole("button", { name: "Quarterly numbers" });
+    // Unread leads, as it does in the list, then the starred run.
+    expect(unread.compareDocumentPosition(refund) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      refund.compareDocumentPosition(favourites) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      favourites.compareDocumentPosition(numbers) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(within(refund).getByRole("status", { name: "New answer" })).toBeInTheDocument();
+  });
+
+  it("folds a band from the rail, the same setting the list keeps", async () => {
+    serve([conversation("c-1", "Quarterly numbers", true)]);
+    const rail = await collapse();
+
+    await userEvent.click(await within(rail).findByRole("button", { name: "Favourites" }));
+
+    expect(within(rail).queryByRole("button", { name: "Quarterly numbers" })).toBeNull();
+    expect(useChatBandsStore.getState().folded).toContain("favourites");
+  });
+
+  it("searches from the rail in the same window", async () => {
+    const rail = await collapse();
+
     await userEvent.click(within(rail).getByRole("button", { name: "Search conversations" }));
-    await userEvent.click(
-      within(list()).getByRole("button", { name: "Collapse conversations sidebar" }),
-    );
 
-    await userEvent.click(screen.getByRole("button", { name: "Expand conversations sidebar" }));
-
-    expect(within(list()).getByRole("textbox", { name: "Search conversations" })).not.toHaveFocus();
+    expect(await screen.findByRole("dialog", { name: "Search conversations" })).toBeVisible();
   });
 });
 
-describe("the New Chat split button", () => {
-  it("keeps New Chat itself starting a chat, not opening a menu", async () => {
+describe("the three icons over the list", () => {
+  it("starts a chat from the first, with no menu under it", async () => {
     mount();
     await screen.findAllByText("Quarterly numbers");
 
-    await userEvent.click(within(list()).getByRole("button", { name: "New Chat" }));
+    await userEvent.click(within(list()).getByRole("button", { name: "New chat" }));
 
-    // No dialog and no menu: the wide half of the split button is exactly the
-    // button it always was.
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.queryByRole("menu")).toBeNull();
   });
 
-  it("opens the schedule dialog from the chevron menu", async () => {
+  it("searches the server from a window, and opens the pick", async () => {
     mount();
     await screen.findAllByText("Quarterly numbers");
 
-    await userEvent.click(within(list()).getByRole("button", { name: "New schedule or trigger" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: "New schedule" }));
+    await userEvent.click(within(list()).getByRole("button", { name: "Search conversations" }));
+    const dialog = await screen.findByRole("dialog", { name: "Search conversations" });
+    expect(within(dialog).getByText("Type to search your conversations by title.")).toBeVisible();
 
-    const dialog = await screen.findByRole("dialog");
-    // No agent is in context here, so the form asks whom to schedule.
-    expect(within(dialog).getByRole("combobox", { name: "Agent" })).toBeVisible();
+    serve([conversation("c-9", "Refund policy")]);
+    await userEvent.type(within(dialog).getByRole("textbox"), "refund");
+    await waitFor(() => expect(listRequests().at(-1)).toContain("search=refund"));
+    await userEvent.click(await within(dialog).findByRole("button", { name: /Refund policy/ }));
+
+    await waitFor(() => expect(useConversationStore.getState().currentConversationId).toBe("c-9"));
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("opens the portal grid for a new event trigger from the chevron menu", async () => {
+  it("says when nothing matches the search", async () => {
     mount();
     await screen.findAllByText("Quarterly numbers");
+    await userEvent.click(within(list()).getByRole("button", { name: "Search conversations" }));
+    const dialog = await screen.findByRole("dialog", { name: "Search conversations" });
 
-    await userEvent.click(within(list()).getByRole("button", { name: "New schedule or trigger" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: "New event trigger" }));
+    serve([]);
+    await userEvent.type(within(dialog).getByRole("textbox"), "nothing");
 
-    // Portals are the default event path, so the menu opens the grid, not the
-    // raw source-and-secret form.
-    expect(await screen.findByRole("dialog", { name: "New event trigger" })).toBeVisible();
-  });
-});
-
-describe("who the trigger menu is offered to", () => {
-  it("shows it to a caller who may run at least one agent", async () => {
-    // Runnability, not role: this list holds a runnable agent, which is the whole
-    // floor - a Viewer granted run on one agent reads `can_run` true there.
-    mockAgents = [{ id: "a-1", name: "Analyst", status: "published", can_run: true }];
-    mount();
-    await screen.findAllByText("Quarterly numbers");
-
-    expect(
-      within(list()).getByRole("button", { name: "New schedule or trigger" }),
-    ).toBeInTheDocument();
-  });
-
-  it("withholds it when no agent is runnable", async () => {
-    mockAgents = [{ id: "a-1", name: "Analyst", status: "published", can_run: false }];
-    mount();
-    await screen.findAllByText("Quarterly numbers");
-
-    expect(within(list()).queryByRole("button", { name: "New schedule or trigger" })).toBeNull();
+    expect(await within(dialog).findByText("No conversation matches.")).toBeVisible();
   });
 });
 
@@ -432,31 +510,118 @@ describe("the favourites band", () => {
     );
   });
 
-  it("keeps the star on a row that is starred, because it marks the band", async () => {
-    // The one thing the star was not redundant as: nothing else on a row says
-    // which band it is in.
+  it("draws no star on a starred row, since the band it sits in says so", async () => {
     serve([conversation("c-1", "Rota cover", true)]);
     mount();
     await within(list()).findByText("Rota cover");
 
-    expect(
-      within(list()).getByRole("button", { name: "Remove from favourites" }),
-    ).toBeInTheDocument();
+    expect(within(list()).getByText("Favourites")).toBeInTheDocument();
+    expect(within(list()).queryByRole("button", { name: "Remove from favourites" })).toBeNull();
   });
 
-  it("offers to remove it once it is starred", async () => {
+  it("removes a favourite from the row's menu", async () => {
     serve([conversation("c-1", "Rota cover", true)]);
     vi.mocked(apiClient.delete).mockResolvedValue({});
     mount();
     await within(list()).findByText("Rota cover");
 
-    const star = within(list()).getByRole("button", { name: "Remove from favourites" });
-    expect(star).toHaveAttribute("aria-pressed", "true");
-    await userEvent.click(star);
+    await userEvent.click(within(list()).getByRole("button", { name: "Conversation actions" }));
+    await userEvent.click(within(list()).getByRole("button", { name: /Remove from favourites/ }));
 
     await waitFor(() =>
       expect(apiClient.delete).toHaveBeenCalledWith("/conversations/c-1/favourite"),
     );
+  });
+
+  it("folds a band to its heading, saying how many it holds", async () => {
+    serve([conversation("c-1", "Rota cover", true), conversation("c-2", "Shift swap", true)]);
+    mount();
+    await within(list()).findByText("Rota cover");
+
+    await userEvent.click(within(list()).getByRole("button", { name: /Favourites/ }));
+    expect(within(list()).queryByText("Rota cover")).toBeNull();
+    expect(within(list()).getByRole("button", { name: /Favourites/ })).toHaveTextContent("2");
+
+    await userEvent.click(within(list()).getByRole("button", { name: /Favourites/ }));
+    expect(within(list()).getByText("Rota cover")).toBeInTheDocument();
+  });
+
+  it("asks for the next page while the list does not fill the column", async () => {
+    // Folded bands leave nothing to scroll, and scrolling was the only thing
+    // that asked for more - so Yesterday never arrived.
+    serve(Array.from({ length: 30 }, (_, i) => conversation(`c-${i}`, `Thread ${i}`)));
+    mount();
+    await within(list()).findByText("Thread 0");
+
+    await waitFor(() => expect(listRequests().some((path) => path.includes("skip=30"))).toBe(true));
+  });
+
+  it("keeps a short list open, older bands and all", async () => {
+    // Nothing from the last two days and eight older threads: the list used to
+    // open onto "Previous 30 days" and "Older", both folded, and no thread.
+    const old = (id: string, days: number) => ({
+      ...conversation(id, `Thread ${id}`),
+      updated_at: new Date(Date.now() - days * 86_400_000).toISOString(),
+    });
+    serve([old("a", 10), old("b", 12), old("c", 90)] as unknown as ReturnType<
+      typeof conversation
+    >[]);
+    mount();
+
+    expect(await within(list()).findByText("Thread a")).toBeVisible();
+    expect(within(list()).getByText("Thread c")).toBeVisible();
+  });
+
+  it("folds the older bands on a long list, but never the newest band", async () => {
+    const old = (id: string, days: number) => ({
+      ...conversation(id, `Thread ${id}`),
+      updated_at: new Date(Date.now() - days * 86_400_000).toISOString(),
+    });
+    serve(
+      Array.from({ length: 25 }, (_, i) => old(`m${i}`, i < 5 ? 10 : 90)) as unknown as ReturnType<
+        typeof conversation
+      >[],
+    );
+    mount();
+
+    // The newest band - Previous 30 days here - stays open; Older folds.
+    expect(await within(list()).findByText("Thread m0")).toBeVisible();
+    expect(within(list()).queryByText("Thread m10")).toBeNull();
+    expect(within(list()).getByRole("button", { name: /Older/ })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
+
+  it("opens the band the open conversation lands in, once", async () => {
+    useChatBandsStore.setState({ folded: ["today"], opened: [] });
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    serve([
+      { ...conversation("c-1", "Just started"), updated_at: new Date().toISOString() },
+    ] as unknown as ReturnType<typeof conversation>[]);
+    mount();
+
+    expect(await within(list()).findByText("Just started")).toBeInTheDocument();
+    expect(useChatBandsStore.getState().folded).toEqual([]);
+
+    // Folding it again afterwards is the reader's choice, and it stays.
+    await userEvent.click(within(list()).getByRole("button", { name: /Today/ }));
+    expect(within(list()).queryByText("Just started")).toBeNull();
+  });
+
+  it("leads with the threads holding an answer not yet seen", async () => {
+    serve([
+      conversation("c-1", "Starred and new", true),
+      { ...conversation("c-2", "New answer"), unread: true },
+      { ...conversation("c-3", "Starred and new too", true), unread: true },
+    ] as unknown as ReturnType<typeof conversation>[]);
+    mount();
+    await within(list()).findByText("New answer");
+
+    const headings = within(list())
+      .getAllByText(/^(Unread|Favourites)$/)
+      .map((heading) => heading.textContent);
+    expect(headings).toEqual(["Unread", "Favourites"]);
   });
 
   it("does not band the archive, where a star still exists but has no band", async () => {
@@ -469,5 +634,52 @@ describe("the favourites band", () => {
 
     expect(await within(list()).findByText("Rota cover")).toBeVisible();
     expect(within(list()).queryByText("Favourites")).toBeNull();
+  });
+});
+
+describe("conversations opened over the API (#2122)", () => {
+  it("leaves them out by default, and labels them once shown", async () => {
+    serve([
+      { ...conversation("c-api", "Nightly report"), origin: "api" } as ReturnType<
+        typeof conversation
+      >,
+    ]);
+    mount();
+
+    await waitFor(() => expect(listRequests().at(-1)).toContain("hide_api=true"));
+    await userEvent.click(await within(list()).findByRole("button", { name: "Filter and sort" }));
+    const hide = screen.getByRole("switch", { name: "Hide conversations opened over the API" });
+    expect(hide).toBeChecked();
+    await userEvent.click(hide);
+
+    await waitFor(() => expect(listRequests().at(-1)).not.toContain("hide_api"));
+    expect(window.location.search).toContain("api=show");
+    expect(within(list()).getByText("API")).toBeInTheDocument();
+  });
+
+  it("goes back to hiding them when the filters are cleared", async () => {
+    urlParams = new URLSearchParams("api=show&agent=a-1");
+    serve([]);
+    mount();
+
+    await waitFor(() => expect(listRequests().at(-1)).not.toContain("hide_api"));
+    await userEvent.click(await within(list()).findByRole("button", { name: /clear/i }));
+
+    await waitFor(() => expect(listRequests().at(-1)).toContain("hide_api=true"));
+  });
+});
+
+describe("who a row is with", () => {
+  it("shows the addressed agent on the open thread before any run has named one", async () => {
+    // A thread whose first run failed, or has not been listed yet, used to wear
+    // a generic chat mark - while the console knew exactly whom it had asked.
+    serve([conversation("c-1", "Quarterly numbers"), conversation("c-2", "Older thread")]);
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    mount();
+
+    await screen.findAllByText("Quarterly numbers");
+    const faces = within(list()).getAllByTestId("row-agents");
+    expect(faces.map((face) => face.textContent)).toEqual(["Analyst"]);
   });
 });

@@ -30,7 +30,7 @@ class TestDeriving:
             user_id=PERSON, subject_is_publisher_fallback=False, room_key=None
         )
 
-        assert audience == RunAudience(user_id=PERSON, room_key=None)
+        assert audience == RunAudience(user_id=PERSON, room_key=None, browses_signed_in=True)
 
     def test_a_publisher_standing_in_for_a_visitor_is_nobody(self):
         """The whole reason this is a function rather than a constructor. On an
@@ -50,6 +50,17 @@ class TestDeriving:
         )
 
         assert audience == RunAudience(user_id=None, room_key=ROOM)
+
+    @pytest.mark.security
+    def test_a_key_is_not_the_person_who_issued_it(self):
+        """A key run carries its issuer's id for audit and budget. Treating that as
+        the asker would hand whoever holds the key the issuer's memory, past
+        conversations and kept sign-ins."""
+        audience = derive_audience(
+            user_id=PERSON, subject_is_publisher_fallback=False, room_key=None, via_api_key=True
+        )
+
+        assert audience == RunAudience(user_id=None, room_key=None)
 
     def test_no_subject_at_all_is_nobody(self):
         assert (
@@ -94,3 +105,86 @@ class TestPrivacy:
 
         with pytest.raises(FrozenInstanceError):
             audience.user_id = uuid4()  # ty: ignore[invalid-assignment]
+
+
+class TestAFireActingAsItsCreator:
+    """A trigger the creator let act as them reaches their memory - on their terms (#2027)."""
+
+    def test_a_schedule_reads_and_writes_but_does_not_search_conversations(self):
+        audience = derive_audience(
+            user_id=PERSON,
+            subject_is_publisher_fallback=False,
+            room_key=None,
+            fired_as_creator="schedule",
+        )
+
+        assert audience.user_id == PERSON
+        assert audience.writes_memory is True
+        assert audience.searches_conversations is False
+
+    def test_an_event_only_reads(self):
+        """Its prompt carries a mail or a webhook body nobody vetted."""
+        audience = derive_audience(
+            user_id=PERSON,
+            subject_is_publisher_fallback=False,
+            room_key=None,
+            fired_as_creator="event",
+        )
+
+        assert audience.writes_memory is False
+        assert audience.searches_conversations is False
+
+    def test_anything_else_keeps_both(self):
+        audience = derive_audience(
+            user_id=PERSON, subject_is_publisher_fallback=False, room_key=None
+        )
+
+        assert audience.writes_memory is True
+        assert audience.searches_conversations is True
+
+
+class TestBrowsingSignedIn:
+    """Whose saved sign-ins the web browser may start with (#2129) - only the person's own run."""
+
+    def test_the_person_in_their_own_chat_or_direct_message_browses_signed_in(self):
+        audience = derive_audience(
+            user_id=PERSON, subject_is_publisher_fallback=False, room_key=None
+        )
+        assert audience.browses_signed_in is True
+
+    def test_their_own_schedule_acting_as_them_does_too(self):
+        audience = derive_audience(
+            user_id=PERSON,
+            subject_is_publisher_fallback=False,
+            room_key=None,
+            fired_as_creator="schedule",
+        )
+        assert audience.browses_signed_in is True
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        ("fallback", "room", "fired", "via_key"),
+        [
+            # A visitor on a widget: the publisher is a stand-in, not the person.
+            (True, None, None, False),
+            # A channel: everyone in it reads what the browse finds.
+            (False, ROOM, None, False),
+            # An event: its prompt is a mail or a webhook body nobody vetted.
+            (False, None, "event", False),
+            # An API key: a script the person handed a credential to.
+            (False, None, None, True),
+        ],
+    )
+    def test_nobody_else_does(self, fallback: bool, room: str | None, fired, via_key: bool):
+        audience = derive_audience(
+            user_id=PERSON,
+            subject_is_publisher_fallback=fallback,
+            room_key=room,
+            fired_as_creator=fired,
+            via_api_key=via_key,
+        )
+        assert audience.browses_signed_in is False
+
+    def test_an_audience_built_without_saying_so_is_signed_out(self):
+        """What a run parked before #2129 resumes with."""
+        assert RunAudience(user_id=PERSON).browses_signed_in is False

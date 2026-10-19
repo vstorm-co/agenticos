@@ -1,15 +1,18 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  answerPreview,
   applyDelegationFrame,
+  delegateNamed,
   childrenOf,
   closeOpenDelegations,
   resolveAwaitingOnResume,
   resumeFailureStatus,
   rootsOf,
+  taskOutcome,
 } from "./delegations";
 import { ApiError } from "@/lib/api-error";
-import type { Delegation, SpecialistDefinition, SubagentFrame } from "@/types";
+import type { Delegation, SpecialistDefinition, SubagentFrame, ToolCall } from "@/types";
 
 /** A `subagent_start`, which is the only frame that can create a panel. */
 function start(
@@ -625,5 +628,82 @@ describe("closeOpenDelegations", () => {
     const none: Delegation[] = [];
 
     expect(closeOpenDelegations(none)).toBe(none);
+  });
+});
+
+describe("a delegate's name and the first words of its answer", () => {
+  it("names a delegate the reader can see by its own name, any other by its handle", () => {
+    const agents = [{ id: "a1", slug: "finance-analyst", name: "Finance Analyst" }];
+
+    expect(delegateNamed("finance-analyst", agents).name).toBe("Finance Analyst");
+    expect(delegateNamed("quarterly_report-researcher", agents)).toEqual({
+      id: null,
+      slug: "quarterly_report-researcher",
+      name: "Quarterly report researcher",
+    });
+  });
+
+  it("previews an answer as words, without its markdown", () => {
+    expect(answerPreview("\n## What shipped\n- **Payment links**")).toBe("What shipped");
+    expect(answerPreview("See [the notes](https://x.example) for `4.13`.")).toBe(
+      "See the notes for 4.13.",
+    );
+    expect(answerPreview("  \n ")).toBe("");
+  });
+});
+
+describe("what a task call came to", () => {
+  const start = (id = "t1"): ToolCall => ({
+    id: "c1",
+    name: "task",
+    args: { subagent_type: "legal" },
+    status: "completed",
+    result: `Task started in background.\nTask ID: ${id}\nSubagent: legal\n`,
+  });
+  const check = (result: string, taskId = "t1"): ToolCall => ({
+    id: `k-${result.length}`,
+    name: "check_task",
+    args: { task_id: taskId },
+    status: "completed",
+    result,
+  });
+
+  it("reads a waited-for task as it stands", () => {
+    const call: ToolCall = { id: "c", name: "task", args: {}, status: "completed", result: "done" };
+    expect(taskOutcome(call, [call])).toBeNull();
+    expect(taskOutcome({ ...call, result: undefined }, [])).toBeNull();
+  });
+
+  it("leaves a background task running until a check of it says otherwise", () => {
+    expect(
+      taskOutcome(start(), [start(), check("Task: t9\nStatus: completed\nResult: no", "t9")]),
+    ).toEqual({
+      status: "running",
+      answer: "",
+    });
+    expect(
+      taskOutcome(start(), [
+        check("Task: t1\nSubagent: legal\nStatus: running\nRunning for: 2.0s"),
+      ]),
+    ).toEqual({ status: "running", answer: "" });
+  });
+
+  it("takes the answer from the last completed check", () => {
+    const done = check(
+      "Task: t1\nSubagent: legal\nStatus: completed\nDescription: d\nResult: PONG",
+    );
+    expect(
+      taskOutcome(start(), [check("Task: t1\nStatus: running\nRunning for: 1s"), done]),
+    ).toEqual({
+      status: "completed",
+      answer: "PONG",
+    });
+  });
+
+  it("says a failed one failed, with why", () => {
+    const failed = check(
+      "Task: t1\nSubagent: legal\nStatus: failed\nDescription: d\nError: timed out",
+    );
+    expect(taskOutcome(start(), [failed])).toEqual({ status: "failed", answer: "timed out" });
   });
 });

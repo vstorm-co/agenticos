@@ -1,6 +1,6 @@
 """Schemas for run history, approvals and the cost dashboard."""
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -20,6 +20,9 @@ class AgentRunRead(BaseSchema):
     agent_version_id: UUID | None = None
     user_id: UUID | None = None
     surface: str
+    is_test: bool = Field(
+        default=False, description="Started from the Builder's test panel (#2074)"
+    )
     status: str
     model_label: str | None = None
     provider: str | None = Field(
@@ -265,6 +268,13 @@ class ApprovalRead(BaseSchema):
             "accountability trail and a bare UUID is not one"
         ),
     )
+    account: str | None = Field(
+        default=None,
+        description=(
+            "Which account of an MCP service the call acts as, where its binding "
+            "names one - the mailbox a Send mail would send from"
+        ),
+    )
     subagent_name: str | None = Field(
         default=None,
         description=(
@@ -409,6 +419,14 @@ class CostByKey(BaseSchema):
     run_count: int
 
 
+class CostByDay(BaseSchema):
+    """One day's spend, for the bars over the window."""
+
+    day: date
+    cost_usd: Decimal
+    run_count: int
+
+
 class CostSummary(BaseSchema):
     """What the cost dashboard renders."""
 
@@ -445,3 +463,7 @@ class CostSummary(BaseSchema):
     by_agent: list[CostByAgent]
     by_provider: list[CostByProvider]
     by_key: list[CostByKey]
+    by_day: list[CostByDay] = Field(
+        default_factory=list,
+        description="Spend per UTC day over the window; a day with no runs has no entry",
+    )

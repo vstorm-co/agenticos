@@ -27,11 +27,13 @@ class MemoryMem0Config(BaseModel):
     """Where the mem0 service is, and whether per-person memory is kept."""
 
     base_url: str | None = Field(
+        title="Self-hosted mem0 URL",
         default=None,
         max_length=500,
         description="Base URL of a self-hosted mem0; omit for mem0's managed cloud.",
     )
     allow_personal: bool = Field(
+        title="Keep private memories per person",
         default=True,
         description=(
             "Whether the agent keeps private memories for each person it talks to, "

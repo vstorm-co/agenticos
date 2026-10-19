@@ -43,7 +43,11 @@ export function SecretFields({
 }: SecretFieldsProps) {
   return (
     <div className="space-y-4">
-      <p className="text-muted-foreground text-xs leading-relaxed">{info.description}</p>
+      {/* What the shape is, only where there is more than one field to read
+          it against: over a lone API key field it was a sentence about nothing. */}
+      {secretFieldNames(info.json_schema).length > 1 && (
+        <p className="text-muted-foreground text-xs leading-relaxed">{info.description}</p>
+      )}
       <SchemaForm
         schema={info.json_schema}
         value={value}

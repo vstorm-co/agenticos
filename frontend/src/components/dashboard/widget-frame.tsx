@@ -1,12 +1,13 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import Link from "next/link";
 import { Info } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Card, Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui";
 import type { WidgetOptions } from "@/lib/dashboard/layouts";
+import { SCROLL_FADE_Y, useScrollFade } from "@/components/ui/scroll-fade";
 import { CARD_SURFACE } from "@/lib/dashboard/system";
 import { cn } from "@/lib/utils";
 import { WidgetOptionChips } from "./widget-option-chips";
@@ -62,6 +63,10 @@ export function WidgetFrame({
   children,
 }: WidgetFrameProps) {
   const t = useTranslations("dashboard");
+  const body = useRef<HTMLDivElement>(null);
+  // The bottom edge fades while there is more below, so a list longer than its
+  // cell reads as one to scroll rather than as one cut off.
+  useScrollFade(body, "y");
   return (
     <Card
       // `group` so a body can answer the pointer over the whole card rather
@@ -94,7 +99,12 @@ export function WidgetFrame({
       {/* Scrolls, because the card clips. A list longer than the height its
           owner gave the card - eight service probes in a two-row cell - would
           otherwise be silently cut off at the border with nothing to say so. */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-5">{children}</div>
+      <div
+        ref={body}
+        className={cn("flex min-h-0 flex-1 flex-col overflow-y-auto p-5", SCROLL_FADE_Y)}
+      >
+        {children}
+      </div>
     </Card>
   );
 }

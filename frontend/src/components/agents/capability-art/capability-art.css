@@ -1,0 +1,660 @@
+/*
+ * Capability illustrations - the isometric dioramas on the Toolbox's cards.
+ * Generated from the design canvas by scratch tooling, so edit the canvas
+ * rather than this file; every rule is
+ * scoped under .cap-art and every animation renamed ca-*, so nothing here
+ * reaches the rest of the console.
+ */
+.cap-art {
+  --bg: oklch(97.8% 0.002 265);
+  --fg: oklch(17.5% 0.004 265);
+  --card: oklch(100% 0 0);
+  --muted: oklch(95.5% 0.002 265);
+  --mfg: oklch(45% 0.006 265);
+  --line: oklch(91.5% 0.003 265);
+  --line2: oklch(85% 0.003 265);
+  --ok: oklch(58% 0.1 155);
+  --bad: oklch(58% 0.16 25);
+  --sun: oklch(85% 0.14 85);
+  --brand: oklch(52% 0.16 290);
+  --sL: 94.5%;
+  --sC: 0.032;
+  --s2L: 89.5%;
+  --s2C: 0.05;
+  --aL: 80%;
+  --aC: 0.09;
+  --dL: 44%;
+  --dC: 0.11;
+  --nT: 98.5%;
+  --nL: 93%;
+  --nR: 87.5%;
+  --cT: 88%;
+  --cL: 79%;
+  --cR: 71%;
+  --cC: 0.085;
+  --qT: 95%;
+  --qL: 89.5%;
+  --qR: 84%;
+  --qC: 0.035;
+  --kT: 34%;
+  --kL: 25%;
+  --kR: 20%;
+  --edge: oklch(20% 0.01 265 / 0.16);
+  --shade: oklch(20% 0.01 265 / 0.07);
+  --glass: oklch(100% 0 0 / 0.42);
+  --glassB: oklch(100% 0 0 / 0.75);
+  --gL: 80%;
+  --gC: 0.13;
+  --gInk: oklch(24% 0.02 265);
+  --grid: oklch(92.5% 0.004 265);
+  --grid2: oklch(96% 0.003 265);
+  --term: oklch(22% 0.006 265);
+  --termFg: oklch(92% 0.005 265);
+  --termOk: oklch(80% 0.12 155);
+  --shadow: 0 1px 2px oklch(20% 0.01 265 / 0.05), 0 6px 20px -8px oklch(20% 0.01 265 / 0.12);
+  --f-body: inherit;
+  --f-mono: var(--font-mono, ui-monospace, monospace);
+  --f-disp: inherit;
+}
+:root.dark .cap-art {
+  /* Lit a step above the dark card rather than sunk into it: at the card's own
+     lightness the scenes read as muddy shapes in the dark (2026-10-15). */
+  --bg: oklch(21% 0.0025 265);
+  --fg: oklch(94.5% 0.003 265);
+  --card: oklch(25.5% 0.0025 265);
+  --muted: oklch(29.5% 0.0025 265);
+  --mfg: oklch(74% 0.006 265);
+  --line: oklch(31.5% 0.003 265);
+  --line2: oklch(40% 0.003 265);
+  --ok: oklch(72% 0.11 155);
+  --bad: oklch(68% 0.15 25);
+  --sun: oklch(80% 0.13 85);
+  --brand: oklch(70% 0.14 290);
+  --sL: 41%;
+  --sC: 0.045;
+  --s2L: 48%;
+  --s2C: 0.06;
+  --aL: 66%;
+  --aC: 0.09;
+  --dL: 84%;
+  --dC: 0.07;
+  --nT: 58%;
+  --nL: 50%;
+  --nR: 44%;
+  --cT: 74%;
+  --cL: 64%;
+  --cR: 56%;
+  --cC: 0.1;
+  --qT: 60%;
+  --qL: 52%;
+  --qR: 46%;
+  --qC: 0.045;
+  --kT: 22%;
+  --kL: 17%;
+  --kR: 14%;
+  --edge: oklch(100% 0 0 / 0.08);
+  --shade: oklch(0% 0 0 / 0.22);
+  --glass: oklch(100% 0 0 / 0.09);
+  --glassB: oklch(100% 0 0 / 0.22);
+  --gL: 48%;
+  --gC: 0.12;
+  --gInk: oklch(96% 0.01 265);
+  --grid: oklch(30% 0.004 265);
+  --grid2: oklch(27.5% 0.003 265);
+  --term: oklch(16% 0.004 265);
+  --termFg: oklch(90% 0.005 265);
+  --termOk: oklch(78% 0.12 155);
+  --shadow: 0 1px 2px oklch(0% 0 0 / 0.3);
+}
+.cap-art .stage {
+  --ink: var(--fg);
+  --paper: var(--card);
+}
+.cap-art .stage > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.cap-art .ln {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cap-art .pp {
+  fill: var(--paper);
+  stroke: var(--ink);
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+}
+.cap-art .ol {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.1;
+}
+.cap-art .sf {
+  fill: oklch(var(--sL) var(--sC) var(--h));
+}
+.cap-art .sf2 {
+  fill: oklch(var(--s2L) var(--s2C) var(--h));
+}
+.cap-art .ac {
+  fill: oklch(var(--aL) var(--aC) var(--h));
+}
+.cap-art .acl {
+  fill: oklch(var(--aL) var(--aC) var(--h));
+  stroke: var(--ink);
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+}
+.cap-art .dp {
+  fill: oklch(var(--dL) var(--dC) var(--h));
+}
+.cap-art .mu {
+  fill: var(--line2);
+}
+.cap-art .dk {
+  fill: var(--ink);
+}
+.cap-art .cov {
+  fill: var(--paper);
+}
+.cap-art .sunf {
+  fill: var(--sun);
+}
+.cap-art .badf {
+  fill: var(--bad);
+}
+.cap-art .lens {
+  fill: oklch(var(--sL) var(--sC) var(--h) / 0.6);
+  stroke: var(--ink);
+  stroke-width: 1.6;
+}
+.cap-art .term {
+  fill: var(--term);
+}
+.cap-art .tx {
+  fill: var(--ink);
+  font-family: var(--f-body);
+}
+.cap-art .termtx {
+  fill: var(--termFg);
+  font-family: var(--f-mono);
+}
+.cap-art .termok {
+  fill: var(--termOk);
+  font-family: var(--f-mono);
+}
+.cap-art .mono {
+  font-family: var(--f-mono);
+}
+.cap-art .b {
+  font-weight: 600;
+}
+.cap-art .mid {
+  text-anchor: middle;
+}
+.cap-art .mut {
+  fill: var(--mfg);
+}
+.cap-art .s4 {
+  font-size: 4.4px;
+}
+.cap-art .s5 {
+  font-size: 5.2px;
+}
+.cap-art .s6 {
+  font-size: 6.2px;
+}
+.cap-art .s7 {
+  font-size: 7.2px;
+}
+.cap-art .s9 {
+  font-size: 9.2px;
+}
+.cap-art .big {
+  font-family: var(--f-disp);
+  font-weight: 600;
+  font-size: 26px;
+}
+.cap-art .thin {
+  stroke-width: 0.8;
+}
+.cap-art .w2 {
+  stroke-width: 2.2;
+}
+.cap-art .w3 {
+  stroke-width: 3.2;
+}
+.cap-art .dash {
+  stroke-dasharray: 3 3;
+}
+.cap-art .draw {
+  stroke-dasharray: 100;
+  stroke-dashoffset: 0;
+  animation: ca-draw 4.6s ease-in-out infinite;
+}
+@keyframes ca-draw {
+  0% {
+    stroke-dashoffset: 100;
+  }
+  45%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+.cap-art .bob {
+  animation: ca-bob 3.4s ease-in-out infinite;
+}
+@keyframes ca-bob {
+  50% {
+    transform: translateY(-3px);
+  }
+}
+.cap-art .breathe {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: ca-breathe 4s ease-in-out infinite;
+}
+@keyframes ca-breathe {
+  50% {
+    transform: scaleY(0.9);
+  }
+}
+.cap-art .spin-m {
+  transform-box: view-box;
+  animation: ca-spin 9s linear infinite;
+}
+.cap-art .spin-h {
+  transform-box: view-box;
+  animation: ca-spin 108s linear infinite;
+}
+@keyframes ca-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.cap-art .sel3 {
+  animation: ca-sel3 6s cubic-bezier(0.6, 0, 0.3, 1) infinite;
+}
+@keyframes ca-sel3 {
+  0%,
+  28% {
+    transform: translateY(0);
+  }
+  33%,
+  61% {
+    transform: translateY(var(--st));
+  }
+  66%,
+  95% {
+    transform: translateY(calc(var(--st) * 2));
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+.cap-art .flow {
+  transform: translate(var(--x0), var(--y0));
+  animation: ca-flow 4.2s linear infinite;
+}
+@keyframes ca-flow {
+  0% {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+  8%,
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--dx), var(--dy));
+    opacity: 0;
+  }
+}
+.cap-art .stop {
+  transform: translate(var(--dx), var(--dy));
+  animation: ca-stopk 4.2s ease-in infinite;
+}
+@keyframes ca-stopk {
+  0% {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  45% {
+    transform: translate(var(--dx), var(--dy));
+    opacity: 1;
+  }
+  52% {
+    transform: translate(var(--dx), var(--dy)) scale(1.8);
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.cap-art .ty0,
+.cap-art .ty1,
+.cap-art .ty2 {
+  animation: 6s steps(14, end) infinite;
+}
+.cap-art .ty0 {
+  animation-name: ca-ty0;
+}
+.cap-art .ty1 {
+  animation-name: ca-ty1;
+}
+.cap-art .ty2 {
+  animation-name: ca-ty2;
+}
+@keyframes ca-ty0 {
+  0% {
+    clip-path: inset(0 100% 0 0);
+  }
+  14%,
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes ca-ty1 {
+  0%,
+  16% {
+    clip-path: inset(0 100% 0 0);
+  }
+  30%,
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes ca-ty2 {
+  0%,
+  32% {
+    clip-path: inset(0 100% 0 0);
+  }
+  46%,
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+.cap-art .blink {
+  animation: ca-blink 1.1s steps(1) infinite;
+}
+@keyframes ca-blink {
+  50% {
+    opacity: 0;
+  }
+}
+.cap-art .travel {
+  animation: ca-travel 3.6s ease-in-out infinite;
+}
+@keyframes ca-travel {
+  0% {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  62% {
+    transform: translate(var(--dx), var(--dy));
+    opacity: 1;
+  }
+  74%,
+  100% {
+    transform: translate(var(--dx), var(--dy));
+    opacity: 0;
+  }
+}
+.cap-art .reveal {
+  transform-box: fill-box;
+  transform-origin: 100% 50%;
+  transform: scaleX(0);
+  animation: ca-reveal 6s cubic-bezier(0.5, 0, 0.3, 1) infinite;
+}
+@keyframes ca-reveal {
+  0%,
+  6% {
+    transform: scaleX(1);
+  }
+  58%,
+  92% {
+    transform: scaleX(0);
+  }
+  100% {
+    transform: scaleX(1);
+  }
+}
+.cap-art .tw {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ca-tw 2.4s ease-in-out infinite;
+}
+@keyframes ca-tw {
+  50% {
+    transform: scale(0.6) rotate(45deg);
+    opacity: 0.6;
+  }
+}
+.cap-art .scan {
+  animation: ca-scan 5.4s ease-in-out infinite;
+}
+@keyframes ca-scan {
+  0%,
+  18% {
+    transform: translate(0, 0);
+  }
+  33%,
+  51% {
+    transform: translate(var(--dx), var(--dy));
+  }
+  66%,
+  84% {
+    transform: translate(calc(var(--dx) * 2), calc(var(--dy) * 2));
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+.cap-art .cur {
+  transform: translate(var(--x3), var(--y3));
+  animation: ca-cur 5s ease-in-out infinite;
+}
+@keyframes ca-cur {
+  0%,
+  14% {
+    transform: translate(var(--x1), var(--y1));
+  }
+  32%,
+  44% {
+    transform: translate(var(--x2), var(--y2));
+  }
+  62%,
+  100% {
+    transform: translate(var(--x3), var(--y3));
+  }
+}
+.cap-art .ring {
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+  animation: ca-ring 5s ease-out infinite;
+}
+@keyframes ca-ring {
+  0%,
+  62% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  66% {
+    opacity: 0.9;
+  }
+  84%,
+  100% {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+}
+.cap-art .pull {
+  transform: translate(var(--dx), var(--dy));
+  animation: ca-pull 5s ease-in-out infinite;
+}
+@keyframes ca-pull {
+  0%,
+  16% {
+    transform: translate(0, 0);
+  }
+  40%,
+  78% {
+    transform: translate(var(--dx), var(--dy));
+  }
+  96%,
+  100% {
+    transform: translate(0, 0);
+  }
+}
+.cap-art .v-B {
+  background: linear-gradient(180deg, var(--muted), var(--card));
+}
+.cap-art .v-B polygon {
+  stroke: var(--edge);
+  stroke-width: 0.6;
+  stroke-linejoin: round;
+}
+.cap-art .v-B .ln {
+  stroke-width: 1;
+}
+.cap-art .v-B .pp {
+  stroke-width: 0.8;
+}
+.cap-art .v-B .acl {
+  stroke-width: 0.8;
+}
+.cap-art .int {
+  fill: oklch(var(--nT) 0.004 265);
+}
+.cap-art .inl {
+  fill: oklch(var(--nL) 0.004 265);
+}
+.cap-art .inr {
+  fill: oklch(var(--nR) 0.004 265);
+}
+.cap-art .ict {
+  fill: oklch(var(--cT) var(--cC) var(--h));
+}
+.cap-art .icl {
+  fill: oklch(var(--cL) var(--cC) var(--h));
+}
+.cap-art .icr {
+  fill: oklch(var(--cR) var(--cC) var(--h));
+}
+.cap-art .iqt {
+  fill: oklch(var(--qT) var(--qC) var(--h));
+}
+.cap-art .iql {
+  fill: oklch(var(--qL) var(--qC) var(--h));
+}
+.cap-art .iqr {
+  fill: oklch(var(--qR) var(--qC) var(--h));
+}
+.cap-art .ikt {
+  fill: oklch(var(--kT) 0.01 265);
+}
+.cap-art .ikl {
+  fill: oklch(var(--kL) 0.01 265);
+}
+.cap-art .ikr {
+  fill: oklch(var(--kR) 0.01 265);
+}
+.cap-art .ish {
+  fill: var(--shade);
+  stroke: none !important;
+}
+.cap-art .igrid {
+  fill: none;
+  stroke: var(--edge);
+  stroke-width: 0.7;
+}
+.cap-art .ipaper {
+  fill: var(--card);
+  stroke: var(--edge);
+}
+.cap-art .stage {
+  position: relative;
+  overflow: hidden;
+}
+.cap-art.is-off .stage {
+  filter: saturate(0.3);
+  opacity: 0.8;
+  transition:
+    filter 0.3s,
+    opacity 0.3s;
+}
+.cap-art.is-off .stage * {
+  animation-play-state: paused !important;
+}
+.group:hover .cap-art.is-off .stage,
+.group:focus-within .cap-art.is-off .stage {
+  filter: none;
+  opacity: 1;
+}
+.group:hover .cap-art.is-off .stage *,
+.group:focus-within .cap-art.is-off .stage * {
+  animation-play-state: running !important;
+}
+.cap-art .stage.v-B {
+  background: radial-gradient(
+    130% 110% at 50% 0%,
+    oklch(var(--sL) var(--sC) var(--h)),
+    oklch(var(--s2L) var(--s2C) var(--h))
+  );
+}
+.cap-art .int {
+  fill: oklch(var(--nT) 0.012 var(--h));
+}
+.cap-art .inl {
+  fill: oklch(var(--nL) 0.014 var(--h));
+}
+.cap-art .inr {
+  fill: oklch(var(--nR) 0.016 var(--h));
+}
+.cap-art .v-B .ish {
+  fill: oklch(30% 0.04 var(--h) / 0.12);
+}
+.cap-art .ishb {
+  fill: oklch(30% 0.05 var(--h) / 0.28);
+  filter: blur(5px);
+  stroke: none !important;
+}
+.cap-art .igrid2 {
+  fill: none;
+  stroke: oklch(var(--nR) 0.03 var(--h));
+  stroke-width: 0.5;
+  stroke-dasharray: 1.5 2.5;
+}
+.cap-art .v-B polygon.int,
+.cap-art .v-B polygon.ict,
+.cap-art .v-B polygon.iqt {
+  stroke: oklch(100% 0 0 / 0.55);
+}
+:root.dark .cap-art .v-B polygon.int,
+:root.dark .cap-art .v-B polygon.ict,
+:root.dark .cap-art .v-B polygon.iqt {
+  stroke: oklch(100% 0 0 / 0.1);
+}
+:root.dark .cap-art .ishb {
+  fill: oklch(5% 0.02 var(--h) / 0.6);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cap-art .stage * {
+    animation: none !important;
+  }
+}
+/* Off, in the dark: greyed less, or a row of switched-off cards reads as mud. */
+:root.dark .cap-art.is-off .stage {
+  filter: saturate(0.6);
+  opacity: 0.9;
+}

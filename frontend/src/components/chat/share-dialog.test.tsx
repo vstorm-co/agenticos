@@ -211,7 +211,7 @@ describe("choosing who to share with", () => {
     // submit when they leave the list.
     renderDialog();
     await pick(/Sam Fisher/);
-    expect(screen.getByRole("button", { name: "Share conversation" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /^Share$/ })).toBeEnabled();
 
     // The refetch lands - Sam already has access, so he leaves `candidates` - and
     // the next thing the reader touches renders the dialog with him gone.
@@ -219,7 +219,7 @@ describe("choosing who to share with", () => {
     await userEvent.click(screen.getByRole("combobox", { name: "Access level" }));
     await userEvent.click(screen.getByRole("option", { name: "Edit" }));
 
-    expect(screen.getByRole("button", { name: "Share conversation" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Share$/ })).toBeDisabled();
   });
 
   it("says so when the people could not be read, and offers a retry", async () => {
@@ -243,7 +243,7 @@ describe("choosing who to share with", () => {
     renderDialog();
     await pick(/Nina Vale/);
 
-    await userEvent.click(screen.getByRole("button", { name: "Share conversation" }));
+    await userEvent.click(screen.getByRole("button", { name: /^Share$/ }));
 
     expect(shareConversation).toHaveBeenCalledWith("c1", {
       shared_with: "u2",
@@ -256,8 +256,8 @@ describe("choosing who to share with", () => {
     // branch nothing can reach.
     renderDialog();
 
-    expect(screen.getByRole("button", { name: "Share conversation" })).toBeDisabled();
-    await userEvent.click(screen.getByRole("button", { name: "Share conversation" }));
+    expect(screen.getByRole("button", { name: /^Share$/ })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: /^Share$/ }));
 
     expect(shareConversation).not.toHaveBeenCalled();
   });
@@ -304,7 +304,7 @@ describe("sharing a conversation", () => {
     await userEvent.click(screen.getByRole("combobox", { name: "Access level" }));
     await userEvent.click(screen.getByRole("option", { name: "Edit" }));
 
-    await userEvent.click(screen.getByRole("button", { name: "Share conversation" }));
+    await userEvent.click(screen.getByRole("button", { name: /^Share$/ }));
 
     expect(shareConversation).toHaveBeenCalledWith("c1", {
       shared_with: "u1",
@@ -317,7 +317,7 @@ describe("sharing a conversation", () => {
     renderDialog();
     await pick(/Sam Fisher/);
 
-    await userEvent.click(screen.getByRole("button", { name: "Share conversation" }));
+    await userEvent.click(screen.getByRole("button", { name: /^Share$/ }));
 
     expect(screen.getByRole("button", { name: "Choose someone" })).toBeVisible();
     expect(toast.success).toHaveBeenCalledWith("Conversation shared");
@@ -329,7 +329,7 @@ describe("sharing a conversation", () => {
     renderDialog();
     await pick(/Sam Fisher/);
 
-    await userEvent.click(screen.getByRole("button", { name: "Share conversation" }));
+    await userEvent.click(screen.getByRole("button", { name: /^Share$/ }));
 
     expect(toast.error).toHaveBeenCalledWith("Not in this organization");
     expect(screen.getByRole("button", { name: "Sam Fisher" })).toBeVisible();
@@ -404,10 +404,11 @@ describe("sharing by link", () => {
     });
   });
 
-  it("says a link is read-only before one is minted", async () => {
+  it("says who can open it before any link exists", async () => {
     renderDialog();
 
-    expect(screen.getByText(/A link is always read-only/)).toBeVisible();
+    expect(screen.getByText("Restricted")).toBeVisible();
+    expect(screen.getByText("Only the people above can open it.")).toBeVisible();
   });
 });
 
@@ -427,12 +428,12 @@ describe("who it is shared with", () => {
     // A share the server could only resolve to a user id is shown by that id
     // rather than dropped - it still has to be revocable.
     expect(screen.getByText("u-9")).toBeInTheDocument();
-    // A link share is a link, not a person.
-    expect(screen.getByText("Link")).toBeInTheDocument();
-    // The catalog's word, capitalised - not the API's raw `"edit"`, which was
-    // English in every locale one row below a translated select.
-    expect(screen.getByText("Edit")).toBeInTheDocument();
-    expect(screen.queryByText("edit")).toBeNull();
+    // A link share is the general access, not a person in the list.
+    expect(screen.getByText("Anyone with the link can view")).toBeInTheDocument();
+    expect(screen.getByText(/\/shared\/tok$/)).toBeInTheDocument();
+    // The catalog's word, capitalised - not the API's raw `"view"`.
+    expect(screen.getAllByText("View").length).toBeGreaterThan(0);
+    expect(screen.queryByText("view")).toBeNull();
   });
 
   it("says nothing at all when it is shared with nobody", () => {
@@ -454,6 +455,15 @@ describe("who it is shared with", () => {
 
     expect(revokeShare).toHaveBeenCalledWith("c1", "s-2");
     expect(toast.success).toHaveBeenCalledWith("Access revoked");
+  });
+
+  it("turns the link off from the general access row", async () => {
+    listedShares.mockReturnValue([{ id: "s-link", share_token: "tok", permission: "view" }]);
+    renderDialog();
+
+    await userEvent.click(screen.getByRole("button", { name: "Revoke access" }));
+
+    expect(revokeShare).toHaveBeenCalledWith("c1", "s-link");
   });
 
   it("says why a revoke was refused", async () => {

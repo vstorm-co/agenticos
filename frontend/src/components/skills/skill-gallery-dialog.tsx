@@ -26,7 +26,7 @@ import {
   DialogTitle,
 } from "@/components/ui";
 import { ErrorState, LoadingState } from "@/components/states";
-import { DIALOG_CANVAS, DIALOG_FILL } from "@/lib/dialog-sizes";
+import { DIALOG_CANVAS, DIALOG_FILL, DIALOG_SCROLL_GUTTER } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { useSkillGallery } from "@/hooks/use-skill-gallery";
 import type { GalleryIndustry } from "@/types/providers";
@@ -112,7 +112,7 @@ function IndustryCards({
   const t = useTranslations("skills.gallery");
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto">
+    <div className={cn("min-h-0 flex-1 overflow-y-auto", DIALOG_SCROLL_GUTTER)}>
       <div className="grid grid-cols-1 gap-4 p-1 sm:grid-cols-2 lg:grid-cols-3">
         {industries.map((industry) => {
           const Icon = industryIcon(industry.id);
@@ -169,7 +169,7 @@ function IndustrySkills({
         </Button>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-1">
+      <div className={cn("min-h-0 flex-1 space-y-3 overflow-y-auto p-1", DIALOG_SCROLL_GUTTER)}>
         {industry.skills.map((skill) => {
           const busy = isInstalling && installingKeys.includes(skill.key);
           return (

@@ -159,7 +159,9 @@ describe("who may move this conversation onto another model", () => {
 
     await userEvent.click(screen.getByRole("combobox", { name: "Provider" }));
     await userEvent.click(screen.getByRole("option", { name: /OpenAI/ }));
-    await userEvent.type(screen.getByLabelText("Model"), "gpt-5");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.type(screen.getByPlaceholderText("Search models…"), "gpt-5");
+    await userEvent.click(screen.getByText("not in the list"));
     await userEvent.click(screen.getByRole("button", { name: "Run on this model" }));
 
     expect(onChange).toHaveBeenCalledWith("p-1");

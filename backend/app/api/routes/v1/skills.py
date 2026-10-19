@@ -16,6 +16,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 
 from app.api.deps import Auth, SkillSvc, require
+from app.api.public_api import PUBLIC
 from app.core.permissions import Perm
 from app.repositories.skill import SkillSort
 from app.schemas.skill import (
@@ -32,7 +33,7 @@ from app.schemas.skill import (
     SkillUpdate,
 )
 
-router = APIRouter()
+router = APIRouter(dependencies=[PUBLIC])
 
 
 @router.get("", response_model=SkillList, dependencies=[Depends(require(Perm.SKILLS_VIEW))])
@@ -42,6 +43,7 @@ async def list_skills(
     q: str | None = Query(None, max_length=100, description="Match on name or description"),
     category: list[str] | None = Query(None, description="Exact categories to filter to"),
     sort: SkillSort = Query("name", description="`name` A-Z, or `updated` newest change first"),
+    group_id: UUID | None = Query(None, description="Only what is shared with this group"),
     shared_with_me: bool = Query(
         False, description="Only what was shared with the caller - never their own rows"
     ),
@@ -58,6 +60,7 @@ async def list_skills(
         shared_with_me=shared_with_me,
         search=q,
         categories=category,
+        group_id=group_id,
         sort=sort,
         skip=skip,
         limit=limit,
@@ -77,6 +80,9 @@ async def create_skill(data: SkillCreate, service: SkillSvc, ctx: Auth) -> Any:
         description=data.description,
         content=data.content,
         category=data.category,
+        visibility=data.visibility,
+        group_ids=data.group_ids,
+        user_ids=data.user_ids,
     )
 
 

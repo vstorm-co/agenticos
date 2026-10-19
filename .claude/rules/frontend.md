@@ -333,12 +333,15 @@ failures. While writing, run only what covers the change:
 bunx vitest run src/components/chat/usage-meter.test.tsx
 ```
 
-Once, before the push — from the repository root, because CI's `test-frontend` job
-runs all four and `make lint-frontend` is the first three of them:
+The rest is CI's `test-frontend` job, which runs these on every push - read its run
+for your commit rather than running them on a laptop, where the whole suite under
+coverage loads the machine for minutes:
 
 ```bash
 make lint-frontend && make test-frontend-cov && make build-frontend
 ```
+
+`make lint-frontend` alone is cheap enough to run before a push.
 
 **`test:coverage`, not `test:run`.** The job CI runs measures coverage and fails under
 100% lines/statements/functions or 97.5% branches on `src/{app/api,lib,stores,hooks}`

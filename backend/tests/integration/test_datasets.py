@@ -26,7 +26,7 @@ from sqlalchemy.exc import IntegrityError
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.exceptions import ValidationError as InvalidCaseError
 from app.core.permissions import AuthContext, OrgRoleName, Scope
-from app.db.models.agent import Agent
+from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.conversation import Conversation, Message, ToolCall
@@ -608,7 +608,7 @@ async def test_only_an_answer_with_a_question_before_it_can_become_a_case(db) ->
     assert blank is not None
     with pytest.raises(BadRequestError, match="no text to keep as a counter-example"):
         await service.add_from_message(ctx, dataset.id, DatasetCaseFromMessage(message_id=blank.id))
-    with pytest.raises(BadRequestError, match="no text to keep as a case"):
+    with pytest.raises(BadRequestError, match="nor a tool call that changed something"):
         await service.add_from_message(
             ctx,
             dataset.id,
@@ -680,6 +680,118 @@ async def test_a_reply_in_steps_is_one_case_whichever_step_is_added(db) -> None:
         "Noted - email it is.",
         [],
     )
+
+
+async def test_a_reply_expects_only_the_calls_that_succeeded_and_changed_something(db) -> None:
+    """A call the agent got wrong, or one that only read, is not what a good
+    answer to the question has to do again."""
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="calls"))
+    agent = Agent(
+        id=uuid.uuid4(),
+        organization_id=ctx.organization_id,
+        slug=f"clerk-{uuid.uuid4().hex[:8]}",
+        name="Clerk",
+        draft_spec={},
+    )
+    db.add(agent)
+    await db.flush()
+    version = AgentVersion(
+        id=uuid.uuid4(),
+        organization_id=ctx.organization_id,
+        agent_id=agent.id,
+        version=1,
+        spec={"name": "Clerk", "capabilities": [{"id": "memory_files"}]},
+    )
+    db.add(version)
+    await db.flush()
+    _, step, said = await _reply_in_steps(db, ctx, text="Noted - email it is.")
+    run = AgentRun(
+        id=uuid.uuid4(),
+        organization_id=ctx.organization_id,
+        agent_id=agent.id,
+        agent_version_id=version.id,
+        user_id=ctx.user_id,
+        conversation_id=step.conversation_id,
+        status="completed",
+        started_at=_START,
+    )
+    db.add(run)
+    await db.flush()
+    step.run_id = said.run_id = run.id
+    for number, (tool, status) in enumerate(
+        (("read_memory", "completed"), ("write_memory", "failed")), start=2
+    ):
+        db.add(
+            ToolCall(
+                message_id=step.id,
+                tool_call_id=f"call-{number}",
+                tool_name=tool,
+                args={},
+                started_at=_START,
+                status=status,
+            )
+        )
+    await db.flush()
+
+    case = await service.add_from_message(
+        ctx,
+        dataset.id,
+        DatasetCaseFromMessage(message_id=step.id, answer_as="reference_answer"),
+    )
+
+    assert [call.tool for call in case.expected_tool_calls] == ["write_memory"]
+
+
+async def test_a_reply_whose_agent_version_is_out_of_reach_keeps_every_call_that_succeeded(
+    db,
+) -> None:
+    ctx = await _owner(db)
+    elsewhere = await _org(db, owner=await _user(db))
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="calls"))
+    foreign = Agent(
+        id=uuid.uuid4(),
+        organization_id=elsewhere.id,
+        slug=f"other-{uuid.uuid4().hex[:8]}",
+        name="Other",
+        draft_spec={},
+    )
+    db.add(foreign)
+    await db.flush()
+    version = AgentVersion(
+        id=uuid.uuid4(),
+        organization_id=elsewhere.id,
+        agent_id=foreign.id,
+        version=1,
+        spec={"name": "Other", "capabilities": [{"id": "memory_files"}]},
+    )
+    db.add(version)
+    await db.flush()
+    _, step = await _reply_in_steps(db, ctx, text=None)
+    run = AgentRun(
+        id=uuid.uuid4(),
+        organization_id=ctx.organization_id,
+        agent_id=foreign.id,
+        agent_version_id=version.id,
+        user_id=ctx.user_id,
+        conversation_id=step.conversation_id,
+        status="completed",
+        started_at=_START,
+    )
+    db.add(run)
+    await db.flush()
+    step.run_id = run.id
+    await db.flush()
+
+    case = await service.add_from_message(
+        ctx,
+        dataset.id,
+        DatasetCaseFromMessage(message_id=step.id, answer_as="reference_answer"),
+    )
+
+    assert [call.tool for call in case.expected_tool_calls] == ["write_memory"]
 
 
 async def test_a_reply_with_only_tool_calls_is_kept_as_the_calls_it_expects(db) -> None:

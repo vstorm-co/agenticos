@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { Pause, Play, Plus, Trash2 } from "lucide-react";
+import { Pause, Play, Trash2 } from "lucide-react";
 
 import { LoadingState } from "@/components/states";
 import {
@@ -12,18 +11,20 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  Label,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { useAgentEnvironments, useExposures } from "@/hooks";
+import { useAgentEnvironments, useChannelBots, useExposures, usePermissions } from "@/hooks";
+import { AddChannelDialog } from "@/components/channels/add-channel-dialog";
+import { ExposureChannelTiles, SURFACE_LABEL } from "@/components/agents/exposure-channel-tiles";
 import { ExposurePrompt } from "@/components/agents/exposure-prompt";
 import { ExposureCostReporting } from "@/components/agents/exposure-cost-reporting";
 import { ExposureTools } from "@/components/agents/exposure-tools";
 import type { ExposureSurface } from "@/types/exposures";
+import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 
 interface ExposuresPanelProps {
@@ -45,12 +46,6 @@ interface ExposuresPanelProps {
    */
   hasWorkspace: boolean;
 }
-
-const SURFACE_LABEL: Record<ExposureSurface, string> = {
-  slack: "Slack",
-  telegram: "Telegram",
-  mattermost: "Mattermost",
-};
 
 /**
  * Where one agent is available.
@@ -82,17 +77,17 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
     revoke,
   } = useExposures(agentId);
   const { environments } = useAgentEnvironments(agentId);
-  const [selectedBotId, setSelectedBotId] = useState("");
+  const { can } = usePermissions();
+  const canRegister = can(Perm.channelsManage);
+  // Only the mutation: the bot list is the exposure targets above, and reading
+  // `/channels/bots` too would ask `channels:manage` of every publisher.
+  const { create: createBot } = useChannelBots(false);
+  const [registering, setRegistering] = useState<ExposureSurface | null>(null);
   // Only worth a control when there is a choice: with the default alone, every
   // binding serves it and a picker would offer one option.
   const namedEnvironments = environments.filter((environment) => !environment.is_default);
 
   if (isLoading) return <LoadingState variant="skeleton-panel" rows={2} />;
-
-  function addExposure() {
-    expose.mutate(selectedBotId);
-    setSelectedBotId("");
-  }
 
   return (
     <Card>
@@ -104,10 +99,6 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        {exposures.length === 0 && (
-          <p className="text-muted-foreground text-sm">{t("notAvailableAnyChannel")}</p>
-        )}
-
         {exposures.map((exposure) => (
           <div key={exposure.id} className="space-y-3 rounded-md border p-3">
             <div className="flex items-center gap-3">
@@ -210,65 +201,32 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
           </div>
         ))}
 
-        {canManage &&
-          (available.length > 0 ? (
-            <div className="flex items-end gap-3 border-t pt-3">
-              <div className="flex-1 space-y-1">
-                <Label htmlFor="exposure-bot">{t("addChannel")}</Label>
-                <Select value={selectedBotId} onValueChange={setSelectedBotId}>
-                  <SelectTrigger id="exposure-bot">
-                    <SelectValue placeholder={t("chooseBot")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {available.map((target) => (
-                      <SelectItem
-                        key={target.id}
-                        value={target.id}
-                        // A bot's state is worth knowing while choosing between
-                        // bots and says nothing in the closed trigger, which
-                        // draws whatever the selected item's `ItemText` drew.
-                        // It was also the one string in this file that never
-                        // reached `next-intl`.
-                        trailing={
-                          !target.is_active && (
-                            <span className="text-muted-foreground ml-auto shrink-0 pl-3 text-xs">
-                              {t("inactive")}
-                            </span>
-                          )
-                        }
-                      >
-                        {SURFACE_LABEL[target.platform]} - {target.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button disabled={!selectedBotId || expose.isPending} onClick={addExposure}>
-                <Plus className="mr-2 h-4 w-4" />
-                {t("add2")}
-              </Button>
-            </div>
-          ) : (
-            // One sentence, not two. It used to split on whether this agent had
-            // any bindings - "already on every bot" against "no bots yet" - and
-            // since a bot serves one agent there is a third case the client
-            // cannot tell from either: every bot registered, and every one of
-            // them serving somebody else. What all three have in common is the
-            // fix, so that is what it says.
-            <p className="text-muted-foreground border-t pt-3 text-sm">
-              {t.rich("organizationHasNoChannel", {
-                link: (chunks) => (
-                  <Link
-                    href="/channels"
-                    className="text-foreground font-medium underline underline-offset-4"
-                  >
-                    {chunks}
-                  </Link>
-                ),
-              })}
-            </p>
-          ))}
+        {canManage && (
+          <ExposureChannelTiles
+            available={available}
+            // A rule under the bindings; over nothing it would only underline the header.
+            separated={exposures.length > 0}
+            canRegister={canRegister}
+            disabled={expose.isPending || createBot.isPending}
+            onBind={(botId) => expose.mutate(botId)}
+            onRegister={setRegistering}
+          />
+        )}
       </CardContent>
+      {registering && (
+        <AddChannelDialog
+          open
+          initialPlatform={registering}
+          onOpenChange={(open) => !open && setRegistering(null)}
+          // Registered from here, a bot is registered *for* this agent, so it
+          // is bound straight away rather than left for a second click.
+          onSubmit={async (bot) => {
+            const created = await createBot.mutateAsync(bot);
+            expose.mutate(created.id);
+          }}
+          isPending={createBot.isPending}
+        />
+      )}
     </Card>
   );
 }

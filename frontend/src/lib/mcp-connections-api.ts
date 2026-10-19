@@ -6,6 +6,8 @@
  * responses only carry `has_auth_token`.
  */
 
+import type { AgentUsage } from "@/types/agents";
+import type { AudiencePayload, Visibility } from "@/types/sharing";
 import { apiClient } from "./api-client";
 
 export interface McpConnectionRecord {
@@ -16,6 +18,8 @@ export interface McpConnectionRecord {
   /** null = every tool the server offers is exposed to the agent. */
   allowed_tools: string[] | null;
   is_enabled: boolean;
+  /** Whether the server's own instructions join the agent's. Off unless someone opted in. */
+  include_instructions: boolean;
   /** "bearer" (static token) or "oauth" (authorization-code flow). */
   auth_type: "bearer" | "oauth";
   /** OAuth connection that finished consent and has usable tokens. */
@@ -31,6 +35,12 @@ export interface McpConnectionRecord {
   last_status: string | null;
   last_error: string | null;
   last_checked_at: string | null;
+  /**
+   * Who sees and binds an organization connection: `org`, or `private` - its
+   * creator and the groups and people it was shared with (#2072). Meaningless on
+   * a personal connection, which only its owner reaches.
+   */
+  visibility: Visibility;
   /** Which catalog entry it points at, where it was connected from one. */
   catalog_key: string | null;
   /**
@@ -52,15 +62,31 @@ export interface McpConnectionRecord {
   last_tools: McpToolInfo[] | null;
   /** Whether an eval may call a tool this server marks `readOnlyHint` live. */
   trust_read_only_hints: boolean;
+  /**
+   * The agents binding an organization server that the reader may see (#2072).
+   * Absent on a personal connection, and null where the listing did not ask.
+   */
+  used_by?: AgentUsage[] | null;
   created_at: string;
   updated_at: string | null;
+}
+
+/** One call an agent made to an organization server's tool (#2072) - never what was said. */
+export interface McpToolCall {
+  tool: string;
+  status: string;
+  started_at: string;
+  duration_ms: number | null;
+  agent_id: string | null;
+  agent_name: string | null;
+  run_id: string | null;
 }
 
 export interface McpToolInfo {
   name: string;
   description: string;
-  /** The server's own claim that the tool changes nothing. */
-  read_only_hint?: boolean;
+  /** The server marks it read-only; anything else is treated as a write. */
+  read_only?: boolean;
 }
 
 export interface McpConnectionTestResult {
@@ -106,6 +132,7 @@ export async function updateMcpConnection(
     allowed_tools?: string[];
     clear_allowed_tools?: boolean;
     is_enabled?: boolean;
+    include_instructions?: boolean;
     /** Speak as this one where an agent asked for the member's own account. */
     is_default?: boolean;
     /** `""` clears it, back to showing the slug. */
@@ -138,9 +165,11 @@ export async function startMcpOAuth(
     name: string;
     url: string;
     catalog_key?: string;
+    /** What the person reads; required for a second account on one service. */
+    label?: string;
     client_id?: string;
     client_secret?: string;
-  },
+  } & Partial<AudiencePayload>,
   scope: "personal" | "organization" = "personal",
 ): Promise<{ authorization_url: string }> {
   // Two endpoints, one flow. Which one decides who *holds* the connection when
@@ -187,4 +216,20 @@ export async function startPolledPortalOAuth(
   return apiClient.post<{ authorization_url: string }>("/mcp-connections/oauth/start/portal", {
     portal_key: portalKey,
   });
+}
+
+/** What a server added by its address answered about OAuth sign-in (#2073). */
+export interface McpSignInProbeResult {
+  sign_in: boolean;
+  registers_clients: boolean;
+}
+
+/**
+ * Whether a server added by its address lets people sign in with OAuth.
+ *
+ * The discovery a sign-in would run, registering nothing - so the form offers
+ * Connect-with-sign-in for a server nobody curated instead of asking for a token.
+ */
+export async function probeMcpSignIn(url: string): Promise<McpSignInProbeResult> {
+  return apiClient.post<McpSignInProbeResult>("/me/mcp-connections/probe", { url });
 }

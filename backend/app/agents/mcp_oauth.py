@@ -58,6 +58,8 @@ logger = logging.getLogger(__name__)
 TOKEN_EXPIRY_SKEW_SECS = 60.0
 FLOW_TTL_SECS = 600.0
 _MAX_REDIRECTS = 5
+_USER_AGENT = f"{settings.PROJECT_NAME} MCP client"
+
 _HTTP_TIMEOUT = httpx2.Timeout(CONNECT_TIMEOUT_SECS, connect=CONNECT_TIMEOUT_SECS)
 
 
@@ -176,6 +178,11 @@ async def _send(client: PinnedAsyncClient, request: httpx2.Request) -> httpx2.Re
     library's `ValueError` as "this server pointed us at a blocked address"
     would be a confident lie about whose fault a failure was.
     """
+    # The SDK builds its discovery requests bare, without the client's default
+    # headers, so they went out with no User-Agent at all - and Facebook answers
+    # that with a redirect to an "unsupported browser" page, which made Meta
+    # Ads read as a server with no OAuth metadata.
+    request.headers.setdefault("User-Agent", _USER_AGENT)
     for _ in range(_MAX_REDIRECTS + 1):
         try:
             response = await client.send(request)

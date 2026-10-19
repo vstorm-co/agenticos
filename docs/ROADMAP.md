@@ -145,7 +145,7 @@ it reaches `frontend/src/types/runs.ts` and stops there.
 ## Testing
 
 The bar and the layers are documented in [Testing](testing.md), and in
-[`CLAUDE.md`](https://github.com/vstorm-co/agenticos/blob/main/CLAUDE.md#testing)
+[`AGENTS.md`](https://github.com/vstorm-co/agenticos/blob/main/AGENTS.md#testing)
 for anyone working in the repository.
 !!! abstract "Short version"
 

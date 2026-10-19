@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AgenticOS - README figures</title>
+<!--
+  The source of the README's figures in docs/assets/readme/*.webp. Each
+  <section data-figure="name"> is one picture; render.mjs screenshots it at
+  device scale 2 and writes name.webp beside this file.
+
+  The look is "the blob cast": an uneven bento of pastel tiles, serif numerals,
+  and the agents' own faces standing in the corners as characters - the same
+  blobatar faces the console draws. Icons, brand marks, faces and the mark come
+  from figures-assets.js (frontend/scripts/gen-readme-figure-assets.ts); the
+  product screens and their annotated areas from shots/ (capture.mjs). Type comes
+  from Google Fonts because this page is rendered by hand, not served.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Inter:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<script src="figures-assets.js"></script>
+<script src="shots/shots.js"></script>
+<style>
+  :root {
+    --ground: #fbfaf7;
+    --ink: #15121f;
+    --muted: rgba(21, 18, 31, 0.62);
+    --faint: rgba(21, 18, 31, 0.08);
+    --violet: #2b2547;
+    --blob: #bbd1ff;
+    --lav: #ddd5fb;
+    --mint: #cbeee3;
+    --rose: #f9d8e6;
+    --butter: #fce7b6;
+    --sage: #d3ecc6;
+    --sky: #cfe3fb;
+    --peach: #fcd6c5;
+    --stone: #ebe6dc;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #d6d6d6; font-family: Inter, system-ui, sans-serif; color: var(--ink); }
+  section[data-figure] { background: var(--ground); padding: 30px; margin: 0 0 40px; width: 1600px; position: relative; overflow: hidden; }
+  .mono { font-family: "Geist Mono", ui-monospace, monospace; }
+  i[data-icon], i[data-mark], i[data-face], i[data-bare] { display: inline-flex; font-style: normal; }
+  i[data-icon] svg, i[data-mark] svg, i[data-face] svg, i[data-bare] svg { width: 100%; height: 100%; display: block; }
+  .ico { width: 22px; height: 22px; flex: none; }
+  .mk { width: 22px; height: 22px; flex: none; }
+
+  /* A tile: a pastel panel with room for a character in its corner. */
+  .tile { position: relative; overflow: hidden; border-radius: 30px; padding: 28px 30px; }
+  .tile > *:not(.cast) { position: relative; z-index: 1; }
+  .cast { position: absolute; z-index: 0; width: 170px; height: 170px; right: -30px; bottom: -44px; }
+  .cast.s { width: 120px; height: 120px; right: -22px; bottom: -32px; }
+  .cast.l { width: 260px; height: 260px; right: -40px; bottom: -64px; }
+  /* Text in a tile with a character keeps clear of its corner. */
+  .tile:has(> .cast.s) > :is(p, ul, .chips, .marks) { padding-right: 92px; }
+  .tile:has(> .cast:not(.s):not(.l)) > :is(p, ul, .chips, .marks) { padding-right: 130px; }
+  .lav { background: var(--lav); } .mint { background: var(--mint); } .rose { background: var(--rose); }
+  .butter { background: var(--butter); } .sage { background: var(--sage); } .sky { background: var(--sky); }
+  .peach { background: var(--peach); } .stone { background: var(--stone); }
+  .dark { background: var(--violet); color: #f4f2fb; }
+  .dark p, .dark .dots li { color: rgba(244, 242, 251, 0.82); }
+  .dark .dots li::before { background: var(--blob); }
+
+  .h { font: 400 40px/1.05 "Instrument Serif", serif; letter-spacing: -0.01em; margin: 0; }
+  .h.sm { font-size: 34px; }
+  .t { font: 600 21px/1.3 Inter, sans-serif; margin: 0; }
+  p, .p { font: 400 18px/1.5 Inter, sans-serif; color: var(--muted); margin: 8px 0 0; }
+  .label { font: 500 14px "Geist Mono", monospace; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .chip { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; background: rgba(255, 255, 255, 0.78); border: 1px solid var(--faint); font: 500 17px Inter, sans-serif; }
+  .chip .ico, .chip .mk { width: 18px; height: 18px; }
+  .chip i[data-face] { width: 24px; height: 24px; margin-left: -6px; }
+  .chip.ghost { background: transparent; color: var(--muted); }
+  .chip.cloud { background: #eaf3fd; } .chip.local { background: #e9f6e3; }
+  .note { display: flex; align-items: center; gap: 12px; margin: 24px 4px 0; font: 400 20px Inter, sans-serif; color: var(--muted); }
+  .note .ico { color: var(--violet); }
+  .marks { display: flex; gap: 12px; margin-top: 16px; align-items: center; }
+  .marks .more { font: 500 14px "Geist Mono", monospace; color: var(--muted); }
+
+  /* figures: the numbers */
+  .bento-n { display: grid; grid-template-columns: 1.25fr 1fr 1fr 1fr; grid-template-rows: 250px 250px; gap: 16px; }
+  .bento-n .n { font: 400 96px/0.95 "Instrument Serif", serif; letter-spacing: -0.02em; }
+  .bento-n .big { grid-row: span 2; }
+  .bento-n .big .n { font-size: 176px; }
+  .bento-n .wide { grid-column: span 2; }
+  .bento-n .what { font: 600 21px Inter, sans-serif; margin-top: 8px; }
+  .bento-n .sub { font: 400 15px "Geist Mono", monospace; color: var(--muted); margin-top: 4px; }
+
+  /* grids */
+  .g3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .g4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .g2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .head-ico { width: 30px; height: 30px; margin-bottom: 14px; color: var(--violet); }
+
+  /* rag pipeline */
+  .steps { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; }
+  .step { min-height: 470px; overflow: visible; }
+  .step .num { position: absolute; top: 18px; right: 24px; font: 400 64px/1 "Instrument Serif", serif; color: rgba(21, 18, 31, 0.18); }
+  .step ul { margin: 12px 0 0; padding: 0; list-style: none; }
+  .step li { font: 500 17px/1.4 Inter, sans-serif; padding: 4px 0 4px 18px; position: relative; }
+  .step li::before { content: ""; position: absolute; left: 2px; top: 13px; width: 7px; height: 7px; border-radius: 50%; background: var(--violet); }
+  .arrow { position: absolute !important; z-index: 3 !important; right: -24px; top: 210px; width: 32px; height: 32px; padding: 6px; border-radius: 50%; background: var(--violet); color: #fff; }
+  .rag-cast { position: absolute; right: 30px; bottom: 60px; width: 200px; height: 200px; z-index: 0; }
+
+  /* lists with done / not-yet dots */
+  .dots { margin: 14px 0 0; padding: 0; list-style: none; }
+  .dots li { font: 500 18px/1.35 Inter, sans-serif; padding: 5px 0 5px 22px; position: relative; }
+  .dots li::before { content: ""; position: absolute; left: 0; top: 12px; width: 10px; height: 10px; border-radius: 50%; background: var(--violet); }
+  .dots li.no { color: var(--muted); }
+  .dots li.no::before { background: transparent; box-shadow: inset 0 0 0 1.5px rgba(21, 18, 31, 0.4); }
+
+  /* company architecture */
+  .arch { position: relative; height: 740px; }
+  .arch .frame { position: absolute; left: 46px; top: 40px; width: 1176px; height: 690px; border: 2px dashed rgba(43, 37, 71, 0.25); border-radius: 44px; }
+  .arch .frame-label { position: absolute; left: 80px; top: 27px; padding: 0 12px; background: var(--ground); display: flex; align-items: center; gap: 10px; }
+  .who { position: absolute; left: 76px; width: 300px; height: 92px; display: flex; align-items: center; gap: 14px; padding: 0 20px; border-radius: 26px; }
+  .who .faces { display: flex; }
+  .who .faces i { width: 40px; height: 40px; margin-right: -10px; border-radius: 50%; box-shadow: 0 0 0 3px rgba(255,255,255,.9); }
+  .who .t { font-size: 20px; }
+  .who .p { font-size: 16px; margin: 0; }
+  .who .ico { width: 26px; height: 26px; color: var(--violet); }
+  .core { position: absolute; left: 432px; top: 74px; width: 756px; height: 400px; border-radius: 34px; background: var(--violet); color: #fff; padding: 30px 32px; overflow: hidden; }
+  .core > *:not(.cast) { position: relative; z-index: 1; }
+  .core .brand { display: flex; align-items: center; gap: 14px; font: 400 48px/1 "Instrument Serif", serif; }
+  .core .brand img { width: 50px; height: 50px; }
+  .core .label { color: var(--blob); margin: 24px 0 0; }
+  .core .chip, .hubcore .chip { background: rgba(255, 255, 255, 0.08); border-color: rgba(187, 209, 255, 0.2); color: #fff; }
+  .core .chip .ico, .hubcore .chip .ico { color: var(--blob); }
+  .core .cast { width: 170px; height: 170px; right: -30px; top: -44px; bottom: auto; }
+  .base { position: absolute; top: 504px; width: 176px; height: 196px; padding: 20px; border-radius: 24px; }
+  .base .ico { color: var(--violet); }
+  .base .t { font-size: 19px; margin-top: 10px; }
+  .base .p { font-size: 15.5px; margin-top: 4px; }
+  .outside { position: absolute; left: 1262px; width: 306px; height: 160px; padding: 22px 24px; border-radius: 26px; border: 2px dashed rgba(43, 37, 71, 0.22); background: rgba(255, 255, 255, 0.55); }
+  .outside .t { display: flex; align-items: center; gap: 10px; font-size: 20px; }
+  .outside .t .ico { color: var(--violet); }
+  .outside .p { font-size: 17px; }
+  .gate { position: absolute; left: 1196px; top: 270px; width: 54px; height: 54px; border-radius: 50%; background: var(--violet); color: var(--blob); display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 7px var(--ground); z-index: 3; }
+  .wires { position: absolute; inset: 0; pointer-events: none; }
+
+  /* integrations hub */
+  .hub { display: grid; grid-template-columns: 420px 1fr 520px; gap: 16px; }
+  .hub .top, .hub .bottom { grid-column: 1 / -1; }
+  .hub .left { grid-column: 1; display: flex; flex-direction: column; gap: 16px; }
+  .hub .center { grid-column: 2; display: flex; align-items: center; }
+  .hub .right { grid-column: 3; }
+  .tools { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-top: 16px; }
+  .tools span { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 4px; border-radius: 16px; background: rgba(255,255,255,.78); font: 500 12.5px Inter, sans-serif; text-align: center; }
+  .tools .mk { width: 26px; height: 26px; }
+  .mini { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+  .hubcore { width: 100%; border-radius: 34px; background: var(--violet); color: #fff; padding: 30px; position: relative; overflow: hidden; }
+  .hubcore > *:not(.cast) { position: relative; z-index: 1; }
+  .hubcore .brand { display: flex; align-items: center; gap: 14px; font: 400 46px/1 "Instrument Serif", serif; }
+  .hubcore .brand img { width: 48px; height: 48px; }
+  .hubcore p { color: rgba(244, 242, 251, 0.78); font-size: 18px; }
+  .hubcore .label { color: var(--blob); margin-top: 20px; }
+  .rowhead { display: flex; justify-content: space-between; }
+  .rowhead .label + .label { text-transform: none; letter-spacing: 0.02em; }
+
+  /* annotated screens */
+  .annot { display: grid; grid-template-columns: 470px 1fr; gap: 26px; align-items: center; }
+  .annot .side { min-height: 560px; }
+  .annot ol { margin: 18px 0 0; padding: 0; list-style: none; counter-reset: n; }
+  .annot li { display: flex; gap: 14px; align-items: flex-start; font: 400 20px/1.4 Inter, sans-serif; margin: 12px 0; counter-increment: n; }
+  .annot li::before { content: counter(n); flex: none; width: 32px; height: 32px; border-radius: 50%; background: var(--violet); color: #fff; font: 600 16px/32px Inter, sans-serif; text-align: center; }
+  .annot li b { font-weight: 600; }
+  .screen { position: relative; border-radius: 22px; overflow: hidden; box-shadow: 0 0 0 1px var(--faint), 0 30px 60px rgba(43, 37, 71, 0.16); background: #fff; }
+  .screen img { display: block; width: 100%; }
+  .screen .box { position: absolute; border: 3px solid var(--violet); border-radius: 14px; background: rgba(187, 209, 255, 0.16); }
+  .screen .box span { position: absolute; left: -14px; top: -14px; width: 34px; height: 34px; border-radius: 50%; background: var(--violet); color: #fff; font: 600 17px/34px Inter, sans-serif; text-align: center; box-shadow: 0 0 0 3px #fff; }
+  .limit .t .ico { vertical-align: -4px; margin-right: 8px; color: var(--violet); }
+</style>
+</head>
+<body>
+
+<section data-figure="figures">
+  <div class="bento-n">
+    <div class="tile lav big"><div class="n">26</div><div class="what">built-in capabilities</div><div class="sub">switched on per agent</div>
+      <div class="marks"><i class="ico" data-icon="BookOpen"></i><i class="ico" data-icon="Globe"></i><i class="ico" data-icon="SquareTerminal"></i><i class="ico" data-icon="ChartColumn"></i><i class="ico" data-icon="Workflow"></i><i class="ico" data-icon="ShieldCheck"></i></div>
+      <i class="cast l" data-bare="agenticos"></i></div>
+    <div class="tile mint"><div class="n">8</div><div class="what">places an agent answers</div><div class="sub">one agent, published once</div>
+      <div class="marks"><i class="mk" data-mark="slack"></i><i class="mk" data-mark="telegram"></i><i class="mk" data-mark="mattermost"></i><i class="ico" data-icon="MessageSquare"></i><span class="more">+4</span></div><i class="cast s" data-bare="atlas"></i></div>
+    <div class="tile rose"><div class="n">27</div><div class="what">model providers</div><div class="sub">hosted, your cloud or local</div>
+      <div class="marks"><i class="mk" data-mark="openai"></i><i class="mk" data-mark="anthropic"></i><i class="mk" data-mark="google"></i><i class="mk" data-mark="mistral"></i><span class="more">+23</span></div><i class="cast s" data-bare="momo"></i></div>
+    <div class="tile sky"><div class="n">5</div><div class="what">document sync sources</div><div class="sub">into searchable knowledge</div>
+      <div class="marks"><i class="mk" data-mark="gdrive"></i><i class="mk" data-mark="s3"></i><i class="mk" data-mark="github"></i><i class="mk" data-mark="microsoft"></i></div><i class="cast s" data-bare="tofu"></i></div>
+    <div class="tile butter wide"><div class="n">4,700+</div><div class="what">MCP servers</div><div class="sub">in the gallery, or add your own</div>
+      <div class="marks"><i class="mk" data-mark="notion"></i><i class="mk" data-mark="linear"></i><i class="mk" data-mark="github"></i><i class="mk" data-mark="hubspot"></i><i class="mk" data-mark="stripe"></i><i class="mk" data-mark="figma"></i></div><i class="cast" data-bare="tide"></i></div>
+    <div class="tile sage"><div class="n">29</div><div class="what">tutorials</div><div class="sub">each with a check you can run</div>
+      <div class="marks"><i class="ico" data-icon="FileText"></i><i class="ico" data-icon="LifeBuoy"></i><i class="ico" data-icon="ChartLine"></i><i class="ico" data-icon="Sparkles"></i></div><i class="cast s" data-bare="pip"></i></div>
+  </div>
+</section>
+
+<section data-figure="security-layers">
+  <div class="g3">
+    <div class="tile lav"><i class="ico head-ico" data-icon="KeyRound"></i><h3 class="h">Vault</h3><p>Every secret has its own key, wrapped per organisation and key version. Keys rotate; values are never shown again.</p><i class="cast s" data-bare="root"></i></div>
+    <div class="tile mint"><i class="ico head-ico" data-icon="Box"></i><h3 class="h">Sandboxes</h3><p>The API never holds the Docker socket. No network unless needed; CPU, process and time limits; gVisor optional.</p><i class="cast s" data-bare="kiwi"></i></div>
+    <div class="tile butter"><i class="ico head-ico" data-icon="AppWindow"></i><h3 class="h">Apps</h3><p>Published pages run sandboxed with no network access and a strict content security policy.</p><i class="cast s" data-bare="tide"></i></div>
+    <div class="tile sky"><i class="ico head-ico" data-icon="History"></i><h3 class="h">Audit log</h3><p>Hash-chained per organisation, verifiable and exportable. Kept at least six years.</p><i class="cast s" data-bare="tofu"></i></div>
+    <div class="tile rose"><i class="ico head-ico" data-icon="LockKeyhole"></i><h3 class="h">Sessions and traffic</h3><p>Short-lived tokens, revocable sessions, “sign out everywhere”, rate limits on sign-in, API and embeds.</p><i class="cast s" data-bare="pebble"></i></div>
+    <div class="tile sage"><i class="ico head-ico" data-icon="EyeOff"></i><h3 class="h">Data hygiene</h3><p>Guardrails, emails and tokens redacted in logs, retention sweeps per data class.</p><i class="cast s" data-bare="agentic"></i></div>
+  </div>
+  <p class="note"><i class="ico" data-icon="TriangleAlert"></i>Stays with your IT: disk encryption, a firewall for sandbox traffic, and backups that include the vault key.</p>
+</section>
+
+<section data-figure="capabilities">
+  <div class="g3">
+    <div class="tile lav"><i class="ico head-ico" data-icon="BookOpen"></i><h3 class="h sm">Knowledge and memory</h3><div class="chips"><span class="chip">Knowledge search</span><span class="chip">Skills</span><span class="chip">Context</span><span class="chip">Memory</span><span class="chip">Memory (mem0) <i class="ico" data-icon="KeyRound"></i></span><span class="chip">Past conversations</span></div></div>
+    <div class="tile mint"><i class="ico head-ico" data-icon="Globe"></i><h3 class="h sm">Web</h3><div class="chips"><span class="chip">Web search <i class="ico" data-icon="KeyRound"></i></span><span class="chip">Read web pages</span><span class="chip">Web browser <i class="ico" data-icon="Puzzle"></i></span></div><i class="cast" data-bare="kiwi"></i></div>
+    <div class="tile butter"><i class="ico head-ico" data-icon="SquareTerminal"></i><h3 class="h sm">Files, code and output</h3><div class="chips"><span class="chip">Calculations</span><span class="chip">Sandbox <i class="ico" data-icon="Box"></i></span><span class="chip">Charts</span><span class="chip">Image generation <i class="ico" data-icon="KeyRound"></i></span><span class="chip">Apps</span></div></div>
+    <div class="tile sky"><i class="ico head-ico" data-icon="Workflow"></i><h3 class="h sm">How it works</h3><div class="chips"><span class="chip">Subagents</span><span class="chip">Planning</span><span class="chip">Thinking</span><span class="chip">Tool search</span><span class="chip">Date and time</span><span class="chip">Instruction reminders</span><span class="chip">Ask the user</span></div></div>
+    <div class="tile rose"><i class="ico head-ico" data-icon="ShieldCheck"></i><h3 class="h sm">Safety and limits</h3><div class="chips"><span class="chip">Guardrails</span><span class="chip">Long conversations</span><span class="chip">Media offload</span><span class="chip">Tool output limits</span></div><i class="cast" data-bare="pebble"></i></div>
+    <div class="tile sage"><i class="ico head-ico" data-icon="MessageCircle"></i><h3 class="h sm">Chat channels</h3><div class="chips"><span class="chip">Chat channel lookup</span></div><p style="margin-top:18px;max-width:300px">Plus any MCP tool, and capabilities your engineers add in Python.</p><i class="cast" data-bare="agenticos"></i></div>
+  </div>
+  <p class="note"><i class="ico" data-icon="KeyRound"></i>needs a provider key <span style="width:18px"></span><i class="ico" data-icon="Box"></i>needs a sandbox <span style="width:18px"></span><i class="ico" data-icon="Puzzle"></i>needs a browser service</p>
+</section>
+
+<section data-figure="eight-surfaces">
+  <div class="g4">
+    <div class="tile lav"><i class="ico head-ico" data-icon="MessageSquare"></i><h3 class="h sm">Web chat</h3><p>In AgenticOS, for your members.</p><i class="cast s" data-bare="agenticos"></i></div>
+    <div class="tile mint"><i class="ico head-ico" data-icon="Globe"></i><h3 class="h sm">Website widget</h3><p>A snippet on your site. Allowed sites only; public or signed visitors.</p></div>
+    <div class="tile butter"><i class="ico head-ico" data-icon="Link"></i><h3 class="h sm">Hosted page</h3><p>A link you can send, with its own budget, rate limit and pause switch.</p></div>
+    <div class="tile sky"><i class="ico head-ico" data-icon="Code"></i><h3 class="h sm">API</h3><p>Your systems send a task and get the answer.</p><i class="cast s" data-bare="tofu"></i></div>
+    <div class="tile rose"><i class="ico head-ico" data-icon="Zap"></i><h3 class="h sm">WebSocket</h3><p>Streamed answers, token by token, for your own front end.</p></div>
+    <div class="tile sage"><i class="mk head-ico" data-mark="slack"></i><h3 class="h sm">Slack</h3><p>Mention the bot in a channel or a thread.</p><i class="cast s" data-bare="agentic"></i></div>
+    <div class="tile peach"><i class="mk head-ico" data-mark="mattermost"></i><h3 class="h sm">Mattermost</h3><p>For companies that keep chat on their own servers.</p></div>
+    <div class="tile stone"><i class="mk head-ico" data-mark="telegram"></i><h3 class="h sm">Telegram</h3><p>A bot people can message directly.</p><i class="cast s" data-bare="kiwi"></i></div>
+  </div>
+  <p class="note"><i class="ico" data-icon="ShieldCheck"></i>The same budget, approvals and run record sit behind all eight.</p>
+</section>
+
+<section data-figure="model-providers">
+  <div class="tile stone" style="padding:26px 28px">
+    <div class="chips" style="margin-top:0">
+      <span class="chip"><i class="mk" data-mark="openai"></i>OpenAI</span><span class="chip"><i class="mk" data-mark="anthropic"></i>Anthropic</span><span class="chip"><i class="mk" data-mark="google"></i>Google Gemini</span><span class="chip"><i class="mk" data-mark="openrouter"></i>OpenRouter</span><span class="chip"><i class="mk" data-mark="mistral"></i>Mistral</span><span class="chip"><i class="mk" data-mark="deepseek"></i>DeepSeek</span><span class="chip"><i class="mk" data-mark="xai"></i>xAI</span><span class="chip"><i class="mk" data-mark="cohere"></i>Cohere</span><span class="chip"><i class="mk" data-mark="groq"></i>Groq</span><span class="chip">Cerebras</span><span class="chip">Together</span><span class="chip">Fireworks</span><span class="chip"><i class="mk" data-mark="huggingface"></i>Hugging Face</span><span class="chip"><i class="mk" data-mark="github"></i>GitHub Models</span><span class="chip">Alibaba</span><span class="chip">Moonshot</span><span class="chip">Z.AI</span><span class="chip">Nebius</span><span class="chip">OVHcloud</span><span class="chip">SambaNova</span><span class="chip">Heroku</span><span class="chip">Vercel AI Gateway</span>
+      <span class="chip cloud"><i class="mk" data-mark="azure"></i>Azure OpenAI</span><span class="chip cloud"><i class="mk" data-mark="bedrock"></i>AWS Bedrock</span><span class="chip cloud"><i class="mk" data-mark="google"></i>Google Vertex AI</span>
+      <span class="chip local"><i class="mk" data-mark="ollama"></i>Ollama</span><span class="chip local">LiteLLM</span><span class="chip local">vLLM, LM Studio · OpenAI-compatible</span>
+    </div>
+    <div style="display:flex;gap:26px;margin-top:18px" class="label"><span>● hosted</span><span style="color:#3b78c4">● your cloud contract</span><span style="color:#3f8a3a">● on your hardware</span></div>
+  </div>
+  <div class="g3" style="margin-top:16px">
+    <div class="tile lav"><i class="ico head-ico" data-icon="Layers"></i><h3 class="h sm">Model profiles</h3><p>Provider, model and key saved once per organisation, with a fallback if the first fails.</p><i class="cast s" data-bare="agenticos"></i></div>
+    <div class="tile butter"><i class="ico head-ico" data-icon="Gauge"></i><h3 class="h sm">Prompt caching</h3><p>On by default for Anthropic and OpenRouter, which cuts the cost of long instructions.</p><i class="cast s" data-bare="tide"></i></div>
+    <div class="tile mint"><i class="ico head-ico" data-icon="Database"></i><h3 class="h sm">Embeddings</h3><p>OpenAI, OpenRouter, or local models through Ollama for document search.</p><i class="cast s" data-bare="kiwi"></i></div>
+  </div>
+</section>
+
+<section data-figure="rag-pipeline">
+  <div class="steps">
+    <div class="tile lav step"><span class="num">1</span><i class="ico head-ico" data-icon="FileSearch"></i><h3 class="h sm">Sources</h3><p>Upload txt, md, docx, pdf, office files, images, or sync:</p><ul><li>Google Drive</li><li>S3 / MinIO</li><li>Websites</li><li>Git</li><li>SharePoint, OneDrive</li></ul><p class="mono" style="font-size:14px">on a schedule, full or changes only</p><i class="arrow" data-icon="ArrowRight"></i></div>
+    <div class="tile mint step"><span class="num">2</span><i class="ico head-ico" data-icon="ScanEye"></i><h3 class="h sm">Read</h3><p>Three parsers:</p><ul><li>PyMuPDF · local</li><li>LiteParse · local, OCR</li><li>LlamaParse · cloud, key</li></ul><p class="mono" style="font-size:14px">per collection or per upload</p><i class="arrow" data-icon="ArrowRight"></i></div>
+    <div class="tile butter step"><span class="num">3</span><i class="ico head-ico" data-icon="Layers"></i><h3 class="h sm">Split</h3><p>Recursive, Markdown-aware or fixed chunks; size and overlap per collection.</p><i class="arrow" data-icon="ArrowRight"></i></div>
+    <div class="tile sky step"><span class="num">4</span><i class="ico head-ico" data-icon="Cpu"></i><h3 class="h sm">Embed</h3><p>OpenAI, OpenRouter or local Ollama models; stored in PostgreSQL with pgvector.</p><i class="arrow" data-icon="ArrowRight"></i></div>
+    <div class="tile rose step" style="overflow:hidden"><span class="num">5</span><i class="ico head-ico" data-icon="MessageSquare"></i><h3 class="h sm">Answer</h3><p>Vector search with filters, optional query expansion and wider context, and citations.</p><i class="cast l" data-bare="agenticos"></i></div>
+  </div>
+  <p class="note"><i class="ico" data-icon="Compass"></i>Planned sources: Confluence, Azure Blob, Google Cloud Storage. No reranker yet.</p>
+</section>
+
+<section data-figure="sovereignty">
+  <div class="g2">
+    <div class="tile lav" style="min-height:440px"><i class="ico head-ico" data-icon="Cloud"></i><h3 class="h">Self-hosted platform, hosted models</h3>
+      <ul class="dots" style="margin-top:20px;max-width:520px"><li>AgenticOS, documents, vectors and logs on your servers</li><li>Models from a provider, under your own contract and keys</li><li>Switch the model per agent when the market moves</li></ul><i class="cast l" data-bare="kiwi"></i></div>
+    <div class="tile dark" style="min-height:440px"><i class="ico head-ico" data-icon="Lock" style="color:var(--blob)"></i><h3 class="h">Fully local</h3>
+      <ul class="dots" style="margin-top:20px;max-width:520px"><li>The same platform on your hardware</li><li>Open models through Ollama or vLLM</li><li>Local parsers and tools keep data flows inside</li></ul><i class="cast l" data-bare="agenticos"></i></div>
+  </div>
+  <p class="note"><i class="ico" data-icon="Compass"></i>Self-hosting the console does not make every model or tool local. We map each destination with your security team.</p>
+</section>
+
+<section data-figure="limits">
+  <div class="g2">
+    <div class="tile stone limit"><h3 class="t"><i class="ico" data-icon="Lock"></i>Source permissions</h3><p>SharePoint ACLs are not mirrored per user. Scope the credential, share the collection.</p></div>
+    <div class="tile stone limit"><h3 class="t"><i class="ico" data-icon="Mail"></i>Microsoft 365 triggers</h3><p>No built-in Outlook trigger. Outlook connects through a third-party MCP service.</p></div>
+    <div class="tile stone limit"><h3 class="t"><i class="ico" data-icon="Workflow"></i>Visual workflow builder</h3><p>In development. A plan, not a feature you can use today.</p></div>
+    <div class="tile stone limit"><h3 class="t"><i class="ico" data-icon="ShieldAlert"></i>MFA, SAML, SCIM</h3><p>Multi-factor through your identity provider; SAML only via a bridge such as Keycloak; no SCIM.</p></div>
+    <div class="tile stone limit"><h3 class="t"><i class="ico" data-icon="FileSearch"></i>Search quality tools</h3><p>Vector search with options; no reranker yet.</p></div>
+    <div class="tile stone limit"><h3 class="t"><i class="ico" data-icon="Network"></i>Scale-out</h3><p>Single host today; no Kubernetes manifests, no proven 1,000-user setup.</p></div>
+    <div class="tile stone limit"><h3 class="t"><i class="ico" data-icon="Wallet"></i>Budgets under load</h3><p>Parallel runs can overshoot a cap slightly; a single queue makes it strict.</p></div>
+    <div class="tile stone limit"><h3 class="t"><i class="ico" data-icon="Target"></i>Results</h3><p>Depend on the model, tools and instructions, so we measure them on your task.</p><i class="cast s" data-bare="root"></i></div>
+  </div>
+</section>
+
+<section data-figure="first-tasks">
+  <div class="g3">
+    <div class="tile lav"><i class="ico head-ico" data-icon="FileText"></i><h3 class="h sm">Documents</h3><ul class="dots"><li>Your first document agent</li><li>Library answers with citations</li><li>Contract against your checklist</li><li>Invoice PDFs into a spreadsheet</li><li>Meeting transcript to decisions</li><li>A wiki the agent maintains</li></ul></div>
+    <div class="tile mint"><i class="ico head-ico" data-icon="LifeBuoy"></i><h3 class="h sm">Support</h3><ul class="dots"><li>Support assistant on your website</li><li>Ticket triage from your app</li><li>New-hire helpdesk</li><li class="no">Handbook answers in Slack</li><li class="no">Inbox triage and draft replies</li></ul><i class="cast" data-bare="kiwi"></i></div>
+    <div class="tile butter"><i class="ico head-ico" data-icon="ChartLine"></i><h3 class="h sm">Research and analysis</h3><ul class="dots"><li>Sourced research report</li><li>Company brief before a call</li><li>Watch pages for changes</li><li>CSV into a chart you can check</li><li>Excel report and slide deck</li><li class="no">Questions to your database</li></ul></div>
+    <div class="tile sky"><i class="ico head-ico" data-icon="Workflow"></i><h3 class="h sm">Automation</h3><ul class="dots"><li>Weekly report on a schedule</li><li>GitHub issue triage</li><li>A team of specialist agents</li><li>Call an agent from your app</li><li class="no">Meeting actions into tasks, approved</li></ul><i class="cast" data-bare="tofu"></i></div>
+    <div class="tile rose"><i class="ico head-ico" data-icon="Sparkles"></i><h3 class="h sm">Content and productivity</h3><ul class="dots"><li>Article into posts in your voice</li><li>Product descriptions from a catalogue</li><li>Translation with your terms</li><li>An assistant that remembers you</li><li class="no">Search and update Notion</li></ul></div>
+    <div class="tile sage"><i class="ico head-ico" data-icon="ShieldCheck"></i><h3 class="h sm">Engineering and safety</h3><ul class="dots"><li>Code review in a sandbox</li><li>Personal data kept out of prompts</li></ul>
+      <ul class="dots" style="margin-top:22px;border-top:1px solid var(--faint);padding-top:12px;max-width:330px"><li class="mono" style="font-size:14px">reference run by the maintainers, v0.0.504, 25 September 2026</li><li class="no mono" style="font-size:14px">not yet recorded</li></ul><i class="cast" data-bare="agenticos"></i></div>
+  </div>
+  <p class="note"><i class="ico" data-icon="CircleHelp"></i>Each tutorial has a sample input, the setup, the exact prompt and the usual failures. Reference runs, not customer results.</p>
+</section>
+
+<section data-figure="integrations-hub">
+  <div class="hub">
+    <div class="tile lav top"><div class="rowhead"><span class="label">Models it thinks with</span><span class="label">27 providers, hosted or on your hardware</span></div>
+      <div class="chips"><span class="chip"><i class="mk" data-mark="openai"></i>OpenAI</span><span class="chip"><i class="mk" data-mark="anthropic"></i>Anthropic</span><span class="chip"><i class="mk" data-mark="google"></i>Gemini</span><span class="chip"><i class="mk" data-mark="mistral"></i>Mistral</span><span class="chip"><i class="mk" data-mark="deepseek"></i>DeepSeek</span><span class="chip"><i class="mk" data-mark="groq"></i>Groq</span><span class="chip"><i class="mk" data-mark="openrouter"></i>OpenRouter</span><span class="chip"><i class="mk" data-mark="azure"></i>Azure OpenAI</span><span class="chip"><i class="mk" data-mark="bedrock"></i>Bedrock</span><span class="chip"><i class="mk" data-mark="huggingface"></i>Hugging Face</span><span class="chip"><i class="mk" data-mark="ollama"></i>Ollama</span><span class="chip ghost">+16 more</span></div>
+      <i class="cast s" data-bare="pebble"></i></div>
+    <div class="left">
+      <div class="tile mint"><div class="rowhead"><span class="label">Where people reach it</span><span class="label">8 surfaces</span></div>
+        <div class="mini"><span class="chip"><i class="mk" data-mark="slack"></i>Slack</span><span class="chip"><i class="mk" data-mark="mattermost"></i>Mattermost</span><span class="chip"><i class="mk" data-mark="telegram"></i>Telegram</span><span class="chip"><i class="ico" data-icon="MessageSquare"></i>Web chat</span><span class="chip"><i class="ico" data-icon="Globe"></i>Website widget</span><span class="chip"><i class="ico" data-icon="Link"></i>Hosted page</span><span class="chip"><i class="ico" data-icon="Code"></i>API</span><span class="chip"><i class="ico" data-icon="Zap"></i>WebSocket</span></div></div>
+      <div class="tile butter"><div class="rowhead"><span class="label">What starts it</span><span class="label">routines</span></div>
+        <div class="mini"><span class="chip"><i class="mk" data-mark="github"></i>GitHub issues</span><span class="chip"><i class="mk" data-mark="gmail"></i>Gmail</span><span class="chip"><i class="ico" data-icon="Webhook"></i>Signed webhook</span><span class="chip"><i class="ico" data-icon="CalendarClock"></i>Schedules</span></div></div>
+    </div>
+    <div class="center"><div class="hubcore"><div class="brand"><img data-logo alt="">AgenticOS</div><p>One place your agents connect from: the same roles, budgets and run record for every connection.</p>
+      <div class="label">Every connection passes</div><div class="chips"><span class="chip"><i class="ico" data-icon="Users"></i>Roles</span><span class="chip"><i class="ico" data-icon="Wallet"></i>Budgets</span><span class="chip"><i class="ico" data-icon="UserCheck"></i>Approvals</span><span class="chip"><i class="ico" data-icon="ScanEye"></i>Guardrails</span><span class="chip"><i class="ico" data-icon="KeyRound"></i>Vault</span><span class="chip"><i class="ico" data-icon="History"></i>Activity</span></div>
+      <i class="cast" data-bare="agenticos" style="width:170px;height:170px;right:-40px;bottom:-60px"></i></div></div>
+    <div class="tile rose right"><div class="rowhead"><span class="label">Tools it can use · MCP</span><span class="label">per-tool allow-lists</span></div>
+      <div class="tools"><span><i class="mk" data-mark="notion"></i>Notion</span><span><i class="mk" data-mark="linear"></i>Linear</span><span><i class="mk" data-mark="atlassian"></i>Jira &amp; Confluence</span><span><i class="mk" data-mark="github"></i>GitHub</span><span><i class="mk" data-mark="gitlab"></i>GitLab</span><span><i class="mk" data-mark="sentry"></i>Sentry</span><span><i class="mk" data-mark="postgres"></i>PostgreSQL</span><span><i class="mk" data-mark="hubspot"></i>HubSpot</span><span><i class="mk" data-mark="asana"></i>Asana</span><span><i class="mk" data-mark="stripe"></i>Stripe</span><span><i class="mk" data-mark="supabase"></i>Supabase</span><span><i class="mk" data-mark="airtable"></i>Airtable</span><span><i class="mk" data-mark="figma"></i>Figma</span><span><i class="mk" data-mark="zapier"></i>Zapier</span><span><i class="mk" data-mark="n8n"></i>n8n</span><span><i class="mk" data-mark="clickup"></i>ClickUp</span><span><i class="mk" data-mark="trello"></i>Trello</span><span><i class="mk" data-mark="miro"></i>Miro</span><span><i class="mk" data-mark="datadog"></i>Datadog</span><span><i class="mk" data-mark="snowflake"></i>Snowflake</span><span><i class="mk" data-mark="bigquery"></i>BigQuery</span><span><i class="mk" data-mark="shopify"></i>Shopify</span><span><i class="mk" data-mark="intercom"></i>Intercom</span><span><i class="mk" data-mark="dropbox"></i>Dropbox</span></div>
+      <p style="font-size:16px"><b style="color:var(--ink)">4,700+ servers</b> in the gallery, of which these are 24, and your own servers.</p></div>
+    <div class="tile sky bottom"><div class="rowhead"><span class="label">Documents it reads · knowledge bases</span><span class="label">synced on a schedule, or uploaded</span></div>
+      <div class="chips"><span class="chip"><i class="mk" data-mark="gdrive"></i>Google Drive</span><span class="chip"><i class="mk" data-mark="s3"></i>S3 / MinIO</span><span class="chip"><i class="mk" data-mark="github"></i>Git repositories</span><span class="chip"><i class="ico" data-icon="Globe"></i>Websites</span><span class="chip"><i class="mk" data-mark="microsoft"></i>SharePoint &amp; OneDrive</span></div><i class="cast s" data-bare="tofu"></i></div>
+  </div>
+</section>
+
+<section data-figure="company-architecture-diagram">
+  <div class="arch">
+    <svg class="wires" viewBox="0 0 1600 740">
+      <g fill="none" stroke="rgba(43,37,71,.35)" stroke-width="2" stroke-dasharray="6 7">
+        <path d="M376 182 C 410 182, 410 205, 432 205"/>
+        <path d="M376 288 C 410 288, 410 258, 432 258"/>
+        <path d="M376 394 C 410 394, 410 330, 432 330"/>
+        <path d="M376 500 C 415 500, 415 390, 432 390"/>
+        <path d="M376 606 C 420 606, 420 430, 432 430"/>
+        <path d="M1188 250 C 1225 250, 1230 222, 1262 222"/>
+        <path d="M1222 324 C 1240 360, 1245 392, 1262 392"/>
+        <path d="M1222 324 C 1236 430, 1240 560, 1262 560"/>
+        <path d="M520 474 L520 504 M712 474 L712 504 M904 474 L904 504 M1096 474 L1096 504"/>
+      </g>
+    </svg>
+    <div class="frame"></div>
+    <div class="frame-label label" style="color:var(--violet)"><i class="ico" data-icon="Building2"></i>Your company · your infrastructure</div>
+    <div class="label" style="position:absolute;left:78px;top:96px">People and systems</div>
+    <div class="label" style="position:absolute;left:1264px;top:96px">Outside, by choice</div>
+    <div class="who mint" style="top:136px"><span class="faces"><i data-face="finance1"></i><i data-face="finance2"></i><i data-face="finance3"></i></span><div style="margin-left:12px"><div class="t">Finance</div><div class="p">in web chat</div></div></div>
+    <div class="who rose" style="top:242px"><span class="faces"><i data-face="ops1"></i><i data-face="ops2"></i><i data-face="ops3"></i></span><div style="margin-left:12px"><div class="t">Operations</div><div class="p">in Slack</div></div></div>
+    <div class="who butter" style="top:348px"><span class="faces"><i data-face="board1"></i><i data-face="board2"></i></span><div style="margin-left:12px"><div class="t">Board</div><div class="p">a private agent</div></div></div>
+    <div class="who sky" style="top:454px"><i class="ico" data-icon="Network"></i><div><div class="t">Your systems</div><div class="p">CRM, ERP, intranet · API</div></div></div>
+    <div class="who sage" style="top:560px"><i class="ico" data-icon="CalendarClock"></i><div><div class="t">Events</div><div class="p">email, GitHub, schedules</div></div></div>
+    <div class="core">
+      <div class="brand"><img data-logo alt="">AgenticOS</div>
+      <div class="label">Example agents</div>
+      <div class="chips"><span class="chip"><i data-face="invoice"></i>Invoice checker</span><span class="chip"><i data-face="support"></i>Support triage</span><span class="chip"><i data-face="strategy"></i>Strategy · board only</span><span class="chip"><i data-face="report"></i>Monday report</span></div>
+      <div class="label">Every request passes</div>
+      <div class="chips"><span class="chip"><i class="ico" data-icon="Users"></i>Roles</span><span class="chip"><i class="ico" data-icon="Wallet"></i>Budgets</span><span class="chip"><i class="ico" data-icon="UserCheck"></i>Approvals</span><span class="chip"><i class="ico" data-icon="ScanEye"></i>Guardrails</span><span class="chip"><i class="ico" data-icon="History"></i>Activity</span></div>
+      <i class="cast" data-bare="agenticos"></i>
+    </div>
+    <div class="base lav" style="left:432px"><i class="ico" data-icon="Database"></i><div class="t">Your data</div><div class="p">PostgreSQL + pgvector: documents and history</div></div>
+    <div class="base mint" style="left:624px"><i class="ico" data-icon="Box"></i><div class="t">Sandboxes</div><div class="p">Containers on your hosts</div></div>
+    <div class="base butter" style="left:816px"><i class="ico" data-icon="KeyRound"></i><div class="t">Vault</div><div class="p">Keys, envelope-encrypted</div></div>
+    <div class="base sky" style="left:1008px"><i class="ico" data-icon="Cpu"></i><div class="t">Local models</div><div class="p">Optional: Ollama, vLLM</div></div>
+    <div class="gate"><i class="ico" data-icon="ShieldCheck"></i></div>
+    <div class="outside" style="top:140px"><div class="t"><i class="ico" data-icon="Cloud"></i>Hosted models</div><div class="p">Providers under your own contract and keys</div></div>
+    <div class="outside" style="top:312px"><div class="t"><i class="ico" data-icon="Plug"></i>SaaS tools</div><div class="p">Through MCP: Notion, GitHub, Linear and more</div></div>
+    <div class="outside" style="top:484px"><div class="t"><i class="ico" data-icon="FileText"></i>Document sources</div><div class="p">Synced from Google Drive, SharePoint, S3</div></div>
+    <div class="p" style="position:absolute;left:1264px;top:670px">You choose every destination.</div>
+  </div>
+</section>
+
+<section data-figure="builder-annotated">
+  <div class="annot">
+    <div class="tile lav side"><span class="label" style="color:var(--violet)">Agent builder</span><h3 class="h" style="font-size:52px;margin-top:10px">Where an agent is made</h3><p style="font-size:20px">One page per agent, in the browser. Four areas:</p>
+      <ol><li><span><b>Name and status</b>: what is published, and the Publish button</span></li><li><span><b>Tabs</b>: tools, MCP servers, limits, availability, history</span></li><li><span><b>Instructions</b>: what the agent does, in plain language</span></li><li><span><b>Model</b>: which AI model answers</span></li></ol>
+      <i class="cast" data-bare="agenticos"></i></div>
+    <div class="screen" data-shot="builder"><img src="shots/builder.webp" alt=""></div>
+  </div>
+</section>
+
+<section data-figure="dashboard-annotated">
+  <div class="annot">
+    <div class="tile mint side"><span class="label" style="color:var(--violet)">Dashboard</span><h3 class="h" style="font-size:52px;margin-top:10px">The organisation on one page</h3><p style="font-size:20px">What managers and administrators look at first. Six parts:</p>
+      <ol><li><span><b>Time range</b> and sections</span></li><li><span><b>At a glance</b>: runs, success, spend, people</span></li><li><span><b>Runs over time</b></span></li><li><span><b>Outcomes</b>: what went wrong</span></li><li><span><b>Waiting on a decision</b>: approvals to review</span></li><li><span><b>Recent failures</b>, grouped</span></li></ol>
+      <p class="mono" style="font-size:14px;margin-top:14px;max-width:300px">Test deployment records, not a benchmark</p>
+      <i class="cast" data-bare="kiwi"></i></div>
+    <div class="screen" data-shot="dashboard"><img src="shots/dashboard.webp" alt=""></div>
+  </div>
+</section>
+
+<script>
+  const A = window.FIGURE_ASSETS;
+  const fill = (selector, table, key) => {
+    for (const el of document.querySelectorAll(selector)) {
+      const svg = table[el.dataset[key]];
+      if (!svg) throw new Error(`missing ${key} ${el.dataset[key]}`);
+      el.innerHTML = svg;
+    }
+  };
+  fill("[data-icon]", A.icons, "icon");
+  fill("[data-mark]", A.marks, "mark");
+  fill("[data-face]", A.faces, "face");
+  // A character stands out from its tile: each pastel gets only blobs of a
+  // contrasting, saturated colour, taken in turn so neighbours differ. A pale
+  // blob on a pale tile of its own hue was a smudge.
+  const CAST = {
+    lav: ["agenticos", "pip", "momo"],
+    mint: ["atlas", "momo", "agenticos"],
+    rose: ["momo", "root", "tofu"],
+    butter: ["tide", "agenticos", "momo"],
+    sky: ["tofu", "agenticos", "pip"],
+    sage: ["pip", "tofu", "momo"],
+    peach: ["atlas", "root"],
+    stone: ["root", "agenticos", "atlas"],
+    dark: ["agenticos"],
+  };
+  const turn = {};
+  for (const cast of document.querySelectorAll(".tile > .cast, .core > .cast, .hubcore > .cast")) {
+    const host = cast.parentElement;
+    const tint = host.matches(".core, .hubcore")
+      ? "dark"
+      : Object.keys(CAST).find((name) => host.classList.contains(name));
+    if (!tint) continue;
+    const options = CAST[tint];
+    cast.dataset.bare = options[(turn[tint] = (turn[tint] ?? -1) + 1) % options.length];
+  }
+  fill("[data-bare]", A.bare, "bare");
+  for (const el of document.querySelectorAll("img[data-logo]")) el.src = A.logo;
+  // The numbered outlines over each product screen, from capture.mjs.
+  for (const screen of document.querySelectorAll("[data-shot]")) {
+    window.SHOTS[screen.dataset.shot].areas.forEach((area, index) => {
+      const box = document.createElement("div");
+      box.className = "box";
+      box.style.cssText = `left:${area.x * 100}%;top:${area.y * 100}%;width:${area.w * 100}%;height:${area.h * 100}%`;
+      box.innerHTML = `<span>${index + 1}</span>`;
+      screen.append(box);
+    });
+  }
+  Promise.all([...document.images].map((img) => img.decode().catch(() => {}))).then(() => {
+    document.body.dataset.ready = "1";
+  });
+</script>
+</body>
+</html>

@@ -79,11 +79,34 @@ export const DIALOG_SCROLL = "max-h-[90vh] scrollbar-thin overflow-y-auto";
 /**
  * A fixed header, a body that scrolls, and whatever is below it staying put.
  *
- * The body owes itself `min-h-0 flex-1 overflow-y-auto` - a flex child without
- * `min-h-0` refuses to shrink, so the dialog grows past its own ceiling instead
- * of scrolling inside it.
+ * The body owes itself `DIALOG_BODY`.
  */
 export const DIALOG_COLUMN = "flex max-h-[90vh] min-h-0 flex-col overflow-hidden";
+
+/**
+ * The scrolling body of a `DIALOG_COLUMN` dialog.
+ *
+ * `min-h-0` because a flex child without it refuses to shrink, so the dialog
+ * grows past its own ceiling instead of scrolling inside it. The `-m-1 p-1`
+ * pair because a box that scrolls on one axis clips on both: without room
+ * inside its edge, a focused field's ring is cut off at the sides. The margin
+ * gives back the padding, so the layout around it does not move.
+ *
+ * On the right the box reaches 16px into the dialog's own padding and pads
+ * itself back by as much, with its gutter reserved: the scrollbar then runs
+ * in the dialog's margin. Flush with the content, a macOS overlay scrollbar
+ * was drawn over the right edge of every card and field the body held.
+ */
+export const DIALOG_BODY =
+  "-my-1 -ml-1 -mr-4 min-h-0 flex-1 overflow-y-auto py-1 pl-1 pr-4 scrollbar-thin [scrollbar-gutter:stable]";
+
+/**
+ * The right edge of any other scrolling box inside a dialog's padding: the box
+ * reaches into the margin and pads itself back, gutter reserved, so the
+ * scrollbar runs beside the content rather than over it - what `DIALOG_BODY`
+ * does for the body, for a list that scrolls on its own.
+ */
+export const DIALOG_SCROLL_GUTTER = "-mr-4 pr-4 scrollbar-thin [scrollbar-gutter:stable]";
 
 /**
  * The same, at a fixed height rather than a ceiling.

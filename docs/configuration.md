@@ -53,8 +53,9 @@ The config refuses an unset `VAULT_MASTER_KEY` outside `local`/`development`.
 | `ML_MAX_UPLOAD_SIZE_MB` | `25` | What one call to the [ML services](ml-services.md) may submit — a document to parse, a scan to recognise, a recording to transcribe. Its own setting because the bytes are parsed or sent to an engine inside one request rather than written down, so the ceiling is about what a single synchronous call may occupy. It sits at the transcription client's own 25 MB, the smallest engine ceiling behind that surface |
 | `ML_MAX_CONCURRENT_PARSES` | `4` | How many documents one worker parses at once for the [ML services](ml-services.md). A rate limit counts starts and cannot see what is still running, so without this a minute's allowance of OCR calls is that many recognitions in flight. Over it a caller is refused with a `Retry-After` rather than queued |
 | `MEM0_ALLOWED_HOSTS` | `[]` (empty) | Hostnames a self-hosted mem0 memory service may point at. A `base_url` comes from an agent spec, so without an allowlist a Builder who can bind (but not read) a shared mem0 key could aim it at their own server and capture the key from the request header. Empty refuses self-hosted mem0 and allows only the managed cloud; add a trusted hostname to enable a self-hosted deployment. See [secrets](secrets.md) |
-| `BROWSER_CDP_ALLOWED_HOSTS` | `[]` (empty) | Hostnames a browsing agent may drive a Chromium at. A `cdp_url` comes from an agent spec, which anyone holding `edit` on that agent writes, so the address is tenant-controlled and the request is this deployment's - the same shape `MEM0_ALLOWED_HOSTS` exists for, and the reason this is an allowlist rather than the SSRF guard every other tenant-supplied URL goes through. That guard admits only *public* addresses, so it refuses the isolated browser service on the deployment's own network that [the capability](reference/capabilities.md#browser-automation-choose) tells you to run, and accepts a CDP debugger exposed to the internet, which is worse. Matching is exact and case-folded, with no globs. Empty refuses browser automation outright |
-| `DECISION_MODEL_ALLOWED_HOSTS` | `[]` (empty) | Hosts a browsing agent's decision model may run on, beyond the vendor's own endpoint. `decision_base_url` comes from an agent spec and the vault key is unsealed into a request header to whatever it names, so without an allowlist an author who may *bind* a shared TypeSafe key - binding is not reading, and the API never returns the value - could point it at a server of their own and collect it. Approval is no help: the same author publishes the binding. Empty allows only the vendor endpoint, which is the default. See [secrets](secrets.md) |
+| `BROWSER_CDP_ALLOWED_HOSTS` | `[]` (empty) | Hostnames a browsing agent may drive a Chromium at. A `cdp_url` comes from an agent spec, which anyone holding `edit` on that agent writes, so the address is tenant-controlled and the request is this deployment's - the same shape `MEM0_ALLOWED_HOSTS` exists for, and the reason this is an allowlist rather than the SSRF guard every other tenant-supplied URL goes through. That guard admits only *public* addresses, so it refuses the isolated browser service on the deployment's own network that [the capability](reference/capabilities.md#browser-automation) tells you to run, and accepts a CDP debugger exposed to the internet, which is worse. Matching is exact and case-folded, with no globs. Empty refuses browser automation outright |
+| `BROWSER_SIGN_IN_CDP_URL` | `""` (empty) | The browser a person signs in to a site with from **Settings → Sign-ins**, where no agent names one - the compose `browser` service is `http://browser:9222`. Its host must be in `BROWSER_CDP_ALLOWED_HOSTS`. The site has to be a public address, and only the person who opened it may watch it. Empty hides the option |
+| `BROWSER_EGRESS_PROXY` | `""` (empty); compose sets `http://browser-egress:3128` | The proxy the deployment's own browser reaches every site through. The compose `browser-egress` service is `http://browser-egress:3128` (`docker compose --profile browser up -d browser-egress`): it resolves each host itself, refuses private, loopback, link-local and metadata addresses and connects to the address it checked, so neither a redirect nor DNS rebinding takes a page inside the network. Used by every browse without an organization proxy and not on a hosted browser. An internal tool an agent should browse needs an exception in `docker/browser-egress/squid.conf`. Empty sends the browser straight out: set `BROWSER_EGRESS_PROXY=` in the root `.env` only for a browser outside compose that cannot reach the proxy. Without a proxy each site is checked on its first request in a tab and the browser resolves its name itself afterwards, so a name that rebinds to a private address later in the same tab is not caught |
 | `FILE_IO_MAX_WORKERS` | `8` | Size of the dedicated thread pool that runs blocking file work — parsing an upload and reading or writing its bytes. Kept off `asyncio`'s shared default executor, which also runs `bcrypt` and pinned-host DNS, so a burst of uploads cannot leave sign-in and outbound requests queued behind them ([#1108](https://github.com/vstorm-co/agenticos/issues/1108)). Raise it on a host that parses many uploads at once. Must be a positive integer — a `0` or negative value is refused at startup |
 | `CHAT_CONVERT_TIMEOUT_SECONDS` | `60` | How long a single DOC → text LibreOffice conversion may run before it is killed. Far below the knowledge base's 600s because this is an interactive upload |
 | `CHAT_CONVERT_MAX_CONCURRENCY` | `2` | How many LibreOffice conversions may run at once. The subprocess bypasses `FILE_IO_MAX_WORKERS`, so this bounds it separately |
@@ -452,6 +453,7 @@ permanent false alarm on the other, so each service definition carries its own.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `APPROVAL_EXPIRY_HOURS` | `72` | How long a parked tool call waits before the hourly sweep denies it by timeout |
+| `QUESTION_EXPIRY_HOURS` | `24` | How long a run waits on an agent's unanswered question before the same sweep ends it |
 
 Three days because it has to span a weekend: the approval that arrives on Friday
 afternoon is the one nobody decides, and expiring it on Saturday would be expiring
@@ -472,6 +474,17 @@ leaves it `running` with nothing left to finish it. The ceiling does not have to
 be exact — a live run the sweep flips anyway is flipped back by its own terminal
 write — so set it well past your longest legitimate run and no closer. See
 [Governance](governance.md#a-run-whose-process-died).
+
+### A chat turn left running
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CHAT_DETACHED_TURN_MINUTES` | `60` | How long a chat turn goes on after the person who asked it has left - a closed tab, a quit app, a dropped connection - before it is stopped; at most `120`, past which the conversation list no longer shows the turn as at work |
+
+The answer lands in the conversation and its person is notified, so this bounds
+spend on an answer that may never be read rather than switching anything off. It
+needs to cover your longest research or browsing turn; a run is still held to its
+agent's budget either way. See [Console](console.md#chat).
 
 ## AI models — configured in the app, not here
 
@@ -667,16 +680,16 @@ an `aws_credentials` secret in its organization's vault, the same way a `gdrive`
 names a service account. The endpoint and region still fall back to these settings
 because neither names a principal — they say where the store is, not who is asking.
 
-## Published artifacts
+## Published apps { #published-artifacts }
 
 Pages agents publish with the `artifacts` capability. Their bytes live in the
 file storage above; these bound them and say where they are served from. See
-[Artifacts](artifacts.md).
+[Apps](artifacts.md).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ARTIFACT_MAX_BYTES` | 5 MiB | One version of one page. A publication above it is refused with a message the model reads |
-| `ARTIFACT_MAX_VERSIONS` | `20` | Versions kept per artifact. The oldest is removed when a newer one lands, unless the public link is pinned to it |
+| `ARTIFACT_MAX_VERSIONS` | `20` | Versions kept per app. The oldest is removed when a newer one lands, unless the public link is pinned to it |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | How long a signed content address opens, at most 3600. Also how long an open page outlives a revoked grant or link |
 | `ARTIFACT_ORIGIN` | (empty) | Where content is served from - the pages, their [library set](artifacts.md#the-library-set) and the embed document. Empty serves it from `PUBLIC_BASE_URL`, isolated by its `sandbox` policy. Set it to a host on a separate registrable domain, routed to this API, to also put the page on another site |
 

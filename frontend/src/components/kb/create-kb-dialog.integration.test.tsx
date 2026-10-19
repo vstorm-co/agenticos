@@ -88,14 +88,14 @@ function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
-/** Open the disclosure the embedding model and its key live behind. */
-async function openEmbeddings() {
-  await userEvent.click(screen.getByText("Embeddings"));
+/** Wait for the Embeddings section to have its models: it is open, but they load. */
+async function embeddingsShown() {
+  await screen.findByLabelText("Model");
 }
 
-/** Open the disclosure the parser options and the images model live behind. */
+/** Unfold what the parser cards leave folded: chunking, OCR and the images model. */
 async function openParsing() {
-  await userEvent.click(screen.getByText("How documents are parsed"));
+  await userEvent.click(screen.getByRole("button", { name: "Chunking, OCR and images" }));
 }
 
 /** What the caller may do, and what their vault holds, per test. */
@@ -211,26 +211,20 @@ beforeEach(() => {
 });
 
 describe("who can search it", () => {
-  it("says what each audience means, for the one that is chosen", async () => {
+  it("offers the whole organization by default, and only me as a personal base", async () => {
+    // The organization by default (#2072); "only me" is what a personal base was.
     show();
-    const scope = screen.getByLabelText("Who can search it");
-    expect(scope).toHaveAccessibleDescription("Only you can see it, upload to it and search it.");
 
-    await userEvent.click(scope);
-    await userEvent.click(
-      await screen.findByRole("option", { name: "Organization - all members" }),
-    );
-
-    expect(screen.getByLabelText("Who can search it")).toHaveAccessibleDescription(
-      "Everyone in this organization can find it and search it.",
-    );
+    expect(screen.getByRole("radio", { name: /Everyone/ })).toHaveAttribute("aria-checked", "true");
+    await userEvent.click(screen.getByRole("radio", { name: /Only me/ }));
+    expect(screen.getByRole("radio", { name: /Only me/ })).toHaveAttribute("aria-checked", "true");
   });
 });
 
 describe("the embedding key picker", () => {
   it("draws the mark for every key it offers, and its masked tail", async () => {
     show();
-    await openEmbeddings();
+    await embeddingsShown();
     await userEvent.click(screen.getByLabelText("Key"));
 
     const key = await screen.findByRole("option", { name: /OpenRouter prod/ });
@@ -243,7 +237,7 @@ describe("the embedding key picker", () => {
     // read "Deployment key" offered a collection that embedded on a variable
     // the operator set once for everybody, which is what this removed.
     show();
-    await openEmbeddings();
+    await embeddingsShown();
     expect(screen.getByLabelText("Key")).toHaveTextContent("Choose a key");
     await userEvent.click(screen.getByLabelText("Key"));
 
@@ -252,7 +246,7 @@ describe("the embedding key picker", () => {
 
   it("offers no key that cannot pay for embeddings", async () => {
     show();
-    await openEmbeddings();
+    await embeddingsShown();
     await userEvent.click(screen.getByLabelText("Key"));
 
     expect(screen.queryByRole("option", { name: /Tavily/ })).toBeNull();
@@ -260,7 +254,7 @@ describe("the embedding key picker", () => {
 
   it("shows the selected key's mark on the closed trigger", async () => {
     show();
-    await openEmbeddings();
+    await embeddingsShown();
     await userEvent.click(screen.getByLabelText("Key"));
     await userEvent.click(await screen.findByRole("option", { name: /OpenRouter prod/ }));
 
@@ -277,7 +271,7 @@ describe("the embedding model picker", () => {
     // native `<select>` with no matching `<option>`, reads `""` back out of the
     // change event, and hands that to `onValueChange`, which is `setState`.
     show();
-    await openEmbeddings();
+    await embeddingsShown();
 
     expect(await screen.findByLabelText("Model")).toHaveTextContent("text-embedding-3-large");
     expect(screen.queryByText("Loading models…")).toBeNull();
@@ -295,7 +289,7 @@ describe("the embedding model picker", () => {
 
   it("draws the mark of the key that pays, beside every model id", async () => {
     show();
-    await openEmbeddings();
+    await embeddingsShown();
     await userEvent.click(screen.getByLabelText("Model"));
 
     expect(
@@ -308,7 +302,7 @@ describe("the embedding model picker", () => {
     // serves is preselected, and what tells the rows apart is the width the
     // vector column would be created at.
     show();
-    await openEmbeddings();
+    await embeddingsShown();
     await userEvent.click(screen.getByLabelText("Model"));
 
     const preselected = await screen.findByRole("option", { name: /text-embedding-3-large/ });
@@ -328,7 +322,7 @@ describe("choosing the provider", () => {
 
   it("offers only the models the chosen provider serves", async () => {
     show();
-    await openEmbeddings();
+    await embeddingsShown();
     await userEvent.click(await screen.findByLabelText("Embedding provider"));
     await userEvent.click(await screen.findByRole("option", { name: "OpenAI" }));
     await userEvent.click(screen.getByLabelText("Model"));
@@ -339,7 +333,7 @@ describe("choosing the provider", () => {
 
   it("offers only the keys that provider will accept", async () => {
     show();
-    await openEmbeddings();
+    await embeddingsShown();
     await userEvent.click(await screen.findByLabelText("Embedding provider"));
     await userEvent.click(await screen.findByRole("option", { name: "OpenAI" }));
     await userEvent.click(screen.getByLabelText("Key"));
@@ -354,7 +348,7 @@ describe("choosing the provider", () => {
     // offers the servers registered for it - the organization's and the
     // deployment-wide one, marked - and nothing registered for OCR.
     show();
-    await openEmbeddings();
+    await embeddingsShown();
     await userEvent.click(await screen.findByLabelText("Embedding provider"));
     await userEvent.click(await screen.findByRole("option", { name: "Ollama" }));
 
@@ -370,7 +364,7 @@ describe("choosing the provider", () => {
 
   it("posts a keyless provider with its server and no key", async () => {
     show();
-    await openEmbeddings();
+    await embeddingsShown();
     await userEvent.click(await screen.findByLabelText("Embedding provider"));
     await userEvent.click(await screen.findByRole("option", { name: "Ollama" }));
     await userEvent.click(screen.getByLabelText("Server"));
@@ -404,7 +398,7 @@ describe("choosing the provider", () => {
       }),
     );
     show();
-    await openEmbeddings();
+    await embeddingsShown();
     await userEvent.click(await screen.findByLabelText("Embedding provider"));
     await userEvent.click(await screen.findByRole("option", { name: "Ollama" }));
     await userEvent.type(screen.getByLabelText("Name"), "Local");
@@ -417,7 +411,7 @@ describe("choosing the provider", () => {
 
   it("forgets a server chosen for the provider being left behind", async () => {
     show();
-    await openEmbeddings();
+    await embeddingsShown();
     await userEvent.click(await screen.findByLabelText("Embedding provider"));
     await userEvent.click(await screen.findByRole("option", { name: "Ollama" }));
     await userEvent.click(screen.getByLabelText("Server"));
@@ -435,7 +429,7 @@ describe("choosing the provider", () => {
     // is refused after it has already arrived. Moving the provider empties the
     // key select rather than carrying the wrong key over to be refused on save.
     show();
-    await openEmbeddings();
+    await embeddingsShown();
     await userEvent.click(screen.getByLabelText("Key"));
     await userEvent.click(await screen.findByRole("option", { name: /OpenRouter prod/ }));
     await userEvent.click(await screen.findByLabelText("Embedding provider"));
@@ -460,7 +454,7 @@ describe("choosing the provider", () => {
       }),
     );
     show();
-    await openEmbeddings();
+    await embeddingsShown();
     await userEvent.type(screen.getByLabelText("Name"), "Handbook");
     await userEvent.click(screen.getByRole("button", { name: "Create" }));
 
@@ -469,7 +463,7 @@ describe("choosing the provider", () => {
 
   it("posts the provider, its key and the model the provider serves", async () => {
     show();
-    await openEmbeddings();
+    await embeddingsShown();
     await userEvent.click(await screen.findByLabelText("Embedding provider"));
     await userEvent.click(await screen.findByRole("option", { name: "OpenAI" }));
     await userEvent.click(screen.getByLabelText("Key"));
@@ -511,8 +505,6 @@ describe("when the embedding model list cannot be read", () => {
   });
 
   it("says the list was refused rather than that it is still coming", async () => {
-    await openEmbeddings();
-
     expect(await screen.findByText(/The list of providers could not be read/)).toBeInTheDocument();
     expect(screen.queryByText("Loading models…")).toBeNull();
   });
@@ -522,14 +514,12 @@ describe("when the embedding model list cannot be read", () => {
     // can name a provider or a key, and the server refuses a collection that
     // names neither. Being told that is the difference between a choice not
     // offered and a refusal discovered on submit.
-    await openEmbeddings();
 
     expect(await screen.findByText(/will be refused until it can/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create" })).toBeInTheDocument();
   });
 
   it("offers no model picker to choose from a list it does not have", async () => {
-    await openEmbeddings();
     await screen.findByText(/could not be read/);
 
     expect(screen.queryByLabelText("Model")).toBeNull();
@@ -547,7 +537,7 @@ describe("the two keys this dialog can store", () => {
 
   it("names each of them, so neither of them is just 'a key'", async () => {
     show();
-    await openEmbeddings();
+    await embeddingsShown();
     await openParsing();
     await userEvent.click(screen.getByLabelText("Describe images"));
     await userEvent.click(await screen.findByLabelText("Provider"));
@@ -567,7 +557,7 @@ describe("the two keys this dialog can store", () => {
     // both forms and refused by `POST /secrets` after pasting a key in (#361).
     state.permissions = [Perm.connectionsManage];
     show();
-    await openEmbeddings();
+    await embeddingsShown();
     await openParsing();
     await userEvent.click(screen.getByLabelText("Describe images"));
     await userEvent.click(await screen.findByLabelText("Provider"));
@@ -589,7 +579,7 @@ describe("the image-description prompt", () => {
     // for an agent's instructions (#940). `IngestionSettings` is embedded whole
     // here, so this dialog and the standalone one get it or neither does.
     show();
-    await openEmbeddings();
+    await embeddingsShown();
     await openParsing();
     await userEvent.click(screen.getByLabelText("Describe images"));
 
@@ -603,7 +593,7 @@ describe("the image-description prompt", () => {
     // Swapping the control must not drop the bound: a field the server refuses
     // should not let somebody write past it and find out on submit.
     show();
-    await openEmbeddings();
+    await embeddingsShown();
     await openParsing();
     await userEvent.click(screen.getByLabelText("Describe images"));
 

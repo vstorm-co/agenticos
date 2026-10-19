@@ -30,6 +30,8 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const params = new URLSearchParams();
 vi.mock("next/navigation", () => ({
+  // The empty Activity window offers to ask an agent (#2075).
+  useRouter: () => ({ push: vi.fn() }),
   useSearchParams: () => params,
   // The header's "?" reads the path to decide whether this page has tips.
   usePathname: () => "/runs",
@@ -41,6 +43,7 @@ const EMPTY_SPEND = {
   by_agent: [],
   by_provider: [],
   by_key: [],
+  by_day: [],
 };
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -101,7 +104,7 @@ function serve(approvals: ToolApproval[], permissions: Permission[]) {
 
 /** The table row for one queued call, found by the row's own actor. */
 function row(name: string): HTMLElement {
-  const tableRow = screen.getByText(name).closest<HTMLElement>("tr");
+  const tableRow = screen.getByText(name).closest<HTMLElement>("li");
   if (tableRow === null) throw new Error(`no queue row for ${name}`);
   return tableRow;
 }
@@ -131,7 +134,7 @@ describe("the approvals queue, under delegation", () => {
 
     // Same tool, twice. What separates them is the actor, and each row carries
     // exactly one.
-    expect(await screen.findAllByText("send_email")).toHaveLength(2);
+    expect(await screen.findAllByText(/send email/i)).toHaveLength(2);
 
     const published = row("Asked by researcher");
     const inline = row("Asked by summariser");
@@ -151,7 +154,7 @@ describe("the approvals queue, under delegation", () => {
     render(<RunsPage />, { wrapper });
     await openApprovals();
 
-    expect(await screen.findByText("send_email")).toBeVisible();
+    expect(await screen.findByText(/send email/i)).toBeVisible();
     expect(screen.queryByText(/Asked by \w/)).toBeNull();
     expect(screen.queryByText("Inline specialist")).toBeNull();
   });

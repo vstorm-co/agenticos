@@ -43,7 +43,7 @@ export function SlashCommandPalette({
 
   return (
     <div className="border-foreground/10 bg-popover absolute bottom-full left-0 mb-2 w-full max-w-md overflow-hidden rounded-xl border shadow-lg">
-      <div className="border-foreground/8 text-muted-foreground flex items-center justify-between border-b px-3 py-1.5 font-mono text-[11px] tracking-wider uppercase">
+      <div className="border-foreground/8 text-muted-foreground flex items-center justify-between border-b px-3 py-1.5 font-mono text-xs tracking-wider uppercase">
         <span>{t("commands")}</span>
         <span className="hidden sm:inline">{t("hint")}</span>
       </div>
@@ -66,7 +66,7 @@ export function SlashCommandPalette({
               <p className="text-muted-foreground truncate text-xs">{cmd.description}</p>
             </div>
             {cmd.aliases && cmd.aliases.length > 0 && (
-              <span className="text-muted-foreground hidden font-mono text-[11px] sm:inline">
+              <span className="text-muted-foreground hidden font-mono text-xs sm:inline">
                 /{cmd.aliases[0]}
               </span>
             )}

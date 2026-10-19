@@ -61,7 +61,7 @@ export function ConversationsWidget({ title, hint, seeAll, options }: DashboardW
                     {conversation.title ?? t("untitled")}
                   </span>
                   <span className="text-muted-foreground block text-xs">
-                    {timeAgo(conversation.updated_at, tTime, locale)}
+                    {timeAgo(conversation.updated_at || conversation.created_at, tTime, locale)}
                   </span>
                 </span>
                 <span className="text-muted-foreground group-hover:text-foreground shrink-0 text-xs">

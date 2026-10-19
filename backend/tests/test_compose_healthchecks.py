@@ -177,3 +177,40 @@ class TestWaitingForHealthIgnoresAProbeFromBeforeThisStart:
         # harness never reaches its own line.
         assert result.returncode == 1
         assert "app: unhealthy" in result.stderr
+
+
+@pytest.mark.parametrize("file_name", ["docker-compose.yml", "docker-compose-dev.yml"])
+def test_the_browser_shares_a_network_only_with_what_drives_it(file_name: str) -> None:
+    """A page the browser is sent to - or redirected to - must not reach Postgres,
+    Redis, Prefect or MinIO (Codex review of #2062). It sits on a network of its
+    own, which only the API and the runner join to reach its DevTools port - and
+    its egress proxy, the way out it is given, which joins nothing else."""
+    services = _services(file_name)
+
+    def networks(name: str) -> set[str]:
+        declared = services[name].get("networks", [])
+        return set(declared if isinstance(declared, list) else declared.keys())
+
+    assert networks("browser") == {"browser"}
+    assert networks("browser-egress") == {"browser"}
+    on_it = {name for name in services if "browser" in networks(name)}
+    assert on_it == {"browser", "browser-egress", "app", "prefect-runner"}
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("compose_file", ["docker-compose.yml", "docker-compose-dev.yml"])
+def test_the_browser_goes_out_through_the_egress_proxy_by_default(compose_file: str) -> None:
+    """Codex on #2062: the proxy service existed and nothing selected it.
+
+    Whatever drives the shared browser - the API for a live browse, the runner
+    for a scheduled one - starts it behind `browser-egress` unless the root
+    `.env` says otherwise.
+    """
+    services = yaml.safe_load((REPO_ROOT / compose_file).read_text())["services"]
+
+    assert "browser-egress" in services
+    for name in ("app", "prefect-runner"):
+        environment = services[name]["environment"]
+        assert (
+            "BROWSER_EGRESS_PROXY=${BROWSER_EGRESS_PROXY-http://browser-egress:3128}" in environment
+        ), name

@@ -113,18 +113,19 @@ test("an agent delegates to another, and both runs are recorded", async ({ page 
 
   // 3. binding the delegate
   await openBuilderTab(page, "Toolbox");
-  const grant = page.getByRole("switch", { name: "Give this agent Delegation", exact: true });
+  const grant = page.getByRole("switch", { name: "Give this agent Subagents", exact: true });
   await expect(
     grant,
-    "the capability catalog has no Delegation entry; is the capability registered?",
+    "the capability catalog has no Subagents entry; is the capability registered?",
   ).toBeVisible();
-  await grant.click();
+  // A new agent starts with the recommended capabilities, Subagents among them.
+  if ((await grant.getAttribute("aria-checked")) !== "true") await grant.click();
   await expect(grant).toHaveAttribute("aria-checked", "true");
 
   // Switching a capability on deliberately does not open its panel - reading what
   // a capability offers and granting it are different gestures - so the panel has
   // to be asked for.
-  await page.getByRole("button", { name: /^Delegation\b/ }).click();
+  await page.getByRole("button", { name: "Subagents settings", exact: true }).click();
   await page.getByRole("button", { name: "Add a delegate" }).click();
   await page.getByRole("menuitem", { name: new RegExp(delegateName) }).click();
 
@@ -141,6 +142,17 @@ test("an agent delegates to another, and both runs are recorded", async ({ page 
     "the delegate is listed but carries no pin, so nothing froze it at a version",
   ).toContainText(/v\d+, current/);
 
+  // Waited for, not started in the background: a new agent starts with the
+  // starter template's subagents, whose mode is `auto`, and a stub that names
+  // no mode is resolved to a background task - whose answer arrives after the
+  // turn, where this spec could not read it.
+  await row.getByLabel("When it hands back").click();
+  await page.getByRole("option", { name: "Wait for it" }).click();
+
+  // The settings sheet covers the page; Publish is behind it.
+  const settings = page.getByRole("dialog");
+  await settings.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(settings).toBeHidden();
   await publish(page);
 
   // 4. running it
@@ -158,37 +170,36 @@ test("an agent delegates to another, and both runs are recorded", async ({ page 
   // was typed into it.
   await expect(composer).toHaveValue("");
 
-  // 5. the nested panel
-  // Found by the delegate's handle, which the platform put there: the panel is
-  // built from `subagent_start`, whose `subagent` is the name the parent's spec
-  // pinned. A panel with a name in it is a delegation that was resolved, begun
-  // and streamed.
-  const panel = page.getByRole("button", { name: new RegExp(`^${delegateSlug}\\b`) });
-  await expect(panel, "no delegation panel named the delegate").toBeVisible({
-    timeout: TURN_TIMEOUT,
-  });
-  // An outcome, not a spinner. A delegation that never reported would sit on
-  // "working…" forever, which is what the panel looked like before the recording
-  // path existed.
-  await expect(panel).toContainText("finished", { timeout: TURN_TIMEOUT });
-
+  // 5. the exchange, under the answer
   // The parent's own answer, which arrives after the delegation it waited on.
   await expect(page.getByRole("main").getByText(parentToken)).toBeVisible({
     timeout: TURN_TIMEOUT,
   });
 
-  // The panel closes itself once the delegation is over, so what it holds is one
-  // click away - and what it holds is the load-bearing assertion of this spec.
-  // `delegateToken` is written in exactly one place in this deployment: the
-  // instructions of the version that was pinned. The parent's model never sees
-  // it, the stub cannot invent it, and it reaches this page only if the pin was
-  // resolved to a spec, built into an agent, run, and streamed back under this
-  // delegation's own task id.
-  await panel.click();
+  // A finished turn names who it talked the work through with in one line under
+  // the answer, built from the `task` call whose `subagent_type` is the handle
+  // the parent's spec pinned - so a line at all is a delegation that was
+  // resolved, run and recorded on the message.
+  const exchanges = page.getByRole("button", { name: "Open the exchanges with the team" });
+  await expect(exchanges, "no line under the answer for the delegation").toBeVisible({
+    timeout: TURN_TIMEOUT,
+  });
+  await exchanges.click();
+
+  // The side panel holds the delegate's answer - the load-bearing assertion of
+  // this spec. `delegateToken` is written in exactly one place in this
+  // deployment: the instructions of the version that was pinned. The parent's
+  // model never sees it, the stub cannot invent it, and it reaches this page only
+  // if the pin was resolved to a spec, built into an agent, run, and returned
+  // under this delegation's own task id. An outcome, not a spinner: a delegation
+  // that never reported would read "working" here.
+  const sheet = page.getByRole("dialog");
+  await expect(sheet.getByText("finished")).toBeVisible();
   await expect(
-    page.getByText(delegateToken),
-    "the panel is open but holds nothing the delegate generated",
+    sheet.getByText(delegateToken),
+    "the exchange is open but holds nothing the delegate generated",
   ).toBeVisible();
+  await page.keyboard.press("Escape");
 
   // 6. two runs, attributed apart
   // The delegate's history, which was empty before this turn. One row on it is a
@@ -339,7 +350,9 @@ async function expectModel(page: Page, label: string): Promise<void> {
  * arrives later as a chat that never answers.
  */
 async function publish(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Publish" }).click();
+  // Exact: a capability card whose description mentions publishing is a
+  // button too, and a substring match finds both.
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
   await expect(page.getByText("This agent cannot be published yet")).toHaveCount(0);
   // Publish says what it moves before it does it (#519) - the dialog's own
   // Publish is the one that actually publishes.

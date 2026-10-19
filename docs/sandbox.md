@@ -75,6 +75,11 @@ The **scope** is a field of the agent's spec — `run`, `conversation`, `channel
 `user` or `agent`. So `conversation`, the usual choice, means one container and one
 directory per chat; `agent` means every run of that agent shares one.
 
+`user` is the signed-in person's own, so a run standing in for somebody has none:
+a widget's visitor and a trigger's fire are refused rather than handed the
+publisher's or the creator's workspace — unless the trigger
+[runs as its creator](concepts.md#unless-its-creator-lets-it-run-as-them).
+
 The key is also the session's **name** on the host — a `sandboxd` session's id, a
 Daytona sandbox's name — so every run of a scope opens it by that name: the first
 creates it and the others attach, concurrent ones included, and nothing has to
@@ -434,10 +439,10 @@ What remains, stated rather than implied:
 
 ## What the file browser shows, and what it leaves out
 
-`/workspaces` lists what an agent is keeping **for a person**, which is not the
+**Documents** (`/documents`) lists what an agent is keeping **for a person**, which is not the
 same set as what is on the volume. Two prefixes are dropped from every listing a
-person reads - the flat view, a workspace's own files, a conversation's panel, and
-the file counts:
+person reads - the list of every file, one folder's files, a conversation's panel,
+and the file counts:
 
 - `skills/` — a skill's body and its resources, written at the start of every run
   that has both skills and a workspace. They are needed there: a resource is a

@@ -216,7 +216,23 @@ class FlatFileRead(WorkspaceFileRead):
     """
 
     workspace_id: UUID
+    agent_id: UUID
     agent_name: str
+    agent_slug: str = Field(
+        default="",
+        description=(
+            "The handle the agent's generated face is drawn from, so a file names "
+            "its agent with the picture the agent's own page shows. Empty for an "
+            "agent that has been deleted."
+        ),
+    )
+    agent_has_avatar: bool = Field(
+        default=False,
+        description=(
+            "Whether the agent has a face to draw. Resolved here because the reader "
+            "may not hold agents:view to ask the agent list."
+        ),
+    )
     access_label: str
     from_upload: bool = Field(
         default=False,

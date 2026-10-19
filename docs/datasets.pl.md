@@ -1,5 +1,5 @@
 ---
-source_sha: "0a82031f265d"
+source_sha: "99918c787149"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -163,8 +163,10 @@ W obu przypadkach przypadek powstaje z tej tury:
   przed następnym pytaniem - a jej tekst staje się kontrprzykładem. Jeśli nikt
   nie ocenił jej łapką w dół, domyślnie jest proponowana jako odpowiedź
   wzorcowa, a ty wybierasz jedno z dwóch; zachowana jako wzorcowa, narzędzia,
-  które wywołała, stają się oczekiwanymi wywołaniami przypadku, po nazwie, a
-  odpowiedź bez tekstu zostaje zachowana jako same te wywołania;
+  które wywołała, stają się oczekiwanymi wywołaniami przypadku, po nazwie - te,
+  które się udały i coś zmieniają, a nie nieudane ani te, które jej agent
+  deklaruje jako tylko do odczytu - a odpowiedź bez tekstu zostaje zachowana
+  jako same te wywołania;
 - najnowszy komentarz zostawiony z łapką w dół staje się notatką.
 
 Obie drogi widzą tylko członkowie, którzy mogą edytować jakiś dataset.
@@ -306,7 +308,9 @@ odpowiedzi, a sędzia ma zacytować to, co odróżnia od niej odpowiedź. Zalicz
 jest błędem, gdy cytuje tylko to, co obie mówią, albo nie cytuje niczego z
 odpowiedzi, która kopiuje kontrprzykład; każde inne bez cytatu zostaje,
 oznaczone jako niezweryfikowane. Odpowiedź, która zachowuje kontrprzykład i
-dopisuje to, czego mu brakowało, zalicza się na cytacie z dopisku.
+dopisuje to, czego mu brakowało, zalicza się na cytacie z dopisku. Odpowiedź,
+która jest kontrprzykładem albo jego fragmentem, oblewa to kryterium bez względu
+na to, co powiedział sędzia.
 
 Sędziowie startują z temperaturą 0, więc ta sama odpowiedź jest oceniana dwa
 razy tak samo; model, który nie przyjmuje temperatury, na przykład model

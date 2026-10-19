@@ -1,5 +1,5 @@
 ---
-source_sha: "6b7bf33f4020"
+source_sha: "d1faa4de619f"
 title: "Extrae datos de facturas a una hoja de cálculo"
 description: "Adjunta tres facturas PDF sintéticas, haz que un agent las lea en una sandbox y escriba un CSV con columnas fijas, y comprueba que la factura con un campo que falta queda señalada en lugar de rellenada."
 ---
@@ -104,7 +104,7 @@ Cada total es el subtotal más un 21 % de impuesto, así que un total erróneo s
 ## Construye el agent { #build-the-agent }
 
 1. Crea un agent en **Agents → New agent** y selecciona tu perfil de modelo.
-2. En **Toolbox**, activa **Files & shell**. Elige **Container**, selecciona tu conexión de sandbox y el runtime `workbench`.
+2. En **Toolbox**, activa **Sandbox**. Elige **Container**, selecciona tu conexión de sandbox y el runtime `workbench`.
 3. Fija un budget y un límite de pasos: leer tres PDF cortos y escribir un CSV son unas pocas llamadas a herramientas.
 4. Escribe las instrucciones de abajo y luego pulsa **Publish**.
 

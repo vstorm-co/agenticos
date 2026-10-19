@@ -45,6 +45,22 @@ describe("DataTable", () => {
     expect(screen.getByText("No runs yet")).toBeInTheDocument();
   });
 
+  it("draws no column headings over no rows", () => {
+    const { container, rerender } = renderTable({ rows: [], empty: "No runs yet" });
+    expect(container.querySelector("thead")).toHaveClass("hidden");
+
+    rerender(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <DataTable<Row>
+          columns={[{ key: "name", header: "Name", cell: (row) => row.name }]}
+          rows={[{ id: "1", name: "Billing clerk" }]}
+          getRowKey={(row) => row.id}
+        />
+      </NextIntlClientProvider>,
+    );
+    expect(container.querySelector("thead")).not.toHaveClass("hidden");
+  });
+
   it("shows the failure instead of the empty state when the request failed", () => {
     renderTable({ rows: [], empty: "No runs yet", error: "Could not load runs" });
 

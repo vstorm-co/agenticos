@@ -12,6 +12,7 @@ class ClockConfig(BaseModel):
     """How the agent should read a clock."""
 
     timezone: str = Field(
+        title="Time zone",
         default="UTC",
         description="IANA timezone the agent thinks in, e.g. Europe/Warsaw",
         max_length=64,

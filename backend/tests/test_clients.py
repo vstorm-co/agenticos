@@ -225,3 +225,29 @@ class TestRedisClient:
 
         with pytest.raises(RuntimeError, match="not connected"):
             _ = redis_client.raw
+
+    @pytest.mark.anyio
+    async def test_list_verbs_read_a_queue_oldest_first(
+        self, redis_client: RedisClient, mock_aioredis: MagicMock
+    ):
+        """A live browse's command queue: take one, wait for one, read them all."""
+        mock_aioredis.lpop = AsyncMock(return_value="first")
+        mock_aioredis.blpop = AsyncMock(side_effect=[("queue", "second"), None])
+        mock_aioredis.lrange = AsyncMock(return_value=["a", "b"])
+        redis_client.client = mock_aioredis
+
+        assert await redis_client.pop_left("queue") == "first"
+        assert await redis_client.wait_pop_left("queue", 1.5) == "second"
+        assert await redis_client.wait_pop_left("queue", 1.5) is None
+        assert await redis_client.list_range("queue") == ["a", "b"]
+        mock_aioredis.blpop.assert_awaited_with(["queue"], timeout=1.5)
+        mock_aioredis.lrange.assert_awaited_once_with("queue", 0, -1)
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("verb", ["pop_left", "wait_pop_left", "list_range"])
+    async def test_list_verbs_not_connected(self, redis_client: RedisClient, verb: str):
+        redis_client.client = None
+        args = ("queue", 1.0) if verb == "wait_pop_left" else ("queue",)
+
+        with pytest.raises(RuntimeError, match="not connected"):
+            await getattr(redis_client, verb)(*args)

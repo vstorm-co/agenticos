@@ -10,7 +10,7 @@ runs:view while own scope demands only a caller.
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
@@ -20,7 +20,7 @@ import pytest
 from app.core.exceptions import AuthorizationError, ValidationError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.repositories.agent_run import WindowAggregates, WindowBreakdown
-from app.services.stats import StatsService, resolve_window
+from app.services.stats import StatsService, plan_timeline, resolve_window
 
 pytestmark = pytest.mark.anyio
 
@@ -46,6 +46,7 @@ def repos(monkeypatch: pytest.MonkeyPatch) -> dict[str, AsyncMock]:
         ("usage_by_version", []),
         ("usage_by_user", []),
         ("runs_by_hour", []),
+        ("runs_by_bin", []),
     ):
         mock = AsyncMock(return_value=value)
         monkeypatch.setattr(f"app.services.stats.agent_run_repo.{name}", mock)
@@ -57,6 +58,7 @@ def repos(monkeypatch: pytest.MonkeyPatch) -> dict[str, AsyncMock]:
     # so they are recorded and asserted like the others but drive no module call
     # of their own.
     for name, value in (
+        ("first_started_at", None),
         ("runs_by_day", []),
         ("runs_by_dimension", []),
         ("cost_by_provider_window", []),
@@ -80,6 +82,7 @@ def repos(monkeypatch: pytest.MonkeyPatch) -> dict[str, AsyncMock]:
             p50_ms=p50,
             p95_ms=p95,
             eval_cost_usd=await mocks["eval_cost_window"](db, **kwargs),
+            first_started_at=await mocks["first_started_at"](db, **kwargs),
         )
 
     window_aggregates = AsyncMock(side_effect=_window_aggregates)
@@ -346,7 +349,7 @@ class TestTheComposedAnswer:
             return {
                 "surface": [("web", 8), ("embed", 2)],
                 "status": [("completed", 9), ("failed", 1)],
-                "model": [("claude-sonnet-5", 7), (None, 3)],
+                "model": [("claude-sonnet-5", "anthropic", 7), (None, None, 3)],
             }[dimension]
 
         repos["runs_by_dimension"].side_effect = by_dimension
@@ -358,6 +361,7 @@ class TestTheComposedAnswer:
         assert result.by_surface is not None and result.by_surface[1].surface == "embed"
         assert result.by_status is not None and result.by_status[1].runs == 1
         assert result.by_model is not None and result.by_model[1].model_label is None
+        assert result.by_model[0].provider == "anthropic"
         assert result.by_agent is not None
         assert (result.by_agent[0].agent_id, result.by_agent[0].name) == (
             agent_id,
@@ -620,3 +624,83 @@ class TestNarrowingOneCard:
         await StatsService(MagicMock()).usage_by_user(_ctx(), limit=5, agent_id=agent_id)
 
         assert repos["usage_by_user"].call_args.kwargs["where"].agent_id == agent_id
+
+
+class TestPlanTimeline:
+    """The step a window's runs are drawn at follows how much there is to draw."""
+
+    WINDOW = resolve_window(date(2026, 7, 1), date(2026, 7, 30))
+
+    def test_a_window_nothing_ran_in_is_drawn_by_day_whole(self) -> None:
+        plan = plan_timeline(self.WINDOW, None, datetime(2026, 7, 30, 12, tzinfo=UTC))
+
+        assert (plan.step, plan.start, plan.end) == (
+            timedelta(days=1),
+            self.WINDOW.start,
+            self.WINDOW.end,
+        )
+
+    def test_one_afternoon_of_runs_is_drawn_in_minutes(self) -> None:
+        now = datetime(2026, 7, 30, 16, 50, tzinfo=UTC)
+
+        plan = plan_timeline(self.WINDOW, datetime(2026, 7, 30, 13, 10, tzinfo=UTC), now)
+
+        # 3h40m in at most 48 points is the 5-minute step; the range opens on
+        # the first run's bin and closes at now, which is a step boundary here.
+        assert plan.step == timedelta(minutes=5)
+        assert plan.start == datetime(2026, 7, 30, 13, 10, tzinfo=UTC)
+        assert plan.end == datetime(2026, 7, 30, 16, 50, tzinfo=UTC)
+
+    def test_a_single_recent_run_still_gets_a_dozen_points(self) -> None:
+        now = datetime(2026, 7, 30, 16, 50, tzinfo=UTC)
+
+        plan = plan_timeline(self.WINDOW, datetime(2026, 7, 30, 16, 49, tzinfo=UTC), now)
+
+        assert plan.step == timedelta(minutes=1)
+        assert (plan.end - plan.start) / plan.step == 12
+
+    def test_a_month_of_runs_is_drawn_by_day(self) -> None:
+        now = datetime(2026, 7, 30, 16, 50, tzinfo=UTC)
+
+        plan = plan_timeline(self.WINDOW, datetime(2026, 7, 2, 8, tzinfo=UTC), now)
+
+        assert plan.step == timedelta(days=1)
+        assert plan.start == datetime(2026, 7, 2, tzinfo=UTC)
+        assert plan.end == datetime(2026, 7, 31, tzinfo=UTC)
+
+    def test_a_past_window_ends_at_its_own_end_not_now(self) -> None:
+        plan = plan_timeline(
+            self.WINDOW, datetime(2026, 7, 29, tzinfo=UTC), datetime(2026, 9, 1, tzinfo=UTC)
+        )
+
+        assert plan.step == timedelta(hours=1)
+        assert plan.end == self.WINDOW.end
+
+    def test_a_year_of_runs_falls_back_to_weeks(self) -> None:
+        window = resolve_window(date(2025, 1, 1), date(2026, 7, 30))
+
+        plan = plan_timeline(
+            window, datetime(2025, 1, 2, tzinfo=UTC), datetime(2026, 7, 30, 12, tzinfo=UTC)
+        )
+
+        assert plan.step == timedelta(days=7)
+
+
+class TestTheTimeline:
+    async def test_it_is_dense_and_carries_each_bins_measures(self, repos) -> None:
+        bin_start = datetime(2026, 7, 30, 13, tzinfo=UTC)
+        repos["first_started_at"].return_value = bin_start
+        repos["runs_by_bin"].return_value = [(bin_start, 3, 2, Decimal("0.42"))]
+
+        result = await StatsService(MagicMock()).usage(
+            _ctx(), from_date=date(2026, 7, 30), to_date=date(2026, 7, 30)
+        )
+
+        assert result.timeline is not None
+        buckets = result.timeline.buckets
+        assert len(buckets) >= 12
+        assert any(bucket.start == bin_start and bucket.runs == 3 for bucket in buckets)
+        assert sum(bucket.runs for bucket in buckets) == 3
+        assert result.timeline.step_seconds == int(
+            (buckets[1].start - buckets[0].start).total_seconds()
+        )

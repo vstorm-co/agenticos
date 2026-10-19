@@ -165,7 +165,7 @@ def _file_storage() -> tuple[str, str]:
 
 
 async def _browser_endpoints() -> tuple[str, str]:
-    """Whether the browsers a `browser_choice` agent may drive are answering.
+    """Whether the browsers a web-browsing agent may drive are answering.
 
     `BROWSER_CDP_ALLOWED_HOSTS` is the whole list an author can name, so it is
     the whole list worth looking at - and looking here is the difference between

@@ -55,7 +55,7 @@ interface PathTreeProps<N extends PathTreeNode> {
 }
 
 /**
- * A folder tree with one file open, shared by `/skills` and `/workspaces`.
+ * A folder tree with one file open, shared by `/skills` and `/documents`.
  *
  * Both surfaces had their own: the same recursion, the same expand-collapse set
  * keyed on a folder's path, the same chevron and the same two folder icons,

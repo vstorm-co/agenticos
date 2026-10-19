@@ -1,5 +1,5 @@
 ---
-source_sha: "bfce080544ad"
+source_sha: "58528fa9516e"
 title: "Przygotuj brief o firmie przed rozmową"
 description: "Zbadaj publiczną organizację wyszukiwaniem i pobieraniem stron, a potem dostań jednostronicowy brief, w którym każdy fakt ma swoje źródło i datę."
 ---
@@ -17,7 +17,7 @@ Zbuduj agenta, który bada organizację i pisze jednostronicowy brief przed rozm
 ## Zbuduj agenta { #build-the-agent }
 
 1. Utwórz agenta w **Agents → New agent** i wybierz swój profil modelu.
-2. W **Toolbox** włącz **Web search** (metoda DuckDuckGo) i **Web fetch**.
+2. W **Toolbox** włącz **Web search** (metoda DuckDuckGo) i **Read web pages**.
 3. Ustaw budżet i limit kroków na czas próby. Zapisany run użył 20 kroków i kosztował około 0,26 USD.
 4. Wpisz poniższe instrukcje, a potem **Publish**.
 

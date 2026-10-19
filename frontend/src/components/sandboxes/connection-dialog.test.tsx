@@ -177,7 +177,7 @@ describe("ConnectionDialog", () => {
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ secret_id: "s-1" }));
   });
 
-  it("draws each key's own mark and masked tail, and a monogram for a custom one", async () => {
+  it("draws each key's own mark and masked tail, and an icon for one with no brand", async () => {
     // Any API key in the vault can be offered here, so the mark is the one
     // thing that says which service a row's token actually belongs to. A key
     // stored for no particular service has no logo anywhere - that is the
@@ -194,11 +194,15 @@ describe("ConnectionDialog", () => {
     const marked = screen.getByRole("option", { name: /Acme webhook/ });
     expect(providerMarkIn(marked)).toBe("openai");
     expect(marked).toHaveTextContent("····1111");
-    // `daytona` is a service with no compiled-in mark, and so is a key with no
-    // purpose at all. Both draw the monogram of what they are for - the initial
-    // in front of the name - rather than leaving the square empty.
-    expect(screen.getByRole("option", { name: /Daytona prod/ }).textContent).toMatch(/^dDaytona/);
-    expect(screen.getByRole("option", { name: /Sandbox token/ }).textContent).toMatch(/^cSandbox/);
+    // `daytona` is a service no icon set carries a mark for, and a key with no
+    // purpose is a custom one. Each draws what it is - a container, a key -
+    // rather than an initial or an empty square.
+    expect(
+      screen.getByRole("option", { name: /Daytona prod/ }).querySelector("svg.lucide-box"),
+    ).not.toBeNull();
+    expect(
+      screen.getByRole("option", { name: /Sandbox token/ }).querySelector("svg.lucide-key-round"),
+    ).not.toBeNull();
   });
 
   it("carries the chosen key's mark on the closed trigger", async () => {

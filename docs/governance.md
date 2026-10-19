@@ -43,7 +43,7 @@ at all.
 
 ## Budgets
 
-!!! abstract "Two levels, and they are not variations on one number"
+!!! abstract "Three levels, and they are not variations on one number"
 
     An agent's cap measured against the organization's total is exhausted by its
     neighbours' runs; the organization's measured against one agent is no ceiling
@@ -52,6 +52,7 @@ at all.
 | Level | Set in | Meters | Raised by |
 |---|---|---|---|
 | **Agent monthly** | the agent's spec | that agent's own runs | whoever may edit the agent |
+| **Department monthly** | the department's settings | runs its members started, on any agent | whoever holds `members:manage` and `budgets:manage` |
 | **Organization monthly** | organization settings | every run *and* ingestion in the organization | whoever holds `budgets:manage` |
 
 A **new organization starts with the organization ceiling already set** — the
@@ -85,6 +86,19 @@ listing - the *published* version's number, since that is the one the runner
 enforces, not whatever the draft currently promises. The dashboard's headroom
 card joins these against `GET /spend`, so a cap can be seen approaching before
 `budget_exceeded` starts appearing in run history.
+
+### A department's cap
+
+A [department](departments.md#a-departments-budget) can carry its own monthly
+cap. It sits between the other two: a run is checked against the agent's cap,
+then each capped department of the person who started it, then the
+organization's. Each department meters its own members' month, so a person in
+Finance and Sales is stopped by whichever of the two runs out first, and the
+refusal names it - *Sales department monthly budget exhausted*.
+
+The department's lead and the administrators hear when it passes 80% of its
+month, once, and again when its cap stops a run. A run nobody started - a
+schedule, a channel visitor - belongs to no department and is not counted.
 
 ### Enforcement is before the request
 
@@ -150,7 +164,7 @@ organization's month that never sees it. So the meter belongs to the prepared ru
 rather than to the surface. Opening one is not a step a new surface has to know
 about, because there is no way to execute a prepared agent without it.
 
-[Context management](reference/capabilities.md#context-management) is the other
+[Long conversations](reference/capabilities.md#context-management) is the other
 one. Its summarizing strategy writes the summary through an agent it builds
 itself, so that request passes no budget guard; the capability books what it cost
 against the same meter. Being *outside* the guard has one consequence worth
@@ -191,7 +205,7 @@ message somebody can act on. A workspace refuses a write. A **context window** i
 refused by the provider, mid-answer, and the run simply fails.
 
 Every agent therefore carries a gauge — not only one with
-[context management](reference/capabilities.md#context-management) bound, because
+[Long conversations](reference/capabilities.md#context-management) bound, because
 the warning matters most to the agent that will *not* compact. It reports how
 many tokens the last request of a turn carried, *after* any compaction: the
 reading falls when compaction works, because it measures what went out rather
@@ -601,6 +615,11 @@ runs only, busiest first — so a delegate's cost lands once, inside the run tha
 started it. And it covers the window the rest of the tab shows, rather than a rolling
 default of its own.
 
+**When it was spent** is a bar per UTC day over the same window, from `by_day` -
+each run's own spend, so the days sum to the bill the breakdowns split. A day with no
+runs is drawn at zero rather than skipped. Every breakdown carries each row's share of
+its own total, and an agent with a monthly cap shows the month so far against it.
+
 Naming the organization's people is the same call the dashboard card makes, so it
 takes the same gate: `runs:view`, held by builder and operator as well as the two
 stewards, and it says so in its own copy.
@@ -852,13 +871,18 @@ than guessed at. The UI shows that as a `+` next to the figure.
 
 ## Approvals
 
-A tool that acts on the outside world parks the run and waits for a person.
+A tool the agent's author gated parks the run and waits for a person. Nothing
+is gated until somebody asks: a gate nobody chose parks runs in channels and
+routines where nobody is there to answer it.
 
 Resolution is most-specific-first:
 
 1. the tool's own override, if it has one
 2. the capability's `approval` mode (`required` | `never` | `default`)
-3. what `side_effecting` decides, for `default`
+3. no approval, when both say `default`
+
+`side_effecting` no longer decides anything here. The Builder shows it beside the
+choice, so the tools that act on the world are the ones an author sees first.
 
 The Builder states the outcome in words rather than describing the rule, because a
 rule the reader has to run in their head is a setting nobody dares touch.
@@ -1009,9 +1033,10 @@ Four things make it a session setting rather than a hole in the model:
 **Ask about everything tightens the session's policy.** Selecting this stricter
 mode needs no special permission. It includes MCP calls handled by the runner, even though those
 tools are not declared by capabilities. Connection and binding allowlists control
-which MCP tools are exposed; they do not themselves request approval. The default
-**Follow the agent** mode applies the agent's capability policy and does not add
-an approval gate to those MCP tools.
+which MCP tools are exposed; what holds them for a person is the binding's own
+`approval` policy - `writes` or `all` - which the default **Follow the agent**
+mode applies like a capability's (see
+[which calls wait for a person](mcp.md#which-calls-wait-for-a-person)).
 
 ### A decision nobody makes
 
@@ -1129,15 +1154,15 @@ is kept even when the delegate's *place* could not be - the library's message hi
 is best-effort telemetry, and a delegation re-run from the start has still spent what
 it spent.
 
-!!! warning "MCP approval depends on the execution mode"
+!!! warning "MCP approval is set on the binding"
 
-    A capability's approval setting does not cover MCP tools. In web chat,
-    **Ask about everything** (`ask_all`) also gates MCP calls handled by the
-    runner; the default **Follow the agent** mode does not. Restrict tools on
-    the connection and its agent binding, and test the intended execution mode.
-    Do not assume a chat session's stricter setting applies to a schedule or
-    another entry point. Tools executed inside a model provider do not pass
-    through the local approval gate.
+    A capability's approval setting does not cover MCP tools; the binding's
+    `approval` policy does, on every surface the agent runs on. `writes` holds
+    the tools the server does not mark read-only - the server's own claim, so
+    choose `all` for one you do not control. In web chat, **Ask about
+    everything** (`ask_all`) also gates the rest; do not assume a chat session's
+    stricter setting applies to a schedule or another entry point. Tools
+    executed inside a model provider do not pass through the local approval gate.
 
 ## Alerts
 
@@ -1515,7 +1540,7 @@ where the per-tenant periods are set.
 | Conversations | Messages, tool calls, and the chat files attached to them - the stored bytes **before** the rows, so a file that could not be unlinked keeps its row for the next pass rather than outliving it unfindable | The thread's last activity, so one somebody is still returning to is not old |
 | Runs | The run row, its manifest and its tool approvals | When the run started |
 | Workspaces | The platform's record of an agent's files. For the `state` backend the row *is* the storage; a sandbox backend's files are reaped by the sandbox's own TTL | Last use |
-| Artifacts | A [published page](artifacts.md) with every version, its stored bytes (**before** the rows, as for conversations), its grants and its public link | The last publication, so a report a schedule republishes is not old |
+| Apps | A [published page](artifacts.md) with every version, its stored bytes (**before** the rows, as for conversations), its grants and its public link | The last publication, so a report a schedule republishes is not old |
 | Memory | An agent's memory files | Last write, because a note is written once and read for months |
 | Uploaded documents | The row, its vectors and the uploaded file | When it was uploaded |
 | Audit | Entries on this organization's trail | When the entry was recorded |

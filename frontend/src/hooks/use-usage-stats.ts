@@ -23,6 +23,8 @@ export interface UsagePeriod {
 export interface UsageFilter {
   agentId?: string;
   userId?: string;
+  /** The runs of one group's members - the dashboard's group view. */
+  groupId?: string;
 }
 
 /** The filter as the endpoint's own parameters; omitted when there is none. */
@@ -30,6 +32,7 @@ function filterParams(filter: UsageFilter | undefined): Record<string, string> {
   const params: Record<string, string> = {};
   if (filter?.agentId) params.agent_id = filter.agentId;
   if (filter?.userId) params.user_id = filter.userId;
+  if (filter?.groupId) params.group_id = filter.groupId;
   return params;
 }
 
@@ -104,7 +107,10 @@ export function usePeopleUsage(
   const limit = options?.limit ?? 6;
   // Only the agent half: this answer *is* the per-person split, so narrowing it
   // to one person would be a table of one row asking who used something.
-  const filter: UsageFilter = { agentId: options?.filter?.agentId };
+  const filter: UsageFilter = {
+    agentId: options?.filter?.agentId,
+    groupId: options?.filter?.groupId,
+  };
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.stats.usageByUser(scope, period.from, period.to, limit, filter),
     queryFn: () =>

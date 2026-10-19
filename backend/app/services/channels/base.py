@@ -223,6 +223,13 @@ class IncomingMessage:
     delivers on its own subscription rules and leaves this unset.
     """
 
+    platform_team_id: str | None = None
+    """The workspace the sender is in, where one platform install spans several.
+
+    Slack under Enterprise Grid: one org-wide app answers every workspace, and a
+    streamed answer has to name the asker's own (#2084).
+    """
+
     attachments: list[IncomingAttachment] = field(default_factory=list)
     """Files sent with this message, unfetched.
 
@@ -261,6 +268,165 @@ class OutgoingMessage:
     # Slack and Telegram ignore it; a Mattermost bot cannot send without it,
     # because every deployment is somebody's own server.
     api_base_url: str | None = None
+
+
+CHANNEL_COMMANDS: tuple[tuple[str, str], ...] = (
+    ("start", "Say hello"),
+    ("agents", "Who answers here, and what it does"),
+    ("new", "Start a new conversation"),
+    ("link", "Connect your chat account to your account"),
+    ("unlink", "Disconnect your account"),
+    ("help", "Show the commands"),
+)
+"""The commands every channel bot answers, for `/help` and Telegram's command menu."""
+
+
+PRESS_PREFIX = "aos:"
+"""What a button's value starts with, so a press is told from other callbacks."""
+
+FEEDBACK_PREFIX = "aosfb:"
+"""What a feedback button's value starts with - a rating, not an answer to a prompt."""
+
+
+def feedback_value(run_id: str, *, helpful: bool) -> str:
+    """The value a thumbs button carries: the run whose answer it rates, and how (#2084)."""
+    return f"{FEEDBACK_PREFIX}{run_id}:{'+' if helpful else '-'}"
+
+
+def read_feedback(value: str) -> tuple[str, bool] | None:
+    """The run and the verdict a feedback button's value names, or `None`."""
+    if not value.startswith(FEEDBACK_PREFIX):
+        return None
+    run_id, _, verdict = value.removeprefix(FEEDBACK_PREFIX).partition(":")
+    if verdict not in ("+", "-"):
+        return None
+    return run_id, verdict == "+"
+
+
+StepStatus = Literal["in_progress", "complete", "error"]
+StepDisplay = Literal["timeline", "plan"]
+
+
+@dataclass(frozen=True)
+class StepSource:
+    """A page a step read, so the asker can open it from the step."""
+
+    url: str
+    title: str
+
+
+@dataclass(frozen=True)
+class AnswerStep:
+    """One thing the agent did on the way to an answer: a tool call, by what it does."""
+
+    id: str
+    title: str
+    status: StepStatus
+    sources: tuple[StepSource, ...] = ()
+
+
+class NativeAnswer(ABC):
+    """An answer the platform itself renders while it is written (#2084).
+
+    Slack's AI apps draw streamed text and a timeline of steps - each tool call
+    a row going from in progress to done or failed - where the other platforms
+    only get a message rewritten once a second. An adapter that has one returns
+    it from :meth:`ChannelAdapter.open_answer`; the router writes into it and
+    finishes it, and never edits it the way it edits a placeholder.
+    """
+
+    handle: str
+    """The message, for rewriting it whole when the finished answer differs."""
+
+    @abstractmethod
+    async def append(self, text: str) -> None:
+        """Add the next fragment of the answer."""
+
+    @abstractmethod
+    async def step(self, step: AnswerStep) -> None:
+        """Show a step starting, or how it ended."""
+
+    @abstractmethod
+    async def finish(self, text: str, *, failed: bool, feedback_run_id: str | None) -> None:
+        """End the answer with what is still unsent of it.
+
+        `feedback_run_id` asks for the thumbs that rate it; `None` for a refusal or
+        a failure, which have no answer to rate.
+        """
+
+
+def press_value(prompt_id: str, choice: int | None) -> str:
+    """The value a button carries: the prompt it answers and which choice, or skip.
+
+    Short on purpose - a Telegram button's `callback_data` holds 64 bytes - and
+    naming nothing but the row: what the choice means is read back from it.
+    """
+    return f"{PRESS_PREFIX}{prompt_id}:{'s' if choice is None else choice}"
+
+
+def read_press(value: str) -> tuple[str, int | None] | None:
+    """The prompt and choice a button's value names, or `None` for anything else."""
+    if not value.startswith(PRESS_PREFIX):
+        return None
+    prompt_id, _, choice = value.removeprefix(PRESS_PREFIX).partition(":")
+    if choice == "s":
+        return prompt_id, None
+    if not choice.isdigit():
+        return None
+    return prompt_id, int(choice)
+
+
+@dataclass
+class ChannelChoice:
+    """One button: what it reads, and the value a press sends back."""
+
+    label: str
+    value: str
+    style: str | None = None
+    """`primary` or `danger` where a platform colours buttons, `None` for neither."""
+
+
+@dataclass
+class PromptMessage:
+    """A message with buttons - an approval to decide or a question to answer."""
+
+    platform_chat_id: str
+    text: str
+    choices: list[ChannelChoice]
+    bot_id: str = ""
+    """The bot posting it, for a platform whose buttons call back a per-bot URL."""
+    api_base_url: str | None = None
+
+
+@dataclass
+class IncomingPress:
+    """Somebody pressed one of the bot's buttons."""
+
+    platform: str
+    bot_id: str
+    platform_user_id: str
+    platform_chat_id: str
+    value: str
+    platform_username: str | None = None
+    message_id: str | None = None
+    """The message the button was on, so the answer can replace the buttons."""
+    prompt_text: str | None = None
+    """What that message said, where the platform hands it back with the press."""
+    ack_id: str | None = None
+    """What a platform needs told the press arrived - Telegram's callback query id."""
+    trigger_id: str | None = None
+    """What opens a form in reply to the press - Slack's modal, Mattermost's dialog."""
+
+
+@dataclass
+class FeedbackComment:
+    """What somebody said was wrong with an answer they rated down (#2084)."""
+
+    platform: str
+    bot_id: str
+    platform_user_id: str
+    run_id: str
+    text: str
 
 
 class ChannelAdapter(ABC):
@@ -324,6 +490,42 @@ class ChannelAdapter(ABC):
         cannot stream never reaches it.
         """
         raise NotImplementedError(f"{self.platform} cannot edit a message it has sent")
+
+    async def open_answer(
+        self, bot_token: str, incoming: IncomingMessage, *, steps: StepDisplay
+    ) -> NativeAnswer | None:
+        """Start an answer the platform renders natively, or `None` to edit one instead.
+
+        `steps` is how its tool calls read: a `timeline` of rows, or one `plan`.
+
+        `None` by default, and on a failure to start: the router then answers
+        with a placeholder it rewrites, which every platform can show (#2084).
+        """
+        return None
+
+    async def offer_feedback(  # noqa: B027 - most platforms have no buttons to add
+        self, bot_token: str, msg: OutgoingMessage, handle: str, run_id: str, *, bot_id: str
+    ) -> None:
+        """Put thumbs-up and thumbs-down under a finished answer, where the platform can.
+
+        Silent by default: rating an answer is a nicety, and a platform without
+        buttons simply does not offer it.
+        """
+
+    async def settle_feedback(  # noqa: B027 - Slack's own thumbs show what was pressed
+        self, bot_token: str, press: IncomingPress, helpful: bool
+    ) -> None:
+        """Say a rating was taken, where the platform's buttons do not show it themselves."""
+
+    async def ask_feedback_comment(  # noqa: B027 - most platforms have no form to open
+        self, bot_token: str, press: IncomingPress, run_id: str, *, bot_id: str
+    ) -> None:
+        """Ask what was wrong with an answer somebody just rated down, in a form."""
+
+    async def acknowledge_message(  # noqa: B027 - a no-op where the platform has no reactions
+        self, bot_token: str, incoming: IncomingMessage, reaction: str
+    ) -> None:
+        """React to a question the moment it arrives, so the asker sees it was heard."""
 
     async def typing(self, bot_id: str, msg: OutgoingMessage) -> None:  # noqa: B027
         """Show that the bot is composing, if the platform has such a thing.
@@ -521,6 +723,41 @@ class ChannelAdapter(ABC):
     @abstractmethod
     def parse_incoming(self, raw_payload: dict[str, Any], bot_id: str) -> IncomingMessage | None:
         """Parse raw platform payload into IncomingMessage. Return None to ignore."""
+
+    async def send_prompt(self, bot_token: str, prompt: PromptMessage) -> None:
+        """Post a message with a button per choice.
+
+        This default is for a platform with no buttons: the choices are written
+        out under the text, and deciding happens in the console the text points
+        at. Slack, Telegram and Mattermost override it.
+        """
+        listed = "\n".join(f"- {choice.label}" for choice in prompt.choices)
+        await self.send_message(
+            bot_token,
+            OutgoingMessage(
+                platform_chat_id=prompt.platform_chat_id,
+                text=f"{prompt.text}\n{listed}",
+                api_base_url=prompt.api_base_url,
+            ),
+        )
+
+    async def acknowledge(  # noqa: B027 - most platforms need no acknowledgement
+        self, bot_token: str, press: IncomingPress
+    ) -> None:
+        """Tell the platform the press arrived, before the work it starts.
+
+        Telegram spins the pressed button until it is told; the others answered
+        the press with the request's own 200.
+        """
+
+    async def settle_prompt(  # noqa: B027 - a no-op where nothing can be edited, as `typing`
+        self, bot_token: str, press: IncomingPress, text: str
+    ) -> None:
+        """Replace the pressed message's buttons with what was chosen.
+
+        Silent where the platform cannot edit a message: the answer that follows
+        says what happened anyway.
+        """
 
 
 RECONNECT_FLOOR_SECONDS = 5.0

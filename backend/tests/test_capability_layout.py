@@ -55,6 +55,9 @@ TOOLLESS = {
     # Appends steering text to the request tail, before it goes out. Nothing the
     # model chooses, so nothing for a person to approve.
     "system_reminders",
+    # Changes how other capabilities' slow tools run - in the background, the
+    # model's choice per call - and adds no tool of its own.
+    "background_tools",
 }
 
 # Capabilities whose tools come from a library rather than this repository.
@@ -72,6 +75,10 @@ EXTERNAL_TOOLSET = {
     # the nine tool descriptions are declared in `_capability.py` and handed to the
     # library through `descriptions=`, so the text a reader edits still lives here.
     "planning",
+    # `pydantic_ai_harness.ask_user.AskUserToolset`: the tool, its schema and its
+    # description are the harness's, and `_capability.py` only binds the run's own
+    # question channel around each call (#2064).
+    "ask_user",
     # `pydantic_ai.common_tools.web_fetch.web_fetch_tool`, whose whole value is the
     # SSRF-guarded download underneath it - see the capability's README. Same
     # bargain as `sandbox`: the description the model reads is declared in

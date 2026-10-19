@@ -10,7 +10,7 @@
 import { apiClient } from "./api-client";
 import { saveBlob, type FileAccess } from "./file-access";
 import { qk } from "./query-keys";
-import type { KBParsedContent } from "@/types";
+import type { KBDocument, KBDocumentList, KBParsedContent } from "@/types";
 import type { JsonSchema } from "@/types/agents";
 
 /** Narrowing-only business filters (FA-039). None of these can widen access:
@@ -69,6 +69,20 @@ export function kbDocumentAccess(kbId: string, doc: { id: string; filename: stri
     readBytes: async () => (await read()).blob(),
     download: async () => saveBlob(await (await read()).blob(), doc.filename),
   };
+}
+
+/**
+ * The document a citation names, in the base it names - or null.
+ *
+ * A search result and an agent's citation carry a file's name and its collection,
+ * not a row id, so the original is found by name. Null when the base no longer
+ * holds it: a citation outlives the file it quoted.
+ */
+export async function findKBDocument(kbId: string, filename: string): Promise<KBDocument | null> {
+  const found = await apiClient.get<KBDocumentList>(
+    `/kb/${kbId}/documents?filename=${encodeURIComponent(filename)}&limit=1`,
+  );
+  return found.items[0] ?? null;
 }
 
 /**

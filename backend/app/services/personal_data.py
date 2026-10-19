@@ -51,6 +51,25 @@ _MEMORY_FIELDS = ("id", "agent_id", "name", "content", "updated_at")
 _IDENTITY_FIELDS = ("id", "platform", "platform_user_id", "platform_username")
 _COMMAND_FIELDS = ("id", "name", "prompt", "created_at")
 _LAYOUT_FIELDS = ("id", "organization_id", "entries", "updated_at")
+# Which site, where and when - never `sealed_state`, which is their live session
+# on that site and would make the export a key to it.
+_SIGN_IN_FIELDS = ("id", "organization_id", "site", "created_at", "last_used_at")
+# Which key, what it may do and when - never `key_hash`, and the prefix only,
+# which the console already shows and which cannot be presented on its own.
+_API_KEY_FIELDS = (
+    "id",
+    "organization_id",
+    "name",
+    "prefix",
+    "scopes",
+    "created_at",
+    "expires_at",
+    "last_used_at",
+    "revoked_at",
+)
+# The consent, not what it was exchanged for: codes and refresh tokens are hashes
+# of live credentials and stay out.
+_OAUTH_GRANT_FIELDS = ("id", "client_id", "organization_id", "scopes", "created_at", "revoked_at")
 _NOTIFICATION_FIELDS = (
     "id",
     "event_type",
@@ -170,6 +189,15 @@ class PersonalDataService:
             notification_preferences=personal_data_repo.as_rows(
                 await personal_data_repo.notification_preferences_of(self.db, user_id),
                 _NOTIFICATION_PREFERENCE_FIELDS,
+            ),
+            browser_sign_ins=personal_data_repo.as_rows(
+                await personal_data_repo.browser_sign_ins_of(self.db, user_id), _SIGN_IN_FIELDS
+            ),
+            api_keys=personal_data_repo.as_rows(
+                await personal_data_repo.api_keys_of(self.db, user_id), _API_KEY_FIELDS
+            ),
+            oauth_grants=personal_data_repo.as_rows(
+                await personal_data_repo.oauth_grants_of(self.db, user_id), _OAUTH_GRANT_FIELDS
             ),
         )
 

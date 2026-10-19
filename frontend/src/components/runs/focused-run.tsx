@@ -7,6 +7,7 @@ import {
   Activity,
   ArrowLeft,
   ArrowRight,
+  CornerLeftUp,
   ExternalLink,
   MessageSquare,
   Play,
@@ -33,7 +34,7 @@ import {
 import { useAuthStore } from "@/stores";
 import { ApiError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
-import { cn, formatDateTime, formatRunDuration } from "@/lib/utils";
+import { cn, formatDateTime, formatRunDuration, timeAgo } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 import type { AgentRun } from "@/types/runs";
 import { RunTable } from "./run-table";
@@ -86,6 +87,7 @@ export function FocusedRun({
   onClose?: () => void;
 }) {
   const t = useTranslations("pages.runs");
+  const tTime = useTranslations("time");
   const locale = useLocale();
   const { can } = usePermissions();
   const meId = useAuthStore((state) => state.user?.id ?? null);
@@ -176,33 +178,22 @@ export function FocusedRun({
           runs of one conversation share their turns and remounting would rebuild
           a list that was already correct. */}
       <div key={run.id} className="run-detail-in shrink-0 space-y-3 border-b px-4 pt-4 pb-0">
-        <div
-          className={cn(
-            "flex flex-wrap items-start justify-between gap-3",
-            settling && "opacity-60",
-          )}
-        >
-          <div className="flex flex-wrap items-center gap-3">
+        {/* Who ran and how it ended on the first line, with the ways out of
+            this run - step, resume, close - at its end; where it came from and
+            on what model on the line under it. The steps used to take a row of
+            their own between the two. */}
+        <div className={cn("flex items-start gap-2", settling && "opacity-60")}>
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
             {/* The agent's identity needs agents:view to resolve; without it the
               header simply starts at the status - never a request that 403s. */}
             {can(Perm.agentsView) && <AgentIdentity agentId={run.agent_id} />}
             <RunStatusBadge status={run.status} />
-            <span className="text-muted-foreground flex items-center gap-1.5 text-sm">
-              <SurfaceIcon surface={run.surface} />
-              {surfaceLabel(run.surface, t)}
-            </span>
-            <span className="flex items-center gap-1.5 font-mono text-xs">
-              {run.provider !== null && (
-                <ProviderIcon provider={run.provider} className="h-3.5 w-3.5" />
-              )}
-              {run.model_label ?? "-"}
-            </span>
           </div>
           {/* The run's conversation, one step either way - resolved server-side
             on this read, disabled at the edges (and on a conversationless run)
             rather than absent so the timeline keeps its shape while somebody
             steps through it. */}
-          <div className="flex items-center gap-1">
+          <div className="flex shrink-0 items-center gap-0.5">
             {/* A parked run whose approvals were all decided is a run somebody
               still has to nudge: the resume endpoint is idempotent about the
               decision - a call still parked answers a refusal, not a second
@@ -212,6 +203,7 @@ export function FocusedRun({
               <Button
                 variant="outline"
                 size="sm"
+                className="mr-1"
                 disabled={resume.isPending}
                 onClick={() => resume.mutate(run.id)}
               >
@@ -223,90 +215,119 @@ export function FocusedRun({
               <RunMoreMenu runId={run.id} />
             )}
             <Button
-              variant="outline"
-              size="sm"
+              variant="ghost"
+              size="icon-sm"
               disabled={prevRunId === null}
               aria-label={t("previousRun")}
+              title={t("previousRun")}
               onClick={() => prevRunId !== null && onFocusRun(prevRunId)}
             >
               <ArrowLeft className="h-4 w-4" aria-hidden />
             </Button>
             <Button
-              variant="outline"
-              size="sm"
+              variant="ghost"
+              size="icon-sm"
               disabled={nextRunId === null}
               aria-label={t("nextRun")}
+              title={t("nextRun")}
               onClick={() => nextRunId !== null && onFocusRun(nextRunId)}
             >
               <ArrowRight className="h-4 w-4" aria-hidden />
             </Button>
             {onClose !== undefined && (
-              <Button variant="ghost" size="sm" aria-label={t("closeRunDetail")} onClick={onClose}>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t("closeRunDetail")}
+                onClick={onClose}
+              >
                 <X className="h-4 w-4" aria-hidden />
               </Button>
             )}
           </div>
         </div>
 
-        <dl className={cn("grid grid-cols-2 gap-3 @md:grid-cols-4", settling && "opacity-60")}>
-          <Fact label={t("tokens")}>
-            <span className="font-mono tabular-nums">
-              {run.input_tokens} → {run.output_tokens}
+        <div
+          className={cn(
+            "text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-xs",
+            settling && "opacity-60",
+          )}
+        >
+          <span className="flex items-center gap-1.5">
+            <SurfaceIcon surface={run.surface} />
+            {surfaceLabel(run.surface, t)}
+          </span>
+          <span className="flex items-center gap-1.5">
+            {run.provider !== null && (
+              <ProviderIcon provider={run.provider} className="h-3.5 w-3.5" />
+            )}
+            {run.model_label ?? "-"}
+          </span>
+          {run.started_at !== null && (
+            <span title={formatDateTime(run.started_at, locale)}>
+              {timeAgo(run.started_at, tTime, locale)}
             </span>
+          )}
+        </div>
+
+        {/* The three numbers somebody opens a run to check, on one filled
+            strip rather than four columns of capitals - a date there wrapped
+            onto two lines and set the strip's height. */}
+        <dl
+          className={cn(
+            "bg-muted/50 divide-foreground/[0.06] grid grid-cols-3 divide-x rounded-xl",
+            settling && "opacity-60",
+          )}
+        >
+          <Fact label={t("tokens")}>
+            {run.input_tokens.toLocaleString(locale)}
+            <span className="text-muted-foreground"> → </span>
+            {run.output_tokens.toLocaleString(locale)}
           </Fact>
           <Fact label={t("cost")}>
-            <span className="font-mono tabular-nums">
-              ${Number(run.cost_usd).toFixed(4)}
-              {run.cost_is_partial && (
-                <span className="text-muted-foreground" title={t("modelRunHadNo")}>
-                  {" +"}
-                </span>
-              )}
-            </span>
+            ${Number(run.cost_usd).toFixed(4)}
+            {run.cost_is_partial && (
+              <span className="text-muted-foreground" title={t("modelRunHadNo")}>
+                {" +"}
+              </span>
+            )}
           </Fact>
-          <Fact label={t("took")}>
-            <span className="font-mono tabular-nums">
-              {formatRunDuration(run.started_at, run.ended_at)}
-            </span>
-          </Fact>
-          <Fact label={t("started")}>
-            {run.started_at === null ? "-" : formatDateTime(run.started_at, locale)}
-          </Fact>
+          <Fact label={t("took")}>{formatRunDuration(run.started_at, run.ended_at)}</Fact>
         </dl>
 
-        <div className="flex flex-wrap items-center gap-4 text-xs">
+        {/* Hidden when it holds none of the three, rather than repeating all
+            three conditions around it. */}
+        <div className="flex flex-wrap items-center gap-1.5 empty:hidden">
           {run.parent_run_id !== null && (
-            <button
-              type="button"
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
               onClick={() => onFocusRun(run.parent_run_id)}
-              className="text-muted-foreground underline underline-offset-4"
             >
+              <CornerLeftUp className="h-3.5 w-3.5" aria-hidden />
               {t("openTheRunItCame")}
-            </button>
+            </Button>
           )}
           {run.conversation_id !== null && run.user_id !== null && run.user_id === meId && (
-            <Link
-              href={`${ROUTES.CHAT}?id=${run.conversation_id}`}
-              className="text-muted-foreground inline-flex items-center gap-1 underline underline-offset-4"
-            >
-              <MessageSquare className="h-3 w-3" aria-hidden />
-              {t("openTheChatBehind")}
-            </Link>
+            <Button variant="outline" size="sm" className="h-7 text-xs" asChild>
+              <Link href={`${ROUTES.CHAT}?id=${run.conversation_id}`}>
+                <MessageSquare className="h-3.5 w-3.5" aria-hidden />
+                {t("openTheChatBehind")}
+              </Link>
+            </Button>
           )}
           {/* The trace, where one can be read. The URL is this read's own field,
-            resolved server-side because an agent may redirect its traces to a
-            client's Logfire project - a link only when there is genuinely
-            somewhere to land, never a guess from the id. */}
+              resolved server-side because an agent may redirect its traces to a
+              client's Logfire project - a link only when there is genuinely
+              somewhere to land, never a guess from the id. */}
           {run.logfire_url != null && (
-            <a
-              href={run.logfire_url}
-              target="_blank"
-              rel="noreferrer"
-              className="text-muted-foreground inline-flex items-center gap-1 underline underline-offset-4"
-            >
-              <ExternalLink className="h-3 w-3" aria-hidden />
-              {t("openTheTraceInLogfire")}
-            </a>
+            <Button variant="outline" size="sm" className="h-7 text-xs" asChild>
+              <a href={run.logfire_url} target="_blank" rel="noreferrer">
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                {t("openTheTraceInLogfire")}
+              </a>
+            </Button>
           )}
         </div>
 
@@ -374,9 +395,9 @@ function AgentIdentity({ agentId }: { agentId: string }) {
 
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-0.5">
-      <dt className="text-muted-foreground text-xs tracking-wide uppercase">{label}</dt>
-      <dd className="text-sm">{children}</dd>
+    <div className="min-w-0 space-y-0.5 px-3 py-2.5">
+      <dt className="text-muted-foreground text-xs">{label}</dt>
+      <dd className="text-foreground truncate text-sm font-medium tabular-nums">{children}</dd>
     </div>
   );
 }

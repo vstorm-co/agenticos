@@ -35,7 +35,6 @@ from app.services import skill_library
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.file_storage import avatar_filename, get_file_storage
 from app.services.skills import SkillService
-from app.services.system_agents import SystemAgentService
 
 if TYPE_CHECKING:
     from app.services.rag.vectorstore import BaseVectorStore
@@ -165,8 +164,15 @@ class OrganizationService:
             role=OrgRole.OWNER.value,
         )
         await self._seed_bundled_skills(org.id, owner_id)
-        await SystemAgentService(self.db).seed(organization_id=org.id, owner_id=owner_id)
+        await self._seed_system_agents(org.id, owner_id)
         return org
+
+    async def _seed_system_agents(self, organization_id: UUID, owner_id: UUID) -> None:
+        # Imported locally: the system agents reach the agent registry, whose
+        # browser capability imports this module back through the user service.
+        from app.services.system_agents import SystemAgentService
+
+        await SystemAgentService(self.db).seed(organization_id=organization_id, owner_id=owner_id)
 
     async def _seed_bundled_skills(self, organization_id: UUID, owner_id: UUID) -> None:
         """Copy every bundled skill into a brand-new organization.
@@ -256,7 +262,7 @@ class OrganizationService:
             role=OrgRole.OWNER.value,
         )
         await self._seed_bundled_skills(org.id, user_id)
-        await SystemAgentService(self.db).seed(organization_id=org.id, owner_id=user_id)
+        await self._seed_system_agents(org.id, user_id)
         return org
 
     async def update(
@@ -264,6 +270,7 @@ class OrganizationService:
         org_id: UUID,
         data: OrganizationUpdate,
         requester_id: UUID,
+        key_scopes: frozenset[Perm] | None = None,
     ) -> Organization:
         """Update org metadata and settings.
 
@@ -280,21 +287,30 @@ class OrganizationService:
         decision about the approval queue, and somebody who may not decide one
         approval should not be able to switch the queue off for every
         conversation (#925).
+
+        `key_scopes` are those of the API key the request came with, `None` for
+        a session: each field's permission must be one the key was issued for
+        too, or a key narrowed to `org:settings` reaches the budget and the
+        waiver through its issuer's whole role.
         """
         org, membership = await self.get_for_user(org_id, requester_id)
+
+        def holds(perm: Perm) -> bool:
+            return role_has(membership.role, perm) and (key_scopes is None or perm in key_scopes)
+
         wants_budget = "monthly_budget_usd" in data.model_fields_set
         wants_color = "avatar_color" in data.model_fields_set
         wants_waiver = "chat_may_waive_approvals" in data.model_fields_set
         wants_metadata = bool(
             data.model_fields_set - {"monthly_budget_usd", "chat_may_waive_approvals"}
         )
-        if wants_metadata and not role_has(membership.role, Perm.ORG_SETTINGS):
+        if wants_metadata and not holds(Perm.ORG_SETTINGS):
             raise AuthorizationError(message="Only Owner or Admin can update the organization")
-        if wants_budget and not role_has(membership.role, Perm.BUDGETS_MANAGE):
+        if wants_budget and not holds(Perm.BUDGETS_MANAGE):
             raise AuthorizationError(
                 message="Changing the spending limit requires 'budgets:manage'"
             )
-        if wants_waiver and not role_has(membership.role, Perm.APPROVALS_DECIDE):
+        if wants_waiver and not holds(Perm.APPROVALS_DECIDE):
             raise AuthorizationError(
                 message="Changing whether chats may waive approvals requires 'approvals:decide'"
             )

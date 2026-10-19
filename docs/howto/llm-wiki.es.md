@@ -1,5 +1,5 @@
 ---
-source_sha: "2db3d6fc670a"
+source_sha: "3e585eb46567"
 title: "Construye un wiki de LLM que el agent mantiene"
 description: "Dale a un agent un workspace que sobrevive entre conversaciones y un archivo de esquema, y deja que convierta notas en bruto en un pequeño wiki de Markdown enlazado."
 ---
@@ -42,8 +42,8 @@ El dato de referencia que una página del wiki tiene que llevar a través de amb
 ## Construye el agent { #build-the-agent }
 
 1. Crea un agent en **Agents → New agent** y selecciona tu perfil de modelo.
-2. En **Toolbox**, activa **Files & shell**. Elige **Container**, selecciona tu conexión de sandbox y el runtime `workbench`.
-3. Pon el **alcance de sesión en `user`**, no en el valor por defecto `conversation`. Un workspace con alcance de conversación empieza vacío en el siguiente chat, que es justo el fallo de "el wiki lo olvida todo" que comprueba esta página; uno con alcance de agent lo comparten todos los de la organización que hablan con este agent, que es el modelo equivocado para el wiki de una persona. `user` mantiene un workspace para la persona en cada conversación y superficie por la que llega al agent, y para nadie más. Consulta [Files & shell](../reference/capabilities.md#files-shell) para ver qué comparte cada alcance.
+2. En **Toolbox**, activa **Sandbox**. Elige **Container**, selecciona tu conexión de sandbox y el runtime `workbench`.
+3. Pon el **alcance de sesión en `user`**, no en el valor por defecto `conversation`. Un workspace con alcance de conversación empieza vacío en el siguiente chat, que es justo el fallo de "el wiki lo olvida todo" que comprueba esta página; uno con alcance de agent lo comparten todos los de la organización que hablan con este agent, que es el modelo equivocado para el wiki de una persona. `user` mantiene un workspace para la persona en cada conversación y superficie por la que llega al agent, y para nadie más. Consulta [Sandbox](../reference/capabilities.md#files-shell) para ver qué comparte cada alcance.
 4. Fija un budget y un límite de pasos para la prueba.
 5. Escribe las instrucciones de abajo y luego pulsa **Publish**.
 

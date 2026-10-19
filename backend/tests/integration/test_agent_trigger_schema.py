@@ -684,3 +684,25 @@ class TestResumingASchedule:
         assert resumed.next_fire_at is not None
         # The serialization that 500'd on the session the failed audit flush poisoned.
         assert TriggerRead.model_validate(resumed).is_active is True
+
+
+class TestWithdrawingRunAsCreator:
+    async def test_only_other_peoples_consent_is_withdrawn(self, db):
+        """A version somebody else puts in front of a trigger ends its "run as me";
+        the person whose publish it is keeps their own (Codex review of #2062)."""
+        org = await _org(db)
+        agent = await _agent(db, org)
+        member = await _member(db, org)
+        owners = _trigger(org, agent, runs_as_creator=True)
+        members = _trigger(org, agent, runs_as_creator=True, created_by_user_id=member.id)
+        db.add_all([owners, members])
+        await db.flush()
+
+        withdrawn = await agent_trigger_repo.withdraw_creator_consent(
+            db, agent_id=agent.id, kept_for=member.id
+        )
+
+        await db.refresh(owners)
+        await db.refresh(members)
+        assert withdrawn == 1
+        assert (owners.runs_as_creator, members.runs_as_creator) == (False, True)

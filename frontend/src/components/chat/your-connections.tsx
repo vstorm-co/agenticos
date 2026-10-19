@@ -1,10 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { Check, ExternalLink, Plug } from "lucide-react";
+import { Check, ExternalLink } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { ConnectOwnServerDialog } from "@/components/agents/connect-server-dialog";
+import { ConnectOwnButton } from "@/components/agents/connect-server-dialog";
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
 import { Button } from "@/components/ui";
 import { useAgents, useAgentVersion } from "@/hooks/use-agents";
@@ -15,7 +14,6 @@ import { ownAccountStatus } from "@/lib/mcp-servers";
 import { ROUTES } from "@/lib/constants";
 import { useAgentSelectionStore } from "@/stores";
 import type { PersonalMcpServerRef } from "@/types/agents";
-import type { McpCatalogEntry } from "@/types/mcp";
 
 /**
  * Which of the selected agent's services speak through *your* accounts, and
@@ -39,7 +37,6 @@ export function YourConnections() {
   const { version } = useAgentVersion(agent?.id ?? null, agent?.current_version_id ?? null);
   const { connections } = useMcpConnections();
   const { servers } = useMcpCatalog();
-  const [connecting, setConnecting] = useState<McpCatalogEntry | null>(null);
 
   const personal = (version?.spec.mcp_servers ?? []).filter(
     (ref): ref is PersonalMcpServerRef => ref.account === "personal",
@@ -60,7 +57,7 @@ export function YourConnections() {
               className="flex items-center gap-3 rounded-xl px-3 py-2"
               aria-label={name}
             >
-              <McpServerIcon icon={entry?.icon ?? null} name={name} />
+              <McpServerIcon icon={entry?.icon ?? null} name={name} url={entry?.url} />
               <span className="min-w-0 flex-1">
                 <span className="block text-xs font-medium">{name}</span>
                 <span className="text-muted-foreground block text-xs leading-relaxed">
@@ -70,10 +67,14 @@ export function YourConnections() {
               {status === "connected" ? (
                 <Check className="text-brand h-4 w-4 shrink-0" aria-hidden />
               ) : status === "not_connected" && entry !== null ? (
-                <Button type="button" size="sm" onClick={() => setConnecting(entry)}>
-                  <Plug className="mr-1 h-3.5 w-3.5" />
-                  {t("connect")}
-                </Button>
+                <ConnectOwnButton
+                  entry={entry}
+                  label={t("connect")}
+                  // Back to this conversation once the consent lands, rather
+                  // than to the servers page: nothing here is unsaved, and the
+                  // question is here.
+                  returnTo={hereForMcpOAuthReturn()}
+                />
               ) : (
                 <Button
                   type="button"
@@ -89,13 +90,6 @@ export function YourConnections() {
           );
         })}
       </ul>
-      <ConnectOwnServerDialog
-        entry={connecting}
-        onClose={() => setConnecting(null)}
-        // Back to this conversation once the consent lands, rather than to the
-        // servers page: nothing here is unsaved, and the question is here.
-        returnTo={hereForMcpOAuthReturn()}
-      />
     </div>
   );
 }

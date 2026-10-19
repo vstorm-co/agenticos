@@ -1,5 +1,7 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Activity, KeyRound } from "lucide-react";
@@ -24,7 +26,9 @@ import { SpendByPerson } from "@/components/runs/spend-by-person";
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import { usePermissions, useSpend } from "@/hooks";
 import { periodEnd, periodStart, type Period } from "@/lib/dashboard/period";
-import { formatDate } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
+import { dailySpend } from "@/lib/spend-series";
+import { TrendChart } from "@/components/dashboard/primitives/trend-chart";
 import { Perm } from "@/types/permissions";
 import type { CostByAgent, CostByKey, CostByProvider, CostSummary } from "@/types/runs";
 
@@ -96,7 +100,56 @@ function CostCell({ cost, partial, title }: { cost: string; partial?: boolean; t
  * yet" for a 502 is the reassuring reading of the two, which is what makes it
  * the dangerous one on a page about money.
  */
-export function SpendTab({ period }: { period: Period }) {
+/**
+ * A row's part of the whole, as a track and a percentage.
+ *
+ * The question a breakdown is opened with is "who is most of it", and a column
+ * of dollar figures makes the reader divide. Both, because the track alone
+ * makes colour the message and the number alone is the division done for them
+ * without the picture.
+ */
+function ShareCell({ cost, total }: { cost: string; total: number }) {
+  const share = total > 0 ? (Number(cost) / total) * 100 : 0;
+  return (
+    <span className="flex items-center justify-end gap-2">
+      <span className="bg-muted hidden h-1.5 w-20 overflow-hidden rounded-full sm:block">
+        <span
+          className="bg-foreground/60 block h-full rounded-full"
+          style={{ width: `${Math.min(100, share)}%` }}
+        />
+      </span>
+      <span className="text-muted-foreground w-10 text-right text-xs tabular-nums">
+        {Math.round(share)}%
+      </span>
+    </span>
+  );
+}
+
+/** A share column for one breakdown, the total being that breakdown's own sum. */
+function shareColumn<T extends { cost_usd: string }>(
+  header: string,
+  rows: readonly T[],
+): Column<T> {
+  const total = rows.reduce((sum, row) => sum + Number(row.cost_usd), 0);
+  return {
+    key: "share",
+    header,
+    align: "right",
+    cell: (row) => <ShareCell cost={row.cost_usd} total={total} />,
+  };
+}
+
+export function SpendTab({
+  period,
+  periodControl,
+}: {
+  period: Period;
+  /**
+   * The page's window, drawn first among this tab's own filters: it narrows
+   * the same table they do, so it sits with them rather than in a band above.
+   */
+  periodControl?: ReactNode;
+}) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("pages.runs");
   const locale = useLocale();
@@ -146,8 +199,22 @@ export function SpendTab({ period }: { period: Period }) {
               className="h-5 w-5"
             />
           </span>
-          <span className={row.agent_name === null ? "text-muted-foreground italic" : ""}>
-            {row.agent_name ?? t("deletedAgent")}
+          <span className="min-w-0">
+            <span
+              className={cn("block", row.agent_name === null && "text-muted-foreground italic")}
+            >
+              {row.agent_name ?? t("deletedAgent")}
+            </span>
+            {/* Against the calendar month, the period a cap is a cap on - not
+                the window on screen. */}
+            {row.monthly_cap_usd !== null && (
+              <span className="text-muted-foreground block text-xs">
+                {t("monthAgainstCap", {
+                  spent: Number(row.month_to_date_usd ?? 0).toFixed(2),
+                  cap: Number(row.monthly_cap_usd).toFixed(2),
+                })}
+              </span>
+            )}
           </span>
         </span>
       ),
@@ -158,6 +225,7 @@ export function SpendTab({ period }: { period: Period }) {
       align: "right",
       cell: (row) => <span className="font-mono text-xs tabular-nums">{row.run_count}</span>,
     },
+    shareColumn<CostByAgent>(t("share"), spend.by_agent),
     {
       key: "cost",
       header: t("cost"),
@@ -196,6 +264,7 @@ export function SpendTab({ period }: { period: Period }) {
       align: "right",
       cell: (row) => <span className="font-mono text-xs tabular-nums">{row.run_count}</span>,
     },
+    shareColumn<CostByProvider>(t("share"), spend.by_provider),
     {
       key: "cost",
       header: t("cost"),
@@ -226,6 +295,7 @@ export function SpendTab({ period }: { period: Period }) {
       align: "right",
       cell: (row) => <span className="font-mono text-xs tabular-nums">{row.run_count}</span>,
     },
+    shareColumn<CostByKey>(t("share"), spend.by_key),
     {
       key: "cost",
       header: t("cost"),
@@ -273,6 +343,26 @@ export function SpendTab({ period }: { period: Period }) {
         />
       </div>
 
+      {/* The bill's shape over the window, a bar a day: when the money went,
+          which the totals above cannot say - a spike on one afternoon and a
+          steady drip read the same as a sum. */}
+      <Card>
+        <CardHeader className="space-y-1 px-5 pt-4 pb-2">
+          <CardTitle className="text-sm">{t("spendOverTime")}</CardTitle>
+          <CardDescription className="text-xs">{t("spendOverTimeHint")}</CardDescription>
+        </CardHeader>
+        <CardContent className="px-3 pb-4">
+          <TrendChart
+            variant="bars"
+            money
+            className="h-44"
+            data={dailySpend(spend.by_day, spend.from_date, spend.to_date, new Date(), (day) =>
+              day.toLocaleDateString(locale, { month: "short", day: "numeric", timeZone: "UTC" }),
+            )}
+          />
+        </CardContent>
+      </Card>
+
       {/* The one caveat that governs every figure below: how many of the
           window's run trees could not be fully priced. Saying it once at
           the top is what stops a reader treating the totals as exact. It marks
@@ -309,6 +399,7 @@ export function SpendTab({ period }: { period: Period }) {
           {/* The facet switch lives inside the container it slices, like every
               list card's filters. One table below, four subjects. */}
           <ListCardControlsRow role="group" aria-label={t("spendFacet")}>
+            {periodControl}
             {FACETS.map((entry) => (
               <Button
                 key={entry.id}

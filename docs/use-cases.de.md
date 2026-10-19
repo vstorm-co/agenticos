@@ -1,5 +1,5 @@
 ---
-source_sha: "53b719b25dba"
+source_sha: "ab1e8540de48"
 title: "Eine erste Aufgabe wählen"
 description: "29 Tutorials: Dokumente, Support, Recherche, Automatisierung, Produktivität und Inhalt, jedes mit einer Prüfung, die Sie selbst durchführen können."
 ---
@@ -46,7 +46,7 @@ Die letzte Spalte nennt, wann die Maintainer ein Tutorial zuletzt am Produkt aus
 
 | Tutorial | Was es tut | Zuletzt von den Maintainern ausgeführt |
 | --- | --- | --- |
-| [Einen Wochenbericht planen](howto/scheduled-report.md) | Ein in sich geschlossener Bericht, jede Woche erneut als Artefakt veröffentlicht | v0.0.504, 25. September 2026 |
+| [Einen Wochenbericht planen](howto/scheduled-report.md) | Ein in sich geschlossener Bericht, jede Woche erneut als App veröffentlicht | v0.0.504, 25. September 2026 |
 | [Neue GitHub-Issues automatisch triagieren](howto/github-issue-triage.md) | Neue Issues, triagiert in dem Moment, in dem GitHub sie zustellt | v0.0.504, 25. September 2026 |
 | [Meeting-Aufgaben mit Genehmigung in Tasks umwandeln](howto/meeting-to-tasks.md) | Aufgaben, vorgeschlagen als Tracker-Tasks, jede zuvor genehmigt | Noch nicht festgehalten |
 | [Anfragen an ein Team von Spezial-Agents weiterleiten](howto/specialist-team.md) | Ein Empfang, der an Spezial-Agents delegiert | v0.0.504, 25. September 2026 |

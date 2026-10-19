@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -14,7 +15,8 @@ interface SheetProps {
 interface SheetContentProps {
   children: React.ReactNode;
   className?: string;
-  side?: "left" | "right";
+  /** `bottom` is a phone's action sheet - full width, up from the bottom edge. */
+  side?: "left" | "right" | "bottom";
 }
 
 export function Sheet({ open, onOpenChange, children }: SheetProps) {
@@ -29,9 +31,22 @@ export function Sheet({ open, onOpenChange, children }: SheetProps) {
     };
   }, [open]);
 
+  // Escape closes it, as it closes every other modal panel in the console.
+  React.useEffect(() => {
+    if (!open) return;
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !event.defaultPrevented) onOpenChange(false);
+    };
+    document.addEventListener("keydown", close);
+    return () => document.removeEventListener("keydown", close);
+  }, [open, onOpenChange]);
+
   if (!open) return null;
 
-  return (
+  // On `body`, not where it is declared: a sheet opened from inside a panel that
+  // makes its own stacking context - the chat's composer dock - otherwise sits
+  // under the fixed tab bar and the assistant's button, whatever its z-index.
+  return createPortal(
     <div className="fixed inset-0 z-50">
       <div
         className="fixed inset-0 bg-black/50 backdrop-blur-sm"
@@ -39,7 +54,8 @@ export function Sheet({ open, onOpenChange, children }: SheetProps) {
         aria-hidden="true"
       />
       {children}
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -52,9 +68,13 @@ export function SheetContent({ children, className, side = "left" }: SheetConten
       role="dialog"
       aria-modal="true"
       className={cn(
-        "panel-strong fixed inset-y-0 z-50 flex w-72 flex-col",
+        "panel-strong fixed z-50 flex flex-col",
         "animate-in duration-300",
-        side === "left" ? "slide-in-from-left left-0" : "slide-in-from-right right-0",
+        side === "bottom"
+          ? "slide-in-from-bottom inset-x-0 bottom-0 rounded-t-2xl pb-[env(safe-area-inset-bottom)]"
+          : "inset-y-0 w-72",
+        side === "left" && "slide-in-from-left left-0",
+        side === "right" && "slide-in-from-right right-0",
         className,
       )}
     >

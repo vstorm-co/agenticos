@@ -17,9 +17,7 @@ from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.core.exceptions import BadRequestError
 
 
-def tool_needs_approval(
-    *, tool: CapabilityToolInfo, binding: CapabilityBindingSpec, side_effecting: bool
-) -> bool:
+def tool_needs_approval(*, tool: CapabilityToolInfo, binding: CapabilityBindingSpec) -> bool:
     """Whether one tool of one binding must be approved before it runs.
 
     The most specific statement wins:
@@ -27,16 +25,14 @@ def tool_needs_approval(
     1. `tool_approval[tool.id]` - this agent's decision about this tool.
     2. the binding's `approval` - this agent's decision about the whole
        capability, and so the default for every tool in it.
-    3. the tool's own `side_effecting`, for a capability whose tools are not
-       one answer - a filesystem that is read *and* written, say.
-    4. the capability's `side_effecting` flag - what the code that wrote the
-       tool says about it, and the answer when nothing above said anything.
 
-    `'default'` at either of the first two levels is not an answer, it is a
-    deferral to the next one, and so is a tool declaring no `side_effecting` of
-    its own. That is what makes a spec written before per-tool approval existed
-    behave exactly as it did: no `tool_approval` and no `approval` leaves the
-    capability's flag deciding, as it always did.
+    `'default'` at either level is not an answer but a deferral, and when
+    nobody has said anything the answer is **no approval**. Every tool runs
+    unattended until somebody who owns the agent asks for a person - the
+    product's decision, because a gate nobody chose parked runs in channels and
+    routines where nobody was there to answer it. `side_effecting` still says
+    what a tool does to the world, and the Builder shows it beside the choice;
+    it no longer makes the choice.
 
     Keyed on the tool's stable id rather than the name the model sees, so a
     renamed tool keeps the gate its operator put on it.
@@ -44,9 +40,7 @@ def tool_needs_approval(
     for mode in (binding.tool_approval.get(tool.id, "default"), binding.approval):
         if mode != "default":
             return mode == "required"
-    if tool.side_effecting is not None:
-        return tool.side_effecting
-    return side_effecting
+    return False
 
 
 def approval_required_tools(spec: AgentSpec) -> frozenset[str]:
@@ -77,11 +71,7 @@ def approval_required_tools(spec: AgentSpec) -> frozenset[str]:
         required.update(
             tool.name
             for tool in definition.effective_tools(binding.tool_overrides)
-            if tool_needs_approval(
-                tool=tool,
-                binding=binding,
-                side_effecting=definition.side_effecting,
-            )
+            if tool_needs_approval(tool=tool, binding=binding)
         )
     return frozenset(required)
 
@@ -119,10 +109,7 @@ def ungateable_tool_problems(
     gated = sorted(
         tool.id
         for tool in definition.tools
-        if tool.id in handed_over
-        and tool_needs_approval(
-            tool=tool, binding=binding, side_effecting=definition.side_effecting
-        )
+        if tool.id in handed_over and tool_needs_approval(tool=tool, binding=binding)
     )
     if not gated:
         return []

@@ -179,6 +179,27 @@ describe("the thread and the run inside it", () => {
 });
 
 describe("a tool call, raw", () => {
+  it.each([
+    ["error", "Failed"],
+    ["unfinished", "Did not finish"],
+  ] as const)("says a step that ended %s in words", async (status, words) => {
+    serve({
+      items: [
+        turn({
+          id: "m-1",
+          parts: [{ type: "tool", tool_call_id: "call-1" }],
+          tool_calls: [
+            { tool_call_id: "call-1", tool_name: "web_search", args: {}, result: null, status },
+          ],
+        }),
+      ],
+    });
+
+    renderTimeline();
+
+    expect(await screen.findByText(words)).toBeVisible();
+  });
+
   it("shows the wire: name, stored status, input JSON and recorded output", async () => {
     serve({
       items: [
@@ -201,7 +222,8 @@ describe("a tool call, raw", () => {
     renderTimeline();
 
     const step = screen.getByText("web_search").closest("details") as HTMLElement;
-    expect(within(step).getByText("completed")).toBeVisible();
+    // Said in words beside the tool's own id: how it ended, and what it was.
+    expect(within(step).getByText("Done")).toBeVisible();
 
     await userEvent.click(within(step).getByText("web_search"));
 

@@ -20,6 +20,10 @@ import {
  * so a filter is picked rather than guessed at. A selected value the choices no
  * longer carry - its last agent was archived out of the listing - stays in the
  * menu, checked, so it can still be unpicked.
+ *
+ * `max` is how many the API honours. Past it the server keeps the first and
+ * drops the rest silently, so once it is reached the unchecked choices are
+ * disabled rather than offered as picks that would change nothing (#1930).
  */
 export function LabelFilter({
   options,
@@ -29,6 +33,7 @@ export function LabelFilter({
   allLabel,
   countLabel,
   clearLabel,
+  max,
 }: {
   options: string[];
   selected: string[];
@@ -37,9 +42,11 @@ export function LabelFilter({
   allLabel: string;
   countLabel: (count: number) => string;
   clearLabel: string;
+  max: number;
 }) {
   const choices = [...new Set([...options, ...selected])].sort();
   if (choices.length === 0) return null;
+  const full = selected.length >= max;
 
   const toggle = (value: string) =>
     onChange(
@@ -49,14 +56,21 @@ export function LabelFilter({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" aria-label={ariaLabel}>
-          <ListFilter className="h-4 w-4" />
+        {/* Drawn like the select beside it - a filter in a row of filters, not
+            a pill among inputs. */}
+        <Button
+          variant="outline"
+          size="sm"
+          aria-label={ariaLabel}
+          className="rounded-lg px-2.5 font-normal"
+        >
+          <ListFilter />
           {selected.length === 0
             ? allLabel
             : selected.length === 1
               ? selected[0]
               : countLabel(selected.length)}
-          <ChevronDown className="h-4 w-4 opacity-60" />
+          <ChevronDown className="opacity-60" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
@@ -64,6 +78,7 @@ export function LabelFilter({
           <DropdownMenuCheckboxItem
             key={value}
             checked={selected.includes(value)}
+            disabled={full && !selected.includes(value)}
             onCheckedChange={() => toggle(value)}
             // Picking several is the point; the menu staying open is what
             // makes it a multi-select rather than a detour.

@@ -1,5 +1,5 @@
 ---
-source_sha: "0a82031f265d"
+source_sha: "99918c787149"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -168,8 +168,9 @@ En ambos casos, el caso se crea a partir de ese turno:
   contraejemplo. Si nadie la valoró con un pulgar abajo, se ofrece en su lugar
   como respuesta de referencia, y puedes elegir cualquiera de las dos; guardada
   como referencia, las herramientas que llamó pasan a ser las llamadas esperadas
-  del caso, por nombre, y una respuesta sin texto se guarda solo como esas
-  llamadas;
+  del caso, por nombre (las que salieron bien y cambian algo, no una llamada
+  fallida ni una que su agent declara de solo lectura), y una respuesta sin
+  texto se guarda solo como esas llamadas;
 - el comentario más reciente dejado con un pulgar abajo se convierte en la
   nota.
 
@@ -313,7 +314,9 @@ conocida, y se pide al juez que cite lo que distingue la respuesta de ella. Un
 aprobado es un error cuando solo cita lo que ambas dicen, o no cita nada de una
 respuesta que copia el contraejemplo; cualquier otro sin nada citado se
 mantiene, marcado como no verificado. Una respuesta que conserva el
-contraejemplo y añade lo que le faltaba aprueba con una cita de lo añadido.
+contraejemplo y añade lo que le faltaba aprueba con una cita de lo añadido. Una
+respuesta que es el contraejemplo, o una parte de él, suspende el criterio diga
+lo que diga el juez.
 
 Los jueces empiezan con temperatura 0, para que la misma respuesta se califique
 igual dos veces; un modelo que no acepta temperatura, como un modelo de

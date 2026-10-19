@@ -64,12 +64,26 @@ describe("showing a file's characters", () => {
     expect(screen.getByTestId("markdown")).toHaveTextContent("```text");
   });
 
-  it("shows plain text as it is, preserving its whitespace", () => {
-    render(<FileTextView kind="text" name="a.log" text={"line one\n  line two"} />);
+  it("wraps plain text, keeping its whitespace and each line's number beside it", () => {
+    render(<FileTextView kind="text" name="a.log" text={"line one\n  line two\n\nend"} />);
 
-    // `pre`, not `pre-wrap`: source is read by its indentation, and wrapping a long
-    // line back to the left margin destroys the thing a Source view is for.
+    // Prose and pastes are read down: one long line wraps instead of running off
+    // the side. Each line is its own row, so a number stays with its line.
+    expect(screen.getByText("line one")).toHaveClass("whitespace-pre-wrap");
+    expect(screen.getByText("4")).toBeInTheDocument();
+  });
+
+  it("keeps source unwrapped, because it is read by its indentation", () => {
+    render(<FileTextView kind="markdown" name="notes.md" text={"line one\n  line two"} asSource />);
+
     expect(screen.getByText(/line one/)).toHaveClass("whitespace-pre");
+  });
+
+  it("wraps a file too long to number as one block", () => {
+    const text = Array.from({ length: 5001 }, (_, index) => `row ${index}`).join("\n");
+    const { container } = render(<FileTextView kind="text" name="big.txt" text={text} />);
+
+    expect(container.querySelector("pre.whitespace-pre-wrap")).not.toBeNull();
   });
 
   it("shows the characters when that is what was asked for", () => {
@@ -190,7 +204,7 @@ describe("showing a file's bytes", () => {
     );
 
     expect(
-      screen.getByText("This one cannot be shown here — the server serves it as a file."),
+      screen.getByText("This one cannot be shown here - the server serves it as a file."),
     ).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /Download/ }));
     expect(onDownload).toHaveBeenCalled();

@@ -5,6 +5,7 @@ that contributes nothing is not attached, and a spec asking for something
 ungranted fails while a person is looking at a form rather than mid-run.
 """
 
+import json
 import re
 import subprocess
 import sys
@@ -15,7 +16,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
-from pydantic import ValidationError, create_model
+from pydantic import SecretStr, ValidationError, create_model
 from pydantic_ai import Agent as PydanticAgent
 from pydantic_ai.models.test import TestModel
 
@@ -141,6 +142,9 @@ class TestToolDeclarations:
     # assertions here are about names, not about search results.
     RESOURCES = {
         "kb_collection_names": ["kb_1"],
+        # The credential the runner mints for the person a run acts for; without
+        # one `platform` builds nothing, and its tools would escape the check.
+        "platform_credential": SecretStr("aos_0123abcdsecret"),
         # Any object at all: `channel_tools` builds when a run is in a channel
         # and contributes nothing when it is not, and this test is about the
         # names it offers rather than what a platform answers.
@@ -519,8 +523,15 @@ class TestReadOnlyDeclarations:
     WRITES = frozenset(
         {
             ("artifacts", "publish_artifact"),
-            ("browser_choice", "browse_page"),
+            ("ask_user", "ask_user_question"),
             ("browser_use", "browse_web"),
+            ("browser_use", "browser_open"),
+            ("browser_use", "browser_read"),
+            ("browser_use", "browser_click"),
+            ("browser_use", "browser_type"),
+            ("browser_use", "browser_select"),
+            ("browser_use", "browser_scroll"),
+            ("browser_use", "browser_back"),
             ("image_generation", "generate_image"),
             ("memory_files", "write_memory"),
             ("memory_files", "edit_memory"),
@@ -648,7 +659,7 @@ class TestTestKeyIsolation:
             and any(self._TARGET.search(name) for name in definition.config_schema.model_fields)
         }
 
-        assert {"browser_choice", "browser_use", "memory_mem0"} <= named
+        assert {"browser_use", "memory_mem0"} <= named
 
 
 class TestProviderExecutedDeclarations:
@@ -728,6 +739,27 @@ class TestRegistration:
         assert "available" in exc.value.details
 
 
+class TestAdvancedSettings:
+    """Fields the Builder folds under "Advanced settings" (#2070)."""
+
+    def test_a_folded_field_is_never_one_publishing_needs(self):
+        """A required field behind a fold is a refusal at publish with nothing on
+        screen to answer it."""
+        for definition in all_capabilities():
+            schema = definition.config_json_schema() or {}
+            required = set(schema.get("required", []))
+            for name, field in schema.get("properties", {}).items():
+                if field.get("x-advanced"):
+                    assert name not in required, (definition.id, name)
+
+    def test_tuning_is_folded_and_the_choices_are_not(self):
+        knowledge = get("knowledge").config_json_schema() or {}
+        properties = knowledge["properties"]
+
+        assert properties["default_top_k"].get("x-advanced") is True
+        assert "x-advanced" not in properties["query_analysis_mode"]
+
+
 class TestConfigValidation:
     def test_valid_config_is_parsed_into_its_schema(self):
         config = get("knowledge").validate_config({"default_top_k": 8})
@@ -779,10 +811,10 @@ class TestConfigValidation:
 
     def test_a_rule_about_two_settings_is_attributed_to_the_config_itself(self):
         """A `model_validator(mode="after")` names no field, so the refusal
-        falls back to the blob it was about - `browser_use` refusing a
-        `cdp_url` in the mode that launches its own browser is about the pair."""
+        falls back to the blob it was about - `image_generation` refusing a
+        provider and a model that do not go together is about the pair."""
         with pytest.raises(BadRequestError) as exc:
-            get("browser_use").validate_config({"mode": "playwright", "cdp_url": "ws://host:9222"})
+            get("image_generation").validate_config({"provider": "openai", "model": "not-a-model"})
         assert exc.value.details is not None
         assert [problem["field"] for problem in exc.value.details["fields"]] == ["config"]
 
@@ -1063,3 +1095,119 @@ class TestFrontendToolCatalog:
             f"{CATALOG_PATH.name} has a row for a tool no capability registers; "
             "nothing will ever render it"
         )
+
+
+MESSAGES_PATH = Path(__file__).resolve().parents[2] / "frontend" / "messages"
+
+
+class TestCapabilitySettingsCopy:
+    """Every capability setting is named for a person, in every language (#2098).
+
+    The Builder generates a capability's settings form from its config schema, and
+    with no `title` Pydantic writes one from the field name - "Redact Pii In",
+    "Max Result Chars" - in English under every locale. So each field carries a
+    title of its own, and `capabilityConfig.<capability>.<field>` in each catalog
+    carries its title and description. The English entry is the schema's own words,
+    kept equal here, so changing one without the other fails rather than drifting.
+    """
+
+    @staticmethod
+    def _schema_copy() -> dict[str, dict[str, dict[str, str]]]:
+        copy: dict[str, dict[str, dict[str, str]]] = {}
+        for definition in all_capabilities():
+            schema = definition.config_json_schema()
+            if schema is None:
+                continue
+            copy[definition.id] = {
+                field: {"title": prop["title"], "description": prop["description"]}
+                for field, prop in schema["properties"].items()
+            }
+        return copy
+
+    @staticmethod
+    def _catalog(locale: str) -> dict[str, dict[str, dict[str, str]]]:
+        catalog = json.loads((MESSAGES_PATH / f"{locale}.json").read_text(encoding="utf-8"))
+        return catalog["capabilityConfig"]
+
+    def test_every_setting_has_a_title_written_for_it(self):
+        untitled = [
+            f"{definition.id}.{field}"
+            for definition in all_capabilities()
+            if definition.config_schema is not None
+            for field, info in definition.config_schema.model_fields.items()
+            if info.title is None
+        ]
+
+        assert untitled == [], "give each a Field(title=...) a person can read"
+
+    def test_the_english_catalog_says_what_the_schema_says(self):
+        assert self._catalog("en") == self._schema_copy()
+
+    def test_every_language_covers_every_setting_and_nothing_else(self):
+        expected = {
+            cap_id: {field: {"title", "description"} for field in fields}
+            for cap_id, fields in self._schema_copy().items()
+        }
+        for locale in ("pl", "de"):
+            catalog = self._catalog(locale)
+            covered = {
+                cap_id: {field: set(entry) for field, entry in fields.items()}
+                for cap_id, fields in catalog.items()
+            }
+            assert covered == expected, locale
+
+
+class TestConsoleCapabilityGuide:
+    """The console explains every capability, under the registry's own name (#2070).
+
+    The console reads a capability's name and its plain-language guide from its
+    message catalogs, so a person reads it in their language. That copy is a second
+    place a capability is named: a capability added here with no entry there is shown
+    to a Polish reader in English with no examples, and one renamed here keeps its old
+    name in the Builder while the API, the AI Architect and the docs use the new one.
+    """
+
+    @staticmethod
+    def _guide(locale: str) -> dict[str, dict[str, str]]:
+        catalog = json.loads((MESSAGES_PATH / f"{locale}.json").read_text(encoding="utf-8"))
+        return catalog["capabilityGuide"]
+
+    def test_every_capability_has_an_entry_and_no_entry_is_orphaned(self):
+        registered = sorted(definition.id for definition in all_capabilities())
+
+        for locale in ("en", "pl", "de"):
+            assert sorted(self._guide(locale)) == registered, locale
+
+    def test_the_english_name_is_the_registry_name(self):
+        guide = self._guide("en")
+
+        assert {d.id: d.name for d in all_capabilities()} == {
+            cap_id: entry["name"] for cap_id, entry in guide.items()
+        }
+
+    def test_the_glossary_names_each_capability_as_the_console_does(self):
+        """`docs/reference/glossary*.md` is the one list of names (#2075); a
+        capability renamed or added in the console and not there is a glossary
+        that has started to disagree with the screen it explains."""
+        docs = MESSAGES_PATH.parents[1] / "docs" / "reference"
+        for locale, page in (
+            ("en", "glossary.md"),
+            ("pl", "glossary.pl.md"),
+            ("de", "glossary.de.md"),
+        ):
+            text = (docs / page).read_text(encoding="utf-8")
+            rows = {
+                cap_id: name.strip()
+                for name, cap_id in re.findall(r"^\| ([^|`]+) \| `([a-z_0-9]+)` \|$", text, re.M)
+            }
+            assert rows == {
+                cap_id: entry["name"] for cap_id, entry in self._guide(locale).items()
+            }, locale
+
+    def test_each_entry_says_what_it_does_needs_and_never_does_with_examples(self):
+        for locale in ("en", "pl", "de"):
+            for cap_id, entry in self._guide(locale).items():
+                assert {"name", "does", "needs", "never", "example1"} <= entry.keys(), (
+                    locale,
+                    cap_id,
+                )

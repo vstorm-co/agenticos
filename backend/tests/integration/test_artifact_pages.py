@@ -386,6 +386,9 @@ class TestTheAgentFilter:
             agent_id=other.id,
         )
 
-        assert agents == [(agent.id, "Reporter")]
-        assert everyone == [(agent.id, "Reporter"), (other.id, "Secret agent")]
+        assert [(row.id, row.name) for row in agents] == [(agent.id, "Reporter")]
+        assert [(row.id, row.name) for row in everyone] == [
+            (agent.id, "Reporter"),
+            (other.id, "Secret agent"),
+        ]
         assert (total, [row.name for row in only_theirs]) == (1, ["private"])

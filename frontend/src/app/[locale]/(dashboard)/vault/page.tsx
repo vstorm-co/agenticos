@@ -62,7 +62,7 @@ export default function VaultPage() {
     return (
       <div className="space-y-6">
         <PageHeader title={t("vault")} description={t(VAULT_DESCRIPTION)} />
-        <ListCard title={t("keys")} counted={null} contentClassName="p-0">
+        <ListCard namedByPage title={t("keys")} counted={null} contentClassName="p-0">
           {[0, 1, 2].map((row) => (
             <div
               key={row}
@@ -96,10 +96,12 @@ export default function VaultPage() {
 
       <ListCard
         data-tour="vault-keys"
+        namedByPage
         title={t("keys")}
         // With the list refused, "0 keys stored" would state as fact something
         // the request never answered - the skeleton stays.
         counted={listError ? null : t("storedCount", { count: secrets.length })}
+        empty={!listError && secrets.length === 0}
         contentClassName="p-0"
       >
         {listError ? (

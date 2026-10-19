@@ -24,6 +24,8 @@ from pydantic_ai_harness.guardrails.detectors import redact_secrets
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.isolation import capability_tools
+from app.agents.spec import AgentSpec
 from app.agents.system_agents import JUDGE
 from app.core.audit import record_audit
 from app.core.config import settings
@@ -31,10 +33,12 @@ from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundErr
 from app.core.exceptions import ValidationError as InvalidCaseError
 from app.core.field_errors import field_problems, refused_field
 from app.core.permissions import AuthContext, Perm, Scope
+from app.db.models.conversation import Message
 from app.db.models.dataset import CaseSource, Dataset, DatasetCase, DatasetChange, DatasetVersion
 from app.db.updates import writable
 from app.repositories import (
     agent_repo,
+    agent_run_repo,
     conversation_repo,
     dataset_repo,
     message_rating_repo,
@@ -839,7 +843,8 @@ class DatasetService:
         wrote before the next question, whichever of them `message_id` names.
         Its text becomes the counter-example (or the reference answer, when
         somebody is keeping a good one), and a good one's tool calls become the
-        calls the case expects, by tool name. The newest comment left with a
+        calls the case expects, by tool name - those that succeeded and that
+        change something, so a mistaken call and a read are not asked for again. The newest comment left with a
         thumbs-down on the reply becomes the note, and the case keeps a link to
         the run, the conversation and the reply's last step.
 
@@ -904,14 +909,14 @@ class DatasetService:
         answer = "\n\n".join(turn.content.strip() for turn in reply if turn.content.strip())
         keeps_good = data.answer_as == "reference_answer"
         calls = (
-            await conversation_repo.tool_calls_of_messages(self.db, [turn.id for turn in reply])
+            await self._expected_calls(ctx, last.run_id or message.run_id, reply)
             if keeps_good
             else []
         )
         if not answer and not calls:
             raise refused_field(
                 "message_id",
-                "This answer has no text to keep as a case"
+                "This answer has no text, nor a tool call that changed something, to keep as a case"
                 if keeps_good
                 else "This answer has no text to keep as a counter-example; keep it as a "
                 "reference answer to expect the tools it called",
@@ -954,7 +959,7 @@ class DatasetService:
                 counter_example=None if keeps_good else answer,
                 reference_answer=(answer or None) if keeps_good else None,
                 expected_tool_calls=[
-                    ExpectedToolCall(tool=call.tool_name) for call in calls[:_MAX_EXPECTED_CALLS]
+                    ExpectedToolCall(tool=name) for name in calls[:_MAX_EXPECTED_CALLS]
                 ],
                 note=next(
                     (comments[turn.id] for turn in reversed(reply) if turn.id in comments), None
@@ -974,3 +979,28 @@ class DatasetService:
             source_conversation_id=conversation.id,
             source_message_id=last.id,
         )
+
+    async def _expected_calls(
+        self, ctx: AuthContext, run_id: UUID | None, reply: list[Message]
+    ) -> list[str]:
+        """The tools a good reply called that a case should expect: those that succeeded
+        and that the answering agent's spec does not declare read-only."""
+        calls = await conversation_repo.tool_calls_of_messages(self.db, [turn.id for turn in reply])
+        reads: set[str] = set()
+        run = (
+            None
+            if run_id is None
+            else await agent_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
+        )
+        if run is not None and run.agent_version_id is not None:
+            version = await agent_repo.get_version(
+                self.db, run.agent_version_id, organization_id=ctx.organization_id
+            )
+            if version is not None:
+                tools = capability_tools(AgentSpec.model_validate(version.spec))
+                reads = {name for name, tool in tools.items() if tool.read_only}
+        return [
+            call.tool_name
+            for call in calls
+            if call.status == "completed" and call.tool_name not in reads
+        ]

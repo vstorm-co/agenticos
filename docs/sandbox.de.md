@@ -1,5 +1,5 @@
 ---
-source_sha: "28df8e05f4b0"
+source_sha: "904d3115d4e7"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -83,6 +83,12 @@ Der **Scope** ist ein Feld des Specs des Agents — `run`, `conversation`, `chan
 `user` oder `agent`. `conversation`, die übliche Wahl, bedeutet also einen Container
 und ein Verzeichnis pro Chat; `agent` bedeutet, dass sich jeder Run dieses Agents
 einen teilt.
+
+`user` gehört der angemeldeten Person, also hat ein Run, der für jemanden
+einspringt, keinen: Der Besucher eines Widgets und das Auslösen eines Triggers
+werden abgewiesen, statt den Workspace des Herausgebers oder des Erstellers zu
+bekommen — es sei denn, der Trigger
+[läuft als sein Ersteller](concepts.md#unless-its-creator-lets-it-run-as-them).
 
 Der Schlüssel ist auch der **Name** der Session auf dem Host — die Session-ID bei
 `sandboxd`, der Name einer Daytona-Sandbox —, also öffnet jeder Run eines Scopes
@@ -478,10 +484,10 @@ Was bleibt, ausgesprochen statt angedeutet:
 
 ## Was der Dateibrowser zeigt, und was er auslässt { #what-the-file-browser-shows-and-what-it-leaves-out }
 
-`/workspaces` listet auf, was ein Agent **für eine Person** aufbewahrt, was nicht
+**Documents** (`/documents`) listet auf, was ein Agent **für eine Person** aufbewahrt, was nicht
 dieselbe Menge ist wie das, was auf dem Volume liegt. Zwei Präfixe fallen aus jeder
-Auflistung, die eine Person liest - der flachen Ansicht, den eigenen Dateien eines
-Workspace, dem Panel einer Unterhaltung und den Dateizahlen:
+Auflistung, die eine Person liest - der Liste aller Dateien, den Dateien eines
+Ordners, dem Panel einer Unterhaltung und den Dateizahlen:
 
 - `skills/` — der Rumpf eines Skills und seine Ressourcen, geschrieben zu Beginn
   jedes Runs, der sowohl Skills als auch einen Workspace hat. Sie werden dort

@@ -6,6 +6,8 @@ import { toast } from "sonner";
 
 import { MCP_OAUTH_PARAMS, mcpOAuthMessage, readMcpOAuthOutcome } from "@/lib/mcp-oauth";
 
+import { useCreatedToast } from "./use-created-toast";
+
 /**
  * Announces the outcome of an MCP OAuth consent, once, on arrival.
  *
@@ -18,6 +20,7 @@ import { MCP_OAUTH_PARAMS, mcpOAuthMessage, readMcpOAuthOutcome } from "@/lib/mc
  */
 export function useMcpOAuthOutcome(): void {
   const t = useTranslations("mcp");
+  const createdToast = useCreatedToast();
 
   useEffect(() => {
     const outcome = readMcpOAuthOutcome(window.location.search);
@@ -25,7 +28,12 @@ export function useMcpOAuthOutcome(): void {
     const url = new URL(window.location.href);
     for (const param of MCP_OAUTH_PARAMS) url.searchParams.delete(param);
     window.history.replaceState({}, "", url.toString());
-    const say = outcome.status === "success" ? toast.success : toast.error;
-    say(mcpOAuthMessage(outcome, t));
-  }, [t]);
+    const message = mcpOAuthMessage(outcome, t);
+    if (outcome.status !== "success") toast.error(message);
+    // The organization's account is what an agent binds, so its return offers
+    // to add it to one, as connecting one with a key does (#2075).
+    else if (outcome.connectionId !== null) {
+      createdToast(message, { kind: "mcp", id: outcome.connectionId }, outcome.name);
+    } else toast.success(message);
+  }, [createdToast, t]);
 }

@@ -53,6 +53,10 @@ class ArtifactRead(BaseSchema):
     current_version: ArtifactVersionRead | None = None
     created_at: datetime
     updated_at: datetime | None = None
+    shared_groups: list[str] = Field(
+        default_factory=list,
+        description="The groups this is shared with, by name - only the listing carries it.",
+    )
 
 
 class ArtifactPublicLinkRead(BaseSchema):
@@ -88,6 +92,9 @@ class ArtifactDetail(ArtifactRead):
             "scope and any grant on this artifact, decided by the server"
         )
     )
+    following: bool = Field(
+        description="Whether the caller is told in their inbox when a new version is published"
+    )
     public_link: ArtifactPublicLinkRead
 
 
@@ -97,10 +104,15 @@ class ArtifactList(BaseSchema):
 
 
 class ArtifactAgent(BaseSchema):
-    """An agent behind at least one artifact the caller may open."""
+    """An agent behind at least one artifact the caller may open, with what its
+    face is drawn from - the filter shows each publisher as the rest of the
+    console does."""
 
     id: UUID
     name: str
+    slug: str
+    has_avatar: bool
+    avatar_color: int | None
 
 
 class ArtifactAgentList(BaseSchema):

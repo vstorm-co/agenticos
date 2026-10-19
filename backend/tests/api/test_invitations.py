@@ -28,6 +28,7 @@ from httpx import ASGITransport, AsyncClient
 from app.api import deps
 from app.core.config import settings
 from app.core.exceptions import NotFoundError
+from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
 
 pytestmark = pytest.mark.anyio
@@ -91,7 +92,11 @@ async def client(service: MagicMock, staging: MagicMock) -> AsyncIterator[AsyncC
     `tests/test_services_members.py`. What is under test here is the shape of
     the request and of the response.
     """
-    app.dependency_overrides[deps.get_current_user] = lambda: SimpleNamespace(id=uuid4())
+    caller = uuid4()
+    app.dependency_overrides[deps.get_current_user] = lambda: SimpleNamespace(id=caller)
+    app.dependency_overrides[deps.get_path_org_context] = lambda: AuthContext(
+        user_id=caller, organization_id=uuid4(), role=OrgRoleName.ADMIN
+    )
     app.dependency_overrides[deps.get_invitation_service] = lambda: service
     app.dependency_overrides[deps.get_invitation_staging_service] = lambda: staging
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as http:
@@ -280,3 +285,21 @@ class TestRevokingAsTheInvitee:
 
         assert response.status_code == 204
         assert service.revoke.await_args.args[0] == _TOKEN
+
+
+@pytest.mark.security
+async def test_a_member_without_members_manage_cannot_invite(
+    client: AsyncClient, service: MagicMock
+) -> None:
+    """The gate is a permission on the caller's context, so an API key issued
+    without `members:manage` is refused here exactly as a Member is (#2057)."""
+    app.dependency_overrides[deps.get_path_org_context] = lambda: AuthContext(
+        user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.MEMBER
+    )
+
+    response = await client.post(
+        f"/api/v1/orgs/{uuid4()}/invitations", json={"email": "ada@example.com", "role": "member"}
+    )
+
+    assert response.status_code == 403
+    service.invite.assert_not_called()

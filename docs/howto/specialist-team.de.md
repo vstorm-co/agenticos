@@ -1,5 +1,5 @@
 ---
-source_sha: "62fe6a8232a7"
+source_sha: "3d12840934e5"
 title: "Anfragen an ein Team von Spezial-Agents weiterleiten"
 description: "Bauen Sie einen Front-Desk-Agent, der eine Abrechnungs- oder eine technische Frage an einen veröffentlichten Spezialisten delegiert und nachfragt, wenn eine Frage mehrdeutig ist."
 ---
@@ -51,7 +51,7 @@ question to tell which team it belongs to before delegating anything.
 Relay the specialist's answer; do not add facts of your own.
 ```
 
-`task` hat keine Seiteneffekte, also bittet keine der beiden Delegationen standardmäßig um Genehmigung. Genehmigen würde ein Mensch die eigenen Tools des Spezialisten, im Spec des Spezialisten.
+Keine der beiden Delegationen bittet um Genehmigung (kein Tool tut das, bis sein Autor es festlegt), und genehmigen würde ein Mensch die eigenen Tools des Spezialisten, im Spec des Spezialisten.
 
 ## Wer bezahlt und was der Nutzer sieht { #who-pays-and-what-the-user-sees }
 

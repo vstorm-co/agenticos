@@ -27,6 +27,8 @@ export interface ArtifactQuery {
   agentId?: string | null;
   skip?: number;
   limit?: number;
+  /** Only what is shared with this group (#2124); null for every group. */
+  groupId?: string | null;
 }
 
 /**
@@ -41,16 +43,18 @@ export function useArtifacts({
   agentId = null,
   skip = 0,
   limit = PAGE_SIZE,
+  groupId = null,
 }: ArtifactQuery = {}) {
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: qk.artifacts.list({ search, agentId, skip, limit }),
+    queryKey: qk.artifacts.list({ search, agentId, skip, limit, groupId: groupId ?? "" }),
     queryFn: () => {
       const params = new URLSearchParams();
       if (search) params.set("q", search);
       if (agentId) params.set("agent_id", agentId);
       params.set("skip", String(skip));
       params.set("limit", String(limit));
-      return apiClient.get<ArtifactList>(`/artifacts?${params}`);
+      if (groupId) params.set("group_id", groupId);
+      return apiClient.get<ArtifactList>(`/apps?${params}`);
     },
     placeholderData: (previous) => previous,
   });
@@ -73,7 +77,7 @@ export function useArtifacts({
 export function useArtifactAgents(enabled: boolean): ArtifactAgent[] {
   const { data } = useQuery({
     queryKey: qk.artifacts.agents(),
-    queryFn: () => apiClient.get<{ items: ArtifactAgent[] }>("/artifacts/agents"),
+    queryFn: () => apiClient.get<{ items: ArtifactAgent[] }>("/apps/agents"),
     enabled,
   });
   return data?.items ?? [];
@@ -95,12 +99,12 @@ export function useArtifact(artifactId: string) {
 
   const detail = useQuery({
     queryKey: qk.artifacts.detail(artifactId),
-    queryFn: () => apiClient.get<ArtifactDetail>(`/artifacts/${artifactId}`),
+    queryFn: () => apiClient.get<ArtifactDetail>(`/apps/${artifactId}`),
     retry: false,
   });
   const versions = useQuery({
     queryKey: qk.artifacts.versions(artifactId),
-    queryFn: () => apiClient.get<ArtifactVersionList>(`/artifacts/${artifactId}/versions`),
+    queryFn: () => apiClient.get<ArtifactVersionList>(`/apps/${artifactId}/versions`),
     enabled: detail.data !== undefined,
   });
 
@@ -111,7 +115,7 @@ export function useArtifact(artifactId: string) {
   const fail = (error: unknown) => toast.error(getErrorMessage(error, tErrors));
 
   const enablePublicLink = useMutation({
-    mutationFn: () => apiClient.put<ArtifactDetail>(`/artifacts/${artifactId}/public-link`),
+    mutationFn: () => apiClient.put<ArtifactDetail>(`/apps/${artifactId}/public-link`),
     onSuccess: (artifact) => {
       settle(artifact);
       toast.success(t("publicLinkReady"));
@@ -119,7 +123,7 @@ export function useArtifact(artifactId: string) {
     onError: fail,
   });
   const disablePublicLink = useMutation({
-    mutationFn: () => apiClient.delete<ArtifactDetail>(`/artifacts/${artifactId}/public-link`),
+    mutationFn: () => apiClient.delete<ArtifactDetail>(`/apps/${artifactId}/public-link`),
     onSuccess: (artifact) => {
       settle(artifact);
       toast.success(t("publicLinkOff"));
@@ -130,7 +134,7 @@ export function useArtifact(artifactId: string) {
   // they name rather than toasting a sentence.
   const updatePublicLink = useMutation({
     mutationFn: (changes: ArtifactPublicLinkUpdate) =>
-      apiClient.patch<ArtifactDetail>(`/artifacts/${artifactId}/public-link`, changes),
+      apiClient.patch<ArtifactDetail>(`/apps/${artifactId}/public-link`, changes),
     onSuccess: (artifact) => {
       settle(artifact);
       toast.success(t("publicLinkSaved"));
@@ -138,15 +142,26 @@ export function useArtifact(artifactId: string) {
   });
   const restoreVersion = useMutation({
     mutationFn: (versionId: string) =>
-      apiClient.post<ArtifactDetail>(`/artifacts/${artifactId}/versions/${versionId}/restore`),
+      apiClient.post<ArtifactDetail>(`/apps/${artifactId}/versions/${versionId}/restore`),
     onSuccess: (artifact) => {
       settle(artifact);
       toast.success(t("versionRestored", { version: artifact.current_version?.number ?? 0 }));
     },
     onError: fail,
   });
+  const follow = useMutation({
+    mutationFn: (on: boolean) =>
+      on
+        ? apiClient.put<ArtifactDetail>(`/apps/${artifactId}/follow`)
+        : apiClient.delete<ArtifactDetail>(`/apps/${artifactId}/follow`),
+    onSuccess: (artifact) => {
+      queryClient.setQueryData(qk.artifacts.detail(artifactId), artifact);
+      toast.success(t(artifact.following ? "followed" : "unfollowed"));
+    },
+    onError: fail,
+  });
   const remove = useMutation({
-    mutationFn: () => apiClient.delete<void>(`/artifacts/${artifactId}`),
+    mutationFn: () => apiClient.delete<void>(`/apps/${artifactId}`),
     onSuccess: async () => {
       queryClient.removeQueries({ queryKey: qk.artifacts.detail(artifactId) });
       await queryClient.invalidateQueries({ queryKey: qk.artifacts.all() });
@@ -165,6 +180,7 @@ export function useArtifact(artifactId: string) {
     disablePublicLink,
     updatePublicLink,
     restoreVersion,
+    follow,
     remove,
   };
 }
@@ -181,7 +197,7 @@ export function useArtifactView(artifactId: string, versionId: string | null, en
     queryKey: qk.artifacts.view(artifactId, versionId),
     queryFn: () => {
       const query = versionId ? `?version_id=${encodeURIComponent(versionId)}` : "";
-      return apiClient.get<ArtifactView>(`/artifacts/${artifactId}/view${query}`);
+      return apiClient.get<ArtifactView>(`/apps/${artifactId}/view${query}`);
     },
     enabled,
     staleTime: 0,

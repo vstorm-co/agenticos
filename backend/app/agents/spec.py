@@ -72,7 +72,16 @@ logger = logging.getLogger(__name__)
 # own and `load_capability` opens a skill - which leaves `list_skills` and
 # `load_skill` as names for a mechanism nobody calls. A binding that gated or
 # renamed either is migrated by dropping that entry.
-SPEC_VERSION = 12
+#
+# 13 makes the web browser one capability (#2127). `browser_choice` - the
+# step-by-step browser, whose steps a TypeSafe model picked - folds into
+# `browser_use`, which now runs this repository's loop on the run's own model:
+# the id, its tool `browse_page` → `browse_web`, and its config, minus the
+# decision-model settings and the TypeSafe key. A `browser_use` binding drops the
+# settings of the engine it no longer runs (`mode`, `headless`) and keeps
+# `use_vision` as `vision`. A spec that bound both keeps the step-by-step one,
+# which was the one that could run.
+SPEC_VERSION = 13
 
 ApprovalMode = Literal["default", "required", "never"]
 
@@ -107,6 +116,42 @@ _THINKING_CAPABILITY = "thinking"
 _SKILLS_CAPABILITY = "skills"
 _LOAD_SKILL = "load_skill"
 _WITHDRAWN_SKILL_TOOLS = frozenset({"list_skills", _LOAD_SKILL})
+_BROWSER = "browser_use"
+_FOLDED_BROWSER = "browser_choice"
+_FOLDED_BROWSER_TOOL = ("browse_page", "browse_web")
+_WITHDRAWN_BROWSER_CONFIG = frozenset(
+    {"decision_model", "decision_base_url", "min_confidence", "mode", "headless", "use_vision"}
+)
+
+
+def _one_browser(data: Any) -> Any:
+    """Drop a version-12 `browser_use` binding that a `browser_choice` one replaces.
+
+    Version 13 folds `browser_choice` into `browser_use`, so a spec that bound both
+    would bind the same capability twice after the move - which `_ids_are_unique`
+    refuses, making a stored spec unreadable. The step-by-step binding is kept: it
+    is the one that could run, and its endpoint is the one that was configured.
+    """
+    if not isinstance(data, dict) or not isinstance(data.get("capabilities"), list):
+        return data
+    ids = {item.get("id") for item in data["capabilities"] if isinstance(item, dict)}
+    if not {_BROWSER, _FOLDED_BROWSER} <= ids:
+        return data
+    logger.warning(
+        "Dropping a `%s` binding: the `%s` binding beside it becomes the web browser.",
+        _BROWSER,
+        _FOLDED_BROWSER,
+    )
+    return {
+        **data,
+        "capabilities": [
+            item
+            for item in data["capabilities"]
+            if not (isinstance(item, dict) and item.get("id") == _BROWSER)
+        ],
+    }
+
+
 _THINKING_SETTING = "thinking"
 _MODEL_SETTINGS_WITHDRAWN = frozenset(
     {
@@ -266,6 +311,50 @@ class CapabilityBindingSpec(BaseModel):
                 ", ".join(sorted(withdrawn)),
             )
             migrated[key] = kept
+        return migrated
+
+    @model_validator(mode="before")
+    @classmethod
+    def _fold_the_browsers_version_13_merged(cls, data: Any) -> Any:
+        """Let a version-12 browser binding load as the one web browser.
+
+        `browser_choice` becomes `browser_use`: the id, its tool's approval and
+        override under the new tool name, and its config. The settings of the
+        engines that are gone are dropped and said out loud - a decision model, a
+        confidence floor, a playwright `mode` - and so is the TypeSafe key, which
+        nothing reads now. `use_vision` survives as `vision`. A value the binding
+        states under the new name wins, so a migrated binding reads the same twice.
+        """
+        if not isinstance(data, dict) or data.get("id") not in (_BROWSER, _FOLDED_BROWSER):
+            return data
+        migrated = dict(data)
+        config = data.get("config")
+        if isinstance(config, dict):
+            withdrawn = _WITHDRAWN_BROWSER_CONFIG & config.keys()
+            if withdrawn:
+                logger.warning(
+                    "Dropping web browser settings this spec version no longer has: %s",
+                    ", ".join(sorted(withdrawn)),
+                )
+                kept = {key: value for key, value in config.items() if key not in withdrawn}
+                if "use_vision" in config:
+                    kept.setdefault("vision", config["use_vision"])
+                if kept.get("cdp_url") is None:
+                    kept.pop("cdp_url", None)
+                migrated["config"] = kept
+        if data.get("id") != _FOLDED_BROWSER:
+            return migrated
+        old_tool, new_tool = _FOLDED_BROWSER_TOOL
+        migrated["id"] = _BROWSER
+        if migrated.get("secret_id") is not None:
+            logger.warning("Dropping the step-by-step browser's decision-model key.")
+            migrated["secret_id"] = None
+        for key in ("tool_approval", "tool_overrides"):
+            stated = data.get(key)
+            if isinstance(stated, dict) and old_tool in stated:
+                renamed = {k: v for k, v in stated.items() if k != old_tool}
+                renamed.setdefault(new_tool, stated[old_tool])
+                migrated[key] = renamed
         return migrated
 
     def to_binding(self) -> CapabilityBinding:
@@ -578,6 +667,15 @@ class ModelSettingsSpec(BaseModel):
 DelegationMode = Literal["sync", "async", "auto"]
 
 
+McpApproval = Literal["writes", "all", "none"]
+"""How much of an MCP server's tools wait for a person (#2060).
+
+`none` unless the author says otherwise, as for a capability's tools: a gate
+nobody chose parks runs in channels and routines where nobody is there to
+answer it.
+"""
+
+
 class OrgMcpServerRef(BaseModel):
     """One of the organization's MCP connections, used by every run of this agent.
 
@@ -606,6 +704,13 @@ class OrgMcpServerRef(BaseModel):
             "the connection allows, which is what a binding meant before this "
             "field existed. Narrowing only: the connection's own allowlist is an "
             "administrator's ceiling and this cannot reach past it."
+        ),
+    )
+    approval: McpApproval = Field(
+        default="none",
+        description=(
+            "Which of the server's tools wait for a person to approve the call: "
+            "`writes` (those the server does not mark read-only), `all`, or `none`"
         ),
     )
 
@@ -639,6 +744,13 @@ class PersonalMcpServerRef(BaseModel):
       binding whose key is also the name of an organization connection bound to
       the same agent, because that would be two servers under one prefix.
 
+    **Every one of the person's accounts on the service answers** (#2125). The
+    one they marked default - else the one
+    they connected first - takes the catalog key as its prefix; each other
+    account takes the key and its own label (`outlook-info`), and the run is
+    told which prefix is which account. One agent reads the company mailbox and
+    `info@` at once, as the same person, without anybody choosing between them.
+
     `allowed_tools` here is the administrator's ceiling, and the only one: the
     person's own connection may narrow further, and the two intersect.
     """
@@ -662,10 +774,51 @@ class PersonalMcpServerRef(BaseModel):
             "answers. Null is every tool the person's own connection allows."
         ),
     )
+    approval: McpApproval = Field(
+        default="none",
+        description=(
+            "Which of the server's tools wait for a person to approve the call: "
+            "`writes` (those the server does not mark read-only), `all`, or `none`"
+        ),
+    )
 
 
-McpServerRef = Annotated[OrgMcpServerRef | PersonalMcpServerRef, Field(discriminator="account")]
-"""One MCP binding: the organization's connection, or each person's own account.
+class PlatformMcpServerRef(BaseModel):
+    """This deployment's own MCP server (`/mcp`), as whoever the agent runs for (#2063).
+
+    What the AI Architect operates the platform through: the same server Claude
+    Code connects to, reached in-process, with a credential minted for the person
+    asking - so the agent can do exactly what they could, and nothing more. Where
+    nobody is asking (a visitor, a schedule) the binding is simply absent.
+
+    Its tools carry MCP's read-only hints, so a `writes` policy holds every
+    call that changes something for a person's approval - which the Architect's
+    own template asks for.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    account: Literal["platform"]
+    allowed_tools: list[str] | None = Field(
+        default=None,
+        description="Which of the platform's tools this agent may call. Null is all of them.",
+    )
+    approval: McpApproval = Field(
+        default="writes",
+        description=(
+            "Which of the platform's tools wait for a person to approve the call: "
+            "`writes` (every tool that changes something) or `all`. `none` is held "
+            "to `writes`: these tools act with the authority of whoever is asking"
+        ),
+    )
+
+
+McpServerRef = Annotated[
+    OrgMcpServerRef | PersonalMcpServerRef | PlatformMcpServerRef,
+    Field(discriminator="account"),
+]
+"""One MCP binding: the organization's connection, each person's own account, or
+this platform's own server.
 
 Discriminated on `account`, so a stored document says which it is and a reader
 never has to infer it from which other fields are present.
@@ -833,6 +986,12 @@ class SpecialistSpec(BaseModel):
         description="Override the capability's mode for this specialist alone",
     )
 
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_version_12_browsers(cls, data: Any) -> Any:
+        """A specialist that bound both browsers keeps one - see :func:`_one_browser`."""
+        return _one_browser(data)
+
     @field_validator("capabilities")
     @classmethod
     def _ids_are_unique(
@@ -934,6 +1093,24 @@ def _with_thinking_binding(data: Any, effort: Any) -> Any:
     return {**data, "capabilities": capabilities}
 
 
+class PromptVariableSpec(BaseModel):
+    """A custom variable: a name the instructions may write as `{{name}}`, and its text.
+
+    Written once and used in as many places as it needs, so the value that changes
+    - a support address, a policy version, a product name - changes in one place.
+    The name cannot be a system variable's (`app/agents/prompt_variables.py`),
+    which publish checks.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(
+        pattern=r"^[a-z][a-z0-9_]{0,39}$", description="Lower case, as written in `{{name}}`"
+    )
+    value: str = Field(default="", max_length=4000, description="The text `{{name}}` becomes")
+    description: str | None = Field(default=None, max_length=200)
+
+
 class AgentSpec(BaseModel):
     """Everything that defines an agent's behaviour.
 
@@ -958,7 +1135,24 @@ class AgentSpec(BaseModel):
     description: str | None = Field(default=None, max_length=1000)
     instructions: str = Field(
         default="",
-        description="The system prompt. The agent's behaviour lives here, not in code.",
+        description=(
+            "The system prompt. The agent's behaviour lives here, not in code. "
+            "`{{name}}` is filled in when each run starts, from a system variable "
+            "or one of `variables`."
+        ),
+    )
+    variables: list[PromptVariableSpec] = Field(
+        default_factory=list,
+        description="Custom variables the instructions may use as `{{name}}`",
+    )
+    time_zone: str = Field(
+        default="system",
+        max_length=64,
+        description=(
+            "The zone `{{current_time}}` and `{{current_date}}` are told in: "
+            "`system` for the deployment's, `user` for the person's own when the "
+            "surface knows it, or an IANA name such as `Europe/Warsaw`"
+        ),
     )
 
     model_profile_id: UUID | None = Field(
@@ -1058,6 +1252,12 @@ class AgentSpec(BaseModel):
         specialist with content on.
         """
         return self.observability.content if self.observability else "full"
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_version_12_browsers(cls, data: Any) -> Any:
+        """A spec that bound both browsers keeps one - see :func:`_one_browser`."""
+        return _one_browser(data)
 
     @model_validator(mode="before")
     @classmethod

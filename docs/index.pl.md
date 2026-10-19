@@ -1,10 +1,10 @@
 ---
-source_sha: "42ec3d82641d"
+source_sha: "ef634a1ced73"
 ---
 
 <div class="agenticos-hero" markdown>
 
-![AgenticOS](assets/amigo.svg){ .agenticos-hero__mark }
+![AgenticOS](assets/logo-animated.svg){ .agenticos-hero__mark }
 
 <p class="agenticos-hero__name">AgenticOS</p>
 

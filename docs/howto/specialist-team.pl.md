@@ -1,5 +1,5 @@
 ---
-source_sha: "62fe6a8232a7"
+source_sha: "3d12840934e5"
 title: "Kieruj prośby do zespołu wyspecjalizowanych agentów"
 description: "Zbuduj agenta recepcji, który deleguje pytanie o rozliczenia albo pytanie techniczne do opublikowanego specjalisty, a dopytuje, gdy pytanie jest niejednoznaczne."
 ---
@@ -51,7 +51,7 @@ question to tell which team it belongs to before delegating anything.
 Relay the specialist's answer; do not add facts of your own.
 ```
 
-`task` nie ma efektów ubocznych, więc żadna z delegacji domyślnie nie prosi o zatwierdzenie. Zatwierdzałoby się narzędzia samego specjalisty, w specu specjalisty.
+Żadna z delegacji nie prosi o zatwierdzenie (żadne narzędzie nie prosi, dopóki autor tego nie ustawi), a zatwierdzałoby się narzędzia samego specjalisty, w specu specjalisty.
 
 ## Kto płaci i co widzi użytkownik { #who-pays-and-what-the-user-sees }
 
