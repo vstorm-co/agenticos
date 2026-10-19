@@ -1049,6 +1049,25 @@ async def test_a_flip_against_a_baseline_in_the_same_run_reruns_both_sides(db) -
     case = next(c for c in comparison.cases if c.flip == "regression")
     assert (case.baseline_reruns, case.candidate_reruns) == ([True], [False])
 
+    # The judge republished between a case's first answers and its reruns: both
+    # sides hold both judges' grades, in opposite proportions, and do not compare.
+    old = {"agent_version_id": None, "rubric_hash": "a"}
+    new = {"agent_version_id": str(uuid.uuid4()), "rubric_hash": "a"}
+    tries = await db.execute(
+        select(EvalRunCase, EvalRunArm.role)
+        .join(EvalRunArm, EvalRunArm.id == EvalRunCase.arm_id)
+        .where(EvalRunCase.eval_run_id == started.id)
+    )
+    for attempt, role in tries.all():
+        score = await db.get(CaseScore, attempt.case_score_id)
+        assert score is not None
+        first = attempt.attempt == 0
+        score.judge = old if first == (role == "candidate") else new
+    await db.flush()
+    mixed = await service.compare(ctx, started.id)
+    assert mixed.verdict == "invalid"
+    assert "judge changed while" in (mixed.invalid_reason or "")
+
 
 async def test_the_estimate_counts_the_judge_and_the_agents_own_cap(db) -> None:
     ctx = await _owner(db)
@@ -1070,6 +1089,16 @@ async def test_the_estimate_counts_the_judge_and_the_agents_own_cap(db) -> None:
     # The judge bills to its own agent; the evaluated agent keeps $2 - $0.20.
     assert estimate.agent_after_usd == Decimal("1.80")
     assert estimate.rerun_ceiling_usd == Decimal("0.80")
+
+    # A draft with a looser cap against v7: v7 stops first, so its cap decides.
+    agent.draft_spec = {**agent.draft_spec, "budget": {"monthly_usd": 5}}
+    await db.flush()
+    paired = await service.estimate(
+        ctx,
+        agent.id,
+        EvalRunRequest(dataset_id=dataset.id, candidate="draft", paired_baseline=True),
+    )
+    assert paired.agent_remaining_usd == Decimal("2")
 
 
 async def test_a_model_with_no_history_is_priced_at_its_own_price(db) -> None:
@@ -1687,6 +1716,18 @@ async def test_a_judge_with_no_history_is_priced_at_its_models_price(db) -> None
     judge.current_version_id = published.id
     criteria = [{"name": "Tone", "description": "Polite"}]
     dataset.scoring = {"judge": {"enabled": True, "agent_id": str(judge.id), "criteria": criteria}}
+    # What it cost on the model it graded on before: not what it costs now.
+    db.add(
+        AgentRun(
+            organization_id=ctx.organization_id,
+            agent_id=judge.id,
+            surface=RunSurface.EVAL.value,
+            status="completed",
+            model_label="gpt-test",
+            cost_usd=Decimal("0.02"),
+            started_at=datetime.now(UTC),
+        )
+    )
     await db.flush()
     priced = SimpleNamespace(label="nano", model="gpt-4.1-nano", provider="openai")
     service = EvalRunService(db)

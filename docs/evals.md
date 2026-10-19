@@ -204,6 +204,11 @@ sweep, which also frees its slots. A queued run has no worker yet - it waits for
 a runner slot - so the sweep gives up on it only after
 `EVAL_QUEUED_ABANDONED_AFTER_HOURS`.
 
+While a run is queued or running, the environment it names and the model profile
+any of its sides runs on cannot be removed: its remaining cases would answer
+against production's connections, or on another model than the cases before
+them.
+
 ## Results { #results }
 
 Every attempt keeps the answer, the calls it made - each marked executed,
@@ -319,6 +324,9 @@ graded by a different judge, model, rubric or prompt, the comparison is
 `invalid` and gives no verdict - a flip there says something about the grading,
 not about the agent. A baseline graded under an earlier judge prompt says so,
 and is not reused as a cached baseline.
+
+A run whose judge changed while its cases were graded is `invalid` too: a case
+whose tries carry two judges' grades settles by whichever graded more of them.
 
 ### Two axes, quality first { #two-axes-quality-first }
 

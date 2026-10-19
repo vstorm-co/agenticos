@@ -1,5 +1,5 @@
 ---
-source_sha: "4c6dfd252452"
+source_sha: "4950f10e6c98"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -218,6 +218,11 @@ zawieszonych runów, który zwalnia też jego miejsca. Run w kolejce nie ma jesz
 workera - czeka na wolny runner - więc sweep rezygnuje z niego dopiero po
 `EVAL_QUEUED_ABANDONED_AFTER_HOURS`.
 
+Dopóki run czeka w kolejce albo działa, nie da się usunąć środowiska, które
+wskazuje, ani profilu modelu, na którym działa któraś z jego stron: pozostałe
+przypadki odpowiadałyby na połączeniach produkcji albo na innym modelu niż
+przypadki przed nimi.
+
 ## Wyniki { #results }
 
 Każda próba zachowuje odpowiedź, wykonane wywołania - każde oznaczone jako
@@ -342,6 +347,10 @@ model, rubrykę lub prompt, porównanie jest `invalid` i nie daje werdyktu -
 odwrócenie mówi wtedy coś o ocenianiu, nie o agencie. Baseline oceniony
 wcześniejszym promptem sędziego mówi o tym i nie jest ponownie wykorzystywany
 jako baseline z pamięci podręcznej.
+
+Run, którego sędzia zmienił się w trakcie oceniania przypadków, też jest
+`invalid`: przypadek, którego próby mają oceny dwóch sędziów, rozstrzyga się
+według tego, który ocenił ich więcej.
 
 ### Dwie osie, najpierw jakość { #two-axes-quality-first }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "4c6dfd252452"
+source_sha: "4950f10e6c98"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -232,6 +232,11 @@ seine Plätze freigibt. Ein Run in der Warteschlange hat noch keinen Worker - er
 wartet auf einen freien Runner - daher gibt der Sweep ihn erst nach
 `EVAL_QUEUED_ABANDONED_AFTER_HOURS` auf.
 
+Solange ein Run wartet oder läuft, lassen sich die Umgebung, die er nennt, und
+das Modellprofil, auf dem eine seiner Seiten läuft, nicht entfernen: Seine
+übrigen Fälle würden sonst gegen die Verbindungen der Produktion antworten oder
+auf einem anderen Modell als die Fälle davor.
+
 ## Ergebnisse { #results }
 
 Jeder Versuch behält die Antwort, die gemachten Aufrufe - jeder markiert als
@@ -358,8 +363,12 @@ eigenen Prompts des Judges. Wurden die beiden Seiten mit unterschiedlichen
 Scoring-Einstellungen bewertet oder von einem anderen Judge, Modell, einer
 anderen Rubrik oder einem anderen Prompt, ist der Vergleich `invalid` und gibt
 kein Urteil - ein Kippen sagt dann etwas über die Bewertung, nicht über den
-Agent. Eine Baseline, die unter einem früheren Judge-Prompt bewertet wurde,
-sagt das und wird nicht als zwischengespeicherte Baseline wiederverwendet.
+Agent. Eine Baseline, die unter einem früheren Judge-Prompt bewertet wurde, sagt
+das und wird nicht als zwischengespeicherte Baseline wiederverwendet.
+
+Ein Run, dessen Judge sich änderte, während seine Fälle bewertet wurden, ist
+ebenfalls `invalid`: Ein Fall, dessen Versuche Bewertungen zweier Judges tragen,
+entscheidet sich nach dem, der mehr davon bewertet hat.
 
 ### Zwei Achsen, Qualität zuerst { #two-axes-quality-first }
 

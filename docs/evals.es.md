@@ -1,5 +1,5 @@
 ---
-source_sha: "4c6dfd252452"
+source_sha: "4950f10e6c98"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -217,6 +217,11 @@ colgados, que además libera sus plazas. Un run en cola aún no tiene worker -
 espera un runner libre - así que el barrido lo abandona solo tras
 `EVAL_QUEUED_ABANDONED_AFTER_HOURS`.
 
+Mientras un run está en cola o en marcha, no se pueden eliminar el entorno que
+nombra ni el perfil de modelo en que corre alguno de sus lados: sus casos
+restantes responderían contra las conexiones de producción, o con otro modelo
+que los casos anteriores.
+
 ## Resultados { #results }
 
 Cada intento conserva la respuesta, las llamadas que hizo - cada una marcada
@@ -340,6 +345,10 @@ calificó otro juez, modelo, rúbrica o prompt, la comparación es `invalid` y n
 da veredicto: ahí un cambio dice algo de la calificación, no del agent. Un
 baseline calificado con un prompt del juez anterior lo dice, y no se reutiliza
 como baseline en caché.
+
+Un run cuyo juez cambió mientras se calificaban sus casos también es `invalid`:
+un caso cuyos intentos llevan calificaciones de dos jueces se decide por el que
+calificó más de ellos.
 
 ### Dos ejes, primero la calidad { #two-axes-quality-first }
 

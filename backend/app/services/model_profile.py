@@ -22,7 +22,12 @@ from app.agents.model_resolver import (
     get_provider,
 )
 from app.core.audit import record_audit
-from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    BadRequestError,
+    ConcurrentChangeError,
+    NotFoundError,
+)
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext
 from app.core.secret_kinds import (
@@ -32,7 +37,7 @@ from app.core.secret_kinds import (
 )
 from app.core.vault import VaultScope
 from app.db.models.credential import ModelProfile
-from app.repositories import credential_repo, organization_secret_repo
+from app.repositories import credential_repo, eval_run_repo, organization_secret_repo
 from app.services.model_catalog import models_for
 from app.services.organization_secret import OrganizationSecretService
 from app.services.system_agents import SystemAgentService
@@ -282,6 +287,25 @@ class ModelProfileService:
         return next((entry.context_length for entry in models if entry.id == model), None)
 
     async def delete_profile(self, ctx: AuthContext, profile_id: UUID) -> None:
+        """Remove a model profile.
+
+        Raises:
+            NotFoundError: The organization has no such profile.
+            ConcurrentChangeError: A queued or running eval run has a side on it.
+                Removing it would null that side's model, and its remaining cases
+                would answer on another model than the ones before them.
+        """
+        live = await eval_run_repo.count_live_with_model(
+            self.db, model_profile_id=profile_id, organization_id=ctx.organization_id
+        )
+        if live:
+            raise ConcurrentChangeError(
+                message=(
+                    f"{live} eval run(s) on this model are still queued or running. "
+                    "Remove it once they finish, or cancel them first."
+                ),
+                details={"profile_id": str(profile_id), "eval_runs": live},
+            )
         deleted = await credential_repo.delete_profile(
             self.db, profile_id, organization_id=ctx.organization_id
         )

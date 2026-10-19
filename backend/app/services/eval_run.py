@@ -701,8 +701,15 @@ class EvalRunService:
         if plan.judged:
             judge = await self._judge_agent(ctx, plan.scoring.judge.agent_id)
             judge_model = await self._judge_model(ctx, judge) if judge is not None else None
+            # Its history on the model it is published on, as a side's is: one
+            # republished on a dearer model must not be priced at the old one.
+            judge_label = (
+                (await self.models.resolve(ctx, profile_id=judge_model)).label
+                if judge_model is not None
+                else None
+            )
             judge_per_case = (
-                (await self._per_case(ctx, judge.id, None, judge_model))[0]
+                (await self._per_case(ctx, judge.id, judge_label, judge_model))[0]
                 if judge is not None
                 else settings.EVAL_FALLBACK_CASE_COST_USD
             )
@@ -730,9 +737,19 @@ class EvalRunService:
         )
 
     async def _agent_left(self, ctx: AuthContext, plan: RunPlan) -> Decimal | None:
-        cap = plan.arms[0].spec.budget.monthly_usd if plan.arms[0].spec.budget else None
-        if cap is None:
+        """What the agent has left this month under the tightest cap of the sides it runs.
+
+        Every side bills the same agent and each is stopped by its own spec's cap,
+        so the lowest one decides how far the run gets.
+        """
+        caps = [
+            arm.spec.budget.monthly_usd
+            for arm in plan.arms
+            if arm.spec.budget and arm.spec.budget.monthly_usd is not None
+        ]
+        if not caps:
             return None
+        cap = min(caps)
         spent = await agent_run_repo.sum_cost_since(
             self.db,
             organization_id=ctx.organization_id,
@@ -1808,6 +1825,14 @@ class EvalRunService:
         )
         mine = await self._pins(ctx, await self._arm_attempts(ctx, candidate, attempts))
         theirs = await self._pins(ctx, await self._arm_attempts(ctx, baseline.arm, other_attempts))
+        # One case's tries graded by two judges settle by whichever graded more of
+        # them, so two sides holding the same two pins in other proportions still
+        # do not compare.
+        if any(len(pins) > 1 for side in (mine, theirs) for pins in side.values()):
+            return (
+                "The judge changed while this run's cases were being graded, so its "
+                "grades do not compare. Run it again."
+            )
         differ = [
             case_id for case_id in mine.keys() & theirs.keys() if mine[case_id] != theirs[case_id]
         ]
