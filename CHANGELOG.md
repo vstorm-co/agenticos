@@ -157,7 +157,10 @@ Two things are versioned separately from this file and worth knowing about:
 - **Every request in an organization reads the caller's membership once.**
   The membership and the organization come in one query, and the
   authorization context reuses that membership instead of reading it again:
-  two statements fewer on every console request.
+  two statements fewer on every console request. The conversation list also
+  takes the projects a reader sees from that context, and names each thread's
+  agents in one query of five columns instead of two that carried every
+  agent's draft spec.
 - **A busy schedule now skips by default.** Before, a schedule whose run was
   still going fired once as soon as it ended; existing schedules take `skip`.
   Set `overlap` to `queue` for the old behaviour.

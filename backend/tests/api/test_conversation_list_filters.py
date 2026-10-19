@@ -22,6 +22,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.api import deps
 from app.core.config import settings
+from app.core.permissions import AuthContext
 from app.main import app
 
 pytestmark = pytest.mark.anyio
@@ -30,10 +31,14 @@ pytestmark = pytest.mark.anyio
 @asynccontextmanager
 async def _client(*, service: MagicMock, organization_id: UUID) -> AsyncIterator[AsyncClient]:
     """A signed-in caller in one organization, with the service stubbed out."""
+    user_id = uuid4()
     app.dependency_overrides[deps.get_current_user] = lambda: MagicMock(
-        id=uuid4(), is_app_admin=False
+        id=user_id, is_app_admin=False
     )
     app.dependency_overrides[deps.get_active_organization] = lambda: MagicMock(id=organization_id)
+    app.dependency_overrides[deps.get_auth_context] = lambda: AuthContext(
+        user_id=user_id, organization_id=organization_id, role="member"
+    )
     app.dependency_overrides[deps.get_conversation_service] = lambda: service
     app.dependency_overrides[deps.get_db_session] = lambda: MagicMock()
     try:
