@@ -7,10 +7,10 @@ from sqlalchemy import DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db.base import Base
+from app.db.base import Base, TimestampMixin
 
 
-class PendingSandboxDestroy(Base):
+class PendingSandboxDestroy(Base, TimestampMixin):
     """A tombstone for a sandbox whose conversation or project is gone (#2209).
 
     Deleting a conversation or a project destroys its remote sandboxes once the
@@ -26,9 +26,10 @@ class PendingSandboxDestroy(Base):
     pause between attempts. The sandbox is named the way the workspace opened
     it - the connection and the ref id - which is all a destroy needs.
 
-    Both foreign keys cascade. An organization that is deleted takes its
-    tombstones with it, and a connection that is deleted leaves nothing that
-    could reach the sandbox, so its tombstones have nothing left to do.
+    Both foreign keys cascade, for an organization that is deleted with
+    everything in it. A connection on its own is not deleted while it holds
+    tombstones - `SandboxConnectionService.delete` refuses - since these rows
+    are the only record of sandboxes the provider may still be billing for.
     """
 
     __tablename__ = "pending_sandbox_destroys"
@@ -53,9 +54,6 @@ class PendingSandboxDestroy(Base):
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     next_attempt_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
     def __repr__(self) -> str:

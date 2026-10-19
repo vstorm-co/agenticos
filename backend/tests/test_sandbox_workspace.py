@@ -133,6 +133,8 @@ def _serve(monkeypatch, resolved: ResolvedConnection | Exception) -> None:
         return resolved
 
     monkeypatch.setattr(SandboxConnectionService, "resolve", _resolve)
+    # Teardown resolves the same connection without the switched-off check.
+    monkeypatch.setattr(SandboxConnectionService, "resolve_for_teardown", _resolve)
 
 
 class _ClosesItsClient:

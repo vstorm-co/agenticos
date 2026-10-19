@@ -1,5 +1,5 @@
 ---
-source_sha: "7092d48636e8"
+source_sha: "852d8bf0dfea"
 ---
 
 # La sandbox { #the-sandbox }
@@ -604,6 +604,11 @@ clave de Daytona se rechaza o el worker se reinicia entre medias, el sweep
 `sandbox-destroy-retry` del worker lo vuelve a intentar. La pausa se duplica cada
 vez, de 2 minutos a 6 horas, hasta que el destroy sale bien. Un sandbox de Daytona
 no tiene TTL detrás, así que solo esto lo termina.
+
+A una conexión apagada se le siguen eliminando sus sandboxes, porque apagarla
+detiene el trabajo nuevo y no la factura. Una conexión a la que le quedan
+tombstones no se puede borrar: se irían con ella, y son el único registro de lo
+que sigue en marcha en el proveedor.
 
 ## Resumen { #recap }
 

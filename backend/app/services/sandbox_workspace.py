@@ -1236,7 +1236,7 @@ class SandboxWorkspaceService:
             scope_key=row.scope_key,
         )
         try:
-            resolved = await self._connection(ctx, row.connection_id)
+            resolved = await self.connections.resolve_for_teardown(ctx, row.connection_id)
             sandbox = self._service_capability(resolved, row.scope_key)
         except Exception:
             # A service that is down must not stop a user deleting their chat.
@@ -2006,8 +2006,8 @@ async def retry_pending_destroys() -> int:
     connection reads that organization's vault and nothing else. A failure is
     logged and postponed rather than raised, so one provider that is down does
     not hold back another's sandboxes. Nothing gives up: a sandbox that still
-    exists is still costing somebody, and a connection that is deleted takes its
-    tombstones with it.
+    exists is still costing somebody. A connection switched off is still
+    resolved for this, and one holding tombstones cannot be deleted.
 
     Returns:
         How many sandboxes this tick destroyed.
@@ -2019,7 +2019,9 @@ async def retry_pending_destroys() -> int:
         for pending in await pending_destroy_repo.claim_due(db, now=now, limit=RETRY_BATCH):
             ctx = AuthContext(user_id=None, organization_id=pending.organization_id, role="")
             try:
-                resolved = await service._connection(ctx, pending.connection_id)
+                resolved = await service.connections.resolve_for_teardown(
+                    ctx, pending.connection_id
+                )
                 sandbox = service._service_capability(resolved, pending.scope_key)
                 await sandbox.destroy(WorkspaceRef(provider=_provider(sandbox), id=pending.ref_id))
             except Exception:

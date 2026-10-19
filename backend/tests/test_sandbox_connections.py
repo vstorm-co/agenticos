@@ -39,6 +39,7 @@ from app.repositories import (
     sandbox_connection_repo,
 )
 from app.repositories import conversation as conversation_repo
+from app.repositories import pending_sandbox_destroy as pending_destroy_repo
 from app.schemas.sandbox_connection import (
     SandboxConnectionCreate,
     SandboxConnectionUpdate,
@@ -306,10 +307,28 @@ class TestEditing:
         deleted = AsyncMock()
         monkeypatch.setattr(sandbox_connection_repo, "delete", deleted)
         monkeypatch.setattr(project_repo, "names_on_connection", AsyncMock(return_value=[]))
+        monkeypatch.setattr(pending_destroy_repo, "count_on_connection", AsyncMock(return_value=0))
 
         await service.delete(_ctx(), row.id)
 
         deleted.assert_awaited_once()
+
+    async def test_a_connection_with_sandboxes_still_to_destroy_is_not_deleted(self, monkeypatch):
+        """The tombstones would go with it, and they are the only record of
+        sandboxes still billed on the provider (#2209)."""
+        service = _service(monkeypatch)
+        row = _row()
+        monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
+        deleted = AsyncMock()
+        monkeypatch.setattr(sandbox_connection_repo, "delete", deleted)
+        monkeypatch.setattr(project_repo, "names_on_connection", AsyncMock(return_value=[]))
+        monkeypatch.setattr(pending_destroy_repo, "count_on_connection", AsyncMock(return_value=2))
+
+        with pytest.raises(BadRequestError) as refused:
+            await service.delete(_ctx(), row.id)
+
+        assert refused.value.details == {"pending_destroys": 2}
+        deleted.assert_not_awaited()
 
     @pytest.mark.security
     async def test_a_connection_a_project_keeps_its_files_on_is_not_deleted(self, monkeypatch):
@@ -386,6 +405,18 @@ class TestResolvingForARun:
             await service.resolve(_ctx(), row.id)
 
         assert "switched off" in refused.value.message
+
+    async def test_a_connection_switched_off_still_removes_its_sandboxes(self, monkeypatch):
+        """Off stops new work; the sandboxes already there are still billed (#2209)."""
+        row = _row(is_active=False)
+        service = _service(
+            monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok-12345678"))
+        )
+        monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
+
+        resolved = await service.resolve_for_teardown(_ctx(), row.id)
+
+        assert resolved.token == "tok-12345678"
 
     async def test_a_credential_deleted_from_the_vault_is_named_as_the_cause(self, monkeypatch):
         """`SET NULL` on the vault reference makes this reachable, and the

@@ -11,7 +11,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.db.models.organization import Organization
@@ -94,13 +94,25 @@ async def test_a_removed_one_is_gone_and_removing_it_again_is_fine(db: AsyncSess
     assert (await db.execute(select(PendingSandboxDestroy))).scalars().all() == []
 
 
-async def test_a_deleted_connection_takes_its_tombstones_with_it(db: AsyncSession) -> None:
-    """Nothing could reach the sandbox through it any more."""
+async def test_a_connections_tombstones_are_counted_for_its_deletion(db: AsyncSession) -> None:
+    """What `SandboxConnectionService.delete` refuses on, one connection's alone."""
+    connection = await _connection(db)
+    other = await _connection(db)
+    await _tombstone(db, connection, "c-1")
+    await _tombstone(db, connection, "c-2")
+    await _tombstone(db, other, "o-1")
+
+    assert await repo.count_on_connection(db, connection_id=connection.id) == 2
+
+
+async def test_a_deleted_organization_takes_its_tombstones_with_it(db: AsyncSession) -> None:
+    """The cascade is for an organization going with everything in it; a
+    connection alone is refused by the service while it holds any."""
     connection = await _connection(db)
     await _tombstone(db, connection, "dt-1")
 
-    await db.delete(connection)
-    await db.flush()
+    await db.execute(delete(Organization).where(Organization.id == connection.organization_id))
+    db.expunge_all()
 
     assert (await db.execute(select(PendingSandboxDestroy))).scalars().all() == []
 

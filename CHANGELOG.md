@@ -114,6 +114,8 @@ Two things are versioned separately from this file and worth knowing about:
     a successful destroy removes it.
   - A new worker sweep, `sandbox-destroy-retry`, retries the rest from 2
     minutes up to 6 hours apart.
+  - A switched-off connection still has its sandboxes destroyed. A connection
+    with tombstones left cannot be deleted.
   - The `scheduler` health check counts it with the other sweeps (#2209).
 
 ## [1.6.3] - 2026-10-18

@@ -8,7 +8,8 @@ here is written with the deletion, removed once the provider confirms the
 destroy, and retried by the worker's `sandbox-destroy-retry` sweep until then.
 
 `next_attempt_at` is indexed because the sweep asks "which are due" every
-minute; the foreign keys are indexed because both cascade.
+minute; the foreign keys are indexed because both cascade. `created_at` and
+`updated_at` are the `TimestampMixin` pair every model carries.
 
 Revision ID: 0144_pending_sandbox_destroys
 Revises: 0143_pg_stat_statements
@@ -49,6 +50,7 @@ def upgrade() -> None:
             server_default=sa.text("now()"),
             nullable=False,
         ),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(
             ["organization_id"],
             ["organizations.id"],

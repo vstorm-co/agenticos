@@ -1,5 +1,5 @@
 ---
-source_sha: "7092d48636e8"
+source_sha: "852d8bf0dfea"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -621,6 +621,11 @@ Sandbox-Host down, wird ein Daytona-Schlüssel abgelehnt oder startet der Worker
 dazwischen neu, versucht es der Sweep `sandbox-destroy-retry` des Workers erneut.
 Die Pause verdoppelt sich jedes Mal, von 2 Minuten bis 6 Stunden, bis der Destroy
 gelingt. Hinter einer Daytona-Sandbox steht keine TTL, also beendet nur das sie.
+
+Auch eine abgeschaltete Verbindung bekommt ihre Sandboxes entfernt, denn
+Abschalten stoppt neue Arbeit, nicht die Rechnung. Eine Verbindung mit
+verbliebenen Tombstones lässt sich nicht löschen: Die Tombstones gingen mit ihr,
+und sie sind die einzige Aufzeichnung dessen, was beim Anbieter noch läuft.
 
 ## Zusammenfassung { #recap }
 

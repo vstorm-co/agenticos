@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.pending_sandbox_destroy import PendingSandboxDestroy
@@ -65,3 +65,13 @@ async def postpone(db: AsyncSession, pending_id: UUID, *, attempts: int, until: 
         .values(attempts=attempts, next_attempt_at=until)
     )
     await db.flush()
+
+
+async def count_on_connection(db: AsyncSession, *, connection_id: UUID) -> int:
+    """How many sandboxes on a connection are still to be destroyed."""
+    result = await db.execute(
+        select(func.count())
+        .select_from(PendingSandboxDestroy)
+        .where(PendingSandboxDestroy.connection_id == connection_id)
+    )
+    return result.scalar_one()

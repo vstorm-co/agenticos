@@ -1,5 +1,5 @@
 ---
-source_sha: "7092d48636e8"
+source_sha: "852d8bf0dfea"
 ---
 
 # Sandbox { #the-sandbox }
@@ -587,6 +587,11 @@ zostanie odrzucony albo worker zrestartuje się w międzyczasie, sweep workera
 `sandbox-destroy-retry` próbuje ponownie. Przerwa podwaja się za każdym razem, od
 2 minut do 6 godzin, aż destroy się uda. Sandbox Daytony nie ma za sobą TTL, więc
 tylko to go kończy.
+
+Połączenie wyłączone dalej ma swoje sandboxy usuwane, bo wyłączenie wstrzymuje
+nową pracę, a nie rachunek. Połączenia, na którym zostały tombstone'y, nie da się
+usunąć: zniknęłyby razem z nim, a to jedyny zapis tego, co nadal działa u
+dostawcy.
 
 ## Podsumowanie { #recap }
 

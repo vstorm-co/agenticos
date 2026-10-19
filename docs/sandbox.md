@@ -566,6 +566,11 @@ between, the worker's `sandbox-destroy-retry` sweep tries again. The pause
 doubles each time, from 2 minutes up to 6 hours, until the destroy succeeds. A
 Daytona sandbox has no TTL behind it, so this is the only thing that ends one.
 
+A connection that is switched off still has its sandboxes destroyed, because
+off stops new work and not the bill. A connection with tombstones left cannot
+be deleted: the tombstones would go with it, and they are the only record of
+what is still running on the provider.
+
 ## Recap
 
 - The API container **holds no Docker socket**. `sandboxd` does, and a sandbox is
