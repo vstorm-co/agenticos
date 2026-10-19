@@ -724,7 +724,7 @@ are only for a container-backed one.
 
 | Variable | Default | Notes |
 |---|---|---|
-| `SANDBOX_STATE_MAX_BYTES` | 4 MiB | Per **stored** workspace. Past it a write is refused with a message the model reads |
+| `SANDBOX_STATE_MAX_BYTES` | 32 MiB | Per **stored** workspace. Past it a write is refused with a message the model reads |
 | `SANDBOX_INLINE_IMAGE_MAX_BYTES` | 5 MiB | Above this an attached image is written to the workspace and not also sent inline |
 
 **The percentage in the chat is two different ceilings, and it says which.** A

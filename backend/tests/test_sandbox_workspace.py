@@ -364,6 +364,38 @@ class TestTheStorageCeiling:
 
         assert document_size(document.files) <= 400
 
+    def test_the_running_measure_is_the_stored_size(self):
+        """`stored_size()` must agree with what the store is charged, byte for byte."""
+        document = CappedStateBackend(max_bytes=10_000_000)
+        assert document.stored_size() == document_size(document.files, document.directories)
+        document.write_bytes("/notes/żółw.md", 'zażółć gęślą jaźń\n"quoted"'.encode())
+        document.write_bytes("/bin/chart.png", bytes(range(256)))
+        document.write_bytes("/a/b/c/deep.txt", b"deep")
+        document.write_bytes("/notes/żółw.md", b"shorter")
+        document.remove("/bin/chart.png")
+        document.make_dir("/empty")
+
+        assert document.stored_size() == document_size(document.files, document.directories)
+
+    def test_a_write_serialises_only_the_file_it_wrote(self, monkeypatch):
+        """Dumping the whole document per write cost its size on the event loop."""
+        from app.agents.capabilities.sandbox import _capped
+
+        document = CappedStateBackend(max_bytes=10_000_000)
+        for index in range(20):
+            document.write_bytes(f"/f{index}.txt", b"x" * 1000)
+        measured: list[str] = []
+        real = _capped._entry_size
+
+        def counted(path: str, data: Any) -> int:
+            measured.append(path)
+            return real(path, data)
+
+        monkeypatch.setattr(_capped, "_entry_size", counted)
+        document.write_bytes("/f3.txt", b"changed")
+
+        assert measured == ["/f3.txt"]
+
     def test_a_failing_write_is_reported_as_itself_rather_than_measured(self):
         """A path the document rejects never reaches the ceiling check."""
         document = CappedStateBackend(max_bytes=400)
@@ -814,11 +846,85 @@ class TestOpeningAndClosing:
         service = SandboxWorkspaceService(mock_db_session)
 
         workspace = await service.open(_spec(), ctx=_ctx(), identity=_identity())
+        assert workspace.document is not None
+        workspace.document.write_bytes("/workspace/out.txt", b"written")
         await service.close(workspace)
 
         assert mock_db_session.get.await_args.kwargs["populate_existing"] is True
         # Held to the commit, so a second flush waits and merges onto this one.
         assert mock_db_session.get.await_args.kwargs["with_for_update"] is True
+
+    async def test_a_turn_that_wrote_nothing_stores_nothing(self, monkeypatch, mock_db_session):
+        """Storing it anyway rewrote the whole column, and its WAL, every message."""
+        row = _row(version=1)
+        monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=row))
+        monkeypatch.setattr(workspace_repo, "touch", AsyncMock(return_value=row))
+        saved = AsyncMock(return_value=row)
+        used = AsyncMock()
+        monkeypatch.setattr(workspace_repo, "save_files", saved)
+        monkeypatch.setattr(workspace_repo, "mark_used", used)
+        mock_db_session.get = AsyncMock(return_value=row)
+        service = SandboxWorkspaceService(mock_db_session)
+
+        workspace = await service.open(_spec(), ctx=_ctx(), identity=_identity())
+        await service.close(workspace)
+
+        saved.assert_not_awaited()
+        # Not even read back: that alone loads the whole document.
+        mock_db_session.get.assert_not_awaited()
+        used.assert_awaited_once_with(mock_db_session, workspace_id=row.id)
+
+    @pytest.mark.parametrize(
+        ("rewrite", "stored"),
+        [
+            # A skill written again with the same text: only `modified_at` moved.
+            (b"same", False),
+            (b"different", True),
+            (b"\xff\xfe", True),
+        ],
+    )
+    async def test_a_rewrite_counts_only_when_the_content_changed(
+        self, monkeypatch, mock_db_session, rewrite, stored
+    ):
+        original = StateBackend()
+        original.write_bytes("/workspace/skills/a/SKILL.md", b"same")
+        row = _row(version=1)
+        row.files = dict(original.files)
+        row.directories = sorted(original.directories)
+        monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=row))
+        monkeypatch.setattr(workspace_repo, "touch", AsyncMock(return_value=row))
+        saved = AsyncMock(return_value=row)
+        monkeypatch.setattr(workspace_repo, "save_files", saved)
+        monkeypatch.setattr(workspace_repo, "mark_used", AsyncMock())
+        mock_db_session.get = AsyncMock(return_value=row)
+        service = SandboxWorkspaceService(mock_db_session)
+
+        workspace = await service.open(_spec(), ctx=_ctx(), identity=_identity())
+        assert workspace.document is not None
+        workspace.document.write_bytes("/workspace/skills/a/SKILL.md", rewrite)
+        await service.close(workspace)
+
+        assert saved.await_count == (1 if stored else 0)
+
+    async def test_a_removed_file_is_a_change(self, monkeypatch, mock_db_session):
+        original = StateBackend()
+        original.write_bytes("/workspace/gone.txt", b"bye")
+        row = _row(version=1)
+        row.files = dict(original.files)
+        row.directories = sorted(original.directories)
+        monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=row))
+        monkeypatch.setattr(workspace_repo, "touch", AsyncMock(return_value=row))
+        saved = AsyncMock(return_value=row)
+        monkeypatch.setattr(workspace_repo, "save_files", saved)
+        mock_db_session.get = AsyncMock(return_value=row)
+        service = SandboxWorkspaceService(mock_db_session)
+
+        workspace = await service.open(_spec(), ctx=_ctx(), identity=_identity())
+        assert workspace.document is not None
+        workspace.document.remove("/workspace/gone.txt")
+        await service.close(workspace)
+
+        saved.assert_awaited_once()
 
     async def test_the_skills_tree_from_before_the_move_is_not_persisted_again(
         self, monkeypatch, mock_db_session

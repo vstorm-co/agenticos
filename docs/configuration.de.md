@@ -1,5 +1,5 @@
 ---
-source_sha: "4e88b18915c7"
+source_sha: "07546cc9dfde"
 ---
 
 # Konfiguration { #configuration }
@@ -773,7 +773,7 @@ bekommt — die Einstellungen unten gelten also nur für einen containergestütz
 
 | Variable | Standard | Hinweise |
 |---|---|---|
-| `SANDBOX_STATE_MAX_BYTES` | 4 MiB | Pro **gespeichertem** Workspace. Darüber hinaus wird ein Schreibvorgang mit einer Nachricht abgelehnt, die das Modell liest |
+| `SANDBOX_STATE_MAX_BYTES` | 32 MiB | Pro **gespeichertem** Workspace. Darüber hinaus wird ein Schreibvorgang mit einer Nachricht abgelehnt, die das Modell liest |
 | `SANDBOX_INLINE_IMAGE_MAX_BYTES` | 5 MiB | Darüber wird ein angehängtes Bild in den Workspace geschrieben und nicht zusätzlich inline gesendet |
 
 **Der Prozentsatz im Chat sind zwei verschiedene Obergrenzen, und er sagt,

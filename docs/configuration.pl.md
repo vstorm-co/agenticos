@@ -1,5 +1,5 @@
 ---
-source_sha: "4e88b18915c7"
+source_sha: "07546cc9dfde"
 ---
 
 # Konfiguracja { #configuration }
@@ -733,7 +733,7 @@ poniżej dotyczą wyłącznie workspace'u opartego na kontenerze.
 
 | Zmienna | Domyślnie | Uwagi |
 |---|---|---|
-| `SANDBOX_STATE_MAX_BYTES` | 4 MiB | Na **przechowywany** workspace. Po jego przekroczeniu zapis zostaje odrzucony komunikatem, który czyta model |
+| `SANDBOX_STATE_MAX_BYTES` | 32 MiB | Na **przechowywany** workspace. Po jego przekroczeniu zapis zostaje odrzucony komunikatem, który czyta model |
 | `SANDBOX_INLINE_IMAGE_MAX_BYTES` | 5 MiB | Powyżej tej wartości załączony obraz jest zapisywany do workspace'u i nie jest dodatkowo wysyłany inline |
 
 **Procent w czacie to dwa różne sufity i mówi, który.** Przechowywany workspace

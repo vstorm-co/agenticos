@@ -25,6 +25,15 @@ Two things are versioned separately from this file and worth knowing about:
   - pydantic-ai-backend 0.2.34 for the sandbox changes below.
   - The floors in `pyproject.toml` follow. ty 0.0.88 flags the narrowed `visibility` on `ProjectCreate`; it is suppressed with the reason beside it.
   - Replaces Dependabot's #2233 and #2234.
+- **A chat's workspace holds 32 MiB, up from 4.** `SANDBOX_STATE_MAX_BYTES` is
+  the ceiling of the `state` workspace every agent gets by default. 4 MiB
+  refused a single large attachment. Two costs that grew with the ceiling now
+  don't:
+  - A turn that changed no file stores nothing; only `last_used_at` moves.
+    Before, every message rewrote the whole JSONB column and its WAL, at
+    whatever size the workspace had reached.
+  - A write is measured by serialising only the file it wrote, not the whole
+    document on the event loop.
 
 ### Fixed
 

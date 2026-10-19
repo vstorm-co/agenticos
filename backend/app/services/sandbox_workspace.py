@@ -487,6 +487,26 @@ def _is_legacy_skill(path: str) -> bool:
     return relative == legacy or relative.startswith(f"{legacy}/")
 
 
+def _same_contents(files: dict[str, FileData], opened: dict[str, Any]) -> bool:
+    """Whether a run left every file as it found it, timestamps aside.
+
+    Every run writes its skills into the workspace again, so a file can be new
+    and still say exactly what it said: only its `modified_at` moved. That is
+    not a change worth storing the whole document for.
+    """
+    if files.keys() != opened.keys():
+        return False
+    for path, data in files.items():
+        before = opened[path]
+        if data is before:
+            continue
+        if data.get("content") != before.get("content") or data.get("encoding") != before.get(
+            "encoding"
+        ):
+            return False
+    return True
+
+
 def _under_overflow(path: str) -> bool:
     """Whether this path is a file inside the reserved spill directory.
 
@@ -897,6 +917,26 @@ class SandboxWorkspaceService:
             logger.exception("workspace_close_failed", extra={"scope_key": workspace.scope_key})
 
     async def _flush_state(self, workspace: OpenWorkspace, *, keep_spills: bool) -> None:
+        document = workspace.document
+        if document is None:  # pragma: no cover - `open` sets one on every `state` workspace
+            raise RuntimeError("A state workspace was opened without its document")
+
+        def dropped(path: str) -> bool:
+            return _is_legacy_skill(path) or (not keep_spills and _is_spill(path))
+
+        files = {path: data for path, data in document.files.items() if not dropped(path)}
+        directories = sorted(path for path in document.directories if not dropped(path))
+        if (
+            workspace.row_id is not None
+            and _same_contents(files, workspace.opened_files)
+            and directories == sorted(workspace.opened_directories)
+        ):
+            # Most turns change nothing. Storing the document anyway rewrote the
+            # whole column - and its WAL - on every message, at whatever size the
+            # workspace had reached, and bumped the version so a concurrent run
+            # merged against a change that was not there.
+            await workspace_repo.mark_used(self.db, workspace_id=workspace.row_id)
+            return
         # `populate_existing`, so this is a read of what is *committed* rather than
         # of what this session loaded at `open`. Without it the identity map answers
         # with the row as it was, and a flush by another run - another person under
@@ -916,15 +956,6 @@ class SandboxWorkspaceService:
             # The conversation was deleted while the run was in flight. The files
             # belonged to it, so there is nothing to keep.
             return
-        document = workspace.document
-        if document is None:  # pragma: no cover - `open` sets one on every `state` workspace
-            raise RuntimeError("A state workspace was opened without its document")
-
-        def dropped(path: str) -> bool:
-            return _is_legacy_skill(path) or (not keep_spills and _is_spill(path))
-
-        files = {path: data for path, data in document.files.items() if not dropped(path)}
-        directories = sorted(path for path in document.directories if not dropped(path))
         if workspace.opened_version is not None and row.version != workspace.opened_version:
             files, directories = self._merged(workspace, row, files, directories)
         await workspace_repo.save_files(
