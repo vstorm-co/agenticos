@@ -29,6 +29,7 @@ from app.repositories import (
     credential_repo,
     dataset_repo,
     eval_run_repo,
+    eval_suite_repo,
     intercepted_tool_call_repo,
     personal_data_repo,
 )
@@ -97,6 +98,20 @@ TENANT_REQUIRED = [
     (agent_repo, "version_before"),
     (agent_run_repo, "average_cost"),
     (agent_run_repo, "cost_of_runs"),
+    (eval_suite_repo, "create"),
+    (eval_suite_repo, "get"),
+    (eval_suite_repo, "get_by_name"),
+    (eval_suite_repo, "lock"),
+    (eval_suite_repo, "list_for_agents"),
+    (eval_suite_repo, "list_watching"),
+    (eval_suite_repo, "add_result"),
+    (eval_suite_repo, "get_result"),
+    (eval_suite_repo, "discard_pending"),
+    (eval_suite_repo, "running_for"),
+    (eval_suite_repo, "previous_settled"),
+    (eval_suite_repo, "list_results"),
+    (eval_suite_repo, "latest_results"),
+    (eval_suite_repo, "open_results"),
 ]
 
 # Deliberately unscoped, each documented at its definition.
@@ -106,6 +121,9 @@ CROSS_TENANT_BY_DESIGN = [
     (conversation_repo, "get_conversation_by_id"),
     (personal_data_repo, "unlink_dataset_cases_of"),
     (eval_run_repo, "fail_abandoned"),
+    (eval_suite_repo, "claim_due_schedules"),
+    (eval_suite_repo, "claim_pending"),
+    (eval_suite_repo, "claim_finished"),
 ]
 
 
