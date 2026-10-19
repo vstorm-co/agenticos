@@ -432,6 +432,10 @@ def authorization_url(
     }
     if server.scope:
         params["scope"] = server.scope
+        # OIDC Core 11: a provider may grant offline_access, and so a refresh
+        # token, only after an explicit consent prompt.
+        if "offline_access" in server.scope.split():
+            params["prompt"] = "consent"
     query = httpx2.QueryParams(params)
     sep = "&" if "?" in server.authorization_endpoint else "?"
     return f"{server.authorization_endpoint}{sep}{query}"

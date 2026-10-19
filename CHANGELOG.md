@@ -28,7 +28,8 @@ Two things are versioned separately from this file and worth knowing about:
   gives: the `scope` of the server's 401, then its protected-resource
   metadata, and the sign-in server's list only when it names none.
   `offline_access` is added when the sign-in server offers it, so the
-  connection gets a refresh token. Reported and first fixed by @henfircreo
+  connection gets a refresh token, and the consent asks with
+  `prompt=consent`, as OpenID Connect requires for it. Reported and first fixed by @henfircreo
   in #2231.
 
 ## [1.7.0] - 2026-10-19

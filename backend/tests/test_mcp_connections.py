@@ -5652,3 +5652,29 @@ class TestDiscoveredScopes:
         server = await mcp_oauth.discover(self._SERVER)
 
         assert server.scope == "read offline_access"
+
+    @pytest.mark.anyio
+    async def test_asking_for_offline_access_prompts_for_consent(self, monkeypatch):
+        self._serving(
+            monkeypatch,
+            resource_scopes=[self._WORK_IQ_SCOPE],
+            issuer_scopes=["openid", "offline_access"],
+        )
+        server = await mcp_oauth.discover(self._SERVER)
+
+        url = mcp_oauth.authorization_url(
+            server, client_id="c", redirect_uri="https://x/cb", state="s", code_challenge="cc"
+        )
+
+        assert httpx2.URL(url).params["prompt"] == "consent"
+
+    @pytest.mark.anyio
+    async def test_no_consent_prompt_without_offline_access(self, monkeypatch):
+        self._serving(monkeypatch, resource_scopes=["read"], issuer_scopes=["read"])
+        server = await mcp_oauth.discover(self._SERVER)
+
+        url = mcp_oauth.authorization_url(
+            server, client_id="c", redirect_uri="https://x/cb", state="s", code_challenge="cc"
+        )
+
+        assert "prompt" not in httpx2.URL(url).params
