@@ -1687,6 +1687,18 @@ async def test_a_judge_with_no_history_is_priced_at_its_models_price(db) -> None
     judge.current_version_id = published.id
     criteria = [{"name": "Tone", "description": "Polite"}]
     dataset.scoring = {"judge": {"enabled": True, "agent_id": str(judge.id), "criteria": criteria}}
+    # What it cost on the model it graded on before: not what it costs now.
+    db.add(
+        AgentRun(
+            organization_id=ctx.organization_id,
+            agent_id=judge.id,
+            surface=RunSurface.EVAL.value,
+            status="completed",
+            model_label="gpt-test",
+            cost_usd=Decimal("0.02"),
+            started_at=datetime.now(UTC),
+        )
+    )
     await db.flush()
     priced = SimpleNamespace(label="nano", model="gpt-4.1-nano", provider="openai")
     service = EvalRunService(db)

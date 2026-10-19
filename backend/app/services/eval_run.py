@@ -701,8 +701,15 @@ class EvalRunService:
         if plan.judged:
             judge = await self._judge_agent(ctx, plan.scoring.judge.agent_id)
             judge_model = await self._judge_model(ctx, judge) if judge is not None else None
+            # Its history on the model it is published on, as a side's is: one
+            # republished on a dearer model must not be priced at the old one.
+            judge_label = (
+                (await self.models.resolve(ctx, profile_id=judge_model)).label
+                if judge_model is not None
+                else None
+            )
             judge_per_case = (
-                (await self._per_case(ctx, judge.id, None, judge_model))[0]
+                (await self._per_case(ctx, judge.id, judge_label, judge_model))[0]
                 if judge is not None
                 else settings.EVAL_FALLBACK_CASE_COST_USD
             )
