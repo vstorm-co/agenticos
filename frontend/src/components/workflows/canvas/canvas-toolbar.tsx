@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -244,16 +244,31 @@ function ToolbarIcon({
   );
 }
 
+// A shortcut is keys pressed together, joined by "+"; where one of them may be any
+// of a few - C, V or X; Delete or Backspace - those are joined by "·", which a
+// screen reader hears as "or".
 const SHORTCUTS = [
-  ["Tab", "shortcutAdd"],
-  ["⌘/Ctrl + Enter", "shortcutRun"],
-  ["⌘/Ctrl + Z", "shortcutUndo"],
-  ["⇧ + ⌘/Ctrl + Z", "shortcutRedo"],
-  ["⌘/Ctrl + C · V · X", "shortcutCopy"],
-  ["Backspace", "shortcutDelete"],
-  ["Esc", "shortcutCancel"],
-  ["?", "shortcutSheet"],
+  [[["Tab"]], "shortcutAdd"],
+  [[["⌘/Ctrl"], ["Enter"]], "shortcutRun"],
+  [[["⌘/Ctrl"], ["Z"]], "shortcutUndo"],
+  [[["⇧"], ["⌘/Ctrl"], ["Z"]], "shortcutRedo"],
+  [[["⌘/Ctrl"], ["C", "V", "X"]], "shortcutCopy"],
+  [[["Delete", "Backspace"]], "shortcutDelete"],
+  [[["Esc"]], "shortcutCancel"],
+  [[["?"]], "shortcutSheet"],
 ] as const;
+
+function Joiner({ mark, spoken }: { mark: string; spoken?: string }) {
+  if (spoken === undefined) return <span className="text-muted-foreground text-xs">{mark}</span>;
+  return (
+    <>
+      <span aria-hidden="true" className="text-muted-foreground text-xs">
+        {mark}
+      </span>
+      <span className="sr-only">{` ${spoken} `}</span>
+    </>
+  );
+}
 
 /** Every keyboard shortcut the canvas answers, opened from its toolbar or with `?`. */
 export function ShortcutSheet() {
@@ -269,8 +284,20 @@ export function ShortcutSheet() {
         <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
           {SHORTCUTS.map(([keys, action]) => (
             <div key={action} className="contents">
-              <dt>
-                <kbd className="bg-muted rounded px-1.5 py-0.5 font-mono text-xs">{keys}</kbd>
+              <dt className="flex items-center gap-1 whitespace-nowrap">
+                {keys.map((choices, index) => (
+                  <Fragment key={choices.join()}>
+                    {index > 0 && <Joiner mark="+" />}
+                    {choices.map((key, choice) => (
+                      <Fragment key={key}>
+                        {choice > 0 && <Joiner mark="·" spoken={t("shortcutOr")} />}
+                        <kbd className="bg-muted rounded px-1.5 py-0.5 font-mono text-xs">
+                          {key}
+                        </kbd>
+                      </Fragment>
+                    ))}
+                  </Fragment>
+                ))}
               </dt>
               <dd className="text-muted-foreground">{t(action)}</dd>
             </div>

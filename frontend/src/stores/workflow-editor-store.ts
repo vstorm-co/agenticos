@@ -193,6 +193,11 @@ export interface WorkflowEditorState {
   watchedRunId: string | null;
   /** The step a step test is running for, until its run ends. */
   testingNodeId: Uuid | null;
+  /**
+   * The last step test started, kept once it ends - whether that step ran in it -
+   * until a whole-workflow run is watched.
+   */
+  lastStepTest: { nodeId: Uuid; runId: string } | null;
   clipboard: WorkflowClipboard | null;
   history: HistoryFlags;
   conflict: ConflictState | null;
@@ -336,6 +341,7 @@ const CLEARED = {
   stepData: {} as Record<Uuid, StepData>,
   watchedRunId: null as string | null,
   testingNodeId: null as Uuid | null,
+  lastStepTest: null as { nodeId: Uuid; runId: string } | null,
   clipboard: null,
   history: NO_HISTORY,
   conflict: null,
@@ -580,6 +586,16 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
       if (graph === null) return;
       const { source, target, sourceHandle, targetHandle } = connection;
       if (sourceHandle === null || targetHandle === null) return;
+      // The same output wired into the same input again changes nothing - not a
+      // second edge, which publishing would refuse.
+      const already = graph.edges.some(
+        (wire) =>
+          wire.source_node_id === source &&
+          wire.source_port === sourceHandle &&
+          wire.target_node_id === target &&
+          wire.target_port === targetHandle,
+      );
+      if (already) return;
       const edge: WorkflowEdge = {
         id: crypto.randomUUID(),
         source_node_id: source,
@@ -623,7 +639,14 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
 
     revealProblems: () => set({ problemsRevealed: true }),
 
-    watchRun: (runId, testing) => set({ watchedRunId: runId, testingNodeId: testing ?? null }),
+    watchRun: (runId, testing) =>
+      set({
+        watchedRunId: runId,
+        testingNodeId: testing ?? null,
+        // A whole-workflow run answers for every step, so what the last step
+        // test said about one - that it did not run - is no longer the latest.
+        lastStepTest: testing === undefined ? null : { nodeId: testing, runId },
+      }),
 
     mergeStepData: (data) => set({ stepData: { ...get().stepData, ...data } }),
 

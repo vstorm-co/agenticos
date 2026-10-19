@@ -1,7 +1,13 @@
 import type { DragEvent } from "react";
 import { describe, expect, it } from "vitest";
 
-import { carriesField, droppedField, observedFits, startFieldDrag } from "./field-drag";
+import {
+  carriesField,
+  droppedField,
+  observedFits,
+  scrollNearEdge,
+  startFieldDrag,
+} from "./field-drag";
 
 function drag(): DragEvent {
   const data = new Map<string, string>();
@@ -44,5 +50,42 @@ describe("dragging a step's field", () => {
     expect(observedFits("string", "number")).toBe(false);
     expect(observedFits(undefined, "number")).toBe(true);
     expect(observedFits("uuid-ish", "string")).toBe(true);
+  });
+});
+
+describe("scrolling while a field is dragged", () => {
+  /** A scrolling area 400px tall from y=100, holding `inner`, scrolled to 200. */
+  function area(overflowY = "auto") {
+    const outer = document.createElement("div");
+    outer.style.overflowY = overflowY;
+    Object.defineProperty(outer, "scrollHeight", { value: 2000 });
+    Object.defineProperty(outer, "clientHeight", { value: 400 });
+    outer.getBoundingClientRect = () => ({ top: 100, bottom: 500 }) as DOMRect;
+    outer.scrollTop = 200;
+    const inner = document.createElement("span");
+    outer.appendChild(inner);
+    document.body.appendChild(outer);
+    return { outer, inner };
+  }
+  const at = (target: Element, clientY: number) => ({ target, clientY }) as unknown as DragEvent;
+
+  it("scrolls the area up near its top and down near its bottom, faster at the edge", () => {
+    const { outer, inner } = area();
+    scrollNearEdge(at(inner, 101));
+    expect(outer.scrollTop).toBe(200 - 24);
+    scrollNearEdge(at(inner, 499));
+    expect(outer.scrollTop).toBe(200);
+    scrollNearEdge(at(inner, 470));
+    expect(outer.scrollTop).toBe(200 + 12);
+  });
+
+  it("leaves the area alone away from its edges, and anything that does not scroll", () => {
+    const { outer, inner } = area();
+    scrollNearEdge(at(inner, 300));
+    expect(outer.scrollTop).toBe(200);
+
+    const fixed = area("hidden");
+    scrollNearEdge(at(fixed.inner, 101));
+    expect(fixed.outer.scrollTop).toBe(200);
   });
 });

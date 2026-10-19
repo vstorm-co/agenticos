@@ -192,15 +192,20 @@ describe("WorkflowCanvas", () => {
     const { container, unmount } = render(
       <WorkflowCanvas workflow={workflow()} catalog={CATALOG} />,
     );
-    // The step whose type is not in the catalog cannot be published.
-    const marker = container.querySelector('[data-node-id="u"] [role="img"]');
-    expect(marker?.getAttribute("aria-label")).toMatch(/problem/);
+    const marker = (root: HTMLElement) =>
+      Array.from(root.querySelectorAll<HTMLElement>('[data-node-id="u"] button')).find((button) =>
+        /problem/.test(button.getAttribute("aria-label") ?? ""),
+      );
+    // The step whose type is not in the catalog cannot be published, and its
+    // marker opens it to say why.
+    fireEvent.click(marker(container)!);
+    expect(store.getState().editingNodeId).toBe("u");
     unmount();
 
     const { container: readOnly } = render(
       <WorkflowCanvas workflow={workflow()} catalog={CATALOG} readOnly />,
     );
-    expect(readOnly.querySelector('[data-node-id="u"] [role="img"]')).toBeNull();
+    expect(marker(readOnly)).toBeUndefined();
   });
 
   it("draws a distinct handle for the error output port", () => {
@@ -366,6 +371,17 @@ describe("WorkflowCanvas", () => {
     // And they are non-interactive, matching the published view.
     expect(source?.className).toContain("pointer-events-none");
     expect(container.querySelector(".react-flow__edges")).toBeTruthy();
+  });
+
+  it.each(["Backspace", "Delete"])("deletes the selected step with %s", async (key) => {
+    seedTwoConnected();
+    const { container } = render(<WorkflowCanvas workflow={workflow()} catalog={CATALOG} />);
+    const region = container.querySelector('[data-workflow-region="canvas"]')!;
+    act(() => store.getState().setSelection({ nodeIds: ["a"], edgeIds: [] }));
+
+    fireEvent.keyDown(region, { key });
+
+    await waitFor(() => expect(store.getState().graph?.nodes.map((n) => n.id)).toEqual(["b"]));
   });
 
   it("ignores Backspace and Delete when read-only", () => {

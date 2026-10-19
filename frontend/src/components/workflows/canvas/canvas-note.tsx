@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { NodeResizer, type Node, type NodeProps } from "@xyflow/react";
-import { Pencil } from "lucide-react";
+import { Palette, Pencil } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { MarkdownContent } from "@/components/chat/markdown-content";
@@ -48,9 +48,93 @@ export const NOTE_HEIGHT = 140;
  * A note on the canvas: markdown beside the steps, for whoever reads the
  * workflow next. Double-click to write in it, click away to keep it; drag it by
  * its body and resize it from its corners once selected, and pick its tint from
- * the swatches it then shows - a warning in red, a to-do in yellow. It is never
+ * its palette button - a warning in red, a to-do in yellow. It is never
  * a step - no port, nothing runs it.
  */
+/**
+ * The note's tint, folded behind one palette button so a selected note shows a
+ * single control rather than a row of dots. The swatches roll out to its left,
+ * inside the note, and fold back on a pick, on Escape or once focus leaves them.
+ */
+function NoteColorPicker({
+  color,
+  shown,
+  onPick,
+}: {
+  color: NoteColor;
+  /** Whether the button shows without a hover - the note is selected. */
+  shown: boolean;
+  onPick: (color: NoteColor) => void;
+}) {
+  const t = useTranslations("workflows");
+  const [open, setOpen] = useState(false);
+  const palette = useRef<HTMLButtonElement>(null);
+  // Folding unmounts the swatch that holds focus; without this it falls to the page.
+  const fold = () => {
+    palette.current?.focus();
+    setOpen(false);
+  };
+  return (
+    // Hears focus leaving the swatches and Escape inside them; the buttons are the controls.
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions
+    <div
+      className="nodrag absolute right-1.5 bottom-1.5 flex items-center gap-1"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as HTMLElement | null))
+          setOpen(false);
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") fold();
+      }}
+    >
+      {open && (
+        <div
+          role="radiogroup"
+          aria-label={t("noteColor")}
+          className="bg-background/90 animate-in fade-in-0 slide-in-from-right-2 flex gap-1.5 rounded-full border px-1.5 py-1 shadow-sm"
+        >
+          {COLORS.map((option) => (
+            <button
+              key={option}
+              type="button"
+              role="radio"
+              aria-checked={color === option}
+              aria-label={t(`noteColors.${option}`)}
+              title={t(`noteColors.${option}`)}
+              onClick={() => {
+                onPick(option);
+                fold();
+              }}
+              className={cn(
+                "focus-visible:ring-ring size-4 rounded-full outline-none focus-visible:ring-2",
+                TINTS[option].swatch,
+                color === option &&
+                  "ring-foreground/70 ring-offset-background ring-2 ring-offset-1",
+              )}
+            />
+          ))}
+        </div>
+      )}
+      <button
+        ref={palette}
+        type="button"
+        aria-label={t("noteColor")}
+        aria-expanded={open}
+        title={t("noteColor")}
+        onClick={() => setOpen(!open)}
+        className={cn(
+          "text-muted-foreground hover:text-foreground focus-visible:ring-ring rounded p-1 outline-none focus-visible:ring-2",
+          shown || open
+            ? "opacity-100"
+            : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
+        )}
+      >
+        <Palette aria-hidden="true" className="size-3.5" />
+      </button>
+    </div>
+  );
+}
+
 export function CanvasNoteCard({ data, selected }: NodeProps<CanvasNoteNode>) {
   const t = useTranslations("workflows");
   const updateNote = useWorkflowEditorStore((state) => state.updateNote);
@@ -88,30 +172,12 @@ export function CanvasNoteCard({ data, selected }: NodeProps<CanvasNoteNode>) {
           <Pencil aria-hidden="true" className="size-3.5" />
         </button>
       )}
-      {!readOnly && selected && draft === null && (
-        <div
-          role="radiogroup"
-          aria-label={t("noteColor")}
-          className="nodrag absolute right-1.5 bottom-1.5 flex gap-1"
-        >
-          {COLORS.map((option) => (
-            <button
-              key={option}
-              type="button"
-              role="radio"
-              aria-checked={color === option}
-              aria-label={t(`noteColors.${option}`)}
-              title={t(`noteColors.${option}`)}
-              onClick={() => color !== option && updateNote(note.id, { color: option })}
-              className={cn(
-                "focus-visible:ring-ring size-3.5 rounded-full outline-none focus-visible:ring-2",
-                TINTS[option].swatch,
-                color === option &&
-                  "ring-foreground/70 ring-offset-background ring-2 ring-offset-1",
-              )}
-            />
-          ))}
-        </div>
+      {!readOnly && draft === null && (
+        <NoteColorPicker
+          color={color}
+          shown={selected}
+          onPick={(option) => color !== option && updateNote(note.id, { color: option })}
+        />
       )}
       {draft !== null ? (
         <Textarea

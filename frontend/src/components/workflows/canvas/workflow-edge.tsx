@@ -8,13 +8,30 @@ import type { KeyboardEvent, MouseEvent } from "react";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import type { EdgeVariant, WorkflowFlowEdge } from "./graph-adapter";
-import { useNodeRunSummary } from "./run-overlay";
+import { type WireRunState, useNodeRunSummary, useWireRunState } from "./run-overlay";
 
 /** The stroke each edge variant draws with — data muted, error red, branch accented. */
 const VARIANT_CLASS: Record<EdgeVariant, string> = {
   data: "!stroke-muted-foreground",
   error: "!stroke-destructive",
   branch: "!stroke-primary",
+};
+
+/**
+ * A wire on a run's canvas, by the step it leads into: amber and dashed while
+ * that step waits, green dashes moving into the one running, solid green on the
+ * path taken, red into a failure, faded down a branch the run never took.
+ *
+ * Widths are important like the strokes: xyflow's stylesheet is unlayered, so its
+ * stroke-width beats any utility in a layer.
+ */
+const RUN_WIRE: Record<WireRunState, string> = {
+  pending: "!stroke-warning [stroke-dasharray:6_6] ![stroke-width:2]",
+  running: "!stroke-success run-flow [stroke-dasharray:8_7] ![stroke-width:2]",
+  done: "!stroke-success ![stroke-width:2]",
+  failed: "!stroke-destructive ![stroke-width:2.5]",
+  // Still a visible connection - only the steps it leads to are faded.
+  faded: "!stroke-muted-foreground opacity-70 [stroke-dasharray:4_5] ![stroke-width:1.5]",
 };
 
 /**
@@ -36,6 +53,7 @@ const VARIANT_CLASS: Record<EdgeVariant, string> = {
 export function WorkflowEdge({
   id,
   source,
+  target,
   sourceX,
   sourceY,
   targetX,
@@ -58,6 +76,7 @@ export function WorkflowEdge({
     targetPosition,
   });
   const variant = data?.variant ?? "data";
+  const wire = useWireRunState(source, target);
   // On a run's canvas, how many items the step before handed along this wire.
   const items = useNodeRunSummary(source)?.items ?? null;
   const counted = items === null ? null : t("edgeItems", { count: items });
@@ -90,7 +109,7 @@ export function WorkflowEdge({
         id={id}
         path={path}
         markerEnd={markerEnd}
-        className={VARIANT_CLASS[variant]}
+        className={wire === null ? VARIANT_CLASS[variant] : RUN_WIRE[wire]}
         style={selected ? { strokeWidth: 3 } : undefined}
         label={label ?? undefined}
         labelX={labelX}

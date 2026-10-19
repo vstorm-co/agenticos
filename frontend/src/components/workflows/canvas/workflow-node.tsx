@@ -3,7 +3,6 @@
 import { Handle, type NodeProps, Position } from "@xyflow/react";
 import { CanvasNoteCard } from "./canvas-note";
 import {
-  AlertTriangle,
   ArrowUpRight,
   Cable,
   CirclePause,
@@ -23,12 +22,12 @@ import { nodeDisplayName, type NodeInstance, type Port } from "@/lib/workflows/t
 import { cn } from "@/lib/utils";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
-import { NodeRunStatusLabel } from "@/components/workflows/runs/run-status";
-
 import { useCanvasInteraction } from "./canvas-context";
 import { AgentTile, InlineAgentTile, ResourceLine, resourcePin } from "./node-resource";
-import { useIsRunView, useNodeRunSummary } from "./run-overlay";
+import { type NodeRunState, useNodeRunState } from "./run-overlay";
+import { RunPill } from "./run-pill";
 import { isErrorPort, type WorkflowFlowNode } from "./graph-adapter";
+import { ProblemBadge } from "./problem-badge";
 import { QuickAdd } from "./quick-add";
 import { type ConditionOp, parseCondition, takesNoValue } from "@/lib/workflows/conditions";
 
@@ -211,6 +210,23 @@ export function nodeSummary(instance: NodeInstance, t: Translate): string | null
 }
 
 /**
+ * A step's card on a run's canvas, by what the run did with it: amber and
+ * dashed while it waits its turn, green while it runs and once done, violet
+ * while a person decides, red when it failed, faded when the run never came to it.
+ */
+const RUN_CARD: Record<NodeRunState, string> = {
+  pending: "border-warning border-dashed",
+  starting: "border-success ring-success/15 ring-4",
+  running: "border-success ring-success/15 ring-4",
+  waiting: "border-[var(--domain-build)] ring-2 ring-[var(--domain-build-line)]",
+  done: "border-success/60",
+  failed: "border-destructive ring-destructive/15 border-2 ring-4",
+  attention: "border-destructive ring-destructive/15 border-2 ring-4",
+  skipped: "border-dotted opacity-40",
+  notReached: "opacity-50",
+};
+
+/**
  * One workflow node on the canvas - the single component every catalog `kind`
  * bucket renders through (`nodeTypes` maps all three to it).
  *
@@ -237,10 +253,11 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
     completeConnect,
     catalog,
     insertAfter,
-    problemCounts,
+    problemTexts,
     changes,
   } = useCanvasInteraction();
   const enterScope = useWorkflowEditorStore((state) => state.enterScope);
+  const editNode = useWorkflowEditorStore((state) => state.editNode);
   const graph = useWorkflowEditorStore((state) => state.graph);
 
   const kind = definition?.kind ?? "action";
@@ -285,9 +302,11 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
   // A single ordinary output needs no label: the wire leaving the card says it all.
   const labelledOutputs = outputs.length > 1 || outputs.some(isErrorPort);
   const policy = instance.policy ?? null;
-  const run = useNodeRunSummary(instance.id);
-  const runView = useIsRunView();
-  const problems = runView ? 0 : (problemCounts.get(instance.id) ?? 0);
+  const runState = useNodeRunState(instance.id);
+  const run = runState?.summary ?? null;
+  const runView = runState !== null;
+  const crashed = runState?.state === "failed" || runState?.state === "attention";
+  const problems = runView ? [] : (problemTexts.get(instance.id) ?? []);
   const change = changes?.get(instance.id) ?? null;
 
   const connectButton = (port: Port) =>
@@ -339,8 +358,12 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
       className={cn(
         "group bg-card text-card-foreground relative w-60 rounded-xl border shadow-sm transition-shadow",
         selected ? "ring-primary/60 border-primary/40 ring-2" : "hover:shadow-md",
-        run?.status === "failed" && "border-destructive/50 ring-destructive/30 ring-2",
-        runView && run === null && "opacity-50",
+        runState !== null && RUN_CARD[runState.state],
+        // Moving only while it is watched: a run opened once it ended is still.
+        runState?.watched &&
+          (runState.state === "running" || runState.state === "starting") &&
+          "run-breathe",
+        runState?.watched && crashed && "run-crash",
         // Switched off: still on the canvas, visibly out of the run.
         instance.disabled && "border-dashed opacity-60",
         change === "added" && "border-emerald-500/60 ring-2 ring-emerald-500/25",
@@ -419,15 +442,8 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
                   {t(`diff.${change}`)}
                 </span>
               )}
-              {problems > 0 && (
-                <span
-                  role="img"
-                  aria-label={t("panelWarningCount", { count: problems })}
-                  title={t("panelWarningCount", { count: problems })}
-                  className="text-destructive"
-                >
-                  <AlertTriangle aria-hidden="true" className="size-3.5" />
-                </span>
+              {problems.length > 0 && (
+                <ProblemBadge problems={problems} onOpen={() => editNode(instance.id)} />
               )}
               {!labelledOutputs &&
                 outputs.map((port) => <span key={port.id}>{connectButton(port)}</span>)}
@@ -447,22 +463,25 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
         </div>
       </div>
 
-      {run !== null && (
-        <div className="flex items-center justify-between gap-2 px-3 pb-2">
-          <NodeRunStatusLabel status={run.status} />
-          <span className="text-muted-foreground text-[0.6875rem] tabular-nums">
-            {run.runs > 1
-              ? t("runIterations", { done: run.succeeded, count: run.runs })
-              : run.attempts > 1
-                ? t("runAttempts", { count: run.attempts })
-                : null}
-          </span>
-        </div>
-      )}
-      {run?.problem && (
-        <p className="text-destructive line-clamp-2 px-3 pb-2 text-[0.6875rem]">
-          {run.problem.message}
+      {runState !== null && <RunPill state={runState.state} summary={run} />}
+      {run !== null && (run.runs > 1 || run.attempts > 1) && (
+        <p className="text-muted-foreground px-3 pb-2 text-[0.6875rem] tabular-nums">
+          {run.runs > 1
+            ? t("runIterations", { done: run.succeeded, count: run.runs })
+            : t("runAttempts", { count: run.attempts })}
         </p>
+      )}
+      {crashed && run?.problem && (
+        // Under the card, where it cannot be missed: the step's own error.
+        <div
+          role="alert"
+          className="border-destructive/40 bg-destructive/10 absolute inset-x-0 top-full mt-2 rounded-lg border px-2.5 py-1.5 text-[0.6875rem] leading-snug"
+        >
+          <span className="text-destructive block font-mono text-[0.625rem] font-semibold">
+            {run.problem.code}
+          </span>
+          <span className="line-clamp-3">{run.problem.message}</span>
+        </div>
       )}
 
       {policy !== null &&

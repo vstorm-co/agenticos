@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
+import { qk } from "@/lib/query-keys";
 import * as api from "@/lib/workflows/runs-api";
 import type { WorkflowRunRead } from "@/lib/workflows/types";
 
@@ -138,6 +139,79 @@ describe("useWorkflowRun", () => {
     await act(() => result.current.cancel.mutateAsync());
     await waitFor(() => expect(result.current.run?.status).toBe("cancelled"));
     expect(toast.success).toHaveBeenCalledWith("Run cancelled");
+  });
+
+  it("reads its steps once more when the run ends after they were last read", async () => {
+    vi.mocked(api.getWorkflowRun).mockResolvedValue(run("running"));
+    const step = (status: string) => ({ items: [{ id: "n", status } as never], total: 1 });
+    vi.mocked(api.listWorkflowRunNodes).mockResolvedValue(step("pending"));
+    vi.mocked(api.getWorkflowRunGraph).mockResolvedValue(null as never);
+    vi.mocked(api.listWorkflowRunFiles).mockResolvedValue({ items: [] });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const own = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useWorkflowRun("r"), { wrapper: own });
+    await waitFor(() => expect(result.current.nodes[0]?.status).toBe("pending"));
+
+    // The run is seen to end - no poll involved - after its steps were last read,
+    // which by now have settled.
+    vi.mocked(api.listWorkflowRunNodes).mockResolvedValue(step("skipped"));
+    act(() => client.setQueryData(qk.workflows.run("r"), run("succeeded")));
+
+    await waitFor(() => expect(result.current.nodes[0]?.status).toBe("skipped"));
+    expect(api.listWorkflowRunFiles).toHaveBeenCalledTimes(2);
+  });
+
+  it("reads an ended run's steps only once, though they answer before the run does", async () => {
+    let answer: (value: WorkflowRunRead) => void = () => undefined;
+    vi.mocked(api.getWorkflowRun).mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    vi.mocked(api.listWorkflowRunNodes).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(api.getWorkflowRunGraph).mockResolvedValue(null as never);
+    vi.mocked(api.listWorkflowRunFiles).mockResolvedValue({ items: [] });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const own = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useWorkflowRun("r"), { wrapper: own });
+    await waitFor(() =>
+      expect(client.getQueryState(qk.workflows.runNodes("r"))?.status).toBe("success"),
+    );
+
+    // Read ended after its steps, but never seen live: nothing could have moved.
+    await act(async () => answer(run("succeeded")));
+    await waitFor(() => expect(result.current.run?.status).toBe("succeeded"));
+    // A later read of the run says nothing new about its steps either.
+    await act(() => client.refetchQueries({ queryKey: qk.workflows.run("r"), exact: true }));
+
+    expect(api.listWorkflowRunNodes).toHaveBeenCalledTimes(1);
+    expect(api.listWorkflowRunFiles).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads a run's steps once more when it ends, and not again on later reads of it", async () => {
+    vi.mocked(api.getWorkflowRun).mockResolvedValue(run("running"));
+    vi.mocked(api.listWorkflowRunNodes).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(api.getWorkflowRunGraph).mockResolvedValue(null as never);
+    vi.mocked(api.listWorkflowRunFiles).mockResolvedValue({ items: [] });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const own = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    renderHook(() => useWorkflowRun("r"), { wrapper: own });
+    await waitFor(() => expect(api.listWorkflowRunFiles).toHaveBeenCalledTimes(1));
+    // Its end is read a moment after its steps: the two are told apart by time.
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    vi.mocked(api.getWorkflowRun).mockResolvedValue(run("succeeded"));
+    await act(() => client.refetchQueries({ queryKey: qk.workflows.run("r"), exact: true }));
+    await waitFor(() => expect(api.listWorkflowRunFiles).toHaveBeenCalledTimes(2));
+
+    for (const _ of [1, 2]) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      await act(() => client.refetchQueries({ queryKey: qk.workflows.run("r"), exact: true }));
+    }
+    expect(api.listWorkflowRunNodes).toHaveBeenCalledTimes(2);
+    expect(api.listWorkflowRunFiles).toHaveBeenCalledTimes(2);
   });
 
   it("says why a run could not be cancelled", async () => {

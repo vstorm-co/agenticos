@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, createEvent, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -99,6 +99,42 @@ describe("NodeEditorDialog", () => {
     expect(screen.getByText("own face of Lead scorer")).toBeInTheDocument();
   });
 
+  it("scrolls a long form between its header and footer when it has no data panes", () => {
+    seed(node("a", "debug.echo", { message: "hi" }));
+    store.getState().editNode("a");
+    render(<NodeEditorDialog workflowId="wf" catalog={[DEBUG_ECHO]} readOnly />);
+    // Only capped in height, so the body - a child of the dialog itself - has to be
+    // what scrolls; a scroller nested deeper never gets a height to scroll in.
+    const scroller = screen.getByDisplayValue("hi").closest(".overflow-y-auto");
+    expect(scroller?.parentElement).toBe(screen.getByRole("dialog"));
+  });
+
+  it("scrolls its form at the edge while a field from the Input pane is dragged", () => {
+    seed(node("a", "debug.echo", { message: "hi" }));
+    store.getState().editNode("a");
+    render(<NodeEditorDialog workflowId="wf" catalog={[DEBUG_ECHO]} readOnly />);
+    const body = screen.getByDisplayValue("hi").closest(".overflow-y-auto") as HTMLElement;
+    // jsdom loads no stylesheet: the class's overflow is given as a style.
+    body.style.overflowY = "auto";
+    Object.defineProperty(body, "scrollHeight", { value: 2000 });
+    Object.defineProperty(body, "clientHeight", { value: 400 });
+    body.getBoundingClientRect = () => ({ top: 0, bottom: 400 }) as DOMRect;
+    // jsdom builds a drag event without a pointer position: it is set on the event.
+    const dragAt = (types: string[]) => {
+      const target = screen.getByDisplayValue("hi");
+      const event = createEvent.dragOver(target, { dataTransfer: { types } });
+      Object.defineProperty(event, "clientY", { value: 399 });
+      fireEvent(target, event);
+    };
+
+    dragAt(["application/x-agenticos-step-field"]);
+    expect(body.scrollTop).toBeGreaterThan(0);
+    // Any other drag - a file, a step from the picker - scrolls nothing.
+    const before = body.scrollTop;
+    dragAt(["Files"]);
+    expect(body.scrollTop).toBe(before);
+  });
+
   it("deletes the step it shows", async () => {
     seed(node("a"), node("b"));
     store.getState().editNode("b");
@@ -154,6 +190,21 @@ describe("a step's own name and whether it runs", () => {
   });
 });
 
+describe("a read-only step's Settings", () => {
+  it("shows every setting disabled at its default, rather than nothing", async () => {
+    seed(node("a"), node("b"));
+    store.getState().editNode("b");
+    render(<NodeEditorDialog catalog={[DEBUG_ECHO]} readOnly />);
+    await userEvent.click(screen.getByRole("tab", { name: "Settings" }));
+
+    const runs = screen.getByRole("switch", { name: "Run this step" });
+    expect(runs).toBeDisabled();
+    expect(runs).toBeChecked();
+    expect(screen.getByRole("heading", { name: "When it is slow or fails" })).toBeTruthy();
+    expect(screen.getByLabelText("Note")).toBeDisabled();
+  });
+});
+
 describe("a step looked at in a run", () => {
   it("folds its settings away and offers nothing about slowness or failure it did not have", async () => {
     seed(node("a", "debug.echo", { message: "hi" }), node("b", "debug.echo", { message: "yo" }));
@@ -166,6 +217,18 @@ describe("a step looked at in a run", () => {
     await userEvent.click(fold);
     expect(fold.closest("details")).toHaveAttribute("open");
     expect(screen.getByDisplayValue("yo")).toBeDisabled();
+  });
+
+  it("shows only what the run's first step handed on, its settings folded under it", () => {
+    seed(node("a", "debug.echo", { message: "hi" }), node("b"));
+    store.getState().editNode("a");
+    render(<NodeEditorDialog workflowId="wf" catalog={[DEBUG_ECHO]} readOnly runData />);
+
+    expect(screen.queryByRole("region", { name: "Input" })).toBeNull();
+    const output = screen.getByRole("region", { name: "Output" });
+    // One column of data, with the settings below it rather than beside it.
+    expect(output.closest(".grid")).toHaveClass("lg:grid-rows-[minmax(0,1fr)_auto]");
+    expect(output.closest(".grid")).not.toHaveClass("lg:grid-cols-2");
   });
 });
 
@@ -194,47 +257,125 @@ describe("a step's data", () => {
 
 describe("a step's missing values", () => {
   const NEEDS = makeDefinition({ id: "test.needs", name: "Needs", input_schema: REQUIRED_INPUT });
+  // What a field itself says, apart from the header line that names it.
+  const NOT_TYPED = "Required: type a value, or take one from an earlier step.";
+  const NOT_SET = "Required: the step cannot run without it.";
 
-  it("says nothing of a value not given yet until a run or a publish is tried", () => {
+  it("names a missing value in its header at once, and under its field once a run is tried", () => {
     seed(node("a", "test.needs"));
     store.getState().editNode("a");
     render(<NodeEditorDialog catalog={[NEEDS]} />);
-    expect(screen.queryByText(/Required: type a value/)).toBeNull();
+    // The header agrees with the card's count from the start.
+    expect(screen.getByRole("button", { name: `Value: ${NOT_TYPED}` })).toBeInTheDocument();
+    expect(screen.queryByText(NOT_TYPED)).toBeNull();
 
     act(() => store.getState().revealProblems());
 
-    expect(screen.getByText(/Required: type a value/)).toBeInTheDocument();
+    expect(screen.getByText(NOT_TYPED)).toBeInTheDocument();
   });
 
-  it("says it once its field was left, and forgets that when the dialog closes", () => {
-    const NOTED = makeDefinition({
-      id: "test.noted",
-      name: "Noted",
-      input_schema: REQUIRED_INPUT,
-      config_schema: {
-        type: "object",
-        properties: { subject: { type: "string", title: "Subject" } },
-        required: ["subject"],
-      },
-    });
+  const NOTED = makeDefinition({
+    id: "test.noted",
+    name: "Noted",
+    input_schema: REQUIRED_INPUT,
+    config_schema: {
+      type: "object",
+      properties: { subject: { type: "string", title: "Subject" } },
+      required: ["subject"],
+    },
+  });
+
+  it("says it under a field once the field was left, and forgets that when the dialog closes", () => {
     seed(node("a", "test.noted"));
     store.getState().editNode("a");
     render(<NodeEditorDialog catalog={[NOTED]} />);
 
     // Each field says it is missing once it was left, and not before.
-    expect(screen.queryByText(/Required: the step cannot run/)).toBeNull();
+    expect(screen.queryByText(NOT_SET)).toBeNull();
     fireEvent.focusOut(screen.getByLabelText(/^Subject/));
-    expect(screen.getByText(/Required: the step cannot run/)).toBeInTheDocument();
-    expect(screen.queryByText(/Required: type a value/)).toBeNull();
+    expect(screen.getByText(NOT_SET)).toBeInTheDocument();
+    expect(screen.queryByText(NOT_TYPED)).toBeNull();
 
     const input = document.querySelector("[data-field='value'] input") as HTMLElement;
     fireEvent.focusOut(input);
     fireEvent.focusOut(input);
-    expect(screen.getByText(/Required: type a value/)).toBeInTheDocument();
+    expect(screen.getByText(NOT_TYPED)).toBeInTheDocument();
 
     fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
     act(() => store.getState().editNode("a"));
-    expect(screen.queryByText(/Required: type a value/)).toBeNull();
+    expect(screen.queryByText(NOT_TYPED)).toBeNull();
+  });
+
+  it("takes a header problem to its field, which then says it", async () => {
+    seed(node("a", "test.noted"));
+    store.getState().editNode("a");
+    render(<NodeEditorDialog catalog={[NOTED]} />);
+    expect(screen.queryByText(NOT_SET)).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: `Subject: ${NOT_SET}` }));
+
+    expect(screen.getByText(NOT_SET)).toBeInTheDocument();
+    expect(screen.queryByText(NOT_TYPED)).toBeNull();
+  });
+
+  it("goes back to Parameters for a header problem, scrolls to its field and types into it", async () => {
+    const scrolled = vi.fn();
+    const scrollIntoView = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scrolled;
+    try {
+      seed(node("a"), node("b", "test.noted"));
+      store.getState().editNode("b");
+      render(<NodeEditorDialog catalog={[NOTED]} />);
+      await userEvent.click(screen.getByRole("tab", { name: "Settings" }));
+
+      await userEvent.click(screen.getByRole("button", { name: `Value: ${NOT_TYPED}` }));
+
+      expect(screen.getByRole("tab", { name: "Parameters" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+      const field = document.querySelector("[data-field='value']") as HTMLElement;
+      // The field's own box, not the Data menu in the label row above it.
+      await waitFor(() => expect(document.activeElement).toBe(field.querySelector("input")));
+      expect(scrolled.mock.contexts).toContain(field);
+    } finally {
+      Element.prototype.scrollIntoView = scrollIntoView;
+    }
+  });
+
+  it("takes a header problem to a field with no box to its first control", async () => {
+    const CHOSEN = makeDefinition({
+      id: "test.chosen",
+      name: "Chosen",
+      config_schema: {
+        type: "object",
+        properties: { mode: { type: "string", title: "Mode", enum: ["fast", "slow"] } },
+        required: ["mode"],
+      },
+    });
+    seed(node("a", "test.chosen"));
+    store.getState().editNode("a");
+    render(<NodeEditorDialog catalog={[CHOSEN]} />);
+
+    await userEvent.click(screen.getByRole("button", { name: `Mode: ${NOT_SET}` }));
+
+    const field = document.querySelector("[data-field='mode']") as HTMLElement;
+    await waitFor(() => expect(document.activeElement).toBe(field.querySelector("button")));
+  });
+
+  it("has not left a field while focus moves into its own list", () => {
+    seed(node("a", "test.noted"));
+    store.getState().editNode("a");
+    render(<NodeEditorDialog catalog={[NOTED]} />);
+    const popup = document.createElement("div");
+    popup.setAttribute("data-radix-popper-content-wrapper", "");
+    const option = popup.appendChild(document.createElement("button"));
+    document.body.appendChild(popup);
+
+    fireEvent.focusOut(screen.getByLabelText(/^Subject/), { relatedTarget: option });
+
+    expect(screen.queryByText(NOT_SET)).toBeNull();
+    popup.remove();
   });
 });
 

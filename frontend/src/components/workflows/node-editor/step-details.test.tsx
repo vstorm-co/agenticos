@@ -115,9 +115,10 @@ describe("StepNote", () => {
     expect(onChange).toHaveBeenLastCalledWith("n1", { notes: null });
   });
 
-  it("shows nothing on a read-only step without a note, and the note on one with it", () => {
+  it("shows a read-only step's note field disabled, empty or with its note", () => {
     const { unmount } = render(<StepNote node={step} disabled onChange={vi.fn()} />);
-    expect(screen.queryByLabelText("Note")).toBeNull();
+    expect(screen.getByLabelText("Note")).toBeDisabled();
+    expect(screen.getByLabelText("Note")).toHaveValue("");
     unmount();
     render(<StepNote node={{ ...step, notes: "Kept" }} disabled onChange={vi.fn()} />);
     expect(screen.getByLabelText("Note")).toHaveValue("Kept");

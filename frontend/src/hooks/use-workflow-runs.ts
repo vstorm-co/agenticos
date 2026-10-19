@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -95,6 +96,22 @@ export function useWorkflowRun(runId: string) {
     queryFn: () => listWorkflowRunFiles(runId),
     refetchInterval: live(run.data) ? LIVE_POLL_MS : false,
   });
+  // Steps and files read in the moment the run was last seen live can predate
+  // its end - a step skipped in the same commit - and then nothing reads them
+  // again: once a run seen live here reads as ended after them, they are read
+  // once more. Only the first read of its end counts, so a later read of an
+  // ended run, or one opened already ended, reads nothing twice.
+  const [end, setEnd] = useState<{ runId: string; at: number | null } | null>(null);
+  if (live(run.data) && end?.runId !== runId) setEnd({ runId, at: null });
+  const ended = run.data !== undefined && isRunTerminal(run.data.status);
+  if (ended && end?.runId === runId && end.at === null) setEnd({ runId, at: run.dataUpdatedAt });
+  const endedAt = end?.runId === runId ? end.at : null;
+  const behind = endedAt !== null && nodes.dataUpdatedAt > 0 && nodes.dataUpdatedAt < endedAt;
+  useEffect(() => {
+    if (!behind) return;
+    void queryClient.invalidateQueries({ queryKey: qk.workflows.runNodes(runId) });
+    void queryClient.invalidateQueries({ queryKey: qk.workflows.runFiles(runId) });
+  }, [behind, queryClient, runId]);
   const graph = useQuery({
     queryKey: qk.workflows.runGraph(runId),
     queryFn: () => getWorkflowRunGraph(runId),

@@ -56,3 +56,32 @@ export function observedFits(declared: unknown, observed: string): boolean {
   const takes = typeof declared === "string" ? TAKES[declared] : undefined;
   return takes === undefined || takes === observed;
 }
+
+/** How near a scrolling area's top or bottom a drag starts scrolling it, in pixels. */
+const EDGE = 56;
+/** The most one dragover scrolls by - right at the edge. */
+const FASTEST = 24;
+
+/**
+ * Scroll the area a drag is over when the pointer nears its top or bottom - a
+ * browser does not scroll on the wheel while it carries a drag, so a setting
+ * below the fold could not be reached. Faster the nearer the edge; called on
+ * every dragover, which a browser keeps firing while the pointer rests.
+ */
+export function scrollNearEdge(event: DragEvent): void {
+  let area = event.target as HTMLElement | null;
+  while (area !== null && !scrolls(area)) area = area.parentElement;
+  if (area === null) return;
+  const { top, bottom } = area.getBoundingClientRect();
+  const fromTop = event.clientY - top;
+  const fromBottom = bottom - event.clientY;
+  if (fromTop < EDGE) area.scrollTop -= Math.ceil(((EDGE - fromTop) / EDGE) * FASTEST);
+  else if (fromBottom < EDGE) area.scrollTop += Math.ceil(((EDGE - fromBottom) / EDGE) * FASTEST);
+}
+
+function scrolls(element: HTMLElement): boolean {
+  return (
+    element.scrollHeight > element.clientHeight &&
+    /(auto|scroll)/.test(getComputedStyle(element).overflowY)
+  );
+}

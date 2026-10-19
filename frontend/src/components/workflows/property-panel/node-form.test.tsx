@@ -1077,6 +1077,76 @@ describe("a step's optional settings", () => {
     expect(screen.queryByLabelText(/Tone/)).toBeNull();
   });
 
+  it("brings the folded options out just above its button, and keeps them there while filled", () => {
+    const shown = () =>
+      Array.from(document.querySelectorAll("[data-field]")).map((field) =>
+        field.getAttribute("data-field"),
+      );
+    const props = (config: Record<string, unknown>) => {
+      const instance = node("N", needs.id, config);
+      return {
+        definition: needs,
+        node: instance,
+        graph: graph({ entry: "N", nodes: [instance], bindings: [] }),
+        catalog: makeCatalog([needs]),
+        bindings: [],
+        errors: new Map<string, string>(),
+        updateNodeConfig: vi.fn(),
+        upsertBinding: vi.fn(),
+        removeBinding: vi.fn(),
+      };
+    };
+    const { rerender } = render(<NodeForm {...props({ signature: "Ada" })} />);
+    fireEvent.click(screen.getByRole("button", { name: "2 more options" }));
+    // Not in their usual places up the form, where a click below would not see them.
+    expect(shown()).toEqual(["message", "signature", "tone", "extra"]);
+
+    // Given a value, Tone stays where it came out rather than jumping up the form.
+    rerender(<NodeForm {...props({ signature: "Ada", tone: "warm" })} />);
+    expect(shown()).toEqual(["message", "signature", "tone", "extra"]);
+
+    // Folded again, what is set takes its usual place, and the rest goes.
+    fireEvent.click(screen.getByRole("button", { name: "Fewer options" }));
+    expect(shown()).toEqual(["message", "tone", "signature"]);
+  });
+
+  it("keeps a field it showed in place while open, after it is cleared or unbound", () => {
+    const shown = () =>
+      Array.from(document.querySelectorAll("[data-field]")).map((field) =>
+        field.getAttribute("data-field"),
+      );
+    const extra: Binding = {
+      target_node_id: "N",
+      target_field: "extra",
+      source: { kind: "literal", value: "x" },
+    };
+    const props = (config: Record<string, unknown>, bindings: Binding[]) => {
+      const instance = node("N", needs.id, config);
+      return {
+        definition: needs,
+        node: instance,
+        graph: graph({ entry: "N", nodes: [instance], bindings }),
+        catalog: makeCatalog([needs]),
+        bindings,
+        errors: new Map<string, string>(),
+        updateNodeConfig: vi.fn(),
+        upsertBinding: vi.fn(),
+        removeBinding: vi.fn(),
+      };
+    };
+    const { rerender } = render(<NodeForm {...props({ signature: "Ada" }, [extra])} />);
+    fireEvent.click(screen.getByRole("button", { name: "1 more option" }));
+    expect(shown()).toEqual(["message", "signature", "extra", "tone"]);
+
+    // Cleared and unbound under the cursor, neither leaves while the options are open.
+    rerender(<NodeForm {...props({}, [])} />);
+    expect(shown()).toEqual(["message", "signature", "extra", "tone"]);
+
+    // Folded again, they fold by the usual rule.
+    fireEvent.click(screen.getByRole("button", { name: "Fewer options" }));
+    expect(shown()).toEqual(["message"]);
+  });
+
   it("keeps a bound optional input in view", () => {
     renderForm({
       definition: needs,

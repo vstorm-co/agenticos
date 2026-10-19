@@ -83,7 +83,15 @@ export function StepName({
  * a step that decides which way the run goes: neither can be skipped (publishing
  * refuses it), so there is nothing to switch.
  */
-export function StepSwitch({ node, onChange }: { node: NodeInstance; onChange: OnChange }) {
+export function StepSwitch({
+  node,
+  disabled = false,
+  onChange,
+}: {
+  node: NodeInstance;
+  disabled?: boolean;
+  onChange: OnChange;
+}) {
   const t = useTranslations("workflows");
   return (
     <div className="flex items-start justify-between gap-3">
@@ -94,6 +102,7 @@ export function StepSwitch({ node, onChange }: { node: NodeInstance; onChange: O
       <Switch
         id="step-runs"
         checked={node.disabled !== true}
+        disabled={disabled}
         onCheckedChange={(on) => onChange(node.id, { disabled: !on })}
       />
     </div>
@@ -102,7 +111,7 @@ export function StepSwitch({ node, onChange }: { node: NodeInstance; onChange: O
 
 /**
  * A line for whoever edits the workflow next, shown on the step's card, written
- * when the field is left. Read-only, it shows only when there is one.
+ * when the field is left. Read-only, the field shows disabled, empty or not.
  */
 export function StepNote({
   node,
@@ -126,7 +135,6 @@ export function StepNote({
     if (next !== (node.notes ?? null)) onChange(node.id, { notes: next });
   };
 
-  if (disabled && !node.notes) return null;
   return (
     <div className="space-y-1.5">
       <Label htmlFor="step-notes">{t("stepNotes")}</Label>

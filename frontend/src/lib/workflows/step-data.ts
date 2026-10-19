@@ -57,6 +57,38 @@ export function sourcesOf(graph: WorkflowGraph, nodeId: Uuid): Uuid[] {
   return graph.nodes.map((node) => node.id).filter((id) => sources.has(id));
 }
 
+/**
+ * The steps a step's Input pane can show the data of, nearest first: every step
+ * it may read from (`reachable` - those sure to have run before it), with any it
+ * is wired from or already reads. The step just before it comes first; steps
+ * as near are in the order the graph holds them.
+ */
+export function earlierSteps(
+  graph: WorkflowGraph,
+  nodeId: Uuid,
+  reachable: ReadonlySet<Uuid>,
+): Uuid[] {
+  const steps = new Set([...reachable, ...sourcesOf(graph, nodeId)]);
+  steps.delete(nodeId);
+  // How many connections back each step is, walking the wires upstream.
+  const away = new Map<Uuid, number>([[nodeId, 0]]);
+  const queue = [nodeId];
+  for (let at = queue.shift(); at !== undefined; at = queue.shift()) {
+    // Queued only once its distance is known.
+    const next = (away.get(at) as number) + 1;
+    for (const wire of graph.edges) {
+      if (wire.target_node_id !== at || away.has(wire.source_node_id)) continue;
+      away.set(wire.source_node_id, next);
+      queue.push(wire.source_node_id);
+    }
+  }
+  const order = graph.nodes.map((node) => node.id);
+  const distance = (id: Uuid) => away.get(id) ?? Number.MAX_SAFE_INTEGER;
+  return [...steps].sort(
+    (a, b) => distance(a) - distance(b) || order.indexOf(a) - order.indexOf(b),
+  );
+}
+
 /** Whether a step runs once per item of a loop - only the loop as a whole can be tested. */
 export function isInsideALoop(graph: WorkflowGraph, nodeId: Uuid): boolean {
   return graph.scopes.some((scope) => scope.body_node_ids.includes(nodeId));

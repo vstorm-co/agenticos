@@ -56,10 +56,14 @@ describe("WorkflowEdge", () => {
       attempts: 1,
       problem: null,
       items,
+      durationMs: null,
+      startedAt: null,
     });
     const onRun = (items: number | null, label: string | null) =>
       render(
-        <NodeRunOverlayProvider value={new Map([["a", summary(items)]])}>
+        <NodeRunOverlayProvider
+          value={{ summaries: new Map([["a", summary(items)]]), live: false, watched: false }}
+        >
           <svg>
             <WorkflowEdge
               id="e1"
@@ -203,5 +207,68 @@ describe("WorkflowEdge", () => {
     fireEvent.keyDown(edge.getByRole("button", { name: "Add a step in this connection" }), {
       key: "a",
     });
+  });
+});
+
+describe("a wire on a run's canvas", () => {
+  const summary = (status: NodeRunSummary["status"]): NodeRunSummary => ({
+    status,
+    runs: 1,
+    succeeded: status === "succeeded" ? 1 : 0,
+    attempts: 1,
+    problem: null,
+    items: null,
+    durationMs: null,
+    startedAt: null,
+  });
+  const wire = (into: NodeRunSummary["status"] | null, live = true) => {
+    const summaries = new Map([["a", summary("succeeded")]]);
+    if (into !== null) summaries.set("b", summary(into));
+    const { container } = render(
+      <NodeRunOverlayProvider value={{ summaries, live, watched: true }}>
+        <svg>
+          <WorkflowEdge
+            id="e1"
+            source="a"
+            target="b"
+            sourceX={0}
+            sourceY={0}
+            targetX={100}
+            targetY={100}
+            sourcePosition={Position.Right}
+            targetPosition={Position.Left}
+            data={{ variant: "data", label: null }}
+          />
+        </svg>
+      </NodeRunOverlayProvider>,
+    );
+    return container.querySelector("path")?.getAttribute("class") ?? "";
+  };
+
+  it("moves green into the step running, solid green along the path taken", () => {
+    expect(wire("running")).toContain("run-flow");
+    expect(wire("running")).toContain("stroke-success");
+    expect(wire("succeeded")).toContain("stroke-success");
+    expect(wire("succeeded")).not.toContain("run-flow");
+  });
+
+  it("waits amber and dashed, turns red into a failure, and fades down a branch not taken", () => {
+    expect(wire(null)).toContain("stroke-warning");
+    expect(wire("failed")).toContain("stroke-destructive");
+    // Faded, yet still drawn: a connection the run did not take.
+    expect(wire("skipped")).toContain("opacity-70");
+    expect(wire("skipped")).toContain("stroke-muted-foreground");
+    // A run that ended before the step: faded, not waiting.
+    expect(wire(null, false)).toContain("opacity-70");
+  });
+
+  it("marks every width important, or xyflow's unlayered stroke-width wins over it", () => {
+    for (const into of [null, "running", "succeeded", "failed", "skipped"] as const) {
+      const widths = wire(into)
+        .split(" ")
+        .filter((name) => name.includes("stroke-width"));
+      expect(widths).toHaveLength(1);
+      expect(widths[0]).toMatch(/^!\[stroke-width:/);
+    }
   });
 });

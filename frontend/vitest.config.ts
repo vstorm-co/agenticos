@@ -156,6 +156,10 @@ export default defineConfig({
         // The editor's Trigger sheet: the live trigger, a webhook's address and
         // secret, a schedule's next tick (#1792).
         "src/components/workflows/triggers/**/*.{ts,tsx}",
+        // A step's dialog - its settings between its Input and Output, the step
+        // test and its evals - and the step picker, each held to the gate as a unit.
+        "src/components/workflows/node-editor/**/*.{ts,tsx}",
+        "src/components/workflows/picker/**/*.{ts,tsx}",
       ],
       exclude: [
         "node_modules",

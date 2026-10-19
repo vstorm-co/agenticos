@@ -5,18 +5,28 @@ import { FlaskConical, Pencil, Pin, PinOff, Unplug } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
-import { Badge, Button, ConfirmDialog, Spinner, Textarea } from "@/components/ui";
+import {
+  Badge,
+  Button,
+  ConfirmDialog,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  Spinner,
+  Textarea,
+} from "@/components/ui";
 import { nodeVisual } from "@/components/workflows/node-visuals";
 import { StartRunDialog } from "@/components/workflows/runs/start-run-dialog";
-import { validateGraph } from "@/components/workflows/validation";
+import { availableSourceNodes, validateGraph } from "@/components/workflows/validation";
 import { useWorkflowRuns, useWorkflowTable } from "@/hooks";
 import {
   MAX_PINNED_BYTES,
+  earlierSteps,
   isInsideALoop,
   jsonBytes,
   knownInput,
   knownOutputs,
-  sourcesOf,
 } from "@/lib/workflows/step-data";
 import { effectiveDefinition } from "@/lib/workflows/ports";
 import { WEBHOOK_TRIGGER, declaredFields, sampleRunInput } from "@/lib/workflows/triggers";
@@ -25,6 +35,7 @@ import { cn } from "@/lib/utils";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { DataView, DeclaredOutput } from "./data-view";
+import { StepTestRun } from "./step-test-run";
 import { WebhookListener } from "./webhook-listener";
 
 function Pane({
@@ -58,8 +69,10 @@ function Empty({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * What a step reads: the data each step it is bound to, or wired from, handed
- * on the last time a test run reached it.
+ * What a step reads: the data a step before it handed on the last time a test
+ * run reached it - the step just before it at first, and any earlier one it may
+ * read from picked above, as n8n's Input pane does. A field of any of them can
+ * be dragged onto a parameter.
  */
 export function InputPane({
   graph,
@@ -78,70 +91,102 @@ export function InputPane({
 }) {
   const t = useTranslations("workflows");
   const stepData = useWorkflowEditorStore((state) => state.stepData);
-  const sources = sourcesOf(graph, node.id);
+  const steps = useMemo(
+    () =>
+      earlierSteps(
+        graph,
+        node.id,
+        availableSourceNodes(graph, { items: catalog, total: catalog.length }, node.id),
+      ),
+    [graph, catalog, node.id],
+  );
+  const [picked, setPicked] = useState<string | null>(null);
+  // A pick another step was shown with does not carry over: the nearest one does.
+  const source = picked !== null && steps.includes(picked) ? picked : steps[0];
   /** The step's catalog entry, with the ports this instance has. */
-  const declared = (source: string) => {
-    const instance = graph.nodes.find((candidate) => candidate.id === source);
+  const declared = (id: string) => {
+    const instance = graph.nodes.find((candidate) => candidate.id === id);
     const definition = catalog.find(
       (entry) =>
         entry.id === instance?.definition_id && entry.version === instance.definition_version,
     );
     return instance && definition ? effectiveDefinition(instance, definition) : null;
   };
+  /** A step as the picker and the heading draw it: its tile and its name. */
+  const stepLabel = (id: string) => {
+    const instance = graph.nodes.find((candidate) => candidate.id === id);
+    const visual = nodeVisual(instance?.definition_id ?? "", declared(id)?.category ?? "");
+    const Icon = visual.icon;
+    return (
+      // `!flex`: inside a Select's trigger, its `[&>span]:line-clamp-1` would
+      // stack the tile over the name.
+      <span className="!flex min-w-0 items-center gap-2 text-sm font-medium">
+        <span
+          className={cn(
+            "flex size-6 shrink-0 items-center justify-center rounded-md",
+            visual.tileClass,
+          )}
+        >
+          <Icon aria-hidden="true" className="size-3.5" />
+        </span>
+        <span className="truncate">{names.get(id) ?? id}</span>
+      </span>
+    );
+  };
 
-  const known = sources.some(
-    (source) =>
-      stepData[source]?.output != null ||
-      (declared(source)?.ports ?? []).some((port) => port.kind === "output"),
-  );
-
-  return (
-    <Pane title={t("stepInput")}>
-      {sources.length === 0 && (
+  if (source === undefined) {
+    return (
+      <Pane title={t("stepInput")}>
         <div className="border-border flex flex-col items-center gap-2 rounded-lg border border-dashed px-4 py-8 text-center">
           <Unplug aria-hidden="true" className="text-muted-foreground size-5" />
           <p className="text-sm font-medium">{t("stepInputUnconnected")}</p>
           <p className="text-muted-foreground text-xs">{t("stepInputUnconnectedHint")}</p>
         </div>
-      )}
+      </Pane>
+    );
+  }
+
+  const instance = graph.nodes.find((candidate) => candidate.id === source);
+  const pinned = readOnly ? null : instance?.pinned_output;
+  const output = pinned ?? stepData[source]?.output ?? null;
+  const definition = declared(source);
+  const known = output !== null || (definition?.ports ?? []).some((port) => port.kind === "output");
+
+  return (
+    <Pane title={t("stepInput")}>
       {/* A run's view has no parameters to drag onto. */}
       {!readOnly && known && <p className="text-muted-foreground text-xs">{t("dataDragHint")}</p>}
-      {sources.map((source) => {
-        const pinned = readOnly
-          ? null
-          : graph.nodes.find((candidate) => candidate.id === source)?.pinned_output;
-        const output = pinned ?? stepData[source]?.output ?? null;
-        const definition = declared(source);
-        const instance = graph.nodes.find((candidate) => candidate.id === source);
-        const visual = nodeVisual(instance?.definition_id ?? "", definition?.category ?? "");
-        const Icon = visual.icon;
-        return (
-          <div key={source} className="space-y-2">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <span
-                className={cn(
-                  "flex size-6 shrink-0 items-center justify-center rounded-md",
-                  visual.tileClass,
-                )}
-              >
-                <Icon aria-hidden="true" className="size-3.5" />
-              </span>
-              <span className="truncate">{names.get(source) ?? source}</span>
-              {pinned != null && <Badge variant="outline">{t("stepPinned")}</Badge>}
-            </div>
-            {output === null ? (
-              <DeclaredOutput
-                definition={definition}
-                source={source}
-                intro={t("dataDeclared")}
-                fallback={<Empty>{t("stepNoDataYet")}</Empty>}
-              />
-            ) : (
-              <StepDataView node={instance} value={output} source={source} />
-            )}
-          </div>
-        );
-      })}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          {steps.length > 1 ? (
+            <Select value={source} onValueChange={setPicked}>
+              <SelectTrigger aria-label={t("stepInputSource")} className="h-9 min-w-0 flex-1">
+                {stepLabel(source)}
+              </SelectTrigger>
+              <SelectContent>
+                {steps.map((id) => (
+                  <SelectItem key={id} value={id}>
+                    {stepLabel(id)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            stepLabel(source)
+          )}
+          {pinned != null && <Badge variant="outline">{t("stepPinned")}</Badge>}
+        </div>
+        {output === null ? (
+          <DeclaredOutput
+            definition={definition}
+            source={source}
+            intro={t("dataDeclared")}
+            fallback={<Empty>{t("stepNoDataYet")}</Empty>}
+          />
+        ) : (
+          <StepDataView node={instance} value={output} source={source} />
+        )}
+      </div>
     </Pane>
   );
 }
@@ -202,6 +247,7 @@ export function OutputPane({
   const stepData = useWorkflowEditorStore((state) => state.stepData);
   const isDirty = useWorkflowEditorStore((state) => state.isDirty);
   const testingNodeId = useWorkflowEditorStore((state) => state.testingNodeId);
+  const lastStepTest = useWorkflowEditorStore((state) => state.lastStepTest);
   const watchRun = useWorkflowEditorStore((state) => state.watchRun);
   const updateNodeDetails = useWorkflowEditorStore((state) => state.updateNodeDetails);
   const { start } = useWorkflowRuns(workflowId);
@@ -281,17 +327,22 @@ export function OutputPane({
       title={t("stepOutput")}
       actions={
         readOnly ? undefined : (
-          <Button
-            size="sm"
-            // The one thing to do while nothing has been seen yet.
-            variant={shown === null && failed == null ? "default" : "outline"}
-            disabled={blocked !== null || testing}
-            title={blocked ?? t("stepTestHint")}
-            onClick={ask}
-          >
-            {testing ? <Spinner className="size-3.5" /> : <FlaskConical className="size-3.5" />}
-            {t("stepTest")}
-          </Button>
+          <div className="flex items-center gap-1.5">
+            {lastStepTest?.nodeId === node.id && (
+              <StepTestRun runId={lastStepTest.runId} nodeId={node.id} />
+            )}
+            <Button
+              size="sm"
+              // The one thing to do while nothing has been seen yet.
+              variant={shown === null && failed == null ? "default" : "outline"}
+              disabled={blocked !== null || testing}
+              title={blocked ?? t("stepTestHint")}
+              onClick={ask}
+            >
+              {testing ? <Spinner className="size-3.5" /> : <FlaskConical className="size-3.5" />}
+              {t("stepTest")}
+            </Button>
+          </div>
         )
       }
     >

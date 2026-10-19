@@ -13,6 +13,64 @@ export function placeholderText(
   return `{{${[names.get(nodeId) ?? nodeId, ...path].join(".")}}}`;
 }
 
+/** One run of an author's text: plain, or a whole `{{ ... }}` placeholder. */
+export interface TemplateSegment {
+  text: string;
+  placeholder: boolean;
+}
+
+/**
+ * An author's text cut where its placeholders start and end - what the editor
+ * draws them apart by. Every character lands in exactly one segment, in order.
+ */
+export function templateSegments(text: string): TemplateSegment[] {
+  const segments: TemplateSegment[] = [];
+  let last = 0;
+  for (const match of text.matchAll(PLACEHOLDER)) {
+    if (match.index > last)
+      segments.push({ text: text.slice(last, match.index), placeholder: false });
+    segments.push({ text: match[0], placeholder: true });
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) segments.push({ text: text.slice(last), placeholder: false });
+  return segments;
+}
+
+/**
+ * The placeholder being written at `caret`: a `{{` before it with no `}}`, brace
+ * or line break since - where it starts, and what is typed after the braces. Null
+ * when the caret is not in one.
+ */
+export function openPlaceholderAt(
+  text: string,
+  caret: number,
+): { start: number; query: string } | null {
+  const before = text.slice(0, caret);
+  const start = before.lastIndexOf("{{");
+  if (start === -1) return null;
+  const typed = before.slice(start + 2);
+  return /[{}\n]/.test(typed) ? null : { start, query: typed.trim() };
+}
+
+/**
+ * `text` with the placeholder begun at `start` written out as `placeholder`, up
+ * to the caret - and over the rest of it, where its closing braces are already
+ * there - with where the caret goes after it.
+ */
+export function completePlaceholder(
+  text: string,
+  caret: number,
+  start: number,
+  placeholder: string,
+): { text: string; caret: number } {
+  const rest = /^[^{}\n]*\}\}/.exec(text.slice(caret));
+  const end = caret + (rest?.[0].length ?? 0);
+  return {
+    text: `${text.slice(0, start)}${placeholder}${text.slice(end)}`,
+    caret: start + placeholder.length,
+  };
+}
+
 /** A template as the text an author edits: its text as it is, each placeholder by name. */
 export function templateText(template: TemplateValue, names: ReadonlyMap<Uuid, string>): string {
   return template.parts

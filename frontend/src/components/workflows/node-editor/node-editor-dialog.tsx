@@ -18,12 +18,14 @@ import {
 import { nodeVisual } from "@/components/workflows/node-visuals";
 import { NodeForm } from "@/components/workflows/property-panel/node-form";
 import { PolicySection } from "@/components/workflows/property-panel/policy-section";
+import { carriesField, scrollNearEdge } from "@/lib/workflows/field-drag";
 import { StepName, StepNote, StepSwitch } from "./step-details";
 import { InputPane, OutputPane } from "./step-panes";
 import {
   fieldErrors,
-  nodeLevelProblems,
   nodeNames,
+  problemText,
+  stepProblems,
 } from "@/components/workflows/property-panel/problems";
 import {
   AgentTile,
@@ -114,7 +116,22 @@ export function NodeEditorDialog({
       <Icon aria-hidden="true" className="size-5" />
     </span>
   );
-  const nodeProblems = nodeLevelProblems(problems, node.id);
+  const nodeProblems = stepProblems(problems, node.id);
+  // Brings a problem's field into view, its message said at once.
+  const showField = (field: string) => {
+    setTab("parameters");
+    setLeft(new Set([...left, field]));
+    requestAnimationFrame(() => {
+      const target = document.querySelector(`[data-field="${CSS.escape(field)}"]`);
+      target?.scrollIntoView?.({ block: "center" });
+      // The box a value is typed into, ahead of the Data menu in the label row
+      // above it; a field with no box - a picker, a switch - takes its first control.
+      const box =
+        target?.querySelector<HTMLElement>("textarea, input, [contenteditable='true']") ??
+        target?.querySelector<HTMLElement>("button, [tabindex]");
+      box?.focus();
+    });
+  };
   const names = nodeNames(graph, catalogIndex);
   const withData = workflowId !== undefined && (runData || !readOnly) && definition !== null;
   const withInput = withData && node.id !== graph.entry_node_id;
@@ -168,8 +185,12 @@ export function NodeEditorDialog({
   const customised = node.disabled === true || node.policy != null || Boolean(node.notes);
   const stepSettings = definition !== null && (
     <div className="space-y-6">
-      {switchable && !readOnly && <StepSwitch node={node} onChange={store.updateNodeDetails} />}
-      {withPolicy && (!readOnly || node.policy) && (
+      {/* Read-only, every setting still shows - disabled, at its value or default -
+          as the Parameters tab does, so a reader sees how the step behaves. */}
+      {switchable && (
+        <StepSwitch node={node} disabled={readOnly} onChange={store.updateNodeDetails} />
+      )}
+      {withPolicy && (
         <PolicySection
           definition={definition}
           node={node}
@@ -184,6 +205,9 @@ export function NodeEditorDialog({
   return (
     <Dialog open onOpenChange={(open) => !open && close()}>
       <DialogContent
+        // A field dragged from the Input pane scrolls the form, or the pane, at
+        // their edges: the wheel does nothing while a browser carries a drag.
+        onDragOver={(event) => carriesField(event) && scrollNearEdge(event)}
         className={cn(
           "flex max-h-[88vh] flex-col gap-0 p-0",
           withData ? "h-[88vh] max-w-[min(94vw,1320px)] sm:max-w-[min(94vw,1320px)]" : "max-w-2xl",
@@ -221,17 +245,36 @@ export function NodeEditorDialog({
                   ? `${definition.name} · ${definition.description}`
                   : definition.description}
             </DialogDescription>
-            {nodeProblems.map((problem, index) => (
-              <p key={index} className="text-destructive flex items-center gap-1.5 text-xs">
-                <AlertTriangle aria-hidden="true" className="size-3.5 shrink-0" />
-                {problem.message}
-              </p>
-            ))}
+            {/* Every problem the canvas counts for this step, so the two agree; the
+                field's own message under it stays quiet until it was left. */}
+            {nodeProblems.map((problem, index) => {
+              const text = problemText(problem, definition);
+              const field = problem.field;
+              return field === null ? (
+                <p key={index} className="text-destructive flex items-center gap-1.5 text-xs">
+                  <AlertTriangle aria-hidden="true" className="size-3.5 shrink-0" />
+                  {text}
+                </p>
+              ) : (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => showField(field)}
+                  className="text-destructive flex items-center gap-1.5 text-left text-xs hover:underline"
+                >
+                  <AlertTriangle aria-hidden="true" className="size-3.5 shrink-0" />
+                  {text}
+                </button>
+              );
+            })}
           </div>
         </header>
         <div
           className={cn(
             "min-h-0 flex-1",
+            // The dialog only caps its height here, so `h-full` below it resolves to
+            // nothing: the body itself is what scrolls, or a long form runs out of it.
+            !withData && "overflow-y-auto",
             withData &&
               "grid grid-cols-1 overflow-y-auto lg:overflow-hidden [&>*]:px-6 [&>*]:py-5 lg:[&>*]:overflow-y-auto",
             withInput && !runData && "lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,1fr)]",
@@ -256,7 +299,7 @@ export function NodeEditorDialog({
           <div
             className={cn(
               "space-y-5",
-              !withData && "h-full overflow-y-auto px-6 py-5",
+              !withData && "px-6 py-5",
               runData && "border-border lg:order-last lg:col-span-2 lg:border-t",
             )}
           >

@@ -434,14 +434,14 @@ describe("useWorkflowEditorStore graph slice", () => {
   it("connectNodes adds the bindings it is given with the edge, as one undoable edit", () => {
     store.getState().seedGraph(seededGraph());
     const binding = {
-      target_node_id: "b",
+      target_node_id: "a",
       target_field: "message",
-      source: { kind: "node_output" as const, node_id: "a", port: "out", field_path: ["echoed"] },
+      source: { kind: "node_output" as const, node_id: "b", port: "out", field_path: ["echoed"] },
     };
 
     store
       .getState()
-      .connectNodes({ source: "a", target: "b", sourceHandle: "out", targetHandle: "in" }, [
+      .connectNodes({ source: "b", target: "a", sourceHandle: "out", targetHandle: "in" }, [
         binding,
       ]);
     expect(store.getState().graph?.edges).toHaveLength(2);
@@ -450,6 +450,26 @@ describe("useWorkflowEditorStore graph slice", () => {
     store.getState().undo();
     expect(store.getState().graph?.edges).toHaveLength(1);
     expect(store.getState().graph?.bindings).toEqual([]);
+  });
+
+  it("connectNodes leaves a connection that is already there as it is", () => {
+    store.getState().seedGraph(seededGraph());
+    const binding = {
+      target_node_id: "b",
+      target_field: "message",
+      source: { kind: "node_output" as const, node_id: "a", port: "out", field_path: ["echoed"] },
+    };
+    // The same output into the same input, drawn again.
+    store
+      .getState()
+      .connectNodes({ source: "a", target: "b", sourceHandle: "out", targetHandle: "in" }, [
+        binding,
+      ]);
+    expect(store.getState().graph?.edges).toHaveLength(1);
+    expect(store.getState().graph?.bindings).toEqual([]);
+    // Nothing changed, so nothing to save or undo.
+    expect(store.getState().isDirty).toBe(false);
+    expect(store.getState().history.canUndo).toBe(false);
   });
 
   it("connectNodes ignores a connection missing a handle", () => {
@@ -1012,6 +1032,26 @@ describe("pinning many steps at once", () => {
     const nodes = store.getState().graph?.nodes ?? [];
     expect(nodes.map((node) => node.pinned_output)).toEqual([{ x: 1 }, undefined]);
     expect(store.getState().isDirty).toBe(true);
+    store.getState().teardown();
+  });
+});
+
+describe("the last step test", () => {
+  it("is kept once its run ends, and forgotten when the whole workflow runs", () => {
+    const store = useWorkflowEditorStore;
+    store.getState().watchRun("r1", "b");
+    store.getState().finishTesting();
+    expect(store.getState().testingNodeId).toBeNull();
+    // Its warning - the step did not run - still stands beside the step.
+    expect(store.getState().lastStepTest).toEqual({ nodeId: "b", runId: "r1" });
+
+    // A whole-workflow run's output replaces what that test said about the step.
+    store.getState().watchRun("r2");
+    expect(store.getState().watchedRunId).toBe("r2");
+    expect(store.getState().lastStepTest).toBeNull();
+
+    store.getState().watchRun("r3", "a");
+    expect(store.getState().lastStepTest).toEqual({ nodeId: "a", runId: "r3" });
     store.getState().teardown();
   });
 });

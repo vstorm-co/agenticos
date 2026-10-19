@@ -51,6 +51,13 @@ function seed(...nodes: NodeInstance[]) {
 
 afterEach(() => store.getState().teardown());
 
+/** An element's text as a screen reader gets it: what is hidden from it left out. */
+function heard(element: Element | null | undefined): string {
+  const copy = element?.cloneNode(true) as Element | undefined;
+  copy?.querySelectorAll('[aria-hidden="true"]').forEach((node) => node.remove());
+  return (copy?.textContent ?? "").replace(/\s+/g, " ").trim();
+}
+
 describe("the canvas toolbar", () => {
   it("adds a step from Add step, and opens the settings of one that has any", async () => {
     seed(node("a"));
@@ -77,7 +84,11 @@ describe("the canvas toolbar", () => {
     seed(node("a"), node("u", "gone.step", 300));
     render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
 
-    await userEvent.click(screen.getByRole("button", { name: /problem/ }));
+    // The toolbar's list, not a step's own marker: the one that opens a list.
+    const pill = screen
+      .getAllByRole("button", { name: /problem/ })
+      .find((button) => button.getAttribute("aria-haspopup") === "dialog");
+    await userEvent.click(pill as HTMLElement);
     const [first] = await screen.findAllByRole("button", { name: /gone.step/ });
     await userEvent.click(first as HTMLElement);
     expect(store.getState().editingNodeId).toBe("u");
@@ -241,6 +252,24 @@ describe("arranging and reading the canvas", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Keyboard shortcuts" }));
     expect(screen.getByRole("heading", { name: "Keyboard shortcuts" })).toBeInTheDocument();
+    // Two keys that each delete are two keys, not one label naming both.
+    const deleteKey = screen.getByText("Delete", { selector: "kbd" });
+    expect(deleteKey.closest("dt")?.querySelectorAll("kbd")).toHaveLength(2);
+    expect(screen.getByText("Backspace", { selector: "kbd" }).closest("dt")).toBe(
+      deleteKey.closest("dt"),
+    );
+    // Each key its own: the modifier once, then the letters it takes.
+    const copy = screen.getByText("C", { selector: "kbd" }).closest("dt");
+    expect(Array.from(copy?.querySelectorAll("kbd") ?? []).map((key) => key.textContent)).toEqual([
+      "⌘/Ctrl",
+      "C",
+      "V",
+      "X",
+    ]);
+    // "·" marks keys that each do it, "+" keys pressed together - and a screen reader hears which.
+    expect(copy?.textContent).toContain("⌘/Ctrl+C·");
+    expect(heard(copy)).toBe("⌘/Ctrl+C or V or X");
+    expect(heard(deleteKey.closest("dt"))).toBe("Delete or Backspace");
     await userEvent.keyboard("{Escape}");
     expect(store.getState().overlay).toBeNull();
   });

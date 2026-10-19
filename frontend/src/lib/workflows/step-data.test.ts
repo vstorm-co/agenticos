@@ -11,6 +11,7 @@ import {
 import {
   ancestorsOf,
   cellText,
+  earlierSteps,
   isInsideALoop,
   jsonBytes,
   knownInput,
@@ -174,5 +175,43 @@ describe("data as its fields", () => {
 
   it("measures data as the service does", () => {
     expect(jsonBytes({ a: "é" })).toBe(10);
+  });
+});
+
+describe("earlierSteps", () => {
+  const wire = (id: string, from: string, to: string) => ({
+    id,
+    source_node_id: from,
+    source_port: "out",
+    target_node_id: to,
+    target_port: "in",
+  });
+  const graph = {
+    entry_node_id: "a",
+    nodes: ["a", "b", "x", "c", "far"].map((id) => ({
+      id,
+      definition_id: "t",
+      definition_version: 1,
+      config: {},
+      layout: { x: 0, y: 0 },
+    })),
+    edges: [wire("1", "a", "b"), wire("2", "b", "c"), wire("3", "x", "c")],
+    bindings: [
+      {
+        target_node_id: "c",
+        target_field: "v",
+        source: { kind: "node_output" as const, node_id: "far", port: "out", field_path: [] },
+      },
+    ],
+    scopes: [],
+  };
+
+  it("puts the steps just before first, then further back, then ones it reads unwired", () => {
+    expect(earlierSteps(graph, "c", new Set(["a", "b"]))).toEqual(["b", "x", "a", "far"]);
+  });
+
+  it("never offers the step itself, and has nothing before the first step", () => {
+    expect(earlierSteps(graph, "c", new Set(["c"]))).not.toContain("c");
+    expect(earlierSteps(graph, "a", new Set())).toEqual([]);
   });
 });

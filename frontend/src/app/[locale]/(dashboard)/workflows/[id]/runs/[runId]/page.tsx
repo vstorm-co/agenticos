@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useMemo, useRef } from "react";
+import { use, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -104,6 +104,12 @@ export default function WorkflowRunPage({ params }: PageProps) {
   }, [graph, runId, nodes, mergeStepData]);
 
   const summaries = useMemo(() => summarizeNodeRuns(nodes), [nodes]);
+  const live = run !== null && !isRunTerminal(run.status);
+  // Watched while it went: its failure shakes and its wires move. A run opened
+  // once it had ended is drawn still.
+  const [watched, setWatched] = useState(false);
+  if (live && !watched) setWatched(true);
+  const overlay = useMemo(() => ({ summaries, live, watched }), [summaries, live, watched]);
   const nameOf = (nodeId: string) => {
     const instance = graph?.nodes.find((node) => node.id === nodeId);
     const definition = catalog.find(
@@ -128,7 +134,6 @@ export default function WorkflowRunPage({ params }: PageProps) {
     );
   }
 
-  const live = !isRunTerminal(run.status);
   // The typed `WorkflowError` the run recorded - its own words, never an exception's.
   const problem = run.error;
   const title = t("runTitle", { id: shortNodeId(run.id) });
@@ -230,7 +235,7 @@ export default function WorkflowRunPage({ params }: PageProps) {
           {graph === null ? (
             <Skeleton className="h-full w-full" />
           ) : (
-            <NodeRunOverlayProvider value={summaries}>
+            <NodeRunOverlayProvider value={overlay}>
               <WorkflowCanvas workflow={workflow} catalog={catalog} readOnly />
             </NodeRunOverlayProvider>
           )}

@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { parseTemplate, placeholderText, previewTemplate, templateText } from "./template-text";
+import {
+  completePlaceholder,
+  openPlaceholderAt,
+  parseTemplate,
+  placeholderText,
+  previewTemplate,
+  templateSegments,
+  templateText,
+} from "./template-text";
 import type { NodeOutputRef, TemplateValue } from "./types";
 
 const names = new Map([
@@ -60,6 +68,57 @@ describe("a template's preview", () => {
     expect(previewTemplate(template, stepData, names)).toEqual({
       text: 'Ada ["eu"] {{Form.x.y}}{{Form copy}}',
       missing: ["{{Form.x.y}}", "{{Form copy}}"],
+    });
+  });
+});
+
+describe("templateSegments", () => {
+  it("cuts text where each placeholder starts and ends, keeping every character", () => {
+    const text = "Hi {{Form.name}}, see {{ Triage the ticket }}.";
+    const segments = templateSegments(text);
+    expect(segments).toEqual([
+      { text: "Hi ", placeholder: false },
+      { text: "{{Form.name}}", placeholder: true },
+      { text: ", see ", placeholder: false },
+      { text: "{{ Triage the ticket }}", placeholder: true },
+      { text: ".", placeholder: false },
+    ]);
+    expect(segments.map((segment) => segment.text).join("")).toBe(text);
+  });
+
+  it("has no placeholder in plain text, an unclosed one or an empty string", () => {
+    expect(templateSegments("plain {{ open")).toEqual([
+      { text: "plain {{ open", placeholder: false },
+    ]);
+    expect(templateSegments("")).toEqual([]);
+    expect(templateSegments("{{a}}{{b}}").map((segment) => segment.placeholder)).toEqual([
+      true,
+      true,
+    ]);
+  });
+});
+
+describe("a placeholder being written", () => {
+  it("is found from its {{ to the caret, with what was typed after the braces", () => {
+    expect(openPlaceholderAt("Hi {{ Tri", 9)).toEqual({ start: 3, query: "Tri" });
+    expect(openPlaceholderAt("{{", 2)).toEqual({ start: 0, query: "" });
+  });
+
+  it("is none once closed, across a line, before any {{, or with a brace typed in it", () => {
+    expect(openPlaceholderAt("{{Form.name}} and", 17)).toBeNull();
+    expect(openPlaceholderAt("{{Form\nname", 11)).toBeNull();
+    expect(openPlaceholderAt("plain", 5)).toBeNull();
+    expect(openPlaceholderAt("{{a{b", 5)).toBeNull();
+  });
+
+  it("is written out up to the caret, or over closing braces already there", () => {
+    expect(completePlaceholder("Hi {{Tri and", 8, 3, "{{Triage.x}}")).toEqual({
+      text: "Hi {{Triage.x}} and",
+      caret: 15,
+    });
+    expect(completePlaceholder("{{Tri}} rest", 5, 0, "{{Triage.x}}")).toEqual({
+      text: "{{Triage.x}} rest",
+      caret: 12,
     });
   });
 });

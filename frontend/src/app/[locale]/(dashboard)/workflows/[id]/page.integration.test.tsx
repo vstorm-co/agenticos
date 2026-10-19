@@ -129,6 +129,9 @@ vi.mock("@/components/workflows/canvas", () => ({
       {children}
     </div>
   ),
+  LiveRunStop: ({ runId }: { runId: string }) => (
+    <div data-testid="live-run-stop" data-run={runId} />
+  ),
   StaleRun: ({ runId, onClose }: { runId: string; onClose: () => void }) => (
     <div data-testid="stale-run" data-run={runId}>
       <button type="button" onClick={onClose}>
@@ -232,10 +235,13 @@ describe("the workflow editor page permission gate", () => {
     await renderPage();
     await userEvent.click(await screen.findByTestId("run-button"));
     expect(screen.getByTestId("live-run")).toHaveAttribute("data-run", "run-1");
+    // A way to stop it, beside Run.
+    expect(screen.getByTestId("live-run-stop")).toHaveAttribute("data-run", "run-1");
     expect(screen.getByTestId("canvas")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "hide" }));
     expect(screen.queryByTestId("live-run")).not.toBeInTheDocument();
     expect(screen.queryByTestId("stale-run")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("live-run-stop")).not.toBeInTheDocument();
   });
 
   it("keeps a way back to a run an edit ended, until the next run or a dismissal", async () => {
@@ -254,9 +260,33 @@ describe("the workflow editor page permission gate", () => {
     expect(screen.queryByTestId("stale-run")).not.toBeInTheDocument();
   });
 
+  it("lets an editor switch to the read-only editor and back", async () => {
+    state.canEdit = true;
+    await renderPage();
+
+    await userEvent.click(await screen.findByRole("button", { name: "View only" }));
+    expect(screen.getByTestId("canvas")).toHaveAttribute("data-readonly", "true");
+    expect(screen.getByTestId("node-editor")).toHaveAttribute("data-readonly", "true");
+    expect(screen.queryByTestId("publish-dialog")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("run-button")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("chat-button")).not.toBeInTheDocument();
+    // An edit still being saved is not dropped by looking.
+    expect(screen.getByTestId("draft-autosave")).toBeInTheDocument();
+    expect(screen.getByTestId("conflict-banner")).toBeInTheDocument();
+    await openHistory();
+    expect(screen.getByTestId("version-history")).toHaveAttribute("data-restorable", "false");
+    await userEvent.click(screen.getByRole("button", { name: /close/i }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    expect(screen.getByTestId("canvas")).toHaveAttribute("data-readonly", "false");
+    expect(screen.getByTestId("publish-dialog")).toBeInTheDocument();
+  });
+
   it("gives a view-only caller a read-only editor with no edit chrome", async () => {
     state.canEdit = false;
     await renderPage();
+    // Already read-only: nothing to switch.
+    expect(screen.queryByRole("button", { name: "View only" })).not.toBeInTheDocument();
 
     const canvas = await screen.findByTestId("canvas");
     expect(canvas).toHaveAttribute("data-readonly", "true");

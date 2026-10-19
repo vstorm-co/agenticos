@@ -1,9 +1,14 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { makeDefinition, port } from "@/components/workflows/validation/fixtures";
-import type { NodeInstance, WorkflowDetail, WorkflowGraph } from "@/lib/workflows/types";
+import type {
+  NodeInstance,
+  WorkflowDetail,
+  WorkflowGraph,
+  WorkflowNodeRunRead,
+} from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { NodeRunOverlayProvider, summarizeNodeRuns } from "./run-overlay";
@@ -429,14 +434,95 @@ describe("a node card on a run's canvas", () => {
       },
     ]);
     const { container } = render(
-      <NodeRunOverlayProvider value={summaries}>
+      <NodeRunOverlayProvider value={{ summaries, live: false, watched: false }}>
         <WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} readOnly />
       </NodeRunOverlayProvider>,
     );
     expect(screen.getByText("Failed")).toBeTruthy();
-    expect(screen.getByText("It broke")).toBeTruthy();
+    // The step's own error, under its card.
+    expect(screen.getByRole("alert")).toHaveTextContent("BADIt broke");
     expect(screen.getByText("2 tries")).toBeTruthy();
     expect(screen.getByText("2/2 iterations")).toBeTruthy();
     expect(container.querySelector('[data-node-id="c"]')?.className).toContain("opacity-50");
+  });
+});
+
+describe("a node card in a run being watched", () => {
+  const step = (
+    status: WorkflowNodeRunRead["status"],
+    extra: Partial<WorkflowNodeRunRead> = {},
+  ): WorkflowNodeRunRead => ({
+    id: status,
+    node_instance_id: "a",
+    scope_path: [],
+    status,
+    waiting_reason: null,
+    attempts: 1,
+    cost: 0,
+    error: null,
+    output: null,
+    started_at: null,
+    ended_at: null,
+    ...extra,
+  });
+  const draw = (rows: WorkflowNodeRunRead[], live: boolean, watched: boolean) => {
+    seed([instance("a", "data.map"), instance("b", "data.map")]);
+    const { container } = render(
+      <NodeRunOverlayProvider value={{ summaries: summarizeNodeRuns(rows), live, watched }}>
+        <WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} readOnly />
+      </NodeRunOverlayProvider>,
+    );
+    const card = (id: string) => container.querySelector(`[data-node-id="${id}"]`)?.className ?? "";
+    const pill = (id: string) => container.querySelector(`[data-node-id="${id}"] [data-run-state]`);
+    return { card, pill };
+  };
+
+  it("glows on the step running and waits dashed on the next, while watched", () => {
+    const { card, pill } = draw([step("running")], true, true);
+    expect(card("a")).toContain("run-breathe");
+    expect(pill("a")).toHaveAttribute("data-run-state", "running");
+    expect(card("b")).toContain("border-dashed");
+    expect(pill("b")).toHaveTextContent("Pending");
+  });
+
+  it("does not glow on a running step of a run it is not watching", () => {
+    const { card, pill } = draw([step("running")], false, false);
+    expect(pill("a")).toHaveAttribute("data-run-state", "running");
+    expect(card("a")).not.toContain("run-breathe");
+  });
+
+  it("shows the step after a finished one as starting, glowing, before the engine picks it up", () => {
+    const { card, pill } = draw(
+      [step("succeeded"), { ...step("pending"), id: "b", node_instance_id: "b" }],
+      true,
+      true,
+    );
+    expect(pill("b")).toHaveTextContent("Starting");
+    expect(card("b")).toContain("run-breathe");
+    expect(card("b")).not.toContain("border-dashed");
+  });
+
+  it("shakes a step that fails while watched, and stays still on a run opened after", () => {
+    const failed = step("failed", { error: { code: "MODEL_RATE_LIMITED", message: "429" } });
+    expect(draw([failed], false, true).card("a")).toContain("run-crash");
+    cleanup();
+    store.getState().teardown();
+    expect(draw([failed], false, false).card("a")).not.toContain("run-crash");
+  });
+
+  it("draws a step needing attention as a failure, with its error under it", () => {
+    const stuck = step("needs_attention", { error: { code: "UNCERTAIN", message: "Unsure" } });
+    const { card, pill } = draw([stuck], false, true);
+    expect(card("a")).toContain("border-destructive");
+    expect(pill("a")).toHaveTextContent("Needs attention");
+    expect(screen.getByRole("alert")).toHaveTextContent("UNCERTAINUnsure");
+  });
+
+  it("says how long a step took once done", () => {
+    const done = step("succeeded", {
+      started_at: "2026-10-19T10:00:00Z",
+      ended_at: "2026-10-19T10:00:01.400Z",
+    });
+    expect(draw([done], false, false).pill("a")).toHaveTextContent("1.4 s");
   });
 });

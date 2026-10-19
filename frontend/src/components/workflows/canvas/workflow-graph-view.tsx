@@ -21,6 +21,7 @@ import { useTranslations } from "next-intl";
 
 import { ContextMenu, ContextMenuTrigger } from "@/components/ui";
 import { readNodeDragData } from "@/components/workflows/palette";
+import { problemText } from "@/components/workflows/property-panel/problems";
 import { validateGraph } from "@/components/workflows/validation";
 import { useResolvedTheme } from "@/hooks/use-resolved-theme";
 import type { NodeDefinition, WorkflowGraph } from "@/lib/workflows/types";
@@ -62,6 +63,9 @@ interface WorkflowGraphViewProps {
 }
 
 /** Frame the whole graph, but no smaller than a node's text stays legible at. */
+// Both keys, whichever a keyboard puts the delete on: macOS has only Backspace.
+const DELETE_KEYS = ["Backspace", "Delete"];
+
 const FIT_VIEW = { padding: 0.2, minZoom: 0.55, maxZoom: 1 };
 /** A read-only graph is looked at whole - a run, a past version - so it may shrink further. */
 const FIT_VIEW_READ_ONLY = { padding: 0.15, minZoom: 0.5, maxZoom: 1 };
@@ -261,14 +265,22 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
         : validateGraph(graph, { items: catalog, total: catalog.length }, t),
     [readOnly, graph, catalog, t],
   );
-  const problemCounts = useMemo(() => {
-    const counts = new Map<string, number>();
+  const problemTexts = useMemo(() => {
+    const texts = new Map<string, string[]>();
     for (const problem of problems) {
-      if (problem.nodeId !== null)
-        counts.set(problem.nodeId, (counts.get(problem.nodeId) ?? 0) + 1);
+      if (problem.nodeId === null) continue;
+      const node = graph?.nodes.find((candidate) => candidate.id === problem.nodeId);
+      const definition =
+        catalog.find(
+          (item) => item.id === node?.definition_id && item.version === node?.definition_version,
+        ) ?? null;
+      texts.set(problem.nodeId, [
+        ...(texts.get(problem.nodeId) ?? []),
+        problemText(problem, definition),
+      ]);
     }
-    return counts;
-  }, [problems]);
+    return texts;
+  }, [problems, graph, catalog]);
   const editNode = useWorkflowEditorStore((state) => state.editNode);
   const openNode = (_event: React.MouseEvent, node: { id: string; type?: string }) => {
     if (node.type !== "note") editNode(node.id);
@@ -311,9 +323,9 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
       completeConnect,
       catalog,
       insertAfter,
-      problemCounts,
+      problemTexts,
     }),
-    [readOnly, connectSource, beginConnect, completeConnect, catalog, insertAfter, problemCounts],
+    [readOnly, connectSource, beginConnect, completeConnect, catalog, insertAfter, problemTexts],
   );
 
   return (
@@ -388,7 +400,7 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
               nodesDraggable={!readOnly}
               nodesConnectable={!readOnly}
               elementsSelectable={!readOnly}
-              deleteKeyCode={readOnly ? null : "Backspace"}
+              deleteKeyCode={readOnly ? null : DELETE_KEYS}
               // The delete removed the focused element; hand focus back to the region.
               onDelete={focusRegion}
               colorMode={colorMode}

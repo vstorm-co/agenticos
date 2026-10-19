@@ -3,14 +3,15 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ValidationProblem } from "@/components/workflows/validation";
-import type { NodeCatalog, WorkflowGraph } from "@/lib/workflows/types";
+import type { NodeCatalog, NodeDefinition, WorkflowGraph } from "@/lib/workflows/types";
 
 import {
   fieldErrors,
-  nodeLevelProblems,
   nodeNames,
   nodeProblemCount,
+  problemText,
   ProblemsFooter,
+  stepProblems,
   WarningBadge,
 } from "./problems";
 
@@ -33,8 +34,27 @@ describe("problem selectors", () => {
     expect(map.size).toBe(1);
   });
 
-  it("collects a node's node-level problems", () => {
-    expect(nodeLevelProblems(problems, "N").map((p) => p.message)).toEqual(["Node bad"]);
+  it("collects every problem one step has, field or not", () => {
+    expect(stepProblems(problems, "N").map((p) => p.message)).toEqual([
+      "A bad",
+      "A second",
+      "Node bad",
+    ]);
+  });
+
+  it("names a field's problem by the label its form gives the field", () => {
+    const definition = {
+      config_schema: { properties: { model_profile_id: { title: "Model" } } },
+      input_schema: { properties: { prompt: {} } },
+    } as unknown as NodeDefinition;
+    const named = (field: string | null) =>
+      problemText(problem({ nodeId: "N", field, message: "Required." }), definition);
+    expect(named("model_profile_id")).toBe("Model: Required.");
+    // No title of its own: the name, made readable.
+    expect(named("prompt")).toBe("Prompt: Required.");
+    // One key of an open object is named by its field.
+    expect(named("arguments/email")).toBe("Arguments: Required.");
+    expect(named(null)).toBe("Required.");
   });
 
   it("counts every problem for a node", () => {

@@ -5,8 +5,10 @@ import Link from "next/link";
 import {
   Activity,
   Download,
+  Eye,
   History,
   MoreHorizontal,
+  Pencil,
   Settings2,
   Workflow,
   Zap,
@@ -14,7 +16,7 @@ import {
 import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
-import { LiveRun, StaleRun, WorkflowCanvas } from "@/components/workflows/canvas";
+import { LiveRun, LiveRunStop, StaleRun, WorkflowCanvas } from "@/components/workflows/canvas";
 import {
   ConflictBanner,
   DebugRun,
@@ -97,6 +99,10 @@ const EMPTY_GRAPH: WorkflowGraph = {
  * and a grant widens a role for one - and an archived workflow is read-only for
  * everybody. This is the "not rendered, then refused" rule: never show a control
  * the server would refuse. Every write is still re-checked server-side.
+ *
+ * An editor can switch to **View only** for the same read-only editor. Autosave,
+ * the conflict banner and the step data feed stay mounted through it, so an edit
+ * still being saved when the switch is made is not dropped.
  */
 export default function WorkflowEditorPage({ params }: PageProps) {
   const { id } = use(params);
@@ -107,6 +113,9 @@ export default function WorkflowEditorPage({ params }: PageProps) {
   const restoreVersion = useRestoreVersion(restore.mutateAsync);
   const { nodes, isLoading: catalogLoading } = useNodeCatalog();
   const canEdit = workflow?.can_edit === true;
+  // An editor can look without touching: the read-only editor a reader gets.
+  const [viewing, setViewing] = useState(false);
+  const editing = canEdit && !viewing;
   const load = useWorkflowEditorStore((state) => state.load);
   const seedGraph = useWorkflowEditorStore((state) => state.seedGraph);
   const draft = useWorkflowEditorStore((state) => state.graph);
@@ -174,7 +183,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
       <WorkflowStatus workflow={workflow} draft={draft} />
       <TagsEditor
         tags={workflow.tags}
-        canEdit={canEdit}
+        canEdit={editing}
         onChange={(tags) => actions.update.mutate({ id: workflow.id, update: { tags } })}
       />
       {canEdit && <DraftAutosave saveDraft={saveDraft.mutateAsync} />}
@@ -192,16 +201,16 @@ export default function WorkflowEditorPage({ params }: PageProps) {
         title={
           <WorkflowTitle
             name={workflow.name}
-            canEdit={canEdit}
+            canEdit={editing}
             onRename={(name) => actions.update.mutate({ id: workflow.id, update: { name } })}
           />
         }
         description={
           // An editor is offered one to write; a reader sees none that is not there.
-          canEdit || workflow.description ? (
+          editing || workflow.description ? (
             <WorkflowDescription
               description={workflow.description}
-              canEdit={canEdit}
+              canEdit={editing}
               onChange={(description) =>
                 actions.update.mutate({ id: workflow.id, update: { description } })
               }
@@ -212,9 +221,15 @@ export default function WorkflowEditorPage({ params }: PageProps) {
         badges={statusBadge}
         actions={
           <div className="flex items-center gap-2">
+            {canEdit && (
+              <Button variant="outline" onClick={() => setViewing(!viewing)}>
+                {viewing ? <Pencil className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                {viewing ? t("editMode") : t("viewMode")}
+              </Button>
+            )}
             <ActiveSwitch
               workflow={workflow}
-              canEdit={canEdit}
+              canEdit={editing}
               pending={actions.setActive.isPending}
               onChange={(active) => actions.setActive.mutate({ id: workflow.id, active })}
             />
@@ -253,13 +268,15 @@ export default function WorkflowEditorPage({ params }: PageProps) {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            {canEdit && (
+            {editing && (
               <ChatButton workflowId={workflow.id} catalog={nodes} onStarted={startedRun} />
             )}
-            {canEdit && (
+            {/* The run Run started, while it goes: one click stops it. */}
+            {editing && liveRunId !== null && <LiveRunStop runId={liveRunId} />}
+            {editing && (
               <RunButton workflowId={workflow.id} catalog={nodes} onStarted={startedRun} />
             )}
-            {canEdit && (
+            {editing && (
               <PublishDialog workflow={workflow} catalog={nodes} publish={publish.mutateAsync} />
             )}
           </div>
@@ -272,7 +289,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
       >
         <div className="relative min-w-0 flex-1">
           {liveRunId === null ? (
-            <WorkflowCanvas workflow={workflow} catalog={nodes} readOnly={!canEdit} />
+            <WorkflowCanvas workflow={workflow} catalog={nodes} readOnly={!editing} />
           ) : (
             <LiveRun
               workflowId={workflow.id}
@@ -283,7 +300,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
                 setLiveRunId(null);
               }}
             >
-              <WorkflowCanvas workflow={workflow} catalog={nodes} readOnly={!canEdit} />
+              <WorkflowCanvas workflow={workflow} catalog={nodes} readOnly={!editing} />
             </LiveRun>
           )}
           {liveRunId === null && staleRunId !== null && (
@@ -295,7 +312,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
           )}
         </div>
       </div>
-      <NodeEditorDialog workflowId={workflow.id} catalog={nodes} readOnly={!canEdit} />
+      <NodeEditorDialog workflowId={workflow.id} catalog={nodes} readOnly={!editing} />
       {canEdit && <StepDataFeed workflowId={workflow.id} />}
       {canEdit && debugRunId !== null && (
         <DebugRun runId={debugRunId} catalog={nodes} onDone={() => setDebugRunId(null)} />
@@ -309,7 +326,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
           <div className="p-4">
             {/* Mounted with the sheet, so its state is read only when someone looks. */}
             {triggersOpen && (
-              <TriggerPanel workflow={workflow} draft={draft} catalog={nodes} canEdit={canEdit} />
+              <TriggerPanel workflow={workflow} draft={draft} catalog={nodes} canEdit={editing} />
             )}
           </div>
         </SheetContent>
@@ -324,7 +341,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
             {settingsOpen && (
               <WorkflowSettingsForm
                 workflow={workflow}
-                disabled={!canEdit}
+                disabled={!editing}
                 saving={actions.saveSettings.isPending}
                 onSave={(settings) =>
                   actions.saveSettings.mutate(
@@ -348,7 +365,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
               workflowId={workflow.id}
               liveVersionId={workflow.current_version_id}
               catalog={nodes}
-              onRestore={canEdit ? restoreVersion : undefined}
+              onRestore={editing ? restoreVersion : undefined}
             />
           </div>
         </SheetContent>

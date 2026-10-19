@@ -46,18 +46,59 @@ const stored = () => store.getState().graph?.notes?.[0]?.text;
 afterEach(() => store.getState().teardown());
 
 describe("a note on the canvas", () => {
-  it("takes a colour from the swatches it shows once selected", async () => {
+  it("takes a colour from the swatches its palette button rolls out", async () => {
     seed([note()]);
     store.getState().setSelection({ nodeIds: ["n"], edgeIds: [] });
     render(<WorkflowCanvas workflow={WORKFLOW} catalog={[ACT]} />);
+    // Folded away until asked for: one button, not a row of swatches.
+    expect(screen.queryByRole("radio", { name: "Grey" })).toBeNull();
 
+    await userEvent.click(await screen.findByRole("button", { name: "Note colour" }));
     const grey = await screen.findByRole("radio", { name: "Grey" });
     expect(grey).toHaveAttribute("aria-checked", "true");
     await userEvent.click(grey);
     expect(store.getState().graph?.notes?.[0]?.color).toBeUndefined();
-    await userEvent.click(screen.getByRole("radio", { name: "Red" }));
+    // A pick folds the swatches back, and so does Escape.
+    expect(screen.queryByRole("radio", { name: "Red" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Note colour" }));
+    await userEvent.keyboard("{ArrowRight}");
+    expect(screen.getByRole("radio", { name: "Red" })).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("radio", { name: "Red" })).toBeNull();
+    // Focus leaving them for anywhere else on the page folds them back too.
+    const palette = screen.getByRole("button", { name: "Note colour" });
+    await userEvent.click(palette);
+    fireEvent.focusOut(palette, { relatedTarget: document.body });
+    expect(screen.queryByRole("radio", { name: "Red" })).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Note colour" }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Red" }));
     expect(store.getState().graph?.notes?.[0]?.color).toBe("red");
     expect(document.querySelector('[data-note-id="n"]')?.className).toContain("border-rose-500/40");
+  });
+
+  it("hands focus back to its palette button once a pick or Escape folds the swatches", async () => {
+    seed([note()]);
+    store.getState().setSelection({ nodeIds: ["n"], edgeIds: [] });
+    render(<WorkflowCanvas workflow={WORKFLOW} catalog={[ACT]} />);
+    const palette = await screen.findByRole("button", { name: "Note colour" });
+
+    palette.focus();
+    await userEvent.keyboard("{Enter}");
+    // The swatches roll out before the button: back from it is the last of them.
+    await userEvent.tab({ shift: true });
+    expect(document.activeElement).toBe(screen.getByRole("radio", { name: "Red" }));
+    await userEvent.keyboard("{Enter}");
+    expect(store.getState().graph?.notes?.[0]?.color).toBe("red");
+    expect(screen.queryByRole("radio", { name: "Red" })).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Note colour" }));
+
+    await userEvent.keyboard("{Enter}");
+    await userEvent.tab({ shift: true });
+    expect(document.activeElement).toBe(screen.getByRole("radio", { name: "Red" }));
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("radio", { name: "Red" })).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Note colour" }));
   });
 
   it("shows its markdown, and is written from its Edit button", async () => {

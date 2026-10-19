@@ -11,9 +11,16 @@ import { InputPane, OutputPane } from "./step-panes";
 const mutate = vi.fn();
 const start = { mutate, isPending: false };
 const useWorkflowTable = vi.fn((_id: string | null) => ({ table: null as unknown }));
+// The step test's own run, as Stop and the did-not-run warning read it.
+const testRun = vi.hoisted(() => ({
+  run: { status: "running" } as { status: string } | null,
+  nodes: [] as unknown[],
+  cancel: { mutate: vi.fn(), isPending: false },
+}));
 vi.mock("@/hooks", () => ({
   useWorkflowRuns: () => ({ start }),
   useWorkflowTable: (id: string | null) => useWorkflowTable(id),
+  useWorkflowRun: () => testRun,
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("./webhook-listener", () => ({
@@ -95,7 +102,7 @@ describe("InputPane", () => {
     expect(screen.getByText(/Connect a step before this one/)).toBeTruthy();
   });
 
-  it("shows each step it reads from: pinned, from the last run, or not yet run", () => {
+  it("shows the step just before it, and any other it may read from, picked above", async () => {
     const graph: WorkflowGraph = {
       ...line(),
       nodes: [
@@ -115,11 +122,67 @@ describe("InputPane", () => {
       />,
     );
 
-    expect(screen.getByText("First")).toBeTruthy();
+    // The nearest first - two as near, in the graph's order - with its pinned data.
+    const picker = screen.getByRole("combobox", { name: "Step to read from" });
+    expect(picker).toHaveTextContent("First");
     expect(screen.getByText("Test data")).toBeTruthy();
     expect(screen.getByRole("cell", { name: "pinned" })).toBeTruthy();
-    expect(screen.getByText("x")).toBeTruthy();
+
+    await userEvent.click(picker);
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "First",
+      "x",
+    ]);
+    await userEvent.click(screen.getByRole("option", { name: "x" }));
+    expect(screen.getByRole("combobox", { name: "Step to read from" })).toHaveTextContent("x");
     expect(screen.getByText(/No data yet/)).toBeTruthy();
+    expect(screen.queryByText("Test data")).toBeNull();
+  });
+
+  it("offers a step further back that runs before it, nearest first", async () => {
+    const graph: WorkflowGraph = {
+      entry_node_id: "a",
+      nodes: [node("a", "test.step"), node("b", "test.step"), node("c", "test.step")],
+      edges: [edge("e", "a", "out", "b", "in"), edge("f", "b", "out", "c", "in")],
+      bindings: [],
+      scopes: [],
+    };
+    seed(graph);
+    render(
+      <InputPane
+        graph={graph}
+        catalog={[STEP]}
+        node={graph.nodes[2] as NodeInstance}
+        names={
+          new Map([
+            ["a", "Start"],
+            ["b", "Middle"],
+          ])
+        }
+      />,
+    );
+    const picker = screen.getByRole("combobox", { name: "Step to read from" });
+    expect(picker).toHaveTextContent("Middle");
+    await userEvent.click(picker);
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "Middle",
+      "Start",
+    ]);
+  });
+
+  it("names the one step before it without a picker when there is no other", () => {
+    const graph = line();
+    seed(graph);
+    render(
+      <InputPane
+        graph={graph}
+        catalog={[STEP]}
+        node={graph.nodes[1] as NodeInstance}
+        names={new Map([["a", "First"]])}
+      />,
+    );
+    expect(screen.queryByRole("combobox")).toBeNull();
+    expect(screen.getByText("First")).toBeTruthy();
   });
 });
 
@@ -414,10 +477,19 @@ describe("OutputPane", () => {
     expect(screen.getByRole("button", { name: "Test step" })).toBeDisabled();
   });
 
-  it("shows the test as running until its run ends", () => {
+  it("shows the test as running until its run ends, with a way to stop it", () => {
     seed(line());
     store.getState().watchRun("run-3", "b");
     renderOutput();
     expect(screen.getByRole("button", { name: "Test step" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    expect(testRun.cancel.mutate).toHaveBeenCalled();
+  });
+
+  it("keeps Stop and the warning to the step the test was started from", () => {
+    seed(line());
+    store.getState().watchRun("run-3", "a");
+    renderOutput();
+    expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
   });
 });

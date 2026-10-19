@@ -3,7 +3,7 @@
 import { type DragEvent, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
-import { Input, Label, Textarea } from "@/components/ui";
+import { Label } from "@/components/ui";
 import { droppedField } from "@/lib/workflows/field-drag";
 import {
   parseTemplate,
@@ -24,6 +24,8 @@ import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 import { candidateForField, sourceCandidates, type SourceCandidate } from "./bindings";
 import { DataSourceMenu } from "./data-source";
 import { nodeNames } from "./problems";
+import { TemplateBox } from "./template-box";
+import { templateSuggestions } from "./template-suggest";
 
 /** A placeholder may name any value in reach: whatever it holds becomes text. */
 const ANY_VALUE = {};
@@ -101,9 +103,14 @@ export function TextValueField({
   const stepData = useWorkflowEditorStore((state) => state.stepData);
   const box = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
   const names = useMemo(() => nodeNames(graph, catalog), [graph, catalog]);
+  const stepNames = useMemo(() => [...names.values()], [names]);
   const candidates = useMemo(
     () => sourceCandidates(graph, catalog, targetNodeId, ANY_VALUE),
     [graph, catalog, targetNodeId],
+  );
+  const suggestions = useMemo(
+    () => templateSuggestions(candidates, stepData, names),
+    [candidates, stepData, names],
   );
   const saved = textOf(binding, names);
   const [text, setText] = useState(saved);
@@ -175,7 +182,6 @@ export function TextValueField({
     preview !== null &&
     preview.missing.length < outputRefs(template).length;
   const id = `${idPrefix}-text`;
-  const Box = multiline ? Textarea : Input;
 
   return (
     // A dropped field becomes a placeholder; the Data menu is the keyboard's way.
@@ -195,15 +201,18 @@ export function TextValueField({
           />
         )}
       </div>
-      <Box
+      <TemplateBox
         ref={box}
         id={id}
-        rows={multiline ? 3 : undefined}
+        multiline={multiline}
         value={text}
+        unknown={unknown}
+        stepNames={stepNames}
+        suggestions={suggestions}
         disabled={disabled}
         placeholder={placeholder}
-        aria-invalid={error !== undefined || unknown !== null}
-        onChange={(event: { target: { value: string } }) => change(event.target.value)}
+        invalid={error !== undefined || unknown !== null}
+        onChange={change}
         onBlur={() => write(text, true)}
       />
       {hint !== undefined && <p className="text-muted-foreground text-xs">{hint}</p>}

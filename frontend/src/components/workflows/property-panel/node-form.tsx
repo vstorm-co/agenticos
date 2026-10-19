@@ -1003,7 +1003,10 @@ function NodeFields({
   toolSchema: Record<string, unknown> | null;
 }) {
   const t = useTranslations("workflows");
-  const [allShown, setAllShown] = useState(false);
+  // What "N more options" brought out, while it is open: drawn just above the
+  // button that brought them, and kept there while they are filled in.
+  const [revealed, setRevealed] = useState<ReadonlySet<string> | null>(null);
+  const allShown = revealed !== null;
   const ctx: FieldCtx = {
     node,
     graph,
@@ -1088,33 +1091,54 @@ function NodeFields({
   // tool by its server.
   const drawnElsewhere = (name: string) =>
     (agentStep && name === AGENT_INLINE) || (mcpStep && name === MCP_TOOL);
-  const configShown = configFields.filter(
-    (entry) =>
-      // An agent step always shows `agent`: neither it nor `inline` is required
-      // alone, but one of the two always is.
-      !drawnElsewhere(entry.name) &&
-      ((agentStep && entry.name === AGENT_SOURCE) ||
-        allShown ||
-        entry.required ||
-        node.config[entry.name] !== undefined ||
-        bound(entry.name)),
-  );
-  const inputShown = inputFields.filter(
-    (entry) =>
-      allShown ||
-      entry.required ||
-      bound(entry.name) ||
-      (toolArguments !== null && entry.name === MCP_ARGUMENTS),
-  );
+  // Shown however the options are folded: what is set, needed or always there.
+  const configWanted = (entry: (typeof configFields)[number]) =>
+    // An agent step always shows `agent`: neither it nor `inline` is required
+    // alone, but one of the two always is.
+    (agentStep && entry.name === AGENT_SOURCE) ||
+    entry.required ||
+    node.config[entry.name] !== undefined ||
+    bound(entry.name);
+  const inputWanted = (entry: (typeof inputFields)[number]) =>
+    entry.required || bound(entry.name) || (toolArguments !== null && entry.name === MCP_ARGUMENTS);
   // A field drawn by another is neither shown nor folded.
   const foldable = configFields.filter((entry) => !drawnElsewhere(entry.name));
-  const folded = foldable.length + inputFields.length - configShown.length - inputShown.length;
+  const foldedKeys = [
+    ...foldable.filter((entry) => !configWanted(entry)).map((entry) => `config:${entry.name}`),
+    ...inputFields.filter((entry) => !inputWanted(entry)).map((entry) => `input:${entry.name}`),
+  ];
+  const isRevealed = (key: string) => revealed?.has(key) === true;
+  // While open, every field stays drawn: one cleared or unbound there keeps its
+  // place until the options fold again, rather than leaving under the cursor.
+  const configShown = foldable.filter((entry) =>
+    allShown ? !isRevealed(`config:${entry.name}`) : configWanted(entry),
+  );
+  const inputShown = inputFields.filter((entry) =>
+    allShown ? !isRevealed(`input:${entry.name}`) : inputWanted(entry),
+  );
+  const folded = foldedKeys.length;
   // One list, as a builder reads it: the list a step works on first - Filter's
   // items before its condition - then what it is set to do, then what else it reads.
-  const inputs = inputShown.map((entry) => ({ entry, input: true }));
   const isList = (schema: Schema) => unwrapOptional(schema)["type"] === "array";
-  const listsFirst = inputs.filter(({ entry }) => isList(entry.schema));
-  const rest = inputs.filter(({ entry }) => !isList(entry.schema));
+  const ordered = (
+    config: typeof configFields,
+    input: typeof inputFields,
+  ): { entry: (typeof configFields)[number]; input: boolean }[] => {
+    const inputs = input.map((entry) => ({ entry, input: true }));
+    return [
+      ...inputs.filter(({ entry }) => isList(entry.schema)),
+      ...config.map((entry) => ({ entry, input: false })),
+      ...inputs.filter(({ entry }) => !isList(entry.schema)),
+    ];
+  };
+  const drawn = [
+    ...ordered(configShown, inputShown),
+    // Brought out by "N more options": last, next to the button that did it.
+    ...ordered(
+      foldable.filter((entry) => isRevealed(`config:${entry.name}`)),
+      inputFields.filter((entry) => isRevealed(`input:${entry.name}`)),
+    ),
+  ];
 
   const account = ACCOUNT_TRIGGERS[definition.id];
   return (
@@ -1128,80 +1152,79 @@ function NodeFields({
           upsertBinding={upsertBinding}
         />
       )}
-      {[...listsFirst, ...configShown.map((entry) => ({ entry, input: false })), ...rest].map(
-        ({ entry, input }) =>
-          input ? (
-            <InputNode
-              key={`input:${entry.name}`}
-              schema={entry.schema}
-              name={entry.name}
-              required={entry.required}
-              path={[entry.name]}
-              defs={inputDefs}
-              ctx={ctx}
-            />
-          ) : (
-            // Named for the dialog, which says a missing value once its field was left.
-            <div key={`config:${entry.name}`} data-field={entry.name}>
-              {agentStep && entry.name === AGENT_SOURCE ? (
-                <AgentSourceField
-                  config={node.config}
-                  stepName={node.label || definition.name}
-                  error={ctx.errors.get(AGENT_SOURCE) ?? ctx.errors.get(AGENT_INLINE)}
-                  disabled={disabled}
-                  onChange={(next) => updateNodeConfig(node.id, next)}
-                />
-              ) : mcpStep && entry.name === MCP_SERVER ? (
-                <McpToolField
-                  connectionId={strOrNull(node.config[MCP_SERVER])}
-                  tool={strOrNull(node.config[MCP_TOOL])}
-                  serverError={ctx.errors.get(MCP_SERVER)}
-                  toolError={ctx.errors.get(MCP_TOOL)}
-                  disabled={disabled}
-                  onChange={({ connectionId, tool }) =>
-                    updateNodeConfig(
-                      node.id,
-                      setKey(
-                        setKey(node.config, MCP_SERVER, connectionId ?? undefined),
-                        MCP_TOOL,
-                        tool ?? undefined,
-                      ),
-                    )
-                  }
-                />
-              ) : ANSWER_SHAPES[definition.id]?.field === entry.name ? (
-                <AnswerFormatForm
-                  value={isRecord(node.config[entry.name]) ? record(node.config[entry.name]) : null}
-                  onChange={(next) =>
-                    updateNodeConfig(node.id, setKey(node.config, entry.name, next ?? undefined))
-                  }
-                  disabled={disabled}
-                  keepsOwn={ANSWER_SHAPES[definition.id]?.mode === "keepsOwn"}
-                  fieldsOnly={ANSWER_SHAPES[definition.id]?.mode === "fieldsOnly"}
-                />
-              ) : (
-                <ConfigNode
-                  schema={entry.schema}
-                  name={entry.name}
-                  required={entry.required}
-                  path={[entry.name]}
-                  defs={configDefs}
-                  ctx={ctx}
-                  value={node.config[entry.name]}
-                  onChange={(next) =>
-                    updateNodeConfig(node.id, setKey(node.config, entry.name, next))
-                  }
-                />
-              )}
-            </div>
-          ),
+      {drawn.map(({ entry, input }) =>
+        input ? (
+          <InputNode
+            key={`input:${entry.name}`}
+            schema={entry.schema}
+            name={entry.name}
+            required={entry.required}
+            path={[entry.name]}
+            defs={inputDefs}
+            ctx={ctx}
+          />
+        ) : (
+          // Named for the dialog, which says a missing value once its field was left.
+          <div key={`config:${entry.name}`} data-field={entry.name}>
+            {agentStep && entry.name === AGENT_SOURCE ? (
+              <AgentSourceField
+                config={node.config}
+                stepName={node.label || definition.name}
+                error={ctx.errors.get(AGENT_SOURCE) ?? ctx.errors.get(AGENT_INLINE)}
+                disabled={disabled}
+                onChange={(next) => updateNodeConfig(node.id, next)}
+              />
+            ) : mcpStep && entry.name === MCP_SERVER ? (
+              <McpToolField
+                connectionId={strOrNull(node.config[MCP_SERVER])}
+                tool={strOrNull(node.config[MCP_TOOL])}
+                serverError={ctx.errors.get(MCP_SERVER)}
+                toolError={ctx.errors.get(MCP_TOOL)}
+                disabled={disabled}
+                onChange={({ connectionId, tool }) =>
+                  updateNodeConfig(
+                    node.id,
+                    setKey(
+                      setKey(node.config, MCP_SERVER, connectionId ?? undefined),
+                      MCP_TOOL,
+                      tool ?? undefined,
+                    ),
+                  )
+                }
+              />
+            ) : ANSWER_SHAPES[definition.id]?.field === entry.name ? (
+              <AnswerFormatForm
+                value={isRecord(node.config[entry.name]) ? record(node.config[entry.name]) : null}
+                onChange={(next) =>
+                  updateNodeConfig(node.id, setKey(node.config, entry.name, next ?? undefined))
+                }
+                disabled={disabled}
+                keepsOwn={ANSWER_SHAPES[definition.id]?.mode === "keepsOwn"}
+                fieldsOnly={ANSWER_SHAPES[definition.id]?.mode === "fieldsOnly"}
+              />
+            ) : (
+              <ConfigNode
+                schema={entry.schema}
+                name={entry.name}
+                required={entry.required}
+                path={[entry.name]}
+                defs={configDefs}
+                ctx={ctx}
+                value={node.config[entry.name]}
+                onChange={(next) =>
+                  updateNodeConfig(node.id, setKey(node.config, entry.name, next))
+                }
+              />
+            )}
+          </div>
+        ),
       )}
       {(folded > 0 || allShown) && (
         <button
           type="button"
           className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
           aria-expanded={allShown}
-          onClick={() => setAllShown(!allShown)}
+          onClick={() => setRevealed(allShown ? null : new Set(foldedKeys))}
         >
           <ChevronDown
             aria-hidden="true"

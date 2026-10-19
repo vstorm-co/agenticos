@@ -197,6 +197,37 @@ describe("a text parameter", () => {
     expect(screen.getByText("Required.")).toBeTruthy();
   });
 
+  it("offers an earlier step's values once {{ is typed, and draws the step by its whole name", async () => {
+    // A name with a dot in it: only the graph's step names tell it from a path.
+    const named = graph({
+      entry: "A",
+      nodes: [{ ...node("A", "test.form"), label: "Form v1.2" }, echo("B")],
+      edges: [edge("e", "A", "out", "B", "in")],
+    });
+    const { container } = render(
+      <BindingField
+        targetNodeId="B"
+        targetField="message"
+        name="message"
+        schema={{ type: "string", title: "Message" }}
+        required={false}
+        bindings={[]}
+        graph={named}
+        catalog={catalog}
+        onUpsert={vi.fn()}
+        onRemove={vi.fn()}
+      />,
+    );
+    const box = screen.getByLabelText("Message");
+    await userEvent.type(box, "{{{{pay");
+    await userEvent.click(screen.getByRole("option", { name: /^Form v1\.2\.payload/ }));
+
+    expect(box).toHaveValue("{{Form v1.2.payload}}");
+    const drawn = (part: string) => container.querySelector(`[data-part="${part}"]`);
+    expect(drawn("step")).toHaveTextContent("Form v1.2");
+    expect(drawn("path")).toHaveTextContent(/^\.payload$/);
+  });
+
   it("offers no data to insert when it cannot be edited", () => {
     mount([literal("x")], undefined, { disabled: true });
     expect(screen.queryByRole("button", { name: /Insert data/ })).toBeNull();

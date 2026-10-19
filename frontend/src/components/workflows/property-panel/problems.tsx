@@ -9,9 +9,12 @@ import type { ValidationProblem } from "@/components/workflows/validation";
 import {
   nodeDisplayName,
   type NodeCatalog,
+  type NodeDefinition,
   type Uuid,
   type WorkflowGraph,
 } from "@/lib/workflows/types";
+
+import { type Schema, humanise, labelOf } from "./schema-model";
 
 /**
  * The field-scoped messages for one node, keyed by `target_field` path — what the
@@ -30,12 +33,33 @@ export function fieldErrors(
   return map;
 }
 
-/** A node's problems that scope to the whole node, not one field — shown above its form. */
-export function nodeLevelProblems(
+/** Every problem one step has, of any scope — the ones its card counts. */
+export function stepProblems(
   problems: readonly ValidationProblem[],
   nodeId: Uuid,
 ): ValidationProblem[] {
-  return problems.filter((problem) => problem.nodeId === nodeId && problem.field === null);
+  return problems.filter((problem) => problem.nodeId === nodeId);
+}
+
+/**
+ * The label a step's form gives `field` - "Model" for `model_profile_id` - so a
+ * problem names the field the way the form above it does. A key bound on its own
+ * (`arguments/email`) is named by its field.
+ */
+export function problemFieldLabel(definition: NodeDefinition | null, field: string): string {
+  const name = field.split("/")[0] as string;
+  for (const root of [definition?.config_schema, definition?.input_schema]) {
+    const property = (root?.["properties"] as Record<string, Schema> | undefined)?.[name];
+    if (property !== undefined) return labelOf(property, name);
+  }
+  return humanise(name);
+}
+
+/** One problem as a sentence that stands on its own: a field's names the field. */
+export function problemText(problem: ValidationProblem, definition: NodeDefinition | null): string {
+  return problem.field === null
+    ? problem.message
+    : `${problemFieldLabel(definition, problem.field)}: ${problem.message}`;
 }
 
 /** How many problems, of any scope, a node has — the badge count. */

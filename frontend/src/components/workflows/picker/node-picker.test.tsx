@@ -49,6 +49,11 @@ describe("NodePicker", () => {
       rows.findIndex((row) => row.includes("Read messages")),
     );
     expect(screen.getByText("Post, read and look up in Slack")).toBeTruthy();
+    // The group's name heads its steps; it is not a row that looks like one.
+    expect(screen.queryByRole("option", { name: /^Slack/ })).toBeNull();
+    const group = screen.getByRole("group", { name: /^Slack/ });
+    expect(group.textContent).toContain("Send a message");
+    expect(group.textContent).toContain("Read messages");
     await userEvent.click(screen.getByRole("option", { name: /Send a message/ }));
     expect(onPick).toHaveBeenLastCalledWith(SEND);
 

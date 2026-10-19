@@ -25,17 +25,19 @@ interface NodePickerProps {
   draggable?: boolean;
 }
 
-function Tile({ visual, small }: { visual: NodeVisual; small?: boolean }) {
+const GROUP_HEADING =
+  "[&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:tracking-wide [&_[cmdk-group-heading]]:uppercase";
+
+function Tile({ visual }: { visual: NodeVisual }) {
   const Icon = visual.icon;
   return (
     <span
       className={cn(
-        "flex shrink-0 items-center justify-center rounded-lg",
-        small ? "size-7" : "size-8",
+        "flex size-7 shrink-0 items-center justify-center rounded-lg",
         visual.tileClass,
       )}
     >
-      <Icon aria-hidden="true" className={small ? "size-3.5" : "size-4"} />
+      <Icon aria-hidden="true" className="size-3.5" />
     </span>
   );
 }
@@ -85,7 +87,7 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
       onDragStart={(event) => writeNodeDragData(event.dataTransfer, item)}
       className="aria-selected:bg-accent flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2"
     >
-      <Tile visual={visual} small />
+      <Tile visual={visual} />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm">{item.name}</span>
         <span className="text-muted-foreground line-clamp-2 text-xs">{item.description}</span>
@@ -139,23 +141,29 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
               <ArrowLeft aria-hidden="true" className="size-3.5" />
               {t("pickerBack")}
             </Command.Item>
-            <div className="flex items-center gap-3 px-2 pt-1 pb-2">
-              <Tile visual={groupVisual(open.category)} />
-              <div className="min-w-0">
-                <p className="text-sm font-medium">{label(open.category)}</p>
-                {hint(open.category) !== null && (
-                  <p className="text-muted-foreground text-xs">{hint(open.category)}</p>
-                )}
-              </div>
-            </div>
-            {open.items.map((item) => stepRow(item, operationVisual(item.id, item.category)))}
+            {/* A heading, not a row: styled as one so it is never mistaken for a step. */}
+            <Command.Group
+              heading={
+                <>
+                  {label(open.category)}
+                  {hint(open.category) !== null && (
+                    <span className="mt-0.5 block text-xs font-normal tracking-normal normal-case">
+                      {hint(open.category)}
+                    </span>
+                  )}
+                </>
+              }
+              className={cn(GROUP_HEADING, "border-border mt-1 border-t pt-1")}
+            >
+              {open.items.map((item) => stepRow(item, operationVisual(item.id, item.category)))}
+            </Command.Group>
           </>
         ) : (
           sections.map((section) => (
             <Command.Group
               key={section.id}
               heading={t(`pickerSection.${section.id}`)}
-              className="[&_[cmdk-group-heading]]:text-muted-foreground mb-1 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:tracking-wide [&_[cmdk-group-heading]]:uppercase"
+              className={cn(GROUP_HEADING, "mb-1")}
             >
               {section.groups.map((group) => {
                 // A group of one step is that step: a click adds it at once.
@@ -173,7 +181,7 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
                     }}
                     className="aria-selected:bg-accent flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2"
                   >
-                    <Tile visual={groupVisual(group.category)} small />
+                    <Tile visual={groupVisual(group.category)} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm">{label(group.category)}</span>
                       {hint(group.category) !== null && (

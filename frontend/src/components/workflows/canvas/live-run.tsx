@@ -2,13 +2,14 @@
 
 import { type ReactNode, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
-import { ExternalLink, X } from "lucide-react";
+import { ExternalLink, Square, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui";
 import { WorkflowRunStatusBadge } from "@/components/workflows/runs/run-status";
 import { useWorkflowRun } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
+import { isRunTerminal } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { NodeRunOverlayProvider, summarizeNodeRuns } from "./run-overlay";
@@ -36,6 +37,9 @@ export function LiveRun({ workflowId, runId, onClose, onStale, children }: LiveR
   const t = useTranslations("pages.workflows");
   const { run, nodes } = useWorkflowRun(runId);
   const summaries = useMemo(() => summarizeNodeRuns(nodes), [nodes]);
+  const live = run !== null && !isRunTerminal(run.status);
+  // Started from the editor and watched as it goes.
+  const overlay = useMemo(() => ({ summaries, live, watched: true }), [summaries, live]);
   const graph = useWorkflowEditorStore((state) => state.graph);
   const ran = useRef(graph);
 
@@ -46,7 +50,7 @@ export function LiveRun({ workflowId, runId, onClose, onStale, children }: LiveR
   const done = nodes.filter((node) => node.status === "succeeded").length;
 
   return (
-    <NodeRunOverlayProvider value={summaries}>
+    <NodeRunOverlayProvider value={overlay}>
       {children}
       <div
         role="status"
@@ -102,5 +106,27 @@ export function StaleRun({
         <X className="h-4 w-4" />
       </Button>
     </div>
+  );
+}
+
+/**
+ * Beside **Run** while the run it started is going: stop it - a click by
+ * mistake, or a run taking longer than it is worth. Gone once the run has ended.
+ */
+export function LiveRunStop({ runId }: { runId: string }) {
+  const t = useTranslations("pages.workflows");
+  const { run, cancel } = useWorkflowRun(runId);
+  if (run === null || isRunTerminal(run.status)) return null;
+  return (
+    <button
+      type="button"
+      aria-label={t("cancelRun")}
+      title={t("cancelRun")}
+      disabled={cancel.isPending}
+      onClick={() => cancel.mutate()}
+      className="text-destructive hover:bg-destructive/10 focus-visible:ring-ring flex size-9 items-center justify-center rounded-md outline-none focus-visible:ring-2 disabled:opacity-50"
+    >
+      <Square aria-hidden="true" className="size-4 fill-current" />
+    </button>
   );
 }
