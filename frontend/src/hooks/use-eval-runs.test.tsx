@@ -360,6 +360,19 @@ describe("useDraftEvalRuns", () => {
 });
 
 describe("useRecentEvalRuns", () => {
+  it("polls only while one of the runs is live", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [evalRun()], total: 1 });
+    const { result } = renderHook(() => useRecentEvalRuns(3), { wrapper });
+    await waitFor(() => expect(result.current.runs).toHaveLength(1));
+
+    const { query, next } = polling();
+    expect(next()).toBe(false);
+    query.setData({ items: [evalRun({ status: "running" })], total: 1 });
+    expect(next()).toBe(3_000);
+    query.setData(undefined);
+    expect(next()).toBe(false);
+  });
+
   it("reads the organization's latest runs, and nothing when held back", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [evalRun()], total: 1 });
     const { result } = renderHook(() => useRecentEvalRuns(3), { wrapper });

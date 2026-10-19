@@ -347,6 +347,8 @@ export function useRecentEvalRuns(limit = 5, { enabled = true } = {}) {
     queryKey: qk.evalRuns.recent(limit),
     queryFn: () => apiClient.get<EvalRunList>(`/eval-runs/recent?limit=${limit}`),
     enabled,
+    refetchInterval: (current) =>
+      current.state.data?.items.some((run) => isLive(run.status)) ? LIVE_POLL_MS : false,
   });
   return {
     runs: query.data?.items ?? [],
