@@ -16,6 +16,8 @@ RUN uv pip install --python /app/.venv/bin/python \
     "taskiq>=0.12,<0.13" "taskiq-redis>=1.0" \
     "hatchet-sdk>=1.0" \
     "procrastinate[psycopg]>=3.0" "psycopg[binary,pool]>=3.2" \
+    "pgqueuer==1.6.0" \
+    "dbos==3.3.0" \
     "dramatiq[redis]>=1.17" \
     "saq[redis]>=0.22" \
     "docker>=7.1" \

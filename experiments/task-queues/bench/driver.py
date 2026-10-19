@@ -31,6 +31,8 @@ BACKENDS = {
     "dramatiq": "bench.backends.dramatiq_app",
     "saq": "bench.backends.saq_app",
     "procrastinate": "bench.backends.procrastinate_app",
+    "pgqueuer": "bench.backends.pgqueuer_app",
+    "dbos": "bench.backends.dbos_app",
     "hatchet": "bench.backends.hatchet_app",
     "prefect-serve": "bench.backends.prefect_serve",
     "prefect-tasks": "bench.backends.prefect_tasks",
@@ -171,6 +173,50 @@ async def scenario_tenants(submit: Any, conn: asyncpg.Connection, label: str, ar
     return submitted
 
 
+async def scenario_oom(submit: Any, conn: asyncpg.Connection, label: str, args: Any) -> int:
+    """S4: one job eats memory until the kernel kills its worker; ordinary jobs keep coming.
+
+    The driver stands in for a container restart policy: a worker that exits is
+    started again three seconds later, for the whole scenario. What a safe engine
+    does is give up on the job after its attempts; an unsafe one hands it out again
+    for ever, and every hand-out kills a worker.
+    """
+    hog = workload.new_job(label, "hog", "org-hog")
+    await events.record_enqueued(conn, [hog])
+    await submit(hog)
+    client = docker.from_env()
+    started = time.time()
+    deaths = oom_kills = 0
+    exited_at: dict[str, float] = {}
+    submitted = 0
+    next_job = started
+    while time.time() - started < args.duration:
+        now = time.time()
+        if now >= next_job and now - started < args.duration - 30:
+            job = workload.new_job(label, "burst", "org-small", extra={"wait": 0.2})
+            await events.record_enqueued(conn, [job])
+            try:
+                await submit(job)
+            except Exception:
+                pass  # a submit while every worker is down is the engine's broker to absorb
+            submitted += 1
+            next_job += 1
+        for worker in client.containers.list(all=True, filters={"label": f"com.docker.compose.project={PROJECT}"}):
+            if not worker.labels.get("com.docker.compose.service", "").startswith("w-"):
+                continue
+            if worker.status == "exited":
+                if worker.id not in exited_at:
+                    exited_at[worker.id] = now
+                    deaths += 1
+                    oom_kills += int(bool(worker.attrs["State"].get("OOMKilled")))
+                elif now - exited_at[worker.id] >= 3:
+                    worker.start()
+                    del exited_at[worker.id]
+        await asyncio.sleep(0.5)
+    args.worker_deaths, args.oom_kills = deaths, oom_kills
+    return submitted
+
+
 async def scenario_probe(submit: Any, conn: asyncpg.Connection, label: str, args: Any) -> int:
     """One one-step job, submitted the moment the workers start: cold start plus first job."""
     job = workload.new_job(label, "step", "org-0", chain_id="probe", step=0, extra={"steps": 1})
@@ -202,6 +248,7 @@ SCENARIOS = {
     "mix": scenario_mix,
     "tenants": scenario_tenants,
     "probe": scenario_probe,
+    "oom": scenario_oom,
 }
 
 

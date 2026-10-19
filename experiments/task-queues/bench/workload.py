@@ -7,6 +7,7 @@
   CPU, then a write.
 * `sweep`: a scheduled tick - one query.
 * `burst`: one tenant's flood item - a short wait.
+* `hog`: memory that grows until the kernel kills the worker, as an oversized document does.
 
 `submit_next` is the backend's own submit, handed in, so a chain advances through
 the same path a client uses.
@@ -111,6 +112,13 @@ async def run(job: dict[str, Any], submit_next: Submit | None = None) -> None:
         await pool.fetchval("SELECT count(*) FROM bench_jobs WHERE run_label = $1", job["run_label"])
     elif kind == "burst":
         await asyncio.sleep(float(job.get("wait", 0.2)))
+    elif kind == "hog":
+        # Grows until the kernel kills the process: written bytes, so the pages are
+        # resident rather than merely reserved.
+        held = []
+        while True:
+            held.append(bytearray(b"\x01") * (64 * 1024 * 1024))
+            await asyncio.sleep(0.05)
     await events.mark(job_id, "finished")
 
 

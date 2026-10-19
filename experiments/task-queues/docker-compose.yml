@@ -15,6 +15,8 @@ x-worker: &worker
     BENCH_RUN_LABEL: ${BENCH_RUN_LABEL:-adhoc}
     BENCH_IMPORT_APP: ${BENCH_IMPORT_APP:-1}
     BENCH_FAIR: ${BENCH_FAIR:-0}
+    BENCH_MAX_ATTEMPTS: ${BENCH_MAX_ATTEMPTS:-0}
+    BENCH_DBOS_POLL: ${BENCH_DBOS_POLL:-1.0}
     PREFECT_API_URL: http://prefect-server:4200/api
     PREFECT_RUNNER_SERVER_HOST: 127.0.0.1
     PREFECT_LOCAL_STORAGE_PATH: /prefect-storage
@@ -124,6 +126,16 @@ services:
     !!merge <<: *worker
     profiles: [procrastinate]
     command: python -m bench.backends.procrastinate_app
+
+  w-pgqueuer:
+    !!merge <<: *worker
+    profiles: [pgqueuer]
+    command: python -m bench.backends.pgqueuer_app
+
+  w-dbos:
+    !!merge <<: *worker
+    profiles: [dbos]
+    command: python -m bench.backends.dbos_app
 
   w-hatchet:
     !!merge <<: *worker

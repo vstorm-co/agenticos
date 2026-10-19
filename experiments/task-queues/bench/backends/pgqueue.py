@@ -23,6 +23,9 @@ from bench import config, workload
 from bench import heavy as _heavy  # noqa: F401 - the real application's import cost
 
 LEASE_SECONDS = 30
+# Attempts a job may have before it is left dead; 0 keeps retrying for ever. Counted
+# at claim, so a job that kills its worker spends one too.
+MAX_ATTEMPTS = int(os.environ.get("BENCH_MAX_ATTEMPTS", "0"))
 FAIR = os.environ.get("BENCH_FAIR", "0") == "1"
 
 SCHEMA = """
@@ -43,6 +46,7 @@ UPDATE pgq_jobs SET locked_until = now() + make_interval(secs => $1), attempts =
 WHERE id = (
     SELECT id FROM pgq_jobs
     WHERE NOT done AND (locked_until IS NULL OR locked_until < now())
+      AND ($2 = 0 OR attempts < $2)
     ORDER BY id FOR UPDATE SKIP LOCKED LIMIT 1
 )
 RETURNING id, tenant, payload
@@ -53,6 +57,7 @@ _CLAIM_FAIR = """
 WITH heads AS (
     SELECT DISTINCT ON (tenant) id, tenant FROM pgq_jobs
     WHERE NOT done AND (locked_until IS NULL OR locked_until < now())
+      AND ($2 = 0 OR attempts < $2)
     ORDER BY tenant, id
 ), pick AS (
     SELECT h.id FROM heads h LEFT JOIN pgq_tenants t USING (tenant)
@@ -95,7 +100,7 @@ async def setup() -> None:
 
 async def _claim(pool: asyncpg.Pool) -> tuple[int, dict[str, Any]] | None:
     async with pool.acquire() as conn:
-        row = await conn.fetchrow(_CLAIM_FAIR if FAIR else _CLAIM_FIFO, LEASE_SECONDS)
+        row = await conn.fetchrow(_CLAIM_FAIR if FAIR else _CLAIM_FIFO, LEASE_SECONDS, MAX_ATTEMPTS)
         if row is None:
             return None
         if FAIR:

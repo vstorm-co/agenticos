@@ -4,9 +4,9 @@
 #   ./run.sh <variant> <scenario> [driver args...]
 #
 # Variants: pgqueue pgqueue-fair celery-prefork celery-threads taskiq dramatiq saq
-#           procrastinate hatchet hatchet-fair prefect-serve prefect-serve-20
+#           procrastinate pgqueuer dbos dbos-poll100 hatchet hatchet-fair prefect-serve prefect-serve-20
 #           prefect-serve-pg prefect-tasks
-# Scenarios: workflow mix tenants
+# Scenarios: workflow mix tenants oom
 #
 # Every run starts from nothing (`down -v`), so no backend inherits another's queue,
 # and first measures cold start: the time from starting the workers to the first
@@ -30,6 +30,9 @@ case "$VARIANT" in
   dramatiq)         PROFILE=dramatiq;       BACKEND=dramatiq ;;
   saq)              PROFILE=saq;            BACKEND=saq ;;
   procrastinate)    PROFILE=procrastinate;  BACKEND=procrastinate ;;
+  pgqueuer)         PROFILE=pgqueuer;       BACKEND=pgqueuer ;;
+  dbos)             PROFILE=dbos;           BACKEND=dbos ;;
+  dbos-poll100)     PROFILE=dbos;           BACKEND=dbos; export BENCH_DBOS_POLL=0.1 ;;
   hatchet)          PROFILE=hatchet;        BACKEND=hatchet ;;
   hatchet-fair)     PROFILE=hatchet;        BACKEND=hatchet; BENCH_FAIR=1 ;;
   prefect-serve)    PROFILE=prefect-serve;  BACKEND=prefect-serve ;;
@@ -40,6 +43,12 @@ case "$VARIANT" in
   *) echo "unknown variant $VARIANT" >&2; exit 2 ;;
 esac
 export BENCH_FAIR
+
+# The OOM scenario gives workers 1 GB, so the hog reaches the limit in seconds,
+# and holds every engine that has the setting to three attempts.
+if [ "$SCENARIO" = oom ]; then
+  export BENCH_WORKER_MEM=1g BENCH_MAX_ATTEMPTS=3
+fi
 
 PROFILES=(--profile "$PROFILE")
 case "$PROFILE" in prefect-serve|prefect-tasks) PROFILES+=(--profile prefect) ;; esac

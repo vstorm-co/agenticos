@@ -143,6 +143,17 @@ def summarize(json_path: str) -> dict[str, Any]:
         summary["sweeps"] = len(ticks)
         summary["sweep_gap_mean"] = statistics.fmean(gaps) if gaps else None
         summary["sweep_gap_max_dev"] = max((abs(g - 60) for g in gaps), default=None)
+    if result["scenario"] == "oom":
+        hog = [j for j in jobs.values() if j["kind"] == "hog"]
+        ordinary = [j for j in work.values() if j["kind"] != "hog"]
+        waits_small = [min(j["starts"]) - j["enq"] for j in ordinary if j["starts"]]
+        summary["hog_starts"] = sum(len(j["starts"]) for j in hog)
+        summary["ordinary_expected"] = len(ordinary)
+        summary["ordinary_finished"] = sum(1 for j in ordinary if j["finishes"])
+        summary["ordinary_wait_p95"] = pct(waits_small, 95)
+        summary["ordinary_wait_max"] = max(waits_small) if waits_small else None
+        summary["worker_deaths"] = result["settings"].get("worker_deaths")
+        summary["oom_kills"] = result["settings"].get("oom_kills")
     if result["scenario"] == "tenants":
         small = [min(j["starts"]) - j["enq"] for j in work.values() if j["tenant"] == "org-small" and j["starts"]]
         summary["small_wait_p50"] = pct(small, 50)

@@ -6,7 +6,9 @@ Run:
 One process runs up to `BENCH_CONCURRENCY` jobs on one event loop. A job's worker
 heartbeats; the periodic `retry_stalled` task requeues jobs whose worker stopped
 heartbeating, which is how a killed worker's work comes back - Procrastinate does
-not do it on its own.
+not do it on its own. This is the documentation's recipe: it counts an attempt on
+every retry but caps none, so a job that kills its worker is retried for ever
+unless the application adds its own limit.
 
 It speaks psycopg 3, not asyncpg, so in AgenticOS it would be a second Postgres
 driver beside the application's.
@@ -63,9 +65,9 @@ async def sweep(timestamp: int) -> None:
 @app.periodic(cron="* * * * *")
 @app.task(name="bench.retry_stalled", queue="bench")
 async def retry_stalled(timestamp: int) -> None:
-    stalled = await app.job_manager.get_stalled_jobs_async(seconds_since_heartbeat=30)
+    stalled = await app.job_manager.get_stalled_jobs(seconds_since_heartbeat=30)
     for job in stalled:
-        await app.job_manager.retry_job_async(job)
+        await app.job_manager.retry_job(job)
 
 
 async def serve() -> None:
