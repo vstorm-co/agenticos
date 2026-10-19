@@ -16,8 +16,6 @@ channel. Everything here is Slack's own surface around that:
 - **The manifest** - in :mod:`app.services.channels.slack_manifest`.
 """
 
-from __future__ import annotations
-
 import logging
 import re
 from typing import Any

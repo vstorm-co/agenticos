@@ -22,8 +22,6 @@ for five minutes and no provider documents a rate limit for these routes, so an
 hour is politeness rather than necessity: the lists move on the order of weeks.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 import time

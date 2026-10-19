@@ -18,8 +18,6 @@ same questions differently - two implementations of "is this healthy" is how a
 dashboard says green while a terminal says red.
 """
 
-from __future__ import annotations
-
 import asyncio
 from typing import TYPE_CHECKING
 

@@ -17,8 +17,6 @@ is taken before the fire is queued, and one whose request then failed simply
 lapses with `SEEN_TTL_SECONDS`, after which a provider retry fires normally.
 """
 
-from __future__ import annotations
-
 import logging
 from uuid import UUID
 

@@ -1,7 +1,5 @@
 """Decision 1's catalog: mandatory-ness and the read-time content gate (#1598)."""
 
-from __future__ import annotations
-
 from app.db.models.notification import NotificationEventType
 from app.services.notification_catalog import (
     CONTENT_GATE,

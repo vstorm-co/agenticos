@@ -16,8 +16,6 @@ completes in one leg; the multi-leg exchange is NTLM, which is not a ticket, is
 not offered, and would need state held between requests to finish.
 """
 
-from __future__ import annotations
-
 import logging
 
 from app.core.exceptions import ConfigurationError

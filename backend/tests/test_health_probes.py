@@ -11,8 +11,6 @@ branching over what a query returned, and a fake that returns rows makes that
 readable in a way a mock with three `side_effect` lists does not.
 """
 
-from __future__ import annotations
-
 import asyncio
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace

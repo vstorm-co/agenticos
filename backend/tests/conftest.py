@@ -110,7 +110,7 @@ def anyio_backend() -> str:
 
 
 @pytest.fixture(autouse=True)
-def _reset_channel_intake() -> Generator[None, None, None]:
+def _reset_channel_intake() -> Generator[None]:
     """Reset the channel supervisor's shutdown flag after every test.
 
     `_shutting_down` is a process global, and a test that runs the real lifespan
@@ -125,7 +125,7 @@ def _reset_channel_intake() -> Generator[None, None, None]:
 
 
 @pytest.fixture(autouse=True)
-def _forget_mcp_answers() -> Generator[None, None, None]:
+def _forget_mcp_answers() -> Generator[None]:
     """Clear which MCP servers answered a probe recently.
 
     A process global, like the flag above: a server one test probed as up would
@@ -139,7 +139,7 @@ def _forget_mcp_answers() -> Generator[None, None, None]:
 
 
 @pytest.fixture
-def sole_source_run() -> Generator[None, None, None]:
+def sole_source_run() -> Generator[None]:
     """Grant `_run_source_sync` its per-source lock without a database.
 
     The lock is a Postgres advisory lock on a session of its own (#987), and the
@@ -153,7 +153,7 @@ def sole_source_run() -> Generator[None, None, None]:
     from app.worker.tasks import rag_tasks
 
     @asynccontextmanager
-    async def held(_source_id: str) -> AsyncGenerator[bool, None]:
+    async def held(_source_id: str) -> AsyncGenerator[bool]:
         yield True
 
     with patch.object(rag_tasks, "_exclusive_source_run", new=held):
@@ -175,7 +175,7 @@ def mock_redis() -> MagicMock:
 
 
 @pytest.fixture
-async def mock_db_session() -> AsyncGenerator[AsyncMock, None]:
+async def mock_db_session() -> AsyncGenerator[AsyncMock]:
     """Create a mock database session for testing."""
     mock = AsyncMock()
     mock.execute = AsyncMock()
@@ -194,7 +194,7 @@ async def mock_db_session() -> AsyncGenerator[AsyncMock, None]:
 async def client(
     mock_redis: MagicMock,
     mock_db_session,
-) -> AsyncGenerator[AsyncClient, None]:
+) -> AsyncGenerator[AsyncClient]:
     """Async HTTP client for testing.
 
     Uses HTTPX AsyncClient with ASGITransport instead of Starlette's TestClient.

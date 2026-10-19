@@ -266,7 +266,7 @@ class _Scope:
     secure: bool
 
     @classmethod
-    def of(cls, config: WebConfig) -> "_Scope":
+    def of(cls, config: WebConfig) -> _Scope:
         root = urlsplit(_normalized(config.root_url))
         folder = root.path[: root.path.rfind("/") + 1] or "/"
         return cls(
@@ -275,7 +275,7 @@ class _Scope:
             secure=root.scheme == "https",
         )
 
-    def whole_host(self) -> "_Scope":
+    def whole_host(self) -> _Scope:
         """This scope with no path prefix: where robots.txt and the sitemaps live."""
         return replace(self, prefix="/")
 

@@ -19,8 +19,6 @@ reads the collection's own listing and answers a precedence (#548). What the
 tests control is the listing.
 """
 
-from __future__ import annotations
-
 import hashlib
 import uuid
 from contextlib import asynccontextmanager

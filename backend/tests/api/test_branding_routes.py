@@ -19,8 +19,6 @@ the origin the app's own pages run on, and a file that is not a picture must not
 out as whatever it looks like.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -101,7 +99,7 @@ def _wire(service: _Service, user: _User | None) -> None:
 
 
 @pytest.fixture
-async def anyone(service: _Service) -> AsyncGenerator[AsyncClient, None]:
+async def anyone(service: _Service) -> AsyncGenerator[AsyncClient]:
     """No session at all - the state the sign-in page and the favicon fetch are in."""
     _wire(service, None)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -110,7 +108,7 @@ async def anyone(service: _Service) -> AsyncGenerator[AsyncClient, None]:
 
 
 @pytest.fixture
-async def admin(service: _Service) -> AsyncGenerator[AsyncClient, None]:
+async def admin(service: _Service) -> AsyncGenerator[AsyncClient]:
     _wire(service, _User(admin=True))
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
@@ -118,7 +116,7 @@ async def admin(service: _Service) -> AsyncGenerator[AsyncClient, None]:
 
 
 @pytest.fixture
-async def member(service: _Service) -> AsyncGenerator[AsyncClient, None]:
+async def member(service: _Service) -> AsyncGenerator[AsyncClient]:
     _wire(service, _User(admin=False))
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client

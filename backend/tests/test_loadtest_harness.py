@@ -10,8 +10,6 @@ Imported by path, the way `test_check_comments.py` reaches the repository's guar
 scripts: `loadtest/` is a console tool outside the backend package.
 """
 
-from __future__ import annotations
-
 import importlib.util
 import itertools
 import sys

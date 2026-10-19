@@ -12,7 +12,7 @@ Put AI agents to work on your team's tasks. Build agents in your browser, connec
 <a href="https://github.com/vstorm-co/agenticos/actions"><img src="https://img.shields.io/github/actions/workflow/status/vstorm-co/agenticos/ci.yml?branch=main&label=tests" alt="Tests"></a>
 <a href="https://github.com/vstorm-co/agenticos/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="Licence"></a>
 <a href="https://github.com/vstorm-co/agenticos"><img src="https://img.shields.io/github/stars/vstorm-co/agenticos?style=flat" alt="Stars"></a>
-<img src="https://img.shields.io/badge/python-3.12-blue" alt="Python 3.12">
+<img src="https://img.shields.io/badge/python-3.15-blue" alt="Python 3.15">
 </p>
 
 <p class="agenticos-hero__links" markdown>
@@ -132,7 +132,7 @@ instead.
 Docker and Docker Compose. That is the whole list — Postgres (with pgvector),
 Redis, the API, the worker and the console all come up together.
 
-Running the services by hand instead? Python 3.12, Node with
+Running the services by hand instead? Python 3.15, Node with
 [bun](https://bun.sh), PostgreSQL 16 with
 [pgvector](https://github.com/pgvector/pgvector), and Redis.
 

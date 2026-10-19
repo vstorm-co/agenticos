@@ -17,8 +17,6 @@ run's audience says it acts as the person, privately - see
 asked about.
 """
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Sequence
 from uuid import UUID

@@ -38,7 +38,7 @@ TIMEOUT = timedelta(seconds=60)
 
 
 @pytest.fixture
-async def pool() -> AsyncGenerator[ChildPool, None]:
+async def pool() -> AsyncGenerator[ChildPool]:
     children = ChildPool(
         size=1,
         handlers=HANDLERS,

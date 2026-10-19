@@ -8,8 +8,6 @@ either closes its own copy - when another worker holds the stream lease - or,
 when it is the holder, says on the channels listing what is in its way.
 """
 
-from __future__ import annotations
-
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 

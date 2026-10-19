@@ -137,7 +137,7 @@ class TelegramAdapter(ChannelAdapter):
     @contextlib.asynccontextmanager
     async def _bot(
         bot_token: str, *, default: DefaultBotProperties | None = None
-    ) -> AsyncGenerator[Bot, None]:
+    ) -> AsyncGenerator[Bot]:
         """A Telegram bot bound to one token, its TLS session closed on the way out.
 
         aiogram opens a fresh session per `Bot` and leaks the connection if it is

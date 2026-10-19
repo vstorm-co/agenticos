@@ -19,8 +19,6 @@ copies of the same narrowing is exactly how a count comes to disagree with the
 rows under it, which is why the predicates are built once and both take them.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 

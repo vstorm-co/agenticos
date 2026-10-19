@@ -23,8 +23,6 @@ somebody else's key. `generate` is `None` when the run's model cannot make a
 request-response call, and the step then degrades to the plain query.
 """
 
-from __future__ import annotations
-
 import logging
 import re
 from collections.abc import Awaitable, Callable

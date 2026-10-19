@@ -12,8 +12,6 @@ check on that; the shape here is what keeps it true: read the sealed row, unseal
 at the moment of use, hand the plaintext to the client and nothing else.
 """
 
-from __future__ import annotations
-
 import logging
 from dataclasses import dataclass
 from typing import Any

@@ -5,8 +5,6 @@ missing `service` filter is a report that answers the wrong question quietly. So
 these read the compiled parameters rather than trusting the call signature.
 """
 
-from __future__ import annotations
-
 import uuid
 from typing import Any
 from unittest.mock import MagicMock

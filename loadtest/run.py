@@ -11,8 +11,6 @@ which is the failure that produces a green report about nothing.
 Every phase and every rate is `scenario.py`'s; this file is the wiring.
 """
 
-from __future__ import annotations
-
 import argparse
 import asyncio
 import random

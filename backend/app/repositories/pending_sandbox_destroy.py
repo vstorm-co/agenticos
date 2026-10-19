@@ -1,7 +1,5 @@
 """Data access for remote sandboxes still to be destroyed (#2209)."""
 
-from __future__ import annotations
-
 from collections.abc import Sequence
 from datetime import datetime
 from uuid import UUID

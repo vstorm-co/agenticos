@@ -4,8 +4,6 @@ Redis is an in-memory stand-in: a hash per room, a list of what was published,
 and a subscriber that hears what is published after it subscribed.
 """
 
-from __future__ import annotations
-
 import json
 import time
 from collections.abc import AsyncIterator, Iterator

@@ -17,8 +17,6 @@ still lost it. Now the cleanup is a job written in the delete's own transaction
 (#2219): it exists exactly when the delete does, and a worker retries it.
 """
 
-from __future__ import annotations
-
 import logging
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
@@ -95,7 +93,7 @@ async def queue_external_state_cleanup(
 
 
 @asynccontextmanager
-async def _vector_store() -> AsyncGenerator[PgVectorStore, None]:
+async def _vector_store() -> AsyncGenerator[PgVectorStore]:
     """A `PgVectorStore` on an engine built for one job and disposed after it.
 
     Per job, so its pool is bounded by the job that opened it and closed on every

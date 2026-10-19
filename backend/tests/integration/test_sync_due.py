@@ -4,8 +4,6 @@
 `get_due_for_sync`, which the sync check then runs over the same rows.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 

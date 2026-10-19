@@ -42,8 +42,6 @@ an agent's author cannot raise it - so its alert goes to the people who can, and
 no spec can redirect it.
 """
 
-from __future__ import annotations
-
 import hashlib
 from collections.abc import Sequence
 from datetime import datetime, timedelta

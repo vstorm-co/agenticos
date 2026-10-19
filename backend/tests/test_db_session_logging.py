@@ -8,8 +8,6 @@ a real 500 was buried among them. `_managed_session` now rolls a domain refusal
 back and re-raises it without a traceback, and keeps ERROR for the unexpected.
 """
 
-from __future__ import annotations
-
 import logging
 from unittest.mock import AsyncMock
 

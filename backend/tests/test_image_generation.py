@@ -1,7 +1,5 @@
 """The image generation capability: build, generate, meter, store."""
 
-from __future__ import annotations
-
 from typing import Any
 from uuid import uuid4
 

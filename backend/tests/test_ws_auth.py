@@ -8,8 +8,6 @@ an expired token, an ended impersonation, and a suspended account each close the
 door here, and the door is the same one the next frame knocks on.
 """
 
-from __future__ import annotations
-
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4

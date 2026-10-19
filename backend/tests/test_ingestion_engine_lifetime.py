@@ -19,8 +19,6 @@ application's own engine and own nothing to dispose, where each used to open a
 private pool beside it.
 """
 
-from __future__ import annotations
-
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path

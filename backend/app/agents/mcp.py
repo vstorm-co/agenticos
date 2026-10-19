@@ -18,8 +18,6 @@ The transport (streamable HTTP or SSE) is inferred from each server's URL, so
 SSE-only servers such as Atlassian/Jira work alongside streamable-HTTP ones.
 """
 
-from __future__ import annotations
-
 import asyncio
 import hashlib
 import importlib
@@ -142,7 +140,7 @@ class McpServerSpec:
 @asynccontextmanager
 async def _mcp_transport(
     url: str, headers: dict[str, str] | None
-) -> AsyncGenerator[tuple[Any, Any], None]:
+) -> AsyncGenerator[tuple[Any, Any]]:
     """Open the right client transport for *url*, yielding `(read, write)`.
 
     The transport is inferred from the URL exactly as the toolset layer does it

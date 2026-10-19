@@ -7,8 +7,6 @@ covers, a second binding racing a unique constraint, and an exposure id borrowed
 from another agent in the same organization.
 """
 
-from __future__ import annotations
-
 import uuid
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch

@@ -22,8 +22,6 @@ Wired as a Stop hook in `.claude/settings.json`, so it runs when an agent finish
 a turn - the moment the change is fresh and the page is cheap to fix.
 """
 
-from __future__ import annotations
-
 import argparse
 import json
 import subprocess
@@ -139,7 +137,7 @@ def repo_root() -> Path | None:
             text=True,
             check=True,
         ).stdout.strip()
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    except subprocess.CalledProcessError, FileNotFoundError:
         return None
     return Path(top) if top else None
 
@@ -157,7 +155,7 @@ def changed_paths(root: Path) -> list[str]:
             text=True,
             check=True,
         ).stdout
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    except subprocess.CalledProcessError, FileNotFoundError:
         return []
 
     paths: list[str] = []

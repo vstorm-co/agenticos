@@ -17,8 +17,6 @@ only as an argument to a client. Never a response, never a log line, never a
 `repr`.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from types import SimpleNamespace

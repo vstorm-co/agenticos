@@ -10,8 +10,6 @@ Integration rather than unit because the whole point is what the database does
 to neighbouring rows when one is deleted, which a mock cannot show.
 """
 
-from __future__ import annotations
-
 import asyncio
 import contextlib
 import uuid

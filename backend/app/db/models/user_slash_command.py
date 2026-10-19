@@ -11,8 +11,6 @@ built-in's name with a custom command of the same name; that's deliberate -
 the merge logic in the frontend trusts the name as a stable identifier.
 """
 
-from __future__ import annotations
-
 import uuid
 from typing import TYPE_CHECKING
 

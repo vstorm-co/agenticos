@@ -11,8 +11,6 @@ Run in a fresh interpreter: the test session has long since imported all of
 these, so `sys.modules` here would say nothing.
 """
 
-from __future__ import annotations
-
 import json
 import subprocess
 import sys

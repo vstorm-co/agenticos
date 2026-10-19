@@ -7,8 +7,6 @@ tests are about. What it writes has to be a denial by timeout on the *run*, in
 the row's own organization, saying plainly that nobody decided.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal

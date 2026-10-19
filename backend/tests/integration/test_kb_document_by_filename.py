@@ -5,8 +5,6 @@ An agent's search result and the console's search page both say
 for its documents with exactly that name.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

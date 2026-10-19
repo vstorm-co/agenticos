@@ -7,8 +7,6 @@ between a header, a row and a membership that a mocked session would simply agre
 with.
 """
 
-from __future__ import annotations
-
 import logging
 import uuid
 from collections import Counter

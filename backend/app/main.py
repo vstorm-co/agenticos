@@ -182,7 +182,7 @@ async def _keep_channel_streams() -> None:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
+async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
     """Application lifespan - startup and shutdown events.
 
     Resources yielded here are available via request.state in route handlers.

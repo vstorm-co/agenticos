@@ -9,8 +9,6 @@ embedding credential, so a collection that names no usable vault key resolves
 to an empty key and a reason, and the embedding client refuses with both.
 """
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 

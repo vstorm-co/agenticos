@@ -11,8 +11,6 @@ the other way, and it would put a red badge on every bot in a deployment whose
 Redis is not configured.
 """
 
-from __future__ import annotations
-
 import asyncio
 import contextlib
 import json

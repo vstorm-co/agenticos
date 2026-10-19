@@ -6,8 +6,6 @@ asserted here against a mocked client, since the guarantee is the client's and t
 fail-open is this module's.
 """
 
-from __future__ import annotations
-
 import asyncio
 from typing import cast
 from unittest.mock import AsyncMock

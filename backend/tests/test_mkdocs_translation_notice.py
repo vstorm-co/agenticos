@@ -18,8 +18,6 @@ and it imports mkdocs solely under `TYPE_CHECKING`, so the stubs below are the
 whole of the fixture.
 """
 
-from __future__ import annotations
-
 import importlib.util
 import sys
 from dataclasses import dataclass, field

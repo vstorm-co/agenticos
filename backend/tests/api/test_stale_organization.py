@@ -14,8 +14,6 @@ it carries the refused id in `details.org_id`. Both halves are asserted here,
 because the recovery in `use-active-organization.ts` is built on them.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch

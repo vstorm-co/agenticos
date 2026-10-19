@@ -18,8 +18,6 @@ built for the run and discarded with it (see `_capability.py`), which keeps the
 store per-run and process-local rather than on shared disk.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 

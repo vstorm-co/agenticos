@@ -21,8 +21,6 @@ Nothing here builds a response body. Turning rows into `ResourceSharing` is
 fourth resource type ends up with a subtly different payload.
 """
 
-from __future__ import annotations
-
 from collections.abc import Awaitable, Callable
 from typing import Any
 from uuid import UUID

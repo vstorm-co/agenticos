@@ -1,7 +1,5 @@
 """An answer a platform draws itself while it is written, and the steps in it (#2084)."""
 
-from __future__ import annotations
-
 import contextlib
 from collections.abc import AsyncIterator
 from types import SimpleNamespace

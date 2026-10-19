@@ -12,8 +12,6 @@ conversations, and the files in one are whatever somebody uploaded to a chat - s
 query and not only of its text.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

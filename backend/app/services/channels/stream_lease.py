@@ -29,8 +29,6 @@ per worker this deployment had before - duplicates, never silence. A command
 Redis refuses is not a Redis it cannot reach, and is not read as a lease held.
 """
 
-from __future__ import annotations
-
 import logging
 from uuid import uuid4
 

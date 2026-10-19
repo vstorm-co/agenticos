@@ -37,8 +37,6 @@ library's task cancellation, this platform's accounting sweep - runs while a
 `CancelledError` is already propagating.
 """
 
-from __future__ import annotations
-
 import asyncio
 import contextlib
 import logging

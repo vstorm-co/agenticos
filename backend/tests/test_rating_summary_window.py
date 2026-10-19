@@ -10,8 +10,6 @@ It now takes the same inclusive dates as the organization-scoped summary and
 resolves them the same way, so one filter means one thing on both cards.
 """
 
-from __future__ import annotations
-
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock

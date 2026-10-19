@@ -26,8 +26,6 @@ A turn's trace expires shortly after it ends, and an hour after its last frame
 whatever happened; the transcript is the record, this is a view.
 """
 
-from __future__ import annotations
-
 import contextlib
 import json
 import logging

@@ -9,8 +9,6 @@ unconfigured process is still covered, and the two entrypoints that were missing
 the call now make it.
 """
 
-from __future__ import annotations
-
 import io
 import logging
 from unittest.mock import patch

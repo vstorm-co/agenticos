@@ -14,8 +14,6 @@ roll the claim back with it, undoing the very thing that bounds the retry.
 directly against a real database.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 import uuid

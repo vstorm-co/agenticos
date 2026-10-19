@@ -9,8 +9,6 @@ queued, and the cleanup they run is idempotent and re-checks a shared collection
 name before dropping it.
 """
 
-from __future__ import annotations
-
 from contextlib import ExitStack, asynccontextmanager
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch

@@ -1,7 +1,5 @@
 """Serving an agent over A2A: its card, and the tasks other systems send it (#2092)."""
 
-from __future__ import annotations
-
 import uuid
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch

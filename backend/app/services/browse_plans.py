@@ -11,8 +11,6 @@ Redis rather than the database for that reason, and because a browse runs in the
 API for a chat and in the worker for a routine - both reach the same Redis.
 """
 
-from __future__ import annotations
-
 import json
 import logging
 from uuid import UUID

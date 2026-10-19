@@ -16,8 +16,6 @@ matters more here than usual, because a load run is repeated and re-seeding
 between runs would make retrieval times incomparable.
 """
 
-from __future__ import annotations
-
 import argparse
 import json
 import re

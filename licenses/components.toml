@@ -22,7 +22,7 @@
 
 [[component]]
 name = "python (Docker Official Image)"
-version = "3.12-slim (Debian)"
+version = "3.15-slim (Debian)"
 kind = "runtime image, backend"
 license = "Python: PSF-2.0. Debian base: each package under its own licence (GPL-2.0, GPL-3.0, LGPL-2.1, MIT, BSD and others)."
 source = "https://hub.docker.com/_/python"

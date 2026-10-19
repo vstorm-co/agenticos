@@ -1,7 +1,5 @@
 """The assistant's routes: every member reads it, `org:settings` changes it (#2063)."""
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import AsyncMock
 

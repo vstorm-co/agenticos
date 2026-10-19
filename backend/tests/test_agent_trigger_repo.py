@@ -9,8 +9,6 @@ locking and the CHECK constraints are proven against a live database in
 `tests/integration/test_agent_trigger_schema.py`.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from unittest.mock import MagicMock

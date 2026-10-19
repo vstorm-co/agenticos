@@ -5,8 +5,6 @@ that error, and every check after this one shares the session - so the read is
 taken under a savepoint, and only a real server can say the session survives it.
 """
 
-from __future__ import annotations
-
 import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession

@@ -15,8 +15,6 @@ enforces, which is the reason to pin the behaviour by name rather than to trust
 a percentage.
 """
 
-from __future__ import annotations
-
 import logging
 import uuid
 from collections.abc import AsyncIterator

@@ -9,8 +9,6 @@ the caller may not run, another tenant's) are proven against the real
 mocked, so these tests are about triggers, not about re-proving that.
 """
 
-from __future__ import annotations
-
 import asyncio
 import contextlib
 import uuid

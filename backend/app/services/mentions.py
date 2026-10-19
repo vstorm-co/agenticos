@@ -11,8 +11,6 @@ What reaches the model is a short note naming each thing and how to use it, neve
 the thing's content.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from uuid import UUID
 

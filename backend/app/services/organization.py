@@ -68,7 +68,7 @@ def _org_read(org: Organization, member_count: int, role: str) -> OrganizationRe
 class OrganizationService:
     _ALLOWED_AVATAR_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 
-    def __init__(self, db: AsyncSession, vector_store: "BaseVectorStore | None" = None):
+    def __init__(self, db: AsyncSession, vector_store: BaseVectorStore | None = None):
         self.db = db
         # Present only on the teardown path, where the request built a store to
         # drop the tenant's vector tables with; None everywhere else, so ordinary

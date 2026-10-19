@@ -1,8 +1,6 @@
 """Change feed paths the end-to-end tests do not reach (#2061): which writes are
 changes, what happens without Redis, and the traffic the middleware leaves alone."""
 
-from __future__ import annotations
-
 import uuid
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock

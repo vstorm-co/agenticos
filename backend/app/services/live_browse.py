@@ -20,8 +20,6 @@ What a person types waits in the command queue only until the browse reads it,
 and is never recorded: the run's history says only that somebody took over.
 """
 
-from __future__ import annotations
-
 import contextlib
 import json
 import logging

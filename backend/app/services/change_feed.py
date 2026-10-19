@@ -23,8 +23,6 @@ publish that fails is logged and dropped, and a disconnected tab behaves as the
 console always did.
 """
 
-from __future__ import annotations
-
 import contextlib
 import json
 import logging

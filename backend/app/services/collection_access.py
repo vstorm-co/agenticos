@@ -20,8 +20,6 @@ while `/rag/collections/{name}/info` did not - that let one tenant read
 another's collection while the listing looked perfectly scoped.
 """
 
-from __future__ import annotations
-
 from typing import Protocol
 from uuid import UUID
 

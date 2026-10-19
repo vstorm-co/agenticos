@@ -14,8 +14,6 @@ cannot repeat this without the type checker saying so. These are the behavioural
 half.
 """
 
-from __future__ import annotations
-
 import uuid
 from contextlib import asynccontextmanager
 from typing import Any

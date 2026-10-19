@@ -6,8 +6,6 @@ storage and access; turning context files into something a run reads - injected
 into the instructions or exposed through a tool - is the context *capability*.
 """
 
-from __future__ import annotations
-
 import logging
 from typing import cast
 from uuid import UUID

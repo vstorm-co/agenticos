@@ -7,8 +7,6 @@ and - the one the whole no-double-fire design rests on - that a second heartbeat
 claiming at the same instant takes none of the rows the first one locked.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 

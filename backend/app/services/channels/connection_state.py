@@ -22,8 +22,6 @@ whose API worker was replaced is not down, it is unknown.
 `unknown`, which is what the listing showed before this existed.
 """
 
-from __future__ import annotations
-
 import asyncio
 import json
 import logging
@@ -159,7 +157,7 @@ async def read(bot_id: UUID | str) -> ChannelConnection | None:
     try:
         payload = json.loads(raw)
         state = payload["state"]
-    except (json.JSONDecodeError, KeyError, TypeError):
+    except json.JSONDecodeError, KeyError, TypeError:
         return None
     if state not in ("up", "down"):
         return None

@@ -29,8 +29,6 @@ revoked - the trigger auto-disables and an audit entry records why, rather than
 retrying a refusal for ever.
 """
 
-from __future__ import annotations
-
 import asyncio
 import contextlib
 import json
@@ -1009,11 +1007,10 @@ class AgentTriggerService:
         pydantic error nor a filter stored to match nothing.
         """
         try:
-            return cast(
-                dict[str, Any],
+            return (
                 _EVENT_CONFIG_MODELS[event_source]
                 .model_validate({**dict(preset.event_config), **(override or {})})
-                .model_dump(),
+                .model_dump()
             )
         except PydanticValidationError as exc:
             raise ValidationError(
@@ -1039,7 +1036,7 @@ class AgentTriggerService:
             )
         model = _EVENT_CONFIG_MODELS[cast(str, trigger.event_source)]
         try:
-            return cast(dict[str, Any], model.model_validate(config).model_dump())
+            return model.model_validate(config).model_dump()
         except PydanticValidationError as exc:
             raise ValidationError(
                 message="event_config is not valid for this trigger's source",
@@ -1723,7 +1720,7 @@ class AgentTriggerService:
 
         try:
             agent = await self.agents.get(ctx, trigger.agent_id, perm=Perm.AGENTS_RUN)
-        except (NotFoundError, AuthorizationError):
+        except NotFoundError, AuthorizationError:
             # The grants-aware pre-check, mirroring the run path's own
             # `resolve_access`. A creator who kept a role with `agents:run` but
             # lost the grant on *this* agent is refused here, before a run is
@@ -1762,7 +1759,7 @@ class AgentTriggerService:
                 # the creator let it act as them; otherwise nobody is speaking.
                 acts_for_sender=ctx.fired_as_creator is not None,
             )
-        except (NotFoundError, AuthorizationError):
+        except NotFoundError, AuthorizationError:
             # Access was withdrawn between the pre-check and the run. Same verdict:
             # disable, do not raise into a retry.
             await self._disable(trigger, reason="creator_cannot_run_agent")

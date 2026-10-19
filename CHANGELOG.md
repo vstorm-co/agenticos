@@ -67,6 +67,20 @@ Two things are versioned separately from this file and worth knowing about:
     `background_task_kinds`, `background_workers` and `agent_triggers.overlap`.
   Runs Prefect still held queued are not carried over, so stop new uploads
   while upgrading; the schedules pick up on their next occurrence.
+- **The backend runs on Python 3.15** (#2229): `backend/.python-version`,
+  `requires-python`, the image's base and CI. Seven packages move to the first
+  releases with 3.15 wheels - pydantic 2.14.1 (pydantic-core 2.50.1), uvloop
+  0.23.0, httptools 0.9.0, markupsafe 3.0.4, fastavro 1.13.1 and selectolax
+  1.0.1. PyYAML has no 3.15 wheel yet and installs as pure Python. aiogram 3.31 still caps pydantic
+  below 2.14, so a uv override lifts that cap until it does.
+  `from __future__ import annotations` is gone from the codebase, and ruff now
+  refuses it: annotations are lazy since 3.14.
+- **An ingestion child loads only ingestion** (#2229): it no longer imports the
+  agent runtime the other pools need, which halves its start-up (1.4 s to 0.8 s
+  on a laptop) and cuts its memory by a quarter (253 to 190 MB). The global
+  lazy-import mode of PEP 810 was measured and not adopted: it breaks protobuf
+  and SQLAlchemy, which register themselves at import, and limited to the
+  application's own modules it saved 0.2 s of a 2.4 s import, at higher memory.
 - **A busy schedule now skips by default.** Before, a schedule whose run was
   still going fired once as soon as it ended; existing schedules take `skip`.
   Set `overlap` to `queue` for the old behaviour.

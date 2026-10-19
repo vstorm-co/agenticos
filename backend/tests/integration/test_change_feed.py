@@ -6,8 +6,6 @@ request, a membership and the rows' visibility, so they run against Postgres -
 with Redis replaced by an in-memory bus, the one thing here that is transport.
 """
 
-from __future__ import annotations
-
 import json
 import uuid
 from collections.abc import AsyncIterator

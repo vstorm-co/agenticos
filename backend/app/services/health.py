@@ -32,8 +32,6 @@ request that has to answer when the database has stopped answering, and a probe
 that times out at the kubelet is indistinguishable from a wedged pod.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 from datetime import UTC, datetime, timedelta

@@ -12,8 +12,6 @@ Rolling back publishes a *new* version copied from an old one. The alternative -
 moving a pointer backwards - would make run history lie about what was live.
 """
 
-from __future__ import annotations
-
 import contextlib
 import logging
 import re

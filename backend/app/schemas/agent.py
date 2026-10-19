@@ -433,7 +433,7 @@ class DelegationTreeNode(BaseSchema):
         default=False,
         description="Has delegates of its own that a run from this root cannot reach.",
     )
-    children: list["DelegationTreeNode"] = Field(default_factory=list)
+    children: list[DelegationTreeNode] = Field(default_factory=list)
 
 
 class DelegationTree(BaseSchema):

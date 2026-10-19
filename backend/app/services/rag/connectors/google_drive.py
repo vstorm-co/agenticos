@@ -18,8 +18,6 @@ Setup:
    each Drive source at it
 """
 
-from __future__ import annotations
-
 import asyncio
 import json as _json
 import logging

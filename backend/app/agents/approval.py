@@ -15,8 +15,6 @@ down a layer, below both, removes the cycle rather than tiptoeing around it.
 This module imports nothing from `app`.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any

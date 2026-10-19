@@ -11,8 +11,6 @@ Every test drives the real services, so what it asserts is what the platform
 does - not what a stub was told to return.
 """
 
-from __future__ import annotations
-
 import copy
 import uuid
 from collections.abc import AsyncIterator, Callable

@@ -9,7 +9,7 @@
 # the root says what of the tree reaches the daemon.
 
 # Build stage
-FROM python:3.12-slim AS builder
+FROM python:3.15-slim AS builder
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -60,7 +60,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 
 # Runtime stage
-FROM python:3.12-slim
+FROM python:3.15-slim
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1

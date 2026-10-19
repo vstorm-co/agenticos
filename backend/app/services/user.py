@@ -81,7 +81,7 @@ deployment's verification mail to any inbox it likes, repeatedly (#1772)."""
 
 
 class UserService:
-    def __init__(self, db: AsyncSession, vector_store: "BaseVectorStore | None" = None):
+    def __init__(self, db: AsyncSession, vector_store: BaseVectorStore | None = None):
         self.db = db
         # Only the account-teardown path drops a departing user's vector tables.
         # A caller may inject the store (the delete route, a test on its own

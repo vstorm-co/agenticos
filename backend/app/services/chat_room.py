@@ -13,8 +13,6 @@ room are on whichever API instances the load balancer gave them. Presence expire
 on its own, so a socket that died without leaving drops out within `PRESENCE_TTL`.
 """
 
-from __future__ import annotations
-
 import contextlib
 import json
 import logging

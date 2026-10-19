@@ -18,8 +18,6 @@ enough:
   a credential has been posted before (#937), and never the row.
 """
 
-from __future__ import annotations
-
 import json
 import uuid
 from types import SimpleNamespace

@@ -7,8 +7,6 @@ signature reaches the caller as a 403 so GitHub surfaces it to whoever
 misconfigured the App.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch

@@ -1405,8 +1405,6 @@ async def verify_api_key(
 ValidAPIKey = Annotated[str, Depends(verify_api_key)]
 
 
-from fastapi import Request
-
 from app.core.config import settings
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.ingestion import IngestionService

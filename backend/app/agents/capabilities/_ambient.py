@@ -23,8 +23,6 @@ the runner rather than degrading - so they take only :func:`run_model_settings`
 from here.
 """
 
-from __future__ import annotations
-
 from typing import Any, cast
 
 from pydantic_ai import Agent

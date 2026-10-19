@@ -21,8 +21,6 @@ no other, and an `unhealthy` acted on only once a probe has run since the
 container started.
 """
 
-from __future__ import annotations
-
 import re
 import shutil
 import subprocess

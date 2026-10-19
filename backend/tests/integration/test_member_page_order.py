@@ -10,8 +10,6 @@ Here rather than in the unit suite because what an unstable `ORDER BY` does is
 Postgres's answer, not a mock's.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 

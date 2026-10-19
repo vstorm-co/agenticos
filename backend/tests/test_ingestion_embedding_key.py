@@ -15,8 +15,6 @@ tests run the real resolver against a knowledge-base row and assert what the
 outgoing client was actually built with, rather than that a resolver was passed.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import ExitStack, asynccontextmanager

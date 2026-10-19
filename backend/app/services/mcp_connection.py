@@ -27,8 +27,6 @@ general assistant) or from the organization-scoped ones a published agent's
 spec names.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 import re

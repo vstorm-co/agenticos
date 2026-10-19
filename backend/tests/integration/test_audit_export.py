@@ -6,8 +6,6 @@ inside the window, that a neighbour organization's entries never reach it, that
 that reading the whole trail is itself recorded.
 """
 
-from __future__ import annotations
-
 import csv
 import io
 import json

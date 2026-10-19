@@ -14,8 +14,6 @@ that, and the sample counts underneath it are what say whether a tail is a
 finding or three requests.
 """
 
-from __future__ import annotations
-
 import platform
 from collections.abc import Iterable
 

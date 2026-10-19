@@ -8,8 +8,6 @@ and that the two rows the surface reaches by id (a registered OCR server, a call
 record) are scoped so that another tenant's is simply absent.
 """
 
-from __future__ import annotations
-
 import uuid
 from types import SimpleNamespace
 from typing import Any

@@ -10,8 +10,6 @@ producer or default audience, which are decided at each producer's own call
 site as later phases wire them in.
 """
 
-from __future__ import annotations
-
 import enum
 
 from app.db.models.notification import NotificationEventType

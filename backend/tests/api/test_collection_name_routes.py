@@ -14,8 +14,6 @@ tests underneath (`tests/test_collection_access.py`,
 none of the code they cover.
 """
 
-from __future__ import annotations
-
 import uuid
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock

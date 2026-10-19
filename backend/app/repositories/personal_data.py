@@ -12,8 +12,6 @@ removing it: deleting a colleague's account must not delete the agent the team
 runs on. `docs/security.md` has the table, with the reason for each.
 """
 
-from __future__ import annotations
-
 from typing import Any
 from uuid import UUID
 

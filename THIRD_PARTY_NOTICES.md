@@ -72,7 +72,7 @@ names no author is in the evidence column below.
 | authlib | 1.9.1 | BSD-3-Clause | https://github.com/authlib/authlib | License field |
 | backoff | 2.2.1 | MIT | https://github.com/litl/backoff | License field |
 | bcrypt | 5.0.0 | Apache-2.0 | https://github.com/pyca/bcrypt/ | License field |
-| beartype | 0.22.9 | MIT | https://github.com/beartype/beartype | License field |
+| beartype | 0.23.1 | MIT | https://github.com/beartype/beartype | License-Expression |
 | beautifulsoup4 | 4.15.0 | MIT | https://www.crummy.com/software/BeautifulSoup/bs4/ | License field |
 | bidict | 0.24.1 | MPL-2.0 | https://github.com/jab/bidict | License-Expression; review accepted |
 | boto3 | 1.43.114 | Apache-2.0 | https://github.com/boto/boto3 | License field |
@@ -108,7 +108,7 @@ names no author is in the evidence column below.
 | exceptiongroup | 1.3.1 | MIT | https://github.com/agronholm/exceptiongroup | classifier |
 | executing | 2.2.1 | MIT | https://github.com/alexmojaki/executing | License field |
 | fastapi | 0.143.2 | MIT | https://github.com/fastapi/fastapi | License-Expression |
-| fastavro | 1.12.2 | MIT | https://github.com/fastavro/fastavro | License field |
+| fastavro | 1.13.1 | MIT | https://github.com/fastavro/fastavro | License field |
 | fastmcp | 4.1.0 | Apache-2.0 | https://github.com/PrefectHQ/fastmcp | License-Expression |
 | fastmcp-slim | 4.1.0 | Apache-2.0 | https://github.com/PrefectHQ/fastmcp | License-Expression; no licence file, attributed to Jeremiah Lowin, Nate Nowack |
 | filelock | 3.32.6 | MIT | https://github.com/tox-dev/py-filelock | License-Expression |
@@ -132,7 +132,7 @@ names no author is in the evidence column below.
 | httpcore | 1.0.9 | BSD-3-Clause | https://github.com/encode/httpcore | License-Expression |
 | httpcore2 | 2.13.1 | BSD-3-Clause | https://github.com/pydantic/httpx2/blob/main/src/httpcore2 | License-Expression |
 | httplib2 | 0.32.0 | MIT | https://github.com/httplib2/httplib2 | License field |
-| httptools | 0.8.0 | MIT | https://github.com/MagicStack/httptools | License-Expression |
+| httptools | 0.9.0 | MIT | https://github.com/MagicStack/httptools | License-Expression |
 | httpx | 0.28.1 | BSD-3-Clause | https://github.com/encode/httpx | License field |
 | httpx-ws | 0.9.0 | MIT | https://github.com/frankie567/httpx-ws | classifier |
 | httpx2 | 2.13.1 | BSD-3-Clause | https://github.com/pydantic/httpx2 | License-Expression |
@@ -164,7 +164,7 @@ names no author is in the evidence column below.
 | mako | 1.4.3 | MIT | https://www.makotemplates.org/ | License-Expression |
 | markdown-it-py | 4.2.0 | MIT | https://github.com/executablebooks/markdown-it-py | classifier |
 | markdownify | 1.2.3 | MIT | http://github.com/matthewwithanm/python-markdownify | classifier |
-| markupsafe | 3.0.3 | BSD-3-Clause | https://github.com/pallets/markupsafe/ | License-Expression |
+| markupsafe | 3.0.4 | BSD-3-Clause | https://github.com/pallets/markupsafe/ | License-Expression |
 | mcp | 2.3.0 | MIT | https://github.com/modelcontextprotocol/python-sdk | License field |
 | mcp-types | 2.3.0 | MIT | https://github.com/modelcontextprotocol/python-sdk | License field |
 | mdurl | 0.1.2 | MIT | https://github.com/executablebooks/mdurl | classifier |
@@ -210,12 +210,12 @@ names no author is in the evidence column below.
 | pyasn1 | 0.6.4 | BSD-2-Clause | https://github.com/pyasn1/pyasn1 | License field |
 | pyasn1-modules | 0.4.2 | BSD-2-Clause | https://github.com/pyasn1/pyasn1-modules | licence file text |
 | pycparser | 3.0 | BSD-3-Clause | https://github.com/eliben/pycparser | License-Expression |
-| pydantic | 2.13.5 | MIT | https://github.com/pydantic/pydantic | License-Expression |
+| pydantic | 2.14.1 | MIT | https://github.com/pydantic/pydantic | License-Expression |
 | pydantic-ai-backend | 0.2.36 | MIT | https://github.com/vstorm-co/pydantic-ai-backend | License-Expression |
 | pydantic-ai-harness | 0.57.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
 | pydantic-ai-skills | 2.1.0 | MIT | https://github.com/dougtrajano/pydantic-ai-skills | License-Expression |
 | pydantic-ai-slim | 2.57.0 | MIT | https://github.com/pydantic/pydantic-ai/tree/main/pydantic_ai_slim | License-Expression |
-| pydantic-core | 2.46.5 | MIT | https://github.com/pydantic/pydantic/tree/main/pydantic-core | License-Expression |
+| pydantic-core | 2.50.1 | MIT | https://github.com/pydantic/pydantic/tree/main/pydantic-core | License-Expression |
 | pydantic-graph | 2.57.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
 | pydantic-monty | 1.1.0 | MIT | https://github.com/pydantic/monty | License-Expression; no licence file, attributed to Pydantic Services Inc. |
 | pydantic-monty-client | 1.1.0 | MIT | https://github.com/pydantic/monty | License field; no licence file, attributed to Pydantic Services Inc. |
@@ -272,7 +272,7 @@ names no author is in the evidence column below.
 | uritemplate | 4.2.0 | BSD-3-Clause OR Apache-2.0 | https://github.com/python-hyper/uritemplate | override: uritemplate-4.2.0.dist-info/licenses/LICENSE: 'made available under the terms of either of the licenses found in LICENSE.APACHE or LICENSE.BSD'; the License field says 'BSD 3-Clause OR Apache-2.0' in non-SPDX spelling |
 | urllib3 | 2.8.0 | MIT | https://urllib3.readthedocs.io | License-Expression |
 | uvicorn | 0.54.0 | BSD-3-Clause | https://github.com/Kludex/uvicorn | License-Expression |
-| uvloop | 0.22.1 | MIT | https://github.com/MagicStack/uvloop | License field |
+| uvloop | 0.23.0 | MIT | https://github.com/MagicStack/uvloop | License field |
 | watchfiles | 1.2.0 | MIT | https://github.com/samuelcolvin/watchfiles | License field |
 | wcmatch | 11.0.1 | MIT | https://github.com/facelessuser/wcmatch | License-Expression |
 | websocket-client | 1.9.2 | Apache-2.0 | https://github.com/websocket-client/websocket-client/ | License field |
@@ -591,7 +591,7 @@ and data files.
 
 | Component | Version | Kind | Licence | Source | Status | Obligations | How they are met |
 |---|---|---|---|---|---|---|---|
-| python (Docker Official Image) | 3.12-slim (Debian) | runtime image, backend | Python: PSF-2.0. Debian base: each package under its own licence (GPL-2.0, GPL-3.0, LGPL-2.1, MIT, BSD and others). | https://hub.docker.com/_/python | accepted | Ship licence texts and, for GPL and LGPL packages in the base, make their corresponding source available to recipients of the image. | Debian keeps every package's licence under /usr/share/doc/<package>/copyright in the image and publishes the matching source packages (apt-get source; https://snapshot.debian.org). The image is distributed unmodified apart from the packages listed below; the per-release SBOM (#1415) records the exact package set. |
+| python (Docker Official Image) | 3.15-slim (Debian) | runtime image, backend | Python: PSF-2.0. Debian base: each package under its own licence (GPL-2.0, GPL-3.0, LGPL-2.1, MIT, BSD and others). | https://hub.docker.com/_/python | accepted | Ship licence texts and, for GPL and LGPL packages in the base, make their corresponding source available to recipients of the image. | Debian keeps every package's licence under /usr/share/doc/<package>/copyright in the image and publishes the matching source packages (apt-get source; https://snapshot.debian.org). The image is distributed unmodified apart from the packages listed below; the per-release SBOM (#1415) records the exact package set. |
 | libreoffice-core, libreoffice-writer, libreoffice-calc, libreoffice-impress (Debian packages) | as pinned by the base image's Debian release | system package, backend image | MPL-2.0 (LibreOffice), with parts under LGPL-3.0-or-later and Apache-2.0 | https://www.libreoffice.org/about-us/licenses/ | accepted | MPL and LGPL: licence texts ship with the binaries and their source is available; used unmodified, invoked as a separate process by LiteParse for office-format conversion. | Debian's /usr/share/doc/libreoffice-*/copyright is in the image; source through Debian's source packages; no modification. |
 | tesseract-ocr, tesseract-ocr-eng, tesseract-ocr-pol (Debian packages) | as pinned by the base image's Debian release | system package, backend image | Apache-2.0 (engine and language data) | https://github.com/tesseract-ocr/tesseract | accepted | Attribution and the licence text. | Debian's /usr/share/doc/tesseract-ocr*/copyright is in the image; named here. |
 | oven/bun (Docker image) | 1 (Debian) | runtime image, frontend | Bun: MIT (with bundled components under their own licences, listed in Bun's LICENSE.md). Debian base: as for the python image. | https://hub.docker.com/r/oven/bun | accepted | Ship licence texts; for GPL and LGPL packages in the base, make their corresponding source available to recipients of the image. | As for the python image: /usr/share/doc/*/copyright in the image, Debian's source packages, the per-release SBOM (#1415). |

@@ -5,8 +5,6 @@ whether the answers were any good - the question a department lead asks next.
 Read by the group page and the dashboard's department quality card.
 """
 
-from __future__ import annotations
-
 from datetime import date
 from uuid import UUID
 

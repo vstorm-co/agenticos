@@ -232,7 +232,7 @@ class ChildPool:
                 if loop.time() >= deadline:
                     await self._stop(child)
                     return Failed(f"timed out after {timeout}; the child process was stopped")
-        except (BrokenPipeError, ConnectionResetError):
+        except BrokenPipeError, ConnectionResetError:
             return await self._died(child)
         except asyncio.CancelledError:
             await self._stop(child)

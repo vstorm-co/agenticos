@@ -4,8 +4,6 @@ Which rows a `WHERE` lands on, and whether a grant the access resolver reads
 really lets a teammate in, are not things a mocked session can say.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 

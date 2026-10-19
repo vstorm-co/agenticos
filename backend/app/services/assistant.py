@@ -13,8 +13,6 @@ open the console first may not be allowed to create agents. Who may talk to it i
 through the platform's MCP server with a credential minted for them.
 """
 
-from __future__ import annotations
-
 import logging
 from uuid import UUID
 

@@ -42,7 +42,7 @@ def service() -> MagicMock:
     return service
 
 
-async def _client(user: MagicMock, service: MagicMock) -> AsyncGenerator[AsyncClient, None]:
+async def _client(user: MagicMock, service: MagicMock) -> AsyncGenerator[AsyncClient]:
     app.dependency_overrides[get_current_user] = lambda: user
     app.dependency_overrides[get_background_job_service] = lambda: service
     try:

@@ -17,8 +17,6 @@ Effective access to one resource is `max(role scope, grant on that resource)`
 allows for a single row; it never narrows it.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Literal

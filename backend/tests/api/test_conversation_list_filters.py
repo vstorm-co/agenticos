@@ -12,8 +12,6 @@ back to recency - so a typo that reached it would be answered with a page that
 looks sorted and is not.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock

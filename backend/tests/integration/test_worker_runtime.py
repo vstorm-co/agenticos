@@ -86,7 +86,7 @@ async def running(
     ingest: bool = False,
     listen_dsn: str | None = None,
     **overrides: object,
-) -> AsyncGenerator[Worker, None]:
+) -> AsyncGenerator[Worker]:
     """A worker serving the system pool in-process - and the ingest pool in children, if asked."""
     executors: dict[Pool, Executor] = {
         Pool.SYSTEM: InProcessExecutor(worker_handlers.bound(Pool.SYSTEM), concurrency=4)

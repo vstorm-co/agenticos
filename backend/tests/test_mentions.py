@@ -7,8 +7,6 @@ anything else has it dropped, so a mention can never widen what a run reaches, a
 none ever changes which agent answers.
 """
 
-from __future__ import annotations
-
 import uuid
 from types import SimpleNamespace
 from typing import Any

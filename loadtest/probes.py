@@ -11,8 +11,6 @@ for, is still a run - it reports the samples it has and names the ones it could
 not take, rather than refusing to start or, worse, printing zeros.
 """
 
-from __future__ import annotations
-
 import asyncio
 import shutil
 import subprocess

@@ -5,8 +5,6 @@ What is due, in which order, and that two sweeps never take the same row are
 mock's. The cascades are the schema's.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 

@@ -14,8 +14,6 @@ Two halves (see `docs/design/heartbeat-triggers-plan.md`, sections 3 and 4):
   creator through the ordinary run path.
 """
 
-from __future__ import annotations
-
 import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING

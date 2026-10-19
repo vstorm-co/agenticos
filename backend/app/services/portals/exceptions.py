@@ -7,8 +7,6 @@ secret) rather than a 4xx. They subclass `AppException` only so a stray one that
 escapes the create flow is logged and mapped like any other domain error.
 """
 
-from __future__ import annotations
-
 from app.core.exceptions import AppException
 
 

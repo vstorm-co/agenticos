@@ -10,8 +10,6 @@ refusals worth more than the feature itself:
   rather than accepted and dropped in a `finally` block.
 """
 
-from __future__ import annotations
-
 import errno
 import logging
 import os
@@ -2945,7 +2943,7 @@ class _Tombstones:
             return self.due[:limit]
 
         @asynccontextmanager
-        async def session() -> AsyncGenerator[MagicMock, None]:
+        async def session() -> AsyncGenerator[MagicMock]:
             yield MagicMock()
 
         repo = sandbox_workspace.pending_destroy_repo

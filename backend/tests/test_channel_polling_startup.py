@@ -6,8 +6,6 @@ database: a Slack bot sealed under the developer's `VAULT_MASTER_KEY` raised out
 of `_start_channel_polling`, the lifespan failed, and the container crash-looped.
 """
 
-from __future__ import annotations
-
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4

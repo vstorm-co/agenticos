@@ -16,8 +16,6 @@ pinned in the unit suite (`tests/test_org_purge_reservation.py`,
 `tests/test_external_state_cleanup.py`).
 """
 
-from __future__ import annotations
-
 import json
 import uuid
 from collections.abc import AsyncGenerator
@@ -140,7 +138,7 @@ async def _track(
 
 
 @pytest.fixture(autouse=True)
-async def _clean_runtime_table(engine: AsyncEngine) -> AsyncGenerator[None, None]:
+async def _clean_runtime_table(engine: AsyncEngine) -> AsyncGenerator[None]:
     async with engine.begin() as conn:
         await conn.execute(text(f"DROP TABLE IF EXISTS {TABLE}"))
     yield

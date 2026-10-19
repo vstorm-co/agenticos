@@ -22,8 +22,6 @@ module exists rather than a helper on the capability:
   applies with somebody else's invoice attached.
 """
 
-from __future__ import annotations
-
 import asyncio
 import base64
 import contextlib
@@ -1926,13 +1924,13 @@ class SandboxWorkspaceService:
         document = StateBackend(files=dict(row.files or {}), directories=row.directories or ())
         try:
             return document.read_bytes(path)
-        except (FileNotFoundError, IsADirectoryError, NotADirectoryError):
+        except FileNotFoundError, IsADirectoryError, NotADirectoryError:
             return None
 
     @asynccontextmanager
     async def _archive(
         self, ctx: AuthContext, row: AgentWorkspace, *, timeout: float = DEFAULT_TIMEOUT_SECONDS
-    ) -> AsyncGenerator[Any | None, None]:
+    ) -> AsyncGenerator[Any | None]:
         """A reader for the host volume behind a container-backed workspace.
 
         `None` when the workspace has no connection left to ask - the host was
@@ -2194,7 +2192,7 @@ def stored_thumbnail(path: str, data: FileData | None) -> str | None:
     content = data.get("content") or []
     try:
         raw = base64.b64decode("".join(str(line) for line in content), validate=True)
-    except (BinasciiError, ValueError):
+    except BinasciiError, ValueError:
         logger.warning("workspace_thumbnail_undecodable", extra={"path": path})
         return None
     return thumbnail_of(path, raw)

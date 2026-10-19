@@ -5,8 +5,6 @@ the OAuth scopes a portal registers with are an implementation detail of the
 create flow, never sent to the browser.
 """
 
-from __future__ import annotations
-
 from typing import Literal
 from uuid import UUID
 

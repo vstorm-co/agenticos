@@ -33,8 +33,6 @@ flushed its cost and rolled it back - no row, no budget impact, and an
 organization billed by a provider for a request nothing recorded.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager, contextmanager

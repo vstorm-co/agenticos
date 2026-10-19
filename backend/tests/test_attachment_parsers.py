@@ -8,8 +8,6 @@ since no Python library writes the OLE compound format. A malformed input is a c
 rather than the parse (#1591).
 """
 
-from __future__ import annotations
-
 import io
 from collections.abc import Callable, Iterator
 from pathlib import Path

@@ -71,7 +71,7 @@ async_session_maker = async_sessionmaker(
 @asynccontextmanager
 async def _managed_session(
     factory: async_sessionmaker[AsyncSession],
-) -> AsyncGenerator[AsyncSession, None]:
+) -> AsyncGenerator[AsyncSession]:
     """Shared session lifecycle: commit on success, rollback on error.
 
     Background work registered with `spawn_after_commit` starts here, in the
@@ -107,7 +107,7 @@ async def _managed_session(
             discard_deferred(session)
 
 
-async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
+async def get_db_session() -> AsyncGenerator[AsyncSession]:
     """The request's session, for FastAPI dependency injection.
 
     **Depend on it through `app.api.deps.DBSession`, never through a bare
@@ -165,7 +165,7 @@ def on_the_pooled_loop() -> bool:
 
 
 @asynccontextmanager
-async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
+async def get_db_context() -> AsyncGenerator[AsyncSession]:
     """A session for manual management: a WebSocket, a worker task, a command.
 
     Pooled on the loop that owns the pools, and a `NullPool` engine of its own
@@ -189,7 +189,7 @@ async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
 
 
 @asynccontextmanager
-async def get_worker_db_context() -> AsyncGenerator[AsyncSession, None]:
+async def get_worker_db_context() -> AsyncGenerator[AsyncSession]:
     """Get a short-lived async session for background workers (Celery/ARQ).
 
     Creates a fresh engine with NullPool on every call so there are no
@@ -219,7 +219,7 @@ async def get_worker_db_context() -> AsyncGenerator[AsyncSession, None]:
 
 
 @asynccontextmanager
-async def get_worker_connection() -> AsyncGenerator[AsyncConnection, None]:
+async def get_worker_connection() -> AsyncGenerator[AsyncConnection]:
     """One connection for a background worker, held until the block exits.
 
     For what lives on a *connection* rather than in a transaction - a

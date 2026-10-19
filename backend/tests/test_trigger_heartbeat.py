@@ -24,7 +24,7 @@ async def test_the_heartbeat_claims_on_one_session_at_the_ticks_own_time() -> No
     opened: list[MagicMock] = []
 
     @contextlib.asynccontextmanager
-    async def tracking_context() -> AsyncGenerator[MagicMock, None]:
+    async def tracking_context() -> AsyncGenerator[MagicMock]:
         db = MagicMock()
         opened.append(db)
         yield db

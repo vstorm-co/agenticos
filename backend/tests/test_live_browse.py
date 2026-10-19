@@ -6,8 +6,6 @@ directly rather than through mock calls. Who may watch is a join against the
 database and lives in `tests/integration/test_live_browse.py`.
 """
 
-from __future__ import annotations
-
 import json
 import uuid
 from collections.abc import AsyncIterator, Iterator

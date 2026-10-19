@@ -14,8 +14,6 @@ not owned, so the decision is the service's - which is why the gate sweep in
 service rather than through the permission table.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime

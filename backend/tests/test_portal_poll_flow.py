@@ -6,8 +6,6 @@ events fire, and - the one that matters most - that the cursor advances only
 together with the fires it read, in the same transaction.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from types import SimpleNamespace

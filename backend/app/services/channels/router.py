@@ -1,7 +1,5 @@
 """Channel message router - processes incoming messages end-to-end."""
 
-from __future__ import annotations
-
 import asyncio
 import json
 import logging
@@ -105,7 +103,7 @@ class _ChatLocks:
         return len(self._held)
 
     @asynccontextmanager
-    async def hold(self, bot_id: str, chat_id: str) -> AsyncGenerator[None, None]:
+    async def hold(self, bot_id: str, chat_id: str) -> AsyncGenerator[None]:
         key = f"{bot_id}:{chat_id}"
         lock, waiting = self._held.get(key) or (asyncio.Lock(), 0)
         self._held[key] = (lock, waiting + 1)

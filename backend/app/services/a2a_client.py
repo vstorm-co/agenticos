@@ -13,8 +13,6 @@ says so in the text, because a delegate that is waiting on its own user is an
 answer the delegating model has to read, not an error.
 """
 
-from __future__ import annotations
-
 import json
 import logging
 import time

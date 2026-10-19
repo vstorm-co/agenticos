@@ -8,8 +8,6 @@ from a lookup would make one organization's workspace reachable by an id, and
 the files in it are whatever somebody uploaded to a chat.
 """
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import MagicMock
 

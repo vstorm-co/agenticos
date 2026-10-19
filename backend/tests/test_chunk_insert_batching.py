@@ -11,8 +11,6 @@ change is: it must not scale with the number of chunks. The integration half
 proves the `executemany` actually writes every row, which a counted mock cannot.
 """
 
-from __future__ import annotations
-
 import json
 from collections.abc import Callable
 from unittest.mock import AsyncMock, MagicMock

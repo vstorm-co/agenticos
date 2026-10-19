@@ -5,8 +5,6 @@
 actually return - and the one thing that must never appear in any of it.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager

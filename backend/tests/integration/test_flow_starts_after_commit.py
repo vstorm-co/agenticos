@@ -61,7 +61,7 @@ Handoff = Callable[[AsyncSession, Coroutine[Any, Any, None]], None]
 
 
 @pytest.fixture
-async def probe_table(engine: AsyncEngine) -> AsyncGenerator[AsyncEngine, None]:
+async def probe_table(engine: AsyncEngine) -> AsyncGenerator[AsyncEngine]:
     """A table to write one row into, and the engine that watches for it.
 
     Deliberately not one of the product's own tables: this asserts a property of
@@ -96,7 +96,7 @@ def _spawn_deferred(session: AsyncSession, coro: Coroutine[Any, Any, None]) -> N
 
 
 @contextlib.asynccontextmanager
-async def _awaiting_whatever_it_starts() -> AsyncGenerator[None, None]:
+async def _awaiting_whatever_it_starts() -> AsyncGenerator[None]:
     """Let the tasks created inside the block run to completion before going on.
 
     This is the ordering probe itself. Which tasks to wait for is settled by

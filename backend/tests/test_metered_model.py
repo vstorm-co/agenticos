@@ -6,8 +6,6 @@ they are sent and booked to the run's ledger afterwards. The plain request path 
 exercised through every capability that uses it; this is the streamed one.
 """
 
-from __future__ import annotations
-
 from decimal import Decimal
 from unittest.mock import AsyncMock
 

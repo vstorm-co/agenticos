@@ -32,8 +32,6 @@ in the Markdown a reader sees, rather than a second copy in front matter that
 drifts from it.
 """
 
-from __future__ import annotations
-
 import html
 import json
 import re

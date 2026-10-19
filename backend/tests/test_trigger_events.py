@@ -7,8 +7,6 @@ real HMAC-SHA256 - a test that faked the signature would prove nothing about the
 verifier.
 """
 
-from __future__ import annotations
-
 import hashlib
 import hmac
 

@@ -22,8 +22,6 @@ from a module logger - so nothing scrubs these lines today (#440). That is why t
 text may go, rather than what it is allowed to contain.
 """
 
-from __future__ import annotations
-
 from enum import Enum
 
 from app.agents.capabilities.budget import BudgetExceeded

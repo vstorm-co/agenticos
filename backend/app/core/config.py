@@ -403,7 +403,7 @@ class Settings(BaseSettings):
     LDAP_KERBEROS_FILTER: str = "(userPrincipalName={principal})"
 
     @model_validator(mode="after")
-    def validate_directory_sign_in(self) -> "Settings":
+    def validate_directory_sign_in(self) -> Settings:
         """A directory configuration that would send a password in the clear, or find nobody, is refused.
 
         Checked at startup rather than at the first sign-in: a typo here would
@@ -468,7 +468,7 @@ class Settings(BaseSettings):
     VAULT_MASTER_KEYS: dict[int, str] = {}
 
     @model_validator(mode="after")
-    def validate_vault_master_keys(self) -> "Settings":
+    def validate_vault_master_keys(self) -> Settings:
         """A deployment holding real credentials must say which key seals them.
 
         An unset master key falls back to `SECRET_KEY`, whose default is a
@@ -784,7 +784,7 @@ class Settings(BaseSettings):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def rag(self) -> "RAGSettings":
+    def rag(self) -> RAGSettings:
         """The RAG settings with nothing of the deployment's in them.
 
         There is no deployment-level half any more: the embedding model, the

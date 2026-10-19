@@ -13,8 +13,6 @@ silently loses or duplicates work:
   runs.
 """
 
-from __future__ import annotations
-
 import base64
 from typing import Any
 

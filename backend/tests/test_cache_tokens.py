@@ -6,8 +6,6 @@ reconciled with a provider's console - "998k input" read as 998k full-price
 tokens when most of them were cache reads.
 """
 
-from __future__ import annotations
-
 from datetime import UTC, datetime
 from decimal import Decimal
 

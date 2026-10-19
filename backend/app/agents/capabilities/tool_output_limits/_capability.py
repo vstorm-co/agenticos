@@ -40,8 +40,6 @@ assembles the single band with the fallbacks the harness README recommends
 run degrades to a cheaper one rather than to a silent drop.
 """
 
-from __future__ import annotations
-
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Literal

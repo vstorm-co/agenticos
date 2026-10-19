@@ -12,8 +12,6 @@ that replaces it - which grant a delivery belongs to, which triggers it fires,
 and what a delivery nobody claims is answered with.
 """
 
-from __future__ import annotations
-
 import contextlib
 import hashlib
 import hmac

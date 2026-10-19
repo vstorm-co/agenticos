@@ -27,8 +27,6 @@ differs is what a platform has to add to it:
   reviewer's name, so the run history shows what steered the run and who sent it.
 """
 
-from __future__ import annotations
-
 import asyncio
 import contextlib
 import logging

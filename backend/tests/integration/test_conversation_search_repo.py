@@ -11,8 +11,6 @@ between an agent and every conversation in the organization, and a mistake in it
 is not a wrong answer - it is one person's threads read out to another.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 

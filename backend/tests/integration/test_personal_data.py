@@ -13,8 +13,6 @@ The second is the one that was actually broken. `UserService.delete` relied on
 cascades, and those two tables have none.
 """
 
-from __future__ import annotations
-
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 

@@ -16,8 +16,6 @@ values shows the predicate isolating real rows. The precedence and the SQL shape
 are pinned in the unit suite (`tests/test_rag_ingest_tenant_scope.py`).
 """
 
-from __future__ import annotations
-
 import json
 import uuid
 from collections.abc import AsyncGenerator
@@ -103,7 +101,7 @@ async def _parent_ids(store: PgVectorStore) -> set[str]:
 
 
 @pytest.fixture(autouse=True)
-async def _clean_runtime_table(engine: AsyncEngine) -> AsyncGenerator[None, None]:
+async def _clean_runtime_table(engine: AsyncEngine) -> AsyncGenerator[None]:
     async with engine.begin() as conn:
         await conn.execute(text(f"DROP TABLE IF EXISTS {TABLE}"))
     yield

@@ -5,8 +5,6 @@ they are exactly the branches that never run during a demo. Each test here
 pins one of them.
 """
 
-from __future__ import annotations
-
 import asyncio
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -783,11 +781,11 @@ class TestLastMileBranches:
         """Rebuilding the embedder per search would reload a model on every turn."""
         import app.agents.capabilities.knowledge._search as search_module
 
-        sentinel = object()
+        marker = object()
         original = search_module._unpooled_service
-        search_module._unpooled_service = sentinel  # type: ignore[assignment]
+        search_module._unpooled_service = marker  # type: ignore[assignment]
         try:
-            assert search_module.get_retrieval_service() is sentinel
+            assert search_module.get_retrieval_service() is marker
         finally:
             search_module._unpooled_service = original
 

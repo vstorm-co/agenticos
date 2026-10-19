@@ -32,7 +32,7 @@ def listener(dsn: str, *, reconnect_cap: float = 30.0, check_every: float = 30.0
         while True:
             try:
                 connection = await asyncpg.connect(dsn)
-            except (OSError, asyncpg.PostgresError, TimeoutError):
+            except OSError, asyncpg.PostgresError, TimeoutError:
                 failures += 1
                 logger.warning("background_listener_connect_failed", exc_info=True)
                 await asyncio.sleep(min(2.0**failures, reconnect_cap))
@@ -71,5 +71,5 @@ async def _until_lost(
             return
         try:
             await asyncio.wait_for(connection.execute("SELECT 1"), timeout=10)
-        except (OSError, asyncpg.PostgresError, asyncpg.InterfaceError, TimeoutError):
+        except OSError, asyncpg.PostgresError, asyncpg.InterfaceError, TimeoutError:
             return

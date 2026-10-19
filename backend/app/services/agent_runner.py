@@ -50,8 +50,6 @@ the middle of a tool call. What is left at run time is a closure that builds an
 agent already resolved, and a recorder that writes one row.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 from collections import Counter
@@ -1341,7 +1339,7 @@ class PreparedRun:
         user_prompt: str | Sequence[UserContent] | None,
         *,
         message_history: Sequence[ModelMessage] | None,
-    ) -> AsyncGenerator[AgentIteration[AgentDeps, str | DeferredToolRequests], None]:
+    ) -> AsyncGenerator[AgentIteration[AgentDeps, str | DeferredToolRequests]]:
         """Iterate the agent's graph, metered, for a surface that streams.
 
         **The meter is here rather than at the call site because a surface that
@@ -3379,7 +3377,7 @@ class AgentRunnerService:
                     delegation.profiles[profile.label] = await self.models.resolve(
                         delegation.ctx, profile_id=profile.id
                     )
-                except (BadRequestError, NotFoundError):
+                except BadRequestError, NotFoundError:
                     logger.warning(
                         "model_profile_not_usable_for_dynamic_specialists",
                         extra={"profile_id": str(profile.id), "label": profile.label},

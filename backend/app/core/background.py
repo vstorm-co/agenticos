@@ -21,8 +21,6 @@ transaction commits - so the task opens its own session, looks for the row by
 id, and under `READ COMMITTED` does not find it (#417).
 """
 
-from __future__ import annotations
-
 import asyncio
 import contextvars
 import logging

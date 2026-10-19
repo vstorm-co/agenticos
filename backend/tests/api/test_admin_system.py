@@ -7,8 +7,6 @@ was verified. A row that says "healthy" and nothing else is what the admin page
 used to render, and it rendered it for services nothing had checked.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from typing import Any
@@ -59,7 +57,7 @@ class _User:
         self.created_at = datetime.now(UTC)
 
 
-def _client(user: _User, mock_redis: Any) -> AsyncGenerator[AsyncClient, None]:
+def _client(user: _User, mock_redis: Any) -> AsyncGenerator[AsyncClient]:
     app.dependency_overrides[get_current_user] = lambda: user
     app.dependency_overrides[get_redis] = lambda: mock_redis
     # SELECT 1, the pgvector capability row (what the image ships, what this role
@@ -72,14 +70,14 @@ def _client(user: _User, mock_redis: Any) -> AsyncGenerator[AsyncClient, None]:
 
 
 @pytest.fixture
-async def admin_client(mock_redis: Any) -> AsyncGenerator[AsyncClient, None]:
+async def admin_client(mock_redis: Any) -> AsyncGenerator[AsyncClient]:
     async with _client(_User("admin"), mock_redis) as client:
         yield client
     app.dependency_overrides.clear()
 
 
 @pytest.fixture
-async def member_client(mock_redis: Any) -> AsyncGenerator[AsyncClient, None]:
+async def member_client(mock_redis: Any) -> AsyncGenerator[AsyncClient]:
     async with _client(_User("user"), mock_redis) as client:
         yield client
     app.dependency_overrides.clear()

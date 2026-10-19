@@ -14,8 +14,6 @@ The recorder wraps a real local workspace in a temporary directory: what it reco
 is what a real backend answered, including the way a real one fails.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path

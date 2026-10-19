@@ -15,8 +15,6 @@ the conversation's own. Which one that is, is decided in
 `app.agents.memory_scope` and never here.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import UUID

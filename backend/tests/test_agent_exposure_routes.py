@@ -10,8 +10,6 @@ That the routes are authorized at all, and by the right mechanism, is asserted
 through the real app in `tests/api/test_platform_routes.py`.
 """
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import AsyncMock, MagicMock
 

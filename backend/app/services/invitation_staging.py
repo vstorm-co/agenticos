@@ -18,8 +18,6 @@ a URL. Redis is the store for the same reason - ephemeral, expiring, and never a
 at-rest record - so nothing here goes through the vault.
 """
 
-from __future__ import annotations
-
 import secrets
 from typing import TYPE_CHECKING
 

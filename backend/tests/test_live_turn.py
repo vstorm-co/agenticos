@@ -5,8 +5,6 @@ on a subscriber's channel only if it was published after the subscription - so
 the seam between the replayed trace and the live channel is tested as it runs.
 """
 
-from __future__ import annotations
-
 import asyncio
 import json
 from collections.abc import AsyncIterator, Callable, Iterator

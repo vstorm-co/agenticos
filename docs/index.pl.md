@@ -1,5 +1,5 @@
 ---
-source_sha: "9aaadca44156"
+source_sha: "b04c9562a2e8"
 ---
 
 <div class="agenticos-hero" markdown>
@@ -16,7 +16,7 @@ Daj agentom AI konkretne zadania w swoim zespole. Buduj agentów w przeglądarce
 <a href="https://github.com/vstorm-co/agenticos/actions"><img src="https://img.shields.io/github/actions/workflow/status/vstorm-co/agenticos/ci.yml?branch=main&label=tests" alt="Tests"></a>
 <a href="https://github.com/vstorm-co/agenticos/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="Licence"></a>
 <a href="https://github.com/vstorm-co/agenticos"><img src="https://img.shields.io/github/stars/vstorm-co/agenticos?style=flat" alt="Stars"></a>
-<img src="https://img.shields.io/badge/python-3.12-blue" alt="Python 3.12">
+<img src="https://img.shields.io/badge/python-3.15-blue" alt="Python 3.15">
 </p>
 
 <p class="agenticos-hero__links" markdown>
@@ -138,7 +138,7 @@ Dlatego AgenticOS wyprowadza agenta poza kod, a w zamian otacza go nadzorem.
 Docker i Docker Compose. To cała lista — Postgres (z pgvector), Redis, API,
 worker i konsola wstają razem.
 
-Wolisz uruchamiać usługi ręcznie? Python 3.12, Node z [bun](https://bun.sh),
+Wolisz uruchamiać usługi ręcznie? Python 3.15, Node z [bun](https://bun.sh),
 PostgreSQL 16 z [pgvector](https://github.com/pgvector/pgvector) oraz Redis.
 
 ## Instalacja { #installation }

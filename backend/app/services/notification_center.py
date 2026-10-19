@@ -7,8 +7,6 @@ rows inside the caller's own transaction; the four read methods apply Decision
 mark-all-read would otherwise return gate-blind.
 """
 
-from __future__ import annotations
-
 import contextlib
 import logging
 import uuid

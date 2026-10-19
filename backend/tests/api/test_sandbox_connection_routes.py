@@ -8,8 +8,6 @@ carry: the credential. A response holding the service token would be a token in 
 browser, and that token opens a session that runs commands on the host.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager

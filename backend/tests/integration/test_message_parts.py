@@ -13,8 +13,6 @@ other schema, and a mock cannot tell you whether the value that reached Postgres
 still had the space in it.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

@@ -17,8 +17,6 @@ against a tool pydantic-ai builds itself, so a change on that side fails here
 rather than leaving these tools speaking a dialect of their own.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 
 

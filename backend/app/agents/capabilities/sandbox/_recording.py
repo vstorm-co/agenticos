@@ -32,8 +32,6 @@ a time while it runs. That is the trade: no connection per call, and no second
 transaction that could commit a log for a run that then rolled back.
 """
 
-from __future__ import annotations
-
 import logging
 import shlex
 import time

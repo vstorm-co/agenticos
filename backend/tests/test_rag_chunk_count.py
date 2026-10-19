@@ -11,8 +11,6 @@ pin the number to the path it travels: the pipeline counts, the result carries,
 the worker records.
 """
 
-from __future__ import annotations
-
 import inspect
 import uuid
 from collections.abc import AsyncIterator

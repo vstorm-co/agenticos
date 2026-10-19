@@ -7,8 +7,6 @@ nothing anywhere says so. The tests below are therefore about references and
 log lines rather than return values.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 

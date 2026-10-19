@@ -8,8 +8,6 @@ timeout rather than a withdrawal: `revoked` says somebody took the invitation
 back, which is a different fact from the one that happened (#456).
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch

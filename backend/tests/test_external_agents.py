@@ -1,7 +1,5 @@
 """Registering remote A2A agents, delegating to them, and serving ours (#2092)."""
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from types import SimpleNamespace

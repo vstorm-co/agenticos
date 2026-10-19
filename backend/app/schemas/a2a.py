@@ -11,8 +11,6 @@ Only what is used is modelled. Unknown fields are kept rather than refused
 platform has no reason to reject.
 """
 
-from __future__ import annotations
-
 from typing import Any, Literal
 from urllib.parse import urlsplit
 

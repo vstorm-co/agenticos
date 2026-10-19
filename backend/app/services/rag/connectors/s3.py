@@ -13,8 +13,6 @@ What is left here is boto3's vocabulary and nothing else - the listing loop, the
 or GCS connector is a client rather than a second copy of them (#988).
 """
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Iterator
 from datetime import datetime

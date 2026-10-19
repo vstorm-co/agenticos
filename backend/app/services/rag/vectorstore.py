@@ -327,7 +327,7 @@ class BaseVectorStore(ABC):
 
     def _build_chunk_metadata(
         self,
-        chunk: "DocumentPageChunk",
+        chunk: DocumentPageChunk,
         document: Document,
         tenant: UUID | None = None,
     ) -> dict[str, Any]:
@@ -540,7 +540,7 @@ class PgVectorStore(BaseVectorStore):
         self,
         settings: RAGSettings,
         embedding_service: EmbeddingService,
-        resolver: "EmbeddingResolver",
+        resolver: EmbeddingResolver,
         *,
         engine: AsyncEngine,
     ):
@@ -805,7 +805,9 @@ class PgVectorStore(BaseVectorStore):
             ON CONFLICT (id) DO UPDATE SET content = :content, embedding = :embedding, metadata = :metadata
         """)
         async with self.async_session() as session:
-            for batch in batched(enumerate(document.chunked_pages), _CHUNK_INSERT_BATCH):
+            for batch in batched(
+                enumerate(document.chunked_pages), _CHUNK_INSERT_BATCH, strict=False
+            ):
                 await session.execute(
                     statement,
                     [

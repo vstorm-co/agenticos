@@ -14,8 +14,6 @@ open while somebody signs in can offer it; every other surface keeps briefing
 the model that the service is unavailable.
 """
 
-from __future__ import annotations
-
 import asyncio
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field

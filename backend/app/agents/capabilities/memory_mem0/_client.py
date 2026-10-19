@@ -27,8 +27,6 @@ cannot mix two organizations', two agents', or two owners' memories. It is built
 from the run's audience, never from the model.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 import os

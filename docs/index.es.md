@@ -1,5 +1,5 @@
 ---
-source_sha: "9aaadca44156"
+source_sha: "b04c9562a2e8"
 ---
 
 <div class="agenticos-hero" markdown>
@@ -16,7 +16,7 @@ Pon a los agents de IA a trabajar en las tareas de tu equipo. Crea agents en el 
 <a href="https://github.com/vstorm-co/agenticos/actions"><img src="https://img.shields.io/github/actions/workflow/status/vstorm-co/agenticos/ci.yml?branch=main&label=tests" alt="Tests"></a>
 <a href="https://github.com/vstorm-co/agenticos/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="Licence"></a>
 <a href="https://github.com/vstorm-co/agenticos"><img src="https://img.shields.io/github/stars/vstorm-co/agenticos?style=flat" alt="Stars"></a>
-<img src="https://img.shields.io/badge/python-3.12-blue" alt="Python 3.12">
+<img src="https://img.shields.io/badge/python-3.15-blue" alt="Python 3.15">
 </p>
 
 <p class="agenticos-hero__links" markdown>
@@ -145,7 +145,7 @@ alrededor.
 Docker y Docker Compose. Esa es la lista entera — Postgres (con pgvector),
 Redis, la API, el worker y la consola arrancan todos juntos.
 
-¿Prefieres ejecutar los servicios a mano? Python 3.12, Node con
+¿Prefieres ejecutar los servicios a mano? Python 3.15, Node con
 [bun](https://bun.sh), PostgreSQL 16 con
 [pgvector](https://github.com/pgvector/pgvector) y Redis.
 

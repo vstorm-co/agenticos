@@ -12,8 +12,6 @@ a specific sequence that the undefined heap order without a tiebreaker does not
 reproduce, so each test fails if the tiebreaker is dropped.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 

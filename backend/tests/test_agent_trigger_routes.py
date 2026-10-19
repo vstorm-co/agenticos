@@ -8,8 +8,6 @@ routes are authorized at all, and by resolving `agents:run` per row rather than 
 role gate, is proven through the real app in `tests/api/test_platform_routes.py`.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch

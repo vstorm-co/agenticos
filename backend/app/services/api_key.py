@@ -10,8 +10,6 @@ The plaintext is in exactly one response, the one that creates it. It is never
 logged, audited or returned again; refusals name the key by its prefix at most.
 """
 
-from __future__ import annotations
-
 import hashlib
 import secrets
 from dataclasses import dataclass

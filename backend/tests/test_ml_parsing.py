@@ -7,8 +7,6 @@ document that yields nothing answers, and that the temporary directory the
 bytes were written to is gone whichever way the call ended.
 """
 
-from __future__ import annotations
-
 import contextlib
 import threading
 from pathlib import Path

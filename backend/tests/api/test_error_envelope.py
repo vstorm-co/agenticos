@@ -14,8 +14,6 @@ Its vehicle is `GET /users/avatar/{user_id}`, the one route that reaches a
 service without authenticating first - the handler it exercises is global.
 """
 
-from __future__ import annotations
-
 import json
 import logging
 from datetime import UTC, datetime

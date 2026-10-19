@@ -17,8 +17,6 @@ owns a dedicated engine it disposes itself, so no session is left holding
 `app_admin_audit_logs` when the next test's reset truncates it.
 """
 
-from __future__ import annotations
-
 import asyncio
 import uuid
 

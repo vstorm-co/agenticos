@@ -11,8 +11,6 @@ a single top-level `from ...channels.telegram import TelegramAdapter` or
 with no other signal - so this is the signal.
 """
 
-from __future__ import annotations
-
 import subprocess
 import sys
 from pathlib import Path

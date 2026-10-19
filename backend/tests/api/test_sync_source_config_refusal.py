@@ -11,8 +11,6 @@ knowledge-base lookup are mocked. The config is refused before any row is
 written, so nothing here reaches the database.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager

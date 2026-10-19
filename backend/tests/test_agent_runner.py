@@ -1860,7 +1860,7 @@ class TestTheRunsBudgetReachesAmbientCalls:
         seen: dict[str, bool] = {}
 
         class _Iteration:
-            async def __aenter__(self) -> "_Iteration":
+            async def __aenter__(self) -> _Iteration:
                 seen["affordable"] = await can_afford_ambient_call()
                 return self
 

@@ -253,7 +253,7 @@ class PyMuPDFParser(BaseDocumentParser):
             return ""
         return await image_describer.describe(image_bytes, "image/png")
 
-    def _extract_images(self, doc: Any, page: Any) -> list["DocumentImage"]:
+    def _extract_images(self, doc: Any, page: Any) -> list[DocumentImage]:
         """Extract images from page for LLM description."""
         images = []
         for img_info in page.get_images(full=True):
