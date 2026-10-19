@@ -1071,6 +1071,16 @@ async def test_the_estimate_counts_the_judge_and_the_agents_own_cap(db) -> None:
     assert estimate.agent_after_usd == Decimal("1.80")
     assert estimate.rerun_ceiling_usd == Decimal("0.80")
 
+    # A draft with a looser cap against v7: v7 stops first, so its cap decides.
+    agent.draft_spec = {**agent.draft_spec, "budget": {"monthly_usd": 5}}
+    await db.flush()
+    paired = await service.estimate(
+        ctx,
+        agent.id,
+        EvalRunRequest(dataset_id=dataset.id, candidate="draft", paired_baseline=True),
+    )
+    assert paired.agent_remaining_usd == Decimal("2")
+
 
 async def test_a_model_with_no_history_is_priced_at_its_own_price(db) -> None:
     """A typical case at the model's price, not a flat guess eighty times too high."""

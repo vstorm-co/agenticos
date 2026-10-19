@@ -737,9 +737,19 @@ class EvalRunService:
         )
 
     async def _agent_left(self, ctx: AuthContext, plan: RunPlan) -> Decimal | None:
-        cap = plan.arms[0].spec.budget.monthly_usd if plan.arms[0].spec.budget else None
-        if cap is None:
+        """What the agent has left this month under the tightest cap of the sides it runs.
+
+        Every side bills the same agent and each is stopped by its own spec's cap,
+        so the lowest one decides how far the run gets.
+        """
+        caps = [
+            arm.spec.budget.monthly_usd
+            for arm in plan.arms
+            if arm.spec.budget and arm.spec.budget.monthly_usd is not None
+        ]
+        if not caps:
             return None
+        cap = min(caps)
         spent = await agent_run_repo.sum_cost_since(
             self.db,
             organization_id=ctx.organization_id,
