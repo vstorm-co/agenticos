@@ -1632,8 +1632,10 @@ class TestVerdicts:
         tenant = await _tenant(db)
         dataset, case = await _dataset(db, tenant, scoring=DatasetScoring())
         run = await _scored_run(db, tenant)
-        older = await _score_for_an_eval(db, tenant, dataset, case, run, uuid.uuid4())
-        newer = await _score_for_an_eval(db, tenant, dataset, case, run, uuid.uuid4())
+        older_run = await _eval_run(db, tenant, dataset, run)
+        newer_run = await _eval_run(db, tenant, dataset, run)
+        older = await _score_for_an_eval(db, tenant, dataset, case, run, older_run)
+        newer = await _score_for_an_eval(db, tenant, dataset, case, run, newer_run)
         await case_score_repo.update(
             db, score=older, update_data={"created_at": datetime.now(UTC) - timedelta(days=1)}
         )
