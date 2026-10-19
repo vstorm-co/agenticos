@@ -82,10 +82,11 @@ Redis = Annotated[RedisClient, Depends(get_redis)]
 
 
 from app.services.personal_data import PersonalDataService
+from app.services.browser_sign_in import BrowserSignInService
 from app.services.user import UserService
 from app.services.session import SessionService
 from app.services.impersonation import ImpersonationService
-from app.services.ws_auth import authenticate_socket_token
+from app.services.ws_auth import authenticate_socket_key, authenticate_socket_token
 from app.services.oauth_exchange import OAuthExchangeService
 from app.services.conversation import ConversationService
 from app.services.local_service import LocalServiceService
@@ -317,6 +318,9 @@ MemberSvc = Annotated[MemberService, Depends(get_member_service)]
 InvitationSvc = Annotated[InvitationService, Depends(get_invitation_service)]
 InvitationStagingSvc = Annotated[InvitationStagingService, Depends(get_invitation_staging_service)]
 from app.services.group import GroupService
+from app.services.group_sharing import GroupSharingService
+from app.services.group_quality import GroupQualityService
+from app.services.group_spend import GroupSpendService
 from app.services.directory import (
     DirectoryMappingService,
     DirectorySignInService,
@@ -329,6 +333,21 @@ from app.services.directory import (
 def get_group_service(db: DBSession) -> GroupService:
     """Create GroupService instance with database session."""
     return GroupService(db)
+
+
+def get_group_sharing_service(db: DBSession) -> GroupSharingService:
+    """Sharing several resources with a group from its page (#2072)."""
+    return GroupSharingService(db)
+
+
+def get_group_spend_service(db: DBSession) -> GroupSpendService:
+    """What each department spent this month (#2072)."""
+    return GroupSpendService(db)
+
+
+def get_group_quality_service(db: DBSession) -> GroupQualityService:
+    """How well agents answer each department's people (#2101)."""
+    return GroupQualityService(db)
 
 
 def get_directory_mapping_service(db: DBSession) -> DirectoryMappingService:
@@ -355,18 +374,50 @@ def get_directory_sync_service(db: DBSession) -> DirectorySyncService:
 
 
 GroupSvc = Annotated[GroupService, Depends(get_group_service)]
+GroupSharingSvc = Annotated[GroupSharingService, Depends(get_group_sharing_service)]
+GroupSpendSvc = Annotated[GroupSpendService, Depends(get_group_spend_service)]
+GroupQualitySvc = Annotated[GroupQualityService, Depends(get_group_quality_service)]
 DirectorySyncSvc = Annotated[DirectorySyncService, Depends(get_directory_sync_service)]
 DirectoryMappingSvc = Annotated[DirectoryMappingService, Depends(get_directory_mapping_service)]
 DirectorySignInSvc = Annotated[DirectorySignInService, Depends(get_directory_sign_in_service)]
 from app.core.exceptions import (
     AuthenticationError,
     AuthorizationError,
+    BadRequestError,
     NotFoundError,
     RateLimitError,
 )
 from app.services import rate_limit
+from app.core.audit import set_api_key
 from app.core.security import encode_untrusted, verify_token
 from app.db.models.user import User
+from app.api.public_api import is_public_route
+from app.services.api_key import ApiKeyService, KeyCaller, is_api_key
+from app.services.assistant import AssistantService
+from app.services.oauth_server import OAuthServerService
+from app.services.change_feed import CONSOLE_TAB_HEADER, ChangeOrigin, console_tab
+from app.schemas.change_event import ChangeSurface
+
+
+def get_api_key_service(db: DBSession) -> ApiKeyService:
+    return ApiKeyService(db)
+
+
+ApiKeySvc = Annotated[ApiKeyService, Depends(get_api_key_service)]
+
+
+def get_assistant_service(db: DBSession) -> AssistantService:
+    return AssistantService(db)
+
+
+AssistantSvc = Annotated[AssistantService, Depends(get_assistant_service)]
+
+
+def get_oauth_server_service(db: DBSession) -> OAuthServerService:
+    return OAuthServerService(db)
+
+
+OAuthServerSvc = Annotated[OAuthServerService, Depends(get_oauth_server_service)]
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
 oauth2_scheme_optional = OAuth2PasswordBearer(
@@ -374,13 +425,48 @@ oauth2_scheme_optional = OAuth2PasswordBearer(
 )
 
 
+async def _authenticate_api_key(request: Request, token: str, api_keys: ApiKeyService) -> User:
+    """Resolve an organization key to its issuer, on a public route only (#1794).
+
+    The route is checked before the key is looked up: a key presented to a
+    console-only route is refused the same way whether or not it is valid, so the
+    refusal says nothing about the key. What the key may do is carried on the
+    request for :func:`get_auth_context`, which every public route depends on.
+    """
+    route = request.scope.get("route")
+    if not is_public_route(route):
+        raise AuthorizationError(
+            message="API keys are not accepted on this endpoint",
+            details={"path": getattr(route, "path", request.url.path)},
+        )
+    refused = await rate_limit.key_attempt_refused(request, token)
+    if refused is not None:
+        _refuse_if_over(*refused)
+    try:
+        caller = await api_keys.authenticate(token)
+    except AuthenticationError:
+        await rate_limit.count_refused_key(request)
+        raise
+    request.state.api_key_caller = caller
+    set_api_key(caller.api_key_id, caller.prefix)
+    return caller.user
+
+
+def _key_caller(request: Request) -> KeyCaller | None:
+    """The organization key this request authenticated with, if it did."""
+    caller = getattr(request.state, "api_key_caller", None)
+    return caller if isinstance(caller, KeyCaller) else None
+
+
 async def get_current_user(
+    request: Request,
     token: Annotated[str, Depends(oauth2_scheme)],
     user_service: UserSvc,
     impersonation: ImpersonationSvc,
     session: SessionSvc,
+    api_keys: ApiKeySvc,
 ) -> User:
-    """Get current authenticated user from JWT token.
+    """Get current authenticated user from JWT token, or an organization key's issuer.
 
     An impersonated token - one carrying `act` - is bound to the session row it
     names before the subject is loaded, so an impersonation that has been ended
@@ -395,7 +481,10 @@ async def get_current_user(
     Raises:
         AuthenticationError: If token is invalid, its session or impersonation has
             ended, or the user is not found.
+        AuthorizationError: An organization key on a route outside the public API.
     """
+    if is_api_key(token):
+        return await _authenticate_api_key(request, token, api_keys)
 
     payload = verify_token(token)
     if payload is None:
@@ -463,15 +552,32 @@ from app.repositories import member_repo as _member_repo
 
 
 async def get_active_organization(
+    request: Request,
     user: CurrentUser,
     db: DBSession,
     x_organization_id: UUID | None = Header(None),
 ) -> Organization:
     """Resolve the active Organization for the current request.
 
-    Reads `X-Organization-Id` header. Falls back to the user's Personal Org
-    when the header is absent. Raises 404 if the user is not a member.
+    An organization key carries its organization, so a key-authenticated request
+    acts there and nowhere else; an `X-Organization-Id` naming another one is a
+    400 naming the header rather than a silent switch (#1903).
+
+    A session reads the `X-Organization-Id` header and falls back to the user's
+    Personal Org when it is absent. Raises 404 if the user is not a member.
     """
+    caller = _key_caller(request)
+    if caller is not None:
+        organization_id = caller.context.organization_id
+        if x_organization_id is not None and x_organization_id != organization_id:
+            raise BadRequestError(
+                message=(
+                    "An API key acts in its own organization; X-Organization-Id names "
+                    "another one. Leave the header out or send the key's organization."
+                ),
+                details={"header": "X-Organization-Id"},
+            )
+        return caller.organization
 
     if x_organization_id is None:
         org = await organization_repo.get_personal_for_user(db, user.id)
@@ -522,6 +628,16 @@ def get_agent_registry_service(db: DBSession) -> AgentRegistryService:
 
 
 AgentRegistrySvc = Annotated[AgentRegistryService, Depends(get_agent_registry_service)]
+
+
+from app.services.knowledge_reach import KnowledgeReachService
+
+
+def get_knowledge_reach_service(db: DBSession) -> KnowledgeReachService:
+    return KnowledgeReachService(db)
+
+
+KnowledgeReachSvc = Annotated[KnowledgeReachService, Depends(get_knowledge_reach_service)]
 
 from app.services.agent_exposure import AgentExposureService
 
@@ -678,6 +794,14 @@ def get_memory_service(db: DBSession) -> MemoryService:
 MemorySvc = Annotated[MemoryService, Depends(get_memory_service)]
 
 
+def get_browser_sign_in_service(db: DBSession) -> BrowserSignInService:
+    """Create BrowserSignInService instance with database session."""
+    return BrowserSignInService(db)
+
+
+BrowserSignInSvc = Annotated[BrowserSignInService, Depends(get_browser_sign_in_service)]
+
+
 def get_skill_proposal_service(db: DBSession) -> SkillProposalService:
     return SkillProposalService(db)
 
@@ -696,27 +820,116 @@ def get_sharing_service(db: DBSession) -> SharingService:
 SharingSvc = Annotated[SharingService, Depends(get_sharing_service)]
 
 
-async def get_auth_context(user: CurrentUser, org: ActiveOrg, db: DBSession) -> AuthContext:
+def _attributed(
+    request: Request, user: User, ctx: AuthContext, surface: ChangeSurface
+) -> AuthContext:
+    """Return `ctx`, recording who a change this request makes is attributed to.
+
+    Read by the change feed once the response is out (#2061).
+    """
+    request.state.change_origin = ChangeOrigin(
+        organization_id=ctx.organization_id,
+        actor_user_id=user.id,
+        actor_name=user.full_name or user.email,
+        surface=surface,
+        tab=console_tab(request.headers.get(CONSOLE_TAB_HEADER)),
+    )
+    return ctx
+
+
+async def get_auth_context(
+    request: Request, user: CurrentUser, org: ActiveOrg, db: DBSession
+) -> AuthContext:
     """Build the caller's authorization context for the active organization.
 
     One membership lookup per request; everything downstream reads permissions
-    off the returned context instead of querying roles again.
+    off the returned context instead of querying roles again. A key-authenticated
+    request already has its context, built from the issuer's current membership
+    and narrowed to the key's scopes, so it is returned as it is.
     """
+    caller = _key_caller(request)
+    if caller is not None:
+        return _attributed(request, user, caller.context, caller.surface)
     membership = await _member_repo.get(db, organization_id=org.id, user_id=user.id)
     if membership is None and not user.is_app_admin:
         raise NotFoundError(
             message="Organization not found or access denied",
             details={"org_id": str(org.id)},
         )
-    return AuthContext(
+    ctx = AuthContext(
         user_id=user.id,
         organization_id=org.id,
         role=membership.role if membership else "",
         is_app_admin=user.is_app_admin,
     )
+    return _attributed(request, user, ctx, "console")
 
 
 Auth = Annotated[AuthContext, Depends(get_auth_context)]
+
+
+async def get_path_org_context(
+    org_id: UUID, request: Request, user: CurrentUser, db: DBSession
+) -> AuthContext:
+    """The caller's context in the organization a `/orgs/{org_id}/...` path names.
+
+    For a session the path decides, the way a console page that names an
+    organization *is* that organization (#1032): the membership is read for
+    `org_id`, not for the `X-Organization-Id` header. An organization key acts
+    in its own organization only, so a path naming another answers as missing,
+    and the key's narrowed context is what comes back (#2057).
+
+    Raises:
+        NotFoundError: Not a member of `org_id`, or a key from another one - the
+            same answer, so an organization id cannot be probed.
+    """
+    caller = _key_caller(request)
+    if caller is not None:
+        if caller.context.organization_id != org_id:
+            raise NotFoundError(
+                message="Organization not found or access denied", details={"org_id": org_id}
+            )
+        return _attributed(request, user, caller.context, caller.surface)
+    membership = await _member_repo.get(db, organization_id=org_id, user_id=user.id)
+    if membership is None and not user.is_app_admin:
+        raise NotFoundError(
+            message="Organization not found or access denied", details={"org_id": org_id}
+        )
+    ctx = AuthContext(
+        user_id=user.id,
+        organization_id=org_id,
+        role=membership.role if membership else "",
+        is_app_admin=user.is_app_admin,
+    )
+    return _attributed(request, user, ctx, "console")
+
+
+PathOrgAuth = Annotated[AuthContext, Depends(get_path_org_context)]
+
+
+def _refuse_missing(ctx: AuthContext, perms: tuple[Perm, ...]) -> AuthContext:
+    missing = [perm.value for perm in perms if not ctx.has(perm)]
+    if missing:
+        raise AuthorizationError(
+            message="Insufficient permissions",
+            details={"required": missing, "org_id": str(ctx.organization_id)},
+        )
+    return ctx
+
+
+def require_in_path_org(*perms: Perm) -> Callable[..., Awaitable[AuthContext]]:
+    """:func:`require`, for a route whose organization is in its path.
+
+    Usage::
+
+        @router.patch("/{org_id}/members/{user_id}",
+                      dependencies=[Depends(require_in_path_org(Perm.MEMBERS_MANAGE))])
+    """
+
+    async def dependency(ctx: PathOrgAuth) -> AuthContext:
+        return _refuse_missing(ctx, perms)
+
+    return dependency
 
 
 def require(*perms: Perm) -> Callable[..., Awaitable[AuthContext]]:
@@ -734,15 +947,37 @@ def require(*perms: Perm) -> Callable[..., Awaitable[AuthContext]]:
     """
 
     async def dependency(ctx: Auth) -> AuthContext:
-        missing = [perm.value for perm in perms if not ctx.has(perm)]
-        if missing:
-            raise AuthorizationError(
-                message="Insufficient permissions",
-                details={"required": missing, "org_id": str(ctx.organization_id)},
-            )
-        return ctx
+        return _refuse_missing(ctx, perms)
 
     return dependency
+
+
+def key_needs(perm: Perm) -> Callable[..., Awaitable[None]]:
+    """Admit a key to a public route only when it was issued for `perm`.
+
+    For a route a session uses with no organization permission at all - a chat
+    attachment is the person's own file - but that a key reaches only for what it
+    was issued: uploading a file for an agent run is `agents:run` work.
+    """
+
+    async def dependency(ctx: Auth) -> None:
+        # Through the auth context, as every public route goes: it is the narrowed
+        # one for a key, and `key_allows` is always true for a session.
+        if not ctx.key_allows(perm):
+            raise AuthorizationError(
+                message=f"This API key was not issued for {perm.value}",
+                details={"permission": perm.value},
+            )
+
+    return dependency
+
+
+def _limit_caller(ctx: AuthContext) -> str:
+    """Who a per-caller limit counts: the key when one is used, so each script an
+    issuer runs has its own share instead of draining the issuer's."""
+    if ctx.api_key_id is not None:
+        return f"key:{ctx.api_key_id}"
+    return f"user:{ctx.subject_id}"
 
 
 async def limit_agent_run(ctx: Auth) -> None:
@@ -763,7 +998,7 @@ async def limit_agent_run(ctx: Auth) -> None:
     """
     decision = await rate_limit.consume(
         surface="agent_run",
-        caller=f"user:{ctx.subject_id}",
+        caller=_limit_caller(ctx),
         limit=rate_limit.run_limit(),
     )
     _refuse_if_over(decision, "Too many runs in the last minute. Wait and try again.")
@@ -784,7 +1019,7 @@ async def limit_ml_call(ctx: Auth) -> None:
     """
     decision = await rate_limit.consume(
         surface="ml_call",
-        caller=f"user:{ctx.subject_id}",
+        caller=_limit_caller(ctx),
         limit=rate_limit.ml_limit(),
     )
     _refuse_if_over(decision, "Too many ML service calls in the last minute. Wait and try again.")
@@ -1040,16 +1275,36 @@ async def get_current_user_ws(
     # this a session revoked afterwards keeps being served (#1437).
     websocket.state.auth_token = auth_token
 
+    # The limits a key meets on a request, met before the handshake opens a
+    # database session for it.
+    if is_api_key(auth_token):
+        refused = await rate_limit.key_attempt_refused(websocket, auth_token)
+        if refused is not None:
+            raise WebSocketException(code=4029, reason=refused[1])
+
     async with get_db_context() as db:
         try:
-            user = await authenticate_socket_token(db, auth_token)
+            caller = await authenticate_socket_key(db, auth_token)
+            user = (
+                caller.user
+                if caller is not None
+                else await authenticate_socket_token(db, auth_token)
+            )
         except AuthenticationError as exc:
+            if is_api_key(auth_token):
+                await rate_limit.count_refused_key(websocket)
             raise WebSocketException(code=4001, reason=exc.message) from None
+        # The organization and the narrowed context travel with the socket, so
+        # the organization comes from the key rather than from a query parameter.
+        websocket.state.api_key_caller = caller
 
         # Eagerly load all columns, then detach from session to avoid
         # "instance not bound to a Session" errors after the context manager exits
         await db.refresh(user)
         db.expunge(user)
+        if caller is not None:
+            await db.refresh(caller.organization)
+            db.expunge(caller.organization)
         return user
 
 
@@ -1057,6 +1312,7 @@ CurrentUserWS = Annotated[User, Depends(get_current_user_ws)]
 
 
 async def get_active_organization_ws(
+    websocket: WebSocket,
     user: CurrentUserWS,
     organization_id: UUID | None = Query(None),
 ) -> Organization:
@@ -1077,6 +1333,12 @@ async def get_active_organization_ws(
             non-existent org return the same reason so the socket cannot be used
             to probe which organizations exist.
     """
+
+    caller = getattr(websocket.state, "api_key_caller", None)
+    if isinstance(caller, KeyCaller):
+        if organization_id is not None and organization_id != caller.organization.id:
+            raise WebSocketException(code=4003, reason="Organization access denied")
+        return caller.organization
 
     async with get_db_context() as db:
         if organization_id is None:

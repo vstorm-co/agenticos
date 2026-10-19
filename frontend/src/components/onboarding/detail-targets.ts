@@ -14,6 +14,7 @@ import {
   KB_DETAIL,
   ORG_DIRECTORY,
   ORG_GROUPS,
+  GROUP_DETAIL,
   ORG_MEMBERS,
   ORG_RETENTION,
   ORG_ROLES,
@@ -24,6 +25,7 @@ import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
 import type { AgentList } from "@/types/agents";
 import type { DatasetList } from "@/types/datasets";
+import type { GroupList } from "@/types/groups";
 import type { KnowledgeBaseList } from "@/types/knowledge-base";
 import type { OrganizationList } from "@/types/organization";
 
@@ -49,6 +51,7 @@ export const FETCHED_DETAIL_PAGES: ReadonlySet<string> = new Set([
   AGENT_BUILDER,
   KB_DETAIL,
   DATASET_DETAIL,
+  GROUP_DETAIL,
   ORG_MEMBERS,
   ORG_RETENTION,
   ORG_ROLES,
@@ -90,7 +93,7 @@ export function useDetailTargets(enabled: boolean): Record<string, ResolvedDetai
     enabled,
   });
   const agentId =
-    agents.data?.items.find((agent) => agent.slug === "getting-started")?.id ??
+    agents.data?.items.find((agent) => agent.slug === "claude-code-like")?.id ??
     agents.data?.items[0]?.id ??
     null;
 
@@ -140,6 +143,15 @@ export function useDetailTargets(enabled: boolean): Record<string, ResolvedDetai
     null;
   const orgPending = enabled && !routeOrgId && !activeOrgId && orgs.isPending;
 
+  // The department page opens on the organization's first group, read under the
+  // key `useGroups` caches the whole list under.
+  const groups = useQuery({
+    queryKey: qk.organizations.groups(activeOrgId ?? ""),
+    queryFn: () => apiClient.get<GroupList>(`/orgs/${activeOrgId}/groups`),
+    enabled: enabled && !!activeOrgId,
+  });
+  const groupId = groups.data?.items[0]?.id ?? null;
+
   return useMemo(
     () => ({
       [AGENT_BUILDER]: {
@@ -174,6 +186,10 @@ export function useDetailTargets(enabled: boolean): Record<string, ResolvedDetai
         pending: orgPending,
         href: orgId ? ROUTES.ORG_DIRECTORY(orgId) : null,
       },
+      [GROUP_DETAIL]: {
+        pending: enabled && !!activeOrgId && groups.isPending,
+        href: groupId ? ROUTES.GROUP_DETAIL(groupId) : null,
+      },
       // Two "?"-only sections with nothing to fetch. Settings resolves to its own
       // first page for the rare navigation into it, but its stop is really shown in
       // place on whichever settings page the reader opened help from. A workspace
@@ -193,6 +209,9 @@ export function useDetailTargets(enabled: boolean): Record<string, ResolvedDetai
       datasetId,
       orgPending,
       orgId,
+      activeOrgId,
+      groups.isPending,
+      groupId,
     ],
   );
 }

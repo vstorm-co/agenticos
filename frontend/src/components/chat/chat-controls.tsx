@@ -199,7 +199,7 @@ export function ChatControls({
           <YourConnections />
         </div>
 
-        <div className="border-foreground/10 text-muted-foreground flex items-center justify-between border-t px-4 py-2 font-mono text-[11px] tracking-wider uppercase">
+        <div className="border-foreground/10 text-muted-foreground flex items-center justify-between border-t px-4 py-2 font-mono text-xs tracking-wider uppercase">
           <span className="inline-flex items-center gap-1.5">
             <span
               aria-hidden

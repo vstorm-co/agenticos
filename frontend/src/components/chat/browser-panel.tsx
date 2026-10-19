@@ -1,185 +1,87 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
-import { Globe, X } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useEffect } from "react";
 
+import { useLiveBrowse } from "@/hooks/use-live-browse";
 import { browseById, isRunning, type Browse } from "@/lib/browse";
-import { cn } from "@/lib/utils";
-import {
-  MAX_PANEL_WIDTH,
-  MIN_PANEL_WIDTH,
-  useBrowserPanelStore,
-} from "@/stores/browser-panel-store";
-import { Outcome, StepRow, Viewport } from "./browser-view";
-
-/** How much one arrow key moves the edge, for resizing without a pointer. */
-const KEY_STEP = 40;
+import { useBrowserPanelStore } from "@/stores/browser-panel-store";
+import type { PageComment } from "./browser-comment";
+import { BrowserWindow } from "./browser-window";
 
 /**
- * The drag handle on the panel's inner edge.
+ * One of the conversation's browses, full screen.
  *
- * Pointer capture rather than window listeners: the pointer leaves this element
- * on the first millimetre of every drag, and `setPointerCapture` is what keeps
- * the events coming to it without a global `mousemove` that has to be torn down
- * on a component that may unmount mid-drag.
- *
- * It is also a `separator` with arrow keys, because a width is a real setting
- * and dragging is not available to everyone.
+ * A browse lives under the message that started it (`TurnBrowses`); this is where
+ * one goes when somebody maximises it, to read a dense page or work in it at the
+ * size of the screen. Restoring puts it back under the message. Taking over
+ * happens here as it does there - the live socket is this view's while it is open.
  */
-function ResizeHandle({ width, onResize }: { width: number; onResize: (next: number) => void }) {
-  const t = useTranslations("chat");
-
-  const onPointerMove = useCallback(
-    (event: React.PointerEvent<HTMLDivElement>) => {
-      if (event.buttons === 0) return;
-      // The panel is pinned to the right edge, so its width is the distance
-      // from the pointer to that edge.
-      onResize(window.innerWidth - event.clientX);
-    },
-    [onResize],
-  );
-
-  return (
-    <div
-      // `slider`, not `separator`: this is a control that sets a value, it
-      // reports one through `aria-valuenow`, and the arrow keys change it. A
-      // separator that happens to be draggable is the other thing - and it is
-      // also what the a11y lint refuses to let take focus.
-      role="slider"
-      aria-orientation="vertical"
-      aria-label={t("browserResize")}
-      aria-valuenow={width}
-      aria-valuemin={MIN_PANEL_WIDTH}
-      aria-valuemax={MAX_PANEL_WIDTH}
-      tabIndex={0}
-      onPointerDown={(event) => event.currentTarget.setPointerCapture(event.pointerId)}
-      onPointerMove={onPointerMove}
-      onKeyDown={(event) => {
-        if (event.key === "ArrowLeft") onResize(width + KEY_STEP);
-        if (event.key === "ArrowRight") onResize(width - KEY_STEP);
-      }}
-      className="hover:bg-brand/30 focus-visible:bg-brand/40 absolute inset-y-0 left-0 w-1.5 cursor-col-resize bg-transparent transition-colors"
-    />
-  );
-}
-
-/**
- * What the agent's browser is doing, at the size of a window.
- *
- * The expansion of `BrowserCard`, not a thing that opens itself: the card is how
- * a browse appears, and this is what somebody asks for when the thumbnail is too
- * small to read. Closing it returns to the card, which is why there is no
- * dismissed-browse bookkeeping here - nothing was taken away.
- *
- * **The steps are a list, not a transcript.** Each row is what was chosen and how
- * sure the engine was, which is the pair that says whether a browse is worth
- * looking into. The page's own words appear only as an element's label and as
- * the outcome's detail, both rendered as text.
- */
-export function BrowserPanel({ browses }: { browses: Browse[] }) {
-  const t = useTranslations("chat");
+export function BrowserPanel({
+  browses,
+  onComment,
+}: {
+  browses: Browse[];
+  /** Where a comment on the page goes - the conversation's composer. */
+  onComment?: (comment: PageComment) => void;
+}) {
   const openCallId = useBrowserPanelStore((state) => state.openCallId);
-  const mode = useBrowserPanelStore((state) => state.mode);
-  const width = useBrowserPanelStore((state) => state.width);
-  const close = useBrowserPanelStore((state) => state.close);
-  const setWidth = useBrowserPanelStore((state) => state.setWidth);
-  // The browse somebody opened, by id - never "the running one". A panel that
+  // The browse somebody opened, by id - never "the running one". A view that
   // followed whichever browse advanced last would swap page under a reader the
   // moment the other one moved.
-  const browse = browseById(browses, openCallId);
-  const scroller = useRef<HTMLDivElement>(null);
-  const full = mode === "full";
+  const streamed = browseById(browses, openCallId);
+  // Mounted only with something to show, so a conversation that is not
+  // browsing opens no live view and holds no socket for one.
+  return streamed === null ? null : <OpenBrowser streamed={streamed} onComment={onComment} />;
+}
+
+/** The full-screen window with a browse in it, as the conversation's stream last drew it. */
+function OpenBrowser({
+  streamed,
+  onComment,
+}: {
+  streamed: Browse;
+  onComment?: (comment: PageComment) => void;
+}) {
+  const close = useBrowserPanelStore((state) => state.close);
+  const running = isRunning(streamed);
+  const live = useLiveBrowse(
+    streamed.runId ?? "",
+    streamed.callId,
+    running && Boolean(streamed.runId),
+  );
+  // Only its own browse's copy, and never past the end, where the stream has
+  // the outcome and the socket has been let go.
+  const mine = running && live.browse?.callId === streamed.callId;
+  const browse = mine && live.browse ? live.browse : streamed;
+  const holding = Boolean(browse.heldBy);
 
   useEffect(() => {
-    if (browse === null) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close();
+      // While a person holds the browser, Escape is a key for the page.
+      if (event.key === "Escape" && !holding) close();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [browse, close]);
-
-  if (browse === null) return null;
+  }, [close, holding]);
 
   return (
-    <aside
-      aria-label={t("browserHeading")}
-      // Full screen takes the window and reads a page; the panel takes an edge
-      // and watches a browse beside the conversation. Only the second has a
-      // width to drag, so only the second carries the handle.
-      style={full ? undefined : { width }}
-      className={cn(
-        "bg-popover fixed z-50 flex flex-col shadow-2xl",
-        full ? "inset-0 h-full w-full" : "border-border top-0 right-0 h-full border-l",
-      )}
-    >
-      {!full && <ResizeHandle width={width} onResize={setWidth} />}
-
-      <div className="border-foreground/8 flex items-center justify-between gap-2 border-b px-4 py-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <Globe className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
-          <div className="min-w-0">
-            <h2 className="text-foreground truncate text-sm font-semibold">
-              {browse.title || t("browserHeading")}
-            </h2>
-            {browse.url && (
-              <p
-                className="text-muted-foreground truncate font-mono text-[11px]"
-                title={browse.url}
-              >
-                {browse.url}
-              </p>
-            )}
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={close}
-          aria-label={t("browserClose")}
-          className="text-muted-foreground hover:text-foreground hover:bg-foreground/8 shrink-0 rounded-md p-1 transition-colors"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-
-      <div
-        ref={scroller}
-        className={cn(
-          "flex-1 scrollbar-thin overflow-y-auto px-4 py-4",
-          full ? "mx-auto w-full max-w-5xl space-y-5" : "space-y-4",
-        )}
-      >
-        {browse.goal && (
-          <p className="text-foreground/60 text-xs leading-relaxed">
-            <span className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
-              {t("browserGoal")}
-            </span>
-            <br />
-            {browse.goal}
-          </p>
-        )}
-
-        <Viewport browse={browse} />
-        <Outcome browse={browse} />
-
-        {browse.steps.length > 0 && (
-          <section className="space-y-1">
-            <h3 className="text-muted-foreground px-2 font-mono text-[11px] tracking-wider uppercase">
-              {t("browserSteps")}
-            </h3>
-            <ul className="space-y-0.5">
-              {browse.steps.map((step, index) => (
-                <StepRow
-                  key={step.step}
-                  step={step}
-                  last={index === browse.steps.length - 1 && isRunning(browse)}
-                />
-              ))}
-            </ul>
-          </section>
-        )}
-      </div>
+    <aside className="bg-background fixed inset-0 z-50 flex flex-col">
+      <BrowserWindow
+        // One window per browse: switching which one is open must not carry the
+        // last one's state - its remember-this-sign-in tick above all.
+        key={streamed.callId}
+        waitForFit
+        browse={browse}
+        control={
+          mine && live.status === "live"
+            ? { canControl: live.canControl, canRemember: live.canRemember, send: live.send }
+            : null
+        }
+        maximized
+        onMaximize={close}
+        newTabHref={streamed.runId ? `/browse/${streamed.runId}/${streamed.callId}` : undefined}
+        onComment={onComment}
+      />
     </aside>
   );
 }

@@ -1,8 +1,85 @@
 [
   {
+    "key": "daily_briefing",
+    "label": "Daily briefing",
+    "description": "What needs your attention today across your calendar, email and messages.",
+    "prompt": "Prepare my briefing for today. Using the calendar, email and messaging tools you can reach, list today's meetings with a line on what each is for, the messages that are waiting on me, and anything due today. Lead with what is most urgent, keep it to a page, and say plainly if a source was not available to you.",
+    "trigger_type": "schedule",
+    "suggested_cadence": {
+      "schedule_kind": "cron",
+      "cron_expression": "0 8 * * 1-5"
+    }
+  },
+  {
+    "key": "inbox_triage",
+    "label": "Inbox triage",
+    "description": "Sort new email into what needs a reply, what to read and what can wait, with drafts for the urgent ones.",
+    "prompt": "Go through the email that arrived since your last run. Sort it into three groups - needs a reply from me, worth reading, can wait - with one line on each message. For anything urgent, draft a short reply I can send as it is or edit. Do not send anything yourself.",
+    "trigger_type": "schedule",
+    "suggested_cadence": {
+      "schedule_kind": "cron",
+      "cron_expression": "0 8 * * 1-5"
+    }
+  },
+  {
+    "key": "meeting_prep",
+    "label": "Meeting prep",
+    "description": "A short brief before each of today's meetings: who is coming, the context and the agenda.",
+    "prompt": "For each meeting on my calendar today, write a short brief: who is attending and their role, what we last discussed with them (from email, notes or documents you can reach), the agenda if there is one, and two or three questions worth raising. One section per meeting, in the order they happen.",
+    "trigger_type": "schedule",
+    "suggested_cadence": {
+      "schedule_kind": "cron",
+      "cron_expression": "30 7 * * 1-5"
+    }
+  },
+  {
+    "key": "weekly_team_summary",
+    "label": "Weekly review",
+    "description": "A Friday summary of what the team got done this week, and what carries into next week.",
+    "prompt": "Write a review of this week for the team: what was finished, what is still in progress, decisions that were made, and anything that slipped or is blocked. Use the tools and documents you can reach, keep it short enough to read in two minutes, and end with the three priorities for next week.",
+    "trigger_type": "schedule",
+    "suggested_cadence": {
+      "schedule_kind": "cron",
+      "cron_expression": "0 16 * * 5"
+    }
+  },
+  {
+    "key": "content_ideas",
+    "label": "Content ideas",
+    "description": "A few post ideas each week, drawn from the latest news in your industry.",
+    "prompt": "Look at this week's news and discussion in our industry. Suggest five ideas for posts we could publish, each with a working title, the angle that makes it ours, and the source that prompted it. Prefer topics where we have something specific to say over general commentary.",
+    "trigger_type": "schedule",
+    "suggested_cadence": {
+      "schedule_kind": "cron",
+      "cron_expression": "0 9 * * 1"
+    }
+  },
+  {
+    "key": "monitor_topic",
+    "label": "Monitor a topic",
+    "description": "Watch for news and mentions of a topic, a competitor or a keyword, and report only what is new.",
+    "prompt": "Search for news and mentions of the topic, company or keyword named below since your last run. Report only what is new: one line per item with its source and why it matters to us. If nothing new appeared, say so in one sentence.\n\nTopic:",
+    "trigger_type": "schedule",
+    "suggested_cadence": {
+      "schedule_kind": "cron",
+      "cron_expression": "0 9 * * *"
+    }
+  },
+  {
+    "key": "monthly_report",
+    "label": "Monthly report",
+    "description": "A report of the previous month - what was done, the numbers worth noting and what comes next.",
+    "prompt": "Compile a report of last month: what shipped, the main issues resolved, any metrics worth highlighting, and the priorities that carry into this month. Structure it with clear headings so it can be shared as-is.",
+    "trigger_type": "schedule",
+    "suggested_cadence": {
+      "schedule_kind": "cron",
+      "cron_expression": "0 9 1 * *"
+    }
+  },
+  {
     "key": "pr_digest_weekday_mornings",
-    "label": "Pull-request digest, weekday mornings",
-    "description": "Every weekday at 08:00 UTC, summarise the open pull requests that need attention.",
+    "label": "Pull-request digest",
+    "description": "The open pull requests that need attention, grouped by what they are waiting on.",
     "prompt": "Summarise my team's open pull requests. Group them by whether they are waiting on a review, waiting on changes from the author, or approved and ready to merge, and call out any that have been open for more than three days.",
     "trigger_type": "schedule",
     "suggested_cadence": {
@@ -12,8 +89,8 @@
   },
   {
     "key": "triage_new_issues_daily",
-    "label": "Triage new issues each morning",
-    "description": "Every day at 07:00 UTC, review the issues opened since yesterday and propose a triage.",
+    "label": "Issue triage",
+    "description": "New issues since yesterday, with a suggested priority, label and likely duplicates.",
     "prompt": "Review the issues opened in the last day. For each one, suggest a priority and a label, note any that look like duplicates of an existing issue, and flag anything that appears to be a security report.",
     "trigger_type": "schedule",
     "suggested_cadence": {
@@ -23,8 +100,8 @@
   },
   {
     "key": "standup_prep_weekdays",
-    "label": "Stand-up prep, weekday mornings",
-    "description": "Every weekday at 08:30 UTC, draft a short stand-up update from yesterday's activity.",
+    "label": "Stand-up prep",
+    "description": "A short stand-up update drafted from yesterday's activity.",
     "prompt": "Draft a concise stand-up update: what was merged or closed yesterday, what is in progress, and anything that looks blocked or is waiting on someone. Keep it to a few bullet points.",
     "trigger_type": "schedule",
     "suggested_cadence": {
@@ -33,31 +110,9 @@
     }
   },
   {
-    "key": "weekly_team_summary",
-    "label": "Weekly team summary, Friday afternoon",
-    "description": "Every Friday at 16:00 UTC, write a summary of the week's work.",
-    "prompt": "Write a summary of this week's work for the team: the notable pull requests merged, issues opened and closed, and any themes or recurring problems worth discussing. Aim for something a stakeholder could read in two minutes.",
-    "trigger_type": "schedule",
-    "suggested_cadence": {
-      "schedule_kind": "cron",
-      "cron_expression": "0 16 * * 5"
-    }
-  },
-  {
-    "key": "monthly_report",
-    "label": "Monthly report, first of the month",
-    "description": "On the 1st of each month at 09:00 UTC, compile a report of the previous month.",
-    "prompt": "Compile a report of last month: what shipped, the main issues resolved, any metrics worth highlighting, and the priorities that carry into this month. Structure it with clear headings so it can be shared as-is.",
-    "trigger_type": "schedule",
-    "suggested_cadence": {
-      "schedule_kind": "cron",
-      "cron_expression": "0 9 1 * *"
-    }
-  },
-  {
     "key": "hourly_monitoring",
-    "label": "Hourly monitoring check",
-    "description": "Every hour, check the systems you watch and report anything that needs attention.",
+    "label": "Health check",
+    "description": "Check the systems you watch and speak up only when something needs attention.",
     "prompt": "Check the systems and dashboards you have access to. Report only what needs attention - a failing check, an error spike, an unusual metric - and stay silent about anything that is healthy.",
     "trigger_type": "schedule",
     "suggested_cadence": {

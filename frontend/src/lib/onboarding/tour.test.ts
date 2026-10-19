@@ -5,6 +5,7 @@ import {
   DATASET_DETAIL,
   EVAL_RUN,
   KB_DETAIL,
+  GROUP_DETAIL,
   ORG_DIRECTORY,
   ORG_GROUPS,
   ORG_MEMBERS,
@@ -26,7 +27,6 @@ import { Perm, type Permission } from "@/types/permissions";
 // permission drops out — including the whole builder walk, which is agents:view.
 const UNGATED_LAUNCH = [
   "welcome",
-  "dashboard-actions",
   "dashboard-filters",
   "chat-start",
   "chat-agent-picker",
@@ -38,6 +38,7 @@ const UNGATED_LAUNCH = [
 const BUILDER_STEPS = [
   "agent-instructions",
   "agent-model",
+  "agent-identity",
   "agent-toolbox",
   "agent-mcp",
   "agent-knowledge",
@@ -48,6 +49,8 @@ const BUILDER_STEPS = [
   "agent-history",
   "agent-test-connections",
   "agent-test-draft",
+  "agent-test",
+  "agent-share",
   "agent-publish",
 ];
 
@@ -55,9 +58,10 @@ const BUILDER_STEPS = [
 // pass takes one of these (kb-documents).
 const KB_STEPS = ["kb-header", "kb-documents", "kb-ingestion", "kb-sync"];
 
-// The organization detail walk: the members page (profile, then the list), then
-// across into the roles matrix. None are inTour — orgs is a "?"-only section.
-const ORG_STEPS = ["org-profile", "org-members", "org-roles"];
+// The organization detail walk: the members page (profile, the AI Architect's
+// card, then the list), then across into the roles matrix. None are inTour —
+// orgs is a "?"-only section.
+const ORG_STEPS = ["org-profile", "org-assistant", "org-members", "org-roles"];
 
 describe("pageKey", () => {
   it("collapses every concrete builder route onto the one builder identity", () => {
@@ -68,6 +72,7 @@ describe("pageKey", () => {
   it("collapses every concrete collection route onto the one KB identity", () => {
     expect(pageKey("/rag/abc-123")).toBe(KB_DETAIL);
     expect(pageKey("/rag/abc-123/anything")).toBe(KB_DETAIL);
+    expect(pageKey("/groups/abc-123")).toBe(GROUP_DETAIL);
   });
 
   it("collapses every concrete dataset route onto the one dataset identity", () => {
@@ -89,7 +94,7 @@ describe("pageKey", () => {
   it("collapses each settings tab and each workspace onto one identity", () => {
     expect(pageKey(ROUTES.SETTINGS_PROFILE)).toBe(SETTINGS_DETAIL);
     expect(pageKey(ROUTES.SETTINGS_SLASH_COMMANDS)).toBe(SETTINGS_DETAIL);
-    expect(pageKey("/workspaces/abc-123")).toBe(WORKSPACE_DETAIL);
+    expect(pageKey("/documents/abc-123")).toBe(WORKSPACE_DETAIL);
   });
 });
 
@@ -153,7 +158,6 @@ describe("visibleTourSteps", () => {
     const held = new Set<Permission>([Perm.agentsView, Perm.skillsView, Perm.collectionsView]);
     expect(visibleTourSteps((permission) => held.has(permission)).map((step) => step.id)).toEqual([
       "welcome",
-      "dashboard-actions",
       "dashboard-filters",
       "chat-start",
       "chat-agent-picker",
@@ -212,14 +216,21 @@ describe("stepsForPage", () => {
   });
 
   it("gives Settings and a workspace their own '?' stop, from any of their routes", () => {
-    // Settings collapses its five tabs onto one identity, so help opened on any of
-    // them lands the same stops; a workspace detail has its own. The memory stop
-    // is optional - its card renders only where an agent has written something.
+    // Settings collapses its eight tabs onto one identity, so help opened on any of
+    // them lands the same stops; a workspace detail has its own. The memory,
+    // sign-in and API key stops are optional - each card renders on one
+    // tab only.
     expect(stepsForPage(ROUTES.SETTINGS_NOTIFICATIONS, () => true).map((s) => s.id)).toEqual([
       "settings-tabs",
       "my-memory",
+      "sign-in-to-site",
+      "my-sign-ins",
+      "settings-api-usage",
+      "settings-api-keys",
+      "settings-mcp-connect",
+      "settings-connected-apps",
     ]);
-    expect(stepsForPage("/workspaces/some-id", () => true).map((s) => s.id)).toEqual([
+    expect(stepsForPage("/documents/some-id", () => true).map((s) => s.id)).toEqual([
       "workspaces-detail",
     ]);
   });
@@ -244,7 +255,7 @@ describe("stepsForPage", () => {
       stepsForPage(ROUTES.AGENTS, (permission) => permission === Perm.agentsEdit).map(
         (step) => step.id,
       ),
-    ).toEqual(["agents-templates", "agents-new", "agents-filters", "agents-judges"]);
+    ).toEqual(["agents-templates", "agents-new", "agents-filters", "agents-judges", "agent-test"]);
   });
 
   it("hands the builder walk to anyone who may view an agent", () => {
@@ -253,13 +264,14 @@ describe("stepsForPage", () => {
         (step) => step.id,
       ),
     ).toEqual(
-      // Two are agents:publish - publishing, and the test connections a
-      // publisher manages per environment - and the Evals tab and testing the
-      // draft are runs:view.
+      // agents:publish publishes and manages an environment's test connections;
+      // trying the agent beside the Builder takes agents:edit; the Evals tab and
+      // testing the draft are runs:view.
       BUILDER_STEPS.filter(
         (id) =>
           id !== "agent-publish" &&
           id !== "agent-test-connections" &&
+          id !== "agent-test" &&
           id !== "agent-evals" &&
           id !== "agent-test-draft",
       ),
@@ -278,6 +290,7 @@ describe("stepsForPage", () => {
     expect(stepsForPage(ROUTES.RAG, () => true).map((step) => step.id)).toEqual([
       "knowledge-new",
       "knowledge-tabs",
+      "knowledge-groups",
       "knowledge-integrations",
       "knowledge-add-integration",
       "knowledge-local-services",
@@ -419,6 +432,6 @@ describe("the Routines page", () => {
     const allowed = stepsForPage(ROUTES.ROUTINES, () => true).map((step) => step.id);
 
     expect(refused).toEqual(["routines-list"]);
-    expect(allowed).toEqual(["routines-list", "routines-create"]);
+    expect(allowed).toEqual(["routines-list", "routines-create", "routines-ideas"]);
   });
 });

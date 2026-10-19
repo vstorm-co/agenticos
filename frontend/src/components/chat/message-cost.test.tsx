@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { MessageCost } from "./message-cost";
+import { MessageCost, RoundedCost } from "./message-cost";
 import type { TurnUsage } from "@/types";
 
 function usage(overrides: Partial<TurnUsage> = {}): TurnUsage {
@@ -59,5 +59,30 @@ describe("MessageCost", () => {
     render(<MessageCost usage={usage({ cost_usd: "0.0003" })} />);
 
     expect(screen.getByText(/\$0\.0003/)).toBeVisible();
+  });
+});
+
+describe("RoundedCost", () => {
+  it("rounds to the cent and keeps the exact figure for the hover", () => {
+    render(<RoundedCost usage={usage({ cost_usd: "0.0421" })} />);
+
+    expect(screen.getByText("$0.04")).toHaveAttribute("title", "$0.0421");
+    // The tokens are not part of what a reader of a conversation needs.
+    expect(screen.queryByText(/↓/)).toBeNull();
+  });
+
+  it("says a turn under a cent cost under a cent, not nothing", () => {
+    render(<RoundedCost usage={usage({ cost_usd: "0.0003" })} />);
+
+    expect(screen.getByText("< $0.01")).toBeInTheDocument();
+  });
+
+  it("marks a floor, and says why on hover", () => {
+    render(<RoundedCost usage={usage({ cost_usd: "0.0421", cost_is_partial: true })} />);
+
+    expect(screen.getByText("≥ $0.04")).toHaveAttribute(
+      "title",
+      "$0.0421 - a floor: some model in this turn had no price",
+    );
   });
 });

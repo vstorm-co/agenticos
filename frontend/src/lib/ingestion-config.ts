@@ -289,6 +289,63 @@ export function ingestionProblems(
   return problems;
 }
 
+/** A setting `IngestionSettings` stops rendering under some config, by problem key. */
+type HideableField =
+  "max_pages" | "parse_timeout_seconds" | "liteparse_dpi" | "ocr_language" | "prompt";
+
+/**
+ * The fields `IngestionSettings` does not render for this config.
+ *
+ * Mirrors the conditions in that component: LiteParse's own settings appear only
+ * while it is the parser, its OCR pair only while OCR is on as well, and the
+ * image prompt only while images are described.
+ */
+function hiddenFields(config: IngestionConfig): HideableField[] {
+  const hidden: HideableField[] = [];
+  if (config.pdf_parser !== "liteparse") {
+    hidden.push("max_pages", "parse_timeout_seconds");
+  }
+  if (config.pdf_parser !== "liteparse" || !config.ocr) {
+    hidden.push("liteparse_dpi", "ocr_language");
+  }
+  if (!config.describe_images) {
+    hidden.push("prompt");
+  }
+  return hidden;
+}
+
+function resetToDefault<K extends keyof IngestionConfig>(config: IngestionConfig, key: K): void {
+  config[key] = DEFAULT_INGESTION_CONFIG[key];
+}
+
+/**
+ * Put a hidden field holding a refused value back to its default.
+ *
+ * A field the form stops showing keeps its value, so switching back finds what
+ * was set - but a value the server refuses would then block submission with the
+ * only field naming the problem out of sight (#1930). A valid value is kept; an
+ * invalid one goes back to the default.
+ */
+export function settleHiddenFields(config: IngestionConfig, t: Translate): IngestionConfig {
+  const problems = ingestionProblems(config, t);
+  const stale = hiddenFields(config).filter((field) => field in problems);
+  if (stale.length === 0) {
+    return config;
+  }
+  const settled: IngestionConfig = { ...config };
+  for (const field of stale) {
+    if (field === "prompt") {
+      settled.image_description = {
+        ...config.image_description,
+        prompt: DEFAULT_INGESTION_CONFIG.image_description.prompt,
+      };
+    } else {
+      resetToDefault(settled, field);
+    }
+  }
+  return settled;
+}
+
 function isWhole(value: number, min: number, max: number): boolean {
   return Number.isInteger(value) && value >= min && value <= max;
 }

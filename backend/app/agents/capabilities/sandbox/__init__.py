@@ -70,6 +70,7 @@ class SandboxConfig(BaseModel):
     """
 
     backend: Literal["state", "service"] = Field(
+        title="Where files live",
         default="state",
         description=(
             "state: files only, no shell, stored by the platform - works on every "
@@ -79,41 +80,41 @@ class SandboxConfig(BaseModel):
         ),
     )
     connection_id: UUID | None = Field(
+        title="Sandbox connection",
         default=None,
         description=(
-            "Which registered sandbox connection to run on; null takes the "
+            "Which registered sandbox connection to run on; empty takes the "
             "organization's default. An id, never an address or a token - a spec is "
             "exported to a client's git repository, so the only thing it may carry "
             "is a reference. The connection decides whether that is a container on "
             "a host you run or a sandbox in Daytona's cloud."
         ),
     )
+    # The default on every surface; a binding on one exposure may say otherwise. A
+    # Slack thread is a conversation, a direct message keeps its own workspace, and a
+    # user's scope crosses surfaces once they link their account.
     session_scope: Literal["run", "conversation", "channel", "user", "agent"] = Field(
+        title="Who shares the workspace",
         default="conversation",
         description=(
-            "Who shares the workspace, by default on every surface - a binding on "
-            "one of the agent's exposures may say otherwise. "
-            "run: nobody, a fresh one every turn. "
-            "conversation: everyone in that chat - and on Slack a thread is a chat, "
-            "so this is per thread there. "
-            "channel: everyone in a Slack channel or group chat, threads included; "
-            "a direct message still has its own. "
-            "user: one person across their chats with this agent, and across "
-            "surfaces once they have linked their account. "
-            "agent: everyone who talks to this agent - files are shared between "
-            "people in the organization."
+            "Who shares one workspace: run (a fresh one every turn), conversation "
+            "(everyone in the chat or Slack thread), channel (a whole Slack channel), "
+            "user (one person across chats) or agent (everyone who talks to it)."
         ),
+        json_schema_extra={"x-advanced": True},
     )
     runtime: str | None = Field(
+        title="Runtime",
         default=None,
         max_length=64,
         description=(
             "Which environment a container-backed workspace runs, named from the "
-            "list the connection's service allows. Null takes the connection's "
+            "list the connection's service allows. Empty takes the connection's "
             "default. An alias, never an image."
         ),
     )
     include_execute: bool = Field(
+        title="Allow shell commands",
         default=True,
         description=(
             "Whether the agent may run shell commands. Turning it off leaves the "
@@ -124,7 +125,7 @@ class SandboxConfig(BaseModel):
 
 @register(
     id="sandbox",
-    name="Files & shell",
+    name="Sandbox",
     category="analysis",
     description="Read, write and run things in a workspace that persists between turns.",
     # Every tool declared, including `execute` when a configuration might not

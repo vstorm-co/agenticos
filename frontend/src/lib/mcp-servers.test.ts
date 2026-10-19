@@ -6,11 +6,14 @@ import {
   ownAccountStatus,
   CUSTOM_CATEGORY,
   connectionState,
+  freePrefix,
   matchingCustomRows,
+  mcpToolCount,
   mergeServers,
   narrowedSelection,
   slugForPrefix,
 } from "./mcp-servers";
+import type { McpServerRef } from "@/types/agents";
 import type { McpCatalogEntry } from "@/types/mcp";
 
 const GITHUB: McpCatalogEntry = {
@@ -46,12 +49,14 @@ function personal(overrides: Partial<McpConnectionRecord> = {}): McpConnectionRe
     has_auth_token: true,
     allowed_tools: null,
     is_enabled: true,
+    include_instructions: false,
     auth_type: "bearer",
     oauth_authorized: false,
     authorized: true,
     last_status: "ok",
     last_error: null,
     last_checked_at: null,
+    visibility: "org",
     catalog_key: null,
     is_default: false,
     trust_read_only_hints: false,
@@ -340,12 +345,14 @@ describe("ownAccountStatus", () => {
       has_auth_token: true,
       allowed_tools: null,
       is_enabled: true,
+      include_instructions: false,
       auth_type: "oauth",
       oauth_authorized: true,
       authorized: true,
       last_status: "ok",
       last_error: null,
       last_checked_at: null,
+      visibility: "org",
       catalog_key: "notion",
       is_default: false,
       trust_read_only_hints: false,
@@ -369,15 +376,18 @@ describe("ownAccountStatus", () => {
     expect(ownAccountStatus("notion", [own()])).toBe("connected");
   });
 
-  it("is undecided with several and none marked default", () => {
+  it("is connected with several, none marked default - every one answers (#2125)", () => {
     expect(ownAccountStatus("notion", [own(), own({ id: "m2", name: "notion-2" })])).toBe(
-      "undecided",
+      "connected",
     );
   });
 
-  it("follows the default among several", () => {
+  it("stays connected while any one of several still authorizes", () => {
     expect(
-      ownAccountStatus("notion", [own(), own({ id: "m2", name: "notion-2", is_default: true })]),
+      ownAccountStatus("notion", [
+        own({ authorized: false }),
+        own({ id: "m2", name: "notion-2", authorized: true }),
+      ]),
     ).toBe("connected");
   });
 
@@ -406,12 +416,14 @@ describe("ownAccountStatus and a failed health check", () => {
       has_auth_token: true,
       allowed_tools: null,
       is_enabled: true,
+      include_instructions: false,
       auth_type: "bearer",
       oauth_authorized: false,
       authorized: true,
       last_status: "error",
       last_error: "timed out",
       last_checked_at: null,
+      visibility: "org",
       catalog_key: "github",
       is_default: false,
       trust_read_only_hints: false,
@@ -451,5 +463,51 @@ describe("slugForPrefix", () => {
   it("returns an empty string when nothing usable remains, so the field stays blank", () => {
     expect(slugForPrefix("///")).toBe("");
     expect(slugForPrefix("...")).toBe("");
+  });
+});
+
+describe("freePrefix", () => {
+  it("keeps the base while nothing holds it, then counts up", () => {
+    expect(freePrefix("notion", new Set())).toBe("notion");
+    expect(freePrefix("notion", new Set(["notion", "notion-2"]))).toBe("notion-3");
+  });
+
+  it("stays within the prefix's 32 characters", () => {
+    const base = "a".repeat(32);
+    expect(freePrefix(base, new Set([base]))).toBe(`${"a".repeat(30)}-2`);
+  });
+});
+
+describe("mcpToolCount", () => {
+  const tools = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({ name: `tool_${i}`, description: "", read_only: true }));
+
+  it("counts a binding's allowlist over everything its server listed", () => {
+    const refs: McpServerRef[] = [
+      { account: "organization", connection_id: "o1", allowed_tools: ["a", "b"] },
+    ];
+
+    expect(mcpToolCount(refs, [organization({ last_tools: tools(40) })], [])).toBe(2);
+  });
+
+  it("counts what each binding's own connection listed at its last check", () => {
+    const refs: McpServerRef[] = [
+      { account: "organization", connection_id: "o1", allowed_tools: null },
+      { account: "personal", catalog_key: "notion", allowed_tools: null },
+    ];
+    const notion = personal({ catalog_key: "notion", last_tools: tools(12) });
+
+    expect(mcpToolCount(refs, [organization({ last_tools: tools(25) })], [notion])).toBe(37);
+  });
+
+  it("counts nothing it cannot know", () => {
+    // The platform's own server, a connection nobody checked, a reader with no account.
+    const refs: McpServerRef[] = [
+      { account: "platform" },
+      { account: "organization", connection_id: "o1", allowed_tools: null },
+      { account: "personal", catalog_key: "notion", allowed_tools: null },
+    ];
+
+    expect(mcpToolCount(refs, [organization()], [])).toBe(0);
   });
 });

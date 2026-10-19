@@ -50,7 +50,7 @@ describe("the MCP OAuth callback query", () => {
 
   it("quotes an upstream refusal after a refusal of its own", () => {
     expect(roundTrip(mcpOAuthUpstreamRefusal("Consent denied by you & your admin"))).toBe(
-      "Sign-in failed, and no connection was saved — Consent denied by you & your admin",
+      "Sign-in failed, and no connection was saved - Consent denied by you & your admin",
     );
   });
 
@@ -79,7 +79,7 @@ describe("a refusal written by somebody else", () => {
     // Hand-crafted: the writer never puts a code in the detail parameter, and a
     // toast in the product's own voice is exactly what a link should not buy.
     expect(roundTrip("mcp_oauth=error&mcp_oauth_detail=AUTHORIZATION_FAILED")).toBe(
-      "Sign-in failed, and no connection was saved — AUTHORIZATION_FAILED",
+      "Sign-in failed, and no connection was saved - AUTHORIZATION_FAILED",
     );
     expect(roundTrip("mcp_oauth=error&mcp_oauth_failure=NOT_A_CODE")).toBe(
       "Sign-in failed, and no connection was saved.",

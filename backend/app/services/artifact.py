@@ -81,6 +81,8 @@ from app.schemas.artifact import (
 )
 from app.services.access import ARTIFACT, resolve_access, visible_resource_ids
 from app.services.file_storage import get_file_storage
+from app.services.notifications import NotificationService
+from app.services.resource_usage import groups_sharing, shared_with_group
 
 logger = logging.getLogger(__name__)
 
@@ -308,14 +310,14 @@ def publish_problem(*, name: str, media_type: ArtifactMediaType, data: bytes) ->
     """
     if not re.fullmatch(NAME_PATTERN, name):
         return (
-            f"`name` {name!r} is not a valid artifact name. Use 1-64 lower-case letters, "
+            f"`name` {name!r} is not a valid app name. Use 1-64 lower-case letters, "
             "digits and hyphens, starting with a letter or digit - for example "
-            "`weekly-report`. Reuse the same name to update an artifact you published before."
+            "`weekly-report`. Reuse the same name to update an app you published before."
         )
     if len(data) > settings.ARTIFACT_MAX_BYTES:
         return (
             f"The page is {len(data):,} bytes, over the {settings.ARTIFACT_MAX_BYTES:,}-byte "
-            "limit for one artifact. Trim it - smaller images, less repeated data, a "
+            "limit for one app. Trim it - smaller images, less repeated data, a "
             "library from the served set instead of an inlined copy - rather than "
             "splitting it."
         )
@@ -538,7 +540,7 @@ async def publish_with(
     if not created and not await _may(db, artifact, owner_user_id, Perm.ARTIFACTS_EDIT):
         raise AuthorizationError(
             message=(
-                f"An artifact named {name!r} already exists for this agent, and it is not "
+                f"An app named {name!r} already exists for this agent, and it is not "
                 "one this run may change. Publish under a different name."
             ),
             details={"name": name},
@@ -547,7 +549,7 @@ async def publish_with(
     if expected_version is not None and (latest is None or latest.number != expected_version):
         raise ConcurrentChangeError(
             message=(
-                f"The artifact {name!r} changed after it was read. Read it again with "
+                f"The app {name!r} changed after it was read. Read it again with "
                 "`read_artifact` and make the edits against what it holds now."
             ),
             details={"name": name, "version": latest.number if latest is not None else None},
@@ -572,6 +574,7 @@ async def publish_with(
         sha256=sha256,
         storage_path=path,
         run_id=run_id,
+        actor_user_id=owner_user_id,
     )
     await record_audit(
         db,
@@ -595,8 +598,10 @@ async def _append_version(
     sha256: str,
     storage_path: str,
     run_id: UUID | None,
+    actor_user_id: UUID | None,
 ) -> ArtifactVersion:
-    """Add the next version, mark the publication, and prune past the kept window."""
+    """Add the next version, mark the publication, prune past the kept window, and
+    tell the page's followers."""
     version = await artifact_repo.create_version(
         db,
         artifact_id=artifact.id,
@@ -611,7 +616,36 @@ async def _append_version(
         db, artifact=artifact, update_data={"published_at": datetime.now(UTC)}
     )
     await _prune(db, artifact)
+    await _notify_followers(db, artifact, version, actor_user_id=actor_user_id)
     return version
+
+
+async def _notify_followers(
+    db: AsyncSession, artifact: Artifact, version: ArtifactVersion, *, actor_user_id: UUID | None
+) -> None:
+    """Tell everybody following the page that it has a new version (#1977).
+
+    Not the person whose run or restore made it - they know. And only followers
+    who can still open the page: following grants nothing, so one who lost
+    access is skipped here and again when the inbox is read. An `unchanged`
+    republish never reaches this, so a schedule that found nothing new is quiet.
+    """
+    followers = [
+        user_id
+        for user_id in await artifact_repo.follower_ids(db, artifact.id)
+        if user_id != actor_user_id
+    ]
+    readers = [
+        user_id for user_id in followers if await _may(db, artifact, user_id, Perm.ARTIFACTS_VIEW)
+    ]
+    await NotificationService(db).artifact_version_published(
+        recipients=readers,
+        organization_id=artifact.organization_id,
+        artifact_id=artifact.id,
+        title=artifact.title,
+        version_number=version.number,
+        actor_user_id=actor_user_id,
+    )
 
 
 async def read_source(
@@ -650,11 +684,11 @@ async def read_source(
         )
         if artifact is None or version is None:
             raise NotFoundError(
-                message=f"There is no artifact named {name!r} that this run may open.",
+                message=f"There is no app named {name!r} that this run may open.",
                 details={"name": name},
             )
         data = await _load_version(
-            version, missing=f"The artifact {name!r} has lost its content; publish it again."
+            version, missing=f"The app {name!r} has lost its content; publish it again."
         )
     return ArtifactSource(
         name=artifact.name,
@@ -803,7 +837,7 @@ def console_url_for(artifact_id: UUID, organization_id: UUID) -> str:
     page is not available. `?org=` is the parameter the console adopts for that,
     the same one alert links carry.
     """
-    return f"/artifacts/{artifact_id}?org={organization_id}"
+    return f"/apps/{artifact_id}?org={organization_id}"
 
 
 def _view(version: ArtifactVersion) -> ArtifactView:
@@ -921,6 +955,15 @@ iframe {{ border: 0; width: 100%; height: 100%; display: block; }}
 """.encode()
 
 
+def _refuse_key(ctx: AuthContext) -> None:
+    """Following a page is a person's preference; a key changes none of them."""
+    if ctx.api_key_id is not None:
+        raise AuthorizationError(
+            message="Following an app is a person's choice, made in the console, not by an API key",
+            details={"subject": "api_key"},
+        )
+
+
 class ArtifactService:
     """Open, share and manage the artifacts an organization's agents published."""
 
@@ -938,9 +981,7 @@ class ArtifactService:
         if artifact is None or not await resolve_access(
             self.db, ctx, artifact, perm, resource_type=ARTIFACT
         ):
-            raise NotFoundError(
-                message="Artifact not found", details={"artifact_id": str(artifact_id)}
-            )
+            raise NotFoundError(message="App not found", details={"artifact_id": str(artifact_id)})
         return artifact
 
     async def read(self, ctx: AuthContext, artifact_id: UUID) -> ArtifactDetail:
@@ -949,9 +990,38 @@ class ArtifactService:
         can_edit = await resolve_access(
             self.db, ctx, artifact, Perm.ARTIFACTS_EDIT, resource_type=ARTIFACT
         )
-        return await self._detail(artifact, can_edit=can_edit)
+        return await self._detail(ctx, artifact, can_edit=can_edit)
 
-    async def _detail(self, artifact: Artifact, *, can_edit: bool) -> ArtifactDetail:
+    async def follow(self, ctx: AuthContext, artifact_id: UUID) -> ArtifactDetail:
+        """Be told in the inbox when this page gets a new version (#1977).
+
+        Anybody who may open the page may follow it; following twice is
+        following once. A person's own choice, made in the console: an
+        organization key is refused, since a read-only one would otherwise
+        change its issuer's notifications.
+
+        Raises:
+            AuthorizationError: The caller is an organization key.
+        """
+        _refuse_key(ctx)
+        artifact = await self.get(ctx, artifact_id)
+        await artifact_repo.follow(self.db, artifact_id=artifact.id, user_id=ctx.subject_id)
+        return await self.read(ctx, artifact.id)
+
+    async def unfollow(self, ctx: AuthContext, artifact_id: UUID) -> ArtifactDetail:
+        """Stop being told about new versions. Not following already is not an error.
+
+        Raises:
+            AuthorizationError: The caller is an organization key - see `follow`.
+        """
+        _refuse_key(ctx)
+        artifact = await self.get(ctx, artifact_id)
+        await artifact_repo.unfollow(self.db, artifact_id=artifact.id, user_id=ctx.subject_id)
+        return await self.read(ctx, artifact.id)
+
+    async def _detail(
+        self, ctx: AuthContext, artifact: Artifact, *, can_edit: bool
+    ) -> ArtifactDetail:
         current = await artifact_repo.latest_version(self.db, artifact.id)
         names = await artifact_repo.environment_names(
             self.db, [artifact.environment_id] if artifact.environment_id else []
@@ -966,6 +1036,10 @@ class ArtifactService:
         return ArtifactDetail(
             **self._read(artifact, current, names).model_dump(),
             can_edit=can_edit,
+            following=ctx.user_id is not None
+            and await artifact_repo.is_following(
+                self.db, artifact_id=artifact.id, user_id=ctx.user_id
+            ),
             public_link=ArtifactPublicLinkRead(
                 expires_at=artifact.public_expires_at,
                 pinned_version_id=pinned.id if pinned is not None else None,
@@ -1018,10 +1092,15 @@ class ArtifactService:
         shared_with_me: bool = False,
         search: str | None = None,
         agent_id: UUID | None = None,
+        group_id: UUID | None = None,
         skip: int = 0,
         limit: int = 50,
     ) -> ArtifactList:
-        """A page of the artifacts this caller may open, newest publication first."""
+        """A page of the artifacts this caller may open, newest publication first.
+
+        `group_id` narrows to the pages shared with one group, and each page
+        names the groups it is shared with, as every other resource's card does.
+        """
         see_all, grant_ids = await self._visibility(ctx)
         if shared_with_me and see_all:
             grant_ids = await resource_grant_repo.list_shared_ids(
@@ -1039,15 +1118,27 @@ class ArtifactService:
             shared_with_me=shared_with_me,
             search=search,
             agent_id=agent_id,
+            only_ids=await shared_with_group(
+                self.db, ctx, resource_type=ARTIFACT, group_id=group_id
+            ),
             skip=skip,
             limit=limit,
         )
         current = await artifact_repo.latest_versions(self.db, [item.id for item in items])
+        groups = await groups_sharing(
+            self.db, ctx, resource_type=ARTIFACT, resource_ids=[item.id for item in items]
+        )
         names = await artifact_repo.environment_names(
             self.db, sorted({item.environment_id for item in items if item.environment_id})
         )
         return ArtifactList(
-            items=[self._read(item, current.get(item.id), names) for item in items], total=total
+            items=[
+                self._read(item, current.get(item.id), names).model_copy(
+                    update={"shared_groups": groups[item.id]}
+                )
+                for item in items
+            ],
+            total=total,
         )
 
     async def publishing_agents(self, ctx: AuthContext) -> ArtifactAgentList:
@@ -1061,7 +1152,16 @@ class ArtifactService:
             shared_ids=grant_ids,
         )
         return ArtifactAgentList(
-            items=[ArtifactAgent(id=agent_id, name=name) for agent_id, name in agents]
+            items=[
+                ArtifactAgent(
+                    id=agent.id,
+                    name=agent.name,
+                    slug=agent.slug,
+                    has_avatar=agent.has_avatar,
+                    avatar_color=agent.avatar_color,
+                )
+                for agent in agents
+            ]
         )
 
     async def versions(self, ctx: AuthContext, artifact_id: UUID) -> ArtifactVersionList:
@@ -1081,7 +1181,7 @@ class ArtifactService:
             artifact = await artifact_repo.update(
                 self.db, artifact=artifact, update_data={"title": data.title}
             )
-        return await self._detail(artifact, can_edit=True)
+        return await self._detail(ctx, artifact, can_edit=True)
 
     async def restore_version(
         self, ctx: AuthContext, artifact_id: UUID, version_id: UUID
@@ -1103,12 +1203,12 @@ class ArtifactService:
         source = await artifact_repo.get_version(self.db, version_id, artifact_id=artifact.id)
         if locked is None or source is None:
             raise NotFoundError(
-                message="This version of the artifact is no longer kept",
+                message="This version of the app is no longer kept",
                 details={"artifact_id": artifact_id, "version_id": version_id},
             )
         latest = await artifact_repo.latest_version(self.db, locked.id)
         if latest is not None and latest.id == source.id:
-            return await self._detail(locked, can_edit=True)
+            return await self._detail(ctx, locked, can_edit=True)
         if not await get_file_storage().exists(source.storage_path):
             logger.warning(
                 "artifact_bytes_missing",
@@ -1127,6 +1227,7 @@ class ArtifactService:
             sha256=source.sha256,
             storage_path=source.storage_path,
             run_id=None,
+            actor_user_id=ctx.subject_id,
         )
         await record_audit(
             self.db,
@@ -1137,7 +1238,7 @@ class ArtifactService:
             target_id=str(locked.id),
             details={"version": version.number, "restored": source.number},
         )
-        return await self._detail(locked, can_edit=True)
+        return await self._detail(ctx, locked, can_edit=True)
 
     async def set_public_link(self, ctx: AuthContext, artifact_id: UUID) -> ArtifactDetail:
         """Turn on the "anyone with the link" address, or rotate it when it is on.
@@ -1161,7 +1262,7 @@ class ArtifactService:
             target_type="artifact",
             target_id=str(artifact.id),
         )
-        return await self._detail(artifact, can_edit=True)
+        return await self._detail(ctx, artifact, can_edit=True)
 
     async def update_public_link(
         self, ctx: AuthContext, artifact_id: UUID, data: ArtifactPublicLinkUpdate
@@ -1211,16 +1312,14 @@ class ArtifactService:
                 target_id=str(artifact.id),
                 details={"fields": sorted(changes)},
             )
-        return await self._detail(artifact, can_edit=True)
+        return await self._detail(ctx, artifact, can_edit=True)
 
     async def _pinned_number(self, artifact: Artifact, version_id: UUID | None) -> int | None:
         if version_id is None:
             return None
         version = await artifact_repo.get_version(self.db, version_id, artifact_id=artifact.id)
         if version is None:
-            raise refused_field(
-                "pinned_version_id", "That version of the artifact is no longer kept."
-            )
+            raise refused_field("pinned_version_id", "That version of the app is no longer kept.")
         # A kept row whose bytes are gone would pin the link to a page that 404s.
         if not await get_file_storage().exists(version.storage_path):
             raise refused_field("pinned_version_id", "That version's content is gone from storage.")
@@ -1242,7 +1341,7 @@ class ArtifactService:
                 target_type="artifact",
                 target_id=str(artifact.id),
             )
-        return await self._detail(artifact, can_edit=True)
+        return await self._detail(ctx, artifact, can_edit=True)
 
     async def delete(self, ctx: AuthContext, artifact_id: UUID) -> None:
         """Delete an artifact, every version, its grants and its link.
@@ -1287,7 +1386,7 @@ class ArtifactService:
         )
         if version is None:
             raise NotFoundError(
-                message="This version of the artifact is no longer kept",
+                message="This version of the app is no longer kept",
                 details={"artifact_id": str(artifact_id), "version_id": version_id},
             )
         return _view(version)
@@ -1315,7 +1414,7 @@ class ArtifactService:
                 else await artifact_repo.latest_version(self.db, artifact.id)
             )
         if artifact is None or version is None:
-            raise NotFoundError(message="Artifact not found")
+            raise NotFoundError(message="App not found")
         return artifact, version
 
     async def public_view(
@@ -1398,9 +1497,9 @@ class ArtifactService:
             else None
         )
         if found is None:
-            raise NotFoundError(message="Artifact not found")
+            raise NotFoundError(message="App not found")
         version, artifact = found
-        data = await _load_version(version, missing="Artifact not found")
+        data = await _load_version(version, missing="App not found")
         embeddable = artifact.public_key is not None and artifact.public_password_hash is None
         return ServedArtifact(
             document=render(version, data, title=artifact.title),

@@ -35,7 +35,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "images.yml"
 
 PUBLISHED = frozenset(
-    {"ghcr.io/vstorm-co/agenticos-backend", "ghcr.io/vstorm-co/agenticos-frontend"}
+    {
+        "ghcr.io/vstorm-co/agenticos-backend",
+        "ghcr.io/vstorm-co/agenticos-frontend",
+        "ghcr.io/vstorm-co/agenticos-browser",
+    }
 )
 
 # Every compose file that runs the application from a published image. The
@@ -166,7 +170,7 @@ class TestEveryJobBoundsItsOwnRuntime:
 
 
 class TestTheComposeFilesPullWhatTheWorkflowPublishes:
-    def test_the_workflow_names_both_images(self, workflow: dict[str, Any]) -> None:
+    def test_the_workflow_names_every_published_image(self, workflow: dict[str, Any]) -> None:
         prefix = workflow["env"]["IMAGE_PREFIX"]
         images = workflow["jobs"]["build"]["strategy"]["matrix"]["image"]
         assert {f"{prefix}-{image}" for image in images} == PUBLISHED
@@ -209,10 +213,11 @@ class TestTheReleaseCarriesAnInventory:
     run artifact is the honest place for `edge`'s inventory.
     """
 
-    def test_both_images_get_one(self, workflow: dict[str, Any]) -> None:
+    def test_every_published_image_gets_one(self, workflow: dict[str, Any]) -> None:
         assert set(workflow["jobs"]["sbom"]["strategy"]["matrix"]["image"]) == {
             "backend",
             "frontend",
+            "browser",
         }
 
     def test_each_published_architecture_gets_its_own(self, workflow: dict[str, Any]) -> None:

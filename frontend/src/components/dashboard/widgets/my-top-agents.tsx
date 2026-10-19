@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 
 import { useUsageStats } from "@/hooks";
+import { AgentFace } from "../agent-face";
 import { BarList } from "../primitives/bar-list";
 import { WidgetFrame } from "../widget-frame";
 import { Bot } from "lucide-react";
@@ -29,9 +30,11 @@ export function MyTopAgentsWidget({ title, hint, period, seeAll, options }: Dash
       ) : (
         <div className="flex h-full flex-col justify-between gap-2">
           <BarList
-            items={(usage.by_agent ?? [])
-              .slice(0, 4)
-              .map((row) => ({ label: row.name, value: row.runs }))}
+            items={(usage.by_agent ?? []).slice(0, 4).map((row) => ({
+              label: row.name,
+              value: row.runs,
+              icon: <AgentFace agentId={row.agent_id} className="size-5" />,
+            }))}
           />
           <p className="text-muted-foreground text-xs">{t("subline")}</p>
         </div>

@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ExternalLink, Plug } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
-import { ConnectOwnServerDialog } from "@/components/agents/connect-server-dialog";
+import { ConnectOwnButton } from "@/components/agents/connect-server-dialog";
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
 import { Button } from "@/components/ui";
 import { useMcpConnections } from "@/hooks/use-mcp-connections";
@@ -13,7 +13,6 @@ import { ROUTES } from "@/lib/constants";
 import { getPathname } from "@/lib/locale-navigation";
 import { ownAccountStatus } from "@/lib/mcp-servers";
 import type { ConnectionRequest } from "@/types";
-import type { McpCatalogEntry } from "@/types/mcp";
 
 /**
  * A run paused on `connect_account`: the agent reached for one of this person's
@@ -46,7 +45,6 @@ export function ConnectAccountPrompt({
   const locale = useLocale();
   const { servers } = useMcpCatalog();
   const { connections, isLoading, isFetching } = useMcpConnections();
-  const [connecting, setConnecting] = useState<McpCatalogEntry | null>(null);
   const entry = servers.find((one) => one.key === request.catalog_key) ?? null;
   const status = ownAccountStatus(request.catalog_key, connections);
   // What the list said once it had loaded, which is what a fix is a change from.
@@ -63,7 +61,7 @@ export function ConnectAccountPrompt({
   return (
     <div role="status" className="border-border bg-card rounded-2xl border p-3 shadow-sm">
       <div className="flex items-center gap-3">
-        <McpServerIcon icon={entry?.icon ?? null} name={request.name} />
+        <McpServerIcon icon={entry?.icon ?? null} name={request.name} url={entry?.url} />
         <span className="min-w-0 flex-1">
           <span className="block text-xs font-medium">{t("title", { name: request.name })}</span>
           <span className="text-muted-foreground block text-xs leading-relaxed">
@@ -91,10 +89,7 @@ export function ConnectAccountPrompt({
           {t("continue")}
         </Button>
         {request.gap === "not_connected" && entry !== null ? (
-          <Button type="button" size="sm" disabled={disabled} onClick={() => setConnecting(entry)}>
-            <Plug className="mr-1 h-3.5 w-3.5" />
-            {t("connect")}
-          </Button>
+          <ConnectOwnButton entry={entry} label={t("connect")} disabled={disabled} keepThisTab />
         ) : (
           <Button size="sm" asChild>
             <a
@@ -108,7 +103,6 @@ export function ConnectAccountPrompt({
           </Button>
         )}
       </div>
-      <ConnectOwnServerDialog entry={connecting} onClose={() => setConnecting(null)} keepThisTab />
     </div>
   );
 }

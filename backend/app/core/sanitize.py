@@ -203,25 +203,20 @@ def resolve_pinned_url(
     return PinnedAddress(hostname=hostname, port=port, ips=tuple(dict.fromkeys(ips)))
 
 
-def validate_webhook_url(
-    url: str,
-    allowed_schemes: frozenset[str] | None = None,
-) -> str:
+def validate_webhook_url(url: str) -> str:
     """Refuse a URL that points inside the deployment's network.
 
     :func:`resolve_pinned_url` with the answer discarded - same policy, same
-    refusals, for the two callers that only want a yes or no.
+    refusals, for the callers that only want a yes or no.
 
     **This is not DNS-rebinding protection, and for these callers it cannot be.**
     The validated URL is returned as the string it came in as, so both of them
     resolve the hostname a second time when they connect: the MCP client through
-    :func:`app.agents.mcp.validate_mcp_url`, and the browser through
-    :func:`app.agents.capabilities.browser_use.validate_cdp_url`, where the
-    attach happens however long after publish the agent is first run. A name
-    answering a public address here and a private one there passes this check
-    and reaches the private address (#840).
+    :func:`app.agents.mcp.validate_mcp_url`, where the connection happens however
+    long after the server was saved. A name answering a public address here and a
+    private one there passes this check and reaches the private address (#840).
 
-    That is bearable *only* because both URLs are typed by an operator, so
+    That is bearable *only* because the URL is typed by an operator, so
     rebinding needs the person typing it to be the attacker. Where the URL is
     chosen by someone else, this function is the wrong one: the OAuth flow's
     discovery documents name their own endpoints and go through
@@ -230,8 +225,7 @@ def validate_webhook_url(
     `safe_download`.
 
     Args:
-        url: The webhook URL to validate.
-        allowed_schemes: Allowed URL schemes. Defaults to {"http", "https"}.
+        url: The webhook URL to validate; http or https.
 
     Returns:
         The validated URL string.
@@ -246,5 +240,5 @@ def validate_webhook_url(
         >>> validate_webhook_url("http://169.254.169.254/latest/meta-data/")
         Raises SSRFBlockedError
     """
-    resolve_pinned_url(url, allowed_schemes)
+    resolve_pinned_url(url)
     return url

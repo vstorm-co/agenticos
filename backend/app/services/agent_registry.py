@@ -14,7 +14,6 @@ moving a pointer backwards - would make run history lie about what was live.
 
 from __future__ import annotations
 
-import asyncio
 import contextlib
 import logging
 import re
@@ -29,6 +28,7 @@ from pydantic import BaseModel, ValidationError
 from pydantic_ai_harness.compaction import resolve_context_window
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents import prompt_variables
 from app.agents.capabilities import (
     FRAMEWORK_TOOL_NAMES,
     TOOL_NAME_PATTERN,
@@ -37,25 +37,28 @@ from app.agents.capabilities import (
 )
 from app.agents.capabilities import get as get_capability
 from app.agents.capabilities.approval import ungateable_tool_problems
-from app.agents.capabilities.browser_choice import BrowserChoiceConfig
-from app.agents.capabilities.browser_choice import (
-    validate_cdp_url as validate_browser_choice_cdp_url,
+from app.agents.capabilities.browser_use import (
+    WebBrowserConfig,
+    connection_problems,
+    validate_cdp_url,
 )
-from app.agents.capabilities.browser_use import BrowserUseConfig, validate_cdp_url
+from app.agents.capabilities.browser_use._route import check_address
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
-from app.agents.mcp import prefix_collisions
+from app.agents.mcp import PLATFORM_MCP_PREFIX, prefix_collisions
 from app.agents.spec import (
     SPEC_VERSION,
     AgentSpec,
     BudgetSpec,
     CapabilityBindingSpec,
     McpServerRef,
+    OrgMcpServerRef,
     PersonalMcpServerRef,
+    PlatformMcpServerRef,
     SpecialistSpec,
     SubagentRef,
 )
-from app.core.audit import record_audit
+from app.core.audit import current_impersonator, record_audit
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
@@ -69,15 +72,18 @@ from app.db.models.agent import Agent, AgentKind, AgentStatus, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.credential import ModelProfile
 from app.db.models.resource_grant import Visibility
+from app.db.models.skill import Skill
 from app.repositories import (
     agent_environment_repo,
     agent_exposure_repo,
     agent_repo,
+    agent_trigger_repo,
     context_repo,
     credential_repo,
     knowledge_base_repo,
     mcp_connection_repo,
     member_repo,
+    organization_assistant_repo,
     organization_secret_repo,
     resource_grant_repo,
     sandbox_connection_repo,
@@ -102,6 +108,7 @@ from app.services.access import (
     AGENT,
     COLLECTION,
     CONTEXT,
+    MCP_CONNECTION,
     SECRET,
     SKILL,
     accessible_ids,
@@ -116,7 +123,10 @@ from app.services.file_storage import (
     avatar_filename,
     get_file_storage,
 )
+from app.services.resource_usage import groups_sharing
+from app.services.sandbox_connection import SandboxConnectionService
 from app.services.sandbox_workspace import sandbox_config
+from app.services.sharing import SharingService
 from app.services.skills import SkillService
 
 logger = logging.getLogger(__name__)
@@ -244,9 +254,9 @@ async def _sandbox_problems(db: AsyncSession, ctx: AuthContext, spec: AgentSpec)
                 "organization. Pick one that does, or leave it unset to use the default."
             )
     else:
-        connection = await sandbox_connection_repo.get_default(
-            db, organization_id=ctx.organization_id
-        )
+        # The deployment's own sandbox service, set up here when it runs one and
+        # nobody has opened the Sandboxes page yet - the same row a run would set up.
+        connection = await SandboxConnectionService(db).ensure_local_connection(ctx.organization_id)
         if connection is None:
             problems.append(
                 "This organization has registered no sandbox connection, so an agent "
@@ -262,49 +272,69 @@ async def _sandbox_problems(db: AsyncSession, ctx: AuthContext, spec: AgentSpec)
     return problems
 
 
-async def _browser_use_problems(config: BaseModel | None) -> list[str]:
-    """A remote `cdp_url` this deployment must not connect to.
+_READ_PERMS = frozenset({Perm.AGENTS_VIEW, Perm.AGENTS_RUN})
+"""What `get` may be asked for on the assistant by anyone who reaches it."""
 
-    The `browser_use` capability's remote mode attaches to a browser over a CDP
-    endpoint, which this deployment reaches server-side - so it is SSRF-checked,
-    here at publish rather than at build. The check resolves DNS (`getaddrinfo`),
-    which blocks, and the build path runs on the event loop inside a tool call; run
-    off the loop in a thread it is refused once, when the spec is published, rather
-    than on every run (agenticos#33). Every binding passes through here - a spec's
-    own and each inline specialist's - so a specialist cannot smuggle one past.
+
+async def _browser_problems(config: BaseModel | None, *, has_secret: bool) -> list[str]:
+    """A `cdp_url` the operator has not vetted, or a proxy or hosted browser that cannot be used.
+
+    The `cdp_url` is an exact match against `BROWSER_CDP_ALLOWED_HOSTS`;
+    `validate_cdp_url` says why the allowlist is the control there rather than the
+    SSRF guard. A proxy or hosted browser is an address on the open internet, so
+    it gets the SSRF guard - off the event loop, since it resolves DNS. Every
+    binding passes through here - a spec's own and each inline specialist's - so
+    a specialist cannot smuggle one past.
     """
-    if not isinstance(config, BrowserUseConfig):
+    if not isinstance(config, WebBrowserConfig):
         return []
     try:
-        await asyncio.to_thread(validate_cdp_url, config)
+        validate_cdp_url(config)
     except ValueError as exc:
-        return [
-            f"Browser automation's remote endpoint cannot be reached from here: {exc} "
-            "Point it at a public browser service, not a loopback or internal address."
-        ]
+        return [f"The web browser's endpoint cannot be used: {exc}."]
+    problems = connection_problems(config, has_secret=has_secret)
+    if problems:
+        return problems
+    try:
+        if config.connection == "proxy":
+            await check_address(config.proxy_url, kind="proxy")
+        elif config.connection == "hosted":
+            await check_address(config.hosted_url, kind="hosted")
+    except ValueError as exc:
+        return [f"The browser's {config.connection} address cannot be used: {exc}"]
     return []
 
 
-def _browser_choice_problems(config: BaseModel | None) -> list[str]:
-    """A `cdp_url` this deployment's operator has not vetted, or none at all.
+def _variable_problems(spec: AgentSpec) -> _SpecProblems:
+    """Variables the instructions cannot fill, and custom ones that cannot be defined (#2065).
 
-    Sync, unlike `_browser_use_problems`: the check this calls is an exact match
-    against `BROWSER_CDP_ALLOWED_HOSTS` and resolves no DNS, so there is nothing
-    to keep off the event loop. `validate_cdp_url` says why the allowlist is the
-    control here rather than the SSRF guard.
-
-    Its own function rather than one shared with `browser_use`: two capabilities,
-    two endpoints, two controls now, and a helper taking `BaseModel | None` would
-    have to re-derive which it is looking at in order to say anything a person can
-    act on.
+    Refused here rather than left as literal braces for a run to send the model:
+    `{{custmer_name}}` reaching a customer is the typo nobody sees until then.
     """
-    if not isinstance(config, BrowserChoiceConfig):
-        return []
-    try:
-        validate_browser_choice_cdp_url(config)
-    except ValueError as exc:
-        return [f"Browser automation's endpoint cannot be used: {exc}."]
-    return []
+    problems = _SpecProblems()
+
+    def refuse(field_name: str, message: str) -> None:
+        problems.messages.append(message)
+        problems.fields.append({"field": field_name, "message": message})
+
+    for name in prompt_variables.unknown_variables(spec):
+        refuse("instructions", f"The instructions use {{{{{name}}}}}, which is not a variable")
+    seen: set[str] = set()
+    for index, variable in enumerate(spec.variables):
+        if variable.name in prompt_variables.SYSTEM_NAMES:
+            refuse(
+                f"variables.{index}.name",
+                f"'{variable.name}' is a system variable and cannot be redefined",
+            )
+        elif variable.name in seen:
+            refuse(f"variables.{index}.name", f"'{variable.name}' is defined twice")
+        seen.add(variable.name)
+    if spec.time_zone not in (
+        prompt_variables.SYSTEM_TIME_ZONE,
+        prompt_variables.PERSON_TIME_ZONE,
+    ) and not prompt_variables.is_time_zone(spec.time_zone):
+        refuse("time_zone", f"'{spec.time_zone}' is not a time zone")
+    return problems
 
 
 def _tool_override_problems(binding: CapabilityBindingSpec, definition: CapabilityDef) -> list[str]:
@@ -759,7 +789,26 @@ class AgentRegistryService:
         allowed = await resolve_access(self.db, ctx, agent, perm, resource_type=AGENT)
         if not allowed:
             raise NotFoundError(message="Agent not found", details={"agent_id": str(agent_id)})
+        if perm not in _READ_PERMS and not ctx.has(Perm.ORG_SETTINGS):
+            await self._refuse_the_assistant(agent)
         return agent
+
+    async def _refuse_the_assistant(self, agent: Agent) -> None:
+        """Refuse changing the organization's assistant without `org:settings`.
+
+        It is installed as an ordinary organization-wide agent, so a Builder's
+        `agents:edit` reaches it through the generic routes - and everybody who
+        opens the corner widget runs it with their own authority. Its spec is
+        changed in the Builder, behind the gate `/assistant` has.
+
+        Raises:
+            AuthorizationError: The agent is the organization's assistant.
+        """
+        if await organization_assistant_repo.for_agent(self.db, agent.id) is not None:
+            raise AuthorizationError(
+                message="Only an administrator can change the AI Architect",
+                details={"agent_id": agent.id},
+            )
 
     async def may_run(self, ctx: AuthContext, agent: Agent) -> bool:
         """Whether this caller may run this agent - the floor to create a trigger on it.
@@ -901,6 +950,9 @@ class AgentRegistryService:
         # floor for offering "new trigger" on a card. A grant widens it per row, so
         # a Viewer shared run on one agent sees the control there and nowhere else.
         runnable = await accessible_ids(self.db, ctx, agents, Perm.AGENTS_RUN, resource_type=AGENT)
+        groups = await groups_sharing(
+            self.db, ctx, resource_type=AGENT, resource_ids=[agent.id for agent in agents]
+        )
         rows = [
             AgentRead(
                 id=agent.id,
@@ -919,6 +971,7 @@ class AgentRegistryService:
                 tags=agent.tags,
                 can_run=agent.id in runnable,
                 shared_user_count=shared_counts.get(agent.id, 0),
+                shared_groups=groups[agent.id],
                 channels=surfaces.get(agent.id, []),
                 budget_monthly_usd=(
                     budget_caps.get(agent.current_version_id) if agent.current_version_id else None
@@ -1009,30 +1062,14 @@ class AgentRegistryService:
             ]
         )
 
-    async def install_template(self, ctx: AuthContext, key: str) -> TemplateInstallResult:
-        """Create a draft agent from a shipped template, with its skills.
+    async def template_skills(
+        self, ctx: AuthContext, template: agent_templates.AgentTemplate
+    ) -> list[Skill]:
+        """The skills a template expects, installed where missing and readable by `ctx`.
 
-        A **draft**, deliberately. The template cannot name a model - this
-        platform has no organization-wide default, because a model an agent did
-        not choose is one somebody else's change can swap underneath it - and it
-        cannot name a knowledge collection it has never seen. Publishing an agent
-        missing either would produce answers from nowhere, confidently.
-
-        The skills it expects are installed first, from the gallery, and skipped
-        where the organization already has them. A bundled skill is bound where
-        the organization still has it, and left out where somebody deleted it. Its MCP suggestions are returned
-        rather than bound: a connection needs somebody to authorise it.
-
-        Raises:
-            NotFoundError: If no such template ships with this deployment.
-            AlreadyExistsError: If the slug is taken - which is what installing
-                the same template twice would do, and the second agent would be
-                indistinguishable from the first in a channel.
+        Shared by a template install and the AI Architect's own install (#2069), so
+        both bind exactly the skills a person installing the template would get.
         """
-        template = agent_templates.get(key)
-        if template is None:
-            raise NotFoundError(message="No such agent template", details={"key": key})
-
         # A bundled skill is seeded into every organization when it is created,
         # so there is nothing to install - only a row to find by its name.
         # Everything else is a gallery key and is installed first.
@@ -1059,7 +1096,7 @@ class AgentRegistryService:
         # it was seeded would otherwise be bound, reported as installed, and then
         # refused at publish as a skill that does not exist - the check publish
         # makes, made here first.
-        rows = [
+        return [
             row
             for name in wanted
             if (
@@ -1071,11 +1108,40 @@ class AgentRegistryService:
             and await resolve_access(self.db, ctx, row, Perm.SKILLS_VIEW, resource_type=SKILL)
         ]
 
+    async def install_template(
+        self, ctx: AuthContext, key: str, *, visibility: Visibility = Visibility.PRIVATE
+    ) -> TemplateInstallResult:
+        """Create a draft agent from a shipped template, with its skills.
+
+        A **draft**, deliberately. The template cannot name a model - this
+        platform has no organization-wide default, because a model an agent did
+        not choose is one somebody else's change can swap underneath it - and it
+        cannot name a knowledge collection it has never seen. Publishing an agent
+        missing either would produce answers from nowhere, confidently.
+
+        The skills it expects are installed first, from the gallery, and skipped
+        where the organization already has them. A bundled skill is bound where
+        the organization still has it, and left out where somebody deleted it. Its MCP suggestions are returned
+        rather than bound: a connection needs somebody to authorise it.
+
+        Raises:
+            NotFoundError: If no such template ships with this deployment.
+            AlreadyExistsError: If the slug is taken - which is what installing
+                the same template twice would do, and the second agent would be
+                indistinguishable from the first in a channel.
+        """
+        template = agent_templates.get(key)
+        if template is None:
+            raise NotFoundError(message="No such agent template", details={"key": key})
+
+        rows = await self.template_skills(ctx, template)
+
         spec = AgentSpec(
             name=template.name,
             description=template.description,
             instructions=template.instructions,
-            capabilities=list(template.capabilities),
+            capabilities=agent_templates.for_this_deployment(template.capabilities),
+            mcp_servers=list(template.mcp_servers),
             skill_ids=[row.id for row in rows],
             budget=(
                 BudgetSpec(monthly_usd=template.budget_usd)
@@ -1083,7 +1149,7 @@ class AgentRegistryService:
                 else None
             ),
         )
-        agent = await self.create(ctx, spec)
+        agent = await self.create(ctx, spec, visibility=visibility)
         return TemplateInstallResult(
             agent_id=agent.id,
             slug=agent.slug,
@@ -1108,6 +1174,8 @@ class AgentRegistryService:
         visibility: Visibility = Visibility.PRIVATE,
         categories: list[str] | None = None,
         tags: list[str] | None = None,
+        group_ids: list[UUID] | None = None,
+        user_ids: list[UUID] | None = None,
     ) -> Agent:
         """Create an agent in draft.
 
@@ -1174,6 +1242,14 @@ class AgentRegistryService:
             target_id=str(agent.id),
             details={"slug": slug, "name": spec.name},
         )
+        if group_ids or user_ids:
+            await SharingService(self.db).restrict_to(
+                ctx,
+                agent,
+                resource_type=AGENT,
+                group_ids=group_ids or [],
+                user_ids=user_ids or [],
+            )
         return agent
 
     async def clone(self, ctx: AuthContext, agent_id: UUID, *, name: str | None = None) -> Agent:
@@ -1361,6 +1437,7 @@ class AgentRegistryService:
 
         problems.add(await self._mcp_problems(ctx, spec.mcp_servers))
         problems.add(await self._observability_problems(ctx, spec))
+        problems.merge(_variable_problems(spec))
 
         problems.add(await _sandbox_problems(self.db, ctx, spec))
         problems.merge(await self._delegation_problems(ctx, spec, agent_id=agent_id))
@@ -1405,8 +1482,9 @@ class AgentRegistryService:
         except BadRequestError as exc:
             problems.merge(_config_problems(binding.id, exc))
         else:
-            problems.add(await _browser_use_problems(config))
-            problems.add(_browser_choice_problems(config))
+            problems.add(await _browser_problems(config, has_secret=binding.secret_id is not None))
+            if isinstance(config, WebBrowserConfig) and config.step_model_profile_id is not None:
+                problems.add(await self._model_profile_problems(ctx, config.step_model_profile_id))
             problems.add(ungateable_tool_problems(binding, definition, config))
         # A tool_approval key that matches nothing is the dangerous kind of
         # typo: it is not an error at run time, it is silence - the tool the
@@ -1523,12 +1601,13 @@ class AgentRegistryService:
         prefixed: list[tuple[str, str]] = []
         found = await mcp_connection_repo.get_org_scoped_by_ids(
             self.db,
-            connection_ids=[
-                ref.connection_id for ref in refs if not isinstance(ref, PersonalMcpServerRef)
-            ],
+            connection_ids=[ref.connection_id for ref in refs if isinstance(ref, OrgMcpServerRef)],
             organization_id=ctx.organization_id,
         )
         for ref in refs:
+            if isinstance(ref, PlatformMcpServerRef):
+                prefixed.append((PLATFORM_MCP_PREFIX, "this platform's own server"))
+                continue
             if isinstance(ref, PersonalMcpServerRef):
                 if mcp_catalog.get_entry(ref.catalog_key) is None:
                     problems.append(
@@ -1540,6 +1619,19 @@ class AgentRegistryService:
                 prefixed.append((ref.catalog_key, f"each person's own {ref.catalog_key}"))
                 continue
             connection = found.get(ref.connection_id)
+            if (
+                connection is not None
+                and connection.visibility != Visibility.ORG.value
+                and not await resolve_access(
+                    self.db, ctx, connection, Perm.MCP_MANAGE, resource_type=MCP_CONNECTION
+                )
+            ):
+                # Narrowed to groups the publisher is not in (#2072): binding it
+                # would lend a department's server out, which is the publisher's
+                # to do only once it is shared with them. Worded as a missing one,
+                # so a guessed id maps nothing.
+                problems.append(f"MCP server not found: {ref.connection_id}")
+                continue
             if connection is None:
                 # Says which of the two ways it can fail applies, because the
                 # likely one - a personal connection picked in the Builder - is
@@ -1780,6 +1872,9 @@ class AgentRegistryService:
         # can be broken, or borrowed from another organization.
         if specialist.model_profile_id is not None:
             problems.add(await self._model_profile_problems(ctx, specialist.model_profile_id))
+        # Its instructions are filled the way the parent's are, so a typo in a
+        # variable is refused here too rather than sent to the model as braces.
+        problems.merge(_variable_problems(specialist.to_agent_spec(fallback_model_profile_id=None)))
         return problems.within_specialist(specialist.name)
 
     async def _resolve_pins(self, ctx: AuthContext, refs: Sequence[SubagentRef]) -> _ResolvedPins:
@@ -1940,6 +2035,7 @@ class AgentRegistryService:
         # is write-only: a `spec_version: 3` YAML publishes carrying constructs
         # this code understands and stays labelled 3.
         spec.spec_version = SPEC_VERSION
+        frozen = spec.model_dump(mode="json")
 
         number = await agent_repo.next_version_number(self.db, agent_id=agent.id)
         version = await agent_repo.create_version(
@@ -1947,16 +2043,22 @@ class AgentRegistryService:
             agent_id=agent.id,
             organization_id=ctx.organization_id,
             version=number,
-            spec=spec.model_dump(mode="json"),
+            spec=frozen,
             note=note,
             published_by_user_id=ctx.user_id,
         )
+        # The draft takes the stamped copy too: left at the number it was saved
+        # with, a draft that is exactly what was just published reads as
+        # "differs from" it, and stays that way until somebody edits it.
         await agent_repo.update(
-            self.db, agent=agent, update_data={"status": AgentStatus.PUBLISHED.value}
+            self.db,
+            agent=agent,
+            update_data={"status": AgentStatus.PUBLISHED.value, "draft_spec": frozen},
         )
         # `current_version_id` is the default environment's pointer, so the step
         # that moves environments is the step that moves it - see below.
         await self._move_environments_that_follow(ctx, agent=agent, version=version)
+        await self.withdraw_creator_consent(ctx, agent)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -1997,6 +2099,33 @@ class AgentRegistryService:
                 "backend": config.backend,
             },
         )
+
+    async def withdraw_creator_consent(self, ctx: AuthContext, agent: Agent) -> None:
+        """Switch "run as me" off on the triggers somebody else made, as the code they run changes.
+
+        A creator who let a trigger act as them agreed to what the agent did then.
+        A new version put in front of their trigger by somebody else - a publish
+        an environment follows, a promotion, a rollback - could read their mailbox
+        with their connections, so their consent does not carry over to it; their
+        own publishes keep it (#2027) - in person only. Through one of their API
+        keys, or by an administrator impersonating them, it is somebody else's
+        publish: the rule `agent_trigger._acts_as_themselves` sets for granting
+        the consent holds for keeping it.
+        """
+        in_person = ctx.api_key_id is None and current_impersonator() is None
+        withdrawn = await agent_trigger_repo.withdraw_creator_consent(
+            self.db, agent_id=agent.id, kept_for=ctx.user_id if in_person else None
+        )
+        if withdrawn:
+            await record_audit(
+                self.db,
+                actor_user_id=ctx.subject_id,
+                organization_id=ctx.organization_id,
+                action="agent_trigger.creator_consent_withdrawn",
+                target_type="agent",
+                target_id=str(agent.id),
+                details={"triggers": withdrawn},
+            )
 
     async def _move_environments_that_follow(
         self, ctx: AuthContext, *, agent: Agent, version: AgentVersion
@@ -2093,6 +2222,7 @@ class AgentRegistryService:
         # version back in front of people directly is one click on the history
         # row - promote - rather than two here.
         await self._move_environments_that_follow(ctx, agent=agent, version=version)
+        await self.withdraw_creator_consent(ctx, agent)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -2111,6 +2241,13 @@ class AgentRegistryService:
         keep the trail. Real deletion is a separate, deliberate act.
         """
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
+        if await organization_assistant_repo.for_agent(self.db, agent.id) is not None:
+            # Archived, it would still read as ready in the corner and refuse every
+            # run; switching it off is the way to retire it.
+            raise BadRequestError(
+                message="Switch the AI Architect off in Settings instead of archiving it",
+                details={"agent_id": agent.id},
+            )
         updated = await agent_repo.update(
             self.db, agent=agent, update_data={"status": AgentStatus.ARCHIVED.value}
         )
@@ -2245,9 +2382,26 @@ class AgentRegistryService:
             )
         return agent.avatar_url
 
-    async def delete(self, ctx: AuthContext, agent_id: UUID) -> None:
-        """Permanently remove an agent, its versions and its shares."""
+    async def delete(self, ctx: AuthContext, agent_id: UUID, *, draft_only: bool = False) -> None:
+        """Permanently remove an agent, its versions and its shares.
+
+        `draft_only` is the undo of a draft made by mistake: the agent must be the
+        caller's and never published, read from the row locked for this
+        transaction - a publish committed since the caller looked is seen, and
+        one starting now waits for the delete.
+
+        Raises:
+            BadRequestError: `draft_only`, and the agent is somebody else's or was
+                published.
+        """
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
+        if draft_only:
+            await self.db.refresh(agent, with_for_update=True)
+            if agent.owner_user_id != ctx.subject_id or agent.current_version_id is not None:
+                raise BadRequestError(
+                    message="Only a never-published draft you created can be undone",
+                    details={"agent_id": agent.id},
+                )
         # The agent's triggers go with it by CASCADE, which would silently discard
         # the provider webhook ids their auto-registered hooks are removable by -
         # so the provider side is swept first, best-effort. Imported locally:
@@ -2546,6 +2700,43 @@ class AgentRegistryService:
                 details={"limit": limit, "held": held},
             )
 
+    async def refuse_a_switched_off_assistant(self, agent_id: UUID) -> None:
+        """Refuse running - or continuing a run of - an assistant somebody switched off (#2063).
+
+        The organization's AI Architect is otherwise an ordinary agent: who may
+        run it is `agents:run`, as for any other.
+
+        Raises:
+            BadRequestError: The assistant has been switched off.
+        """
+        assistant = await organization_assistant_repo.for_agent(self.db, agent_id)
+        if assistant is not None and not assistant.enabled:
+            raise BadRequestError(
+                message="The assistant is switched off in this organization",
+                details={"agent_id": str(agent_id)},
+            )
+
+    async def get_draft_spec(self, ctx: AuthContext, agent_id: UUID) -> tuple[Agent, AgentSpec]:
+        """The draft as it stands, for the Builder's test panel to run (#2074).
+
+        Whoever may edit the agent may try what they are editing - nothing is
+        published, and the run is recorded as a test. The draft is checked the
+        way a publish checks it, so a test refuses what a publish would, with the
+        same list of problems, rather than failing halfway through a turn.
+
+        Raises:
+            NotFoundError: If the caller may not edit this agent.
+            BadRequestError: If it is archived, or the draft would not publish.
+        """
+        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
+        if agent.status == AgentStatus.ARCHIVED.value:
+            raise BadRequestError(
+                message=f"Agent '{agent.name}' is archived", details={"agent_id": str(agent.id)}
+            )
+        spec = AgentSpec.model_validate(agent.draft_spec)
+        await self.validate_spec(ctx, spec, agent_id=agent.id)
+        return agent, spec
+
     async def get_runnable_spec(
         self, ctx: AuthContext, agent_id: UUID, *, environment_id: UUID | None = None
     ) -> tuple[Agent, AgentSpec, UUID]:
@@ -2628,6 +2819,7 @@ class AgentRegistryService:
 
     async def _runnable(self, ctx: AuthContext, agent_id: UUID) -> Agent:
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
+        await self.refuse_a_switched_off_assistant(agent.id)
         if agent.status == AgentStatus.ARCHIVED.value:
             raise BadRequestError(
                 message=f"Agent '{agent.name}' is archived", details={"agent_id": str(agent.id)}

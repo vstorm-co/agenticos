@@ -155,6 +155,36 @@ class ConfigurationError(AppException):
     status_code = 503
 
 
+class RunFailedError(AppException):
+    """A run started over the API failed, its terminal status already recorded (500).
+
+    `AgentRunnerService._run` records the run `failed` with our own sentence for
+    why (`run_failure_summary`) and commits before re-raising, so the run exists and
+    can be read. The unhandled-exception handler answered that as a bare 500 with
+    no details, and the caller never learnt the id of the run it had just paid for
+    (#2121). This carries it: `details.run_id` and `details.status`, and the
+    recorded reason in the message - never the raw exception, which can hold a
+    provider's request URL.
+    """
+
+    message = "The run failed"
+    code = "RUN_FAILED"
+    status_code = 500
+
+
+class ModelCallFailedError(RunFailedError):
+    """The model provider refused or failed a run's request (502).
+
+    Its own status because it is somebody else's failure: the request reached the
+    provider and the provider answered with an error, so a retry later - or a
+    different model - may well succeed where retrying our own bug would not.
+    """
+
+    message = "The model provider did not complete the request"
+    code = "MODEL_CALL_FAILED"
+    status_code = 502
+
+
 class RunExecutionError(AppException):
     """A run failed while executing, its terminal status already recorded (500).
 

@@ -296,3 +296,36 @@ describe("an eval run", () => {
     expect(screen.queryByRole("link", { name: /eval/i })).toBeNull();
   });
 });
+
+describe("the header a run opens on", () => {
+  it("steps up to the run a delegation came from, and out to its trace", async () => {
+    serve({
+      run: run({
+        parent_run_id: "run-0",
+        logfire_url: "https://logfire.example/trace/abc",
+      } as Partial<AgentRun>),
+    });
+    const onFocusRun = renderRun();
+
+    expect(screen.getByRole("link", { name: /Logfire/ })).toHaveAttribute(
+      "href",
+      "https://logfire.example/trace/abc",
+    );
+    await userEvent.click(screen.getByRole("button", { name: /run it came from/i }));
+
+    expect(onFocusRun).toHaveBeenCalledWith("run-0");
+  });
+
+  it("says what it does not know rather than inventing it", () => {
+    // A run with no model resolved and no start recorded: a dash for the model,
+    // no age, and a cost marked as partial.
+    serve({
+      run: run({ provider: null, model_label: null, started_at: null, cost_is_partial: true }),
+    });
+    renderRun();
+
+    expect(screen.getAllByText("-").length).toBeGreaterThan(0);
+    expect(screen.getByTitle(/no price/i)).toHaveTextContent("+");
+    expect(screen.queryByText(/ago$/)).toBeNull();
+  });
+});

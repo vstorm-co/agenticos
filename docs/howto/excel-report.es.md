@@ -1,5 +1,5 @@
 ---
-source_sha: "5b846962a129"
+source_sha: "4f6ac46ddef7"
 title: "Construye un informe de Excel y una presentación a partir de datos"
 description: "Adjunta un pequeño CSV sintético y haz que un agent en una sandbox produzca un libro con fórmulas y un gráfico, más una presentación de tres diapositivas; después abre ambos y comprueba los números."
 ---
@@ -42,7 +42,7 @@ Totales de referencia, calculados a mano: por región North 54.000, South 39.000
 ## Construye el agent { #build-the-agent }
 
 1. Crea un agent en **Agents → New agent** y selecciona tu perfil de modelo.
-2. En **Toolbox**, activa **Files & shell**. Elige **Container**, selecciona tu conexión de sandbox y el runtime `workbench`, y mantén el alcance de conversación.
+2. En **Toolbox**, activa **Sandbox**. Elige **Container**, selecciona tu conexión de sandbox y el runtime `workbench`, y mantén el alcance de conversación.
 3. Fija un budget para la prueba, escribe las instrucciones de abajo y pulsa **Publish**.
 
 ```text
@@ -106,4 +106,4 @@ Una persona comprueba que las fórmulas son fórmulas de verdad, que el eje del 
 
 ## Siguientes pasos { #next-steps }
 
-Para un informe que tiene que ejecutarse cada semana y no una sola vez, continúa con [programa un informe semanal](scheduled-report.md), que publica su resultado como un artefacto estable y compartible en lugar de un archivo del workspace.
+Para un informe que tiene que ejecutarse cada semana y no una sola vez, continúa con [programa un informe semanal](scheduled-report.md), que publica su resultado como una aplicación estable y compartible en lugar de un archivo del workspace.

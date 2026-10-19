@@ -69,7 +69,7 @@ describe("choosing which request to make", () => {
     show("pdf", { readBytes: () => Promise.resolve(new Blob(["x"])) }, "report.pdf");
 
     expect(
-      await screen.findByText("This one cannot be shown here — the server serves it as a file."),
+      await screen.findByText("This one cannot be shown here - the server serves it as a file."),
     ).toBeInTheDocument();
   });
 });

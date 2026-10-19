@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { NAV_GROUPS, SidebarNav, isActive } from "./app-sidebar";
@@ -17,7 +17,11 @@ vi.mock("next-intl", async () => ({
   useTranslations: (await import("@/test-utils/intl")).keyTranslations(),
 }));
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can }) }));
-vi.mock("@/stores", () => ({ useAuthStore: () => ({ user: currentUser() }) }));
+const sidebar = { openGroups: [] as string[], toggleGroup: vi.fn<(key: string) => void>() };
+vi.mock("@/stores", () => ({
+  useAuthStore: () => ({ user: currentUser() }),
+  useSidebarStore: <T,>(select: (state: typeof sidebar) => T) => select(sidebar),
+}));
 
 function renderNav() {
   return render(<SidebarNav />);
@@ -100,6 +104,7 @@ describe("SidebarNav", () => {
     // at OWN scope but never holds connections:manage. Gating the nav on the
     // latter hid the Vault from everyone below admin.
     can.mockImplementation((permission) => permission === "secrets:view");
+    sidebar.openGroups = ["connections"];
 
     renderNav();
 
@@ -108,6 +113,7 @@ describe("SidebarNav", () => {
 
   it("hides the Vault when the caller cannot even list secrets", () => {
     can.mockImplementation((permission) => permission === "connections:manage");
+    sidebar.openGroups = ["connections"];
 
     renderNav();
 
@@ -160,6 +166,43 @@ describe("SidebarNav", () => {
     expect(screen.getByRole("link", { name: "chat" })).not.toHaveAttribute("aria-current");
   });
 
+  it("folds a set-up-once group to its heading until somebody opens it", () => {
+    can.mockReturnValue(true);
+    currentPath.mockReturnValue("/dashboard");
+    sidebar.openGroups = [];
+
+    renderNav();
+
+    expect(screen.queryByRole("link", { name: "mcpServers" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "connections" }));
+    expect(sidebar.toggleGroup).toHaveBeenCalledWith("connections");
+  });
+
+  it("never folds the group holding the page you are on", () => {
+    can.mockReturnValue(true);
+    currentPath.mockReturnValue("/channels");
+    sidebar.openGroups = [];
+
+    renderNav();
+
+    expect(screen.getByRole("link", { name: "channels" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: "connections" })).toBeDisabled();
+  });
+
+  it("opens a group somebody opened before", () => {
+    can.mockReturnValue(true);
+    currentPath.mockReturnValue("/dashboard");
+    sidebar.openGroups = ["organization"];
+
+    renderNav();
+
+    expect(screen.getByRole("link", { name: "groups" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "organization" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+  });
+
   it("runs the caller's callback on navigation, so the drawer can close", () => {
     can.mockReturnValue(true);
     const onNavigate = vi.fn();
@@ -202,12 +245,13 @@ describe("the navigation definition", () => {
 
   it("gives every platform destination a permission to hide behind", () => {
     // Dashboard, Chat and Organizations are open to any member by design, and so
-    // is Workspaces: it lists the files an agent kept *for the person looking*,
+    // is Documents: it lists the files an agent kept *for the person looking*,
     // and the backend narrows it to what they are part of - a permission here
-    // would hide somebody's own files behind an operator's authority.
+    // would hide somebody's own files behind an operator's authority. Groups too:
+    // any member reads them, because a group is what somebody shares with (#2072).
     // Everything else must state what it needs, or a Viewer is shown pages that
     // will refuse them.
-    const open = new Set(["dashboard", "chat", "organizations", "workspaces"]);
+    const open = new Set(["dashboard", "chat", "organizations", "groups", "documents"]);
     const unguarded = NAV_GROUPS.filter((group) => !group.adminOnly)
       .flatMap((group) => group.items)
       .filter((item) => !item.permission && !open.has(item.labelKey));

@@ -263,7 +263,7 @@ describe("run history controls", () => {
       refetch: vi.fn(),
     });
     renderTab();
-    expect(screen.getByText("Eval judge")).toBeInTheDocument();
+    expect(screen.getAllByText("Eval judge").length).toBeGreaterThan(0);
   });
 
   it("puts the eval traffic back, or shows it alone, when asked", async () => {
@@ -369,7 +369,7 @@ describe("run history controls", () => {
     const onFocusRun = vi.fn();
     renderTab({ onFocusRun });
 
-    await userEvent.click(screen.getByText("openai · gpt-5"));
+    await userEvent.click(screen.getByText("gpt-5"));
 
     expect(onFocusRun).toHaveBeenCalledWith("run-1");
   });
@@ -468,5 +468,17 @@ describe("the model narrowing", () => {
     await userEvent.click(await screen.findByRole("option", { name: "gpt-4o-mini" }));
 
     expect(lastOptions()).toMatchObject({ modelLabel: "gpt-4o-mini" });
+  });
+
+  it.each([
+    ["Only test runs", true],
+    ["Without test runs", false],
+  ])("narrows to the Builder's test runs or away from them (%s)", async (option, isTest) => {
+    renderTab();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Test runs" }));
+    await userEvent.click(await screen.findByRole("option", { name: option }));
+
+    expect(lastOptions()).toMatchObject({ isTest });
   });
 });

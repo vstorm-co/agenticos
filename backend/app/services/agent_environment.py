@@ -275,6 +275,8 @@ class AgentEnvironmentService:
                 organization_id=ctx.organization_id,
                 connections=connections,
             )
+        if version is not None:
+            await AgentRegistryService(self.db).withdraw_creator_consent(ctx, agent)
         if environment.is_default and version is not None:
             # The denormalized pointer is this environment's, so promoting the
             # default *is* the deploy every surface naming no environment reads.

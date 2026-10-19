@@ -1,6 +1,7 @@
 "use client";
 
 import { CapabilityDetail } from "@/components/agents/capability-settings";
+import { useCapabilityFieldCopy } from "@/components/agents/capability-field-copy";
 import { SchemaForm } from "@/components/agents/schema-form";
 import {
   Label,
@@ -58,6 +59,7 @@ export function ImageGenerationSection({
   const t = useTranslations("agents");
   const { providers, isLoading, isError } = useImageProviders();
   const configErrors = capabilityConfigErrors(configProblems ?? [], binding.id);
+  const copyFor = useCapabilityFieldCopy(binding.id);
 
   if (!definition) return null;
 
@@ -172,6 +174,7 @@ export function ImageGenerationSection({
           value={binding.config}
           disabled={disabled}
           errors={configErrors}
+          copyFor={copyFor}
           onChange={(config) => onChange({ ...binding, config })}
         />
       )}

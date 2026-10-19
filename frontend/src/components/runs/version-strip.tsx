@@ -93,7 +93,7 @@ function VersionCard({ row, isCurrent }: { row: VersionUsageRow; isCurrent: bool
         {isCurrent && <Badge variant="secondary">{t("currentVersion")}</Badge>}
       </div>
       <p className="text-muted-foreground text-xs">{t("runCount", { count: row.runs })}</p>
-      <dl className="grid grid-cols-3 gap-2 text-xs">
+      <dl className="flex flex-wrap gap-x-3 gap-y-2 text-xs">
         <Stat value={share} label={t("perVersionCompleted")} />
         <Stat value={costPerRun} label={t("perVersionCostPerRun")} />
         <Stat value={formatMs(row.p95_ms)} label={t("perVersionLatency")} />

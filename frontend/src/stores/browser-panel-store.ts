@@ -1,15 +1,10 @@
 "use client";
 
-import { create } from "zustand";
+import { create, createStore, type StateCreator } from "zustand";
 
-export const MIN_PANEL_WIDTH = 360;
-export const MAX_PANEL_WIDTH = 880;
-export const DEFAULT_PANEL_WIDTH = 520;
+import { scopedStore } from "./chat-scope-context";
 
-/** Where an expanded browse is drawn. */
-export type BrowserViewMode = "panel" | "full";
-
-interface BrowserPanelState {
+export interface BrowserPanelState {
   /**
    * Which browse is expanded, by `call_id`, or `null` for none.
    *
@@ -19,32 +14,28 @@ interface BrowserPanelState {
    * somebody reading it the moment the other browse advanced.
    */
   openCallId: string | null;
-  mode: BrowserViewMode;
-  /** How wide the side panel is, as somebody dragged it. Full screen ignores it. */
-  width: number;
-  open: (callId: string, mode: BrowserViewMode) => void;
+  open: (callId: string) => void;
   close: () => void;
-  setWidth: (width: number) => void;
 }
 
 /**
- * Which browse is expanded, how, and how wide.
+ * Which browse is open full screen.
  *
  * Only that. The browses themselves live in `use-chat`, with the delegations and
  * for the same reason - they belong to a turn, and this belongs to a person's
- * window. Nothing here opens itself: a browse shows itself as a card in the
- * transcript, and expanding it is somebody's decision.
- *
- * Width is held for the session rather than persisted. `localStorage` would
- * survive a reload and also has to be wrapped in try/catch and tolerate coming
- * back empty, which is a lot of machinery for remembering a drag.
+ * window. Nothing here opens itself: a browse shows under its message, and
+ * opening it full screen is somebody's decision.
  */
-export const useBrowserPanelStore = create<BrowserPanelState>((set) => ({
+const browserPanelState: StateCreator<BrowserPanelState> = (set) => ({
   openCallId: null,
-  mode: "panel",
-  width: DEFAULT_PANEL_WIDTH,
-  open: (callId, mode) => set({ openCallId: callId, mode }),
+  open: (callId) => set({ openCallId: callId }),
   close: () => set({ openCallId: null }),
-  setWidth: (width) =>
-    set({ width: Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, Math.round(width))) }),
-}));
+});
+
+/** A copy of its own, for a conversation in a scope - see `ChatScope`. */
+export const createBrowserPanelStore = () => createStore<BrowserPanelState>()(browserPanelState);
+
+export const useBrowserPanelStore = scopedStore(
+  create<BrowserPanelState>()(browserPanelState),
+  (scope) => scope.browserPanel,
+);

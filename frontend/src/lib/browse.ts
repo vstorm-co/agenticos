@@ -1,24 +1,34 @@
 import type { BrowseOutcome, BrowserFrame } from "@/types/chat";
 
 /**
- * One step the engine chose, as the panel lists it.
+ * One step the browser took, as the panel lists it.
  *
- * `confidence` is the reason a step is worth listing at all: the engine picks
- * from a table rather than composing an action, and it reports how likely it
- * found the pick. A step taken at 0.31 is one somebody should look at, and a list
- * without the number cannot say which one that was.
+ * `reason` is what makes a step worth reading rather than a log line: the model
+ * says what each action is for, so a person watching can tell a browse heading
+ * the wrong way from one taking the long way round.
  */
 export interface BrowseStep {
   step: number;
   operation: string;
   target: string | null;
-  confidence: number | null;
+  reason: string | null;
   url: string | null;
 }
 
-/** One `browse_page` call, assembled from its frames. */
+/** One `browse_web` call, assembled from its frames. */
 export interface Browse {
   callId: string;
+  /** The run it belongs to, which addresses its live view; null before it is known. */
+  runId?: string | null;
+  /**
+   * What the browser asked a person to do, while it waits for one (#2128) -
+   * cleared once somebody takes it over.
+   */
+  needs?: string | null;
+  /** Who holds the browser right now, while a person does - their name, for showing. */
+  heldBy?: string | null;
+  /** The same person by id: names are not unique, so this is what says it is you. */
+  heldById?: string | null;
   goal: string;
   maxSteps: number | null;
   url: string | null;
@@ -43,10 +53,23 @@ export interface Browse {
   imageStep: number;
   outcome: BrowseOutcome | null;
   detail: string | null;
+  /** The site a person kept their sign-in to when they handed the browser back (#2129). */
+  kept?: string | null;
+  /**
+   * Where the agent is about to press, as fractions of the viewport - the
+   * cursor a person watches move across the page - and the step it belongs to,
+   * so each press draws its own click. Absent until the agent points at
+   * something, and cleared while a person holds the browser or once it is over.
+   */
+  pointer?: { x: number; y: number; step: number } | null;
 }
 
 function opened(frame: BrowserFrame): Browse {
   return {
+    runId: frame.run_id ?? null,
+    needs: null,
+    heldBy: null,
+    heldById: null,
     callId: frame.call_id,
     goal: frame.goal ?? "",
     maxSteps: frame.max_steps ?? null,
@@ -79,7 +102,7 @@ function applyTo(browse: Browse, frame: BrowserFrame): Browse {
         step: frame.step,
         operation: frame.operation ?? "",
         target: frame.target ?? null,
-        confidence: frame.confidence ?? null,
+        reason: frame.reason ?? null,
         url: frame.url ?? null,
       };
       // Replaced rather than appended when the step number repeats: a resumed or
@@ -92,9 +115,33 @@ function applyTo(browse: Browse, frame: BrowserFrame): Browse {
         title: frame.title ?? browse.title,
       };
     }
+    case "browser_needs_person":
+      return { ...browse, needs: frame.detail ?? null };
+    case "browser_pointer":
+      return { ...browse, pointer: { x: frame.x ?? 0, y: frame.y ?? 0, step: frame.step } };
+    case "browser_held":
+      return {
+        ...browse,
+        needs: null,
+        heldBy: frame.by ?? null,
+        heldById: frame.by_user_id ?? null,
+        pointer: null,
+      };
+    case "browser_released":
+      // A give-back that kept the sign-in says which site (#2129).
+      return {
+        ...browse,
+        heldBy: null,
+        heldById: null,
+        kept: frame.detail ?? browse.kept ?? null,
+      };
     case "browser_finished":
       return {
         ...browse,
+        needs: null,
+        heldBy: null,
+        heldById: null,
+        pointer: null,
         outcome: frame.outcome ?? null,
         detail: frame.detail ?? null,
         url: frame.url ?? browse.url,

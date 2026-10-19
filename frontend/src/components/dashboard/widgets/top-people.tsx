@@ -34,14 +34,14 @@ export function TopPeopleWidget({ title, hint, period, seeAll, options }: Dashbo
   const locale = useLocale();
   const { byUser, isLoading, error, refetch } = usePeopleUsage(
     { from: period.from, to: period.to },
-    { limit: ROWS, filter: { agentId: options?.agentId } },
+    { limit: ROWS, filter: { agentId: options?.agentId, groupId: options?.groupId } },
   );
   // The composed answer for this window is already in the cache - reading the
   // headcount from it costs no request and keeps this card and the count above
   // it from ever disagreeing.
   const { usage } = useUsageStats(
     { from: period.from, to: period.to },
-    { filter: { agentId: options?.agentId } },
+    { filter: { agentId: options?.agentId, groupId: options?.groupId } },
   );
   const others = Math.max((usage?.active_users?.active ?? 0) - byUser.length, 0);
 
@@ -59,7 +59,7 @@ export function TopPeopleWidget({ title, hint, period, seeAll, options }: Dashbo
         />
       ) : (
         <div className="flex h-full flex-col gap-3">
-          <div className="overflow-x-auto">
+          <div className="-mx-1 overflow-x-auto px-1">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-muted-foreground border-border border-b text-xs">

@@ -1,6 +1,6 @@
 import { expect, test } from "./fixtures";
 
-import { AUTH_STATE, SEEDED_AGENT_NAME, pageHeading } from "./helpers";
+import { AUTH_STATE, DASHBOARD_GREETING, SEEDED_AGENT_NAME, pageHeading } from "./helpers";
 
 test.use({ storageState: AUTH_STATE });
 
@@ -15,7 +15,8 @@ test.use({ storageState: AUTH_STATE });
  */
 test.describe("Dashboard", () => {
   test("shows the owner their sections, with data where the seed has any", async ({ page }) => {
-    await page.goto("/dashboard");
+    // The sections are the organization's view; everybody opens on their own.
+    await page.goto("/dashboard?view=org");
 
     await expect(pageHeading(page, "Dashboard")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Needs attention" })).toBeVisible();
@@ -28,8 +29,9 @@ test.describe("Dashboard", () => {
   });
 
   test("every card resolves, and none shows the error body", async ({ page }) => {
+    // The view everybody opens on, their own.
     await page.goto("/dashboard");
-    await expect(pageHeading(page, "Dashboard")).toBeVisible();
+    await expect(pageHeading(page, DASHBOARD_GREETING)).toBeVisible();
 
     // Settled: every widget skeleton is gone (they all carry role=status).
     await expect(page.getByRole("status", { name: "Loading" })).toHaveCount(0, {
@@ -42,9 +44,10 @@ test.describe("Dashboard", () => {
 
   test("switching the period writes the URL, so the view travels", async ({ page }) => {
     await page.goto("/dashboard");
-    await expect(pageHeading(page, "Dashboard")).toBeVisible();
+    await expect(pageHeading(page, DASHBOARD_GREETING)).toBeVisible();
 
-    await page.getByRole("button", { name: "Last 7 days" }).click();
+    await page.getByRole("button", { name: "Period", exact: true }).click();
+    await page.getByRole("menuitemradio", { name: "Last 7 days" }).click();
 
     await expect(page).toHaveURL(/period=7d/);
   });

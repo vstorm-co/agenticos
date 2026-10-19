@@ -1,5 +1,5 @@
 ---
-source_sha: "35c351a5e658"
+source_sha: "512bef978a71"
 ---
 
 # Dodaj capability { #add-a-capability }
@@ -122,7 +122,12 @@ __all__ = ["Weather"]
 
 
 class WeatherConfig(BaseModel):
-    units: str = Field(default="metric", pattern="^(metric|imperial)$")
+    units: str = Field(
+        default="metric",
+        pattern="^(metric|imperial)$",
+        title="Units",
+        description="metric for °C and km/h, imperial for °F and mph.",
+    )
 
 
 @register(
@@ -155,11 +160,17 @@ def _build(ctx: CapabilityBuildContext) -> Weather | None:
   powinni czytać ten sam tekst, a nie dwie rozjeżdżające się parafrazy.
 - **`config_schema`** generuje formularz w Builderze i jest walidowany przy
   publikacji, więc zła wartość oblewa, kiedy ktoś patrzy na formularz, a nie w
-  środku runa.
+  środku runa. Każde pole dostaje `title` i `description` napisane dla osoby,
+  która je wypełnia, a te same dwa teksty trafiają pod
+  `capabilityConfig.<id>.<pole>` w `frontend/messages/en.json`, `pl.json` i
+  `de.json`. Bez tytułu formularz pokazuje nazwę pola, po angielsku, w każdym
+  języku; `tests/test_capability_registry.py` oblewa pole bez tytułu lub bez
+  wpisu w katalogu oraz wpis angielski, który różni się od schematu.
 - **`scopes`** są odmawiane na etapie budowania, gdy organizacja ich nie
   przyznała.
-- **`side_effecting=True`** przepuszcza narzędzia capability przez bramkę
-  approvalu.
+- **`side_effecting=True`** oznacza narzędzia capability jako działające na świat,
+  a Builder mówi o tym obok wyboru zatwierdzania. Niczego nie obejmuje bramką:
+  żadne narzędzie nie czeka na człowieka, dopóki autor o to nie poprosi.
 - **Zwrócenie `None`** znaczy „nie wnosi nic do *tego* agenta” i capability nie
   jest w ogóle podpinana. `knowledge` robi tak, gdy nie związano żadnych
   kolekcji: narzędzie wyszukiwania, które zawsze zwraca pustkę, jest gorsze niż
@@ -212,7 +223,7 @@ a nie w wiadomości commita.
     `test_every_file_in_a_platform_package_is_gated` istnieje po to, by tak
     pozostało. Edytowanie tych list jest od nowej *paczki* platformowej, spoza
     tych już objętych globem. Zobacz `## Testing` w
-    `CLAUDE.md`, a `tests/test_capability_registry.py` — dla stylu.
+    `AGENTS.md`, a `tests/test_capability_registry.py` — dla stylu.
 
 Warto pokryć w szczególności:
 

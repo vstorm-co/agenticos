@@ -69,6 +69,7 @@ async def list_visible(
     shared_with_me: bool = False,
     search: str | None = None,
     categories: Sequence[str] | None = None,
+    only_ids: Sequence[UUID] | None = None,
     sort: SkillSort = "name",
     skip: int = 0,
     limit: int = 50,
@@ -82,6 +83,8 @@ async def list_visible(
         shared_with_me: Narrow to rows deliberately shared with the caller -
             org-visible or explicitly granted, and not their own - whatever
             the role's scope.
+        only_ids: Narrow to these rows, on top of the visibility rules - the
+            skills shared with one group, when the page is grouped by one.
 
     The total is what a pager needs and a page cannot supply: "showing 50 of 50"
     and "50 of 380" are the same list until somebody counts the rest.
@@ -127,6 +130,8 @@ async def list_visible(
         )
     if categories:
         where.append(Skill.category.in_(categories))
+    if only_ids is not None:
+        where.append(Skill.id.in_(only_ids))
 
     order_by = (
         (func.coalesce(Skill.updated_at, Skill.created_at).desc(), Skill.name.asc())

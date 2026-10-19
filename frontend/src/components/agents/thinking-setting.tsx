@@ -1,6 +1,8 @@
 "use client";
 
+import { useCapabilityFieldCopy } from "@/components/agents/capability-field-copy";
 import { SchemaForm } from "@/components/agents/schema-form";
+import { THINKING_ID } from "@/lib/agent-spec";
 import { Label, Switch } from "@/components/ui";
 import type { CapabilityBindingSpec, CapabilityCatalogEntry } from "@/types/agents";
 
@@ -28,6 +30,7 @@ export function ThinkingSetting({
   onChange,
   disabled,
 }: ThinkingSettingProps) {
+  const copyFor = useCapabilityFieldCopy(THINKING_ID);
   // The capability is registered by the backend; a deployment without it has
   // nothing to offer here and says nothing rather than an empty control.
   if (!definition) return null;
@@ -56,6 +59,7 @@ export function ThinkingSetting({
           schema={definition.config_schema}
           value={binding.config}
           disabled={disabled}
+          copyFor={copyFor}
           onChange={(config) => onChange({ ...binding, config })}
         />
       )}

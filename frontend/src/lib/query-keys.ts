@@ -13,6 +13,17 @@ export const qk = {
     me: () => ["auth", "me"] as const,
   },
   health: () => ["health"] as const,
+  // The same document for everybody and every organization: it changes on a
+  // redeploy, not while somebody reads it.
+  publicApi: {
+    openapi: () => ["public-api", "openapi"] as const,
+  },
+  browserSignIns: {
+    /** The caller's kept browser sign-ins in one organization (#2129). */
+    mine: (orgId: string) => ["browser-sign-ins", orgId] as const,
+    /** Whether the deployment names a browser to sign in with from Settings. */
+    browser: () => ["browser-sign-ins", "browser"] as const,
+  },
   memory: {
     /** Every page of one organization's notes, for invalidating after a write. */
     all: (orgId: string) => ["memory", orgId] as const,
@@ -33,6 +44,15 @@ export const qk = {
     groups: (orgId: string) => ["organizations", orgId, "groups"] as const,
     groupMembers: (orgId: string, groupId: string) =>
       ["organizations", orgId, "groups", groupId, "members"] as const,
+    groupResources: (orgId: string, groupId: string) =>
+      ["organizations", orgId, "groups", groupId, "resources"] as const,
+    groupShareable: (orgId: string, groupId: string) =>
+      ["organizations", orgId, "groups", groupId, "shareable"] as const,
+    groupSpend: (orgId: string) => ["organizations", orgId, "groups", "spend"] as const,
+    groupsQuality: (orgId: string, window: { from?: string; to?: string }) =>
+      ["organizations", orgId, "groups", "quality", window] as const,
+    groupQuality: (orgId: string, groupId: string) =>
+      ["organizations", orgId, "groups", groupId, "quality"] as const,
     directoryMappings: (orgId: string) => ["organizations", orgId, "directory-mappings"] as const,
   },
   agents: {
@@ -72,6 +92,8 @@ export const qk = {
     delegationTree: (id: string) => ["agents", id, "delegation-tree"] as const,
     version: (id: string, versionId: string) => ["agents", id, "versions", versionId] as const,
     capabilityCatalog: () => ["agents", "capability-catalog"] as const,
+    // The system variables instructions may use; fixed for the deployment.
+    promptVariables: () => ["agents", "prompt-variables"] as const,
   },
   channelBots: {
     list: () => ["channel-bots"] as const,
@@ -172,6 +194,7 @@ export const qk = {
         userId?: string;
         conversationId?: string;
         agentVersionId?: string;
+        isTest?: boolean;
         skip?: number;
       } = {},
     ) =>
@@ -189,6 +212,7 @@ export const qk = {
         opts.modelLabel ?? "any-model",
         opts.userId ?? "anyone",
         opts.agentVersionId ?? "any-version",
+        opts.isTest ?? "tests-included",
         opts.skip ?? 0,
       ] as const,
     detail: (id: string) => ["runs", id] as const,
@@ -267,16 +291,35 @@ export const qk = {
       sort: string;
       skip: number;
       limit: number;
+      groupId: string;
     }) => ["skills", "list", query] as const,
     detail: (id: string) => ["skills", id] as const,
     gallery: () => ["skills", "gallery"] as const,
     resource: (skillId: string, resourceId: string) =>
       ["skills", skillId, "resources", resourceId] as const,
   },
+  mcpOauth: {
+    request: (orgId: string, requestId: string) =>
+      ["mcp-oauth", orgId, "request", requestId] as const,
+    grants: (orgId: string) => ["mcp-oauth", orgId, "grants"] as const,
+  },
+  // The organization's AI Architect: its agent, status and settings (#2063).
+  assistant: (orgId: string) => ["assistant", orgId] as const,
+  apiKeys: {
+    /** Every key query in one organization, for invalidating after a create or revoke. */
+    all: (orgId: string) => ["api-keys", orgId] as const,
+    list: (orgId: string) => ["api-keys", orgId, "list"] as const,
+    scopes: (orgId: string) => ["api-keys", orgId, "scopes"] as const,
+  },
   artifacts: {
     all: () => ["artifacts"] as const,
-    list: (query: { search: string; agentId: string | null; skip: number; limit: number }) =>
-      ["artifacts", "list", query] as const,
+    list: (query: {
+      search: string;
+      agentId: string | null;
+      skip: number;
+      limit: number;
+      groupId: string;
+    }) => ["artifacts", "list", query] as const,
     agents: () => ["artifacts", "agents"] as const,
     detail: (id: string) => ["artifacts", id] as const,
     versions: (id: string) => ["artifacts", id, "versions"] as const,
@@ -346,7 +389,7 @@ export const qk = {
   },
   context: {
     all: () => ["context"] as const,
-    list: (query: { search: string; sort: string; skip: number; limit: number }) =>
+    list: (query: { search: string; sort: string; skip: number; limit: number; groupId: string }) =>
       ["context", "list", query] as const,
     detail: (id: string) => ["context", id] as const,
   },
@@ -412,6 +455,10 @@ export const qk = {
     // stored parse does not change, so the second tab must not fetch it again.
     documentParsed: (id: string, documentId: string) =>
       ["kb", id, "documents", documentId, "parsed"] as const,
+    // A document found by the name a citation gave it, under the base's
+    // documents so an upload or a delete there refreshes what it resolves to.
+    documentNamed: (id: string, filename: string) =>
+      ["kb", id, "documents", "named", filename] as const,
   },
   attachments: {
     // A chat attachment, which is scoped to the user rather than to a collection
@@ -446,11 +493,13 @@ export const qk = {
     list: () => ["slash-commands", "list"] as const,
   },
   notifications: {
+    all: () => ["notifications"] as const,
     preferences: () => ["notifications", "preferences"] as const,
     inbox: () => ["notifications", "inbox"] as const,
     unreadCount: () => ["notifications", "unread-count"] as const,
   },
   mcpConnections: {
+    all: () => ["mcp-connections"] as const,
     list: () => ["mcp-connections", "list"] as const,
     workspace: () => ["mcp-connections", "workspace"] as const,
     // The organization's own servers. A separate key rather than a parameter on
@@ -458,6 +507,7 @@ export const qk = {
     // endpoints - sharing a key would let one page's refetch overwrite the
     // other's data with rows it has no business showing.
     org: () => ["mcp-connections", "org"] as const,
+    calls: (connectionId: string) => ["mcp-connections", "calls", connectionId] as const,
   },
   conversationWorkspace: {
     all: () => ["conversation-workspace"] as const,
@@ -471,9 +521,6 @@ export const qk = {
   },
   sandboxWorkspaces: {
     all: () => ["sandbox-workspaces"] as const,
-    // Keyed on whether the files were counted: turning counting on is a different
-    // request, not a refetch that replaces the cheap answer with the expensive one.
-    list: (measure = false) => ["sandbox-workspaces", "list", measure] as const,
     files: (id: string) => ["sandbox-workspaces", "files", id] as const,
     // Every file across every visible workspace, which is a different request
     // from any one workspace's - and an expensive one, so it gets its own entry
@@ -529,8 +576,8 @@ export const qk = {
     catalog: () => ["mcp-servers", "catalog"] as const,
     // Keyed on the query and the page: the list is a request now, so each page
     // of each query is its own resource rather than a filter over one blob.
-    listPage: (query: string, category: string, page: number) =>
-      ["mcp-servers", "list", query, category, page] as const,
+    listPage: (query: string, category: string, auth: string, page: number) =>
+      ["mcp-servers", "list", query, category, auth, page] as const,
   },
   sessions: {
     // The namespace, for invalidating every page at once: a revocation shifts

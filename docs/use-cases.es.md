@@ -1,5 +1,5 @@
 ---
-source_sha: "53b719b25dba"
+source_sha: "ab1e8540de48"
 title: "Elige una primera tarea"
 description: "29 tutoriales: documentos, soporte, investigación, automatización, productividad y contenido, cada uno con una comprobación que puedes ejecutar."
 ---
@@ -46,7 +46,7 @@ La última columna indica cuándo ejecutaron los mantenedores un tutorial por ú
 
 | Tutorial | Qué hace | Última ejecución de los mantenedores |
 | --- | --- | --- |
-| [Programa un informe semanal](howto/scheduled-report.md) | Un informe autocontenido republicado como artefacto cada semana | v0.0.504, 25 de septiembre de 2026 |
+| [Programa un informe semanal](howto/scheduled-report.md) | Un informe autocontenido republicado como aplicación cada semana | v0.0.504, 25 de septiembre de 2026 |
 | [Clasifica automáticamente los issues nuevos de GitHub](howto/github-issue-triage.md) | Issues nuevos clasificados en el momento en que GitHub los entrega | v0.0.504, 25 de septiembre de 2026 |
 | [Convierte los elementos de acción de una reunión en tareas con aprobación](howto/meeting-to-tasks.md) | Elementos de acción propuestos como tareas del tracker, cada una aprobada primero | Aún sin registrar |
 | [Enruta solicitudes a un equipo de agents especialistas](howto/specialist-team.md) | Un front desk que delega en agents especialistas | v0.0.504, 25 de septiembre de 2026 |

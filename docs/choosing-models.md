@@ -94,7 +94,7 @@ So before changing the model, check three things:
 - **`default_top_k` on the knowledge capability.** Eight chunks where three
   would do is the most common quiet overspend.
 - **Instructions that repeat themselves.** They are read on every single turn.
-- **[Context management](reference/capabilities.md)**, which keeps a long
+- **[Long conversations](reference/capabilities.md)**, which keeps a long
   conversation inside the window instead of re-sending all of it.
 
 [Budgets](governance.md#budgets) are the backstop, not the plan: a budget stops a

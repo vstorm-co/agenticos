@@ -1,6 +1,6 @@
 """A route may not read a repository, and this is what makes that true.
 
-`CLAUDE.md` and `.claude/rules/architecture.md` both state it plainly - routes call
+`AGENTS.md` and `.claude/rules/architecture.md` both state it plainly - routes call
 services only, never a repository - and the rule had drifted in five modules at once
 by the time anybody read for it. Nothing was leaking: each handler passed the scope
 it happened to know as a keyword argument. That is the cost, though. A scope a

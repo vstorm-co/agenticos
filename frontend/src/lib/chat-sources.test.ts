@@ -2,7 +2,7 @@ import { createTranslator } from "next-intl";
 import { describe, expect, it } from "vitest";
 
 import en from "../../messages/en.json";
-import { extractSources } from "./chat-sources";
+import { extractSources, sourceDocuments } from "./chat-sources";
 import type { Translate } from "@/lib/agent-step-captions";
 import type { ChatMessage, ToolCall } from "@/types";
 
@@ -169,5 +169,52 @@ describe("extractSources", () => {
 
   it("cites nothing for a message that called no tools at all", () => {
     expect(extractSources(message(), t)).toEqual([]);
+  });
+});
+
+describe("a passage found twice", () => {
+  it("is cited once, when an agent searched again and got it back", () => {
+    const sources = extractSources(
+      message({
+        toolCalls: [
+          toolCall({ id: "a", result: RAG_RESULT }),
+          toolCall({ id: "b", result: RAG_RESULT }),
+          toolCall({ id: "c", name: "web_search", result: WEB_RESULT }),
+          toolCall({ id: "d", name: "web_search", result: WEB_RESULT }),
+        ],
+      }),
+      t,
+    );
+
+    expect(sources).toHaveLength(4);
+  });
+});
+
+/** Passages become the documents a reader counts: one per file, one per page. */
+describe("sourceDocuments", () => {
+  it("counts a file's passages once, under the first citation of it", () => {
+    const docs = sourceDocuments([
+      { index: 1, type: "rag", title: "refunds.md", collection: "support" },
+      { index: 2, type: "web", title: "Rights", url: "https://gov.example/rights" },
+      { index: 3, type: "rag", title: "refunds.md", collection: "support" },
+      // The same name in another base is another file.
+      { index: 4, type: "rag", title: "refunds.md", collection: "finance" },
+    ]);
+
+    expect(docs.map((d) => [d.index, d.passages])).toEqual([
+      [1, 2],
+      [2, 1],
+      [4, 1],
+    ]);
+  });
+
+  it("tells pages apart by address, and one without an address by its title", () => {
+    const docs = sourceDocuments([
+      { index: 1, type: "web", title: "A" },
+      { index: 2, type: "web", title: "A" },
+    ]);
+
+    expect(docs).toHaveLength(1);
+    expect(docs[0]?.key).toBe("web:A");
   });
 });

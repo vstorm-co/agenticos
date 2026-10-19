@@ -81,7 +81,7 @@ export function TextPeek({ source, format = "markdown", className }: TextPeekPro
     return (
       <pre
         className={cn(
-          "text-muted-foreground overflow-hidden font-mono text-[11px] leading-[1.55] whitespace-pre",
+          "text-muted-foreground overflow-hidden font-mono text-xs leading-[1.55] whitespace-pre",
           className,
         )}
       >
@@ -99,9 +99,7 @@ export function TextPeek({ source, format = "markdown", className }: TextPeekPro
               key={index}
               className={cn(
                 "font-display truncate leading-snug font-semibold",
-                line.level === 1
-                  ? "text-foreground text-[13px]"
-                  : "text-foreground/80 text-[11.5px]",
+                line.level === 1 ? "text-foreground text-[13px]" : "text-foreground/80 text-xs",
               )}
             >
               {line.text}

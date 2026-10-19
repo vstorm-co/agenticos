@@ -4,7 +4,8 @@ import { useTranslations } from "next-intl";
 
 import { AnimatedAmount, DeltaChip, Figure } from "@/components/ui";
 
-import { useSpend } from "@/hooks";
+import { useProviderCatalog, useSpend } from "@/hooks";
+import { ProviderIcon } from "@/components/vault/provider-icon";
 import { deltaPercent, formatUsd } from "../format";
 import { BarList } from "../primitives/bar-list";
 import { WidgetFrame } from "../widget-frame";
@@ -28,6 +29,8 @@ import { UsageBody } from "./usage-body";
  */
 export function SpendWidget({ title, hint, period, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.spend");
+  const { data: catalog } = useProviderCatalog();
+  const providerNames = new Map((catalog?.items ?? []).map((entry) => [entry.id, entry.name]));
   const { spend } = useSpend();
 
   return (
@@ -78,9 +81,18 @@ export function SpendWidget({ title, hint, period, seeAll, options }: DashboardW
               />
               <BarList
                 items={(cost?.by_provider ?? []).map((row) => ({
-                  label: row.provider ?? t("notRecorded"),
+                  // The provider's name and mark, as the vault shows it -
+                  // `openrouter` is an id, not something a reader looks for.
+                  label:
+                    row.provider === null
+                      ? t("notRecorded")
+                      : (providerNames.get(row.provider) ?? row.provider),
                   value: Number(row.cost_usd),
                   display: formatUsd(row.cost_usd),
+                  icon:
+                    row.provider === null ? undefined : (
+                      <ProviderIcon provider={row.provider} className="size-4" />
+                    ),
                 }))}
               />
               {spend ? (

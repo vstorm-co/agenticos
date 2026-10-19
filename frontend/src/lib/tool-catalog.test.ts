@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { TOOL_CATALOG, isWorkspaceTool, toolEntry } from "./tool-catalog";
+import { TOOL_CATALOG, isWorkspaceTool, toolEntry, toolLabel } from "./tool-catalog";
 
 /**
  * The one table this side keys every tool decision on.
@@ -40,7 +40,6 @@ describe("the tool catalog", () => {
       "create_chart",
       "edit_file",
       "generate_image",
-      "publish_artifact",
       "run_python",
       "write_file",
     ]);
@@ -60,5 +59,19 @@ describe("the tool catalog", () => {
     // them, with a wrench for an icon.
     expect(toolEntry("web_search")).toMatchObject({ kind: "web", render: "web-search" });
     expect(toolEntry("create_chart")).toMatchObject({ kind: "chart", render: "chart" });
+  });
+});
+
+describe("toolLabel", () => {
+  const t = (key: string) => `[${key}]`;
+
+  it("names a catalogued tool in the catalog's words", () => {
+    expect(toolLabel("write_memory", t)).toBe("[writeMemory]");
+  });
+
+  it("spells an uncatalogued identifier as a sentence", () => {
+    expect(toolLabel("create_issue", t)).toBe("Create issue");
+    expect(toolLabel("notion-create-pages", t)).toBe("Notion create pages");
+    expect(toolLabel("__", t)).toBe("__");
   });
 });

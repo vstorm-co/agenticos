@@ -79,8 +79,8 @@ export function cspDirectives(
     // deployment's configuration, not a scheme: `wss:` alone would let the socket
     // open to any host.
     "connect-src": [...new Set(["'self'", originOf(config.apiUrl), originOf(config.wsUrl)])],
-    // Nothing may frame the console. The embed widget is served from its own
-    // route, which sets its own header.
+    // Nothing may frame the console, itself included. The embed widget is served
+    // from its own route, which sets its own header.
     "frame-ancestors": ["'none'"],
     "base-uri": ["'self'"],
     "form-action": ["'self'"],

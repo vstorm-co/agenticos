@@ -139,6 +139,10 @@ async def test_a_viewer_with_an_edit_grant_reaches_the_route(viewer_client: Open
             new=AsyncMock(return_value=GrantLevel.EDIT),
         ),
         patch(f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock(return_value=agent)),
+        patch(
+            f"{REGISTRY_PATH}.organization_assistant_repo.for_agent",
+            new=AsyncMock(return_value=None),
+        ),
     ):
         async with viewer_client() as http:
             response = await http.patch(_url(agent.id), json={"tags": ["ops"]})

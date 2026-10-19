@@ -1,5 +1,8 @@
 """Group and GroupMember repository (PostgreSQL async)."""
 
+from collections.abc import Sequence
+from decimal import Decimal
+from typing import NamedTuple
 from uuid import UUID
 
 from sqlalchemy import delete, func, select
@@ -17,11 +20,15 @@ async def create(
     name: str,
     description: str | None,
     created_by_user_id: UUID | None,
+    icon: str | None = None,
+    monthly_budget_usd: Decimal | None = None,
 ) -> Group:
     group = Group(
         organization_id=organization_id,
         name=name,
         description=description,
+        icon=icon,
+        monthly_budget_usd=monthly_budget_usd,
         created_by_user_id=created_by_user_id,
     )
     db.add(group)
@@ -83,9 +90,19 @@ async def get_names(
     return dict(result.all())
 
 
-async def update(db: AsyncSession, group: Group, *, name: str, description: str | None) -> Group:
+async def update(
+    db: AsyncSession,
+    group: Group,
+    *,
+    name: str,
+    description: str | None,
+    icon: str | None,
+    monthly_budget_usd: Decimal | None,
+) -> Group:
     group.name = name
     group.description = description
+    group.icon = icon
+    group.monthly_budget_usd = monthly_budget_usd
     await db.flush()
     await db.refresh(group)
     return group
@@ -94,6 +111,42 @@ async def update(db: AsyncSession, group: Group, *, name: str, description: str 
 async def delete_group(db: AsyncSession, group: Group) -> None:
     await db.delete(group)
     await db.flush()
+
+
+async def lead_ids(db: AsyncSession, group_ids: Sequence[UUID]) -> list[UUID]:
+    """Whoever leads any of these groups, once each."""
+    result = await db.execute(
+        select(GroupMember.user_id)
+        .where(GroupMember.group_id.in_(group_ids), GroupMember.is_lead.is_(True))
+        .distinct()
+    )
+    return list(result.scalars().all())
+
+
+class CappedGroup(NamedTuple):
+    """A group with a monthly budget - the column is not null here, by the query."""
+
+    id: UUID
+    name: str
+    monthly_budget_usd: Decimal
+
+
+async def capped_groups_for_member(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID
+) -> list[CappedGroup]:
+    """The groups one person is in that carry a monthly budget, by name (#2072)."""
+    result = await db.execute(
+        select(Group.id, Group.name, Group.monthly_budget_usd)
+        .join(GroupMember, GroupMember.group_id == Group.id)
+        .where(
+            Group.organization_id == organization_id,
+            GroupMember.user_id == user_id,
+            Group.monthly_budget_usd.is_not(None),
+        )
+        .order_by(Group.name)
+    )
+    # The `is not None` only narrows the type; the `WHERE` already did it.
+    return [CappedGroup(gid, name, cap) for gid, name, cap in result.all() if cap is not None]
 
 
 async def count_members(db: AsyncSession, group_id: UUID) -> int:
@@ -165,6 +218,13 @@ async def set_member_source(
     return member
 
 
+async def set_member_lead(db: AsyncSession, member: GroupMember, *, is_lead: bool) -> GroupMember:
+    member.is_lead = is_lead
+    await db.flush()
+    await db.refresh(member)
+    return member
+
+
 async def remove_member(db: AsyncSession, member: GroupMember) -> None:
     await db.delete(member)
     await db.flush()
@@ -178,6 +238,17 @@ async def list_memberships_in_org(
         select(GroupMember)
         .join(Group, Group.id == GroupMember.group_id)
         .where(Group.organization_id == organization_id, GroupMember.user_id == user_id)
+    )
+    return list(result.scalars().all())
+
+
+async def names_for_member(db: AsyncSession, *, organization_id: UUID, user_id: UUID) -> list[str]:
+    """The names of the groups this person is in inside one organization, in name order."""
+    result = await db.execute(
+        select(Group.name)
+        .join(GroupMember, GroupMember.group_id == Group.id)
+        .where(Group.organization_id == organization_id, GroupMember.user_id == user_id)
+        .order_by(Group.name)
     )
     return list(result.scalars().all())
 

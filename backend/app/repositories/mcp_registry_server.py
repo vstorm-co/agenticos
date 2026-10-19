@@ -10,6 +10,7 @@ from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.mcp_registry_server import McpRegistryServer
+from app.db.models.mcp_server_check import NOT_OFFERED, McpServerCheck
 
 _BAND_NAME_STARTS = 0
 _BAND_NAME_HOLDS = 1
@@ -51,9 +52,15 @@ def _matching(query: str) -> Any:
 
 
 async def search(
-    db: AsyncSession, *, query: str = "", skip: int = 0, limit: int = 50
-) -> tuple[list[McpRegistryServer], int]:
-    """One page of matching servers, best first, and how many matched in total.
+    db: AsyncSession,
+    *,
+    query: str = "",
+    category: str = "",
+    auth: str = "",
+    skip: int = 0,
+    limit: int = 50,
+) -> tuple[list[tuple[McpRegistryServer, McpServerCheck | None]], int]:
+    """One page of matching servers, best first, each with its last check, and the total.
 
     The total is a second query rather than `len(rows)`, because a pager has to
     say how many pages there are and a page cannot count what it does not hold.
@@ -61,14 +68,23 @@ async def search(
     Ordered by band, then by name length, then by name: the length is what puts
     `Stripe` above `Sweden Payments (Stripe - EPS)`, and the name after it makes
     the order total, so page two does not repeat a row page one already showed.
-    """
-    condition = _matching(query)
 
-    rows = select(McpRegistryServer)
-    counted = select(func.count()).select_from(McpRegistryServer)
-    if condition is not None:
-        rows = rows.where(condition)
-        counted = counted.where(condition)
+    A listing whose last check found it dead, broken or a duplicate of another
+    is left out - in SQL, for the same reason the ranking is: filtering a page
+    leaves it short. A listing never checked stays in; nothing says it is dead.
+    `auth` narrows to listings a check found asking for that, so an unchecked
+    listing is outside every auth filter.
+    """
+    checked = McpServerCheck.key == McpRegistryServer.id
+    conditions: list[Any] = [
+        or_(McpServerCheck.outcome.is_(None), McpServerCheck.outcome.not_in(NOT_OFFERED))
+    ]
+    if (condition := _matching(query)) is not None:
+        conditions.append(condition)
+    if category:
+        conditions.append(McpRegistryServer.category == category)
+    if auth:
+        conditions.append(McpServerCheck.auth == auth)
 
     needle = query.strip()
     order: list[Any] = []
@@ -76,9 +92,31 @@ async def search(
         order.append(_bands(needle))
     order += [func.length(McpRegistryServer.name), McpRegistryServer.name]
 
-    result = await db.execute(rows.order_by(*order).offset(skip).limit(limit))
+    rows = (
+        select(McpRegistryServer, McpServerCheck)
+        .outerjoin(McpServerCheck, checked)
+        .where(*conditions)
+        .order_by(*order)
+        .offset(skip)
+        .limit(limit)
+    )
+    counted = (
+        select(func.count())
+        .select_from(McpRegistryServer)
+        .outerjoin(McpServerCheck, checked)
+        .where(*conditions)
+    )
+    result = await db.execute(rows)
     total = await db.scalar(counted) or 0
-    return list(result.scalars().all()), total
+    return [(server, check) for server, check in result.tuples().all()], total
+
+
+async def listings(db: AsyncSession) -> list[tuple[str, str]]:
+    """Every mirrored server as `(id, url)` - what the catalog check calls."""
+    result = await db.execute(
+        select(McpRegistryServer.id, McpRegistryServer.url).order_by(McpRegistryServer.id)
+    )
+    return [(server_id, url) for server_id, url in result.tuples().all()]
 
 
 async def get(db: AsyncSession, server_id: str) -> McpRegistryServer | None:
@@ -109,6 +147,7 @@ async def upsert_many(db: AsyncSession, entries: Sequence[dict[str, Any]]) -> in
             "description": statement.excluded.description,
             "url": statement.excluded.url,
             "host": statement.excluded.host,
+            "category": statement.excluded.category,
             "synced_at": statement.excluded.synced_at,
         },
     )

@@ -71,6 +71,9 @@ CONTEXT = ResourceType(key="context", view=Perm.CONTEXT_VIEW, edit=Perm.CONTEXT_
 SECRET = ResourceType(key="secret", view=Perm.SECRETS_VIEW, edit=Perm.SECRETS_EDIT)
 ARTIFACT = ResourceType(key="artifact", view=Perm.ARTIFACTS_VIEW, edit=Perm.ARTIFACTS_EDIT)
 DATASET = ResourceType(key="dataset", view=Perm.DATASETS_VIEW, edit=Perm.DATASETS_EDIT)
+# An organization's MCP server. One permission both sees and manages it, as it
+# always has; what changed is that a server can be narrowed to groups (#2072).
+MCP_CONNECTION = ResourceType(key="mcp_connection", view=Perm.MCP_MANAGE, edit=Perm.MCP_MANAGE)
 
 
 # The grant level a member needs before a scope-based check is even consulted.
@@ -92,6 +95,9 @@ _PERM_MIN_GRANT: dict[Perm, GrantLevel] = {
     Perm.DATASETS_VIEW: GrantLevel.READ,
     Perm.DATASETS_RUN: GrantLevel.USE,
     Perm.DATASETS_EDIT: GrantLevel.EDIT,
+    # A group's server is its members' to bind, and so to manage: `use`, the level
+    # an audience chosen at creation grants.
+    Perm.MCP_MANAGE: GrantLevel.USE,
 }
 
 
@@ -145,7 +151,7 @@ async def resolve_access(
         return True
 
     required = _PERM_MIN_GRANT.get(perm)
-    if required is None:
+    if required is None or not ctx.key_allows(perm):
         return False
 
     granted = await resource_grant_repo.get_level(
@@ -229,6 +235,8 @@ async def visible_resource_ids(
         return []
     if ctx.scope_for(perm) is Scope.ALL:
         return None
+    if not ctx.key_allows(perm):
+        return []
     required = _PERM_MIN_GRANT.get(perm, GrantLevel.READ)
     return await resource_grant_repo.list_shared_ids(
         db,

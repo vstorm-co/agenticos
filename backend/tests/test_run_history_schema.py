@@ -30,6 +30,7 @@ def _row(**overrides: object) -> AgentRun:
         "output_tokens": 5,
         "cost_usd": Decimal("0.000030"),
         "cost_is_partial": False,
+        "is_test": False,
     }
     return AgentRun(**{**defaults, **overrides})
 

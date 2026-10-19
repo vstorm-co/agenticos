@@ -6,6 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.core.config import Settings
+from app.repositories.conversation import RUNNING_HORIZON
 
 
 class TestDefaultOrgBudget:
@@ -25,6 +26,21 @@ class TestDefaultOrgBudget:
         `ck_organization_budget_positive` forbids it on the row."""
         with pytest.raises(ValidationError):
             Settings(DEFAULT_ORG_MONTHLY_BUDGET_USD=bad)
+
+
+class TestDetachedChatTurn:
+    def test_two_hours_is_the_longest_a_left_turn_may_run(self):
+        """Past `RUNNING_HORIZON` the conversation list stops calling the run at
+        work, so a longer grace would keep a turn going that nobody can see."""
+        assert Settings(CHAT_DETACHED_TURN_MINUTES=120).CHAT_DETACHED_TURN_MINUTES == 120
+        with pytest.raises(ValidationError):
+            Settings(CHAT_DETACHED_TURN_MINUTES=121)
+
+    def test_the_cap_is_the_conversation_lists_horizon(self):
+        """The two numbers live apart and have to move together."""
+        field = Settings.model_fields["CHAT_DETACHED_TURN_MINUTES"]
+        cap = next(rule.le for rule in field.metadata if getattr(rule, "le", None) is not None)
+        assert cap == RUNNING_HORIZON.total_seconds() / 60
 
 
 KEY = "vault-master-key-" + "x" * 32

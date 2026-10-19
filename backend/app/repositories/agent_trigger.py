@@ -18,7 +18,11 @@ from app.db.models.resource_grant import Visibility
 
 # A run in one of these has not finished, so its trigger must not fire again on
 # top of it. Every other status is terminal - the run settled, one way or another.
-_NON_TERMINAL_STATUSES = (RunStatus.RUNNING.value, RunStatus.AWAITING_APPROVAL.value)
+_NON_TERMINAL_STATUSES = (
+    RunStatus.RUNNING.value,
+    RunStatus.AWAITING_APPROVAL.value,
+    RunStatus.AWAITING_ANSWER.value,
+)
 
 # How long a `fire_in_flight_since` marker holds a trigger out of the claim. A run
 # settles in seconds to minutes; past this lease the fired flow is assumed dead - a
@@ -193,6 +197,7 @@ async def create(
     connection_id: UUID | None = None,
     portal_key: str | None = None,
     delivery_mode: str | None = None,
+    runs_as_creator: bool = False,
 ) -> AgentTrigger:
     trigger = AgentTrigger(
         organization_id=organization_id,
@@ -213,6 +218,7 @@ async def create(
         connection_id=connection_id,
         portal_key=portal_key,
         delivery_mode=delivery_mode,
+        runs_as_creator=runs_as_creator,
     )
     db.add(trigger)
     await db.flush()
@@ -371,3 +377,23 @@ async def claim_due(db: AsyncSession, *, now: datetime, limit: int = 100) -> lis
         .with_for_update(skip_locked=True, of=AgentTrigger)
     )
     return list(result.scalars().all())
+
+
+async def withdraw_creator_consent(
+    db: AsyncSession, *, agent_id: UUID, kept_for: UUID | None
+) -> int:
+    """Switch "run as me" off on an agent's triggers, except those `kept_for` made.
+
+    Returns how many triggers lost it.
+    """
+    result = await db.execute(
+        sql_update(AgentTrigger)
+        .where(
+            AgentTrigger.agent_id == agent_id,
+            AgentTrigger.runs_as_creator.is_(True),
+            AgentTrigger.created_by_user_id.is_distinct_from(kept_for),
+        )
+        .values(runs_as_creator=False)
+    )
+    await db.flush()
+    return int(getattr(result, "rowcount", 0) or 0)

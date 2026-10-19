@@ -115,7 +115,7 @@ Every total is subtotal plus 21% tax, so a wrong total is checkable by hand.
 ## Build the agent
 
 1. Create an agent in **Agents → New agent** and select your model profile.
-2. In **Toolbox**, enable **Files & shell**. Choose **Container**, select
+2. In **Toolbox**, enable **Sandbox**. Choose **Container**, select
    your sandbox connection and the `workbench` runtime.
 3. Set a budget and a step limit — reading three short PDFs and writing one
    CSV is a handful of tool calls.

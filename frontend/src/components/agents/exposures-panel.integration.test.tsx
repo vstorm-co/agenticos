@@ -17,6 +17,11 @@ vi.mock("@/lib/api-client", async () => {
   };
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+// Registering a bot is `channels:manage`, separate from binding one.
+let mayRegister = true;
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({ can: () => mayRegister, isLoading: false }),
+}));
 
 const AGENT_ID = "a1";
 
@@ -97,16 +102,10 @@ async function mount({ canManage = true, hasWorkspace = true } = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mayRegister = true;
 });
 
 describe("ExposuresPanel", () => {
-  it("says an agent is available nowhere rather than showing an empty box", async () => {
-    serve([], [target()]);
-    await mount();
-
-    expect(await screen.findByText("Not available on any channel yet.")).toBeInTheDocument();
-  });
-
   it("names each place a person would recognise", async () => {
     serve([exposure()], []);
     await mount();
@@ -125,40 +124,62 @@ describe("ExposuresPanel", () => {
     ).toBeInTheDocument();
   });
 
-  it("names the fix instead of a picker nothing can be picked from", async () => {
-    // A disabled select saying "no unbound bots" was a dead end. It said which
-    // of two absences this was, which stopped being knowable here: a bot serves
-    // one agent, so "every bot registered and every one serving somebody else"
-    // looks from the client exactly like "no bots at all". What all of them
-    // share is the fix, so that is what it says.
+  it("shows every chat app it can answer on, with no bot registered yet", async () => {
+    // An empty picker said nothing about what could go in it; a tile per
+    // platform says what is supported before anything is registered.
     serve([], []);
     await mount();
 
-    expect(screen.queryByRole("combobox", { name: "Add a channel" })).not.toBeInTheDocument();
-    expect(await screen.findByText(/No bot is free to bind/)).toBeInTheDocument();
-    // And the fix is one click away rather than a page name to go and find.
-    expect(screen.getByRole("link", { name: "register another under Channels" })).toHaveAttribute(
-      "href",
-      "/channels",
+    for (const platform of ["Slack", "Telegram", "Mattermost"]) {
+      expect(
+        await screen.findByRole("button", { name: `Connect a ${platform} bot` }),
+      ).toBeEnabled();
+    }
+  });
+
+  it("registers a bot from a tile and binds it to this agent", async () => {
+    serve([], []);
+    vi.mocked(apiClient.post).mockImplementation(async (path: string) =>
+      path === "/channels/bots"
+        ? { id: "b9", name: "Ops bot", platform: "telegram" }
+        : exposure({ channel_bot_name: "Ops bot" }),
+    );
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Connect a Telegram bot" }));
+    const dialog = await screen.findByRole("dialog");
+    // The tile decided the platform, so the dialog opens on it.
+    expect(within(dialog).getByRole("button", { name: /Telegram/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await userEvent.type(within(dialog).getByLabelText(/Name/), "Ops bot");
+    await userEvent.type(within(dialog).getByLabelText(/Bot token/), "123456:abcdefghijk");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Register" }));
+
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures`, {
+        channel_bot_id: "b9",
+      }),
     );
   });
 
-  it("says the same thing when this agent is on the only bot there is", async () => {
-    serve([exposure({ channel_bot_id: "b1" })], [target({ id: "b1" })]);
+  it("does not offer to register a bot to somebody who may not", async () => {
+    mayRegister = false;
+    serve([], []);
     await mount();
 
-    expect(await screen.findByText(/No bot is free to bind/)).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Connect a Slack bot" })).toBeDisabled();
+    expect(screen.getAllByText("No bot yet - an admin adds one")).toHaveLength(3);
   });
 
   it("does not offer a bot the agent already answers on", async () => {
     // Binding twice is refused by the server; offering it would spend a round
-    // trip to tell somebody what the picker already knew.
+    // trip to tell somebody what the menu already knew.
     serve([exposure({ channel_bot_id: "b1" })], [target({ id: "b1" }), target({ id: "b2" })]);
     await mount();
 
-    await userEvent.click(await screen.findByRole("combobox", { name: "Add a channel" }));
-
-    expect(screen.queryAllByRole("option")).toHaveLength(1);
+    expect(await screen.findByText("1 bot ready")).toBeInTheDocument();
   });
 
   it("binds the bot that was picked", async () => {
@@ -166,13 +187,33 @@ describe("ExposuresPanel", () => {
     vi.mocked(apiClient.post).mockResolvedValue(exposure({ channel_bot_name: "Ops bot" }));
     await mount();
 
-    await userEvent.click(await screen.findByRole("combobox", { name: "Add a channel" }));
-    await userEvent.click(await screen.findByRole("option", { name: /Ops bot/ }));
-    await userEvent.click(screen.getByRole("button", { name: "Add" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Add on Telegram" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Ops bot" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures`, {
       channel_bot_id: "b2",
     });
+  });
+
+  it("offers another bot beside the free ones", async () => {
+    serve([], [target({ id: "b2", name: "Ops bot" })]);
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Add on Slack" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Connect another bot" }));
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("offers only the free bots to somebody who may not register one", async () => {
+    mayRegister = false;
+    serve([], [target({ id: "b2", name: "Ops bot" })]);
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Add on Slack" }));
+    await screen.findByRole("menuitem", { name: "Ops bot" });
+
+    expect(screen.queryByRole("menuitem", { name: "Connect another bot" })).not.toBeInTheDocument();
   });
 
   it("hides every control from somebody who cannot publish the agent", async () => {
@@ -182,7 +223,7 @@ describe("ExposuresPanel", () => {
     await mount({ canManage: false });
 
     await screen.findByText("Slack - Acme Support");
-    expect(screen.queryByRole("combobox", { name: "Add a channel" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Add to a chat app" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Pause on Acme Support" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Remove from Acme Support" })).toBeDisabled();
   });
@@ -274,35 +315,15 @@ describe("ExposuresPanel", () => {
   });
 
   it("marks a bot that is registered but switched off", async () => {
-    // Binding to it is legal and answers nothing; the picker is the only place
+    // Binding to it is legal and answers nothing; the menu is the only place
     // that says so before somebody wonders why the handle is silent.
     serve([], [target({ id: "b2", name: "Ops bot", is_active: false })]);
     await mount();
 
-    await userEvent.click(await screen.findByRole("combobox", { name: "Add a channel" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Add on Slack" }));
 
-    // Matched inside the option, not through its accessible name: the mark is
-    // `trailing`, and Radix names an item by its `ItemText` alone.
-    const off = await screen.findByRole("option", { name: "Slack - Ops bot" });
+    const off = await screen.findByRole("menuitem", { name: /Ops bot/ });
     expect(within(off).getByText("inactive")).toBeVisible();
-  });
-
-  it("does not repeat that mark on the closed trigger, which chose the bot", async () => {
-    // Radix draws the selected item's `ItemText` in the trigger, so "(inactive)"
-    // in `children` followed the choice out of the list - where it read as the
-    // state of the binding somebody had just made rather than of the bot.
-    serve([], [target({ id: "b2", name: "Ops bot", is_active: false })]);
-    await mount();
-
-    const picker = await screen.findByRole("combobox", { name: "Add a channel" });
-    await userEvent.click(picker);
-    await userEvent.click(await screen.findByRole("option", { name: "Slack - Ops bot" }));
-
-    // `not.toHaveTextContent`, not `queryByText`: the mark used to be the text
-    // node " (inactive)" beside the name, which `queryByText("inactive")` would
-    // not have matched - a regression test that passes against the bug.
-    expect(picker).toHaveTextContent("Ops bot");
-    expect(picker).not.toHaveTextContent("inactive");
   });
 
   it("warns that an approval parks a channel thread, where files are in play", async () => {

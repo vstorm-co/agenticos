@@ -1,5 +1,5 @@
 ---
-source_sha: "66365d6bce1a"
+source_sha: "4eeacc219cad"
 ---
 
 # Gałęzie i to, co je chroni { #branches-and-what-protects-them }
@@ -214,7 +214,7 @@ związku z diffem.
 ### Jeden przebieg na gałąź { #one-run-per-branch }
 
 `ci.yml` niesie grupę concurrency kluczowaną na `github.ref`, więc kolejny push
-na gałąź anuluje jej poprzedni przebieg. Ma to znaczenie, bo `CLAUDE.md` wymaga
+na gałąź anuluje jej poprzedni przebieg. Ma to znaczenie, bo `AGENTS.md` wymaga
 commita i pusha na każdy skończony kawałek: bez anulowania 75 z 369 przebiegów
 w pierwszych sześciu dniach sierpnia zostało zastąpionych jeszcze w locie —
 około 1800 rozliczanych minut odpowiadania na pytania o commity, na które nikt
@@ -280,7 +280,7 @@ anulowanie.
 !!! important "Opis pull requesta *jest* wiadomością commita, która przetrwa"
 
     `main` trzyma jeden commit na pull request, zbudowany z tytułu i treści, a nie
-    z commitów samej gałęzi. `CLAUDE.md` opisuje format.
+    z commitów samej gałęzi. `AGENTS.md` opisuje format.
 
 Więc `wip`, `fixup` i „try again" nigdy do niego nie docierają — a opis nie jest
 uprzejmością.

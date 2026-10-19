@@ -111,6 +111,7 @@ describe("the query key factory", () => {
       "any-model",
       "anyone",
       "any-version",
+      "tests-included",
       0,
     ]);
     expect(qk.runs.list({ agentId: "a1" })).toEqual([
@@ -127,6 +128,7 @@ describe("the query key factory", () => {
       "any-model",
       "anyone",
       "any-version",
+      "tests-included",
       0,
     ]);
   });
@@ -165,9 +167,12 @@ describe("the query key factory", () => {
       "any-model",
       "anyone",
       "any-version",
+      "tests-included",
       0,
     ]);
     expect(qk.runs.list({ rated: "down" })).not.toEqual(qk.runs.list());
+    // Test runs, the rest and both are three answers over one window (#2074).
+    expect(qk.runs.list({ isTest: true })).not.toEqual(qk.runs.list({ isTest: false }));
   });
 
   it("keys a run's transcript apart from the run row it belongs to", () => {

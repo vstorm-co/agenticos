@@ -6,13 +6,15 @@ from uuid import UUID
 from pydantic import Field
 
 from app.schemas.base import BaseSchema, TimestampSchema
+from app.schemas.resource_grant import AudienceChoice
+from app.schemas.resource_usage import AgentUsage
 from app.services.ingestion_config import IngestionConfig
 
 KBScopeLiteral = Literal["personal", "org", "app"]
 VisibilityLiteral = Literal["private", "team", "org"]
 
 
-class KnowledgeBaseCreate(BaseSchema):
+class KnowledgeBaseCreate(AudienceChoice):
     """Schema for creating a Knowledge Base."""
 
     name: str = Field(..., min_length=1, max_length=128, description="KB display name")
@@ -157,6 +159,17 @@ class KnowledgeBaseRead(BaseSchema, TimestampSchema):
     )
     chunk_count: int = Field(
         default=0, description="Embedded chunks across this collection's documents"
+    )
+    used_by: list[AgentUsage] = Field(
+        default_factory=list,
+        description=(
+            "The agents whose draft binds this, among those the caller may see - so a "
+            "card says where it is used, or that it is used nowhere yet"
+        ),
+    )
+    shared_groups: list[str] = Field(
+        default_factory=list,
+        description="The groups this is shared with, by name - the departments it belongs to.",
     )
 
 

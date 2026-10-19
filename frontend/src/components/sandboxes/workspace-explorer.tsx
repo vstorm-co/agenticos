@@ -329,7 +329,7 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
                  holding only `src/components/widget.tsx` counted zero and then
                  opened to reveal a file, which is a row contradicting itself. */
               renderFolderMeta={(node) => (
-                <span className="text-muted-foreground shrink-0 pr-2 text-[11px]">
+                <span className="text-muted-foreground shrink-0 pr-2 text-xs">
                   {t("fileCount", { count: countFiles(node.children) })}
                 </span>
               )}

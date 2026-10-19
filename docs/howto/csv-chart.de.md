@@ -1,5 +1,5 @@
 ---
-source_sha: "1176d12d1a25"
+source_sha: "c2f42c5e922e"
 title: "Eine CSV in ein prüfbares Diagramm umwandeln"
 description: "Hängen Sie eine kleine synthetische Verkaufsdatei an, lassen Sie den Agent sie in einer Sandbox berechnen und plotten, und gleichen Sie jede Zahl mit den Quellzeilen ab."
 ---
@@ -37,7 +37,7 @@ Die erste Session baut das Image `workbench`, etwa 2 GB. Rechnen Sie auf einem f
 ## Den Agent bauen { #build-the-agent }
 
 1. Erstellen Sie unter **Agents → New agent** einen Agent und wählen Sie Ihr Modellprofil.
-2. Aktivieren Sie unter **Toolbox** die Capability **Files & shell**. Wählen Sie **Container**, nicht **Files**: Der Files-Workspace hat keine Shell, daher kann der Agent kein Skript ausführen. Wählen Sie die Verbindung und die Runtime `workbench`, und behalten Sie den Konversations-Scope bei.
+2. Aktivieren Sie unter **Toolbox** die Capability **Sandbox**. Wählen Sie **Container**, nicht **Files**: Der Files-Workspace hat keine Shell, daher kann der Agent kein Skript ausführen. Wählen Sie die Verbindung und die Runtime `workbench`, und behalten Sie den Konversations-Scope bei.
 3. Aktivieren Sie **Charts**. Die Capability zeichnet Zahlen, die der Agent bereits hat, sodass das Diagramm zeigt, was das Skript berechnet hat.
 4. Setzen Sie ein Budget und ein Schrittlimit für den Versuch. Der festgehaltene Run brauchte 25 Schritte und kostete etwa 0,11 USD.
 5. Setzen Sie die folgenden Instruktionen und klicken Sie dann auf **Publish**.

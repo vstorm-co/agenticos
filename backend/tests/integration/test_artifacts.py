@@ -20,8 +20,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthorizationError
+from app.core.permissions import OrgRoleName
 from app.db.models.agent import Agent
 from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
+from app.db.models.notification import Notification, NotificationEventType
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
 from app.db.models.user import User
@@ -448,14 +450,14 @@ class TestListing:
     ) -> None:
         organization, user, agent = await _tenant(db)
         mine = await _publish(db, organization, user, agent, body="<p>a</p>", name="mine")
-        stranger = User(email=f"{uuid.uuid4()}@example.com", hashed_password="x")
-        db.add(stranger)
+        colleague = User(email=f"{uuid.uuid4()}@example.com", hashed_password="x")
+        db.add(colleague)
         await db.flush()
         theirs = await artifacts.publish_with(
             db,
             organization_id=organization.id,
             agent_id=agent.id,
-            owner_user_id=stranger.id,
+            owner_user_id=colleague.id,
             run_id=None,
             name="theirs",
             title="Quarterly sales",
@@ -489,18 +491,18 @@ class TestListing:
     ) -> None:
         organization, user, agent = await _tenant(db)
         published = await _publish(db, organization, user, agent, body="<p>x</p>")
-        stranger = uuid.uuid4()
+        colleague = uuid.uuid4()
 
         mine, _ = await artifact_repo.list_visible(
             db, organization_id=organization.id, user_id=user.id, see_all=False, shared_ids=[]
         )
         theirs, total = await artifact_repo.list_visible(
-            db, organization_id=organization.id, user_id=stranger, see_all=False, shared_ids=[]
+            db, organization_id=organization.id, user_id=colleague, see_all=False, shared_ids=[]
         )
         granted, _ = await artifact_repo.list_visible(
             db,
             organization_id=organization.id,
-            user_id=stranger,
+            user_id=colleague,
             see_all=False,
             shared_ids=[published.artifact_id],
         )
@@ -627,3 +629,67 @@ class TestRetention:
         assert len(paths) == 1
         assert removed == 1
         assert await db.get(Artifact, old.artifact_id) is None
+
+
+class TestFollowing:
+    """A follower hears about a new version through the inbox (#1977)."""
+
+    async def _notices(self, db: AsyncSession, user_id: uuid.UUID) -> list[Notification]:
+        rows = await db.execute(
+            select(Notification).where(
+                Notification.recipient_user_id == user_id,
+                Notification.event_type == NotificationEventType.ARTIFACT_VERSION_PUBLISHED.value,
+            )
+        )
+        return list(rows.scalars())
+
+    async def test_a_new_version_reaches_followers_who_can_read_it_and_nobody_else(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        organization, owner, agent = await _tenant(db)
+        published = await _publish(db, organization, owner, agent, body="<h1>v1</h1>")
+        artifact = await db.get(Artifact, published.artifact_id)
+        assert artifact is not None
+        artifact.visibility = Visibility.ORG.value
+        reader = await _member(db, organization, OrgRoleName.MEMBER)
+        await artifact_repo.follow(db, artifact_id=artifact.id, user_id=reader.id)
+        await artifact_repo.follow(db, artifact_id=artifact.id, user_id=reader.id)
+        await artifact_repo.follow(db, artifact_id=artifact.id, user_id=owner.id)
+        # Following is a subscription, not a grant: a page made private again
+        # stops reaching the follower without the follow being undone.
+        colleague = await _member(db, organization, OrgRoleName.MEMBER)
+        await artifact_repo.follow(db, artifact_id=artifact.id, user_id=colleague.id)
+
+        await _publish(db, organization, owner, agent, body="<h1>v2</h1>")
+        await _publish(db, organization, owner, agent, body="<h1>v2</h1>")
+
+        assert await artifact_repo.is_following(db, artifact_id=artifact.id, user_id=reader.id)
+        [notice] = await self._notices(db, reader.id)
+        assert notice.occurrence_id == f"{artifact.id}:2"
+        assert notice.organization_id == organization.id
+        assert await self._notices(db, owner.id) == []
+
+        artifact.visibility = Visibility.PRIVATE.value
+        await _publish(db, organization, owner, agent, body="<h1>v3</h1>")
+
+        assert [row.occurrence_id for row in await self._notices(db, colleague.id)] == [
+            f"{artifact.id}:2"
+        ]
+        assert len(await self._notices(db, reader.id)) == 1
+
+    async def test_unfollowing_stops_the_notices(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        organization, owner, agent = await _tenant(db)
+        published = await _publish(db, organization, owner, agent, body="<h1>v1</h1>")
+        artifact = await db.get(Artifact, published.artifact_id)
+        assert artifact is not None
+        artifact.visibility = Visibility.ORG.value
+        reader = await _member(db, organization, OrgRoleName.MEMBER)
+        await artifact_repo.follow(db, artifact_id=artifact.id, user_id=reader.id)
+        await artifact_repo.unfollow(db, artifact_id=artifact.id, user_id=reader.id)
+
+        await _publish(db, organization, owner, agent, body="<h1>v2</h1>")
+
+        assert await self._notices(db, reader.id) == []
+        assert not await artifact_repo.is_following(db, artifact_id=artifact.id, user_id=reader.id)

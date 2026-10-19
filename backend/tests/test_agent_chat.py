@@ -38,6 +38,7 @@ from app.agents.capabilities.compaction import ContextGauge
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.media import MediaOffload
 from app.agents.deps import AgentDeps
+from app.agents.steering import SteeringInbox
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import OrgRoleName
 from app.db.models.agent_run import RunStatus, RunSurface
@@ -47,6 +48,7 @@ from app.services.agent_chat import (
     requested_agent_id,
     requested_environment_id,
     requested_model_profile_id,
+    requested_testing,
 )
 from app.services.agent_runner import AgentRunnerService, PersonalServiceGap, PreparedRun
 
@@ -249,6 +251,7 @@ async def _run(
     subagent_events: Any = None,
     on_personal_gaps: Any = None,
     request_connection: Any = None,
+    steering: Any = None,
 ):
     return await ChatAgentRunner(db).run(
         user=user or _user(),
@@ -265,6 +268,7 @@ async def _run(
         subagent_events=subagent_events,
         on_personal_gaps=on_personal_gaps,
         request_connection=request_connection,
+        steering=steering,
     )
 
 
@@ -370,6 +374,19 @@ class TestAddressingAnEnvironment:
     @pytest.mark.parametrize("frame", [{}, {"environment_id": None}, {"environment_id": ""}])
     def test_a_frame_that_names_no_environment_gets_the_default(self, frame):
         assert requested_environment_id(frame) is None
+
+    @pytest.mark.parametrize(
+        ("frame", "expected"),
+        [
+            ({}, (False, False)),
+            ({"test": True}, (True, False)),
+            ({"draft": True}, (True, True)),
+            # Only a literal true: a string is not a request to run the draft.
+            ({"draft": "true", "test": 1}, (False, False)),
+        ],
+    )
+    def test_the_test_panel_s_flags_are_read_only_when_true(self, frame, expected):
+        assert tuple(requested_testing(frame)) == expected
 
     def test_a_named_environment_is_read_back_as_its_id(self):
         environment_id = uuid.uuid4()
@@ -929,6 +946,41 @@ class TestAttachmentsAreRoutedHereAndNotBySurfaces:
         prompt = prepared.built.agent.iter.call_args.args[0]
         assert "month,total" in prompt
 
+    async def test_what_the_file_added_is_kept_on_the_prompt_for_the_next_turn(self):
+        """The paste reached this request and nothing after it, so a follow-up
+        about the file went to a model that had never been told of it."""
+        attachment = SimpleNamespace(
+            id=uuid.uuid4(),
+            filename="raport.csv",
+            mime_type="text/csv",
+            size=512,
+            storage_path="u/1/raport.csv",
+            file_type="text",
+            parsed_content="month,total\njan,10",
+        )
+        prepared = _prepared()
+        prepared.workspace = None
+        conversation_id, message_id = uuid.uuid4(), uuid.uuid4()
+
+        with (
+            _runner(prepared),
+            patch("app.services.agent_chat.conversation_repo.link_message_to_run", new=AsyncMock()),
+            patch(
+                "app.services.agent_chat.conversation_repo.set_attachment_context",
+                new=AsyncMock(),
+            ) as kept,
+        ):
+            await _run(
+                _db(),
+                attachments=[attachment],
+                conversation_id=conversation_id,
+                prompt_message_id=message_id,
+            )
+
+        written = kept.await_args.kwargs
+        assert (written["message_id"], written["conversation_id"]) == (message_id, conversation_id)
+        assert "month,total" in written["context"]
+
     async def test_the_workspace_the_run_opened_is_the_one_the_file_lands_in(self):
         """Not a fresh one, and not none - the file has to be where the agent
         will look for it."""
@@ -1086,3 +1138,15 @@ class TestTellingTheChatWhatThePersonCannotReach:
             await _run(_db(), request_connection=ask)
 
         assert runner.prepare.await_args.kwargs["request_connection"] is ask
+
+
+class TestAddingToTheTurnAndAskingAside:
+    """The chat runner's half of #2087."""
+
+    async def test_the_inbox_the_surface_holds_is_the_one_the_run_reads(self):
+        prepared = _prepared()
+        inbox = SteeringInbox()
+        with _runner(prepared):
+            await _run(_db(), steering=inbox)
+
+        assert prepared.deps.steering is inbox

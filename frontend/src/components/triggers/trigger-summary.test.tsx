@@ -14,6 +14,7 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
     is_active: true,
     can_manage: true,
     environment_id: null,
+    runs_as_creator: false,
     trigger_type: "schedule",
     schedule_kind: "interval",
     interval_seconds: 900,
@@ -72,7 +73,7 @@ describe("TriggerSummary", () => {
         })}
       />,
     );
-    expect(screen.getByText("At 09:00 UTC on Mon, Tue, Sun")).toBeInTheDocument();
+    expect(screen.getByText("Every Mon, Tue, Sun at 09:00 UTC")).toBeInTheDocument();
   });
 
   it("reads a monthly cron by its day", () => {
@@ -85,7 +86,7 @@ describe("TriggerSummary", () => {
         })}
       />,
     );
-    expect(screen.getByText("Monthly on day 15 at 18:30 UTC")).toBeInTheDocument();
+    expect(screen.getByText("On day 15 of each month at 18:30 UTC")).toBeInTheDocument();
   });
 
   it("reads an every-N-days cron exactly like an interval in days", () => {

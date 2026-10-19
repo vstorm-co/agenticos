@@ -1,5 +1,5 @@
 ---
-source_sha: "0ceb552b4aa0"
+source_sha: "de38073f9286"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
@@ -303,8 +303,8 @@ docker compose --env-file backend/.env -f docker-compose-prod.yml \
   --org 'Your Company' --provider anthropic --api-key sk-ant-...
 ```
 
-Der Provider-Key an dieser Stelle ist das, worauf der Demo-Agent läuft. Ohne ihn
-wird der Agent angelegt und kann nicht antworten; jeder andere Provider wird im
+Der Provider-Key an dieser Stelle ist das, worauf die zwei Start-Agents laufen.
+Ohne ihn werden sie angelegt und können nicht antworten; jeder andere Provider wird im
 Produkt hinzugefügt, pro Organisation, aus dem Vault.
 
 !!! tip "Prüfen Sie es von außen, nicht vom Host aus"
@@ -319,7 +319,7 @@ Produkt hinzugefügt, pro Organisation, aus dem Vault.
     innerhalb des Hosts nicht sehen kann.
 
 Dann, einmal, von Hand: melden Sie sich an, laden Sie jemanden ein (was `SMTP_*`
-nachweist) und schicken Sie dem Demo-Agent eine Nachricht (was den Provider-Key
+nachweist) und schicken Sie Claude Code like eine Nachricht (was den Provider-Key
 und den WebSocket nachweist). Jedes davon übt einen Pfad aus, den hier sonst
 nichts prüft.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "28df8e05f4b0"
+source_sha: "904d3115d4e7"
 ---
 
 # La sandbox { #the-sandbox }
@@ -82,6 +82,11 @@ El **scope** es un campo del spec del agent: `run`, `conversation`, `channel`,
 `user` o `agent`. Así que `conversation`, la elección habitual, significa un
 contenedor y un directorio por chat; `agent` significa que todos los runs de ese
 agent comparten uno.
+
+`user` es de la persona que inició sesión, así que un run que sustituye a alguien
+no tiene ninguno: el visitante de un widget y el disparo de un trigger se rechazan
+en lugar de recibir el workspace del publicador o del creador — salvo que el
+trigger [se ejecute como su creador](concepts.md#unless-its-creator-lets-it-run-as-them).
 
 La clave es también el **nombre** de la sesión en el host —el id de una sesión de
 `sandboxd`, el nombre de un sandbox de Daytona—, así que cada run de un scope la
@@ -464,10 +469,10 @@ Lo que queda, dicho en lugar de dado por supuesto:
 
 ## Qué muestra el navegador de archivos, y qué deja fuera { #what-the-file-browser-shows-and-what-it-leaves-out }
 
-`/workspaces` lista lo que un agent guarda **para una persona**, que no es el mismo
+**Documents** (`/documents`) lista lo que un agent guarda **para una persona**, que no es el mismo
 conjunto que lo que hay en el volumen. Dos prefijos se descartan de cada listado
-que lee una persona —la vista plana, los archivos propios de un workspace, el
-panel de una conversación y los recuentos de archivos—:
+que lee una persona —la lista de todos los archivos, los archivos de una carpeta,
+el panel de una conversación y los recuentos de archivos—:
 
 - `skills/` — el cuerpo de un skill y sus recursos, escritos al principio de cada
   run que tiene skills y workspace. Ahí hacen falta: un recurso es un script que la

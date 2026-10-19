@@ -218,6 +218,7 @@ class TestTheDownRatedMarkerReachesTheRow:
             output_tokens=5,
             cost_usd=Decimal("0.01"),
             cost_is_partial=False,
+            is_test=False,
             provider="openrouter",
             conversation_id=_CONVERSATION_ID,
         )
@@ -255,6 +256,7 @@ class TestTheDownRatedMarkerReachesTheRow:
             output_tokens=5,
             cost_usd=Decimal("0.01"),
             cost_is_partial=False,
+            is_test=False,
         )
         web = AgentRun(
             id=uuid4(),
@@ -266,6 +268,7 @@ class TestTheDownRatedMarkerReachesTheRow:
             output_tokens=5,
             cost_usd=Decimal("0.01"),
             cost_is_partial=False,
+            is_test=False,
         )
         link = EvalCaseLinkRead(
             eval_run_id=uuid4(),
@@ -324,6 +327,7 @@ class TestTheDetailReadCarriesItsNeighbours:
             output_tokens=5,
             cost_usd=Decimal("0.01"),
             cost_is_partial=False,
+            is_test=False,
         )
         prev_id, next_id = uuid4(), uuid4()
         service = _service()
@@ -351,6 +355,7 @@ class TestTheDetailReadCarriesItsNeighbours:
             output_tokens=5,
             cost_usd=Decimal("0.01"),
             cost_is_partial=False,
+            is_test=False,
         )
         link = EvalCaseLinkRead(
             eval_run_id=uuid4(),

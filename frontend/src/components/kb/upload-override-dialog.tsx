@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 import type { IngestionConfig, IngestionOverride } from "@/types";
 import { useChanged } from "@/hooks/use-changed";
 import { useTranslations } from "next-intl";
-import { DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
 
 interface UploadOverrideDialogProps {
   open: boolean;
@@ -90,7 +90,7 @@ export function UploadOverrideDialog({
           <DialogDescription>{t("appliesEachFileYou")}</DialogDescription>
         </DialogHeader>
 
-        <div className="-mx-1 min-h-0 flex-1 scrollbar-thin overflow-y-auto px-1">
+        <div className={cn(DIALOG_BODY, "scrollbar-thin")}>
           {/* Above the parse settings, and not one of them: this decides where
               the file is filed, not how it is read, and it is recorded on the
               document rather than folded into its ingestion configuration. */}

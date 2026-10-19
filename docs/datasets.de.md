@@ -1,5 +1,5 @@
 ---
-source_sha: "0a82031f265d"
+source_sha: "99918c787149"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -175,8 +175,10 @@ In beiden Fällen entsteht der Fall aus diesem Zug:
   nächsten Frage schrieb - ist die Antwort, und ihr Text wird zum Gegenbeispiel.
   Hat niemand sie negativ bewertet, wird sie stattdessen als Referenzantwort
   angeboten, und Sie wählen eines von beiden; als Referenz behalten, werden die
-  Tools, die sie aufrief, zu den erwarteten Tool-Aufrufen des Falls, nach Namen,
-  und eine Antwort ohne Text wird als diese allein behalten;
+  Tools, die sie aufrief, zu den erwarteten Tool-Aufrufen des Falls, nach Namen
+  (die erfolgreichen, die etwas ändern, kein gescheiterter Aufruf und keiner,
+  den ihr Agent als nur lesend deklariert), und eine Antwort ohne Text wird als
+  diese allein behalten;
 - der neueste Kommentar zu einem Daumen nach unten wird zur Notiz.
 
 Beide Wege sehen nur Mitglieder, die ein Dataset bearbeiten dürfen. Die
@@ -328,7 +330,8 @@ unterscheidet. Ein Bestehen ist ein Fehler, wenn es nur zitiert, was beide
 sagen, oder nichts aus einer Antwort zitiert, die das Gegenbeispiel kopiert;
 jedes andere ohne Zitat bleibt stehen, als nicht belegt markiert. Eine Antwort,
 die das Gegenbeispiel behält und ergänzt, was ihm fehlte, besteht mit einem
-Zitat der Ergänzung.
+Zitat der Ergänzung. Eine Antwort, die das Gegenbeispiel ist oder ein Teil
+davon, fällt bei dem Kriterium durch, was auch immer der Bewerter sagte.
 
 Bewerter starten mit Temperatur 0, damit dieselbe Antwort zweimal gleich
 bewertet wird; ein Modell, das keine Temperatur annimmt, etwa ein

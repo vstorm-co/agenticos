@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Check, FileText, Plus } from "lucide-react";
 
 import { Badge, Pager, SearchInput, useListControls } from "@/components/ui";
+import { GroupsChip } from "@/components/sharing/audience-chip";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { ContextFileSummary } from "@/types/providers";
@@ -103,6 +104,7 @@ export function ContextGallery({
                     {tContext(file.mode === "inject" ? "modeInject" : "modeLink")}
                   </Badge>
                   {!file.enabled && <Badge variant="outline">{t("disabled")}</Badge>}
+                  <GroupsChip groups={file.shared_groups} />
                 </span>
                 {file.description !== null && (
                   <span className="text-muted-foreground mt-1 block text-sm">

@@ -1,5 +1,5 @@
 ---
-source_sha: "b770e9d03e5d"
+source_sha: "d61d0d68830c"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -22,6 +22,31 @@ capabilities cubren además cosas que no son herramientas en absoluto, y por eso
     página. El Builder dibuja su selector y sus formularios de configuración a
     partir de esa respuesta. Si ambos se contradicen, la API tiene razón.
 
+El Builder nombra cada capability en el idioma de la consola y la explica con
+palabras sencillas: qué le permite hacer al agent, dos o tres ejemplos de uso, qué
+necesita y qué no hace nunca. La consola no tiene traducción al español, así que
+allí se ven los nombres en inglés que da la tabla de la versión inglesa. Cinco
+capabilities que solo ajustan cómo se lleva un run - conversaciones largas,
+imágenes fuera del historial, recordatorio de instrucciones, límites de resultados
+de herramientas y búsqueda de herramientas - quedan plegadas bajo **Advanced**
+hasta que alguien abre el grupo, busca o activa una de ellas.
+
+En los ajustes de una capability, los límites, la vida de la caché, los prompts y
+el resto del ajuste fino quedan plegados en **Ajustes avanzados**, que se abren
+solos donde alguno se haya establecido.
+
+Las capabilities que tiene el agente inicial - la plantilla **Claude Code like**,
+que una organización nueva recibe en su primer arranque - llevan la insignia
+**Recommended**, y un agente creado con **New agent** empieza con exactamente esas
+activadas, configuradas como las configura la plantilla. Su autor desactiva lo que
+el agente no deba hacer.
+
+Dos de ellas dependen de lo que ejecuta el despliegue. El espacio de trabajo es un
+contenedor en el servicio de sandbox del propio despliegue, que el bootstrap y la
+primera publicación registran como predeterminado de la organización; sin él solo
+guarda archivos. El navegador web apunta al servicio de navegador del despliegue
+(`BROWSER_SIGN_IN_CDP_URL`) y se omite donde no lo hay.
+
 ## Qué se entrega { #what-ships }
 
 | id | Nombre | Categoría | Herramientas | Scope | Clave |
@@ -29,29 +54,29 @@ capabilities cubren además cosas que no son herramientas en absoluto, y por eso
 | `knowledge` | Búsqueda de conocimiento | knowledge | `search_documents` | `knowledge:read` | — |
 | `skills` | Skills | knowledge | `read_skill_resource` | `knowledge:read` | — |
 | `context` | Contexto | knowledge | `list_context`, `read_context` | — | — |
-| `memory_files` | Archivos de memoria | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
+| `memory_files` | Memoria | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
 | `memory_mem0` | Memoria (mem0) | knowledge | `remember`, `recall` | — | obligatoria |
-| `conversation_search` | Búsqueda de conversaciones | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
+| `conversation_search` | Conversaciones anteriores | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
 | `web_research` | Búsqueda web | research | `web_search` | `web:read` | para servicios de pago |
-| `web_fetch` | Lectura de páginas web | research | `web_fetch` | `web:fetch` | — |
-| `browser_choice` | Automatización del navegador (elección) | research | `browse_page` | `web:browse` | mediante el extra `browser` |
-| `browser_use` | Automatización del navegador | research | `browse_web` | `web:browse` | mediante el extra `browser-use` |
-| `code_execution` | Ejecutar Python | analysis | `run_python` | `code:execute` | — |
-| `sandbox` | Archivos y shell | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | para Daytona |
+| `web_fetch` | Leer páginas web | research | `web_fetch` | `web:fetch` | — |
+| `browser_use` | Navegador web | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | mediante el extra `browser` |
+| `code_execution` | Cálculos | analysis | `run_python` | `code:execute` | — |
+| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | para Daytona |
 | `charts` | Gráficos | analysis | `create_chart` | — | — |
 | `image_generation` | Generación de imágenes | analysis | `generate_image` | — | obligatoria |
-| `subagents` | Delegación | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
+| `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
 | `planning` | Planificación | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
 | `thinking` | Razonamiento | reasoning | ninguna, a propósito | — | — |
-| `system_reminders` | Recordatorios del sistema | reasoning | ninguna, a propósito | — | — |
+| `system_reminders` | Recordatorio de instrucciones | reasoning | ninguna, a propósito | — | — |
 | `tool_search` | Búsqueda de herramientas | utility | ninguna, a propósito | — | — |
 | `clock` | Fecha y hora | utility | ninguna, a propósito | — | — |
-| `guardrails` | Guardrails | utility | ninguna, a propósito | — | — |
-| `compaction` | Gestión del contexto | utility | ninguna, a propósito | — | — |
-| `media` | Descarga de medios | utility | ninguna, a propósito | — | — |
-| `tool_output_limits` | Límites de salida de herramientas | utility | `read_tool_result` | — | — |
-| `artifacts` | Artefactos | utility | `publish_artifact`, `read_artifact` | — | — |
-| `channel_tools` | Consulta del canal de chat | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
+| `guardrails` | Reglas de protección | utility | ninguna, a propósito | — | — |
+| `compaction` | Conversaciones largas | utility | ninguna, a propósito | — | — |
+| `media` | Imágenes fuera del historial | utility | ninguna, a propósito | — | — |
+| `tool_output_limits` | Límites de resultados de herramientas | utility | `read_tool_result` | — | — |
+| `artifacts` | Aplicaciones | utility | `publish_artifact`, `read_artifact` | — | — |
+| `channel_tools` | Información del canal de chat | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
+| `ask_user` | Preguntar al usuario | utility | `ask_user_question` | — | — |
 
 Siete de ellas no tienen herramientas a propósito. `thinking` cambia cómo trabaja
 el modelo, no qué puede alcanzar, `clock` pone la fecha en las instrucciones,
@@ -89,8 +114,8 @@ y que un eval retiene y registra:
 | id | Herramientas que escriben |
 |---|---|
 | `artifacts` | `publish_artifact` |
-| `browser_choice` | `browse_page` |
-| `browser_use` | `browse_web` |
+| `ask_user` | `ask_user_question` |
+| `browser_use` | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` |
 | `image_generation` | `generate_image` |
 | `memory_files` | `write_memory`, `edit_memory`, `delete_memory` |
 | `memory_mem0` | `remember` |
@@ -105,7 +130,7 @@ bloqueada con la segunda.
 
 Un entorno puede sustituir la clave del vault de una capability por una de
 prueba, pero una clave sustituida no hace segura una escritura por sí sola: la
-clave de `browser_choice` es para el modelo que decide, mientras que su
+clave de `browser_use` es para el navegador alojado o su proxy, mientras que su
 `cdp_url` sigue nombrando el navegador que hace clic. Una capability declara
 `test_key_isolates` solo cuando la clave por sí sola elige adónde van sus
 escrituras, y nunca con una URL, un host o un endpoint en su configuración.
@@ -278,7 +303,7 @@ adjunta, igual que `knowledge` vinculada sin colecciones tampoco se adjunta. Los
 archivos se gestionan bajo `/api/v1/context` y se vinculan a un agent por id
 (`AgentSpec.context_ids`).
 
-## Archivos de memoria { #memory-files }
+## Memoria { #memory-files }
 
 `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory`
 
@@ -303,21 +328,24 @@ exactamente un almacén: el de la propia conversación.** Cuál es se deriva en 
 servidor a partir de quién va a oír la respuesta, nunca del modelo, así que ninguna
 herramienta recibe un ámbito y no hay nada que el agent pueda confundir.
 
-- Uno a uno (chat web, la API HTTP, un mensaje directo): las notas son de esa
-  persona y nadie más las lee jamás. La misma persona alcanza un único almacén
-  desde las tres vías: una cuenta de chat vinculada se resuelve a su cuenta y no a
+- Uno a uno (chat web, un mensaje directo): las notas son de esa persona y nadie
+  más las lee jamás. La misma persona alcanza un único almacén desde ambas vías: una cuenta de chat vinculada se resuelve a su cuenta y no a
   la superficie por la que llegó.
 - En un chat de grupo las notas son del chat, y todos los del chat las leen. Las
   notas propias de quien habla **no** son alcanzables ahí: algo anotado a solas
   con alguien no se lee en voz alta donde lo ve un canal entero.
 - En un widget público o en un embed no hay a quién atribuir nada, así que no hay
-  almacén, y las herramientas lo dicen en vez de guardar en algún sitio.
+  almacén, y las herramientas lo dicen en vez de guardar en algún sitio. Un run
+  iniciado con una [clave API](../api.md#organization-api-keys) tampoco lo tiene:
+  la clave actúa por quien la emitió, pero quien la tiene no es esa persona.
 - En una programación o en un trigger de evento tampoco hay almacén, aunque el
   run se ejecuta como el creador del trigger. El creador presta al run su
   autoridad, no su identidad, así que nadie escucha y las herramientas se
   niegan. Pon un dato que necesite un run programado en el prompt del trigger o
   en un archivo de contexto vinculado. Consulta
-  [Trigger](../concepts.md#it-is-not-that-persons-conversation).
+  [Trigger](../concepts.md#it-is-not-that-persons-conversation), o deja que el trigger
+  [se ejecute como su creador](../concepts.md#unless-its-creator-lets-it-run-as-them):
+  un horario lee y escribe entonces el almacén del creador, y un evento solo lo lee.
 
 No hay un almacén para toda la organización. Existió uno y se retiró: era un
 segundo mecanismo para lo que ya hacen los [archivos de contexto](../context.md)
@@ -425,7 +453,7 @@ clave viaja en una cabecera `Authorization`, así que quien construya un agent y
 pueda vincular una clave compartida sin poder leerla no debe poder apuntarla a un
 servidor propio.
 
-## Búsqueda de conversaciones { #conversation-search }
+## Conversaciones anteriores { #conversation-search }
 
 `search_conversations`, `read_conversation`
 
@@ -461,7 +489,10 @@ afuera.
 
 Una programación o un trigger de evento no responde a nadie, así que ambas
 herramientas se niegan también ahí, por la misma razón que los
-[archivos de memoria](#whose-notes-and-who-may-hear-them).
+[archivos de memoria](#whose-notes-and-who-may-hear-them) - y siguen negándose en un
+trigger que [se ejecuta como su
+creador](../concepts.md#unless-its-creator-lets-it-run-as-them), que abre la memoria
+y las conexiones personales, pero nunca las conversaciones de una persona.
 
 ### Cómo busca { #how-it-matches }
 
@@ -525,7 +556,7 @@ Una búsqueda encuentra una página; no la lee. Leerla es
 [Lectura de páginas web](#web-fetch), más abajo, y es una capability aparte con un
 scope aparte.
 
-## Lectura de páginas web { #web-fetch }
+## Leer páginas web { #web-fetch }
 
 `web_fetch` — *Lee la página completa de una URL, como Markdown.*
 
@@ -580,6 +611,13 @@ página vacía: un rechazo con forma de resultado es uno que el modelo esquiva a
 responder sin decir que tuvo que hacerlo. A la biblioteca se le puede indicar que
 permita direcciones locales; aquí nada expone eso.
 
+Cualquiera de los dos fallos, como cualquier otro (un 403, un tiempo de espera
+agotado), es un reintento solo mientras a la herramienta le quede un intento.
+Pydantic AI cuenta los reintentos por herramienta y no por URL, así que el segundo
+sitio que rechazara al agente terminaría todo el run; en el último intento el
+mismo mensaje vuelve en su lugar como resultado de la herramienta, y el modelo
+pasa a otra fuente o responde sin ella.
+
 !!! warning "Los filtros de dominio no son la frontera de seguridad — `safe_download` sí"
 
     Coinciden con el nombre de host exactamente, sin comodines y sin subdominios
@@ -627,163 +665,199 @@ Una página llega como Markdown, truncada en `max_content_chars`; un PDF o una
 imagen llegan como contenido binario que el modelo lee de forma nativa. Nada la
 resume: qué hacer con una página corresponde a las instrucciones del agent.
 
-## Automatización del navegador (elección) { #browser-automation-choose }
+## Navegador web { #browser-automation }
 
-`browse_page` — *Recorre una página web hacia un objetivo, una acción elegida cada vez.*
+`browse_web` — *Hace una tarea en un navegador web real, paso a paso.*
 
-Un objetivo y una URL de inicio. La capability abre la página en un Chromium que
-ejecutas tú y repite tres cosas: lee la página y la convierte en una tabla numerada
-de los elementos sobre los que una persona podría actuar, pregunta a un modelo de
-decisión qué operación y qué elemento, y lo ejecuta. Solo escribir el valor de un
-campo llega a un modelo de lenguaje.
+Una tarea y una URL de inicio. Abre la página en un Chromium que usted opera y repite
+tres cosas: lee la página en una tabla numerada de los elementos sobre los que una
+persona podría actuar, pide al modelo del run un paso y lo ejecuta. Un paso juzga si la
+acción anterior funcionó, guarda una memoria breve para el resto de la tarea, dice para
+qué es la siguiente acción y nombra una sola acción: hacer clic, escribir, elegir,
+desplazarse, abrir una URL, volver, esperar, terminar con una respuesta, pedir a una
+persona o avisar de que la página lo bloquea.
 
-Recurre a ella cuando haya que *operar* una página — un formulario, un filtro, un
-aviso de consentimiento, un flujo de varios pasos, una búsqueda cuyos resultados hay
-que pulsar. Para una página que solo necesitas leer, [web fetch](#web-fetch) es más
-rápido y no tiene efectos secundarios.
+Úselo cuando una página haya que *manejarla* — un formulario, un filtro, un inicio de
+sesión con datos que tiene, una búsqueda cuyos resultados piden un clic, un recorrido
+por varias páginas. Para una página que solo hay que leer, la
+[descarga de páginas](#web-fetch) es más rápida y no tiene efectos secundarios.
 
-**Elige; no compone.** Un agente de navegador que escribe su siguiente acción puede
-emitir cualquier cadena, de modo que el texto de la página es un canal de
-instrucciones hacia el modelo y la única defensa es decirle al modelo que no escuche.
-Esta responde a una elección única cuyas opciones se construyen en el servidor a
-partir del DOM vivo, así que una página no puede ofrecer una acción describiéndola.
+**O el agent lo maneja él mismo.** `browser_open`, `browser_read`, `browser_click`,
+`browser_type`, `browser_select`, `browser_scroll` y `browser_back` son la misma pestaña
+en manos del propio agent: una acción por llamada, elegida por el modelo del run en su
+propio turno, y cada una responde con la página después de la acción - su dirección, los
+elementos numerados y su texto. Sin una segunda petición por paso, y el agent dice en el
+chat lo que hace entre acciones. Los pasos se dibujan en una única ventana en vivo bajo el
+mensaje del agent, la que abrió el primer `browser_open`, y una persona puede tomar la pestaña
+entre dos pasos cualesquiera. Medido con Claude a través de OpenRouter: un paso de
+`browse_web` dura 3,5-5 s, casi todo la petición al modelo del propio paso; una tarea de
+dos clics que el agent manejó él mismo tardó 13 s, y con `browse_web` unos 20. Las
+herramientas convienen para una tarea corta o una que alguien quiere ver, `browse_web`
+para una tarea larga entregada entera.
 
-Eso no es lo mismo que ser segura. «Eliminar cuenta» es una acción que una página
-ofrece de verdad, por eso la capability es **`side_effecting`** y `browse_page` se
-puede poner tras una [aprobación](../governance.md).
+**Una acción nombra una fila, nunca un selector.** Cada elemento sobre el que el modelo
+puede actuar es una fila de una tabla construida en el servidor a partir del DOM vivo,
+así que una página no puede ofrecer una acción describiéndola. Eso no es lo mismo que
+seguro: «Eliminar cuenta» es una acción que una página ofrece de verdad, por eso la
+capability es **`side_effecting`** y `browse_web` puede quedar tras una
+[aprobación](../governance.md).
 
-**Por defecto no queda retenido para aprobación**, el único punto en el que la
-bandera de la herramienta discrepa de la de la capability. Una aprobación de un
-recorrido llega *antes* de que se cargue la primera página, sobre un objetivo en
-lenguaje natural y una URL: pide a alguien que apruebe acciones que nadie puede ver
-todavía, y eso es consentimiento sin información. Lo que la sustituye es mirar: la
-consola dibuja el recorrido mientras ocurre, cada paso nombra lo que se eligió y con
-qué probabilidad, y `allowed_domains` limita adónde puede ir. Un operador que quiera
-la puerta pone `tool_approval` en el vínculo, que gana sobre esto; `min_confidence`
-es la versión automática del mismo instinto.
+**Por defecto no espera aprobación**, como toda herramienta. Una aprobación de una navegación llega antes
+de cargar la primera página, sobre una tarea en lenguaje natural, y pide consentir
+acciones que nadie puede ver todavía. En su lugar está la observación: la consola dibuja
+la navegación mientras ocurre, cada paso dice qué pulsó y para qué, y `allowed_domains`
+limita adónde puede ir. Quien quiera la puerta pone `tool_approval` en el binding.
 
-**Informa de que está bloqueada.** Un muro de inicio de sesión, un aviso de
-consentimiento, un captcha, una página que no contiene lo que se pedía: el motor lo
-dice, y el recorrido termina con un resultado en lugar de con silencio en el límite
-de pasos. Cuatro resultados, y los cuatro son ordinarios — terminado, bloqueado por
-la página, detenido en el límite de pasos y no se pudo alcanzar el navegador.
+**Un límite de pasos es una pausa, no un final.** La pestaña sigue abierta el resto del
+turno. Una navegación que llega a `max_steps` lo dice junto con lo que aprendió, y el
+agente continúa llamando de nuevo a `browse_web` sin `start_url` — en la misma página,
+con la sesión iniciada y la misma memoria. Una llamada con `start_url` empieza una tarea
+nueva en la misma pestaña. Cuatro resultados, todos normales: terminada, bloqueada por la
+página, en pausa en el límite de pasos y el navegador no responde. El último es una
+respuesta, no un run fallido: el agente sabe que el navegador no responde y lo dice,
+junto con quién puede arreglarlo.
 
-| Ajuste | Por defecto | Valores |
+**Una persona puede tomar el control del navegador.** Cada navegación de un run tiene
+una vista en directo en la consola, en `/browse/{run_id}/{call_id}`: la página tal como
+está ahora y los pasos hasta el momento. La tarjeta del chat enlaza a ella, y en Slack,
+Telegram y Mattermost el paso publica el enlace. La persona para la que actúa el run, o
+quien puede editar el agente, puede tomar el control: el agente se detiene tras su paso
+actual y la página es suya — clic, escribir, desplazarse — hasta que la devuelva, y el
+agente sigue desde la página tal como la dejó. Los miembros que pueden ver runs pueden
+mirar, pero no manejar. Lo que alguien escribe llega a la página y no se guarda en
+ningún sitio; el historial del run solo registra que alguien tomó el control.
+
+**La página toma el tamaño de la ventana que la muestra.** Mientras alguien que puede
+manejar la navegación la tiene abierta, el navegador maqueta la página para esa ventana
+entre pasos - el diseño propio del sitio para ese ancho, con la densidad de esa
+pantalla -, así que la vista en directo es el sitio y no una pantalla de portátil
+encogida en una columna. El modelo ve entonces la misma página a ese tamaño.
+
+**Una tarea ya hecha va más rápido la segunda vez, para la misma persona.** Cuando
+termina una navegación que actúa por una persona - su propio chat, su mensaje directo,
+su propia programación - los pasos que la llevaron allí se guardan solo para ella: la
+dirección y la etiqueta de cada cosa que pulsó, nunca lo que escribió (la grabación se
+detiene en el primer campo que rellena). La próxima vez que pida la misma tarea desde
+el mismo `start_url`, esos pasos se dan sin el modelo mientras la página los siga
+ofreciendo, y el modelo toma el relevo en la primera diferencia. Una repetición que no
+termina se descarta. Nadie más en la organización los lee, y Redis los guarda dos
+semanas desde la última vez que se hizo la tarea.
+
+**Cuando solo una persona puede pasar de una página** — un inicio de sesión sin datos,
+un captcha, una decisión que le corresponde a otro —, el modelo pide una persona en
+lugar de rendirse. La tarjeta y el hilo del canal dicen que el agente necesita a una
+persona, y para qué. La
+navegación espera hasta diez minutos a que alguien tome el control y termina bloqueada
+si nadie llega; una persona tiene el navegador como mucho quince minutos. La vista en
+directo se guarda en Redis, así que lo necesita, y dura una hora desde la última acción
+de la navegación.
+
+| Configuración | Por defecto | Valores |
 |---|---|---|
-| `cdp_url` | el único host permitido, si hay uno | un endpoint de Chromium DevTools; obligatorio, y su host tiene que estar en `BROWSER_CDP_ALLOWED_HOSTS`. Con exactamente un host permitido el formulario llega rellenado |
-| `allowed_domains` | null | hosts en los que puede estar el navegador; se admiten globs como `*.example.com`; null no restringe |
-| `decision_model` | `jev-latest` | un selector sobre `app/core/catalog/decision_models.json`; una versión fijada como `jev-1.13.0` se puede escribir, porque un agent cuyo umbral de confianza se ajustó contra una versión la necesita |
-| `decision_base_url` | null | dónde se ejecuta ese modelo. Vacío es el propio `https://api.typesafe.ai` del proveedor, y ahí va el contenido de la página salvo que este campo diga otra cosa |
-| `max_steps` | 25 | 1–100; cada paso es una petición de decisión |
-| `candidate_cap` | 60 | 2–200; cuántos elementos pueden ofrecerse como opciones en un paso |
-| `min_confidence` | 0.0 | 0–1; no actuar sobre una elección por debajo de este valor y terminar el recorrido como bloqueado |
-| `preview` | `true` | enviar la vista de la página al chat mientras se ejecuta el recorrido |
-| `preview_width` | 1024 | 320–1920; el ancho de esos fotogramas |
+| `cdp_url` | vacío | un endpoint DevTools de Chromium; obligatorio, y su host tiene que estar en `BROWSER_CDP_ALLOWED_HOSTS` |
+| `allowed_domains` | null | hosts en los que puede estar el navegador; se admiten patrones como `*.example.com`; null es sin restricción en la web. Toda petición que apunte dentro de la red del despliegue (una dirección privada, de loopback, link-local o de metadatos, también tras una redirección) se rechaza salvo que su host esté aquí - añade una herramienta interna para navegarla (y, tras `BROWSER_EGRESS_PROXY`, también a las excepciones del proxy) |
+| `max_steps` | 50 | 1–200; pasos por llamada, cada uno una petición al modelo |
+| `vision` | `false` | envía también al modelo la captura de cada paso; el modelo tiene que leer imágenes |
+| `candidate_cap` | 60 | 2–200; cuántos elementos se pueden ofrecer en un paso |
+| `preview` | `true` | envía la vista del navegador al chat mientras navega |
+| `preview_width` | 1024 | 320–1920; el ancho de la vista y, por tanto, de los fotogramas |
+| `step_model_profile_id` | vacío | un perfil de modelo al que `browse_web` pregunta en cada paso en lugar del modelo del agent - un modelo más barato abarata un browse largo, y solo lo acelera donde su proveedor responde rápido (Claude Haiku por OpenRouter tardó por paso lo mismo que Sonnet); vacío usa el modelo del agent, que sus propias herramientas de navegador usan siempre |
+| `connection` | `built_in` | `built_in`, `proxy` o `hosted`: cómo sale el navegador a la red |
+| `proxy_url` | vacío | con `proxy`: `http://`, `https://` o `socks5://` con host y puerto; el secreto del binding, si lo hay, es su `username:password` |
+| `hosted_url` | vacío | con `hosted`: la dirección CDP `wss://` del servicio; el secreto del binding es su clave y es obligatorio |
+| `hosted_key_param` | `apiKey` | cómo llama el navegador alojado a su clave en la query de la dirección |
+| `timezone` | vacío | una zona horaria IANA que declara el navegador - ajústala a la región del proxy |
+| `locale` | vacío | una etiqueta de idioma como `pl-PL`, enviada como `Accept-Language` y `navigator.language` |
 
-**El navegador es tuyo, y el operador dice cuál.** No hay modo local ni Chromium
-en la imagen de la API: `cdp_url` apunta a un servicio de navegador que un operador
-ejecuta y aísla. El host tiene que estar en
-[`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md), y una lista vacía —la de
-partida— rechaza la automatización del navegador por completo. Se verifica **al
-publicar**, cuando se guarda el spec, y no en cada run.
+**El navegador lo opera usted, y el operador dice cuál.** No hay Chromium en la imagen
+de la API: `cdp_url` apunta a un servicio de navegador que un operador ejecuta y aísla.
+Los ficheros de compose traen uno tras el perfil `browser` — `docker compose --profile
+browser up -d browser`, accesible como `http://browser:9222`. El host tiene que estar en
+[`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md), y una lista vacía — la de por defecto
+— rechaza la automatización del navegador al publicar.
 
-Es una lista de permitidos y no la verificación SSRF por la que pasa cualquier otra
-URL suministrada por un tenant, y la razón es lo que `cdp_url` es: vive en un spec
-que escribe cualquiera con permiso `edit` sobre el agent, así que la dirección la
-controla el tenant y la petición es de este deployment.
+El navegador de compose está en una red de Docker propia, a la que solo se unen la
+API y el runner para llegar a él: una página que abre, o a la que lo redirigen, no
+alcanza la base de datos, Redis, Prefect ni MinIO. Sigue alcanzando lo que permita
+la red del host, como la dirección de metadatos de una nube, así que bloquéala en el
+host donde importe.
 
-La protección SSRF se equivoca en las dos direcciones: solo admite direcciones
-*públicas*, de modo que rechaza el servicio aislado en tu propia red que esta
-página pide ejecutar, y acepta un depurador CDP expuesto a internet, que es la peor
-de las dos posturas. Un host verificado no necesita comprobación de dirección; uno
-sin verificar se rechaza sea lo que sea a lo que resuelva.
+**Un agent elige cómo sus browses salen a la red** (#2130), en los ajustes del propio
+navegador, con el mismo `edit` sobre el agent que el resto. `connection` es
+`built_in` - el navegador que nombra `cdp_url`, desde la dirección propia del
+despliegue -, `proxy` o `hosted`, y `timezone` y `locale` dicen qué zona horaria e
+idioma declara el navegador, sea cual sea el modo.
 
-**Cada paso envía la página al modelo de decisión.** Su URL, su título, las
-etiquetas de los elementos y un extracto acotado de su texto visible, lo que en el
-endpoint público del proveedor es un tercero y puede ser el contenido de un sistema
-interno. El texto está ahí porque sin él el motor no puede saber que ha *terminado*:
-un precio, una confirmación o «sin resultados» son texto corriente y no controles, de
-modo que `DONE` sería una conjetura. Un valor que el agent escribe no se envía a
-propósito: el paso se registra como «rellenado» sin él, así que una contraseña no
-viaja a ese endpoint. Dos cosas lo convierten en una
-decisión y no en un descuido: la capability exige una clave de API del vault de este
-deployment, así que no puede ejecutarse hasta que un operador añada una, y
-`decision_base_url` lleva el modelo de decisión a otro sitio: a un host de
-[`DECISION_MODEL_ALLOWED_HOSTS`](../configuration.md), porque ese campo está en el
-spec y la clave se desprecinta en una cabecera hacia lo que nombre. Una lista vacía,
-la de partida, solo permite el endpoint del proveedor. Consulta
-[qué sale del deployment](../data-protection.md#what-leaves-the-deployment).
+Un proxy (`proxy_url`) envía el tráfico de ese navegador por una dirección `http://`,
+`https://` o `socks5://` - residencial o regional - y se autentica con el secreto del
+binding como `username:password` cuando lo tiene.
 
-**Ambos modelos se contabilizan y ninguno se tarifica.** El modelo de decisión se
-ejecuta una vez por paso y el modelo del run una vez por campo escrito; ambos anotan
-tokens en el budget del run. El precio es otra cosa: la instantánea de precios
-incluida no conoce el modelo de decisión, de modo que un recorrido muestra consumo
-sin coste, y un budget expresado en dólares no lo limita. Lo que acota un recorrido
-es `max_steps`.
+Un proxy `http://` o
+`socks5://` llega al navegador en la dirección que se comprobó, así que un nombre
+que cambie entre la comprobación y la conexión no lo dirige al interior de la red;
+un proxy `https://` conserva su nombre, para el que se emitió su certificado.
 
-**`cdp-use` y el SDK de TypeSafe llegan con el extra `browser`**, que una instalación
-por defecto no tiene. Un operador que quiera la capability instala
-`agenticos[browser]`; un agent vinculado a ella en un deployment sin el extra falla
-en esa única herramienta de forma ruidosa, con la línea de instalación.
+Un navegador alojado (`hosted_url`)
+se conecta en cambio por `wss://` a un servicio de navegador - Browserbase, Steel o
+uno propio - con el secreto del binding como clave, añadida a la query de la
+dirección bajo `hosted_key_param` (`apiKey` por defecto).
 
-**Transmite mientras se ejecuta.** La consola dibuja la vista de la página, la página
-en la que está y cada paso con la probabilidad con la que el motor lo encontró —
-consulta [la consola](../console.md). Con `preview` desactivado se conserva la
-narración y se omiten las imágenes.
+Un navegador alojado nunca
+empieza con los inicios de sesión guardados de una persona: su dirección la elige
+el autor del agent, no un operador. Allí también cada recorrido recibe un contexto
+de navegador propio, y un servicio que lo rechaza queda rechazado: su perfil
+predeterminado no se da por privado, y lo que un recorrido escriba ahí - cookies,
+local storage - le sobreviviría.
 
-## Automatización del navegador { #browser-automation }
+Una dirección dentro de la red del despliegue se rechaza al publicar y otra vez al
+empezar un browse, salvo que el operador haya puesto el host en
+`BROWSER_CDP_ALLOWED_HOSTS`. Chromium no puede autenticarse en un proxy SOCKS, así que
+uno con contraseña tiene que ser HTTP. Un sitio que pide una contraseña nunca recibe
+la del proxy. El navegador de inicio de sesión siempre usa el del propio despliegue.
 
-`browse_web` — *Delega una tarea web abierta en un agente de navegador autónomo.*
+**El navegador de compose se ve como uno de escritorio.** Es un Chromium completo con
+ventana en una pantalla virtual (`docker/browser`), con las fuentes de un escritorio y
+sin los flags que le dicen a una página que está siendo dirigida - el headless shell
+al que sustituye decía `HeadlessChrome` en su user agent, y los sitios que rechazan bots
+lo rechazaban al verlo. La capability también quita lo que una página aún podría leer
+por CDP: nunca activa el dominio `Runtime`, y sustituye `Headless` en el user agent,
+`navigator.webdriver` y un renderer WebGL `SwiftShader` donde un navegador los muestra,
+así que un headless shell que un operador conserve también parece de escritorio.
 
-Un objetivo en lenguaje natural, entregado a un agente
-[browser-use](https://github.com/browser-use/browser-use) que maneja un Chromium
-real — navegando, leyendo, pulsando, extrayendo — y devuelve un resultado en texto.
-Recurre a ella cuando la maquetación de la página es desconocida o la tarea exige
-criterio, no para un flujo guionizado que resolvería una petición directa.
+Comprobado con la detección de bots de BrowserScan (*Normal* en cada punto) y la tabla
+de Sannysoft (todo superado). `BROWSER_TZ` y `BROWSER_LANG` en el entorno fijan dónde
+y en qué idioma dice estar; por defecto `UTC` y `en-US`. Una comprobación de bots no
+son unas condiciones de uso: lo que un sitio permite automatizar lo lee el operador
+antes de dirigir agentes a él.
 
-Es la mayor superficie de ataque que abre una capability: un navegador sigue lo que
-le dice una página, la página no es de confianza, y por eso `browse_web` convierte
-el contenido web en una herramienta con efectos secundarios. Es **`side_effecting`
-y puede ponerse tras una puerta** por ese motivo: ponla tras la
-[aprobación](../governance.md) y la página inyectada llega a una persona, no a una
-acción.
+Es una lista de permitidos y no la comprobación SSRF por la que pasan otras URL del
+inquilino, porque `cdp_url` vive en un spec que escribe cualquiera con `edit`, y la
+protección SSRF falla aquí en ambos sentidos: rechaza el servicio aislado de su propia
+red y acepta un depurador expuesto a internet. Chromium solo responde a DevTools por una
+dirección IP, así que un endpoint `http` o `ws` dado por nombre se resuelve una vez y se
+alcanza por su dirección; un endpoint TLS conserva su nombre para el certificado.
 
-| Configuración | Valor por defecto | Valores |
-|---|---|---|
-| `mode` | `playwright` | `playwright`, `remote` |
-| `cdp_url` | null | un endpoint de Chromium DevTools; obligatorio en (y válido solo en) `remote` |
-| `allowed_domains` | null | dominios que el agent puede alcanzar; se admiten globs como `*.example.com`; null es sin restricción |
-| `max_steps` | 25 | 1–100; cada paso es una petición al modelo |
-| `use_vision` | `true` | envía capturas de la página al modelo del agente de navegador |
-| `headless` | `true` | ejecuta sin ventana un navegador lanzado localmente (solo `playwright`) |
+**Cada navegación tiene su propio contexto de navegador**, que se descarta al terminar el
+run. En un navegador compartido por muchos, el contexto por defecto guardaría una cookie
+que puso el agente de una persona, y el siguiente llegaría con su sesión iniciada.
 
-**`mode` elige dónde se ejecuta el navegador.** `playwright` lanza un Chromium sin
-interfaz junto al agent; `remote` se conecta por CDP a un navegador que un operador
-ejecuta en otro sitio. Un despliegue autoalojado apunta `remote` a un servicio de
-navegador endurecido y aislado en lugar de darle al contenedor de la aplicación un
-proceso de navegador. Un `cdp_url` de `remote` es una URL a la que este despliegue
-se conecta desde el servidor, así que se comprueba contra SSRF: una dirección de
-bucle local, privada, reservada o de metadatos se rechaza **al publicar**, cuando se
-guarda el spec, y no en cada run (la comprobación resuelve DNS, que no debe bloquear
-el bucle de eventos sobre el que se ensambla el run).
+**Cada paso va al propio modelo del agente.** La URL de la página, su título, las
+etiquetas de los elementos y hasta 4.000 caracteres de su texto visible, más una captura
+con `vision` activado — al mismo proveedor que la conversación y a ningún otro. Un valor
+que escribe el agente no se repite: el historial anota que se rellenó un campo, no con
+qué. Cada paso se comprueba contra el presupuesto del run antes de enviarse, así que un
+presupuesto agotado detiene la navegación en vez de pagar el paso siguiente.
 
-**El gasto de modelo del agente de navegador se contabiliza.** El subagente se
-ejecuta con el modelo del run anfitrión — aquel cuya credencial se resolvió desde el
-vault — y cada uno de sus pasos es una petición al modelo, anotada contra el budget
-del run a través del mismo libro de uso ambiental que usa un resumen de compactación.
-No es el modelo alojado propio de browser-use, y no es gasto que el guardián del
-budget no pueda ver. Cada paso consulta el budget antes de enviarse, así que, agotado
-el budget del run, el siguiente paso del agente de navegador se rechaza en lugar de
-pagarse.
+**`cdp-use` llega con el extra `browser`**, que una instalación por defecto no trae.
+Quien quiera la capability instala `agenticos[browser]`; un agente en un despliegue sin
+él falla esa herramienta de forma visible, con la línea de instalación.
 
-**`browser-use` es un extra opcional.** Arrastra un árbol pesado (Chromium vía
-Playwright) y fija dependencias una versión menor por debajo del resto de la
-plataforma, así que no se instala por defecto. El operador que quiera la capability
-instala `agenticos[browser-use]` y proporciona un Chromium; un agent vinculado cuyo
-despliegue no lo tenga falla ruidosamente en esa única herramienta, con la línea de
-instalación.
+Los specs anteriores a la versión 13 que vinculaban el navegador paso a paso
+(`browser_choice`) se cargan como esta capability; la aprobación y el cambio de nombre de
+`browse_page` pasan a `browse_web`, y se descartan los ajustes del modelo de decisión y
+la clave de TypeSafe.
 
-## Ejecutar Python { #run-python }
+## Cálculos { #run-python }
 
 `run_python` — *Ejecuta un pequeño programa en Python para calcular algo.*
 
@@ -801,7 +875,7 @@ que el tiempo y la memoria son los únicos límites que merece la pena fijar.
     no debería necesitar a un operador ni un redespliegue, y los topes están
     acotados en vez de ser abiertos.
 
-## Archivos y shell { #files-shell }
+## Sandbox { #files-shell }
 
 `ls`, `read_file`, `glob`, `grep` — *lectura.*
 `write_file`, `edit_file`, `execute` — *escritura y ejecución.*
@@ -824,6 +898,15 @@ No hay un backend `docker` ni `daytona` que elegir. *Dónde* se ejecuta una sand
 es una propiedad de la conexión que registró un operador — Sandboxes en la
 aplicación —, así que nombrar la conexión es nombrar el tipo. Elegirlos por
 separado hacía posible elegir dos cosas que se contradicen.
+
+Un despliegue que ejecuta su propio servicio de sandbox - `sandboxd` arrancado
+desde el archivo compose de este proyecto, con el token que generó
+`make sandbox-token` - no necesita registrar nada. La primera vez que una
+organización sin conexión predeterminada lista sus sandboxes o ejecuta un agente
+que necesita una, la plataforma registra *This deployment's sandbox* como
+predeterminada, en nombre del propietario de la organización, con el token en su
+bóveda y una entrada de auditoría como cualquier otra conexión. Del mismo modo,
+el Architect recibe archivos y código cuando se instala en un despliegue así.
 
 **`backend` es infraestructura; `session_scope` es una política de compartición de
 datos.** Equivocarse en lo primero cuesta una funcionalidad. Equivocarse en lo
@@ -892,13 +975,14 @@ no tiene credencial; cada caso por su nombre, porque los tres son estados a los 
 un despliegue llega *después* de que se publicara un agent y el arreglo es de un
 operador y no del autor.
 
-**Solo `execute` pregunta.** El efecto secundario se declara por herramienta, y de
-las siete solo lo es ejecutar un comando: un workspace es espacio de borrador que se
+**Solo `execute` se declara con efectos secundarios**, y nada pregunta hasta que un
+autor lo pone tras una puerta. De las siete, solo ejecutar un comando actúa sobre el
+mundo: un workspace es espacio de borrador que se
 borra con la conversación a la que pertenece, así que escribir un archivo en él no
 es de la misma clase de acto que enviar un correo — y un agent que tiene que
 preguntar antes de cada `write_file` no puede hacer trabajo de varios pasos en
 absoluto, que es como un autor acaba apagando la puerta del todo y perdiendo la que
-importaba. `execute` ejecuta comandos arbitrarios en el host de alguien.
+importaba. `execute` ejecuta comandos arbitrarios en el host de alguien, así que es la que merece una puerta.
 
 Una vinculación que quiera el comportamiento más estricto lo fija por herramienta:
 `tool_approval: {"write_file": "required"}`. Consulta
@@ -1050,7 +1134,7 @@ un paso `execute` posterior pueda construir con ella: montar un PDF, una diaposi
 una página. Un agent sin workspace sigue generando y mostrando imágenes; simplemente
 no tiene dónde construir con ellas.
 
-## Artefactos { #artifacts }
+## Aplicaciones { #artifacts }
 
 `publish_artifact` — *Publica una página terminada — un informe, un pequeño
 dashboard, un resumen — bajo un enlace estable.*
@@ -1058,13 +1142,13 @@ dashboard, un resumen — bajo un enlace estable.*
 como se escribió.*
 
 Publica un único documento HTML o Markdown autocontenido como
-[artefacto](../artifacts.md): un recurso compartido con propietario, visibilidad y
+[aplicación](../artifacts.md): un recurso compartido con propietario, visibilidad y
 grants, que se abre en el navegador bajo un enlace que no se mueve. Sin
 configuración.
 
-**El nombre es la identidad.** `(organization, agent, environment, name)` elige el
-artefacto, así que el siguiente run del mismo agent que publique `weekly-report` —
-desde un chat, una programación o la API — añade una versión al mismo en lugar de
+**El nombre es la identidad.** `(organization, agent, environment, name)` elige la
+aplicación, así que el siguiente run del mismo agent que publique `weekly-report` —
+desde un chat, una programación o la API — añade una versión a la misma en lugar de
 crear un segundo enlace. El entorno sale del run, así que un run en `staging`
 publica una página propia. Unos bytes idénticos no añaden versión y responden
 `unchanged`.
@@ -1268,7 +1352,8 @@ hace nada.
 igual que `knowledge` no se adjunta sin colecciones. Diez herramientas que solo
 pueden negarse son diez herramientas en el contexto de cada turno.
 
-**Solo las tres que actúan piden aprobación:** `send_message_to_subagent`,
+**Tres se declaran como que actúan**, y un autor las pone tras una puerta con
+`tool_approval`: `send_message_to_subagent`,
 `soft_cancel_task` y `hard_cancel_task`. Dirigir cambia lo que un delegado está
 haciendo en mitad del run, y cualquiera de las dos cancelaciones destruye trabajo
 que se pagó y no se entregó. `task` deliberadamente no tiene efectos secundarios, lo
@@ -1470,6 +1555,14 @@ encima, donde se lee como lo hecho y no como lo que se está haciendo. Un paso
 tiene que desbloquearlo. Una reanudación se siembra desde `paused_state` y queda
 intacta: está a mitad de plan por construcción.
 
+**Un run que termina sin acabar deja su paso.** Un run que falló, se detuvo o
+superó el presupuesto ya no trabaja en nada, así que el plan que escribe de vuelta
+no tiene ningún paso `in_progress`: ese paso vuelve a `pending`, pendiente pero sin
+nadie haciéndolo. Conservado tal cual, el recordatorio del siguiente turno le decía
+a un run nuevo que ya lo estaba haciendo (agenticos#2149). Un turno que termina a
+mitad de plan a propósito —con una pregunta a la persona— y un run aparcado
+conservan su paso en curso.
+
 Un agent que no vincula la capability no paga nada: ni herramientas, ni recordatorio,
 ni nada almacenado, porque una lista de comprobación vacía contra una columna que es
 null no es un cambio que escribir.
@@ -1479,6 +1572,27 @@ comprobación sin ninguna petición a un modelo o a un embedding detrás, así q
 diferencia del conocimiento o la delegación, no hay uso ambiental que contabilizar.
 Las idas y vueltas que hace el modelo para llamarlas son suyas, y el guardián de
 budget ya las cuenta.
+
+## Trabajar mientras corren las herramientas { #background-tools }
+
+Sin herramientas propias. Con ella activada, una herramienta lenta que otra
+capability marca - hoy `browse_web` del [navegador web](#browser-automation) -
+recibe la opción `run_in_background`, y el modelo decide en cada llamada: espera
+una navegación sin cuya respuesta no puede decir nada; deja corriendo otra que
+puede rodear mientras responde al resto de la petición, y su resultado llega como
+mensaje cuando está listo. Construida sobre `BackgroundTools` de
+pydantic-ai-harness.
+
+- **Revisado igual.** Un resultado en segundo plano pasa por las reglas de
+  resultados de herramientas del agente - [guardrails](#guardrails),
+  [límites de salida de herramientas](#tool-output-limits) - igual que uno en
+  primer plano; la biblioteca sola lo entregaría saltándoselas.
+- **Primero la aprobación.** Una herramienta que espera a una persona se detiene
+  para su aprobación antes de que nada corra en segundo plano.
+- **El presupuesto y la vida del run.** Lo que gasta una herramienta en segundo
+  plano es del run, y detener el run la detiene. Un run que se pausa - una
+  aprobación, una pregunta - cancela las herramientas en segundo plano que siguen
+  en marcha, y sus resultados no llegan tras reanudar.
 
 ## Razonamiento { #thinking }
 
@@ -1493,7 +1607,7 @@ Sin poner significa el esfuerzo por defecto del propio provider. Un nivel que un
 provider no tenga se asigna al más cercano que tenga, de modo que un spec sigue
 siendo portable al cambiar de modelo.
 
-## Recordatorios del sistema { #system-reminders }
+## Recordatorio de instrucciones { #system-reminders }
 
 Sin herramientas. Reitera las pautas de guía en mitad del run para que una sesión
 larga deje de alejarse de sus instrucciones; el fallo que arregla es el desvanecido
@@ -1557,7 +1671,7 @@ seguridad sobre «este trimestre» a partir de su fecha de corte de entrenamient
 |---|---|---|
 | `timezone` | `UTC` | cualquier nombre IANA, p. ej. `Europe/Warsaw` |
 
-## Gestión del contexto { #context-management }
+## Conversaciones largas { #context-management }
 
 Sin herramientas. Recorta el historial de mensajes de un run largo antes de cada
 petición, para que un run que habría alcanzado el límite del modelo siga funcionando.
@@ -1651,7 +1765,7 @@ estaba la ventana lo informa cada agent, compacte o no; consulta
 El aviso importa sobre todo al agent que *no* va a compactar, que es el que llega al
 techo y recibe un rechazo.
 
-## Descarga de medios { #media-offload }
+## Imágenes fuera del historial { #media-offload }
 
 Ninguna herramienta. Escribe las partes grandes de una conversación compactada en
 el almacenamiento y deja en el historial guardado una referencia
@@ -1696,7 +1810,7 @@ salga la petición, y eso es lo que mantiene correcto el run. Reescribirlas a un
 URL que el modelo descargue por su cuenta es otra función y necesitaría la URL
 pública que este almacén deliberadamente no emite.
 
-## Límites de salida de herramientas { #tool-output-limits }
+## Límites de resultados de herramientas { #tool-output-limits }
 
 Una herramienta, `read_tool_result`. Donde `compaction` recorta el historial *dentro*
 de la ventana entre peticiones, esta impide de entrada que un retorno de herramienta
@@ -1799,6 +1913,13 @@ que marca los toolsets de los servidores conectados para carga diferida; las
 herramientas propias del registro siguen visibles, por ser pocas y elegidas por agent.
 Un agent que no la vincule no paga nada y ve todas las herramientas como antes.
 
+**El Builder avisa cuando merece la pena.** En cuanto las vinculaciones MCP de un
+agent suman más de 30 herramientas - según la lista permitida de cada vinculación o,
+si no la tiene, según lo que su servidor listó en la última comprobación -, la
+pestaña MCP muestra un aviso con una estimación aproximada de tokens y un botón que
+vincula la búsqueda de herramientas. Nunca la vincula por sí solo: el diferido cambia
+lo que ve el modelo, así que la decisión es de quien edita.
+
 **El diferido cambia lo que ve el modelo, nunca la identidad de una herramienta.** Una
 herramienta MCP descubierta llega con su nombre real con prefijo, así que la
 [puerta de aprobación](#what-a-binding-may-change) sigue emparejándose con ella y el
@@ -1812,9 +1933,9 @@ idas y vueltas del descubrimiento son peticiones corrientes al modelo que envuel
 mismo guardián. La única forma que se le escaparía — un callable de búsqueda a medida
 que llamara él mismo a un modelo o a un embedding — deliberadamente no se expone.
 
-## Guardrails { #guardrails }
+## Reglas de protección { #guardrails }
 
-Sin herramientas. Inspecciona el texto que circula por un run en tres bordes y o bien
+Sin herramientas. Inspecciona el texto que circula por un run en cuatro bordes y o bien
 **censura** una coincidencia o bien **bloquea** el run. Las comprobaciones son
 detectores ya hechos de `pydantic-ai-harness`, más un detector de números de
 teléfono que el harness no incluye; un agent son datos, así que la configuración
@@ -1825,6 +1946,7 @@ los selecciona y los parametriza en lugar de llevar una guarda en Python.
 | entrada | el prompt del usuario | `redact_secrets_in`, `redact_pii_in` | `blocked_keywords_in` |
 | salida | la respuesta del agent | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
 | resultado de herramienta | lo que devolvió una herramienta, antes de que lo lea el modelo | `redact_secrets_tool`, `redact_pii_tool` | `blocked_keywords_tool` |
+| argumentos de herramienta | lo que el agent pasa a una herramienta, antes de que se ejecute | `redact_secrets_args`, `redact_pii_args` | `blocked_keywords_args` |
 
 | Configuración | Valor por defecto | |
 |---|---|---|
@@ -1881,14 +2003,26 @@ bloqueado. El razonamiento no es la respuesta, así que una palabra clave bloque
 en él no termina el run: ese paso de razonamiento muestra
 `[reasoning withheld by the output guardrail]` en su lugar.
 
-**Lo que el filtro del stream aún no cubre.** Dos rutas transmitidas no se filtran:
-los argumentos de una llamada a herramienta mientras se transmiten y la respuesta
-transmitida de un delegado en el panel de delegación ([#2000](https://github.com/vstorm-co/agenticos/issues/2000)). El filtro del
-stream hereda los límites de tamaño del detector de teléfonos, así que una parte de
-la respuesta demasiado larga para él termina el run igual que lo haría la respuesta
-final. Como el filtro se engancha al flujo de eventos del run, las peticiones al
-modelo de un agent con guardrail se transmiten en streaming incluso a través de la
-API HTTP, así que su modelo debe admitir streaming.
+**Los argumentos de herramienta son un borde propio.** Cada texto que el agent pasa
+a una herramienta se revisa cuando llega la respuesta del modelo, antes de que la
+herramienta se ejecute. El valor redactado es lo que recibe la herramienta, lo que
+guarda la transcripción y lo que muestra el stream, y una palabra bloqueada termina
+el run antes de llamar a ninguna herramienta. Va aparte de la revisión de salida
+porque redactar un argumento cambia lo que hace la herramienta: un correo sale con
+un marcador donde estaba la clave. Mientras está activo, los argumentos de una
+llamada se retienen hasta que la llamada está completa, como la respuesta.
+
+**Un delegado transmite bajo la revisión de salida del run que delega.** El texto y
+el razonamiento que un delegado escribe en el panel de delegación pasan la misma
+revisión que la respuesta del run, en cada nivel de delegación. Una palabra
+bloqueada termina esa delegación antes de mostrar nada de ella, y el agent que
+delegó recibe que ha fallado.
+
+El filtro del stream hereda los límites de tamaño del detector de teléfonos, así que
+una parte de la respuesta demasiado larga para él termina el run igual que lo haría
+la respuesta final. Como el filtro se engancha al flujo de eventos del run, las
+peticiones al modelo de un agent con guardrail se transmiten en streaming incluso a
+través de la API HTTP, así que su modelo debe admitir streaming.
 
 **El borde de entrada cambia lo que lee el modelo, no la transcripción.** Un prompt
 censurado llega al modelo limpio, pero la conversación guarda el mensaje tal como lo
@@ -1907,7 +2041,7 @@ veredicto `approve` de herramienta del harness no se ha portado: las
 humana, y una segunda vía, guiada por reglas, al mismo mecanismo es justo lo que evita
 una única puerta.
 
-## Consulta del canal de chat { #chat-channel-lookup }
+## Información del canal de chat { #chat-channel-lookup }
 
 `get_channel_info` — *Describe el canal en el que está ocurriendo esta conversación.*
 `list_channel_members` — *Lista las personas de este canal.*
@@ -1947,6 +2081,30 @@ Tres propiedades se cumplen en todas las plataformas:
   programación no tiene directorio, así que la capability no se adjunta en absoluto,
   por la misma razón por la que `knowledge` sin colecciones tampoco.
 
+## Preguntar al usuario { #ask-the-user }
+
+Cuando un agent necesita una decisión que solo la persona puede tomar, pregunta en
+lugar de adivinar: `ask_user_question` acepta de una a diez preguntas de opción
+múltiple, cada una con un encabezado corto, de dos a seis opciones con lo que
+significa cada una y si se pueden elegir varias. La consola las muestra como una
+tarjeta, una pregunta a la vez, con espacio para una respuesta escrita y un resumen
+antes de enviar; el agent recibe lo elegido por encabezado, o se le dice que la
+persona no quiso responder, y sigue.
+
+La herramienta y su esquema vienen de `AskUser` de pydantic-ai-harness. Está activa
+por defecto en cada agent nuevo y en cada plantilla, y el autor puede desactivarla.
+Donde todavía nadie puede responder — una programación, un webhook, la API — el
+agent recibe que la persona no quiso responder.
+
+Una pregunta sin respuesta no detiene para siempre el trabajo del agent. Si la
+persona se va con la tarjeta abierta, el run se aparca en ella — **Waiting for an
+answer** en el historial de runs — y la tarjeta vuelve cuando reabre la
+conversación, en cualquier dispositivo. Responder continúa el run desde donde se
+detuvo. Solo la persona a quien se preguntó puede responder, mediante
+`POST /runs/{run_id}/answers`; `GET /runs/{run_id}/questions` vuelve a leer la
+tarjeta. Pasado un día (`QUESTION_EXPIRY_HOURS`, 24) el run termina como
+cancelado y el paso registra que la persona no respondió a tiempo.
+
 ## Qué puede cambiar una vinculación { #what-a-binding-may-change }
 
 El catálogo es la respuesta del despliegue a «qué existe». La entrada
@@ -1965,8 +2123,9 @@ cambiar cuatro cosas:
 La aprobación es la razón de que una capability declare sus herramientas siquiera.
 «¿Puede este agent escribir archivos?» y «¿puede leerlos?» son dos decisiones aunque
 una sola capability responda a ambas, así que activar sigue siendo por capability
-mientras que aprobar ocurre por herramienta. `default` sigue la propia bandera
-`side_effecting` de la capability.
+mientras que aprobar ocurre por herramienta. `default` no pregunta
+a nadie; `side_effecting` solo le dice al Builder qué herramientas actúan sobre el
+mundo.
 
 !!! tip "La descripción de una herramienta es el prompt con más palanca del producto"
 
@@ -1994,7 +2153,7 @@ comprobados cuando se ensambla el agent:
 | `conversations:read` | `conversation_search` |
 | `web:read` | `web_research` |
 | `web:fetch` | `web_fetch` |
-| `web:browse` | `browser_choice`, `browser_use` |
+| `web:browse` | `browser_use` |
 | `code:execute` | `code_execution` |
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |

@@ -24,7 +24,7 @@ describe("isPublicSurface", () => {
     // worth of pages out of scope for anything gated on this.
     expect(isPublicSurface("/environments")).toBe(false);
     expect(isPublicSurface("/sharedrafts")).toBe(false);
-    expect(isPublicSurface("/artifacts")).toBe(false);
+    expect(isPublicSurface("/apps")).toBe(false);
     expect(isPublicSurface("/agents")).toBe(false);
   });
 

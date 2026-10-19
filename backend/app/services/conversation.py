@@ -17,9 +17,12 @@ from pydantic import ValidationError
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.ask_user import parked_status
 from app.agents.capabilities.media import prefix_for, restore_stored_media
+from app.agents.steering import STEER_PREFIX
 from app.core.background import spawn_after_commit
 from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.updates import writable
@@ -50,6 +53,16 @@ from app.services.message_history import HistoryMessage, build_message_history
 
 logger = logging.getLogger(__name__)
 
+API_HISTORY_MESSAGES = 200
+"""How much of a conversation an API run sends the model: what a channel thread
+sends, with the same summary taking over beyond it."""
+
+
+def _api_title(prompt: str) -> str:
+    """A conversation opened over the API is named for what it was first asked."""
+    first = " ".join(prompt.split())
+    return first if len(first) <= 80 else f"{first[:79]}…"
+
 
 def _file_uuids(file_ids: Sequence[str]) -> tuple[list[UUID], list[str]]:
     """Parse client-sent file ids, naming the ones that are not UUIDs at all.
@@ -69,19 +82,34 @@ def _file_uuids(file_ids: Sequence[str]) -> tuple[list[UUID], list[str]]:
 
 
 def _as_history(rows: Sequence[Message], exclude_message_id: UUID | None) -> list[HistoryMessage]:
-    """Transcript rows as the replayer wants them, minus the turn being answered."""
-    return [
-        {
-            "role": row.role,
-            "content": row.content,
-            # The size of the request this answer came out of: the anchor the
-            # compaction estimator measures against, in place of counting
-            # characters - see `agent.build_message_history`.
-            "context_used_tokens": row.context_used_tokens,
-        }
-        for row in rows
-        if row.id != exclude_message_id
-    ]
+    """Transcript rows as the replayer wants them, minus the turn being answered.
+
+    A prompt that carried files is replayed with what they added for the model,
+    so a follow-up about the file reaches a model that knows it is there.
+    """
+    history: list[HistoryMessage] = []
+    for row in rows:
+        if row.id == exclude_message_id:
+            continue
+        # What the person added while the answer was being written, as they added
+        # it: before the answer it changed. Stored only as parts of the answer,
+        # it was in the conversation on screen and missing from the next turn.
+        history.extend(
+            {"role": "user", "content": f"{STEER_PREFIX}\n\n{part['text']}"}
+            for part in row.parts or []
+            if part.get("type") == "steer" and isinstance(part.get("text"), str)
+        )
+        history.append(
+            {
+                "role": row.role,
+                "content": row.content + (row.attachment_context or ""),
+                # The size of the request this answer came out of: the anchor the
+                # compaction estimator measures against, in place of counting
+                # characters - see `agent.build_message_history`.
+                "context_used_tokens": row.context_used_tokens,
+            }
+        )
+    return history
 
 
 class ConversationService:
@@ -429,6 +457,7 @@ class ConversationService:
         archived_only: bool = False,
         sort_by: str = "updated_at",
         sort_dir: str = "desc",
+        hide_api: bool = False,
     ) -> tuple[list[Conversation], int]:
         """One page of the organization's conversations, each naming who answered.
 
@@ -473,6 +502,7 @@ class ConversationService:
                 None if archived_only or include_archived or user_id is None else user_id
             ),
             participant_conversation_ids=participant_ids,
+            hide_api=hide_api,
         )
         total = await conversation_repo.count_conversations(
             self.db,
@@ -483,10 +513,67 @@ class ConversationService:
             include_archived=include_archived,
             archived_only=archived_only,
             participant_conversation_ids=participant_ids,
+            hide_api=hide_api,
         )
         await self._attach_agents(items)
         await self._attach_favourites(items, user_id=user_id)
+        await self._attach_running(items)
+        await self._attach_unread(items, user_id=user_id)
         return items, total
+
+    async def _attach_unread(
+        self, conversations: Sequence[Conversation], *, user_id: UUID | None
+    ) -> None:
+        """Say, per row, whether it holds an answer this reader has not seen. One
+        query for the page, and none for a listing with no reader - the admin one,
+        where being read belongs to nobody in particular."""
+        if not conversations:
+            return
+        unread = (
+            set()
+            if user_id is None
+            else await conversation_repo.unread_ids(
+                self.db,
+                user_id=user_id,
+                conversation_ids=[conversation.id for conversation in conversations],
+            )
+        )
+        for conversation in conversations:
+            conversation.unread = conversation.id in unread  # ty: ignore[unresolved-attribute]
+
+    async def mark_read(
+        self,
+        conversation_id: UUID,
+        *,
+        organization_id: UUID,
+        user_id: UUID,
+        ctx: AuthContext | None = None,
+    ) -> None:
+        """Record that this reader has the conversation open, so it is not unread.
+
+        Checked as a read, as a favourite is: somebody a conversation was shared
+        with reads it exactly as its owner does.
+        """
+        conversation = await self.get_conversation(
+            conversation_id,
+            organization_id=organization_id,
+            user_id=user_id,
+            include_favourite=False,
+            ctx=ctx,
+        )
+        await conversation_repo.mark_read(self.db, user_id=user_id, conversation_id=conversation.id)
+
+    async def _attach_running(self, conversations: Sequence[Conversation]) -> None:
+        """Say, per row, since when a run has been at work in it, so a list can
+        show the thread is busy. Set on the ORM object for the reason
+        `_attach_agents` is, and one query for the page."""
+        if not conversations:
+            return
+        since = await conversation_repo.running_since(
+            self.db, [conversation.id for conversation in conversations]
+        )
+        for conversation in conversations:
+            conversation.running_since = since.get(conversation.id)  # ty: ignore[unresolved-attribute]
 
     async def _attach_agents(self, conversations: Sequence[Conversation]) -> None:
         """Name the agents that answered, on each row of a page.
@@ -511,6 +598,7 @@ class ConversationService:
                     slug=agent.slug,
                     name=agent.name,
                     has_avatar=agent.has_avatar,
+                    avatar_color=agent.avatar_color,
                 )
                 for agent in by_conversation.get(conversation.id, [])
             ]
@@ -616,6 +704,7 @@ class ConversationService:
                         slug=agent.slug,
                         name=agent.name,
                         has_avatar=agent.has_avatar,
+                        avatar_color=agent.avatar_color,
                     )
                     for agent in by_conversation.get(conv.id, [])
                 ],
@@ -625,6 +714,56 @@ class ConversationService:
             for conv, msg_count, email in rows
         ]
         return AdminConversationList(items=items, total=total)
+
+    async def for_api_run(
+        self,
+        ctx: AuthContext,
+        conversation_id: UUID | None,
+        *,
+        prompt: str,
+    ) -> tuple[UUID, list[ModelMessage] | None]:
+        """The conversation an API run files under, and what the model reads of it.
+
+        A run that names none opens one for the key's issuer, labelled as opened
+        over the API, so the next call can continue it and a workspace scoped to
+        the conversation has one to be scoped to (#2122). A run that names one
+        must name the caller's own, opened over the API, and the model reads its
+        history the way a channel thread's is read - the recent window, or the
+        summary and what came after it.
+
+        Over the API only: a key that may run agents was never given the person's
+        chats, and continuing one would hand their history to the model - and so
+        to whoever holds the key - and write the key's run into a thread they
+        were having in the console or a channel.
+
+        Raises:
+            NotFoundError: If the named conversation is unknown or not the caller's.
+            BadRequestError: If it was not opened over the API.
+        """
+        if conversation_id is None:
+            opened = await conversation_repo.create_conversation(
+                self.db,
+                organization_id=ctx.organization_id,
+                user_id=ctx.subject_id,
+                title=_api_title(prompt),
+                origin="api",
+            )
+            return opened.id, None
+        conversation = await self.get_conversation(
+            conversation_id,
+            organization_id=ctx.organization_id,
+            user_id=ctx.subject_id,
+            for_write=True,
+            include_favourite=False,
+        )
+        if conversation.origin != "api":
+            raise refused_field(
+                "conversation_id",
+                "Only a conversation opened over the API can be continued over the API",
+            )
+        return conversation_id, await self.model_history(
+            conversation_id, limit=API_HISTORY_MESSAGES
+        )
 
     async def create_conversation(
         self,
@@ -783,7 +922,7 @@ class ConversationService:
             include_tool_calls=include_tool_calls,
         )
         total = await conversation_repo.count_messages(self.db, conversation_id)
-        statuses = await conversation_repo.run_statuses(
+        outcomes = await conversation_repo.run_outcomes(
             self.db, {msg.run_id for msg in items if msg.run_id is not None}
         )
         cost = await self._cost(conversation_id)
@@ -804,7 +943,9 @@ class ConversationService:
                 # So a turn a run was stopped mid-way through can say so. Without
                 # it a cancelled run's half-written answer reads exactly like a
                 # complete one, and the reader believes the agent finished.
-                msg_schema.run_status = statuses.get(msg.run_id) if msg.run_id else None
+                outcome = outcomes.get(msg.run_id) if msg.run_id else None
+                msg_schema.run_status = outcome.status if outcome else None
+                msg_schema.run_duration_ms = outcome.duration_ms if outcome else None
                 enriched.append(msg_schema)
             return enriched, total, cost
         return list(items), total, cost
@@ -931,13 +1072,15 @@ class ConversationService:
         data: ToolCallCreate,
         *,
         parked: bool = False,
+        mcp_connection_id: UUID | None = None,
     ) -> ToolCall:
         """Write one tool call under a message.
 
         `parked` is a keyword rather than a field on `ToolCallCreate` for the
         reason `MessageCreate` carries no `run_id`: the schema is bindable from
         a request body, and whether a call is awaiting a person is the runner's
-        fact, not a caller's claim.
+        fact, not a caller's claim - as is `mcp_connection_id`, the organization
+        MCP connection that served the call.
         """
         await self.get_message(message_id)
         return await conversation_repo.create_tool_call(
@@ -947,7 +1090,8 @@ class ConversationService:
             tool_name=data.tool_name,
             args=data.args,
             started_at=data.started_at or datetime.now(UTC),
-            status="awaiting_approval" if parked else "running",
+            status=parked_status(data.tool_name) if parked else "running",
+            mcp_connection_id=mcp_connection_id,
         )
 
     async def complete_tool_call(

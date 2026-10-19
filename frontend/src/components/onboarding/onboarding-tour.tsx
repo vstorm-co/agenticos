@@ -4,7 +4,7 @@ import "driver.js/dist/driver.css";
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 import type { AllowedButtons, DriveStep, Driver } from "driver.js";
 
@@ -13,16 +13,25 @@ import {
   activateTab,
   createTourDriver,
   isTypingTarget,
+  keepClearOf,
+  prefersReducedMotion,
   pulse,
   revealDisclosures,
   waitForElement,
 } from "@/components/onboarding/spotlight";
+import { createTourSpotlight, type TourSpotlight } from "@/components/onboarding/tour-spotlight";
 import { useOnboardingTour } from "@/hooks";
+import type { Locale } from "@/i18n";
+import {
+  usePathname as useLocalePathname,
+  useRouter as useLocaleRouter,
+} from "@/lib/locale-navigation";
 import { stripLocale } from "@/lib/active-route";
 import { ROUTES } from "@/lib/constants";
 import { flowForPage } from "@/lib/onboarding/flows";
 import { pageKey } from "@/lib/onboarding/tour";
 import { useOnboardingStore } from "@/stores";
+import { appendLanguageChoice } from "./tour-language";
 
 /** How long the control that drives a transition is spotlighted before it fires. */
 const REVEAL_MS = 650;
@@ -82,6 +91,9 @@ export function OnboardingTour() {
   const t = useTranslations("onboarding");
   const router = useRouter();
   const pathname = usePathname();
+  const locale = useLocale() as Locale;
+  const localeRouter = useLocaleRouter();
+  const localePathname = useLocalePathname();
   const { isOpen, steps, step, index, isFirst, isLast, next, back, dismiss } = useOnboardingTour();
   const mode = useOnboardingStore((state) => state.mode);
   const openOffer = useOnboardingStore((state) => state.openOffer);
@@ -91,6 +103,9 @@ export function OnboardingTour() {
   );
   const detailTargets = useDetailTargets(isOpen && needsDetail);
   const driverRef = useRef<Driver | null>(null);
+  // What the reader sees of the light (`tour-spotlight.ts`). Made on the first
+  // step and taken down with the overlay, so a closed tour leaves no layer behind.
+  const spotlightRef = useRef<TourSpotlight | null>(null);
   // Whether a transition is in flight. driver.js greys its own Next and Back for
   // one (`LOCKED_BUTTONS`); the arrow keys below are not its buttons, so they read
   // this instead — without it a held arrow would step past the control being
@@ -145,14 +160,21 @@ export function OnboardingTour() {
     // driver.js overlay must stay down so it does not sit over the create dialog.
     if (!isOpen || !step || mode === "flow") {
       tour.destroy();
+      spotlightRef.current?.destroy();
+      spotlightRef.current = null;
       return;
     }
+    spotlightRef.current ??= createTourSpotlight(prefersReducedMotion());
+    const light = spotlightRef.current;
 
     const here = stripLocale(pathname);
     const detail = step.page ? detailTargets[step.page] : undefined;
 
     const buttons: AllowedButtons[] = isFirst ? ["next", "close"] : ["previous", "next", "close"];
-    const show = (element: Element | undefined, locked = false) => {
+    // Resolves once the light has arrived on `element`, so whatever follows — the
+    // pulse of a control about to fire — plays where the reader is looking rather
+    // than under a light still on its way.
+    const show = (element: Element | undefined, locked = false): Promise<void> => {
       lockedRef.current = locked;
       const driveStep: DriveStep = {
         element,
@@ -172,9 +194,19 @@ export function OnboardingTour() {
           onNextClick: () => (isLast ? completeWalk() : next()),
           onPrevClick: () => back(),
           onCloseClick: () => closeWalk(),
+          // The first card offers the console's languages, before the walk
+          // says anything else in one the reader may not read.
+          onPopoverRender:
+            step.id === "welcome"
+              ? (popover) =>
+                  appendLanguageChoice(popover.description, locale, t("chooseLanguage"), (next) =>
+                    localeRouter.push(localePathname, { locale: next }),
+                  )
+              : undefined,
         },
       };
       tour.highlight(driveStep);
+      return light.focus(element ?? null);
     };
 
     const controller = new AbortController();
@@ -188,7 +220,8 @@ export function OnboardingTour() {
     const reveal = async (selector: string) => {
       const control = await waitForElement(selector, signal, CONTROL_WAIT_MS);
       if (signal.aborted || !(control instanceof HTMLElement)) return;
-      show(control, true);
+      await show(control, true);
+      if (signal.aborted) return;
       await pulse(control, signal, REVEAL_MS);
     };
 
@@ -207,7 +240,7 @@ export function OnboardingTour() {
           if (detail.pending) return; // wait for the list; this effect re-runs when it settles
           // Nothing to open — an empty list. Describe the section where we are
           // rather than skip it, so the walk still says what a detail view holds.
-          show(undefined);
+          void show(undefined);
           return;
         }
       } else if (step.page && here !== step.page) {
@@ -228,8 +261,13 @@ export function OnboardingTour() {
           step.optional ? OPTIONAL_WAIT_MS : undefined,
         );
         if (signal.aborted) return;
-        if (trigger instanceof HTMLElement) {
-          show(trigger, true);
+        // Only a tab that is not already open. Consecutive stops in one tab (the
+        // builder's Build, its Toolbox) each named it, so the light climbed to the
+        // tab bar, pressed a tab that was already selected and dropped back down —
+        // a detour on every step that read as the light jumping around.
+        if (trigger instanceof HTMLElement && trigger.getAttribute("data-state") !== "active") {
+          await show(trigger, true);
+          if (signal.aborted) return;
           await pulse(trigger, signal, REVEAL_MS);
           if (signal.aborted) return;
           activateTab(trigger);
@@ -255,7 +293,10 @@ export function OnboardingTour() {
       // wait above returns a control the reader cannot see and driver.js
       // spotlights a zero-height box.
       if (element) revealDisclosures(element);
-      show(element ?? undefined);
+      void show(element ?? undefined);
+      // After the highlight, because the caption it is kept clear of is the one
+      // driver.js has just built for this step.
+      if (element) keepClearOf(element, document.querySelector(".driver-popover"));
     })();
     return () => controller.abort();
   }, [
@@ -274,9 +315,21 @@ export function OnboardingTour() {
     detailTargets,
     closeWalk,
     completeWalk,
+    locale,
+    localeRouter,
+    localePathname,
   ]);
 
-  useEffect(() => () => driverRef.current?.destroy(), []);
+  useEffect(
+    () => () => {
+      driverRef.current?.destroy();
+      // Cleared as well as destroyed: StrictMode and Fast Refresh re-run the effects
+      // with the refs kept, and unlike driver.js a destroyed light cannot be revived.
+      spotlightRef.current?.destroy();
+      spotlightRef.current = null;
+    },
+    [],
+  );
 
   return null;
 }

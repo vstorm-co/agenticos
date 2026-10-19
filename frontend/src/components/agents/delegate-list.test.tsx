@@ -77,6 +77,10 @@ describe("choosing a delegate", () => {
 
     expect(screen.getByRole("menuitem", { name: /Researcher/ })).toBeVisible();
     expect(screen.queryByRole("menuitem", { name: /Draft/ })).toBeNull();
+    // Each agent wears its face, as on every other agent picker.
+    expect(
+      screen.getByRole("menuitem", { name: /Researcher/ }).querySelector(".rounded-full svg"),
+    ).not.toBeNull();
   });
 
   it("does not offer an archived agent, which has stopped answering", async () => {
@@ -142,6 +146,9 @@ describe("staleness", () => {
     expect(
       screen.getByText(/pinned at v3, and v7 is what this delegate publishes now/),
     ).toBeVisible();
+    expect(
+      screen.getByRole("listitem", { name: "researcher" }).querySelector(".rounded-full svg"),
+    ).not.toBeNull();
   });
 
   it("counts a single version behind as one, not as 1 versions", () => {

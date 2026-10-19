@@ -55,7 +55,7 @@ and record (in `.dev-agent/state.json` under `repo_conventions`):
   convention from another project.
 - **Test runner** — the actual command (`pytest`, `uv run pytest`, `npm test`,
   `go test ./...`, …). Check `package.json` scripts, `pyproject.toml`, a `Makefile`, or
-  `CLAUDE.md`/`CONTRIBUTING.md`.
+  `AGENTS.md`/`CONTRIBUTING.md`.
 - **Aggregate pre-merge check** — the one command that gates a PR (commonly `make check`,
   `make ci`, `npm run verify`, `tox`). Look for it in the `Makefile`, `package.json`
   scripts, the CI workflow file, or the project's own contributor docs. If several exist
@@ -65,7 +65,7 @@ and record (in `.dev-agent/state.json` under `repo_conventions`):
   read and follow it instead of generic advice. Otherwise fall back to standard TDD
   practice for the language: one behavior per test, deterministic fixtures, mock only at
   external boundaries.
-- **Commit convention** — check `CLAUDE.md`/`CONTRIBUTING.md` and recent `git log` for the
+- **Commit convention** — check `AGENTS.md`/`CONTRIBUTING.md` and recent `git log` for the
   actual style (Conventional Commits is common but not universal) and match it instead of
   assuming `feat: …` / `test: …` verbatim.
 

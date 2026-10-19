@@ -1,6 +1,5 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen } from "@testing-library/react";
-import { Suspense, type ReactNode } from "react";
+import { Suspense } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import AgentBuilderPage from "./page";
@@ -45,97 +44,120 @@ const AGENT: AgentDetail = {
   },
 };
 
-const mutation = () => ({
-  mutate: vi.fn(),
-  mutateAsync: vi.fn().mockResolvedValue({}),
-  isPending: false,
-  variables: undefined,
-  data: undefined,
-});
-
 let allowed: Set<Permission>;
 const page = vi.hoisted(() => ({
   params: "",
   validate: (() => undefined) as unknown,
 }));
 
-vi.mock("@/hooks", () => ({
-  useAgent: () => ({
-    agent: AGENT,
-    isLoading: false,
-    saveDraft: mutation(),
-    validate: page.validate,
-    publish: mutation(),
-    rollback: mutation(),
-    setAvatar: mutation(),
-    setColor: mutation(),
-    setMetadata: mutation(),
-  }),
-  useAgentEnvironments: () => ({ environments: [], promote: mutation() }),
-  useAgents: () => ({
-    agents: [],
-    clone: mutation(),
-    archive: mutation(),
-    unarchive: mutation(),
-    remove: mutation(),
-  }),
-  useAgentVersions: () => ({ versions: [], total: 0, isLoading: false }),
-  useCapabilityCatalog: () => ({ capabilities: [] }),
-  useDelegationTree: () => ({ tree: null, isLoading: false, error: null }),
-  useEmbeds: () => ({ embeds: [] }),
-  useExposures: () => ({ exposures: [] }),
-  useKnowledgeBases: () => ({ kbs: [], isLoading: false, listError: null }),
-  useMcpCatalog: () => ({ servers: [], isLoading: false, error: null }),
-  useModelProviders: () => ({ profiles: [], profilesStatus: "loaded" }),
-  useOrgMcpConnections: () => ({
-    connections: [],
-    test: vi.fn(),
-    isLoading: false,
-    error: null,
-  }),
-  usePermissions: () => ({
-    can: (permission: Permission) => allowed.has(permission),
-    isLoaded: true,
-  }),
-  useRuns: () => ({ runs: [] }),
-  useSkills: () => ({ skills: [], total: 0, isLoading: false, error: null }),
-}));
-vi.mock("@/hooks/use-context", () => ({
-  useContextFiles: () => ({ files: [], total: 0, isLoading: false, error: null }),
-}));
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   usePathname: () => "/agents/a1",
   useSearchParams: () => new URLSearchParams(page.params),
 }));
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-// The heavy children the build view mounts, each reaching for its own data.
-// Stubbed to nothing: this test is about the page's gate, not their internals.
-vi.mock("@/components/agents/publish-state", () => ({ PublishState: () => null }));
-vi.mock("@/components/agents/stale-references", () => ({ StaleReferences: () => null }));
-vi.mock("@/components/agents/model-profile-picker", () => ({ ModelProfilePicker: () => null }));
+vi.mock("@/hooks", async () => {
+  // The real one: the Builder keeps its tab in `?tab=`, as local state here.
+  const { useUrlState } =
+    await vi.importActual<typeof import("@/hooks/use-url-state")>("@/hooks/use-url-state");
+  return {
+    useUrlState,
+    useAgent: () => ({
+      agent: AGENT,
+      isLoading: false,
+      saveDraft: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
+      validate: page.validate,
+      publish: {
+        mutateAsync: vi.fn().mockResolvedValue({ version: 1 }),
+        isPending: false,
+      },
+      rollback: { mutateAsync: vi.fn() },
+      setAvatar: { mutateAsync: vi.fn(), isPending: false },
+      setColor: { mutate: vi.fn(), isPending: false },
+      setMetadata: { mutate: vi.fn(), isPending: false },
+    }),
+    useAgentEnvironments: () => ({ environments: [], promote: { mutateAsync: vi.fn() } }),
+    useAgents: () => ({
+      agents: [],
+      clone: { mutateAsync: vi.fn() },
+      archive: { mutateAsync: vi.fn() },
+      unarchive: { mutateAsync: vi.fn() },
+      remove: { mutateAsync: vi.fn() },
+    }),
+    useAgentVersion: () => ({ version: undefined, isLoading: false }),
+    useAgentVersions: () => ({ versions: [] }),
+    useAllAgentVersions: () => ({ versions: [] }),
+    useCapabilityCatalog: () => ({ capabilities: [] }),
+    usePromptVariables: () => ({ variables: [] }),
+    useDelegationTree: () => ({ tree: null, isLoading: false, error: null }),
+    useExposures: () => ({ exposures: [] }),
+    useEmbeds: () => ({ embeds: [] }),
+    useKnowledgeBases: () => ({ kbs: [] }),
+    useMcpCatalog: () => ({ servers: [] }),
+    useModelProviders: () => ({
+      profiles: [],
+      profilesStatus: "loaded",
+      refetchProfiles: vi.fn(),
+      isLoading: false,
+      deleteProfile: { mutate: vi.fn() },
+      createProfile: { mutateAsync: vi.fn(), isPending: false },
+      catalog: [],
+    }),
+    useMcpConnections: () => ({ connections: [] }),
+    useOrgMcpConnections: () => ({ connections: [] }),
+    usePermissions: () => ({
+      can: (permission: Permission) => allowed.has(permission),
+      isLoaded: true,
+    }),
+    useProviderModels: () => ({ models: [], source: null, isLoading: false }),
+    useRuns: () => ({ runs: [] }),
+    useSecretPurposes: () => ({ purposes: [] }),
+    useSecrets: () => ({ secrets: [] }),
+    useSkills: () => ({ skills: [], total: 0 }),
+  };
+});
+
+// The page's eval parts read their own queries; this test is not about them.
+vi.mock("@/hooks/use-eval-runs", () => ({ useEvalArmSpec: () => ({ spec: undefined }) }));
+vi.mock("@/components/evals/draft-eval-note", () => ({ DraftEvalNote: () => null }));
+vi.mock("@/components/evals/evals-panel", () => ({ EvalsPanel: () => null }));
+vi.mock("@/components/evals/start-eval-dialog", () => ({ StartEvalDialog: () => null }));
+vi.mock("@/hooks/use-context", () => ({
+  useContextFiles: () => ({ files: [], total: 0 }),
+}));
+
+vi.mock("@/stores", () => ({
+  useAgentSelectionStore: (select: (state: { select: () => void }) => unknown) =>
+    select({ select: vi.fn() }),
+  useConversationStore: (select: (state: { reset: () => void }) => unknown) =>
+    select({ reset: vi.fn() }),
+  useAuthStore: (select: (state: { user: null }) => unknown) => select({ user: null }),
+}));
+
+// Composition the Model panel does not depend on. Each is covered where it
+// lives; mounted here they only make the page slower and this spec's failures
+// harder to read.
+vi.mock("@/components/agents/agent-avatar", () => ({ AgentAvatar: () => null }));
 vi.mock("@/components/agents/model-settings-form", () => ({ ModelSettingsForm: () => null }));
 vi.mock("@/components/agents/thinking-setting", () => ({ ThinkingSetting: () => null }));
-
-function wrapper({ children }: { children: ReactNode }) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  return (
-    <QueryClientProvider client={client}>
-      <Suspense fallback={null}>{children}</Suspense>
-    </QueryClientProvider>
-  );
-}
-
-// A stable promise: `use()` re-suspends forever if handed a fresh one per render.
-const PARAMS = Promise.resolve({ id: "a1", locale: "en" });
+vi.mock("@/components/ui/markdown-editor", () => ({
+  MarkdownEditor: () => null,
+  MarkdownModeToggle: () => null,
+}));
+// What the Availability tab holds is covered where each panel lives; here the
+// only question is whether the hint opens the tab.
+vi.mock("@/components/agents/exposures-panel", () => ({ ExposuresPanel: () => null }));
+vi.mock("@/components/agents/embeds-panel", () => ({ EmbedsPanel: () => null }));
+vi.mock("@/components/triggers/triggers-panel", () => ({ TriggersPanel: () => null }));
 
 async function mount() {
   await act(async () => {
-    render(<AgentBuilderPage params={PARAMS} />, { wrapper });
-    await PARAMS;
+    render(
+      <Suspense fallback={null}>
+        <AgentBuilderPage params={Promise.resolve({ id: "a1" })} />
+      </Suspense>,
+    );
   });
 }
 

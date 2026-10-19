@@ -1,5 +1,5 @@
 ---
-source_sha: "f73b608eac37"
+source_sha: "d500d9ea435c"
 title: "AgenticOS vergleichen"
 seo_title: "AgenticOS im Vergleich: souveräne Schicht für KI-Agents"
 description: "Die souveräne, selbst gehostete Open-Source-Schicht AgenticOS im Vergleich mit Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n und Coding-Agents."
@@ -18,7 +18,10 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. Agen
 | Einen Chat-Assistenten für das Unternehmen oder Agents, die Ihrer Organisation gehören | Claude Team und Enterprise, ChatGPT Business und Enterprise | [Claude](claude-apps.md) · [ChatGPT](chatgpt.md) |
 | Einen Builder in der Cloud-Suite eines Anbieters | Microsoft Copilot Studio, Google Gemini Enterprise | [Copilot Studio](copilot-studio.md) · [Gemini Enterprise](gemini-enterprise.md) |
 | Einen selbst gehosteten Builder oder ein Automatisierungswerkzeug | Dify, n8n | [Dify](dify.md) · [n8n](n8n.md) |
-| Einen Teammate-Dienst in Slack oder Teams | Viktor | [Viktor](viktor.md) |
+| Ein dauerhaft laufendes KI-Teammate mit eigenem Computer | OpenAI dots, Grok Bot, Viktor | [dots](openai-dots.md) · [Grok Bot](grok-bot.md) · [Viktor](viktor.md) |
+| Eine Plattform oder Steuerungsebene eines Anbieters für Unternehmens-Agents | OpenAI Frontier, Microsoft Agent 365 | [Frontier](openai-frontier.md) · [Agent 365](microsoft-agent-365.md) |
+| Eine gehostete Agent-Laufzeit für Entwickler | Claude Managed Agents | [Managed Agents](claude-managed-agents.md) |
+| Einen persönlichen Open-Source-Agent | OpenClaw, NVIDIA NemoClaw | [OpenClaw](openclaw.md) |
 | Eine gelieferte Enterprise-Plattform | Wonderful | [Wonderful](wonderful.md) |
 | Einen Coding-Agent oder eine Schicht für alle anderen | Claude Code, OpenAI Codex, OpenCode | [Claude Code](claude-code.md) · [Codex](codex.md) · [OpenCode](opencode.md) |
 
@@ -34,6 +37,12 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. Agen
 | Dify | Ein visueller Builder für LLM-Apps und Workflows | Selbst gehostet oder Dify Cloud | Modifizierte Apache 2.0 mit Bedingungen | Viele, darunter Ollama |
 | n8n | Workflow-Automatisierung mit KI-Agent-Knoten | Selbst gehostet oder n8n Cloud | Sustainable Use License | Viele, darunter Ollama |
 | Viktor | Ein KI-Teammate pro Slack- oder Teams-Workspace | Die Cloud von Viktor | Proprietär | OpenAI, Anthropic, Google, Kimi |
+| OpenAI dots | Dauerhaft laufende Agents in ChatGPT, jeder mit einem Cloud-Computer | Die Cloud von OpenAI | Proprietär | Nur OpenAI |
+| Grok Bot | Benannte Teammates auf einem gemeinsamen Cloud-Computer | Die Cloud von xAI | Proprietär | Nur Grok |
+| OpenAI Frontier | Eine Plattform zur Verwaltung von KI-Kollegen im Unternehmen | Lokal, Ihre Cloud oder OpenAI | Proprietär | OpenAI |
+| Microsoft Agent 365 | Eine Steuerungsebene über Agents in Microsoft 365 | Die Cloud von Microsoft | Proprietär | Über die Agents, die es steuert |
+| Claude Managed Agents | Eine gehostete Agent-Laufzeit für Entwickler | Die Cloud von Anthropic | Proprietär | Nur Claude |
+| OpenClaw / NemoClaw | Ein persönlicher Open-Source-Agent; die Enterprise-Distribution von NVIDIA | Ihr Rechner oder Server | Open Source | Viele |
 | Wonderful | Eine Enterprise-KI-Plattform mit Deployment-Teams | SaaS, Single-Tenant, Ihre Cloud oder On-Premises | Proprietär | Modellunabhängig, pro Aufgabe geroutet |
 | Claude Code | Ein Coding-Agent für Entwickler | Entwicklerrechner, Anthropic-Cloud | Proprietär | Nur Claude |
 | OpenAI Codex | Ein Coding-Agent für Entwickler | Entwicklerrechner, OpenAI-Cloud | CLI Apache-2.0, Cloud proprietär | OpenAI; die CLI nimmt auch andere |
@@ -55,6 +64,12 @@ Souveränität bedeutet hier vier Dinge, die Sie entscheiden: wo das Produkt lä
 | Dify | Selbst gehostet oder Dify Cloud | Viele, darunter Ollama | Apache 2.0 mit Bedingungen: ein mandantenfähiger Dienst braucht eine schriftliche Erlaubnis, und das Logo darf nicht geändert werden | Anmeldung: E-Mail; SSO in Enterprise · Audit: Enterprise · Ausgaben: Abrechnung beim Provider oder Nachrichten-Credits in der Cloud |
 | n8n | Selbst gehostet oder n8n Cloud in Frankfurt | Viele, darunter Ollama | Sustainable Use License: interne Geschäftszwecke, nicht kommerzielle oder private Nutzung; kostenpflichtige Funktionen brauchen einen Lizenzschlüssel, der täglich den Lizenzserver von n8n kontaktiert | Anmeldung: SSO in kostenpflichtigen Plänen · Audit: Log-Streaming in Enterprise · Ausgaben: Ausführungskontingente pro Plan |
 | Viktor | Cloud von Viktor, auf AWS us-east-1 | Voreinstellungen für OpenAI, Anthropic, Google und Kimi oder ein eigener OpenRouter-Schlüssel | Proprietär | Anmeldung: SAML-SSO in Enterprise · Audit: Audit-Logs in Enterprise · Ausgaben: Credit-Pool, Limits nach Absprache in Enterprise |
+| OpenAI dots | Cloud von OpenAI; der Pro-Tarif war zum Start nicht im EWR, in der Schweiz und im Vereinigten Königreich verfügbar | Nur OpenAI | Proprietär | Anmeldung: ChatGPT-Konten · Audit: für dots nicht angegeben · Ausgaben: im Tarif enthalten |
+| Grok Bot | Cloud von xAI | Nur Grok | Proprietär | Anmeldung: xAI- oder Cursor-Konten · Audit: angekündigt · Ausgaben: Tarifpreis, kein genanntes Limit |
+| OpenAI Frontier | Lokal, Ihre Cloud oder OpenAI | OpenAI | Proprietär | Anmeldung, Audit und Ausgaben: nicht öffentlich angegeben; Berechtigungen pro Agent und Dashboards angekündigt |
+| Microsoft Agent 365 | Cloud von Microsoft | Über die Agents, die es steuert | Proprietär | Anmeldung: Entra ID · Audit: Purview · Ausgaben: Microsoft-365-Lizenzen |
+| Claude Managed Agents | Cloud von Anthropic | Nur Claude | Proprietär | Anmeldung: Anthropic-API-Schlüssel · Audit: nicht angegeben · Ausgaben: Tokens plus Gebühr pro Sitzungsstunde, Organisationslimits |
+| OpenClaw / NemoClaw | Ihr Rechner oder Server | Viele | Open Source; NemoClaw ist die Distribution von NVIDIA | Anmeldung, Audit und Zugriffskontrolle: minimal in OpenClaw; ergänzt durch NemoClaw |
 | Wonderful | Mandantenfähiges SaaS, Single-Tenant, Ihre Cloud oder netzwerkisoliert on-premises | Pro Aufgabe von der Plattform geroutet | Proprietär; Agents und Konfiguration lassen sich über UI oder API exportieren | Anmeldung: auf seinen Seiten nicht angegeben · Audit: Audit-Logs im AI Gateway · Ausgaben: Budgetgrenzen pro Team |
 
 Dify und n8n laufen ebenfalls auf Ihren eigenen Servern mit lokalen Modellen, und Wonderful bietet eine netzwerkisolierte On-Premises-Bereitstellung. Unter den Produkten in dieser Tabelle ist AgenticOS das einzige, bei dem alle vier Antworten bei Ihnen bleiben.
@@ -83,7 +98,7 @@ Ein Vergleich, der die eigenen Lücken verschweigt, ist Werbung. Prüfen Sie die
 - Es gibt keine Evaluierungsumgebung und kein Trace-Dashboard. Bewertungen und Run-Verlauf gibt es. Siehe [wo es noch nicht fertig ist](index.md#where-this-one-is-not-finished).
 - Es gibt keinen Konversationskanal für Microsoft Teams, WhatsApp, Sprache oder E-Mail.
 - Es gibt keine visuelle Workflow-Arbeitsfläche. Mehrstufige Arbeit nutzt Delegation, Planung und Trigger.
-- Freigabeeinstellungen erreichen die Werkzeuge von Capabilities. MCP-Werkzeuge werden pro Konversation freigegeben, nicht pro Werkzeug. Siehe [was MCP Ihnen nicht bietet](../mcp.md#what-mcp-does-not-get-you).
+- Die Werkzeuge eines MCP-Servers warten nach den Nur-Lesen-Markierungen des Servers selbst auf Freigabe, also läuft ein Werkzeug, das er fälschlich als nur lesend markiert, ungefragt. Siehe [was MCP Ihnen nicht bietet](../mcp.md#what-mcp-does-not-get-you).
 - Die Bereitstellung erfolgt mit Docker Compose auf einem Host. Es gibt keine Kubernetes-Manifeste.
 - Sie betreiben es selbst, oder Sie vereinbaren den Betrieb mit Vstorm oder einem anderen Partner.
 

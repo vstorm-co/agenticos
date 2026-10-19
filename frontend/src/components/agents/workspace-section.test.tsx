@@ -34,8 +34,9 @@ vi.mock("@/hooks", () => ({
 }));
 
 const SANDBOX: CapabilityCatalogEntry = {
+  recommended: null,
   id: "sandbox",
-  name: "Files & shell",
+  name: "Sandbox",
   category: "analysis",
   description: "Read, write and run things in a workspace that persists between turns.",
   side_effecting: true,
@@ -437,7 +438,7 @@ describe("WorkspaceSection", () => {
       await userEvent.click(screen.getByRole("combobox", { name: "Runtime" }));
 
       expect(
-        screen.getByRole("option", { name: "The connection's default — python" }),
+        screen.getByRole("option", { name: "The connection's default - python" }),
       ).toBeVisible();
       // Matched loosely: an option's accessible name now carries what the image
       // is for as well as its alias.

@@ -123,17 +123,13 @@ describe("a run history row", () => {
 
     // Beside the label rather than inside it: the label truncates on one line,
     // so it is a span of its own with the mark next to it.
-    expect(
-      within(row()).getByText("openai · gpt-5").closest("td")?.querySelector("svg"),
-    ).not.toBeNull();
+    expect(within(row()).getByText("gpt-5").closest("td")?.querySelector("svg")).not.toBeNull();
   });
 
   it("draws no vendor mark for a run recorded before the vendor was tracked", () => {
     render(<RunTable runs={[run({ provider: null })]} />);
 
-    expect(
-      within(row()).getByText("openai · gpt-5").closest("td")?.querySelector("svg"),
-    ).toBeNull();
+    expect(within(row()).getByText("gpt-5").closest("td")?.querySelector("svg")).toBeNull();
   });
 
   it("marks a cost that is only a floor rather than presenting it as the price", () => {
@@ -230,7 +226,7 @@ describe("opening a run from its row", () => {
     const onOpen = vi.fn();
     render(<RunTable runs={[run()]} onOpen={onOpen} />);
 
-    await userEvent.click(within(row()).getByText("openai · gpt-5"));
+    await userEvent.click(within(row()).getByText("gpt-5"));
 
     expect(onOpen).toHaveBeenCalledTimes(1);
     expect(onOpen.mock.calls[0]?.[0]).toMatchObject({ id: "run-1" });
@@ -309,7 +305,8 @@ describe("who ran it, and which agent", () => {
       />,
     );
 
-    expect(within(row()).getByText("Support agent")).toBeVisible();
+    // Twice: its own column, and folded under the status for a phone.
+    expect(within(row()).getAllByText("Support agent")).toHaveLength(2);
     expect(within(row()).getByText("Kim")).toBeVisible();
   });
 
@@ -360,5 +357,11 @@ describe("the run the panel beside the table is showing", () => {
     expect(within(screen.getByRole("table")).getAllByRole("row")[1]).not.toHaveAttribute(
       "aria-selected",
     );
+  });
+
+  it("marks a run from the Builder's test panel (#2074)", () => {
+    render(<RunTable runs={[run({ is_test: true })]} />);
+
+    expect(within(row()).getByText("test")).toBeVisible();
   });
 });
