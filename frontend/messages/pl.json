@@ -7735,7 +7735,7 @@
         "fixed": "{confirmed, select, true {Potwierdzona naprawa} other {Naprawione, niepotwierdzone}}",
         "incomplete": "Bez oceny na {side}"
       },
-      "dot": "{side}: {state, select, passed {zaliczony} failed {niezaliczony} undecided {nierozstrzygnięty} other {oczekuje}}",
+      "dot": "{side}: {state, select, passed {zaliczony} failed {niezaliczony} undecided {nierozstrzygnięty} incomplete {nieukończony} other {oczekuje}}",
       "brokenFirst": "Widzisz pierwsze {count} z {total, plural, one {# case'a} few {# case'ów} many {# case'ów} other {# case'a}}, które się zepsuły.",
       "brokenOnly": "{count, plural, one {Widzisz case, który się zepsuł.} few {Widzisz # case'y, które się zepsuły.} many {Widzisz # case'ów, które się zepsuły.} other {Widzisz # case'a, które się zepsuły.}}",
       "showAll": "Pokaż wszystkie case'y",

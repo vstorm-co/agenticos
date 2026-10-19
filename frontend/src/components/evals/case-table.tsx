@@ -64,12 +64,13 @@ export function FilterSelect({
   );
 }
 
-type DotState = "passed" | "failed" | "undecided" | "pending";
+type DotState = "passed" | "failed" | "undecided" | "incomplete" | "pending";
 
 const DOT_CLASS: Record<DotState, string> = {
   passed: "bg-success",
   failed: "bg-destructive",
   undecided: "bg-warning",
+  incomplete: "bg-muted-foreground",
   pending: "border-muted-foreground border bg-transparent",
 };
 
@@ -77,6 +78,7 @@ function dotState(attempt: EvalAttempt | undefined): DotState {
   if (attempt === undefined || attempt.status === "pending" || attempt.status === "running") {
     return "pending";
   }
+  if (attempt.status === "failed" || attempt.status === "skipped") return "incomplete";
   if (attempt.outcome === null) return "undecided";
   return attempt.outcome ? "passed" : "failed";
 }

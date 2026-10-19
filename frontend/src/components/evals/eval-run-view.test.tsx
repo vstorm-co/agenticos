@@ -793,6 +793,21 @@ describe("EvalRunView", () => {
     ]);
   });
 
+  it("tells an answer that never finished from one that was not decided", () => {
+    state.cases = {
+      cases: [
+        evalCase({ attempts: [attempt({ status: "failed", outcome: null })] }),
+        evalCase({ case_id: "case-2", attempts: [attempt({ outcome: null })] }),
+      ],
+      total: 2,
+      isLoading: false,
+      error: null,
+    };
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.getByRole("img", { name: "v7 · gpt-4.1: did not finish" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "v7 · gpt-4.1: undecided" })).toBeInTheDocument();
+  });
+
   it("filters the cases by outcome and tag, back to the first page", async () => {
     state.cases = {
       cases: [
