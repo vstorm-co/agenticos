@@ -1,5 +1,5 @@
 ---
-source_sha: "c1a088854770"
+source_sha: "5b0e58d216c6"
 ---
 
 # Glosario { #glossary }
@@ -55,6 +55,20 @@ tal como se ven en pantalla.
 | Budget | Un límite de gasto que detiene los runs al alcanzarse | `budget` |
 | Guardrails | Comprobaciones que redactan o bloquean lo que pasa por un run | `guardrails` |
 | Vault | Donde se guardan claves y tokens, sellados y nunca más mostrados | `secret` |
+
+## Cómo se prueba { #how-it-is-tested }
+
+| En la consola | Qué es | En la API y el spec |
+|---|---|---|
+| Dataset | Casos de prueba versionados con los que se comparan las respuestas de un agent | `dataset` |
+| Case | Una pregunta y aquello con lo que se compara una buena respuesta | `dataset_case` |
+| Grading | Cómo se puntúan las respuestas de un dataset: comprobaciones, la respuesta de referencia y un juez | `scoring` |
+| Judge | Un agent que califica respuestas para evals; solo lo ejecuta la plataforma | `kind: judge` |
+| Eval | Un agent que responde cada caso de un dataset, puntuado y comparado con una versión anterior | `eval_run` |
+| Review | Puntuaciones que esperan a que una persona las confirme o las cambie | `review_state` |
+| Case generator | El agent de sistema que redacta casos a partir de un agent, su conocimiento, chats reales y red teaming | `kind: generator` |
+| Proposed case | Un caso redactado que espera en **Generated** hasta que una persona lo acepta o lo descarta | `case_proposal` |
+| Red teaming | Casos que comprueban que un agent rechaza lo que debe rechazar | etiqueta `red-team` |
 
 ## Capabilities { #capabilities }
 

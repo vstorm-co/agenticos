@@ -3906,7 +3906,7 @@
       },
       "datasets-generate": {
         "title": "Fälle entwerfen lassen",
-        "body": "Der Generator entwirft Fälle aus vier Quellen: den Anweisungen und Tools des Agents, seiner Wissensbasis, echten Gesprächen (nur aus dem Betrieb, nie aus Eval-Runs) und Red Teaming. Die geschätzten Kosten sehen Sie, bevor etwas ausgegeben wird."
+        "body": "Der Generator entwirft Fälle aus vier Quellen: den Anweisungen und Tools des Agents, seiner Wissensbasis, echten Chats (nur aus dem Betrieb, nie aus Eval-Runs) und Red Teaming. Die geschätzten Kosten sehen Sie, bevor etwas ausgegeben wird."
       },
       "datasets-proposals": {
         "title": "Über die Entwürfe entscheiden",
@@ -3962,7 +3962,7 @@
       },
       "flow-dataset-generate": {
         "title": "Oder lassen Sie sie entwerfen",
-        "body": "Wählen Sie einen Agent und die Quellen - den Agent selbst, seine Wissensbasis, echte Gespräche oder Red Teaming - und der Generator entwirft Fälle zur Prüfung. Nichts gelangt in das Dataset, bevor Sie es annehmen."
+        "body": "Wählen Sie einen Agent und die Quellen - den Agent selbst, seine Wissensbasis, echte Chats oder Red Teaming - und der Generator entwirft Fälle zur Prüfung. Nichts gelangt in das Dataset, bevor Sie es annehmen."
       },
       "agent-evals": {
         "title": "Evals",
@@ -6906,7 +6906,7 @@
     "origin": {
       "agent": "Vom Agent",
       "knowledge": "Aus dem Wissen",
-      "conversation": "Aus Gesprächen",
+      "conversation": "Aus Chats",
       "red_team": "Red Team"
     },
     "sourceHint": {

@@ -1,5 +1,5 @@
 ---
-source_sha: "f5d0a13fbd05"
+source_sha: "2a0610b8c226"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -195,7 +195,7 @@ máximo 50, repartidos por igual entre las fuentes.
 |---|---|---|
 | Del agent | Peticiones típicas y casos límite, con las llamadas a herramientas que cambian algo que hace una buena respuesta; una herramienta que solo lee nunca se espera, como en un caso añadido desde una respuesta | Las instrucciones del agent, sus skills y sus herramientas, con los nombres que el agent les da |
 | Del conocimiento | Preguntas que responde su base de conocimiento. Cada caso enlaza con el documento del que procede su fragmento, guarda el fragmento como respuesta de referencia y lleva una comprobación `judge` de que la respuesta concuerda con el fragmento | Fragmentos de hasta 12 documentos indexados de las bases de conocimiento que usa el agent y que tú puedes leer |
-| De conversaciones | Paráfrasis y variantes más difíciles de lo que la gente preguntó al agent, primero las respuestas valoradas negativamente. Cada caso enlaza con la pregunta que varía | Hasta 60 preguntas que se hicieron al agent en esta organización, con el comentario dejado en una respuesta valorada negativamente. Solo tráfico de producción: los runs de eval y los runs aislados respondieron a una prueba, no a una persona, y se dejan fuera |
+| De chats | Paráfrasis y variantes más difíciles de lo que la gente preguntó al agent, primero las respuestas valoradas negativamente. Cada caso enlaza con la pregunta que varía | Hasta 60 preguntas que se hicieron al agent en esta organización, con el comentario dejado en una respuesta valorada negativamente. Solo tráfico de producción: los runs de eval y los runs aislados respondieron a una prueba, no a una persona, y se dejan fuera |
 | Red team | Peticiones fuera de su ámbito, inyecciones de prompt, intentos de obtener datos personales e intentos de saltarse las políticas del agent. Cada caso lleva las etiquetas `red-team` y `red-team:<categoría>` y una comprobación `judge` de que el agent se niega | Las instrucciones del agent, sus skills y sus herramientas |
 
 **Primero, el coste estimado.** El diálogo muestra cuántos casos se pedirán a

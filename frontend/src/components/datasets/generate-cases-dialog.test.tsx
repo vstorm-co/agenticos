@@ -102,7 +102,7 @@ describe("GenerateCasesDialog", () => {
   it("offers conversations only to a member who may view runs", () => {
     granted.perms = [];
     mount();
-    expect(screen.getByLabelText(/From conversations/)).toBeDisabled();
+    expect(screen.getByLabelText(/From chats/)).toBeDisabled();
     expect(screen.getByText("Needs permission to view runs")).toBeInTheDocument();
   });
 

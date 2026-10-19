@@ -4024,7 +4024,7 @@
       },
       "datasets-generate": {
         "title": "Have cases drafted",
-        "body": "The generator drafts cases from four sources: the agent's instructions and tools, its knowledge base, real conversations (production only, never eval runs), and red teaming. You see the estimated cost before anything is spent."
+        "body": "The generator drafts cases from four sources: the agent's instructions and tools, its knowledge base, real chats (production only, never eval runs), and red teaming. You see the estimated cost before anything is spent."
       },
       "datasets-proposals": {
         "title": "Decide the drafts",
@@ -4080,7 +4080,7 @@
       },
       "flow-dataset-generate": {
         "title": "Or let the generator draft them",
-        "body": "Pick an agent and the sources - the agent itself, its knowledge base, real conversations or red teaming - and the generator drafts cases for you to review. Nothing reaches the dataset until you accept it."
+        "body": "Pick an agent and the sources - the agent itself, its knowledge base, real chats or red teaming - and the generator drafts cases for you to review. Nothing reaches the dataset until you accept it."
       },
       "agent-evals": {
         "title": "Evals",
@@ -7023,7 +7023,7 @@
     "origin": {
       "agent": "From the agent",
       "knowledge": "From knowledge",
-      "conversation": "From conversations",
+      "conversation": "From chats",
       "red_team": "Red team"
     },
     "sourceHint": {

@@ -182,7 +182,7 @@ across the sources:
 |---|---|---|
 | From the agent | Typical requests and edge cases, with the calls a good answer makes to tools that change something - a tool that only reads is never expected, as in a case added from an answer | The agent's instructions, its skills and its tools, under the names the agent gives them |
 | From knowledge | Questions its knowledge base answers. Each case links to the document its passage came from, keeps the passage as the reference answer, and carries a `judge` check that the answer agrees with the passage | Passages from up to 12 indexed documents of the knowledge bases the agent uses and you can read |
-| From conversations | Paraphrases and harder variants of what people asked the agent, rated-down answers first. Each case links to the question it varies | Up to 60 questions people asked the agent in this organization, with the comment left on a rated-down answer. Production traffic only: eval runs and runs that ran isolated answered a test, not a person, and are left out |
+| From chats | Paraphrases and harder variants of what people asked the agent, rated-down answers first. Each case links to the question it varies | Up to 60 questions people asked the agent in this organization, with the comment left on a rated-down answer. Production traffic only: eval runs and runs that ran isolated answered a test, not a person, and are left out |
 | Red team | Out-of-scope requests, prompt injections, attempts to extract personal data and attempts to get around the agent's policies. Each case is tagged `red-team` and `red-team:<category>` and carries a `judge` check that the agent refuses | The agent's instructions, skills and tools |
 
 **The estimated cost comes first.** The dialog shows how many cases each source

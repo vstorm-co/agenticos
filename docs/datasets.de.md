@@ -1,5 +1,5 @@
 ---
-source_sha: "f5d0a13fbd05"
+source_sha: "2a0610b8c226"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -203,7 +203,7 @@ möchten - höchstens 50, gleichmäßig auf die Quellen verteilt:
 |---|---|---|
 | Vom Agent | Typische Anfragen und Grenzfälle, mit den Aufrufen von Tools, die etwas ändern, die eine gute Antwort macht - ein Tool, das nur liest, wird nie erwartet, wie bei einem Fall, der aus einer Antwort hinzugefügt wird | Die Anweisungen des Agents, seine Skills und seine Tools, unter den Namen, die der Agent ihnen gibt |
 | Aus dem Wissen | Fragen, die seine Wissensbasis beantwortet. Jeder Fall verweist auf das Dokument, aus dem sein Abschnitt stammt, behält den Abschnitt als Referenzantwort und trägt eine `judge`-Prüfung, dass die Antwort zum Abschnitt passt | Abschnitte aus höchstens 12 indexierten Dokumenten der Wissensbasen, die der Agent nutzt und die Sie lesen dürfen |
-| Aus Gesprächen | Umformulierungen und schwierigere Varianten dessen, was Menschen den Agent gefragt haben, negativ bewertete Antworten zuerst. Jeder Fall verweist auf die Frage, die er abwandelt | Höchstens 60 Fragen, die dem Agent in dieser Organisation gestellt wurden, mit dem Kommentar zu einer negativ bewerteten Antwort. Nur Betriebsverkehr: Eval-Runs und isoliert gelaufene Runs haben auf einen Test geantwortet, nicht auf einen Menschen, und bleiben außen vor |
+| Aus Chats | Umformulierungen und schwierigere Varianten dessen, was Menschen den Agent gefragt haben, negativ bewertete Antworten zuerst. Jeder Fall verweist auf die Frage, die er abwandelt | Höchstens 60 Fragen, die dem Agent in dieser Organisation gestellt wurden, mit dem Kommentar zu einer negativ bewerteten Antwort. Nur Betriebsverkehr: Eval-Runs und isoliert gelaufene Runs haben auf einen Test geantwortet, nicht auf einen Menschen, und bleiben außen vor |
 | Red Team | Anfragen außerhalb des Zwecks, Prompt-Injections, Versuche, personenbezogene Daten herauszulocken, und Versuche, die Richtlinien des Agents zu umgehen. Jeder Fall hat die Tags `red-team` und `red-team:<Kategorie>` und eine `judge`-Prüfung, dass der Agent ablehnt | Die Anweisungen des Agents, seine Skills und seine Tools |
 
 **Zuerst die geschätzten Kosten.** Der Dialog zeigt, wie viele Fälle jede Quelle

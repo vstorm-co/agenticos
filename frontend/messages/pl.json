@@ -969,9 +969,9 @@
     "useEmailInstead": "Użyj e-maila i hasła"
   },
   "billing": {
-    "title": "Rozliczenia",
     "description": "Zarządzaj subskrypcją dla {org}.",
-    "redirecting": "Przekierowuję..."
+    "redirecting": "Przekierowuję...",
+    "title": "Rozliczenia"
   },
   "chat": {
     "accessLevel": "Poziom dostępu",
@@ -1739,9 +1739,9 @@
     "current": "Bieżąca",
     "devicesCurrentlySignedYour": "Urządzenia obecnie zalogowane na Twoje konto.",
     "errors": {
-      "title": "Nie udało się załadować",
       "description": "Żądanie nie powiodło się. Reszta strony działa - każda karta zawodzi osobno.",
-      "retry": "Ponów"
+      "retry": "Ponów",
+      "title": "Nie udało się załadować"
     },
     "everyDeviceSignedYour": "Każde urządzenie zalogowane na Twoje konto zostanie wylogowane - poza tym jednym.",
     "failedRevokeSession": "Nie udało się unieważnić sesji",
@@ -1749,14 +1749,14 @@
     "lastActive": "Ostatnia aktywność {when}",
     "noSessionDataAvailable": "Brak danych o sesjach.",
     "period": {
-      "label": "Okres",
       "1d": "Dzisiaj",
-      "7d": "Ostatnie 7 dni",
       "30d": "Ostatnie 30 dni",
+      "7d": "Ostatnie 7 dni",
       "90d": "Ostatnie 90 dni",
-      "tm": "Ten miesiąc",
+      "custom": "Własny zakres",
+      "label": "Okres",
       "lm": "Poprzedni miesiąc",
-      "custom": "Własny zakres"
+      "tm": "Ten miesiąc"
     },
     "revokeAll": "Unieważnij wszystkie",
     "revokeAllOtherSessions": "Unieważnić wszystkie pozostałe sesje?",
@@ -1768,8 +1768,8 @@
       "usage": "Użycie i koszty"
     },
     "sectionsFilter": {
-      "label": "Sekcje",
-      "all": "Wszystkie sekcje"
+      "all": "Wszystkie sekcje",
+      "label": "Sekcje"
     },
     "seeAll": "Zobacz wszystko",
     "sessionRevoked": "Sesja unieważniona",
@@ -1797,24 +1797,24 @@
         "spendLabel": "wydano {amount}"
       },
       "active-users": {
-        "title": "Aktywne osoby",
-        "subline": "uruchomiło agenta w tym okresie",
         "empty": {
-          "title": "Nikt nic nie uruchomił",
-          "description": "Adopcja zaczyna się od pierwszego uruchomienia pierwszej osoby."
+          "description": "Adopcja zaczyna się od pierwszego uruchomienia pierwszej osoby.",
+          "title": "Nikt nic nie uruchomił"
         },
+        "subline": "uruchomiło agenta w tym okresie",
+        "title": "Aktywne osoby",
         "description": "Ilu członków zespołu uruchomiło agenta w tym okresie.",
         "ofMembers": "{total, plural, =1 {z 1 osoby} few {z # osób} many {z # osób} other {z # osób}}",
         "ran": "Uruchomili agenta",
         "didNot": "Nie uruchomili"
       },
       "agents": {
-        "title": "Agenci: używani i zapomniani",
-        "idle": "Opublikowane, ale bezczynne w tym okresie:",
         "empty": {
-          "title": "Brak opublikowanych agentów",
-          "description": "W tej organizacji nic jeszcze nie opublikowano."
+          "description": "W tej organizacji nic jeszcze nie opublikowano.",
+          "title": "Brak opublikowanych agentów"
         },
+        "idle": "Opublikowane, ale bezczynne w tym okresie:",
+        "title": "Agenci: używani i zapomniani",
         "description": "Którzy agenci są używani, a o których zapomniano."
       },
       "approvals": {
@@ -1841,27 +1841,27 @@
         "moreCapped": "{count, plural, other {Z limitem: jeszcze #}}"
       },
       "conversations": {
-        "title": "Kontynuuj, gdzie skończyłeś",
-        "untitled": "Rozmowa bez tytułu",
         "continue": "Kontynuuj",
         "empty": {
-          "title": "Brak rozmów",
-          "description": "Zacznij rozmowę z karty agenta - będzie tu na Ciebie czekać."
+          "description": "Zacznij rozmowę z karty agenta - będzie tu na Ciebie czekać.",
+          "title": "Brak rozmów"
         },
+        "title": "Kontynuuj, gdzie skończyłeś",
+        "untitled": "Rozmowa bez tytułu",
         "description": "Wróć do niedawnej rozmowy w miejscu, w którym ją przerwano."
       },
       "health": {
-        "title": "Zdrowie usług",
+        "empty": {
+          "description": "Sonda zdrowia jeszcze nie odpowiedziała.",
+          "title": "Brak raportu usług"
+        },
         "status": {
           "healthy": "ok",
-          "unhealthy": "awaria",
+          "not_checked": "niesprawdzone",
           "unconfigured": "nieskonfigurowane",
-          "not_checked": "niesprawdzone"
+          "unhealthy": "awaria"
         },
-        "empty": {
-          "title": "Brak raportu usług",
-          "description": "Sonda zdrowia jeszcze nie odpowiedziała."
-        },
+        "title": "Zdrowie usług",
         "description": "Czy baza danych, kolejka i magazyn wektorów odpowiadają.",
         "services": {
           "database": "Baza danych",
@@ -1872,15 +1872,15 @@
         }
       },
       "knowledge-freshness": {
-        "title": "Synchronizacja wiedzy",
-        "synced": "zsynchronizowano {ago}",
-        "neverSynced": "nigdy nie synchronizowano",
+        "empty": {
+          "description": "Kolekcje synchronizowane z Drive lub S3 raportują tu swoją świeżość.",
+          "title": "Brak źródeł synchronizacji"
+        },
         "failing": "awaria",
         "fresh": "aktualne",
-        "empty": {
-          "title": "Brak źródeł synchronizacji",
-          "description": "Kolekcje synchronizowane z Drive lub S3 raportują tu swoją świeżość."
-        },
+        "neverSynced": "nigdy nie synchronizowano",
+        "synced": "zsynchronizowano {ago}",
+        "title": "Synchronizacja wiedzy",
         "description": "Które kolekcje wiedzy przestały się synchronizować."
       },
       "latency": {
@@ -1896,31 +1896,31 @@
         "tail": "Najwolniejsze 5% trwa {ratio}× dłużej niż mediana"
       },
       "mcp-health": {
-        "title": "Integracje",
-        "downSince": "nie działa od {ago}",
-        "down": "nie działa",
         "checked": "sprawdzono {ago}",
-        "unchecked": "jeszcze nie sprawdzono",
+        "down": "nie działa",
+        "downSince": "nie działa od {ago}",
         "empty": {
-          "title": "Brak podłączonych serwerów MCP",
-          "description": "Podłącz serwer z katalogu - jego zdrowie wyląduje tutaj."
+          "description": "Podłącz serwer z katalogu - jego zdrowie wyląduje tutaj.",
+          "title": "Brak podłączonych serwerów MCP"
         },
+        "title": "Integracje",
+        "unchecked": "jeszcze nie sprawdzono",
         "description": "Czy podłączone serwery MCP nadal odpowiadają. Taki, który przestanie, po cichu zabiera swoje narzędzia każdemu agentowi, który z niego korzysta."
       },
       "members": {
-        "title": "Członkowie",
+        "empty": {
+          "description": "Zaproś kogoś - adopcja potrzebuje ludzi.",
+          "title": "Tylko Ty"
+        },
         "roles": {
-          "owner": "Właściciel",
           "admin": "Administrator",
           "builder": "Builder",
-          "operator": "Operator",
           "member": "Członek",
+          "operator": "Operator",
+          "owner": "Właściciel",
           "viewer": "Obserwator"
         },
-        "empty": {
-          "title": "Tylko Ty",
-          "description": "Zaproś kogoś - adopcja potrzebuje ludzi."
-        },
+        "title": "Członkowie",
         "description": "Kto jest w organizacji, według roli.",
         "unit": "{count, plural, one {członek} few {członkowie} many {członków} other {członków}}"
       },
@@ -1936,44 +1936,44 @@
         "unit": "uruchomień"
       },
       "my-activity": {
+        "empty": {
+          "description": "Uruchom dowolnego agenta - Twoja historia pokaże się tutaj, tylko Tobie.",
+          "title": "Brak Twoich uruchomień"
+        },
+        "pending": "{count} Twoich uruchomień czeka na czyjąś decyzję",
         "title": "Twoja aktywność",
         "unit": "Twoich uruchomień w tym okresie",
-        "pending": "{count} Twoich uruchomień czeka na czyjąś decyzję",
-        "empty": {
-          "title": "Brak Twoich uruchomień",
-          "description": "Uruchom dowolnego agenta - Twoja historia pokaże się tutaj, tylko Tobie."
-        },
         "description": "Twoje własne uruchomienia i to, co czeka na decyzję."
       },
       "my-agents": {
-        "title": "Twoi agenci",
-        "sharedTitle": "Agenci udostępnieni Tobie",
-        "yours": "twój",
-        "shared": "udostępniony",
-        "runs": "{count} uruchomień",
-        "openChat": "Otwórz czat",
         "empty": {
-          "title": "Brak agentów",
-          "description": "Nic Ci jeszcze nie udostępniono - poproś buildera albo stwórz własnego."
+          "description": "Nic Ci jeszcze nie udostępniono - poproś buildera albo stwórz własnego.",
+          "title": "Brak agentów"
         },
+        "openChat": "Otwórz czat",
+        "runs": "{count} uruchomień",
+        "shared": "udostępniony",
+        "sharedTitle": "Agenci udostępnieni Tobie",
+        "title": "Twoi agenci",
+        "yours": "twój",
         "description": "Agenci, których budujesz, i ci udostępnieni Tobie."
       },
       "my-quality": {
-        "title": "Jakość odpowiedzi w Twoich czatach",
-        "subline": "z {count} ocenionych odpowiedzi w Twoich rozmowach",
         "empty": {
-          "title": "Brak ocenionych odpowiedzi",
-          "description": "Oceniaj odpowiedzi kciukiem w górę lub w dół - Twój trend wyląduje tutaj."
+          "description": "Oceniaj odpowiedzi kciukiem w górę lub w dół - Twój trend wyląduje tutaj.",
+          "title": "Brak ocenionych odpowiedzi"
         },
+        "subline": "z {count} ocenionych odpowiedzi w Twoich rozmowach",
+        "title": "Jakość odpowiedzi w Twoich czatach",
         "description": "Jak oceniane są odpowiedzi w Twoich rozmowach."
       },
       "my-top-agents": {
-        "title": "Agenci, których używasz najczęściej",
-        "subline": "Twoje własne uruchomienia w tym okresie - niczyje inne.",
         "empty": {
-          "title": "Brak Twoich uruchomień",
-          "description": "Uruchom dowolnego agenta - Twoi ulubieńcy pojawią się tutaj."
+          "description": "Uruchom dowolnego agenta - Twoi ulubieńcy pojawią się tutaj.",
+          "title": "Brak Twoich uruchomień"
         },
+        "subline": "Twoje własne uruchomienia w tym okresie - niczyje inne.",
+        "title": "Agenci, których używasz najczęściej",
         "description": "Agenci, których używasz najczęściej."
       },
       "org-ratings": {
@@ -2004,26 +2004,26 @@
         "description": "Jak kończyły się uruchomienia - ukończone, nieudane, po przekroczeniu budżetu, oczekujące."
       },
       "platform": {
-        "title": "Platforma w skrócie",
-        "organizations": "Organizacje",
-        "users": "Użytkownicy",
+        "active24h": "{count} aktywnych w 24 h",
         "agents": "Agenci",
         "conversations": "Rozmowy",
-        "active24h": "{count} aktywnych w 24 h",
         "empty": {
-          "title": "Jeszcze nic tu nie ma",
-          "description": "Świeża instalacja: brak organizacji poza startową, brak uruchomień."
+          "description": "Świeża instalacja: brak organizacji poza startową, brak uruchomień.",
+          "title": "Jeszcze nic tu nie ma"
         },
+        "organizations": "Organizacje",
+        "title": "Platforma w skrócie",
+        "users": "Użytkownicy",
         "description": "Liczby dla całej instalacji: organizacje, ludzie, agenci, rozmowy.",
         "messages": "{count, plural, =1 {1 wiadomość} few {# wiadomości} many {# wiadomości} other {# wiadomości}}"
       },
       "platform-ratings": {
-        "title": "Jakość odpowiedzi w całej instalacji",
-        "subline": "ocenionych pozytywnie - {count} ocen we wszystkich organizacjach",
         "empty": {
-          "title": "Brak ocen",
-          "description": "Nikt jeszcze nie ocenił żadnej odpowiedzi w tej instalacji."
+          "description": "Nikt jeszcze nie ocenił żadnej odpowiedzi w tej instalacji.",
+          "title": "Brak ocen"
         },
+        "subline": "ocenionych pozytywnie - {count} ocen we wszystkich organizacjach",
+        "title": "Jakość odpowiedzi w całej instalacji",
         "description": "Jak oceniane są odpowiedzi w całej instalacji."
       },
       "recent-failures": {
@@ -2040,13 +2040,13 @@
         "timesFailed": "{count, plural, other {# razy}}"
       },
       "runs": {
-        "title": "Uruchomienia w czasie",
-        "unit": "uruchomień",
         "delta": "vs poprzedni okres",
         "empty": {
-          "title": "Brak uruchomień w tym okresie",
-          "description": "Opublikuj agenta i daj mu kanał - adopcja pojawi się tutaj."
+          "description": "Opublikuj agenta i daj mu kanał - adopcja pojawi się tutaj.",
+          "title": "Brak uruchomień w tym okresie"
         },
+        "title": "Uruchomienia w czasie",
+        "unit": "uruchomień",
         "description": "Ile uruchomień odbyło się w danym okresie, dzień po dniu."
       },
       "sandbox-capacity": {
@@ -2118,14 +2118,14 @@
         "description": "Sesje sandboxów działające w tej chwili."
       },
       "shared-with-you": {
-        "title": "Udostępnione Tobie",
         "agents": "Agenci",
         "collections": "Kolekcje",
-        "skills": "Skille",
         "empty": {
-          "title": "Jeszcze nic nie udostępniono",
-          "description": "Gdy ktoś udostępni agenta, kolekcję albo skilla, policzy się tutaj."
+          "description": "Gdy ktoś udostępni agenta, kolekcję albo skilla, policzy się tutaj.",
+          "title": "Jeszcze nic nie udostępniono"
         },
+        "skills": "Skille",
+        "title": "Udostępnione Tobie",
         "description": "Agenci, wiedza i umiejętności udostępnione Tobie."
       },
       "spend": {
@@ -2162,48 +2162,48 @@
         "unit": "uruchomień"
       },
       "top-orgs": {
-        "title": "Największe organizacje",
-        "organization": "Organizacja",
-        "members": "Członkowie",
         "agents": "Agenci",
         "empty": {
-          "title": "Brak organizacji",
-          "description": "Istnieje tylko organizacja startowa."
+          "description": "Istnieje tylko organizacja startowa.",
+          "title": "Brak organizacji"
         },
+        "members": "Członkowie",
+        "organization": "Organizacja",
+        "title": "Największe organizacje",
         "description": "Najbardziej zajęte organizacje w tej instalacji.",
         "owner": "Właściciel",
         "noOwner": "Brak właściciela"
       },
       "top-people": {
-        "title": "Kto z tego korzysta",
         "columns": {
-          "person": "Osoba",
-          "runs": "Uruchomienia",
           "cost": "Koszt",
-          "lastRun": "Ostatnie"
+          "lastRun": "Ostatnie",
+          "person": "Osoba",
+          "runs": "Uruchomienia"
+        },
+        "empty": {
+          "description": "Pierwsze uruchomienie pierwszej osoby wpisze tu nazwisko.",
+          "title": "Nikt nic nie uruchomił"
         },
         "others": "{count, plural, =1 {1 kolejna osoba uruchomiła co najmniej jednego agenta} few {# kolejne osoby uruchomiły co najmniej jednego agenta} many {# kolejnych osób uruchomiło co najmniej jednego agenta} other {# kolejnych osób uruchomiło co najmniej jednego agenta}}",
-        "empty": {
-          "title": "Nikt nic nie uruchomił",
-          "description": "Pierwsze uruchomienie pierwszej osoby wpisze tu nazwisko."
-        },
+        "title": "Kto z tego korzysta",
         "description": "Osoby korzystające najczęściej, według runów, z kosztem obok.",
         "disclosure": "Widzi to każdy z runs:view - builderzy i operatorzy tak samo jak właściciele i admini."
       },
       "version-compare": {
-        "title": "Wersja do wersji",
-        "subline": "{agent} - {current} (bieżąca) vs {previous}, tylko uruchomienia danej wersji",
-        "metric": {
-          "runs": "Uruchomienia",
-          "completed": "Skuteczność",
-          "p95": "Opóźnienie p95",
-          "cost": "Koszt uruchomienia",
-          "ratings": "Oceny pozytywne"
-        },
         "empty": {
-          "title": "Działała tylko jedna wersja",
-          "description": "Opublikuj nową wersję - porównanie pojawi się, gdy obie będą miały uruchomienia w okresie."
+          "description": "Opublikuj nową wersję - porównanie pojawi się, gdy obie będą miały uruchomienia w okresie.",
+          "title": "Działała tylko jedna wersja"
         },
+        "metric": {
+          "completed": "Skuteczność",
+          "cost": "Koszt uruchomienia",
+          "p95": "Opóźnienie p95",
+          "ratings": "Oceny pozytywne",
+          "runs": "Uruchomienia"
+        },
+        "subline": "{agent} - {current} (bieżąca) vs {previous}, tylko uruchomienia danej wersji",
+        "title": "Wersja do wersji",
         "description": "Czy nowa wersja agenta zachowuje się lepiej niż poprzednia."
       },
       "routines": {
@@ -2694,12 +2694,12 @@
     "uploading": "Załączam…"
   },
   "invitations": {
-    "title": "Zaproszenie do zespołu",
-    "description": "Zostałeś zaproszony do organizacji.",
     "acceptSuccess": "Dołączono do organizacji!",
-    "redirecting": "Przekierowuję do Twoich organizacji...",
+    "description": "Zostałeś zaproszony do organizacji.",
     "failedTitle": "Nie udało się zaakceptować zaproszenia",
-    "goDashboard": "Przejdź do panelu"
+    "goDashboard": "Przejdź do panelu",
+    "redirecting": "Przekierowuję do Twoich organizacji...",
+    "title": "Zaproszenie do zespołu"
   },
   "kb": {
     "addIntegration": "Dodaj integrację",
@@ -3141,22 +3141,22 @@
     "accountActions": "Więcej dla {name}"
   },
   "members": {
-    "title": "Członkowie",
     "emailPlaceholder": "kolega@example.com",
-    "sending": "Wysyłam...",
-    "sendInvite": "Wyślij zaproszenie",
+    "failedCreateLink": "Nie udało się utworzyć linku",
     "failedInvite": "Nie udało się wysłać zaproszenia",
-    "roleUpdated": "Rola zaktualizowana",
-    "failedRole": "Nie udało się zaktualizować roli",
-    "memberRemoved": "Członek usunięty",
     "failedRemove": "Nie udało się usunąć członka",
-    "you": "(ty)",
+    "failedRevoke": "Nie udało się cofnąć zaproszenia",
+    "failedRole": "Nie udało się zaktualizować roli",
     "joined": "Dołączył",
+    "memberRemoved": "Członek usunięty",
     "pendingInvitations": "Oczekujące zaproszenia",
     "revoke": "Cofnij",
     "revokeSuccess": "Zaproszenie cofnięte",
-    "failedRevoke": "Nie udało się cofnąć zaproszenia",
-    "failedCreateLink": "Nie udało się utworzyć linku"
+    "roleUpdated": "Rola zaktualizowana",
+    "sendInvite": "Wyślij zaproszenie",
+    "sending": "Wysyłam...",
+    "title": "Członkowie",
+    "you": "(ty)"
   },
   "nav": {
     "memory": "Pamięć",
@@ -3793,7 +3793,7 @@
       },
       "datasets-generate": {
         "title": "Wygeneruj przypadki",
-        "body": "Generator przygotowuje przypadki z czterech źródeł: instrukcji i narzędzi agenta, jego bazy wiedzy, prawdziwych rozmów (tylko produkcyjnych, nigdy z runów eval) i red teamingu. Szacowany koszt widzisz, zanim cokolwiek zostanie wydane."
+        "body": "Generator przygotowuje przypadki z czterech źródeł: instrukcji i narzędzi agenta, jego bazy wiedzy, prawdziwych czatów (tylko produkcyjnych, nigdy z runów eval) i red teamingu. Szacowany koszt widzisz, zanim cokolwiek zostanie wydane."
       },
       "datasets-proposals": {
         "title": "Zdecyduj o propozycjach",
@@ -3849,7 +3849,7 @@
       },
       "flow-dataset-generate": {
         "title": "Albo zleć je generatorowi",
-        "body": "Wybierz agenta i źródła - samego agenta, jego bazę wiedzy, prawdziwe rozmowy albo red teaming - a generator przygotuje przypadki do przeglądu. Nic nie trafia do datasetu, dopóki tego nie zaakceptujesz."
+        "body": "Wybierz agenta i źródła - samego agenta, jego bazę wiedzy, prawdziwe czaty albo red teaming - a generator przygotuje przypadki do przeglądu. Nic nie trafia do datasetu, dopóki tego nie zaakceptujesz."
       },
       "agent-evals": {
         "title": "Evale",
@@ -3996,20 +3996,20 @@
     "chooseLanguage": "Język"
   },
   "organizations": {
-    "title": "Organizacje",
-    "description": "Zarządzaj organizacjami i przełączaj się między nimi.",
-    "personal": "Osobista",
-    "namePlaceholder": "Mój Zespół",
-    "creating": "Tworzę...",
-    "created": "Organizacja utworzona",
-    "updated": "Organizacja zaktualizowana",
-    "deleted": "Organizacja usunięta",
     "accessLost": "Nie masz już dostępu do tej organizacji.",
     "accessLostSwitched": "Nie masz już dostępu do tej organizacji. Przełączono na {name}.",
     "accessLostLink": "Ten link dotyczy organizacji, do której nie masz już dostępu.",
     "accessLostLinkSwitched": "Ten link dotyczy organizacji, do której nie masz już dostępu. Pokazujemy {name}.",
+    "created": "Organizacja utworzona",
+    "creating": "Tworzę...",
+    "deleted": "Organizacja usunięta",
+    "description": "Zarządzaj organizacjami i przełączaj się między nimi.",
     "failedDelete": "Nie udało się usunąć organizacji",
-    "failedUpdate": "Nie udało się zaktualizować organizacji"
+    "failedUpdate": "Nie udało się zaktualizować organizacji",
+    "namePlaceholder": "Mój Zespół",
+    "personal": "Osobista",
+    "title": "Organizacje",
+    "updated": "Organizacja zaktualizowana"
   },
   "orgs": {
     "noMembersYet": "Brak członków.",
@@ -5202,14 +5202,14 @@
     }
   },
   "profile": {
-    "title": "Profil",
-    "personalInfo": "Dane osobowe",
-    "name": "Imię",
-    "email": "Email",
     "changePassword": "Zmień hasło",
     "currentPassword": "Obecne hasło",
+    "deleteAccount": "Usuń konto",
+    "email": "Email",
+    "name": "Imię",
     "newPassword": "Nowe hasło",
-    "deleteAccount": "Usuń konto"
+    "personalInfo": "Dane osobowe",
+    "title": "Profil"
   },
   "rag": {
     "addSyncSource": "Dodaj źródło synchronizacji",
@@ -5300,11 +5300,11 @@
     "useIntegration": "Użyj tej integracji"
   },
   "ragStatus": {
-    "processing": "Przetwarzanie",
-    "running": "W toku",
+    "cancelled": "Anulowano",
     "done": "Gotowe",
     "error": "Niepowodzenie",
-    "cancelled": "Anulowano"
+    "processing": "Przetwarzanie",
+    "running": "W toku"
   },
   "sandboxes": {
     "activityLogUnreadable": "Nie udało się odczytać tego logu aktywności",
@@ -6789,7 +6789,7 @@
     "origin": {
       "agent": "Z agenta",
       "knowledge": "Z wiedzy",
-      "conversation": "Z rozmów",
+      "conversation": "Z czatów",
       "red_team": "Red team"
     },
     "sourceHint": {
