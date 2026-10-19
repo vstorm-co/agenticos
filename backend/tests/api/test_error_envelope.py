@@ -233,7 +233,7 @@ class TestHTTPExceptionJoinsTheEnvelope:
 
         assert response is not None
         body = json.loads(bytes(response.body))
-        assert body["error"]["message"] == "Unprocessable entity"
+        assert body["error"]["message"] == "Unprocessable content"
         assert body["error"]["details"] == {"detail": [{"loc": ["body"], "msg": "bad"}]}
 
     @pytest.mark.anyio

@@ -84,6 +84,8 @@ Two things are versioned separately from this file and worth knowing about:
   below 2.14, so a uv override lifts that cap until it does.
   `from __future__ import annotations` is gone from the codebase, and ruff now
   refuses it: annotations are lazy since 3.14.
+  One visible change: an HTTP 422 raised without a sentence of its own now
+  says `Unprocessable content`, Python 3.15's name for the status (RFC 9110).
 - **An ingestion child loads only ingestion** (#2229): it no longer imports the
   agent runtime the other pools need, which halves its start-up (1.4 s to 0.8 s
   on a laptop) and cuts its memory by a quarter (253 to 190 MB). The global
