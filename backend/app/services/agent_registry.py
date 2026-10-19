@@ -69,6 +69,7 @@ from app.core.field_errors import field_problems, refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent, AgentKind, AgentStatus, AgentVersion
+from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.credential import ModelProfile
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill
@@ -179,6 +180,27 @@ _MAX_COPIES = 50
 # rather than the suffix keeps "(copy 3)" readable - it is the part that says
 # which one this is.
 _NAME_LIMIT = 128
+
+
+@dataclass(frozen=True)
+class PublishedCandidate:
+    """A published version to run, whichever version an environment pins."""
+
+    version_id: UUID
+
+
+@dataclass(frozen=True)
+class UnpublishedCandidate:
+    """A spec nobody published - a draft, or one with proposals applied.
+
+    Frozen by whoever holds it, so every case of an eval runs the same content
+    however the draft moves meanwhile.
+    """
+
+    spec: AgentSpec
+
+
+type Candidate = PublishedCandidate | UnpublishedCandidate
 
 
 def _copy_name(base: str, attempt: int) -> str:
@@ -800,6 +822,10 @@ class AgentRegistryService:
         """
         return await resolve_access(self.db, ctx, agent, Perm.AGENTS_RUN, resource_type=AGENT)
 
+    async def may_edit(self, ctx: AuthContext, agent: Agent) -> bool:
+        """Whether this caller may edit this agent - `may_run`'s counterpart for edit."""
+        return await resolve_access(self.db, ctx, agent, Perm.AGENTS_EDIT, resource_type=AGENT)
+
     async def _visible_scope(
         self, ctx: AuthContext, *, shared_with_me: bool
     ) -> tuple[bool, list[UUID]]:
@@ -928,6 +954,7 @@ class AgentRegistryService:
         # floor for offering "new trigger" on a card. A grant widens it per row, so
         # a Viewer shared run on one agent sees the control there and nowhere else.
         runnable = await accessible_ids(self.db, ctx, agents, Perm.AGENTS_RUN, resource_type=AGENT)
+        editable = await accessible_ids(self.db, ctx, agents, Perm.AGENTS_EDIT, resource_type=AGENT)
         groups = await groups_sharing(
             self.db, ctx, resource_type=AGENT, resource_ids=[agent.id for agent in agents]
         )
@@ -948,6 +975,7 @@ class AgentRegistryService:
                 categories=agent.categories,
                 tags=agent.tags,
                 can_run=agent.id in runnable,
+                can_edit=agent.id in editable,
                 shared_user_count=shared_counts.get(agent.id, 0),
                 shared_groups=groups[agent.id],
                 channels=surfaces.get(agent.id, []),
@@ -2733,12 +2761,7 @@ class AgentRegistryService:
                 approved.
             NotFoundError: If the named environment is not this agent's.
         """
-        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
-        await self.refuse_a_switched_off_assistant(agent.id)
-        if agent.status == AgentStatus.ARCHIVED.value:
-            raise BadRequestError(
-                message=f"Agent '{agent.name}' is archived", details={"agent_id": str(agent.id)}
-            )
+        agent = await self._runnable(ctx, agent_id)
         if agent.current_version_id is None:
             raise BadRequestError(
                 message=f"Agent '{agent.name}' has not been published yet",
@@ -2747,15 +2770,7 @@ class AgentRegistryService:
 
         version_id = agent.current_version_id
         if environment_id is not None:
-            environment = await agent_environment_repo.get(
-                self.db, environment_id, organization_id=ctx.organization_id
-            )
-            if environment is None or environment.agent_id != agent.id:
-                raise NotFoundError(
-                    message="Environment not found",
-                    details={"environment_id": str(environment_id)},
-                )
-            version_id = environment.version_id
+            version_id = (await self._environment_of(ctx, agent, environment_id)).version_id
 
         version = await agent_repo.get_version(
             self.db, version_id, organization_id=ctx.organization_id
@@ -2766,3 +2781,66 @@ class AgentRegistryService:
                 details={"agent_id": str(agent.id)},
             )
         return agent, AgentSpec.model_validate(version.spec), version.id
+
+    async def get_candidate_spec(
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        candidate: Candidate,
+        *,
+        environment_id: UUID | None = None,
+    ) -> tuple[Agent, AgentSpec, UUID | None]:
+        """The spec an eval runs in place of the one an environment pins.
+
+        A published candidate resolves to its frozen spec and keeps its version
+        id, so the run is attributed to the version that answered. An unpublished
+        one - a draft, or a draft with proposals applied - is checked against the
+        caller's own access first: it skipped `validate_spec` when it was saved,
+        and everything downstream of a run trusts that a binding it is handed was
+        already authorized at publish. It is attributed to no version.
+
+        `environment_id` only has to belong to the agent; it supplies the run's
+        connections and tracing, never its spec.
+
+        Raises:
+            BadRequestError: If the agent is archived, the version is not this
+                agent's, or the unpublished spec does not validate for the caller.
+            NotFoundError: If the agent or the environment cannot be reached.
+        """
+        agent = await self._runnable(ctx, agent_id)
+        if environment_id is not None:
+            await self._environment_of(ctx, agent, environment_id)
+        if isinstance(candidate, UnpublishedCandidate):
+            await self.validate_spec(ctx, candidate.spec, agent_id=agent.id)
+            return agent, candidate.spec, None
+        version = await agent_repo.get_version(
+            self.db, candidate.version_id, organization_id=ctx.organization_id
+        )
+        if version is None or version.agent_id != agent.id:
+            raise BadRequestError(
+                message=f"That version is not one of agent '{agent.name}'s",
+                details={"agent_id": agent.id, "version_id": candidate.version_id},
+            )
+        return agent, AgentSpec.model_validate(version.spec), version.id
+
+    async def _runnable(self, ctx: AuthContext, agent_id: UUID) -> Agent:
+        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
+        await self.refuse_a_switched_off_assistant(agent.id)
+        if agent.status == AgentStatus.ARCHIVED.value:
+            raise BadRequestError(
+                message=f"Agent '{agent.name}' is archived", details={"agent_id": str(agent.id)}
+            )
+        return agent
+
+    async def _environment_of(
+        self, ctx: AuthContext, agent: Agent, environment_id: UUID
+    ) -> AgentEnvironment:
+        environment = await agent_environment_repo.get(
+            self.db, environment_id, organization_id=ctx.organization_id
+        )
+        if environment is None or environment.agent_id != agent.id:
+            raise NotFoundError(
+                message="Environment not found",
+                details={"environment_id": str(environment_id)},
+            )
+        return environment

@@ -1402,3 +1402,33 @@ async def test_a_link_opens_one_case_as_its_version_holds_it(db) -> None:
     assert (newest.input, older.input) == ("How long?", "Return window?")
     with pytest.raises(NotFoundError):
         await service.read_case(ctx, dataset.id, uuid.uuid4())
+
+
+@pytest.mark.security
+async def test_whether_the_caller_may_run_a_dataset_is_read_per_dataset(db) -> None:
+    """What the eval start dialog offers: a read grant shows a dataset but runs nothing."""
+    owner = await _owner(db)
+    member = await _member(db, Organization(id=owner.organization_id), OrgRoleName.MEMBER)
+    service = DatasetService(db)
+    readable = await service.create(owner, DatasetCreate(name="readable", visibility="private"))
+    usable = await service.create(owner, DatasetCreate(name="usable", visibility="private"))
+    for dataset_id, level in ((readable.id, GrantLevel.READ), (usable.id, GrantLevel.USE)):
+        db.add(
+            ResourceGrant(
+                organization_id=owner.organization_id,
+                subject_user_id=member.user_id,
+                resource_type="dataset",
+                resource_id=dataset_id,
+                level=level.value,
+            )
+        )
+    await db.flush()
+
+    listed = await service.list_readable(member, sort="name")
+    assert [(item.name, item.can_run) for item in listed.items] == [
+        ("readable", False),
+        ("usable", True),
+    ]
+    assert (await service.read(member, readable.id)).can_run is False
+    assert (await service.read(member, usable.id)).can_run is True
+    assert (await service.read(owner, readable.id)).can_run is True

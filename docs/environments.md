@@ -76,7 +76,8 @@ publishes an [app](artifacts.md#one-name-one-link) of its own, so trying
 `dev` on the weekly report never republishes the page production readers open.
 An environment with a run still working, or waiting for an approval, cannot be
 removed until the run ends: deleting it would hand that run to the default, and
-its pages to production's.
+its pages to production's. The same holds while an eval run in it is queued or
+running, which would otherwise go on against production's connections.
 
 ## Test connections
 

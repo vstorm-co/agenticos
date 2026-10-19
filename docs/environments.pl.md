@@ -1,5 +1,5 @@
 ---
-source_sha: "9eb3fc8f6ed6"
+source_sha: "d57c8926acbb"
 ---
 
 # Środowiska { #environments }
@@ -83,8 +83,10 @@ Strona, którą agent publikuje, dzieli się tak samo. Run w nazwanym środowisk
 publikuje własną [aplikację](artifacts.md#one-name-one-link), więc próba `dev` na
 cotygodniowym raporcie nigdy nie publikuje ponownie strony, którą otwierają
 czytelnicy produkcji. Środowiska z runem, który wciąż pracuje albo czeka na
-akceptację, nie da się usunąć, dopóki run się nie skończy: usunięcie przekazałoby ten run domyślnemu środowisku, a jego
-strony — produkcji.
+akceptację, nie da się usunąć, dopóki run się nie skończy: usunięcie
+przekazałoby ten run domyślnemu środowisku, a jego strony — produkcji. Tak samo
+jest, dopóki eval run w tym środowisku czeka w kolejce albo działa: inaczej
+szedłby dalej na połączeniach produkcji.
 
 ## Połączenia testowe { #test-connections }
 

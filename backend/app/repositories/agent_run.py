@@ -32,6 +32,7 @@ from app.db.models.agent_run import (
     RunOrder,
     RunRating,
     RunStatus,
+    RunSurface,
     ToolApproval,
 )
 from app.db.models.conversation import Message
@@ -347,6 +348,8 @@ class RunFilters:
             together is the "show me the problems" query, and they are separate
             statuses on purpose.
         surface: Where the run came from.
+        exclude_surface: Where it did not come from - the eval traffic,
+            which outnumbers people by a hundred cases a run.
         user_id: Who it ran as, which is not always who asked - a widget's runs
             carry the widget owner's id, because the visitor is anonymous.
         started_from: Inclusive lower bound on `started_at`.
@@ -380,6 +383,7 @@ class RunFilters:
 
     statuses: Sequence[str] | None = None
     surface: str | None = None
+    exclude_surface: str | None = None
     user_id: UUID | None = None
     conversation_id: UUID | None = None
     model_label: str | None = None
@@ -402,6 +406,8 @@ class RunFilters:
             clauses.append(AgentRun.status.in_(list(self.statuses)))
         if self.surface is not None:
             clauses.append(AgentRun.surface == self.surface)
+        if self.exclude_surface is not None:
+            clauses.append(AgentRun.surface != self.exclude_surface)
         if self.user_id is not None:
             clauses.append(AgentRun.user_id == self.user_id)
         if self.conversation_id is not None:
@@ -686,6 +692,59 @@ async def sum_cost_since(
         query = query.where(AgentRun.user_id.in_(members), *_counts_for_a_department())
     result = await db.scalar(query)
     return Decimal(result or 0)
+
+
+async def average_cost(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    model_label: str | None = None,
+    sample: int,
+) -> Decimal | None:
+    """What one of this agent's recent finished runs cost on average, or None with none.
+
+    Over its latest `sample` completed top-level runs, on one model when
+    `model_label` is given - the basis of an eval's estimate, which is asked
+    before anything runs and so can only lean on what already did.
+    """
+    recent = (
+        select(AgentRun.cost_usd)
+        .where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.agent_id == agent_id,
+            AgentRun.parent_run_id.is_(None),
+            AgentRun.status == RunStatus.COMPLETED.value,
+            AgentRun.cost_usd.is_not(None),
+            *([AgentRun.model_label == model_label] if model_label is not None else []),
+        )
+        .order_by(AgentRun.started_at.desc())
+        .limit(sample)
+        .subquery()
+    )
+    average = await db.scalar(select(func.avg(recent.c.cost_usd)))
+    return Decimal(average) if average is not None else None
+
+
+async def cost_of_runs(
+    db: AsyncSession, run_ids: Sequence[UUID], *, organization_id: UUID
+) -> tuple[Decimal, bool]:
+    """What these runs cost together, and whether any price was missing.
+
+    A run retention has since deleted is a price missing too: the total is then
+    what is left of it, and says so.
+    """
+    if not run_ids:
+        return Decimal(0), False
+    result = await db.execute(
+        select(
+            func.coalesce(func.sum(AgentRun.cost_usd), 0),
+            func.coalesce(func.bool_or(AgentRun.cost_is_partial), False),
+            func.count(AgentRun.id),
+        ).where(AgentRun.id.in_(list(run_ids)), AgentRun.organization_id == organization_id)
+    )
+    total, partial, found = result.one()
+    return Decimal(total), bool(partial) or found < len(set(run_ids))
 
 
 async def spend_by_group(
@@ -1137,6 +1196,9 @@ class RunFilter:
     group_id: UUID | None = None
 
 
+_EVAL = AgentRun.surface == RunSurface.EVAL.value
+
+
 def _window_conditions(
     *,
     organization_id: UUID,
@@ -1144,20 +1206,15 @@ def _window_conditions(
     end: datetime,
     where: RunFilter | None,
     include_delegations: bool = False,
+    split_evals: bool = False,
 ) -> list[ColumnElement[bool]]:
-    """The window every dashboard aggregate shares, delegations out by default.
+    """The window every dashboard aggregate shares, delegations and evals out by default.
 
-    `include_delegations` is the switch :func:`sum_cost_since` established, and
-    the default is `False` for the reason that made it the default there: a
-    delegation's tokens are already inside its parent's row, so counting both
-    bills the same run twice. Beyond cost, a delegated row copies its parent's
-    `user_id` and `surface`, so including it would also inflate a person's run
-    count and invent arrivals on a channel nobody used twice.
-
-    The two aggregates that pass `True` are the two asking about **an agent**
-    rather than about the organization - see :func:`runs_by_agent` and
-    :func:`usage_by_version`, where a delegate's rows are the only record of
-    what the delegate itself did.
+    Eval traffic - an eval run answering a dataset's cases, and the judge
+    grading them - is measurement, not use: counted in, one eval of a hundred
+    cases outweighs a week of people. So every aggregate here reads production
+    alone. `split_evals` keeps the eval traffic in, for an aggregate that
+    separates the two itself in the same scan to report its cost beside the rest.
     """
     filters = where or RunFilter()
     conditions: list[ColumnElement[bool]] = [
@@ -1177,6 +1234,8 @@ def _window_conditions(
         )
     if not include_delegations:
         conditions.append(AgentRun.parent_run_id.is_(None))
+    if not split_evals:
+        conditions.append(~_EVAL)
     return conditions
 
 
@@ -1261,6 +1320,7 @@ class WindowAggregates:
     distinct_users: int
     p50_ms: float | None
     p95_ms: float | None
+    eval_cost_usd: Decimal
     first_started_at: datetime | None = None
     """When the window's first run started - where its timeline begins."""
 
@@ -1282,28 +1342,33 @@ async def window_aggregates(
     `ended_at IS NOT NULL` of their own, because an unfinished run's duration is
     null and `percentile_cont` ignores a null the way the standalone function's
     explicit filter did - the same distribution, one query.
+
+    Every figure is production traffic; `eval_cost_usd` is the eval traffic's
+    cost from the same scan, so the bill can name it beside the rest.
     """
     conditions = _window_conditions(
-        organization_id=organization_id, start=start, end=end, where=where
+        organization_id=organization_id, start=start, end=end, where=where, split_evals=True
     )
     duration_ms = func.extract("epoch", AgentRun.ended_at - AgentRun.started_at) * 1000
     result = await db.execute(
         select(
-            func.count(AgentRun.id),
-            func.coalesce(func.sum(AgentRun.cost_usd), 0),
-            func.count(func.distinct(AgentRun.user_id)),
-            func.percentile_cont(0.5).within_group(duration_ms),
-            func.percentile_cont(0.95).within_group(duration_ms),
-            func.min(AgentRun.started_at),
+            func.count(AgentRun.id).filter(~_EVAL),
+            func.coalesce(func.sum(AgentRun.cost_usd).filter(~_EVAL), 0),
+            func.count(func.distinct(AgentRun.user_id)).filter(~_EVAL),
+            func.percentile_cont(0.5).within_group(duration_ms).filter(~_EVAL),
+            func.percentile_cont(0.95).within_group(duration_ms).filter(~_EVAL),
+            func.coalesce(func.sum(AgentRun.cost_usd).filter(_EVAL), 0),
+            func.min(AgentRun.started_at).filter(~_EVAL),
         ).where(*conditions)
     )
-    total, cost, distinct_users, p50, p95, first_started_at = result.one()
+    total, cost, distinct_users, p50, p95, eval_cost, first_started_at = result.one()
     return WindowAggregates(
         total=int(total or 0),
         cost_usd=Decimal(cost or 0),
         distinct_users=int(distinct_users or 0),
         p50_ms=float(p50) if p50 is not None else None,
         p95_ms=float(p95) if p95 is not None else None,
+        eval_cost_usd=Decimal(eval_cost or 0),
         first_started_at=first_started_at,
     )
 
@@ -1315,8 +1380,9 @@ async def window_totals(
     start: datetime,
     end: datetime,
     where: RunFilter | None = None,
-) -> tuple[int, Decimal]:
-    """The count and cost of a window, in one SELECT and nothing more.
+) -> tuple[int, Decimal, Decimal]:
+    """The count and cost of a window's production traffic, and its eval traffic's
+    cost, in one SELECT and nothing more.
 
     The previous window is a delta against the current one - it reports only how
     many runs and how much they cost - so it does not pay for
@@ -1324,15 +1390,17 @@ async def window_totals(
     which make PostgreSQL sort the window's durations for numbers nobody reads.
     """
     conditions = _window_conditions(
-        organization_id=organization_id, start=start, end=end, where=where
+        organization_id=organization_id, start=start, end=end, where=where, split_evals=True
     )
     result = await db.execute(
-        select(func.count(AgentRun.id), func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(
-            *conditions
-        )
+        select(
+            func.count(AgentRun.id).filter(~_EVAL),
+            func.coalesce(func.sum(AgentRun.cost_usd).filter(~_EVAL), 0),
+            func.coalesce(func.sum(AgentRun.cost_usd).filter(_EVAL), 0),
+        ).where(*conditions)
     )
-    total, cost = result.one()
-    return int(total or 0), Decimal(cost or 0)
+    total, cost, eval_cost = result.one()
+    return int(total or 0), Decimal(cost or 0), Decimal(eval_cost or 0)
 
 
 @dataclass(frozen=True)
@@ -1592,7 +1660,9 @@ async def usage_by_version(
     Counts delegations, for the reason `list_runs` gives when narrowed to one
     agent: these are that agent's own runs, and a specialist that only ever
     executes as somebody's delegate would otherwise have nothing to compare
-    across versions. `avg_cost_usd` is safe here because it averages one
+    across versions. Leaves eval runs out: an eval of a draft is attributed to
+    no version and would read as "version deleted", and an eval of a version
+    is a test of it, not the use of it this strip reports. `avg_cost_usd` is safe here because it averages one
     agent's rows rather than summing a parent together with its children -
     unless an agent delegates to itself, which nothing in the product does and
     which would show up as one version's average, not as a double bill.

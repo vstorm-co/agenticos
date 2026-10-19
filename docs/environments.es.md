@@ -1,5 +1,5 @@
 ---
-source_sha: "9eb3fc8f6ed6"
+source_sha: "d57c8926acbb"
 ---
 
 # Entornos { #environments }
@@ -81,11 +81,13 @@ hasta que tú lo muevas. Un agent, dos audiencias, dos versiones, una sola
 contabilidad.
 
 Una página que el agent publica sigue la misma separación. Un run en un entorno
-con nombre publica una [aplicación](artifacts.md#one-name-one-link) propia, así que
-probar `dev` con el informe semanal nunca vuelve a publicar la página que abren
-los lectores de producción. Un entorno con un run todavía en marcha, o esperando
-una aprobación, no se puede eliminar hasta que el run termine: eliminarlo entregaría ese run al entorno por
-defecto, y sus páginas a las de producción.
+con nombre publica una [aplicación](artifacts.md#one-name-one-link) propia, así
+que probar `dev` con el informe semanal nunca vuelve a publicar la página que
+abren los lectores de producción. Un entorno con un run todavía en marcha, o
+esperando una aprobación, no se puede eliminar hasta que el run termine:
+eliminarlo entregaría ese run al entorno por defecto, y sus páginas a las de
+producción. Lo mismo vale mientras un eval run en él esté en cola o en marcha,
+que si no seguiría contra las conexiones de producción.
 
 ## Conexiones de prueba { #test-connections }
 

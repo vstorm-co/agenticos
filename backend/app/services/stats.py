@@ -255,7 +255,7 @@ class StatsService:
         current = await agent_run_repo.window_aggregates(
             self.db, organization_id=org, start=window.start, end=window.end, where=where
         )
-        previous_total, previous_model_usd = await agent_run_repo.window_totals(
+        previous_total, previous_model_usd, previous_eval_usd = await agent_run_repo.window_totals(
             self.db, organization_id=org, start=prev_start, end=prev_end, where=where
         )
         total = current.total
@@ -322,9 +322,10 @@ class StatsService:
                 self.db, organization_id=org, start=prev_start, end=prev_end
             )
         cost = CostBlock(
-            period_usd=model_usd + ingestion_usd,
-            previous_period_usd=previous_model_usd + previous_ingestion_usd,
+            period_usd=model_usd + current.eval_cost_usd + ingestion_usd,
+            previous_period_usd=previous_model_usd + previous_eval_usd + previous_ingestion_usd,
             model_usd=model_usd,
+            eval_usd=current.eval_cost_usd,
             ingestion_usd=ingestion_usd,
             by_provider=[
                 ProviderCost(provider=provider, cost_usd=cost_usd)

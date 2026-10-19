@@ -81,6 +81,7 @@ def repos(monkeypatch: pytest.MonkeyPatch) -> dict[str, AsyncMock]:
             distinct_users=distinct,
             p50_ms=p50,
             p95_ms=p95,
+            eval_cost_usd=await mocks["eval_cost_window"](db, **kwargs),
             first_started_at=await mocks["first_started_at"](db, **kwargs),
         )
 
@@ -90,8 +91,16 @@ def repos(monkeypatch: pytest.MonkeyPatch) -> dict[str, AsyncMock]:
 
     # The previous window takes the lighter count+cost aggregate; delegate it to the
     # same two mocks so a test still drives it through `count_runs`/`sum_cost_window`.
-    async def _window_totals(db: object = None, **kwargs: object) -> tuple[int, Decimal]:
-        return await mocks["count_runs"](db, **kwargs), await mocks["sum_cost_window"](db, **kwargs)
+    # The eval traffic's cost rides on the same scans with a mock of its own, so
+    # the production figures above stay what a test set.
+    mocks["eval_cost_window"] = AsyncMock(return_value=Decimal(0))
+
+    async def _window_totals(db: object = None, **kwargs: object) -> tuple[int, Decimal, Decimal]:
+        return (
+            await mocks["count_runs"](db, **kwargs),
+            await mocks["sum_cost_window"](db, **kwargs),
+            await mocks["eval_cost_window"](db, **kwargs),
+        )
 
     window_totals = AsyncMock(side_effect=_window_totals)
     monkeypatch.setattr("app.services.stats.agent_run_repo.window_totals", window_totals)
@@ -251,17 +260,20 @@ class TestTheComposedAnswer:
         # month-to-date line beside it was the whole bill, and nothing on the
         # card said they were different questions.
         repos["sum_cost_window"].side_effect = [Decimal("2.00"), Decimal("1.00")]
+        repos["eval_cost_window"].side_effect = [Decimal("0.30"), Decimal("0.10")]
         repos["ingestion_sum_cost_window"].side_effect = [Decimal("0.50"), Decimal("0.25")]
 
         result = await StatsService(MagicMock()).usage(_ctx())
 
         assert result.cost is not None
         assert result.cost.model_usd == Decimal("2.00")
+        # Evals are money spent, so inside the bill - but beside production, not in it.
+        assert result.cost.eval_usd == Decimal("0.30")
         assert result.cost.ingestion_usd == Decimal("0.50")
-        assert result.cost.period_usd == Decimal("2.50")
+        assert result.cost.period_usd == Decimal("2.80")
         # The previous window is the whole bill too, or the change compares a
         # bill against half of one.
-        assert result.cost.previous_period_usd == Decimal("1.25")
+        assert result.cost.previous_period_usd == Decimal("1.35")
 
     async def test_own_scope_is_not_billed_for_the_organizations_indexing(self, repos) -> None:
         # `ingestion_spend` records no user - a document is indexed by a worker -

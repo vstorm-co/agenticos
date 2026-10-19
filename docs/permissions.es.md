@@ -1,5 +1,5 @@
 ---
-source_sha: "cf1f7216bba3"
+source_sha: "6cb5b2cda7af"
 ---
 
 # Permisos { #permissions }
@@ -373,15 +373,18 @@ hace falta filtrar") y una **lista vacía** para un contexto sin sujeto. Son
 opuestos, así que confundirlos ampliaría un listado a toda la organización
 justo en el momento en que debería estrecharse a nada.
 
-`accessible_ids` es la contraparte por lotes de `resolve_access`: dada una página
-de filas ya cargadas, devuelve el subconjunto sobre el que quien llama puede
-ejercer un permiso. Aplica la misma regla `max(role scope, grant)` por fila, pero
-lee todas las concesiones en una consulta en vez de una por fila, y ninguna
-cuando el rol alcanza todo. Es lo que rellena las banderas de capacidad de un
-listado - `AgentRead.can_run`, el suelo para ofrecer "new trigger" en una tarjeta
-- así que un Viewer con concesión de run ve el control ahí y en ningún otro
-sitio. Un contexto sin sujeto, y una entrada vacía, se resuelven al conjunto
-vacío antes de consultar.
+`accessible_ids` es la contraparte por lotes de `resolve_access`: dada una
+página de filas ya cargadas, devuelve el subconjunto sobre el que quien llama
+puede ejercer un permiso. Aplica la misma regla `max(role scope, grant)` por
+fila, pero lee todas las concesiones en una consulta en vez de una por fila, y
+ninguna cuando el rol alcanza todo. Es lo que rellena las banderas de capacidad
+de un listado - `AgentRead.can_run`, el suelo para ofrecer "new trigger" en una
+tarjeta, y `AgentRead.can_edit`, con el que la consola ofrece probar un borrador
+o detener y publicar un eval run - así que un Viewer con concesión de run ve el
+control ahí y en ningún otro sitio.
+
+Un contexto sin sujeto, y una entrada vacía, se resuelven al conjunto vacío
+antes de consultar.
 
 Los listados de agents, skills y kb aceptan además `?shared_with_me=true`: solo
 las filas compartidas deliberadamente con quien llama - visibles para la

@@ -1,5 +1,5 @@
 ---
-source_sha: "cf1f7216bba3"
+source_sha: "6cb5b2cda7af"
 ---
 
 # Uprawnienia { #permissions }
@@ -360,15 +360,18 @@ filtrować”), a **pustą listę** dla kontekstu bez podmiotu. To przeciwieńst
 pomylenie ich poszerzyłoby listowanie do całej organizacji dokładnie w momencie, w
 którym powinno zostać zawężone do niczego.
 
-`accessible_ids` jest wsadowym odpowiednikiem `resolve_access`: dla wczytanej już
-strony wierszy zwraca ten podzbiór, na którym wywołujący może skorzystać z
+`accessible_ids` jest wsadowym odpowiednikiem `resolve_access`: dla wczytanej
+już strony wierszy zwraca ten podzbiór, na którym wywołujący może skorzystać z
 uprawnienia, stosując tę samą regułę `max(role scope, grant)` na każdym wierszu,
 ale czytając wszystkie granty w jednym odczycie zamiast po jednym na wiersz (i
-wcale, kiedy rola sięga wszystkiego). To ono wypełnia flagi możliwości przy każdym
-wierszu listowania — `AgentRead.can_run`, podłogę dla zaoferowania „new trigger”
-na karcie — więc Viewer z przyznanym runem na jednym agencie widzi tę kontrolkę
-tam i nigdzie indziej. Kontekst bez podmiotu oraz puste wejście rozwiązują się
-oba do pustego zbioru przed jakimkolwiek zapytaniem.
+wcale, kiedy rola sięga wszystkiego). To ono wypełnia flagi możliwości przy
+każdym wierszu listowania — `AgentRead.can_run`, podłogę dla zaoferowania „new
+trigger” na karcie, oraz `AgentRead.can_edit`, z którego konsola czyta, czy
+zaoferować test draftu oraz zatrzymanie i publikację z eval runa — więc Viewer z
+przyznanym runem na jednym agencie widzi tę kontrolkę tam i nigdzie indziej.
+
+Kontekst bez podmiotu oraz puste wejście rozwiązują się oba do pustego zbioru
+przed jakimkolwiek zapytaniem.
 
 Listowania agentów, skilli i kb przyjmują też `?shared_with_me=true`: tylko
 wiersze celowo udostępnione wywołującemu — widoczne dla organizacji albo jawnie

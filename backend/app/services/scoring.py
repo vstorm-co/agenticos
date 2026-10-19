@@ -54,6 +54,7 @@ from app.repositories import (
     conversation_repo,
     credential_repo,
     dataset_repo,
+    eval_run_repo,
     intercepted_tool_call_repo,
 )
 from app.schemas.dataset import DatasetRead
@@ -133,7 +134,7 @@ def _rank(score: CaseScore) -> tuple[bool, datetime]:
     return score.passed is not None, score.created_at
 
 
-def _ungraded(score: CaseScore) -> bool:
+def ungraded(score: CaseScore) -> bool:
     """Whether some scorer on a score reached no verdict, and could be asked again."""
     return any(result.get("status") in ("skipped", "error") for result in score.results)
 
@@ -504,8 +505,8 @@ class ScoringService:
                 message="This dataset has no score with some of these ids",
                 details={"dataset_id": dataset_id, "missing": missing},
             )
-        stale = [scores[score_id] for score_id in wanted if _ungraded(scores[score_id])]
-        kept = [score_id for score_id in wanted if not _ungraded(scores[score_id])]
+        stale = [scores[score_id] for score_id in wanted if ungraded(scores[score_id])]
+        kept = [score_id for score_id in wanted if not ungraded(scores[score_id])]
         for score in stale:
             await self._judge_unchanged(ctx, score)
         answers = [await self.answer_for(ctx, score) for score in stale]
@@ -513,6 +514,11 @@ class ScoringService:
             await self._rescore(ctx, score, answer)
             for score, answer in zip(stale, answers, strict=True)
         ]
+        graded_in = sorted({score.eval_run_id for score in rescored if score.eval_run_id})
+        if graded_in:
+            await eval_run_repo.forget_outcomes(
+                self.db, graded_in, organization_id=ctx.organization_id
+            )
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -577,9 +583,31 @@ class ScoringService:
     async def answer_for(self, ctx: AuthContext, score: CaseScore) -> ScoredAnswer:
         """The answer a score graded, read again in full from where it is kept.
 
+        An eval run's answer is kept on its attempt, because the run that gave
+        it wrote no transcript.
+
         Raises:
             BadRequestError: The score names no run, or its run kept no answer.
         """
+        if score.eval_run_id is not None:
+            attempt = await eval_run_repo.case_of_score(
+                self.db, score.id, organization_id=ctx.organization_id
+            )
+            if attempt is not None and attempt.answer is not None:
+                return ScoredAnswer(
+                    text=attempt.answer,
+                    calls=tuple(
+                        ScoredCall(
+                            tool=call["tool"],
+                            args=call["args"],
+                            blocked=call["outcome"] == InterceptionOutcome.BLOCKED.value,
+                        )
+                        for call in attempt.calls
+                    ),
+                    cost_usd=attempt.cost_usd,
+                    latency_ms=attempt.latency_ms,
+                    run_id=attempt.agent_run_id,
+                )
         if score.run_id is None:
             raise BadRequestError(
                 message="This score names no run, so its answer cannot be graded again",
@@ -907,7 +935,8 @@ class ScoringService:
         """Record a person's verdict on a score, or withdraw it. Needs `datasets:edit`.
 
         Only the verdict's own columns change: the scorers' results, the judge's
-        grades among them, stay as they were written.
+        grades among them, stay as they were written. A score of an eval run drops
+        the run's kept verdict, given or withdrawn, so it is compared afresh.
         """
         score = await self._score(ctx, dataset_id, score_id)
         decided = data.passed is not None
@@ -922,6 +951,10 @@ class ScoringService:
                 "review_state": "done" if decided else "pending",
             },
         )
+        if score.eval_run_id is not None:
+            await eval_run_repo.forget_outcomes(
+                self.db, [score.eval_run_id], organization_id=ctx.organization_id
+            )
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,

@@ -594,6 +594,36 @@ async def newest_version(
     return result.scalar_one_or_none()
 
 
+async def get_version_by_number(
+    db: AsyncSession, *, agent_id: UUID, number: int, organization_id: UUID
+) -> AgentVersion | None:
+    result = await db.execute(
+        select(AgentVersion).where(
+            AgentVersion.agent_id == agent_id,
+            AgentVersion.version == number,
+            AgentVersion.organization_id == organization_id,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def version_before(
+    db: AsyncSession, *, agent_id: UUID, number: int, organization_id: UUID
+) -> AgentVersion | None:
+    """The highest-numbered version below `number` - what a version is measured against."""
+    result = await db.execute(
+        select(AgentVersion)
+        .where(
+            AgentVersion.agent_id == agent_id,
+            AgentVersion.version < number,
+            AgentVersion.organization_id == organization_id,
+        )
+        .order_by(AgentVersion.version.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 async def count_for_organization(db: AsyncSession, *, organization_id: UUID) -> int:
     """How many agents this organization holds, archived ones excluded.
 

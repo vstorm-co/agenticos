@@ -28,6 +28,7 @@ from prefect.client.schemas.schedules import IntervalSchedule
 from app.core.config import settings
 from app.core.logging import setup_logging
 from app.worker.tasks.approval_tasks import approval_expiry_sweep_flow
+from app.worker.tasks.eval_tasks import run_eval_flow
 from app.worker.tasks.invitation_tasks import invitation_expiry_sweep_flow
 from app.worker.tasks.mcp_tasks import mcp_connection_sweep_flow
 from app.worker.tasks.notification_tasks import (
@@ -98,6 +99,8 @@ async def main() -> None:
     deployments.append(
         await run_scheduled_trigger_flow.ato_deployment(name="run-scheduled-trigger")
     )
+    # On-demand: one eval run per flow run, submitted when a person starts one.
+    deployments.append(await run_eval_flow.ato_deployment(name="run-eval"))
     # On-demand: the external cleanup a committed delete leaves - a purged org's
     # tables and files (#1274), a dropped RAG collection's (#1349) - submitted after
     # the delete commits so it survives the request process dying mid-cleanup. The

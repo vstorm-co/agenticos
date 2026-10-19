@@ -38,6 +38,8 @@ from app.core.vault import VaultScope
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.credential import ModelProfile
+from app.db.models.dataset import DatasetVersion
+from app.db.models.eval_run import EvalRun
 from app.db.models.intercepted_tool_call import (
     InterceptedToolCall,
     InterceptionOutcome,
@@ -302,6 +304,29 @@ async def _dataset(
 
 def _rubric(**overrides) -> DatasetScoring:
     return DatasetScoring(judge=JudgeScorer(enabled=True, criteria=RUBRIC), **overrides)
+
+
+async def _eval_run(db, tenant: Tenant, dataset, run: AgentRun) -> uuid.UUID:
+    """An eval run's row, for a score to belong to."""
+    version = await db.scalar(
+        select(DatasetVersion)
+        .where(DatasetVersion.dataset_id == dataset.id)
+        .order_by(DatasetVersion.number.desc())
+    )
+    eval_run = EvalRun(
+        organization_id=tenant.organization.id,
+        agent_id=run.agent_id,
+        dataset_id=dataset.id,
+        dataset_version_id=version.id,
+        status="completed",
+        purpose="manual",
+        scoring={},
+        scoring_hash="",
+        estimate_usd=Decimal(0),
+    )
+    db.add(eval_run)
+    await db.flush()
+    return eval_run.id
 
 
 async def _score_for_an_eval(db, tenant: Tenant, dataset, case, run: AgentRun, eval_run_id):
@@ -1230,7 +1255,8 @@ class TestGradingAgain:
         dataset, case = await _dataset(db, tenant, scoring=_rubric())
         run = await _scored_run(db, tenant)
         scoring = ScoringService(db)
-        failed = await _score_for_an_eval(db, tenant, dataset, case, run, uuid.uuid4())
+        eval_run_id = await _eval_run(db, tenant, dataset, run)
+        failed = await _score_for_an_eval(db, tenant, dataset, case, run, eval_run_id)
         assert failed.judge is not None
         assert failed.judge["prompt_version"] == JUDGE_PROMPT_VERSION
         before = len(await _eval_runs(db, tenant))
@@ -1263,7 +1289,9 @@ class TestGradingAgain:
         await _model(db, tenant)
         dataset, case = await _dataset(db, tenant, scoring=_rubric())
         run = await _scored_run(db, tenant)
-        failed = await _score_for_an_eval(db, tenant, dataset, case, run, uuid.uuid4())
+        failed = await _score_for_an_eval(
+            db, tenant, dataset, case, run, await _eval_run(db, tenant, dataset, run)
+        )
         kept = await case_score_repo.update(db, score=failed, update_data={"judge": None})
         results, before = kept.results, len(await _eval_runs(db, tenant))
 
@@ -1299,7 +1327,7 @@ class TestGradingAgain:
         await _model(db, tenant)
         dataset, case = await _dataset(db, tenant, scoring=_rubric())
         run = await _scored_run(db, tenant)
-        eval_run_id = uuid.uuid4()
+        eval_run_id = await _eval_run(db, tenant, dataset, run)
         failed = await _score_for_an_eval(db, tenant, dataset, case, run, eval_run_id)
 
         result = await ScoringService(db).rescore(
@@ -1446,7 +1474,7 @@ class TestVerdicts:
             db, tenant, scoring=DatasetScoring(review=ReviewScorer(select="all"))
         )
         run = await _scored_run(db, tenant)
-        eval_run_id = uuid.uuid4()
+        eval_run_id = await _eval_run(db, tenant, dataset, run)
         service = ScoringService(db)
         score = await _score_for_an_eval(db, tenant, dataset, case, run, eval_run_id)
         assert (score.review_state, score.eval_run_id) == ("none", eval_run_id)
@@ -1468,7 +1496,7 @@ class TestVerdicts:
         dataset, case = await _dataset(db, tenant, scoring=DatasetScoring())
         other, other_case = await _dataset(db, tenant, scoring=DatasetScoring())
         run = await _scored_run(db, tenant)
-        eval_run_id = uuid.uuid4()
+        eval_run_id = await _eval_run(db, tenant, dataset, run)
         service = ScoringService(db)
         first = await _score_for_an_eval(db, tenant, dataset, case, run, eval_run_id)
         second = await _score_for_an_eval(db, tenant, dataset, case, run, eval_run_id)
@@ -1495,9 +1523,15 @@ class TestVerdicts:
         dataset, case = await _dataset(db, tenant, scoring=DatasetScoring())
         run = await _scored_run(db, tenant)
         service = ScoringService(db)
-        decided = await _score_for_an_eval(db, tenant, dataset, case, run, uuid.uuid4())
-        waiting = await _score_for_an_eval(db, tenant, dataset, case, run, uuid.uuid4())
-        newer = await _score_for_an_eval(db, tenant, dataset, case, run, uuid.uuid4())
+        decided = await _score_for_an_eval(
+            db, tenant, dataset, case, run, await _eval_run(db, tenant, dataset, run)
+        )
+        waiting = await _score_for_an_eval(
+            db, tenant, dataset, case, run, await _eval_run(db, tenant, dataset, run)
+        )
+        newer = await _score_for_an_eval(
+            db, tenant, dataset, case, run, await _eval_run(db, tenant, dataset, run)
+        )
         now = datetime.now(UTC)
         for score, age in ((decided, 3), (waiting, 2)):
             await case_score_repo.update(
@@ -1529,16 +1563,22 @@ class TestVerdicts:
         dataset, case = await _dataset(db, tenant, scoring=DatasetScoring())
         run = await _scored_run(db, tenant)
         service = ScoringService(db)
-        regression = await _score_for_an_eval(db, tenant, dataset, case, run, uuid.uuid4())
+        regression = await _score_for_an_eval(
+            db, tenant, dataset, case, run, await _eval_run(db, tenant, dataset, run)
+        )
         await case_score_repo.update(
             db,
             score=regression,
             update_data={"passed": False, "created_at": datetime.now(UTC) - timedelta(days=1)},
         )
         await service.route_to_review(tenant.ctx, dataset_id=dataset.id, score_ids=[regression.id])
-        ungraded = await _score_for_an_eval(db, tenant, dataset, case, run, uuid.uuid4())
+        ungraded = await _score_for_an_eval(
+            db, tenant, dataset, case, run, await _eval_run(db, tenant, dataset, run)
+        )
         await case_score_repo.update(db, score=ungraded, update_data={"passed": None})
-        older_error = await _score_for_an_eval(db, tenant, dataset, case, run, uuid.uuid4())
+        older_error = await _score_for_an_eval(
+            db, tenant, dataset, case, run, await _eval_run(db, tenant, dataset, run)
+        )
         await case_score_repo.update(
             db,
             score=older_error,
@@ -1562,11 +1602,17 @@ class TestVerdicts:
         dataset, case = await _dataset(db, tenant, scoring=DatasetScoring())
         run = await _scored_run(db, tenant)
         service = ScoringService(db)
-        error = await _score_for_an_eval(db, tenant, dataset, case, run, uuid.uuid4())
+        error = await _score_for_an_eval(
+            db, tenant, dataset, case, run, await _eval_run(db, tenant, dataset, run)
+        )
         await case_score_repo.update(db, score=error, update_data={"passed": None})
         await service.route_to_review(tenant.ctx, dataset_id=dataset.id, score_ids=[error.id])
-        regression = await _score_for_an_eval(db, tenant, dataset, case, run, uuid.uuid4())
-        another_error = await _score_for_an_eval(db, tenant, dataset, case, run, uuid.uuid4())
+        regression = await _score_for_an_eval(
+            db, tenant, dataset, case, run, await _eval_run(db, tenant, dataset, run)
+        )
+        another_error = await _score_for_an_eval(
+            db, tenant, dataset, case, run, await _eval_run(db, tenant, dataset, run)
+        )
         await case_score_repo.update(db, score=regression, update_data={"passed": False})
         await case_score_repo.update(db, score=another_error, update_data={"passed": None})
 
@@ -1586,8 +1632,10 @@ class TestVerdicts:
         tenant = await _tenant(db)
         dataset, case = await _dataset(db, tenant, scoring=DatasetScoring())
         run = await _scored_run(db, tenant)
-        older = await _score_for_an_eval(db, tenant, dataset, case, run, uuid.uuid4())
-        newer = await _score_for_an_eval(db, tenant, dataset, case, run, uuid.uuid4())
+        older_run = await _eval_run(db, tenant, dataset, run)
+        newer_run = await _eval_run(db, tenant, dataset, run)
+        older = await _score_for_an_eval(db, tenant, dataset, case, run, older_run)
+        newer = await _score_for_an_eval(db, tenant, dataset, case, run, newer_run)
         await case_score_repo.update(
             db, score=older, update_data={"created_at": datetime.now(UTC) - timedelta(days=1)}
         )
@@ -1780,7 +1828,7 @@ class TestVerdicts:
         )
         mine = await _scored_run(db, tenant)
         other = await _scored_run(db, tenant)
-        eval_run_id = uuid.uuid4()
+        eval_run_id = await _eval_run(db, tenant, dataset, mine)
         service = ScoringService(db)
         failed = await _score_for_an_eval(db, tenant, dataset, case, mine, eval_run_id)
         overruled = await _score_for_an_eval(db, tenant, dataset, case, other, None)
