@@ -86,7 +86,6 @@ class KnowledgeSearch(Base):
     )
     query: Mapped[str] = mapped_column(Text, nullable=False)
     result_count: Mapped[int] = mapped_column(Integer, nullable=False)
-    # `None` when nothing came back.
     top_similarity: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -134,7 +133,7 @@ class KnowledgeGapTopic(Base):
         index=True,
     )
     # The mean of the members' embeddings. Only comparable with vectors of
-    # `embedding_model`: a collection moved to another model starts new topics.
+    # `embedding_model`: a knowledge base moved to another model starts new topics.
     centroid: Mapped[list[float]] = mapped_column(JSONB, nullable=False)
     embedding_model: Mapped[str] = mapped_column(String(128), nullable=False)
     status: Mapped[str] = mapped_column(
@@ -146,14 +145,13 @@ class KnowledgeGapTopic(Base):
         nullable=True,
     )
     dismissed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    # Never added to a collection by the platform; a person checks it and adds a document.
+    # Never added to a knowledge base by the platform; a person checks it and adds a document.
     draft_title: Mapped[str | None] = mapped_column(Text, nullable=True)
     draft_content: Mapped[str | None] = mapped_column(Text, nullable=True)
     # `{"kind": "document" | "question", "id": ...}`, each verified when it was recorded.
     draft_sources: Mapped[list[dict[str, str]]] = mapped_column(
         JSONB, nullable=False, default=list, server_default="[]"
     )
-    # Sources the draft named that could not be verified, and were left out.
     draft_unverified: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
     )

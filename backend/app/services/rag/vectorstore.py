@@ -619,9 +619,8 @@ class PgVectorStore(BaseVectorStore):
         resolved = await self._resolver(name, organization_id)
         if resolved is None:
             return self.embedder, self.dim
-        # The provider is in the cache key beside the model and the key, because
-        # moving a collection to another provider must not be answered by a
-        # client already built for the old one.
+        # A collection moved to another provider must not be answered by a client
+        # built for the old one, so the provider is part of the key.
         cache_key = (name, resolved.model, resolved.api_key, resolved.base_url)
         service = self._services.get(cache_key)
         if service is None:
