@@ -13,10 +13,6 @@ Setup:
 import logging
 from pathlib import Path
 
-from google.oauth2.service_account import Credentials
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload
-
 from app.core.config import settings
 from app.services.rag.filters import Source
 from app.services.rag.remote_names import checked_drive_folder_id, destination_within
@@ -55,6 +51,9 @@ class GoogleDriveSource(BaseDocumentSource):
                 f"Google Drive credentials file not found: {creds_file}. "
                 "Set GOOGLE_DRIVE_CREDENTIALS_FILE to the path of your service account JSON key."
             )
+        from google.oauth2.service_account import Credentials
+        from googleapiclient.discovery import build
+
         creds = Credentials.from_service_account_file(creds_file, scopes=SCOPES)
         self.service = build("drive", "v3", credentials=creds)
 
@@ -150,6 +149,8 @@ class GoogleDriveSource(BaseDocumentSource):
             request = self.service.files().get_media(fileId=file_id)
 
         dest_path = destination_within(dest_dir, name)
+        from googleapiclient.http import MediaIoBaseDownload
+
         with open(dest_path, "wb") as f:
             downloader = MediaIoBaseDownload(f, request)
             done = False

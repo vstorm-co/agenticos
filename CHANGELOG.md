@@ -57,6 +57,12 @@ Two things are versioned separately from this file and worth knowing about:
   it: `inspect.signature` on all 524 endpoints. That was the largest single
   cost of serving a request on prod. The flattened list is now built once per
   process. Locally it goes from 0.40 ms to 0.18 ms per request (#2226).
+- **Every API worker and flow run starts lighter.** The SDKs that only one
+  optional capability or connector calls are now imported where they are used:
+  mem0 (with qdrant-client and numpy), PyMuPDF, python-docx, boto3 and the
+  Google API client. Measured on a laptop, `import app.main` goes from 4.19 s to
+  3.62 s and from 382 MB to 298 MB. A test keeps them out of the startup import
+  (#2225).
 
 ## [1.6.3] - 2026-10-18
 
