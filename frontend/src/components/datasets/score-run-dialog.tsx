@@ -123,7 +123,9 @@ function normal(text: string): string {
 
 /** The run's own question and answer, the last of each it recorded. */
 function useRunTurn(runId: string) {
-  const { transcript } = useRunTranscript(runId, "run");
+  // The newest page: the run's own question is its last, and a run past a
+  // hundred turns would otherwise be matched on an earlier one.
+  const { transcript } = useRunTranscript(runId, "run", { tail: true });
   const items = transcript?.items ?? [];
   const asked = items.findLast((item) => item.role === "user");
   const question = asked === undefined ? null : normal(asked.content);
