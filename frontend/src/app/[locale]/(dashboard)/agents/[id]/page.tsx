@@ -360,7 +360,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const tab = tabParam !== null && tabs.includes(tabParam) ? tabParam : "build";
   // Testing the draft runs it - the editors' work in progress - on a dataset.
   const canTestDraft =
-    !isJudge && canViewRuns && canEdit && !!agent?.can_run && can(Perm.datasetsRun);
+    !isJudge && canViewRuns && agent?.can_edit === true && !!agent.can_run && can(Perm.datasetsRun);
   const [testingDraft, setTestingDraft] = useState(false);
   useTestShortcut(canEdit && !isJudge, () => toggleTesting(!testing));
 

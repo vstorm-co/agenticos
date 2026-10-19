@@ -27,7 +27,9 @@ vi.mock("next/navigation", () => ({
 }));
 
 const review = vi.hoisted(() => ({ canEdit: false, mutate: vi.fn(), rescore: vi.fn() }));
-const loaded = vi.hoisted(() => ({ agent: { can_run: true } as { can_run: boolean } | undefined }));
+const loaded = vi.hoisted(() => ({
+  agent: { can_run: true, can_edit: true } as { can_run: boolean; can_edit: boolean } | undefined,
+}));
 vi.mock("@/hooks/use-agents", () => ({ useAgent: () => ({ agent: loaded.agent }) }));
 
 vi.mock("@/hooks/use-datasets", () => ({
@@ -110,7 +112,7 @@ beforeEach(() => {
   review.canEdit = false;
   review.mutate = vi.fn();
   review.rescore = vi.fn();
-  loaded.agent = { can_run: true };
+  loaded.agent = { can_run: true, can_edit: true };
   navigation.params = new URLSearchParams();
   access.allowed = new Set();
   useAuthStore.setState({ user: null });
@@ -648,7 +650,7 @@ describe("EvalRunView", () => {
     expect(screen.queryByRole("button", { name: "Test again" })).toBeNull();
     again.unmount();
 
-    loaded.agent = { can_run: true };
+    loaded.agent = { can_run: true, can_edit: true };
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.queryByRole("link", { name: "Publish" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Test again" }));
@@ -661,6 +663,13 @@ describe("EvalRunView", () => {
 
   it("offers no publish to who may not publish", () => {
     worseDraft();
+    const { unmount } = render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.queryByRole("link", { name: "Publish" })).toBeNull();
+    unmount();
+
+    // A role that publishes, on an agent this caller may not edit.
+    access.allowed = new Set([Perm.agentsPublish]);
+    loaded.agent = { can_run: true, can_edit: false };
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.queryByRole("link", { name: "Publish" })).toBeNull();
   });
@@ -734,12 +743,14 @@ describe("EvalRunView", () => {
     expect(state.comparisonArgs.at(-1)).toEqual(["run-1", { arm: "arm-1", live: true }]);
     cleanup();
 
-    // Somebody else may not, unless they may edit the agent.
+    // Somebody else may not, unless they may edit this agent - whatever the role.
     useAuthStore.setState({ user: { id: "u2" } as User });
+    access.allowed = new Set([Perm.agentsEdit]);
+    loaded.agent = { can_run: true, can_edit: false };
     const other = render(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
     other.unmount();
-    access.allowed = new Set([Perm.agentsEdit]);
+    loaded.agent = { can_run: true, can_edit: true };
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getByRole("button", { name: "Stop" })).toBeVisible();
   });

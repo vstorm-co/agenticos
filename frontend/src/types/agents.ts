@@ -381,6 +381,13 @@ export interface Agent {
    * backend re-checks on every create, so it is not a security boundary.
    */
   can_run: boolean;
+  /**
+   * Whether the current caller may edit this agent - resolved per caller like
+   * `can_run`, so an edit grant on one agent reads true where the role check
+   * would not. What eval controls (testing the draft, stopping a run, publishing
+   * from one) read; the backend re-checks every edit.
+   */
+  can_edit?: boolean;
   /** How many members hold an explicit grant. Filled by the listing only. */
   shared_user_count?: number;
   /** Surfaces with an active binding ("slack", "telegram", ...). Listing only. */

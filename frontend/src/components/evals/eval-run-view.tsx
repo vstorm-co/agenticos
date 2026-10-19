@@ -41,7 +41,7 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
   const { agent } = useAgent(agentId);
   const me = useAuthStore((state) => state.user?.id);
   // Testing the draft again starts a run of it, which these three decide.
-  const canTestAgain = agent?.can_run === true && can(Perm.datasetsRun) && can(Perm.agentsEdit);
+  const canTestAgain = agent?.can_run === true && agent.can_edit === true && can(Perm.datasetsRun);
   const candidates = run?.arms.filter((arm) => arm.role === "candidate") ?? [];
   const [arm, setArm] = useState<string | null>(null);
   const [tag, setTag] = useState<string | null>(null);
@@ -105,10 +105,11 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
         agentId={agentId}
         run={run}
         candidate={candidate}
+        canPublish={can(Perm.agentsPublish) && agent?.can_edit === true}
         comparison={live ? undefined : comparison}
         onCancel={
           // Who started the run may stop it, and so may an editor of the agent.
-          live && (run.created_by_user_id === me || can(Perm.agentsEdit))
+          live && (run.created_by_user_id === me || agent?.can_edit === true)
             ? () =>
                 cancel.mutate(undefined, {
                   onError: (failure) => toast.error(getErrorMessage(failure, tErrors)),

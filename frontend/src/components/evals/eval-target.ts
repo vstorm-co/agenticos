@@ -4,9 +4,7 @@ import { useMemo } from "react";
 
 import { specText } from "@/components/agents/version-history";
 import { useAgent, useAgentVersion } from "@/hooks";
-import { usePermissions } from "@/hooks/use-permissions";
 import type { EvalRunRequest } from "@/types/eval-runs";
-import { Perm } from "@/types/permissions";
 
 /**
  * What a run tests: the draft against what is live, what is live alone, or the
@@ -31,8 +29,7 @@ export const TARGET_REQUEST: Record<
 export function useEvalTarget(agentId: string | null) {
   const { agent } = useAgent(agentId);
   const { version } = useAgentVersion(agentId, agent?.current_version_id ?? null);
-  const { can } = usePermissions();
-  const canRunDraft = can(Perm.agentsEdit);
+  const canRunDraft = agent?.can_edit === true;
   const draftDiffers = useMemo(
     () => (agent && version ? specText(agent.draft_spec) !== specText(version.spec) : false),
     [agent, version],

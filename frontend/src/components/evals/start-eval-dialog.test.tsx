@@ -57,13 +57,19 @@ const agentList = vi.hoisted(() => ({ items: [] as unknown[] }));
 const agentState = vi.hoisted(() => ({
   currentVersionId: "v7" as string | null,
   liveSpec: {} as Record<string, unknown>,
+  canEdit: true,
 }));
 vi.mock("@/hooks", () => ({
   useAgent: (id: string | null) => ({
     agent:
       id === null
         ? undefined
-        : { id, current_version_id: agentState.currentVersionId, draft_spec: DRAFT },
+        : {
+            id,
+            current_version_id: agentState.currentVersionId,
+            draft_spec: DRAFT,
+            can_edit: agentState.canEdit,
+          },
   }),
   useAgentVersion: (_: string | null, versionId: string | null) => ({
     version: versionId === null ? undefined : { version: 7, spec: agentState.liveSpec },
@@ -140,6 +146,7 @@ beforeEach(() => {
   access.allowed = new Set([Perm.agentsEdit]);
   access.org = "org-1";
   agentState.currentVersionId = "v7";
+  agentState.canEdit = true;
   agentState.liveSpec = { instructions: "Answer refunds." };
   datasets.items = [REFUNDS, { id: "ds-2", name: "empty", case_count: 0, latest_version: 0 }];
   hooks.runs = [];
@@ -219,14 +226,15 @@ describe("StartEvalDialog", () => {
   });
 
   it("offers only what is live to a caller who may not edit the draft", () => {
-    access.allowed = new Set();
+    // The role may edit agents, but not this one: the agent's own answer decides.
+    agentState.canEdit = false;
     open();
     expect(screen.getAllByRole("radio")).toHaveLength(1);
     expect(screen.getByRole("radio", { name: /v7 alone/ })).toBeChecked();
   });
 
   it("says when there is nothing the caller may test, and prices nothing", async () => {
-    access.allowed = new Set();
+    agentState.canEdit = false;
     agentState.currentVersionId = null;
     open();
 

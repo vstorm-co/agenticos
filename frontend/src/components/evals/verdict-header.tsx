@@ -5,11 +5,9 @@ import { GitCompare, ListFilter, RotateCcw, Square } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Button, Card, CardContent, Progress } from "@/components/ui";
-import { usePermissions } from "@/hooks/use-permissions";
 import { ROUTES } from "@/lib/constants";
 import { formatDateTime } from "@/lib/utils";
 import type { EvalComparison, EvalRun, EvalRunArm } from "@/types/eval-runs";
-import { Perm } from "@/types/permissions";
 import { EvalStatusBadge } from "./eval-status-badge";
 import { usd } from "./format";
 import { sideName } from "./names";
@@ -27,6 +25,7 @@ export function VerdictHeader({
   agentId,
   run,
   candidate,
+  canPublish,
   comparison,
   onCancel,
   onShowBroken,
@@ -37,6 +36,8 @@ export function VerdictHeader({
   run: EvalRun;
   /** The candidate the verdict is about - the first, or the model picked. */
   candidate: EvalRunArm | undefined;
+  /** Whether the caller may publish this agent - the role's publish and an edit on it. */
+  canPublish: boolean;
   comparison: EvalComparison | undefined;
   onCancel?: () => void;
   onShowBroken: () => void;
@@ -48,7 +49,6 @@ export function VerdictHeader({
   const t = useTranslations("evals");
   const tc = useTranslations("common");
   const locale = useLocale();
-  const { can } = usePermissions();
   const live = run.status === "queued" || run.status === "running";
   const reruns = run.attempts_total - run.first_total;
   const confirming = run.first_total > 0 && run.first_done === run.first_total && reruns > 0;
@@ -173,7 +173,7 @@ export function VerdictHeader({
                 )}
               </span>
             )}
-            {candidate.source === "draft" && !run.draft_changed && can(Perm.agentsPublish) && (
+            {candidate.source === "draft" && !run.draft_changed && canPublish && (
               <Button
                 size="sm"
                 variant={
