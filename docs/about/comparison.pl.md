@@ -1,5 +1,5 @@
 ---
-source_sha: "d500d9ea435c"
+source_sha: "91d430ebf0bb"
 title: "Porównaj AgenticOS"
 seo_title: "Porównania AgenticOS: suwerenna warstwa agentów AI"
 description: "Porównaj AgenticOS, suwerenną warstwę agentów AI open source, z Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n i agentami do kodowania."
@@ -29,7 +29,7 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 25 września 2026. Wersja baz
 
 | Produkt | Czym jest | Gdzie działa | Źródła | Modele |
 | --- | --- | --- | --- | --- |
-| **AgenticOS** | Suwerenna warstwa dla agentów firmy, budowanych w przeglądarce | Twoja infrastruktura | Apache-2.0 | 27 providerów, w tym lokalni |
+| **AgenticOS** | Suwerenna warstwa dla agentów firmy, budowanych w przeglądarce | Twoja infrastruktura | Apache-2.0 | 28 providerów, w tym lokalni |
 | Claude Team / Enterprise | Przestrzeń robocza asystenta od Anthropic | Chmura Anthropic | Własnościowa | Tylko Claude |
 | ChatGPT Business / Enterprise | Przestrzeń robocza asystenta od OpenAI, z agentami workspace'u | Chmura OpenAI | Własnościowa | Tylko OpenAI |
 | Copilot Studio | Builder agentów low-code na Power Platform | Chmura Microsoftu | Własnościowa | Modele OpenAI i Anthropic, a także Azure Foundry |
@@ -56,7 +56,7 @@ Suwerenność oznacza tu cztery rzeczy, o których decydujesz: gdzie produkt dzi
 
 | Produkt | Gdzie działa | Jakich modeli możesz używać | Na co pozwala licencja | Logowanie, audyt i kontrola wydatków |
 | --- | --- | --- | --- | --- |
-| **AgenticOS** | Twoja infrastruktura; świeża instalacja niczego nigdzie nie wysyła | Dowolny z 27 providerów albo wyłącznie modele lokalne | Apache-2.0: możesz go czytać, zmieniać, oznaczyć własną marką i uruchamiać dla innych; domyślny parser PDF jest na AGPL-3.0, więc zmodyfikowany obraz udostępniany innym musi udostępnić im swoje źródła ([szczegóły](../licenses.md#the-agpl-component)) | Logowanie: OIDC SSO, LDAP i Kerberos · Audyt: log wykrywający manipulacje · Wydatki: budżety per agent i per organizacja · wszystko w każdym wdrożeniu |
+| **AgenticOS** | Twoja infrastruktura; świeża instalacja niczego nigdzie nie wysyła | Dowolny z 28 providerów albo wyłącznie modele lokalne | Apache-2.0: możesz go czytać, zmieniać, oznaczyć własną marką i uruchamiać dla innych; domyślny parser PDF jest na AGPL-3.0, więc zmodyfikowany obraz udostępniany innym musi udostępnić im swoje źródła ([szczegóły](../licenses.md#the-agpl-component)) | Logowanie: OIDC SSO, LDAP i Kerberos · Audyt: log wykrywający manipulacje · Wydatki: budżety per agent i per organizacja · wszystko w każdym wdrożeniu |
 | Claude Team / Enterprise | Chmura Anthropic | Tylko Claude | Własnościowa | Logowanie: SSO w Team i Enterprise · Audyt: Enterprise, 180 dni zdarzeń · Wydatki: limity organizacji, grupy i użytkownika |
 | ChatGPT Business / Enterprise | Chmura OpenAI; w Enterprise lokalizacja przechowywania danych w dziesięciu regionach | Tylko OpenAI | Własnościowa | Logowanie: SSO w Business; SCIM i własne role w Enterprise · Audyt: Compliance API w Enterprise i Edu · Wydatki: pule kredytów i limity przekroczeń |
 | Copilot Studio | Chmura Microsoft, w środowiskach Power Platform | Domyślnie modele GPT, modele Claude, modele Azure Foundry rozliczane osobno | Własnościowa | Logowanie: Entra ID · Audyt: Purview · Wydatki: miesięczne limity per agent |
@@ -81,7 +81,7 @@ Samodzielne uruchomienie AgenticOS nie sprawia, że każdy model, parser i narz�
 Te punkty powtarzają się w każdym poradniku, więc podajemy je raz, tutaj.
 
 - **Wdrożenie należy do Ciebie.** Działa na twoim sprzęcie z twoim własnym Postgresem i magazynem danych, a świeża instalacja niczego nigdzie nie wysyła. Możliwa jest w pełni lokalna konfiguracja, z lokalnymi modelami czatu, lokalnymi embeddingami i lokalnym parsowaniem. Zobacz [domyślnie nic nie wychodzi](../data-protection.md#nothing-leaves-by-default).
-- **Dowolny model, przełączany w jednym miejscu.** [27 providerów](../models.md#providers) stoi za [profilem modelu](../models.md#a-model-profile) z [fallbackami](../models.md#fallbacks). Zmień profil, a każdy agent, który go używa, przejdzie na nowy model bez ponownej publikacji.
+- **Dowolny model, przełączany w jednym miejscu.** [28 providerów](../models.md#providers) stoi za [profilem modelu](../models.md#a-model-profile) z [fallbackami](../models.md#fallbacks). Zmień profil, a każdy agent, który go używa, przejdzie na nowy model bez ponownej publikacji.
 - **Agent to wersjonowany dokument.** Publikacja zamraża [wersję](../concepts.md#version), [środowiska](../environments.md#what-an-environment-is) wskazują na wersje, a spec [eksportuje się jako YAML](../features.md#exportable-into-your-own-repository) do twojego własnego repozytorium git.
 - **Nadzór jest w produkcie open source.** [Budżety](../governance.md#enforcement-is-before-the-request) są sprawdzane przed każdym żądaniem do modelu. [Zatwierdzenia](../governance.md#approvals) wstrzymują run, dopóki ktoś nie zdecyduje. [Log audytowy](../governance.md#audit) wykrywa manipulacje. Nic z tego nie czeka na plan enterprise.
 - **Wiele zespołów, jedno wdrożenie.** Organizacje są tenantami, odizolowanymi w schemacie. [Model uprawnień](../permissions.md#the-built-in-roles) ma sześć ról i granty per zasób. [Logowanie jednokrotne OIDC, LDAP i Kerberos](../directory.md#signing-in-with-a-directory-account) mapują grupy z katalogu na role.
@@ -122,7 +122,7 @@ Tak. AgenticOS jest na licencji Apache-2.0 i działa na twojej własnej infrastr
 
 ### Czy AgenticOS to samodzielnie hostowana alternatywa dla ChatGPT Enterprise lub Claude Enterprise? { #is-agenticos-a-self-hosted-alternative-to-chatgpt-enterprise-or-claude-enterprise }
 
-Dla agentów, których właścicielem jest twoja organizacja, tak. Uruchamia agentów na dowolnym z 27 providerów modeli, w tym OpenAI i Anthropic, z budżetami, zatwierdzeniami i logami audytowymi w każdym wdrożeniu. Nie jest osobistym asystentem dla każdego pracownika; zobacz poradniki [ChatGPT](chatgpt.md) i [Claude](claude-apps.md).
+Dla agentów, których właścicielem jest twoja organizacja, tak. Uruchamia agentów na dowolnym z 28 providerów modeli, w tym OpenAI i Anthropic, z budżetami, zatwierdzeniami i logami audytowymi w każdym wdrożeniu. Nie jest osobistym asystentem dla każdego pracownika; zobacz poradniki [ChatGPT](chatgpt.md) i [Claude](claude-apps.md).
 
 ### Ile kosztuje AgenticOS? { #how-much-does-agenticos-cost }
 

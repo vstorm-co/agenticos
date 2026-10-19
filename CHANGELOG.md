@@ -17,28 +17,301 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.6.3] - 2026-10-18
+
+### Fixed
+
+- **Scheduled triggers, portal polling, notification emails and the sync check
+  no longer cost a process a minute.** Each was a Prefect deployment ticking
+  every 60 seconds, and every tick was a new Python process importing the whole
+  application. On a busy host that took longer than the minute between ticks:
+  runs piled up, and the server spent its CPU on imports. They now run as
+  sweeps inside the worker's own process, one tick at a time each, staggered
+  across the minute. The sync check still starts the syncs as a Prefect run,
+  and only when a source is due. The `scheduler` health check (`doctor`,
+  `/admin/system`) reads the sweeps' heartbeat from Redis and, separately,
+  whether Prefect still completes `mcp-connection-sweep` (#2213).
+
+## [1.6.2] - 2026-10-18
+
+### Changed
+
+- **The README, the decks and the banner show what shipped in October**, on the
+  landing page's photographs: a project chat several people share, a reply the
+  agent applies, Codex building a page, a drawing and research finished in the
+  background. The introduction deck has 17 slides and the product tour 47. The
+  README, its figures and the docs count 29 built-in capabilities and 28 model
+  providers. `docs/assets/readme/frames.mjs` sets a screenshot on a photograph.
+
+## [1.6.1] - 2026-10-18
+
+### Fixed
+
+- **Work while tools run has its picture.** The capability showed a lone initial
+  among the Toolbox's dioramas; it now has its scene - a tool still busy at the
+  back while the agent gets on with its list - and a test fails when a
+  capability is registered without one.
+
+## [1.6.0] - 2026-10-18
+
 ### Added
 
-- **Environments can run on test connections.** A named environment can answer
-  an organization MCP connection or a capability's vault key with a test one -
-  a sandbox CRM, a test mailbox - so a staging bot, an API call naming the
-  environment and every delegate those runs call reach the test system. MCP
-  tools keep the production connection's names. A test side that is deleted or
-  disabled switches the binding off; production is never the fallback, and the
-  default environment carries no overrides. Managed in the Builder's history
-  tab, next to each named environment.
-- **Isolated runs, for evals.** A run started isolated executes only tools that
-  read - capability tools declared `read_only` in the registry, and MCP tools
-  marked `readOnlyHint` on a connection set to trust that mark (off by default,
-  audited when changed) - and calls that reach a test MCP connection. A swapped
-  vault key lets a capability write only where it declares `test_key_isolates`,
-  which none does yet. A tool that writes otherwise is not executed; the call
-  and its arguments, as the model sent them, are kept in the new
-  `intercepted_tool_calls` table, as is a call the agent gates behind an
-  approval, which an isolated run cannot ask for. An isolated run can also be
-  answered from the calls an earlier run's transcript kept, matched by tool,
-  arguments and order; a run whose transcript lost a call is not replayed at
-  all. Eval runs will start them; nothing in the product does yet.
+- **Models on a ChatGPT subscription.** The `openai_codex` provider runs OpenAI
+  models through the Codex backend on a person's own ChatGPT plan instead of a
+  metered API key. **Sign in with ChatGPT** - in the vault, when adding a model
+  and in the chat's model picker - stores a private `openai_codex` secret whose
+  tokens the vault keeps current as they rotate; **Reconnect** renews one. A
+  run reaches a sign-in only for the person asking who may see it in the vault:
+  never for a visitor, an API key's holder, background work or an approver
+  resuming somebody else's run. See
+  [Running on a ChatGPT subscription](docs/models.md#running-on-a-chatgpt-subscription).
+- **Several people in one chat with the agent.** A conversation's open sockets
+  share a room: a bar over the transcript shows who else has the chat open, with
+  Invite for its owner, and a turn somebody asks is followed live by everybody
+  else in it, question first. While somebody writes, the others see "Anna is
+  typing" over the composer. **Reply** on any message quotes it; the reply
+  carries the quote to the transcript and to the model, which in a project's chat
+  also reads each person's turn under their name. A message's `reply_to` and the
+  `reply_to_message_id` it is sent with are the API's half.
+- **A project's chats are its members'.** Whoever may see a project reads every
+  chat in it, and whoever may work in it continues a teammate's chat; each turn
+  carries the name and face of whoever typed it. The project's **Chats** tab
+  lists everybody's chats, each saying whose it is, who is at work in it now
+  and who has had it open, and the project's chat count is everybody's.
+  Renaming, archiving and deleting stay with whoever started the chat.
+  `GET /api/v1/projects/{id}/chats` lists them; a message's `sender` names who
+  typed a user turn.
+  Access to a project's chat follows the project alone - its starter loses it
+  with the project - and deleting the starter's account keeps the chat for the
+  team, unowned.
+- **Agents served over A2A** (#2092). An agent its organization switches on under
+  **Availability → Agent2Agent (A2A)** has an agent card at
+  `/api/v1/a2a/{id}/.well-known/agent-card.json` and takes `message/send` and
+  `tasks/get` at `POST /api/v1/a2a/{id}`, with an organization key or an OAuth
+  token. Every task is an ordinary run on the new `a2a` surface, so budgets,
+  approvals, audit and Activity apply.
+- **Remote agents to delegate to** (#2092). Another vendor's A2A agent is
+  registered under **Connections → Remote agents** by its agent card, with an
+  optional vault key, and picked in an agent's delegation settings beside the
+  organization's own agents (`external_agents` in the spec). Every call is
+  budget-checked and booked to the run as unpriced.
+- **Coding agent capability** (#2092). `coding_agent` hands software work to
+  Claude Code or Codex in the agent's sandbox through one tool,
+  `run_coding_agent`: the harness works on the task until done, and the chat
+  shows each step as it takes it - the file it reads, the edit, the command - in
+  a panel under the harness's mark. The binding's `access` decides whether it
+  may change files and run commands or only read and answer (Claude Code only);
+  **Human approval** set to **Always ask** asks before each task. A
+  conversation's tasks continue one harness session. Claude Code runs on an
+  Anthropic key or a `claude setup-token` subscription token, Codex on an
+  OpenAI key or a ChatGPT sign-in, and their tokens are booked to the run. Stop
+  and the task's time limit end the harness's whole process group, and whether
+  a task is over is read from that group rather than a file the harness could
+  write. The `workbench` runtime now carries Claude Code 2.1.288 and Codex
+  0.160.0.
+- **Projects.** A project holds instructions and files in one container that
+  every chat started in it shares, whichever agent answers: a chat agent without
+  a sandbox is given the project's, and every agent reads the project's
+  instructions after its own. Start one from the project's **New chat** or the
+  composer's **+** or its `@`; upload files and folders on its **Files** tab; share it with
+  people, departments or the organization (`projects:view`, `projects:use`,
+  `projects:edit`). A deleted project leaves its chats as ordinary chats of
+  whoever started them. The sidebar lists your recent projects, the chat list
+  files each project's chats under it, and the dashboard has a **Projects** card. A
+  project opens on its files, which can be dropped anywhere on the tab and show
+  their progress as they go up; its **Apps** tab lists the apps its chats
+  published (`GET /apps?project_id=`). A chat on its **Chats** tab shows who has
+  it open right now (`here` on `GET /projects/{id}/chats`). A sandbox connection a
+  project keeps its files on cannot be deleted. See [Projects](docs/projects.md).
+
+### Fixed
+
+- **A deleted chat's sandbox is destroyed only once the deletion commits.** The
+  container or Daytona sandbox behind a conversation or project went before the
+  database did, so a deletion that rolled back left the rows naming files that
+  were already gone.
+
+- **The collapsed sidebar matches the open one.** A folded group stays folded on
+  the icon rail, which now has the same row height and group spacing, so no icon
+  moves when the column collapses.
+- **Remote agents load in the console** (#2092). The page called a route the
+  console did not proxy, so it answered 404.
+- **Coming back to an answer still being written shows it.** Opening a
+  conversation whose agent is still answering - from another chat, another tab
+  or after a reload - picks the answer up where it is, with every step so far,
+  and goes on streaming it; it used to show only the question and a note to
+  check later. The running turn's frames are kept in Redis for this.
+- **Documents no longer lists the platform's own files.** A coding task's
+  events and session under `.agenticos/` are left out, as skills and spilled
+  tool output already were.
+- **Notifications say at a glance what they are about.** Each row in the bell
+  and on the dashboard card starts with the agent it concerns - its face, with
+  a badge for how the run went - or, for a row about no agent, an icon for its
+  kind: green for a finished run or a recovered MCP server, red for a failure
+  or an exhausted budget, amber for an approval or a budget warning. Rows
+  written before this keep the icon only. The inbox API serves the row's
+  `agent`.
+- **A code file opens as it would in an editor.** The file viewer, the folder
+  page's reader and a skill's preview show source with line numbers, coloured
+  in its language, filling the pane - rather than in a chat's code block sized
+  to its content, which left a short file in a small box over empty space. On
+  the folder page the text fills the reader edge to edge instead of sitting in
+  a second box inside it; JSON and the Source view of Markdown and HTML are
+  coloured too.
+
+## [1.5.0] - 2026-10-18
+
+### Added
+
+- **The AgenticOS MCP server for any agent** (#2190). The platform's own MCP
+  server is the first card under an agent's **MCP servers**: switched on, the
+  agent reads the platform's agents, runs, spend, knowledge bases, skills and
+  members as whoever it runs for, with exactly their permissions, and every
+  tool that changes something waits for approval. The card's settings narrow the tools
+  and can hold every call. The **Claude Code like** template binds it.
+  `GET /api/v1/agents/platform-mcp-tools` lists the tools a binding chooses
+  from. See [MCP](docs/mcp.md#giving-it-to-an-agent).
+- **Agents draw in the conversation** (#2171). A new **Visuals** capability
+  gives an agent `draw`, `revise_visual` and `read_visual`: an SVG diagram, a
+  Mermaid flow, or a whole HTML page with sliders, `<canvas>` or three.js,
+  drawn under its message while it is written and kept in the conversation. The
+  drawing runs in a frame with exactly an app's sandbox, and the console tells
+  the model what broke in the person's browser so it fixes it in the same turn.
+  A drawing can use a photo attached to the thread, a workspace file, or - for
+  an agent that already reads the web - a picture from an address. From the
+  panel: full screen, zoom, the code, download, copy as image, fix it, and
+  **Save to Apps** with versions. A shared thread shows its drawings, the
+  dashboard gains a **Recent visuals** card, and with `VISUAL_RENDER_CDP_URL` a
+  chat app gets the drawing as a picture. The bundled `visual-design` skill
+  carries the house style and templates; the library set gains three.js 0.186.0
+  and Mermaid 12.1.0. `seed-skills --skill` installs one bundled skill.
+- **An agent's skills, context files and knowledge bases are listed with the
+  attached ones first**, in a capability's panel, ten to a page.
+
+### Fixed
+
+- **An agent installed from a template is visible to the whole organization.**
+  It was installed private, so a colleague could not see it until somebody
+  shared it by hand. A template's instructions ship with the product, so there
+  is nothing private in them to protect; a clone or a promoted specialist
+  still starts private.
+- **A deploy that waits for its images no longer drops its connection.** The
+  deploy job's SSH session sat silent while a merge's images were still being
+  built, and the host dropped it four minutes in, failing the deploy with
+  nothing changed. It now sends keepalives for as long as the wait lasts.
+- **A conversation shared by link opens again.** Its route promised a member's
+  conversation and returned the link's narrower shape, so every link answered 500.
+
+## [1.4.0] - 2026-10-18
+
+### Added
+
+- **Prompt-cache busts are flagged on the run** (#2109). A request whose cached
+  prompt prefix collapsed is marked in the run's request waterfall - *cache
+  bust* when the prefix moved, *cache expired* when the provider's retention had
+  passed - with how many cached tokens it did not read back, and logged with the
+  agent and model. The first request of a turn is compared with what the
+  previous turn cached. The counts are kept on the run, and **Runs → Spend**
+  shows a *Prompt cache* card per agent and model with the busts, expiries and
+  cached tokens not read back over the window.
+- **Code mode: many tool calls from one sandboxed script** (#2107). An agent
+  with *Code mode* on writes a short Python script that calls its tools in loops
+  and in parallel inside the Monty sandbox, instead of one model turn per call -
+  ten record updates take one turn, not ten. Calls from a script go through the
+  same guardrails, budget and permission checks; a tool that needs approval stays
+  an ordinary call. The run view lists each script and the calls it made. Off by
+  default; switched on in the Builder beside the limits.
+- **Run reviewers: a second model that steers a run while it goes** (#2106).
+  An agent can carry up to five reviewers, each a usually cheaper model with one
+  concern ("claims without a source"). Every few requests a reviewer reads the
+  recent run and sends one short correction when it drifts; the run's model gets
+  it with the reviewer's name, and the run view lists it. Its calls are budgeted
+  and booked like the run's own, and a reviewer that cannot review never fails
+  the run. Set in the Builder beside the limits.
+- **Tool-call loops are stopped early, with the reason** (#2086). A run that
+  calls one tool with the same arguments again and again, or goes round a short
+  cycle of calls, is told it is looping; if it goes on, it ends as
+  `loop_stopped` and says which tools - before the step limit or the budget runs
+  out. On for every agent; the Builder sets the thresholds or switches it off
+  beside "Max steps". Chat apps, embeds and run notifications say why too.
+- **A run shows how much of its input the cache served** (#2170). Runs and
+  answers now keep `cache_read_tokens` and `cache_write_tokens` beside the input
+  total, in the run API, the run's request record, the run view and the cost
+  under each answer - so a run can be reconciled with the provider's console.
+  The cost was already priced from this split: the bundled prices match
+  Anthropic's current list (a Sonnet 5.5 cache read is 5% of the input rate).
+
+### Fixed
+
+- **The web chat remembers the plan between messages** (#2162). A checklist an
+  agent wrote in the chat was gone by the next message, so asking it to start
+  step two got "No plan yet." The chat now keeps the plan a turn ended on, as
+  the API, chat apps and triggers already did, and a stopped turn hands its
+  step back as still to do.
+
+### Changed
+
+- **Prompt caching on every provider that takes it** (#2169). Caching now uses
+  Pydantic AI's provider-neutral `cache` setting instead of Anthropic's and
+  OpenRouter's own flags, so Bedrock's Anthropic and Nova models and OpenAI from
+  GPT-5.6 are cached too, and providers that cache by themselves are unchanged.
+  A model profile turns it off with `cache: false`; a profile that sets a
+  provider's own flag keeps it.
+
+## [1.3.1] - 2026-10-18
+
+### Fixed
+
+- **A host that falls behind skips sweep ticks instead of running every one.**
+  Every scheduled sweep (the four minute-ticks and the slower sweeps) now runs
+  one tick at a time: Prefect refuses the tick that arrives while the previous
+  one is still running, before the runner starts a process for it. Before, every
+  tick ran: on 2026-10-17 the production host fell behind, each queued tick was
+  another process importing the application on a saturated CPU, and eight hours
+  later ~1,650 runs were Late and the API's workers were being starved into
+  restarts. On-demand deployments (ingestion, syncs, cleanup) and the usage
+  reports, whose runs each cover a period of their own, keep no limit.
+
+## [1.3.0] - 2026-10-18
+
+### Added
+
+- **Malformed tool calls are repaired instead of retried** (#2105). A model
+  that sends a tool call with broken JSON - a trailing comma, single quotes, an
+  object cut short - no longer pays for a retry: every agent repairs the syntax
+  before validation, and the call still goes through approval and guardrails.
+  Open-weight models on Ollama or vLLM do this most. Each run counts its
+  repairs, shown on the run and per model on the dashboard's model card.
+
+## [1.2.1] - 2026-10-18
+
+### Fixed
+
+- **One connection per chat-app bot, however many API workers** (#2168). With
+  two workers, every polling bot had two connections: Telegram terminated one
+  `getUpdates` after the other about fourteen times a minute, and two Mattermost
+  sockets would each receive every event. A worker now holds a bot's connection
+  under a lease in the shared Redis; the others leave it alone and take it over
+  when its holder stops.
+
+## [1.2.0] - 2026-10-17
+
+### Added
+
+- **`@`-mentions in the chat composer** (#2189). Typing `@` offers what the
+  agent can use - its MCP servers, the agents it delegates to, its capabilities
+  (`@Sandbox`, `@Web research`), skills, knowledge bases and context files - in
+  the chat, the Builder's test panel and the Architect. A pick stays in the text
+  as `@Name` with its logo; the model is told to use it, never handed its
+  content, and naming an agent hands it the work without changing who answers.
+  A pasted link shows its site's icon in the composer and the message. Mentions
+  are resolved again on the server as the person, so one can never widen what
+  the agent reaches. `GET /api/v1/agents/{id}/mentionables` lists what is
+  offered.
+- **The empty composer shows what to ask.** While a conversation has nothing in
+  it, the box cycles through examples built from the agent's own servers,
+  capabilities, delegates and skills, and `/`, sliding from one to the next;
+  clicking into it or sending clears them.
 
 ## [1.1.1] - 2026-10-16
 

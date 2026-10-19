@@ -103,7 +103,9 @@ def _turns(answer: str = "hi", history: list[MagicMock] | None = None):
         ),
         patch(
             "app.services.embed_session.conversation_repo.get_conversation_by_id",
-            new=AsyncMock(return_value=MagicMock(summary_messages=None, summary_ordinal=None)),
+            new=AsyncMock(
+                return_value=MagicMock(summary_messages=None, summary_ordinal=None, project_id=None)
+            ),
         ),
         patch(
             "app.services.access.member_repo.get_active",
@@ -468,7 +470,14 @@ class TestTheWidgetRemembersWhatWasSaid:
 
     @staticmethod
     def _message(role: str, content: str) -> MagicMock:
-        return MagicMock(role=role, content=content, attachment_context=None)
+        # The fields a stored turn always has: nobody named, nothing replied to.
+        return MagicMock(
+            role=role,
+            content=content,
+            attachment_context=None,
+            author_user_id=None,
+            reply_to_message_id=None,
+        )
 
     @pytest.mark.anyio
     async def test_the_previous_turns_reach_the_model(self):

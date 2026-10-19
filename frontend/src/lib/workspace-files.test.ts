@@ -39,6 +39,24 @@ describe("addressing a file", () => {
     );
   });
 
+  it("reads a project's file through the project, text decoded from its bytes", async () => {
+    vi.mocked(apiClient.raw).mockImplementation(async () => new Response("# Brief"));
+    await expect(readFileText({ kind: "project", id: "p1" }, "brief.md")).resolves.toEqual({
+      content: "# Brief",
+      truncated: false,
+    });
+    await readFileBytes({ kind: "project", id: "p1" }, "a.png", { download: true });
+    expect(vi.mocked(apiClient.raw).mock.calls.at(-1)?.[0]).toBe(
+      "/projects/p1/files/raw?path=a.png&download=true",
+    );
+    expect(textKey({ kind: "project", id: "p1" }, "a")).not.toEqual(
+      textKey({ kind: "workspace", id: "p1" }, "a"),
+    );
+    expect(bytesKey({ kind: "project", id: "p1" }, "a")).not.toEqual(
+      bytesKey({ kind: "workspace", id: "p1" }, "a"),
+    );
+  });
+
   it("keys the two addresses apart, so one cache entry cannot answer for the other", () => {
     expect(textKey({ kind: "conversation", id: "x" }, "/a")).not.toEqual(
       textKey({ kind: "workspace", id: "x" }, "/a"),

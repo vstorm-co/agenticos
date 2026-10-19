@@ -1,5 +1,5 @@
 ---
-source_sha: "6460bba9d44c"
+source_sha: "dcefccd16f75"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -387,6 +387,7 @@ albo „to jeszcze nie jest zbudowane” — nigdy milczenie.
 | Ramki delegacji | tak | **nie, celowo**: podpięcie sinka każe bibliotece otworzyć *streamowany* request na dziecko, więc delegat, którego dostawca nie potrafi streamować, psuje się w momencie, w którym ktoś patrzy |
 | Zatwierdzenia: parkują uruchomienie | tak | tak | tak |
 | Zatwierdzenia: droga do decyzji | tak (`/runs`) | jedno zdanie, celowo: obcemu trzymającemu link nie pokazuje się URL-a do czyjejś konsoli | tak — wynik niesie `parked`, nazywając to, co czeka, i zatwierdzenie, do którego wysłać decyzję |
+| Wzmianki `@` | tak (`mentions`) | **nie, jeszcze nie**: widget nie ma menu do wyboru, a wzmianka gościa wymagałaby tej samej kontroli w jego imieniu | **nie, jeszcze nie**: skrypt nazywa, czego użyć, w samej wiadomości |
 
 ### `environment_id` na sockecie i dlaczego należy do publikującego { #environment_id-on-the-socket-and-why-it-is-the-publishers }
 
@@ -742,6 +743,36 @@ zdecyduje.
 Limitowany na wywołującego, a nie na adres — biuro za jednym NAT-em to nie jeden
 wywołujący — wartością `RATE_LIMIT_RUN_PER_MINUTE`.
 
+## Inni agenci, przez A2A { #a2a }
+
+Agent innego systemu może wysyłać agentowi zadania przez
+[protokół Agent2Agent](https://a2a-protocol.org). Dla każdego agenta jest to
+wyłączone, dopóki ktoś, kto może go publikować, nie włączy **Agent2Agent (A2A)** w
+zakładce **Availability**, która pokazuje dwa adresy do przekazania drugiej stronie:
+
+- **agent card** pod `/api/v1/a2a/{agent_id}/.well-known/agent-card.json`, czytelny
+  bez klucza — nazwa agenta, opis, wersja, jego jedna umiejętność i sposób
+  uwierzytelnienia;
+- **endpoint** dla zadań, `POST /api/v1/a2a/{agent_id}`, JSON-RPC 2.0.
+
+Wywołujący wysyła jako bearer token klucz API organizacji albo token dostępu OAuth
+wydany przez ten deployment, który musi mieć prawo uruchamiać agenta.
+`message/send` uruchamia opublikowaną wersję jako zwykły run oznaczony `a2a`, więc
+obowiązują budżet, bramka zatwierdzeń, audit trail i Activity. Id zadania to id
+runa, a jego `contextId` to rozmowa, do której run trafia, więc ponowne wysłanie go
+kontynuuje tę rozmowę. Run zatrzymany na zatwierdzeniu odpowiada `input-required`;
+decyzję podejmuje się w konsoli, a `tasks/get` odczytuje, na czym potem stanął.
+
+Zadanie odczyta ten, kto je wysłał, albo ktoś, kto może czytać wszystkie runy
+(`runs:view`); dla każdego innego jego id jest nieznane. Wiadomość z `taskId` jest
+odrzucana, zamiast uruchamiać się obok czekającego zadania: żeby zapytać o coś
+nowego, wyślij ją bez niego, w tym samym `contextId`.
+
+Odpowiedź jest synchroniczna: `message/stream`, powiadomienia push i `tasks/cancel`
+są odrzucane z nazwy, a karta mówi, że streaming nie jest oferowany. Agent, który
+nie jest udostępniony — wyłączony, nieopublikowany, zarchiwizowany albo innej
+organizacji — odpowiada `404`, zarówno karta, jak i endpoint.
+
 ---
 
 ## Slack { #slack }
@@ -892,7 +923,8 @@ edytowanej raz na sekundę. Strumieniowanie wraca do tego trybu także samo, gdy
 Slack odmówi jego rozpoczęcia.
 
 Tabela Markdown w odpowiedzi jest rysowana jako tabela Slacka, a wykres przychodzi
-jako obrazek, jak zawsze. Jeśli gotowa odpowiedź nie jest tym, co zostało
+jako obrazek, jak zawsze. Tak samo [wizual](reference/capabilities.md#visuals), narysowany
+przeglądarką wdrożenia, gdy `VISUAL_RENDER_CDP_URL` ją wskazuje. Jeśli gotowa odpowiedź nie jest tym, co zostało
 wystrumieniowane - guardrail wyjściowy coś zredagował - wiadomość jest przepisywana
 w całości.
 
@@ -1510,6 +1542,15 @@ agent, który dobrze radzi sobie w konsoli, a słabo w Slacku, to pokazuje.
   powodu: strumień jest otwierany ponownie, żeby pasował do tego, co wiersz teraz
   mówi. Jest otwierany *po* zatwierdzeniu transakcji, więc nieudana rejestracja
   nie zostawia za sobą żadnego połączenia.
+- **Jedno połączenie na bota, niezależnie od liczby workerów API.** Telegram
+  pozwala na jedno `getUpdates` na bota, a dwa sockety Mattermost dostawałyby
+  każde zdarzenie, więc worker, który trzyma połączenie bota, trzyma też na nie
+  dzierżawę we wspólnym Redis i odnawia ją co 10 sekund. Pozostałe workery tego
+  bota nie ruszają. Worker, który się zamyka, oddaje swoje boty innemu w ciągu
+  około 10 sekund, a taki, który padł, w ciągu około 40. Edycja obsłużona przez
+  inny worker od razu otwiera nowe połączenie, a stare zamyka się przy
+  najbliższym odnowieniu u jego właściciela. Gdy Redis jest nieosiągalny, łączy
+  się każdy worker, jak wcześniej.
 - **Instrukcje powiązania mogą wołać to, co wie tylko platforma.**
   `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{member_count}`,
   `{member_list}` — wypełniane przy starcie runa, z tych samych wywołań, których
@@ -1605,6 +1646,7 @@ czytelnik faktycznie zobaczył.
 | `@mention` na kanale | To samo, z uchwytem usuniętym z zapisanego promptu |
 | Osadzony widget | To samo. Odwiedzający jest anonimowy; run i tury należą do właściciela widgetu |
 | HTTP API | To samo, gdy wywołanie niesie `conversation_id`. Nic bez niego — nie ma wątku, w który dałoby się wpisać turę, a wiersz runa i tak jest zapisem tego, że się to zdarzyło |
+| A2A | To samo. Każde zadanie trafia do rozmowy: nowej albo tej, którą wskazuje jego `contextId` |
 | Run wznowiony po zatwierdzeniu | Jego kontynuację — odpowiedź i wywołania, które wykonał, a wywołania także wtedy, gdy odpowiedzi nie ma, co ma kontynuacja parkująca ponownie na drugim bramkowanym wywołaniu. Żadnej tury użytkownika: podejmuje pracę przy wywołaniu, na którym stanął, a wymyślenie pytania włożyłoby komuś słowa w usta |
 
 **Zapisywane jest to, co napisał człowiek, a nie prompt złożony wokół tego.**

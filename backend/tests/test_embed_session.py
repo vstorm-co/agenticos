@@ -165,6 +165,15 @@ class TestHowATurnEnds:
 
         assert unanswered is not None
 
+    async def test_a_run_stopped_for_looping_says_so(self):
+        session = _session()
+        run = MagicMock(status=RunStatus.LOOP_STOPPED.value, awaiting_approval_run_id=None)
+
+        with patch.object(EmbedSession, "_answer", AsyncMock(return_value=("", run))):
+            unanswered = await session._turn_frames("hello", ())
+
+        assert unanswered is not None and "kept repeating" in unanswered
+
 
 class TestTheRestOfTheSession:
     async def test_fail_reaches_the_visitor_as_an_error_frame(self):

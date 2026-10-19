@@ -532,6 +532,7 @@ class TestReadOnlyDeclarations:
             ("browser_use", "browser_select"),
             ("browser_use", "browser_scroll"),
             ("browser_use", "browser_back"),
+            ("coding_agent", "run_coding_agent"),
             ("image_generation", "generate_image"),
             ("memory_files", "write_memory"),
             ("memory_files", "edit_memory"),
@@ -540,6 +541,9 @@ class TestReadOnlyDeclarations:
             ("sandbox", "write_file"),
             ("sandbox", "edit_file"),
             ("sandbox", "execute"),
+            ("visuals", "draw"),
+            ("visuals", "revise_visual"),
+            ("visuals", "read_visual"),
         }
     )
 
@@ -1058,6 +1062,43 @@ def _frontend_tool_ids() -> frozenset[str]:
         body = source[source.index("{", start) : source.index("\n};", start)]
         ids |= set(re.findall(r"^  ([a-z][a-z0-9_]*): \{", body, flags=re.MULTILINE))
     return frozenset(ids)
+
+
+ART_DIR = (
+    Path(__file__).resolve().parents[2]
+    / "frontend"
+    / "src"
+    / "components"
+    / "agents"
+    / "capability-art"
+)
+
+
+def _capabilities_with_art() -> frozenset[str]:
+    """The capability ids the Toolbox has a scene for, read out of the two art tables.
+
+    `art.generated.ts` is the design canvas's export, one key per scene at two
+    spaces; `art.drawn.ts` holds the scenes drawn by hand since, in `DRAWN_ART`.
+    """
+    generated = (ART_DIR / "art.generated.ts").read_text(encoding="utf-8")
+    drawn = (ART_DIR / "art.drawn.ts").read_text(encoding="utf-8")
+    table = drawn[drawn.index("export const DRAWN_ART") :]
+    return frozenset(
+        re.findall(r"^  ([a-z0-9_]+):\n    '<svg", generated, re.MULTILINE)
+    ) | frozenset(re.findall(r"^  ([a-z0-9_]+): [A-Z0-9_]+,$", table, re.MULTILINE))
+
+
+class TestToolboxArt:
+    def test_every_capability_has_a_scene_and_every_scene_a_capability(self):
+        """A capability with no scene shows a lone initial among the dioramas -
+        `background_tools` did, unnoticed, because nothing compared the two."""
+        registered = frozenset(definition.id for definition in all_capabilities())
+        drawn = _capabilities_with_art()
+
+        assert sorted(registered - drawn) == [], (
+            "draw a scene for each of these in capability-art/art.drawn.ts"
+        )
+        assert sorted(drawn - registered) == [], "these scenes draw no capability"
 
 
 class TestFrontendToolCatalog:

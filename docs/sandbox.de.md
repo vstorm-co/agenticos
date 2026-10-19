@@ -1,5 +1,5 @@
 ---
-source_sha: "904d3115d4e7"
+source_sha: "66a783c397fe"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -134,6 +134,7 @@ Was einen Tenant vom anderen trennt:
 |---|---|
 | Gebaut auf | `python:3.12-slim` |
 | Sprachen | Python 3.12; Node 24.19.0 LTS mit npm 11 und `tsx` für TypeScript |
+| Coding Agents | Claude Code 2.1.288 und Codex 0.160.0, für den [Coding Agent](reference/capabilities.md#coding-agent) |
 | Werkzeuge | `git`, `curl`, `ripgrep`, `fd`, `jq`, `less`, `procps`, `unzip`, `zip`, `uv`, `pdftotext`/`pdfinfo` |
 | Lesen | **liteparse** (`lit`) — PDFs und Bilder zu Text oder Markdown, OCR eingeschlossen; `poppler-utils` für den schnellen Weg über die Textebene und eine Seitenzahl |
 | Dokumente | `pypdf`, `python-docx`, `openpyxl`, `python-pptx`, `reportlab`; **LibreOffice** headless für die Konvertierung und die Altformate |
@@ -485,7 +486,7 @@ Was bleibt, ausgesprochen statt angedeutet:
 ## Was der Dateibrowser zeigt, und was er auslässt { #what-the-file-browser-shows-and-what-it-leaves-out }
 
 **Documents** (`/documents`) listet auf, was ein Agent **für eine Person** aufbewahrt, was nicht
-dieselbe Menge ist wie das, was auf dem Volume liegt. Zwei Präfixe fallen aus jeder
+dieselbe Menge ist wie das, was auf dem Volume liegt. Drei Präfixe fallen aus jeder
 Auflistung, die eine Person liest - der Liste aller Dateien, den Dateien eines
 Ordners, dem Panel einer Unterhaltung und den Dateizahlen:
 
@@ -497,9 +498,22 @@ Ordners, dem Panel einer Unterhaltung und den Dateizahlen:
   die richtige Beschwerde über die falsche Sache war (#1064).
 - das Spill-Verzeichnis — wohin die überlaufende Ausgabe eines Tools geschrieben
   wurde.
+- `.agenticos/` — die Ereignisse einer Coding-Aufgabe und die Sitzung, die die
+  nächste fortsetzt.
+
+Ebenso die Ordner, die eine Toolchain füllt, wo immer sie liegen: `.venv`, `venv`,
+`node_modules`, `__pycache__`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`,
+`.tox`, `.git`, `.next` und `.cache`. Ein Coding Agent, der eine FastAPI-App
+aufsetzte, brachte tausend davon auf die Seite, zwischen das Dutzend Dateien, das
+er schrieb.
 
 Eine Zählung muss sie ebenfalls weglassen, sonst ist ein Workspace, der vier Dateien
 meldet, während eine sichtbar ist, eine Zahl, die niemand prüfen kann.
+**Alle Dateien** gruppiert, was übrig bleibt, nach dem Workspace, der es hält,
+das neueste zuerst, unter der Unterhaltung, zu der es gehört: lose Dateien und
+Anhänge als Zeilen, jeder Ordner der obersten Ebene als eine Zeile mit seinen
+ersten Dateien, und ein Link zum Ordner für den Rest. Die neuesten Dateien stehen
+als Vorschau über den Gruppen, und eine Suche listet ihre Treffer flach.
 
 ### Wessen Workspace es ist, und wer ihn sonst sehen kann { #whose-workspace-it-is-and-who-else-can-see-it }
 

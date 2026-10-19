@@ -21,6 +21,7 @@ from app.api.routes.v1._sharing_loaders import (
     load_context,
     load_dataset,
     load_mcp_connection,
+    load_project,
     load_secret,
     load_skill,
 )
@@ -31,6 +32,7 @@ from app.api.routes.v1.sharing import (
     context_sharing_router,
     dataset_sharing_router,
     mcp_connection_sharing_router,
+    project_sharing_router,
     secret_sharing_router,
     skill_sharing_router,
 )
@@ -47,6 +49,7 @@ ROUTERS = (
     ("artifacts", artifact_sharing_router),
     ("datasets", dataset_sharing_router),
     ("mcp-connections", mcp_connection_sharing_router),
+    ("projects", project_sharing_router),
 )
 
 LOADERS = (
@@ -58,6 +61,7 @@ LOADERS = (
     ("artifact", load_artifact, "App not found", "artifact_id"),
     ("dataset", load_dataset, "Dataset not found", "dataset_id"),
     ("mcp_connection", load_mcp_connection, "MCP connection not found", "connection_id"),
+    ("project", load_project, "Project not found", "project_id"),
 )
 
 

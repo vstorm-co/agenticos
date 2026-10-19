@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.1.1"
+version = "1.6.3"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -665,6 +665,7 @@ include = [
     # held to rather than reporting it.
     "app/services/rate_limit.py",
     "app/services/agent_chat.py",
+    "app/services/mentions.py",
     "app/services/agent_environment.py",
     "app/services/agent_exposure.py",
     # What the model is actually told about each tool, read off the built
@@ -706,6 +707,7 @@ include = [
     "app/services/skill_workspace.py",
     "app/services/channels/attachments.py",
     "app/services/channels/dedupe.py",
+    "app/services/channels/stream_lease.py",
     "app/services/channels/feedback.py",
     "app/services/channels/membership.py",
     "app/services/channels/mentions.py",
@@ -727,6 +729,8 @@ include = [
     "app/services/impersonation.py",
     "app/services/ws_auth.py",
     "app/services/health.py",
+    # The worker's sweeps' heartbeat, which the scheduler probe reads (#2213).
+    "app/services/worker_heartbeat.py",
     "app/services/email/templates.py",
     "app/services/ingestion_config.py",
     "app/services/rag/failures.py",
@@ -760,6 +764,7 @@ include = [
     "app/services/image_models.py",
     "app/services/model_profile.py",
     "app/services/organization_secret.py",
+    "app/services/openai_codex.py",
     # Same shape and the same reason as `image_models`: what a picker offers is
     # decided by filtering a data file against what the platform can actually
     # reach, and an entry that quietly stops being offered - or starts being
@@ -826,6 +831,9 @@ include = [
     "app/services/dashboard_preset.py",
     "app/repositories/context.py",
     "app/services/context.py",
+    "app/repositories/project.py",
+    "app/services/project.py",
+    "app/api/routes/v1/projects.py",
     "app/api/routes/v1/context.py",
     "app/db/models/dataset.py",
     "app/schemas/dataset.py",
@@ -847,6 +855,12 @@ include = [
     "app/services/artifact.py",
     "app/api/routes/v1/_artifact_bytes.py",
     "app/api/routes/v1/artifacts.py",
+    "app/db/models/visual.py",
+    "app/schemas/visual.py",
+    "app/repositories/visual.py",
+    "app/services/visual.py",
+    "app/services/visual_render.py",
+    "app/api/routes/v1/visuals.py",
     "app/db/models/api_key.py",
     "app/schemas/api_key.py",
     "app/repositories/api_key.py",
@@ -962,6 +976,8 @@ include = [
     "app/api/routes/v1/directory_auth.py",
     "app/api/routes/v1/_directory_handoff.py",
     "app/services/live_browse.py",
+    "app/services/live_turn.py",
+    "app/services/chat_room.py",
     "app/services/browse_plans.py",
     "app/api/routes/v1/browse_live.py",
     "app/db/models/browser_sign_in.py",
@@ -1102,6 +1118,7 @@ include = [
     # held to rather than reporting it.
     "app/services/rate_limit.py",
     "app/services/agent_chat.py",
+    "app/services/mentions.py",
     "app/services/agent_environment.py",
     "app/services/agent_exposure.py",
     # What the model is actually told about each tool, read off the built
@@ -1146,6 +1163,7 @@ include = [
     "app/services/skill_workspace.py",
     "app/services/channels/attachments.py",
     "app/services/channels/dedupe.py",
+    "app/services/channels/stream_lease.py",
     "app/services/channels/feedback.py",
     "app/services/channels/membership.py",
     "app/services/channels/mentions.py",
@@ -1183,6 +1201,8 @@ include = [
     # provider check. A probe nobody has watched fail is not a probe, which is
     # why this module is gated rather than reported.
     "app/services/health.py",
+    # The worker's sweeps' heartbeat, which the scheduler probe reads (#2213).
+    "app/services/worker_heartbeat.py",
     # Template-inherited, gated anyway. Its fixed `emails/compiled` path pointed
     # at a directory that never existed, so every email raised
     # EmailTemplateError — and every caller logs and swallows that, so
@@ -1230,6 +1250,7 @@ include = [
     "app/services/image_models.py",
     "app/services/model_profile.py",
     "app/services/organization_secret.py",
+    "app/services/openai_codex.py",
     # Same shape and the same reason as `image_models`: what a picker offers is
     # decided by filtering a data file against what the platform can actually
     # reach, and an entry that quietly stops being offered - or starts being
@@ -1296,6 +1317,9 @@ include = [
     "app/services/dashboard_preset.py",
     "app/repositories/context.py",
     "app/services/context.py",
+    "app/repositories/project.py",
+    "app/services/project.py",
+    "app/api/routes/v1/projects.py",
     "app/api/routes/v1/context.py",
     "app/db/models/dataset.py",
     "app/schemas/dataset.py",
@@ -1317,6 +1341,12 @@ include = [
     "app/services/artifact.py",
     "app/api/routes/v1/_artifact_bytes.py",
     "app/api/routes/v1/artifacts.py",
+    "app/db/models/visual.py",
+    "app/schemas/visual.py",
+    "app/repositories/visual.py",
+    "app/services/visual.py",
+    "app/services/visual_render.py",
+    "app/api/routes/v1/visuals.py",
     "app/db/models/api_key.py",
     "app/schemas/api_key.py",
     "app/repositories/api_key.py",
@@ -1432,6 +1462,8 @@ include = [
     "app/api/routes/v1/directory_auth.py",
     "app/api/routes/v1/_directory_handoff.py",
     "app/services/live_browse.py",
+    "app/services/live_turn.py",
+    "app/services/chat_room.py",
     "app/services/browse_plans.py",
     "app/api/routes/v1/browse_live.py",
     "app/db/models/browser_sign_in.py",

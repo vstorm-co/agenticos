@@ -67,6 +67,27 @@ export interface CapabilityBindingSpec {
  * tokens, cost and tool names but no message text or tool arguments. */
 export type TraceContent = "full" | "none";
 
+/** Mirrors `RunReviewerSpec`: a second model that reviews a run while it goes (#2106). */
+export interface RunReviewerSpec {
+  /** What its corrections are attributed to. `^[a-z0-9][a-z0-9_-]{0,39}$`. */
+  name: string;
+  /** Null in a draft; publish requires one. */
+  model_profile_id: string | null;
+  /** What to look for. Empty in a draft; publish requires it. */
+  instructions: string;
+  /** Review every N model requests. */
+  every: number;
+  /** How many tokens of the most recent run each review reads. */
+  window: number;
+}
+
+/** Mirrors `CodeModeSpec`: many tool calls from one sandboxed script (#2107). */
+export interface CodeModeSpec {
+  enabled: boolean;
+  /** How many tool calls one script may make. */
+  max_tool_calls: number;
+}
+
 /** Where this agent's traces go, when not to the deployment's own project. */
 export interface ObservabilitySpec {
   /** An organization secret holding a Logfire write token - an id, never a token. */
@@ -79,6 +100,13 @@ export interface ObservabilitySpec {
 }
 
 /** The agent's half of the two budget levels; the organization's cap is the other. */
+/** Mirrors `LoopGuardSpec`: identical calls in a row, and cycle repeats, that count as a loop. */
+export interface LoopGuardSpec {
+  enabled: boolean;
+  repeats: number;
+  cycles: number;
+}
+
 export interface BudgetSpec {
   monthly_usd?: number | null;
 }
@@ -325,8 +353,16 @@ export interface AgentSpec {
    * optional in this type because `create` does not send one.
    */
   subagents?: SubagentRef[];
+  /** Remote A2A agents it may delegate to (#2092). Optional here, always on the wire. */
+  external_agents?: ExternalAgentRef[];
   /** Model requests one run may make; null uses the platform default of 100. */
   max_steps?: number | null;
+  /** When a run looping on its tool calls is warned, then stopped; defaulted server side. */
+  loop_guard?: LoopGuardSpec;
+  /** Second models that review the run while it goes; defaulted to none server side. */
+  reviewers?: RunReviewerSpec[];
+  /** Whether tools are called from one sandboxed script; defaulted off server side. */
+  code_mode?: CodeModeSpec;
   budget?: BudgetSpec | null;
   /**
    * Optional here, required on the wire.
@@ -338,6 +374,12 @@ export interface AgentSpec {
    */
   notifications?: NotificationSpec;
   observability?: ObservabilitySpec | null;
+}
+
+/** A remote A2A agent this agent may delegate to, by its registration (#2092). */
+export interface ExternalAgentRef {
+  external_agent_id: string;
+  preferred_mode?: DelegationMode | null;
 }
 
 /** The model an agent's published version runs on. Enough to prefill a picker. */
@@ -388,6 +430,8 @@ export interface Agent {
    * from one) read; the backend re-checks every edit.
    */
   can_edit?: boolean;
+  /** Whether other systems may reach it over A2A, by its agent card (#2092). */
+  a2a_enabled?: boolean;
   /** How many members hold an explicit grant. Filled by the listing only. */
   shared_user_count?: number;
   /** Surfaces with an active binding ("slack", "telegram", ...). Listing only. */
@@ -602,6 +646,12 @@ export interface CapabilityCatalogEntry {
   category: string;
   description: string;
   side_effecting: boolean;
+  /**
+   * Whether the Builder offers per-tool settings. False where the one tool is the
+   * capability itself - the coding agent's - so its approval is the capability's.
+   * Absent from an older server, which means offered.
+   */
+  tool_settings?: boolean;
   scopes: string[];
   /** Empty for a capability that is not tools at all - a guardrail, or instructions. */
   tools: CapabilityTool[];
@@ -731,6 +781,12 @@ export interface JsonSchemaProperty {
    * the same picker the Builder uses for the agent's own model.
    */
   "x-widget"?: "model-profile";
+  /**
+   * The choices an enum offers for each value of another field of the form -
+   * the coding agent's models, which depend on its harness. A choice the other
+   * field no longer allows is cleared when that field changes.
+   */
+  "x-enum-when"?: { field: string; choices: Record<string, string[]> };
   /**
    * Show this field only while another field of the same form holds one of
    * these values - a proxy's address under "Through a proxy" and nowhere else.

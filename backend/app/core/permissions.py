@@ -64,6 +64,13 @@ class Perm(StrEnum):
     DATASETS_VIEW = "datasets:view"
     DATASETS_EDIT = "datasets:edit"
     DATASETS_RUN = "datasets:run"
+    # A project: shared files in one container, standing instructions, and the
+    # chats people have in it. Three levels because they are three acts - seeing
+    # a project and reading its files, working in it (chatting, adding files), and
+    # managing it (its settings, sharing, deletion).
+    PROJECTS_VIEW = "projects:view"
+    PROJECTS_USE = "projects:use"
+    PROJECTS_EDIT = "projects:edit"
 
     APPROVALS_DECIDE = "approvals:decide"
     # Watching a host and managing one are separate authorities. Reading a
@@ -122,6 +129,9 @@ RESOURCE_PERMS: frozenset[Perm] = frozenset(
         Perm.DATASETS_VIEW,
         Perm.DATASETS_EDIT,
         Perm.DATASETS_RUN,
+        Perm.PROJECTS_VIEW,
+        Perm.PROJECTS_USE,
+        Perm.PROJECTS_EDIT,
         # Per connection since an organization's MCP server can be narrowed to the
         # groups that use it (#2072): Finance's ledger server is Finance's.
         Perm.MCP_MANAGE,
@@ -230,6 +240,9 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.DATASETS_VIEW: Scope.ALL,
         Perm.DATASETS_EDIT: Scope.ALL,
         Perm.DATASETS_RUN: Scope.ALL,
+        Perm.PROJECTS_VIEW: Scope.ALL,
+        Perm.PROJECTS_USE: Scope.ALL,
+        Perm.PROJECTS_EDIT: Scope.ALL,
         Perm.MCP_MANAGE: Scope.ALL,
     },
     # Admin runs the org day to day but cannot delete it.
@@ -252,6 +265,9 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.DATASETS_VIEW: Scope.ALL,
         Perm.DATASETS_EDIT: Scope.ALL,
         Perm.DATASETS_RUN: Scope.ALL,
+        Perm.PROJECTS_VIEW: Scope.ALL,
+        Perm.PROJECTS_USE: Scope.ALL,
+        Perm.PROJECTS_EDIT: Scope.ALL,
         Perm.MCP_MANAGE: Scope.ALL,
     },
     # Builder sees the whole org to learn from it, but edits only what is theirs
@@ -272,6 +288,11 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.DATASETS_VIEW: Scope.ALL,
         Perm.DATASETS_EDIT: Scope.SHARED,
         Perm.DATASETS_RUN: Scope.ALL,
+        # A project holds people's own files, so unlike agents a builder does not
+        # see every one of them - only what is theirs or shared with them.
+        Perm.PROJECTS_VIEW: Scope.SHARED,
+        Perm.PROJECTS_USE: Scope.SHARED,
+        Perm.PROJECTS_EDIT: Scope.SHARED,
         Perm.SECRETS_VIEW: Scope.SHARED,
         Perm.SECRETS_EDIT: Scope.OWN,
         # The organization's servers, its own, and those shared with its groups -
@@ -302,6 +323,9 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.ARTIFACTS_VIEW: Scope.ALL,
         Perm.DATASETS_VIEW: Scope.ALL,
         Perm.DATASETS_RUN: Scope.ALL,
+        Perm.PROJECTS_VIEW: Scope.SHARED,
+        Perm.PROJECTS_USE: Scope.SHARED,
+        Perm.PROJECTS_EDIT: Scope.OWN,
         Perm.SECRETS_VIEW: Scope.SHARED,
         Perm.APPROVALS_DECIDE: Scope.ALL,
         Perm.CONNECTIONS_VIEW: Scope.ALL,
@@ -327,6 +351,9 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.DATASETS_VIEW: Scope.SHARED,
         Perm.DATASETS_EDIT: Scope.OWN,
         Perm.DATASETS_RUN: Scope.SHARED,
+        Perm.PROJECTS_VIEW: Scope.SHARED,
+        Perm.PROJECTS_USE: Scope.SHARED,
+        Perm.PROJECTS_EDIT: Scope.OWN,
         Perm.SECRETS_VIEW: Scope.SHARED,
         Perm.SECRETS_EDIT: Scope.OWN,
         Perm.ML_INVOKE: Scope.ALL,
@@ -340,6 +367,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.CONTEXT_VIEW: Scope.SHARED,
         Perm.ARTIFACTS_VIEW: Scope.SHARED,
         Perm.DATASETS_VIEW: Scope.SHARED,
+        Perm.PROJECTS_VIEW: Scope.SHARED,
         Perm.MEMBERS_VIEW: Scope.ALL,
     },
 }

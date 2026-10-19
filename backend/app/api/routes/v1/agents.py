@@ -33,6 +33,7 @@ from app.api.deps import (
     ConversationSvc,
     DBSession,
     KnowledgeReachSvc,
+    MentionSvc,
     limit_agent_run,
     require,
 )
@@ -43,6 +44,7 @@ from app.core.permissions import Perm
 from app.db.models.agent import AgentKind
 from app.db.models.agent_run import RunSurface
 from app.schemas.agent import (
+    AgentA2ARequest,
     AgentAvatarColorRequest,
     AgentClone,
     AgentCreate,
@@ -67,15 +69,19 @@ from app.schemas.agent import (
     DelegationTree,
     McpCatalog,
     McpCatalogEntry,
+    PlatformMcpTool,
+    PlatformMcpToolList,
     PromptVariableCatalog,
     PromptVariableRead,
     SpecialistPromote,
     TemplateInstallRequest,
     TemplateInstallResult,
 )
+from app.schemas.mention import MentionableList
 from app.services import agent_templates, mcp_listing
 from app.services.attachments import load_attached_files
 from app.services.capability_contracts import tool_contracts
+from app.services.platform_mcp import platform_tool_catalog
 
 router = APIRouter(dependencies=[PUBLIC])
 
@@ -113,6 +119,7 @@ async def list_capability_catalog() -> Any:
             side_effecting=definition.side_effecting,
             read_only=definition.read_only,
             tools=list(definition.tools),
+            tool_settings=definition.tool_settings,
             scopes=sorted(definition.scopes),
             contracts=[
                 CapabilityToolContract(
@@ -186,6 +193,25 @@ async def list_mcp_catalog(db: DBSession) -> Any:
         total=len(items),
         registry_total=await mcp_listing.mirror_size(db),
     )
+
+
+@router.get(
+    "/platform-mcp-tools",
+    response_model=PlatformMcpToolList,
+    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+)
+async def list_platform_mcp_tools() -> Any:
+    """The tools of this deployment's own MCP server, for a binding to choose from.
+
+    Every caller sees the same list: a tool runs with the permissions of whoever
+    the agent runs for, so what may actually be done is decided per call, not
+    by who reads this list.
+    """
+    items = [
+        PlatformMcpTool(name=tool.name, description=tool.summary, writes=tool.writes)
+        for tool in platform_tool_catalog()
+    ]
+    return PlatformMcpToolList(items=items, total=len(items))
 
 
 @router.get(
@@ -314,6 +340,25 @@ async def get_knowledge_reach(agent_id: UUID, service: KnowledgeReachSvc, ctx: A
     are answered from it all the same. Sources the caller may not see are left out.
     """
     return await service.for_agent(ctx, agent_id)
+
+
+@router.get("/{agent_id}/mentionables", response_model=MentionableList)
+async def list_mentionables(
+    agent_id: UUID,
+    service: MentionSvc,
+    ctx: Auth,
+    draft: Annotated[
+        bool, Query(description="Read the Builder's draft, as its test panel runs it")
+    ] = False,
+) -> Any:
+    """What the person may point this agent at with `@` in the composer (#2189).
+
+    Its MCP servers, the capabilities that give it tools, the agents it delegates
+    to, and its knowledge bases, skills and context files - nothing the agent
+    could not already reach, and nothing the caller could not use.
+    """
+    items = await service.available(ctx, agent_id, draft=draft)
+    return MentionableList(items=items, total=len(items))
 
 
 @router.get("/{agent_id}", response_model=AgentDetail)
@@ -512,6 +557,25 @@ async def set_agent_avatar_color(
     return await service.set_avatar_color(ctx, agent_id, color=data.color)
 
 
+@router.put(
+    "/{agent_id}/a2a",
+    response_model=AgentRead,
+)
+async def set_agent_a2a(
+    agent_id: UUID,
+    data: AgentA2ARequest,
+    service: AgentRegistrySvc,
+    ctx: Auth,
+) -> Any:
+    """Serve this agent over A2A, or stop (#2092).
+
+    Per-resource: the service's grant-aware `AGENTS_PUBLISH` check decides. Served,
+    its card is at `/a2a/{agent_id}/.well-known/agent-card.json` and its tasks at
+    `POST /a2a/{agent_id}`.
+    """
+    return await service.set_a2a(ctx, agent_id, enabled=data.enabled)
+
+
 @router.patch(
     "/{agent_id}/metadata",
     response_model=AgentRead,
@@ -661,5 +725,7 @@ async def run_agent(
         cost_is_partial=run.cost_is_partial,
         input_tokens=run.input_tokens,
         output_tokens=run.output_tokens,
+        cache_read_tokens=run.cache_read_tokens,
+        cache_write_tokens=run.cache_write_tokens,
         parked=await service.parked_calls(ctx, run),
     )

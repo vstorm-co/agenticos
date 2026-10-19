@@ -77,6 +77,22 @@ describe("the chat controls trigger", () => {
     expect(document.querySelector("[data-chat-settings-trigger]")).toBe(found);
   });
 
+  it("stays open under the page tour's caption, and closes on an outside click otherwise", async () => {
+    // The tour walks the popover's sections: its caption sits outside the popover,
+    // and closing on it left the next stop pinned to a section that had gone.
+    render(<ChatControls onModelProfileChange={vi.fn()} />);
+    const caption = document.createElement("div");
+    caption.className = "driver-popover";
+    document.body.appendChild(caption);
+    await userEvent.click(trigger());
+    await userEvent.click(caption);
+    expect(screen.getByText("Saves on send")).toBeInTheDocument();
+
+    caption.remove();
+    await userEvent.click(document.body);
+    expect(screen.queryByText("Saves on send")).toBeNull();
+  });
+
   it("is one icon, titled 'Chat controls' when the agent's model could not be read", () => {
     open();
 

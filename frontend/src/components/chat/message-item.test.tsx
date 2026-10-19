@@ -163,6 +163,16 @@ describe("a turn in the transcript", () => {
     expect(screen.queryByText("stopped")).toBeNull();
   });
 
+  it("shows what a question pointed the agent at as chips above it (#2189)", () => {
+    item({
+      role: "user",
+      content: "Find the brief",
+      mentions: [{ kind: "skill", id: "s-1", name: "refund-policy" }],
+    });
+    expect(screen.getByTitle("refund-policy")).toHaveTextContent("refund-policy");
+    expect(screen.queryByRole("button", { name: /Remove/ })).toBeNull();
+  });
+
   it("renders an answer as Markdown and a question as plain text", () => {
     const { unmount } = item();
     expect(screen.getByTestId("markdown")).toHaveTextContent("Refunds run to thirty days.");
@@ -731,6 +741,59 @@ describe("what a person attached", () => {
     const { container } = item({ role: "user", content: "x" });
 
     expect(container.querySelector("g.mo-root")).toBeInTheDocument();
+  });
+
+  it("names a teammate's turn in a project's chat by them, not as You", () => {
+    useAuthStore.setState({ user: { id: "u-1", email: "k@example.com" } as never });
+    const anna = { user_id: "u-2", name: "Anna", has_avatar: false, avatar_color: null };
+
+    const { unmount } = item({ role: "user", content: "picking this up", sender: anna });
+    expect(screen.getByText("Anna")).toBeInTheDocument();
+    expect(screen.queryByText("You")).toBeNull();
+    unmount();
+
+    // The reader's own turn, signed with their own id, is still theirs.
+    item({ role: "user", content: "x", sender: { ...anna, user_id: "u-1", name: "Kacper" } });
+    expect(screen.getByText("You")).toBeInTheDocument();
+  });
+
+  it("offers Reply on a stored message, and quotes what a reply answers", async () => {
+    useAuthStore.setState({ user: { id: "u-1", email: "k@example.com" } as never });
+    const { unmount } = item({
+      id: "m-2",
+      role: "assistant",
+      content: "Plan:\n step one",
+      conversationId: "c-1",
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Reply" }));
+    expect(useChatStore.getState().replyTo).toEqual({
+      messageId: "m-2",
+      role: "assistant",
+      excerpt: "Plan: step one",
+      sender: undefined,
+      agentId: undefined,
+      agentName: undefined,
+    });
+    unmount();
+
+    item({
+      role: "user",
+      content: "bigger",
+      isTemporaryId: true,
+      replyTo: { messageId: "m-2", role: "assistant", excerpt: "Plan: step one" },
+    });
+    expect(screen.getByText("Plan: step one")).toBeInTheDocument();
+    // Its own id is this tab's: nothing can be addressed to it yet.
+    expect(screen.queryByRole("button", { name: "Reply" })).toBeNull();
+  });
+
+  it("draws a turn whose writer has left as a former member, never as You", () => {
+    useAuthStore.setState({ user: { id: "u-1", email: "k@example.com" } as never });
+
+    item({ role: "user", content: "an old idea", senderGone: true });
+
+    expect(screen.getByText("A former member")).toBeInTheDocument();
+    expect(screen.queryByText("You")).toBeNull();
   });
 
   it("draws the agent's face mid-thought while the turn is still streaming", () => {

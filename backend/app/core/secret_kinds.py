@@ -42,6 +42,12 @@ The kinds are the shapes that actually exist, and no more:
     that a SharePoint or OneDrive sync source reads a site with. Three fields,
     because a client secret is useless without the tenant and the app it
     belongs to.
+`openai_codex`
+    A ChatGPT sign-in for the Codex backend: an access token, the refresh token
+    that renews it and the ChatGPT account both belong to. Not typed by anybody -
+    the sign-in flow in `app/services/openai_codex.py` writes it, and the
+    runtime writes it again each time the tokens rotate, because a refresh token
+    is spent by the refresh that replaces it.
 
 Two unions, deliberately. :data:`StorableSecret` is what a person can save;
 :data:`SecretValue` adds `none`, which the runtime can hold but nobody can
@@ -86,6 +92,7 @@ class SecretKind(StrEnum):
     GOOGLE_OAUTH_APP = "google_oauth_app"
     GIT_TOKEN = "git_token"
     ENTRA_APP = "entra_app"
+    OPENAI_CODEX = "openai_codex"
 
 
 def _reveal(value: SecretStr) -> str:
@@ -348,6 +355,33 @@ class EntraAppSecret(_SecretBase):
         return self.client_id[-4:]
 
 
+class OpenAICodexSecret(_SecretBase):
+    """A ChatGPT subscription's sign-in, as the Codex backend accepts it.
+
+    Three fields because the backend wants all three on every request: the
+    bearer, the `chatgpt-account-id` header it is checked against, and the
+    refresh token that replaces both when the bearer expires. The refresh token
+    is single-use, so this value changes under its own id - see
+    `app/services/openai_codex.py`, which is what writes it back.
+    """
+
+    kind: Literal[SecretKind.OPENAI_CODEX] = SecretKind.OPENAI_CODEX
+    access_token: CredentialStr = Field(title="Access token")
+    refresh_token: CredentialStr = Field(title="Refresh token")
+    account_id: str = Field(
+        min_length=1,
+        max_length=255,
+        title="ChatGPT account ID",
+        description="The account the tokens were issued for",
+    )
+
+    @property
+    def hint(self) -> str:
+        # The account, not a token: it identifies the subscription and does not
+        # authenticate anything on its own.
+        return self.account_id[-4:]
+
+
 class GithubOAuthAppSecret(_SecretBase):
     """A GitHub OAuth App's credentials: a public client id and a secret."""
 
@@ -452,10 +486,31 @@ StorableSecret = Annotated[
     | GithubAppSecret
     | GoogleOAuthAppSecret
     | GitTokenSecret
-    | EntraAppSecret,
+    | EntraAppSecret
+    | OpenAICodexSecret,
     Field(discriminator="kind"),
 ]
 """Every shape a person can actually save."""
+
+TypedSecret = Annotated[
+    ApiKeySecret
+    | AzureOpenAISecret
+    | AwsCredentialsSecret
+    | GcpServiceAccountSecret
+    | GithubOAuthAppSecret
+    | GithubAppSecret
+    | GoogleOAuthAppSecret
+    | GitTokenSecret
+    | EntraAppSecret,
+    Field(discriminator="kind"),
+]
+"""What a person may type into the vault: :data:`StorableSecret` but a ChatGPT sign-in.
+
+A sign-in is written only by finishing the sign-in flow, which binds it to whoever
+started it. Posted as a value, it would be any pair of tokens - a Codex CLI's own
+grant among them, whose single-use refresh token then signs the CLI and the platform
+out of each other.
+"""
 
 SecretValue = Annotated[
     NoSecret
@@ -467,7 +522,8 @@ SecretValue = Annotated[
     | GithubAppSecret
     | GoogleOAuthAppSecret
     | GitTokenSecret
-    | EntraAppSecret,
+    | EntraAppSecret
+    | OpenAICodexSecret,
     Field(discriminator="kind"),
 ]
 """What the runtime holds - :data:`StorableSecret` plus "there is no credential"."""
@@ -550,6 +606,7 @@ _KIND_MODELS: dict[SecretKind, type[BaseModel]] = {
     SecretKind.GOOGLE_OAUTH_APP: GoogleOAuthAppSecret,
     SecretKind.GIT_TOKEN: GitTokenSecret,
     SecretKind.ENTRA_APP: EntraAppSecret,
+    SecretKind.OPENAI_CODEX: OpenAICodexSecret,
 }
 
 _KIND_LABELS: dict[SecretKind, tuple[str, str]] = {
@@ -589,6 +646,11 @@ _KIND_LABELS: dict[SecretKind, tuple[str, str]] = {
         "Microsoft Entra app",
         "An app registration's tenant, client id and client secret - for reading "
         "SharePoint sites and OneDrive folders through Microsoft Graph.",
+    ),
+    SecretKind.OPENAI_CODEX: (
+        "ChatGPT sign-in",
+        "A ChatGPT subscription's sign-in, for running models on the Codex backend. "
+        "Stored by signing in with ChatGPT rather than typed.",
     ),
 }
 
@@ -679,6 +741,17 @@ class SecretRequirement(BaseModel):
             "with a username and password or be reached without one."
         ),
     )
+    also_accepts: tuple[SecretKind, ...] = Field(
+        default=(),
+        description=(
+            "Further kinds that satisfy the requirement besides `kind`. The coding "
+            "agent takes an API key or a ChatGPT sign-in, and the Builder offers both."
+        ),
+    )
+
+    def accepts(self, kind: str) -> bool:
+        """Whether a secret of `kind` satisfies this requirement."""
+        return kind == self.kind.value or kind in {also.value for also in self.also_accepts}
 
     @model_validator(mode="after")
     def _a_requirement_is_for_a_real_secret(self) -> SecretRequirement:

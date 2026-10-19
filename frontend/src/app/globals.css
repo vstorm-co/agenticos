@@ -702,6 +702,43 @@
     }
   }
 
+  /* The empty composer's examples: each slides in from above as the last one
+     slides down and out. Reduced motion swaps them in place. */
+  @keyframes composer-hint-in {
+    from {
+      opacity: 0;
+      transform: translateY(-60%);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes composer-hint-out {
+    from {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(60%);
+    }
+  }
+  .composer-hint-in {
+    animation: composer-hint-in 650ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .composer-hint-out {
+    animation: composer-hint-out 650ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .composer-hint-in {
+      animation: none;
+    }
+    .composer-hint-out {
+      display: none;
+    }
+  }
+
   /* Subtle background grid - fades on the edges so it doesn't fight the content */
   .bg-grid {
     background-image:

@@ -5,12 +5,16 @@ This module contains Pydantic schemas for Conversation, Message, and ToolCall en
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
 
 from pydantic import ConfigDict, Field
 
 from app.schemas.base import BaseSchema, TimestampSchema
+from app.schemas.mention import MentionKind
+
+if TYPE_CHECKING:
+    from app.db.models.user import User
 
 
 class MessagePart(BaseSchema):
@@ -44,6 +48,10 @@ class MessagePart(BaseSchema):
 
     A `steer` entry is what the person added while the agent was working, stored
     where it reached the model (#2087): the transcript says when the course changed.
+
+    A `mention` entry is on a *user* turn: something the person pointed the agent at
+    with `@` (#2189), stored by kind, id and name so the transcript draws the chip
+    they picked rather than text that only looks like one.
     """
 
     # The one schema in this module that must not strip its strings. `BaseSchema`
@@ -58,7 +66,7 @@ class MessagePart(BaseSchema):
         str_strip_whitespace=False,
     )
 
-    type: Literal["text", "thinking", "tool", "ask_user", "steer"] = Field(
+    type: Literal["text", "thinking", "tool", "ask_user", "steer", "mention"] = Field(
         description="What this entry is."
     )
     text: str | None = Field(
@@ -81,6 +89,12 @@ class MessagePart(BaseSchema):
             "agent asked it itself, and on every question stored before this field "
             "existed."
         ),
+    )
+    mention_kind: MentionKind | None = Field(
+        default=None, description="What was mentioned, for a `mention` entry."
+    )
+    mention_id: str | None = Field(
+        default=None, description="Which one, for a `mention` entry; its name is in `text`."
     )
 
 
@@ -144,11 +158,18 @@ class MessageCreate(MessageBase):
     """
 
     model_name: str | None = Field(default=None, max_length=100, description="AI model used")
+    reply_to_message_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The earlier message in this conversation this turn answers, where somebody "
+            "replied to one; refused when it is in another conversation."
+        ),
+    )
     parts: list[MessagePart] | None = Field(
         default=None,
         description=(
-            "The turn's timeline, in the order it happened. Null on a user turn and "
-            "on any assistant turn written before it was recorded."
+            "The turn's timeline, in the order it happened, or a user turn's "
+            "`mention` entries. Null on any turn written before it was recorded."
         ),
     )
     tokens_used: int | None = Field(default=None, ge=0, description="Token count")
@@ -157,6 +178,14 @@ class MessageCreate(MessageBase):
     )
     output_tokens: int | None = Field(
         default=None, ge=0, description="Completion tokens this turn produced"
+    )
+    cache_read_tokens: int | None = Field(
+        default=None, ge=0, description="Of the prompt tokens, those read from the provider's cache"
+    )
+    cache_write_tokens: int | None = Field(
+        default=None,
+        ge=0,
+        description="Of the prompt tokens, those written to the provider's cache",
     )
     cost_usd: Decimal | None = Field(
         default=None, ge=0, description="What this turn cost, at the same scale as a run's"
@@ -214,6 +243,40 @@ class MessageAuthor(BaseSchema):
     user_id: UUID | None = None
 
 
+class ChatPerson(BaseSchema):
+    """A member of the organization, as much as a chat needs to draw them.
+
+    The name falls back to the address, as the members page does, because a
+    person who never set one is still somebody to tell apart.
+    """
+
+    user_id: UUID
+    name: str
+    has_avatar: bool = False
+    avatar_color: int | None = None
+
+    @classmethod
+    def of(cls, user: "User") -> "ChatPerson":
+        return cls(
+            user_id=user.id,
+            name=user.full_name or user.email,
+            has_avatar=bool(user.avatar_url),
+            avatar_color=user.avatar_color,
+        )
+
+
+class MessageReplyRef(BaseSchema):
+    """The message a turn answers, as much of it as a quote above the turn needs."""
+
+    message_id: UUID
+    role: str
+    excerpt: str
+    sender: ChatPerson | None = None
+    agent_id: UUID | None = Field(
+        default=None, description="The agent that wrote it, where it is an answer"
+    )
+
+
 class MessageRead(MessageBase, TimestampSchema):
     """Schema for reading a message (API response)."""
 
@@ -248,6 +311,20 @@ class MessageRead(MessageBase, TimestampSchema):
         ),
     )
     output_tokens: int | None = None
+    cache_read_tokens: int | None = Field(
+        default=None,
+        description=(
+            "Of `input_tokens`, those served from the provider's cache - priced at a "
+            "fraction of the input rate. Null when not recorded"
+        ),
+    )
+    cache_write_tokens: int | None = Field(
+        default=None,
+        description=(
+            "Of `input_tokens`, those written to the provider's cache - priced above "
+            "the input rate. Null when not recorded"
+        ),
+    )
     cost_usd: Decimal | None = None
     cost_is_partial: bool | None = Field(
         default=None,
@@ -290,6 +367,25 @@ class MessageRead(MessageBase, TimestampSchema):
             "a turn written outside a run and for a run that has not ended."
         ),
     )
+    sender: ChatPerson | None = Field(
+        default=None,
+        description=(
+            "Who typed a user turn, when they were signed in - in a project's chat "
+            "that is not always the conversation's owner. Null on assistant turns, "
+            "on channel turns (`author` says who) and on turns older than the field."
+        ),
+    )
+    reply_to: MessageReplyRef | None = Field(
+        default=None,
+        description="The message this turn answers, quoted, where it replied to one",
+    )
+    sender_gone: bool = Field(
+        default=False,
+        description=(
+            "A project chat's user turn whose writer's account no longer exists - "
+            "drawn as somebody, never as the reader or the chat's owner."
+        ),
+    )
     tool_calls: list[ToolCallRead] = Field(default_factory=list)
     files: list[MessageFileRead] = Field(default_factory=list)
     user_rating: int | None = Field(
@@ -324,6 +420,10 @@ class ConversationCreate(ConversationBase):
     organization_id: UUID | None = Field(
         default=None, description="Organization this conversation belongs to"
     )
+    project_id: UUID | None = Field(
+        default=None,
+        description="The project to start it in; the caller must be able to work in it",
+    )
 
 
 class ConversationUpdate(BaseSchema):
@@ -350,6 +450,9 @@ class ConversationRead(ConversationBase, TimestampSchema):
     id: UUID
     user_id: UUID | None = None
     organization_id: UUID | None = None
+    project_id: UUID | None = Field(
+        default=None, description="The project this chat was started in, if any"
+    )
     is_archived: bool = False
     origin: Literal["api"] | None = Field(
         default=None,
@@ -400,6 +503,42 @@ class ConversationList(BaseSchema):
     """Schema for listing conversations."""
 
     items: list[ConversationRead]
+    total: int
+
+
+class ChatReader(ChatPerson):
+    """Somebody who has had a chat open, and when they last did."""
+
+    read_at: datetime
+
+
+class ProjectChatRead(ConversationRead):
+    """One of a project's chats, with the people around it.
+
+    A project's chats are everybody's in it, so a row says whose it is, who has
+    seen it and who is at work in it now - the things a person looks for before
+    opening a thread somebody else started.
+    """
+
+    owner: ChatPerson | None = Field(
+        default=None, description="Who started the chat; null when that account is gone"
+    )
+    seen_by: list[ChatReader] = Field(
+        default_factory=list,
+        description="Everyone who has had the chat open, most recently first",
+    )
+    working: ChatPerson | None = Field(
+        default=None,
+        description="Whose run is at work in the chat now; null when none is",
+    )
+    here: list[ChatPerson] = Field(
+        default_factory=list,
+        description="Who has the chat open right now, as of their last heartbeat",
+    )
+
+
+class ProjectChatList(BaseSchema):
+    items: list[ProjectChatRead]
     total: int
 
 

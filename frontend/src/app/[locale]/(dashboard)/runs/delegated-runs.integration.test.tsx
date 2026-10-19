@@ -82,6 +82,7 @@ const SPEND = {
   by_provider: [],
   by_key: [],
   by_day: [],
+  cache_by_agent_model: [],
 };
 
 function run(overrides: Partial<AgentRun> = {}): AgentRun {

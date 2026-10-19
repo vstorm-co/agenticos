@@ -17,6 +17,7 @@ import { PlanToolResult } from "./tool-results/plan";
 import { AskedResult, parseAsked } from "./tool-results/asked";
 import { GenericToolResult, RawToolView } from "./tool-results/generic";
 import { RunPythonResult } from "./tool-results/run-python";
+import { CodingAgentResult } from "./tool-results/coding-agent";
 import { DelegationResult } from "./tool-results/delegation";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { delegateNamed, type DelegateRef } from "@/lib/delegations";
@@ -266,6 +267,8 @@ export function ToolCallCard({
         <ChartMessage spec={chartSpec} />
       ) : renderer === "run-python" ? (
         <RunPythonResult toolCall={toolCall} resultText={resultText} />
+      ) : renderer === "coding-agent" ? (
+        <CodingAgentResult toolCall={toolCall} resultText={resultText} />
       ) : renderer === "loaded-skill" ? (
         <LoadedSkillResult result={toolCall.result} status={toolCall.status} />
       ) : renderer === "load-skill" ? (

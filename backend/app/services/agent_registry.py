@@ -43,6 +43,7 @@ from app.agents.capabilities.browser_use import (
     validate_cdp_url,
 )
 from app.agents.capabilities.browser_use._route import check_address
+from app.agents.capabilities.coding_agent import CODING_AGENT_ID, CodingAgentConfig
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
 from app.agents.mcp import PLATFORM_MCP_PREFIX, prefix_collisions
@@ -67,6 +68,7 @@ from app.core.exceptions import (
 )
 from app.core.field_errors import field_problems, refused_field
 from app.core.permissions import AuthContext, Perm
+from app.core.secret_kinds import SecretKind
 from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent, AgentKind, AgentStatus, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
@@ -80,6 +82,7 @@ from app.repositories import (
     agent_trigger_repo,
     context_repo,
     credential_repo,
+    external_agent_repo,
     knowledge_base_repo,
     mcp_connection_repo,
     member_repo,
@@ -270,6 +273,25 @@ async def _sandbox_problems(db: AsyncSession, ctx: AuthContext, spec: AgentSpec)
             "sandbox can be opened on it. Attach its key in the vault."
         )
     return problems
+
+
+def _coding_agent_problems(spec: AgentSpec) -> list[str]:
+    """A coding agent with nowhere to run its harness.
+
+    Claude Code and Codex run as commands in the agent's sandbox, so they need a
+    container-backed one with the shell on. Every other shape publishes and then
+    answers each task with "no shell here", which is the run-time surprise
+    publish exists to prevent.
+    """
+    if not any(binding.id == CODING_AGENT_ID and binding.enabled for binding in spec.capabilities):
+        return []
+    config = sandbox_config(spec)
+    if config is None or config.backend != "service" or not config.include_execute:
+        return [
+            "The coding agent runs in the agent's sandbox, so it needs the Sandbox "
+            "capability on a sandbox connection with shell commands allowed."
+        ]
+    return []
 
 
 _READ_PERMS = frozenset({Perm.AGENTS_VIEW, Perm.AGENTS_RUN})
@@ -1115,9 +1137,15 @@ class AgentRegistryService:
         ]
 
     async def install_template(
-        self, ctx: AuthContext, key: str, *, visibility: Visibility = Visibility.PRIVATE
+        self, ctx: AuthContext, key: str, *, visibility: Visibility = Visibility.ORG
     ) -> TemplateInstallResult:
         """Create a draft agent from a shipped template, with its skills.
+
+        Visible to the organization, as an agent from the create form is. The
+        reason `create` defaults to private - a copy must not publish somebody's
+        private instructions to the tenant - does not reach a template: its
+        instructions ship with the product. Installed private, every template
+        agent had to be found and re-shared by hand before a colleague could see it.
 
         A **draft**, deliberately. The template cannot name a model - this
         platform has no organization-wide default, because a model an agent did
@@ -1173,10 +1201,11 @@ class AgentRegistryService:
         # The least-exposing value, deliberately. `org` is what a person picks in
         # the create form, and `AgentCreate.visibility` carries that choice to the
         # route - so the default here only ever reaches the callers that make an
-        # agent without anybody choosing: a clone, a promoted specialist, a
-        # template install. Defaulting those to `org` published a copy of a
-        # private agent to the whole tenant, which is what a colleague then read
-        # the instructions out of.
+        # agent without anybody choosing: a clone and a promoted specialist.
+        # Defaulting those to `org` published a copy of a private agent to the
+        # whole tenant, which is what a colleague then read the instructions out
+        # of. A template install passes `org` itself: its instructions ship with
+        # the product.
         visibility: Visibility = Visibility.PRIVATE,
         categories: list[str] | None = None,
         tags: list[str] | None = None,
@@ -1436,6 +1465,15 @@ class AgentRegistryService:
             problems.add(["No model selected - pick one before publishing"])
         else:
             problems.add(await self._model_profile_problems(ctx, spec.model_profile_id))
+        # And each reviewer's, refused here rather than when a run first reaches
+        # its cadence and finds nothing to review with.
+        for reviewer in spec.reviewers:
+            if reviewer.model_profile_id is None:
+                problems.add([f"Reviewer '{reviewer.name}': pick the model it reviews with"])
+            else:
+                problems.add(await self._model_profile_problems(ctx, reviewer.model_profile_id))
+            if not reviewer.instructions.strip():
+                problems.add([f"Reviewer '{reviewer.name}': say what it looks for"])
 
         problems.add(await self._collection_problems(ctx, spec.collection_ids))
         problems.add(await self._skill_problems(ctx, spec.skill_ids))
@@ -1446,6 +1484,7 @@ class AgentRegistryService:
         problems.merge(_variable_problems(spec))
 
         problems.add(await _sandbox_problems(self.db, ctx, spec))
+        problems.add(_coding_agent_problems(spec))
         problems.merge(await self._delegation_problems(ctx, spec, agent_id=agent_id))
 
         if problems.messages:
@@ -1749,10 +1788,21 @@ class AgentRegistryService:
                 f"Capability '{binding.id}' points at a secret this organization does not "
                 f"have: {binding.secret_id}"
             ]
-        if secret.kind != requirement.kind.value:
+        if not requirement.accepts(secret.kind):
             return [
                 f"Capability '{binding.id}' needs a {requirement.kind.value} secret, but "
                 f"'{secret.name}' holds a {secret.kind}"
+            ]
+        # A sign-in is accepted for the coding agent only because Codex runs on
+        # one; switched to Claude Code, it would refuse every task at run time.
+        if (
+            isinstance(config, CodingAgentConfig)
+            and secret.kind == SecretKind.OPENAI_CODEX.value
+            and config.harness != "codex"
+        ):
+            return [
+                f"'{secret.name}' is a ChatGPT sign-in, which only Codex runs on - pick an "
+                "Anthropic key or Claude subscription token for Claude Code"
             ]
         return []
 
@@ -1809,7 +1859,7 @@ class AgentRegistryService:
         """
         binding = delegation_binding(spec)
         if binding is None:
-            if spec.subagents:
+            if spec.subagents or spec.external_agents:
                 # A pin nothing reads: the capability is what turns these into
                 # tools, so without it they are configuration that reads as a
                 # decision and has no effect - and the author who wired up three
@@ -1844,11 +1894,47 @@ class AgentRegistryService:
         # Both are what the runtime hands the model, which is the only namespace
         # a collision can happen in.
         names.extend(pins.handles)
+        remote = await self._external_agent_problems(ctx, spec)
+        problems.add(remote[0])
+        names.extend(remote[1])
         problems.add(_collision_problems(names))
         problems.add(
             await self._cycle_problems(ctx, pins.delegates, agent_id=agent_id, root_name=spec.name)
         )
         return problems
+
+    async def _external_agent_problems(
+        self, ctx: AuthContext, spec: AgentSpec
+    ) -> tuple[list[str], list[str]]:
+        """Remote agents named that this organization has not registered, and the
+        handles of those it has - which share the namespace delegates are called in."""
+        ids = [ref.external_agent_id for ref in spec.external_agents]
+        found = await external_agent_repo.get_many(
+            self.db, ids, organization_id=ctx.organization_id
+        )
+        problems = [
+            f"Remote agent {ref_id} is not registered in this organization."
+            for ref_id in ids
+            if ref_id not in found
+        ]
+        # Its key is lent to every run, as a capability's is, so the publisher
+        # must reach it - `_secret_problems` gives the reason, and a registration
+        # is made by anybody who may edit agents, with a key of their own.
+        for ref_id in ids:
+            registered = found.get(ref_id)
+            if registered is None or registered.secret_id is None:
+                continue
+            secret = await organization_secret_repo.get(
+                self.db, registered.secret_id, organization_id=ctx.organization_id
+            )
+            if secret is None or not await resolve_access(
+                self.db, ctx, secret, Perm.SECRETS_VIEW, resource_type=SECRET
+            ):
+                problems.append(
+                    f"Remote agent '{registered.slug}' sends a key you cannot use; "
+                    "ask whoever registered it to share the key, or register it with your own."
+                )
+        return problems, [found[ref_id].slug for ref_id in ids if ref_id in found]
 
     async def _specialist_problems(
         self, ctx: AuthContext, specialist: SpecialistSpec
@@ -2365,6 +2451,34 @@ class AgentRegistryService:
         return await agent_repo.update(
             self.db, agent=agent, update_data={"categories": categories, "tags": tags}
         )
+
+    async def set_a2a(self, ctx: AuthContext, agent_id: UUID, *, enabled: bool) -> Agent:
+        """Serve this agent over A2A, or stop (#2092).
+
+        A publishing decision rather than an edit: turning it on makes the agent's
+        name and description readable by anybody who has the card's address, and
+        reachable by every key and OAuth grant of the organization allowed to run
+        it. So it takes `AGENTS_PUBLISH`, grant-aware through `self.get`, and an
+        agent with no published version cannot be served - it has nothing to run.
+        """
+        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_PUBLISH)
+        if enabled and agent.current_version_id is None:
+            raise BadRequestError(
+                message="Publish the agent before serving it over A2A",
+                details={"agent_id": agent.id},
+            )
+        updated = await agent_repo.update(
+            self.db, agent=agent, update_data={"a2a_enabled": enabled}
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="agent.a2a_served" if enabled else "agent.a2a_withdrawn",
+            target_type="agent",
+            target_id=str(agent.id),
+        )
+        return updated
 
     async def avatar_path(self, ctx: AuthContext, agent_id: UUID) -> str:
         """The storage path of the agent's picture, for the route that streams it.

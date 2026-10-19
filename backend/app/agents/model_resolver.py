@@ -33,12 +33,19 @@ Everything else Pydantic AI ships is here. Three of them (`xai`, `cohere`,
 `huggingface`) need an SDK of their own, so they are in this repository's
 `pydantic-ai-slim` extras: a provider selectable in the Builder that raises
 `ImportError` when a run reaches it would be worse than one nobody can pick.
+
+`openai_codex` is the one whose credential changes while it is used. It runs on
+a ChatGPT subscription rather than an API key, and its refresh token is spent by
+the refresh that replaces it - so the provider is handed somewhere to write the
+new pair (:attr:`ResolvedCredential.credential_source`) instead of the pair
+itself, and a credential without one is refused rather than built to fail on its
+second run.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
 
 from pydantic_ai.models import Model, infer_model
@@ -52,9 +59,13 @@ from app.core.secret_kinds import (
     AzureOpenAISecret,
     GcpServiceAccountSecret,
     NoSecret,
+    OpenAICodexSecret,
     SecretKind,
     SecretValue,
 )
+
+if TYPE_CHECKING:
+    from pydantic_ai.providers.openai_codex import OpenAICodexCredentialSource
 
 ModelApi = Literal["chat", "responses"]
 """Which of OpenAI's two APIs a profile's requests go to: Chat Completions or Responses."""
@@ -174,6 +185,15 @@ PROVIDERS: dict[str, ProviderSpec] = {
         # deployment's own network usually has nothing to authenticate against.
         _api_key("ollama", "Ollama", base_url_param="base_url", keyless=True),
         _api_key("litellm", "LiteLLM proxy", base_url_param="api_base", keyless=True),
+        # A ChatGPT subscription rather than an API account. Its own entry
+        # because the credential is a sign-in that rotates, and because it is
+        # billed to one person's subscription rather than to an API key.
+        ProviderSpec(
+            id="openai_codex",
+            name="ChatGPT (Codex subscription)",
+            secret_kind=SecretKind.OPENAI_CODEX,
+            model_prefix="openai-codex",
+        ),
         # The three whose credential is genuinely not an API key.
         ProviderSpec(
             id="azure",
@@ -232,6 +252,10 @@ class ResolvedCredential:
     # The profile's, like `base_url`: which API the request goes to on a
     # provider that serves two. `None` for every provider that serves one.
     api: ModelApi | None = None
+    # Where a ChatGPT sign-in reads its current tokens from and writes rotated
+    # ones back to. `secret` is the pair as it was when the run resolved it,
+    # which a refresh in any other run may already have spent.
+    credential_source: OpenAICodexCredentialSource | None = None
 
 
 def _build_provider(spec: ProviderSpec, credential: ResolvedCredential) -> Provider[Any]:
@@ -274,6 +298,8 @@ def _build_provider(spec: ProviderSpec, credential: ResolvedCredential) -> Provi
         )
     if isinstance(secret, GcpServiceAccountSecret):
         return _google_cloud_provider(secret)
+    if isinstance(secret, OpenAICodexSecret):
+        return _openai_codex_provider(spec, credential.credential_source)
 
     endpoint: dict[str, str] = {}
     if credential.base_url is not None and spec.base_url_param is not None:
@@ -317,29 +343,44 @@ def _google_cloud_provider(secret: GcpServiceAccountSecret) -> Provider[Any]:
     )
 
 
-PROMPT_CACHE_DEFAULTS: dict[str, dict[str, bool]] = {
-    "anthropic": {
-        "anthropic_cache_instructions": True,
-        "anthropic_cache_tool_definitions": True,
-        "anthropic_cache_messages": True,
-    },
-    "openrouter": {
-        "openrouter_cache_instructions": True,
-        "openrouter_cache_tool_definitions": True,
-        "openrouter_cache_messages": True,
-    },
-}
-"""Prompt caching every request to these providers asks for unless its profile says not.
+def _openai_codex_provider(
+    spec: ProviderSpec, source: OpenAICodexCredentialSource | None
+) -> Provider[Any]:
+    """The Codex backend, on tokens it reads from and rotates into the vault.
+
+    Refused without a source rather than built from the resolved pair: the first
+    refresh would spend the stored refresh token, the new one would live only in
+    this process, and the next run would find the vault holding a token the
+    authorization server no longer accepts.
+    """
+    from pydantic_ai.providers.openai_codex import OpenAICodexProvider
+
+    if source is None:
+        raise BadRequestError(
+            message="A ChatGPT sign-in can only run where its rotated tokens can be stored",
+            details={"provider": spec.id},
+        )
+    return OpenAICodexProvider(credential_source=source)
+
+
+PROMPT_CACHE: dict[str, bool] = {"cache": True}
+"""Prompt caching, asked of every model unless its profile says not (#2169).
 
 An agent re-sends its instructions, its tool schemas and its whole history on
-every request of a run, and on these two nothing was cached unless a profile
-named the settings by hand: a long conversation through OpenRouter sent 300,000
-tokens per request with no cache reads, and the account's in-flight credit ran
-out mid-run. The breakpoints are the stable prefix - instructions, tools - and
-the last message, so each request reads the one before it from cache. OpenRouter
-drops the markers for a downstream model that cannot cache explicitly, and the
-settings are prefixed per provider, so a fallback on another provider ignores
-them."""
+every request of a run; uncached, a long conversation through OpenRouter sent
+300,000 tokens per request with no cache reads, and the account's in-flight
+credit ran out mid-run. Pydantic AI's provider-neutral `cache` setting places the
+breakpoints - the stable prefix of tools and instructions, and the conversation -
+on every provider that takes explicit caching (Anthropic, Bedrock's Anthropic and
+Nova models, OpenRouter's Anthropic and Gemini models, OpenAI from GPT-5.6) and is
+ignored by one that caches implicitly or not at all. It replaced a table of
+Anthropic and OpenRouter flags, which left Bedrock and OpenAI uncached.
+
+A profile turns it off with `cache: false`, or narrows it with a `CacheConfig`
+(`{"messages": false}` caches only the prefix). A provider-specific flag a
+profile still sets - `anthropic_cache_messages` - takes precedence over this
+whole setting for that request, as Pydantic AI defines it.
+"""
 
 
 def build_model(credential: ResolvedCredential, model: str) -> Model:
@@ -383,8 +424,8 @@ def _openrouter_model(spec: ProviderSpec, credential: ResolvedCredential, model:
     request. Amazon Bedrock is one of them for most Claude models and refuses the
     field outright ("tools.N.custom.cache_control.ephemeral.ttl: Extra inputs are
     not permitted"), so the same agent failed or answered depending on where
-    OpenRouter routed the request. `PROMPT_CACHE_DEFAULTS` asks for five minutes,
-    which is every host's default, so leaving `ttl` out changes nothing but that.
+    OpenRouter routed the request. `PROMPT_CACHE` asks for the provider's default
+    retention, five minutes on every host, so leaving `ttl` out changes nothing but that.
     """
     from pydantic_ai.models.openrouter import OpenRouterModel
     from pydantic_ai.providers.openrouter import OpenRouterModelProfile

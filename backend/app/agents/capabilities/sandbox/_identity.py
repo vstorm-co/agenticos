@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Literal
 from uuid import UUID
 
-SessionScope = Literal["run", "conversation", "channel", "user", "agent"]
+SessionScope = Literal["run", "conversation", "channel", "user", "agent", "project"]
 """Who shares a workspace.
 
 `conversation` and `channel` are both here because a chat platform makes them
@@ -46,6 +46,7 @@ _SCOPE_LETTER: dict[str, str] = {
     "channel": "h",
     "user": "u",
     "agent": "a",
+    "project": "p",
 }
 """One letter per scope, written out rather than taken from the name.
 
@@ -84,8 +85,9 @@ class WorkspaceIdentity:
     """
 
     organization_id: UUID
-    agent_id: UUID
-    run_id: UUID
+    agent_id: UUID | None
+    """`None` only where a project's files are opened outside any run."""
+    run_id: UUID | None
     conversation_id: UUID | None = None
     user_id: str | None = None
     channel_key: str | None = None
@@ -96,6 +98,9 @@ class WorkspaceIdentity:
     of ours because it has to be stable across the threads inside it, and a
     `ChannelSession` is created per thread.
     """
+    project_id: UUID | None = None
+    """The project the conversation belongs to, which a `project` scope keys on.
+    Every agent answering in the project shares it, so it carries no agent."""
 
 
 def scope_key(
@@ -156,10 +161,21 @@ def scope_key(
 
 
 def _subject(identity: WorkspaceIdentity, scope: SessionScope) -> str:
+    if scope == "project":
+        if identity.project_id is None:
+            raise WorkspaceScopeUnavailable(
+                "This run is not in a project, so a project workspace has nothing to attach to."
+            )
+        return identity.project_id.hex
+    agent_id = identity.agent_id
+    if agent_id is None or identity.run_id is None:
+        raise WorkspaceScopeUnavailable(
+            "Only a project's workspace can be opened without an agent's run."
+        )
     if scope == "run":
         return identity.run_id.hex
     if scope == "agent":
-        return identity.agent_id.hex
+        return agent_id.hex
     if scope == "conversation":
         if identity.conversation_id is None:
             raise WorkspaceScopeUnavailable(
@@ -176,7 +192,7 @@ def _subject(identity: WorkspaceIdentity, scope: SessionScope) -> str:
         # Per agent as well as per channel: two agents in one Slack channel are
         # two different jobs, and one reading the other's files is not something
         # anybody asked for by putting both in the same room.
-        return f"{identity.agent_id.hex[:8]}{_digest(identity.channel_key)}"
+        return f"{agent_id.hex[:8]}{_digest(identity.channel_key)}"
     if identity.user_id is None:
         raise WorkspaceScopeUnavailable(
             "This run has no signed-in user, so a user-scoped workspace has nothing to attach to."
@@ -184,7 +200,7 @@ def _subject(identity: WorkspaceIdentity, scope: SessionScope) -> str:
     # Per user *per agent*: one person's workspace in the support agent is not
     # their workspace in the finance agent, and merging them would let an agent
     # read files gathered for another one.
-    return f"{identity.agent_id.hex[:8]}{_digest(identity.user_id)}"
+    return f"{agent_id.hex[:8]}{_digest(identity.user_id)}"
 
 
 def _digest(user_id: str) -> str:

@@ -29,22 +29,28 @@ interface MessageCostProps {
 export function MessageCost({ usage }: MessageCostProps) {
   const t = useTranslations("chat");
   const cost = `$${Number(usage.cost_usd).toFixed(4)}`;
+  const tokens = { input: usage.input_tokens, output: usage.output_tokens };
+  const detail = usage.cost_is_partial
+    ? t("tokensDetailPartial", tokens)
+    : t("tokensDetail", tokens);
   return (
-    <span
-      className="text-muted-foreground font-mono text-xs"
-      title={
-        usage.cost_is_partial
-          ? t("tokensDetailPartial", {
-              input: usage.input_tokens,
-              output: usage.output_tokens,
-            })
-          : t("tokensDetail", { input: usage.input_tokens, output: usage.output_tokens })
-      }
-    >
+    <span className="text-muted-foreground font-mono text-xs" title={withCache(t, detail, usage)}>
       ↓{usage.input_tokens.toLocaleString()} ↑{usage.output_tokens.toLocaleString()} ·{" "}
       {usage.cost_is_partial ? `≥ ${cost}` : cost}
     </span>
   );
+}
+
+/**
+ * The detail line, with how much of the input the provider's cache served or
+ * took (#2170) - priced at a fraction of the input rate and above it, so "998k
+ * input" alone reads as 998k full-price tokens when most were cache reads.
+ */
+function withCache(t: ReturnType<typeof useTranslations>, detail: string, usage: TurnUsage) {
+  const read = usage.cache_read_tokens ?? 0;
+  const write = usage.cache_write_tokens ?? 0;
+  if (read === 0 && write === 0) return detail;
+  return t("tokensWithCache", { detail, read, write });
 }
 
 /** The smallest sum a rounded cost can name; anything under it is "< $0.01". */
@@ -65,11 +71,13 @@ export function RoundedCost({ usage }: MessageCostProps) {
   return (
     <span
       className="text-muted-foreground text-xs tabular-nums"
-      title={
+      title={withCache(
+        t,
         usage.cost_is_partial
           ? t("exactCostPartial", { cost: `$${exact.toFixed(4)}` })
-          : `$${exact.toFixed(4)}`
-      }
+          : `$${exact.toFixed(4)}`,
+        usage,
+      )}
     >
       {usage.cost_is_partial ? `≥ ${rounded}` : rounded}
     </span>

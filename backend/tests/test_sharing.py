@@ -13,16 +13,9 @@ import pytest
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.resource_grant import GrantLevel, Visibility
-from app.services import access
-from app.services.access import COLLECTION, ResourceType
-from app.services.sharing import _CONSOLE_PATHS, SharingService
-
-
-def test_every_resource_type_has_a_console_path():
-    """A share with a group links its members to what was shared: a kind with no
-    path would fail the share itself rather than leave the link out."""
-    kinds = {value.key for value in vars(access).values() if isinstance(value, ResourceType)}
-    assert kinds == set(_CONSOLE_PATHS)
+from app.services import access, sharing
+from app.services.access import COLLECTION
+from app.services.sharing import SharingService
 
 
 def _ctx(role: str, org_id=None, user_id=None) -> AuthContext:
@@ -441,3 +434,17 @@ class TestVisibility:
         assert [call.kwargs["action"] for call in audit.call_args_list] == [
             "resource.visibility_changed"
         ]
+
+
+@pytest.mark.parametrize(
+    "resource_type",
+    # Every kind `access` defines, so the next one added is checked without a
+    # second list to remember.
+    [kind for kind in vars(access).values() if isinstance(kind, access.ResourceType)],
+    ids=lambda kind: kind.key,
+)
+def test_every_shareable_kind_has_a_page_a_share_notification_opens(resource_type) -> None:
+    """A kind missing here made every share of it with a group a `KeyError`: the
+    notification is written in the same transaction, so the share rolled back
+    with a 500 - every project shared with a department."""
+    assert sharing._CONSOLE_PATHS[resource_type.key].startswith("/")

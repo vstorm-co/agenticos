@@ -2087,9 +2087,22 @@ class UnavailablePrefixCollision:
     kept_binding: str
 
 
+@dataclass(frozen=True)
+class UnavailablePlatformServer:
+    """This platform's own server, bound but not attached: nobody to act as.
+
+    Its tools act as the person the run is for, so a visitor, an unlinked chat
+    account or a schedule acting as nobody gets no server - briefed rather than
+    left silent, so a model told about the tools does not reach for them.
+    """
+
+
 # A binding a turn could not honour: a personal one with nobody or nothing to
-# speak through, or a server dropped because its tool prefix collided.
-UnavailableBinding = UnavailablePersonalService | UnavailablePrefixCollision
+# speak through, the platform's own with nobody to act as, or a server dropped
+# because its tool prefix collided.
+UnavailableBinding = (
+    UnavailablePersonalService | UnavailablePlatformServer | UnavailablePrefixCollision
+)
 
 
 @dataclass(frozen=True)
@@ -2207,6 +2220,8 @@ async def build_toolsets_for_agent(
                 )
                 specs.append(spec)
                 bindings[id(spec)] = "this platform's own server"
+            else:
+                unavailable.append(UnavailablePlatformServer())
             continue
         if isinstance(ref, PersonalMcpServerRef):
             own, gap = await _personal_specs(db, ref, sender_user_id=sender_user_id)

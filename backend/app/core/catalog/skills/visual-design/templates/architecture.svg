@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
+  <title id="title">Request path</title>
+  <desc id="desc">A browser calls the console, the console calls the API, the API runs the agent, which calls the model; the database and the queue sit beside the API.</desc>
+  <style>
+    :root { --bg: #ffffff; --ink: #18181b; --muted: #71717a; --line: #d4d4d8; --box: #f4f4f5; --accent: #2563eb; --accent-soft: #dbeafe; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #18181b; --ink: #fafafa; --muted: #a1a1aa; --line: #3f3f46; --box: #27272a; --accent: #60a5fa; --accent-soft: #1e3a5f; }
+    }
+    .bg { fill: var(--bg) }
+    .title { fill: var(--ink); font: 700 26px system-ui, -apple-system, "Segoe UI", sans-serif }
+    .subtitle { fill: var(--muted); font: 400 15px system-ui, -apple-system, "Segoe UI", sans-serif }
+    .zone { fill: none; stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 6 6 }
+    .zone-label { fill: var(--muted); font: 600 12px system-ui, sans-serif; letter-spacing: .04em }
+    .box { fill: var(--box); stroke: var(--line); stroke-width: 1.5 }
+    .box-focus { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2 }
+    .label { fill: var(--ink); font: 600 15px system-ui, sans-serif; text-anchor: middle }
+    .note { fill: var(--muted); font: 400 13px system-ui, sans-serif; text-anchor: middle }
+    .wire { fill: none; stroke: var(--muted); stroke-width: 1.75 }
+    .wire-label { fill: var(--muted); font: 500 12px system-ui, sans-serif; text-anchor: middle }
+    .head { fill: var(--muted) }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path class="head" d="M0 0 L10 5 L0 10 z"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" width="960" height="540"/>
+  <text class="title" x="48" y="64">Request path</text>
+  <text class="subtitle" x="48" y="92">What happens between a question and its answer</text>
+
+  <rect class="zone" x="296" y="136" width="616" height="352" rx="16"/>
+  <text class="zone-label" x="316" y="160">DEPLOYMENT</text>
+
+  <rect class="box" x="48" y="240" width="176" height="80" rx="12"/>
+  <text class="label" x="136" y="276">Browser</text>
+  <text class="note" x="136" y="298">the person</text>
+
+  <rect class="box" x="328" y="240" width="160" height="80" rx="12"/>
+  <text class="label" x="408" y="276">Console</text>
+  <text class="note" x="408" y="298">Next.js</text>
+
+  <rect class="box-focus" x="560" y="240" width="160" height="80" rx="12"/>
+  <text class="label" x="640" y="276">API</text>
+  <text class="note" x="640" y="298">FastAPI</text>
+
+  <rect class="box" x="752" y="240" width="136" height="80" rx="12"/>
+  <text class="label" x="820" y="276">Agent run</text>
+  <text class="note" x="820" y="298">tools, model</text>
+
+  <path class="box" d="M560 400 a80 12 0 0 0 160 0 v48 a80 12 0 0 1 -160 0 z"/>
+  <ellipse class="box" cx="640" cy="400" rx="80" ry="12"/>
+  <text class="label" x="640" y="440">PostgreSQL</text>
+
+  <rect class="box" x="560" y="168" width="160" height="44" rx="10"/>
+  <text class="label" x="640" y="196">Redis</text>
+
+  <path class="wire" d="M224 280 H322" marker-end="url(#arrow)"/>
+  <text class="wire-label" x="273" y="270">HTTPS</text>
+  <path class="wire" d="M488 280 H554" marker-end="url(#arrow)"/>
+  <path class="wire" d="M720 280 H746" marker-end="url(#arrow)"/>
+  <path class="wire" d="M640 320 V382" marker-end="url(#arrow)"/>
+  <text class="wire-label" x="672" y="356">rows</text>
+  <path class="wire" d="M640 240 V218" marker-end="url(#arrow)"/>
+</svg>

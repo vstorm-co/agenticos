@@ -13,7 +13,7 @@ header — it replays that page's walkthrough, and a page whose header carries n
 The landing page is an **arrangeable grid of widgets**, and it is the answer to
 "what is happening" without opening five pages.
 
-Forty-one cards exist. You will not see all of them: **a card is gated on the
+Forty-five cards exist. You will not see all of them: **a card is gated on the
 permission its data needs**, so a widget you may not read is never mounted and
 its queries are never issued — except your own notifications, below, which need
 only that you are signed in. An empty band disappears with its heading rather
@@ -79,6 +79,11 @@ and a click opens the list itself. Unlike the widget above, opening it fetches
 the page you are looking at, not a five-card preview - **Load more** keeps
 paging back through the organization you are currently in, plus anything
 addressed to the deployment as a whole, until it reaches what has aged out.
+
+Each row starts with what it is about: the agent's face, with a badge for how
+its run went, or an icon for the kind of event - green for a finished run or an
+MCP server back up, red for a failure or a spent budget, amber for an approval
+or a budget warning.
 
 Switch organizations and the bell is that one's: a notification from the
 organization you left is not gone, it is behind the switcher. A deployment
@@ -242,6 +247,21 @@ ones ship with the product; you can write your own under
 **Settings → Slash commands**, and hide any built-in you never use. They are
 yours, not the organization's.
 
+**`@` points the agent at something.** Type `@` and a menu offers what the agent
+can use, in this order: its MCP servers, the agents it hands work to (with the
+delegation capability on), its capabilities - **Sandbox**, **Web research** -
+its skills, then its knowledge bases and context files. The pick stays in your
+text as `@Name`, marked with its logo, and the agent is told to use it - a
+server's tools, a capability's tools, a knowledge base's search, a skill -
+without the thing's content being pasted in. Naming an agent hands it the work;
+it never changes who answers. Delete the `@Name` and the pick is gone. A link you
+paste shows its site's icon above the box and in the sent message. A mention never
+widens what the agent may reach: the server checks each one again as you, against
+what the agent already has. In the Builder's test panel the menu reads the draft
+you are testing. While a conversation is empty, the box cycles through examples
+built from what the agent can use - its server, a capability, a delegate, a
+skill - and `/`; they are gone the moment you click into it.
+
 **While the agent works**, what you send waits for its answer, as in any chat:
 it sits in a queue above the composer and goes out when the run ends. Drag a
 queued message, or use its arrows, to change the order. **Send now** puts it into
@@ -257,12 +277,24 @@ for runs that finish or fail - tells you it is there, with a link back to it. A
 turn still going after an hour with nobody watching is stopped, and you are told
 that instead ([`CHAT_DETACHED_TURN_MINUTES`](configuration.md#a-chat-turn-left-running)).
 One that waits on an approval or on your answer to a question tells you through
-those.
+those. Come back while it is still answering - to the conversation, from
+another tab, after a reload - and the chat picks the answer up where it is,
+with everything it has done so far, and goes on drawing it as it arrives.
 
 **On a phone** the chat behaves like a messaging app: the composer stays above
 the keyboard and the conversation stays on its last message while it opens,
 Enter starts a new line, and attaching a file or dictating sits behind one
 **+**. Fields are never small enough for iOS to zoom into them.
+
+**Drawings.** An agent with [Visuals](reference/capabilities.md#visuals) draws
+under its message - a diagram, an explainer with sliders, a 3D scene - and you watch
+it appear while it is written; its scripts start once it is complete. The panel shows
+the whole drawing, sized to the conversation, with buttons to open it full screen,
+show its code, download it, copy an SVG as an image, zoom in, and save it as an
+[app](artifacts.md#visuals) with a link you can share. When a drawing reports an
+error, the agent has already been told; **Fix it** asks again. On a phone a tap opens
+it full screen. The dashboard's **Recent visuals** card shows the latest ones drawn for
+you, each opening the conversation it was drawn in.
 
 **Watching a browse.** When an agent with the
 [web browser](reference/capabilities.md#browser-automation) starts on a page, its
@@ -304,7 +336,7 @@ is kept the same way. It needs the deployment's sign-in browser
 The sidebar groups them. **Build** holds Agents, Routines, Apps and Activity;
 **Knowledge** holds Knowledge bases, Documents, Skills and Context. Two groups
 fold to their heading until you open them, because they are set up once and
-visited rarely: **Connections** (MCP servers, Channels, Vault, Sandboxes) and
+visited rarely: **Connections** (MCP servers, Channels, Remote agents, Vault, Sandboxes) and
 **Organization** (Organizations, Groups). A folded group opens by itself on any
 page inside it, and stays the way you left it.
 
@@ -322,6 +354,7 @@ page inside it, and stays the way you left it.
 | **Sandboxes** | Where agents run code: hosts, live sessions, policy | [The sandbox](sandbox.md) |
 | **MCP servers** | Connections to external tools, personal and organization-wide | [MCP](mcp.md) |
 | **Channels** | Slack, Telegram and Mattermost bots, widgets, hosted pages | [Surfaces](channels.md) |
+| **Remote agents** | Other vendors' agents, registered by their A2A agent card, that agents delegate to | [Capabilities](reference/capabilities.md#remote-agents) |
 | **Vault** | Credentials, sealed per organization | [Secrets](secrets.md) |
 | **Organizations** | Members, roles, invitations | [Permissions](permissions.md) |
 | **Settings** | Providers, ingestion defaults, notifications, your own profile | [Configuration](configuration.md) |
@@ -360,7 +393,7 @@ quiet one.
 
 ## Recap
 
-- The dashboard is **forty-one widgets** you arrange yourself, saved per
+- The dashboard is **forty-five widgets** you arrange yourself, saved per
   person and per organization — all but your own notifications gated on the
   permission their data needs.
 - A saved arrangement **can hide and reorder but never reveal** — the gate runs

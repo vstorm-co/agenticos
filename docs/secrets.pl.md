@@ -1,5 +1,5 @@
 ---
-source_sha: "965ad3ad82f8"
+source_sha: "11255bcc5d61"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -98,6 +98,7 @@ kończy z poświadczeniem, które zawodzi przy pierwszym runie. Sekret ma więc
 | `github_oauth_app` | Publiczny client id aplikacji GitHub OAuth App i jej sekret |
 | `git_token` | Token dostępu do git przez HTTPS i jedyny host, do którego wolno go wysłać |
 | `entra_app` | Tenant id, client id i client secret rejestracji aplikacji Microsoft Entra |
+| `openai_codex` | Logowanie do ChatGPT: token dostępu, refresh token i id konta |
 | `none` | Nie jest sekretem — znacznik endpointu, który nie potrzebuje poświadczenia |
 
 `github_oauth_app` jest zużywany przez platformę, a nie wybierany przez
@@ -121,6 +122,13 @@ witrynie, którą czyta źródło — zobacz [Konfiguracja SharePoint i
 OneDrive](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup). Jego
 podpowiedź (hint) to ostatnie cztery znaki client id, który jest publiczny, a nie
 sekretu.
+
+`openai_codex` to jedyny rodzaj, którego nikt nie wpisuje. Zapisuje się go przez
+[zalogowanie do ChatGPT](models.md#running-on-a-chatgpt-subscription) i zmienia
+się w trakcie używania: każde odświeżenie zużywa refresh token, więc nowa para
+jest zapieczętowywana z powrotem pod tym samym id. Jego podpowiedź to ostatnie
+cztery znaki id konta. Gdy logowanie przestaje działać, **Reconnect** loguje
+ponownie w jego miejsce.
 
 `aws_credentials` to najczytelniejszy argument za tym, żeby rodzaje w ogóle
 istniały: access key id nie jest tajny, a secret access key jest, i jedno pole

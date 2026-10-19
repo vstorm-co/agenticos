@@ -513,6 +513,29 @@ class TestSeedSkillsSaysWhatItDoes:
         service.refresh_from_library.assert_not_called()
         assert service.plan_library_refresh.await_args.kwargs == {"replace_edited": True}
 
+    def test_skill_narrows_the_run_to_the_named_skills(self, monkeypatch) -> None:
+        """A release adding one bundled skill installs that one, and does not bring
+        back the skills an organization deleted."""
+        from app.services.skills import LibraryRefresh
+
+        result, service = self._run(
+            monkeypatch, ["--skill", "skill-1"], [LibraryRefresh.INSTALL, LibraryRefresh.INSTALL]
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "skill-1 - installed" in result.output
+        assert "skill-0" not in result.output.split("bundled skill(s)")[1]
+        assert service.refresh_from_library.await_count == 1
+
+    def test_an_unknown_skill_writes_nothing(self, monkeypatch) -> None:
+        from app.services.skills import LibraryRefresh
+
+        result, service = self._run(monkeypatch, ["--skill", "nope"], [LibraryRefresh.INSTALL])
+
+        assert result.exit_code == 0, result.output
+        assert "No bundled skill named nope." in result.output
+        service.refresh_from_library.assert_not_called()
+
 
 class TestTheConsoleScript:
     """`agenticos` lives in `cli/`, which the unit suite never imported, so its

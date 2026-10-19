@@ -35,6 +35,7 @@ from app.repositories import (
     agent_workspace_repo,
     member_repo,
     organization_secret_repo,
+    project_repo,
     sandbox_connection_repo,
     sandbox_operation_repo,
 )
@@ -236,8 +237,23 @@ class SandboxConnectionService:
         agent did and where, and deleting a host is not a statement about that
         history. A published agent naming it starts failing with a message that
         says the connection is gone, which is the truth.
+
+        Refused while a project is pinned to it. A project's files live in its
+        container on this host, and a pin cleared to "the organization's
+        default" would open an empty workspace elsewhere and strand them.
         """
         row = await self.get(ctx, connection_id)
+        projects = await project_repo.names_on_connection(
+            self.db, organization_id=ctx.organization_id, connection_id=row.id
+        )
+        if projects:
+            raise BadRequestError(
+                message=(
+                    "Projects keep their files on this connection. Delete those "
+                    "projects first, or keep the connection."
+                ),
+                details={"projects": projects},
+            )
         await sandbox_connection_repo.delete(self.db, connection=row)
         notifications = NotificationService(self.db)
         # Before the audit entry, never after it: `record_audit` holds the

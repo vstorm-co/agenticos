@@ -1,5 +1,5 @@
 ---
-source_sha: "b7162a5c58d3"
+source_sha: "8c2d10c549a3"
 title: "AgenticOS vs Copilot Studio"
 seo_title: "AgenticOS vs Copilot Studio: selbst gehostete Alternative"
 description: "Microsoft Copilot Studio vs. AgenticOS: keine Copilot Credits, jeder Modell-Provider, Ihre eigene Infrastruktur, Budgets pro Agent und offenes Audit."
@@ -19,7 +19,7 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. Agen
 | --- | --- | --- |
 | Wo es läuft | Cloud von Microsoft, in Power-Platform-Umgebungen | Ihre Infrastruktur |
 | Quellcode | Proprietär | Apache-2.0 |
-| Modelle | Standardmäßig GPT-Modelle, Claude-Modelle allgemein verfügbar, Azure-Foundry-Modelle separat abgerechnet | 27 Provider, einschließlich lokaler |
+| Modelle | Standardmäßig GPT-Modelle, Claude-Modelle allgemein verfügbar, Azure-Foundry-Modelle separat abgerechnet | 28 Provider, einschließlich lokaler |
 | Abrechnung | 200 $ im Monat für 25.000 Copilot Credits oder 0,01 $ pro Credit bei nutzungsbasierter Abrechnung | Keine Lizenzgebühr; Modellnutzung zu den Tarifen Ihres Providers |
 | Wie Nutzung gezählt wird | Credits pro Funktion: eine generative Antwort kostet 2, eine Agent-Aktion 5, Grounding über den Tenant-Graph 10 | Modell-Tokens, bepreist pro Provider |
 | Durchsetzung der Ausgaben | Monatliche Limits pro Agent; Agents werden bei 125 % der vorausbezahlten Kapazität deaktiviert | Ein Budget pro Agent und pro Organisation, geprüft vor jeder Modellanfrage |
@@ -39,7 +39,7 @@ Copilot Studio läuft in der Cloud von Microsoft. Microsoft weist darauf hin, da
 
 ### Jeder Modell-Provider gleichrangig { #every-model-provider-first-class }
 
-Der Standard-Harness von Copilot Studio bietet GPT- und Claude-Modelle, mit Azure Foundry für eigene Modelle, separat abgerechnet. AgenticOS behandelt [27 Provider](../models.md#providers) gleich. Sie teilen ein gemeinsames Format für [Modellprofile](../models.md#a-model-profile), dieselben [Fallbacks](../models.md#fallbacks) und dieselbe Kostenerfassung.
+Der Standard-Harness von Copilot Studio bietet GPT- und Claude-Modelle, mit Azure Foundry für eigene Modelle, separat abgerechnet. AgenticOS behandelt [28 Provider](../models.md#providers) gleich. Sie teilen ein gemeinsames Format für [Modellprofile](../models.md#a-model-profile), dieselben [Fallbacks](../models.md#fallbacks) und dieselbe Kostenerfassung.
 
 ### Offen dort, wo es für einen Prüfer zählt { #open-where-it-matters-to-an-auditor }
 

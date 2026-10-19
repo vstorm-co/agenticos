@@ -4,6 +4,8 @@ import type { ConversationMessage, TurnUsage } from "@/types";
 interface Measured {
   input_tokens?: number | null;
   output_tokens?: number | null;
+  cache_read_tokens?: number | null;
+  cache_write_tokens?: number | null;
   cost_usd?: string | null;
   cost_is_partial?: boolean | null;
   context_used_tokens?: number | null;
@@ -28,6 +30,8 @@ export function storedUsage(message: Measured): TurnUsage | null {
   return {
     input_tokens: message.input_tokens,
     output_tokens: message.output_tokens,
+    cache_read_tokens: message.cache_read_tokens ?? null,
+    cache_write_tokens: message.cache_write_tokens ?? null,
     // A Decimal string on every surface, because money is `Numeric` on the wire;
     // the reader `Number()`s it where it draws.
     cost_usd: message.cost_usd ?? "0",

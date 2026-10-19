@@ -4,34 +4,13 @@ import { Check } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 
-import { AgentAvatar } from "@/components/agents/agent-avatar";
-import { answerPreview, delegateNamed, type DelegateRef } from "@/lib/delegations";
+import { answerPreview, delegateNamed, delegateOf, type DelegateRef } from "@/lib/delegations";
+import { delegationStep } from "@/lib/tool-steps";
 import { cn } from "@/lib/utils";
 import type { Delegation } from "@/types";
 
+import { DelegateFace as Face } from "./delegate-face";
 import { DelegationSheet, STATUS_KEY } from "./delegation-sheet";
-
-function Face({
-  who,
-  thinking,
-  className,
-}: {
-  who: DelegateRef;
-  thinking?: boolean;
-  className?: string;
-}) {
-  return (
-    <AgentAvatar
-      agentId={who.id ?? who.slug}
-      slug={who.slug}
-      hasAvatar={who.has_avatar}
-      colorSlot={who.avatar_color}
-      size="sm"
-      thinking={thinking}
-      className={className}
-    />
-  );
-}
 
 /**
  * The team talking it through, while it does: what the agent asked each
@@ -52,11 +31,12 @@ export function DelegationChat({
   parent?: DelegateRef;
 }) {
   const t = useTranslations("chat.delegation");
+  const tTools = useTranslations("chat.tools");
   const [opened, setOpened] = useState<string | null>(null);
   const asker = parent ?? delegateNamed("agent", agents);
   const items = delegations.map((delegation) => ({
     key: delegation.taskId,
-    delegate: delegateNamed(delegation.subagent, agents),
+    delegate: delegateOf(delegation, agents),
     status: delegation.status,
     brief: delegation.prompt,
     answer: delegation.text,
@@ -68,6 +48,13 @@ export function DelegationChat({
       {items.map((item, beat) => {
         const working = item.status === "running";
         const preview = answerPreview(item.answer);
+        // What it is doing this moment, while it works and has said so - a coding
+        // harness names every file it reads and command it runs.
+        const latest = item.steps.at(-1);
+        const doing =
+          working && latest !== undefined && latest.title !== null
+            ? delegationStep(latest, tTools)
+            : null;
         return (
           <div key={item.key} className="step-in space-y-1.5">
             <div className="flex items-start gap-2">
@@ -104,6 +91,11 @@ export function DelegationChat({
                     <> · {t("actionCount", { count: item.steps.length })}</>
                   )}
                 </span>
+                {doing !== null && (
+                  <span className="text-muted-foreground mb-1 block max-w-xl truncate font-mono text-[11px]">
+                    {doing.label} {doing.detail}
+                  </span>
+                )}
                 <span className="bg-foreground/[0.05] group-hover/reply:bg-foreground/[0.08] block max-w-xl rounded-[4px_14px_14px_14px] px-3 py-1.5 text-[13px] leading-relaxed transition-colors">
                   {preview !== "" ? (
                     <span className="text-foreground/85 line-clamp-2">{preview}</span>

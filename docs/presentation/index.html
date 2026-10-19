@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AgenticOS · Open-source introduction</title>
-<meta name="description" content="A 14-slide introduction to AgenticOS, the open-source Sovereign Agentic AI Layer: the problem, the idea, the product on real screens, the controls, what runs underneath, where it stops today and how to start.">
+<meta name="description" content="A 17-slide introduction to AgenticOS, the open-source Sovereign Agentic AI Layer: the problem, the idea, the product on real screens including team projects, coding agents and drawings, the controls, what runs underneath, where it stops today and how to start.">
 <style>
 @font-face{font-family:'Instrument Serif';font-weight:400;font-style:normal;font-display:block;src:url(fonts/instrument-serif.woff2) format('woff2');}@font-face{font-family:'Instrument Serif';font-weight:400;font-style:italic;font-display:block;src:url(fonts/instrument-serif-italic.woff2) format('woff2');}@font-face{font-family:'DM Sans';font-weight:100 1000;font-style:normal;font-display:block;src:url(fonts/dm-sans.woff2) format('woff2');}@font-face{font-family:'DM Sans';font-weight:100 1000;font-style:italic;font-display:block;src:url(fonts/dm-sans-italic.woff2) format('woff2');}@font-face{font-family:'DM Mono';font-weight:400;font-style:normal;font-display:block;src:url(fonts/dm-mono.woff2) format('woff2');}@font-face{font-family:'DM Mono';font-weight:500;font-style:normal;font-display:block;src:url(fonts/dm-mono-medium.woff2) format('woff2');}
 
@@ -455,6 +455,27 @@ body.presenter{background:#15121F;color:#F8F7FC;overflow:auto;display:flex;flex-
 .qa .ok{color:#17663A} .qa .warn{color:#8A4E00}
 .qa b{font-weight:650}
 
+/* The landing's photographs: the cover at dusk over the forest, statements and the closing under the night sky. */
+.nature{position:absolute;inset:-3%;background-size:cover;background-position:center 70%;animation:drift 32s ease-in-out infinite alternate}
+.cover.photo .cover-bg{display:none}
+.cover.photo .cover-veil{background:linear-gradient(100deg,rgba(29,25,49,.86) 30%,rgba(29,25,49,.55) 58%,rgba(29,25,49,.12))}
+.cover.photo,.cover.photo .brand,.cover.photo h1{color:#fff}
+.cover.photo .lead{color:rgba(255,255,255,.82)}
+.cover.photo .eyebrow{color:#BBD1FF}
+.cover.photo mark{color:var(--ink)}
+.cover.photo .chip{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.28);color:#fff;backdrop-filter:blur(10px)}
+.cover.photo .chip .ico{color:#BBD1FF}
+.cover.photo .foot,.cover.photo .hint{color:rgba(255,255,255,.75)}
+.cover.photo kbd{color:var(--ink)}
+.statement.photo,.closing.photo{background:#15122A}
+.statement.photo .nature,.closing.photo .nature{opacity:.75}
+.statement.photo .nature::after,.closing.photo .nature::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(21,18,42,.35),rgba(21,18,42,.82))}
+/* A screenshot set on a photograph, for the new slides' side pictures. */
+.framed{position:relative;border-radius:26px;overflow:hidden;box-shadow:0 50px 100px -40px rgba(10,8,30,.6)}
+.framed img.bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.framed .win{position:relative;margin:44px;border-radius:16px;overflow:hidden;box-shadow:0 30px 70px -30px rgba(10,8,30,.75),0 0 0 8px rgba(255,255,255,.16)}
+.framed .win img{display:block;width:100%}
+
 /* statement slides: the dark ground of the closing, with the chapter chrome kept */
 .statement{background:var(--ink);color:#F8F7FC}
 .statement .lead{color:#C9C6D6}
@@ -499,14 +520,15 @@ body.presenter{background:#15121F;color:#F8F7FC;overflow:auto;display:flex;flex-
 <body>
 <div id="viewport"><div id="stage">
 <!-- ======================= 1 COVER ======================= -->
-<section class="slide cover" data-chapter="" data-chrome="off" data-title="AI agents your whole team can use and improve">
+<section class="slide cover photo" data-chapter="" data-chrome="off" data-title="AI agents your whole team can use and improve">
+  <div class="nature" style="background-image:url('media/nature/hero-bg.webp')"></div>
   <div class="cover-bg" style="background-image:url('media/builder.webp')"></div>
   <div class="cover-veil"></div>
   <div class="pad">
     <div class="brand"><img src="../assets/logo-animated.svg" alt="">agenticos</div>
     <div class="eyebrow">Sovereign Agentic AI Layer · Apache-2.0 · self-hosted · built on Pydantic AI</div>
     <h1>AI agents your <mark>whole team</mark><br>can use and improve.</h1>
-    <p class="lead" style="max-width:36ch">Build and publish agents in the browser, share them with colleagues, and manage their access, cost and results in one place.</p>
+    <p class="lead" style="max-width:38ch">Your team and its agents in one live chat. Build and publish agents in the browser, hand code to Claude Code or Codex, and manage access, cost and results in one place.</p>
     <div class="chips">
       <span class="chip"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></svg> Open source, Apache-2.0</span>
       <span class="chip"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg> On infrastructure you control</span>
@@ -532,7 +554,8 @@ body.presenter{background:#15121F;color:#F8F7FC;overflow:auto;display:flex;flex-
 </section>
 
 <!-- ======================= 3 THESIS ======================= -->
-<section class="slide statement" data-chapter="01 · The idea" data-title="The person with commit access">
+<section class="slide statement photo" data-chapter="01 · The idea" data-title="The person with commit access">
+  <div class="nature" style="background-image:url('media/nature/night.webp')"></div>
   <div class="pad">
     <div class="eyebrow">The idea</div>
     <h2 style="font-size:92px;max-width:21ch">The person who knows what the agent should say is <mark>not the person with commit access.</mark></h2>
@@ -559,11 +582,43 @@ body.presenter{background:#15121F;color:#F8F7FC;overflow:auto;display:flex;flex-
   <div class="step left mid" data-focus="overview" data-marks="1 @builder.header; 2 @builder.tabs; 3 @builder.instructions; 4 @builder.model">
     <div class="card narrow"><div class="ct"><div class="ci"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg></div><div class="eyebrow">One agent</div></div>
       <h3>Where an agent is made</h3><p>One page per agent, in the browser. Four areas:</p>
-      <ol class="legend"><li><span><b>Name and status</b>: what is published, and the Publish button</span></li><li><span><b>Tabs</b>: tools, limits, availability, versions</span></li><li><span><b>Instructions</b>: what the agent does, in plain language</span></li><li><span><b>Model</b>: which AI model answers</span></li></ol></div></div>
+      </div></div>
   <div class="step left mid" data-n="1" data-focus="@builder.header"><div class="card"><div class="ct"><span class="badge">1</span><span class="eyebrow">Versions</span></div><h3>What runs, and what you are editing</h3><p>“Published, up to date with v3” is the version colleagues use. You edit a draft; nobody sees it until you press <b>Publish</b>. <b>Export YAML</b> keeps a copy in your own repository.</p></div></div>
   <div class="step left mid" data-n="2" data-focus="@builder.tabs"><div class="card"><div class="ct"><span class="badge">2</span><span class="eyebrow">Tools</span></div><h3>Everything the agent may use</h3><ul><li><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"/></svg> <span><b>Toolbox</b>: registered capabilities, e.g. search documents, run code</span></li><li><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22v-5"/><path d="M15 8V2"/><path d="M17 8a1 1 0 0 1 1 1v4a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1z"/><path d="M9 8V2"/></svg> <span><b>MCP servers</b>: external tools such as Notion or GitHub</span></li><li><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></svg> <span><b>Limits</b>: its own monthly budget</span></li><li><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg> <span><b>History</b>: every published version</span></li></ul></div></div>
   <div class="step left mid" data-n="3" data-focus="@builder.instructions"><div class="card"><div class="ct"><span class="badge">3</span><span class="eyebrow">Instructions</span></div><h3>A brief, not code</h3><p>What the agent is for, how it should work and what it must refuse, written like a brief for a new colleague. The person who knows the work can edit it.</p></div></div>
   <div class="step left mid" data-n="4" data-focus="@builder.model"><div class="card"><div class="ct"><span class="badge">4</span><span class="eyebrow">Model</span></div><h3>Choose the model per agent</h3><p>A provider and a model, with your own keys from the vault. Local models work the same way. Changing it is a setting, not a rebuild.</p></div></div>
+</section>
+
+<!-- ======================= TEAM ROOM ======================= -->
+<section class="slide shot" data-chapter="02 · See it work" data-title="Your team and its agents in one room">
+  <div class="layer"><div class="cam"><img src="media/room.webp" alt="A project chat for the Fall launch: the Chief of Staff's plan with questions for the team, Tom Brooks replying with a budget change, and the agent applying it."><div class="spot"></div></div></div>
+  <div class="step left mid" data-focus="overview" data-marks="1 @room.questions; 2 @room.reply; 3 @room.answer">
+    <div class="card narrow"><div class="ct"><div class="ci"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="eyebrow">New · Projects</div></div><h3>Your team and its agents, in one room</h3><p>A project gives everyone the same files, instructions and a computer for the agents. Colleagues see who is here and watch each other's turns as they are written. <b>1</b> the plan, <b>2</b> a teammate's reply, <b>3</b> the agent applying it.</p><ol class="legend"><li><b>The plan</b>, with what the agent could not decide</li><li><b>A teammate's reply</b> to it</li><li><b>The agent applying it</b>, and saying whose change it was</li></ol></div>
+  </div>
+  <div class="step left mid" data-n="1" data-focus="@room.questions"><div class="card"><div class="ct"><span class="badge">1</span><span class="eyebrow">Questions for the room</span></div><h3>It asks the people who know</h3><p>The Chief of Staff drafted the launch plan from the project's brief and channel sheet, then named what only the team can answer: a customer quote, the referral rule, the dates it assumed.</p></div></div>
+  <div class="step right mid" data-n="2" data-focus="@room.reply"><div class="card"><div class="ct"><span class="badge">2</span><span class="eyebrow">A reply</span></div><h3>Anyone can answer, in the thread</h3><p>Tom replies to the plan itself. The model is told who wrote what, so a change has an owner.</p></div></div>
+  <div class="step left mid" data-n="3" data-focus="@room.answer"><div class="card"><div class="ct"><span class="badge">3</span><span class="eyebrow">Applied</span></div><h3>“Tom, I applied your change”</h3><p>The agent updates the plan in the project's files, asks the Finance Analyst to recheck the numbers, and keeps the budget at the cap.</p><div class="src">Demo organization, synthetic data, real runs</div></div></div>
+</section>
+
+<!-- ======================= CODING AGENT ======================= -->
+<section class="slide shot" data-chapter="02 · See it work" data-title="Claude Code and Codex on the team">
+  <div class="layer"><div class="cam"><img src="media/room-coding.webp" alt="In the same project chat, Jordan Reed asks the Coder agent to build the launch page with the coding agent; Codex builds it and the agent reports what is on the page and two decisions for the team."><div class="spot"></div></div></div>
+  <div class="step left mid" data-focus="overview" data-marks="1 @room-coding.request; 2 @room-coding.page; 3 @room-coding.decisions">
+    <div class="card narrow"><div class="ct"><div class="ci"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></svg></div><div class="eyebrow">New · Coding agent</div></div><h3>Claude Code and Codex, on the team</h3><p>Any agent can hand software work to Claude Code or Codex. They build on the agent's own computer, on the ChatGPT or Claude plan you already pay for.</p></div>
+  </div>
+  <div class="step right mid" data-n="1" data-focus="@room-coding.request"><div class="card"><div class="ct"><span class="badge">1</span><span class="eyebrow">The ask</span></div><h3>One <b>@</b> brings the coding agent in</h3><p>Jordan asks for a launch page from the plan the room just agreed. The project's files are already there.</p></div></div>
+  <div class="step left mid" data-n="2" data-focus="@room-coding.page"><div class="card"><div class="ct"><span class="badge">2</span><span class="eyebrow">What it built</span></div><h3>What changed, and what it checked</h3><p>Colours from the brand book, the headline from the brief, a layout for phones, and the checks it ran.</p></div></div>
+  <div class="step left mid" data-n="3" data-focus="@room-coding.decisions"><div class="card"><div class="ct"><span class="badge">3</span><span class="eyebrow">Back to the team</span></div><h3>It leaves people's decisions to people</h3><p>The brief forbids an unsourced time-saved claim, so it kept it off the page and asked. The sign-up link is a placeholder until someone sends it.</p></div></div>
+</section>
+
+<!-- ======================= VISUALS ======================= -->
+<section class="slide shot" data-chapter="02 · See it work" data-title="Agents draw what they explain">
+  <div class="layer"><div class="cam"><img src="media/visual.webp" alt="An ROI calculator the Visuals Lab agent drew under its message: sliders, the dollars saved per year and a chart of monthly cost before and after."><div class="spot"></div></div></div>
+  <div class="step left mid" data-focus="overview" data-marks="1 @visual.drawing; 2 @visual.answer">
+    <div class="card narrow"><div class="ct"><div class="ci"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg></div><div class="eyebrow">New · Visuals</div></div><h3>Ask how it works, get a drawing you can use</h3><p>A diagram, a calculator with sliders, a chart or a 3D scene, drawn live under the message and walled off from your data.</p></div>
+  </div>
+  <div class="step left mid" data-n="1" data-focus="@visual.drawing"><div class="card"><div class="ct"><span class="badge">1</span><span class="eyebrow">The drawing</span></div><h3>It works, right in the chat</h3><p>Move a slider and the savings and the chart update. If your browser breaks it, the agent is told and fixes it in the same turn. One click saves it as an app.</p></div></div>
+  <div class="step left mid" data-n="2" data-focus="@visual.answer"><div class="card"><div class="ct"><span class="badge">2</span><span class="eyebrow">The answer</span></div><h3>It says what it assumed</h3><p>The 80% time saving is a placeholder it added, and it says so, with how to replace it.</p><div class="src">Demo organization, synthetic data, real run</div></div></div>
 </section>
 
 <!-- ======================= 6 FILES AND CODE ======================= -->
@@ -616,7 +671,8 @@ body.presenter{background:#15121F;color:#F8F7FC;overflow:auto;display:flex;flex-
 </section>
 
 <!-- ======================= 9 WHAT IT REFUSES ======================= -->
-<section class="slide statement" data-chapter="03 · Under control" data-title="What it refuses">
+<section class="slide statement photo" data-chapter="03 · Under control" data-title="What it refuses">
+  <div class="nature" style="background-image:url('media/nature/night.webp')"></div>
   <div class="pad">
     <div class="eyebrow">What it refuses</div>
     <h2 style="font-size:76px;max-width:24ch">Much of the value is in <mark>what it refuses</mark></h2>
@@ -702,7 +758,8 @@ body.presenter{background:#15121F;color:#F8F7FC;overflow:auto;display:flex;flex-
 </section>
 
 <!-- ======================= 14 START AND COMMUNITY ======================= -->
-<section class="slide closing" data-chapter="" data-chrome="off" data-title="Start and community">
+<section class="slide closing photo" data-chapter="" data-chrome="off" data-title="Start and community">
+  <div class="nature" style="background-image:url('media/nature/hero-bg.webp')"></div>
   <div class="pad" style="display:flex;flex-direction:column;justify-content:center;gap:34px">
     <div class="eyebrow">Start here</div>
     <h1 style="font-size:116px">Start with <mark>one command</mark></h1>

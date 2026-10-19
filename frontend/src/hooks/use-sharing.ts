@@ -36,6 +36,7 @@ const SHARING_ROOT = {
   dataset: "/datasets",
   // An organization's MCP server, narrowed to the groups that use it (#2072).
   mcp_connection: "/mcp-connections",
+  project: "/projects",
 } as const satisfies Record<SharingResourceType, string>;
 
 /**
@@ -55,6 +56,7 @@ const RESOURCE_KEYS = {
   artifact: qk.artifacts.all,
   dataset: qk.datasets.all,
   mcp_connection: qk.mcpConnections.org,
+  project: qk.projects.all,
 } as const satisfies Record<SharingResourceType, () => readonly string[]>;
 
 /**
@@ -92,6 +94,9 @@ export function useSharing(resourceType: SharingResourceType, resourceId: string
     mutationFn: (input: ShareInput) => apiClient.put<ResourceGrant>(`${base}/grants`, input),
     onSuccess: async () => {
       await invalidate();
+      // The resource's own rows show who it reaches - an audience chip - so they
+      // are read again too, as a visibility change already has them read.
+      await queryClient.invalidateQueries({ queryKey: RESOURCE_KEYS[resourceType]() });
       toast.success(t("sharingUpdated"));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
@@ -107,6 +112,7 @@ export function useSharing(resourceType: SharingResourceType, resourceId: string
         : apiClient.delete<void>(`${base}/grants/${subject.id}`),
     onSuccess: async () => {
       await invalidate();
+      await queryClient.invalidateQueries({ queryKey: RESOURCE_KEYS[resourceType]() });
       toast.success(t("accessRemoved"));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),

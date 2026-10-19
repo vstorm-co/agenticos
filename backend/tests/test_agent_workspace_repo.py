@@ -191,14 +191,15 @@ class TestWhoAListingIsFor:
 
 class TestWriting:
     async def test_creating_records_who_the_workspace_belongs_to(self):
-        session = _RecordingSession()
+        row = _workspace()
+        session = _RecordingSession(None, MagicMock(scalar_one=MagicMock(return_value=row)))
         organization_id, agent_id, conversation_id = (
             uuid.uuid4(),
             uuid.uuid4(),
             uuid.uuid4(),
         )
 
-        await agent_workspace_repo.create(
+        created = await agent_workspace_repo.create(
             session,
             organization_id=organization_id,
             agent_id=agent_id,
@@ -209,14 +210,17 @@ class TestWriting:
             backend="docker",
         )
 
-        [created] = session.added
-        assert created.organization_id == organization_id
-        assert created.agent_id == agent_id
-        assert created.conversation_id == conversation_id
-        assert created.owner_ref == "U123"
+        inserted = session.statements[0].compile(dialect=postgresql.dialect())
+        assert inserted.params["organization_id"] == organization_id
+        assert inserted.params["agent_id"] == agent_id
+        assert inserted.params["conversation_id"] == conversation_id
+        assert inserted.params["owner_ref"] == "U123"
+        assert inserted.params["last_used_at"] is not None
         # Recorded when a session is opened, not when the row is: see `record_session`.
-        assert created.session_id is None
-        assert created.last_used_at is not None
+        assert "session_id" not in inserted.params
+        # A first open racing another takes the row on the key, whichever wrote it.
+        assert "ON CONFLICT ON CONSTRAINT uq_agent_workspace_scope DO NOTHING" in str(inserted)
+        assert created is row
 
     async def test_recording_a_session_sets_it_and_forgetting_clears_it(self):
         session = _RecordingSession()

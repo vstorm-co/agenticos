@@ -190,7 +190,10 @@ export function SecretsTable({
             <Button
               variant="ghost"
               size="icon"
-              aria-label={t("rotateNamed", { name: secret.name })}
+              aria-label={t(
+                secret.kind === "openai_codex" ? "chatgptReconnectNamed" : "rotateNamed",
+                { name: secret.name },
+              )}
               onClick={() => onRotate(secret)}
             >
               <RotateCw className="h-4 w-4" />

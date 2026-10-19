@@ -325,6 +325,8 @@ const ME_SECTIONS: SectionDef[] = [
       // under three cards of history, which is the wrong way round.
       { widget: "approvals", span: "s6", rows: "r3" },
       { widget: "conversations", span: "s6", rows: "r3" },
+      // Where their ongoing work is, a row of tiles under what they left open.
+      { widget: "projects", span: "s12", rows: "r2" },
       { widget: "my-agents", span: "s6", rows: "r3" },
       { widget: "my-top-agents", span: "s6", rows: "r3" },
       // Three rows like the pair above: two left the quality chart a sliver
@@ -337,6 +339,9 @@ const ME_SECTIONS: SectionDef[] = [
       { widget: "review-queue", span: "s6", rows: "r3" },
       // How the agents fared on those datasets: the latest eval runs and their verdicts.
       { widget: "eval-runs", span: "s12", rows: "r3" },
+      // What agents drew for them lately, as pictures: the one card here that is
+      // something to look at rather than a list to read.
+      { widget: "recent-visuals", span: "s12", rows: "r3" },
     ],
   },
   {

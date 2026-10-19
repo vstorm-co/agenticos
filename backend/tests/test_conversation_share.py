@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.core.exceptions import AlreadyExistsError, NotFoundError
+from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.services.conversation_share import ConversationShareService
 
 MODULE = "app.services.conversation_share"
@@ -29,6 +29,7 @@ def _conversation(owner: uuid.UUID) -> MagicMock:
     conv = MagicMock()
     conv.user_id = owner
     conv.organization_id = ORG
+    conv.project_id = None
     return conv
 
 
@@ -180,3 +181,47 @@ async def test_a_thread_shared_with_you_says_whether_you_starred_it(
         assert total == 2
         assert [item.is_favourite for item in items] == [True, False]
         assert conv_repo.favourite_ids.await_args.kwargs["user_id"] == reader
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize("generate_link", [True, False], ids=["link", "person"])
+async def test_a_projects_chat_is_never_shared_on_its_own(
+    service: ConversationShareService, generate_link: bool
+):
+    """Who reads it is the project's to say; a link would outlive the starter's
+    place in the project and keep showing teammates' later turns."""
+    owner = uuid.uuid4()
+    chat = _conversation(owner)
+    chat.project_id = uuid.uuid4()
+    with (
+        patch(f"{MODULE}.conversation_repo") as conv_repo,
+        patch(f"{MODULE}.conversation_share_repo") as share_repo,
+    ):
+        conv_repo.get_conversation_by_id = AsyncMock(return_value=chat)
+        share_repo.create = AsyncMock()
+        with pytest.raises(BadRequestError, match="share the project"):
+            await service.share_conversation(
+                uuid.uuid4(),
+                owner,
+                generate_link=generate_link,
+                shared_with=None if generate_link else uuid.uuid4(),
+            )
+        share_repo.create.assert_not_awaited()
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_a_link_to_a_chat_now_in_a_project_opens_nothing(
+    service: ConversationShareService,
+):
+    chat = _conversation(uuid.uuid4())
+    chat.project_id = uuid.uuid4()
+    with (
+        patch(f"{MODULE}.conversation_repo") as conv_repo,
+        patch(f"{MODULE}.conversation_share_repo") as share_repo,
+        pytest.raises(NotFoundError),
+    ):
+        share_repo.get_by_token = AsyncMock(return_value=MagicMock())
+        conv_repo.get_conversation_by_id = AsyncMock(return_value=chat)
+        await service.get_by_token("tok")

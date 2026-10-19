@@ -43,6 +43,8 @@ import { ArtifactsWidget } from "./artifacts";
 import { DatasetsWidget } from "./datasets";
 import { ReviewQueueWidget } from "./review-queue";
 import { EvalRunsWidget } from "./eval-runs";
+import { ProjectsWidget } from "./projects";
+import { RecentVisualsWidget } from "./recent-visuals";
 import { SpendWidget } from "./spend";
 import { ActivityRhythmWidget } from "./activity-rhythm";
 import { ChannelsWidget } from "./channels";
@@ -94,6 +96,8 @@ export const WIDGET_COMPONENTS: Record<WidgetId, ComponentType<DashboardWidgetPr
   datasets: DatasetsWidget,
   "review-queue": ReviewQueueWidget,
   "eval-runs": EvalRunsWidget,
+  projects: ProjectsWidget,
+  "recent-visuals": RecentVisualsWidget,
   "sandbox-capacity": SandboxCapacityWidget,
   "sandbox-sessions": SandboxSessionsWidget,
   "sandbox-policy": SandboxPolicyWidget,

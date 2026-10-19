@@ -73,6 +73,19 @@
     "sessionsCouldNotBeRead": "The sessions could not be read."
   },
   "agents": {
+    "reviewersTitle": "Run reviewers",
+    "reviewersDescription": "A second, usually cheaper model reads the run every few requests and sends one short correction when it drifts. Its calls count against the budget like any other, and a run without a reviewer makes no extra calls.",
+    "reviewerName": "Name",
+    "reviewerModel": "Model it reviews with",
+    "reviewerInstructions": "What to look for",
+    "reviewerInstructionsPlaceholder": "Flag claims that have no source among the pages the agent read.",
+    "reviewerEvery": "Every N requests",
+    "reviewerWindow": "Tokens it reads",
+    "addReviewer": "Add a reviewer",
+    "removeReviewer": "Remove reviewer {name}",
+    "codeMode": "Code mode",
+    "codeModeHint": "The agent calls its tools from one short Python script in a sandbox - loops, conditions, many calls at once - instead of one model turn per call. Worth it for working through records or fanning out over an MCP server. Tools that need approval stay ordinary calls.",
+    "codeModeMaxCalls": "Tool calls per script",
     "accentColour": "Accent colour",
     "actsOutsideWorld": "acts on the outside world",
     "actsWorld": "acts on the world",
@@ -362,7 +375,7 @@
     "noSandboxConnectionRegistered": "No sandbox connection registered",
     "noSecretOfKind": "No {kind} secret in the vault",
     "noSecret": "No secret",
-    "noSecretSelected": "No secret selected. This capability needs one of kind {kind}, and the agent cannot be published until it has one.",
+    "noSecretSelected": "Nothing chosen yet - the agent cannot be published until something is.",
     "noSignMarketingPage": "No sign-in - a marketing page",
     "noSitesAllowedWidget": "No sites allowed - this widget cannot open anywhere",
     "noSpecialistsYet": "No specialists. One is worth adding when publishing a whole agent would be too much ceremony for the job.",
@@ -472,6 +485,7 @@
     "runCompleted": "Completed",
     "runFailed": "Failed",
     "runGuardrailBlocked": "Blocked by guardrail",
+    "runLoopStopped": "Stopped: looping",
     "runRunning": "Running",
     "runningThemOneAt": "Running them one at a time makes a conversation easier to follow, and easier to approve.",
     "runs": "Runs",
@@ -806,7 +820,44 @@
     "capabilityShelfEnabled": "{enabled} of {total} on",
     "capabilityShelfPrevious": "Earlier in {shelf}",
     "capabilityShelfNext": "More in {shelf}",
-    "capabilityToolCount": "{count, plural, =0 {Built in, no tools} =1 {1 tool} other {# tools}}"
+    "capabilityToolCount": "{count, plural, =0 {Built in, no tools} =1 {1 tool} other {# tools}}",
+    "a2aTitle": "Agent2Agent (A2A)",
+    "a2aDescription": "Let other systems' agents send this agent tasks over the A2A protocol. Each task is a run of the published version, under its budget and approvals, and shows in Activity.",
+    "a2aSwitch": "Serve this agent over A2A",
+    "a2aPublishFirst": "Publish the agent first: what A2A serves is the published version.",
+    "a2aOff": "Off. Turn it on to give this agent an agent card other systems can find it by.",
+    "a2aCardUrl": "Agent card",
+    "a2aEndpoint": "Endpoint for tasks",
+    "a2aAuthHint": "Callers send an organization API key or an OAuth access token from this deployment as a bearer token, and it must be allowed to run this agent.",
+    "remoteDelegatesHeading": "Remote agents",
+    "remoteDelegatesDetail": "Other vendors' agents this one may hand work to over A2A. Each call goes under this agent's budget.",
+    "addRemoteDelegate": "Add a remote agent",
+    "noRemoteDelegatesYet": "No remote agents yet.",
+    "noRemoteAgentsRegistered": "No remote agents are registered yet. <link>Register one</link> by its agent card.",
+    "remoteDelegateGone": "A remote agent no longer registered",
+    "remoteDelegateGoneDetail": "Its registration was removed, so publishing refuses this agent until it is taken off the list.",
+    "keyOrSignIn": "Key or sign-in",
+    "codingAgentKeyName": "{signIn, select, chatgpt {OpenAI key for Codex} other {Claude Code key}}",
+    "chatgptSignInName": "ChatGPT for Codex",
+    "claudeTokenHint": "On a Claude Pro or Max subscription: run <code>claude setup-token</code> on your own computer and add the token it prints as a key here. An Anthropic API key works too.",
+    "capabilityHasNoToolSettings": "It used to have settings per tool, which it no longer has. Its approval is the one below now.",
+    "useCapabilityApproval": "Move to the capability",
+    "visualDesignDetail": "Bind the visual-design skill and the agent draws from its house style and templates - architecture diagrams, explainers with sliders, 3D scenes. Switching Visuals on binds it for you; the agent reads it through the Skills capability.",
+    "visualDesignMissing": "This organization has no visual-design skill. Seed the bundled skills to add it.",
+    "visualDesignHeading": "Drawing style",
+    "platformServerDescription": "This platform's own tools: agents, runs, spend, knowledge bases, skills and members - so the agent can answer questions about the platform and act in it.",
+    "platformServerBadge": "Built in",
+    "platformAsksBeforeWrites": "Asks before any change",
+    "platformAsksEveryCall": "Asks before every call",
+    "platformAsWhoeverAsks": "Acts as whoever asks",
+    "platformActsAsWhoeverAsks": "Every tool acts as the person the agent runs for, with exactly their permissions. Nothing new is granted: what they could not do in the console, the agent cannot do here either.",
+    "platformUseIt": "Use it in this agent",
+    "platformApproval": "Approval",
+    "platformWritesHint": "Reading is free; creating, running or changing anything waits for the person to approve it.",
+    "platformAllHint": "Every call waits for approval, reading included.",
+    "platformTools": "Tools this agent may call",
+    "platformWritesBadge": "changes something",
+    "platformRemove": "Remove from this agent"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -1129,7 +1180,9 @@
       "attachFileHint": "Images, PDFs, spreadsheets and documents",
       "voiceInputHint": "Speak instead of typing",
       "commands": "Commands",
-      "commandsHint": "Pick one from a list - the same as typing /"
+      "commandsHint": "Pick one from a list - the same as typing /",
+      "project": "Work in a project",
+      "projectHint": "Start this chat in a project: its files and instructions"
     },
     "knowledgeBase": "Knowledge base",
     "link": "Link",
@@ -1235,7 +1288,8 @@
       "untitled": "Untitled",
       "title": "Chats",
       "unread": "New answer",
-      "unreadHeading": "Unread"
+      "unreadHeading": "Unread",
+      "unnamedProject": "A project"
     },
     "skipComment": "Skip comment",
     "sourceCount": "{count, plural, =1 {1 source} other {# sources}}",
@@ -1269,6 +1323,7 @@
     "title": "Chat",
     "tokensDetail": "{input, number} input · {output, number} output tokens",
     "tokensDetailPartial": "{input, number} input · {output, number} output tokens - a floor: some model in this run had no price",
+    "tokensWithCache": "{detail} - of the input, {read, number} read from the cache and {write, number} written to it",
     "toolApprovalRequired": "Tool approval required",
     "draftProposalTitle": "A new agent draft",
     "draftProposalIn": "Created in {organization}",
@@ -1430,7 +1485,25 @@
       "scrollingPage": "Scrolling",
       "scrollPage": "Scrolled",
       "goingBack": "Going back",
-      "goBack": "Went back"
+      "goBack": "Went back",
+      "codingAgent": {
+        "task": "Task",
+        "outcome": "{outcome, select, completed {Done} timed_out {Stopped: out of time} other {Failed}}",
+        "filesChanged": "{count, plural, =1 {Changed 1 file:} other {Changed # files:}}",
+        "steps": "{count, plural, =1 {1 step} other {# steps}}",
+        "stepKind": "{kind, select, read {Read} search {Searched} edit {Edited} command {Ran} web {Looked up} failed {Failed} other {Used}}",
+        "refused": "Not allowed read-only: {tools}"
+      },
+      "runCodingAgent": "Hand the work to the coding agent",
+      "runningCodingAgent": "The coding agent is working",
+      "codingStepRunning": "{kind, select, read {Reading} search {Searching} edit {Editing} command {Running} web {Looking up} other {Working on}}",
+      "codingStepDone": "{kind, select, read {Read} search {Searched} edit {Edited} command {Ran} web {Looked up} other {Used}}",
+      "drawingVisual": "Drawing",
+      "drawVisual": "Drew a visual",
+      "revisingVisual": "Revising a visual",
+      "reviseVisual": "Revised a visual",
+      "readingVisual": "Reading a visual",
+      "readVisual": "Read a visual"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -1463,12 +1536,29 @@
     "viewMeans": "View lets them read this conversation and nothing else.",
     "web": "Web",
     "whatWentWrong": "What went wrong?",
+    "reply": {
+      "reply": "Reply",
+      "cancel": "Don't reply",
+      "theAgent": "The agent",
+      "jump": "Show the message",
+      "inReplyTo": "In reply to {name}",
+      "inReplyToYou": "In reply to you",
+      "replyingTo": "Replying to <strong>{name}</strong>",
+      "replyingToYourself": "Replying to yourself"
+    },
+    "room": {
+      "here": "{count, plural, =1 {{name} is here too} other {# people are here with you}}",
+      "more": "+{count}",
+      "share": "Invite",
+      "typing": "{count, plural, =1 {{name} is typing} other {{name} are typing}}"
+    },
     "rail": {
       "label": "Jump to a message",
       "previous": "Previous message",
       "next": "Next message",
       "jumpTo": "Jump to the message from {author}",
       "you": "You",
+      "formerMember": "A former member",
       "agent": "Agent",
       "empty": "No text in this message"
     },
@@ -1505,6 +1595,7 @@
     "sendNow": "Send now",
     "sendNowHint": "Send it into the running task now, instead of after the answer",
     "sendNowNotWithFiles": "A message with files waits for the answer",
+    "sendNowNotWithMentions": "A message pointing at something waits for the answer",
     "queuedCount": "{count, plural, =1 {1 message queued} other {# messages queued}}",
     "sentIntoTask": "sent into the task",
     "moveUp": "Move up",
@@ -1531,7 +1622,70 @@
     "openPageNamed": "Open {name}",
     "showMore": "Show more",
     "showLess": "Show less",
-    "openApp": "Open the app"
+    "openApp": "Open the app",
+    "mentions": {
+      "menu": "Point the agent at",
+      "loading": "Loading what this agent can use…",
+      "failed": "Could not load what this agent can use.",
+      "nothing": "Nothing this agent can use matches.",
+      "full": "You can point at {count, plural, one {# thing} other {# things}} at most in one message.",
+      "kind": {
+        "mcp": "MCP servers",
+        "capability": "Capabilities",
+        "agent": "Agents",
+        "collection": "Knowledge bases",
+        "skill": "Skills",
+        "context": "Context files",
+        "project": "Projects"
+      }
+    },
+    "hints": {
+      "mention": "Type <key>@</key> to point the agent at a server, a teammate or a skill",
+      "mcp": "Pull this week's updates from <chip></chip> and summarise them",
+      "capability": "Use <chip></chip> to work through the attached spreadsheet",
+      "agent": "Ask <chip></chip> to double-check the numbers",
+      "skill": "Follow <chip></chip> and draft a reply to this customer",
+      "collection": "What does <chip></chip> say about notice periods?",
+      "slash": "Type <command></command> to summarise this conversation, or / for every command"
+    },
+    "visuals": {
+      "drawing": "Drawing…",
+      "revising": "Revising…",
+      "unfinished": "Unfinished",
+      "revisionOf": "Revision of {title}",
+      "showCode": "Show code",
+      "showVisual": "Show visual",
+      "fullScreen": "Full screen",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "zoomReset": "Reset zoom",
+      "zoomLevel": "{zoom, number, percent}",
+      "download": "Download",
+      "copyImage": "Copy as image",
+      "imageCopied": "Image copied",
+      "copyImageFailed": "The image could not be copied",
+      "renderError": "The drawing reported an error",
+      "stalled": "The drawing stopped responding, so it was closed.",
+      "reload": "Reload",
+      "baseMissing": "The visual this revises is not in the loaded conversation.",
+      "close": "Close",
+      "fixIt": "Fix it",
+      "fixItPrompt": "The visual “{title}” ({id}) reported these errors:\n{errors}\nPlease fix it.",
+      "saveToApps": "Save to Apps",
+      "updateApp": "Update the app",
+      "saveDescription": "Saved as an app, it gets a link, versions and sharing. Saving under a name you already have adds a version to that app.",
+      "saveTitleLabel": "Title",
+      "saveName": "Name",
+      "saveNameHint": "Lower-case letters, digits and hyphens. The same name again updates the app.",
+      "save": "Save",
+      "saving": "Saving…",
+      "cancel": "Cancel",
+      "savedToast": "Saved as an app, version {version}",
+      "savedUnchanged": "The app already has exactly this version",
+      "savedBadge": "Saved · v{version}",
+      "openApp": "Open",
+      "openInConsole": "Shown in AgenticOS"
+    }
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
@@ -1775,6 +1929,7 @@
           "description": "The model mix appears with the first run.",
           "title": "No runs in this period"
         },
+        "modelRepaired": "{model} · {repaired} repaired",
         "notRecorded": "not recorded",
         "title": "Models behind the runs",
         "description": "Which models are behind the runs, as each run recorded its own.",
@@ -2067,6 +2222,7 @@
           "failed": "failed",
           "budget_exceeded": "over budget",
           "guardrail_blocked": "guardrail blocked",
+          "loop_stopped": "stopped looping",
           "running": "running",
           "cancelled": "cancelled",
           "awaiting_approval": "awaiting approval"
@@ -2216,6 +2372,23 @@
           "completed": "{count} completed",
           "failed": "{count} failed",
           "budget_exceeded": "{count} out of budget"
+        }
+      },
+      "projects": {
+        "title": "Projects",
+        "description": "Your projects, most recently changed first.",
+        "empty": {
+          "title": "No projects yet",
+          "description": "A project keeps instructions and files that every chat in it shares."
+        }
+      },
+      "recent-visuals": {
+        "title": "Recent visuals",
+        "description": "Diagrams, explainers and scenes your agents drew for you lately.",
+        "app": "App",
+        "empty": {
+          "title": "Nothing drawn yet",
+          "description": "Ask an agent with Visuals to draw something - a diagram, an explainer, a 3D scene - and it appears here."
         }
       }
     },
@@ -2382,6 +2555,16 @@
       "dismissAll": "Hide tips",
       "dismiss": "Hide the tip {title}",
       "tips": {
+        "mentions": {
+          "title": "Point the agent with @",
+          "body": "In the chat, type @ to hand the agent one of its servers, capabilities, skills or teammates. It shows as a chip, and the agent uses exactly that.",
+          "cta": "Try it in chat"
+        },
+        "commands": {
+          "title": "Shortcuts with /",
+          "body": "Type / in the chat for commands - summarise, explain, start over - or write your own under Settings → Slash commands.",
+          "cta": "Open the chat"
+        },
         "mcp": {
           "title": "Use it from Claude Code or Cursor",
           "body": "AgenticOS is an MCP server too: connect Claude Code, Codex or Cursor and build agents, run them and read results without leaving them.",
@@ -3239,6 +3422,7 @@
     "quickActions": "Quick actions",
     "rag": "RAG",
     "register": "Register",
+    "remoteAgents": "Remote agents",
     "sandboxes": "Sandboxes",
     "search": "Search",
     "searchJump": "Search or jump to…",
@@ -3271,7 +3455,9 @@
     "connections": "Connections",
     "organization": "Organization",
     "documents": "Documents",
-    "signIns": "Sign-ins"
+    "signIns": "Sign-ins",
+    "projects": "Projects",
+    "allProjects": "All projects"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -3494,6 +3680,10 @@
       "flow-agent-limits": {
         "title": "Set a budget (optional)",
         "body": "Cap what this agent can spend in a month and how many steps one run may take, and choose who's told when it reaches a limit. It's how an agent that loops or runs away stops itself. Choose Next to move on."
+      },
+      "flow-agent-platform-mcp": {
+        "title": "Let it act in the platform (optional)",
+        "body": "This platform's own server needs no connection: switched on, the agent can answer questions about agents, runs and knowledge here, as whoever it talks to - and asks before changing anything."
       },
       "flow-agent-mcp": {
         "title": "Add MCP servers (optional)",
@@ -3759,6 +3949,14 @@
         "title": "Where agents run code",
         "body": "Agents that write and run code do it on these hosts. Watch the live sessions and set the ceilings from here."
       },
+      "remote-agents-register": {
+        "title": "Register one",
+        "body": "Paste the address of an agent's card. It is read and checked now, and a key from the vault can go with every call."
+      },
+      "remote-agents-list": {
+        "title": "Agents from other vendors",
+        "body": "Agents registered here by their A2A agent card can be picked as delegates, beside your own agents."
+      },
       "settings-tabs": {
         "title": "Your settings",
         "body": "Your profile, sign-in and security, notifications, and slash-commands all live behind these tabs - switch between them here."
@@ -3991,6 +4189,22 @@
       "agent-identity": {
         "title": "Call it something recognizable",
         "body": "The name is what people pick in chat and find in the catalog. A duplicate starts as its source with a suffix, so rename it here; the handle other agents reach it by stays the same."
+      },
+      "projects-new": {
+        "title": "Start a project",
+        "body": "Give ongoing work a home: instructions every agent in it reads, and files every chat in it shares."
+      },
+      "projects-list": {
+        "title": "Your projects",
+        "body": "The projects you own and the ones shared with you or your departments. Every chat in one is its members' to read and join."
+      },
+      "project-tabs": {
+        "title": "Chats, files and instructions",
+        "body": "Start a chat in the project, add files and folders its agents work in, and set what every agent here is told."
+      },
+      "chat-visual": {
+        "title": "Drawings",
+        "body": "An agent with Visuals draws diagrams, explainers and 3D scenes here, live while it writes them. Open one full screen, download it, ask about it, or save it as an app with a link you can share."
       }
     },
     "chooseLanguage": "Language"
@@ -4278,6 +4492,10 @@
       "mapMayInventSpecialists": "May invent specialists mid-run",
       "mapSurfaces": "Surfaces",
       "maxStepsPerRun": "Max steps per run",
+      "loopGuard": "Stop tool-call loops",
+      "loopGuardHint": "A run that keeps making the same calls is told to change approach, and stopped if it goes on - with the reason, before the steps or the budget run out.",
+      "loopRepeats": "Identical calls in a row",
+      "loopCycles": "Cycle repeats",
       "mcpServers": "MCP servers",
       "mcpServersDescription": "External tools this agent may call, from <servers>the catalog</servers>. Bind a server to the organization's account, which answers for everybody, or to each person's own account, which they connect themselves. A member's connection is never bound directly - an agent everyone runs cannot depend on whose credential is behind it.",
       "model": "Model",
@@ -4792,6 +5010,8 @@
       "model": "Model",
       "modelFilter": "Filter by model",
       "modelRunHadNo": "A model in this run had no price, so this is a floor",
+      "toolArgsRepaired": "{count, plural, =1 {Repaired one tool call's malformed arguments instead of retrying it} other {Repaired # tool calls' malformed arguments instead of retrying them}}",
+      "cacheSplit": "Of the input, {read, number} read from the provider's cache and {write, number} written to it - priced apart from the rest",
       "modelSettings": "Model settings",
       "monthToDate": "Month to date",
       "narrowedToOneAgent": "Narrowed to one agent, including what it did as somebody's delegate.",
@@ -4839,6 +5059,15 @@
       "recordWasTrimmed": "This record was trimmed to fit its size limit - the messages, and possibly the argument schemas, were dropped.",
       "reject": "Reject",
       "requestDetail": "{input} in, {output} out · {messages} messages carried · finished {finish}",
+      "reviewerCorrections": "{count, plural, =1 {1 reviewer correction} other {# reviewer corrections}}",
+      "reviewerCorrectionBy": "{reviewer}, after request {request}",
+      "codeRuns": "{count, plural, =1 {1 script} other {# scripts}}",
+      "codeRunCalls": "{count, plural, =0 {It called no tools} =1 {It made 1 tool call} other {It made # tool calls}}",
+      "codeRunOmittedCalls": "{count, plural, =1 {and 1 more call, not listed} other {and # more calls, not listed}}",
+      "cacheBust": "cache bust",
+      "cacheExpired": "cache expired",
+      "cacheBustDetail": "{missed, number} cached tokens not read back from the cache - something before them in the prompt changed",
+      "cacheExpiredDetail": "{missed, number} cached tokens not read back from the cache - the provider's cache had expired",
       "requestIndex": "#{index}",
       "requests": "{count, plural, =0 {Requests} =1 {1 request} other {# requests}}",
       "resizeRunDetail": "Resize the run detail",
@@ -4872,6 +5101,7 @@
       "surfaceEval": "Eval",
       "surfaceFilter": "Filter by surface",
       "surfaceMattermost": "Mattermost",
+      "surfaceA2a": "A2A",
       "surfaceSchedule": "Schedule",
       "surfaceSlack": "Slack",
       "surfaceTelegram": "Telegram",
@@ -4938,7 +5168,16 @@
       "evalCaseGraded": "Grading an eval case: {dataset} · {input}",
       "evalCaseGradedTitle": "The judge grading a case of an eval run",
       "evalCaseGradedBody": "This run is the judge grading one answer of an eval run, which keeps no conversation. The answer, the grade and the judge's reasons are on the eval run.",
-      "grading": "Grading: {input}"
+      "grading": "Grading: {input}",
+      "cache": {
+        "title": "Prompt cache",
+        "description": "Requests whose cached prompt was not read back. A bust is a prefix that moved - tools reordered, a timestamp in the instructions - and was billed at the full input rate; an expiry had outlived the provider's cache.",
+        "agentAndModel": "Agent and model",
+        "noModel": "model not recorded",
+        "busts": "Busts",
+        "expiries": "Expiries",
+        "missedTokens": "Cached tokens missed"
+      }
     },
     "sandboxes": {
       "addConnection": "Add connection",
@@ -5479,7 +5718,10 @@
       "searchPlaceholder": "Search every folder",
       "source": "Source",
       "stored": "stored",
-      "whoPutItThere": "Who put it there"
+      "whoPutItThere": "Who put it there",
+      "openFolder": "Open folder",
+      "moreInFolder": "{count, plural, =1 {1 more in the folder} other {# more in the folder}}",
+      "recent": "Recent"
     }
   },
   "settings": {
@@ -5801,6 +6043,18 @@
     "cancel": "Cancel",
     "cancel2": "Cancel",
     "cancel3": "Cancel",
+    "chatgptCallbackLabel": "Address ChatGPT sent you to",
+    "chatgptOpenAgain": "Open the sign-in again",
+    "chatgptPersonal": "This runs models on your own ChatGPT subscription and counts against its limits, so it is stored as yours alone.",
+    "chatgptNameOf": "{name} - {person}",
+    "chatgptReconnect": "Reconnect",
+    "chatgptReconnectBody": "Sign in with ChatGPT again. The new sign-in replaces the old one, and every model using this secret keeps working.",
+    "chatgptReconnectNamed": "Reconnect {name}",
+    "chatgptReconnected": "Reconnected {name} to ChatGPT",
+    "chatgptSave": "Save sign-in",
+    "chatgptSignIn": "Sign in with ChatGPT",
+    "chatgptStepOne": "Sign in in the tab this opens, and approve access.",
+    "chatgptStepTwo": "ChatGPT then sends you to a localhost address that does not load. That is expected: copy the whole address from the address bar and paste it here.",
     "customService": "Custom service",
     "eitherWayAgentRunsWithIt": "Either way, an agent that uses this key runs with it for everyone who can run that agent.",
     "encryptedBoundOrganizationAgent": "Encrypted and bound to this organization. An agent names it by id, never by value - so it can be rotated without touching a single agent, and it cannot be read back.",
@@ -6038,7 +6292,9 @@
       "running": "running",
       "pending": "starting",
       "cancelled": "cancelled",
-      "awaiting_approval": "awaiting approval"
+      "awaiting_approval": "awaiting approval",
+      "guardrail_blocked": "blocked by a guardrail",
+      "loop_stopped": "stopped: looping"
     },
     "noMessagesYet": "No messages yet",
     "noMessagesDescription": "This trigger has not run yet. Its runs will appear here once it fires.",
@@ -7120,6 +7376,14 @@
       "needs": "Nothing extra.",
       "never": "Keeps nothing between messages and cannot reach the internet. For files that stay, use the Sandbox."
     },
+    "coding_agent": {
+      "name": "Coding agent",
+      "does": "Hands software work to Claude Code or Codex, which work on it in the agent's sandbox while you watch each step in the chat.",
+      "example1": "Fix a failing test in a repository the agent cloned",
+      "example2": "Explain how a module works, read-only",
+      "needs": "The Sandbox capability on a sandbox connection, and in the vault an Anthropic or OpenAI key, a Claude subscription token or a ChatGPT sign-in.",
+      "never": "Never works outside the agent's sandbox. Set Human approval to Always ask and each task waits for your yes."
+    },
     "compaction": {
       "name": "Long conversations",
       "does": "Shortens the oldest part of a long conversation so the agent keeps going instead of hitting the model's limit.",
@@ -7272,6 +7536,14 @@
       "example2": "Find three competitors and their prices",
       "needs": "Nothing, with DuckDuckGo. Brave, Exa or Tavily need their API key in the vault.",
       "never": "Never sends your documents to the search engine, only the search words."
+    },
+    "visuals": {
+      "name": "Visuals",
+      "does": "Draws in the conversation - a diagram, an architecture map, an explainer with sliders, a 3D scene - live while the agent writes it. A drawing can be saved as an app.",
+      "example1": "Our order flow as a diagram",
+      "example2": "A 3D model of the warehouse you can turn",
+      "needs": "Nothing extra. The visual-design skill makes the drawings look designed.",
+      "never": "Never reaches the network - a drawing runs sealed off, like an app's page."
     }
   },
   "capabilityCategories": {
@@ -7714,6 +7986,28 @@
         "title": "Results per search",
         "description": "How many results one search returns; ignored for native search."
       }
+    },
+    "coding_agent": {
+      "harness": {
+        "title": "Coding agent",
+        "description": "Which coding agent does the work: Claude Code, on an Anthropic key or a Claude subscription token, or Codex, on an OpenAI key or a ChatGPT sign-in."
+      },
+      "access": {
+        "title": "What it may do",
+        "description": "Change files and run commands, such as tests - or only read the code and answer. Set Human approval to ask before each task either way."
+      },
+      "model": {
+        "title": "Model",
+        "description": "The model the coding agent runs: a Claude model for Claude Code, an OpenAI one for Codex. Not set takes the coding agent's own default."
+      },
+      "base_url": {
+        "title": "Anthropic-compatible endpoint",
+        "description": "Claude Code only: a gateway that speaks Anthropic's API, such as https://openrouter.ai/api, with the key in the vault being that gateway's. Empty calls Anthropic directly."
+      },
+      "timeout_minutes": {
+        "title": "Time limit (minutes)",
+        "description": "How long one task may run before it is stopped."
+      }
     }
   },
   "apiReference": {
@@ -8092,5 +8386,118 @@
       "title": "You can't open this eval run",
       "body": "Reading eval runs needs permission to view runs, and access to the agent and the dataset. Ask an admin of the organization."
     }
+  },
+  "remoteAgents": {
+    "title": "Remote agents",
+    "pageDescription": "Other vendors' agents your agents can hand work to over the A2A protocol. Register one here by its agent card, then pick it in an agent's delegation settings.",
+    "listTitle": "Registered remote agents",
+    "registeredCount": "{count, plural, =1 {1 registered} other {# registered}}",
+    "emptyTitle": "No remote agents yet",
+    "emptyDescription": "Register an agent by the address of its A2A agent card, and your agents can delegate to it like to one of your own.",
+    "register": "Register an agent",
+    "registerTitle": "Register a remote agent",
+    "registerDescription": "The agent card is read now, so its name, description and skills come from the agent itself.",
+    "cardUrl": "Agent card address",
+    "cardUrlHint": "The card's URL, or the agent's base address, where /.well-known/agent-card.json is read.",
+    "handle": "Handle",
+    "handleHint": "What your agents call it by. Left empty, it is made from the agent's name.",
+    "key": "Key it sends",
+    "keyHint": "An API key from the vault, sent as a bearer token, when the agent asks for one.",
+    "noKey": "No key",
+    "suggestedKeyName": "Remote agent key",
+    "cancel": "Cancel",
+    "reading": "Reading the card…",
+    "registered": "Registered {name}",
+    "refreshed": "Read {name}'s card again",
+    "refresh": "Read the card again",
+    "refreshNamed": "Read {name}'s card again",
+    "remove": "Remove",
+    "removeNamed": "Remove {name}",
+    "removeTitle": "Remove {name}?",
+    "removeDescription": "Agents that delegate to it cannot be published again until they stop naming it, and their published versions fail the run when they try.",
+    "withKey": "Sends a key",
+    "answersOn": "Answers on {host}",
+    "failedToLoad": "The remote agents could not be loaded."
+  },
+  "projects": {
+    "title": "Projects",
+    "pageDescription": "Instructions and files shared by every chat started in a project, whichever agent answers.",
+    "newProject": "New project",
+    "newProjectHint": "A place for ongoing work: every chat in it reads its instructions and works in its files.",
+    "created": "Project {name} created",
+    "saved": "Project saved",
+    "deleted": "Project deleted. Its chats are ordinary chats now.",
+    "uploaded": "{count, plural, =1 {1 file added} other {# files added}}",
+    "removed": "Removed",
+    "filesUnreadable": "The project's files could not be read",
+    "activeWhen": "Active {when}",
+    "chatCount": "{count, plural, =0 {No chats yet} =1 {1 chat} other {# chats}}",
+    "projectCount": "{count, plural, =1 {1 project} other {# projects}}",
+    "startsWith": "Starts with {agent}",
+    "noDefaultAgent": "No default - the agent chosen in the chat",
+    "name": "Name",
+    "namePlaceholder": "Q3 launch",
+    "description": "Description",
+    "descriptionPlaceholder": "What this project is for",
+    "defaultAgent": "Default agent",
+    "defaultAgentHint": "A new chat in the project starts with this agent. Any agent can still answer in it.",
+    "instructions": "Instructions",
+    "instructionsHint": "Every agent answering in the project reads these after its own.",
+    "details": "Details",
+    "instructionsPlaceholder": "Write in British English. The brand guide is in brand/guide.pdf.",
+    "whoWorksInIt": "Who works in it",
+    "cancel": "Cancel",
+    "create": "Create",
+    "save": "Save",
+    "newChat": "New chat",
+    "chats": "Chats",
+    "files": "Files",
+    "untitledChat": "Untitled chat",
+    "columnChat": "Chat",
+    "columnStartedBy": "Started by",
+    "columnAgents": "Agents",
+    "columnActivity": "Last activity",
+    "columnPeople": "People",
+    "appCount": "{count, plural, =1 {1 app} other {# apps}}",
+    "moreChats": "Show more chats",
+    "hereNow": "Here now: {names}",
+    "seenBy": "Seen by {names}",
+    "moreReaders": "+{count}",
+    "isWorking": "{name} is working",
+    "noChatsYet": "No chats in this project yet",
+    "noChatsHint": "Start one: it reads the project's instructions and works in its files.",
+    "noChatsViewer": "You can read this project's files and instructions, but not chat in it.",
+    "uploadFiles": "Upload files",
+    "uploadFolder": "Upload folder",
+    "newFolder": "New folder",
+    "folderName": "Folder name",
+    "folderPlaceholder": "reports",
+    "remove": "Remove",
+    "removeTitle": "Remove {path}?",
+    "removeBody": "It goes for every chat and agent in the project. A folder goes with everything in it.",
+    "delete": "Delete",
+    "deleteProject": "Delete project",
+    "deleteProjectHint": "Its files go with it. Its chats stay, as ordinary chats.",
+    "deleteTitle": "Delete {name}?",
+    "cannotSee": "You cannot see projects in this organization",
+    "askForAccess": "Ask an administrator for access to projects.",
+    "search": "Search projects",
+    "noMatches": "No projects match",
+    "searchedNames": "Names and descriptions are searched.",
+    "noProjectsYet": "No projects yet",
+    "noProjectsHint": "A project keeps instructions and files that every chat in it shares.",
+    "pickTitle": "Work in a project",
+    "pickHint": "The chat reads the project's instructions and works in its files. It stays in the project.",
+    "noProject": "No project",
+    "noProjectHint": "An ordinary chat",
+    "manageProjects": "New or all projects",
+    "leaveProject": "Start outside {name}",
+    "apps": "Apps",
+    "noAppsYet": "No apps made in this project yet",
+    "noAppsHint": "An app an agent publishes in one of the project's chats - a report, a dashboard - appears here.",
+    "uploadFailed": "The upload failed",
+    "noFilesYet": "Nothing in this project yet",
+    "noFilesHint": "Drop files or a whole folder here, or upload them. Every chat in the project reads and works in them.",
+    "noFilesViewer": "Files added to the project will appear here."
   }
 }

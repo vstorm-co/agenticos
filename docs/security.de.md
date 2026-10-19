@@ -1,5 +1,5 @@
 ---
-source_sha: "dff8f802d288"
+source_sha: "1e0ade0e3ea7"
 ---
 
 # Sicherheit { #security }
@@ -117,7 +117,7 @@ nicht den Agenten löschen, von dem das Team abhängt.
 | Tabelle | Beim Löschen | Im Export | Warum |
 |---|---|---|---|
 | `users` | Gelöscht | Profil, ohne den Passwort-Hash | Das Konto selbst |
-| `conversations`, `messages`, `tool_calls` | Kaskade | Von ihnen begonnene Threads, mit jeder Runde darin | Ihre eigenen, und ein Transkript ohne jede zweite Runde beantwortet nichts |
+| `conversations`, `messages`, `tool_calls` | Kaskade, außer den Chats eines Projekts, die beim Team bleiben | Von ihnen begonnene Threads, mit jeder Runde darin; im Chat eines Projekts, wo immer sie geschrieben haben, nur ihre Runden und die Antworten darauf | Ihre eigenen, und ein Transkript ohne jede zweite Runde beantwortet nichts. Der Chat eines Projekts gehört mehreren Personen, und die Runden der anderen Mitglieder sind deren |
 | `chat_files` | Kaskade; die Bytes werden nach dem Commit gelöst | Nicht aufgeführt | Die Zeile kaskadiert von der Nachricht, die Datei auf der Platte nicht - also werden die Pfade vor dem Löschen eingesammelt und nach dessen Commit gelöst, sonst überleben die Bytes die Anfrage, die sie entfernen sollte: für nichts erreichbar und von niemandem gelöscht. Das Transkript im Export nennt den Anhang; die Bytes sind herunterladbar, solange das Konto besteht, und werden nicht mit eingepackt |
 | `message_ratings` | Kaskade | Ja | Eine geäußerte Meinung |
 | `sessions` | Kaskade | Gerät, Adresse und Zeiten — nie das Credential, das ein Hash ist | Wo sie sich angemeldet haben |

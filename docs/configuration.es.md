@@ -1,5 +1,5 @@
 ---
-source_sha: "db0c4a5cc081"
+source_sha: "22f516fde3cb"
 ---
 
 # Configuración { #configuration }
@@ -61,6 +61,7 @@ La configuración rechaza un `VAULT_MASTER_KEY` sin fijar fuera de
 | `MEM0_ALLOWED_HOSTS` | `[]` (empty) | Hostnames a los que puede apuntar un servicio de memoria mem0 autoalojado. Un `base_url` viene del spec de un agent, así que sin una lista de permitidos un Builder que puede vincular (pero no leer) una clave mem0 compartida podría apuntarla a su propio servidor y capturar la clave desde la cabecera de la petición. Vacío rechaza mem0 autoalojado y solo permite la nube gestionada; añade un hostname de confianza para habilitar un despliegue autoalojado. Ver [secretos](secrets.md) |
 | `BROWSER_CDP_ALLOWED_HOSTS` | `[]` (empty) | Hostnames en los que un agent que navega puede dirigir un Chromium. Un `cdp_url` viene del spec de un agent, que escribe cualquiera con permiso `edit` sobre él, así que la dirección la controla el tenant y la petición es de este deployment: la misma forma para la que existe `MEM0_ALLOWED_HOSTS`, y la razón de que aquí haya una lista de permitidos y no la protección SSRF por la que pasa cualquier otra URL suministrada por un tenant. Esa protección solo admite direcciones *públicas*, de modo que rechaza el servicio de navegador aislado en la propia red del deployment que [la capability](reference/capabilities.md#browser-automation) pide ejecutar, y acepta un depurador CDP expuesto a internet, que es peor. La coincidencia es exacta y sin distinguir mayúsculas, sin globs. Vacío rechaza la automatización del navegador por completo |
 | `BROWSER_SIGN_IN_CDP_URL` | `""` (empty) | El navegador con el que una persona inicia sesión en un sitio desde **Ajustes → Inicios de sesión**, donde ningún agent lo indica - el servicio `browser` de compose es `http://browser:9222`. Su host tiene que estar en `BROWSER_CDP_ALLOWED_HOSTS`. El sitio debe ser una dirección pública y solo la persona que lo abrió puede verlo. Vacío oculta la opción |
+| `VISUAL_RENDER_CDP_URL` | `""` (vacío) | El navegador con el que un [visual](reference/capabilities.md#visuals) se dibuja como imagen donde ningún marco puede ejecutarlo: una respuesta en Slack, Telegram o Mattermost y la miniatura de una página en el panel. El servicio `browser` de compose es `http://browser:9222`; su host debe estar en `BROWSER_CDP_ALLOWED_HOSTS`. El dibujo no alcanza nada desde ahí: cada petición que hace la responde el despliegue o se rechaza. Vacío envía a una aplicación de chat la respuesta sin la imagen |
 | `BROWSER_EGRESS_PROXY` | `""` (empty); compose fija `http://browser-egress:3128` | El proxy a través del cual el navegador del despliegue llega a cada sitio. El servicio `browser-egress` de compose es `http://browser-egress:3128` (`docker compose --profile browser up -d browser-egress`): resuelve cada host por sí mismo, rechaza direcciones privadas, de loopback, link-local y de metadatos y se conecta a la dirección que comprobó, así que ni una redirección ni un DNS rebinding llevan una página dentro de la red. Lo usa todo recorrido sin proxy de la organización y que no esté en un navegador alojado. Una herramienta interna que un agent deba navegar necesita una excepción en `docker/browser-egress/squid.conf`. Vacío deja salir al navegador directamente: pon `BROWSER_EGRESS_PROXY=` en el `.env` raíz solo para un navegador fuera de compose que no alcance el proxy. Sin proxy cada sitio se comprueba en su primera petición en una pestaña y luego el navegador resuelve su nombre por sí mismo, así que un nombre que más tarde en la misma pestaña apunte a una dirección privada no se detecta |
 | `FILE_IO_MAX_WORKERS` | `8` | Tamaño del pool de hilos dedicado que ejecuta el trabajo bloqueante con archivos — parsear una subida y leer o escribir sus bytes. Se mantiene fuera del executor por defecto compartido de `asyncio`, que también ejecuta `bcrypt` y el DNS de hosts fijados, para que una ráfaga de subidas no deje el inicio de sesión y las peticiones salientes en cola detrás de ella ([#1108](https://github.com/vstorm-co/agenticos/issues/1108)). Súbelo en una máquina que parsea muchas subidas a la vez. Tiene que ser un entero positivo — un `0` o un valor negativo se rechaza al arrancar |
 | `CHAT_CONVERT_TIMEOUT_SECONDS` | `60` | Cuánto puede durar una conversión de DOC a texto con LibreOffice antes de ser terminada. Muy por debajo de los 600s de la base de conocimiento porque esto es una subida interactiva |
@@ -454,6 +455,11 @@ encuentra todas las ejecuciones programadas mientras estuvo caído y arranca tan
 como permita el límite. Sin tope, tres días de caída fueron 71 procesos y 6 GiB.
 Súbelo si la ingesta se acumula detrás de las sincronizaciones en una máquina con
 memoria de sobra; bájalo en una máquina pequeña.
+
+Los sweeps programados apenas suman a esa cola: cada uno ejecuta un tick a la
+vez, y el servidor rechaza el resto de sus ticks atrasados antes de que el
+runner arranque un proceso para ellos. Los informes de uso son la excepción,
+porque cada run cubre un periodo propio.
 
 Las dos variables `PREFECT_RUNNER_SERVER_*` son de Prefect, y los archivos compose
 las fijan para que el contenedor del runner tenga un estado de salud con sentido. El

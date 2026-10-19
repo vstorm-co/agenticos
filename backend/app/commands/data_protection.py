@@ -29,6 +29,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
+from uuid import UUID
 
 import click
 from sqlalchemy import func, select
@@ -62,6 +63,7 @@ from app.db.models.rag_document import RAGDocument
 from app.db.models.sandbox_operation import SandboxOperation
 from app.db.models.sync_source import SyncSource
 from app.db.models.user import User
+from app.db.models.visual import Visual
 from app.db.session import get_db_context
 
 # Every column holding a path under `MEDIA_DIR`. The unreferenced-file scan is
@@ -80,6 +82,7 @@ MEDIA_PATH_COLUMNS: tuple[InstrumentedAttribute[str | None] | InstrumentedAttrib
     DeploymentSettings.logo_path,
     DeploymentSettings.favicon_path,
     ArtifactVersion.storage_path,
+    Visual.thumbnail_path,
 )
 
 # Directories under `MEDIA_DIR` that hold files no row points at, by design:
@@ -104,10 +107,24 @@ OUTBOUND_CAPABILITIES: dict[str, str] = {
     # excerpt of its text - goes to the agent's own model provider, which the
     # inventory already names.
     "browser_use": "a browser host on BROWSER_CDP_ALLOWED_HOSTS, and the sites it opens",
+    # Claude Code or Codex reads the sandbox's files and sends what it reads to
+    # its own vendor, from inside the sandbox rather than from the platform.
+    "coding_agent": (
+        "Anthropic, OpenAI or the gateway the binding names, from the agent's sandbox, "
+        "with the code the coding agent reads"
+    ),
     "image_generation": "the image provider named in the binding",
     "knowledge": "the collection's embedding endpoint",
     "memory_mem0": "the mem0 host the binding names (MEM0_ALLOWED_HOSTS bounds it)",
     "sandbox": "the sandbox runtime this deployment configures",
+    # A drawing's pictures by address, only for an agent that already reads the
+    # web and only on a host its `web_fetch` or `browser_use` may reach.
+    # And, for a channel reply's picture and a thumbnail, the whole drawing with
+    # its pictures inlined, to the rendering browser the deployment configures.
+    "visuals": (
+        "picture addresses the model names, on hosts the agent's web readers may reach; "
+        "the whole drawing to the browser at VISUAL_RENDER_CDP_URL, where it is set"
+    ),
     "web_fetch": "whatever address the model asks for",
     "web_research": "DuckDuckGo by default, or the search provider the binding names",
 }
@@ -213,6 +230,9 @@ def _settings_section() -> Section:
         ["LOG_PROVIDER_WRITE_TO_DISK", _yes_no(settings.LOG_PROVIDER_WRITE_TO_DISK)],
         ["RATE_LIMIT_TRUST_FORWARDED_FOR", _yes_no(settings.RATE_LIMIT_TRUST_FORWARDED_FOR)],
         ["MEM0_ALLOWED_HOSTS", ", ".join(settings.MEM0_ALLOWED_HOSTS) or "none"],
+        # Its host only: an address can carry a token, and this report is attached
+        # to reviews.
+        ["VISUAL_RENDER_CDP_URL", urlsplit(settings.VISUAL_RENDER_CDP_URL).hostname or "unset"],
         [
             "BROWSER_CDP_ALLOWED_HOSTS",
             ", ".join(settings.BROWSER_CDP_ALLOWED_HOSTS) or "none",
@@ -605,6 +625,17 @@ def _walk_media(media_dir: Path) -> list[str]:
     return found
 
 
+def _conversation_of(path: str) -> UUID | None:
+    """The conversation a `media/<organization>/<conversation>/...` path belongs to."""
+    parts = PurePosixPath(path).parts
+    if len(parts) < 4 or parts[0] != "media":
+        return None
+    try:
+        return UUID(parts[2])
+    except ValueError:
+        return None
+
+
 async def _unreferenced_media(db: AsyncSession) -> Section:
     """Files under `MEDIA_DIR` that no row points at any more.
 
@@ -619,7 +650,16 @@ async def _unreferenced_media(db: AsyncSession) -> Section:
         referenced.update(str(value) for value in result.scalars().all())
 
     media_dir = Path(settings.MEDIA_DIR)
-    orphans = [path for path in _walk_media(media_dir) if path not in referenced]
+    unlisted = [path for path in _walk_media(media_dir) if path not in referenced]
+    # A conversation's media - offloaded history, a visual's pictures - has no row
+    # of its own: its prefix is its lifetime, so it is live while the
+    # conversation is, and an orphan once the conversation is gone.
+    threads = {thread for path in unlisted if (thread := _conversation_of(path)) is not None}
+    live: set[UUID] = set()
+    if threads:
+        found = await db.execute(select(Conversation.id).where(Conversation.id.in_(threads)))
+        live = set(found.scalars().all())
+    orphans = [path for path in unlisted if _conversation_of(path) not in live]
 
     # Counted per directory, never named. An upload keeps the original filename
     # in its stored path, so listing twenty of them would put "medical-results"

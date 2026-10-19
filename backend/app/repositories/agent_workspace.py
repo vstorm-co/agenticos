@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import and_, or_, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent_workspace import AgentWorkspace
@@ -29,33 +30,50 @@ async def create(
     db: AsyncSession,
     *,
     organization_id: UUID,
-    agent_id: UUID,
+    agent_id: UUID | None,
     scope: str,
     scope_key: str,
     backend: str,
+    project_id: UUID | None = None,
     conversation_id: UUID | None = None,
     owner_ref: str | None = None,
     connection_id: UUID | None = None,
     files: dict[str, Any] | None = None,
 ) -> AgentWorkspace:
-    workspace = AgentWorkspace(
-        organization_id=organization_id,
-        agent_id=agent_id,
-        conversation_id=conversation_id,
-        owner_ref=owner_ref,
-        scope=scope,
-        scope_key=scope_key,
-        backend=backend,
-        connection_id=connection_id,
-        files=files,
-        bytes_total=0,
-        version=0,
-        last_used_at=datetime.now(UTC),
+    """The workspace under this key - the one created here, or one created first.
+
+    Two first opens of one key at once - two teammates the first to work in a
+    project - both find no row and both insert. The unique key decides, and the
+    one that loses takes the row the other wrote rather than failing its request.
+    """
+    await db.execute(
+        pg_insert(AgentWorkspace)
+        .values(
+            id=uuid4(),
+            organization_id=organization_id,
+            agent_id=agent_id,
+            project_id=project_id,
+            conversation_id=conversation_id,
+            owner_ref=owner_ref,
+            scope=scope,
+            scope_key=scope_key,
+            backend=backend,
+            connection_id=connection_id,
+            files=files,
+            bytes_total=0,
+            version=0,
+            last_used_at=datetime.now(UTC),
+        )
+        .on_conflict_do_nothing(constraint="uq_agent_workspace_scope")
     )
-    db.add(workspace)
-    await db.flush()
-    await db.refresh(workspace)
-    return workspace
+    # Inserted here or there, the key now names exactly one row.
+    result = await db.execute(
+        select(AgentWorkspace).where(
+            AgentWorkspace.organization_id == organization_id,
+            AgentWorkspace.scope_key == scope_key,
+        )
+    )
+    return result.scalar_one()
 
 
 async def save_files(
@@ -74,8 +92,8 @@ async def save_files(
     finished.
 
     Comparing it is the *service's* job, and it does it before calling this -
-    `_flush_state` re-reads the committed row and logs `workspace_flush_overtaken`
-    with the paths the write is about to drop. See
+    `_flush_state` re-reads the committed row and, when another run stored one
+    since, hands over this run's changes merged onto it. See
     :class:`~app.db.models.agent_workspace.AgentWorkspace.version` for which scopes
     can reach the race at all.
     """
@@ -105,6 +123,59 @@ async def touch(db: AsyncSession, *, workspace: AgentWorkspace) -> AgentWorkspac
     await db.flush()
     await db.refresh(workspace)
     return workspace
+
+
+async def get_for_project(
+    db: AsyncSession, *, organization_id: UUID, project_id: UUID
+) -> AgentWorkspace | None:
+    """A project's container, the most recently used where a moved project left two."""
+    result = await db.execute(
+        select(AgentWorkspace)
+        .where(
+            AgentWorkspace.organization_id == organization_id,
+            AgentWorkspace.project_id == project_id,
+        )
+        .order_by(AgentWorkspace.last_used_at.desc().nulls_last())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def list_for_project(
+    db: AsyncSession, *, organization_id: UUID, project_id: UUID
+) -> list[AgentWorkspace]:
+    """Every container a project has had: one per sandbox connection it was opened on."""
+    result = await db.execute(
+        select(AgentWorkspace).where(
+            AgentWorkspace.organization_id == organization_id,
+            AgentWorkspace.project_id == project_id,
+        )
+    )
+    return list(result.scalars().all())
+
+
+async def kept_for_conversation(
+    db: AsyncSession, *, organization_id: UUID, conversation_id: UUID
+) -> AgentWorkspace | None:
+    """The workspace a conversation's runs work in: its own, or its project's.
+
+    A run in a project chat keeps its files on the project's container, which
+    names no conversation, so a lookup by conversation alone found nothing and
+    the chat's files panel and usage meter said the chat had no workspace.
+    """
+    rows = await list_for_conversation(
+        db, organization_id=organization_id, conversation_id=conversation_id
+    )
+    if rows:
+        return rows[0]
+    project_id = await db.scalar(
+        select(Conversation.project_id).where(
+            Conversation.id == conversation_id, Conversation.organization_id == organization_id
+        )
+    )
+    if project_id is None:
+        return None
+    return await get_for_project(db, organization_id=organization_id, project_id=project_id)
 
 
 async def list_for_conversation(
@@ -171,7 +242,11 @@ async def list_for_reader(
     are identified by that platform and not by a row in `users`. It is visible to
     an operator only.
     """
-    query = select(AgentWorkspace).where(AgentWorkspace.organization_id == organization_id)
+    # A project's container is listed on the project's own page, to whoever the
+    # project is shared with - not here, where a workspace is one agent's.
+    query = select(AgentWorkspace).where(
+        AgentWorkspace.organization_id == organization_id, AgentWorkspace.project_id.is_(None)
+    )
     if not see_all:
         if user_id is None:
             # An anonymous caller is part of no conversation, so the honest answer

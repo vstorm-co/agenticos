@@ -54,6 +54,10 @@ export interface FlatFile extends WorkspaceFile {
   agent_slug: string;
   agent_has_avatar: boolean;
   access_label: string;
+  /** The conversation a conversation-scoped workspace belongs to; null otherwise. */
+  conversation_title?: string | null;
+  /** That conversation, set only when it is the reader's own to open. */
+  conversation_id?: string | null;
   /**
    * Whether a person attached this file rather than an agent writing it.
    *

@@ -251,6 +251,17 @@ class TestMcpBindings:
         assert agent_templates.catalog() == ()
 
 
+class TestTheShippedClaudeCodeLikeAgent:
+    @pytest.mark.security
+    def test_it_reaches_the_platform_with_writes_held_for_approval(self):
+        """A fresh agent from it answers questions about the platform out of the
+        box, and asks before changing anything there (#2190)."""
+        template = agent_templates.get("general/claude-code-like")
+
+        assert template is not None
+        assert {"account": "platform", "approval": "writes"} in template.mcp_servers
+
+
 def _instruction_texts(value: object) -> list[str]:
     """Every `instructions` string under a template's bindings, at any depth."""
     if isinstance(value, dict):

@@ -1,7 +1,7 @@
 from typing import Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Query, Response, status
+from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
 
 from app.api.deps import (
     ActiveOrg,
@@ -10,10 +10,15 @@ from app.api.deps import (
     ConversationSvc,
     CurrentUser,
     MessageRatingSvc,
+    ProjectSvc,
+    VisualSvc,
     WorkspaceSvc,
+    require,
 )
+from app.api.routes.v1._artifact_bytes import visual_image_response
 from app.api.routes.v1._workspace_bytes import file_response
 from app.core.exceptions import NotFoundError
+from app.core.permissions import Perm
 from app.schemas.conversation import (
     ConversationCreate,
     ConversationList,
@@ -28,11 +33,13 @@ from app.schemas.conversation_share import (
     ConversationShareCreate,
     ConversationShareList,
     ConversationShareRead,
+    SharedConversationRead,
 )
 from app.schemas.message_rating import (
     MessageRatingCreate,
     MessageRatingRead,
 )
+from app.schemas.visual import VisualPublish, VisualPublished
 from app.schemas.workspace import (
     WorkspaceFileContent,
     WorkspaceFileRead,
@@ -55,7 +62,7 @@ async def list_shared_with_me(
     return ConversationList(items=items, total=total)
 
 
-@router.get("/shared/{token}", response_model=ConversationReadWithMessages)
+@router.get("/shared/{token}", response_model=SharedConversationRead)
 async def get_shared_conversation(
     token: str,
     share_service: ConversationShareSvc,
@@ -80,6 +87,7 @@ async def list_conversations(
     ),
     sort_dir: Literal["asc", "desc"] = Query("desc", description="Sort direction"),
     hide_api: bool = Query(False, description="Leave out conversations opened over the API"),
+    project_id: UUID | None = Query(default=None, description="Only chats started in this project"),
 ) -> Any:
     """List conversations for the current user.
 
@@ -106,6 +114,7 @@ async def list_conversations(
         sort_by=sort_by,
         sort_dir=sort_dir,
         hide_api=hide_api,
+        project_id=project_id,
     )
     return ConversationList(items=items, total=total)  # ty: ignore[invalid-argument-type]
 
@@ -115,11 +124,15 @@ async def create_conversation(
     conversation_service: ConversationSvc,
     current_user: CurrentUser,
     active_org: ActiveOrg,
+    projects: ProjectSvc,
+    ctx: Auth,
     data: ConversationCreate | None = None,
 ) -> Any:
-    """Create a new conversation."""
+    """Create a new conversation, in a project the caller may work in when one is named."""
     if data is None:
         data = ConversationCreate()
+    if data.project_id is not None:
+        await projects.check_can_start(ctx, data.project_id)
     data = data.model_copy(update={"user_id": current_user.id})
     data = data.model_copy(update={"organization_id": active_org.id})
     return await conversation_service.create_conversation(data)
@@ -153,6 +166,55 @@ async def get_conversation(
         user_id=current_user.id,
         ctx=ctx,
     )
+
+
+@router.post(
+    "/{conversation_id}/visuals/{visual_id}/publish",
+    response_model=VisualPublished,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require(Perm.ARTIFACTS_EDIT))],
+)
+async def publish_visual(
+    conversation_id: UUID, visual_id: str, data: VisualPublish, service: VisualSvc, ctx: Auth
+) -> Any:
+    """Save a visual from this conversation as an app, or as a new version of one.
+
+    The visual is rebuilt from the transcript - revisions applied - and published
+    under the agent whose turn drew it, owned by the caller.
+    """
+    return await service.publish(ctx, conversation_id, visual_id, data)
+
+
+@router.post(
+    "/{conversation_id}/visuals/{visual_id}/thumbnail",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+)
+async def put_visual_thumbnail(
+    conversation_id: UUID,
+    visual_id: str,
+    service: VisualSvc,
+    ctx: Auth,
+    file: UploadFile = File(...),
+) -> None:
+    """Keep the thumbnail the console made of a drawing, for the dashboard's tile."""
+    await service.save_thumbnail(ctx, conversation_id, visual_id, await file.read())
+
+
+@router.get(
+    "/{conversation_id}/visuals/{visual_id}/images/{name}",
+    response_class=Response,
+)
+async def get_visual_image(
+    conversation_id: UUID, visual_id: str, name: str, service: VisualSvc, ctx: Auth
+) -> Response:
+    """One image a visual uses, for the console to put into the drawing.
+
+    Read with the conversation's own access: whoever may read the thread may see
+    the pictures drawn in it.
+    """
+    data, media_type = await service.image(ctx, conversation_id, visual_id, name)
+    return visual_image_response(data, media_type)
 
 
 @router.patch("/{conversation_id}", response_model=ConversationRead)
@@ -346,6 +408,7 @@ async def rate_message(
     data: MessageRatingCreate,
     rating_service: MessageRatingSvc,
     current_user: CurrentUser,
+    active_org: ActiveOrg,
     response: Response,
 ) -> Any:
     """Rate an assistant message - 201 for new rating, 200 when updating."""
@@ -353,6 +416,7 @@ async def rate_message(
         conversation_id=conversation_id,
         message_id=message_id,
         user_id=current_user.id,
+        organization_id=active_org.id,
         data=data,
     )
     if is_new:
@@ -370,12 +434,14 @@ async def remove_rating(
     message_id: UUID,
     rating_service: MessageRatingSvc,
     current_user: CurrentUser,
+    active_org: ActiveOrg,
 ) -> None:
     """Remove your rating from a message."""
     await rating_service.remove_rating(
         conversation_id=conversation_id,
         message_id=message_id,
         user_id=current_user.id,
+        organization_id=active_org.id,
     )
 
 

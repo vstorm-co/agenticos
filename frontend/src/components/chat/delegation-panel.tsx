@@ -11,11 +11,11 @@ import { useAgents, useModelProviders, usePermissions } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { newSpecialist, specialistNameError } from "@/lib/agent-spec";
 import { cn } from "@/lib/utils";
-import { childrenOf, delegateNamed, rootsOf, type DelegateRef } from "@/lib/delegations";
-import { AgentAvatar } from "@/components/agents/agent-avatar";
+import { childrenOf, delegateOf, rootsOf, type DelegateRef } from "@/lib/delegations";
+import { DelegateFace } from "./delegate-face";
 import { DelegationChat } from "./delegation-chat";
 import { STATUS_KEY } from "./delegation-sheet";
-import { toolStep } from "@/lib/tool-steps";
+import { delegationStep } from "@/lib/tool-steps";
 import { Button } from "@/components/ui";
 import { Perm } from "@/types/permissions";
 import type { Delegation, DelegationStatus, SpecialistDefinition } from "@/types";
@@ -145,7 +145,7 @@ function DelegationPanel({
   }
 
   const children = childrenOf(all, delegation.taskId);
-  const delegate = delegateNamed(delegation.subagent, agents);
+  const delegate = delegateOf(delegation, agents);
 
   return (
     <div className="border-foreground/10 border-l pl-3.5">
@@ -161,12 +161,8 @@ function DelegationPanel({
             back, because the panel is then a record rather than a report. */}
         {/* The delegate's own face, thinking while it works - the same face it
             wears in the agent list and on its own conversations. */}
-        <AgentAvatar
-          agentId={delegate.id ?? delegate.slug}
-          slug={delegate.slug}
-          hasAvatar={delegate.has_avatar}
-          colorSlot={delegate.avatar_color}
-          size="sm"
+        <DelegateFace
+          who={delegate}
           thinking={delegation.status === "running"}
           className="h-5 w-5"
         />
@@ -235,7 +231,7 @@ function DelegationPanel({
                 // rather than a rendering choice: the frames carry no arguments and
                 // no result, so there is nothing behind a chevron. See
                 // `DelegationStep`.
-                const shown = toolStep(step.name, undefined, step.ok !== null, tTools);
+                const shown = delegationStep(step, tTools);
                 return (
                   <AgentStep
                     key={step.id}

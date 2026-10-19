@@ -1,5 +1,5 @@
 ---
-source_sha: "5fd44f11df69"
+source_sha: "cb36b7fb6577"
 ---
 
 # Die Konsole { #the-console }
@@ -17,7 +17,7 @@ Seite, deren Kopfzeile kein "?" trägt, hat keinen Rundgang abzuspielen.
 Die Startseite ist ein **anordenbares Raster aus Widgets**, und sie ist die
 Antwort auf die Frage "was passiert gerade", ohne fünf Seiten zu öffnen.
 
-Es gibt einundvierzig Karten. Sie werden nicht alle davon sehen: **eine Karte
+Es gibt fünfundvierzig Karten. Sie werden nicht alle davon sehen: **eine Karte
 hängt an der Berechtigung, die ihre Daten verlangen**, also wird ein Widget, das
 Sie nicht lesen dürfen, nie eingehängt und seine Abfragen werden nie gestellt —
 außer Ihren eigenen Benachrichtigungen weiter unten, die nur verlangen, dass Sie
@@ -91,6 +91,12 @@ Fünf-Karten-Vorschau - **Load more** blättert immer weiter zurück durch die
 Organisation, in der Sie gerade sind, plus alles, was an das gesamte
 Deployment adressiert ist, bis es erreicht, was aus dem Aufbewahrungsfenster
 gefallen ist.
+
+Jede Zeile beginnt mit dem, worum es geht: dem Gesicht des Agents mit einem
+Abzeichen dafür, wie sein Run lief, oder einem Symbol für die Art des
+Ereignisses - grün für einen beendeten Run oder einen wieder erreichbaren
+MCP-Server, rot für einen Fehlschlag oder ein aufgebrauchtes Budget, bernsteinfarben
+für eine Freigabe oder eine Budgetwarnung.
 
 Wechseln Sie die Organisation, gehört die Glocke dieser: eine
 Benachrichtigung aus der verlassenen Organisation ist nicht weg, sie liegt
@@ -275,6 +281,23 @@ gesendet wird. Die eingebauten liefert das Produkt mit; eigene schreiben Sie
 unter **Settings → Slash commands**, und jeden eingebauten, den Sie nie nutzen,
 können Sie ausblenden. Sie gehören Ihnen, nicht der Organisation.
 
+**`@` zeigt dem Agent, was er nutzen soll.** Tippen Sie `@`, und ein Menü bietet in
+dieser Reihenfolge, was der Agent nutzen kann: seine MCP-Server, die Agents, an die
+er Arbeit übergibt (wenn die Delegations-Capability an ist), seine Capabilities -
+**Sandbox**, **Web research** - seine Skills, dann seine Wissensbasen und
+Kontextdateien. Die Auswahl bleibt als `@Name` in Ihrem Text, mit ihrem Logo
+markiert, und der Agent wird angewiesen, sie zu nutzen - die Werkzeuge eines
+Servers oder einer Capability, die Suche einer Wissensbasis, einen Skill -, ohne
+dass ihr Inhalt eingefügt wird. Einen Agent zu nennen übergibt ihm die Arbeit; wer
+antwortet, ändert es nie. Löschen Sie `@Name`, und die Auswahl ist weg. Ein
+eingefügter Link zeigt das Symbol seiner Website über dem Feld und in der
+gesendeten Nachricht. Eine Erwähnung erweitert nie, was der Agent erreicht: Der
+Server prüft jede erneut als Sie, gegen das, was der Agent bereits hat. Im
+Testpanel des Builders liest das Menü den Entwurf, den Sie testen. Solange ein Gespräch leer ist, zeigt das Feld nacheinander
+Beispiele aus dem, was der Agent nutzen kann - seinem Server, einer Capability,
+einem Delegierten, einem Skill - und `/`; sie verschwinden, sobald Sie
+hineinklicken.
+
 **Während der Agent arbeitet**, wartet das, was Sie senden, auf seine Antwort, wie
 in jedem Chat: Es steht in einer Warteschlange über dem Eingabefeld und geht
 hinaus, wenn der Run endet. Ziehen Sie eine Nachricht in der Warteschlange oder
@@ -293,12 +316,27 @@ Stunde ohne Zuschauer noch läuft, wird gestoppt, und Sie erfahren das
 ([`CHAT_DETACHED_TURN_MINUTES`](configuration.md#a-chat-turn-left-running)). Einer,
 der auf eine Freigabe oder auf Ihre Antwort auf eine Frage wartet, meldet sich
 über diese.
+Kommen Sie zurück, solange er noch antwortet - in die Unterhaltung, aus einem
+anderen Tab, nach dem Neuladen -, nimmt der Chat die Antwort dort auf, wo sie
+steht, mit allem, was der Agent bis dahin getan hat, und zeichnet sie weiter, wie
+sie ankommt.
 
 **Auf dem Telefon** verhält sich der Chat wie eine Messenger-App: Das
 Eingabefeld bleibt über der Tastatur und die Unterhaltung bei ihrer letzten
 Nachricht, wenn sie aufgeht, Enter
 beginnt eine neue Zeile, und Anhängen oder Diktieren liegen hinter einem **+**.
 Felder sind nie so klein, dass iOS hineinzoomt.
+
+**Zeichnungen.** Ein Agent mit [Visuals](reference/capabilities.md#visuals)
+zeichnet unter seiner Nachricht - ein Diagramm, eine Erklärung mit Schiebereglern, eine
+3D-Szene - und Sie sehen sie entstehen, während sie geschrieben wird; ihre Skripte
+starten, wenn sie vollständig ist. Das Panel zeigt die ganze Zeichnung, passend zum
+Gespräch, mit Schaltflächen für Vollbild, Code, Herunterladen, Kopieren eines SVG als
+Bild, Zoomen und Speichern als [App](artifacts.md#visuals) mit einem Link zum
+Teilen. Meldet eine Zeichnung einen Fehler, weiß der Agent schon davon; **Beheben**
+fragt erneut. Auf einem Telefon öffnet ein Tippen sie im Vollbild.
+Die Karte **Neueste Visuals** auf dem Dashboard zeigt die zuletzt für Sie
+gezeichneten, jede öffnet das Gespräch, in dem sie entstand.
 
 **Einem Durchlauf zusehen.** Beginnt ein Agent mit dem
 [Webbrowser](reference/capabilities.md#browser-automation) auf einer Seite, erscheint
@@ -344,7 +382,7 @@ Die Seitenleiste gruppiert sie. **Build** enthält Agents, Routines, Apps und
 Activity; **Knowledge** enthält Knowledge bases, Documents, Skills und Context.
 Zwei Gruppen sind bis zum Öffnen auf ihre Überschrift eingeklappt, weil man sie
 einmal einrichtet und selten besucht: **Connections** (MCP servers, Channels,
-Vault, Sandboxes) und **Organization** (Organizations, Groups). Eine eingeklappte
+Remote agents, Vault, Sandboxes) und **Organization** (Organizations, Groups). Eine eingeklappte
 Gruppe öffnet sich auf jeder Seite in ihr von selbst und bleibt, wie Sie sie
 verlassen haben.
 
@@ -362,6 +400,7 @@ verlassen haben.
 | **Sandboxes** | Wo Agents Code ausführen: Hosts, laufende Sessions, Policy | [Die Sandbox](sandbox.md) |
 | **MCP servers** | Verbindungen zu externen Werkzeugen, persönlich und organisationsweit | [MCP](mcp.md) |
 | **Channels** | Slack-, Telegram- und Mattermost-Bots, Widgets, gehostete Seiten | [Oberflächen](channels.md) |
+| **Remote agents** | Agents anderer Anbieter, über ihre A2A Agent Card registriert, an die Agents delegieren | [Capabilities](reference/capabilities.md#remote-agents) |
 | **Vault** | Zugangsdaten, pro Organisation versiegelt | [Secrets](secrets.md) |
 | **Organizations** | Mitglieder, Rollen, Einladungen | [Berechtigungen](permissions.md) |
 | **Settings** | Provider, Ingestion-Vorgaben, Benachrichtigungen, Ihr eigenes Profil | [Konfiguration](configuration.md) |
@@ -402,7 +441,7 @@ dem ein echtes Problem als ein stilles gelesen wird.
 
 ## Zusammenfassung { #recap }
 
-- Das Dashboard besteht aus **einundvierzig Widgets**, die Sie selbst
+- Das Dashboard besteht aus **fünfundvierzig Widgets**, die Sie selbst
   anordnen, gespeichert pro Person und pro Organisation — alle außer Ihren
   eigenen Benachrichtigungen hängen an der Berechtigung, die ihre Daten
   verlangen.

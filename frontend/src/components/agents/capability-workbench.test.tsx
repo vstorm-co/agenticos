@@ -39,6 +39,7 @@ vi.mock("@/hooks", () => ({
     promote: { mutate: vi.fn(), isPending: false },
   }),
   usePermissions: () => ({ can: () => true, isLoading: false }),
+  useExternalAgents: () => ({ agents: [], isLoading: false, error: null }),
   useAgentVersions: () => ({ versions: [], isLoading: false }),
   useAllAgentVersions: () => ({ versions: [], isLoading: false }),
   useModelProviders: () => ({ catalog: [], profiles: [], isLoading: false }),
@@ -173,6 +174,8 @@ function renderWorkbench(props: Partial<Parameters<typeof CapabilityWorkbench>[0
       onChange={vi.fn()}
       subagents={[]}
       onSubagentsChange={vi.fn()}
+      externalAgents={[]}
+      onExternalAgentsChange={vi.fn()}
       resources={NO_RESOURCES}
       modelProfileId={null}
       {...props}

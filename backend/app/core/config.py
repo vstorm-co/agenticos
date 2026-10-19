@@ -637,23 +637,21 @@ class Settings(BaseSettings):
     # downtime, when the runner picks up a backlog of scheduled runs and would
     # otherwise start all of them - see app/worker/prefect_app.py.
     PREFECT_RUNNER_LIMIT: int = 5
-    # A floor under every scheduled interval, for a machine that is not a server.
+    # A floor under every Prefect schedule, for a machine that is not a server.
     #
-    # Four deployments tick every sixty seconds - the trigger heartbeat, the RAG
-    # sync check, the portal poll and the notification delivery sweep. On a
-    # deployment that is the point of them: a schedule that fires a minute late
-    # is a schedule nobody trusts. On a laptop running the whole stack beside an
-    # editor it is four fresh Python processes a minute, each importing the
-    # application before doing about two tenths of a second of work, and the
-    # import is what costs - measured at roughly seven seconds a run, four at a
-    # time.
+    # Each Prefect flow run is a fresh Python process importing the application,
+    # measured at roughly seven seconds on a laptop and fourteen on the production
+    # host. The four minute-scale sweeps - the trigger heartbeat, the RAG sync
+    # check, the portal poll and notification delivery - used to be deployments
+    # paying that every minute; they now run inside the worker's process
+    # (`app/worker/sweeps.py`, #2213) and take no floor. What remains scheduled
+    # ticks every fifteen minutes or slower.
     #
     # `0` changes nothing and is the default, so a deployment keeps the
     # intervals the code declares. Raising it lengthens only the schedules
     # already faster than it, which is why this is a floor rather than a
-    # multiplier: at 600 the four minute-ticks become ten minutes and the
-    # fifteen-minute, hourly and daily sweeps are untouched. `make dev` sets it;
-    # see `docs/configuration.md`.
+    # multiplier: hourly and daily sweeps are untouched by 600. `make dev` sets
+    # it; see `docs/configuration.md`.
     WORKER_MIN_INTERVAL_SECONDS: int = Field(default=0, ge=0)
 
     # Nothing about embeddings or parsing is a setting. The model, the provider
@@ -778,6 +776,14 @@ class Settings(BaseSettings):
     # service, `http://browser:9222`. Its host has to be in
     # `BROWSER_CDP_ALLOWED_HOSTS` like any agent's. Empty hides the option.
     BROWSER_SIGN_IN_CDP_URL: str = ""
+
+    # The browser a visual is drawn to a picture with (#2171), where no frame can
+    # run it: a chat app's reply and a dashboard thumbnail of a page. The compose
+    # `browser` service, `http://browser:9222`, whose host has to be in
+    # `BROWSER_CDP_ALLOWED_HOSTS`. The drawing reaches nothing from there - every
+    # request it makes is answered by the deployment or refused. Empty sends a
+    # drawing's title instead of its picture.
+    VISUAL_RENDER_CDP_URL: str = ""
 
     # The proxy the deployment's own browser reaches every site through - the
     # compose `browser-egress` service, `http://browser-egress:3128`, which refuses

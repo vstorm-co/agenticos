@@ -48,6 +48,10 @@ class TestConversationTenantIsolation:
                 new=AsyncMock(return_value=0),
             ) as mock_count,
             patch(
+                "app.services.conversation.ConversationService.visible_project_ids",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch(
                 "app.services.conversation.channel_membership.confirmed_participant_threads",
                 new=AsyncMock(return_value=set()),
             ),
@@ -99,6 +103,10 @@ class TestConversationTenantIsolation:
                 new=AsyncMock(return_value=0),
             ),
             patch(
+                "app.services.conversation.ConversationService.visible_project_ids",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch(
                 "app.services.conversation.channel_membership.confirmed_participant_threads",
                 new=AsyncMock(return_value=set()),
             ),
@@ -122,6 +130,10 @@ class TestConversationTenantIsolation:
             patch(
                 "app.repositories.conversation_repo.count_conversations",
                 new=AsyncMock(return_value=0),
+            ),
+            patch(
+                "app.services.conversation.ConversationService.visible_project_ids",
+                new=AsyncMock(return_value=[]),
             ),
             patch(
                 "app.services.conversation.channel_membership.confirmed_participant_threads",

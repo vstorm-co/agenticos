@@ -1,5 +1,5 @@
 ---
-source_sha: "79a1554f42b0"
+source_sha: "018d5eb09c59"
 title: "AgenticOS vs OpenAI Codex"
 seo_title: "AgenticOS vs OpenAI Codex: agents de empresa o de código"
 description: "OpenAI Codex: agent de código para desarrolladores. AgenticOS: plataforma open source y autoalojada de agents de empresa gobernados. Compáralos y combínalos."
@@ -21,7 +21,7 @@ Mantenido por el equipo de AgenticOS. Fuentes revisadas el 25 de septiembre de 2
 | Sobre qué trabaja | Un repositorio de código y una shell | Documentos, herramientas y sistemas de la empresa |
 | Dónde se ejecuta | Máquinas de los desarrolladores; tareas en la nube en contenedores gestionados por OpenAI | Tu infraestructura, como servicio compartido |
 | Código | CLI Apache-2.0; nube, revisión y app de ChatGPT propietarias | Apache-2.0 |
-| Modelos | OpenAI con inicio de sesión de ChatGPT; la CLI también admite Ollama, LM Studio, Bedrock y providers personalizados | 27 providers, definidos por perfil de modelo |
+| Modelos | OpenAI con inicio de sesión de ChatGPT; la CLI también admite Ollama, LM Studio, Bedrock y providers personalizados | 28 providers, definidos por perfil de modelo |
 | Usuarios finales | El desarrollador | Empleados, clientes y sistemas, en ocho superficies |
 | Aprobaciones | Modos de sandbox y políticas de aprobación en el puesto del desarrollador | Una persona con `approvals:decide`, desde una cola compartida |
 | Control del gasto | Límites del plan por ventana de cinco horas y créditos compartidos con ChatGPT Work | Un budget mensual por agent y por organización |
@@ -39,7 +39,7 @@ Codex aplica las políticas de sandbox y de aprobación en la máquina de cada d
 
 ### Cualquier modelo, con todas las funciones { #any-model-with-every-feature }
 
-La CLI de Codex puede usar otros providers, pero sus tareas en la nube, la revisión de código y Slack requieren un inicio de sesión de ChatGPT y modelos de OpenAI. En AgenticOS cada provider llega a la misma plataforma: [27 providers](../models.md#providers), [fallbacks](../models.md#fallbacks) y el coste registrado en cada run de cada agent.
+La CLI de Codex puede usar otros providers, pero sus tareas en la nube, la revisión de código y Slack requieren un inicio de sesión de ChatGPT y modelos de OpenAI. En AgenticOS cada provider llega a la misma plataforma: [28 providers](../models.md#providers), [fallbacks](../models.md#fallbacks) y el coste registrado en cada run de cada agent.
 
 ### La ejecución de código como capability gobernada { #code-execution-as-a-governed-capability }
 

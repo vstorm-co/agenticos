@@ -1,5 +1,5 @@
 ---
-source_sha: "5fd44f11df69"
+source_sha: "cb36b7fb6577"
 ---
 
 # Konsola { #the-console }
@@ -17,7 +17,7 @@ nie ma przewodnika do odtworzenia.
 Strona startowa to **układalna siatka widgetów** i jest odpowiedzią na pytanie
 "co się dzieje" bez otwierania pięciu stron.
 
-Istnieje czterdzieści jeden kart. Nie zobaczysz wszystkich: **karta jest
+Istnieje czterdzieści pięć kart. Nie zobaczysz wszystkich: **karta jest
 bramkowana uprawnieniem, którego wymagają jej dane**, więc widget, którego nie
 możesz odczytać, nigdy się nie montuje, a jego zapytania nigdy nie wychodzą —
 poza twoimi własnymi powiadomieniami, niżej, które wymagają tylko tego, żebyś
@@ -86,6 +86,12 @@ powyżej, otwarcie pobiera stronę, na której właśnie jesteś, a nie pięciok
 podgląd — **Load more** cofa cię, stronę po stronie, przez organizację, w
 której właśnie jesteś, plus to, co zaadresowano do całego wdrożenia, aż dojdzie
 do tego, co wypadło z zasięgu.
+
+Każdy wiersz zaczyna się od tego, czego dotyczy: twarzy agenta z plakietką
+mówiącą, jak poszedł jego run, albo ikony rodzaju zdarzenia — zielonej dla
+ukończonego runu albo serwera MCP, który znów działa, czerwonej dla porażki
+albo wyczerpanego budgetu, bursztynowej dla zatwierdzenia albo ostrzeżenia
+o budgecie.
 
 Przełącz organizację, a dzwonek jest jej:
 powiadomienie z organizacji, którą zostawiłeś, nie zniknęło — jest za
@@ -253,6 +259,20 @@ Wbudowane przychodzą razem z produktem; własne możesz napisać w
 **Settings → Slash commands**, a każdą wbudowaną, z której nie korzystasz,
 ukryć. Należą do ciebie, nie do organizacji.
 
+**`@` wskazuje agentowi, czego użyć.** Wpisz `@`, a menu pokaże, czego agent może
+użyć, w tej kolejności: jego serwery MCP, agentów, którym przekazuje pracę (przy
+włączonej capability delegowania), jego capabilities - **Sandbox**, **Web
+research** - jego skille, a potem bazy wiedzy i pliki kontekstu. Wybór zostaje w
+twoim tekście jako `@Nazwa`, oznaczony swoim logo, a agent dostaje polecenie, by z
+niego skorzystał - z narzędzi serwera, narzędzi capability, wyszukiwania w bazie
+wiedzy, skilla - bez wklejania samej treści. Wskazanie agenta przekazuje mu pracę;
+nigdy nie zmienia tego, kto odpowiada. Usuń `@Nazwa`, a wybór znika. Wklejony link
+pokazuje ikonę swojej strony nad polem i w wysłanej wiadomości. Wzmianka nigdy nie
+poszerza tego, do czego agent sięga: serwer sprawdza każdą ponownie jako ty, wobec
+tego, co agent już ma. W panelu testowym Buildera menu czyta testowany szkic. Dopóki rozmowa jest pusta, pole pokazuje po kolei
+przykłady zbudowane z tego, czego agent może użyć - jego serwera, capability,
+delegata, skilla - oraz `/`; znikają, gdy tylko w nie klikniesz.
+
 **Gdy agent pracuje**, to, co wysyłasz, czeka na jego odpowiedź, jak w każdym
 czacie: stoi w kolejce nad kompozytorem i wychodzi, gdy run się skończy.
 Przeciągnij wiadomość w kolejce albo użyj jej strzałek, żeby zmienić kolejność.
@@ -269,12 +289,25 @@ godzinie bez nikogo przy ekranie wciąż trwa, zostaje zatrzymana i dostajesz o 
 informację ([`CHAT_DETACHED_TURN_MINUTES`](configuration.md#a-chat-turn-left-running)).
 Taka, która czeka na zatwierdzenie albo na Twoją odpowiedź na pytanie, powiadamia
 Cię przez nie.
+Gdy wrócisz, zanim odpowiedź się skończy - do rozmowy, z innej karty, po
+odświeżeniu strony - czat podejmie ją tam, gdzie jest, ze wszystkim, co agent już
+zrobił, i dalej rysuje ją na bieżąco.
 
 **Na telefonie** czat działa jak komunikator: pole wpisywania zostaje nad
 klawiaturą, a rozmowa przy ostatniej wiadomości, gdy klawiatura się otwiera,
 Enter zaczyna nową linię, a załącznik i
 dyktowanie są pod jednym **+**. Pola nigdy nie są na tyle małe, żeby iOS je
 przybliżał.
+
+**Rysunki.** Agent z [Wizualizacjami](reference/capabilities.md#visuals) rysuje pod
+swoją wiadomością - diagram, explainer z suwakami, scenę 3D - a ty widzisz, jak powstaje
+w trakcie pisania; jego skrypty startują po zakończeniu. Panel pokazuje cały rysunek,
+dopasowany do rozmowy, z przyciskami do pełnego ekranu, pokazania kodu, pobrania,
+skopiowania SVG jako obrazu, powiększenia i zapisu jako
+[aplikacji](artifacts.md#visuals) z linkiem do udostępnienia. Gdy rysunek zgłosi błąd,
+agent już o nim wie; **Napraw** prosi go ponownie. Na telefonie stuknięcie otwiera go na
+pełnym ekranie. Karta **Ostatnie wizualizacje** na dashboardzie pokazuje najnowsze
+rysunki zrobione dla ciebie, a każdy otwiera rozmowę, w której powstał.
 
 **Oglądanie przeglądania.** Gdy agent z
 [przeglądarką](reference/capabilities.md#browser-automation) zaczyna na stronie, jego
@@ -318,7 +351,7 @@ Wymaga przeglądarki wdrożenia do logowania
 Sidebar grupuje je. **Build** to Agents, Routines, Apps i Activity;
 **Knowledge** to Knowledge bases, Documents, Skills i Context. Dwie grupy są
 zwinięte do nagłówka, dopóki ich nie otworzysz, bo ustawia się je raz i odwiedza
-rzadko: **Connections** (MCP servers, Channels, Vault, Sandboxes) i
+rzadko: **Connections** (MCP servers, Channels, Remote agents, Vault, Sandboxes) i
 **Organization** (Organizations, Groups). Zwinięta grupa otwiera się sama na
 każdej stronie, która do niej należy, i zostaje tak, jak ją zostawisz.
 
@@ -336,6 +369,7 @@ każdej stronie, która do niej należy, i zostaje tak, jak ją zostawisz.
 | **Sandboxes** | Gdzie agenci uruchamiają kod: hosty, żywe sesje, polityka | [Sandbox](sandbox.md) |
 | **MCP servers** | Połączenia z zewnętrznymi narzędziami, osobiste i na całą organizację | [MCP](mcp.md) |
 | **Channels** | Boty Slacka, Telegrama i Mattermosta, widgety, hostowane strony | [Powierzchnie](channels.md) |
+| **Remote agents** | Agenci innych dostawców, zarejestrowani po ich agent card A2A, do których delegują agenci | [Capabilities](reference/capabilities.md#remote-agents) |
 | **Vault** | Poświadczenia, zapieczętowane per organizacja | [Sekrety](secrets.md) |
 | **Organizations** | Członkowie, role, zaproszenia | [Uprawnienia](permissions.md) |
 | **Settings** | Providerzy, domyślne ustawienia ingestii, powiadomienia, twój własny profil | [Konfiguracja](configuration.md) |
@@ -375,7 +409,7 @@ problem zostaje odczytany jako cisza.
 
 ## Podsumowanie { #recap }
 
-- Dashboard to **czterdzieści jeden widgetów**, które układasz sam, zapisywanych
+- Dashboard to **czterdzieści pięć widgetów**, które układasz sam, zapisywanych
   per osoba i per organizacja — wszystkie poza twoimi własnymi powiadomieniami
   bramkowane uprawnieniem, którego wymagają ich dane.
 - Zapisany układ **może ukrywać i zmieniać kolejność, ale nigdy nie odsłania** —

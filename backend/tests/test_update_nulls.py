@@ -56,6 +56,7 @@ from app.db.models.memory import AgentMemoryFile
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_assistant import OrganizationAssistant
 from app.db.models.organization_secret import OrganizationSecret
+from app.db.models.project import Project
 from app.db.models.sandbox_connection import SandboxConnection
 from app.db.models.skill import Skill, SkillResource
 from app.db.models.sync_source import SyncSource
@@ -82,6 +83,7 @@ from app.schemas.mcp_connection import McpConnectionUpdate, OrgMcpConnectionUpda
 from app.schemas.memory import MemoryNoteUpdate
 from app.schemas.notification import NotificationPreferenceUpdate
 from app.schemas.organization import OrganizationMemberUpdate, OrganizationUpdate
+from app.schemas.project import ProjectUpdate
 from app.schemas.resource_grant import VisibilityUpdate
 from app.schemas.retention import RetentionUpdate
 from app.schemas.sandbox_connection import SandboxConnectionUpdate
@@ -126,6 +128,7 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     OrgMcpConnectionUpdate: McpConnection,
     OrganizationMemberUpdate: OrganizationMember,
     OrganizationUpdate: Organization,
+    ProjectUpdate: Project,
     RetentionUpdate: Organization,
     SandboxConnectionUpdate: SandboxConnection,
     SecretUpdate: OrganizationSecret,

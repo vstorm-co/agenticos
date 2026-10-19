@@ -109,7 +109,7 @@ async def _run(recorder: _Recorder, *, read, decisions, dispatch=None):
         patch("app.services.mcp_connection.McpConnectionService", return_value=connections),
         patch("app.services.agent_trigger.AgentTriggerService", return_value=triggers),
     ):
-        await trigger_tasks.poll_portal_grants_flow()
+        await trigger_tasks.poll_portal_grants()
 
 
 class TestTheOrderOfWork:
@@ -233,7 +233,7 @@ class TestOneMailboxIsOneTenant:
             patch("app.services.mcp_connection.McpConnectionService", return_value=connections),
             patch("app.services.agent_trigger.AgentTriggerService", return_value=triggers),
         ):
-            await trigger_tasks.poll_portal_grants_flow()
+            await trigger_tasks.poll_portal_grants()
         return recorder, one, two
 
     async def test_a_mailbox_that_raises_does_not_stop_the_others(self):
@@ -273,7 +273,7 @@ class TestWhichGrantsAreRead:
             patch.object(trigger_tasks, "get_worker_db_context", lambda: _Ctx()),
             patch("app.services.mcp_connection.McpConnectionService", return_value=connections),
         ):
-            await trigger_tasks.poll_portal_grants_flow()
+            await trigger_tasks.poll_portal_grants()
 
         [call] = connections.claim_grants_to_poll.await_args_list
         assert call.kwargs["portal_keys"] == ["google"]

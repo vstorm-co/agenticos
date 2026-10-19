@@ -1,5 +1,5 @@
 ---
-source_sha: "b5383e1a56be"
+source_sha: "c7ee53ab1f4e"
 ---
 
 # Spec agenta { #the-agent-spec }
@@ -30,6 +30,11 @@ wyjaśniają, po którą sięgnąć. `subagents` trzyma pierwszą; druga mieszka
 konfiguracji samej [capability `subagents`](capabilities.md#delegation).
 
 ::: app.agents.spec.SubagentRef
+
+`external_agents` wskazuje zdalnych agentów A2A zarejestrowanych w organizacji, których
+[delegowanie](capabilities.md#remote-agents) wywołuje obok powyższych.
+
+::: app.agents.spec.ExternalAgentRef
 
 ::: app.agents.spec.SpecialistSpec
 

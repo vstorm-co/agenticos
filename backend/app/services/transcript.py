@@ -343,6 +343,15 @@ class TranscriptService:
                         # records which chat account asked, and a second route to
                         # the same fact is a second route to getting it wrong.
                         channel_identity_id=run.channel_identity_id,
+                        # Whoever started the run typed it - unless it ran as a
+                        # surface's publisher for a visitor, or a chat account
+                        # says who instead.
+                        author_user_id=(
+                            None
+                            if run.initiated_by_publisher_fallback
+                            or run.channel_identity_id is not None
+                            else run.user_id
+                        ),
                     )
                     await self._attach(asked.id, attachments)
                 for tool_call_id, result in (settled or {}).items():
@@ -447,16 +456,18 @@ class TranscriptService:
         # The *difference*, not the run row's figure: a run that parked and was
         # resumed writes two assistant turns and the row is cumulative, so
         # stamping both with it would count the parked half twice.
-        spent_in, spent_out, spent_usd = await conversation_repo.attributed_to_run(self.db, run.id)
+        spent = await conversation_repo.attributed_to_run(self.db, run.id)
         message = await conversation_repo.create_message(
             self.db,
             conversation_id=conversation_id,
             role="assistant",
             content=answer,
             model_name=model_label,
-            input_tokens=run.input_tokens - spent_in,
-            output_tokens=run.output_tokens - spent_out,
-            cost_usd=run.cost_usd - spent_usd,
+            input_tokens=run.input_tokens - spent.input_tokens,
+            output_tokens=run.output_tokens - spent.output_tokens,
+            cache_read_tokens=run.cache_read_tokens - spent.cache_read_tokens,
+            cache_write_tokens=run.cache_write_tokens - spent.cache_write_tokens,
+            cost_usd=run.cost_usd - spent.cost_usd,
             # Not a difference: one unpriced request makes the whole run's figure a
             # floor, and every turn of it is short by an amount nobody can split.
             cost_is_partial=run.cost_is_partial,
