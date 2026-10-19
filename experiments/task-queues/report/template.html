@@ -1,0 +1,565 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Choosing a Task Engine for AgenticOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<style>
+/* Layout: a single reading column of ~68ch, with figures and tables allowed to run wider. */
+:root {
+  --bg: #ffffff;
+  --ink: #161a20;
+  --muted: #5a6370;
+  --rule: #e2e5ea;
+  --panel: #f5f7f9;
+  --pg: #2c66c9;
+  --redis: #c4501b;
+  --prefect: #8b919a;
+  --bad: #b8322f;
+  --good: #1d7f55;
+  --band: rgba(184, 50, 47, 0.10);
+  --serif: "Source Serif 4", "Iowan Old Style", Georgia, serif;
+  --sans: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1216; --ink: #e5e8ec; --muted: #9aa3ae; --rule: #262c34; --panel: #161b21;
+    --pg: #6fa2ff; --redis: #f08a52; --prefect: #7f8792; --bad: #ef6b66; --good: #4cc08a;
+    --band: rgba(239, 107, 102, 0.14); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1216; --ink: #e5e8ec; --muted: #9aa3ae; --rule: #262c34; --panel: #161b21;
+  --pg: #6fa2ff; --redis: #f08a52; --prefect: #7f8792; --bad: #ef6b66; --good: #4cc08a;
+  --band: rgba(239, 107, 102, 0.14); color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 18px/1.62 var(--serif);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 48px 96px;
+}
+main { max-width: 1040px; margin: 0 auto; }
+.col { max-width: 68ch; margin: 0 auto; }
+h1, h2, h3, .label, figcaption, table, .meta, nav { font-family: var(--sans); }
+h1 { font-size: clamp(30px, 4.6vw, 44px); line-height: 1.12; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 18px; text-wrap: balance; }
+h2 { font-size: 24px; font-weight: 600; margin: 56px 0 12px; text-wrap: balance; }
+h3 { font-size: 18px; font-weight: 600; margin: 32px 0 6px; }
+h2 .num, h3 .num { color: var(--muted); font-weight: 500; margin-right: 10px; font-variant-numeric: tabular-nums; }
+p { margin: 0 0 16px; }
+a { color: var(--pg); text-underline-offset: 2px; }
+code { font: 0.86em var(--mono); background: var(--panel); padding: 1px 5px; border-radius: 3px; }
+.meta { color: var(--muted); font-size: 15px; display: flex; flex-wrap: wrap; gap: 6px 18px; margin-bottom: 32px; }
+.abstract { border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); padding: 20px 0 6px; margin: 0 auto 8px; }
+.abstract .label { display: block; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; font-weight: 600; }
+nav { font-size: 14px; color: var(--muted); margin: 28px auto 0; }
+nav ol { margin: 6px 0 0; padding-left: 20px; columns: 2; column-gap: 32px; }
+nav a { color: var(--muted); text-decoration: none; }
+nav a:hover, nav a:focus-visible { color: var(--ink); text-decoration: underline; }
+figure { margin: 36px 0; }
+figcaption { font-size: 14px; line-height: 1.5; color: var(--muted); max-width: 68ch; margin: 10px auto 0; }
+figcaption b { color: var(--ink); font-weight: 600; }
+.chart { width: 100%; overflow-x: auto; }
+.chart svg { display: block; width: 100%; height: auto; min-width: 560px; font-family: var(--sans); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font: 13px var(--sans); color: var(--muted); justify-content: center; margin: 4px 0 0; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.tbl { overflow-x: auto; margin: 24px 0; }
+table { border-collapse: collapse; font-size: 14px; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+thead th { font-weight: 600; color: var(--muted); font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; border-bottom: 1px solid var(--ink); }
+td.bad { color: var(--bad); font-weight: 600; }
+td.prose { text-align: left; white-space: normal; min-width: 18ch; }
+td.good { color: var(--good); }
+.tag { display: inline-block; font: 500 11px var(--sans); letter-spacing: 0.04em; padding: 1px 6px; border-radius: 3px; border: 1px solid currentColor; margin-left: 6px; vertical-align: 1px; }
+.fam-pg { color: var(--pg); } .fam-redis { color: var(--redis); } .fam-prefect { color: var(--prefect); }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 8px; vertical-align: 1px; }
+.findings { padding-left: 22px; }
+.findings li { margin-bottom: 10px; }
+.callout { background: var(--panel); border-radius: 6px; padding: 18px 22px; margin: 24px auto; }
+.callout p:last-child { margin-bottom: 0; }
+pre { font: 13.5px/1.55 var(--mono); background: var(--panel); padding: 14px 16px; border-radius: 6px; overflow-x: auto; }
+.small-multiples { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 18px 20px; }
+.small-multiples svg { min-width: 0; }
+.sm-title { font: 600 13px var(--sans); display: flex; justify-content: space-between; gap: 8px; margin-bottom: 2px; }
+.sm-title span:last-child { color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
+svg .axis { stroke: var(--rule); stroke-width: 1; }
+svg .grid { stroke: var(--rule); stroke-width: 1; stroke-dasharray: 2 3; }
+svg .tick { fill: var(--muted); font-size: 11px; }
+svg .name { fill: var(--ink); font-size: 12.5px; }
+svg .val { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+svg .pg { fill: var(--pg); stroke: var(--pg); }
+svg .redis { fill: var(--redis); stroke: var(--redis); }
+svg .prefect { fill: var(--prefect); stroke: var(--prefect); }
+svg .whisker { stroke-width: 2; fill: none; }
+svg .band { fill: var(--band); }
+svg .area { fill: var(--rule); }
+svg .bandlabel { fill: var(--bad); font-size: 10.5px; }
+@media (max-width: 640px) {
+  body { font-size: 17px; padding-block: 28px 64px; }
+  nav ol { columns: 1; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .chart svg .mark { transition: opacity 0.15s; }
+}
+</style>
+</head>
+<body>
+<main>
+<header class="col">
+  <h1>Choosing a Task Engine for AgenticOS</h1>
+  <div class="meta">
+    <span>Kacper Włodarczyk · AgenticOS</span>
+    <span>19 October 2026</span>
+    <span>Issue <a href="https://github.com/vstorm-co/agenticos/issues/2219">#2219</a></span>
+    <span>Branch <code>spike/task-queue-benchmark</code></span>
+  </div>
+  <div class="abstract">
+    <span class="label">Abstract</span>
+    <p>AgenticOS runs its background work on Prefect, which starts a new Python process for every run. On 18 October 2026 that design stalled production: about 1,650 late runs piled up on a VPS with heavy CPU steal, each paying a multi-second application import. We compared fourteen configurations of nine engines on three workloads drawn from the product: workflow chains, a mix of waiting model calls and CPU-bound ingestion, and a tenant flood with a worker crash in the middle. All ran under the same CPU and memory budget. Every task imports the real application. Every measurement comes from one event table on one clock. Process-per-run Prefect never finished the workflow scenario: 0.2 steps per second, against 500 to 1,300 for long-lived workers. Hatchet behaved correctly, but each workflow hop cost about ten times more, and it wrote 15 to 30 times the write-ahead log. With its fair scheduling on, the small tenant still waited longer than on the simple queues. A plain Postgres queue and Taskiq on Redis came through every scenario with no lost or duplicated work, at the lowest cost. We recommend one of the two, and record a duplication defect in our fair-queue prototype that must be fixed before it is used.</p>
+  </div>
+  <nav aria-label="Contents">
+    <span class="label">Contents</span>
+    <ol>
+      <li><a href="#intro">Why this study</a></li>
+      <li><a href="#candidates">Candidates</a></li>
+      <li><a href="#method">Method</a></li>
+      <li><a href="#overhead">Per-hop overhead</a></li>
+      <li><a href="#mix">Waiting and CPU work together</a></li>
+      <li><a href="#tenants">Fairness and a crash</a></li>
+      <li><a href="#cost">What each engine costs</a></li>
+      <li><a href="#coldstart">Cold start</a></li>
+      <li><a href="#discussion">Discussion and recommendation</a></li>
+      <li><a href="#validity">Threats to validity</a></li>
+      <li><a href="#reproduce">Reproducing the results</a></li>
+      <li><a href="#appendix">Appendix: every number</a></li>
+    </ol>
+  </nav>
+</header>
+
+<section class="col" id="intro">
+  <h2><span class="num">1</span>Why this study</h2>
+  <p>AgenticOS runs three kinds of background work: periodic sweeps (expiring approvals, retrying sandbox teardown, delivering notifications), ingestion of uploaded documents into the knowledge base, and the agent runs that workflows (<a href="https://github.com/vstorm-co/agenticos/issues/1925">#1925</a>) and triggers start without a person waiting. Today they go through Prefect 3's <code>serve()</code>, which starts a fresh Python process for every flow run.</p>
+  <p>A fresh process imports the whole application before it does any work. That takes 4.2 seconds on a laptop and 14 to 90 seconds on the production VPS, where CPU steal ran between 23% and 68%. On 18 October 2026 the runs fell behind faster than they finished. About 1,650 late runs starved the host, and the site went down until the backlog was deleted. The incident is written up separately. This study answers the question it left: what should run this work once workflows multiply it?</p>
+  <p>We did not want to decide from feature lists. Every candidate below runs the same tasks, importing the same application, under the same budget, and is measured from the same event log.</p>
+</section>
+
+<section class="col" id="candidates">
+  <h2><span class="num">2</span>Candidates</h2>
+  <p>Nine engines, fourteen configurations. They fall into three families, and the figures colour them that way throughout: queues on <span class="fam-pg">Postgres</span>, which AgenticOS already runs; queues on <span class="fam-redis">Redis</span>, which it also runs; and <span class="fam-prefect">Prefect</span>, the incumbent.</p>
+</section>
+<div class="tbl" id="candidates-table"></div>
+
+<section class="col" id="method">
+  <h2><span class="num">3</span>Method</h2>
+  <h3><span class="num">3.1</span>The tasks</h3>
+  <p>Every engine runs the same five task kinds from <code>bench/workload.py</code>. A <em>step</em> is one workflow node: a database round trip and a sliver of CPU, after which it submits the next step of its chain through the engine's own client, the way the #1925 dispatcher advances a graph. An <em>agent</em> task stands in for a model call: it awaits for 2 to 10 seconds and then writes. A <em>parse</em> task is real ingestion: PyMuPDF extracts every page of a real PDF, about a second of CPU. A <em>sweep</em> is a scheduled one-query tick. A <em>burst</em> item is a short wait.</p>
+  <p>Every task process imports the real AgenticOS application first (<code>bench/heavy.py</code>). Process-per-run pays that import on every run, so a benchmark without it would hide the cost under study.</p>
+  <h3><span class="num">3.2</span>Three scenarios</h3>
+  <ol class="findings">
+    <li><b>Workflow.</b> 50 chains of 10 sequential steps, all started at once: 500 steps. It measures the engine's overhead per hop, the gap between one step finishing and the next starting.</li>
+    <li><b>Mix.</b> Five minutes of Poisson arrivals: agent calls at 2 per second and PDF parses at 0.5 per second, with the engine's own one-minute scheduled sweep. It measures whether waiting work and CPU work starve each other, and how regular the scheduler stays.</li>
+    <li><b>Tenants.</b> One organization floods 1,000 jobs at once; a second sends one job a second for 90 seconds. Twenty seconds in, every worker is killed with <code>SIGKILL</code> and started again ten seconds later. It measures fairness, through the small organization's wait, and what a crash costs: lost, duplicated and re-executed jobs, and the longest stall.</li>
+  </ol>
+  <h3><span class="num">3.3</span>The budget</h3>
+  <p>Workers get 3 CPUs and 4 GB, the share of the production VPS meant for background work. Services an engine brings with it, such as Prefect's server or Hatchet's engine, run in their own containers under their own limits, and their CPU and memory count against the engine. Postgres (2 CPUs, 1 GB) and Valkey (1 CPU, 512 MB) are shared by all. Each engine runs in its idiomatic production configuration, with 20 concurrent tasks per worker process where it has that setting.</p>
+  <h3><span class="num">3.4</span>Measurement</h3>
+  <p>Every task writes a <code>started</code> and a <code>finished</code> row, and the submitter an <code>enqueued</code> row, to one Postgres table, timestamped on one clock. Queue wait, run time, the hop between workflow steps, lost work (never finished) and duplicated work (finished twice) all come from those rows. A driver samples <code>docker stats</code> for every container once a second and reads Postgres's commit and WAL counters before and after each run. Every run starts from an empty compose project, and first measures cold start: the time from starting the workers to the first job finishing.</p>
+</section>
+
+<section class="col" id="overhead">
+  <h2><span class="num">4</span>Per-hop overhead</h2>
+  <p>The workflow scenario isolates what an engine adds between two steps of a chain. Engines with long-lived workers hand the next step over in 10 to 60 milliseconds. Hatchet takes 420. Prefect's background tasks take 2.6 seconds. Process-per-run Prefect takes 218 seconds, because each hop waits for a process slot and then an application import. In 20 minutes it finished 273 of the 500 steps.</p>
+</section>
+<figure>
+  <div class="chart" id="fig-hop"></div>
+  <div class="legend" data-legend></div>
+  <figcaption><b>Figure 1.</b> Gap between a workflow step finishing and the next one starting, logarithmic scale. The dot is the median and the line runs to the 95th percentile. Runs marked "timed out" did not finish in 20 minutes; their numbers cover the steps that did.</figcaption>
+</figure>
+<figure>
+  <div class="chart" id="fig-throughput"></div>
+  <figcaption><b>Figure 2.</b> Workflow steps completed per second over the whole scenario, logarithmic scale.</figcaption>
+</figure>
+
+<section class="col" id="mix">
+  <h2><span class="num">5</span>Waiting and CPU work together</h2>
+  <p>Agent runs mostly wait on a model; ingestion mostly burns CPU. An engine has to keep the first from starving the second. Almost every engine starts an agent call within a fraction of a second at the 95th percentile. Celery's prefork pool is the exception: each process sits blocked on a waiting call, so a new agent task waits 279 seconds at p95. Celery with a thread pool has no such problem.</p>
+  <p>The one-minute sweep separates the schedulers. Taskiq, SAQ, Hatchet and our Postgres queue fired on time. Procrastinate drifted by up to 29 seconds, and Celery Beat on the blocked prefork pool by 63. Dramatiq and Prefect's background tasks have no built-in scheduler, so in this configuration no sweep ran at all.</p>
+</section>
+<figure>
+  <div class="chart" id="fig-mix"></div>
+  <div class="legend" id="legend-mix"></div>
+  <figcaption><b>Figure 3.</b> Queue wait at the 95th percentile in the mix scenario, logarithmic scale, for agent calls (solid) and PDF parsing (outlined).</figcaption>
+</figure>
+
+<section class="col" id="tenants">
+  <h2><span class="num">6</span>Fairness and a crash</h2>
+  <p>In the tenant scenario a large organization floods the queue while a small one keeps sending a job a second, and every worker is killed at second 20. With a first-in, first-out queue, the small organization's jobs land behind the flood, so its wait climbs until the flood drains. Fair scheduling should flatten that climb. A good recovery should leave no gap in completions beyond the ten seconds the workers are down.</p>
+  <p>The small organization's p95 wait came out between 10 and 13 seconds for most engines. Hatchet's round-robin fairness improved on plain Hatchet, 18 seconds against 21, but stayed above the simple queues. Our fair Postgres queue reached the lowest p95, but re-ran 141 jobs and finished 137 of them twice. That is a defect in the prototype's claim path after the crash, and it disqualifies the variant until it is fixed. SAQ lost no work, but after the crash 551 seconds passed between two completions, so its last job finished more than ten minutes in.</p>
+</section>
+<figure>
+  <div class="small-multiples" id="fig-tenants"></div>
+  <figcaption><b>Figure 4.</b> The tenant scenario, one panel per engine. Each dot is a small-organization job: when it was sent (x, seconds) and how long it waited to start (y, 0 to 60 seconds). The grey area is jobs completed per second across both organizations. The red band is the ten seconds between the workers being killed and restarted. The number beside each name is the small organization's p95 wait.</figcaption>
+</figure>
+<div class="tbl" id="crash-table"></div>
+
+<section class="col" id="cost">
+  <h2><span class="num">7</span>What each engine costs</h2>
+  <p>On a host that already loses a third of its CPU to steal, an engine's own appetite matters. In the steady mix scenario most engines spent 20 to 30% of a CPU on the whole stack and wrote 1 to 3 MB of write-ahead log. Hatchet wrote 28 MB, about 15 times as much, because it keeps its own queue, state and history in Postgres. In the workflow scenario its stack, engine and database together averaged 278% CPU.</p>
+</section>
+<figure>
+  <div class="chart" id="fig-cost"></div>
+  <div class="legend" data-legend></div>
+  <figcaption><b>Figure 5.</b> Cost of the mix scenario. Horizontal: write-ahead log written, megabytes, logarithmic. Vertical: average CPU of the whole stack (workers, the engine's services, Postgres and Redis), percent of one core. Lower and further left is cheaper.</figcaption>
+</figure>
+
+<section class="col" id="coldstart">
+  <h2><span class="num">8</span>Cold start</h2>
+  <p>Every run first measures how long a freshly started worker takes to finish its first job. The engines with long-lived workers come up in 4 to 10 seconds, most of it the application import. Hatchet takes 9 to 16 seconds, and Prefect <code>serve()</code> about 20, because its first run starts a second process and imports everything again.</p>
+</section>
+<figure>
+  <div class="chart" id="fig-cold"></div>
+  <figcaption><b>Figure 6.</b> Time from starting the workers to the first job finishing, one dot per run.</figcaption>
+</figure>
+
+<section class="col" id="discussion">
+  <h2><span class="num">9</span>Discussion and recommendation</h2>
+  <ul class="findings">
+    <li><b>Prefect is out in every form.</b> Process-per-run cannot keep up with chained work, and its background-task mode is an order of magnitude slower per hop than the alternatives while still needing its server.</li>
+    <li><b>Celery's prefork pool does not suit waiting work.</b> The thread pool fixes that, but Celery has no native asyncio, and AgenticOS is async throughout.</li>
+    <li><b>Hatchet is correct but expensive here.</b> It brings a panel, retries, schedules and fairness, which are all things we would otherwise build. On this budget it costs ten times more per hop and 15 to 30 times more WAL, and even with fairness the small tenant waited longer than on the simple queues.</li>
+    <li><b>A Postgres queue and Taskiq give the best value.</b> Both were clean in every scenario, among the fastest per hop, and among the cheapest to run. A Postgres queue adds no service, and it can claim work in the same transaction as the outbox from #1925, which removes a class of lost-message bugs. Taskiq adds nothing either, since Redis is already deployed, and comes with a scheduler.</li>
+  </ul>
+  <div class="callout">
+    <p><b>Recommendation.</b> Move background work to long-lived async workers on either our own Postgres queue or Taskiq, and retire Prefect. Fairness per organization has to be written properly, with fencing, before it ships: the prototype duplicated work after a crash. These measurements contradict the earlier direction of Hatchet with Taskiq as plan B. That choice is the maintainers' to make with this data.</p>
+  </div>
+</section>
+
+<section class="col" id="validity">
+  <h2><span class="num">10</span>Threats to validity</h2>
+  <ul class="findings">
+    <li><b>One machine.</b> Docker Desktop on Apple silicon, not the VPS. Absolute numbers will differ there. CPU steal slows every process start, which can only widen the gap for process-per-run.</li>
+    <li><b>One run per cell.</b> Where engines differ by orders of magnitude one run ranks them. Where they are within a few tens of percent, as most long-lived engines are on hop latency and tenant wait, the order between them is not significant.</li>
+    <li><b>Idiomatic, not identical, concurrency.</b> A process pool and an async loop have no common unit. Each engine ran its production-style configuration under the same CPU and memory limits.</li>
+    <li><b>Unfinished runs.</b> Procrastinate finished 1,089 of 1,090 tenant jobs before the 20-minute timeout, and Prefect's background tasks 1,088. Whether the remainder was lost or late is not established, so the tables report them as timed out rather than as losses.</li>
+    <li><b>Defects not yet diagnosed.</b> The duplication in the fair Postgres queue and SAQ's 551-second stall are reported as observed. Their causes have not been traced.</li>
+  </ul>
+</section>
+
+<section class="col" id="reproduce">
+  <h2><span class="num">11</span>Reproducing the results</h2>
+  <p>The harness, the raw results and this page are on the branch <code>spike/task-queue-benchmark</code> under <code>experiments/task-queues/</code>. Each run leaves <code>&lt;variant&gt;-&lt;scenario&gt;.json</code> (settings, Postgres counters, resource samples) and <code>.events.csv</code> (every enqueued, started and finished event). The worker logs are packed in <code>results/logs.tar.gz</code>.</p>
+<pre>docker build -f backend/Dockerfile -t agenticos-backend:bench-base .   # from the repository root
+cd experiments/task-queues
+docker build -t tqbench:latest .
+./run.sh hatchet workflow            # one variant, one scenario
+./matrix.sh                          # everything, a few hours
+python3 -m bench.report results > results/TABLES.md
+python3 -m bench.site results report/template.html > report/index.html</pre>
+</section>
+
+<section id="appendix">
+  <div class="col"><h2><span class="num">A</span>Appendix: every number</h2>
+  <p>The tables <code>bench/report.py</code> produces, from the same data as the figures.</p></div>
+  <div class="tbl" id="appendix-tables"></div>
+</section>
+</main>
+
+<script>
+const DATA = /*__BENCH_DATA__*/null;
+
+const ENGINES = {
+  "pgqueue": ["pg", "Postgres queue (ours)", "SKIP LOCKED, LISTEN/NOTIFY, leases; async slots"],
+  "pgqueue-fair": ["pg", "Postgres queue, fair", "the same, claiming round-robin across tenants"],
+  "procrastinate": ["pg", "Procrastinate", "Postgres queue library; one async loop"],
+  "hatchet": ["pg", "Hatchet", "hatchet-lite engine on Postgres; async worker slots"],
+  "hatchet-fair": ["pg", "Hatchet, fair", "the same with GROUP_ROUND_ROBIN per tenant"],
+  "taskiq": ["redis", "Taskiq", "Redis Streams and its scheduler; a loop per process"],
+  "dramatiq": ["redis", "Dramatiq", "Redis with AsyncIO middleware; processes × threads"],
+  "saq": ["redis", "SAQ", "Redis; a loop per process"],
+  "celery-threads": ["redis", "Celery, threads", "Celery 5.6 and Beat on Redis; a thread pool, a loop each"],
+  "celery-prefork": ["redis", "Celery, prefork", "Celery 5.6 and Beat on Redis; a fixed process pool"],
+  "prefect-tasks": ["prefect", "Prefect tasks", "Prefect background tasks; a long-lived task worker"],
+  "prefect-serve": ["prefect", "Prefect serve()", "a new process per run, limit 5 (AgenticOS today)"],
+  "prefect-serve-20": ["prefect", "Prefect serve(), 20", "the same with limit 20"],
+  "prefect-serve-pg": ["prefect", "Prefect serve(), Postgres", "the same with Prefect's database on Postgres"],
+};
+const FAMILY_NAME = { pg: "Postgres", redis: "Redis", prefect: "Prefect" };
+const NS = "http://www.w3.org/2000/svg";
+
+function el(tag, attrs = {}, parent) {
+  const node = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+  if (parent) parent.appendChild(node);
+  return node;
+}
+function text(parent, x, y, content, cls, anchor = "start") {
+  const t = el("text", { x, y, class: cls, "text-anchor": anchor }, parent);
+  t.textContent = content;
+  return t;
+}
+const fam = (v) => (ENGINES[v] || ["prefect"])[0];
+const nameOf = (v) => (ENGINES[v] || [null, v])[1];
+const by = (scenario) => DATA.summaries.filter((s) => s.scenario === scenario);
+function fmtS(v) {
+  if (v == null) return "–";
+  if (v < 1) return `${Math.round(v * 1000)} ms`;
+  if (v < 100) return `${v.toFixed(v < 10 ? 2 : 1)} s`;
+  return `${Math.round(v)} s`;
+}
+function logScale(min, max, x0, x1) {
+  const a = Math.log10(min), b = Math.log10(max);
+  return (v) => x0 + ((Math.log10(Math.max(v, min)) - a) / (b - a)) * (x1 - x0);
+}
+function decades(min, max) {
+  const out = [];
+  for (let e = Math.ceil(Math.log10(min)); e <= Math.floor(Math.log10(max)); e++) out.push(10 ** e);
+  return out;
+}
+
+function legend(node) {
+  node.innerHTML = Object.entries(FAMILY_NAME)
+    .map(([k, n]) => `<span><i style="background:var(--${k})"></i>${n}</span>`).join("");
+}
+
+function rangeChart(id, rows, { min, max, unit, tickFmt, label }) {
+  const W = 960, rowH = 28, top = 26, left = 200, right = 120;
+  const H = top + rows.length * rowH + 30;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": label });
+  const x = logScale(min, max, left, W - right);
+  for (const d of decades(min, max)) {
+    el("line", { x1: x(d), x2: x(d), y1: top - 8, y2: H - 26, class: "grid" }, svg);
+    text(svg, x(d), H - 10, tickFmt(d), "tick", "middle");
+  }
+  rows.forEach((r, i) => {
+    const y = top + i * rowH + rowH / 2;
+    const c = fam(r.variant);
+    text(svg, left - 12, y + 4, nameOf(r.variant), "name", "end");
+    if (r.p95 != null) el("line", { x1: x(r.p50), x2: x(r.p95), y1: y, y2: y, class: `whisker ${c}` }, svg);
+    el("circle", { cx: x(r.p50), cy: y, r: 5, class: `mark ${c}` }, svg);
+    if (r.p95 != null) el("line", { x1: x(r.p95), x2: x(r.p95), y1: y - 5, y2: y + 5, class: `whisker ${c}` }, svg);
+    const end = Math.max(x(r.p50), r.p95 != null ? x(r.p95) : 0);
+    text(svg, end + 10, y + 4, r.note || `${fmtS(r.p50)}${r.p95 != null ? " · " + fmtS(r.p95) : ""}`, "val");
+  });
+  el("line", { x1: left, x2: W - right, y1: H - 26, y2: H - 26, class: "axis" }, svg);
+  document.getElementById(id).appendChild(svg);
+}
+
+function barChart(id, rows, { min, max, tickFmt, valFmt, label }) {
+  const W = 960, rowH = 26, top = 18, left = 200, right = 110;
+  const H = top + rows.length * rowH + 30;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": label });
+  const x = logScale(min, max, left, W - right);
+  for (const d of decades(min, max)) {
+    el("line", { x1: x(d), x2: x(d), y1: top - 6, y2: H - 26, class: "grid" }, svg);
+    text(svg, x(d), H - 10, tickFmt(d), "tick", "middle");
+  }
+  rows.forEach((r, i) => {
+    const y = top + i * rowH;
+    text(svg, left - 12, y + rowH / 2 + 4, nameOf(r.variant), "name", "end");
+    el("rect", { x: left, y: y + 5, width: Math.max(2, x(r.value) - left), height: rowH - 10, rx: 2, class: `mark ${fam(r.variant)}` }, svg);
+    text(svg, x(r.value) + 8, y + rowH / 2 + 4, valFmt(r), "val");
+  });
+  document.getElementById(id).appendChild(svg);
+}
+
+function figHop() {
+  const rows = by("workflow").filter((s) => s.hop_p50 != null)
+    .map((s) => ({ variant: s.variant, p50: s.hop_p50, p95: s.hop_p95, timed: s.timed_out }))
+    .sort((a, b) => a.p50 - b.p50);
+  rows.forEach((r) => { if (r.timed) r.note = `${fmtS(r.p50)} · ${fmtS(r.p95)} · timed out`; });
+  rangeChart("fig-hop", rows, { min: 0.005, max: 1000, tickFmt: (d) => fmtS(d), label: "Workflow hop latency by engine" });
+}
+function figThroughput() {
+  const rows = by("workflow").map((s) => ({ variant: s.variant, value: s.throughput_per_s, timed: s.timed_out }))
+    .filter((r) => r.value > 0).sort((a, b) => b.value - a.value);
+  barChart("fig-throughput", rows, {
+    min: 0.1, max: 2000, tickFmt: (d) => (d < 1 ? d : d.toLocaleString("en")),
+    valFmt: (r) => `${r.value < 10 ? r.value.toFixed(1) : Math.round(r.value)} steps/s${r.timed ? " · timed out" : ""}`,
+    label: "Workflow throughput by engine",
+  });
+}
+function figMix() {
+  const rows = by("mix").map((s) => ({ variant: s.variant, agent: s.agent_wait_p95, parse: s.parse_wait_p95 }))
+    .sort((a, b) => a.agent - b.agent);
+  const W = 960, rowH = 30, top = 18, left = 200, right = 130, min = 0.005, max = 1000;
+  const H = top + rows.length * rowH + 30;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Mix scenario queue waits" });
+  const x = logScale(min, max, left, W - right);
+  for (const d of decades(min, max)) {
+    el("line", { x1: x(d), x2: x(d), y1: top - 6, y2: H - 26, class: "grid" }, svg);
+    text(svg, x(d), H - 10, fmtS(d), "tick", "middle");
+  }
+  rows.forEach((r, i) => {
+    const y = top + i * rowH, c = fam(r.variant);
+    text(svg, left - 12, y + rowH / 2 + 4, nameOf(r.variant), "name", "end");
+    el("rect", { x: left, y: y + 4, width: Math.max(2, x(r.agent) - left), height: 9, rx: 2, class: `mark ${c}` }, svg);
+    const p = el("rect", { x: left + 0.5, y: y + 15.5, width: Math.max(2, x(r.parse) - left), height: 8, rx: 2, class: c }, svg);
+    p.setAttribute("style", "fill-opacity:0.12;stroke-width:1");
+    text(svg, Math.max(x(r.agent), x(r.parse)) + 8, y + rowH / 2 + 4, `${fmtS(r.agent)} · ${fmtS(r.parse)}`, "val");
+  });
+  document.getElementById("fig-mix").appendChild(svg);
+  document.getElementById("legend-mix").innerHTML =
+    '<span><i style="background:var(--muted)"></i>agent call, p95</span><span><i style="border:1px solid var(--muted)"></i>PDF parse, p95</span>';
+}
+function figTenants() {
+  const holder = document.getElementById("fig-tenants");
+  const summaries = Object.fromEntries(by("tenants").map((s) => [s.variant, s]));
+  const order = Object.keys(DATA.tenant_series).sort((a, b) =>
+    (summaries[a]?.small_wait_p95 ?? 1e9) - (summaries[b]?.small_wait_p95 ?? 1e9));
+  const W = 260, H = 150, l = 30, r = 8, t = 8, b = 22, X = 100, Y = 60;
+  for (const v of order) {
+    const series = DATA.tenant_series[v], s = summaries[v];
+    const box = document.createElement("div");
+    box.innerHTML = `<div class="sm-title"><span><span class="dot" style="background:var(--${fam(v)})"></span>${nameOf(v)}</span><span>p95 ${fmtS(s.small_wait_p95)}</span></div>`;
+    const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": `${nameOf(v)} tenant waits` }, box);
+    const x = (sec) => l + (Math.min(sec, X) / X) * (W - l - r);
+    const y = (w) => H - b - (Math.min(w, Y) / Y) * (H - t - b);
+    el("rect", { x: x(20), y: t, width: x(30) - x(20), height: H - t - b, class: "band" }, svg);
+    const peak = Math.max(1, ...series.done_per_s);
+    const pts = series.done_per_s.slice(0, X + 1).map((n, i) => `${x(i)},${H - b - (n / peak) * (H - t - b) * 0.9}`);
+    el("polygon", { points: `${x(0)},${H - b} ${pts.join(" ")} ${x(Math.min(series.done_per_s.length - 1, X))},${H - b}`, class: "area" }, svg);
+    for (const w of [0, 30, 60]) {
+      el("line", { x1: l, x2: W - r, y1: y(w), y2: y(w), class: w ? "grid" : "axis" }, svg);
+      text(svg, l - 5, y(w) + 4, `${w}`, "tick", "end");
+    }
+    for (const sec of [0, 20, 40, 60, 80, 100]) text(svg, x(sec), H - 6, `${sec}`, "tick", "middle");
+    for (const [sent, wait] of series.small) el("circle", { cx: x(sent), cy: y(wait), r: 2.2, class: fam(v) }, svg);
+    holder.appendChild(box);
+  }
+}
+function figCost() {
+  const rows = by("mix").map((s) => ({ variant: s.variant, wal: s.pg.wal_bytes / 1e6, cpu: s.resources.total.cpu_avg }));
+  const W = 960, H = 420, l = 70, r = 160, t = 20, b = 50;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Cost of the mix scenario" });
+  const x = logScale(0.5, 50, l, W - r);
+  const ymax = 50, y = (c) => H - b - (c / ymax) * (H - t - b);
+  for (const d of [0.5, 1, 2, 5, 10, 20, 50]) {
+    el("line", { x1: x(d), x2: x(d), y1: t, y2: H - b, class: "grid" }, svg);
+    text(svg, x(d), H - b + 18, `${d} MB`, "tick", "middle");
+  }
+  for (const c of [0, 10, 20, 30, 40, 50]) {
+    el("line", { x1: l, x2: W - r, y1: y(c), y2: y(c), class: c ? "grid" : "axis" }, svg);
+    text(svg, l - 8, y(c) + 4, `${c}%`, "tick", "end");
+  }
+  text(svg, (l + W - r) / 2, H - 8, "write-ahead log written", "tick", "middle");
+  // Labels sit right of their dot and are pushed down until none overlaps another.
+  const placed = [];
+  rows.sort((a, b) => y(a.cpu) - y(b.cpu)).forEach((p) => {
+    const cx = x(p.wal), cy = y(p.cpu);
+    el("circle", { cx, cy, r: 6, class: `mark ${fam(p.variant)}` }, svg);
+    let ly = cy + 4;
+    while (placed.some((q) => Math.abs(q.x - cx) < 120 && Math.abs(q.y - ly) < 13)) ly += 13;
+    placed.push({ x: cx, y: ly });
+    if (ly - cy > 8) el("line", { x1: cx + 6, y1: cy, x2: cx + 12, y2: ly - 4, class: "axis" }, svg);
+    text(svg, cx + 14, ly, nameOf(p.variant), "val");
+  });
+  document.getElementById("fig-cost").appendChild(svg);
+}
+function figCold() {
+  const runs = by("probe").filter((s) => s.cold_start_s != null);
+  const variants = [...new Set(runs.map((s) => s.variant))].sort((a, b) => {
+    const m = (v) => Math.min(...runs.filter((s) => s.variant === v).map((s) => s.cold_start_s));
+    return m(a) - m(b);
+  });
+  const W = 960, rowH = 24, top = 14, left = 200, right = 60, max = 30;
+  const H = top + variants.length * rowH + 30;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Cold start by engine" });
+  const x = (s) => left + (s / max) * (W - left - right);
+  for (const s of [0, 5, 10, 15, 20, 25, 30]) {
+    el("line", { x1: x(s), x2: x(s), y1: top - 4, y2: H - 26, class: s ? "grid" : "axis" }, svg);
+    text(svg, x(s), H - 10, `${s} s`, "tick", "middle");
+  }
+  variants.forEach((v, i) => {
+    const y = top + i * rowH + rowH / 2;
+    text(svg, left - 12, y + 4, nameOf(v), "name", "end");
+    for (const s of runs.filter((r) => r.variant === v)) el("circle", { cx: x(s.cold_start_s), cy: y, r: 5, class: `mark ${fam(v)}`, "fill-opacity": 0.7 }, svg);
+  });
+  document.getElementById("fig-cold").appendChild(svg);
+}
+
+function table(columns, rows) {
+  const head = columns.map((c) => `<th scope="col">${c[0]}</th>`).join("");
+  const body = rows.map((r) => `<tr>${columns.map((c, i) => {
+    const raw = c[1](r);
+    const cls = [c[2] ? c[2](r) : "", c[3] || ""].join(" ").trim();
+    return i === 0 ? `<th scope="row" style="text-align:left;font-weight:500">${raw}</th>` : `<td class="${cls}">${raw}</td>`;
+  }).join("")}</tr>`).join("");
+  return `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
+const engineCell = (v) => `<span class="dot" style="background:var(--${fam(v)})"></span>${nameOf(v)}`;
+const n = (v, d = 2) => (v == null ? "–" : Number(v).toFixed(d));
+const mb = (b) => (b / 1e6).toFixed(1);
+
+function candidates() {
+  const rows = Object.entries(ENGINES).map(([variant, [f, name, how]]) => ({ variant, f, name, how }));
+  document.getElementById("candidates-table").innerHTML = table([
+    ["Configuration", (r) => engineCell(r.variant)],
+    ["Family", (r) => FAMILY_NAME[r.f]],
+    ["How it runs work", (r) => r.how, null, "prose"],
+  ], rows);
+}
+function crashTable() {
+  const rows = by("tenants").sort((a, b) => (a.small_wait_p95 ?? 1e9) - (b.small_wait_p95 ?? 1e9));
+  document.getElementById("crash-table").innerHTML = table([
+    ["Engine", (r) => engineCell(r.variant)],
+    ["Finished", (r) => `${r.finished}/${r.expected}${r.timed_out ? " · timed out" : ""}`, (r) => (r.timed_out ? "bad" : "")],
+    ["Duplicated", (r) => r.duplicated, (r) => (r.duplicated ? "bad" : "")],
+    ["Re-executed", (r) => r.re_executed, (r) => (r.re_executed > 10 ? "bad" : "")],
+    ["Small p50", (r) => fmtS(r.small_wait_p50)],
+    ["Small p95", (r) => fmtS(r.small_wait_p95)],
+    ["Longest stall", (r) => fmtS(r.longest_stall_s), (r) => (r.longest_stall_s > 60 ? "bad" : "")],
+    ["Makespan", (r) => fmtS(r.makespan_s), (r) => (r.makespan_s > 200 ? "bad" : "")],
+  ], rows) + '<p class="col" style="font:14px var(--sans);color:var(--muted);margin-top:10px"><b style="color:var(--ink)">Table 2.</b> The tenant scenario after the crash. A re-executed job started more than once; a duplicated one also finished more than once. A few re-executions are expected: jobs running when the workers were killed start again.</p>';
+}
+function appendix() {
+  const order = (s) => Object.keys(ENGINES).indexOf(s.variant);
+  const res = (r, k) => n(r.resources.roles.workers?.[k] ?? null, 0);
+  const sections = [
+    ["Workflow", "workflow", [
+      ["Engine", (r) => engineCell(r.variant)],
+      ["Steps", (r) => `${r.finished}${r.timed_out ? " (timed out)" : ""}`],
+      ["Hop p50 s", (r) => n(r.hop_p50)], ["Hop p95 s", (r) => n(r.hop_p95)],
+      ["Chain p50 s", (r) => n(r.chain_p50, 1)], ["Steps/s", (r) => n(r.throughput_per_s, 1)],
+      ["Workers CPU %", (r) => res(r, "cpu_avg")], ["Stack CPU %", (r) => n(r.resources.total.cpu_avg, 0)],
+      ["Stack RAM MB", (r) => n(r.resources.total.mem_max, 0)], ["WAL MB", (r) => mb(r.pg.wal_bytes)],
+    ]],
+    ["Mix", "mix", [
+      ["Engine", (r) => engineCell(r.variant)],
+      ["Done", (r) => r.finished], ["Lost", (r) => r.lost ?? "–"],
+      ["Agent p50 s", (r) => n(r.agent_wait_p50)], ["Agent p95 s", (r) => n(r.agent_wait_p95)],
+      ["Parse p50 s", (r) => n(r.parse_wait_p50)], ["Parse p95 s", (r) => n(r.parse_wait_p95)],
+      ["Sweeps", (r) => r.sweeps], ["Sweep drift s", (r) => n(r.sweep_gap_max_dev, 1)],
+      ["Stack CPU %", (r) => n(r.resources.total.cpu_avg, 0)], ["Stack RAM MB", (r) => n(r.resources.total.mem_max, 0)],
+      ["WAL MB", (r) => mb(r.pg.wal_bytes)],
+    ]],
+    ["Tenants", "tenants", [
+      ["Engine", (r) => engineCell(r.variant)],
+      ["Done", (r) => `${r.finished}${r.timed_out ? " (timed out)" : ""}`],
+      ["Dup.", (r) => r.duplicated], ["Re-run", (r) => r.re_executed],
+      ["Small p50 s", (r) => n(r.small_wait_p50)], ["Small p95 s", (r) => n(r.small_wait_p95)], ["Small max s", (r) => n(r.small_wait_max, 1)],
+      ["Stall s", (r) => n(r.longest_stall_s, 1)], ["Makespan s", (r) => n(r.makespan_s, 1)],
+      ["Stack CPU %", (r) => n(r.resources.total.cpu_avg, 0)], ["Stack RAM MB", (r) => n(r.resources.total.mem_max, 0)],
+      ["WAL MB", (r) => mb(r.pg.wal_bytes)],
+    ]],
+  ];
+  document.getElementById("appendix-tables").innerHTML = sections.map(([title, scenario, cols], i) =>
+    `<h3 class="col" style="max-width:none"><span class="num">A.${i + 1}</span>${title}</h3>` +
+    table(cols, by(scenario).sort((a, b) => order(a) - order(b)))).join("");
+}
+
+if (DATA) {
+  document.querySelectorAll("[data-legend]").forEach(legend);
+  candidates(); figHop(); figThroughput(); figMix(); figTenants(); crashTable(); figCost(); figCold(); appendix();
+}
+</script>
+</body>
+</html>

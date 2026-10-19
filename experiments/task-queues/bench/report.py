@@ -99,7 +99,10 @@ def summarize(json_path: str) -> dict[str, Any]:
         "scenario": result["scenario"],
         "expected": result["expected_jobs"],
         "finished": len(finished),
-        "lost": result["expected_jobs"] - len(finished),
+        # A run that hit the driver's timeout did not lose its unfinished jobs, it
+        # had not reached them; only a completed scenario can report losses.
+        "timed_out": not result["completed"],
+        "lost": result["expected_jobs"] - len(finished) if result["completed"] else None,
         "duplicated": sum(1 for j in finished if len(j["finishes"]) > 1),
         "re_executed": sum(1 for j in work.values() if len(j["starts"]) > 1),
         "makespan_s": last_finish - first_enq,
@@ -175,14 +178,16 @@ def main(directory: str) -> None:
                 for part in key.split("."):
                     value = value.get(part) if isinstance(value, dict) else None
                 cells.append(fmt(value, digits) if isinstance(value, (int, float)) or value is None else str(value))
-            print(f"| {s['variant']} | " + " | ".join(cells) + " |")
+            name = f"{s['variant']} (timed out)" if s["timed_out"] else s["variant"]
+            print(f"| {name} | " + " | ".join(cells) + " |")
 
     common_res = [
         ("resources.roles.workers.cpu_avg", "workers CPU avg %", 0),
         ("resources.roles.workers.mem_max", "workers RAM max MB", 0),
         ("resources.total.cpu_avg", "stack CPU avg %", 0),
         ("resources.total.mem_max", "stack RAM max MB", 0),
-        ("pg.commits", "PG commits", 0),
+        # Commit counters are flushed lazily by Postgres and undercount short runs;
+        # WAL bytes come from LSNs and are exact.
         ("pg.wal_bytes", "WAL bytes", 0),
     ]
     table("probe", [("cold_start_s", "cold start s", 1)])

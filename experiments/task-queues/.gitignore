@@ -1,5 +1,4 @@
-# Raw runs are large and machine-specific; the report and summary.json are committed.
-results/*.events.csv
+# Every run's JSON and event log are committed: they are what the report is computed
+# from. The raw worker logs are 27 MB, so they travel as results/logs.tar.gz instead.
 results/*.log
-results/*.json
-!results/summary.json
+results/.*.out
