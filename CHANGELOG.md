@@ -130,6 +130,11 @@ Two things are versioned separately from this file and worth knowing about:
   `COMMIT`s in production's last day, about four in five of all its statements.
   The leases are still checked on every pass, so a bot whose worker died is
   taken over as quickly as before.
+- **`POST /agents/{id}/run` refuses a prompt over 500,000 characters or more
+  than 20 files with a 422.** It took either without limit, and with
+  `Prefer: respond-async` the whole body went into a queued job; an asynchronous
+  run is now also refused at once for an agent the caller may not run, rather
+  than by the worker later.
 - **A busy schedule now skips by default.** Before, a schedule whose run was
   still going fired once as soon as it ended; existing schedules take `skip`.
   Set `overlap` to `queue` for the old behaviour.

@@ -57,13 +57,13 @@ def _worker(sessions: Sessions, **overrides: object) -> Worker:
         settle_attempts=2,
         health_file=None,
     )
+    hooks: dict[str, object] = {"on_pause": AsyncMock(), "on_ended": AsyncMock()}
     return Worker(
         settings=settings,
         executors={Pool.SYSTEM: InProcessExecutor({}, concurrency=1)},
         tasks={},
         sessions=sessions,
-        on_pause=AsyncMock(),
-        **overrides,
+        **(hooks | overrides),  # ty: ignore[invalid-argument-type]
     )
 
 
@@ -84,7 +84,8 @@ _ANSWERS: dict[object, dict[str, object]] = {
         "complete": True,
         "bury": True,
         "fail": FailOutcome.RETRYING,
-        "release": True,
+        "release": "queued",
+        "unclaim": True,
         "claim": None,
         "extend_leases": None,
         "rescue_expired": [],
@@ -248,3 +249,118 @@ async def test_the_rescuer_forgets_workers_silent_for_a_day(repos: MagicMock) ->
 
     before = repos.forget_silent_since.await_args.kwargs["before"]
     assert datetime.now(UTC) - timedelta(days=1, minutes=1) < before < datetime.now(UTC)
+
+
+async def test_a_job_claimed_as_the_stop_arrived_goes_back_unstarted(repos: MagicMock) -> None:
+    """Codex on #2248: the claim's await outlived the SIGTERM, and the job ran anyway,
+    to be cancelled thirty seconds later with its one attempt spent."""
+    sessions, _opened = _sessions()
+    worker = _worker(sessions)
+    stop = asyncio.Event()
+    job = _job()
+
+    async def claim_while_stopping(*_: object, **__: object) -> ClaimedJob:
+        stop.set()
+        return job
+
+    repos.claim.side_effect = claim_while_stopping
+
+    await asyncio.wait_for(worker._dispatch(Pool.SYSTEM, stop), timeout=5)
+
+    repos.unclaim.assert_awaited_once()
+    assert repos.unclaim.await_args.kwargs == {"fence": job.attempts}
+    assert worker._running == set()
+
+
+async def test_an_unclaim_the_database_refuses_is_left_to_the_rescuer(
+    repos: MagicMock, caplog: pytest.LogCaptureFixture
+) -> None:
+    sessions, _opened = _sessions(failures=1)
+
+    with caplog.at_level(logging.WARNING, logger="app.worker.runtime"):
+        await _worker(sessions)._unclaim(_job())
+
+    assert [record.message for record in caplog.records] == ["background_unclaim_failed"]
+
+
+@pytest.mark.parametrize(
+    ("outcome", "fail", "why"),
+    [
+        (Failed("boom"), FailOutcome.DEAD, "boom"),
+        (Failed("boom"), FailOutcome.SUPERSEDED, "boom"),
+        (Died("killed by SIGKILL"), FailOutcome.DEAD, "killed by SIGKILL"),
+        (Failed("bad payload", permanent=True), None, "bad payload"),
+    ],
+    ids=["failed-last", "superseded", "died-last", "buried"],
+)
+async def test_a_job_that_ended_for_good_hands_its_ending_on_after_the_commit(
+    repos: MagicMock, outcome: Outcome, fail: FailOutcome | None, why: str
+) -> None:
+    """Codex on #2248: a dead child cannot settle the document it was parsing."""
+    if fail is not None:
+        repos.fail.return_value = fail
+    sessions, _opened = _sessions()
+    worker = _worker(sessions)
+    job = _job()
+
+    await worker._settle(job, outcome)
+
+    worker.on_ended.assert_awaited_once_with(job.kind, job.payload, why)  # ty: ignore[unresolved-attribute]
+
+
+@pytest.mark.parametrize(
+    "outcome", [Succeeded(), Failed("boom"), Died("killed")], ids=["ok", "retry", "died-retry"]
+)
+async def test_a_job_with_attempts_to_come_hands_nothing_on(
+    repos: MagicMock, outcome: Outcome
+) -> None:
+    sessions, _opened = _sessions()
+    worker = _worker(sessions)
+
+    await worker._settle(_job(), outcome)
+
+    worker.on_ended.assert_not_awaited()  # ty: ignore[unresolved-attribute]
+
+
+async def test_an_ending_that_cannot_be_settled_is_logged_not_raised(
+    repos: MagicMock, caplog: pytest.LogCaptureFixture
+) -> None:
+    repos.fail.return_value = FailOutcome.DEAD
+    sessions, _opened = _sessions()
+    worker = _worker(sessions, on_ended=AsyncMock(side_effect=RuntimeError("db gone")))
+
+    with caplog.at_level(logging.ERROR, logger="app.worker.runtime"):
+        await worker._settle(_job(), Failed("boom"))
+
+    assert [record.message for record in caplog.records] == ["background_job_end_unsettled"]
+
+
+@pytest.mark.parametrize(
+    ("status", "ended"), [("dead", True), ("cancelled", True), ("queued", False)]
+)
+async def test_a_job_released_at_shutdown_hands_its_ending_on_only_when_it_ended(
+    repos: MagicMock, status: str, ended: bool
+) -> None:
+    repos.release.return_value = status
+    sessions, _opened = _sessions()
+    worker = _worker(sessions)
+
+    await worker._give_back(_job())
+
+    assert worker.on_ended.await_count == int(ended)  # ty: ignore[unresolved-attribute]
+
+
+async def test_a_rescued_job_that_ended_hands_its_ending_on(repos: MagicMock) -> None:
+    from app.repositories.background_job import RescuedJob
+
+    ended = RescuedJob(id=uuid4(), kind="ingest-document", status="dead", payload={"a": 1})
+    retried = RescuedJob(id=uuid4(), kind="ingest-document", status="queued", payload={})
+    repos.rescue_expired.return_value = [ended, retried]
+    sessions, _opened = _sessions()
+    worker = _worker(sessions)
+
+    await worker._rescue()
+
+    worker.on_ended.assert_awaited_once_with(  # ty: ignore[unresolved-attribute]
+        "ingest-document", {"a": 1}, "its worker stopped answering"
+    )

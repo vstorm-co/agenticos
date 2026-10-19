@@ -62,6 +62,10 @@ async def test_an_insert_that_lost_the_race_answers_the_winners_request() -> Non
         ),
         patch("app.services.api_runs.load_attached_files", new=AsyncMock(return_value=[])),
         patch(
+            "app.services.api_runs.AgentRegistryService.get_runnable_spec",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
             "app.services.api_runs.enqueue",
             new=AsyncMock(side_effect=IntegrityError("INSERT", {}, Exception("duplicate key"))),
         ),

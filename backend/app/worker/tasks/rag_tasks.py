@@ -31,6 +31,7 @@ from app.repositories import (
     organization_secret_repo,
     rag_document_repo,
 )
+from app.repositories import sync_log as sync_log_repo
 from app.repositories import sync_source as sync_source_repo
 from app.services.embedding_resolution import (
     ResolvedEmbeddings,
@@ -55,6 +56,7 @@ from app.services.rag.vectorstore import EmbeddingResolver
 from app.services.rag.vectorstore import PgVectorStore as VectorStore
 from app.services.spend import assert_organization_within_budget
 from app.services.sync_source import SyncSourceService, SyncState, sync_fingerprint
+from app.worker.attempt import is_final_attempt
 from app.worker.jobs import IngestDocument, SyncCollection, SyncConnectorSource, sync_source_key
 
 logger = logging.getLogger(__name__)
@@ -295,11 +297,12 @@ async def sync_collection(job: SyncCollection) -> dict[str, Any]:
         )
     except Exception as exc:
         logger.exception("Sync failed for %s -> %s", job.source, job.collection_name)
-        await _update_sync_log(
-            str(job.sync_log_id),
-            "error",
-            error_message=failure_summary(exc, stage=IngestionStage.SYNC),
-        )
+        if is_final_attempt():
+            await _update_sync_log(
+                str(job.sync_log_id),
+                "error",
+                error_message=failure_summary(exc, stage=IngestionStage.SYNC),
+            )
         raise
 
 
@@ -693,16 +696,26 @@ async def _fail_document(rag_document_id: str, *, error_message: str | None, att
     `PROCESSING` before dispatching again, so the guard cannot mistake a
     previous attempt's already-recorded failure for this one's.
 
+    Only a document still `processing` is failed: a settler that runs after the
+    queue gave up on the job finds a `done` or already-failed row and leaves it.
+    And only on the job's last attempt (`is_final_attempt`): an earlier one is
+    retried, and failing the row then reported a failure the retry undid.
+
     Failure is the only status this records. Reaching `DONE` needs the vector
     document's id, which only `_run_ingestion` holds, so it calls
     `complete_ingestion` itself.
     """
     from app.services.rag_document import RAGDocumentService
 
+    if not is_final_attempt():
+        # The queue tries again: the document stays `processing`, and its owner is
+        # told nothing yet - the retry may well index it (Codex, #2248).
+        logger.info("Ingestion of %s failed; the queue retries it", rag_document_id)
+        return
     try:
         async with get_worker_db_context() as db:
             doc_svc = RAGDocumentService(db)
-            if (await doc_svc.get_document(rag_document_id)).status == DocumentStatus.ERROR:
+            if (await doc_svc.get_document(rag_document_id)).status != DocumentStatus.PROCESSING:
                 return
             await doc_svc.fail_ingestion(
                 rag_document_id, error_message=error_message or "Unknown error", attempt=attempt
@@ -1192,11 +1205,14 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
         # for a deployment-wide fallback, because there is not one.
         credential = await _connector_credential(db, source.secret_id, organization_id)
 
-        # Use existing SyncLog (from API trigger) or create new one (from scheduler)
+        # The log a manual trigger made and handed us, or - for a scheduled run,
+        # which is queued with none - one opened now. Opened, not triggered:
+        # `trigger_sync` queues a job too, and this one is already running, so it
+        # queued a second sync of the same source behind this one (Codex, #2248).
         if sync_log_id:
             log_id = sync_log_id
         else:
-            log = await source_svc.trigger_sync(source_id)
+            log = await source_svc.open_sync_log(source, collection_name=collection_name)
             log_id = str(log.id)
 
         # Before a single file is downloaded: a scheduled sync answers to the
@@ -1654,3 +1670,50 @@ async def apply_retention() -> None:
                 "failed": result.failed,
             },
         )
+
+
+def _stopped(reason: str) -> str:
+    return f"Stopped before it finished: {reason}"
+
+
+async def settle_lost_ingest(job: IngestDocument, reason: str) -> None:
+    """A document whose ingestion job ended for good without the handler saying so.
+
+    A child killed by the memory watchdog or the kernel cannot mark its own row,
+    so the row stayed `processing` with nothing left to finish it (Codex, #2248).
+    A document the handler already settled - done, or failed with its own
+    reason - is left as it is.
+    """
+    await _fail_document(
+        str(job.rag_document_id), error_message=_stopped(reason), attempt=job.attempt
+    )
+
+
+async def settle_lost_collection_sync(job: SyncCollection, reason: str) -> None:
+    """A collection sync that ended for good with its log still running."""
+    await _close_running_log(str(job.sync_log_id), reason)
+
+
+async def settle_lost_source_sync(job: SyncConnectorSource, reason: str) -> None:
+    """A source sync that ended for good with its log still running.
+
+    A scheduled run is queued with no log id and opens its log once it starts,
+    so the source's newest running log is the one, if it got that far.
+    """
+    async with get_worker_db_context() as db:
+        if job.sync_log_id is not None:
+            log_id: str | None = str(job.sync_log_id)
+        else:
+            log = await sync_log_repo.latest_running_for_source(db, job.source_id)
+            log_id = None if log is None else str(log.id)
+        await SyncSourceService(db).update_after_sync(str(job.source_id), "error", _stopped(reason))
+    if log_id is not None:
+        await _close_running_log(log_id, reason)
+
+
+async def _close_running_log(sync_log_id: str, reason: str) -> None:
+    async with get_worker_db_context() as db:
+        log = await sync_log_repo.get_by_id(db, UUID(sync_log_id))
+        if log is None or log.status != "running":
+            return
+    await _update_sync_log(sync_log_id, "error", error_message=_stopped(reason))

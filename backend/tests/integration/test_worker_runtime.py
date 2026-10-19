@@ -40,6 +40,15 @@ SYSTEM_TASKS = worker_handlers.tasks(Pool.SYSTEM)
 INGEST_TASKS = worker_handlers.tasks(Pool.INGEST)
 
 
+ENDED: list[tuple[str, str]] = []
+"""Every job the worker said had ended for good, with why: `(kind, why)`."""
+
+
+@pytest.fixture(autouse=True)
+def _forget_endings() -> None:
+    ENDED.clear()
+
+
 @pytest.fixture
 def sessions(
     engine: AsyncEngine,
@@ -106,12 +115,16 @@ async def running(
     async def on_pause(_db: AsyncSession, kind: str, reason: str) -> None:
         pauses.append((kind, reason))
 
+    async def on_ended(kind: str, _payload: object, why: str) -> None:
+        ENDED.append((kind, why))
+
     worker = Worker(
         settings=_settings(tmp_path, **overrides),
         executors=executors,
         tasks=tasks,
         sessions=sessions,
         on_pause=on_pause,
+        on_ended=on_ended,
         listen=None if listen_dsn is None else listener(listen_dsn),
     )
     stop = asyncio.Event()
@@ -225,6 +238,10 @@ async def test_a_parse_that_eats_memory_dies_twice_and_stops_while_other_work_fl
     assert "memory watchdog" in job.last_error
     assert "attempt 2 of 2" in job.last_error
     assert pauses == []
+    # Its document would read `processing` for good: the dead child never got to
+    # its own cleanup, so the worker hands the ending on, once, after the death.
+    (ending,) = [end for end in ENDED if end[0] == INGEST_TASKS["hog"].kind]
+    assert "memory watchdog" in ending[1]
 
 
 async def test_a_child_the_kernel_kills_is_written_down_as_killed(
@@ -236,6 +253,9 @@ async def test_a_child_the_kernel_kills_is_written_down_as_killed(
     assert job.attempts == 1
     assert job.last_error is not None
     assert "killed by SIGKILL" in job.last_error
+    ((kind, why),) = ENDED
+    assert kind == INGEST_TASKS["suicide"].kind
+    assert "killed by SIGKILL" in why
 
 
 async def test_a_kind_that_keeps_killing_its_workers_is_paused_and_the_owner_told_once(
@@ -290,15 +310,18 @@ async def test_a_job_whose_worker_vanished_is_taken_over_by_a_worker_with_anothe
     assert job.worker_id == "new-container:1"
 
 
-async def test_a_shutdown_mid_job_gives_the_job_back_with_its_attempt(
+async def test_a_shutdown_mid_job_puts_it_back_with_the_attempt_spent(
     sessions, tmp_path: Path, pauses: list[tuple[str, str]]
 ) -> None:
+    """It ran, and what it did happened: the next worker gets its next attempt."""
     marker = tmp_path / "started"
     async with running(sessions, tmp_path, pauses, drain_timeout=0.2):
         job_id = await _enqueue(sessions, SYSTEM_TASKS["ok"], Note(seconds=30, marker=str(marker)))
         await _until(marker.exists)
     job = await _job(sessions, job_id)
-    assert (job.status, job.attempts, job.worker_id) == ("queued", 0, None)
+    assert (job.status, job.attempts, job.worker_id) == ("queued", 1, None)
+    assert job.last_error is not None
+    assert job.last_error.startswith("the worker stopped while it ran (attempt 1 of ")
 
 
 async def test_a_shutdown_lets_a_short_job_finish(

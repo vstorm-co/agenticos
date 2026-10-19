@@ -29,7 +29,9 @@ from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from uuid import UUID
 
+from pydantic import JsonValue
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -37,6 +39,7 @@ from app.repositories import background_job as job_repo
 from app.repositories import background_task_kind as kind_repo
 from app.repositories import background_worker as worker_repo
 from app.repositories.background_job import ClaimedJob, FailOutcome
+from app.worker.attempt import Attempt
 from app.worker.executors import Died, Executor, Failed, Outcome, Slot, Succeeded
 from app.worker.jobs import Pool, TaskKind
 
@@ -49,6 +52,10 @@ PauseHook = Callable[[AsyncSession, str, str], Awaitable[None]]
 """Called, in the pausing transaction, with the kind and the reason, when a kind is paused."""
 
 ScheduleTick = Callable[[AsyncSession], Awaitable[object]]
+EndedHook = Callable[[str, dict[str, JsonValue], str], Awaitable[None]]
+"""Settle what a job left outside the queue - a document, a sync log - once no
+attempt of it is coming: `(kind, payload, why)`. Idempotent: it may find the
+handler settled it already."""
 
 Listen = Callable[[Callable[[str], None]], Coroutine[object, object, None]]
 """Runs until cancelled, calling back with the pool named by each notification."""
@@ -85,6 +92,7 @@ class Worker:
     tasks: Mapping[str, TaskKind]
     sessions: SessionFactory
     on_pause: PauseHook
+    on_ended: EndedHook
     schedule: ScheduleTick | None = None
     listen: Listen | None = None
     _wake: dict[Pool, asyncio.Event] = field(default_factory=dict, init=False)
@@ -162,6 +170,13 @@ class Worker:
                 with contextlib.suppress(TimeoutError):
                     await asyncio.wait_for(_either(wake, stop), timeout=self.settings.poll_every)
                 continue
+            if stop.is_set():
+                # The stop arrived while the claim awaited Postgres. Started now,
+                # the job would have the drain's thirty seconds and then be
+                # cancelled with its one attempt spent; it goes back unstarted.
+                executor.release(slot)
+                await self._unclaim(job)
+                return
             task = asyncio.create_task(self._execute(executor, slot, job), name=f"job:{job.kind}")
             self._running.add(task)
             task.add_done_callback(self._finished)
@@ -180,7 +195,12 @@ class Worker:
                     f"no task is declared for the job kind {job.kind!r}", permanent=True
                 )
             else:
-                outcome = await slot.run(job.kind, job.payload, timeout=task.timeout)
+                outcome = await slot.run(
+                    job.kind,
+                    job.payload,
+                    timeout=task.timeout,
+                    attempt=Attempt(job.attempts, job.max_attempts),
+                )
             await self._settle(job, outcome)
         except asyncio.CancelledError:
             # A shutdown, not a failure - but the attempt is spent: the job ran,
@@ -204,7 +224,7 @@ class Worker:
         for attempt in range(1, self.settings.settle_attempts + 1):
             try:
                 async with self.sessions() as db:
-                    await self._record(db, job, outcome)
+                    ended = await self._record(db, job, outcome)
             except TRANSIENT:
                 logger.warning(
                     "background_settle_failed",
@@ -213,30 +233,47 @@ class Worker:
                 )
                 await asyncio.sleep(self._outage_pause(attempt))
             else:
+                # After the commit: the queue's word is final before anything
+                # outside it is told, and a settler that fails cannot undo it.
+                if ended is not None:
+                    await self._ended(job.id, job.kind, job.payload, ended)
                 return
         logger.error("background_settle_abandoned", extra={"job_id": str(job.id)})
 
-    async def _record(self, db: AsyncSession, job: ClaimedJob, outcome: Outcome) -> None:
+    async def _ended(
+        self, job_id: UUID, kind: str, payload: dict[str, JsonValue], why: str
+    ) -> None:
+        try:
+            await self.on_ended(kind, payload, why)
+        except Exception:
+            # The job is settled; the row it left is not, and the log says so.
+            logger.exception("background_job_end_unsettled", extra={"job_id": str(job_id)})
+
+    async def _record(self, db: AsyncSession, job: ClaimedJob, outcome: Outcome) -> str | None:
+        """Write the outcome; answer why, when no attempt of the job is coming."""
         fence = job.attempts
         match outcome:
             case Succeeded(result=result):
                 if not await job_repo.complete(db, job.id, fence=fence, result=result):
                     await self._lost(db, job)
-                    return
+                    return None
                 await kind_repo.record_survival(db, job.kind)
+                return None
             case Failed(error=error, permanent=True):
                 if not await job_repo.bury(db, job.id, fence=fence, error=error):
                     await self._lost(db, job)
-                    return
+                    return None
                 await kind_repo.record_survival(db, job.kind)
+                return error
             case Failed(error=error):
                 result = await job_repo.fail(
                     db, job.id, fence=fence, error=error, retry_in=self._retry_in(fence)
                 )
                 if result is FailOutcome.LOST:
                     await self._lost(db, job)
-                    return
+                    return None
                 await kind_repo.record_survival(db, job.kind)
+                return None if result is FailOutcome.RETRYING else error
             case Died(reason=reason):  # pragma: no branch - `Outcome` has no fourth shape
                 error = f"{reason} (attempt {fence} of {job.max_attempts})"
                 result = await job_repo.fail(
@@ -244,12 +281,13 @@ class Worker:
                 )
                 if result is FailOutcome.LOST:
                     await self._lost(db, job)
-                    return
+                    return None
                 logger.error(
                     "background_job_died",
                     extra={"job_id": str(job.id), "kind": job.kind, "reason": reason},
                 )
                 await self._count_death(db, job.kind)
+                return None if result is FailOutcome.RETRYING else reason
 
     async def _lost(self, db: AsyncSession, job: ClaimedJob) -> None:
         """The job was taken over while this worker still ran it: what it did may have happened twice."""
@@ -268,14 +306,27 @@ class Worker:
             logger.error("background_kind_paused", extra={"kind": kind, "deaths": deaths})
             await self.on_pause(db, kind, reason)
 
+    async def _unclaim(self, job: ClaimedJob) -> None:
+        try:
+            async with self.sessions() as db:
+                await job_repo.unclaim(db, job.id, fence=job.attempts)
+        except TRANSIENT:
+            # The lease runs out and the rescuer takes it back, the attempt spent.
+            logger.warning(
+                "background_unclaim_failed", extra={"job_id": str(job.id)}, exc_info=True
+            )
+
     async def _give_back(self, job: ClaimedJob) -> None:
         try:
             async with self.sessions() as db:
-                await job_repo.release(db, job.id, fence=job.attempts)
+                status = await job_repo.release(db, job.id, fence=job.attempts)
         except TRANSIENT:
             logger.warning(
                 "background_release_failed", extra={"job_id": str(job.id)}, exc_info=True
             )
+            return
+        if status in ("dead", "cancelled"):
+            await self._ended(job.id, job.kind, job.payload, "the worker stopped while it ran")
 
     async def _drain(self) -> None:
         """Let what is running finish for `drain_timeout`, then cancel the rest - which gives it back."""
@@ -312,6 +363,9 @@ class Worker:
             await worker_repo.forget_silent_since(
                 db, before=datetime.now(UTC) - self.settings.forget_workers_after
             )
+        for job in rescued:
+            if job.ended:
+                await self._ended(job.id, job.kind, job.payload, "its worker stopped answering")
 
     async def _fire_schedules(self) -> None:
         assert self.schedule is not None

@@ -34,6 +34,7 @@ from app.repositories import background_job as background_job_repo
 from app.repositories import member as member_repo
 from app.repositories import user as user_repo
 from app.schemas.agent import AgentRunRequest, AgentRunResult, RunRequestRead, RunRequestStatus
+from app.services.agent_registry import AgentRegistryService
 from app.services.agent_runner import AgentRunnerService
 from app.services.api_key import ApiKeyService
 from app.services.attachments import load_attached_files
@@ -83,8 +84,11 @@ class ApiRunService:
 
         Raises:
             AlreadyExistsError: `idempotency_key` was used for a different request.
-            NotFoundError: The conversation is unknown or not the caller's.
-            BadRequestError: The conversation was not opened over the API.
+            NotFoundError: The agent or the conversation is unknown or not the
+                caller's to run.
+            AuthorizationError: The caller may read the agent but not run it.
+            BadRequestError: The agent is archived or unpublished, or the
+                conversation was not opened over the API.
         """
         fingerprint = digest(agent_id, request)
         stored_key = None if idempotency_key is None else scoped_key(ctx, idempotency_key)
@@ -94,6 +98,12 @@ class ApiRunService:
             )
             if existing is not None:
                 return self._replay(existing, fingerprint)
+        # The agent before anything is queued: a run of an agent the caller may
+        # not run, or that is archived or unpublished, is a refusal now rather than
+        # a job that sits in the queue until a worker refuses it.
+        await AgentRegistryService(self.db).get_runnable_spec(
+            ctx, agent_id, environment_id=request.environment_id
+        )
         conversation_id, _history = await ConversationService(self.db).for_api_run(
             ctx, request.conversation_id, prompt=request.prompt
         )

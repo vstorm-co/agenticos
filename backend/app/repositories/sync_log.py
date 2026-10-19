@@ -17,6 +17,17 @@ async def get_by_id(db: AsyncSession, sync_id: UUID) -> SyncLog | None:
     return await db.get(SyncLog, sync_id)
 
 
+async def latest_running_for_source(db: AsyncSession, source_id: UUID) -> SyncLog | None:
+    """The newest log of a source's sync still marked running, if there is one."""
+    result = await db.execute(
+        select(SyncLog)
+        .where(SyncLog.sync_source_id == source_id, SyncLog.status == "running")
+        .order_by(SyncLog.started_at.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_all(
     db: AsyncSession,
     collections: list[str] | None = None,

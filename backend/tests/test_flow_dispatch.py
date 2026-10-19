@@ -400,3 +400,20 @@ async def test_retrying_a_document_that_did_not_fail_is_refused_not_a_500(
 
     with pytest.raises(BadRequestError):
         await RAGDocumentService(session).retry_ingestion(str(document.id))
+
+
+async def test_a_scheduled_runs_log_is_opened_with_nothing_queued(session, monkeypatch) -> None:
+    """The run is already going; queueing another would sync the source twice (#2248)."""
+    source = _source()
+    created = SimpleNamespace(id=uuid4())
+    create = AsyncMock(return_value=created)
+    monkeypatch.setattr(sync_log_repo, "create", create)
+    queued = AsyncMock()
+    monkeypatch.setattr("app.services.sync_source.enqueue", queued)
+
+    log = await SyncSourceService(session).open_sync_log(source, collection_name="handbooks")
+
+    assert log is created
+    assert create.await_args.kwargs["triggered_by_user_id"] is None
+    assert create.await_args.kwargs["collection_name"] == "handbooks"
+    queued.assert_not_awaited()

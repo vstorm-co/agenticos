@@ -29,7 +29,7 @@ from app.db.session import claim_pooled_engines, close_db, get_db_context
 from app.services.background_jobs import tell_owners_paused
 from app.worker import jobs, schedules
 from app.worker.executors import ChildPool, Executor, InProcessExecutor
-from app.worker.handlers import production
+from app.worker.handlers import production, settle_ended
 from app.worker.jobs import Pool
 from app.worker.listener import asyncpg_dsn, listener
 from app.worker.runtime import Worker, WorkerSettings
@@ -94,6 +94,7 @@ async def serve(pools: list[Pool]) -> None:
         tasks=jobs.TASKS,
         sessions=get_db_context,
         on_pause=tell_owners_paused,
+        on_ended=settle_ended,
         schedule=lambda db: schedules.fire_due(db, schedules.SCHEDULES, now=datetime.now(UTC)),
         listen=listener(asyncpg_dsn(settings.DATABASE_URL)),
     )

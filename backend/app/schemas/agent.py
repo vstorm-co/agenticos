@@ -637,10 +637,19 @@ class CapabilityCatalog(BaseSchema):
     total: int
 
 
+MAX_RUN_PROMPT_CHARS = 500_000
+"""The longest prompt one run takes: the per-turn text budget a chat turn has
+(`CHAT_TURN_TEXT_MAX_CHARS`). Unbounded, an asynchronous run put whatever the
+proxy let through - tens of megabytes - into a queued job's JSONB."""
+
+MAX_RUN_FILES = 20
+"""Uploads one run may attach."""
+
+
 class AgentRunRequest(BaseSchema):
     """Ask a published agent a question."""
 
-    prompt: str = Field(min_length=1)
+    prompt: str = Field(min_length=1, max_length=MAX_RUN_PROMPT_CHARS)
     conversation_id: UUID | None = Field(
         default=None,
         description=(
@@ -660,6 +669,7 @@ class AgentRunRequest(BaseSchema):
     )
     file_ids: list[UUID] = Field(
         default_factory=list,
+        max_length=MAX_RUN_FILES,
         description=(
             "Files already uploaded through `POST /files/upload`, to attach to this "
             "turn. Where each one goes is the agent's to decide - written into its "

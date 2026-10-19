@@ -493,6 +493,21 @@ class SyncSourceService:
         await sync_source_repo.delete(self.db, UUID(source_id))
         await self._record(source, "deleted", ctx=ctx)
 
+    async def open_sync_log(self, source: SyncSource, *, collection_name: str) -> SyncLog:
+        """The log of a run that is already going - a scheduled one - with nothing queued.
+
+        Nobody asked for a scheduled run, so it names no requester; its outcome's
+        notification falls back to the organization's admins.
+        """
+        return await sync_log_repo.create(
+            self.db,
+            source=source.connector_type,
+            collection_name=collection_name,
+            mode=source.sync_mode,
+            sync_source_id=source.id,
+            triggered_by_user_id=None,
+        )
+
     async def trigger_sync(self, source_id: str, *, user_id: UUID | None = None) -> SyncLog:
         """Trigger a manual sync - persists a SyncLog and dispatches the task.
 

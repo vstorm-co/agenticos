@@ -17,7 +17,7 @@ from httpx import ASGITransport, AsyncClient
 from app.api import deps
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
-from app.schemas.agent import RunRequestRead
+from app.schemas.agent import MAX_RUN_FILES, MAX_RUN_PROMPT_CHARS, RunRequestRead
 
 pytestmark = pytest.mark.anyio
 
@@ -100,3 +100,25 @@ async def test_the_request_is_read_back_from_its_location() -> None:
 )
 def test_the_prefer_header_is_read_as_rfc_7240_tokens(header: str | None, wants: bool) -> None:
     assert deps.prefers_async(header) is wants
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"prompt": "x" * (MAX_RUN_PROMPT_CHARS + 1)},
+        {"prompt": "hi", "file_ids": [str(uuid4()) for _ in range(MAX_RUN_FILES + 1)]},
+    ],
+    ids=["prompt", "files"],
+)
+async def test_a_request_past_the_caps_is_refused_before_anything_is_queued(
+    body: dict[str, object],
+) -> None:
+    """Codex P1 on #2248: an unbounded prompt went into a queued job's JSONB whole."""
+    api_runs = MagicMock(queue=AsyncMock(return_value=_QUEUED))
+    async with _client(api_runs) as client:
+        response = await client.post(
+            f"/api/v1/agents/{_AGENT_ID}/run", json=body, headers={"Prefer": "respond-async"}
+        )
+
+    assert response.status_code == 422
+    api_runs.queue.assert_not_awaited()

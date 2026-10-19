@@ -14,10 +14,12 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AlreadyExistsError, AuthenticationError, NotFoundError
 from app.core.permissions import AuthContext
+from app.db.models.background_job import BackgroundJob
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.repositories import background_job as job_repo
@@ -38,6 +40,10 @@ def stubbed():
             new=AsyncMock(return_value=(CONVERSATION, None)),
         ),
         patch("app.services.api_runs.load_attached_files", new=AsyncMock(return_value=[])),
+        patch(
+            "app.services.api_runs.AgentRegistryService.get_runnable_spec",
+            new=AsyncMock(return_value=None),
+        ),
     ):
         yield
 
@@ -103,6 +109,24 @@ async def test_the_same_key_for_a_different_request_is_refused(db: AsyncSession,
 
     with pytest.raises(AlreadyExistsError, match="different request"):
         await service.queue(ctx, agent_id, _ask("something else"), idempotency_key="order-7")
+
+
+async def test_a_run_of_an_agent_the_caller_may_not_run_is_refused_before_it_is_queued(
+    db: AsyncSession,
+) -> None:
+    """Codex P1 on #2248: refused by the worker, the job sat queued with its payload."""
+    ctx = await _person(db)
+    with (
+        patch(
+            "app.services.api_runs.AgentRegistryService.get_runnable_spec",
+            new=AsyncMock(side_effect=NotFoundError(message="Agent not found")),
+        ),
+        pytest.raises(NotFoundError),
+    ):
+        await ApiRunService(db).queue(ctx, uuid.uuid4(), _ask(), idempotency_key=None)
+
+    queued = await db.execute(select(BackgroundJob).where(BackgroundJob.kind == RUN_AGENT.kind))
+    assert queued.scalars().all() == []
 
 
 async def test_keys_are_per_organization(db: AsyncSession, stubbed) -> None:

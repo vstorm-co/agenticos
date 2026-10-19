@@ -148,7 +148,7 @@ async def test_a_worker_that_lost_its_lease_cannot_settle_the_next_holders_job(
             db, job_id, fence=first.attempts, error="late", retry_in=timedelta(0)
         )
         assert outcome is FailOutcome.LOST
-        assert await job_repo.release(db, job_id, fence=first.attempts) is False
+        assert await job_repo.release(db, job_id, fence=first.attempts) is None
     assert (await _status(sessions, job_id)).worker_id == "b"
 
     async with sessions() as db, db.begin():
@@ -271,7 +271,7 @@ async def test_a_job_stopped_under_a_shutdown_keeps_its_attempt_spent(
     assert claimed is not None
 
     async with sessions() as db, db.begin():
-        assert await job_repo.release(db, job_id, fence=claimed.attempts) is True
+        assert await job_repo.release(db, job_id, fence=claimed.attempts) == "dead"
     job = await _status(sessions, job_id)
     assert (job.status, job.attempts) == ("dead", 1)
     assert job.last_error == "the worker stopped while it ran (attempt 1 of 1)"
@@ -287,11 +287,74 @@ async def test_a_job_with_attempts_left_goes_back_after_a_shutdown(
     assert claimed is not None
 
     async with sessions() as db, db.begin():
-        assert await job_repo.release(db, job_id, fence=claimed.attempts) is True
+        assert await job_repo.release(db, job_id, fence=claimed.attempts) == "queued"
     job = await _status(sessions, job_id)
     assert (job.status, job.attempts, job.finished_at) == ("queued", 1, None)
     again = await _claim(sessions)
     assert again is not None and again.attempts == 2
+
+
+async def test_a_job_claimed_but_never_started_gets_its_attempt_back(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    job_id = await _queue(sessions, max_attempts=1)
+    claimed = await _claim(sessions)
+    assert claimed is not None
+
+    async with sessions() as db, db.begin():
+        assert await job_repo.unclaim(db, job_id, fence=claimed.attempts) is True
+        assert await job_repo.unclaim(db, job_id, fence=claimed.attempts) is False
+    job = await _status(sessions, job_id)
+    assert (job.status, job.attempts, job.started_at) == ("queued", 0, None)
+
+
+async def _running_with_a_newer_copy_queued(
+    sessions: async_sessionmaker[AsyncSession], *, max_attempts: int = 3
+) -> tuple[UUID, int]:
+    """A keyed job running while a newer copy waits under the same key."""
+    first = await _queue(sessions, dedupe_key="sync:9", max_attempts=max_attempts)
+    claimed = await _claim(sessions)
+    assert claimed is not None and claimed.id == first
+    await _queue(sessions, dedupe_key="sync:9")
+    return first, claimed.attempts
+
+
+async def test_a_failed_attempt_with_a_newer_copy_queued_is_withdrawn_not_requeued(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    """Codex on #2248: putting it back was a unique violation that wedged the source."""
+    job_id, fence = await _running_with_a_newer_copy_queued(sessions)
+
+    async with sessions() as db, db.begin():
+        outcome = await job_repo.fail(db, job_id, fence=fence, error="boom", retry_in=timedelta(0))
+
+    assert outcome is FailOutcome.SUPERSEDED
+    job = await _status(sessions, job_id)
+    assert job.status == "cancelled" and job.finished_at is not None
+
+
+async def test_a_shutdown_with_a_newer_copy_queued_withdraws_the_old_one(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    job_id, fence = await _running_with_a_newer_copy_queued(sessions)
+
+    async with sessions() as db, db.begin():
+        assert await job_repo.release(db, job_id, fence=fence) == "cancelled"
+
+
+async def test_a_lapsed_lease_with_a_newer_copy_queued_is_withdrawn_and_says_what_it_carried(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    first = await _queue(sessions, dedupe_key="sync:10")
+    claimed = await _claim(sessions, lease=EXPIRED)
+    assert claimed is not None
+    await _queue(sessions, dedupe_key="sync:10")
+
+    async with sessions() as db, db.begin():
+        rescued = await job_repo.rescue_expired(db, retry_in=timedelta(0))
+
+    (job,) = [r for r in rescued if r.id == first]
+    assert (job.status, job.ended, job.dead, job.payload) == ("cancelled", True, False, {})
 
 
 async def test_a_second_enqueue_with_a_queued_dedupe_key_is_dropped(

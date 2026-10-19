@@ -27,6 +27,7 @@ from typing import IO
 
 from pydantic import BaseModel, ConfigDict, JsonValue, ValidationError
 
+from app.worker.attempt import Attempt, running
 from app.worker.errors import describe
 from app.worker.registry import Handlers
 
@@ -40,6 +41,9 @@ class ChildRequest(BaseModel):
 
     kind: str
     payload: dict[str, JsonValue]
+    # Which attempt of the job this is, so a handler settles only on the last.
+    attempt: int | None = None
+    max_attempts: int | None = None
 
 
 class ChildReply(BaseModel):
@@ -70,8 +74,14 @@ async def run_one(handlers: Handlers, request: ChildRequest) -> ChildReply:
         return ChildReply(
             ok=False, error=f"no handler for the job kind {request.kind!r}", permanent=True
         )
+    attempt = (
+        None
+        if request.attempt is None or request.max_attempts is None
+        else Attempt(request.attempt, request.max_attempts)
+    )
     try:
-        result = await handler.execute(request.payload)
+        with running(attempt):
+            result = await handler.execute(request.payload)
     except ValidationError as exc:
         return ChildReply(ok=False, error=describe(exc), permanent=True)
     except Exception as exc:

@@ -20,9 +20,22 @@ from datetime import datetime, timedelta
 from uuid import UUID
 
 from pydantic import JsonValue
-from sqlalchemy import ColumnElement, String, case, cast, delete, func, select, text, tuple_, update
+from sqlalchemy import (
+    ColumnElement,
+    String,
+    case,
+    cast,
+    delete,
+    exists,
+    func,
+    select,
+    text,
+    tuple_,
+    update,
+)
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.db.models.background_job import JOB_STATUSES, BackgroundJob, JobStatus
 
@@ -53,6 +66,8 @@ class FailOutcome(enum.StrEnum):
 
     RETRYING = "retrying"
     DEAD = "dead"
+    SUPERSEDED = "superseded"
+    """Not queued again: a newer copy under the same dedupe key already is."""
     LOST = "lost"
     """The worker no longer held the job: its write matched nothing."""
 
@@ -63,7 +78,17 @@ class RescuedJob:
 
     id: UUID
     kind: str
-    dead: bool
+    status: JobStatus
+    payload: dict[str, JsonValue]
+
+    @property
+    def dead(self) -> bool:
+        return self.status == "dead"
+
+    @property
+    def ended(self) -> bool:
+        """Dead, or withdrawn for a newer copy: no attempt of it is coming."""
+        return self.status in ("dead", "cancelled")
 
 
 async def add(
@@ -238,7 +263,7 @@ async def fail(
             .values(
                 status=_after_attempt(),
                 run_after=func.now() + retry_in,
-                finished_at=_finished_if_dead(),
+                finished_at=_finished_unless_queued(),
                 lease_until=None,
                 worker_id=None,
                 last_error=error[:ERROR_LIMIT],
@@ -248,7 +273,9 @@ async def fail(
     ).scalar_one_or_none()
     if row is None:
         return FailOutcome.LOST
-    return FailOutcome.DEAD if row == "dead" else FailOutcome.RETRYING
+    return {"dead": FailOutcome.DEAD, "cancelled": FailOutcome.SUPERSEDED}.get(
+        row, FailOutcome.RETRYING
+    )
 
 
 async def bury(db: AsyncSession, job_id: UUID, *, fence: int, error: str) -> bool:
@@ -276,16 +303,12 @@ async def bury(db: AsyncSession, job_id: UUID, *, fence: int, error: str) -> boo
     return result.scalar_one_or_none() is not None
 
 
-async def release(db: AsyncSession, job_id: UUID, *, fence: int) -> bool:
-    """Put back a job its worker stopped under: queued again if it has attempts left, else dead.
+async def unclaim(db: AsyncSession, job_id: UUID, *, fence: int) -> bool:
+    """Put back a job claimed as its worker began to stop, before anything ran.
 
-    The attempt stays spent. A job cancelled by a shutdown has run for as long as
-    the drain allowed, and what it did - a model call paid for, a tool's side
-    effect - happened; handing the attempt back would have let even a
-    `max_attempts=1` agent run start again on the next worker. Fenced like every
-    other write, so a job already taken over stays taken.
+    Unlike `release`, the attempt is given back: nothing was started, so nothing
+    the job does has happened. Fenced like every other write.
     """
-    exhausted = BackgroundJob.attempts >= BackgroundJob.max_attempts
     result = await db.execute(
         update(BackgroundJob)
         .where(
@@ -294,8 +317,37 @@ async def release(db: AsyncSession, job_id: UUID, *, fence: int) -> bool:
             BackgroundJob.attempts == fence,
         )
         .values(
-            status=case((exhausted, "dead"), else_="queued"),
-            finished_at=case((exhausted, func.now()), else_=None),
+            status="queued",
+            attempts=BackgroundJob.attempts - 1,
+            lease_until=None,
+            worker_id=None,
+            started_at=None,
+        )
+        .returning(BackgroundJob.id)
+    )
+    return result.scalar_one_or_none() is not None
+
+
+async def release(db: AsyncSession, job_id: UUID, *, fence: int) -> JobStatus | None:
+    """Put back a job its worker stopped under: queued again if it has attempts left, else dead.
+
+    The attempt stays spent. A job cancelled by a shutdown has run for as long as
+    the drain allowed, and what it did - a model call paid for, a tool's side
+    effect - happened; handing the attempt back would have let even a
+    `max_attempts=1` agent run start again on the next worker. A job whose
+    newer copy is already queued is withdrawn instead (`cancelled`). Answers the
+    status it was left in; `None` when it was already taken over (fenced).
+    """
+    result = await db.execute(
+        update(BackgroundJob)
+        .where(
+            BackgroundJob.id == job_id,
+            BackgroundJob.status == "running",
+            BackgroundJob.attempts == fence,
+        )
+        .values(
+            status=_after_attempt(),
+            finished_at=_finished_unless_queued(),
             last_error=(
                 "the worker stopped while it ran (attempt "
                 + cast(BackgroundJob.attempts, String)
@@ -306,9 +358,9 @@ async def release(db: AsyncSession, job_id: UUID, *, fence: int) -> bool:
             lease_until=None,
             worker_id=None,
         )
-        .returning(BackgroundJob.id)
+        .returning(BackgroundJob.status)
     )
-    return result.scalar_one_or_none() is not None
+    return result.scalar_one_or_none()
 
 
 # Locked and skipped like the claim, so two rescuers sweeping at once never
@@ -318,8 +370,20 @@ async def release(db: AsyncSession, job_id: UUID, *, fence: int) -> bool:
 _RESCUE = text(
     """
     UPDATE background_jobs
-    SET status = CASE WHEN attempts >= max_attempts THEN 'dead' ELSE 'queued' END,
-        finished_at = CASE WHEN attempts >= max_attempts THEN now() ELSE NULL END,
+    SET status = CASE WHEN attempts >= max_attempts THEN 'dead'
+                      WHEN EXISTS (
+                          SELECT 1 FROM background_jobs newer
+                          WHERE newer.dedupe_key = background_jobs.dedupe_key
+                            AND newer.status = 'queued' AND newer.id <> background_jobs.id
+                      ) THEN 'cancelled'
+                      ELSE 'queued' END,
+        finished_at = CASE WHEN attempts >= max_attempts THEN now()
+                           WHEN EXISTS (
+                               SELECT 1 FROM background_jobs newer
+                               WHERE newer.dedupe_key = background_jobs.dedupe_key
+                                 AND newer.status = 'queued' AND newer.id <> background_jobs.id
+                           ) THEN now()
+                           ELSE NULL END,
         run_after = now() + make_interval(secs => :retry_seconds),
         last_error = 'worker lost: no heartbeat from ' || coalesce(worker_id, 'unknown worker')
             || ' since the lease ran out at ' || to_char(lease_until, 'YYYY-MM-DD HH24:MI:SS TZ')
@@ -334,7 +398,7 @@ _RESCUE = text(
         FOR UPDATE SKIP LOCKED
         LIMIT :limit
     )
-    RETURNING id, kind, status
+    RETURNING id, kind, status, payload
     """
 )
 
@@ -346,7 +410,9 @@ async def rescue_expired(
     rows = (
         await db.execute(_RESCUE, {"retry_seconds": retry_in.total_seconds(), "limit": limit})
     ).all()
-    return [RescuedJob(id=row.id, kind=row.kind, dead=row.status == "dead") for row in rows]
+    return [
+        RescuedJob(id=row.id, kind=row.kind, status=row.status, payload=row.payload) for row in rows
+    ]
 
 
 async def _active_with_key(db: AsyncSession, dedupe_key: str) -> bool:
@@ -524,10 +590,39 @@ async def _notify(db: AsyncSession, pool: str) -> None:
     )
 
 
+def _superseded() -> ColumnElement[bool]:
+    """A newer copy of this job is queued under its dedupe key.
+
+    The unique index allows one queued row per key, so putting this one back
+    would be a unique violation - which wedged the settle, then the rescue, and
+    with the running row holding the concurrency key, the source's whole queue
+    (Codex, #2248). The newer copy does the same work, so this one is withdrawn.
+    """
+    newer = aliased(BackgroundJob)
+    return (
+        exists()
+        .where(
+            newer.dedupe_key == BackgroundJob.dedupe_key,
+            newer.status == "queued",
+            newer.id != BackgroundJob.id,
+        )
+        .correlate(BackgroundJob)
+    )
+
+
 def _after_attempt() -> ColumnElement[str]:
-    """`dead` once the attempt just made was the last, `queued` otherwise."""
-    return case((BackgroundJob.attempts >= BackgroundJob.max_attempts, "dead"), else_="queued")
+    """`dead` once the attempt just made was the last, `cancelled` when a newer copy
+    is queued, `queued` otherwise."""
+    return case(
+        (BackgroundJob.attempts >= BackgroundJob.max_attempts, "dead"),
+        (_superseded(), "cancelled"),
+        else_="queued",
+    )
 
 
-def _finished_if_dead() -> ColumnElement[datetime | None]:
-    return case((BackgroundJob.attempts >= BackgroundJob.max_attempts, func.now()), else_=None)
+def _finished_unless_queued() -> ColumnElement[datetime | None]:
+    return case(
+        (BackgroundJob.attempts >= BackgroundJob.max_attempts, func.now()),
+        (_superseded(), func.now()),
+        else_=None,
+    )

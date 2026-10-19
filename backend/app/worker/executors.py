@@ -24,6 +24,7 @@ from typing import Protocol
 import psutil
 from pydantic import JsonValue, ValidationError
 
+from app.worker.attempt import Attempt
 from app.worker.child import READY, ChildReply, ChildRequest, run_one
 from app.worker.registry import Handlers
 
@@ -53,7 +54,12 @@ class Slot(Protocol):
     """Room for one job, held from before the claim until the job is settled."""
 
     async def run(
-        self, kind: str, payload: dict[str, JsonValue], *, timeout: timedelta
+        self,
+        kind: str,
+        payload: dict[str, JsonValue],
+        *,
+        timeout: timedelta,
+        attempt: Attempt | None = None,
     ) -> Outcome: ...
 
 
@@ -71,9 +77,21 @@ class Executor(Protocol):
     async def close(self) -> None: ...
 
 
-async def run_handler(handlers: Handlers, kind: str, payload: dict[str, JsonValue]) -> Outcome:
+def _request(kind: str, payload: dict[str, JsonValue], attempt: Attempt | None) -> ChildRequest:
+    if attempt is None:
+        return ChildRequest(kind=kind, payload=payload)
+    return ChildRequest(kind=kind, payload=payload, attempt=attempt.number, max_attempts=attempt.of)
+
+
+async def run_handler(
+    handlers: Handlers,
+    kind: str,
+    payload: dict[str, JsonValue],
+    *,
+    attempt: Attempt | None = None,
+) -> Outcome:
     """Run one job in this process and say how it ended - the verdict a child would give."""
-    return _outcome(await run_one(handlers, ChildRequest(kind=kind, payload=payload)))
+    return _outcome(await run_one(handlers, _request(kind, payload, attempt)))
 
 
 def _outcome(reply: ChildReply) -> Outcome:
@@ -86,10 +104,17 @@ def _outcome(reply: ChildReply) -> Outcome:
 class _InProcessSlot:
     handlers: Handlers
 
-    async def run(self, kind: str, payload: dict[str, JsonValue], *, timeout: timedelta) -> Outcome:
+    async def run(
+        self,
+        kind: str,
+        payload: dict[str, JsonValue],
+        *,
+        timeout: timedelta,
+        attempt: Attempt | None = None,
+    ) -> Outcome:
         try:
             async with asyncio.timeout(timeout.total_seconds()):
-                return await run_handler(self.handlers, kind, payload)
+                return await run_handler(self.handlers, kind, payload, attempt=attempt)
         except TimeoutError:
             return Failed(f"timed out after {timeout}; the job was cancelled")
 
@@ -205,13 +230,19 @@ class ChildPool:
         self._retire(child)
 
     async def run_on(
-        self, child: _Child, kind: str, payload: dict[str, JsonValue], *, timeout: timedelta
+        self,
+        child: _Child,
+        kind: str,
+        payload: dict[str, JsonValue],
+        *,
+        timeout: timedelta,
+        attempt: Attempt | None = None,
     ) -> Outcome:
         """Send one job to `child` and watch it until it answers, dies, outgrows its limit or runs out of time."""
         process = child.process
         assert process.stdin is not None
         assert process.stdout is not None
-        request = ChildRequest(kind=kind, payload=payload).model_dump_json()
+        request = _request(kind, payload, attempt).model_dump_json()
         loop = asyncio.get_running_loop()
         deadline = loop.time() + timeout.total_seconds()
         reading = asyncio.create_task(process.stdout.readline())
@@ -335,5 +366,12 @@ class _ChildSlot:
     pool: ChildPool
     child: _Child
 
-    async def run(self, kind: str, payload: dict[str, JsonValue], *, timeout: timedelta) -> Outcome:
-        return await self.pool.run_on(self.child, kind, payload, timeout=timeout)
+    async def run(
+        self,
+        kind: str,
+        payload: dict[str, JsonValue],
+        *,
+        timeout: timedelta,
+        attempt: Attempt | None = None,
+    ) -> Outcome:
+        return await self.pool.run_on(self.child, kind, payload, timeout=timeout, attempt=attempt)

@@ -6,9 +6,12 @@ never per job.
 """
 
 from collections.abc import Awaitable, Callable
+from functools import cache
+
+from pydantic import JsonValue
 
 from app.worker import jobs
-from app.worker.jobs import Tick
+from app.worker.jobs import Payload, Task, Tick
 from app.worker.registry import Handler, Handlers, by_kind
 
 
@@ -86,3 +89,39 @@ def production() -> Handlers:
             Handler(jobs.MONTHLY_USAGE_REPORT, report_tasks.monthly_usage_report),
         ]
     )
+
+
+Settler = Callable[[dict[str, JsonValue], str], Awaitable[None]]
+
+
+def _settler[P: Payload](task: Task[P], settle: Callable[[P, str], Awaitable[None]]) -> Settler:
+    async def run(payload: dict[str, JsonValue], why: str) -> None:
+        await settle(task.load(payload), why)
+
+    return run
+
+
+@cache
+def _settlers() -> dict[str, Settler]:
+    from app.worker.tasks import rag_tasks
+
+    return {
+        jobs.INGEST_DOCUMENT.kind: _settler(jobs.INGEST_DOCUMENT, rag_tasks.settle_lost_ingest),
+        jobs.SYNC_COLLECTION.kind: _settler(
+            jobs.SYNC_COLLECTION, rag_tasks.settle_lost_collection_sync
+        ),
+        jobs.SYNC_SOURCE.kind: _settler(jobs.SYNC_SOURCE, rag_tasks.settle_lost_source_sync),
+    }
+
+
+async def settle_ended(kind: str, payload: dict[str, JsonValue], why: str) -> None:
+    """Close what a job left outside the queue, now that no attempt of it is coming.
+
+    The ingestion kinds leave a document `processing` or a sync log `running`
+    when their process dies - the handler never reaches its own cleanup - and
+    nothing else would ever finish them (Codex, #2248). Every other kind leaves
+    nothing behind.
+    """
+    settle = _settlers().get(kind)
+    if settle is not None:
+        await settle(payload, why)
