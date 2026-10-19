@@ -1,12 +1,10 @@
 import { getTranslations } from "next-intl/server";
-import { useTranslations } from "next-intl";
 import type { Metadata } from "next";
 import { Construction } from "lucide-react";
 
 import { AuthGuard } from "@/components/layout/auth-guard";
 import { EmptyState } from "@/components/states";
 import type { Locale } from "@/i18n";
-import { useBranding } from "@/components/branding/branding-provider";
 import { ROUTES } from "@/lib/constants";
 import { readBranding } from "@/lib/branding-server";
 import { pageMetadata } from "@/lib/seo";
@@ -29,9 +27,11 @@ export async function generateMetadata({
   });
 }
 
-export default function OnboardingPage() {
-  const t = useTranslations("pages.root");
-  const { appName } = useBranding();
+// A server component, so the brand comes from `readBranding` - `useBranding` is a
+// client hook, and calling it here failed every render with a 500.
+export default async function OnboardingPage() {
+  const t = await getTranslations("pages.root");
+  const { appName } = await readBranding();
   return (
     <AuthGuard>
       <div className="bg-background text-foreground flex min-h-screen flex-col">

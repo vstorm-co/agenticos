@@ -140,7 +140,8 @@ Two things are versioned separately from this file and worth knowing about:
   feed's echo of the same change - and each time it refetched every page it
   held: ten `GET /conversations`, now four. Invalidations within 250 ms are sent
   once. A page load also reads `/auth/me` once instead of twice: the auth
-  guard's answer now counts as the page's session check.
+  guard and the session check share one request, which on a cold load both
+  started before the stored session said anybody was signed in.
 - **The Documents page asks each sandbox host once, not once per workspace.**
   It built a client and sent a `tree` request for every workspace it showed -
   eighteen connections and requests for one page on the production host, which
@@ -181,6 +182,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **`/onboarding` renders instead of failing with a 500.** The page called the
+  client-side branding hook from a server component.
+- **Signing out cannot be undone by a session check still on its way.** A
+  `/auth/me` that set out before the sign-out and answered after it signed the
+  person back in.
 - **The chat stops saying "Preparing the sandbox" when its socket drops** (#2251).
   The notice waited for a `sandbox_ready` the lost socket could never bring, and
   stayed through later turns on the open sandbox, which send no preparation
