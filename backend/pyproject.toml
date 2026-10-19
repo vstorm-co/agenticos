@@ -23,7 +23,7 @@ dependencies = [
     "fastapi>=0.143.0",
     "uvicorn[standard]>=0.54.0",
     "pydantic[email]>=2.13.5",
-    "pydantic-settings>=2.15.0",
+    "pydantic-settings>=2.16.0",
     "python-multipart>=0.0.20",
     "logfire[fastapi,asyncpg,redis,httpx]>=5.1.1",
     "sqlalchemy[asyncio]>=2.1.4",
@@ -37,7 +37,7 @@ dependencies = [
     "greenlet>=3.5.5",
     "pyjwt>=2.15.1",
     "bcrypt>=4.0.0",
-    "authlib>=1.8.0",
+    "authlib>=1.9.1",
     # Imported at module scope in `app/services/rag_document.py`, and until #155
     # declared only in the `dev` group - so `uv sync --no-dev`, which is what the
     # image builds with, was relying on Starlette to pull it in.
@@ -86,7 +86,7 @@ dependencies = [
     # Pydantic AI is: this is where those are maintained, and pinning would
     # freeze the detectors and the model registry they read. 0.52.0 is the
     # floor: the first release on the slim that brought workspaces.
-    "pydantic-ai-harness>=0.55.0",
+    "pydantic-ai-harness>=0.57.0",
     "websockets>=15.0",
     # Required, not optional: hybrid retrieval fuses BM25 with the vector search
     # and a deployment cannot choose otherwise. It is also the only reason
@@ -100,10 +100,10 @@ dependencies = [
     "python-docx>=1.1.0",
     "openpyxl>=3.1.0",
     "llama-cloud>=2.18.0",
-    "liteparse>=2.15.1",
+    "liteparse>=2.16.0",
     "google-api-python-client>=2.201.0",
-    "google-auth>=2.59.1",
-    "boto3>=1.43.111",
+    "google-auth>=2.62.0",
+    "boto3>=1.43.114",
     # Two HTTP libraries, deliberately. `httpx` is what fourteen modules build
     # and send their own requests with - the portals, the channels, the model
     # catalog, the web-research search - and `httpx2` is what the MCP SDK is
@@ -174,7 +174,7 @@ dependencies = [
     # websockets and websocket-client for one transport's HTTP client. And not
     # `slack-sdk[socket-mode]`, which does not exist - the only extra is
     # `optional`, so the advice in that ImportError's message was unfollowable.
-    "aiohttp>=3.14.4",
+    "aiohttp>=3.14.5",
     # Cron schedules: the next fire after a given instant for a crontab
     # expression. Interval schedules need no library, but "daily/weekly at HH:MM"
     # and any raw crontab do - and getting DST and month lengths right by hand is
@@ -241,9 +241,9 @@ dev = [
     "anyio[trio]>=4.15.1",
     "pytest-cov>=6.1.0",
     "httpx>=0.28.0",
-    "ruff>=0.17.0",
-    "ty>=0.0.86",
-    "pre-commit>=4.6.2",
+    "ruff>=0.17.1",
+    "ty>=0.0.88",
+    "pre-commit>=4.7.0",
     "pytest-xdist>=3.8.0",
     # Shuffles the suite every run and prints the seed, so an order-dependent
     # test fails here rather than months later in an unrelated pull request.
@@ -272,7 +272,7 @@ docs = [
     "mkdocs>=1.6.0",
     "mkdocs-glightbox>=0.5.2",
     "mkdocs-material>=9.5.0",
-    "mkdocstrings[python]>=1.0.6",
+    "mkdocstrings[python]>=1.0.7",
     # One build per locale from `<page>.<locale>.md` files sitting beside the
     # English source, so `/install/` keeps its URL and `/pl/install/` is added
     # rather than everything moving under `/en/`.
