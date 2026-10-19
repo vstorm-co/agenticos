@@ -5,7 +5,7 @@ import { Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Button, Card, CardContent } from "@/components/ui";
-import { useOrganizations } from "@/hooks/use-organizations";
+import { useAiAssistance } from "@/hooks/use-organizations";
 import { CASE_ORIGINS } from "@/types/case-generation";
 import { AiAssistanceNotice } from "./ai-assistance-notice";
 import { GenerateCasesDialog } from "./generate-cases-dialog";
@@ -23,7 +23,7 @@ import { ProposedCases } from "./proposed-cases";
 export function GeneratePanel({ datasetId }: { datasetId: string }) {
   const t = useTranslations("datasets");
   const [generating, setGenerating] = useState(false);
-  const aiOn = useOrganizations().activeOrg?.ai_assistance_enabled === true;
+  const aiOn = useAiAssistance().enabled === true;
 
   return (
     <div className="space-y-4">

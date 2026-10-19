@@ -87,6 +87,7 @@ function answer(dataset: typeof DATASET) {
     if (path === "/agents") return Promise.resolve({ items: [], total: 0 });
     if (path === "/orgs")
       return Promise.resolve({ items: orgs.current, total: orgs.current.length });
+    if (path === "/orgs/o1") return Promise.resolve(orgs.current[0] ?? { id: "o1" });
     return Promise.resolve({ items: [], total: 0, version: 0 });
   });
 }
