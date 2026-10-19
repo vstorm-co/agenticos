@@ -5561,6 +5561,7 @@ class TestDiscoveredScopes:
         *,
         resource_scopes: list[str] | None,
         issuer_scopes: list[str] | None,
+        challenge_scope: str | None = None,
     ) -> None:
         resource: dict[str, object] = {
             "resource": cls._SERVER,
@@ -5578,6 +5579,10 @@ class TestDiscoveredScopes:
             issuer["scopes_supported"] = issuer_scopes
 
         def handler(request: httpx2.Request) -> httpx2.Response:
+            if request.url.path == "/mcp" and challenge_scope is not None:
+                return httpx2.Response(
+                    401, headers={"WWW-Authenticate": f'Bearer scope="{challenge_scope}"'}
+                )
             if request.url.path == "/.well-known/oauth-protected-resource/mcp":
                 return httpx2.Response(200, json=resource)
             if request.url.path == "/.well-known/oauth-authorization-server":
@@ -5634,3 +5639,16 @@ class TestDiscoveredScopes:
         server = await mcp_oauth.discover(self._SERVER)
 
         assert server.scope is None
+
+    @pytest.mark.anyio
+    async def test_the_scope_the_401_names_wins_over_the_metadata(self, monkeypatch):
+        self._serving(
+            monkeypatch,
+            resource_scopes=["read", "write"],
+            issuer_scopes=["read", "write", "offline_access"],
+            challenge_scope="read",
+        )
+
+        server = await mcp_oauth.discover(self._SERVER)
+
+        assert server.scope == "read offline_access"

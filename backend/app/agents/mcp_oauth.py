@@ -39,12 +39,19 @@ from mcp.client.auth.oauth2 import (
     create_client_registration_request,
     create_oauth_metadata_request,
     extract_resource_metadata_from_www_auth,
+    extract_scope_from_www_auth,
+    get_client_metadata_scopes,
     handle_auth_metadata_response,
     handle_protected_resource_response,
     handle_registration_response,
     resource_url_from_server_url,
 )
-from mcp.shared.auth import OAuthClientMetadata, OAuthMetadata, OAuthToken
+from mcp.shared.auth import (
+    OAuthClientMetadata,
+    OAuthMetadata,
+    OAuthToken,
+    ProtectedResourceMetadata,
+)
 from pydantic import AnyUrl, BaseModel, ValidationError
 
 from app.agents.mcp import CONNECT_TIMEOUT_SECS, validate_mcp_url
@@ -58,6 +65,7 @@ logger = logging.getLogger(__name__)
 TOKEN_EXPIRY_SKEW_SECS = 60.0
 FLOW_TTL_SECS = 600.0
 _MAX_REDIRECTS = 5
+_GRANT_TYPES = ("authorization_code", "refresh_token")
 _USER_AGENT = f"{settings.PROJECT_NAME} MCP client"
 
 _HTTP_TIMEOUT = httpx2.Timeout(CONNECT_TIMEOUT_SECS, connect=CONNECT_TIMEOUT_SECS)
@@ -249,38 +257,11 @@ def client_metadata(redirect_uri: str, scope: str | None) -> OAuthClientMetadata
     return OAuthClientMetadata(
         client_name=f"{settings.PROJECT_NAME} assistant",
         redirect_uris=[AnyUrl(redirect_uri)],
-        grant_types=["authorization_code", "refresh_token"],
+        grant_types=list(_GRANT_TYPES),
         response_types=["code"],
         token_endpoint_auth_method="client_secret_post",
         scope=scope,
     )
-
-
-def _requested_scopes(
-    resource_scopes: list[str] | None, server_scopes: list[str] | None
-) -> list[str] | None:
-    """The scopes the consent asks for: the MCP server's own, then its issuer's.
-
-    The protected-resource metadata names what *this* server accepts, and the
-    MCP authorization spec makes it the source. The authorization server's
-    `scopes_supported` describes the issuer as a whole: Microsoft Entra lists
-    `openid profile email offline_access`, which are Graph scopes, so asking for
-    them beside an RFC 8707 `resource` naming Work IQ was refused at the token
-    endpoint with AADSTS9010010.
-
-    `offline_access` is added when the issuer offers it and the resource's list
-    leaves it out, since Entra issues no refresh token without it and the
-    connection would stop working when the first access token expires.
-    """
-    if not resource_scopes:
-        return server_scopes
-    if (
-        server_scopes
-        and "offline_access" in server_scopes
-        and "offline_access" not in resource_scopes
-    ):
-        return [*resource_scopes, "offline_access"]
-    return resource_scopes
 
 
 async def discover(server_url: str) -> DiscoveredServer:
@@ -298,6 +279,7 @@ async def discover(server_url: str) -> DiscoveredServer:
     async with _client() as client:
         # 1. Probe the server unauthenticated to surface the WWW-Authenticate hint.
         www_auth_url: str | None = None
+        www_auth_scope: str | None = None
         try:
             probe = await _send(
                 client,
@@ -318,13 +300,14 @@ async def discover(server_url: str) -> DiscoveredServer:
                 ),
             )
             www_auth_url = extract_resource_metadata_from_www_auth(probe)
+            www_auth_scope = extract_scope_from_www_auth(probe)
         except _DISCOVERY_FAILURES:
             # Probe failed or was blocked - fall back to well-known discovery below.
             pass
 
         # 2. Protected-resource metadata → the authorization server URL.
         auth_server_url: str | None = None
-        prm_scopes: list[str] | None = None
+        resource_metadata: ProtectedResourceMetadata | None = None
         for url in build_protected_resource_metadata_discovery_urls(www_auth_url, server_url):
             try:
                 prm = await handle_protected_resource_response(
@@ -334,7 +317,7 @@ async def discover(server_url: str) -> DiscoveredServer:
                 continue
             if prm and prm.authorization_servers:
                 auth_server_url = str(prm.authorization_servers[0])
-                prm_scopes = prm.scopes_supported
+                resource_metadata = prm
                 break
 
         # 3. Authorization-server metadata (endpoints, PKCE support). Both the
@@ -373,7 +356,15 @@ async def discover(server_url: str) -> DiscoveredServer:
             )
             raise OAuthError("This server pointed the OAuth flow at a blocked address.") from exc
 
-        scope = _requested_scopes(prm_scopes, asm.scopes_supported)
+        # The spec's order: the 401's `scope`, then the protected-resource
+        # metadata, and the issuer's list only when the server names none. An
+        # issuer's list describes the issuer: Entra's is Graph's OpenID scopes,
+        # which its token endpoint refuses beside a `resource` naming Work IQ.
+        # `offline_access` is appended when the issuer offers it, or Entra
+        # issues no refresh token.
+        scope = get_client_metadata_scopes(
+            www_auth_scope, resource_metadata, asm, list(_GRANT_TYPES)
+        )
         return DiscoveredServer(
             authorization_endpoint=str(asm.authorization_endpoint),
             token_endpoint=str(asm.token_endpoint),
@@ -381,7 +372,7 @@ async def discover(server_url: str) -> DiscoveredServer:
                 str(asm.registration_endpoint) if asm.registration_endpoint else None
             ),
             resource=resource_url_from_server_url(server_url),
-            scope=" ".join(scope) if scope else None,
+            scope=scope,
             metadata=asm,
         )
 
