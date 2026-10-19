@@ -256,6 +256,33 @@ def client_metadata(redirect_uri: str, scope: str | None) -> OAuthClientMetadata
     )
 
 
+def _requested_scopes(
+    resource_scopes: list[str] | None, server_scopes: list[str] | None
+) -> list[str] | None:
+    """The scopes the consent asks for: the MCP server's own, then its issuer's.
+
+    The protected-resource metadata names what *this* server accepts, and the
+    MCP authorization spec makes it the source. The authorization server's
+    `scopes_supported` describes the issuer as a whole: Microsoft Entra lists
+    `openid profile email offline_access`, which are Graph scopes, so asking for
+    them beside an RFC 8707 `resource` naming Work IQ was refused at the token
+    endpoint with AADSTS9010010.
+
+    `offline_access` is added when the issuer offers it and the resource's list
+    leaves it out, since Entra issues no refresh token without it and the
+    connection would stop working when the first access token expires.
+    """
+    if not resource_scopes:
+        return server_scopes
+    if (
+        server_scopes
+        and "offline_access" in server_scopes
+        and "offline_access" not in resource_scopes
+    ):
+        return [*resource_scopes, "offline_access"]
+    return resource_scopes
+
+
 async def discover(server_url: str) -> DiscoveredServer:
     """Resolve the authorization server and its metadata for *server_url*.
 
@@ -346,7 +373,7 @@ async def discover(server_url: str) -> DiscoveredServer:
             )
             raise OAuthError("This server pointed the OAuth flow at a blocked address.") from exc
 
-        scope = asm.scopes_supported or prm_scopes
+        scope = _requested_scopes(prm_scopes, asm.scopes_supported)
         return DiscoveredServer(
             authorization_endpoint=str(asm.authorization_endpoint),
             token_endpoint=str(asm.token_endpoint),

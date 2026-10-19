@@ -17,6 +17,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **Microsoft Work IQ and the other Entra-backed MCP servers connect.** The
+  consent asked for the scopes the sign-in server listed instead of those the
+  MCP server names for itself. Entra lists Graph's `openid profile email
+  offline_access`, and its token endpoint refused them beside a `resource`
+  naming Work IQ (AADSTS9010010), after the person had already consented. The
+  server's own scopes now come first, with `offline_access` added when the
+  sign-in server offers it, so the connection gets a refresh token.
 ## [1.7.0] - 2026-10-19
 
 ### Changed

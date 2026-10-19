@@ -5539,3 +5539,98 @@ class TestCompletingGooglesFlow:
 
         with pytest.raises(mcp_oauth.OAuthError):
             await _complete_google_flow(_base_payload(provider="google"), "code")
+
+
+class TestDiscoveredScopes:
+    """The consent asks for the scopes the MCP server names for itself.
+
+    Shaped on Microsoft Work IQ: its protected-resource metadata names one
+    scope on its own API, and its issuer, Entra, lists the OpenID scopes of
+    Graph. Asking for those beside a `resource` naming Work IQ is what Entra
+    refused with AADSTS9010010 at the token endpoint, after the person had
+    already consented.
+    """
+
+    _SERVER = "https://93.184.216.34/mcp"
+    _WORK_IQ_SCOPE = "fdcc1f02-fc51-4226-8753-f668596af7f7/WorkIQAgent.Ask"
+
+    @classmethod
+    def _serving(
+        cls,
+        monkeypatch,
+        *,
+        resource_scopes: list[str] | None,
+        issuer_scopes: list[str] | None,
+    ) -> None:
+        resource: dict[str, object] = {
+            "resource": cls._SERVER,
+            "authorization_servers": ["https://93.184.216.35"],
+        }
+        if resource_scopes is not None:
+            resource["scopes_supported"] = resource_scopes
+        issuer: dict[str, object] = {
+            "issuer": "https://93.184.216.35",
+            "authorization_endpoint": "https://93.184.216.35/authorize",
+            "token_endpoint": "https://93.184.216.35/token",
+            "response_types_supported": ["code"],
+        }
+        if issuer_scopes is not None:
+            issuer["scopes_supported"] = issuer_scopes
+
+        def handler(request: httpx2.Request) -> httpx2.Response:
+            if request.url.path == "/.well-known/oauth-protected-resource/mcp":
+                return httpx2.Response(200, json=resource)
+            if request.url.path == "/.well-known/oauth-authorization-server":
+                return httpx2.Response(200, json=issuer)
+            return httpx2.Response(404, json={})
+
+        real = mcp_oauth._client
+        monkeypatch.setattr(mcp_oauth, "_client", lambda: real(httpx2.MockTransport(handler)))
+
+    @pytest.mark.anyio
+    async def test_the_servers_own_scope_wins_over_the_issuers_and_keeps_refresh(self, monkeypatch):
+        self._serving(
+            monkeypatch,
+            resource_scopes=[self._WORK_IQ_SCOPE],
+            issuer_scopes=["openid", "profile", "email", "offline_access"],
+        )
+
+        server = await mcp_oauth.discover(self._SERVER)
+
+        assert server.scope == f"{self._WORK_IQ_SCOPE} offline_access"
+
+    @pytest.mark.anyio
+    async def test_offline_access_is_not_added_when_the_issuer_does_not_offer_it(self, monkeypatch):
+        self._serving(monkeypatch, resource_scopes=["read", "write"], issuer_scopes=["admin"])
+
+        server = await mcp_oauth.discover(self._SERVER)
+
+        assert server.scope == "read write"
+
+    @pytest.mark.anyio
+    async def test_offline_access_named_by_the_server_is_not_asked_for_twice(self, monkeypatch):
+        self._serving(
+            monkeypatch,
+            resource_scopes=["read", "offline_access"],
+            issuer_scopes=["offline_access"],
+        )
+
+        server = await mcp_oauth.discover(self._SERVER)
+
+        assert server.scope == "read offline_access"
+
+    @pytest.mark.anyio
+    async def test_the_issuers_scopes_stand_in_when_the_server_names_none(self, monkeypatch):
+        self._serving(monkeypatch, resource_scopes=None, issuer_scopes=["read", "write"])
+
+        server = await mcp_oauth.discover(self._SERVER)
+
+        assert server.scope == "read write"
+
+    @pytest.mark.anyio
+    async def test_no_scope_is_asked_for_when_neither_names_one(self, monkeypatch):
+        self._serving(monkeypatch, resource_scopes=None, issuer_scopes=None)
+
+        server = await mcp_oauth.discover(self._SERVER)
+
+        assert server.scope is None
