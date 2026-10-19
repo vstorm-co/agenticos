@@ -49,6 +49,10 @@ flowchart LR
 Rolling back is the same move backwards: repoint `production` at the version
 that worked. The old version is still there, still readable, still runnable.
 
+An [eval suite](evals.md#suites) set to run on promotion checks each version
+promoted onto its environment against the one it replaced, and tells its owner
+when the result fails. It reports; it does not stop the promotion.
+
 ## `tracks_latest`, and why it is off
 
 An environment with **tracks latest** on is repointed by every publish. That is

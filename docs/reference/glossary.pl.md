@@ -1,5 +1,5 @@
 ---
-source_sha: "c1a088854770"
+source_sha: "e108fd4829ba"
 ---
 
 # Słownik { #glossary }
@@ -34,6 +34,7 @@ skrypt napisany pod nie nie przestał działać po zmianie nazwy.
 | Czat | Rozmowa z agentem w przeglądarce | `conversation` |
 | Kanał | Slack, Telegram albo Mattermost, gdzie ludzie piszą do agenta | `channel_bot` |
 | Rutyna | Agent działający sam, według harmonogramu albo zdarzenia | `trigger` |
+| Suita evali | Dataset, na którym sprawdzany jest agent, uruchamiany według harmonogramu, po publikacji albo promocji, albo po zmianie | `eval_suite` |
 | Run | Jedna odpowiedź agenta, z jej kosztem i krokami | `agent_run` |
 | Środowisko | Nazwany etap, np. produkcja, wskazujący jedną wersję | `environment` |
 | Serwer MCP | Zewnętrzny serwer narzędzi, z którego korzystają agenci, podłączony raz | `mcp_connection` |

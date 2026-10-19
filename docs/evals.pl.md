@@ -1,5 +1,5 @@
 ---
-source_sha: "4950f10e6c98"
+source_sha: "236f1dc11eec"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -367,6 +367,80 @@ zaliczeń, koszt i latencję obok pozostałych. Z baseline'em w tym samym runie
 baseline działa na pierwszym podanym modelu, a każde ramię jest z nim
 porównywane.
 
+## Suity { #suites }
+
+**Suita** to eval run, o którego uruchomieniu nikt nie musi pamiętać. Wskazuje
+agenta, dataset, środowisko, którego wersję sprawdza, i próg, który musi
+spełnić każdy wynik, a potem działa sama. Karta **Suity** otwiera zakładkę
+Evale agenta: dataset każdej suity, kiedy się uruchamia i jak ostatnio
+wypadła. Po otwarciu suita pokazuje każdy wynik, powód, dla którego nie
+przeszedł, przypadki, które się zepsuły, i link do eval runa za nim; strona
+tego runa podaje suitę, która go uruchomiła.
+
+### Kiedy suita się uruchamia { #when-a-suite-runs }
+
+Dowolne połączenie:
+
+- **Według harmonogramu** - wyrażenie cron czytane na zegarze strefy czasowej,
+  więc `0 6 * * *` w `Europe/Warsaw` to szósta w Warszawie po obu stronach
+  zmiany czasu. Sprawdza wersję serwowaną przez swoje środowisko - wersja
+  produkcyjna sprawdzana codziennie wyłapuje zmiany modelu u providera i
+  zmiany w bazie wiedzy. Uruchomienie pominięte, gdy worker nie działał,
+  odbywa się raz.
+- **Po publikacji** - każda nowa wersja, z poprzednią wersją uruchomioną obok
+  w tym samym eval runie.
+- **Po promocji** - wersja wypromowana na środowisko suity (domyślne, gdy
+  suita żadnego nie wskazuje), porównana z wersją, którą zastąpiła.
+- **Po zmianie zależności** - edycja skilla, z którego korzysta sprawdzana
+  wersja, albo dodanie, ponowne przetworzenie lub usunięcie dokumentu w bazie
+  wiedzy, którą przeszukuje. Specjaliści zdefiniowani w wersji liczą się jako
+  ta wersja. Seria zmian to jeden run, należny
+  `EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS` po pierwszej. Profilu modelu nie da
+  się zmienić w miejscu - wskazanie agentowi innego to publikacja - a zmianę
+  modelu po stronie providera wyłapuje harmonogram.
+- **Uruchom teraz** - ręcznie, jako osoba, która to kliknie.
+
+Suita czekająca na sprawdzenie wersji wchłania następny trigger dla tej samej
+wersji, więc publikacja, a po niej promocja tej wersji, to jeden run. Suita
+prowadzi jeden eval run naraz; zmiana, która przyjdzie w trakcie, czeka na
+następny. Wstrzymana suita nie uruchamia się ani z żadnego triggera, ani
+ręcznie.
+
+### Co musi spełnić wynik { #what-a-result-must-meet }
+
+Wynik **nie przechodzi**, gdy więcej przypadków, niż suita dopuszcza, psuje
+się powtarzalnie względem baseline'u - domyślnie żaden, więc jedna
+potwierdzona regresja go oblewa - albo gdy odsetek zaliczonych, liczony dla
+każdego przypadku według większości prób, spada poniżej minimum suity.
+Kierunek z testu McNemara jest pokazywany obok wyniku i nigdy o nim nie
+decyduje. Dwa opcjonalne limity sprawdzają wydajność: wzrost kosztu na
+zaliczony przypadek i opóźnienia p95 względem baseline'u; puste niczego nie
+sprawdzają.
+
+Wynik, którego porównanie jest
+[nieważne](#a-different-judge-invalidates-the-comparison), jest **bez
+rozstrzygnięcia**, nigdy zaliczony. Wynik **nie został uruchomiony**, gdy
+kosztowałby więcej, niż zostało w budżecie albo niż własny limit suity, gdy
+ocenić go mógłby tylko sędzia, a wsparcie AI jest wyłączone, albo gdy nie ma
+opublikowanej wersji do sprawdzenia. Runy z harmonogramu i po zmianie
+zależności porównuje się z ostatnim runem suity na tej samej wersji, więc
+mierzą dryf; publikacja i promocja uruchamiają baseline w tym samym runie.
+
+### Jako kto działa i kto dostaje wiadomość { #who-it-runs-as-and-who-is-told }
+
+Suita działa jako osoba, która ostatnio ją zapisała - jej **właściciel** - z
+uprawnieniami, jakie ta osoba ma w chwili startu runa. Nikt nie patrzy, jak
+startuje run z harmonogramu, więc zapisanie suity to zgoda na jej koszt, a
+formularz najpierw pokazuje cenę jednego runa i miesiąca harmonogramu. Ktoś
+inny, kto zmieni suitę, przejmuje ją. Suita, której właściciel opuści
+organizację albo nie może jej już uruchomić, zostaje wstrzymana z podanym
+powodem.
+
+Właściciel dostaje wiadomość, gdy wynik nie przechodzi albo się nie
+uruchamia - raz na serię takich wyników na danej wersji, z nazwami
+przypadków, które się zepsuły - w centrum powiadomień i mailem, jeśli go
+włączył. Slack nie jest jeszcze kanałem powiadomień.
+
 ## Ustawienia { #settings }
 
 | Ustawienie | Domyślnie | O czym decyduje |
@@ -384,6 +458,7 @@ porównywane.
 | `EVAL_ABANDONED_AFTER_MINUTES` | `30` | Jak długo działający run może stać przy milczącym workerze, zanim sweep zakończy go błędem |
 | `EVAL_HEARTBEAT_SECONDS` | `60` | Jak często pracujący run daje znać, że żyje |
 | `EVAL_QUEUED_ABANDONED_AFTER_HOURS` | `24` | Jak długo run może czekać na workera, zanim sweep zakończy go błędem |
+| `EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS` | `600` | Jak długo suita czeka po zmianie skilla albo bazy wiedzy, żeby seria zmian była jednym runem |
 
 ## Dostęp { #access }
 
@@ -397,6 +472,12 @@ dataset - run na datasecie, którego czytający nie może otworzyć, nie jest
 wyświetlany, a prośba o niego po id odpowiada `404`, tak jak run innej
 organizacji. Runy datasetu wymagają też `datasets:view` na nim i wymieniają
 tylko agentów, których czytający może widzieć.
+
+Utworzenie, zmiana, wstrzymanie albo uruchomienie suity wymaga `agents:edit` na
+agencie, `datasets:run` na datasecie i `runs:view`, a do tego osoby zalogowanej
+jako ona sama: suita wydaje jako ta, kto ją zapisze, więc nie może tego zrobić
+ani klucz API, ani administrator działający w czyimś imieniu. Odczyt suit
+agenta wymaga `runs:view` i dostępu do agenta.
 
 ## Co run zachowuje { #what-a-run-keeps }
 

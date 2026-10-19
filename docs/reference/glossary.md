@@ -31,6 +31,7 @@ rename.
 | Chat | The web conversation with an agent | `conversation` |
 | Channel | Slack, Telegram or Mattermost, where people reach an agent | `channel_bot` |
 | Routine | An agent running on its own, on a schedule or an event | `trigger` |
+| Eval suite | A dataset an agent is held to, run on a schedule, on publish or promotion, or after a change | `eval_suite` |
 | Run | One time an agent answered, with its cost and steps | `agent_run` |
 | Environment | A named stage, such as production, pointing at one version | `environment` |
 | MCP server | An external tool server agents call, connected once | `mcp_connection` |

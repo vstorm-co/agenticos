@@ -1,5 +1,5 @@
 ---
-source_sha: "4950f10e6c98"
+source_sha: "236f1dc11eec"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -365,6 +365,82 @@ aprobados, su coste y su latencia en paralelo. Con un baseline en el mismo run,
 el baseline se ejecuta en el primer modelo indicado y cada brazo se compara con
 él.
 
+## Suites { #suites }
+
+Una **suite** es un eval run que nadie tiene que acordarse de iniciar. Nombra
+el agent, el dataset, el entorno cuya versión comprueba y un umbral que debe
+cumplir cada resultado, y se ejecuta sola. La tarjeta **Suites** encabeza la
+pestaña Evals de un agent: el dataset de cada suite, cuándo se ejecuta y cómo
+le fue la última vez. Al abrir una se listan todos sus resultados, por qué no
+pasaron, los casos que se rompieron y un enlace al eval run detrás; la página
+de ese run nombra la suite que lo inició.
+
+### Cuándo se ejecuta una suite { #when-a-suite-runs }
+
+Cualquier combinación de:
+
+- **Con un horario** - una expresión cron leída en el reloj de una zona
+  horaria, así que `0 6 * * *` en `Europe/Madrid` son las seis en Madrid a
+  ambos lados de un cambio de hora. Comprueba la versión que sirve su entorno:
+  la versión de producción comprobada cada día detecta cuándo cambia el modelo
+  del proveedor o una base de conocimiento por debajo. Una ejecución perdida
+  mientras el worker estaba caído se hace una vez.
+- **Al publicar** - cada versión nueva, con la versión anterior ejecutada al
+  lado en el mismo eval run.
+- **Al promocionar** - una versión promocionada al entorno de la suite (el
+  predeterminado cuando no nombra ninguno), medida frente a la versión a la que
+  sustituyó.
+- **Cuando cambia una dependencia** - se edita un skill que enlaza la versión
+  comprobada, o se añade, se vuelve a procesar o se borra un documento de una
+  base de conocimiento que consulta. Los especialistas que define la versión
+  cuentan como la versión. Una ráfaga de cambios es una ejecución, que toca
+  `EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS` después del primero. Un perfil de
+  modelo no se puede cambiar en su sitio - apuntar un agent a otro es una
+  publicación - y un proveedor que cambia el modelo detrás es lo que detecta el
+  horario.
+- **Ejecutar ahora** - a mano, como quien lo pulsa.
+
+Una suite que espera comprobar una versión absorbe el siguiente disparador para
+esa misma versión, así que una publicación seguida de la promoción de esa
+versión es una sola ejecución. Una suite ejecuta un eval run a la vez; un
+cambio que llega mientras tanto espera al siguiente. Una suite en pausa no se
+ejecuta, ni por un disparador ni a mano.
+
+### Qué debe cumplir un resultado { #what-a-result-must-meet }
+
+Un resultado **no pasa** cuando más casos de los que la suite permite se rompen
+de forma reproducible frente al baseline - ninguno por defecto, así que una
+regresión confirmada lo suspende - o cuando la tasa de aprobados, cada caso
+contado por la mayoría de sus intentos, cae por debajo del mínimo de la suite.
+La dirección de la prueba de McNemar se muestra al lado y nunca decide. Dos
+límites opcionales comprueban la eficiencia: la subida del coste por caso
+aprobado y de la latencia p95 frente al baseline; vacíos, no comprueban nada.
+
+Un resultado cuya comparación es
+[no válida](#a-different-judge-invalidates-the-comparison) queda **sin
+conclusión**, nunca aprobado. Un resultado **no se ejecutó** cuando costaría
+más de lo que le queda a un presupuesto o más que el límite propio de la
+suite, cuando solo el juez podría puntuarlo y la asistencia de IA está
+desactivada, o cuando no hay una versión publicada que comprobar. Las
+ejecuciones por horario y por dependencia se comparan con la última ejecución
+de la suite sobre la misma versión, así que miden la deriva; una publicación o
+una promoción ejecutan su baseline en el mismo run.
+
+### Como quién se ejecuta y a quién se avisa { #who-it-runs-as-and-who-is-told }
+
+Una suite se ejecuta como quien la guardó por última vez - su
+**propietario** - con la autoridad que tenga cuando empieza el run. Nadie mira
+cómo arranca una ejecución programada, así que guardar una suite es aceptar su
+gasto, y el formulario muestra antes el precio de una ejecución y de un mes de
+horario. Otra persona que cambie la suite pasa a ser su propietaria. Una suite
+cuyo propietario deja la organización, o ya no puede ejecutarla, queda en pausa
+con el motivo.
+
+Al propietario se le avisa cuando un resultado no pasa o no se ejecuta - una
+vez por serie de esos resultados sobre una versión, con los casos que se
+rompieron - en el centro de notificaciones y por correo si lo tiene activado.
+Slack todavía no es un canal de notificaciones.
+
 ## Ajustes { #settings }
 
 | Ajuste | Por defecto | Qué decide |
@@ -382,6 +458,7 @@ el baseline se ejecuta en el primer modelo indicado y cada brazo se compara con
 | `EVAL_ABANDONED_AFTER_MINUTES` | `30` | Cuánto puede estar parado un run en marcha, con su worker callado, antes de que el barrido lo dé por fallido |
 | `EVAL_HEARTBEAT_SECONDS` | `60` | Cada cuánto avisa un run que trabaja de que sigue vivo |
 | `EVAL_QUEUED_ABANDONED_AFTER_HOURS` | `24` | Cuánto puede esperar un run a un worker antes de que el barrido lo dé por fallido |
+| `EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS` | `600` | Cuánto espera una suite tras cambiar un skill o una base de conocimiento, para que una ráfaga de cambios sea una ejecución |
 
 ## Acceso { #access }
 
@@ -396,6 +473,12 @@ el dataset: un run sobre un dataset que el lector no puede abrir no se lista, y
 pedirlo por id responde `404`, igual que un run de otra organización. Los runs
 de un dataset requieren además `datasets:view` sobre él, y solo listan los
 agents que el lector puede ver.
+
+Crear, cambiar, pausar o ejecutar una suite requiere `agents:edit` en el agent,
+`datasets:run` en el dataset y `runs:view`, y una persona que haya iniciado
+sesión como ella misma: una suite gasta como quien la guarda, así que no puede
+hacerlo ni una clave de API ni un administrador que actúe en nombre de otro.
+Leer las suites de un agent requiere `runs:view` y el agent.
 
 ## Qué conserva un run { #what-a-run-keeps }
 

@@ -341,6 +341,75 @@ same run, each as an arm of its own. Each arm reports its pass rate, cost and
 latency side by side. With a baseline in the same run, the baseline runs on the
 first model named, and every arm is compared with it.
 
+## Suites { #suites }
+
+A **suite** is an eval run nobody has to remember to start. It names the
+agent, the dataset, the environment whose version it checks and a threshold
+every result must meet, and it runs on its own. The **Suites** card heads an
+agent's Evals tab: each suite's dataset, when it runs and how it last came
+out. Opening one lists every result, why it fell short, the cases that broke
+and a link to the eval run behind it; that run's page names the suite that
+started it.
+
+### When a suite runs { #when-a-suite-runs }
+
+Any combination of:
+
+- **On a schedule** - a cron expression read on the wall clock of a time zone,
+  so `0 6 * * *` in `Europe/Warsaw` is six in Warsaw either side of a clock
+  change. It checks the version its environment serves - the production version
+  checked daily catches a provider's model drifting and a knowledge base
+  changing underneath it. A fire missed while the worker was down runs once.
+- **On publish** - every new version, with the version before it run beside it
+  in the same eval run.
+- **On promotion** - a version promoted onto the suite's environment (the
+  default one when it names none), measured against the version it replaced.
+- **When a dependency changes** - a skill the checked version binds is edited,
+  or a document in a knowledge base it searches is added, reingested or
+  deleted. Specialists the version defines count as the version. A burst of
+  changes is one run, due `EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS` after the
+  first. A model profile cannot change in place - pointing an agent at another
+  one is a publish - and a provider changing the model behind it is what the
+  schedule catches.
+- **Run now** - by hand, as whoever presses it.
+
+A suite waiting to check a version absorbs the next trigger for the same
+version, so a publish followed by the promotion of that version is one run. A
+suite runs one eval run at a time; a change that arrives while it runs waits
+for the next one. A paused suite does not run, by any trigger or by hand.
+
+### What a result must meet { #what-a-result-must-meet }
+
+A result **fails** when more cases break reproducibly against the baseline
+than the suite allows - none by default, so one confirmed regression fails it -
+or when the settled pass rate, each case counted by the majority of its
+attempts, falls below the suite's minimum. The McNemar direction is shown
+beside the result and never decides it. Two optional ceilings check
+efficiency: the rise in cost per passed case and in p95 latency against the
+baseline; left empty, they check nothing.
+
+A result whose comparison is [invalid](#a-different-judge-invalidates-the-comparison)
+is **inconclusive**, never passed. A result **did not run** when it would cost
+more than a budget has left or more than the suite's own ceiling, when only
+the judge could grade it and AI assistance is off, or when there is no
+published version to check. Scheduled and dependency runs are compared with
+the suite's last run of the same version, so they measure drift; a publish or
+a promotion runs its baseline in the same run.
+
+### Who it runs as, and who is told { #who-it-runs-as-and-who-is-told }
+
+A suite runs as whoever last saved it - its **owner** - with that person's
+authority as it is when the run starts. Nobody watches a scheduled run start,
+so saving a suite is agreeing to its spend, and the form prices one run and a
+month of the schedule first. Somebody else who changes the suite takes it
+over. A suite whose owner leaves the organization, or can no longer run it,
+pauses with the reason and says so.
+
+The owner is told when a result fails or does not run - once per run of such
+results on a version, naming the cases that broke - in the notification
+center and by email where they have it on. Slack is not a notification
+channel yet.
+
 ## Settings { #settings }
 
 | Setting | Default | What it decides |
@@ -358,6 +427,7 @@ first model named, and every arm is compared with it.
 | `EVAL_ABANDONED_AFTER_MINUTES` | `30` | How long a running run may stand still, its worker silent, before the sweep fails it |
 | `EVAL_HEARTBEAT_SECONDS` | `60` | How often a working run says it is alive |
 | `EVAL_QUEUED_ABANDONED_AFTER_HOURS` | `24` | How long a run may wait for a worker before the sweep fails it |
+| `EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS` | `600` | How long a suite waits after a skill or knowledge base changed, so a burst of changes is one run |
 
 ## Access { #access }
 
@@ -372,6 +442,12 @@ the dataset - a run over a dataset the reader cannot open is not listed, and
 asking for it by id answers `404`, as a run of another organization does. A
 dataset's runs also need `datasets:view` on it, and list only the agents the
 reader may see.
+
+Setting up, changing, pausing or running a suite needs `agents:edit` on the
+agent, `datasets:run` on the dataset and `runs:view`, and a person signed in as
+themselves: a suite spends as whoever saves it, so neither an API key nor an
+administrator acting as somebody can. Reading an agent's suites needs
+`runs:view` and the agent.
 
 ## What a run keeps { #what-a-run-keeps }
 
