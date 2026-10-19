@@ -21,7 +21,7 @@ from sqlalchemy import delete as sql_delete
 from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import load_only, selectinload
 from sqlalchemy.orm.attributes import set_committed_value
 
 from app.db.models.agent import Agent
@@ -382,6 +382,25 @@ async def participation_claims(
     return [ParticipationClaim(*row) for row in result.all()]
 
 
+# What a listing reads of each row - what `ConversationRead` draws, and no more.
+# The rest is a run's working state: `summary_messages` is the summarised history
+# itself, 3.7 KB on average in production and over 500 KB on a long thread, and a
+# sidebar fetched and decoded it for thirty rows on every refresh. `raiseload`, so a
+# caller that starts reading one of them from a listed row fails in a test rather
+# than lazily loading per row.
+_LISTED_COLUMNS = (
+    Conversation.id,
+    Conversation.user_id,
+    Conversation.organization_id,
+    Conversation.title,
+    Conversation.is_archived,
+    Conversation.project_id,
+    Conversation.origin,
+    Conversation.created_at,
+    Conversation.updated_at,
+)
+
+
 def _sort_columns() -> dict[str, Any]:
     """The columns a conversation listing can be ordered by, before the extras.
 
@@ -685,7 +704,11 @@ async def get_conversations_by_user(
     `visible_project_ids` widens it to every chat in the projects the caller
     decided this person may see.
     """
-    query = select(Conversation).where(Conversation.organization_id == organization_id)
+    query = (
+        select(Conversation)
+        .options(load_only(*_LISTED_COLUMNS, raiseload=True))
+        .where(Conversation.organization_id == organization_id)
+    )
     if user_id:
         query = query.where(
             _reachable_by(user_id, participant_conversation_ids, visible_project_ids)

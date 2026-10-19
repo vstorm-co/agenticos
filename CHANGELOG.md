@@ -86,6 +86,12 @@ Two things are versioned separately from this file and worth knowing about:
   process compiled all of `app/` on start and threw it away. Importing the
   application in a fresh container goes from about 4.8 s to 3.3 s on a laptop,
   for each API worker, the worker, each ingest child and every migration.
+- **The chat sidebar no longer fetches each thread's summarised history.** The
+  conversation listing read every column, `summary_messages` included - 3.7 KB a
+  row on average in production and 522 KB on the longest thread - for thirty
+  rows on each refresh. It now loads only what the list shows. Postgres ran the
+  query in under a millisecond; the time was the transfer and the decoding on
+  the API's event loop.
 - **A busy schedule now skips by default.** Before, a schedule whose run was
   still going fired once as soon as it ended; existing schedules take `skip`.
   Set `overlap` to `queue` for the old behaviour.
