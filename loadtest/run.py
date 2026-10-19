@@ -21,7 +21,7 @@ import httpx
 from driver import REQUEST_TIMEOUT, Traffic, drive, headers
 from metrics import Recorder
 from probes import Probes, sample_forever
-from report import render
+from report import render, steady_verdicts
 from scenario import MIX, PHASES, Phase, peak_concurrency
 from seed import Fixture, sign_in
 
@@ -70,8 +70,8 @@ async def preflight(traffic: Traffic) -> None:
         )
 
 
-async def measure(arguments: argparse.Namespace) -> str:
-    """Drive the scenario and render what came back."""
+async def measure(arguments: argparse.Namespace) -> tuple[str, bool]:
+    """Drive the scenario, render what came back, and say whether every threshold held."""
     fixture = Fixture.from_json(Path(arguments.fixture).read_text(encoding="utf-8"))
     phases = _phases(arguments)
     # Signed in here rather than read from the fixture, so no bearer token is
@@ -116,7 +116,7 @@ async def measure(arguments: argparse.Namespace) -> str:
             await sampler
         seconds = loop.time() - started
 
-    return render(
+    report = render(
         recorder.samples,
         phases=phases,
         mix=MIX,
@@ -127,6 +127,8 @@ async def measure(arguments: argparse.Namespace) -> str:
         offered=offered,
         connections=connections,
     )
+    held = all(verdict.met for verdict in steady_verdicts(recorder.samples, phases))
+    return report, held
 
 
 def _announce(phase: Phase) -> None:
@@ -197,6 +199,11 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--password", default="admin123")
     parser.add_argument("--title", default="AgenticOS load and resilience run")
     parser.add_argument(
+        "--fail-on-breach",
+        action="store_true",
+        help="Exit 1 when a threshold failed or was not measured - what CI runs it with.",
+    )
+    parser.add_argument(
         "--topology",
         default="one API worker, Postgres and Redis in containers, the stub model local",
         help="What was running, in one line. It goes at the top of the report.",
@@ -208,7 +215,10 @@ def main() -> None:
     arguments = parse()
     if not Path(arguments.fixture).exists():
         raise SystemExit(f"No fixture at {arguments.fixture}. Run seed.py first.")
-    print(asyncio.run(measure(arguments)))
+    report, held = asyncio.run(measure(arguments))
+    print(report)
+    if arguments.fail_on_breach and not held:
+        raise SystemExit("A threshold failed or was not measured; the report says which.")
 
 
 if __name__ == "__main__":

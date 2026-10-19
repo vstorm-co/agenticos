@@ -98,7 +98,7 @@ def process_snapshot(pid: int) -> tuple[float, float] | None:
             check=False,
             timeout=5,
         )
-    except (OSError, subprocess.SubprocessError):
+    except OSError, subprocess.SubprocessError:
         return None
     fields = result.stdout.split()
     if len(fields) != 2:

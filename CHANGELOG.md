@@ -48,6 +48,15 @@ Two things are versioned separately from this file and worth knowing about:
   that kind until an owner resumes it; every app admin gets an in-app and an
   email notification that cannot be switched off (#2219).
 
+- **The load suite runs in CI** (#2219). `make load-cold` takes an empty
+  database through the whole run - migrate, bootstrap, stub model, API, worker,
+  seed, scenario - with the thresholds as its exit status, and a `Load` workflow
+  runs it nightly on `main`, on demand and on a pull request labelled
+  `load-test`, publishing the report. Not a required check: a shared runner is
+  noisy. The seed now uploads through the API; `rag-ingest` wrote untagged
+  vectors into an organization's collection, which no tenant-scoped search finds
+  (#1684), so the suite had not been able to start.
+
 ### Changed
 
 - **BREAKING: background work runs on a job queue in PostgreSQL instead of

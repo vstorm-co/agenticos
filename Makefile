@@ -645,6 +645,13 @@ load-seed:
 	uv run --directory backend python ../loadtest/seed.py \
 		--stub-url $(LOAD_STUB_URL) --documents $(LOAD_DOCUMENTS)
 
+# The whole run from an empty database - migrate, bootstrap, stub, API, worker,
+# seed, scenario - and the thresholds as its exit status. What
+# `.github/workflows/load.yml` runs; `LOAD_SCALE`, `LOAD_REPORT` and the rest are
+# in `loadtest/cold_run.sh`.
+load-cold:
+	bash loadtest/cold_run.sh
+
 # `API_PID` and `DATABASE_URL` are optional; without them the run measures
 # requests and says which probes it could not take.
 load-test:
@@ -961,7 +968,8 @@ help:
 	@echo "  make format        Auto-format code (ruff + prettier)"
 	@echo "  make check         Every CI job except e2e - before opening a pull request"
 	@echo ""
-	@echo "Load and resilience (NFA-004, never in CI - see docs/load-testing.md):"
+	@echo "Load and resilience (NFA-004, nightly in CI - see docs/load-testing.md):"
+	@echo "  make load-cold        The whole run from an empty database, thresholds as exit status"
 	@echo "  make load-stub-model  The slow-on-purpose model the suite measures against"
 	@echo "  make load-seed        Build the fixture: an agent, a collection, a routine"
 	@echo "  make load-test        Offer the workload and print the report"

@@ -161,6 +161,21 @@ that turns an open-arrival run into a closed one during the burst, exactly when
 it matters: requests queue inside the client, and some of the latency the report
 shows is the driver's own.
 
+### From a cold start, and in CI
+
+`make load-cold` is the whole run from an empty database: it migrates,
+bootstraps an owner, starts the stub, the API and a worker on this host, seeds
+the fixture, drives the scenario and stops everything again. The seed uploads
+its corpus through the API and waits until every document is searchable, so it
+needs the worker. The exit status is the verdict - a threshold that failed or
+was not measured fails the run - and `LOAD_SCALE` and `LOAD_REPORT` set the
+length and where the report goes.
+
+The `Load` workflow runs exactly that every night on `main`, on demand, and on a
+pull request labelled `load-test`, and publishes the report as the job's summary
+and an artifact. It is not a required check: a shared runner's CPU is shared, so
+it catches a regression of a different order, not a slower afternoon.
+
 ## Reading the report
 
 Four sections, in the order the questions get asked: what was run, what happened

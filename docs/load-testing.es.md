@@ -1,5 +1,5 @@
 ---
-source_sha: "f9aed6805833"
+source_sha: "d8f1a51c851b"
 ---
 
 # Pruebas de carga y resiliencia { #load-and-resilience-testing }
@@ -165,6 +165,22 @@ escenario: la tasa pico por la petición más lenta, 3240 con las fases incluida
 Un tope por debajo convierte una ejecución de llegada abierta en una cerrada justo
 durante el burst, es decir cuando importa: las peticiones se encolan dentro del
 cliente y parte de la latencia que informa es del propio driver.
+
+### Desde un arranque en frío, y en CI { #from-a-cold-start-and-in-ci }
+
+`make load-cold` es la ejecución completa desde una base de datos vacía: migra,
+crea un propietario, arranca el stub, la API y un worker en este host, siembra el
+fixture, recorre el escenario y lo detiene todo. La siembra sube su corpus por la
+API y espera hasta que cada documento se pueda buscar, así que necesita el
+worker. El código de salida es el veredicto - un umbral que falla o no se mide
+hace fallar la ejecución - y `LOAD_SCALE` y `LOAD_REPORT` fijan la duración y a
+dónde va el informe.
+
+El workflow `Load` ejecuta exactamente eso cada noche en `main`, bajo demanda y en
+un pull request con la etiqueta `load-test`, y publica el informe como resumen
+del job y como artefacto. No es un check obligatorio: la CPU de un runner
+compartido es compartida, así que detecta una regresión de otro orden, no una
+tarde más lenta.
 
 ## Leer el informe { #reading-the-report }
 
