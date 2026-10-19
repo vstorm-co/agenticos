@@ -5,7 +5,15 @@ import { ChevronRight, FlaskConical, Play } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
-import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Pager,
+} from "@/components/ui";
 import { useDatasets } from "@/hooks/use-datasets";
 import { useEvalRuns } from "@/hooks/use-eval-runs";
 import { getErrorMessage } from "@/lib/api-error";
@@ -15,7 +23,7 @@ import { PassRateChart, passRateLines } from "./pass-rate-chart";
 import { EvalRunRow } from "./run-row";
 import { StartEvalDialog } from "./start-eval-dialog";
 
-/** As many runs as the trend reads back; the API's own ceiling. */
+/** As many runs as the trend reads back at once - the API's own ceiling - a page of them. */
 const TREND_RUNS = 100;
 
 /** Runs by dataset, each group in the order its newest run came. */
@@ -45,7 +53,11 @@ export function EvalsPanel({ agentId, canStart }: { agentId: string; canStart: b
   const tc = useTranslations("common");
   const locale = useLocale();
   const [starting, setStarting] = useState(false);
-  const { runs, isLoading, error, refetch } = useEvalRuns(agentId, { limit: TREND_RUNS });
+  const [page, setPage] = useState(0);
+  const { runs, total, isLoading, error, refetch } = useEvalRuns(agentId, {
+    skip: page * TREND_RUNS,
+    limit: TREND_RUNS,
+  });
   const { datasets } = useDatasets({ sort: "updated", limit: 1 });
   const start = canStart ? { label: t("start"), onClick: () => setStarting(true) } : undefined;
   const groups = byDataset(runs);
@@ -114,6 +126,14 @@ export function EvalsPanel({ agentId, canStart }: { agentId: string; canStart: b
                 </ul>
               </details>
             ))}
+            <Pager
+              page={page}
+              pageCount={Math.ceil(total / TREND_RUNS)}
+              matched={total}
+              total={total}
+              onPage={setPage}
+              counted={t("runCount", { count: total })}
+            />
           </>
         )}
       </CardContent>

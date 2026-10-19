@@ -3988,6 +3988,7 @@
       "whatTheModelSaw": "Zobacz, co widział model"
     },
     "estimating": "Wyceniam…",
+    "runCount": "{count, plural, one {# run} few {# runy} many {# runów} other {# runu}}",
     "sideModel": "{name} · {model}",
     "headline": {
       "first": "To pierwszy wynik {candidate} na datasecie {dataset}: zalicza {rate} case'ów. Kolejne wersje będą z nim porównywane.",

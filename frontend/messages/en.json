@@ -6367,6 +6367,7 @@
       "whatTheModelSaw": "See what the model saw"
     },
     "estimating": "Estimating…",
+    "runCount": "{count, plural, =1 {1 run} other {# runs}}",
     "sideModel": "{name} · {model}",
     "headline": {
       "first": "This is the first result of {candidate} on {dataset}: {rate} of cases pass. Later versions are compared with it.",

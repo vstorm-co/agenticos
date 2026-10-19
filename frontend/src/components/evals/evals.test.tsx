@@ -25,7 +25,10 @@ import { sideName } from "./names";
 import { PassRateChart, passRateLines } from "./pass-rate-chart";
 import { percent, seconds, usd } from "./format";
 
-const evalRuns = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
+const evalRuns = vi.hoisted(() => ({
+  value: {} as Record<string, unknown>,
+  asked: [] as unknown[],
+}));
 vi.mock("@/components/charts/pass-rate-lines.impl", () => ({
   PassRateLinesImpl: ({
     lines,
@@ -41,7 +44,10 @@ vi.mock("@/components/charts/pass-rate-lines.impl", () => ({
 }));
 const oneRun = vi.hoisted(() => ({ run: undefined as unknown }));
 vi.mock("@/hooks/use-eval-runs", () => ({
-  useEvalRuns: () => evalRuns.value,
+  useEvalRuns: (...args: unknown[]) => {
+    evalRuns.asked.push(args);
+    return evalRuns.value;
+  },
   useEvalRun: () => ({ run: oneRun.run }),
 }));
 const datasets = vi.hoisted(() => ({ items: [] as unknown[] }));
@@ -216,6 +222,15 @@ describe("PassRateChart", () => {
 });
 
 describe("EvalsPanel", () => {
+  it("pages through runs past the hundred one page reads", async () => {
+    evalRuns.value = { ...evalRuns.value, runs: [evalRun()], total: 150 };
+    render(<EvalsPanel agentId="agent-1" canStart />);
+    expect(evalRuns.asked.at(-1)).toEqual(["agent-1", { skip: 0, limit: 100 }]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Next page" }));
+    expect(evalRuns.asked.at(-1)).toEqual(["agent-1", { skip: 100, limit: 100 }]);
+  });
+
   it("draws the trend, then every run by dataset with its verdict", async () => {
     evalRuns.value = {
       ...evalRuns.value,
