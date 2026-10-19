@@ -1157,11 +1157,31 @@ describe("useChat - a sandbox still being opened", () => {
     expect(result.current.sandboxPreparing).toBe(true);
   });
 
-  it("stops saying so at the next tool result", () => {
+  it("keeps saying so through another tool's result", () => {
+    // A faster tool beside the sandbox one finishes while the image still builds.
     const { result } = renderHook(() => useChat(), { wrapper });
     receive("sandbox_preparing", {});
 
     receive("tool_result", { tool_call_id: "t-1", content: "ok" });
+
+    expect(result.current.sandboxPreparing).toBe(true);
+  });
+
+  it("stops saying so once the sandbox is open", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("sandbox_preparing", {});
+
+    receive("sandbox_ready", {});
+
+    expect(result.current.sandboxPreparing).toBe(false);
+  });
+
+  it("stops saying so when the turn fails", () => {
+    // A failed open sends `error` and no `complete` after it.
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("sandbox_preparing", {});
+
+    receive("error", { message: "The sandbox could not be opened." });
 
     expect(result.current.sandboxPreparing).toBe(false);
   });

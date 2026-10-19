@@ -766,7 +766,6 @@ export function useChat(options: UseChatOptions = {}) {
         }
 
         case "tool_result": {
-          setSandboxPreparing(false);
           if (currentMessageIdRef.current) {
             const { tool_call_id, content } = wsEvent.data as {
               tool_call_id: string;
@@ -861,6 +860,13 @@ export function useChat(options: UseChatOptions = {}) {
           break;
         }
 
+        // Its own signal rather than the next tool result: a faster tool running
+        // beside the sandbox one would clear the notice mid-build.
+        case "sandbox_ready": {
+          setSandboxPreparing(false);
+          break;
+        }
+
         case "personal_services_unavailable": {
           // Before the model answers, so the button that connects the account is on
           // screen while the agent is still saying it cannot reach it.
@@ -870,6 +876,8 @@ export function useChat(options: UseChatOptions = {}) {
 
         case "error": {
           setPendingConnection(null);
+          // An open that failed ends the turn here, with no `complete` after it.
+          setSandboxPreparing(false);
           awaitingConnectionRef.current = false;
           // A refusal before the turn opened a message - an agent with no model,
           // nobody picked to answer - lands in a message of its own under the

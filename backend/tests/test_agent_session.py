@@ -3163,9 +3163,10 @@ class TestTellingTheClientTheSandboxIsStillOpening:
         """#2222: minutes of an image build in which nothing else streams."""
         session = _session()
 
-        await session._sandbox_wait_event()
+        await session._sandbox_wait_event(True)
+        await session._sandbox_wait_event(False)
 
-        assert _sent_events(session) == [("sandbox_preparing", {})]
+        assert _sent_events(session) == [("sandbox_preparing", {}), ("sandbox_ready", {})]
 
 
 class TestTellingTheClientWhatThePersonCannotReach:

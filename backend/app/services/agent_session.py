@@ -1132,14 +1132,15 @@ class AgentSession:
         """
         return await self._emit(event.kind, event.model_dump(mode="json"))
 
-    async def _sandbox_wait_event(self) -> None:
-        """Say the run's sandbox is still being opened (#2222).
+    async def _sandbox_wait_event(self, preparing: bool) -> None:
+        """Say the run's sandbox is still being opened, and then that it is not (#2222).
 
         The first session after an update builds the runtime's image on the host,
         minutes in which nothing streams. The console shows a notice above the
-        composer until the next tool result or the end of the turn.
+        composer from `sandbox_preparing` until `sandbox_ready`, an error or the
+        end of the turn.
         """
-        await self._emit("sandbox_preparing", {})
+        await self._emit("sandbox_preparing" if preparing else "sandbox_ready", {})
 
     async def _personal_gaps_event(self, gaps: list[PersonalServiceGap]) -> None:
         """Say which of the agent's personal services this person cannot reach yet.

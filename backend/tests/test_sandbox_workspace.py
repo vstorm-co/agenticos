@@ -4850,8 +4850,21 @@ class TestTheWaitSink:
         await SandboxWorkspaceService(mock_db_session).open(
             _spec(backend="service"), ctx=_ctx(), identity=_identity(), on_wait=heard
         )
+        await sandboxes.made[0]["on_wait"]()
 
-        assert sandboxes.made[0]["on_wait"] is heard
+        heard.assert_awaited_once_with(True)
+
+    async def test_the_end_of_the_open_is_said_once_and_only_after_a_wait(self):
+        heard = AsyncMock()
+        notice = sandbox_workspace._OpeningNotice(heard)
+
+        await notice.settled()
+        assert heard.await_count == 0
+        await notice.waiting()
+        await notice.settled()
+        await notice.settled()
+
+        assert [call.args for call in heard.await_args_list] == [(True,), (False,)]
 
     async def test_with_no_surface_there_is_no_sink(self, monkeypatch, mock_db_session, sandboxes):
         _serve(monkeypatch, _resolved())

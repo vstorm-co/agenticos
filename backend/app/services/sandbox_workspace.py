@@ -365,12 +365,36 @@ class FlatFileListing:
     truncated: bool
 
 
-SandboxWaitSink = Callable[[], Awaitable[None]]
-"""Told that a run's sandbox is still being opened - usually its image being built.
+SandboxWaitSink = Callable[[bool], Awaitable[None]]
+"""Told `True` when a run's sandbox is still being opened - usually its image
+being built - and `False` once that open is over, opened or failed.
 
 Handed in when the workspace is opened, not attached afterwards: the run's
 preparation already opens the session - it snapshots the workspace before the
 first model request - and that open is where an image build waits (#2222)."""
+
+
+@dataclass
+class _OpeningNotice:
+    """Turns the client's one "still opening" into a start and an end.
+
+    `SandboxdWorkspace` says only that opening is taking a while. The end is the
+    first operation to finish after that, since the session opens inside it -
+    and an end tied to a tool result instead let an unrelated, faster tool clear
+    the notice while the image was still building.
+    """
+
+    sink: SandboxWaitSink
+    announced: bool = False
+
+    async def waiting(self) -> None:
+        self.announced = True
+        await self.sink(True)
+
+    async def settled(self) -> None:
+        if self.announced:
+            self.announced = False
+            await self.sink(False)
 
 
 @dataclass
@@ -721,12 +745,13 @@ class SandboxWorkspaceService:
         """
         briefing: str | None = None
         parses_documents = False
+        notice = _OpeningNotice(on_wait) if on_wait is not None else None
         sandbox = self._service_capability(
             resolved,
             key,
             runtime=config.runtime,
             tenant=str(identity.organization_id),
-            on_wait=on_wait,
+            on_wait=notice.waiting if notice is not None else None,
         )
         if resolved.kind != "daytona":
             alias = config.runtime or resolved.row.default_runtime or None
@@ -751,6 +776,7 @@ class SandboxWorkspaceService:
             session_key=key,
             agent_id=identity.agent_id,
             run_id=identity.run_id,
+            on_settled=notice.settled if notice is not None else None,
         )
         return OpenWorkspace(
             workspace=recorder,
@@ -771,7 +797,7 @@ class SandboxWorkspaceService:
         *,
         runtime: str | None = None,
         tenant: str | None = None,
-        on_wait: SandboxWaitSink | None = None,
+        on_wait: Callable[[], Awaitable[None]] | None = None,
     ) -> SandboxdWorkspace | DaytonaWorkspace:
         """What supplies the sandbox named `key` on one of the organization's connections.
 
