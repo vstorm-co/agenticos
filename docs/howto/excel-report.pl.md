@@ -1,5 +1,5 @@
 ---
-source_sha: "5b846962a129"
+source_sha: "4f6ac46ddef7"
 title: "Zbuduj raport w Excelu i prezentację z danych"
 description: "Załącz mały syntetyczny CSV i niech agent w sandboksie przygotuje skoroszyt z formułami i wykresem oraz prezentację z trzech slajdów, a potem otwórz oba pliki i sprawdź liczby."
 ---
@@ -42,7 +42,7 @@ Sumy referencyjne policzone ręcznie: według regionów North 54 000, South 39 0
 ## Zbuduj agenta { #build-the-agent }
 
 1. Utwórz agenta w **Agents → New agent** i wybierz swój profil modelu.
-2. W **Toolbox** włącz **Files & shell**. Wybierz **Container**, swoje połączenie sandboksa i runtime `workbench`, a zakres zostaw na poziomie rozmowy.
+2. W **Toolbox** włącz **Sandbox**. Wybierz **Container**, swoje połączenie sandboksa i runtime `workbench`, a zakres zostaw na poziomie rozmowy.
 3. Ustaw budżet na czas próby, a potem wpisz poniższe instrukcje i kliknij **Publish**.
 
 ```text
@@ -106,4 +106,4 @@ Człowiek sprawdza, czy formuły są prawdziwymi formułami, czy oś wykresu zna
 
 ## Kolejne kroki { #next-steps }
 
-Jeśli raport ma powstawać co tydzień, a nie raz, przejdź do strony [Zaplanuj cotygodniowy raport](scheduled-report.md). Publikuje ona wynik jako stabilny, udostępniany artefakt zamiast pliku w workspace'ie.
+Jeśli raport ma powstawać co tydzień, a nie raz, przejdź do strony [Zaplanuj cotygodniowy raport](scheduled-report.md). Publikuje ona wynik jako stabilną, udostępnianą aplikację zamiast pliku w workspace'ie.

@@ -47,6 +47,7 @@ from app.repositories import (
     agent_repo,
     agent_run_repo,
     artifact_repo,
+    eval_run_repo,
     mcp_connection_repo,
     organization_secret_repo,
 )
@@ -274,6 +275,8 @@ class AgentEnvironmentService:
                 organization_id=ctx.organization_id,
                 connections=connections,
             )
+        if version is not None:
+            await AgentRegistryService(self.db).withdraw_creator_consent(ctx, agent)
         if environment.is_default and version is not None:
             # The denormalized pointer is this environment's, so promoting the
             # default *is* the deploy every surface naming no environment reads.
@@ -313,10 +316,12 @@ class AgentEnvironmentService:
             BadRequestError: If it is the default - an agent without a default
                 is an agent plain surfaces cannot run.
             ConcurrentChangeError: If a run of it is still running or parked on
-                an approval. Deleting the row sets that run's `environment_id` to
-                null, which reads as the default - so a staging run still working,
-                or resumed after a decision, would publish its pages over
-                production's. It is refused until the run ends.
+                an approval, or an eval run in it is queued or running. Deleting
+                the row sets that run's `environment_id` to null, which reads as
+                the default - so a staging run still working, or resumed after a
+                decision, would publish its pages over production's, and an eval
+                run would go on against production's connections. It is refused
+                until the run ends.
         """
         agent, environment = await self._get(ctx, agent_id, environment_id)
         if environment.is_default:
@@ -339,6 +344,17 @@ class AgentEnvironmentService:
                     "waiting for an approval. Remove it once they finish, or stop them first."
                 ),
                 details={"environment_id": str(environment.id), "unfinished": unfinished},
+            )
+        evals = await eval_run_repo.count_live_in_environment(
+            self.db, environment_id=environment.id, organization_id=ctx.organization_id
+        )
+        if evals:
+            raise ConcurrentChangeError(
+                message=(
+                    f"{evals} eval run(s) in {environment.name!r} are still queued or running. "
+                    "Remove it once they finish, or cancel them first."
+                ),
+                details={"environment_id": str(environment.id), "eval_runs": evals},
             )
         name = environment.name
         await artifact_repo.detach_environment(self.db, environment_id=environment.id)

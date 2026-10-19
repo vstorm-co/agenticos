@@ -1,5 +1,6 @@
 "use client";
 
+import type { Visibility } from "@/types/sharing";
 import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
@@ -9,6 +10,7 @@ import { PAGE_SIZE } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import type { ContextFile, ContextFileList, ContextMode } from "@/types/providers";
+import { useCreatedToast } from "./use-created-toast";
 
 export interface NewContextFile {
   name: string;
@@ -16,6 +18,10 @@ export interface NewContextFile {
   content: string;
   format: string;
   mode: ContextMode;
+  /** Who it reaches (#2072): the organization unless narrowed. */
+  visibility?: Visibility;
+  group_ids?: string[];
+  user_ids?: string[];
 }
 
 /** How the server may order a listing. */
@@ -28,6 +34,8 @@ export interface ContextQuery {
   sort?: ContextSort;
   skip?: number;
   limit?: number;
+  /** Only what is shared with this group (#2124); null for every group. */
+  groupId?: string | null;
 }
 
 /**
@@ -43,19 +51,22 @@ export function useContextFiles({
   sort = "name",
   skip = 0,
   limit = PAGE_SIZE,
+  groupId = null,
 }: ContextQuery = {}) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("context");
+  const created = useCreatedToast();
   const queryClient = useQueryClient();
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: qk.context.list({ search, sort, skip, limit }),
+    queryKey: qk.context.list({ search, sort, skip, limit, groupId: groupId ?? "" }),
     queryFn: () => {
       const params = new URLSearchParams();
       if (search) params.set("q", search);
       params.set("sort", sort);
       params.set("skip", String(skip));
       params.set("limit", String(limit));
+      if (groupId) params.set("group_id", groupId);
       return apiClient.get<ContextFileList>(`/context?${params}`);
     },
     placeholderData: (previous) => previous,
@@ -73,7 +84,7 @@ export function useContextFiles({
     mutationFn: (file: NewContextFile) => apiClient.post<ContextFile>("/context", file),
     onSuccess: async (file) => {
       await invalidate();
-      toast.success(t("created", { name: file.name }));
+      created(t("created", { name: file.name }), { kind: "context", id: file.id }, file.name);
     },
   });
 

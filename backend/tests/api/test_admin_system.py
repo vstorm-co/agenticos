@@ -89,10 +89,12 @@ async def member_client(mock_redis: Any) -> AsyncGenerator[AsyncClient, None]:
 async def test_every_check_says_what_it_verified(
     admin_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    async def heartbeat_just_now() -> datetime:
+    async def just_now(*_: object) -> datetime:
         return datetime.now(UTC)
 
-    monkeypatch.setattr(health, "_last_heartbeat", heartbeat_just_now)
+    # The worker's sweep heartbeat and Prefect's last completed run.
+    monkeypatch.setattr(health.worker_heartbeat, "last", just_now)
+    monkeypatch.setattr(health, "_last_prefect_run", just_now)
 
     response = await admin_client.get(f"{settings.API_V1_STR}/admin/system")
 

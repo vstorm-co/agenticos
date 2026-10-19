@@ -1,14 +1,16 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { agentListParams, canonicalFacet } from "@/lib/agent-facets";
+import { hasResource, withResource, type AgentResourceRef } from "@/lib/agent-spec";
 import { apiClient } from "@/lib/api-client";
 import { fieldProblems, getErrorMessage, problemList } from "@/lib/api-error";
 import type { FieldProblem } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
+import { useCapabilityGuide } from "./use-capability-guide";
 import type { Visibility } from "@/types/sharing";
 import type {
   Agent,
@@ -21,6 +23,7 @@ import type {
   CapabilityCatalog,
   DelegationTree,
   SpecialistSpec,
+  SystemPromptVariable,
 } from "@/types/agents";
 
 /** What promoting a specialist sends: the specialist whole, plus the model a null
@@ -32,12 +35,48 @@ export interface PromoteSpecialist {
 }
 
 /**
+ * The organization's judges - the default eval judge and each dataset's own - which
+ * every other agent list leaves out. Opened and edited like any agent; never run by hand.
+ */
+export function useJudges({ enabled = true } = {}) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: qk.agents.judges(),
+    queryFn: () => apiClient.get<AgentList>("/agents", { params: { kind: "judge", limit: "100" } }),
+    enabled,
+  });
+  return { agents: data?.items ?? [], total: data?.total ?? 0, isLoading, error };
+}
+
+/**
  * The agent registry.
  *
  * Mutations invalidate rather than patch the cache. An agent's status and
  * version pointer change as a side effect of publishing, and guessing what the
  * server did is how a Builder starts showing a draft as published.
  */
+/**
+ * Every agent the list names, not its first page.
+ *
+ * The route pages at 50 by default and 100 at most, and what reads this - the
+ * chat's agent picker, a project's default agent, the run filters - is a picker
+ * that silently lacked whoever came after the first page. The first request is
+ * the one it always was; the rest are asked for only when the total says so.
+ */
+async function everyAgent(params: ReturnType<typeof agentListParams>): Promise<AgentList> {
+  const first = await apiClient.get<AgentList>("/agents", params ? { params } : undefined);
+  const base: [string, string][] =
+    params === undefined ? [] : Array.isArray(params) ? params : Object.entries(params);
+  const items = [...first.items];
+  while (items.length < first.total) {
+    const page = await apiClient.get<AgentList>("/agents", {
+      params: [...base, ["skip", String(items.length)], ["limit", "100"]],
+    });
+    if (page.items.length === 0) break;
+    items.push(...page.items);
+  }
+  return { ...first, items };
+}
+
 export function useAgents({
   includeArchived = false,
   enabled = true,
@@ -61,10 +100,7 @@ export function useAgents({
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: qk.agents.list(includeArchived, facetCategories, facetTags),
-    queryFn: () => {
-      const params = agentListParams(includeArchived, facetCategories, facetTags);
-      return apiClient.get<AgentList>("/agents", params ? { params } : undefined);
-    },
+    queryFn: () => everyAgent(agentListParams(includeArchived, facetCategories, facetTags)),
     // How a surface without agents:view stays out of the network log - the
     // run table's agent column and the filter bar both read this gated.
     enabled,
@@ -88,14 +124,19 @@ export function useAgents({
     mutationFn: ({
       spec,
       visibility,
+      group_ids,
+      user_ids,
       categories,
       tags,
     }: {
       spec: AgentSpec;
       visibility?: Visibility;
+      group_ids?: string[];
+      user_ids?: string[];
       categories?: string[];
       tags?: string[];
-    }) => apiClient.post<Agent>("/agents", { spec, visibility, categories, tags }),
+    }) =>
+      apiClient.post<Agent>("/agents", { spec, visibility, group_ids, user_ids, categories, tags }),
     onSuccess: async (agent) => {
       await invalidate();
       toast.success(t("created", { name: agent.name }));
@@ -211,7 +252,7 @@ export function useAgent(agentId: string | null) {
   const queryClient = useQueryClient();
   const t = useTranslations("agents");
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, dataUpdatedAt } = useQuery({
     queryKey: qk.agents.detail(agentId ?? ""),
     queryFn: () => apiClient.get<AgentDetail>(`/agents/${agentId}`),
     enabled: !!agentId,
@@ -336,9 +377,20 @@ export function useAgent(agentId: string | null) {
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
+  /** Serve this agent to other systems over A2A, or stop (#2092). */
+  const setA2a = useMutation({
+    mutationFn: (enabled: boolean) => apiClient.put<Agent>(`/agents/${agentId}/a2a`, { enabled }),
+    onSuccess: invalidate,
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+  });
+
   return {
     agent: data,
     isLoading,
+    /** When the agent was last read successfully - what a page waiting on a
+     *  refetch it did not start watches for. A failed refetch does not count:
+     *  it has not shown what changed. */
+    fetchedAt: dataUpdatedAt,
     saveDraft,
     validate,
     publish,
@@ -346,6 +398,7 @@ export function useAgent(agentId: string | null) {
     setAvatar,
     setColor,
     setMetadata,
+    setA2a,
   };
 }
 
@@ -461,6 +514,16 @@ export function useAgentVersion(agentId: string | null, versionId: string | null
   return { version: data, isLoading, error };
 }
 
+/** The system variables any agent's instructions may write as `{{name}}` (#2065). */
+export function usePromptVariables() {
+  const { data } = useQuery({
+    queryKey: qk.agents.promptVariables(),
+    queryFn: () => apiClient.get<{ items: SystemPromptVariable[] }>("/agents/prompt-variables"),
+    staleTime: Infinity,
+  });
+  return { variables: data?.items ?? [] };
+}
+
 /**
  * Everything an agent can be given.
  *
@@ -473,5 +536,47 @@ export function useCapabilityCatalog() {
     queryFn: () => apiClient.get<CapabilityCatalog>("/agents/capabilities"),
     staleTime: Infinity,
   });
-  return { capabilities: data?.items ?? [], isLoading };
+  const guide = useCapabilityGuide();
+  // Named and described in the reader's language wherever the console has the
+  // words, so the list, the panel and the map beside it all say "Sandbox" (#2070).
+  const capabilities = useMemo(
+    () =>
+      (data?.items ?? []).map((entry) => {
+        const plain = guide(entry.id);
+        return plain ? { ...entry, name: plain.name, description: plain.does } : entry;
+      }),
+    [data, guide],
+  );
+  return { capabilities, isLoading };
+}
+
+/**
+ * Give an agent a skill, a context file or a knowledge base from where it lives.
+ *
+ * Reads the agent's draft and writes it back with the resource bound - the same
+ * draft save the Builder makes, so nothing is published and the change is in
+ * the Builder for whoever opens it next (#2075). Answers whether it was bound
+ * already rather than writing an identical draft.
+ */
+export function useAddToAgent() {
+  const tErrors = useTranslations("errors");
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      agentId,
+      resource,
+    }: {
+      agentId: string;
+      resource: AgentResourceRef;
+    }): Promise<{ already: boolean }> => {
+      const agent = await apiClient.get<AgentDetail>(`/agents/${agentId}`);
+      if (hasResource(agent.draft_spec, resource)) return { already: true };
+      await apiClient.put<Agent>(`/agents/${agentId}/draft`, {
+        spec: withResource(agent.draft_spec, resource),
+      });
+      return { already: false };
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.agents.all() }),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+  });
 }

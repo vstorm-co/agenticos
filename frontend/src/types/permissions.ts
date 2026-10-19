@@ -20,6 +20,7 @@ export interface PermissionEntry {
 
 export interface MyPermissions {
   organization_id: string;
+  user_id: string;
   role: OrgRole | "";
   is_app_admin: boolean;
   permissions: PermissionEntry[];
@@ -53,6 +54,9 @@ export const Perm = {
   datasetsRun: "datasets:run",
   artifactsView: "artifacts:view",
   artifactsEdit: "artifacts:edit",
+  projectsView: "projects:view",
+  projectsUse: "projects:use",
+  projectsEdit: "projects:edit",
   approvalsDecide: "approvals:decide",
   connectionsView: "connections:view",
   connectionsManage: "connections:manage",
@@ -67,4 +71,6 @@ export const Perm = {
   budgetsManage: "budgets:manage",
   runsView: "runs:view",
   auditRead: "audit:read",
+  apiKeysCreate: "api_keys:create",
+  apiKeysManage: "api_keys:manage",
 } as const satisfies Record<string, Permission>;

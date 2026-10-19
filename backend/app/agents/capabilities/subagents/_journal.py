@@ -56,7 +56,7 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import AsyncIterable, Iterator
+from collections.abc import AsyncIterable, Generator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -82,6 +82,7 @@ from app.agents.capabilities.budget import BudgetExceeded, SpendShare, booked_to
 from app.agents.capabilities.subagents._events import FrameLabels, frame_for
 from app.agents.deps import AgentDeps
 from app.agents.failures import run_failure_summary
+from app.agents.loop_guard import ToolLoopStopped
 from app.agents.spec import DelegationMode
 from app.agents.subagent_events import (
     SpecialistDefinition,
@@ -170,14 +171,15 @@ def _recorded_error(handle: TaskHandle, subagent: str, task_id: str) -> str | No
     carries pydantic-ai's own limit sentence - a number, never a request - behind
     the `usage limit exceeded` marker that is the library's telemetry contract
     across both dispatch modes, and `BudgetExceeded` carries this platform's own
-    ceiling sentence behind the library's type-name prefix. `BudgetExceeded`
+    ceiling sentence behind the library's type-name prefix, as does `ToolLoopStopped`
+    the loop guard's, which names tools and never their arguments. `BudgetExceeded`
     reaches this settlement because a delegate's requests are budget-checked
     inside the delegate's own run, so the breach lands on the handle rather than
     propagating to the caller the parent's row is written by - and composing it
     away would tell the reader to retry against a breached budget.
     """
     if handle.exception is None or isinstance(
-        handle.exception, UsageLimitExceeded | BudgetExceeded
+        handle.exception, UsageLimitExceeded | BudgetExceeded | ToolLoopStopped
     ):
         return handle.error
     logger.warning(
@@ -229,6 +231,9 @@ class ActingDelegate:
     name: str
     task_id: str | None
     agent_id: UUID | None
+    # How deep the delegate is, so work it hands on - a coding agent's task -
+    # streams one level inside its panel rather than beside it.
+    depth: int
 
 
 def acting_delegate() -> ActingDelegate | None:
@@ -247,7 +252,10 @@ def acting_delegate() -> ActingDelegate | None:
     if delegation is None:
         return None
     return ActingDelegate(
-        name=delegation.name, task_id=delegation.public_id, agent_id=delegation.agent_id
+        name=delegation.name,
+        task_id=delegation.public_id,
+        agent_id=delegation.agent_id,
+        depth=delegation.depth,
     )
 
 
@@ -694,6 +702,8 @@ class DelegationJournal:
             billed_cost_usd=billed.cost_usd,
             billed_input_tokens=billed.input_tokens,
             billed_output_tokens=billed.output_tokens,
+            billed_cache_read_tokens=billed.cache_read_tokens,
+            billed_cache_write_tokens=billed.cache_write_tokens,
             billed_has_unpriced_models=billed.has_unpriced_models,
         )
 
@@ -977,7 +987,10 @@ class DelegationJournal:
                 cost_usd=billed.cost_usd,
                 input_tokens=billed.input_tokens,
                 output_tokens=billed.output_tokens,
+                cache_read_tokens=billed.cache_read_tokens,
+                cache_write_tokens=billed.cache_write_tokens,
                 cost_is_partial=billed.has_unpriced_models,
+                loop_stopped=handle is not None and isinstance(handle.exception, ToolLoopStopped),
                 agent_id=delegation.agent_id,
                 agent_version_id=delegation.agent_version_id,
                 error=error,
@@ -1019,6 +1032,11 @@ class DelegationJournal:
         therefore not a side effect of streaming: the recording path needs it too,
         and a delegation whose events nobody wants still has to be recorded.
 
+        What the delegate writes passes the delegating run's output check first,
+        when it has one. A text part with a blocked term ends the delegation
+        before any of it is shown, and the delegating agent hears that it
+        failed; its own answer is screened by the same check if it quotes one.
+
         Returns `None` - no streaming - when there is no sink on this run's deps,
         and when the delegation was started by something this capability does not
         intercept. Unlabelled frames are worse than none: a surface cannot tell
@@ -1038,10 +1056,17 @@ class DelegationJournal:
         public = delegation.stable_id or task_id
         labels = FrameLabels(task_id=public, subagent=delegation.name, depth=delegation.depth)
 
+        screen = self.runtime.output_screen
+
         async def stream(
-            _ctx: RunContext[AgentDeps], events: AsyncIterable[AgentStreamEvent]
+            delegate_ctx: RunContext[AgentDeps], events: AsyncIterable[AgentStreamEvent]
         ) -> None:
             await delegation.ensure_started(public, sink, self._definition_for(delegation))
+            if screen is not None:
+                # The delegating run's output check, fresh for this delegation so
+                # its released tail is the delegate's own (agenticos#2000).
+                fresh = await screen.for_run(delegate_ctx)
+                events = fresh.wrap_run_event_stream(delegate_ctx, stream=events)
             async for event in events:
                 frame = frame_for(event, labels)
                 if frame is not None:
@@ -1050,7 +1075,7 @@ class DelegationJournal:
         return stream
 
     @contextmanager
-    def delegating(self, delegation: Delegation) -> Iterator[None]:
+    def delegating(self, delegation: Delegation) -> Generator[None, None, None]:
         """Make `delegation` the current one, for the library and for the ledger.
 
         Two context variables, set together because they are two halves of one
@@ -1176,6 +1201,8 @@ class DelegationJournal:
             cost_usd=carried.billed_cost_usd + share.cost_usd,
             input_tokens=carried.billed_input_tokens + share.input_tokens,
             output_tokens=carried.billed_output_tokens + share.output_tokens,
+            cache_read_tokens=carried.billed_cache_read_tokens + share.cache_read_tokens,
+            cache_write_tokens=carried.billed_cache_write_tokens + share.cache_write_tokens,
             has_unpriced_models=carried.billed_has_unpriced_models or share.has_unpriced_models,
         )
 

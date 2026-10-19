@@ -2,6 +2,22 @@
 
 export type ChannelPlatform = "telegram" | "slack" | "mattermost";
 
+/** How a streamed answer shows its tool calls: one row each, or one plan (#2084). */
+export type StepDisplay = "timeline" | "plan";
+
+/**
+ * How a bot answers, beyond what it says (#2084): a reaction on the question as it
+ * arrives, an answer streamed natively where the platform draws it (Slack), its
+ * tool calls as a timeline or a plan, and thumbs under it to rate it.
+ */
+export interface AnswerStyle {
+  /** An emoji's name without colons, `eyes`; null reacts with nothing. */
+  ack_reaction: string | null;
+  stream_answers: boolean;
+  step_display: StepDisplay;
+  rate_answers: boolean;
+}
+
 /**
  * When an agent says what a turn cost, and when it only records it.
  *
@@ -20,7 +36,7 @@ export interface UsageReporting {
   every_n: number;
 }
 
-export interface ChannelBot {
+export interface ChannelBot extends AnswerStyle {
   id: string;
   platform: ChannelPlatform;
   name: string;
@@ -37,8 +53,12 @@ export interface ChannelBot {
   has_webhook_secret: boolean;
   /** Whether inbound Slack events can be verified - never the secret itself. */
   has_slack_signing_secret: boolean;
-  /** Whether Socket Mode (dev polling) can run - never the token itself. */
+  /** Whether Socket Mode can run - never the token itself. */
   has_slack_app_token: boolean;
+  /** Mattermost only: whether `/agent` requests can be verified - never the token itself. */
+  has_command_token: boolean;
+  /** Mattermost only: the request URL to paste into the `/agent` slash command. */
+  command_url: string | null;
   /**
    * Whether the socket this bot receives on is actually up.
    *
@@ -110,8 +130,19 @@ export interface ChannelBotCreate {
   webhook_secret?: string;
   /** Slack only: this app's signing secret - inbound events are verified with it. */
   slack_signing_secret?: string;
-  /** Slack only: this app's xapp- token, for Socket Mode (dev). */
+  /** Slack only: this app's xapp- token, for Socket Mode. */
   slack_app_token?: string;
+  /**
+   * Slack: `true` when Slack calls this deployment's address, `false` when the
+   * deployment connects out to Slack (Socket Mode) and needs no public address.
+   */
+  webhook_mode?: boolean;
+  /** Mattermost only: the token Mattermost shows for the `/agent` slash command. */
+  command_token?: string;
+  ack_reaction?: string | null;
+  stream_answers?: boolean;
+  step_display?: StepDisplay;
+  rate_answers?: boolean;
   speech_to_text_provider?: string | null;
   speech_to_text_model?: string | null;
 }
@@ -138,6 +169,13 @@ export interface ChannelBotUpdate {
   webhook_secret?: string;
   slack_signing_secret?: string;
   slack_app_token?: string;
+  /** Slack only: which way the connection runs; see `ChannelBotCreate`. */
+  webhook_mode?: boolean;
+  command_token?: string;
+  ack_reaction?: string | null;
+  stream_answers?: boolean;
+  step_display?: StepDisplay;
+  rate_answers?: boolean;
   /** Both halves or neither; the server pairs them against the stored row. */
   speech_to_text_provider?: string | null;
   speech_to_text_model?: string | null;

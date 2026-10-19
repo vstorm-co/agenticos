@@ -10,6 +10,13 @@ import { Perm, type Permission } from "@/types/permissions";
  */
 export const AGENT_BUILDER = "agent-builder";
 
+/**
+ * One eval run's page, `/agents/<id>/evals/<run>`. Its own identity rather than
+ * the builder's, whose highlights name tabs this page does not have. Not on the
+ * first-run walk, so nothing has to resolve a run to open.
+ */
+export const EVAL_RUN = "eval-run";
+
 /** The knowledge-base detail view, `/rag/<id>`, collapsed to one identity the same way. */
 export const KB_DETAIL = "kb-detail";
 
@@ -60,12 +67,25 @@ export const ORG_DIRECTORY = "org-directory-detail";
 export const SETTINGS_DETAIL = "settings-detail";
 
 /**
- * A workspace's file browser, `/workspaces/<id>`, collapsed the same way. Unlike a
+ * One department's page, `/groups/<id>` (#2072): its people, and adding to what it
+ * has. Opened on the first group, like a collection on the first collection.
+ */
+export const GROUP_DETAIL = "group-detail";
+
+/**
+ * A Documents folder, `/documents/<id>`, collapsed the same way. Unlike a
  * seeded agent or collection there is no example to open from the list — a
  * workspace is one person's own agent output — so its stop is "?"-only help shown
  * in place, once the reader has opened one of their own.
  */
 export const WORKSPACE_DETAIL = "workspace-detail";
+
+/**
+ * One project, `/projects/<id>`. Like a Documents folder there is no seeded
+ * example to open, so its stop is "?"-only help shown on a project of the
+ * reader's own.
+ */
+export const PROJECT_DETAIL = "project-detail";
 
 /**
  * One stop on the guided tour.
@@ -126,16 +146,32 @@ export interface TourStep {
 export const TOUR_STEPS: readonly TourStep[] = [
   { id: "welcome", inTour: true },
 
-  { id: "dashboard-actions", page: ROUTES.DASHBOARD, target: "dashboard-actions", inTour: true },
   { id: "dashboard-filters", page: ROUTES.DASHBOARD, target: "dashboard-filters", inTour: true },
   // "?"-only: arranging the dashboard is detail the exhaustive walk covers, not a
   // first-run essential. Ungated — the layout is the reader's own, not org-scoped.
-  { id: "dashboard-customize", page: ROUTES.DASHBOARD, target: "dashboard-customize" },
+  // Optional, because only the organization's view is arranged and everybody
+  // opens on their own.
+  {
+    id: "dashboard-customize",
+    page: ROUTES.DASHBOARD,
+    target: "dashboard-customize",
+    optional: true,
+  },
   // The bell itself sits in the sidebar, not this page, and is mounted on every
   // page alike - but a `TourStep` needs a `page` to ever reach `stepsForPage`
   // (see its own docstring), so it is anchored here the way `dashboard-customize`
   // is: "?"-only, ungated, because every membership has its own inbox.
   { id: "notification-bell", page: ROUTES.DASHBOARD, target: "notification-bell" },
+  // The AI Architect's corner button, on every page alike and anchored here for
+  // the same reason. Optional and gated: it is drawn only for somebody who may
+  // run agents, and only once the organization's assistant exists (#2063).
+  {
+    id: "assistant-widget",
+    page: ROUTES.DASHBOARD,
+    target: "assistant-widget",
+    permission: Perm.agentsRun,
+    optional: true,
+  },
 
   { id: "chat-start", page: ROUTES.CHAT, target: "chat-start", inTour: true },
   { id: "chat-agent-picker", page: ROUTES.CHAT, target: "chat-agent-picker", inTour: true },
@@ -144,14 +180,17 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // organization whose agents carry no planning capability would otherwise wait
   // four seconds for a strip that never mounts.
   { id: "chat-plan", page: ROUTES.CHAT, target: "chat-plan", optional: true },
+  // Only where an agent has drawn something in the conversation on screen.
+  { id: "chat-visual", page: ROUTES.CHAT, target: "chat-visual", optional: true },
   { id: "chat-model-picker", page: ROUTES.CHAT, target: "chat-model-picker" },
-  // Inside the same popover as the model, so the walk opens it once. `optional`
-  // because the control it names lives behind the trigger: the caption is
-  // pinned to nothing on a walk that never opened it.
+  // Inside the same popover as the model, so the walk opens it - `activate` on a
+  // popover's trigger clicks it - and the next stop finds it already open.
+  // `optional` because the section renders only for someone who may change it.
   {
     id: "chat-approval-mode",
     page: ROUTES.CHAT,
     target: "chat-approval-mode",
+    activate: "chat-settings",
     optional: true,
   },
   // Same popover, and rendered only for an agent bound to each person's own
@@ -161,6 +200,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "chat-your-connections",
     page: ROUTES.CHAT,
     target: "chat-your-connections",
+    activate: "chat-settings",
     optional: true,
   },
 
@@ -179,16 +219,22 @@ export const TOUR_STEPS: readonly TourStep[] = [
     inTour: true,
   },
   { id: "agents-filters", page: ROUTES.AGENTS, target: "agents-filters" },
+  // The band's toggle rather than its cards: it renders only while the
+  // organization holds a judge, and folded it is one bounded line.
+  { id: "agents-judges", page: ROUTES.AGENTS, target: "agents-judges", optional: true },
 
   // The builder, entered from the Agents list. The engine opens an example agent
-  // (the seeded "Getting Started", or the first one there is), switches to the
+  // (the seeded "Claude Code like", or the first one there is), switches to the
   // named tab, then spotlights the section. The launch pass takes one per tab —
   // enough for a short line on each section; the "?" adds the sub-cards (model,
   // MCP) the launch leaves out.
   {
     id: "agent-instructions",
     page: AGENT_BUILDER,
-    target: "agent-instructions",
+    // The header, not the card: the card holds the editor and the model picker
+    // and lit half the screen. The coach's own step keeps the card (`flows.ts`),
+    // because it has the reader type into it.
+    target: "agent-instructions-header",
     activate: "agent-tab-build",
     permission: Perm.agentsView,
     inTour: true,
@@ -201,9 +247,18 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.agentsView,
   },
   {
+    id: "agent-identity",
+    page: AGENT_BUILDER,
+    target: "agent-identity",
+    activate: "agent-tab-build",
+    permission: Perm.agentsView,
+  },
+  {
     id: "agent-toolbox",
     page: AGENT_BUILDER,
-    target: "agent-capabilities",
+    // The header, for the reason the instructions stop takes one: the card is the
+    // whole capability list. The coach keeps the card to have the reader use it.
+    target: "agent-capabilities-header",
     activate: "agent-tab-toolbox",
     permission: Perm.agentsView,
     inTour: true,
@@ -255,6 +310,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.agentsView,
     inTour: true,
   },
+  // The Evals tab reads the agent's eval runs, which `runs:view` gates.
+  {
+    id: "agent-evals",
+    page: AGENT_BUILDER,
+    target: "agent-evals",
+    activate: "agent-tab-evals",
+    permission: Perm.runsView,
+  },
   {
     id: "agent-history",
     page: AGENT_BUILDER,
@@ -273,12 +336,44 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.agentsPublish,
     optional: true,
   },
+  // Beside "Draft differs from vN", which only a changed draft shows. Gated as
+  // the Evals tab is: the run it starts is read there.
+  {
+    id: "agent-test-draft",
+    page: AGENT_BUILDER,
+    target: "agent-test-draft",
+    permission: Perm.runsView,
+    optional: true,
+  },
+  // Trying it beside the Builder before publishing (#2074).
+  {
+    id: "agent-test",
+    page: AGENT_BUILDER,
+    target: "agent-test",
+    permission: Perm.agentsEdit,
+    inTour: true,
+  },
+  // Who reaches the agent, in one dialog (#2062). The page's "?" walk only: the
+  // launch pass already takes one stop per Builder tab.
+  {
+    id: "agent-share",
+    page: AGENT_BUILDER,
+    target: "agent-share",
+    permission: Perm.agentsView,
+  },
   {
     id: "agent-publish",
     page: AGENT_BUILDER,
     target: "agent-publish",
     permission: Perm.agentsPublish,
     inTour: true,
+  },
+
+  {
+    id: "eval-verdict",
+    page: EVAL_RUN,
+    target: "eval-verdict",
+    permission: Perm.runsView,
   },
 
   {
@@ -298,6 +393,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     inTour: true,
   },
   { id: "skills-list", page: ROUTES.SKILLS, target: "skills-list", permission: Perm.skillsView },
+  // Grouping by department (#2124): only where the organization has groups.
+  {
+    id: "skills-groups",
+    page: ROUTES.SKILLS,
+    target: "group-filter",
+    permission: Perm.skillsView,
+    optional: true,
+  },
 
   // Standing context — the files an organization injects into every agent's
   // prompt. Beside skills in the Build group, the same shape: a create button the
@@ -315,9 +418,28 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "context-list",
     permission: Perm.contextView,
   },
+  // Grouping by department (#2124): only where the organization has groups.
+  {
+    id: "context-groups",
+    page: ROUTES.CONTEXT,
+    target: "group-filter",
+    permission: Perm.contextView,
+    optional: true,
+  },
 
-  // Datasets - the questions an agent is tested on. The same two stops as
-  // context: the create button (edit-gated) and the list (view-gated).
+  // Groups as departments (#2072): the button that creates one for a caller who
+  // may, and the list everybody reads.
+  {
+    id: "groups-new",
+    page: ROUTES.GROUPS,
+    target: "groups-new",
+    permission: Perm.membersManage,
+    inTour: true,
+  },
+  { id: "groups-list", page: ROUTES.GROUPS, target: "groups-list" },
+  { id: "group-members", page: GROUP_DETAIL, target: "group-members" },
+  { id: "group-add-to", page: GROUP_DETAIL, target: "group-add-to" },
+
   {
     id: "datasets-new",
     page: ROUTES.DATASETS,
@@ -363,6 +485,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "artifacts-list",
     permission: Perm.artifactsView,
   },
+  // Grouping by department (#2124): only where the organization has groups.
+  {
+    id: "artifacts-groups",
+    page: ROUTES.ARTIFACTS,
+    target: "group-filter",
+    permission: Perm.artifactsView,
+    optional: true,
+  },
 
   {
     id: "activity-overview",
@@ -406,7 +536,6 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.runsView,
     optional: true,
   },
-  // Only on a focused run with an answer, for somebody who may run evals.
   {
     id: "runs-score-against-case",
     page: ROUTES.RUNS,
@@ -427,6 +556,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     page: ROUTES.RAG,
     target: "knowledge-tabs",
     permission: Perm.collectionsView,
+  },
+  // Grouping by department (#2124): only where the organization has groups.
+  {
+    id: "knowledge-groups",
+    page: ROUTES.RAG,
+    target: "group-filter",
+    permission: Perm.collectionsView,
+    optional: true,
   },
   // The reusable connections — an S3 bucket, a drive, a repo configured once and
   // cloned into any collection. Both stops are gated on connections:manage, the
@@ -493,20 +630,27 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.collectionsView,
   },
 
-  // Each tab stop selects its own tab; the scores stop anchors on the review filter
+  // Each tab stop selects its own tab; the review stop anchors on the review filter
   // because the list below it can hold any number of results.
   {
-    id: "dataset-scoring",
+    id: "dataset-grading",
     page: DATASET_DETAIL,
-    target: "datasets-scoring",
-    activate: "datasets-scoring-tab",
+    target: "datasets-grading",
+    activate: "datasets-grading-tab",
     permission: Perm.datasetsView,
   },
   {
-    id: "dataset-scores",
+    id: "dataset-judge",
+    page: DATASET_DETAIL,
+    target: "datasets-grading-judge",
+    activate: "datasets-grading-tab",
+    permission: Perm.datasetsView,
+  },
+  {
+    id: "dataset-review",
     page: DATASET_DETAIL,
     target: "datasets-review-filter",
-    activate: "datasets-scores-tab",
+    activate: "datasets-review-tab",
     permission: Perm.datasetsView,
   },
 
@@ -516,6 +660,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // walk: the members page (profile, then the member list) and then a step
   // across into the roles matrix. Ungated — any member reaches both.
   { id: "org-profile", page: ORG_MEMBERS, target: "org-profile" },
+  // The AI Architect's card: drawn only on the active organization's page, and
+  // only for somebody who may change the organization's settings.
+  {
+    id: "org-assistant",
+    page: ORG_MEMBERS,
+    target: "org-assistant",
+    permission: Perm.orgSettings,
+    optional: true,
+  },
   { id: "org-members", page: ORG_MEMBERS, target: "org-members" },
   { id: "org-roles", page: ORG_ROLES, target: "org-roles" },
   {
@@ -620,6 +773,36 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.connectionsView,
   },
 
+  // Projects: shared instructions and files, and the chats started in them.
+  {
+    id: "projects-new",
+    page: ROUTES.PROJECTS,
+    target: "projects-new",
+    permission: Perm.projectsEdit,
+  },
+  {
+    id: "projects-list",
+    page: ROUTES.PROJECTS,
+    target: "projects-list",
+    permission: Perm.projectsView,
+  },
+  { id: "project-tabs", page: PROJECT_DETAIL, target: "project-tabs" },
+
+  // Other vendors' agents, reached over A2A (#2092). The list is what the page
+  // is for; registering is `agents:edit`, which the button carries.
+  {
+    id: "remote-agents-list",
+    page: ROUTES.REMOTE_AGENTS,
+    target: "remote-agents-list",
+    permission: Perm.agentsView,
+  },
+  {
+    id: "remote-agents-register",
+    page: ROUTES.REMOTE_AGENTS,
+    target: "remote-agents-register",
+    permission: Perm.agentsEdit,
+  },
+
   // Routines — the org-wide home for everything an agent does on its own. Two
   // stops: what is already running, and the two ways to start one. The create
   // stop is gated on the run floor a trigger is created at, not on a role: a
@@ -635,8 +818,16 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "routines-create",
     permission: Perm.agentsRun,
   },
+  // Rendered only once the template catalog has answered, so optional.
+  {
+    id: "routines-ideas",
+    page: ROUTES.ROUTINES,
+    target: "routines-ideas",
+    permission: Perm.agentsRun,
+    optional: true,
+  },
 
-  { id: "workspaces-browser", page: ROUTES.WORKSPACES, target: "workspaces-browser" },
+  { id: "workspaces-browser", page: ROUTES.DOCUMENTS, target: "workspaces-browser" },
   // The detail a workspace opens onto — the file tree. "?"-only and shown in
   // place: the reader is already on one of their own workspaces, so the walk
   // spotlights the browser rather than opening an example there is none of.
@@ -650,6 +841,21 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // written something - and an unmarked step waits four seconds for an element
   // an empty store never mounts (#1594).
   { id: "my-memory", page: SETTINGS_DETAIL, target: "my-memory", optional: true },
+  // Optional for the same reason: the list renders only once a sign-in is kept.
+  // Optional: offered only where the deployment names a browser to sign in with.
+  { id: "sign-in-to-site", page: SETTINGS_DETAIL, target: "sign-in-to-site", optional: true },
+  { id: "my-sign-ins", page: SETTINGS_DETAIL, target: "my-sign-ins", optional: true },
+  // Optional for the same reason: the card is on one settings page of five, and
+  // the stop is offered from whichever one help was opened on.
+  { id: "settings-api-usage", page: SETTINGS_DETAIL, target: "api-usage", optional: true },
+  { id: "settings-api-keys", page: SETTINGS_DETAIL, target: "api-keys", optional: true },
+  { id: "settings-mcp-connect", page: SETTINGS_DETAIL, target: "mcp-connect", optional: true },
+  {
+    id: "settings-connected-apps",
+    page: SETTINGS_DETAIL,
+    target: "connected-apps",
+    optional: true,
+  },
 
   { id: "finish", inTour: true },
 ];
@@ -671,6 +877,7 @@ const SECTION_FLOWS: readonly (readonly string[])[] = [
 
 /** The page identity a real pathname belongs to; detail routes collapse onto their pseudo-page. */
 export function pageKey(path: string): string {
+  if (/^\/agents\/[^/]+\/evals\/[^/]+/.test(path)) return EVAL_RUN;
   if (path.startsWith(`${ROUTES.AGENTS}/`)) return AGENT_BUILDER;
   if (path.startsWith(`${ROUTES.RAG}/`)) return KB_DETAIL;
   if (path.startsWith(`${ROUTES.DATASETS}/`)) return DATASET_DETAIL;
@@ -681,8 +888,10 @@ export function pageKey(path: string): string {
     if (path.endsWith("/directory")) return ORG_DIRECTORY;
     return ORG_MEMBERS;
   }
+  if (path.startsWith(`${ROUTES.GROUPS}/`)) return GROUP_DETAIL;
   if (path.startsWith(`${ROUTES.SETTINGS}/`)) return SETTINGS_DETAIL;
-  if (path.startsWith(`${ROUTES.WORKSPACES}/`)) return WORKSPACE_DETAIL;
+  if (path.startsWith(`${ROUTES.DOCUMENTS}/`)) return WORKSPACE_DETAIL;
+  if (path.startsWith(`${ROUTES.PROJECTS}/`)) return PROJECT_DETAIL;
   return path;
 }
 

@@ -106,11 +106,12 @@ describe("the file editor", () => {
     expect(frame).toHaveAttribute("srcdoc", "<p>hi</p>");
   });
 
-  it("fences a code file with its own extension so it is highlighted", () => {
-    // Rather than growing a second highlighter for code.
+  it("previews a code file as code, numbered, rather than as Markdown", () => {
+    // The same view a workspace file gets, so a skill's script reads alike.
     mountPreview({ name: "helper.py", content: "print(1)" });
 
-    expect(screen.getByTestId("rendered")).toHaveTextContent("```py");
+    expect(screen.queryByTestId("rendered")).toBeNull();
+    expect(screen.getByText("print(1)")).toBeInTheDocument();
   });
 
   it("shows a file it has no renderer for as the text it is", () => {

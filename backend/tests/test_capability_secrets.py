@@ -236,6 +236,24 @@ class TestPublishValidation:
         ]
 
     @pytest.mark.anyio
+    @pytest.mark.parametrize(("harness", "refused"), [("claude_code", True), ("codex", False)])
+    async def test_a_chatgpt_sign_in_runs_only_codex(self, secret_row, harness, refused):
+        """Switched to Claude Code, a binding kept the sign-in and published; every
+        task then refused at run time."""
+        secret_row.kind = SecretKind.OPENAI_CODEX.value
+        secret_row.name = "My ChatGPT"
+
+        problems, _, _ = await _publish_problems(
+            CapabilityBindingSpec(
+                id="coding_agent", secret_id=secret_row.id, config={"harness": harness}
+            ),
+            secret=secret_row,
+        )
+
+        said = any("ChatGPT sign-in, which only Codex runs on" in problem for problem in problems)
+        assert said is refused
+
+    @pytest.mark.anyio
     async def test_a_matching_secret_publishes(self, secret_row):
         problems, _, _ = await _publish_problems(
             CapabilityBindingSpec(id=CAPABILITY_ID, secret_id=secret_row.id), secret=secret_row

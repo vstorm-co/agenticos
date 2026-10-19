@@ -100,7 +100,9 @@ class WorkspaceSummary(BaseSchema):
     """
 
     id: UUID
-    agent_id: UUID
+    agent_id: UUID | None = Field(
+        description="The agent whose workspace it is; a project's container is not listed here."
+    )
     agent_name: str = Field(description="Resolved server-side, so a row names something readable")
     agent_slug: str = Field(
         default="",
@@ -216,8 +218,41 @@ class FlatFileRead(WorkspaceFileRead):
     """
 
     workspace_id: UUID
+    agent_id: UUID | None = Field(
+        description="The agent whose workspace it is; a project's container is not listed here."
+    )
     agent_name: str
+    agent_slug: str = Field(
+        default="",
+        description=(
+            "The handle the agent's generated face is drawn from, so a file names "
+            "its agent with the picture the agent's own page shows. Empty for an "
+            "agent that has been deleted."
+        ),
+    )
+    agent_has_avatar: bool = Field(
+        default=False,
+        description=(
+            "Whether the agent has a face to draw. Resolved here because the reader "
+            "may not hold agents:view to ask the agent list."
+        ),
+    )
     access_label: str
+    conversation_title: str | None = Field(
+        default=None,
+        description=(
+            "The title of the conversation a conversation-scoped workspace belongs to, "
+            "so two workspaces of one agent read apart. Null for any other scope, and "
+            "for a conversation with no title yet."
+        ),
+    )
+    conversation_id: UUID | None = Field(
+        default=None,
+        description=(
+            "That conversation, to open it from the file - set only when it is the "
+            "caller's own, because the chat lists its owner's threads."
+        ),
+    )
     from_upload: bool = Field(
         default=False,
         description=(

@@ -5,12 +5,16 @@ import {
   Bell,
   CircleDollarSign,
   FileCheck2,
+  FileText,
   FileX2,
   Hand,
   KeyRound,
   Mail,
   Megaphone,
   PieChart,
+  ServerCrash,
+  ServerCog,
+  Share2,
   UserPlus,
   XCircle,
 } from "lucide-react";
@@ -97,6 +101,36 @@ const PREFERENCE_EVENTS: readonly PreferenceEvent[] = [
     channels: ["in_app", "email"],
   },
   { eventType: "run_failed", words: "prefRunFailed", icon: XCircle, channels: ["in_app", "email"] },
+  {
+    eventType: "artifact_version_published",
+    words: "prefArtifactVersionPublished",
+    icon: FileText,
+    channels: ["in_app", "email"],
+  },
+  {
+    eventType: "resource_shared",
+    words: "prefResourceShared",
+    icon: Share2,
+    channels: ["in_app", "email"],
+  },
+  {
+    eventType: "budget_warning",
+    words: "prefBudgetWarning",
+    icon: CircleDollarSign,
+    channels: ["in_app", "email"],
+  },
+  {
+    eventType: "mcp_server_down",
+    words: "prefMcpServerDown",
+    icon: ServerCrash,
+    channels: ["in_app", "email"],
+  },
+  {
+    eventType: "mcp_server_recovered",
+    words: "prefMcpServerRecovered",
+    icon: ServerCog,
+    channels: ["in_app", "email"],
+  },
   {
     eventType: "ingestion_completed",
     words: "prefIngestionCompleted",
@@ -252,7 +286,7 @@ export default function NotificationsSettingsPage() {
                     )}`;
                     return (
                       <div key={channel} className="flex flex-col items-center gap-1">
-                        <span className="text-muted-foreground text-[11px] tracking-wide uppercase">
+                        <span className="text-muted-foreground text-xs tracking-wide uppercase">
                           {t(channel === "in_app" ? "inAppChannel" : "emailChannel")}
                         </span>
                         <Switch

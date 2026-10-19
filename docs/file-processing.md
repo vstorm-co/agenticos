@@ -119,6 +119,13 @@ gets the file instead of the text:
 | image | `BinaryContent` | `BinaryContent` **and** written; reference names the path |
 | tiff | PNG page(s) as `BinaryContent`, page cap noted | original `.tiff` written; PNG page(s) shown, page cap noted |
 
+**A later turn still has the file.** What the attachment added to the prompt -
+the paste, or the reference and its head - is kept beside the message and
+replayed with the history, so "and what about March" reaches a model that still
+knows the file is there. A picture is named in that history rather than sent
+again; an agent that needs to look at it once more asks for it, or opens it from
+`uploads/` when it has a workspace.
+
 **The extracted text comes with it only where nothing can read the original.** A
 `.txt` of the parse used to be written next to every PDF, `.docx` and spreadsheet,
 on the reasoning that a shell has no library for any of them — `read_file` on an

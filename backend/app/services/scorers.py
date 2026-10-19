@@ -11,16 +11,17 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Annotated, Any
+from typing import Any
 from uuid import UUID
 
 import regex
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import best_match
-from pydantic import BaseModel, Field, JsonValue
+from pydantic import BaseModel, Field, JsonValue, field_validator
 from pydantic import ValidationError as PydanticValidationError
 from referencing.exceptions import Unresolvable
 
@@ -37,6 +38,7 @@ from app.schemas.scoring import (
 
 MAX_QUOTES = 12
 MAX_QUOTE = 600
+MAX_RULE = 300
 MAX_REASON = 2000
 _QUOTE_SHOWN = 80
 
@@ -91,6 +93,7 @@ class CaseView:
     expected_tool_calls: Sequence[Mapping[str, Any]]
     order_mode: str
     checks: Sequence[Mapping[str, Any]]
+    note: str | None = None
 
 
 class _NoValue(Exception):
@@ -367,17 +370,27 @@ def _in_order(expected: Sequence[Mapping[str, Any]], calls: Sequence[ScoredCall]
 def case_passed(results: Sequence[ScorerResult]) -> bool | None:
     """Whether a case passed: every required scorer passed.
 
-    A required scorer that failed or errored fails it. One that was skipped - the
-    judge refused, switched off, out of budget - leaves it unscored (`None`), never
-    passed: a gate reading the result must not count what nobody checked. Nothing
+    A required scorer that failed fails it. One that could not reach a verdict -
+    it errored, or was skipped because the judge was refused, switched off or out
+    of budget - leaves it unscored (`None`), never passed and never failed: a gate
+    reading the result must not count what nobody checked, either way. Nothing
     required to score leaves it unscored too.
     """
     required = [result for result in results if result.required]
-    if any(result.status in ("fail", "error") for result in required):
+    if any(result.status == "fail" for result in required):
         return False
-    if not required or any(result.status == "skipped" for result in required):
+    if not required or any(result.status in ("skipped", "error") for result in required):
         return None
     return True
+
+
+def judge_verdict(results: Sequence[ScorerResult]) -> bool | None:
+    """What the judge alone concluded: `case_passed` over its own results.
+
+    The rubric and the reference answer are what a judge's run grades; the
+    checks and the expected tool calls beside them are not its verdict.
+    """
+    return case_passed([result for result in results if result.scorer in ("judge", "reference")])
 
 
 @dataclass(frozen=True)
@@ -395,16 +408,35 @@ class JudgeGrade(BaseModel):
     """One criterion's grade.
 
     `quotes` are the passages of the answer the grade rests on, word for word.
-    Each is looked for in the answer; one that is not there is named in the
-    result's reason, and the grade stands.
+    Each is looked for in the answer; one that is not there is kept beside the
+    grade, and the grade stands. An empty or overlong quote is dropped and the
+    list cut to its limit, and an overlong rule is cut, rather than refusing the
+    whole verdict. `rule` is the rule the grade follows from - a
+    line of a policy the judge was given, or the part of the criterion it turns on.
     """
 
     id: str
     score: int
     reason: str
-    quotes: list[Annotated[str, Field(min_length=1, max_length=MAX_QUOTE)]] = Field(
-        default_factory=list, max_length=MAX_QUOTES
+    rule: str = Field(default="", description=f"At most {MAX_RULE} characters")
+    quotes: list[str] = Field(
+        default_factory=list,
+        description=f"At most {MAX_QUOTES} passages of at most {MAX_QUOTE} characters each",
     )
+
+    # Only the criterion id and the grade must be right for a grade to stand: a
+    # judge that overruns a limit on what backs it loses the overrun, not the grade.
+    @field_validator("rule", mode="before")
+    @classmethod
+    def _rule_cut(cls, value: object) -> str:
+        return value[:MAX_RULE] if isinstance(value, str) else ""
+
+    @field_validator("quotes", mode="before")
+    @classmethod
+    def _quotes_kept(cls, value: object) -> list[str]:
+        given = [value] if isinstance(value, str) else value if isinstance(value, list) else []
+        kept = [q for q in given if isinstance(q, str) and q.strip() and len(q) <= MAX_QUOTE]
+        return kept[:MAX_QUOTES]
 
 
 class JudgeVerdict(BaseModel):
@@ -412,6 +444,23 @@ class JudgeVerdict(BaseModel):
 
     grades: list[JudgeGrade]
 
+
+# Bumped whenever what `judge_prompt` hands the judge changes, so a score graded
+# from one prompt is never compared as like for like with one graded from another.
+JUDGE_PROMPT_VERSION = 4
+
+COUNTER_ID = "counter"
+COUNTER_CRITERION = (
+    "The answer does not repeat the mistake of the counter-example, a known bad answer "
+    "to this question."
+)
+_MAX_CALLS_SHOWN = 50
+_MAX_ARGS_SHOWN = 1_000
+# A reason this much made of the criterion's own words says nothing about the answer.
+_RESTATED_SHARE = 0.8
+# Fewer words than this, an answer inside the counter-example ("No.") is a
+# common phrase rather than a copy of it.
+_COPY_MIN_WORDS = 3
 
 REFERENCE_CRITERION = (
     "The answer agrees with the reference answer on every fact the question turns on. "
@@ -422,7 +471,12 @@ REFERENCE_CRITERION = (
 def judge_criteria(
     case: CaseView, scoring: DatasetScoring, judged: Sequence[JudgeCheck]
 ) -> list[JudgeCriterion]:
-    """What the judge grades for this case: the rubric, the reference, the case's own."""
+    """What the judge grades for this case: the rubric, the reference, the case's own.
+
+    A case with a counter-example is always asked not to repeat it, and must
+    not, once the judge grades the dataset at all: a known bad answer is the
+    most direct thing a case can say about its answer.
+    """
     criteria = [
         JudgeCriterion(
             id=f"r{index}",
@@ -444,6 +498,16 @@ def judge_criteria(
                 required=scoring.reference.required,
             )
         )
+    if case.counter_example and (scoring.judge.enabled or scoring.reference.enabled):
+        criteria.append(
+            JudgeCriterion(
+                id=COUNTER_ID,
+                scorer="reference",
+                name="counter-example",
+                description=COUNTER_CRITERION,
+                required=True,
+            )
+        )
     criteria.extend(
         JudgeCriterion(
             id=f"c{index}",
@@ -457,27 +521,67 @@ def judge_criteria(
     return criteria
 
 
+def _call_line(number: int, call: ScoredCall) -> str:
+    args = json.dumps(call.args, ensure_ascii=False, default=str)
+    if len(args) > _MAX_ARGS_SHOWN:
+        args = f"{args[:_MAX_ARGS_SHOWN]}…"
+    done = "blocked before it ran" if call.blocked else "ran"
+    return f"{number}. {call.tool} {args} ({done})"
+
+
+def _tool_calls(answer: ScoredAnswer) -> str:
+    if not answer.calls:
+        return "<tool_calls>\nThe agent called no tools.\n</tool_calls>"
+    lines = [
+        _call_line(number, call)
+        for number, call in enumerate(answer.calls[:_MAX_CALLS_SHOWN], start=1)
+    ]
+    if len(answer.calls) > _MAX_CALLS_SHOWN:
+        lines.append(f"… and {len(answer.calls) - _MAX_CALLS_SHOWN} more")
+    return "<tool_calls>\n" + "\n".join(lines) + "\n</tool_calls>"
+
+
 def judge_prompt(
     case: CaseView, answer: ScoredAnswer, criteria: Sequence[JudgeCriterion], *, scale_max: int
 ) -> str:
-    """The task the judge is handed: the case, the answer and the criteria by id."""
+    """The task the judge is handed: the case, the answer, the agent's calls, the criteria.
+
+    What changes here changes what every judge is asked, so it bumps
+    `JUDGE_PROMPT_VERSION`.
+    """
     parts = []
+    if case.note:
+        parts.append(f"<why_this_case_exists>\n{case.note}\n</why_this_case_exists>")
     if case.history:
         turns = "\n".join(f"{turn['role']}: {turn['content']}" for turn in case.history)
         parts.append(f"<conversation_so_far>\n{turns}\n</conversation_so_far>")
     parts.append(f"<question>\n{case.input}\n</question>")
-    if any(criterion.scorer == "reference" for criterion in criteria):
+    if any(criterion.scorer == "reference" and criterion.id == "ref" for criterion in criteria):
         parts.append(f"<reference_answer>\n{case.reference_answer}\n</reference_answer>")
     if case.counter_example:
         parts.append(f"<counter_example>\n{case.counter_example}\n</counter_example>")
+    parts.append(_tool_calls(answer))
     parts.append(f"<answer>\n{answer.text[:MAX_MATCH_TEXT]}\n</answer>")
     listed = "\n".join(f"- {c.id} ({c.name}): {c.description}" for c in criteria)
     parts.append(
         f"Grade the answer on each criterion below, from 1 (does not meet it at all) to "
-        f"{scale_max} (fully meets it). Give exactly one grade per criterion id. Where a "
-        f"grade rests on something the answer says, copy that passage word for word into "
-        f"the grade's quotes.\n{listed}"
+        f"{scale_max} (fully meets it). Give exactly one grade per criterion id. The tool "
+        f"calls are what the agent did before answering; grade them only where a criterion "
+        f"asks about them. For every criterion, copy word for word into the grade's quotes "
+        f"the short passage of the answer the grade rests on, name in its rule the rule the "
+        f"grade follows from - a line of the policy you were given, or the part of the "
+        f"criterion it turns on - and say in its reason what in this answer decided it. Do "
+        f"not restate the criterion. A top grade with nothing quoted from the answer is "
+        f"treated as unverified.\n{listed}"
     )
+    if any(criterion.id == COUNTER_ID for criterion in criteria):
+        parts.append(
+            f"For {COUNTER_ID}, quote what sets the answer apart from the counter-example: a "
+            "passage of the answer the counter-example does not say. If the counter-example "
+            'is "Your order shipped today." and the answer is "Your order has not shipped '
+            'yet; it leaves on Friday.", quote "has not shipped yet". Never quote a passage '
+            "the two share."
+        )
     return "\n\n".join(parts)
 
 
@@ -491,18 +595,84 @@ def rubric_hash(criteria: Sequence[JudgeCriterion], *, scale_max: int) -> str:
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 
-def _unverified(quotes: Sequence[str], answer: str) -> str:
-    missing = [quote for quote in quotes if quote not in answer]
-    if not missing:
-        return ""
-    shown = ", ".join(
-        json.dumps(
-            quote if len(quote) <= _QUOTE_SHOWN else f"{quote[:_QUOTE_SHOWN]}…",
-            ensure_ascii=False,
-        )
-        for quote in missing
-    )
-    return f" [not in the answer, unverified: {shown}]"
+def _unverified(quotes: Sequence[str], answer: str) -> list[str]:
+    """The quotes the answer does not hold, each cut to what a reader needs to spot it."""
+    return [
+        quote if len(quote) <= _QUOTE_SHOWN else f"{quote[:_QUOTE_SHOWN]}…"
+        for quote in quotes
+        if quote not in answer
+    ]
+
+
+def _words(text: str) -> list[str]:
+    """The words of a text that carry meaning: longer than three letters, case aside."""
+    return [word for word in re.findall(r"\w+", text.casefold()) if len(word) > 3]
+
+
+def restates(reason: str, criterion: str) -> bool:
+    """Whether a reason is mostly the criterion's own words rather than the answer's.
+
+    Measured by the share of the reason's words the criterion also holds, so a
+    criterion copied with one word swapped - "(approve, deny or need more info)"
+    for "(deny)" - counts as copied. A reason with no word long enough to count
+    says nothing either way and is left to stand.
+    """
+    said = _words(reason)
+    if not said:
+        return False
+    asked = set(_words(criterion))
+    return sum(word in asked for word in said) / len(said) >= _RESTATED_SHARE
+
+
+def _sequence(text: str) -> str:
+    return " ".join(re.findall(r"\w+", text.casefold()))
+
+
+def _within(part: str, whole: str) -> bool:
+    return f" {part} " in f" {whole} "
+
+
+def repeats(answer: str, counter_example: str) -> bool:
+    """Whether the answer says nothing the counter-example does not: it is the
+    counter-example, or a part of it of at least `_COPY_MIN_WORDS` words.
+
+    Case, spacing and punctuation aside, so a curly apostrophe or a dash for a
+    comma is still the same answer. Words shared in another order are not: "I
+    have not refunded your gift code" shares nearly every word of "Sure, I have
+    refunded your gift code" and says the opposite.
+    """
+    said, bad = _sequence(answer), _sequence(counter_example)
+    if not said or not bad:
+        return False
+    return said == bad or (len(said.split()) >= _COPY_MIN_WORDS and _within(said, bad))
+
+
+def copies(answer: str, counter_example: str) -> bool:
+    """Whether the answer repeats the counter-example word for word, or is a part of it.
+
+    As `repeats`, and also an answer that holds the whole counter-example with
+    more around it - which may be the fix as much as the mistake, so it takes a
+    quote to tell which.
+    """
+    said, bad = _sequence(answer), _sequence(counter_example)
+    return repeats(answer, counter_example) or bool(said and bad and _within(bad, said))
+
+
+def _counter_unsupported(quotes: Sequence[str], answer: str, counter_example: str) -> bool:
+    """Whether a pass on not repeating the counter-example has nothing to stand on.
+
+    A quote of the answer the counter-example does not also say backs it, so
+    an answer that keeps the counter-example and adds what it lacked passes on
+    the addition. Quoting only what the two share points at the mistake rather
+    than away from it. With nothing quoted, a copy of the counter-example
+    cannot pass on being unlike it. Quotes compare by whole words, as `copies`
+    does, so a quote cut mid-word sets nothing apart.
+    """
+    said, bad = _sequence(answer), _sequence(counter_example)
+    held = [words for words in map(_sequence, quotes) if words and _within(words, said)]
+    if any(not _within(words, bad) for words in held):
+        return False
+    return bool(held) or copies(answer, counter_example)
 
 
 def graded(
@@ -513,15 +683,56 @@ def graded(
     scale_max: int,
     pass_at: int,
     run_id: UUID,
+    counter_example: str | None = None,
 ) -> list[ScorerResult]:
-    """The judge's grades as results; a criterion it skipped or misgraded is an error.
+    """The judge's grades as results; a criterion it skipped, misgraded or graded
+    more than once is an error.
 
-    A quote is checked against the part of `answer` the judge was shown.
+    A quote is checked against the part of `answer` the judge was shown; one it
+    does not hold is kept beside the grade rather than in its reason. A grade
+    whose reason is mostly the criterion's own words, with no quote the answer
+    holds, is an error: nothing shows the judge read the answer; its words are
+    kept as `judge_said`. A grade at the top of the scale with no such quote
+    stands, marked `unverified`. An answer that `repeats` the counter-example
+    fails on it whatever the judge said. A pass on not repeating
+    `counter_example` with nothing quoted is unverified at any grade, and an
+    error when the answer still copies the counter-example; so is one whose
+    every quote is a passage the two share - that is the mistake, not evidence
+    against it.
     """
     grades = {grade.id: grade for grade in verdict.grades}
+    graded_twice = {
+        id_ for id_, times in Counter(g.id for g in verdict.grades).items() if times > 1
+    }
     shown = answer[:MAX_MATCH_TEXT]
     results = []
     for criterion in criteria:
+        if criterion.id == COUNTER_ID and repeats(shown, counter_example or ""):
+            results.append(
+                ScorerResult(
+                    scorer=criterion.scorer,
+                    name=criterion.name,
+                    required=criterion.required,
+                    status="fail",
+                    score=1 / scale_max,
+                    reason="The answer repeats the counter-example",
+                    judge_run_id=run_id,
+                )
+            )
+            continue
+        if criterion.id in graded_twice:
+            results.append(
+                ScorerResult(
+                    scorer=criterion.scorer,
+                    name=criterion.name,
+                    required=criterion.required,
+                    status="error",
+                    reason="The judge graded this criterion more than once",
+                    reason_code="judge_graded_twice",
+                    judge_run_id=run_id,
+                )
+            )
+            continue
         grade = grades.get(criterion.id)
         if grade is None or not 1 <= grade.score <= scale_max:
             results.append(
@@ -536,7 +747,38 @@ def graded(
                 )
             )
             continue
-        flag = _unverified(grade.quotes, shown)[: MAX_REASON // 2]
+        quoted = any(quote in shown for quote in grade.quotes)
+        if not quoted and restates(grade.reason, criterion.description):
+            results.append(
+                ScorerResult(
+                    scorer=criterion.scorer,
+                    name=criterion.name,
+                    required=criterion.required,
+                    status="error",
+                    reason="The judge restated the criterion instead of pointing at what in the "
+                    "answer meets it",
+                    reason_code="judge_reason_echo",
+                    judge_said=grade.reason[:MAX_REASON],
+                    judge_run_id=run_id,
+                )
+            )
+            continue
+        countered = criterion.id == COUNTER_ID and grade.score >= pass_at
+        if countered and _counter_unsupported(grade.quotes, shown, counter_example or ""):
+            results.append(
+                ScorerResult(
+                    scorer=criterion.scorer,
+                    name=criterion.name,
+                    required=criterion.required,
+                    status="error",
+                    reason="The judge passed the answer as unlike the counter-example, though "
+                    "the answer repeats it or the judge quoted only what the two share",
+                    reason_code="judge_counter_unsupported",
+                    judge_said=grade.reason[:MAX_REASON],
+                    judge_run_id=run_id,
+                )
+            )
+            continue
         results.append(
             ScorerResult(
                 scorer=criterion.scorer,
@@ -544,8 +786,10 @@ def graded(
                 required=criterion.required,
                 status="pass" if grade.score >= pass_at else "fail",
                 score=grade.score / scale_max,
-                reason=f"{grade.score}/{scale_max}: {grade.reason}"[: MAX_REASON - len(flag)]
-                + flag,
+                reason=f"{grade.score}/{scale_max}: {grade.reason}"[:MAX_REASON],
+                rule=grade.rule.strip() or None,
+                unverified=(grade.score == scale_max or countered) and not quoted,
+                unverified_quotes=_unverified(grade.quotes, shown),
                 judge_run_id=run_id,
             )
         )
@@ -559,8 +803,9 @@ def not_graded(
     code: str,
     reason: str,
     run_id: UUID | None = None,
+    said: str | None = None,
 ) -> list[ScorerResult]:
-    """Every criterion the judge could not grade, with why."""
+    """Every criterion the judge could not grade, with why, and what it said if it answered."""
     return [
         ScorerResult(
             scorer=criterion.scorer,
@@ -569,6 +814,7 @@ def not_graded(
             status="skipped" if skipped else "error",
             reason=reason,
             reason_code=code,
+            judge_said=said,
             judge_run_id=run_id,
         )
         for criterion in criteria

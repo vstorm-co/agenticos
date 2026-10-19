@@ -54,7 +54,7 @@ export function requestedLink(event: MessageEvent, frame: HTMLIFrameElement | nu
  * open, and taking the newer address would swap the one the reader is checking
  * for one they never saw, just before they click.
  */
-function useLinkRequests(frame: React.RefObject<HTMLIFrameElement | null>) {
+export function useLinkRequests(frame: React.RefObject<HTMLIFrameElement | null>) {
   const [pending, setPending] = useState<string | null>(null);
   useEffect(() => {
     const listen = (event: MessageEvent) => {
@@ -77,7 +77,6 @@ interface ArtifactFrameViewProps {
 
 /** The page itself, in its sandbox. Shared by the console and the public link. */
 export function ArtifactFrameView({ url, title, className }: ArtifactFrameViewProps) {
-  const t = useTranslations("artifacts");
   const frame = useRef<HTMLIFrameElement>(null);
   const [pending, setPending] = useLinkRequests(frame);
   return (
@@ -90,27 +89,39 @@ export function ArtifactFrameView({ url, title, className }: ArtifactFrameViewPr
         referrerPolicy="no-referrer"
         className={cn("h-full min-h-[32rem] w-full rounded-lg border bg-white", className)}
       />
-      <ConfirmDialog
-        open={pending !== null}
-        onOpenChange={(open) => {
-          if (!open) setPending(null);
-        }}
-        title={t("openLinkTitle")}
-        description={
-          <>
-            {t("openLinkWhy")}
-            <span className="text-foreground mt-2 block font-mono text-xs break-all">
-              {pending}
-            </span>
-          </>
-        }
-        confirmLabel={t("openLink")}
-        onConfirm={() => {
-          if (pending !== null) window.open(pending, "_blank", "noopener,noreferrer");
-          setPending(null);
-        }}
-      />
+      <LinkRequestDialog pending={pending} onDone={() => setPending(null)} />
     </>
+  );
+}
+
+/** The address a framed page asked to open, read by a person before it opens. */
+export function LinkRequestDialog({
+  pending,
+  onDone,
+}: {
+  pending: string | null;
+  onDone: () => void;
+}) {
+  const t = useTranslations("artifacts");
+  return (
+    <ConfirmDialog
+      open={pending !== null}
+      onOpenChange={(open) => {
+        if (!open) onDone();
+      }}
+      title={t("openLinkTitle")}
+      description={
+        <>
+          {t("openLinkWhy")}
+          <span className="text-foreground mt-2 block font-mono text-xs break-all">{pending}</span>
+        </>
+      }
+      confirmLabel={t("openLink")}
+      onConfirm={() => {
+        if (pending !== null) window.open(pending, "_blank", "noopener,noreferrer");
+        onDone();
+      }}
+    />
   );
 }
 

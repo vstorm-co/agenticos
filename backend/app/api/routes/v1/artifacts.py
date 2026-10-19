@@ -28,10 +28,12 @@ from app.api.deps import (
     limit_public_artifact,
     require,
 )
+from app.api.public_api import PUBLIC
 from app.api.routes.v1._artifact_bytes import (
     artifact_response,
     embed_response,
     library_response,
+    visual_frame_response,
 )
 from app.core.permissions import Perm
 from app.schemas.artifact import (
@@ -46,8 +48,9 @@ from app.schemas.artifact import (
     PublicArtifactUnlock,
 )
 from app.services.artifact import library_file
+from app.services.visual import frame_document
 
-router = APIRouter()
+router = APIRouter(dependencies=[PUBLIC])
 public_router = APIRouter()
 content_router = APIRouter()
 embed_router = APIRouter()
@@ -62,12 +65,23 @@ async def list_artifacts(
         False, description="Only what was shared with the caller - never their own rows"
     ),
     agent_id: UUID | None = Query(None, description="Only the pages this agent published"),
+    group_id: UUID | None = Query(None, description="Only what is shared with this group"),
+    project_id: UUID | None = Query(
+        None, description="Only the pages made in this project's chats"
+    ),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
     """The artifacts the caller may open, most recently published first."""
     return await service.list_readable(
-        ctx, shared_with_me=shared_with_me, search=q, agent_id=agent_id, skip=skip, limit=limit
+        ctx,
+        shared_with_me=shared_with_me,
+        search=q,
+        agent_id=agent_id,
+        group_id=group_id,
+        project_id=project_id,
+        skip=skip,
+        limit=limit,
     )
 
 
@@ -112,6 +126,18 @@ async def restore_artifact_version(
 ) -> Any:
     """Make a kept version current again, as a new version. History is never rewritten."""
     return await service.restore_version(ctx, artifact_id, version_id)
+
+
+@router.put("/{artifact_id}/follow", response_model=ArtifactDetail)
+async def follow_artifact(artifact_id: UUID, service: ArtifactSvc, ctx: Auth) -> Any:
+    """Be notified in the inbox when the page gets a new version."""
+    return await service.follow(ctx, artifact_id)
+
+
+@router.delete("/{artifact_id}/follow", response_model=ArtifactDetail)
+async def unfollow_artifact(artifact_id: UUID, service: ArtifactSvc, ctx: Auth) -> Any:
+    """Stop being notified about new versions."""
+    return await service.unfollow(ctx, artifact_id)
 
 
 @router.get("/{artifact_id}/view", response_model=ArtifactView)
@@ -170,11 +196,20 @@ async def unlock_public_artifact(
     return await service.public_view(public_key, password=data.password)
 
 
-@content_router.get("/lib/{name}", response_class=Response)
+@content_router.get("/lib/{name:path}", response_class=Response)
 async def get_artifact_library_file(name: str) -> Response:
     """One file of the library set pages may load. Static, versioned by name."""
     data, media_type = await library_file(name)
     return library_response(data, media_type)
+
+
+@content_router.get("/visual-frame", response_class=Response)
+async def get_visual_frame() -> Response:
+    """The page a visual is drawn in: fixed, holding no visual, under the app sandbox.
+
+    The console posts the drawing into it while the agent writes it.
+    """
+    return visual_frame_response(await frame_document())
 
 
 @content_router.get(

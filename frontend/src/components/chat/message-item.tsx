@@ -1,59 +1,49 @@
 "use client";
 
+import { MentionChip } from "./mention-chip";
+import { stillMentioned } from "@/lib/mentions";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
-import { AvatarFace } from "@/components/ui/avatar-face";
 import { ThinkingOrb } from "@/components/ui/thinking-orb";
 import { cn } from "@/lib/utils";
 import type { ChatMessage, ChatMessageFile, TurnUsage } from "@/types";
 import type { Agent } from "@/types/agents";
 import { ToolCallCard } from "./tool-call-card";
 import { AgentSteps } from "./agent-step";
-import { TextBubble, ThinkingBlock, TurnParts } from "./turn-parts";
+import { foldWork, runsOf, TextBubble, ThinkingBlock, TurnParts } from "./turn-parts";
+import type { PinnedPrompts } from "./chat-container";
 import { CopyButton } from "./copy-button";
-import { MessageCost } from "./message-cost";
+import { MessageSources } from "./message-sources";
+import { TurnDelegations } from "./turn-delegations";
+import { RoundedCost } from "./message-cost";
+import { PersonFace } from "./person-face";
+import { ReplyQuote, replyExcerpt } from "./reply-quote";
+import { YouFace } from "./you-face";
+import { TURN_ACTION } from "./turn-action";
 import { RatingButtons } from "./rating-buttons";
 import { useChatStore, useFilePreviewStore } from "@/stores";
 import { useMcpToolServers } from "@/hooks";
+import { useInChatScope } from "@/stores/chat-scope-context";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
-import { Bot, FileText, Globe, OctagonPause, Paperclip, RefreshCw, User } from "lucide-react";
+import {
+  Bot,
+  CornerUpLeft,
+  FileText,
+  OctagonPause,
+  Paperclip,
+  Pin,
+  PinOff,
+  RefreshCw,
+  UserRound,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import Image from "next/image";
 import { useAuthStore } from "@/stores";
 import { getFileUrl } from "@/lib/file-api";
 import { isRenderSafeImage } from "@/lib/file-kinds";
 import { FileCard } from "@/components/files";
-import { extractSources } from "@/lib/chat-sources";
-import type { SourceItem } from "@/lib/chat-sources";
-
-function SourcesButton({ sources, onClick }: { sources: SourceItem[]; onClick: () => void }) {
-  const t = useTranslations("chat");
-  const ragCount = sources.filter((s) => s.type === "rag").length;
-  const webCount = sources.filter((s) => s.type === "web").length;
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="border-foreground/15 bg-background hover:border-foreground/30 hover:bg-foreground/5 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 transition-colors"
-    >
-      <span className="flex -space-x-1">
-        {ragCount > 0 && (
-          <span className="bg-muted border-background inline-flex h-4 w-4 items-center justify-center rounded-full border">
-            <FileText className="text-foreground/60 h-2.5 w-2.5" />
-          </span>
-        )}
-        {webCount > 0 && (
-          <span className="bg-muted border-background inline-flex h-4 w-4 items-center justify-center rounded-full border">
-            <Globe className="text-foreground/60 h-2.5 w-2.5" />
-          </span>
-        )}
-      </span>
-      <span className="text-foreground/60 text-xs font-medium">
-        {t("sourceCount", { count: sources.length })}
-      </span>
-    </button>
-  );
-}
+import { extractSources, toolCallsOf } from "@/lib/chat-sources";
+import type { DelegateRef } from "@/lib/delegations";
+import { publishedApps, PublishedArtifactResult } from "./tool-results/artifact";
 
 interface MessageItemProps {
   message: ChatMessage;
@@ -99,6 +89,10 @@ interface MessageItemProps {
    */
   turnUsage?: TurnUsage;
   onRegenerate?: () => void;
+  /** In the test panel: a question can be pinned to ask again after each change (#2075). */
+  pins?: PinnedPrompts;
+  /** The agents the reader can see, which name the one a delegation asked. */
+  agents?: readonly DelegateRef[];
 }
 
 export function MessageItem({
@@ -110,21 +104,43 @@ export function MessageItem({
   turnUsage,
   openLastStep = false,
   onRegenerate,
+  pins,
+  agents = [],
 }: MessageItemProps) {
   const t = useTranslations("chat");
+  const tInput = useTranslations("chat.input");
   const isUser = message.role === "user";
+  // A mention sits in the text it was typed into; only one the text does not
+  // carry - a turn sent before that was so - is shown as a chip beside it.
+  const unplaced = (message.mentions ?? []).filter(
+    (item) => stillMentioned(message.content, [item]).length === 0,
+  );
   const updateMessage = useChatStore((state) => state.updateMessage);
+  const setReplyTo = useChatStore((state) => state.setReplyTo);
+  const tReply = useTranslations("chat.reply");
   const openPreview = useFilePreviewStore((s) => s.open);
   const openSources = useSourcesPanelStore((s) => s.open);
-  const { user: authUser, avatarVersion } = useAuthStore();
+  const { user: authUser } = useAuthStore();
+  // A teammate's words in a project's chat: theirs, not the reader's "You".
+  const teammate =
+    isUser && message.sender && message.sender.user_id !== authUser?.id ? message.sender : null;
+  // Somebody who has since left: never drawn as the reader.
+  const former = isUser && message.senderGone === true;
   // Read once per turn and handed to each step, so a public surface can render the
   // same step without a session - see `TurnParts`.
   const mcpServers = useMcpToolServers();
   const isGrouped = groupPosition && groupPosition !== "single";
+  // The Architect's window and the Builder's test panel: a narrow column beside
+  // the page, where the full chat's spacing spent most of the width on air.
+  const compact = useInChatScope();
 
   // The turn's cost, which a grouped turn recorded on the segment that parked
   // rather than on the one the footer is drawn under.
   const footerUsage = turnUsage ?? message.usage;
+  // A stopped turn with work folds it into "Stopped after 12s", which says it; the
+  // footer's own marker is for a turn cut off with nothing to fold.
+  const stopFolded =
+    message.wasStopped === true && foldWork(runsOf(message.parts ?? []), true) !== null;
   // A turn produced something worth a footer if it wrote content *or* left a
   // timeline part - the latter is the ask-only turn that was stopped after
   // answering a question and before any text (#502), which otherwise loses its
@@ -132,7 +148,44 @@ export function MessageItem({
   const hasBody = Boolean(message.content) || (!isUser && (message.parts?.length ?? 0) > 0);
   const sources = !isUser ? extractSources(message, t) : [];
   const hasSources = sources.length > 0 && !message.isStreaming;
+  const apps = !isUser ? publishedApps(toolCallsOf(message)) : [];
   const onCiteClick = hasSources ? (index: number) => openSources(sources, index) : undefined;
+
+  const avatar = (
+    <div
+      className={cn(
+        "z-10 flex flex-shrink-0 items-center justify-center overflow-hidden rounded-full",
+        compact ? "h-6 w-6" : "h-7 w-7",
+        // A fill only behind the fallback icon. A face or a picture brings its
+        // own disc, and a dark one behind it showed as a thin ring wherever the
+        // two edges did not quite meet.
+        isUser && !authUser && "bg-foreground text-background",
+        !isUser && !agent && "bg-muted text-foreground",
+      )}
+    >
+      {teammate ? (
+        <PersonFace person={teammate} className="h-full w-full text-[10px]" />
+      ) : former ? (
+        <span className="bg-muted text-muted-foreground grid h-full w-full place-items-center">
+          <UserRound className="h-3.5 w-3.5" aria-hidden />
+        </span>
+      ) : isUser ? (
+        <YouFace />
+      ) : agent ? (
+        <AgentAvatar
+          agentId={agent.id}
+          slug={agent.slug}
+          hasAvatar={agent.has_avatar}
+          colorSlot={agent.avatar_color}
+          size="md"
+          thinking={Boolean(message.isStreaming)}
+          className="h-full w-full border-0"
+        />
+      ) : (
+        <Bot className="h-4 w-4 sm:h-5 sm:w-5" />
+      )}
+    </div>
+  );
 
   return (
     <div
@@ -141,7 +194,12 @@ export function MessageItem({
       // drawn around it.
       data-message-id={message.id}
       className={cn(
-        "group relative flex gap-2 overflow-visible sm:gap-4",
+        // The face and the name on one line over the message, as in the
+        // Architect's window, and the message under them at the column's full
+        // width: a column of avatars beside every turn spent a gutter on a face
+        // that only needs saying once per turn.
+        "group relative flex flex-col overflow-visible",
+        compact ? "gap-1.5" : "gap-2",
         // Each edge decided once, and never as `py-*` with a `pt-0` over it: two
         // utilities of equal specificity leave which one wins to the order of the
         // generated stylesheet, and a segment reading `py-3 pt-0 pb-0` kept its
@@ -152,87 +210,51 @@ export function MessageItem({
         // turn that ran three commands is three segments, each carrying one step,
         // so three steps of one run sat two message-gaps apart and looked like
         // three separate things the agent did.
-        continuesTurn ? "pt-0" : isGrouped ? "pt-2 sm:pt-3" : "pt-3 sm:pt-4",
-        endsTurn ? (isGrouped ? "pb-2 sm:pb-3" : "pb-3 sm:pb-4") : "pb-0",
-        isUser && "flex-row-reverse",
+        continuesTurn ? "pt-0" : compact ? "pt-2" : isGrouped ? "pt-2 sm:pt-3" : "pt-3 sm:pt-4",
+        endsTurn ? (compact ? "pb-2" : isGrouped ? "pb-2 sm:pb-3" : "pb-3 sm:pb-4") : "pb-0",
+        isUser && "items-end",
       )}
     >
-      {" "}
-      {isGrouped && !isUser && (
-        <div
-          className="bg-border absolute left-[15px] w-0.5 sm:left-[17px]"
-          style={
-            groupPosition === "first"
-              ? { top: "24px", bottom: "0" }
-              : groupPosition === "last"
-                ? { top: "0", height: "24px" }
-                : { top: "0", bottom: "0" }
-          }
-        />
+      {/* Which agent answered, on the turn it answered: a conversation that
+          switched agents mid-way says so, instead of relabelling the whole thread
+          with whatever is selected now. The version, where the transcript
+          recorded one, because this turn was answered by one frozen spec. */}
+      {!continuesTurn && (
+        <div className={cn("flex items-center gap-2", isUser && "flex-row-reverse")}>
+          {avatar}
+          <span
+            className={cn(
+              "truncate font-medium",
+              compact ? "text-muted-foreground text-xs" : "text-foreground text-sm",
+            )}
+          >
+            {teammate
+              ? teammate.name
+              : former
+                ? t("rail.formerMember")
+                : isUser
+                  ? t("rail.you")
+                  : (agent?.name ?? t("rail.agent"))}
+            {!isUser && message.agentVersion !== undefined && (
+              <span className="text-muted-foreground font-normal"> · v{message.agentVersion}</span>
+            )}
+          </span>
+        </div>
       )}
       <div
-        aria-hidden={continuesTurn}
         className={cn(
-          "z-10 flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full sm:h-9 sm:w-9",
-          // Empty, not absent: the gutter is what keeps every segment of the turn
-          // in one column under the avatar that opened it.
-          continuesTurn
-            ? "bg-transparent"
-            : isUser
-              ? "bg-foreground text-background"
-              : "bg-muted text-foreground",
-          isGrouped && !isUser && !continuesTurn && "ring-background ring-2",
+          "overflow-hidden",
+          compact ? "space-y-1.5" : "space-y-2",
+          isUser ? "flex max-w-[85%] flex-col items-end" : "w-full",
         )}
       >
-        {continuesTurn ? null : isUser && authUser?.avatar_url ? (
-          <Image
-            src={`/api/users/avatar/${authUser.id}?v=${avatarVersion}`}
-            alt=""
-            width={36}
-            height={36}
-            className="h-full w-full object-cover"
-            unoptimized
-          />
-        ) : isUser && authUser ? (
-          <AvatarFace seed={authUser.id} colorSlot={authUser.avatar_color} />
-        ) : isUser ? (
-          // A signed-out reader of a shared transcript: there is no id to draw a
-          // face from, and a face drawn from nothing would be somebody else's.
-          <User className="h-4 w-4" />
-        ) : agent ? (
-          <AgentAvatar
-            agentId={agent.id}
-            slug={agent.slug}
-            hasAvatar={agent.has_avatar}
-            size="md"
-            thinking={Boolean(message.isStreaming)}
-            className="h-full w-full border-0"
-          />
-        ) : (
-          <Bot className="h-4 w-4 sm:h-5 sm:w-5" />
+        {isUser && unplaced.length > 0 && (
+          <div className="flex flex-wrap justify-end gap-1.5">
+            {unplaced.map((item) => (
+              <MentionChip key={`${item.kind}:${item.id}`} item={item} />
+            ))}
+          </div>
         )}
-      </div>
-      <div
-        className={cn(
-          "max-w-[88%] flex-1 space-y-2 overflow-hidden sm:max-w-[85%]",
-          isUser && "flex flex-col items-end",
-        )}
-      >
-        {/* Which agent answered, on the turn it answered. A conversation that
-            switched agents mid-way says so, instead of relabelling the whole
-            thread with whatever is selected now. */}
-        {!isUser && agent && !continuesTurn && (
-          <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
-            {agent.name}
-            {/* The version, where the transcript recorded one. An agent gets
-                rewritten; this turn was answered by one frozen spec, and that
-                is the thing "why did it say that" is a question about. */}
-            {message.agentVersion !== undefined && (
-              <span className="text-muted-foreground"> · v{message.agentVersion}</span>
-            )}
-          </p>
-        )}
-
         {isUser &&
           (() => {
             const attachments: AttachmentDisplay[] =
@@ -245,7 +267,9 @@ export function MessageItem({
             // 256 px card with its content at the top and a field of empty border
             // under it.
             return (
-              <div className="flex flex-wrap items-start gap-2">
+              // `justify-end`: a person's files sit flush right with their
+              // message, also on the second row a wrap starts.
+              <div className="flex flex-wrap items-start justify-end gap-2">
                 {attachments.map((att) =>
                   att.kind === "image" ? (
                     <button
@@ -265,13 +289,16 @@ export function MessageItem({
                       />
                     </button>
                   ) : "file" in att ? (
-                    // The same card the composer showed before it was sent, and the
-                    // Files panel shows beside it. It used to be a pill with a generic
-                    // document glyph, so one file looked like three things.
+                    // The chip the composer showed before it was sent: a name, a
+                    // type, and a click that opens it. The tile with a preview band
+                    // stacked eight pastes into a wall of empty pages above the
+                    // question they came with.
                     <FileCard
                       key={att.file.id}
                       name={att.file.filename}
                       mimeType={att.file.mime_type}
+                      typeLabel={PASTED.test(att.file.filename) ? tInput("pastedLabel") : undefined}
+                      compact
                       onOpen={() => openPreview(att.file)}
                     />
                   ) : (
@@ -284,17 +311,37 @@ export function MessageItem({
             );
           })()}
 
+        {message.replyTo && (
+          <ReplyQuote reply={message.replyTo} agents={agents} align={isUser ? "end" : "start"} />
+        )}
         <MessageBody
           message={message}
           isUser={isUser}
           mcpServers={mcpServers}
+          agents={agents}
           openLastStep={openLastStep}
+          endsTurn={endsTurn}
           onCiteClick={onCiteClick}
         />
 
+        {!isUser && !message.isStreaming && apps.length > 0 && (
+          // What the turn made, under what it said: the app is the answer to
+          // "build me a dashboard", and it used to be one line inside the folded
+          // work above the reply.
+          <div className="mt-1 max-w-xl space-y-2">
+            {apps.map((app) => (
+              <PublishedArtifactResult key={app.artifactId} data={app} />
+            ))}
+          </div>
+        )}
+
+        {!isUser && !message.isStreaming && endsTurn && (
+          <TurnDelegations toolCalls={toolCallsOf(message)} parent={agent} agents={agents} />
+        )}
+
         {hasSources && !isUser && (
           <div className="mt-1">
-            <SourcesButton sources={sources} onClick={() => openSources(sources, null)} />
+            <MessageSources sources={sources} onOpen={(index) => openSources(sources, index)} />
           </div>
         )}
 
@@ -302,39 +349,68 @@ export function MessageItem({
           // The time and the cost surface on hover with the actions beside them:
           // a column of receipts under every turn is noise while reading, and the
           // numbers are one pointer move away when somebody wants them.
-          <div className={cn("flex items-center gap-2", isUser && "flex-row-reverse")}>
-            {message.timestamp && (
-              <span className="hover-reveal text-muted-foreground text-[11px]">
-                {new Date(message.timestamp).toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </span>
-            )}
-            {!isUser && message.wasStopped === true && (
+          <div className={cn("flex items-center gap-0.5", isUser && "flex-row-reverse")}>
+            {!isUser && message.wasStopped === true && !stopFolded && (
               /* A stopped run leaves whatever had been written when the socket
                  closed, and that reads exactly like a finished answer - so a
                  reader takes a truncated one as everything the agent had to say.
-                 Beside the cost, because the two together are the whole account
-                 of a turn that produced nothing usable and still spent money. */
-              <span className="text-muted-foreground flex items-center gap-1 text-[11px]">
+                 First in the row, where it is read before the time and the cost;
+                 a turn whose work folded says it in that line instead. */
+              <span className="text-muted-foreground flex items-center gap-1 text-xs">
                 <OctagonPause className="h-3 w-3" aria-hidden />
                 {t("turnWasStopped")}
               </span>
             )}
-            {!isUser && footerUsage && (
-              <span className="hover-reveal">
-                <MessageCost usage={footerUsage} />
+            {/* When and what it cost, as one quiet group before the actions. */}
+            {message.timestamp && (
+              <span
+                className={cn(
+                  "hover-reveal text-muted-foreground flex items-center gap-1.5 text-xs tabular-nums",
+                  isUser ? "pl-1.5" : "pr-1.5",
+                )}
+              >
+                {new Date(message.timestamp).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+                {!isUser && footerUsage && (
+                  <>
+                    <span aria-hidden>·</span>
+                    <RoundedCost usage={footerUsage} />
+                  </>
+                )}
               </span>
             )}
             {message.content && (
               <CopyButton
                 text={message.content}
-                className={cn(
-                  "h-6 w-6 rounded-md sm:opacity-0 sm:group-hover:opacity-100",
-                  isUser ? "bg-secondary hover:bg-secondary/80" : "bg-muted hover:bg-muted/80",
-                )}
+                className={cn(TURN_ACTION, "p-0 sm:opacity-0 sm:group-hover:opacity-100")}
               />
+            )}
+            {isUser && pins && message.content && (
+              <PinButton pins={pins} prompt={message.content} />
+            )}
+            {/* Stored messages only: a reply names the row it answers, and a
+                message still on this tab's own id has none yet. */}
+            {!message.isTemporaryId && !message.isStreaming && message.content && (
+              <button
+                type="button"
+                onClick={() =>
+                  setReplyTo({
+                    messageId: message.id,
+                    role: message.role,
+                    excerpt: replyExcerpt(message.content),
+                    sender: isUser ? message.sender : undefined,
+                    agentId: isUser ? undefined : agent?.id,
+                    agentName: isUser ? undefined : agent?.name,
+                  })
+                }
+                title={tReply("reply")}
+                aria-label={tReply("reply")}
+                className={cn(TURN_ACTION, "sm:opacity-0 sm:group-hover:opacity-100")}
+              >
+                <CornerUpLeft />
+              </button>
             )}
             {!isUser && onRegenerate && (
               <button
@@ -342,12 +418,15 @@ export function MessageItem({
                 onClick={onRegenerate}
                 title={t("regenerate")}
                 aria-label={t("regenerate")}
-                className="bg-muted hover:bg-muted/80 text-foreground/70 hover:text-foreground inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors sm:opacity-0 sm:group-hover:opacity-100"
+                className={cn(TURN_ACTION, "sm:opacity-0 sm:group-hover:opacity-100")}
               >
-                <RefreshCw className="h-3 w-3" />
+                <RefreshCw />
               </button>
             )}
-            {!isUser && (
+            {/* A rating is stored against the saved message; a turn that failed
+                before the server saved it has only a client id, which the
+                rating endpoint answers with "Message not found". */}
+            {!isUser && !message.isTemporaryId && (
               <RatingButtons
                 messageId={message.id}
                 conversationId={message.conversationId ?? ""}
@@ -382,13 +461,18 @@ function MessageBody({
   message,
   isUser,
   mcpServers,
+  agents,
   openLastStep,
+  endsTurn,
   onCiteClick,
 }: {
   message: ChatMessage;
   isUser: boolean;
   mcpServers: ReturnType<typeof useMcpToolServers>;
+  agents: readonly DelegateRef[];
   openLastStep: boolean;
+  /** The run's span is said once, under the turn's last segment. */
+  endsTurn: boolean;
   onCiteClick?: (index: number) => void;
 }) {
   const t = useTranslations("chat");
@@ -427,9 +511,13 @@ function MessageBody({
           isStreaming={Boolean(message.isStreaming)}
           isUser={isUser}
           mcpServers={mcpServers}
+          agents={agents}
           openLastStep={openLastStep}
           conversationId={message.conversationId}
           onCiteClick={onCiteClick}
+          startedAt={message.timestamp}
+          durationMs={endsTurn ? message.runDurationMs : undefined}
+          stopped={message.wasStopped === true}
         />
       ) : (
         /* Legacy fallback: user / pre-parts messages. */
@@ -447,6 +535,7 @@ function MessageBody({
               showCursor={!isUser && Boolean(message.isStreaming)}
               isUser={isUser}
               onCiteClick={onCiteClick}
+              mentions={isUser ? message.mentions : undefined}
             />
           )}
           {legacyCalls.length > 0 && (
@@ -458,6 +547,7 @@ function MessageBody({
                     toolCall={toolCall}
                     conversationId={message.conversationId}
                     mcpServers={mcpServers}
+                    agents={agents}
                     startOpen={openLastStep && step === legacyCalls.length - 1}
                   />
                 ))}
@@ -469,6 +559,9 @@ function MessageBody({
     </>
   );
 }
+
+/** The name the composer gives a long paste it turned into a file. */
+const PASTED = /^pasted-\d{4}-\d{2}-\d{2}\.txt$/;
 
 type AttachmentDisplay =
   | { kind: "image"; file: ChatMessageFile }
@@ -510,5 +603,27 @@ function FileChip({ filename, href }: { filename: string; href: string }) {
       </span>
       <Paperclip className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
     </a>
+  );
+}
+
+/** Pin a question to ask again after each change, or take it off (#2075). */
+function PinButton({ pins, prompt }: { pins: PinnedPrompts; prompt: string }) {
+  const t = useTranslations("chat");
+  const pinned = pins.pinned.includes(prompt);
+  const label = pinned ? t("unpinQuestion") : t("pinQuestion");
+  return (
+    <button
+      type="button"
+      onClick={() => pins.toggle(prompt)}
+      title={label}
+      aria-label={label}
+      aria-pressed={pinned}
+      className={cn(
+        TURN_ACTION,
+        pinned ? "text-foreground" : "sm:opacity-0 sm:group-hover:opacity-100",
+      )}
+    >
+      {pinned ? <PinOff /> : <Pin />}
+    </button>
   );
 }

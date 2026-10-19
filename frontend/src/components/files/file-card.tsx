@@ -153,7 +153,7 @@ export function FileCard({
           <TextPeek
             source={preview}
             format={suffixOf(name) === "md" ? "markdown" : "plain"}
-            className="[&_p]:text-[11px]"
+            className="[&_p]:text-xs"
           />
         ) : (
           <div className="flex justify-center pt-2.5">
@@ -163,16 +163,32 @@ export function FileCard({
       </DocPeek>
 
       {meta !== "" && (
-        <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
-          {meta}
-        </p>
+        <p className="text-muted-foreground font-mono text-xs tracking-wider uppercase">{meta}</p>
       )}
     </>
   );
 
   if (compact) {
     return (
-      <div className={cn(CHIP, onRemove !== undefined && "pr-8", className)}>
+      <div
+        className={cn(
+          CHIP,
+          onRemove !== undefined && "pr-8",
+          onOpen !== undefined && "hover:border-foreground/30 transition-colors",
+          className,
+        )}
+      >
+        {/* The whole chip opens the file, under the remove button where there
+            is one - a chip in the transcript is a file to read (#927's tile
+            stacked eight pastes into a wall of empty pages). */}
+        {onOpen !== undefined && (
+          <button
+            type="button"
+            onClick={onOpen}
+            aria-label={t("openFile", { name })}
+            className="absolute inset-0 rounded-lg"
+          />
+        )}
         <span className="bg-muted/60 relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded">
           {isImage && imageUrl != null ? (
             <Image src={imageUrl} alt={name} fill className="object-cover" unoptimized />
@@ -192,7 +208,7 @@ export function FileCard({
             {name}
           </span>
           {meta !== "" && (
-            <span className="text-muted-foreground truncate font-mono text-[11px] tracking-wide uppercase">
+            <span className="text-muted-foreground truncate font-mono text-xs tracking-wide uppercase">
               {meta}
             </span>
           )}
@@ -274,7 +290,7 @@ export function PendingFileCard({
           <span title={name} className="truncate text-xs leading-tight font-medium">
             {name}
           </span>
-          <span className="text-muted-foreground truncate font-mono text-[11px] tracking-wide uppercase">
+          <span className="text-muted-foreground truncate font-mono text-xs tracking-wide uppercase">
             {t("uploading", { size: formatBytes(size) })}
           </span>
         </span>
@@ -294,7 +310,7 @@ export function PendingFileCard({
         </span>
       </div>
       <div className="h-16 w-full" />
-      <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
+      <p className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
         {t("uploading", { size: formatBytes(size) })}
       </p>
     </div>

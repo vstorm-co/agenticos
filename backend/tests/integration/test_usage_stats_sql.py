@@ -16,11 +16,13 @@ from decimal import Decimal
 import pytest
 from sqlalchemy import event
 
+from app.core.exceptions import NotFoundError, ValidationError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun as AgentRunModel
 from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface, ToolApproval
 from app.db.models.conversation import Conversation, Message
+from app.db.models.group import Group, GroupMember
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import Visibility
@@ -97,6 +99,7 @@ async def _run(
     provider: str | None = None,
     model_label: str | None = None,
     cost: Decimal = Decimal("0"),
+    tool_args_repaired: int = 0,
 ) -> AgentRunModel:
     run = AgentRunModel(
         id=uuid.uuid4(),
@@ -108,6 +111,7 @@ async def _run(
         provider=provider,
         model_label=model_label,
         cost_usd=cost,
+        tool_args_repaired=tool_args_repaired,
         started_at=started_at,
         ended_at=(
             started_at + timedelta(seconds=duration_seconds)
@@ -220,6 +224,50 @@ class TestDayBuckets:
         )
 
         assert total == 2
+
+
+class TestTimelineBins:
+    async def test_runs_land_in_bins_aligned_to_the_start(self, db) -> None:
+        """`date_bin` and the service's zero-fill must agree on every bin's instant."""
+        organization, owner = await _org_with_owner(db, "Bins")
+        agent = await _agent(db, organization, owner)
+        for minute, cost in ((2, "0.10"), (14, "0.20"), (16, "0.40")):
+            await _run(
+                db,
+                organization=organization,
+                agent=agent,
+                started_at=START + timedelta(hours=9, minutes=minute),
+                cost=Decimal(cost),
+            )
+
+        bins = await agent_run_repo.runs_by_bin(
+            db,
+            organization_id=organization.id,
+            start=START,
+            end=END,
+            step=timedelta(minutes=15),
+        )
+
+        assert bins == [
+            (START + timedelta(hours=9), 2, 2, Decimal("0.30")),
+            (START + timedelta(hours=9, minutes=15), 1, 1, Decimal("0.40")),
+        ]
+
+    async def test_the_first_run_is_read_inside_the_window_only(self, db) -> None:
+        organization, owner = await _org_with_owner(db, "First")
+        agent = await _agent(db, organization, owner)
+        await _run(db, organization=organization, agent=agent, started_at=START - timedelta(days=1))
+        await _run(db, organization=organization, agent=agent, started_at=START + timedelta(days=3))
+
+        inside = await agent_run_repo.window_aggregates(
+            db, organization_id=organization.id, start=START, end=END
+        )
+        after = await agent_run_repo.window_aggregates(
+            db, organization_id=organization.id, start=END, end=END + timedelta(days=1)
+        )
+
+        assert inside.first_started_at == START + timedelta(days=3)
+        assert after.first_started_at is None
 
 
 class TestHourBuckets:
@@ -383,6 +431,101 @@ class TestTenantAndScopeBoundaries:
         assert active == 2
 
 
+class TestGroupNarrowing:
+    """A department's dashboard: the runs of the group's members, nobody else's."""
+
+    async def _department(self, db) -> tuple[Organization, User, User, Group, Agent]:
+        organization, owner = await _org_with_owner(db, "Dept")
+        member = await _user(db)
+        outsider = await _user(db)
+        for person in (member, outsider):
+            db.add(
+                OrganizationMember(
+                    id=uuid.uuid4(),
+                    organization_id=organization.id,
+                    user_id=person.id,
+                    role=OrgRoleName.MEMBER.value,
+                )
+            )
+        group = Group(id=uuid.uuid4(), organization_id=organization.id, name="Finance")
+        db.add(group)
+        await db.flush()
+        db.add(GroupMember(id=uuid.uuid4(), group_id=group.id, user_id=member.id))
+        await db.flush()
+        agent = await _agent(db, organization, owner)
+        await _run(
+            db,
+            organization=organization,
+            agent=agent,
+            started_at=START,
+            user_id=member.id,
+            cost=Decimal("0.5"),
+        )
+        await _run(
+            db,
+            organization=organization,
+            agent=agent,
+            started_at=START,
+            user_id=outsider.id,
+            cost=Decimal("2"),
+        )
+        # An anonymous widget visitor belongs to no group.
+        await _run(db, organization=organization, agent=agent, started_at=START, user_id=None)
+        return organization, owner, member, group, agent
+
+    async def test_counts_only_the_members_runs_and_reaches_the_group(self, db) -> None:
+        organization, owner, _member, group, _agent_ = await self._department(db)
+        ctx = AuthContext(
+            user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER.value
+        )
+
+        result = await StatsService(db).usage(
+            ctx, from_date=START.date(), to_date=END.date() - timedelta(days=1), group_id=group.id
+        )
+
+        assert result.total_runs == 1
+        assert result.cost is not None and result.cost.period_usd == Decimal("0.5")
+        # Active out of the group's one member, not the organization's three.
+        assert result.active_users is not None
+        assert (result.active_users.active, result.active_users.total_members) == (1, 1)
+
+    async def test_the_grid_and_the_people_rows_follow_the_group(self, db) -> None:
+        organization, owner, member, group, _agent_ = await self._department(db)
+        ctx = AuthContext(
+            user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER.value
+        )
+        service = StatsService(db)
+        window = {"from_date": START.date(), "to_date": END.date() - timedelta(days=1)}
+
+        hours = await service.usage_by_hour(ctx, group_id=group.id, **window)
+        people = await service.usage_by_user(ctx, group_id=group.id, limit=10, **window)
+
+        assert sum(cell.runs for cell in hours.by_hour or []) == 1
+        assert [row.user_id for row in people.by_user or []] == [member.id]
+
+    async def test_refuses_another_organizations_group(self, db) -> None:
+        organization, owner, *_ = await self._department(db)
+        elsewhere, _ = await _org_with_owner(db, "Elsewhere")
+        foreign = Group(id=uuid.uuid4(), organization_id=elsewhere.id, name="Theirs")
+        db.add(foreign)
+        await db.flush()
+        ctx = AuthContext(
+            user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER.value
+        )
+
+        with pytest.raises(NotFoundError):
+            await StatsService(db).usage(ctx, group_id=foreign.id)
+
+    async def test_refuses_a_group_with_own_scope(self, db) -> None:
+        organization, owner, _member, group, _agent_ = await self._department(db)
+        ctx = AuthContext(
+            user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER.value
+        )
+
+        with pytest.raises(ValidationError):
+            await StatsService(db).usage(ctx, scope="own", group_id=group.id)
+
+
 class TestPendingApprovals:
     async def test_counts_the_callers_parked_runs_not_their_approvals(self, db) -> None:
         organization, owner = await _org_with_owner(db, "Queue")
@@ -462,6 +605,60 @@ class TestSurfacesAndCost:
 
         assert rows == {"embed": 1, "mattermost": 1, "web": 1}
 
+    async def test_eval_traffic_is_billed_beside_production_and_counted_nowhere(self, db) -> None:
+        """An eval run answering a dataset and the judge grading it are measurement:
+        counted in, one eval of a hundred cases outweighs a week of people and the
+        judge reads as the organization's most adopted agent."""
+        organization, owner = await _org_with_owner(db, "Evals")
+        agent = await _agent(db, organization, owner)
+        judge = await _agent(db, organization, owner, slug="eval-judge")
+        await _run(
+            db,
+            organization=organization,
+            agent=agent,
+            started_at=START,
+            duration_seconds=2,
+            user_id=owner.id,
+            cost=Decimal("1"),
+        )
+        for each in (agent, judge, judge):
+            await _run(
+                db,
+                organization=organization,
+                agent=each,
+                started_at=START,
+                duration_seconds=60,
+                user_id=owner.id,
+                surface=RunSurface.EVAL.value,
+                cost=Decimal("0.25"),
+            )
+        await _run(
+            db,
+            organization=organization,
+            agent=judge,
+            started_at=START - timedelta(days=10),
+            surface=RunSurface.EVAL.value,
+            cost=Decimal("0.5"),
+        )
+
+        usage = await StatsService(db).usage(
+            AuthContext(
+                user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER.value
+            ),
+            from_date=START.date(),
+            to_date=(END - timedelta(days=1)).date(),
+        )
+
+        assert usage.total_runs == 1
+        assert [(row.name, row.runs) for row in usage.by_agent] == [("Support", 1)]
+        assert {row.surface for row in usage.by_surface} == {"web"}
+        assert usage.latency_ms.p95 == 2000
+        assert usage.cost is not None
+        assert usage.cost.model_usd == Decimal("1")
+        assert usage.cost.eval_usd == Decimal("0.75")
+        assert usage.cost.period_usd == Decimal("1.75")
+        assert usage.cost.previous_period_usd == Decimal("0.5")
+
     async def test_the_cost_window_sums_only_its_own_days(self, db) -> None:
         organization, owner = await _org_with_owner(db, "Cost")
         agent = await _agent(db, organization, owner)
@@ -537,6 +734,7 @@ class TestTheGroupingSetsBreakdown:
             model_label="claude-sonnet-5",
             provider="anthropic",
             cost=Decimal("0.70"),
+            tool_args_repaired=3,
         )
 
         breakdown = await agent_run_repo.window_breakdown(
@@ -547,7 +745,13 @@ class TestTheGroupingSetsBreakdown:
         # happens to be missing its surface: GROUPING tells the two apart.
         assert dict(breakdown.by_surface) == {"web": 1, "embed": 1}
         assert dict(breakdown.by_status) == {RunStatus.COMPLETED.value: 2}
-        assert dict(breakdown.by_model) == {None: 1, "claude-sonnet-5": 1}
+        assert {
+            (model, provider): (runs, repaired)
+            for model, provider, runs, repaired in breakdown.by_model
+        } == {
+            (None, None): (1, 0),
+            ("claude-sonnet-5", "anthropic"): (1, 3),
+        }
         assert dict(breakdown.by_provider) == {None: Decimal("0.30"), "anthropic": Decimal("0.70")}
         assert breakdown.by_day == [(START.date(), 2, 2, Decimal("1.00"))]
 
@@ -581,8 +785,10 @@ class TestTheGroupingSetsBreakdown:
         self, db, engine
     ) -> None:
         """The acceptance criterion, and a guard on the next dimension added: the
-        composed answer is window_aggregates, window_totals, window_breakdown and
-        runs_by_agent - four scans of `agent_runs`, not one per card."""
+        composed answer is window_aggregates, window_totals, window_breakdown,
+        runs_by_agent and the timeline's runs_by_bin - five scans of `agent_runs`,
+        not one per card. The timeline is its own scan because its step is chosen
+        from the window's first run, which window_aggregates reads."""
         organization, owner = await _org_with_owner(db, "Budget")
         agent = await _agent(db, organization, owner)
         await _run(
@@ -608,7 +814,7 @@ class TestTheGroupingSetsBreakdown:
         finally:
             event.remove(engine.sync_engine, "before_cursor_execute", record)
 
-        assert len(run_queries) == 4, run_queries
+        assert len(run_queries) == 5, run_queries
 
 
 class TestScopedRatings:
@@ -778,6 +984,13 @@ class TestVersionRows:
             run.agent_version_id = v2.id
         # A run whose version was deleted afterwards: the id SET-NULLed.
         await _run(db, organization=organization, agent=agent, started_at=START)
+        # Evals - of a draft (no version) and of v2 - test the agent rather than
+        # use it, and must land in neither bucket.
+        await _run(db, organization=organization, agent=agent, started_at=START, surface="eval")
+        tested = await _run(
+            db, organization=organization, agent=agent, started_at=START, surface="eval"
+        )
+        tested.agent_version_id = v2.id
         await db.flush()
 
         rows = await agent_run_repo.usage_by_version(

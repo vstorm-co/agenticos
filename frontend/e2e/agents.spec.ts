@@ -26,27 +26,23 @@ import {
 } from "./helpers";
 
 /**
- * The entry for one capability in the Builder's list, which is what opens its
- * panel.
+ * The button on one capability's card that opens its settings panel.
  *
- * Anchored to the start of the accessible name because the entry prints its
- * tool count after the name ("Knowledge search 1 tool"). It is the only *button*
- * bearing the capability's name - the two controls that grant it are switches,
- * named "Give this agent Knowledge search" and "Knowledge search enabled".
+ * The card's art and its name open the panel too, but both are named by the
+ * capability alone; this one says what it does ("Knowledge search settings"),
+ * and the two controls that grant the capability are switches, named "Give this
+ * agent Knowledge search" and "Knowledge search enabled".
  */
 function capabilityEntry(page: Page, name: string): Locator {
-  return page.getByRole("button", { name: new RegExp(`^${name}\\b`) });
+  return page.getByRole("button", { name: `${name} settings`, exact: true });
 }
 
 /**
- * The panel the Builder shows for one capability, opened first.
+ * The panel the Builder shows for one capability, opened from its card.
  *
- * The Builder is master–detail now: one panel at a time, for whichever
- * capability is focused, and switching a capability on deliberately does not
- * focus it — reading what a capability offers and granting it are different
- * gestures. Nothing is focused after a reload either, so the click is what
- * makes the panel below the one a spec means rather than whichever one the
- * component's fallback happened to pick.
+ * One panel at a time, in a sheet beside the page, and switching a capability
+ * on deliberately does not open it - reading what a capability offers and
+ * granting it are different gestures.
  */
 async function capabilityPanel(page: Page, name: string): Promise<Locator> {
   await capabilityEntry(page, name).click();
@@ -99,13 +95,15 @@ function fieldLabel(field: string): string {
  */
 async function findServer(page: Page, name: string): Promise<Locator> {
   await page.getByPlaceholder("Search servers…").fill(name);
-  const server = page.getByRole("checkbox", { name, exact: true });
+  // A switch on the server's card - the same control a capability has - since the
+  // picker became cards with their own settings.
+  const server = page.getByRole("switch", { name: `Use ${name} in this agent`, exact: true });
   await expect(server).toBeVisible();
   return server;
 }
 
 /**
- * The switch that grants one capability, in the list it is picked from.
+ * The switch that grants one capability, on the card it is picked from.
  *
  * A switch rather than a checkbox: this is one capability being on or off, not
  * one of a set. The panel on the right carries a second switch for the same
@@ -232,6 +230,7 @@ test.describe("Agents", () => {
       dialog.locator("#agent-name-desc").getByText(SEEDED_AGENT_HANDLE, { exact: true }),
     ).toBeVisible();
 
+    await dialog.getByRole("button", { name: "More options" }).click();
     await dialog.getByLabel("Description").fill("A second one, which should not be created.");
     await dialog.getByRole("button", { name: "Create", exact: true }).click();
 
@@ -265,10 +264,12 @@ test.describe("Agents", () => {
     // Builder that renders its shell while the agent fails to load shows the
     // same headings and none of this.
     await expect(pageStatus(page)).toContainText("published");
-    await expect(page.getByText("Explains what this platform does")).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Description" })).toHaveValue(
+      /general-purpose agent in the style of Claude Code/,
+    );
 
     await expect(page.getByRole("textbox", { name: "Instructions" })).toHaveValue(
-      /You are the Getting Started agent on AgenticOS/,
+      /You are a capable, general-purpose assistant/,
     );
 
     // The model section leads with the profile this agent actually runs on, and
@@ -440,6 +441,11 @@ test.describe("Agents", () => {
   // registers before `web_research`, so a search for "something that needs a
   // secret" finds it first and then cannot find its switch.
   const OWN_SECTION = new Set(["sandbox", "skills", "thinking"]);
+  // Needs more than a key: the coding agent also refuses to publish without a
+  // shell-capable sandbox, so binding it here leaves the shared draft agent
+  // unpublishable for every spec after this one. Its picker takes a sign-in as
+  // well, under its own label, which `capability-settings` covers.
+  const NEEDS_MORE_THAN_A_SECRET = new Set(["coding_agent"]);
 
   test("a capability that needs a secret says so until it has one, and keeps the one it is given", async ({
     page,
@@ -463,7 +469,9 @@ test.describe("Agents", () => {
     // requirement — correctly, which is a different spec than this one.
     const needy = items.find(
       (entry): entry is NeedsSecret =>
-        entry.requires_secret?.kind === "api_key" && !OWN_SECTION.has(entry.id),
+        entry.requires_secret?.kind === "api_key" &&
+        !OWN_SECTION.has(entry.id) &&
+        !NEEDS_MORE_THAN_A_SECRET.has(entry.id),
     );
     if (needy === undefined) {
       test.skip(
@@ -509,7 +517,7 @@ test.describe("Agents", () => {
     await expect(group.getByText(needy.requires_secret.description)).toBeVisible();
     // And the refusal that would otherwise arrive from a publish attempt, in a
     // list beside everything else wrong with the agent.
-    await expect(group.getByText(/cannot be published until it has one/)).toBeVisible();
+    await expect(group.getByText(/cannot be published until something is/)).toBeVisible();
 
     await picker.click();
     await page.getByRole("option", { name: new RegExp(SEEDED_SECRET_NAME) }).click();
@@ -518,7 +526,7 @@ test.describe("Agents", () => {
     // nothing else, and neither the API nor this page can show the value.
     await expect(picker).toContainText(SEEDED_SECRET_NAME);
     await expect(picker).toContainText(SEEDED_SECRET_HINT);
-    await expect(group.getByText(/cannot be published until it has one/)).toBeHidden();
+    await expect(group.getByText(/cannot be published until something is/)).toBeHidden();
 
     // Stored, without asserting the badge on the way: this spec walks through
     // two selects and a catalog read, which is long enough for the Builder's own
@@ -532,7 +540,7 @@ test.describe("Agents", () => {
     await openBuilderTab(page, "Toolbox");
     const saved = await capabilityPanel(page, needy.name);
     await expect(saved.getByLabel("Secret")).toContainText(SEEDED_SECRET_NAME);
-    await expect(saved.getByText(/cannot be published until it has one/)).toBeHidden();
+    await expect(saved.getByText(/cannot be published until something is/)).toBeHidden();
 
     // Nowhere on this page, at any point, is the value itself.
     await expectNoRenderedSecret(page);
@@ -601,6 +609,9 @@ test.describe("Agents", () => {
 
     if ((await server.getAttribute("aria-checked")) !== "true") {
       await server.click();
+      // Switching a server on opens its settings, to ask whose account it uses;
+      // the organization's is already chosen, so they close as they are.
+      await page.getByRole("dialog").getByRole("button", { name: "Done" }).click();
       await expect(unsaved(page)).toBeVisible();
       await saveDraft(page);
     }

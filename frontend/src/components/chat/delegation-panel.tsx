@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { ChevronDown, CopyPlus, Users } from "lucide-react";
+import { ChevronDown, CopyPlus } from "lucide-react";
 import { toast } from "sonner";
 
 import { getErrorMessage } from "@/lib/api-error";
@@ -11,14 +11,16 @@ import { useAgents, useModelProviders, usePermissions } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { newSpecialist, specialistNameError } from "@/lib/agent-spec";
 import { cn } from "@/lib/utils";
-import { childrenOf, rootsOf } from "@/lib/delegations";
-import { toolStep } from "@/lib/tool-steps";
+import { childrenOf, delegateOf, rootsOf, type DelegateRef } from "@/lib/delegations";
+import { DelegateFace } from "./delegate-face";
+import { DelegationChat } from "./delegation-chat";
+import { STATUS_KEY } from "./delegation-sheet";
+import { delegationStep } from "@/lib/tool-steps";
 import { Button } from "@/components/ui";
 import { Perm } from "@/types/permissions";
 import type { Delegation, DelegationStatus, SpecialistDefinition } from "@/types";
 import { AgentStep } from "./agent-step";
 import { MarkdownContent } from "./markdown-content";
-import { ThinkingOrb } from "@/components/ui/thinking-orb";
 
 /**
  * What the specialists are doing, one collapsible block per delegation.
@@ -37,12 +39,49 @@ import { ThinkingOrb } from "@/components/ui/thinking-orb";
  * `max_depth`, and "the researcher is working" and "the researcher's own assistant
  * is working" are different sentences.
  */
-export function DelegationPanels({ delegations }: { delegations: Delegation[] }) {
-  if (delegations.length === 0) return null;
+export function DelegationPanels({
+  delegations,
+  agents = [],
+  parent,
+  settled = false,
+  conversation = false,
+}: {
+  delegations: Delegation[];
+  /** The agents the reader can see, which give a delegate its name and face. */
+  agents?: readonly DelegateRef[];
+  /** The agent that handed the work out, at the head of the strip. */
+  parent?: DelegateRef;
+  /**
+   * The turn is over. A delegation that answered in it is then the "Asked …" step
+   * and the team under the answer, so its panel goes; so does one the person
+   * stopped, which the step now reads as "Stopped asking …". One still out in the
+   * background, one that failed, and a specialist that can still be kept stay.
+   */
+  settled?: boolean;
+  /** The turn is still running: draw the delegations as a conversation. */
+  conversation?: boolean;
+}) {
+  const roots = rootsOf(delegations).filter(
+    (delegation) =>
+      !settled ||
+      delegation.specialist !== null ||
+      (delegation.status === "completed"
+        ? delegation.mode === "async"
+        : delegation.status !== "cancelled"),
+  );
+  if (roots.length === 0) return null;
+  // While the turn runs, the team is drawn as the exchange it is - see
+  // `DelegationChat`; the panels are what remains once it is over.
+  if (conversation) return <DelegationChat delegations={roots} agents={agents} parent={parent} />;
   return (
     <div className="space-y-1 pb-2">
-      {rootsOf(delegations).map((delegation) => (
-        <DelegationPanel key={delegation.taskId} delegation={delegation} all={delegations} />
+      {roots.map((delegation) => (
+        <DelegationPanel
+          key={delegation.taskId}
+          delegation={delegation}
+          all={delegations}
+          agents={agents}
+        />
       ))}
     </div>
   );
@@ -66,20 +105,6 @@ const TONE: Record<DelegationStatus, string> = {
 };
 
 /**
- * The catalog key for each status - keys here, translated at the point of use.
- *
- * A module-level table cannot call a translator, and holding English here would put
- * four strings outside `messages/` where no translation reaches them.
- */
-const STATUS_KEY: Record<DelegationStatus, string> = {
-  running: "working",
-  completed: "finished",
-  failed: "failed",
-  cancelled: "stopped",
-  awaiting_approval: "awaiting",
-};
-
-/**
  * One delegation: who is working, on what, and what it cost.
  *
  * Open while it runs and closed once it is over, which is the rule the tool steps
@@ -87,11 +112,22 @@ const STATUS_KEY: Record<DelegationStatus, string> = {
  * worth a line they can open. The header keeps the name, the outcome and the cost
  * either way, so closing hides nothing a reader needs in order to decide to look.
  */
-function DelegationPanel({ delegation, all }: { delegation: Delegation; all: Delegation[] }) {
+function DelegationPanel({
+  delegation,
+  all,
+  agents,
+}: {
+  delegation: Delegation;
+  all: Delegation[];
+  agents: readonly DelegateRef[];
+}) {
   const t = useTranslations("chat.delegation");
   const tTools = useTranslations("chat.tools");
   const { can } = usePermissions();
-  const [open, setOpen] = useState(delegation.status === "running");
+  // Closed even while it works: three delegates streaming their briefs, steps and
+  // drafts at once was a wall nobody could follow. The header says who, where
+  // they are and how many actions they have taken; the rest is one click away.
+  const [open, setOpen] = useState(false);
   // The render-time transition `ToolCallCard` uses rather than an effect: a panel
   // that has finished must not be shown open for a frame first. Comparing against
   // the status last *seen* is also what keeps a replayed delegation - mounted
@@ -109,6 +145,7 @@ function DelegationPanel({ delegation, all }: { delegation: Delegation; all: Del
   }
 
   const children = childrenOf(all, delegation.taskId);
+  const delegate = delegateOf(delegation, agents);
 
   return (
     <div className="border-foreground/10 border-l pl-3.5">
@@ -122,22 +159,29 @@ function DelegationPanel({ delegation, all }: { delegation: Delegation; all: Del
             delegate tool: a constellation wiring itself, which is what handing
             work to another agent looks like. Once it lands the glyph comes
             back, because the panel is then a record rather than a report. */}
-        {delegation.status === "running" ? (
-          <ThinkingOrb state="connecting" size={20} className="-my-2 -ml-1 h-7 w-7" />
-        ) : (
-          <Users className={cn("h-3.5 w-3.5 shrink-0", TONE[delegation.status])} aria-hidden />
-        )}
+        {/* The delegate's own face, thinking while it works - the same face it
+            wears in the agent list and on its own conversations. */}
+        <DelegateFace
+          who={delegate}
+          thinking={delegation.status === "running"}
+          className="h-5 w-5"
+        />
         <span className="text-foreground/80 min-w-0 truncate text-[13px] font-medium">
-          {delegation.subagent}
+          {delegate.name}
         </span>
-        <span className="text-muted-foreground shrink-0 text-[13px]">
+        <span className={cn("shrink-0 text-[13px]", TONE[delegation.status])}>
           {t(STATUS_KEY[delegation.status])}
         </span>
+        {delegation.steps.length > 0 && (
+          <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
+            {t("actionCount", { count: delegation.steps.length })}
+          </span>
+        )}
         {/* A background delegation reports *after* the parent has answered, so
             saying which kind it is at the start is what stops the panel reading as
             an answer that never arrived. */}
         {delegation.mode === "async" && (
-          <span className="text-muted-foreground shrink-0 font-mono text-[11px] tracking-wider uppercase">
+          <span className="text-muted-foreground shrink-0 font-mono text-xs tracking-wider uppercase">
             {t("background")}
           </span>
         )}
@@ -146,7 +190,7 @@ function DelegationPanel({ delegation, all }: { delegation: Delegation; all: Del
             specialist from a cheap one. */}
         {delegation.costUsd !== null && (
           <span
-            className="text-muted-foreground shrink-0 font-mono text-[11px]"
+            className="text-muted-foreground shrink-0 font-mono text-xs"
             title={t("tokens", {
               input: delegation.inputTokens ?? 0,
               output: delegation.outputTokens ?? 0,
@@ -187,7 +231,7 @@ function DelegationPanel({ delegation, all }: { delegation: Delegation; all: Del
                 // rather than a rendering choice: the frames carry no arguments and
                 // no result, so there is nothing behind a chevron. See
                 // `DelegationStep`.
-                const shown = toolStep(step.name, undefined, step.ok !== null, tTools);
+                const shown = delegationStep(step, tTools);
                 return (
                   <AgentStep
                     key={step.id}
@@ -247,7 +291,7 @@ function DelegationPanel({ delegation, all }: { delegation: Delegation; all: Del
               partway through, so its own delegates belong after what it had said by
               then rather than above it. */}
           {children.map((child) => (
-            <DelegationPanel key={child.taskId} delegation={child} all={all} />
+            <DelegationPanel key={child.taskId} delegation={child} all={all} agents={agents} />
           ))}
         </div>
       )}

@@ -1,5 +1,5 @@
 ---
-source_sha: "c51412640202"
+source_sha: "351588808d86"
 title: "Responde preguntas desde tu base de datos"
 description: "Conecta un servidor MCP de Postgres autoalojado, detrás de un rol de solo lectura y un esquema de solo vistas, y deja que un agent lo consulte."
 ---
@@ -27,12 +27,12 @@ ejecutó de principio a fin contra un agent real.
 
 ## Por qué un rol de solo lectura y un esquema de solo vistas { #why-a-read-only-role-and-a-views-only-schema }
 
-**Las herramientas MCP están fuera de la puerta de aprobación.** Las
-herramientas de una capability pueden quedar retenidas para que una persona
-las apruebe; las de un servidor MCP no pueden — no hay revisión por llamada
-del SQL que ejecuta la herramienta de consulta de un agent. Todo lo que el
-servidor conectado pueda hacer, el agent lo puede hacer sin preguntar — ver
-[las herramientas MCP están fuera de la puerta de aprobación](../governance.md#an-approval-inside-a-delegation).
+**Una aprobación no lee el SQL por ti.** La política `approval` del vínculo puede
+retener cada consulta para una persona — `all`, con el SQL exacto en la tarjeta —,
+pero un agent que hace decenas de preguntas lo convierte en un sello automático, y
+`writes` confía en que el servidor marque su herramienta de consulta como de solo
+lectura. Ver
+[qué llamadas esperan a una persona](../mcp.md#which-calls-wait-for-a-person).
 La credencial de la base de datos misma tiene que ser la frontera, no un
 ajuste sobre el agent.
 

@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { WorkspaceExplorer, treeOf } from "./workspace-explorer";
+import { FileExplorer, WorkspaceExplorer, treeOf } from "./workspace-explorer";
 import type { WorkspaceFile, WorkspaceFiles } from "@/lib/sandbox-workspaces-api";
 
 const state = vi.hoisted(() => ({
@@ -535,5 +535,38 @@ describe("which folders start open", () => {
 
     expect(screen.getByText("uploads")).toBeVisible();
     expect(screen.getByText("report.md")).toBeVisible();
+  });
+});
+
+describe("a set of files somebody may change", () => {
+  const source = { kind: "project", id: "p-1" } as const;
+
+  it("draws the caller's controls and removes a file, a folder or a search hit", async () => {
+    const onRemove = vi.fn();
+    render(
+      <FileExplorer
+        source={source}
+        files={state.files}
+        isLoading={false}
+        error={null}
+        toolbar={<button type="button">Upload</button>}
+        onRemove={onRemove}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Upload" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Remove /report.md" }));
+    expect(onRemove).toHaveBeenLastCalledWith("/report.md");
+    await userEvent.click(screen.getByRole("button", { name: "Remove skills" }));
+    expect(onRemove).toHaveBeenLastCalledWith("skills");
+
+    await userEvent.type(screen.getByRole("textbox"), "chart");
+    await userEvent.click(screen.getByRole("button", { name: "Remove /chart.png" }));
+    expect(onRemove).toHaveBeenLastCalledWith("/chart.png");
+  });
+
+  it("offers no removal where the caller passed none", () => {
+    render(<FileExplorer source={source} files={state.files} isLoading={false} error={null} />);
+    expect(screen.queryByRole("button", { name: /^Remove/ })).toBeNull();
   });
 });

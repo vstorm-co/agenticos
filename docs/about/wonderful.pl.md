@@ -1,5 +1,5 @@
 ---
-source_sha: "de6a961ce6a4"
+source_sha: "745a8ba47ecc"
 title: "AgenticOS vs Wonderful"
 seo_title: "AgenticOS vs Wonderful: platforma AI dla firm na własność"
 description: "Porównaj dostarczany enterprise AI OS Wonderful z AgenticOS, platformą agentów open source na własność, którą sam uruchamiasz, z pomocą we wdrożeniu od Vstorm."
@@ -22,7 +22,7 @@ Utrzymuje zespół AgenticOS w Vstorm. Źródła sprawdzono 25 września 2026. W
 | Gdzie działa | Wielotenantowy SaaS, single-tenant, twoja chmura albo odizolowane od sieci on-premises | Twoja infrastruktura, z Docker Compose |
 | Ceny | Nieopublikowane; sprzedaż przez handlowców | Bez opłaty licencyjnej; modele, infrastruktura i ewentualne uzgodnione usługi |
 | Kanały | Głos, czat, e-mail, WhatsApp i SMS | Czat webowy, widget, hostowana strona, HTTP API, WebSocket, Slack, Telegram, Mattermost |
-| Modele | Routing per zadanie przez platformę | Twój wybór spośród 27 providerów, ustawiany per profil modelu |
+| Modele | Routing per zadanie przez platformę | Twój wybór spośród 28 providerów, ustawiany per profil modelu |
 | Nadzór | AI Gateway z limitami budżetu per zespół i logami audytowymi | Budżety per agent i per organizacja, zatwierdzenia i log audytowy wykrywający manipulacje |
 | Deklaracje zgodności | SOC 2 Type II, ISO 27001:2022, PCI DSS, RODO | Twoje kontrole na twojej infrastrukturze; zobacz [bezpieczeństwo](../security.md) |
 

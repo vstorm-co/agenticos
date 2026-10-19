@@ -3,8 +3,10 @@
 import { SlidersHorizontal } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { AgentAvatar } from "@/components/agents/agent-avatar";
 import {
   Button,
+  EntityAvatar,
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -127,7 +129,20 @@ export function WidgetOptionsMenu({
               onSelect={(value) => set({ agentId: value === ANY ? undefined : value })}
               items={[
                 { value: ANY, label: t("options.allAgents") },
-                ...agents.map((agent) => ({ value: agent.id, label: agent.name })),
+                ...agents.map((agent) => ({
+                  value: agent.id,
+                  label: agent.name,
+                  mark: (
+                    <AgentAvatar
+                      agentId={agent.id}
+                      slug={agent.slug}
+                      hasAvatar={agent.has_avatar}
+                      colorSlot={agent.avatar_color}
+                      size="sm"
+                      className="h-5 w-5"
+                    />
+                  ),
+                })),
               ]}
             />
           </Group>
@@ -144,6 +159,15 @@ export function WidgetOptionsMenu({
                 ...members.map((member) => ({
                   value: member.user_id,
                   label: member.full_name || member.email,
+                  mark: (
+                    <EntityAvatar
+                      seed={member.user_id}
+                      name={member.full_name || member.email}
+                      imageSrc={`/api/users/avatar/${member.user_id}`}
+                      className="h-5 w-5 shrink-0 text-[9px]"
+                      ariaHidden
+                    />
+                  ),
                 })),
               ]}
             />
@@ -223,7 +247,8 @@ function Picker({
   onSelect,
 }: {
   value: string;
-  items: { value: string; label: string }[];
+  /** `mark` is the face beside a name - an agent's, a colleague's. */
+  items: { value: string; label: string; mark?: React.ReactNode }[];
   placeholder: string;
   onSelect: (value: string) => void;
 }) {
@@ -235,7 +260,10 @@ function Picker({
       <SelectContent>
         {items.map((item) => (
           <SelectItem key={item.value} value={item.value} className="text-xs">
-            {item.label}
+            <span className="flex min-w-0 items-center gap-2">
+              {item.mark && <span aria-hidden>{item.mark}</span>}
+              <span className="truncate">{item.label}</span>
+            </span>
           </SelectItem>
         ))}
       </SelectContent>

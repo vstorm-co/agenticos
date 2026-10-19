@@ -1,5 +1,5 @@
 ---
-source_sha: "6b7c5763a7d2"
+source_sha: "a91191c7e4f7"
 title: "AgenticOS vs OpenCode"
 seo_title: "AgenticOS vs OpenCode: dwa narzędzia agentowe open source"
 description: "OpenCode to agent programistyczny MIT dla jednego dewelopera. AgenticOS to platforma Apache-2.0 dla agentów AI firmy, z rolami, budżetami i logami audytu."
@@ -18,12 +18,12 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 25 września 2026. Wersja baz
 | Dla kogo | Deweloper, w repozytorium | Organizacja: zespoły biznesowe, użytkownicy końcowi i inżynierowie |
 | Gdzie działa | Maszyna dewelopera; `opencode serve` jako lokalny serwer HTTP | Usługa współdzielona na twojej infrastrukturze |
 | Kod | MIT | Apache-2.0 |
-| Modele | Ponad 75 providerów przez Models.dev, w tym lokalne | 27 providerów, w tym lokalne |
+| Modele | Ponad 75 providerów przez Models.dev, w tym lokalne | 28 providerów, w tym lokalne |
 | Użytkownicy i dostęp | Jeden użytkownik; zespoły Zen mają role Admin i Member | Organizacje, sześć ról, 27 uprawnień, uprawnienia per zasób |
 | Zatwierdzenia | `allow`, `ask` lub `deny` dla każdego narzędzia, z odpowiedzią przy klawiaturze | Osoba z `approvals:decide`, ze wspólnej kolejki |
 | Kontrola wydatków | Miesięczne limity w bramce Zen | Budżet na agenta i na organizację, sprawdzany przed każdym zapytaniem do modelu |
 | Audyt | Nieudokumentowany | Odporny na manipulacje dziennik audytu |
-| Udostępnianie | Publiczne linki na `opncd.ai`, dopóki udostępnienie nie zostanie cofnięte | Uprawnienia do zasobów, hostowane strony i artefakty z właścicielem i widocznością |
+| Udostępnianie | Publiczne linki na `opncd.ai`, dopóki udostępnienie nie zostanie cofnięte | Uprawnienia do zasobów, hostowane strony i aplikacje z właścicielem i widocznością |
 | Cennik | Za darmo; opcjonalnie Zen w modelu pay-as-you-go i Go za 10 USD miesięcznie; Enterprise za stanowisko | Brak opłaty licencyjnej; użycie modeli i infrastruktura |
 
 ## Gdzie AgenticOS idzie dalej { #where-agenticos-goes-further }

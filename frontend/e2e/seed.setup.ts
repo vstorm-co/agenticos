@@ -213,7 +213,7 @@ async function storeSecret(
 
   await page.getByRole("button", { name: "Add key" }).first().click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog.getByText("Add a secret")).toBeVisible();
+  await expect(dialog.getByText("Add a key")).toBeVisible();
 
   // Two steps rather than one list of thirty-one: the family first, which rules
   // out most of the second question.
@@ -231,7 +231,7 @@ async function storeSecret(
   await dialog.getByRole("textbox", { name: /API key/i }).fill(value);
   await submitDialog(page, {
     dialog,
-    submit: dialog.getByRole("button", { name: "Store secret" }),
+    submit: dialog.getByRole("button", { name: "Store key" }),
     path: "/api/secrets",
   });
 
@@ -294,7 +294,7 @@ setup("an S3 key pair is stored", async ({ page }) => {
 
   await page.getByRole("button", { name: "Add key" }).first().click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog.getByText("Add a secret")).toBeVisible();
+  await expect(dialog.getByText("Add a key")).toBeVisible();
 
   await dialog.getByRole("button", { name: /^Document source/ }).click();
   await dialog.getByLabel(/^(Which one|Service)$/).click();
@@ -306,7 +306,7 @@ setup("an S3 key pair is stored", async ({ page }) => {
   await dialog.getByRole("textbox", { name: /Region/i }).fill("us-east-1");
   await submitDialog(page, {
     dialog,
-    submit: dialog.getByRole("button", { name: "Store secret" }),
+    submit: dialog.getByRole("button", { name: "Store key" }),
     path: "/api/secrets",
   });
 

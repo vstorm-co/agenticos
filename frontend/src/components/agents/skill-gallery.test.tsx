@@ -12,6 +12,7 @@ function skill(overrides: Partial<SkillSummary> = {}): SkillSummary {
     description: "How refunds are handled.",
     category: null,
     enabled: true,
+    visibility: "org",
     file_count: 0,
     built_in: false,
     excerpt: "",
@@ -20,6 +21,23 @@ function skill(overrides: Partial<SkillSummary> = {}): SkillSummary {
 }
 
 describe("SkillGallery", () => {
+  it("shows the attached skills first, ten to a page", async () => {
+    render(
+      <SkillGallery
+        skills={Array.from({ length: 12 }, (_, i) => skill({ id: `s${i}`, name: `skill-${i}` }))}
+        total={12}
+        selectedIds={["s11"]}
+        onToggle={vi.fn()}
+      />,
+    );
+
+    const shown = screen.getAllByRole("checkbox").map((box) => box.getAttribute("aria-label"));
+    expect(shown).toHaveLength(10);
+    expect(shown[0]).toBe("skill-11");
+    await userEvent.click(screen.getByRole("button", { name: "Next page" }));
+    expect(screen.getAllByRole("checkbox")).toHaveLength(2);
+  });
+
   it("searches descriptions, because that is what a skill is chosen on", async () => {
     render(
       <SkillGallery
@@ -36,6 +54,18 @@ describe("SkillGallery", () => {
 
     expect(screen.getByRole("checkbox", { name: "skill-3" })).toBeInTheDocument();
     expect(screen.queryByRole("checkbox", { name: "skill-0" })).toBeNull();
+  });
+
+  it("names the departments a skill is shared with, which tells two alike apart", () => {
+    render(
+      <SkillGallery
+        skills={[skill({ shared_groups: ["Finance"] }), skill({ id: "s2", name: "house-style" })]}
+        total={2}
+        selectedIds={[]}
+        onToggle={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Finance")).toBeInTheDocument();
   });
 
   it("names a selected skill the organization no longer has", () => {

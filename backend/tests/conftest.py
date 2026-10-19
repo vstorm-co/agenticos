@@ -166,6 +166,20 @@ def _reset_channel_intake() -> Generator[None, None, None]:
     allow_intake()
 
 
+@pytest.fixture(autouse=True)
+def _forget_mcp_answers() -> Generator[None, None, None]:
+    """Clear which MCP servers answered a probe recently.
+
+    A process global, like the flag above: a server one test probed as up would
+    otherwise skip the next test's probe of the same URL, and a test stubbing that
+    probe to fail would find the server attached anyway.
+    """
+    yield
+    from app.agents.mcp import _answered
+
+    _answered.clear()
+
+
 @pytest.fixture
 def sole_source_run() -> Generator[None, None, None]:
     """Grant `_run_source_sync` its per-source lock without a database.

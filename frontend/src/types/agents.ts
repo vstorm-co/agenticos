@@ -67,6 +67,27 @@ export interface CapabilityBindingSpec {
  * tokens, cost and tool names but no message text or tool arguments. */
 export type TraceContent = "full" | "none";
 
+/** Mirrors `RunReviewerSpec`: a second model that reviews a run while it goes (#2106). */
+export interface RunReviewerSpec {
+  /** What its corrections are attributed to. `^[a-z0-9][a-z0-9_-]{0,39}$`. */
+  name: string;
+  /** Null in a draft; publish requires one. */
+  model_profile_id: string | null;
+  /** What to look for. Empty in a draft; publish requires it. */
+  instructions: string;
+  /** Review every N model requests. */
+  every: number;
+  /** How many tokens of the most recent run each review reads. */
+  window: number;
+}
+
+/** Mirrors `CodeModeSpec`: many tool calls from one sandboxed script (#2107). */
+export interface CodeModeSpec {
+  enabled: boolean;
+  /** How many tool calls one script may make. */
+  max_tool_calls: number;
+}
+
 /** Where this agent's traces go, when not to the deployment's own project. */
 export interface ObservabilitySpec {
   /** An organization secret holding a Logfire write token - an id, never a token. */
@@ -79,6 +100,13 @@ export interface ObservabilitySpec {
 }
 
 /** The agent's half of the two budget levels; the organization's cap is the other. */
+/** Mirrors `LoopGuardSpec`: identical calls in a row, and cycle repeats, that count as a loop. */
+export interface LoopGuardSpec {
+  enabled: boolean;
+  repeats: number;
+  cycles: number;
+}
+
 export interface BudgetSpec {
   monthly_usd?: number | null;
 }
@@ -239,7 +267,12 @@ export interface OrgMcpServerRef {
    * administrator's ceiling and the two intersect at run time.
    */
   allowed_tools: string[] | null;
+  /** Which tools wait for a person: those not marked read-only (default), all, or none. */
+  approval?: McpApproval;
 }
+
+/** How much of an MCP server's tools wait for a person's approval (#2060). */
+export type McpApproval = "writes" | "all" | "none";
 
 /**
  * A service each person reaches through their own account.
@@ -247,17 +280,43 @@ export interface OrgMcpServerRef {
  * Names a catalog entry rather than a connection: whose connection answers is
  * decided when the turn runs, from whoever wrote the message. Where nobody did
  * - an API key, the widget, a schedule, an unlinked chat account - the server
- * is absent from that run and the agent is told so.
+ * is absent from that run and the agent is told so; a schedule that acts as its
+ * creator is the creator writing (#2027).
  */
 export interface PersonalMcpServerRef {
   account: "personal";
   catalog_key: string;
   /** The administrator's ceiling; the person's own connection may narrow further. */
   allowed_tools: string[] | null;
+  approval?: McpApproval;
 }
 
-/** One MCP binding: the organization's connection, or each person's own account. */
-export type McpServerRef = OrgMcpServerRef | PersonalMcpServerRef;
+/**
+ * This deployment's own MCP server, as whoever the agent runs for (#2063).
+ * What the AI Architect operates the platform through.
+ */
+export interface PlatformMcpServerRef {
+  account: "platform";
+  allowed_tools?: string[] | null;
+  approval?: McpApproval;
+}
+
+/** One MCP binding: the organization's connection, each person's own, or the platform's. */
+export type McpServerRef = OrgMcpServerRef | PersonalMcpServerRef | PlatformMcpServerRef;
+
+/** A custom variable, written `{{name}}` in an agent's instructions (#2065). */
+export interface PromptVariableSpec {
+  name: string;
+  value: string;
+  description?: string | null;
+}
+
+/** A system variable, filled in by the platform when a run starts. */
+export interface SystemPromptVariable {
+  name: string;
+  description: string;
+  example: string;
+}
 
 export interface AgentSpec {
   /**
@@ -272,7 +331,12 @@ export interface AgentSpec {
   spec_version?: number;
   name: string;
   description?: string | null;
+  /** The system prompt; `{{name}}` is filled in when each run starts (#2065). */
   instructions: string;
+  /** Custom variables the instructions may use. Optional here, always on the wire. */
+  variables?: PromptVariableSpec[];
+  /** `system`, `user` (the person's own) or an IANA zone, for `{{current_time}}`. */
+  time_zone?: string;
   model_profile_id?: string | null;
   model_settings: ModelSettingsSpec;
   capabilities: CapabilityBindingSpec[];
@@ -289,8 +353,16 @@ export interface AgentSpec {
    * optional in this type because `create` does not send one.
    */
   subagents?: SubagentRef[];
+  /** Remote A2A agents it may delegate to (#2092). Optional here, always on the wire. */
+  external_agents?: ExternalAgentRef[];
   /** Model requests one run may make; null uses the platform default of 100. */
   max_steps?: number | null;
+  /** When a run looping on its tool calls is warned, then stopped; defaulted server side. */
+  loop_guard?: LoopGuardSpec;
+  /** Second models that review the run while it goes; defaulted to none server side. */
+  reviewers?: RunReviewerSpec[];
+  /** Whether tools are called from one sandboxed script; defaulted off server side. */
+  code_mode?: CodeModeSpec;
   budget?: BudgetSpec | null;
   /**
    * Optional here, required on the wire.
@@ -302,6 +374,12 @@ export interface AgentSpec {
    */
   notifications?: NotificationSpec;
   observability?: ObservabilitySpec | null;
+}
+
+/** A remote A2A agent this agent may delegate to, by its registration (#2092). */
+export interface ExternalAgentRef {
+  external_agent_id: string;
+  preferred_mode?: DelegationMode | null;
 }
 
 /** The model an agent's published version runs on. Enough to prefill a picker. */
@@ -319,14 +397,20 @@ export interface Agent {
   description: string | null;
   status: AgentStatus;
   visibility: Visibility;
+  /** The groups it is shared with, by name (#2072). Only the listing carries it. */
+  shared_groups?: string[];
   owner_user_id: string | null;
   current_version_id: string | null;
   /**
    * Set on an agent the platform seeded and starts itself - `eval_judge` for the
-   * eval judge. Edited and shared like any agent; the console marks it as a
-   * system agent.
+   * default eval judge. Edited and shared like any agent.
    */
   system_key?: string | null;
+  /**
+   * `judge` for an agent grading evals: only the platform runs it, so it has no
+   * chat, channels or delegation, and the console lists it apart.
+   */
+  kind?: "agent" | "judge" | "generator";
   /** Whether `/api/agents/{id}/avatar` will answer with an image. */
   has_avatar?: boolean;
   /** Chosen default-avatar colour slot (1..10); null/absent is auto from the id. */
@@ -339,6 +423,15 @@ export interface Agent {
    * backend re-checks on every create, so it is not a security boundary.
    */
   can_run: boolean;
+  /**
+   * Whether the current caller may edit this agent - resolved per caller like
+   * `can_run`, so an edit grant on one agent reads true where the role check
+   * would not. What eval controls (testing the draft, stopping a run, publishing
+   * from one) read; the backend re-checks every edit.
+   */
+  can_edit?: boolean;
+  /** Whether other systems may reach it over A2A, by its agent card (#2092). */
+  a2a_enabled?: boolean;
   /** How many members hold an explicit grant. Filled by the listing only. */
   shared_user_count?: number;
   /** Surfaces with an active binding ("slack", "telegram", ...). Listing only. */
@@ -553,6 +646,12 @@ export interface CapabilityCatalogEntry {
   category: string;
   description: string;
   side_effecting: boolean;
+  /**
+   * Whether the Builder offers per-tool settings. False where the one tool is the
+   * capability itself - the coding agent's - so its approval is the capability's.
+   * Absent from an older server, which means offered.
+   */
+  tool_settings?: boolean;
   scopes: string[];
   /** Empty for a capability that is not tools at all - a guardrail, or instructions. */
   tools: CapabilityTool[];
@@ -568,6 +667,11 @@ export interface CapabilityCatalogEntry {
    * catalog, the spec or the model; only the agent runner ever reads one.
    */
   requires_secret: SecretRequirement | null;
+  /**
+   * How the starter agent (the Claude Code like template) binds this capability,
+   * or null where it does not. Marked Recommended, and what a new agent starts with.
+   */
+  recommended: CapabilityBindingSpec | null;
 }
 
 export interface CapabilityCatalog {
@@ -664,15 +768,31 @@ export interface JsonSchemaProperty {
    */
   "x-placeholder"?: string;
   /**
-   * Values a field suggests without restricting itself to them.
+   * Whether this field is folded under "Advanced settings" (#2070).
    *
-   * The open counterpart of `enum`: the backend validates a plain string, so the
-   * form offers these and still accepts anything else. A browsing agent's
-   * `decision_model` is the case it exists for - the catalog holds the moving
-   * aliases, and an agent whose confidence floor was tuned against a pinned
-   * build has to be able to name that build. `x-enum-labels` names them.
+   * A capability marks limits, cache lifetimes, prompts and tuning this way
+   * through `json_schema_extra`, so the form shows the decisions that change
+   * what an agent does first and the rest a click away.
    */
-  "x-suggestions"?: string[];
+  "x-advanced"?: boolean;
+  /**
+   * A control the form draws for a value that is a reference rather than text:
+   * `model-profile` is one of the organization's model profiles, chosen from
+   * the same picker the Builder uses for the agent's own model.
+   */
+  "x-widget"?: "model-profile";
+  /**
+   * The choices an enum offers for each value of another field of the form -
+   * the coding agent's models, which depend on its harness. A choice the other
+   * field no longer allows is cleared when that field changes.
+   */
+  "x-enum-when"?: { field: string; choices: Record<string, string[]> };
+  /**
+   * Show this field only while another field of the same form holds one of
+   * these values - a proxy's address under "Through a proxy" and nowhere else.
+   * Hidden is not cleared: switching back finds what was typed.
+   */
+  "x-visible-when"?: { field: string; equals: string[] };
   /**
    * What a `list[...]` holds. Only `{"type": "string"}` is rendered; anything
    * else is the richer editor the generated form deliberately does not grow.
@@ -686,4 +806,10 @@ export interface JsonSchemaProperty {
     items?: { type?: string };
     "x-enum-labels"?: Record<string, string>;
   }[];
+}
+
+/** An agent using a skill, a context file or a knowledge base, as a listing names it. */
+export interface AgentUsage {
+  id: string;
+  name: string;
 }

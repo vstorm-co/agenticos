@@ -10,7 +10,7 @@ or rotating a key never rewrites what last month appears to have cost.
 """
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -69,6 +69,29 @@ class TestAggregation:
         # answered by a total since the beginning of time.
         assert isinstance(query.call_args.kwargs["since"], datetime)
         assert query.call_args.kwargs["since"].tzinfo is UTC
+
+    @pytest.mark.anyio
+    async def test_cache_collapses_are_read_per_agent_and_model_in_the_callers_org(self):
+        rows = [(uuid.uuid4(), "Clerk", "clerk", "gpt-4.1", 2, 0, 900, 1)]
+        ctx = _ctx()
+        with patch(
+            f"{RUNNER}.agent_run_repo.cache_collapses", new=AsyncMock(return_value=rows)
+        ) as query:
+            result = await AgentRunnerService(MagicMock()).cache_collapses(
+                ctx, since=datetime.now(UTC)
+            )
+        assert result == rows
+        assert query.await_args.kwargs["organization_id"] == ctx.organization_id
+
+    @pytest.mark.anyio
+    async def test_spend_is_grouped_by_the_day_it_was_spent(self):
+        rows = [(date(2026, 10, 12), Decimal("1.25"), 4)]
+        with patch(f"{RUNNER}.agent_run_repo.spend_by_day", new=AsyncMock(return_value=rows)):
+            result = await AgentRunnerService(MagicMock()).spend_by_day(
+                _ctx(), since=datetime.now(UTC) - timedelta(days=7)
+            )
+
+        assert result == rows
 
     @pytest.mark.anyio
     async def test_spend_is_grouped_by_the_key_that_paid(self):

@@ -22,19 +22,28 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Awaitable, Callable
-from typing import Any
+from collections.abc import Awaitable, Callable, Mapping
+from typing import Any, Protocol
 
+import anyio
+from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.messages import (
     FunctionToolCallEvent,
+    FunctionToolResultEvent,
     PartDeltaEvent,
     PartStartEvent,
+    RetryPromptPart,
     TextPart,
     TextPartDelta,
+    ToolReturnPart,
 )
 
+from app.agents.browser_events import BrowserEvent
+from app.agents.deps import AgentDeps
+from app.services import live_browse
 from app.services.agent_runner import AgentIteration, RunStream
+from app.services.channels.base import AnswerStep, NativeAnswer, StepSource
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +63,20 @@ _DOING: dict[str, str] = {
     "create_chart": "Drawing a chart…",
     "run_python": "Running some code…",
     "run_shell": "Running a command…",
+    # The rest of what an agent commonly does while a chat waits (#2068).
+    "search_documents": "Looking through the documents…",
+    "web_fetch": "Reading a web page…",
+    "browse_web": "Browsing the web…",
+    "generate_image": "Drawing an image…",
+    "publish_artifact": "Building a page…",
+    "search_conversations": "Looking through earlier conversations…",
+    "read_context": "Reading the background notes…",
+    "execute": "Running a command…",
+    "read_file": "Reading a file…",
+    "write_file": "Writing a file…",
+    "edit_file": "Editing a file…",
+    "task": "Asking a specialist…",
+    "ask_user_question": "Preparing a question…",
 }
 
 WORKING = "…"
@@ -73,6 +96,38 @@ Not the bare ellipsis the message opens with: by this point something *is*
 happening and the silence has a cause, which is worth saying even when we cannot
 say what it is.
 """
+
+
+_MAX_SOURCES = 5
+"""How many pages one step links; a search returning twenty is still five links."""
+
+
+def step_sources(content: object) -> tuple[StepSource, ...]:
+    """The pages a tool's result names, so its step can link them (#2084).
+
+    Read by shape rather than by tool: anything in the result with an `http`
+    `url` beside a `title` is a page - a web search's hits, a fetched page, an
+    MCP tool that returns links. A result naming none links none.
+    """
+    found: dict[str, StepSource] = {}
+
+    def walk(value: object) -> None:
+        if len(found) >= _MAX_SOURCES:
+            return
+        if isinstance(value, BaseModel):
+            walk(value.model_dump())
+        elif isinstance(value, Mapping):
+            url, title = value.get("url"), value.get("title")
+            if isinstance(url, str) and url.startswith("http") and url not in found:
+                found[url] = StepSource(url=url, title=title if isinstance(title, str) else url)
+            for nested in value.values():
+                walk(nested)
+        elif isinstance(value, list | tuple):
+            for item in value:
+                walk(item)
+
+    walk(content)
+    return tuple(found.values())[:_MAX_SOURCES]
 
 
 def doing(tool_name: str) -> str:
@@ -132,6 +187,16 @@ class LiveReply:
         if not self._text:
             await self._flush()
 
+    async def step(self, step: AnswerStep) -> None:
+        """A tool call starting is a status; how it ended is not worth an edit.
+
+        A step that links somewhere - a browse's live view - carries the link in
+        the status, because a placeholder is text and the link is the point.
+        """
+        if step.status == "in_progress":
+            links = "".join(f"\n{source.title}: {source.url}" for source in step.sources)
+            await self.working_on(step.title + links)
+
     async def _maybe_push(self) -> None:
         if self._now() - self._pushed_at >= EDIT_INTERVAL:
             await self._flush()
@@ -151,7 +216,121 @@ class LiveReply:
             logger.warning("Could not update a live reply", exc_info=True)
 
 
-def channel_stream(reply: LiveReply) -> RunStream:
+class StreamedReply:
+    """An answer written into a platform's own streamed message (#2084).
+
+    The text is appended rather than rewritten, at the same once-a-second pace,
+    and each tool call is a step of its own instead of a status line the answer
+    then replaces. Ending it hands over what is still unsent - or reports that
+    the finished answer is not a continuation of what was streamed, which an
+    output guardrail redacting the text makes happen, so the caller rewrites the
+    message whole.
+    """
+
+    def __init__(self, native: NativeAnswer, *, now: Callable[[], float] = time.monotonic) -> None:
+        self._native = native
+        self._now = now
+        self._text = ""
+        self._sent = 0
+        self._pushed_at = 0.0
+
+    @property
+    def text(self) -> str:
+        """Everything the model has written so far."""
+        return self._text
+
+    @property
+    def handle(self) -> str:
+        """The streamed message, for rewriting it whole."""
+        return self._native.handle
+
+    async def add(self, delta: str) -> None:
+        """Take a fragment of the answer, and append it if it is time."""
+        self._text += delta
+        if self._now() - self._pushed_at >= EDIT_INTERVAL:
+            await self._flush()
+
+    async def step(self, step: AnswerStep) -> None:
+        """Show a step, after whatever text came before it."""
+        await self._flush()
+        try:
+            await self._native.step(step)
+        except Exception:
+            # A missing row in the timeline costs nothing the answer needs.
+            logger.warning("Could not show a step of a streamed answer", exc_info=True)
+
+    async def finish(self, answer: str, *, failed: bool, feedback_run_id: str | None) -> bool:
+        """End the stream; `False` when `answer` has to replace what was streamed.
+
+        Raises whatever the platform raised for the final call, so the caller can
+        post the answer some other way rather than lose it.
+        """
+        await self._flush()
+        streamed = self._text[: self._sent]
+        continues = answer.startswith(streamed)
+        rest = answer[len(streamed) :] if continues else ""
+        await self._native.finish(rest, failed=failed, feedback_run_id=feedback_run_id)
+        return continues
+
+    async def _flush(self) -> None:
+        pending = self._text[self._sent :]
+        if not pending:
+            return
+        self._pushed_at = self._now()
+        try:
+            await self._native.append(pending)
+        except Exception:
+            # Left unsent, so the next flush or the finish carries it instead.
+            logger.warning("Could not append to a streamed answer", exc_info=True)
+            return
+        self._sent = len(self._text)
+
+
+class AnswerSink(Protocol):
+    """Where a channel run's text and steps go: an edited placeholder or a native stream."""
+
+    async def add(self, delta: str) -> None: ...
+
+    async def step(self, step: AnswerStep) -> None: ...
+
+
+_BROWSE_TOOL = "browse_web"
+
+LIVE_VIEW = "Watch or take over"
+"""What a browse's live-view link is called in a channel (#2128)."""
+
+
+def _browse_title(event: BrowserEvent) -> str:
+    """What a browse's step says, from the last thing its live view heard."""
+    if event.kind == "browser_needs_person":
+        return f"Needs you: {event.detail}"
+    if event.kind == "browser_held":
+        return f"{event.by or 'Someone'} has the browser"
+    return doing(_BROWSE_TOOL)
+
+
+def _live_view(run_id: str | None, tool_name: str, call_id: str) -> StepSource | None:
+    """The link to a tool call's live view, for a browse a person can watch - else `None`."""
+    if tool_name != _BROWSE_TOOL or run_id is None or not live_browse.available():
+        return None
+    return StepSource(url=live_browse.link(run_id, call_id), title=LIVE_VIEW)
+
+
+async def _follow_browse(reply: AnswerSink, run_id: str, call_id: str, source: StepSource) -> None:
+    """Keep a browse's step saying what it needs, until the browse's step ends.
+
+    A channel has no live view of its own, so the one moment a person is needed -
+    a sign-in, a captcha - has to reach them as words in the thread, with the link
+    that lets them do it.
+    """
+    async for event in live_browse.watch(run_id, call_id):
+        if event.kind in ("browser_needs_person", "browser_held", "browser_released"):
+            await reply.step(
+                AnswerStep(call_id, _browse_title(event), "in_progress", sources=(source,))
+            )
+
+
+def channel_stream(reply: AnswerSink) -> RunStream:
     """Drive an agent run into `reply`.
 
     Three kinds of event matter to a chat window: a text part starting, the
@@ -170,9 +349,38 @@ def channel_stream(reply: LiveReply) -> RunStream:
 
     Only a `TextPart`: the same event fires for a tool call and, on a model that
     exposes it, for thinking - neither of which is the answer.
+
+    A tool call is a step from its call to its result, named by what it does
+    rather than by its id; a result asking the model to retry is a failed step.
     """
+    titles: dict[str, str] = {}
+    followers: dict[str, anyio.CancelScope] = {}
 
     async def stream(agent_run: AgentIteration[Any, Any]) -> None:
+        # `ctx.deps` is the graph's own; the run's `AgentDeps` are inside it.
+        deps = agent_run.ctx.deps.user_deps
+        run_id = deps.run_id if isinstance(deps, AgentDeps) else None
+        async with anyio.create_task_group() as followed:
+            try:
+                await walk(agent_run, followed, None if run_id is None else str(run_id))
+            finally:
+                followed.cancel_scope.cancel()
+
+    async def follow(
+        run_id: str,
+        call_id: str,
+        source: StepSource,
+        *,
+        task_status: anyio.abc.TaskStatus[None] = anyio.TASK_STATUS_IGNORED,
+    ) -> None:
+        with anyio.CancelScope() as scope:
+            followers[call_id] = scope
+            task_status.started()
+            await _follow_browse(reply, run_id, call_id, source)
+
+    async def walk(
+        agent_run: AgentIteration[Any, Any], followed: anyio.abc.TaskGroup, run_id: str | None
+    ) -> None:
         async for node in agent_run:
             if Agent.is_model_request_node(node):
                 async with node.stream(agent_run.ctx) as request_stream:
@@ -187,6 +395,35 @@ def channel_stream(reply: LiveReply) -> RunStream:
                 async with node.stream(agent_run.ctx) as tool_stream:
                     async for event in tool_stream:
                         if isinstance(event, FunctionToolCallEvent):
-                            await reply.working_on(doing(event.part.tool_name))
+                            call_id = event.part.tool_call_id
+                            titles[call_id] = doing(event.part.tool_name)
+                            live = _live_view(run_id, event.part.tool_name, call_id)
+                            await reply.step(
+                                AnswerStep(
+                                    call_id,
+                                    titles[call_id],
+                                    "in_progress",
+                                    sources=() if live is None else (live,),
+                                )
+                            )
+                            if live is not None and run_id is not None:
+                                await followed.start(follow, run_id, call_id, live)
+                        elif isinstance(event, FunctionToolResultEvent):
+                            call_id = event.tool_call_id
+                            if call_id in followers:
+                                followers.pop(call_id).cancel()
+                            failed = isinstance(event.part, RetryPromptPart)
+                            await reply.step(
+                                AnswerStep(
+                                    call_id,
+                                    titles.get(call_id, _USING_A_TOOL),
+                                    "error" if failed else "complete",
+                                    sources=(
+                                        step_sources(event.part.content)
+                                        if isinstance(event.part, ToolReturnPart)
+                                        else ()
+                                    ),
+                                )
+                            )
 
     return stream

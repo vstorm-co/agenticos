@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -10,11 +11,24 @@ interface RubricEditorProps {
   criteria: RubricCriterion[];
   onChange: (criteria: RubricCriterion[]) => void;
   disabled?: boolean;
+  /** Changed to put the cursor in the first criterion's description, selected. */
+  focusKey?: number;
 }
 
 /** The judge's rubric: named criteria, each graded on the scale and required or not. */
-export function RubricEditor({ criteria, onChange, disabled = false }: RubricEditorProps) {
+export function RubricEditor({
+  criteria,
+  onChange,
+  disabled = false,
+  focusKey = 0,
+}: RubricEditorProps) {
   const t = useTranslations("datasets.scoring");
+  const first = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (focusKey === 0) return;
+    first.current?.focus();
+    first.current?.select();
+  }, [focusKey]);
   const change = (index: number, patch: Partial<RubricCriterion>) =>
     onChange(criteria.map((item, at) => (at === index ? { ...item, ...patch } : item)));
 
@@ -35,10 +49,10 @@ export function RubricEditor({ criteria, onChange, disabled = false }: RubricEdi
               <Switch
                 checked={criterion.required}
                 onCheckedChange={(required) => change(index, { required })}
-                aria-label={t("required")}
+                aria-label={t("mustPass")}
                 disabled={disabled}
               />
-              {t("required")}
+              {t("mustPass")}
             </label>
             <IconButton
               aria-label={t("removeCriterion")}
@@ -49,6 +63,7 @@ export function RubricEditor({ criteria, onChange, disabled = false }: RubricEdi
             </IconButton>
           </div>
           <Textarea
+            ref={index === 0 ? first : undefined}
             value={criterion.description}
             onChange={(event) => change(index, { description: event.target.value })}
             placeholder={t("criterionDescriptionPlaceholder")}

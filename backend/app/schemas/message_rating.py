@@ -84,6 +84,14 @@ class MessageRatingList(BaseSchema):
     total: int
 
 
+class SurfaceRatings(BaseSchema):
+    """One surface's thumbs: the web chat, Slack, Telegram and the rest (#2084)."""
+
+    surface: str
+    likes: int
+    dislikes: int
+
+
 class RatingSummary(BaseSchema):
     """Aggregated rating statistics."""
 
@@ -93,3 +101,7 @@ class RatingSummary(BaseSchema):
     average_rating: float  # -1.0 to 1.0
     with_comments: int
     ratings_by_day: list[dict[str, Any]]  # [{date: "2026-03-25", likes: 10, dislikes: 2}]
+    ratings_by_surface: list[SurfaceRatings] = Field(
+        default_factory=list,
+        description="Likes and dislikes per surface the answer was given on: web, slack, ...",
+    )

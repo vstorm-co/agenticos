@@ -20,6 +20,7 @@ const { generations, proposals } = vi.hoisted(() => ({
   },
 }));
 const asked = vi.fn();
+vi.mock("@/hooks/use-agents", () => ({ useCapabilityCatalog: () => ({ capabilities: [] }) }));
 vi.mock("@/hooks/use-case-generation", () => ({
   useCaseGenerations: () => ({ generations: generations.current }),
   useCaseProposals: (_id: string, options: unknown) => {

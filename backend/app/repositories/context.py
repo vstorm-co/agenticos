@@ -6,6 +6,7 @@ predicate pieces the access layer resolved rather than re-deriving them here -
 the same shape `skill_repo` uses.
 """
 
+from collections.abc import Sequence
 from typing import Literal
 from uuid import UUID
 
@@ -60,6 +61,7 @@ async def list_visible(
     shared_ids: list[UUID],
     shared_with_me: bool = False,
     search: str | None = None,
+    only_ids: Sequence[UUID] | None = None,
     sort: ContextSort = "name",
     skip: int = 0,
     limit: int = 50,
@@ -72,6 +74,8 @@ async def list_visible(
         shared_ids: File ids explicitly shared with this member.
         shared_with_me: Narrow to rows deliberately shared with the caller -
             org-visible or explicitly granted, and not their own.
+        only_ids: Narrow to these rows, on top of the visibility rules - the
+            files shared with one group, when the page is grouped by one.
 
     Search covers the name and the description because those are what a person
     remembers about a file - the body is what the *model* reads, and matching on
@@ -105,6 +109,8 @@ async def list_visible(
                 contains_ci(ContextFile.description, search),
             )
         )
+    if only_ids is not None:
+        where.append(ContextFile.id.in_(only_ids))
 
     order_by = (
         (

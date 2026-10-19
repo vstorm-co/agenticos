@@ -1,23 +1,23 @@
 ---
-source_sha: "8c8da72b2c36"
+source_sha: "06f8c1ff3994"
 ---
 
-# Artefakty { #artifacts }
+# Aplikacje { #artifacts }
 
-**Artefakt** to strona opublikowana przez agenta: raport, mały dashboard,
+**Aplikacja** to strona opublikowana przez agenta: raport, mały dashboard,
 jednostronicowe podsumowanie, które ktoś otwiera w przeglądarce. Ma link, który
 się nie zmienia, gdy agent publikuje ją ponownie, więc „w każdy poniedziałek
 opublikuj liczby z tygodnia na tej stronie” to jeden link, który ludzie dodają do
 zakładek, a nie nowy co tydzień.
 
-Artefakt nie jest plikiem. Wykres, wygenerowany PDF i plik w workspace'ie mają już
-swoje miejsce w czacie i w [workspace'ie](sandbox.md). Artefakt to rzecz, która
+Aplikacja nie jest plikiem. Wykres, wygenerowany PDF i plik w workspace'ie mają już
+swoje miejsce w czacie i w [workspace'ie](sandbox.md). Aplikacja to rzecz, która
 jest *serwowana*: ma właściciela, widoczność i granty, tak jak agent czy skill, i
-można mu nadać publiczny link dla kogoś bez konta.
+można jej nadać publiczny link dla kogoś bez konta.
 
-## Publikowanie artefaktu { #publishing-one }
+## Publikowanie aplikacji { #publishing-one }
 
-Włącz agentowi capability **Artifacts**. Dodaje ona dwa narzędzia:
+Włącz agentowi capability **Aplikacje**. Dodaje ona dwa narzędzia:
 `publish_artifact`, które model wywołuje, gdy wynik jest czymś, co człowiek
 powinien otworzyć, a nie przeczytać raz w czacie, oraz `read_artifact`, które
 odczytuje opublikowaną stronę z powrotem.
@@ -25,7 +25,7 @@ odczytuje opublikowaną stronę z powrotem.
 Strona pochodzi z jednego z trzech miejsc:
 
 - **Z pliku w workspace'ie agenta**, zakończonego na `.html` albo `.md`. To
-  zwykły przypadek dla agenta z capability [Files & shell](reference/capabilities.md#files-shell):
+  zwykły przypadek dla agenta z capability [Sandbox](reference/capabilities.md#files-shell):
   zapisuje `report.html`, uruchamia to, co go buduje, a potem publikuje plik.
   Bajty są czytane przez własny backend workspace'u runa, więc działa to na
   każdym backendzie sandboksa.
@@ -55,8 +55,8 @@ ucięta i to mówi; edycja nadal może wskazać tekst za cięciem.
 
 ## Jedna nazwa, jeden link { #one-name-one-link }
 
-Tożsamością artefaktu jest jego **nazwa w obrębie agenta** — `weekly-report`,
-`churn-dashboard`. Publikacja pod tą samą nazwą aktualizuje ten sam artefakt, z
+Tożsamością aplikacji jest jej **nazwa w obrębie agenta** — `weekly-report`,
+`churn-dashboard`. Publikacja pod tą samą nazwą aktualizuje tę samą aplikację, z
 dowolnej powierzchni: z czatu, z API, z [triggera](triggers.md) albo z workflow.
 Nowa nazwa tworzy nową stronę. Nazwa składa się z małych liter, cyfr i łączników,
 maksymalnie 64 znaki.
@@ -69,15 +69,15 @@ ponownie opublikować strony, którą czytelnicy produkcji mają w zakładkach.
 pokazują.
 
 Nazwę dzielą wszyscy, którzy uruchamiają agenta, ale stronę już nie. Run
-publikuje ponownie istniejący artefakt tylko wtedy, gdy osoba, w której imieniu
-działa, jest jego właścicielem albo ma na nim `artifacts:edit` — z roli albo z
-grantu `edit`, ta sama zasada co przy zarządzaniu nim w konsoli. Run każdego
+publikuje ponownie istniejącą aplikację tylko wtedy, gdy osoba, w której imieniu
+działa, jest jej właścicielem albo ma na niej `artifacts:edit` — z roli albo z
+grantu `edit`, ta sama zasada co przy zarządzaniu nią w konsoli. Run każdego
 innego dostaje informację, że nazwa jest zajęta, i publikuje pod inną, więc
 kolega, który poprosi tego samego współdzielonego agenta o `weekly-report`, nie
 podmieni strony za Twoim linkiem.
 
 Każda publikacja to nowa **wersja**. Nic nie jest nadpisywane, więc lista wersji
-na stronie artefaktu jest historią strony. Dwie rzeczy utrzymują tę historię w
+na stronie aplikacji jest historią strony. Dwie rzeczy utrzymują tę historię w
 granicach:
 
 - Publikacja dokładnie tych bajtów, które trzyma bieżąca wersja, nie dodaje
@@ -128,11 +128,17 @@ jeśli wdrożenie przeniesie później treść do innego originu:
 | `lib/agenticos-2.css` | Wygląd konsoli dla stron, jasny i ciemny, oraz komponenty `ao-`, z których buduje się stronę |
 | `lib/agenticos-2.js` | `window.AO`: Chart.js w stylu konsoli, formatowanie liczb w języku strony, ikony, zakładki |
 | `lib/agenticos-1.css` | Pierwsza wersja wyglądu, zostawiona dla stron opublikowanych z nią |
+| `lib/three-0.186.0/three.module.js` | three.js 0.186.0 jako moduł ES, z `addons/controls/OrbitControls.js` obok - zmapuj `three` i `three/addons/` mapą importów |
+| `lib/mermaid-12.1.0.min.js` | Mermaid 12.1.0, jako `window.mermaid` |
 
 Każda nazwa niesie swoją wersję i jest cache'owana przez rok. Aktualizacja dodaje
 nowy plik obok starego, więc strona opublikowana z jedną wersją dalej ją dostaje.
 Nic nie jest pobierane spoza wdrożenia, więc wdrożenie bez dostępu do internetu
 działa tak samo. Pliki są wymienione w `backend/app/core/catalog/artifact_lib/`.
+
+Pliki odpowiadają `Access-Control-Allow-Origin: *`, bo skrypt modułowy jest pobierany
+w trybie CORS, a strona w nieprzezroczystym originie wysyła `Origin: null` - bez tego
+three.js by się nie zaimportował.
 
 Dołączony [skill](skills.md) **`artifact-pages`** uczy agenta z nich korzystać: dwa
 szablony (dashboard i raport), styl domu z jego komponentami, ikony zamiast
@@ -142,32 +148,75 @@ istniejąca przez `seed-skills`, a zakładka **Page style** capability Artifacts
 Builderze go proponuje. Edytuj skill, żeby opisać własny branding, a agent będzie
 się go trzymał.
 
-## Kto może go otworzyć { #who-can-open-it }
+## Wizualizacje { #visuals }
 
-Nowy artefakt jest **prywatny** dla osoby, w imieniu której działał publikujący
+[Wizual](reference/capabilities.md#visuals) to aplikacja, której jeszcze nie zapisano:
+rysunek, który agent pisze w rozmowie przez `draw`, pokazywany pod jego wiadomością w
+trakcie pisania. To ten sam rodzaj dokumentu - wizual `html` jest stroną, a `svg` czy
+`mermaid` staje się stroną, która go zawiera - i jest rysowany z tą samą izolacją.
+
+**Ramka.** `/api/v1/artifact-content/visual-frame` to jedna stała strona na originie
+treści, serwowana z tą samą polityką, którą dostaje strona każdej aplikacji. Nie zawiera
+rysunku: konsola wysyła do niej rysunek w trakcie strumieniowania, więc nic nie musi być
+zapisane, zanim zostanie pokazane, a izolacja pochodzi z nagłówka odpowiedzi, a nie z
+meta tagu `srcdoc`. Podczas strumieniowania ramka przekształca znaczniki na miejscu, bez
+skryptów i atrybutów `on*`; po zakończeniu zapisuje cały dokument, żeby jego skrypty
+ruszyły, dokładnie tak jak na zapisanej stronie. Ramka zgłasza swój rozmiar, błędy i
+sygnał życia; rysunek, który przestaje go wysyłać, jest zamykany, zamiast blokować kartę.
+
+**W czacie.** Panel pokazuje cały rysunek - SVG dopasowane po `viewBox`, stronę ułożoną
+w szerokości panelu i zmniejszoną powyżej 560 pikseli - pod tytułem, w wiadomości
+agenta, nigdy jako część konsoli. Pełny ekran pokazuje go w jego rozmiarze; na telefonie
+podgląd otwiera pełny ekran po stuknięciu. Powiększenie pojawia się w prawym dolnym rogu
+rysunku, gdy kursor jest na karcie, w podglądzie i na pełnym ekranie: SVG jest rysowane
+większe, strona skalowana, a ramka przewija się, gdy rysunek z niej wyrośnie. Nad nim są
+*Pokaż kod*, *Pobierz* (`.svg`, `.html` albo źródło Mermaid) i *Kopiuj jako obraz* dla
+SVG, a błąd zgłoszony przez rysunek przychodzi z *Napraw*, które prosi agenta.
+
+**Pobieranie.** Plik otwarty z dysku nie ma wokół siebie ramki, więc pobrany plik
+niesie to, co wymuszała ramka. SVG zachowuje rysunek i traci to, co mogłoby się
+uruchomić albo sięgnąć na zewnątrz: skrypty, handlery, osadzone dokumenty i każde
+odwołanie poza plik. Strona otwiera się z polityką ramki przed wszystkim, co
+napisała, i ładuje biblioteki z originu artefaktów tego wdrożenia.
+
+**Zapis jako aplikacja.** *Zapisz w Aplikacjach* bierze tytuł i nazwę, obie wypełnione,
+i publikuje wizual jako wersję aplikacji pod agentem, którego tura go narysowała,
+w środowisku, w którym ta tura działała, należącą do osoby, która zapisuje, i prywatną, dopóki jej nie udostępni. Serwer odtwarza
+wizual z transkryptu - z naniesionymi poprawkami - zamiast brać bajty z przeglądarki,
+więc aplikacja jest dokładnie tym, co narysował agent. Zapis pod nazwą, którą osoba już
+ma, dodaje wersję tej aplikacji - w ten sposób poprawka zapisanego rysunku aktualizuje
+stronę, którą udostępniono. Zapis wymaga `artifacts:edit`.
+
+**Z delegata.** Rysunek zostaje w runie, który go zrobił, więc agent działający
+jako delegat innego agenta nie rysuje: `draw` mu to mówi, a on opisuje obraz w
+swoim wyniku, żeby agent, dla którego pracuje, narysował go w rozmowie.
+
+## Kto może ją otworzyć { #who-can-open-it }
+
+Nowa aplikacja jest **prywatna** dla osoby, w imieniu której działał publikujący
 run: dla osoby na czacie albo dla twórcy triggera.
 
 Jego link - ten, na który wskazują karta w czacie i odpowiedź agenta - otwiera
 samą stronę, na całe okno, pod jednym paskiem z tytułem, wersją i przyciskiem
 **Share**. Sam link nikogo nie wpuszcza: otwiera się tylko zalogowanemu
 członkowi, którego wpuszczają już poniższe zasady. Link wskazuje organizację, w
-której jest artefakt (`?org=`), więc członek kilku organizacji trafia do
+której jest aplikacja (`?org=`), więc członek kilku organizacji trafia do
 właściwej.
 
-Pod **Share** każdy, kto może nim zarządzać, może go udostępnić
+Pod **Share** każdy, kto może nią zarządzać, może ją udostępnić
 na trzy sposoby:
 
 | Zasięg | Jak | Kto |
 |---|---|---|
 | Konkretne osoby | Grant, na poziomie `read` albo `edit` | Ci członkowie, w tej organizacji |
-| Organizacja | Widoczność ustawiona na całą organizację | Każdy członek, którego rola sięga do udostępnionych artefaktów |
+| Organizacja | Widoczność ustawiona na całą organizację | Każdy członek, którego rola sięga do udostępnionych aplikacji |
 | Każdy, kto ma link | **Create a public link** | Każdy, kto zna adres, bez konta |
 
 Udostępnianie i widoczność korzystają z tego samego panelu i tych samych reguł co
-agenci i skille; zobacz [Uprawnienia](permissions.md). Zarządzanie artefaktem —
-udostępnianie go, jego publiczny link i jego ustawienia, przywracanie wersji,
-usuwanie — wymaga `artifacts:edit` na tym artefakcie, z roli albo z grantu `edit`.
-Otwarcie go wymaga `artifacts:view`.
+agenci i skille; zobacz [Uprawnienia](permissions.md). Zarządzanie aplikacją —
+udostępnianie jej, jej publiczny link i jego ustawienia, przywracanie wersji,
+usuwanie — wymaga `artifacts:edit` na tej aplikacji, z roli albo z grantu `edit`.
+Otwarcie jej wymaga `artifacts:view`.
 
 Agent nie może poszerzyć grona czytelników strony. Agent publikuje; o tym, kto ją
 widzi, decyduje człowiek. Dlatego capability domyślnie nie prosi o zatwierdzenie:
@@ -187,7 +236,7 @@ Strona, którą ktoś ma już otwartą, wyświetla się dalej, dopóki nie wyga�
 podpisany adres treści — najwyżej `ARTIFACT_VIEW_TTL_SECONDS` (domyślnie pięć
 minut).
 
-Odwołany członek jest w tej samej sytuacji: traci artefakt przy następnym
+Odwołany członek jest w tej samej sytuacji: traci aplikację przy następnym
 żądaniu, a strona, którą miał już otwartą, zostaje najwyżej przez to samo okno.
 
 Pod linkiem **Share** trzyma jego ustawienia. Zostają, gdy link jest wymieniany, a
@@ -221,9 +270,9 @@ ramce na cudzej witrynie.
 
 ## Jak strona jest izolowana { #how-the-page-is-isolated }
 
-Artefakt to HTML ze skryptem w środku, napisany przez model, który mógł przeczytać
+Aplikacja to HTML ze skryptem w środku, napisany przez model, który mógł przeczytać
 coś wrogiego. Jest serwowany tak, żeby nic, co robi, nie mogło dosięgnąć konsoli
-ani osoby, która go ogląda:
+ani osoby, która ją ogląda:
 
 - Bajty pochodzą z osobnej trasy, `/api/v1/artifact-content/<token>`, która nie
   czyta żadnego ciasteczka ani sesji. Token jest podpisany, wskazuje jedną wersję
@@ -255,7 +304,7 @@ ani osoby, która go ogląda:
   wydają świeży adres za każdym razem, gdy rysują ramkę, a wydanie go przez
   publiczny link samo jest ograniczone per link.
 
-Lista **Artifacts** rysuje na każdej karcie bieżącą stronę jako żywą miniaturę,
+Lista **Aplikacje** rysuje na każdej karcie bieżącą stronę jako żywą miniaturę,
 przez ten sam rodzaj ramki, ze skryptem i niczym więcej: bez okien dialogowych,
 bez popupów, bez formularzy. Ze skryptem, żeby dashboard, którego wykresy rysuje
 biblioteka, nie był pustym płótnem na karcie. Miniatura jest bezczynna — bez
@@ -272,19 +321,35 @@ to jest utwardzenie, o które może poprosić przegląd bezpieczeństwa, a nie w
 Ustaw zmienną dla backendu i dla frontendu, który dodaje ten origin do swojego
 `frame-src`. Zobacz [Konfiguracja](configuration.md#published-artifacts).
 
+## Obserwowanie strony { #following-a-page }
+
+**Obserwuj** na pasku strony umieszcza powiadomienie w Twojej skrzynce za każdym
+razem, gdy strona dostaje nową wersję - agent opublikował ją ponownie z inną
+treścią albo ktoś przywrócił starszą wersję. Ponowna publikacja, która niczego
+nie zmienia, nikogo nie powiadamia, więc harmonogram, który nie znalazł nic
+nowego, pozostaje cichy. Osoba, której run albo przywrócenie utworzyło wersję,
+nie dostaje powiadomienia o własnej zmianie.
+
+Obserwowanie nie daje dostępu. Obserwować stronę może każdy, kto może ją
+otworzyć, a obserwujący, który straci dostęp, przestaje dostawać powiadomienia
+bez rezygnowania z obserwowania. Skrzynka sprawdza dostęp ponownie przy
+odczycie, więc powiadomienie o stronie, której nie możesz już otworzyć, znika
+razem z tym dostępem. Powiadomienie może też przyjść mailem; każdy kanał
+wyłączysz w **Ustawienia → Powiadomienia → App updated**.
+
 ## Retencja i usuwanie { #retention-and-deletion }
 
-Artefakty są osobną [klasą retencji](governance.md#the-classes), liczoną od
+Aplikacje są osobną [klasą retencji](governance.md#the-classes), liczoną od
 **ostatniej publikacji** — raport publikowany ponownie co tydzień żyje, niezależnie
-od tego, jak stara jest jego pierwsza wersja. Jak każda klasa, trzyma artefakty
+od tego, jak stara jest jego pierwsza wersja. Jak każda klasa, trzyma aplikacje
 bezterminowo, dopóki organizacja albo wdrożenie nie ustawi okresu.
 
-Usunięcie artefaktu — ręcznie albo przez retencję — usuwa każdą wersję, jej
-przechowywane bajty, jego granty i jego publiczny link. Usunięcie agenta nie
-usuwa jego artefaktów: pozostają czytelne i po prostu nie mają wydawcy. Usunięcie
+Usunięcie aplikacji — ręcznie albo przez retencję — usuwa każdą wersję, jej
+przechowywane bajty, jej granty i jej publiczny link. Usunięcie agenta nie
+usuwa jego aplikacji: pozostają czytelne i po prostu nie mają wydawcy. Usunięcie
 nazwanego środowiska robi to samo ze stronami z niego opublikowanymi, więc nigdy
 nie trafiają na stronę środowiska domyślnego o tej samej nazwie. Usunięcie
-organizacji je usuwa. Artefakty usuniętej osoby zostają i tracą właściciela, tak
+organizacji je usuwa. Aplikacje usuniętej osoby zostają i tracą właściciela, tak
 jak jej agenci i skille.
 
 Bajty leżą w [magazynie plików](configuration.md#uploaded-files-at-rest)
@@ -306,6 +371,13 @@ wdrożenia, pod `artifacts/<organization>/<artifact>/`.
   zalogować się w ramce na cudzej witrynie.
 - **Usunięte wersje przepadają.** Rozmowa, która linkuje do wersji starszej niż
   przechowywane okno, może zaproponować tylko najnowszą.
+- **Wizual rysuje się tylko w czacie konsoli i w udostępnionym wątku.** Aplikacja
+  czatu dostaje jego obraz, gdy `VISUAL_RENDER_CDP_URL` wskazuje przeglądarkę, a w
+  przeciwnym razie tytuł; widget i osadzenie na innej witrynie pokazują jego tytuł.
+- **Udostępniony wątek pokazuje dwanaście najnowszych wizuali** i nie więcej niż
+  16 MB łącznie. Każdy, kto ma link, może go otwierać dowolnie często, więc jedno
+  wyświetlenie jest ograniczone; tura poza którymś z limitów zachowuje tekst i nie
+  pokazuje rysunku.
 
 ## Podsumowanie { #recap }
 

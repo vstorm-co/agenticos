@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AgenticOS · Open-source introduction</title>
-<meta name="description" content="A 14-slide introduction to AgenticOS, the open-source Sovereign Agentic AI Layer: the problem, the idea, the product on real screens, the controls, what runs underneath, where it stops today and how to start.">
+<meta name="description" content="A 17-slide introduction to AgenticOS, the open-source Sovereign Agentic AI Layer: the problem, the idea, the product on real screens including team projects, coding agents and drawings, the controls, what runs underneath, where it stops today and how to start.">
 <style>
 @font-face{font-family:'Instrument Serif';font-weight:400;font-style:normal;font-display:block;src:url(fonts/instrument-serif.woff2) format('woff2');}@font-face{font-family:'Instrument Serif';font-weight:400;font-style:italic;font-display:block;src:url(fonts/instrument-serif-italic.woff2) format('woff2');}@font-face{font-family:'DM Sans';font-weight:100 1000;font-style:normal;font-display:block;src:url(fonts/dm-sans.woff2) format('woff2');}@font-face{font-family:'DM Sans';font-weight:100 1000;font-style:italic;font-display:block;src:url(fonts/dm-sans-italic.woff2) format('woff2');}@font-face{font-family:'DM Mono';font-weight:400;font-style:normal;font-display:block;src:url(fonts/dm-mono.woff2) format('woff2');}@font-face{font-family:'DM Mono';font-weight:500;font-style:normal;font-display:block;src:url(fonts/dm-mono-medium.woff2) format('woff2');}
 
@@ -13,13 +13,13 @@
 
 
 :root{
-  --bg:#FAFAF7; --ink:#141414; --muted:#5E5B55; --accent:#FB3640; --accent-text:#D61F2A; --hl:#FCE38A;
-  --hair:#E6E3DC; --panel:#F1F0EC; --card:#FFFFFF; --dark:#101114;
+  --bg:#F8F7FC; --ink:#16131F; --muted:#5D5970; --accent:#6A5AE0; --accent-text:#4B3DB8; --hl:#D3DEFF;
+  --hair:#E5E2EE; --panel:#EFEDF6; --card:#FFFFFF; --dark:#15122A;
   --display:'Instrument Serif',Georgia,serif; --body:'DM Sans',system-ui,sans-serif; --mono:'DM Mono',ui-monospace,monospace;
   --ease:cubic-bezier(.65,.05,.25,1); --soft:cubic-bezier(.2,.7,.2,1);
 }
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;background:#18191C;overflow:hidden}
+html,body{height:100%;background:#0F0D18;overflow:hidden}
 body{font-family:var(--body);color:var(--ink);-webkit-font-smoothing:antialiased}
 #viewport{position:fixed;inset:0;overflow:hidden}
 #stage{position:absolute;left:50%;top:50%;width:1920px;height:1080px;transform-origin:center;background:var(--bg);overflow:hidden;flex:none}
@@ -38,7 +38,7 @@ body{font-family:var(--body);color:var(--ink);-webkit-font-smoothing:antialiased
 /* ---------- chrome ---------- */
 #bar{position:absolute;left:0;bottom:0;height:5px;background:var(--accent);width:0;transition:width .8s var(--ease);z-index:50}
 #chip-chapter,#chip-count{position:absolute;top:34px;z-index:50;font:500 25px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;
-  padding:11px 16px;border-radius:999px;background:rgba(250,250,247,.86);backdrop-filter:blur(10px);color:var(--muted);transition:opacity .5s}
+  padding:11px 16px;border-radius:999px;background:rgba(248,247,252,.86);backdrop-filter:blur(10px);color:var(--muted);transition:opacity .5s}
 #chip-chapter{left:40px;color:var(--accent)} #chip-count{right:40px}
 #chip-chapter:empty{opacity:0}
 .hide-chrome #chip-chapter,.hide-chrome #chip-count{opacity:0}
@@ -56,10 +56,12 @@ mark{background:linear-gradient(transparent 12%,var(--hl) 12%,var(--hl) 92%,tran
 .pad{position:absolute;inset:120px 130px 110px;display:flex;flex-direction:column;justify-content:center}
 
 /* ---------- cover ---------- */
+.brand{display:flex;align-items:center;gap:22px;font:600 44px/1 var(--body);letter-spacing:-.02em;color:var(--ink)}
+.brand img{width:92px;height:92px;flex:none}
 .cover-bg{position:absolute;inset:-4%;background-size:cover;background-position:center;opacity:.5;filter:saturate(.9);
   animation:drift 26s ease-in-out infinite alternate}
 @keyframes drift{from{transform:scale(1.02) translate(0,0)}to{transform:scale(1.12) translate(-2%,-1.5%)}}
-.cover-veil{position:absolute;inset:0;background:linear-gradient(100deg,var(--bg) 34%,rgba(250,250,247,.86) 58%,rgba(250,250,247,.35))}
+.cover-veil{position:absolute;inset:0;background:linear-gradient(100deg,var(--bg) 34%,rgba(248,247,252,.86) 58%,rgba(248,247,252,.35))}
 .cover .pad{display:flex;flex-direction:column;justify-content:center;gap:40px}
 .chips{display:flex;gap:16px;flex-wrap:wrap}
 .chip{display:inline-flex;align-items:center;gap:12px;font-size:25px;padding:14px 22px;border-radius:999px;background:var(--card);border:1px solid var(--hair)}
@@ -76,7 +78,7 @@ mark{background:linear-gradient(transparent 12%,var(--hl) 12%,var(--hl) 92%,tran
 .ag .t{font:600 44px/1.1 var(--body);letter-spacing:-.01em}
 .ag .s{font-size:27px;color:var(--muted);margin-top:6px}
 .divider .ag{opacity:.32}
-.divider .ag.cur{opacity:1;background:var(--card);box-shadow:0 18px 50px rgba(20,20,20,.10);transform:translateX(26px) scale(1.02)}
+.divider .ag.cur{opacity:1;background:var(--card);box-shadow:0 18px 50px rgba(22,18,40,.10);transform:translateX(26px) scale(1.02)}
 .divider .ag.done{opacity:.5}
 .divider .ag.done .n::after{content:' ✓';color:var(--accent)}
 .bignum{position:absolute;right:100px;top:50%;transform:translateY(-50%);font:400 520px/1 var(--display);font-size-adjust:.47;color:var(--panel);letter-spacing:-.01em;
@@ -86,12 +88,12 @@ mark{background:linear-gradient(transparent 12%,var(--hl) 12%,var(--hl) 92%,tran
 /* ---------- cards, grids ---------- */
 .grid{display:grid;gap:30px;margin-top:70px}
 .g3{grid-template-columns:repeat(3,1fr)} .g2{grid-template-columns:1fr 1fr} .g4{grid-template-columns:repeat(4,1fr)}
-.box{background:var(--card);border:1px solid var(--hair);border-radius:28px;padding:44px 42px 46px;box-shadow:0 10px 30px rgba(20,20,20,.06)}
-.box .bi{width:78px;height:78px;border-radius:22px;display:grid;place-items:center;background:#FFE5E6;color:var(--accent);font-size:40px;margin-bottom:30px}
+.box{background:var(--card);border:1px solid var(--hair);border-radius:28px;padding:44px 42px 46px;box-shadow:0 10px 30px rgba(22,18,40,.06)}
+.box .bi{width:78px;height:78px;border-radius:22px;display:grid;place-items:center;background:#E9E5FF;color:var(--accent);font-size:40px;margin-bottom:30px}
 .box h3{font:600 42px/1.1 var(--body);letter-spacing:-.01em;margin-bottom:12px}
 .box p{font-size:29px;line-height:1.42;color:var(--muted)}
-.box.dark{background:var(--ink);color:#FAFAF7;border-color:var(--ink)} .box.dark p{color:#C8C5BE}
-.box.dark .bi{background:#26272B}
+.box.dark{background:var(--ink);color:#F8F7FC;border-color:var(--ink)} .box.dark p{color:#C9C6D6}
+.box.dark .bi{background:#25213A}
 .note{font-size:28px;color:var(--muted);margin-top:40px;display:flex;gap:14px;align-items:center}
 .note .ico{color:var(--accent)}
 .path{display:grid;grid-template-columns:1fr 70px 1fr 70px 1fr;align-items:stretch;margin-top:70px}
@@ -101,25 +103,25 @@ mark{background:linear-gradient(transparent 12%,var(--hl) 12%,var(--hl) 92%,tran
 .q .ico{color:var(--accent);font-size:28px}
 
 /* ---------- screenshot slides (camera) ---------- */
-.shot{background:#ECEAE5}
+.shot{background:#ECEAF3}
 .layer{position:absolute;opacity:0;transition:opacity .8s var(--soft)}
 .layer.on{opacity:1}
 .cam{position:absolute;left:0;top:0;transform-origin:0 0;transition:transform 1.25s var(--ease)}
-.cam img{display:block;width:100%;height:100%;box-shadow:0 30px 80px rgba(20,20,20,.16)}
+.cam img{display:block;width:100%;height:100%;box-shadow:0 30px 80px rgba(22,18,40,.16)}
 .spot{position:absolute;border:calc(4px / var(--z,1)) solid var(--accent);border-radius:calc(12px / var(--z,1));
-  box-shadow:0 0 0 9999px rgba(20,20,20,.38);opacity:0;transition:opacity .6s var(--soft) .35s,left 1.2s var(--ease),top 1.2s var(--ease),width 1.2s var(--ease),height 1.2s var(--ease);pointer-events:none}
+  box-shadow:0 0 0 9999px rgba(22,18,40,.38);opacity:0;transition:opacity .6s var(--soft) .35s,left 1.2s var(--ease),top 1.2s var(--ease),width 1.2s var(--ease),height 1.2s var(--ease);pointer-events:none}
 .spot.on{opacity:1}
 .step{position:absolute;opacity:0;transform:translateY(30px);transition:opacity .55s var(--soft),transform .7s var(--soft);pointer-events:none;z-index:5}
 .step.on{opacity:1;transform:none;transition-delay:.35s}
 .card{background:rgba(255,255,255,.95);backdrop-filter:blur(14px);border-radius:28px;padding:38px 42px 42px;
-  box-shadow:0 30px 90px rgba(20,20,20,.26),0 0 0 1px rgba(20,20,20,.06);width:600px}
+  box-shadow:0 30px 90px rgba(22,18,40,.26),0 0 0 1px rgba(22,18,40,.06);width:600px}
 .card .ct{display:flex;gap:14px;align-items:center;margin-bottom:18px}
 .card .ci{width:56px;height:56px;border-radius:16px;display:grid;place-items:center;background:var(--accent);color:#fff;font-size:30px;flex:none}
 .card h3{font:600 44px/1.04 var(--body);letter-spacing:-.01em}
-.card p{font-size:26px;line-height:1.42;color:#393B40;margin-top:16px}
+.card p{font-size:26px;line-height:1.42;color:#3A3550;margin-top:16px}
 .card .src{font:500 25px/1.4 var(--mono);color:var(--muted);margin-top:22px;letter-spacing:.02em}
 .card ul{list-style:none;margin-top:18px;display:flex;flex-direction:column;gap:12px}
-.card li{display:flex;gap:12px;font-size:25px;line-height:1.35;color:#393B40}
+.card li{display:flex;gap:12px;font-size:25px;line-height:1.35;color:#3A3550}
 .card li .ico{color:var(--accent);font-size:26px;margin-top:2px}
 .step.left{left:64px;bottom:72px} .step.right{right:64px;bottom:72px} .step.top-left{left:64px;top:110px} .step.top-right{right:64px;top:110px}
 .step.left.mid{bottom:auto;top:50%;transform:translateY(-46%)} .step.left.mid.on{transform:translateY(-50%)}
@@ -154,22 +156,22 @@ mark{background:linear-gradient(transparent 12%,var(--hl) 12%,var(--hl) 92%,tran
 .arch > svg path{fill:none;stroke:var(--accent);stroke-width:3;stroke-dasharray:8 10;opacity:0;transition:opacity .6s}
 .arch > svg path.shown{opacity:.9;animation:flow 1.2s linear infinite}
 @keyframes flow{to{stroke-dashoffset:-36}}
-.node{position:absolute;background:var(--card);border:1px solid var(--hair);border-radius:22px;padding:22px 26px;box-shadow:0 10px 30px rgba(60,40,10,.07)}
+.node{position:absolute;background:var(--card);border:1px solid var(--hair);border-radius:22px;padding:22px 26px;box-shadow:0 10px 30px rgba(40,30,80,.07)}
 .node .nt{display:flex;gap:12px;align-items:center;font:600 28px var(--body);letter-spacing:-.01em}
 .node .nt .ico{color:var(--accent);font-size:30px}
 .node .ns{font-size:25px;color:var(--muted);margin-top:8px;line-height:1.4}
-.core{background:var(--ink);color:#FAFAF7;border-color:var(--ink)} .core .ns{color:#C8C5BE}
+.core{background:var(--ink);color:#F8F7FC;border-color:var(--ink)} .core .ns{color:#C9C6D6}
 .core .row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px}
-.core .row div{background:#222326;border-radius:14px;padding:16px 18px;font-size:25px;line-height:1.3}
+.core .row div{background:#211D33;border-radius:14px;padding:16px 18px;font-size:25px;line-height:1.3}
 .core .row b{display:block;font:600 25px var(--mono);letter-spacing:.08em;color:var(--hl);text-transform:uppercase;margin-bottom:6px}
 
 .rows{display:flex;flex-direction:column;gap:22px;margin-top:64px}
 .rw{display:grid;grid-template-columns:80px 420px 1fr;gap:24px;align-items:center;padding:32px 40px;background:var(--card);border:1px solid var(--hair);border-radius:22px}
 .rw .ico{font-size:46px;color:var(--accent)} .rw b{font:600 40px var(--body);letter-spacing:-.01em} .rw span{font-size:30px;color:var(--muted);line-height:1.4}
 
-.closing{background:var(--ink);color:#FAFAF7}
-.closing .lead{color:#C8C5BE}
-.closing .chip{background:#1E1F23;border-color:#2E3036;color:#FAFAF7}
+.closing{background:var(--ink);color:#F8F7FC}
+.closing .lead{color:#C9C6D6}
+.closing .chip{background:#1C182C;border-color:#2C2840;color:#F8F7FC}
 
 @media (prefers-reduced-motion: reduce){*,*::before,*::after{transition-duration:0s!important;animation:none!important}}
 .static *,.static *::before,.static *::after{transition:none!important;animation:none!important}
@@ -177,17 +179,17 @@ mark{background:linear-gradient(transparent 12%,var(--hl) 12%,var(--hl) 92%,tran
 /* ---------- orientation: numbered regions, legend, minimap ---------- */
 .marks{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .5s var(--soft)}
 .marks.on{opacity:1;transition-delay:.7s}
-.mk{position:absolute;border:calc(3px / var(--z,1)) solid var(--accent);border-radius:calc(12px / var(--z,1));background:rgba(251,54,64,.07);
+.mk{position:absolute;border:calc(3px / var(--z,1)) solid var(--accent);border-radius:calc(12px / var(--z,1));background:rgba(106,90,224,.07);
   opacity:0;transform:scale(.97);transition:opacity .45s var(--soft),transform .45s var(--soft)}
 .marks.on .mk{opacity:1;transform:none;transition-delay:calc(.8s + var(--i) * .16s)}
 .mk b{position:absolute;left:calc(-20px / var(--z,1));top:calc(-20px / var(--z,1));width:calc(44px / var(--z,1));height:calc(44px / var(--z,1));
   border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font:700 calc(26px / var(--z,1)) var(--body);
-  box-shadow:0 calc(6px / var(--z,1)) calc(16px / var(--z,1)) rgba(251,54,64,.4)}
+  box-shadow:0 calc(6px / var(--z,1)) calc(16px / var(--z,1)) rgba(106,90,224,.4)}
 .spot::after{content:attr(data-n);position:absolute;left:calc(-24px / var(--z,1));top:calc(-24px / var(--z,1));width:calc(48px / var(--z,1));height:calc(48px / var(--z,1));
   border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font:700 calc(26px / var(--z,1)) var(--body)}
 .spot[data-n=""]::after{display:none}
 .legend{list-style:none;margin-top:22px;display:flex;flex-direction:column;gap:14px;counter-reset:lg}
-.legend li{display:grid;grid-template-columns:40px 1fr;gap:14px;align-items:start;font-size:25px;line-height:1.35;color:#393B40}
+.legend li{display:grid;grid-template-columns:40px 1fr;gap:14px;align-items:start;font-size:25px;line-height:1.35;color:#3A3550}
 .legend li::before{counter-increment:lg;content:counter(lg);width:36px;height:36px;border-radius:50%;background:var(--accent);color:#fff;
   display:grid;place-items:center;font:700 25px var(--body);margin-top:-2px}
 .legend b{color:var(--ink);font-weight:650}
@@ -198,10 +200,10 @@ mark{background:linear-gradient(transparent 12%,var(--hl) 12%,var(--hl) 92%,tran
 .term{font:500 25px var(--mono);letter-spacing:.06em;color:var(--muted);margin-top:18px;padding-top:16px;border-top:1px solid var(--hair)}
 .term b{color:var(--ink);font-weight:600}
 .mini{position:absolute;right:40px;top:96px;width:300px;border-radius:14px;overflow:hidden;z-index:6;background:#fff;
-  box-shadow:0 16px 40px rgba(20,15,5,.3),0 0 0 1px rgba(20,18,15,.08);opacity:0;transform:translateY(-8px);transition:opacity .5s var(--soft),transform .5s var(--soft)}
+  box-shadow:0 16px 40px rgba(20,15,5,.3),0 0 0 1px rgba(22,18,40,.08);opacity:0;transform:translateY(-8px);transition:opacity .5s var(--soft),transform .5s var(--soft)}
 .mini.on{opacity:1;transform:none;transition-delay:.9s}
 .mini img{display:block;width:100%}
-.mini i{position:absolute;border:3px solid var(--accent);border-radius:4px;background:rgba(251,54,64,.12);transition:all .6s var(--ease)}
+.mini i{position:absolute;border:3px solid var(--accent);border-radius:4px;background:rgba(106,90,224,.12);transition:all .6s var(--ease)}
 .gloss{display:grid;grid-template-columns:repeat(4,1fr);gap:22px;margin-top:56px}
 .gl{background:var(--card);border:1px solid var(--hair);border-radius:24px;padding:30px 30px 32px}
 .gl .gi{font-size:36px;color:var(--accent);display:flex;margin-bottom:18px}
@@ -221,48 +223,48 @@ mark{background:linear-gradient(transparent 12%,var(--hl) 12%,var(--hl) 92%,tran
 .wires{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
 .wires path{fill:none;stroke:var(--accent);stroke-width:3;stroke-dasharray:8 10;opacity:0;transform:none}
 .wires path.shown{opacity:.85;animation:flow 1.2s linear infinite}
-.wires path.out{stroke:#86827B}
-.co-bound{position:absolute;left:100px;top:300px;width:1380px;height:740px;border:3px dashed #D6D2C9;border-radius:40px;background:rgba(255,255,255,.28)}
+.wires path.out{stroke:#86829A}
+.co-bound{position:absolute;left:100px;top:300px;width:1380px;height:740px;border:3px dashed #D7D4E2;border-radius:40px;background:rgba(255,255,255,.28)}
 .co-tag{position:absolute;left:136px;top:282px;display:flex;gap:10px;align-items:center;font:600 25px var(--mono);letter-spacing:.08em;text-transform:uppercase;
   color:var(--ink);background:var(--bg);padding:6px 14px}
 .co-tag .ico{color:var(--accent);font-size:25px}
 .co-h{position:absolute;font:500 25px var(--mono);letter-spacing:.05em;white-space:nowrap;text-transform:uppercase;color:var(--muted)}
 .dept{position:absolute;left:140px;width:330px;height:104px;background:var(--card);border:1px solid var(--hair);border-radius:20px;
-  padding:0 20px;display:flex;align-items:center;gap:16px;box-shadow:0 8px 24px rgba(20,20,20,.06)}
+  padding:0 20px;display:flex;align-items:center;gap:16px;box-shadow:0 8px 24px rgba(22,18,40,.06)}
 .dept b{display:block;font:600 26px var(--body);letter-spacing:-.01em}
 .dept small{display:block;font-size:25px;color:var(--muted);margin-top:4px}
 .av{display:flex;padding-left:10px;flex:none}
-.av span{width:46px;height:46px;border-radius:50%;margin-left:-12px;border:3px solid var(--card);display:grid;place-items:center;font-size:25px;color:#57544F}
+.av span{width:46px;height:46px;border-radius:50%;margin-left:-12px;border:3px solid var(--card);display:grid;place-items:center;font-size:25px;color:#575369}
 .dept .si{width:50px;height:50px;border-radius:14px;background:var(--panel);display:grid;place-items:center;font-size:26px;color:var(--accent);flex:none}
-.co-core{position:absolute;left:560px;top:340px;width:880px;background:var(--ink);color:#FAFAF7;border-radius:28px;padding:30px 34px;
+.co-core{position:absolute;left:560px;top:340px;width:880px;background:var(--ink);color:#F8F7FC;border-radius:28px;padding:30px 34px;
   box-shadow:0 24px 60px rgba(20,15,5,.25)}
 .co-core .nt{display:flex;gap:12px;align-items:center;font:600 38px var(--body);letter-spacing:-.01em}
 .co-core .nt .ico{color:var(--accent)}
 .co-label{font:500 25px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--hl);margin:18px 0 10px}
 .co-chips{display:flex;flex-wrap:wrap;gap:10px}
-.co-chips span{display:inline-flex;align-items:center;gap:8px;font-size:25px;padding:9px 13px;border-radius:12px;background:#222326}
+.co-chips span{display:inline-flex;align-items:center;gap:8px;font-size:25px;padding:9px 13px;border-radius:12px;background:#211D33}
 .co-chips span .ico{color:var(--accent);font-size:25px}
-.co-chips.ctl span{background:transparent;border:1px solid #36383D}
-.co-stack{margin-top:22px;font:500 25px var(--mono);color:#8A867F;letter-spacing:.03em}
+.co-chips.ctl span{background:transparent;border:1px solid #36324A}
+.co-stack{margin-top:22px;font:500 25px var(--mono);color:#8A869A;letter-spacing:.03em}
 .co-res{position:absolute;top:800px;width:211px;height:210px;background:var(--card);border:1px solid var(--hair);border-radius:20px;padding:20px}
 .co-res .nt,.co-out .nt{display:flex;gap:10px;align-items:center;font:600 25px var(--body);letter-spacing:-.01em}
 .co-res .nt .ico,.co-out .nt .ico{color:var(--accent);font-size:26px}
 .co-res small,.co-out small{display:block;font-size:25px;line-height:1.38;color:var(--muted);margin-top:10px}
-.co-out{position:absolute;left:1530px;width:340px;height:170px;background:transparent;border:2px dashed #D6D2C9;border-radius:20px;padding:22px}
-.co-out .nt .ico{color:#86827B}
+.co-out{position:absolute;left:1530px;width:340px;height:170px;background:transparent;border:2px dashed #D7D4E2;border-radius:20px;padding:22px}
+.co-out .nt .ico{color:#86829A}
 .co-gate{position:absolute;left:1456px;top:540px;width:50px;height:50px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;
   font-size:26px;box-shadow:0 0 0 8px var(--bg)}
 .co-note{position:absolute;left:1530px;top:978px;width:340px;font-size:25px;line-height:1.4;color:var(--muted)}
 
 /* ---------- navigation: chapter progress, step dots, jump menu, hint ---------- */
 #bar{position:absolute;left:0;right:0;bottom:0;height:6px;width:auto!important;background:transparent;display:flex;gap:4px;z-index:50;transition:none}
-#bar .seg{position:relative;height:100%;background:rgba(20,18,15,.12)}
+#bar .seg{position:relative;height:100%;background:rgba(22,18,40,.12)}
 #bar .seg i{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--accent);transition:width .8s var(--ease)}
-.dots{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);display:flex;gap:9px;z-index:7;padding:8px 12px;border-radius:999px;background:rgba(251,249,244,.85);backdrop-filter:blur(8px)}
-.dots i{width:10px;height:10px;border-radius:50%;background:#D6D2C9;transition:all .4s var(--soft)}
+.dots{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);display:flex;gap:9px;z-index:7;padding:8px 12px;border-radius:999px;background:rgba(248,247,252,.85);backdrop-filter:blur(8px)}
+.dots i{width:10px;height:10px;border-radius:50%;background:#D7D4E2;transition:all .4s var(--soft)}
 .dots i.past{background:#F3A7AB}
 .dots i.on{background:var(--accent);width:28px;border-radius:6px}
-#jump{position:absolute;inset:0;z-index:80;background:rgba(20,18,15,.55);backdrop-filter:blur(6px);opacity:0;visibility:hidden;transition:opacity .35s,visibility 0s .35s}
+#jump{position:absolute;inset:0;z-index:80;background:rgba(22,18,40,.55);backdrop-filter:blur(6px);opacity:0;visibility:hidden;transition:opacity .35s,visibility 0s .35s}
 #jump.on{opacity:1;visibility:visible;transition-delay:0s}
 #jump .jw{position:absolute;inset:70px 120px;background:var(--bg);border-radius:30px;padding:44px 56px;overflow:auto;box-shadow:0 40px 120px rgba(0,0,0,.4)}
 #jump .jh{display:flex;justify-content:space-between;align-items:baseline;font:400 52px var(--display);font-size-adjust:.47;letter-spacing:-.01em;margin-bottom:20px}
@@ -279,18 +281,18 @@ mark{background:linear-gradient(transparent 12%,var(--hl) 12%,var(--hl) 92%,tran
 .hint kbd{font:600 25px var(--mono);padding:4px 9px;border:1px solid var(--hair);border-bottom-width:3px;border-radius:7px;background:var(--card);color:var(--ink);margin-right:6px}
 
 /* ---------- presenter window ---------- */
-body.presenter{background:#141414;color:#FAFAF7;overflow:auto;display:flex;flex-direction:column;height:100vh;font-family:var(--body)}
-.presenter header{display:flex;justify-content:space-between;padding:18px 28px;font:500 25px var(--mono);color:#C8C5BE;border-bottom:1px solid #26272B}
+body.presenter{background:#15121F;color:#F8F7FC;overflow:auto;display:flex;flex-direction:column;height:100vh;font-family:var(--body)}
+.presenter header{display:flex;justify-content:space-between;padding:18px 28px;font:500 25px var(--mono);color:#C9C6D6;border-bottom:1px solid #25213A}
 .presenter #pt{color:var(--hl);font-size:25px}
 .presenter main{flex:1;padding:28px;overflow:auto}
 .presenter .pnum{font:500 25px var(--mono);color:var(--accent)}
 .presenter h1{font:600 34px var(--body);margin:10px 0 18px}
-.presenter #pnote p{font-size:25px;line-height:1.5;margin-bottom:10px;color:#ECEAE5}
-.presenter footer{display:flex;align-items:center;gap:18px;padding:16px 28px;border-top:1px solid #26272B}
+.presenter #pnote p{font-size:25px;line-height:1.5;margin-bottom:10px;color:#ECEAF3}
+.presenter footer{display:flex;align-items:center;gap:18px;padding:16px 28px;border-top:1px solid #25213A}
 .presenter footer div{flex:1}
-.presenter footer small{display:block;font:500 25px var(--mono);color:#8A867F;text-transform:uppercase;letter-spacing:.1em}
+.presenter footer small{display:block;font:500 25px var(--mono);color:#8A869A;text-transform:uppercase;letter-spacing:.1em}
 .presenter footer b{font-size:25px}
-.presenter button{font:600 25px var(--body);padding:12px 20px;border-radius:12px;border:1px solid #36383D;background:#222326;color:#FAFAF7;cursor:pointer}
+.presenter button{font:600 25px var(--body);padding:12px 20px;border-radius:12px;border:1px solid #36324A;background:#211D33;color:#F8F7FC;cursor:pointer}
 .foot .hint{position:static}
 
 /* ---------- capability catalogue ---------- */
@@ -302,8 +304,8 @@ body.presenter{background:#141414;color:#FAFAF7;overflow:auto;display:flex;flex-
 .cg li{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;font-size:25px;line-height:1.3}
 .cg li b{font-weight:650;color:var(--ink)}
 .cg li span{color:var(--muted)}
-.tag{font:600 25px var(--mono);font-style:normal;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:6px;background:var(--panel);color:#57544F}
-.tag.warn{background:#FFE5E6;color:#C4252E}
+.tag{font:600 25px var(--mono);font-style:normal;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:6px;background:var(--panel);color:#575369}
+.tag.warn{background:#E9E5FF;color:#C4252E}
 .cg-more{display:flex;gap:10px;font-size:25px;line-height:1.4;color:var(--muted);margin-top:14px;padding-top:12px;border-top:1px solid var(--hair)}
 .cg-more .ico{color:var(--accent);font-size:25px;margin-top:2px}
 
@@ -313,16 +315,16 @@ body.presenter{background:#141414;color:#FAFAF7;overflow:auto;display:flex;flex-
 .nl{display:flex;gap:12px;align-items:center;font:600 28px var(--body);letter-spacing:-.01em}
 .nl .ico{color:var(--accent);font-size:30px}
 .nl small{font:400 25px var(--body);color:var(--muted);margin-left:6px;letter-spacing:0}
-.n1{position:absolute;left:0;top:0;width:1080px;border:3px dashed #D6D2C9}
+.n1{position:absolute;left:0;top:0;width:1080px;border:3px dashed #D7D4E2}
 .n2{margin-top:16px;background:rgba(255,255,255,.4);border:2px solid var(--hair);}
-.n3{margin-top:16px;background:var(--card);border:1px solid var(--hair);box-shadow:0 10px 30px rgba(20,20,20,.06)}
+.n3{margin-top:16px;background:var(--card);border:1px solid var(--hair);box-shadow:0 10px 30px rgba(22,18,40,.06)}
 .people{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px}
 .people span{background:var(--panel);border-radius:16px;padding:14px 16px;font-size:25px;line-height:1.35;color:var(--muted)}
 .people b{display:block;font:600 25px var(--body);color:var(--ink);margin-bottom:4px}
-.res{position:absolute;left:1120px;top:0;width:540px;height:380px;background:var(--ink);color:#FAFAF7;border-radius:26px;padding:26px 28px}
-.res p{font-size:25px;color:#C8C5BE;margin:12px 0 10px}
+.res{position:absolute;left:1120px;top:0;width:540px;height:380px;background:var(--ink);color:#F8F7FC;border-radius:26px;padding:26px 28px}
+.res p{font-size:25px;color:#C9C6D6;margin:12px 0 10px}
 .vis{display:flex;gap:10px;flex-wrap:wrap}
-.vis span{display:inline-flex;gap:8px;align-items:center;font-size:25px;padding:9px 14px;border-radius:12px;background:#222326}
+.vis span{display:inline-flex;gap:8px;align-items:center;font-size:25px;padding:9px 14px;border-radius:12px;background:#211D33}
 .vis .ico{color:var(--accent)}
 .formula{position:absolute;left:1120px;top:400px;width:540px;font-size:25px;line-height:1.45;color:var(--muted);background:#FFF6D6;border-radius:20px;padding:22px 26px}
 .formula b{color:var(--ink);display:block;font:600 26px var(--body);margin-bottom:6px}
@@ -343,7 +345,7 @@ body.presenter{background:#141414;color:#FAFAF7;overflow:auto;display:flex;flex-
 .pst{position:relative;background:var(--card);border:1px solid var(--hair);border-radius:24px;padding:26px 24px 24px}
 .pst:not(:last-child)::after{content:'';position:absolute;right:-16px;top:58px;width:14px;height:14px;border-top:3px solid var(--accent);border-right:3px solid var(--accent);transform:rotate(45deg)}
 .pst .pn{position:absolute;right:20px;top:18px;font:400 54px var(--display);font-size-adjust:.47;color:var(--panel)}
-.pst .bi{width:62px;height:62px;border-radius:18px;display:grid;place-items:center;background:#FFE5E6;color:var(--accent);font-size:32px;margin-bottom:18px}
+.pst .bi{width:62px;height:62px;border-radius:18px;display:grid;place-items:center;background:#E9E5FF;color:var(--accent);font-size:32px;margin-bottom:18px}
 .pst h3{font:600 32px var(--body);letter-spacing:-.01em}
 .pst p{font-size:25px;line-height:1.42;color:var(--muted);margin-top:10px}
 .pst ul{list-style:none;margin-top:8px;display:flex;flex-direction:column;gap:5px}
@@ -353,9 +355,9 @@ body.presenter{background:#141414;color:#FAFAF7;overflow:auto;display:flex;flex-
 
 /* ---------- stats and limits ---------- */
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:22px;margin-top:52px}
-.st{background:var(--ink);color:#FAFAF7;border-radius:24px;padding:28px 28px 26px}
+.st{background:var(--ink);color:#F8F7FC;border-radius:24px;padding:28px 28px 26px}
 .st b{display:block;font:400 52px/1 var(--display);font-size-adjust:.47;letter-spacing:-.01em;color:var(--hl)}
-.st span{display:block;font-size:25px;line-height:1.4;color:#C8C5BE;margin-top:12px}
+.st span{display:block;font-size:25px;line-height:1.4;color:#C9C6D6;margin-top:12px}
 .limits{display:grid;grid-template-columns:1fr 1fr;gap:16px 22px;margin-top:48px}
 .lm{display:flex;gap:18px;align-items:flex-start;background:var(--card);border:1px solid var(--hair);border-radius:20px;padding:22px 26px}
 .lm > .ico{font-size:36px;color:var(--accent);margin-top:2px}
@@ -380,13 +382,13 @@ body.presenter{background:#141414;color:#FAFAF7;overflow:auto;display:flex;flex-
 .ucg h4 .ico{color:var(--accent);font-size:28px}
 .ucg ul{list-style:none;display:flex;flex-direction:column;gap:6px}
 .ucg li{display:flex;gap:10px;align-items:center;font-size:25px;line-height:1.3;color:var(--muted)}
-.ucg li::before{content:'';width:12px;height:12px;border-radius:50%;border:2px solid #D6D2C9;flex:none}
+.ucg li::before{content:'';width:12px;height:12px;border-radius:50%;border:2px solid #D7D4E2;flex:none}
 .ucg li.ok{color:var(--ink)}
 .ucg li.ok::before{background:#2E9E5B;border-color:#2E9E5B}
 .uc-key{margin-top:16px;padding-top:12px;border-top:1px solid var(--hair);display:flex;flex-direction:column;gap:6px;font:500 25px var(--mono);color:var(--muted)}
-.uc-key i{display:inline-block;width:11px;height:11px;border-radius:50%;border:2px solid #D6D2C9;margin-right:8px;vertical-align:-1px}
+.uc-key i{display:inline-block;width:11px;height:11px;border-radius:50%;border:2px solid #D7D4E2;margin-right:8px;vertical-align:-1px}
 .uc-key i.okdot{background:#2E9E5B;border-color:#2E9E5B}
-.who{display:inline-block;margin-top:14px;font:600 25px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--accent);background:#FFE5E6;padding:5px 10px;border-radius:8px}
+.who{display:inline-block;margin-top:14px;font:600 25px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--accent);background:#E9E5FF;padding:5px 10px;border-radius:8px}
 .clean #chip-chapter,.clean #chip-count,.clean #bar,.clean .dots,.clean .hint,.clean #sound,.clean .mini{display:none!important}
 .av span{width:52px;height:52px;overflow:hidden}
 .av span img{width:100%;height:100%;display:block;transform:translateY(3px)}
@@ -435,17 +437,17 @@ body.presenter{background:#141414;color:#FAFAF7;overflow:auto;display:flex;flex-
 .grid.dense .face{width:76px;height:76px;margin-bottom:18px}
 .box .role{font:600 25px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--accent-text);margin-bottom:8px}
 /* a file or prompt exactly as written: pre.code with data-file naming it */
-.code{position:relative;background:var(--ink);color:#FAFAF7;border-radius:24px;padding:62px 44px 34px;font:500 28px/1.55 var(--mono);white-space:pre-wrap;margin-top:40px}
-.code::before{content:attr(data-file);position:absolute;left:44px;top:20px;font:600 25px var(--mono);letter-spacing:.06em;color:#9A968F}
+.code{position:relative;background:var(--ink);color:#F8F7FC;border-radius:24px;padding:62px 44px 34px;font:500 28px/1.55 var(--mono);white-space:pre-wrap;margin-top:40px}
+.code::before{content:attr(data-file);position:absolute;left:44px;top:20px;font:600 25px var(--mono);letter-spacing:.06em;color:#9894A8}
 .code mark{background:none;color:var(--hl);padding:0}
 /* a transcript: .chat holding .msg.you and .msg.agent, each with a small label and optional .tool call */
 .chat{display:flex;flex-direction:column;gap:18px;margin-top:40px}
 .msg{max-width:74%;padding:22px 30px;border-radius:24px;font-size:29px;line-height:1.45}
 .msg small{display:block;font:600 25px var(--mono);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;color:var(--muted)}
-.msg.you{align-self:flex-end;background:var(--ink);color:#FAFAF7;border-bottom-right-radius:8px}
-.msg.you small{color:#9A968F}
+.msg.you{align-self:flex-end;background:var(--ink);color:#F8F7FC;border-bottom-right-radius:8px}
+.msg.you small{color:#9894A8}
 .msg.agent{align-self:flex-start;background:var(--card);border:1px solid var(--hair);border-bottom-left-radius:8px}
-.msg .tool{display:inline-flex;gap:10px;align-items:center;font:500 25px var(--mono);color:var(--accent-text);background:#FFE5E6;border-radius:10px;padding:4px 12px;margin-bottom:12px}
+.msg .tool{display:inline-flex;gap:10px;align-items:center;font:500 25px var(--mono);color:var(--accent-text);background:#E9E5FF;border-radius:10px;padding:4px 12px;margin-bottom:12px}
 /* question, expected answer, what happened: .qa with .h header cells, three cells per row */
 .qa{display:grid;grid-template-columns:1fr 1fr 1.25fr;margin-top:48px;border:1px solid var(--hair);border-radius:24px;overflow:hidden;background:var(--card)}
 .qa > *{padding:22px 28px;font-size:27px;line-height:1.4;border-top:1px solid var(--hair)}
@@ -453,19 +455,40 @@ body.presenter{background:#141414;color:#FAFAF7;overflow:auto;display:flex;flex-
 .qa .ok{color:#17663A} .qa .warn{color:#8A4E00}
 .qa b{font-weight:650}
 
+/* The landing's photographs: the cover at dusk over the forest, statements and the closing under the night sky. */
+.nature{position:absolute;inset:-3%;background-size:cover;background-position:center 70%;animation:drift 32s ease-in-out infinite alternate}
+.cover.photo .cover-bg{display:none}
+.cover.photo .cover-veil{background:linear-gradient(100deg,rgba(29,25,49,.86) 30%,rgba(29,25,49,.55) 58%,rgba(29,25,49,.12))}
+.cover.photo,.cover.photo .brand,.cover.photo h1{color:#fff}
+.cover.photo .lead{color:rgba(255,255,255,.82)}
+.cover.photo .eyebrow{color:#BBD1FF}
+.cover.photo mark{color:var(--ink)}
+.cover.photo .chip{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.28);color:#fff;backdrop-filter:blur(10px)}
+.cover.photo .chip .ico{color:#BBD1FF}
+.cover.photo .foot,.cover.photo .hint{color:rgba(255,255,255,.75)}
+.cover.photo kbd{color:var(--ink)}
+.statement.photo,.closing.photo{background:#15122A}
+.statement.photo .nature,.closing.photo .nature{opacity:.75}
+.statement.photo .nature::after,.closing.photo .nature::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(21,18,42,.35),rgba(21,18,42,.82))}
+/* A screenshot set on a photograph, for the new slides' side pictures. */
+.framed{position:relative;border-radius:26px;overflow:hidden;box-shadow:0 50px 100px -40px rgba(10,8,30,.6)}
+.framed img.bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.framed .win{position:relative;margin:44px;border-radius:16px;overflow:hidden;box-shadow:0 30px 70px -30px rgba(10,8,30,.75),0 0 0 8px rgba(255,255,255,.16)}
+.framed .win img{display:block;width:100%}
+
 /* statement slides: the dark ground of the closing, with the chapter chrome kept */
-.statement{background:var(--ink);color:#FAFAF7}
-.statement .lead{color:#C8C5BE}
+.statement{background:var(--ink);color:#F8F7FC}
+.statement .lead{color:#C9C6D6}
 .statement .eyebrow,.closing .eyebrow{color:var(--accent)}
 .statement mark,.closing mark{color:var(--ink)}
-.statement .note{color:#C8C5BE}
+.statement .note{color:#C9C6D6}
 .statement .note .ico{color:var(--accent)}
 /* a refusal: the pill, what is refused, and what that buys */
 .refusals{display:flex;flex-direction:column;gap:20px;margin-top:52px}
-.refusal{display:grid;grid-template-columns:150px 1fr;gap:30px;align-items:start;padding:26px 34px;border-radius:22px;background:#1E1F23;border:1px solid #2E3036}
+.refusal{display:grid;grid-template-columns:150px 1fr;gap:30px;align-items:start;padding:26px 34px;border-radius:22px;background:#1C182C;border:1px solid #2C2840}
 .refusal .no{font:600 25px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:#fff;background:var(--accent-text);border-radius:999px;padding:12px 0;text-align:center;margin-top:4px}
-.refusal b{display:block;font:600 38px/1.15 var(--body);letter-spacing:-.01em;color:#FAFAF7}
-.refusal small{display:block;font-size:28px;line-height:1.4;color:#C8C5BE;margin-top:8px}
+.refusal b{display:block;font:600 38px/1.15 var(--body);letter-spacing:-.01em;color:#F8F7FC}
+.refusal small{display:block;font-size:28px;line-height:1.4;color:#C9C6D6;margin-top:8px}
 /* key/value table: the rule is each cell's border-top */
 .tbl{display:grid;grid-template-columns:270px 1fr}
 .tbl > *{padding:17px 0;border-top:1px solid var(--hair);font-size:28px;line-height:1.35}
@@ -473,37 +496,39 @@ body.presenter{background:#141414;color:#FAFAF7;overflow:auto;display:flex;flex-
 .tbl .v{padding-left:24px}
 .hood{display:grid;grid-template-columns:1.12fr 1fr;gap:54px;margin-top:52px;align-items:start}
 .hood h3{font:600 34px var(--body);letter-spacing:-.01em;margin-bottom:16px}
-.lt{background:var(--ink);color:#FAFAF7;border-radius:28px;padding:38px 42px 40px}
+.lt{background:var(--ink);color:#F8F7FC;border-radius:28px;padding:38px 42px 40px}
 .lt .k{font:600 25px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--hl)}
 .lt .fig{font:400 92px/1 var(--display);font-size-adjust:.47;letter-spacing:-.01em;margin-top:22px;display:flex;align-items:center;gap:22px}
 .lt .fig .ico{color:var(--accent);font-size:64px}
-.lt .of{font-size:28px;color:#C8C5BE;margin-top:12px}
+.lt .of{font-size:28px;color:#C9C6D6;margin-top:12px}
 .lt p{font-size:28px;line-height:1.42;margin-top:24px}
-.lt .src{font:500 25px/1.45 var(--mono);color:#9A968F;margin-top:24px;padding-top:20px;border-top:1px solid #2E3036}
+.lt .src{font:500 25px/1.45 var(--mono);color:#9894A8;margin-top:24px;padding-top:20px;border-top:1px solid #2C2840}
 /* the start slide */
-.closing .code{background:#1E1F23;border:1px solid #2E3036;font-size:24px;white-space:pre;margin-top:0;padding:58px 40px 30px}
+.closing .code{background:#1C182C;border:1px solid #2C2840;font-size:24px;white-space:pre;margin-top:0;padding:58px 40px 30px}
 .closing .foot .by{display:flex;align-items:center;gap:14px;white-space:nowrap}
 .closing .foot .logo{height:30px}
 .links{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
-.links a{display:block;text-decoration:none;color:inherit;background:#1E1F23;border:1px solid #2E3036;border-radius:22px;padding:26px 28px 28px}
+.links a{display:block;text-decoration:none;color:inherit;background:#1C182C;border:1px solid #2C2840;border-radius:22px;padding:26px 28px 28px}
 .links .gi{font-size:34px;color:var(--accent);display:flex;margin-bottom:14px}
 .links b{display:block;font:600 32px/1.15 var(--body);letter-spacing:-.01em}
-.links small{display:block;font-size:25px;line-height:1.4;color:#C8C5BE;margin-top:8px}
+.links small{display:block;font-size:25px;line-height:1.4;color:#C9C6D6;margin-top:8px}
 .vs .box p.sub{font-size:27px;line-height:1.4;color:var(--muted);margin-top:4px}
-.vs .box.dark p.sub{color:#C8C5BE}
+.vs .box.dark p.sub{color:#C9C6D6}
 
 .bm{width:1em;height:1em;flex:none;display:inline-block;vertical-align:-.14em;margin-right:.4em}.bm.dot{width:.42em;height:.42em;border-radius:50%;background:currentColor;opacity:.35;vertical-align:.12em;margin:0 .55em 0 .2em}.tbl .v .bm{width:1.05em;height:1.05em;vertical-align:-.18em;margin-right:.5em}.tbl .v .bm+.bm{margin-left:-.15em}.provs span .bm{width:.92em;height:.92em;margin-right:.42em}.bm{width:1em;height:1em;flex:none;display:inline-block;vertical-align:-.14em;margin-right:.4em}.bm.dot{width:.42em;height:.42em;border-radius:50%;background:currentColor;opacity:.35;vertical-align:.02em;margin:0 .55em 0 .2em}.tbl .v .bm{width:1.05em;height:1.05em;vertical-align:-.18em;margin-right:.5em}.tbl .v .bm+.bm{margin-left:-.15em}.provs span .bm{width:.92em;height:.92em;margin-right:.42em}</style>
 </head>
 <body>
 <div id="viewport"><div id="stage">
 <!-- ======================= 1 COVER ======================= -->
-<section class="slide cover" data-chapter="" data-chrome="off" data-title="AI agents your whole team can use and improve">
+<section class="slide cover photo" data-chapter="" data-chrome="off" data-title="AI agents your whole team can use and improve">
+  <div class="nature" style="background-image:url('media/nature/hero-bg.webp')"></div>
   <div class="cover-bg" style="background-image:url('media/builder.webp')"></div>
   <div class="cover-veil"></div>
   <div class="pad">
+    <div class="brand"><img src="../assets/logo-animated.svg" alt="">agenticos</div>
     <div class="eyebrow">Sovereign Agentic AI Layer · Apache-2.0 · self-hosted · built on Pydantic AI</div>
     <h1>AI agents your <mark>whole team</mark><br>can use and improve.</h1>
-    <p class="lead" style="max-width:36ch">Build and publish agents in the browser, share them with colleagues, and manage their access, cost and results in one place.</p>
+    <p class="lead" style="max-width:38ch">Your team and its agents in one live chat. Build and publish agents in the browser, hand code to Claude Code or Codex, and manage access, cost and results in one place.</p>
     <div class="chips">
       <span class="chip"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></svg> Open source, Apache-2.0</span>
       <span class="chip"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg> On infrastructure you control</span>
@@ -529,7 +554,8 @@ body.presenter{background:#141414;color:#FAFAF7;overflow:auto;display:flex;flex-
 </section>
 
 <!-- ======================= 3 THESIS ======================= -->
-<section class="slide statement" data-chapter="01 · The idea" data-title="The person with commit access">
+<section class="slide statement photo" data-chapter="01 · The idea" data-title="The person with commit access">
+  <div class="nature" style="background-image:url('media/nature/night.webp')"></div>
   <div class="pad">
     <div class="eyebrow">The idea</div>
     <h2 style="font-size:92px;max-width:21ch">The person who knows what the agent should say is <mark>not the person with commit access.</mark></h2>
@@ -552,45 +578,77 @@ body.presenter{background:#141414;color:#FAFAF7;overflow:auto;display:flex;flex-
 
 <!-- ======================= 5 ONE AGENT ======================= -->
 <section class="slide shot" data-chapter="02 · See it work" data-title="One agent: the builder">
-  <div class="layer"><div class="cam"><img src="media/builder.webp" alt="Agent builder for the Claude Code like agent: published v6, tabs, instructions and model selection."><div class="spot"></div></div></div>
-  <div class="step left mid" data-focus="overview" data-marks="1 .16 .04 .83 .17; 2 .16 .235 .34 .06; 3 .17 .32 .81 .37; 4 .17 .7 .81 .28">
+  <div class="layer"><div class="cam"><img src="media/builder.webp" alt="Agent builder for the Finance Analyst agent: published v3, its tabs, instructions and model."><div class="spot"></div></div></div>
+  <div class="step left mid" data-focus="overview" data-marks="1 @builder.header; 2 @builder.tabs; 3 @builder.instructions; 4 @builder.model">
     <div class="card narrow"><div class="ct"><div class="ci"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg></div><div class="eyebrow">One agent</div></div>
       <h3>Where an agent is made</h3><p>One page per agent, in the browser. Four areas:</p>
-      <ol class="legend"><li><span><b>Name and status</b>: what is published, and the Publish button</span></li><li><span><b>Tabs</b>: tools, limits, availability, versions</span></li><li><span><b>Instructions</b>: what the agent does, in plain language</span></li><li><span><b>Model</b>: which AI model answers</span></li></ol></div></div>
-  <div class="step left mid" data-n="1" data-focus=".16 .04 .83 .17"><div class="card"><div class="ct"><span class="badge">1</span><span class="eyebrow">Versions</span></div><h3>What runs, and what you are editing</h3><p>“Published, up to date with v6” is the version colleagues use. You edit a draft; nobody sees it until you press <b>Publish</b>. <b>Export YAML</b> keeps a copy in your own repository.</p></div></div>
-  <div class="step left mid" data-n="2" data-focus=".16 .235 .34 .06"><div class="card"><div class="ct"><span class="badge">2</span><span class="eyebrow">Tools</span></div><h3>Everything the agent may use</h3><ul><li><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"/></svg> <span><b>Toolbox</b>: registered capabilities, e.g. search documents, run code</span></li><li><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22v-5"/><path d="M15 8V2"/><path d="M17 8a1 1 0 0 1 1 1v4a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1z"/><path d="M9 8V2"/></svg> <span><b>MCP servers</b>: external tools such as Notion or GitHub</span></li><li><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></svg> <span><b>Limits</b>: its own monthly budget</span></li><li><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg> <span><b>History</b>: every published version</span></li></ul></div></div>
-  <div class="step left mid" data-n="3" data-focus=".17 .32 .81 .37"><div class="card"><div class="ct"><span class="badge">3</span><span class="eyebrow">Instructions</span></div><h3>A brief, not code</h3><p>What the agent is for, how it should work and what it must refuse, written like a brief for a new colleague. The person who knows the work can edit it.</p></div></div>
-  <div class="step left mid" data-n="4" data-focus=".17 .7 .81 .28"><div class="card"><div class="ct"><span class="badge">4</span><span class="eyebrow">Model</span></div><h3>Choose the model per agent</h3><p>A provider and a model, with your own keys from the vault. Local models work the same way. Changing it is a setting, not a rebuild.</p></div></div>
+      </div></div>
+  <div class="step left mid" data-n="1" data-focus="@builder.header"><div class="card"><div class="ct"><span class="badge">1</span><span class="eyebrow">Versions</span></div><h3>What runs, and what you are editing</h3><p>“Published, up to date with v3” is the version colleagues use. You edit a draft; nobody sees it until you press <b>Publish</b>. <b>Export YAML</b> keeps a copy in your own repository.</p></div></div>
+  <div class="step left mid" data-n="2" data-focus="@builder.tabs"><div class="card"><div class="ct"><span class="badge">2</span><span class="eyebrow">Tools</span></div><h3>Everything the agent may use</h3><ul><li><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"/></svg> <span><b>Toolbox</b>: registered capabilities, e.g. search documents, run code</span></li><li><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22v-5"/><path d="M15 8V2"/><path d="M17 8a1 1 0 0 1 1 1v4a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1z"/><path d="M9 8V2"/></svg> <span><b>MCP servers</b>: external tools such as Notion or GitHub</span></li><li><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></svg> <span><b>Limits</b>: its own monthly budget</span></li><li><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg> <span><b>History</b>: every published version</span></li></ul></div></div>
+  <div class="step left mid" data-n="3" data-focus="@builder.instructions"><div class="card"><div class="ct"><span class="badge">3</span><span class="eyebrow">Instructions</span></div><h3>A brief, not code</h3><p>What the agent is for, how it should work and what it must refuse, written like a brief for a new colleague. The person who knows the work can edit it.</p></div></div>
+  <div class="step left mid" data-n="4" data-focus="@builder.model"><div class="card"><div class="ct"><span class="badge">4</span><span class="eyebrow">Model</span></div><h3>Choose the model per agent</h3><p>A provider and a model, with your own keys from the vault. Local models work the same way. Changing it is a setting, not a rebuild.</p></div></div>
+</section>
+
+<!-- ======================= TEAM ROOM ======================= -->
+<section class="slide shot" data-chapter="02 · See it work" data-title="Your team and its agents in one room">
+  <div class="layer"><div class="cam"><img src="media/room.webp" alt="A project chat for the Fall launch: the Chief of Staff's plan with questions for the team, Tom Brooks replying with a budget change, and the agent applying it."><div class="spot"></div></div></div>
+  <div class="step left mid" data-focus="overview" data-marks="1 @room.questions; 2 @room.reply; 3 @room.answer">
+    <div class="card narrow"><div class="ct"><div class="ci"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="eyebrow">New · Projects</div></div><h3>Your team and its agents, in one room</h3><p>A project gives everyone the same files, instructions and a computer for the agents. Colleagues see who is here and watch each other's turns as they are written. <b>1</b> the plan, <b>2</b> a teammate's reply, <b>3</b> the agent applying it.</p><ol class="legend"><li><b>The plan</b>, with what the agent could not decide</li><li><b>A teammate's reply</b> to it</li><li><b>The agent applying it</b>, and saying whose change it was</li></ol></div>
+  </div>
+  <div class="step left mid" data-n="1" data-focus="@room.questions"><div class="card"><div class="ct"><span class="badge">1</span><span class="eyebrow">Questions for the room</span></div><h3>It asks the people who know</h3><p>The Chief of Staff drafted the launch plan from the project's brief and channel sheet, then named what only the team can answer: a customer quote, the referral rule, the dates it assumed.</p></div></div>
+  <div class="step right mid" data-n="2" data-focus="@room.reply"><div class="card"><div class="ct"><span class="badge">2</span><span class="eyebrow">A reply</span></div><h3>Anyone can answer, in the thread</h3><p>Tom replies to the plan itself. The model is told who wrote what, so a change has an owner.</p></div></div>
+  <div class="step left mid" data-n="3" data-focus="@room.answer"><div class="card"><div class="ct"><span class="badge">3</span><span class="eyebrow">Applied</span></div><h3>“Tom, I applied your change”</h3><p>The agent updates the plan in the project's files, asks the Finance Analyst to recheck the numbers, and keeps the budget at the cap.</p><div class="src">Demo organization, synthetic data, real runs</div></div></div>
+</section>
+
+<!-- ======================= CODING AGENT ======================= -->
+<section class="slide shot" data-chapter="02 · See it work" data-title="Claude Code and Codex on the team">
+  <div class="layer"><div class="cam"><img src="media/room-coding.webp" alt="In the same project chat, Jordan Reed asks the Coder agent to build the launch page with the coding agent; Codex builds it and the agent reports what is on the page and two decisions for the team."><div class="spot"></div></div></div>
+  <div class="step left mid" data-focus="overview" data-marks="1 @room-coding.request; 2 @room-coding.page; 3 @room-coding.decisions">
+    <div class="card narrow"><div class="ct"><div class="ci"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></svg></div><div class="eyebrow">New · Coding agent</div></div><h3>Claude Code and Codex, on the team</h3><p>Any agent can hand software work to Claude Code or Codex. They build on the agent's own computer, on the ChatGPT or Claude plan you already pay for.</p></div>
+  </div>
+  <div class="step right mid" data-n="1" data-focus="@room-coding.request"><div class="card"><div class="ct"><span class="badge">1</span><span class="eyebrow">The ask</span></div><h3>One <b>@</b> brings the coding agent in</h3><p>Jordan asks for a launch page from the plan the room just agreed. The project's files are already there.</p></div></div>
+  <div class="step left mid" data-n="2" data-focus="@room-coding.page"><div class="card"><div class="ct"><span class="badge">2</span><span class="eyebrow">What it built</span></div><h3>What changed, and what it checked</h3><p>Colours from the brand book, the headline from the brief, a layout for phones, and the checks it ran.</p></div></div>
+  <div class="step left mid" data-n="3" data-focus="@room-coding.decisions"><div class="card"><div class="ct"><span class="badge">3</span><span class="eyebrow">Back to the team</span></div><h3>It leaves people's decisions to people</h3><p>The brief forbids an unsourced time-saved claim, so it kept it off the page and asked. The sign-up link is a placeholder until someone sends it.</p></div></div>
+</section>
+
+<!-- ======================= VISUALS ======================= -->
+<section class="slide shot" data-chapter="02 · See it work" data-title="Agents draw what they explain">
+  <div class="layer"><div class="cam"><img src="media/visual.webp" alt="An ROI calculator the Visuals Lab agent drew under its message: sliders, the dollars saved per year and a chart of monthly cost before and after."><div class="spot"></div></div></div>
+  <div class="step left mid" data-focus="overview" data-marks="1 @visual.drawing; 2 @visual.answer">
+    <div class="card narrow"><div class="ct"><div class="ci"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg></div><div class="eyebrow">New · Visuals</div></div><h3>Ask how it works, get a drawing you can use</h3><p>A diagram, a calculator with sliders, a chart or a 3D scene, drawn live under the message and walled off from your data.</p></div>
+  </div>
+  <div class="step left mid" data-n="1" data-focus="@visual.drawing"><div class="card"><div class="ct"><span class="badge">1</span><span class="eyebrow">The drawing</span></div><h3>It works, right in the chat</h3><p>Move a slider and the savings and the chart update. If your browser breaks it, the agent is told and fixes it in the same turn. One click saves it as an app.</p></div></div>
+  <div class="step left mid" data-n="2" data-focus="@visual.answer"><div class="card"><div class="ct"><span class="badge">2</span><span class="eyebrow">The answer</span></div><h3>It says what it assumed</h3><p>The 80% time saving is a placeholder it added, and it says so, with how to replace it.</p><div class="src">Demo organization, synthetic data, real run</div></div></div>
 </section>
 
 <!-- ======================= 6 FILES AND CODE ======================= -->
-<section class="slide shot" data-chapter="02 · See it work" data-title="Files and code: a CSV into a chart">
-  <div class="layer"><div class="cam"><img src="media/chat.webp" alt="Chat answer with a monthly net revenue chart by region and the agent's written analysis of an uploaded sales CSV."><div class="spot"></div></div></div>
-  <div class="step left mid" data-focus="overview" data-marks="1 .29 0 .55 .1; 2 .3 .1 .53 .37; 3 .29 .48 .56 .3; 4 .26 .85 .63 .11">
+<section class="slide shot" data-chapter="02 · See it work" data-title="Files and code: a CSV into a dashboard">
+  <div class="layer"><div class="cam"><img src="media/chat.webp" alt="Chat with the Finance Analyst: its plan ticked off, a revenue dashboard published as an app from an attached CSV, and its answer."><div class="spot"></div></div></div>
+  <div class="step left mid" data-focus="overview" data-marks="1 @chat.steps; 2 @chat.app; 3 @chat.answer; 4 @chat.composer">
     <div class="card narrow"><div class="ct"><div class="ci"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M8 13h2"/><path d="M14 13h2"/><path d="M8 17h2"/><path d="M14 17h2"/></svg></div><div class="eyebrow">Files and code · demo data</div></div>
-      <h3>A CSV in, a chart out</h3><p>A sales CSV was uploaded with one question: what happened in H1?</p>
-      <ol class="legend"><li><span><b>The steps</b> the agent took</span></li><li><span><b>The chart</b> it drew</span></li><li><span><b>The findings</b>, in plain text</span></li><li><span><b>The message box</b>, with the agent picker</span></li></ol></div></div>
-  <div class="step left mid" data-n="1" data-focus=".29 0 .55 .1"><div class="card"><div class="ct"><span class="badge">1</span><span class="eyebrow">The steps</span></div><h3>Every command, above the answer</h3><p>Each command the agent ran sits above its answer. Open one to see exactly what it did.</p></div></div>
-  <div class="step left mid" data-n="2" data-focus=".3 .1 .53 .37"><div class="card"><div class="ct"><span class="badge">2</span><span class="eyebrow">The chart</span></div><h3>Drawn by code it ran</h3><p>Python in a container sandbox, from your file, not a picture the model imagined.</p></div></div>
-  <div class="step left mid" data-n="3" data-focus=".29 .48 .56 .3"><div class="card"><div class="ct"><span class="badge">3</span><span class="eyebrow">The findings</span></div><h3>It checks the data first</h3><p>Duplicates, blank fields, invalid dates. Then totals, refunds and what stands out.</p></div></div>
+      <h3>A CSV in, a dashboard out</h3><p>A revenue CSV was attached with one request: a dashboard for the leadership team.</p>
+      <ol class="legend"><li><span><b>The steps</b> the agent planned and ticked off</span></li><li><span><b>The app</b> it published</span></li><li><span><b>The answer</b>, with what it checked</span></li><li><span><b>The message box</b>, with the agent picker</span></li></ol></div></div>
+  <div class="step left mid" data-n="1" data-focus="@chat.steps"><div class="card"><div class="ct"><span class="badge">1</span><span class="eyebrow">The steps</span></div><h3>Every step, above the answer</h3><p>The agent writes a plan and ticks it off as it works. Open a step to see exactly what it did.</p></div></div>
+  <div class="step left mid" data-n="2" data-focus="@chat.app"><div class="card"><div class="ct"><span class="badge">2</span><span class="eyebrow">The app</span></div><h3>A page, not a paragraph</h3><p>The numbers come from Python it ran on your file. The dashboard is published as an app: private, with a stable link and versions.</p></div></div>
+  <div class="step left mid" data-n="3" data-focus="@chat.answer"><div class="card"><div class="ct"><span class="badge">3</span><span class="eyebrow">The answer</span></div><h3>It says what it estimated</h3><p>The headline numbers, the definition it chose where the glossary had none, and what the file could not tell it.</p></div></div>
 </section>
 
 <!-- ======================= 7 KNOWLEDGE ======================= -->
 <section class="slide shot" data-chapter="02 · See it work" data-title="Knowledge: skills, context, cited answers">
-  <div class="layer"><div class="cam"><img src="media/skills.webp" alt="Skills library with six skills across Design, Engineering, Finance and Research."><div class="spot"></div></div></div>
-  <div class="layer"><div class="cam"><img src="media/context.webp" alt="Glossary context file open in preview, linked for on-demand reading."><div class="spot"></div></div></div>
-  <div class="layer"><div class="cam"><img src="media/kb-collection.webp" alt="A knowledge collection with one indexed document, parsed with LiteParse, status done."><div class="spot"></div></div></div>
-  <div class="layer"><div class="cam"><img src="media/run-detail.webp" alt="A recorded run: the question how do I rotate a provider key, a search_documents call and an answer citing its source as [1]."><div class="spot"></div></div></div>
+  <div class="layer"><div class="cam"><img src="media/skills.webp" alt="Skills library: each skill with its category, its audience and the agents that use it."><div class="spot"></div></div></div>
+  <div class="layer"><div class="cam"><img src="media/context.webp" alt="The Glossary context file, linked for on-demand reading, open in the editor."><div class="spot"></div></div></div>
+  <div class="layer"><div class="cam"><img src="media/kb-collection.webp" alt="The Support handbook knowledge base: four indexed documents, how each was read and its status."><div class="spot"></div></div></div>
+  <div class="layer"><div class="cam"><img src="media/run-detail.webp" alt="A recorded run: who approves the largest refund, two knowledge base searches and an answer citing the handbook as [1]."><div class="spot"></div></div></div>
   <div class="step right" data-img="0" data-focus="full"><div class="card"><div class="ct"><div class="ci"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v16"/><path d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z"/></svg></div><div class="eyebrow">Skills</div></div><h3>How your team does the work</h3><p>A procedure written once, such as a code review or a month-end report. Every agent bound to it uses the current version.</p></div></div>
-  <div class="step left mid" data-img="1" data-focus="overview" data-marks="1 .19 .15 .31 .11; 2 .19 .43 .62 .42">
+  <div class="step left mid" data-img="1" data-focus="overview" data-marks="1 @context.mode; 2 @context.content">
     <div class="card narrow"><div class="ct"><div class="ci"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 6h4"/><path d="M2 10h4"/><path d="M2 14h4"/><path d="M2 18h4"/><rect width="16" height="20" x="4" y="2" rx="2"/><path d="M16 2v20"/></svg></div><div class="eyebrow">Context</div></div>
       <h3>Standing knowledge</h3><p>A glossary, a policy or a house style that every agent can share.</p>
       <ol class="legend"><li><span><b>How it is used</b>: always in the prompt, or read on demand</span></li><li><span><b>The content</b>: plain text</span></li></ol></div></div>
-  <div class="step left mid" data-img="2" data-focus="overview" data-marks="1 .16 .03 .3 .14; 2 .17 .3 .82 .11">
+  <div class="step left mid" data-img="2" data-focus="overview" data-marks="1 @kb-collection.header; 2 @kb-collection.documents">
     <div class="card narrow"><div class="ct"><div class="ci"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m16 6 4 14"/><path d="M12 6v14"/><path d="M8 8v12"/><path d="M4 4v16"/></svg></div><div class="eyebrow">Knowledge bases</div></div>
       <h3>Your documents, searchable</h3><p>Upload or sync documents; the agent searches them and answers from the passages it finds (RAG).</p>
-      <ol class="legend"><li><span><b>Size</b>: documents and searchable pieces</span></li><li><span><b>Each document</b>, its parser and its status</span></li></ol></div></div>
-  <div class="step left mid" data-img="3" data-n="" data-focus=".53 .4 .45 .23"><div class="card"><div class="ct"><div class="ci"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"/><path d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"/></svg></div><span class="eyebrow">A cited answer</span></div><h3>The passage, and where it came from</h3><p>One <b>search_documents</b> call, then an answer that marks each claim with its source, <b>[1]</b>. The run keeps the question, the tool call and the cost.</p><div class="src">Captured from a test deployment</div></div></div>
+      <ol class="legend"><li><span><b>The base</b>: what it holds and who may use it</span></li><li><span><b>Each document</b>, how it was read and its status</span></li></ol></div></div>
+  <div class="step left mid" data-img="3" data-n="" data-focus="@run-detail.answer"><div class="card"><div class="ct"><div class="ci"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"/><path d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"/></svg></div><span class="eyebrow">A cited answer</span></div><h3>The passage, and where it came from</h3><p>Two <b>search_documents</b> calls, then an answer that marks each claim with its source, <b>[1]</b>. The run keeps the question, the tool calls and the cost.</p><div class="src">Demo organization, synthetic data</div></div></div>
 </section>
 
 <!-- ======================= 8 PUBLISH ONCE ======================= -->
@@ -613,7 +671,8 @@ body.presenter{background:#141414;color:#FAFAF7;overflow:auto;display:flex;flex-
 </section>
 
 <!-- ======================= 9 WHAT IT REFUSES ======================= -->
-<section class="slide statement" data-chapter="03 · Under control" data-title="What it refuses">
+<section class="slide statement photo" data-chapter="03 · Under control" data-title="What it refuses">
+  <div class="nature" style="background-image:url('media/nature/night.webp')"></div>
   <div class="pad">
     <div class="eyebrow">What it refuses</div>
     <h2 style="font-size:76px;max-width:24ch">Much of the value is in <mark>what it refuses</mark></h2>
@@ -627,15 +686,16 @@ body.presenter{background:#141414;color:#FAFAF7;overflow:auto;display:flex;flex-
 
 <!-- ======================= 10 CONTROL ======================= -->
 <section class="slide shot" data-chapter="03 · Under control" data-title="Budgets, approvals and a record">
-  <div class="layer"><div class="cam"><img src="media/run-detail.webp" alt="Activity run history with a run detail panel: tokens, cost, duration, the conversation and the tool call; one run in the list was stopped by budget."><div class="spot"></div></div></div>
-  <div class="layer"><div class="cam"><img src="media/approvals.webp" alt="Approvals list: a pending shell command with its arguments and Approve and Reject buttons, and earlier approved calls."><div class="spot"></div></div></div>
-  <div class="step right mid" data-img="0" data-focus="overview" data-marks="1 .18 .74 .34 .1; 3 .52 .03 .47 .65">
+  <div class="layer"><div class="cam"><img src="media/run-detail.webp" alt="Activity run history with one run open: tokens, cost, duration, its turns and the tool calls it made."><div class="spot"></div></div></div>
+  <div class="layer"><div class="cam"><img src="media/approvals.webp" alt="Approvals waiting on a person: an email to send, a CRM deal to update and an invoice to create, each with Approve and Reject."><div class="spot"></div></div></div>
+  <div class="layer"><div class="cam"><img src="media/spend.webp" alt="Spend: totals for the period and, per agent, what it spent against its own monthly budget."><div class="spot"></div></div></div>
+  <div class="step right mid" data-img="0" data-focus="overview" data-marks="1 @run-detail.list; 3 @run-detail.detail">
     <div class="card narrow"><div class="ct"><div class="ci"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></div><div class="eyebrow">Control</div></div>
       <h3>Three checks behind every run</h3>
-      <ol class="legend"><li><span><b>A budget</b>, checked before every model request</span></li><li><span><b>An approval</b>: sensitive tools wait for a person</span></li><li><span><b>A record</b> of every run, and a hash-chained audit log</span></li></ol><div class="src">Captured from a test deployment</div></div></div>
-  <div class="step right mid" data-img="0" data-n="1" data-focus=".18 .74 .34 .1"><div class="card"><div class="ct"><span class="badge">1</span><span class="eyebrow">Stopped by budget</span></div><h3>A budget stops a run before it overspends</h3><p>Monthly caps per agent and organisation, checked before each request to the model, not added up at the end of the month.</p></div></div>
-  <div class="step left mid" data-img="1" data-n="2" data-focus=".17 .33 .81 .13"><div class="card"><div class="ct"><span class="badge">2</span><span class="eyebrow">Waiting for a person</span></div><h3>The exact command, then a decision</h3><p>You choose which tools must ask first. The agent pauses; the approver reads precisely what will run and presses <b>Approve</b> or <b>Reject</b>.</p></div></div>
-  <div class="step left mid" data-img="0" data-n="3" data-focus=".52 .03 .47 .65"><div class="card"><div class="ct"><span class="badge">3</span><span class="eyebrow">On the record</span></div><h3>What it did and what it cost</h3><p>Every run keeps its agent version, tokens, cost, tool calls and what went into the prompt. Approvals, sharing and secret changes also join a hash-chained audit log per organisation.</p></div></div>
+      <ol class="legend"><li><span><b>A budget</b>, checked before every model request</span></li><li><span><b>An approval</b>: sensitive tools wait for a person</span></li><li><span><b>A record</b> of every run, and a hash-chained audit log</span></li></ol><div class="src">Demo organization, synthetic data</div></div></div>
+  <div class="step right mid" data-img="2" data-n="1" data-focus="@spend.agents"><div class="card"><div class="ct"><span class="badge">1</span><span class="eyebrow">Against a budget</span></div><h3>A budget stops a run before it overspends</h3><p>Monthly caps per agent and organisation, checked before each request to the model, not added up at the end of the month.</p></div></div>
+  <div class="step left mid" data-img="1" data-n="2" data-focus="@approvals.request"><div class="card"><div class="ct"><span class="badge">2</span><span class="eyebrow">Waiting for a person</span></div><h3>The exact action, then a decision</h3><p>You choose which tools must ask first. The agent pauses; the approver reads precisely what it wants to do and presses <b>Approve</b> or <b>Reject</b>.</p></div></div>
+  <div class="step left mid" data-img="0" data-n="3" data-focus="@run-detail.detail"><div class="card"><div class="ct"><span class="badge">3</span><span class="eyebrow">On the record</span></div><h3>What it did and what it cost</h3><p>Every run keeps its agent version, tokens, cost, tool calls and what went into the prompt. Approvals, sharing and secret changes also join a hash-chained audit log per organisation.</p></div></div>
 </section>
 
 <!-- ======================= 11 SOVEREIGNTY ======================= -->
@@ -662,8 +722,8 @@ body.presenter{background:#141414;color:#FAFAF7;overflow:auto;display:flex;flex-
         <div class="tbl">
           <div class="k">Agent runtime</div><div class="v"><svg class="bm" viewBox="0 0 24 24" fill="#E92063" aria-hidden="true"><path d="m23.826 17.316-4.23-5.866-6.847-9.496c-.348-.48-1.151-.48-1.497 0l-6.845 9.494-4.233 5.868a.925.925 0 0 0 .46 1.417l11.078 3.626h.002a.92.92 0 0 0 .572 0h.002l11.077-3.626c.28-.092.5-.31.59-.592a.916.916 0 0 0-.13-.825h.002ZM12.001 4.07l4.44 6.158-4.152-1.36c-.032-.01-.066-.008-.098-.016a.8.8 0 0 0-.096-.016c-.032-.004-.062-.016-.094-.016s-.062.012-.094.016a.74.74 0 0 0-.096.016c-.032.006-.066.006-.096.016L7.59 10.221l-.026.008 4.44-6.158h-.002Zm-6.273 8.7 4.834-1.583.516-.168v9.19L2.41 17.372l3.317-4.6Zm7.197 7.437V11.02l5.35 1.752 3.316 4.598-8.666 2.838Z"/></svg><b>Pydantic AI</b> and <b>pydantic-ai-harness</b>, one runner behind every surface</div>
           <div class="k">API</div><div class="v"><svg class="bm" viewBox="0 0 24 24" fill="#009688" aria-hidden="true"><path d="M12 .0387C5.3729.0384.0003 5.3931 0 11.9988c-.001 6.6066 5.372 11.9628 12 11.9625 6.628.0003 12.001-5.3559 12-11.9625-.0003-6.6057-5.3729-11.9604-12-11.96m-.829 5.4153h7.55l-7.5805 5.3284h5.1828L5.279 18.5436q2.9466-6.5444 5.892-13.0896"/></svg>FastAPI</div>
-          <div class="k">Console</div><div class="v"><svg class="bm" viewBox="0 0 24 24" fill="#141414" aria-hidden="true"><path d="M18.665 21.978C16.758 23.255 14.465 24 12 24 5.377 24 0 18.623 0 12S5.377 0 12 0s12 5.377 12 12c0 3.583-1.574 6.801-4.067 9.001L9.219 7.2H7.2v9.596h1.615V9.251l9.85 12.727Zm-3.332-8.533 1.6 2.061V7.2h-1.6v6.245Z"/></svg>Next.js</div>
-          <div class="k">Background</div><div class="v"><svg class="bm" viewBox="0 0 24 24" fill="#141414" aria-hidden="true"><path d="M12 8.003 4.288 4.002 12 0l7.713 4v8.004L12 16v8l-7.71-4v-8L12 16V8.003Z"/></svg><svg class="bm" viewBox="0 0 24 24" fill="#FF4438" aria-hidden="true"><path d="M22.71 13.145c-1.66 2.092-3.452 4.483-7.038 4.483-3.203 0-4.397-2.825-4.48-5.12.701 1.484 2.073 2.685 4.214 2.63 4.117-.133 6.94-3.852 6.94-7.239 0-4.05-3.022-6.972-8.268-6.972-3.752 0-8.4 1.428-11.455 3.685C2.59 6.937 3.885 9.958 4.35 9.626c2.648-1.904 4.748-3.13 6.784-3.744C8.12 9.244.886 17.05 0 18.425c.1 1.261 1.66 4.648 2.424 4.648.232 0 .431-.133.664-.365a100.49 100.49 0 0 0 5.54-6.765c.222 3.104 1.748 6.898 6.014 6.898 3.819 0 7.604-2.756 9.33-8.965.2-.764-.73-1.361-1.261-.73zm-4.349-5.013c0 1.959-1.926 2.922-3.685 2.922-.941 0-1.664-.247-2.235-.568 1.051-1.592 2.092-3.225 3.21-4.973 1.972.334 2.71 1.43 2.71 2.619z"/></svg>Prefect workers, Redis or Valkey</div>
+          <div class="k">Console</div><div class="v"><svg class="bm" viewBox="0 0 24 24" fill="#15121F" aria-hidden="true"><path d="M18.665 21.978C16.758 23.255 14.465 24 12 24 5.377 24 0 18.623 0 12S5.377 0 12 0s12 5.377 12 12c0 3.583-1.574 6.801-4.067 9.001L9.219 7.2H7.2v9.596h1.615V9.251l9.85 12.727Zm-3.332-8.533 1.6 2.061V7.2h-1.6v6.245Z"/></svg>Next.js</div>
+          <div class="k">Background</div><div class="v"><svg class="bm" viewBox="0 0 24 24" fill="#15121F" aria-hidden="true"><path d="M12 8.003 4.288 4.002 12 0l7.713 4v8.004L12 16v8l-7.71-4v-8L12 16V8.003Z"/></svg><svg class="bm" viewBox="0 0 24 24" fill="#FF4438" aria-hidden="true"><path d="M22.71 13.145c-1.66 2.092-3.452 4.483-7.038 4.483-3.203 0-4.397-2.825-4.48-5.12.701 1.484 2.073 2.685 4.214 2.63 4.117-.133 6.94-3.852 6.94-7.239 0-4.05-3.022-6.972-8.268-6.972-3.752 0-8.4 1.428-11.455 3.685C2.59 6.937 3.885 9.958 4.35 9.626c2.648-1.904 4.748-3.13 6.784-3.744C8.12 9.244.886 17.05 0 18.425c.1 1.261 1.66 4.648 2.424 4.648.232 0 .431-.133.664-.365a100.49 100.49 0 0 0 5.54-6.765c.222 3.104 1.748 6.898 6.014 6.898 3.819 0 7.604-2.756 9.33-8.965.2-.764-.73-1.361-1.261-.73zm-4.349-5.013c0 1.959-1.926 2.922-3.685 2.922-.941 0-1.664-.247-2.235-.568 1.051-1.592 2.092-3.225 3.21-4.973 1.972.334 2.71 1.43 2.71 2.619z"/></svg>Prefect workers, Redis or Valkey</div>
           <div class="k">Data</div><div class="v"><svg class="bm" viewBox="0 0 24 24" fill="#4169E1" aria-hidden="true"><path d="M23.5594 14.7228a.5269.5269 0 0 0-.0563-.1191c-.139-.2632-.4768-.3418-1.0074-.2321-1.6533.3411-2.2935.1312-2.5256-.0191 1.342-2.0482 2.445-4.522 3.0411-6.8297.2714-1.0507.7982-3.5237.1222-4.7316a1.5641 1.5641 0 0 0-.1509-.235C21.6931.9086 19.8007.0248 17.5099.0005c-1.4947-.0158-2.7705.3461-3.1161.4794a9.449 9.449 0 0 0-.5159-.0816 8.044 8.044 0 0 0-1.3114-.1278c-1.1822-.0184-2.2038.2642-3.0498.8406-.8573-.3211-4.7888-1.645-7.2219.0788C.9359 2.1526.3086 3.8733.4302 6.3043c.0409.818.5069 3.334 1.2423 5.7436.4598 1.5065.9387 2.7019 1.4334 3.582.553.9942 1.1259 1.5933 1.7143 1.7895.4474.1491 1.1327.1441 1.8581-.7279.8012-.9635 1.5903-1.8258 1.9446-2.2069.4351.2355.9064.3625 1.39.3772a.0569.0569 0 0 0 .0004.0041 11.0312 11.0312 0 0 0-.2472.3054c-.3389.4302-.4094.5197-1.5002.7443-.3102.064-1.1344.2339-1.1464.8115-.0025.1224.0329.2309.0919.3268.2269.4231.9216.6097 1.015.6331 1.3345.3335 2.5044.092 3.3714-.6787-.017 2.231.0775 4.4174.3454 5.0874.2212.5529.7618 1.9045 2.4692 1.9043.2505 0 .5263-.0291.8296-.0941 1.7819-.3821 2.5557-1.1696 2.855-2.9059.1503-.8707.4016-2.8753.5388-4.1012.0169-.0703.0357-.1207.057-.1362.0007-.0005.0697-.0471.4272.0307a.3673.3673 0 0 0 .0443.0068l.2539.0223.0149.001c.8468.0384 1.9114-.1426 2.5312-.4308.6438-.2988 1.8057-1.0323 1.5951-1.6698zM2.371 11.8765c-.7435-2.4358-1.1779-4.8851-1.2123-5.5719-.1086-2.1714.4171-3.6829 1.5623-4.4927 1.8367-1.2986 4.8398-.5408 6.108-.13-.0032.0032-.0066.0061-.0098.0094-2.0238 2.044-1.9758 5.536-1.9708 5.7495-.0002.0823.0066.1989.0162.3593.0348.5873.0996 1.6804-.0735 2.9184-.1609 1.1504.1937 2.2764.9728 3.0892.0806.0841.1648.1631.2518.2374-.3468.3714-1.1004 1.1926-1.9025 2.1576-.5677.6825-.9597.5517-1.0886.5087-.3919-.1307-.813-.5871-1.2381-1.3223-.4796-.839-.9635-2.0317-1.4155-3.5126zm6.0072 5.0871c-.1711-.0428-.3271-.1132-.4322-.1772.0889-.0394.2374-.0902.4833-.1409 1.2833-.2641 1.4815-.4506 1.9143-1.0002.0992-.126.2116-.2687.3673-.4426a.3549.3549 0 0 0 .0737-.1298c.1708-.1513.2724-.1099.4369-.0417.156.0646.3078.26.3695.4752.0291.1016.0619.2945-.0452.4444-.9043 1.2658-2.2216 1.2494-3.1676 1.0128zm2.094-3.988-.0525.141c-.133.3566-.2567.6881-.3334 1.003-.6674-.0021-1.3168-.2872-1.8105-.8024-.6279-.6551-.9131-1.5664-.7825-2.5004.1828-1.3079.1153-2.4468.079-3.0586-.005-.0857-.0095-.1607-.0122-.2199.2957-.2621 1.6659-.9962 2.6429-.7724.4459.1022.7176.4057.8305.928.5846 2.7038.0774 3.8307-.3302 4.7363-.084.1866-.1633.3629-.2311.5454zm7.3637 4.5725c-.0169.1768-.0358.376-.0618.5959l-.146.4383a.3547.3547 0 0 0-.0182.1077c-.0059.4747-.054.6489-.115.8693-.0634.2292-.1353.4891-.1794 1.0575-.11 1.4143-.8782 2.2267-2.4172 2.5565-1.5155.3251-1.7843-.4968-2.0212-1.2217a6.5824 6.5824 0 0 0-.0769-.2266c-.2154-.5858-.1911-1.4119-.1574-2.5551.0165-.5612-.0249-1.9013-.3302-2.6462.0044-.2932.0106-.5909.019-.8918a.3529.3529 0 0 0-.0153-.1126 1.4927 1.4927 0 0 0-.0439-.208c-.1226-.4283-.4213-.7866-.7797-.9351-.1424-.059-.4038-.1672-.7178-.0869.067-.276.1831-.5875.309-.9249l.0529-.142c.0595-.16.134-.3257.213-.5012.4265-.9476 1.0106-2.2453.3766-5.1772-.2374-1.0981-1.0304-1.6343-2.2324-1.5098-.7207.0746-1.3799.3654-1.7088.5321a5.6716 5.6716 0 0 0-.1958.1041c.0918-1.1064.4386-3.1741 1.7357-4.4823a4.0306 4.0306 0 0 1 .3033-.276.3532.3532 0 0 0 .1447-.0644c.7524-.5706 1.6945-.8506 2.802-.8325.4091.0067.8017.0339 1.1742.081 1.939.3544 3.2439 1.4468 4.0359 2.3827.8143.9623 1.2552 1.9315 1.4312 2.4543-1.3232-.1346-2.2234.1268-2.6797.779-.9926 1.4189.543 4.1729 1.2811 5.4964.1353.2426.2522.4522.2889.5413.2403.5825.5515.9713.7787 1.2552.0696.087.1372.1714.1885.245-.4008.1155-1.1208.3825-1.0552 1.717-.0123.1563-.0423.4469-.0834.8148-.0461.2077-.0702.4603-.0994.7662zm.8905-1.6211c-.0405-.8316.2691-.9185.5967-1.0105a2.8566 2.8566 0 0 0 .135-.0406 1.202 1.202 0 0 0 .1342.103c.5703.3765 1.5823.4213 3.0068.1344-.2016.1769-.5189.3994-.9533.6011-.4098.1903-1.0957.333-1.7473.3636-.7197.0336-1.0859-.0807-1.1721-.151zm.5695-9.2712c-.0059.3508-.0542.6692-.1054 1.0017-.055.3576-.112.7274-.1264 1.1762-.0142.4368.0404.8909.0932 1.3301.1066.887.216 1.8003-.2075 2.7014a3.5272 3.5272 0 0 1-.1876-.3856c-.0527-.1276-.1669-.3326-.3251-.6162-.6156-1.1041-2.0574-3.6896-1.3193-4.7446.3795-.5427 1.3408-.5661 2.1781-.463zm.2284 7.0137a12.3762 12.3762 0 0 0-.0853-.1074l-.0355-.0444c.7262-1.1995.5842-2.3862.4578-3.4385-.0519-.4318-.1009-.8396-.0885-1.2226.0129-.4061.0666-.7543.1185-1.0911.0639-.415.1288-.8443.1109-1.3505.0134-.0531.0188-.1158.0118-.1902-.0457-.4855-.5999-1.938-1.7294-3.253-.6076-.7073-1.4896-1.4972-2.6889-2.0395.5251-.1066 1.2328-.2035 2.0244-.1859 2.0515.0456 3.6746.8135 4.8242 2.2824a.908.908 0 0 1 .0667.1002c.7231 1.3556-.2762 6.2751-2.9867 10.5405zm-8.8166-6.1162c-.025.1794-.3089.4225-.6211.4225a.5821.5821 0 0 1-.0809-.0056c-.1873-.026-.3765-.144-.5059-.3156-.0458-.0605-.1203-.178-.1055-.2844.0055-.0401.0261-.0985.0925-.1488.1182-.0894.3518-.1226.6096-.0867.3163.0441.6426.1938.6113.4186zm7.9305-.4114c.0111.0792-.049.201-.1531.3102-.0683.0717-.212.1961-.4079.2232a.5456.5456 0 0 1-.075.0052c-.2935 0-.5414-.2344-.5607-.3717-.024-.1765.2641-.3106.5611-.352.297-.0414.6111.0088.6356.1851z"/></svg>PostgreSQL with pgvector</div>
           <div class="k">Code</div><div class="v"><svg class="bm" viewBox="0 0 24 24" fill="#2496ED" aria-hidden="true"><path d="M13.983 11.078h2.119a.186.186 0 00.186-.185V9.006a.186.186 0 00-.186-.186h-2.119a.185.185 0 00-.185.185v1.888c0 .102.083.185.185.185m-2.954-5.43h2.118a.186.186 0 00.186-.186V3.574a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.888c0 .102.082.185.185.185m0 2.716h2.118a.187.187 0 00.186-.186V6.29a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.887c0 .102.082.185.185.186m-2.93 0h2.12a.186.186 0 00.184-.186V6.29a.185.185 0 00-.185-.185H8.1a.185.185 0 00-.185.185v1.887c0 .102.083.185.185.186m-2.964 0h2.119a.186.186 0 00.185-.186V6.29a.185.185 0 00-.185-.185H5.136a.186.186 0 00-.186.185v1.887c0 .102.084.185.186.186m5.893 2.715h2.118a.186.186 0 00.186-.185V9.006a.186.186 0 00-.186-.186h-2.118a.185.185 0 00-.185.185v1.888c0 .102.082.185.185.185m-2.93 0h2.12a.185.185 0 00.184-.185V9.006a.185.185 0 00-.184-.186h-2.12a.185.185 0 00-.184.185v1.888c0 .102.083.185.185.185m-2.964 0h2.119a.185.185 0 00.185-.185V9.006a.185.185 0 00-.184-.186h-2.12a.186.186 0 00-.186.186v1.887c0 .102.084.185.186.185m-2.92 0h2.12a.185.185 0 00.184-.185V9.006a.185.185 0 00-.184-.186h-2.12a.185.185 0 00-.184.185v1.888c0 .102.082.185.185.185M23.763 9.89c-.065-.051-.672-.51-1.954-.51-.338.001-.676.03-1.01.087-.248-1.7-1.653-2.53-1.716-2.566l-.344-.199-.226.327c-.284.438-.49.922-.612 1.43-.23.97-.09 1.882.403 2.661-.595.332-1.55.413-1.744.42H.751a.751.751 0 00-.75.748 11.376 11.376 0 00.692 4.062c.545 1.428 1.355 2.48 2.41 3.124 1.18.723 3.1 1.137 5.275 1.137.983.003 1.963-.086 2.93-.266a12.248 12.248 0 003.823-1.389c.98-.567 1.86-1.288 2.61-2.136 1.252-1.418 1.998-2.997 2.553-4.4h.221c1.372 0 2.215-.549 2.68-1.009.309-.293.55-.65.707-1.046l.098-.288Z"/></svg>Containers started by <b>sandboxd</b></div>
         </div>
@@ -698,7 +758,8 @@ body.presenter{background:#141414;color:#FAFAF7;overflow:auto;display:flex;flex-
 </section>
 
 <!-- ======================= 14 START AND COMMUNITY ======================= -->
-<section class="slide closing" data-chapter="" data-chrome="off" data-title="Start and community">
+<section class="slide closing photo" data-chapter="" data-chrome="off" data-title="Start and community">
+  <div class="nature" style="background-image:url('media/nature/hero-bg.webp')"></div>
   <div class="pad" style="display:flex;flex-direction:column;justify-content:center;gap:34px">
     <div class="eyebrow">Start here</div>
     <h1 style="font-size:116px">Start with <mark>one command</mark></h1>
@@ -716,6 +777,7 @@ body.presenter{background:#141414;color:#FAFAF7;overflow:auto;display:flex;flex-
 <div id="chip-chapter"></div><div id="chip-count"></div><div id="bar"></div>
 <button id="sound" type="button"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4.702a.7.7 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.7.7 0 0 0 11 19.298z"/><path d="m16.5 14.5 5-5"/><path d="m16.5 9.5 5 5"/></svg><span>Sound off · M</span></button>
 </div></div>
+<script src="media/areas.js"></script>
 <script>
 (() => {
   const stage = document.getElementById('stage');
@@ -766,7 +828,14 @@ body.presenter{background:#141414;color:#FAFAF7;overflow:auto;display:flex;flex-
   }
   addEventListener('resize', fit); fit();
 
-  const parseMarks = text => text.split(';').map(m => m.trim()).filter(Boolean).map(m => m.split(/\s+/));
+  // `@builder.instructions` is an area capture.mjs measured on that screen (media/areas.js), so a
+  // recaptured screen moves its outlines and the camera with it.
+  const resolve = text => text.replace(/@([\w-]+)\.(\w+)/g, (_, shot, key) => {
+    const area = window.AREAS && window.AREAS[shot] && window.AREAS[shot][key];
+    if (!area) { console.warn(`no area ${shot}.${key}`); return '0 0 1 1'; }
+    return area.join(' ');
+  });
+  const parseMarks = text => resolve(text).split(';').map(m => m.trim()).filter(Boolean).map(m => m.split(/\s+/));
 
   // A shot slide's steps are its .step children; other slides step through their data-at reveals.
   const steps = [];
@@ -826,7 +895,7 @@ body.presenter{background:#141414;color:#FAFAF7;overflow:auto;display:flex;flex-
       Object.assign(layer.style, {left: ox + 'px', top: oy + 'px', width: w0 + 'px', height: h0 + 'px'});
       const cam = layer.querySelector('.cam'); cam.style.width = w0 + 'px'; cam.style.height = h0 + 'px';
       const spot = layer.querySelector('.spot');
-      const f = step.dataset.focus || 'full';
+      const f = resolve(step.dataset.focus || 'full');
       mini.classList.remove('on');
       if (f === 'full') {
         cam.style.transform = 'none'; cam.style.setProperty('--z', 1); spot.classList.remove('on'); return;

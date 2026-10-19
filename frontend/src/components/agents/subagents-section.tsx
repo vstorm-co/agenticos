@@ -4,10 +4,12 @@ import { AlertTriangle } from "lucide-react";
 
 import { CapabilityDetail } from "@/components/agents/capability-settings";
 import { DelegateList } from "@/components/agents/delegate-list";
+import { RemoteDelegateList } from "@/components/agents/remote-delegate-list";
+import { useCapabilityFieldCopy } from "@/components/agents/capability-field-copy";
 import { SchemaForm } from "@/components/agents/schema-form";
 import { SpecialistList } from "@/components/agents/specialist-list";
 import { Label, Switch } from "@/components/ui";
-import { useAgents, usePermissions } from "@/hooks";
+import { useAgents, useExternalAgents, usePermissions } from "@/hooks";
 import {
   delegationNameClashes,
   readSubagentsConfig,
@@ -17,6 +19,7 @@ import {
 import type {
   CapabilityBindingSpec,
   CapabilityCatalogEntry,
+  ExternalAgentRef,
   JsonSchema,
   SubagentRef,
 } from "@/types/agents";
@@ -51,6 +54,9 @@ interface SubagentsSectionProps {
   /** Whether the caller may edit the spec at all - see `CapabilityDetail`. */
   readOnly?: boolean;
   onSubagentsChange: (subagents: SubagentRef[]) => void;
+  /** `spec.external_agents` - remote A2A agents, top level like `subagents` (#2092). */
+  externalAgents: ExternalAgentRef[];
+  onExternalAgentsChange: (externalAgents: ExternalAgentRef[]) => void;
   disabled?: boolean;
 }
 
@@ -78,13 +84,17 @@ export function SubagentsSection({
   subagents,
   onChange,
   onSubagentsChange,
+  externalAgents,
+  onExternalAgentsChange,
   onToggleEnabled,
   readOnly,
   disabled,
 }: SubagentsSectionProps) {
   const t = useTranslations("agents");
   const { agents } = useAgents();
+  const { agents: registered } = useExternalAgents();
   const { can } = usePermissions();
+  const copyFor = useCapabilityFieldCopy(SUBAGENTS_ID);
 
   // A deployment that did not register the capability has nothing to configure,
   // and an empty section reads as something that failed to load.
@@ -98,7 +108,12 @@ export function SubagentsSection({
     const agent = agents.find((entry) => entry.id === ref.agent_id);
     return agent === undefined ? [] : [agent.slug];
   });
-  const clashes = delegationNameClashes(delegateNames, config.inline);
+  // A remote agent's handle is addressed the same way, so it shares the namespace.
+  const remoteNames = externalAgents.flatMap((ref) => {
+    const agent = registered.find((entry) => entry.id === ref.external_agent_id);
+    return agent === undefined ? [] : [agent.slug];
+  });
+  const clashes = delegationNameClashes([...delegateNames, ...remoteNames], config.inline);
 
   const setConfig = (patch: Record<string, unknown>) => {
     if (!binding) return;
@@ -114,12 +129,13 @@ export function SubagentsSection({
           delegates, publish still validates them, and none of them will ever be
           reached. Silence here is how "why is it not delegating" becomes
           unanswerable. */}
-      {!enabled && (subagents.length > 0 || config.inline.length > 0) && (
-        <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-          <p className="text-xs">{t("delegationOffButConfigured")}</p>
-        </div>
-      )}
+      {!enabled &&
+        (subagents.length > 0 || externalAgents.length > 0 || config.inline.length > 0) && (
+          <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+            <p className="text-xs">{t("delegationOffButConfigured")}</p>
+          </div>
+        )}
 
       <DelegateList
         agents={agents}
@@ -127,6 +143,14 @@ export function SubagentsSection({
         onChange={onSubagentsChange}
         clashes={clashes}
         canDelegate={can(Perm.agentsRun)}
+        disabled={disabled}
+      />
+
+      <RemoteDelegateList
+        registered={registered}
+        references={externalAgents}
+        onChange={onExternalAgentsChange}
+        clashes={clashes}
         disabled={disabled}
       />
 
@@ -153,6 +177,7 @@ export function SubagentsSection({
             schema={generatedFields(definition.config_schema)}
             value={binding?.config ?? {}}
             disabled={disabled}
+            copyFor={copyFor}
             onChange={(next) => setConfig(next)}
           />
         )}

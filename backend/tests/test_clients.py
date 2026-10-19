@@ -147,6 +147,34 @@ class TestRedisClient:
             await redis_client.count_in_window("k", ttl=60)
 
     @pytest.mark.anyio
+    async def test_a_lease_is_extended_and_given_back_only_by_its_holder(
+        self, redis_client: RedisClient, mock_aioredis: MagicMock
+    ):
+        """The give-back is one script, so the read and the delete cannot be split
+        by another worker taking the lease in between."""
+        redis_client.client = mock_aioredis
+        mock_aioredis.expire = AsyncMock(side_effect=[True, False])
+        mock_aioredis.eval = AsyncMock(side_effect=[1, 0])
+
+        assert await redis_client.expire("lease", 30) is True
+        assert await redis_client.expire("lease", 30) is False
+        assert await redis_client.delete_if_equal("lease", "me") is True
+        assert await redis_client.delete_if_equal("lease", "me") is False
+
+        script = mock_aioredis.eval.await_args.args
+        assert "del" in script[0]
+        assert script[1:] == (1, "lease", "me")
+
+    @pytest.mark.anyio
+    async def test_a_lease_cannot_be_touched_while_not_connected(self, redis_client: RedisClient):
+        redis_client.client = None
+
+        with pytest.raises(RuntimeError, match="not connected"):
+            await redis_client.expire("lease", 30)
+        with pytest.raises(RuntimeError, match="not connected"):
+            await redis_client.delete_if_equal("lease", "me")
+
+    @pytest.mark.anyio
     async def test_delete(self, redis_client: RedisClient, mock_aioredis: MagicMock):
         """Test deleting a key."""
         redis_client.client = mock_aioredis
@@ -225,3 +253,36 @@ class TestRedisClient:
 
         with pytest.raises(RuntimeError, match="not connected"):
             _ = redis_client.raw
+
+    @pytest.mark.anyio
+    async def test_list_verbs_read_a_queue_oldest_first(
+        self, redis_client: RedisClient, mock_aioredis: MagicMock
+    ):
+        """A live browse's command queue: take one, wait for one, read them all."""
+        mock_aioredis.lpop = AsyncMock(return_value="first")
+        mock_aioredis.blpop = AsyncMock(side_effect=[("queue", "second"), None])
+        mock_aioredis.lrange = AsyncMock(return_value=["a", "b"])
+        redis_client.client = mock_aioredis
+
+        assert await redis_client.pop_left("queue") == "first"
+        assert await redis_client.wait_pop_left("queue", 1.5) == "second"
+        assert await redis_client.wait_pop_left("queue", 1.5) is None
+        assert await redis_client.list_range("queue") == ["a", "b"]
+        mock_aioredis.blpop.assert_awaited_with(["queue"], timeout=1.5)
+        mock_aioredis.lrange.assert_awaited_once_with("queue", 0, -1)
+
+    @pytest.mark.anyio
+    async def test_hash_all_reads_every_field(self, redis_client: RedisClient, mock_aioredis):
+        mock_aioredis.hgetall = AsyncMock(return_value={"u-1": "1700000000.0"})
+        redis_client.client = mock_aioredis
+
+        assert await redis_client.hash_all("room") == {"u-1": "1700000000.0"}
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("verb", ["pop_left", "wait_pop_left", "list_range", "hash_all"])
+    async def test_list_verbs_not_connected(self, redis_client: RedisClient, verb: str):
+        redis_client.client = None
+        args = ("queue", 1.0) if verb == "wait_pop_left" else ("queue",)
+
+        with pytest.raises(RuntimeError, match="not connected"):
+            await getattr(redis_client, verb)(*args)

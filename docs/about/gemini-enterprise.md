@@ -16,7 +16,7 @@ Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS b
 | --- | --- | --- |
 | Where it runs | Google Cloud, in `global`, `us`, `eu` and some national regions | Your infrastructure |
 | Source | Proprietary | Apache-2.0 |
-| Models | Gemini in the app and Workflow Builder; other models only in custom agents on Agent Platform | 27 providers in every agent, including local |
+| Models | Gemini in the app and Workflow Builder; other models only in custom agents on Agent Platform | 28 providers in every agent, including local |
 | Who uses it | Employees with a seat | Employees, customers and systems, on eight surfaces |
 | Surfaces | Web app, mobile app, Slack | Web chat, widget, hosted page, HTTP API, WebSocket, Slack, Telegram, Mattermost |
 | Building | Workflow Builder; custom and partner agents on Standard and Plus | The Builder, for every agent |
@@ -28,7 +28,7 @@ Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS b
 
 ### Every model, in every agent
 
-In Gemini Enterprise the app and Workflow Builder use Gemini models. Claude, Mistral and open-weight models are available only for custom agents built on Google's Agent Platform. In AgenticOS any agent can use any of the [27 providers](../models.md#providers), including Gemini and Vertex, and switch with one [model profile](../models.md#a-model-profile).
+In Gemini Enterprise the app and Workflow Builder use Gemini models. Claude, Mistral and open-weight models are available only for custom agents built on Google's Agent Platform. In AgenticOS any agent can use any of the [28 providers](../models.md#providers), including Gemini and Vertex, and switch with one [model profile](../models.md#a-model-profile).
 
 ### Agents beyond the employee's seat
 
@@ -64,7 +64,7 @@ For agents your organization owns and publishes, yes. AgenticOS runs on your inf
 
 ### Can AgenticOS use Gemini models?
 
-Yes, through Google Gemini or Vertex AI model profiles, two of the 27 providers AgenticOS supports.
+Yes, through Google Gemini or Vertex AI model profiles, two of the 28 providers AgenticOS supports.
 
 ### Does AgenticOS limit how many agents you can create?
 

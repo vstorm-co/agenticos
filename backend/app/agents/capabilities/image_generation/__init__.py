@@ -34,6 +34,7 @@ class ImageGenerationConfig(BaseModel):
     """
 
     provider: str = Field(
+        title="Provider",
         default_factory=lambda: default_choice()[0],
         description=(
             "Whose model draws. Only providers whose model class honours the image tool are "
@@ -42,6 +43,7 @@ class ImageGenerationConfig(BaseModel):
         ),
     )
     model: str = Field(
+        title="Image model",
         default_factory=lambda: default_choice()[1],
         description=(
             "Which of that provider's image models draws, by the ids in "
@@ -95,22 +97,25 @@ class ImageGenerationConfig(BaseModel):
         return self
 
     quality: Literal["low", "medium", "high", "auto"] | None = Field(
-        default=None, description="Rendering quality; higher is slower and dearer."
+        title="Quality", default=None, description="Rendering quality; higher is slower and dearer."
     )
     size: Literal["auto", "1024x1024", "1024x1536", "1536x1024", "512", "1K", "2K", "4K"] | None = (
         Field(
+            title="Size",
             default=None,
             description="Output size. OpenAI uses the pixel values, Google the K values.",
         )
     )
     background: Literal["transparent", "opaque", "auto"] | None = Field(
-        default=None, description="Background type; transparent needs a png or webp output."
+        title="Background",
+        default=None,
+        description="Background type; transparent needs a png or webp output.",
     )
     output_format: Literal["png", "webp", "jpeg"] | None = Field(
-        default=None, description="Image file format."
+        title="File format", default=None, description="Image file format."
     )
     aspect_ratio: ImageAspectRatio | None = Field(
-        default=None, description="Aspect ratio, e.g. 16:9 or 1:1."
+        title="Aspect ratio", default=None, description="Aspect ratio, e.g. 16:9 or 1:1."
     )
 
     def to_tool_kwargs(self) -> dict[str, Any]:

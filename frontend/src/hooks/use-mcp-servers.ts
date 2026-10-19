@@ -7,7 +7,7 @@ import { apiClient } from "@/lib/api-client";
 import type { McpToolInfo } from "@/lib/mcp-connections-api";
 import { mergeServers, type McpServerRow } from "@/lib/mcp-servers";
 import { qk } from "@/lib/query-keys";
-import type { McpCatalog } from "@/types/mcp";
+import type { McpCatalog, PlatformMcpToolList } from "@/types/mcp";
 import { useMcpConnections } from "./use-mcp-connections";
 import { useOrgMcpConnections } from "./use-org-mcp-connections";
 
@@ -26,6 +26,21 @@ export function useMcpCatalog() {
   return { servers: data?.items ?? [], isLoading, error };
 }
 
+/**
+ * The tools of this deployment's own MCP server, for a platform binding to pick from.
+ *
+ * Cached indefinitely for the same reason as the catalog: they change on redeploy.
+ */
+export function usePlatformMcpTools({ enabled = true }: { enabled?: boolean } = {}) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: qk.mcpServers.platformTools(),
+    queryFn: () => apiClient.get<PlatformMcpToolList>("/agents/platform-mcp-tools"),
+    staleTime: Infinity,
+    enabled,
+  });
+  return { tools: data?.items ?? [], isLoading, error };
+}
+
 /** What one page of the server list holds. */
 export const MCP_PAGE_SIZE = 50;
 
@@ -41,14 +56,15 @@ export const MCP_PAGE_SIZE = 50;
  * `registryTotal` is what the mirror holds, which the count line needs to say
  * what the list reaches - zero until `agenticos cmd mcp-registry-sync` has run.
  */
-export function useMcpCatalogPage(query: string, category: string, page: number) {
+export function useMcpCatalogPage(query: string, category: string, auth: string, page: number) {
   const needle = query.trim();
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: qk.mcpServers.listPage(needle, category, page),
+    queryKey: qk.mcpServers.listPage(needle, category, auth, page),
     queryFn: () =>
       apiClient.get<McpCatalog>(
         `/agents/mcp-servers?q=${encodeURIComponent(needle)}` +
           `&category=${encodeURIComponent(category)}` +
+          `&auth=${encodeURIComponent(auth)}` +
           `&skip=${page * MCP_PAGE_SIZE}&limit=${MCP_PAGE_SIZE}`,
       ),
     // A page already fetched is worth keeping while the next one loads, so

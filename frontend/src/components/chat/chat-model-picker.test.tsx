@@ -37,6 +37,12 @@ vi.mock("@/hooks", () => ({
   useSecrets: () => ({ secrets: listedSecrets(), create: { mutate: vi.fn(), isPending: false } }),
 }));
 
+// The real one signs in with ChatGPT through the vault. What is asserted here is
+// only that the picker renders it in place of a key field.
+vi.mock("@/components/vault/chatgpt-sign-in", () => ({
+  InlineChatGPTSignIn: () => <p>ChatGPT sign-in form</p>,
+}));
+
 const purpose = (
   id: string,
   label: string,
@@ -70,6 +76,13 @@ const profile = (id: string, provider: string, model: string): ModelProfile => (
 async function pickProvider(label: string) {
   await userEvent.click(screen.getByRole("combobox", { name: "Provider" }));
   await userEvent.click(screen.getByRole("option", { name: new RegExp(label) }));
+}
+
+/** An id the provider's catalog does not list, through the Builder's own picker. */
+async function typeModel(id: string) {
+  await userEvent.click(screen.getByLabelText("Model"));
+  await userEvent.type(screen.getByPlaceholderText("Search models…"), id);
+  await userEvent.click(screen.getByText("not in the list"));
 }
 
 beforeEach(() => {
@@ -122,7 +135,7 @@ describe("the chat's two-step model picker", () => {
     render(<ChatModelPicker value={null} agentModel={null} onChange={onChange} />);
 
     await pickProvider("OpenAI");
-    await userEvent.type(screen.getByLabelText("Model"), "gpt-5");
+    await typeModel("gpt-5");
     await userEvent.click(screen.getByRole("button", { name: "Run on this model" }));
 
     expect(onChange).toHaveBeenCalledWith("p1");
@@ -136,7 +149,7 @@ describe("the chat's two-step model picker", () => {
     render(<ChatModelPicker value={null} agentModel={null} onChange={onChange} />);
 
     await pickProvider("OpenAI");
-    await userEvent.type(screen.getByLabelText("Model"), "gpt-6");
+    await typeModel("gpt-6");
     await userEvent.click(screen.getByRole("button", { name: "Run on this model" }));
 
     expect(mutateAsync).toHaveBeenCalledWith({
@@ -155,7 +168,7 @@ describe("the chat's two-step model picker", () => {
     render(<ChatModelPicker value={null} agentModel={null} onChange={onChange} />);
 
     await pickProvider("OpenAI");
-    await userEvent.type(screen.getByLabelText("Model"), "gpt-6");
+    await typeModel("gpt-6");
     await userEvent.click(screen.getByRole("button", { name: "Run on this model" }));
 
     expect(screen.getByText(/No OpenAI key in the vault yet/)).toBeInTheDocument();
@@ -176,6 +189,24 @@ describe("the chat's two-step model picker", () => {
     expect(screen.getByRole("link", { name: /Open the Vault/ })).toBeInTheDocument();
   });
 
+  it("offers a ChatGPT sign-in, not a key field, for a subscription", async () => {
+    // There is no key to paste: the credential is an OAuth grant.
+    PURPOSES.push({
+      ...purpose("openai_codex", "ChatGPT (Codex subscription)", "model_provider"),
+      kind: "openai_codex",
+    });
+    try {
+      render(<ChatModelPicker value={null} agentModel={null} onChange={vi.fn()} />);
+
+      await pickProvider("ChatGPT");
+
+      expect(screen.getByText("ChatGPT sign-in form")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Add a key/ })).toBeNull();
+    } finally {
+      PURPOSES.pop();
+    }
+  });
+
   it("offers nothing once the provider has a key", async () => {
     listedSecrets.mockReturnValue([{ id: "s-1", purpose: "openai" }]);
     render(<ChatModelPicker value={null} agentModel={null} onChange={vi.fn()} />);
@@ -191,22 +222,23 @@ describe("the chat's two-step model picker", () => {
     render(<ChatModelPicker value={null} agentModel={null} onChange={vi.fn()} />);
 
     await pickProvider("OpenRouter");
-    await userEvent.type(screen.getByLabelText("Model"), "gpt-5");
+    await typeModel("gpt-5");
 
     expect(screen.getByRole("button", { name: "Run on this model" })).toBeDisabled();
   });
 
-  it("suggests the provider's published models without constraining the field", async () => {
+  it("offers the provider's published models, and still takes one it does not list", async () => {
     listedModels.mockReturnValue([{ id: "gpt-5", name: "GPT-5" }]);
     render(<ChatModelPicker value={null} agentModel={null} onChange={vi.fn()} />);
 
     await pickProvider("OpenAI");
+    await userEvent.click(screen.getByLabelText("Model"));
+    expect(screen.getByText("GPT-5")).toBeInTheDocument();
 
-    const input = screen.getByLabelText("Model");
-    expect(input).toHaveAttribute("list", "chat-model-suggestions");
     // Free text still allowed - the list is suggestions, not a constraint.
-    await userEvent.type(input, "gpt-6-preview");
-    expect(input).toHaveValue("gpt-6-preview");
+    await userEvent.type(screen.getByPlaceholderText("Search models…"), "gpt-6-preview");
+    await userEvent.click(screen.getByText("not in the list"));
+    expect(screen.getByLabelText("Model")).toHaveTextContent("gpt-6-preview");
   });
 
   it("names the profile the conversation currently runs on", () => {

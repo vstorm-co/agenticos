@@ -5,6 +5,7 @@ import { Check, KeyRound, Plus } from "lucide-react";
 
 import { NO_FAILURE, submitFailure } from "@/lib/api-error";
 import { ModelCombobox } from "@/components/agents/model-combobox";
+import { InlineChatGPTSignIn } from "@/components/vault/chatgpt-sign-in";
 import { InlineSecret } from "@/components/vault/inline-secret";
 import { ProviderRow } from "@/components/vault/provider-row";
 import {
@@ -452,7 +453,14 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
                   ? t("noProviderKeyAddOneHere", { provider: provider.label })
                   : t("noProviderKeyAskSomebody", { provider: provider.label })}
               </p>
-              {canStoreKey && (
+              {canStoreKey && provider.kind === "openai_codex" && (
+                <InlineChatGPTSignIn
+                  suggestedName={provider.label}
+                  onCreated={chooseKey}
+                  disabled={disabled}
+                />
+              )}
+              {canStoreKey && provider.kind !== "openai_codex" && (
                 <InlineSecret
                   kind="api_key"
                   purpose={provider.id}

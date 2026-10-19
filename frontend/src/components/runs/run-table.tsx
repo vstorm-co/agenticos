@@ -12,6 +12,7 @@ import { ProviderIcon } from "@/components/vault/provider-icon";
 import { Badge, DataTable, EntityAvatar, type Column } from "@/components/ui";
 import { useAuthStore } from "@/stores";
 import { ROUTES } from "@/lib/constants";
+import { modelShortName } from "@/lib/model-profiles";
 import { formatDateTime, formatRunDuration, timeAgo } from "@/lib/utils";
 import type { AgentRun } from "@/types/runs";
 
@@ -64,7 +65,10 @@ export function RunTable({
   /** Names for the Agent column, keyed by id. Given only by a caller whose
    * reader holds agents:view - the column is withheld, not dashed out, when
    * the names cannot be resolved. */
-  agentsById?: Map<string, { name: string; slug: string; has_avatar?: boolean }>;
+  agentsById?: Map<
+    string,
+    { name: string; slug: string; has_avatar?: boolean; avatar_color?: number | null }
+  >;
   /** Faces for the User column, from the member list any member may read. */
   membersById?: Map<string, IdentifiedMember>;
 }) {
@@ -76,6 +80,29 @@ export function RunTable({
   const tokenCount = new Intl.NumberFormat(locale);
   const meId = useAuthStore((state) => state.user?.id ?? null);
   const sortable = sort !== undefined && onSort !== undefined;
+
+  /** The agent's face and name, or nothing when the reader cannot resolve it. */
+  const agentLabel = (run: AgentRun) => {
+    const agent = agentsById?.get(run.agent_id);
+    if (agent === undefined) return null;
+    return (
+      <>
+        <span aria-hidden>
+          <AgentAvatar
+            agentId={run.agent_id}
+            slug={agent.slug}
+            hasAvatar={agent.has_avatar ?? false}
+            colorSlot={agent.avatar_color}
+            size="sm"
+            className="h-5 w-5"
+          />
+        </span>
+        <span className="truncate" title={agent.name}>
+          {agent.name}
+        </span>
+      </>
+    );
+  };
 
   const columns: Column<AgentRun>[] = [
     {
@@ -96,6 +123,7 @@ export function RunTable({
                 className="text-destructive h-3.5 w-3.5 shrink-0"
               />
             )}
+            {run.is_test && <Badge variant="outline">{t("testRun")}</Badge>}
           </div>
           {run.parent_run_id !== null && (
             <Badge variant="outline" className="block w-fit" title={t("delegatedCostIsAlreadyIn")}>
@@ -109,6 +137,16 @@ export function RunTable({
                 : t("delegatedTask", { taskId: run.subagent_task_id })}
             </Badge>
           )}
+          {/* On a phone the row is this cell and the cost: who ran and when,
+              folded under the status rather than six columns swiped sideways. */}
+          <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs sm:hidden">
+            {agentLabel(run)}
+            {run.started_at !== null && (
+              <span className="shrink-0 whitespace-nowrap">
+                · {timeAgo(run.started_at, tTime, locale)}
+              </span>
+            )}
+          </span>
         </div>
       ),
     },
@@ -116,28 +154,18 @@ export function RunTable({
       ? ([
           {
             key: "agent",
+            hideBelow: "sm",
             header: t("agentColumn"),
             cell: (run) => {
-              const agent = agentsById.get(run.agent_id);
-              if (agent === undefined) {
+              const label = agentLabel(run);
+              if (label === null) {
                 return <span className="text-muted-foreground text-xs">-</span>;
               }
               return (
                 // One line: a two-word agent name wrapping made its row taller
                 // than every row around it, and the list stopped reading as one.
-                <span className="flex items-center gap-2 text-xs whitespace-nowrap">
-                  <span aria-hidden>
-                    <AgentAvatar
-                      agentId={run.agent_id}
-                      slug={agent.slug}
-                      hasAvatar={agent.has_avatar ?? false}
-                      size="sm"
-                      className="h-5 w-5"
-                    />
-                  </span>
-                  <span className="max-w-[10rem] truncate" title={agent.name}>
-                    {agent.name}
-                  </span>
+                <span className="flex max-w-[12rem] items-center gap-2 text-xs whitespace-nowrap">
+                  {label}
                 </span>
               );
             },
@@ -148,6 +176,7 @@ export function RunTable({
       ? ([
           {
             key: "user",
+            hideBelow: "sm",
             header: t("personColumn"),
             cell: (run) => {
               const member = run.user_id === null ? undefined : membersById.get(run.user_id);
@@ -174,37 +203,55 @@ export function RunTable({
       : []),
     {
       key: "surface",
+      hideBelow: "sm",
       header: t("surface"),
       // The mark and the name together: the mark is what makes a column of
-      // fifty rows scannable, the name is what a screen reader hears.
-      cell: (run) => (
-        <span className="text-muted-foreground flex items-center gap-1.5 whitespace-nowrap">
-          <SurfaceIcon surface={run.surface} />
-          {surfaceLabel(run.surface, t)}
-        </span>
-      ),
+      // fifty rows scannable, the name is what a screen reader hears. Under
+      // them, what the run was asked - which is how a run is found again to
+      // become a dataset case.
+      cell: (run) => {
+        const asked =
+          run.preview &&
+          (run.eval_case?.graded ? t("grading", { input: run.preview }) : run.preview);
+        return (
+          <span className="text-muted-foreground block">
+            <span className="flex items-center gap-1.5 whitespace-nowrap">
+              <SurfaceIcon surface={run.surface} />
+              {surfaceLabel(run.surface, t)}
+            </span>
+            {asked && (
+              <span className="block max-w-56 truncate text-xs" title={asked}>
+                {asked}
+              </span>
+            )}
+          </span>
+        );
+      },
     },
     {
       key: "model",
+      hideBelow: "sm",
       header: t("model"),
       // The vendor's mark beside the profile label, the way the Builder's
       // current-model row draws it - one presentation for a model everywhere.
-      // One line, truncated, with the whole label in the title: a model name
+      // The model alone, the vendor's mark saying whose it is; one line,
+      // truncated, with the whole label in the title: a model name
       // wrapping over three lines makes every row in the list three rows tall,
       // and the list is narrow whenever the run detail is open beside it.
       cell: (run) => (
-        <span className="flex items-center gap-1.5 font-mono text-xs">
+        <span className="flex items-center gap-1.5 text-xs">
           {run.provider !== null && (
             <ProviderIcon provider={run.provider} className="h-3.5 w-3.5 shrink-0" />
           )}
           <span className="max-w-[11rem] truncate" title={run.model_label ?? undefined}>
-            {run.model_label ?? "-"}
+            {run.model_label === null ? "-" : modelShortName(run.model_label)}
           </span>
         </span>
       ),
     },
     {
       key: "tokens",
+      hideBelow: "sm",
       header: t("tokens"),
       align: "right",
       sortable,
@@ -218,6 +265,7 @@ export function RunTable({
       key: "cost",
       header: t("cost"),
       align: "right",
+      className: "max-sm:pr-5",
       sortable,
       cell: (run) => (
         <span className="font-mono text-xs whitespace-nowrap">
@@ -232,6 +280,7 @@ export function RunTable({
     },
     {
       key: "duration",
+      hideBelow: "sm",
       header: t("took"),
       align: "right",
       sortable,
@@ -246,6 +295,7 @@ export function RunTable({
     },
     {
       key: "started_at",
+      hideBelow: "sm",
       header: t("started"),
       sortable,
       // Relative on the row, absolute on hover: a feed is scanned as "how long
@@ -265,6 +315,7 @@ export function RunTable({
     },
     {
       key: "conversation",
+      hideBelow: "sm",
       header: "",
       align: "right",
       className: "pr-5",
@@ -301,7 +352,9 @@ export function RunTable({
       onRowClick={onOpen}
       isRowActive={openRunId == null ? undefined : (run) => run.id === openRunId}
       fillHeight={fillHeight}
-      className="rounded-none border-0 bg-transparent [&_table]:min-w-[46rem]"
+      // Wide enough for every column from the small breakpoint up; a phone
+      // shows two columns and needs no floor.
+      className="rounded-none border-0 bg-transparent sm:[&_table]:min-w-[46rem]"
     />
   );
 }

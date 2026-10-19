@@ -49,7 +49,7 @@ export function AgentStatusBadge({ status }: { status: AgentStatus }) {
 }
 
 /**
- * `budget_exceeded` and `guardrail_blocked` read as a warning, not an error.
+ * `budget_exceeded`, `guardrail_blocked` and `loop_stopped` read as a warning, not an error.
  *
  * Each is the platform working as designed - a cap reached, a rule enforced -
  * and colouring it like a crash makes operators chase a problem that is not one.
@@ -58,8 +58,10 @@ const RUN_DOT: Record<RunStatus, string> = {
   completed: "bg-success",
   running: "bg-brand animate-pulse",
   awaiting_approval: "bg-warning",
+  awaiting_answer: "bg-warning",
   budget_exceeded: "bg-warning",
   guardrail_blocked: "bg-warning",
+  loop_stopped: "bg-warning",
   cancelled: "bg-muted-foreground/50",
   failed: "bg-destructive",
 };
@@ -70,8 +72,10 @@ export const RUN_LABEL: Record<RunStatus, string> = {
   completed: "runCompleted",
   running: "runRunning",
   awaiting_approval: "runAwaitingApproval",
+  awaiting_answer: "runAwaitingAnswer",
   budget_exceeded: "runBudgetExceeded",
   guardrail_blocked: "runGuardrailBlocked",
+  loop_stopped: "runLoopStopped",
   cancelled: "runCancelled",
   failed: "runFailed",
 };
@@ -79,7 +83,7 @@ export const RUN_LABEL: Record<RunStatus, string> = {
 export function RunStatusBadge({ status }: { status: RunStatus }) {
   const t = useTranslations("agents");
   return (
-    <Badge variant="outline" className="text-muted-foreground">
+    <Badge variant="outline" className="text-muted-foreground whitespace-nowrap">
       <StatusDot className={RUN_DOT[status]} />
       {t(RUN_LABEL[status])}
     </Badge>

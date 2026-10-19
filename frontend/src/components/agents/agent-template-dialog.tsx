@@ -28,10 +28,13 @@ import {
   DialogTitle,
 } from "@/components/ui";
 import { ErrorState, LoadingState } from "@/components/states";
-import { DIALOG_CANVAS, DIALOG_FILL } from "@/lib/dialog-sizes";
+import { DIALOG_CANVAS, DIALOG_FILL, DIALOG_SCROLL_GUTTER } from "@/lib/dialog-sizes";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { useAgentTemplates } from "@/hooks/use-agent-templates";
+import { useCapabilityGuide } from "@/hooks/use-capability-guide";
+import { useMcpCatalog } from "@/hooks/use-mcp-servers";
+import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
 import type { AgentTemplate, TemplateIndustry } from "@/types/providers";
 
 /** Icon per industry directory. An id with no entry falls back rather than blank. */
@@ -110,7 +113,7 @@ function IndustryCards({
   const t = useTranslations("agentTemplates");
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto">
+    <div className={cn("min-h-0 flex-1 overflow-y-auto", DIALOG_SCROLL_GUTTER)}>
       <div className="grid grid-cols-1 gap-4 p-1 sm:grid-cols-2 lg:grid-cols-3">
         {industries.map((industry) => {
           const Icon = INDUSTRY_ICONS[industry.id] ?? Library;
@@ -156,7 +159,7 @@ function IndustryTemplates({
         {t("back")}
       </Button>
 
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-1">
+      <div className={cn("min-h-0 flex-1 space-y-3 overflow-y-auto p-1", DIALOG_SCROLL_GUTTER)}>
         {industry.templates.map((template) => (
           <TemplateRow
             key={template.key}
@@ -183,6 +186,8 @@ function TemplateRow({
   onInstall: () => void;
 }) {
   const t = useTranslations("agentTemplates");
+  const guide = useCapabilityGuide();
+  const { servers } = useMcpCatalog();
 
   return (
     <div className="flex items-start justify-between gap-4 rounded-lg border p-4">
@@ -195,10 +200,11 @@ function TemplateRow({
         </div>
         <p className="text-muted-foreground text-sm">{template.description}</p>
 
+        {/* Named the way the Toolbox names them, not by registry id. */}
         <div className="flex flex-wrap gap-1.5">
           {template.capabilities.map((id) => (
             <Badge key={id} variant="secondary">
-              {id}
+              {guide(id)?.name ?? id}
             </Badge>
           ))}
         </div>
@@ -208,16 +214,24 @@ function TemplateRow({
             {t("bringsSkills", { count: template.skills.length })}
           </p>
         ) : null}
-        {template.attach.length > 0 ? (
-          // The honest part: it arrives as a draft and this is what is missing.
-          <p className="text-xs text-amber-600 dark:text-amber-500">
-            {t("needsAttaching", { what: template.attach.join(", ") })}
-          </p>
-        ) : null}
         {template.mcp.length > 0 ? (
-          <p className="text-muted-foreground text-xs">
-            {t("suggestsMcp", { servers: template.mcp.join(", ") })}
-          </p>
+          <div className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs">
+            <span>{t("suggestsMcp")}</span>
+            {template.mcp.map((key) => {
+              const server = servers.find((entry) => entry.key === key);
+              return (
+                <span key={key} className="text-foreground inline-flex items-center gap-1.5">
+                  <McpServerIcon
+                    icon={server?.icon ?? null}
+                    name={server?.name ?? key}
+                    url={server?.url}
+                    className="size-3.5"
+                  />
+                  {server?.name ?? key}
+                </span>
+              );
+            })}
+          </div>
         ) : null}
       </div>
 

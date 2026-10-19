@@ -32,6 +32,7 @@ from app.repositories import agent as agent_repo
 from app.repositories import conversation_search as search_repo
 from app.repositories import user as user_repo
 from app.services.channels import membership as channel_membership
+from app.services.conversation import ConversationService
 
 MAX_TURNS_PER_READ = 60
 """How many turns one `read_conversation` call returns.
@@ -90,7 +91,8 @@ async def _readable(
     participant_ids = await channel_membership.confirmed_participant_threads(
         db, user_id=user_id, organization_id=organization_id
     )
-    return search_repo.readable_by(user_id, participant_ids)
+    project_ids = await ConversationService(db).visible_project_ids(user_id, organization_id)
+    return search_repo.readable_by(user_id, participant_ids, project_ids)
 
 
 async def search(
@@ -147,12 +149,12 @@ async def read(
             [turn.agent_id for turn in window if turn.agent_id is not None],
             organization_id=organization_id,
         )
-        # The owner names every turn a person typed into the dashboard: those rows
-        # carry no chat identity, because there is only ever one human in a thread
-        # that came from the console.
+        # A console turn names whoever typed it. One older than that column, outside
+        # a project, was its owner's: nobody else could type there. In a project's
+        # chat several people do, and an unsigned turn is nobody's to name.
         owner = (
             None
-            if conversation.user_id is None
+            if conversation.user_id is None or conversation.project_id is not None
             else await user_repo.get_by_id(db, conversation.user_id)
         )
         owner_name = None if owner is None else (owner.full_name or owner.email)

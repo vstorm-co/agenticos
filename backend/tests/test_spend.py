@@ -6,6 +6,7 @@ unpriced rather than silently free.
 """
 
 import asyncio
+import uuid
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
@@ -322,6 +323,42 @@ class TestSeveralCapsAtOnce:
 
         assert exc.value.scope is BudgetScope.ORGANIZATION
         assert "Organization monthly budget exhausted" in str(exc.value)
+
+    @pytest.mark.anyio
+    async def test_two_departments_are_two_quantities_and_the_refusal_names_which(self):
+        """A person in Finance and Sales is under both caps, each on its own month (#2072).
+
+        Cached under the scope alone, the second department would read the
+        first one's baseline - Sales' $1 of $5 would be checked as Finance's $9.
+        """
+        finance, sales = uuid.uuid4(), uuid.uuid4()
+        guard = BudgetGuard(
+            ledger=SpendLedger(),
+            limits=[
+                SpendLimit(
+                    scope=BudgetScope.GROUP,
+                    limit_usd=Decimal("100"),
+                    period_spend=AsyncMock(return_value=Decimal("9")),
+                    subject_id=finance,
+                    subject_name="Finance",
+                ),
+                SpendLimit(
+                    scope=BudgetScope.GROUP,
+                    limit_usd=Decimal("5"),
+                    period_spend=AsyncMock(return_value=Decimal("5")),
+                    subject_id=sales,
+                    subject_name="Sales",
+                ),
+            ],
+        )
+
+        with pytest.raises(BudgetExceeded) as exc:
+            await self._run(guard, _response("gpt-4.1"))
+
+        assert exc.value.scope is BudgetScope.GROUP
+        assert str(exc.value).startswith("Sales department monthly budget exhausted")
+        assert set(guard.run_state.baselines) == {f"group:{finance}", f"group:{sales}"}
+        assert BudgetScope.GROUP.label == "Department monthly"
 
     @pytest.mark.anyio
     async def test_a_cap_with_no_lookup_meters_only_this_run(self):

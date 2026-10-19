@@ -1,5 +1,5 @@
 ---
-source_sha: "30ce1d601d1d"
+source_sha: "766fff0cee12"
 title: "AgenticOS vs Claude Code"
 seo_title: "AgenticOS vs Claude Code: Firmen-Agents oder Coding-Agent"
 description: "Claude Code ist ein Coding-Agent für Entwickler, AgenticOS eine Open-Source-Plattform für KI-Agents im Unternehmen. Die Unterschiede und wie Sie beide nutzen."
@@ -21,7 +21,7 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. Agen
 | Woran es arbeitet | Ein Code-Repository und eine Shell | Unternehmensdokumente, Werkzeuge und Systeme, über Capabilities und MCP |
 | Wo es läuft | Entwicklerrechner; Cloud-Sessions auf der Infrastruktur von Anthropic oder Ihrer eigenen | Ihre Infrastruktur, als gemeinsamer Dienst |
 | Quellcode | Proprietär: "All rights reserved" | Apache-2.0 |
-| Modelle | Nur Claude, über Anthropic, Bedrock, Vertex oder Foundry | 27 Provider, Claude eingeschlossen |
+| Modelle | Nur Claude, über Anthropic, Bedrock, Vertex oder Foundry | 28 Provider, Claude eingeschlossen |
 | Endnutzer | Der Entwickler an der Tastatur | Mitarbeiter, Kunden und Systeme, auf acht Oberflächen |
 | Freigaben | Der Entwickler oder ein Klassifikator im Auto-Modus | Eine Person mit `approvals:decide`, aus einer gemeinsamen Warteschlange |
 | Ausgabenkontrolle | Tarifkontingent oder API-Abrechnung; `--max-budget-usd` pro Run | Ein monatliches Budget pro Agent und pro Organisation |
@@ -75,7 +75,7 @@ Ja. AgenticOS wird in typisiertem Python erweitert, und eine Capability, die mit
 
 ### Können AgenticOS-Agents Claude-Modelle nutzen? { #can-agenticos-agents-use-claude-models }
 
-Ja, über die Anthropic API oder Amazon Bedrock, zwei der 27 Provider, die AgenticOS unterstützt.
+Ja, über die Anthropic API oder Amazon Bedrock, zwei der 28 Provider, die AgenticOS unterstützt.
 
 ### Ist Claude Code Open Source? { #is-claude-code-open-source }
 

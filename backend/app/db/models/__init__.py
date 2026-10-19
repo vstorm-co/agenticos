@@ -11,6 +11,8 @@ from app.db.models.rag_document_claim import RAGDocumentClaim
 from app.db.models.sync_log import SyncLog
 from app.db.models.sync_source import SyncSource
 from app.db.models.conversation_favourite import ConversationFavourite
+from app.db.models.conversation_last_read import ConversationLastRead
+from app.db.models.browser_sign_in import BrowserSignIn
 from app.db.models.conversation_share import ConversationShare
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.channel_identity import ChannelIdentity
@@ -28,6 +30,7 @@ from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.dashboard_preset import DashboardPreset
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.mcp_registry_server import McpRegistryServer
+from app.db.models.mcp_server_check import McpServerCheck
 from app.db.models.agent_embed import AgentEmbed
 from app.db.models.embed_visitor import EmbedVisitor
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
@@ -48,6 +51,16 @@ from app.db.models.intercepted_tool_call import (
     InterceptionOutcome,
     InterceptionReason,
 )
+from app.db.models.eval_run import (
+    ArmRole,
+    ArmSource,
+    CaseAttemptStatus,
+    EvalRun,
+    EvalRunArm,
+    EvalRunCase,
+    EvalRunPurpose,
+    EvalRunStatus,
+)
 from app.db.models.ingestion_spend import IngestionSpend
 from app.db.models.ml_service_call import MLCallStatus, MLServiceCall
 from app.db.models.purged_run_spend import PurgedRunSpend
@@ -64,13 +77,43 @@ from app.db.models.notification import Notification, NotificationChannel, Notifi
 from app.db.models.notification_delivery import DeliveryStatus, NotificationDelivery
 from app.db.models.notification_preference import NotificationChannelPreference
 from app.db.models.announcement import Announcement
-from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
+from app.db.models.api_key import ApiKey
+from app.db.models.organization_assistant import OrganizationAssistant
+from app.db.models.channel_prompt import ChannelPrompt
+from app.db.models.external_agent import ExternalAgent
+from app.db.models.project import Project
+from app.db.models.oauth import (
+    OAuthAuthorizationCode,
+    OAuthAuthorizationRequest,
+    OAuthClient,
+    OAuthGrant,
+    OAuthRefreshToken,
+)
+from app.db.models.artifact import (
+    Artifact,
+    ArtifactFollower,
+    ArtifactMediaType,
+    ArtifactVersion,
+)
 from app.db.models.case_score import CaseScore
 from app.db.models.dataset import Dataset, DatasetCase, DatasetVersion, DatasetVersionCase
 from app.db.models.case_generation import CaseGeneration, CaseProposal
+from app.db.models.visual import Visual
 
 __all__ = [
+    "Visual",
+    "ApiKey",
+    "BrowserSignIn",
+    "OrganizationAssistant",
+    "ChannelPrompt",
+    "ExternalAgent",
+    "OAuthAuthorizationCode",
+    "OAuthAuthorizationRequest",
+    "OAuthClient",
+    "OAuthGrant",
+    "OAuthRefreshToken",
     "Artifact",
+    "ArtifactFollower",
     "ArtifactMediaType",
     "ArtifactVersion",
     "CaseGeneration",
@@ -92,6 +135,7 @@ __all__ = [
     "SyncLog",
     "SyncSource",
     "ConversationFavourite",
+    "ConversationLastRead",
     "ConversationShare",
     "ChannelBot",
     "ChannelIdentity",
@@ -111,6 +155,7 @@ __all__ = [
     "DashboardPreset",
     "McpConnection",
     "McpRegistryServer",
+    "McpServerCheck",
     "AgentEmbed",
     "EmbedVisitor",
     "Agent",
@@ -130,6 +175,14 @@ __all__ = [
     "AgentRun",
     "RunManifest",
     "InterceptedToolCall",
+    "EvalRun",
+    "EvalRunArm",
+    "EvalRunCase",
+    "EvalRunStatus",
+    "EvalRunPurpose",
+    "ArmRole",
+    "ArmSource",
+    "CaseAttemptStatus",
     "InterceptionOutcome",
     "InterceptionReason",
     "IngestionSpend",
@@ -142,6 +195,7 @@ __all__ = [
     "ApprovalStatus",
     "ModelProfile",
     "OrganizationSecret",
+    "Project",
     "ContextFile",
     "ContextMode",
     "AgentMemoryFile",

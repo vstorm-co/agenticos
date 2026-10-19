@@ -33,6 +33,10 @@ export interface WidgetConfig {
   accent: string;
   position: "left" | "right";
   launcher_label: string;
+  /** Up to four suggested first messages, offered under the greeting (#2006). */
+  quick_replies: string[];
+  /** Name the documents an answer drew on - the names only, never the passages. */
+  show_sources: boolean;
 }
 
 /**
@@ -181,6 +185,8 @@ export const DEFAULT_WIDGET_CONFIG: WidgetConfig = {
   accent: "#4f46e5",
   position: "right",
   launcher_label: "Chat",
+  quick_replies: [],
+  show_sources: false,
 };
 
 export const DEFAULT_SOCKET_CONFIG: SocketConfig = { kind: "socket" };

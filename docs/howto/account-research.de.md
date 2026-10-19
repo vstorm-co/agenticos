@@ -1,5 +1,5 @@
 ---
-source_sha: "bfce080544ad"
+source_sha: "58528fa9516e"
 title: "Sich vor einem Anruf über ein Unternehmen informieren"
 description: "Recherchieren Sie eine öffentliche Organisation mit Websuche und Web-Abruf und erhalten Sie ein einseitiges Briefing, in dem jede Tatsache ihre Quelle und ihr Datum trägt."
 ---
@@ -17,7 +17,7 @@ Bauen Sie einen Agent, der eine Organisation recherchiert und vor einem Anruf ei
 ## Den Agent bauen { #build-the-agent }
 
 1. Erstellen Sie unter **Agents → New agent** einen Agent und wählen Sie Ihr Modellprofil.
-2. Aktivieren Sie in der **Toolbox** **Web search** (Methode DuckDuckGo) und **Web fetch**.
+2. Aktivieren Sie in der **Toolbox** **Web search** (Methode DuckDuckGo) und **Read web pages**.
 3. Legen Sie Budget und Schrittlimit für den Versuch fest. Der festgehaltene Run nutzte 20 Schritte und kostete etwa 0,26 USD.
 4. Setzen Sie die Instruktionen unten und klicken Sie dann auf **Publish**.
 

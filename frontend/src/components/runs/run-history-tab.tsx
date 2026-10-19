@@ -1,8 +1,11 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Activity, ThumbsDown } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import { getErrorMessage } from "@/lib/api-error";
 import { ExportMenu } from "@/components/runs/export-menu";
@@ -21,7 +24,9 @@ import {
   ListCardFootRow,
   PaginationBar,
 } from "@/components/ui";
+import { ROUTES } from "@/lib/constants";
 import { useAgents, useMembers, usePermissions, useRuns } from "@/hooks";
+import { useJudges } from "@/hooks/use-agents";
 import { useOrgStore } from "@/stores";
 import { formatPeriodParam, periodEnd, periodStart, type Period } from "@/lib/dashboard/period";
 import { isNarrowed, type RunFilters } from "@/lib/runs/filter-params";
@@ -29,11 +34,19 @@ import { setUrlParam } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 import type { RunStatus } from "@/types/runs";
 
-/** "What went wrong" as one choice - the query the two statuses exist apart for. */
-const PROBLEM_STATUSES: RunStatus[] = ["failed", "budget_exceeded"];
+/** "What went wrong" as one choice - the query the statuses exist apart for. */
+const PROBLEM_STATUSES: RunStatus[] = ["failed", "budget_exceeded", "loop_stopped"];
 
 /** One server page - `GET /runs`' own default, so an unpaged call reads the same. */
 const PAGE_SIZE = 50;
+
+/**
+ * The eval traffic - an eval run answering a dataset, and the judge grading it -
+ * is left out unless asked for: one run of a hundred cases buries every person.
+ * `all` is everything else, `every` puts it back, and `eval` is it alone.
+ */
+const EVAL_SURFACE = "eval";
+const WIDE_SURFACES = new Set(["all", "every"]);
 
 /**
  * Run history, and whichever sentence says what it has been narrowed to.
@@ -68,6 +81,7 @@ export function RunHistoryTab({
   onFocusRun,
   focusedRunId = null,
   initialDurationSort = false,
+  periodControl,
 }: {
   agentId: string | null;
   period: Period;
@@ -76,12 +90,18 @@ export function RunHistoryTab({
   onFiltersChange: (filters: RunFilters) => void;
   onAgentChange: (agentId: string | null) => void;
   onFocusRun: (runId: string | null) => void;
+  /**
+   * The page's window, drawn first among this tab's own filters: it narrows
+   * the same table they do, so it sits with them rather than in a band above.
+   */
+  periodControl?: ReactNode;
   /** Which run the detail panel is showing, so its row reads as the open one. */
   focusedRunId?: string | null;
   initialDurationSort?: boolean;
 }) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("pages.runs");
+  const router = useRouter();
   const { can } = usePermissions();
   const canView = can(Perm.runsView);
   // Names and faces for the table's Agent and User columns. The agent list
@@ -89,11 +109,13 @@ export function RunHistoryTab({
   // column is too. The member list is any member's to read.
   const canAgents = can(Perm.agentsView);
   const { agents: agentRows } = useAgents({ enabled: canAgents });
+  // Judges are agents every other list leaves out, and their grading runs here too.
+  const { agents: judges } = useJudges({ enabled: canAgents });
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const { members } = useMembers(activeOrgId ?? "");
   const agentsById = useMemo(
-    () => new Map(agentRows.map((agent) => [agent.id, agent])),
-    [agentRows],
+    () => new Map([...agentRows, ...judges].map((agent) => [agent.id, agent])),
+    [agentRows, judges],
   );
   const membersById = useMemo(
     () => new Map(members.map((member) => [member.user_id, member])),
@@ -155,10 +177,12 @@ export function RunHistoryTab({
         : filters.status === "problems"
           ? PROBLEM_STATUSES
           : [filters.status],
-    surface: filters.surface === "all" ? undefined : filters.surface,
+    surface: WIDE_SURFACES.has(filters.surface) ? undefined : filters.surface,
+    excludeSurface: filters.surface === "all" ? EVAL_SURFACE : undefined,
     modelLabel: filters.model === "all" ? undefined : filters.model,
     userId: filters.userId === "all" ? undefined : filters.userId,
     agentVersionId: filters.versionId === "all" ? undefined : filters.versionId,
+    isTest: filters.test === "all" ? undefined : filters.test === "only",
     skip: page * PAGE_SIZE,
     // Not asked without the permission: `GET /runs` refuses that caller, so the
     // request would be a predictable 403 drawn as a failure card below.
@@ -178,11 +202,13 @@ export function RunHistoryTab({
     exportParams.status =
       filters.status === "problems" ? PROBLEM_STATUSES.join(",") : filters.status;
   }
-  if (filters.surface !== "all") exportParams.surface = filters.surface;
+  if (!WIDE_SURFACES.has(filters.surface)) exportParams.surface = filters.surface;
+  if (filters.surface === "all") exportParams.exclude_surface = EVAL_SURFACE;
   if (filters.model !== "all") exportParams.model_label = filters.model;
   if (filters.rated !== "all") exportParams.rated = filters.rated;
   if (filters.userId !== "all") exportParams.user_id = filters.userId;
   if (filters.versionId !== "all") exportParams.agent_version_id = filters.versionId;
+  if (filters.test !== "all") exportParams.test = String(filters.test === "only");
 
   return (
     // A column that fills the height its caller gives it: the filters and the
@@ -244,6 +270,7 @@ export function RunHistoryTab({
                   control with nothing to do. */}
               {canView && (
                 <ListCardControlsRow className="shrink-0">
+                  {periodControl}
                   <RunFilterBar
                     filters={filters}
                     period={period}
@@ -294,6 +321,7 @@ export function RunHistoryTab({
                     icon={Activity}
                     title={t("noRunsInWindow")}
                     description={t("widenTheWindowAbove")}
+                    cta={{ label: t("askAnAgent"), onClick: () => router.push(ROUTES.CHAT) }}
                   />
                 )
               ) : (

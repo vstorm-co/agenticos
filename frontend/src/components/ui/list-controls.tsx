@@ -11,6 +11,27 @@ import { useTranslations } from "next-intl";
 /** What a page holds before somebody has to ask for the next one. */
 export const PAGE_SIZE = 50;
 
+/** What a page of a picker holds: cards with a description each, in a side panel. */
+export const PICKER_PAGE_SIZE = 10;
+
+/**
+ * A picker's items with the ones already chosen first, in their own order.
+ *
+ * The choice is read once, when the picker opens: a card that jumped to the top
+ * the moment it was ticked would move out from under the pointer, and the next
+ * click would land on its neighbour.
+ */
+export function useChosenFirst<T extends { id: string }>(items: T[], selectedIds: string[]): T[] {
+  const [chosen] = useState(() => new Set(selectedIds));
+  return useMemo(
+    () => [
+      ...items.filter((item) => chosen.has(item.id)),
+      ...items.filter((item) => !chosen.has(item.id)),
+    ],
+    [items, chosen],
+  );
+}
+
 /**
  * Search, filter and paging over a list the client already holds.
  *
@@ -87,12 +108,16 @@ export function SearchInput({
   onChange,
   placeholder,
   className,
+  label,
   autoFocus = false,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
   className?: string;
+  /** What the box searches, for a screen reader, where the placeholder is a
+   *  single word the column it sits in leaves room for. Defaults to it. */
+  label?: string;
   /** For a caller that opened this box *in order to* search - the chat's
    *  collapsed rail. Off everywhere else: a box that grabs the cursor on every
    *  page load takes it from whatever somebody was typing in. */
@@ -100,14 +125,16 @@ export function SearchInput({
 }) {
   return (
     <div className={cn("relative w-full sm:w-64", className)}>
-      <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+      <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2" />
+      {/* The height of the filters beside it; still 16px on a phone, where iOS
+          zooms into anything smaller. */}
       <Input
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        aria-label={placeholder}
+        aria-label={label ?? placeholder}
         autoFocus={autoFocus}
-        className="pl-9"
+        className="border-foreground/12 h-8 rounded-lg border pl-8 md:text-[13px]"
       />
     </div>
   );

@@ -44,10 +44,23 @@ interface VersionHistoryProps {
   /** Repoint one environment at this row's version - promotion. */
   onPromote?: (environmentId: string, versionId: string) => void;
   promoting?: boolean;
+  /**
+   * The comparison to open on, by version number - an eval run's "what
+   * changed" link names the two sides it measured.
+   */
+  compareFrom?: number | null;
+  compareTo?: number | "draft" | "tested";
+  /**
+   * A spec an eval run tested, offered as a side of the comparison - the draft
+   * as it was then, which the draft may no longer be.
+   */
+  testedSpec?: { spec: AgentSpec; label: string } | null;
 }
 
 /** The draft is a comparison target with no version id of its own. */
 const DRAFT = "__draft__";
+/** The spec an eval run tested, when one was handed over. */
+const TESTED = "__tested__";
 
 /**
  * "Promote to…" for one version row: pick an environment not already serving
@@ -163,6 +176,9 @@ export function VersionHistory({
   environments = [],
   onPromote,
   promoting,
+  compareFrom = null,
+  compareTo = "draft",
+  testedSpec = null,
 }: VersionHistoryProps) {
   const t = useTranslations("agents");
   // `timeAgo` reads its words from the shared `time` namespace, not this one.
@@ -197,17 +213,37 @@ export function VersionHistory({
   const { versions: allVersions } = useAllAgentVersions(paged ? agentId : null);
   const pickable = paged ? allVersions : versions;
   const newestId = versions[0]?.id ?? null;
+  // The comparison a link asked for, adopted once both of its versions are
+  // known - they may sit past the first page.
+  const [askedAdopted, setAskedAdopted] = useState(false);
+  const askedFrom = pickable.find((version) => version.version === compareFrom);
+  const askedTo =
+    compareTo === "draft"
+      ? DRAFT
+      : compareTo === "tested"
+        ? testedSpec
+          ? TESTED
+          : undefined
+        : pickable.find((version) => version.version === compareTo)?.id;
+  const asked = !askedAdopted && askedFrom !== undefined && askedTo !== undefined;
+  if (asked) {
+    setAskedAdopted(true);
+    setLeftId(askedFrom.id);
+    setRightId(askedTo);
+  }
   const [seenNewest, setSeenNewest] = useState<string | null>(null);
   if (page === 0 && newestId !== null && newestId !== seenNewest) {
     setSeenNewest(newestId);
-    if (leftId === null) setLeftId(newestId);
+    if (leftId === null && !asked) setLeftId(newestId);
   }
 
   const left = useAgentVersion(agentId, leftId);
-  const right = useAgentVersion(agentId, rightId === DRAFT ? null : rightId);
+  const pinned = rightId === DRAFT || rightId === TESTED;
+  const right = useAgentVersion(agentId, pinned ? null : rightId);
 
-  const rightSpec = rightId === DRAFT ? draftSpec : right.version?.spec;
-  const comparing = leftId !== null && (rightId === DRAFT || right.version !== undefined);
+  const rightSpec =
+    rightId === DRAFT ? draftSpec : rightId === TESTED ? testedSpec?.spec : right.version?.spec;
+  const comparing = leftId !== null && (pinned || right.version !== undefined);
 
   if (isLoading && versions.length === 0) return <LoadingState variant="skeleton-list" rows={3} />;
   if (total === 0) {
@@ -363,6 +399,7 @@ export function VersionHistory({
               {/* The draft is what most comparisons are against: "what have I
                   changed since the version that is running". */}
               <SelectItem value={DRAFT}>{t("draft")}</SelectItem>
+              {testedSpec && <SelectItem value={TESTED}>{testedSpec.label}</SelectItem>}
               {pickable.map((version) => (
                 <SelectItem key={version.id} value={version.id}>
                   v{version.version}
@@ -394,7 +431,7 @@ export function VersionHistory({
  * serialization, so key order that moves between two dumps cannot show as a
  * change nobody made.
  */
-function SpecDiff({ before, after }: { before: AgentSpec; after: AgentSpec }) {
+export function SpecDiff({ before, after }: { before: AgentSpec; after: AgentSpec }) {
   const t = useTranslations("agents");
   const lines = useMemo(() => diffLines(specText(before), specText(after)), [before, after]);
   const stat = diffStat(lines);

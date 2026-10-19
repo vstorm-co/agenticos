@@ -1,5 +1,5 @@
 ---
-source_sha: "1bd22ff5edac"
+source_sha: "8d67cd77507c"
 ---
 
 # Conceptos { #concepts }
@@ -169,36 +169,52 @@ presta su **identidad**. Nadie escucha un run desatendido, así que no responde 
 ninguna persona identificada, igual que un visitante de un widget embebido. Estos
 almacenes que se guardan por persona le están cerrados:
 
-- [Archivos de memoria](reference/capabilities.md#memory-files) y
+- [Memoria](reference/capabilities.md#memory-files) y
   [mem0](reference/capabilities.md#memory-mem0): cada herramienta responde que la
   conversación no tiene memoria.
-- [Búsqueda de conversaciones](reference/capabilities.md#conversation-search):
+- [Conversaciones anteriores](reference/capabilities.md#conversation-search):
   ambas herramientas se niegan.
 - Una [vinculación MCP personal](mcp.md#whose-account-a-binding-speaks-through):
   el Notion o el buzón propio del creador no está, y al agent se le dice por qué.
-- [Artefactos](reference/capabilities.md#artifacts): `publish_artifact` sigue publicando, y la página es
+- [Aplicaciones](reference/capabilities.md#artifacts): `publish_artifact` sigue publicando, y la página es
   privada para el creador, pero `read_artifact` se niega, así que un disparo
   vuelve a publicar una página entera en lugar de editarla.
 
 Es deliberado. Un almacén que se guarda para una persona se lee a esa persona, y
-un disparo que nadie inició no debe escribir en él en su nombre. Hoy ningún
-ajuste lo cambia.
+un disparo que nadie inició no debe escribir en él en su nombre. Una
+[sandbox](sandbox.md) con `session_scope: user` sigue la misma regla: un disparo
+no tiene allí un workspace propio.
 
-!!! warning "Una sandbox con alcance de usuario es la excepción"
+### Salvo que su creador le deje ejecutarse como él { #unless-its-creator-lets-it-run-as-them }
 
-    Una [sandbox](sandbox.md) con `session_scope: user` no está cerrada. Un
-    disparo abre el workspace propio del creador para ese agent, y puede leer y
-    escribir allí los archivos del creador. Un miembro sin `agents:edit` no puede
-    editar ni disparar un trigger que creó otro miembro, porque un prompt
-    cambiado podría copiar esos archivos fuera en el siguiente disparo.
+**Ejecutar como yo**, un ajuste del trigger, es la única excepción, y solo el
+creador puede activarlo, para sí mismo. Un disparo alcanza entonces su memoria y
+sus propias conexiones MCP como lo hace su propio chat — el matinal *dime qué
+importa en mi buzón* que el valor por defecto no puede hacer — en estas
+condiciones:
+
+- **Un horario lee y escribe la memoria; un evento solo la lee.** El prompt de un
+  evento lleva un correo o el cuerpo de un webhook que nadie revisó, y una nota
+  escrita a partir de él la leería cada chat posterior como propia del creador.
+- **Las conversaciones anteriores siguen cerradas** en ambos casos.
+- **La edición de otra persona lo desactiva.** Cambiar el mensaje, el entorno o el
+  filtro de un trigger que no creaste lo desactiva, así que nadie reescribe lo que
+  se ejecuta como tú. Un administrador que actúa como tú mediante suplantación, o
+  un script con tu clave de API, no puede activarlo.
+- **También una versión nueva que no publicaste tú.** Una publicación, una
+  promoción o una reversión de cualquier otra persona lo desactiva, y también una
+  hecha con tu clave de API o por un administrador que te suplanta.
+- **El registro lo dice.** El run nombra el trigger que lo disparó, y cada entrada
+  de auditoría que registra el disparo lleva `via_trigger` con el miembro como el
+  que actuó.
 
 La regla decide cómo diseñas un agent que se ejecuta con un trigger:
 
 | Un run desatendido necesita | Usa |
 |---|---|
-| Hechos o preferencias permanentes | El propio prompt del trigger, o un [archivo de contexto](context.md) vinculado al agent |
+| Hechos o preferencias permanentes | El propio prompt del trigger, un [archivo de contexto](context.md) vinculado al agent, o la memoria del creador con **Ejecutar como yo** |
 | Estado que se conserva de un disparo al siguiente | Una [sandbox](sandbox.md) con `session_scope: conversation`: cada disparo de un trigger se añade a la misma conversación de registro de runs |
-| Un buzón u otro servicio externo | Una conexión vinculada con la cuenta de la organización, no con la de cada persona |
+| Un buzón u otro servicio externo | Una conexión vinculada con la cuenta de la organización, o la propia del creador con **Ejecutar como yo** |
 
 [Vigilar páginas web en busca de cambios](howto/competitor-monitoring.md) y
 [un asistente personal](howto/personal-assistant.md) se encuentran ambos con
@@ -300,6 +316,7 @@ correctamente:
 | `failed` | se rompió |
 | `budget_exceeded` | alcanzó un tope — un límite de gasto haciendo su trabajo |
 | `guardrail_blocked` | lo rechazó un [guardrail](reference/capabilities.md#guardrails) |
+| `loop_stopped` | siguió repitiendo las mismas llamadas tras el aviso y se [detuvo](governance.md#step-limits) |
 | `cancelled` | se detuvo: el botón de parar del compositor, un socket que se fue, una delegación cancelada desde arriba. En todas las superficies, no solo en la de streaming |
 | `awaiting_approval` | quedó aparcado en una aprobación, y es **reanudable** — su historial de mensajes está guardado, así que la decisión se aplica a la conversación a la que pertenece |
 
@@ -443,7 +460,7 @@ La aprobación se resuelve de lo más específico a lo menos:
 
 1. el override de la propia tool, luego
 2. el modo de la capability, luego
-3. si la capability es `side_effecting`.
+3. ninguna aprobación, cuando ninguno de los dos dice nada.
 
 El Builder enuncia el *resultado* con palabras en lugar de describir la regla,
 porque una regla que quien lee tiene que ejecutar en su cabeza es un ajuste que
@@ -510,6 +527,12 @@ Así que usa un especialista para trabajo que no debería exigir publicar un age
 — "resume esto en tres viñetas" — y un delegado para una capacidad que la
 organización posee y reutiliza.
 
+Un tercer tipo está a su lado: un **agent remoto**, el agent de otro proveedor al
+que se llega por A2A y que se registra en la organización por su agent card. Se
+llama igual y se cobra contra el mismo budget, pero aquí no tiene versiones — su
+dueño lo cambia de su lado —, así que una referencia nombra el registro y no una
+versión. Ver [Agents remotos por A2A](reference/capabilities.md#remote-agents).
+
 #### Especialistas dinámicos, y la salida { #dynamic-specialists-and-the-way-out }
 
 Un tercer tipo se sitúa por debajo del inline: un **especialista dinámico**,
@@ -572,25 +595,42 @@ puede delegar en qué.
 
 ---
 
-## Agents del sistema { #system-agents }
+## Jueces { #system-agents }
 
-Algunos agents los inicia la plataforma y no una persona: el **Eval judge**
-califica respuestas para la [puntuación de datasets](datasets.md#judge). Son
-**agents del sistema**. Cada organización los recibe al crearse, y una
-organización creada antes recibe uno la primera vez que algo lo necesita.
+Algunos agents los inicia la plataforma y no una persona: los **jueces**, que
+califican respuestas para la [calificación de datasets](datasets.md#judge). El
+tipo de un agent dice cuál es: `agent` para los que usan las personas, `judge`
+para estos. Cada organización recibe el **Eval judge** por defecto al crearse,
+una organización creada antes lo recibe la primera vez que algo lo necesita, y
+un dataset puede tener un juez propio.
 
-Un agent del sistema es un agent normal. Aparece en Agents con una insignia
-**System**, sus instrucciones y su modelo se pueden editar, se puede compartir,
-y sus runs se comprueban contra el budget y se registran como cualquier otro.
-Empieza con un budget mensual pequeño propio, para que una organización nueva
-no pueda gastar por accidente todo su budget en evaluación.
+Un juez lo ejecuta la plataforma; no es un agent que usen las personas. Agents
+muestra los jueces aparte, en una banda plegada **Judges** bajo **Agents**; cada
+tarjeta dice qué datasets califica, el sembrado lleva **Default judge**, y los
+selectores de agents los dejan fuera. Quien tiene `agents:edit` abre uno para
+cambiar sus instrucciones, su modelo y su budget: su página contiene eso, sus
+límites, su historial y los datasets que lo eligieron, califiquen o no (cada uno
+se abre en sus últimas calificaciones allí y los runs de eval de los que
+salieron), con cuántas veces las personas coincidieron con él en los resultados
+que calificó y ellas decidieron, y nada más.
 
-Cuando la organización ya tiene un perfil de modelo, el agent se publica sobre
-el más antiguo. Sin ninguno, se crea como borrador, y una persona elige su
-modelo y lo publica. Hasta entonces, las funciones que lo usan lo indican.
+Sus runs se comprueban contra el budget y se registran como cualquier otro, sin
+notificación de run. Un juez empieza con un budget mensual pequeño propio, para
+que una organización nueva no gaste por accidente todo su budget en evaluación.
+
+Solo la plataforma lo ejecuta. El chat, la API, un embed o una página pública,
+un canal, una programación y la delegación desde otro agent lo rechazan, en el
+servicio que iniciaría el run y no solo en la consola.
+
+Cuando la organización ya tiene un perfil de modelo, un juez se publica sobre
+el más antiguo, o sobre el que se eligió al crearlo. Sin ninguno, se crea como
+borrador. El Eval judge que trae la plataforma se publica sobre el primer
+modelo de la organización en cuanto se añade uno; el juez propio de un dataset
+espera a que una persona elija su modelo y lo publique, y hasta entonces las
+funciones que lo usan lo indican.
 
 El [interruptor de asistencia de IA](governance.md#ai-assistance) de la
-organización decide si los agents del sistema se ejecutan en absoluto.
+organización decide si los jueces se ejecutan en absoluto.
 
 ## Perfiles de modelo { #model-profiles }
 

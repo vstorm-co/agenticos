@@ -6,7 +6,7 @@ Contains database operations for SyncSource entities.
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, literal_column, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.sync_source import SyncSource
@@ -55,6 +55,32 @@ async def get_due_for_sync(db: AsyncSession) -> list[SyncSource]:
             s.last_sync_at is None or s.last_sync_at + timedelta(minutes=s.schedule_minutes) <= now
         )
     ]
+
+
+async def any_due_for_sync(db: AsyncSession) -> bool:
+    """Whether `get_due_for_sync` would find anything - one `EXISTS`, no row loaded.
+
+    The worker asks this every minute in its own process (`dispatch_due_syncs`),
+    where loading every scheduled source with its configuration to answer a
+    yes-or-no question would put each tenant's sources in that process's memory.
+    """
+    due = or_(
+        SyncSource.last_sync_at.is_(None),
+        SyncSource.last_sync_at
+        + literal_column("interval '1 minute'") * SyncSource.schedule_minutes
+        <= func.now(),
+    )
+    query = select(
+        select(SyncSource.id)
+        .where(
+            SyncSource.is_active == True,  # noqa: E712
+            SyncSource.schedule_minutes.isnot(None),
+            SyncSource.collection_name.isnot(None),
+            due,
+        )
+        .exists()
+    )
+    return bool(await db.scalar(query))
 
 
 async def create(

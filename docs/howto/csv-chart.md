@@ -36,7 +36,7 @@ The first session builds the `workbench` image, about 2 GB. Allow a minute or tw
 ## Build the agent
 
 1. Create an agent in **Agents → New agent** and select your model profile.
-2. In **Toolbox**, enable **Files & shell**. Choose **Container**, not **Files**: the Files workspace has no shell, so the agent cannot run a script. Select the connection and the `workbench` runtime, and keep the conversation scope.
+2. In **Toolbox**, enable **Sandbox**. Choose **Container**, not **Files**: the Files workspace has no shell, so the agent cannot run a script. Select the connection and the `workbench` runtime, and keep the conversation scope.
 3. Enable **Charts**. It draws numbers the agent already has, so the chart shows what the script calculated.
 4. Set a budget and a step limit for the trial. The recorded run used 25 steps and cost about 0.11 USD.
 5. Set the instructions below, then **Publish**.

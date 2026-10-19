@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_SCORING, callsJudge, reasonKey, scoringProblem } from "./scoring";
+import {
+  DEFAULT_SCORING,
+  callsJudge,
+  criterionNameFrom,
+  describeCheck,
+  groupScores,
+  reasonKey,
+  ungradedCases,
+  scoringProblem,
+} from "./scoring";
+import { caseScore } from "@/test-utils/scores";
 import type { ScorerResult } from "@/types/scoring";
 
 function result(reason_code: string | null): ScorerResult {
@@ -12,6 +22,10 @@ function result(reason_code: string | null): ScorerResult {
     score: null,
     reason: "from the server",
     reason_code,
+    unverified_quotes: [],
+    rule: null,
+    unverified: false,
+    judge_said: null,
     judge_run_id: null,
   };
 }
@@ -21,10 +35,13 @@ describe("reasonKey", () => {
     expect(reasonKey(result("ai_assistance_off"))).toBe("reason.aiAssistanceOff");
     expect(reasonKey(result("judge_budget"))).toBe("reason.judgeBudget");
     expect(reasonKey(result("judge_no_model"))).toBe("reason.judgeNoModel");
+    expect(reasonKey(result("judge_missing"))).toBe("reason.judgeMissing");
+    expect(reasonKey(result("judge_counter_unsupported"))).toBe("reason.judgeCounterUnsupported");
+    expect(reasonKey(result("judge_graded_twice"))).toBe("reason.judgeGradedTwice");
   });
 
   it("leaves a code this build does not know, and no code, to the server's sentence", () => {
-    expect(reasonKey(result("judge_output_invalid"))).toBeNull();
+    expect(reasonKey(result("judge_from_the_future"))).toBeNull();
     expect(reasonKey(result(null))).toBeNull();
   });
 });
@@ -80,5 +97,97 @@ describe("callsJudge", () => {
     expect(callsJudge(DEFAULT_SCORING, plain)).toBe(false);
     expect(callsJudge(reference, plain)).toBe(false);
     expect(callsJudge(checksOff, { ...plain, checks: [{ type: "judge" }] })).toBe(false);
+  });
+});
+
+describe("describeCheck", () => {
+  it("reads a check with one plain value as its type and that value", () => {
+    expect(describeCheck({ type: "contains", value: "30 days" })).toBe("contains 30 days");
+    expect(describeCheck({ type: "max_cost_usd", value: 0.05 })).toBe("max_cost_usd 0.05");
+  });
+
+  it("writes anything richer as JSON, and a bare type alone", () => {
+    expect(describeCheck({ type: "json_schema", schema: { type: "object" } })).toBe(
+      'json_schema {"schema":{"type":"object"}}',
+    );
+    expect(describeCheck({ type: "regex", pattern: "\\d+", flags: "i" })).toBe(
+      'regex {"pattern":"\\\\d+","flags":"i"}',
+    );
+    expect(describeCheck({ type: "valid_json" })).toBe("valid_json");
+  });
+});
+
+describe("groupScores", () => {
+  it("reads each group in the order it was graded", () => {
+    const [group] = groupScores([
+      caseScore({ id: "late", eval_run_id: "e1", created_at: "2026-10-13T09:05:00Z" }),
+      caseScore({ id: "early", eval_run_id: "e1", created_at: "2026-10-13T09:00:00Z" }),
+    ]);
+    expect(group!.scores.map((score) => score.id)).toEqual(["early", "late"]);
+  });
+
+  it("cuts the page where the eval run or the answering agent changes", () => {
+    const scores = [
+      caseScore({ id: "a", eval_run_id: "e1", agent_id: "x" }),
+      caseScore({ id: "b", eval_run_id: "e1", agent_id: "x" }),
+      caseScore({ id: "c", eval_run_id: "e1", agent_id: "y" }),
+      caseScore({ id: "d", eval_run_id: null, agent_id: null }),
+      caseScore({ id: "e", eval_run_id: "e1", agent_id: "x" }),
+    ];
+
+    expect(
+      groupScores(scores).map((group) => [group.evalRunId, group.scores.map((s) => s.id)]),
+    ).toEqual([
+      ["e1", ["a", "b"]],
+      ["e1", ["c"]],
+      [null, ["d"]],
+      ["e1", ["e"]],
+    ]);
+  });
+});
+
+describe("ungradedCases", () => {
+  const stats = {
+    with_reference: 1,
+    with_counter_example: 0,
+    with_tool_calls: 1,
+    with_checks: 0,
+    by_source: { manual: 4, import: 0, conversation: 0, synthetic: 0 },
+    top_tags: [],
+    expectation_mix: [
+      { checks: false, tool_calls: true, reference: false, cases: 1 },
+      { checks: false, tool_calls: false, reference: true, cases: 1 },
+      { checks: false, tool_calls: false, reference: false, cases: 2 },
+    ],
+  };
+
+  it("counts the cases no scorer that is on reads", () => {
+    expect(ungradedCases(DEFAULT_SCORING, stats, 0)).toBe(3);
+    const referenced = { ...DEFAULT_SCORING, reference: { enabled: true, required: true } };
+    expect(ungradedCases(referenced, stats, 0)).toBe(2);
+  });
+
+  it("counts none once default checks or a judge with criteria read every case", () => {
+    expect(ungradedCases(DEFAULT_SCORING, stats, 1)).toBe(0);
+    const judged = {
+      ...DEFAULT_SCORING,
+      judge: {
+        ...DEFAULT_SCORING.judge,
+        enabled: true,
+        criteria: [{ name: "tone", description: "Polite", required: true }],
+      },
+    };
+    expect(ungradedCases(judged, stats, 0)).toBe(0);
+  });
+});
+
+describe("criterionNameFrom", () => {
+  it("names a criterion by its first words, numbered past the names taken", () => {
+    const text = "Cites the refund policy by its section number every single time";
+    expect(criterionNameFrom(text, [])).toBe("Cites the refund policy by its");
+    expect(criterionNameFrom(text, ["Cites the refund policy by its"])).toBe(
+      "Cites the refund policy by its 2",
+    );
+    expect(criterionNameFrom("Polite", ["Polite", "Polite 2"])).toBe("Polite 3");
   });
 });

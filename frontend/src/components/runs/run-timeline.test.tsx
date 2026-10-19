@@ -28,6 +28,14 @@ vi.mock("@/components/chat/markdown-content", () => ({
   MarkdownContent: ({ content }: { content: string }) => <div>{content}</div>,
 }));
 
+vi.mock("@/components/datasets/add-to-dataset-button", () => ({
+  AddToDatasetButton: ({ messageId, ratedDown }: { messageId: string; ratedDown: boolean }) => (
+    <button type="button" data-message={messageId} data-rated-down={String(ratedDown)}>
+      Add to dataset
+    </button>
+  ),
+}));
+
 vi.mock("@/hooks", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks")>()),
   useRunTranscript: (runId: string, scope?: string) => useRunTranscriptMock(runId, scope),
@@ -171,6 +179,27 @@ describe("the thread and the run inside it", () => {
 });
 
 describe("a tool call, raw", () => {
+  it.each([
+    ["error", "Failed"],
+    ["unfinished", "Did not finish"],
+  ] as const)("says a step that ended %s in words", async (status, words) => {
+    serve({
+      items: [
+        turn({
+          id: "m-1",
+          parts: [{ type: "tool", tool_call_id: "call-1" }],
+          tool_calls: [
+            { tool_call_id: "call-1", tool_name: "web_search", args: {}, result: null, status },
+          ],
+        }),
+      ],
+    });
+
+    renderTimeline();
+
+    expect(await screen.findByText(words)).toBeVisible();
+  });
+
   it("shows the wire: name, stored status, input JSON and recorded output", async () => {
     serve({
       items: [
@@ -193,7 +222,8 @@ describe("a tool call, raw", () => {
     renderTimeline();
 
     const step = screen.getByText("web_search").closest("details") as HTMLElement;
-    expect(within(step).getByText("completed")).toBeVisible();
+    // Said in words beside the tool's own id: how it ended, and what it was.
+    expect(within(step).getByText("Done")).toBeVisible();
 
     await userEvent.click(within(step).getByText("web_search"));
 
@@ -262,6 +292,26 @@ describe("what people said about it", () => {
 
     expect(screen.getByText("Rated down 2 times")).toBeVisible();
     expect(screen.getByText("wrong currency")).toBeVisible();
+  });
+});
+
+describe("adding an answer to a dataset", () => {
+  it("offers a reply written in steps once, on its last step, as rated down by any", () => {
+    serve({
+      items: [
+        turn({ id: "q-1", role: "user", content: "Remember I prefer email" }),
+        turn({ id: "a-1", content: "", rating_count: { likes: 0, dislikes: 1 } }),
+        turn({ id: "a-2", content: "Noted - email it is." }),
+        turn({ id: "q-2", role: "user", content: "Thanks" }),
+        turn({ id: "a-3", content: "Any time." }),
+      ],
+    });
+
+    renderTimeline();
+
+    const offered = screen.getAllByRole("button", { name: "Add to dataset" });
+    expect(offered.map((button) => button.dataset.message)).toEqual(["a-2", "a-3"]);
+    expect(offered.map((button) => button.dataset.ratedDown)).toEqual(["true", "false"]);
   });
 });
 

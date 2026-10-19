@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  AudiencePicker,
+  EVERYONE,
+  audiencePayload,
+  type Audience,
+} from "@/components/sharing/audience-picker";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -31,7 +37,7 @@ import { submitFailure } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import type { ContextMode } from "@/types/providers";
 import { useTranslations } from "next-intl";
-import { DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
+import { DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 
 /** What the backend accepts, so an over-long value is refused before it is sent. */
 const MAX_NAME = 64;
@@ -84,6 +90,7 @@ export function CreateContextDialog({
   const [name, setName] = useState(initial?.name ?? "");
   const [description, setDescription] = useState("");
   const [format, setFormat] = useState<string>(initial?.format ?? DEFAULT_FORMAT);
+  const [audience, setAudience] = useState<Audience>(EVERYONE);
   const [mode, setMode] = useState<ContextMode>("inject");
   const [content, setContent] = useState(initial?.content ?? "");
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
@@ -110,12 +117,14 @@ export function CreateContextDialog({
         content,
         format: format.trim() || DEFAULT_FORMAT,
         mode,
+        ...audiencePayload(audience),
       });
       setName("");
       setDescription("");
       setFormat(DEFAULT_FORMAT);
       setMode("inject");
       setContent("");
+      setAudience(EVERYONE);
       setErrors({});
       onCreated();
     } catch (error) {
@@ -134,7 +143,7 @@ export function CreateContextDialog({
       {/* Wider gutters than the default 24px: this dialog is three columns of
           form above a full editor, and at that width the content ran into the
           edge of the sheet. */}
-      <DialogContent className={cn(DIALOG_COLUMN, DIALOG_WIDE, "sm:px-8 sm:py-7")}>
+      <DialogContent className={cn(DIALOG_COLUMN, DIALOG_FORM)}>
         <DialogHeader>
           <DialogTitle>{t("newContext")}</DialogTitle>
           <DialogDescription>{t("availableEveryAgentOrganization")}</DialogDescription>
@@ -207,6 +216,11 @@ export function CreateContextDialog({
               aria-invalid={errors.description ? true : undefined}
             />
             <FieldNote error={errors.description}>{t("shownWhenLinked")}</FieldNote>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>{t("whoCanUseIt")}</Label>
+            <AudiencePicker value={audience} onChange={setAudience} />
           </div>
 
           {/* The pane the file will be read in once it exists, rather than a

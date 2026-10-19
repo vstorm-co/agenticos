@@ -18,7 +18,7 @@
 # Versions here are what the Dockerfiles and compose files name. When one of
 # those moves, this file moves with it - `scripts/docs_drift.py` reminds.
 
-# Images the two published containers are built from
+# Images the three published containers are built from
 
 [[component]]
 name = "python (Docker Official Image)"
@@ -69,6 +69,46 @@ source = "https://github.com/astral-sh/uv"
 status = "accepted"
 obligations = "None for the published image: the binary is copied into the builder stage and installs the wheels; it is not in the final layer."
 fulfilled_by = "Not distributed."
+
+[[component]]
+name = "debian (Docker Official Image)"
+version = "bookworm-slim"
+kind = "runtime image, browser"
+license = "Each package under its own licence (GPL-2.0, GPL-3.0, LGPL-2.1, MIT, BSD and others)."
+source = "https://hub.docker.com/_/debian"
+status = "accepted"
+obligations = "Ship licence texts and, for GPL and LGPL packages, make their corresponding source available to recipients of the image."
+fulfilled_by = "Debian keeps every package's licence under /usr/share/doc/<package>/copyright in the image and publishes the matching source packages (apt-get source; https://snapshot.debian.org). Distributed unmodified apart from the packages listed below; the per-release SBOM records the exact package set."
+
+[[component]]
+name = "chromium (Debian package)"
+version = "as pinned by Debian bookworm"
+kind = "system package, browser image"
+license = "BSD-3-Clause (Chromium), with bundled components under their own licences (LGPL-2.1, MPL-2.0, Apache-2.0, MIT and others), listed in chrome://credits"
+source = "https://www.chromium.org/"
+status = "accepted"
+obligations = "Licence texts and attribution; for LGPL components, their source available to recipients."
+fulfilled_by = "Debian's /usr/share/doc/chromium/copyright is in the image and chrome://credits lists every bundled component; source through Debian's source package; used unmodified."
+
+[[component]]
+name = "xvfb, socat, dumb-init, tzdata (Debian packages)"
+version = "as pinned by Debian bookworm"
+kind = "system package, browser image"
+license = "Xvfb: MIT/X11. socat: GPL-2.0. dumb-init: MIT. tzdata: public domain."
+source = "https://packages.debian.org/bookworm/"
+status = "accepted"
+obligations = "Licence texts; socat (GPL-2.0) is run unmodified as a separate process, so its corresponding source available to recipients."
+fulfilled_by = "Debian's /usr/share/doc/<package>/copyright for each is in the image; source through Debian's source packages; none modified."
+
+[[component]]
+name = "fonts-liberation, fonts-noto, fonts-noto-cjk, fonts-noto-color-emoji (Debian packages)"
+version = "as pinned by Debian bookworm"
+kind = "system package, browser image"
+license = "Liberation: OFL-1.1. Noto: OFL-1.1 (Noto Color Emoji: OFL-1.1, its images Apache-2.0)."
+source = "https://fonts.google.com/noto"
+status = "accepted"
+obligations = "OFL-1.1: the licence text travels with the fonts; the fonts are not sold on their own."
+fulfilled_by = "Debian's /usr/share/doc/fonts-*/copyright is in the image; installed as system fonts the browser renders pages with, never sold or redistributed apart from the image."
 
 # Bundled assets
 
@@ -143,6 +183,36 @@ source = "https://github.com/lucide-icons/lucide"
 status = "accepted"
 obligations = "Keep the copyright notices and the permission notices with the copies: ISC for Lucide, MIT for the icons it derives from Feather."
 fulfilled_by = "The file is copied byte for byte and keeps its own header naming Lucide and the ISC licence; backend/app/core/catalog/artifact_lib/README.md carries the ISC text and the Feather MIT text with both copyright lines, and NOTICE names it. The same version the console draws its icons from (lucide-react), so a page's icons match the product's. Copied for the same reason as Chart.js."
+
+[[component]]
+name = "three.js, vendored into backend/app/core/catalog/artifact_lib/"
+version = "0.186.0 (build/three.module.js, build/three.core.js and examples/jsm/controls/OrbitControls.js from the npm tarball)"
+kind = "source, backend image, served to published artifacts and visuals"
+license = "MIT"
+source = "https://github.com/mrdoob/three.js"
+status = "accepted"
+obligations = "Keep the copyright notice and the permission notice with the copies or substantial portions of the software."
+fulfilled_by = "The files are copied byte for byte and keep their own headers naming three.js and the MIT licence; backend/app/core/catalog/artifact_lib/README.md carries the full MIT text with the copyright line, and NOTICE names it. The same version the console depends on. Copied for the same reason as Chart.js (#2171)."
+
+[[component]]
+name = "Mermaid, vendored into backend/app/core/catalog/artifact_lib/"
+version = "12.1.0 (dist/mermaid.min.js from the npm tarball)"
+kind = "source, backend image, served to published artifacts and visuals"
+license = "MIT; the bundle includes its dependencies, among them DOMPurify (MPL-2.0 OR Apache-2.0, used under Apache-2.0), elkjs (EPL-2.0), d3 and d3-sankey (ISC, BSD-3-Clause), chevrotain (Apache-2.0) and MIT-licensed others (cytoscape, dagre-d3-es, dayjs, katex, khroma, marked, roughjs, stylis, uuid)"
+source = "https://github.com/mermaid-js/mermaid"
+status = "accepted"
+obligations = "MIT and ISC: keep the notices. Apache-2.0: keep the licence and its notices. EPL-2.0 (elkjs, distributed unmodified in object form): ship the licence and say where its source is available."
+fulfilled_by = "The bundle is copied byte for byte and keeps the headers it carries (DOMPurify's among them); backend/app/core/catalog/artifact_lib/README.md carries Mermaid's MIT text, names every bundled dependency with its licence, links the EPL-2.0 text and the elkjs 0.9.3 source, and NOTICE names it. Copied for the same reason as Chart.js (#2171)."
+
+[[component]]
+name = "idiomorph, vendored into backend/app/core/catalog/artifact_lib/"
+version = "0.8.0 (dist/idiomorph.min.js from the npm tarball)"
+kind = "source, backend image, served to the visual frame"
+license = "0BSD"
+source = "https://github.com/bigskysoftware/idiomorph"
+status = "accepted"
+obligations = "None: the Zero-Clause BSD licence asks for no notice."
+fulfilled_by = "Copied byte for byte; backend/app/core/catalog/artifact_lib/README.md names it with its licence text anyway. It morphs a visual's markup in place while the drawing streams (#2171)."
 
 # Images a deployment runs beside the two published ones. These are pulled by the
 # operator's compose file and are not redistributed by this project, so what the

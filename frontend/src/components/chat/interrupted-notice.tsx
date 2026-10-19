@@ -14,6 +14,11 @@ interface InterruptedNoticeProps {
    * nothing said it would.
    */
   detached?: boolean;
+  /**
+   * True when the reader left this conversation while its agent was answering,
+   * and has come back before the answer landed.
+   */
+  left?: boolean;
   /** Read the transcript again. The turn lands there, not on the socket. */
   onRecheck?: () => void;
 }
@@ -39,10 +44,11 @@ interface InterruptedNoticeProps {
 export function InterruptedNotice({
   interrupted,
   detached = false,
+  left = false,
   onRecheck,
 }: InterruptedNoticeProps) {
   const t = useTranslations("chat");
-  if (!interrupted && !detached) return null;
+  if (!interrupted && !detached && !left) return null;
 
   return (
     <div
@@ -51,7 +57,13 @@ export function InterruptedNotice({
       aria-live="polite"
     >
       <Unplug className="h-3 w-3" aria-hidden />
-      <span>{interrupted ? t("turnInterrupted") : t("turnStillArriving")}</span>
+      <span>
+        {interrupted
+          ? t("turnInterrupted")
+          : detached
+            ? t("turnStillArriving")
+            : t("turnLeftRunning")}
+      </span>
       {onRecheck && (
         <button type="button" onClick={onRecheck} className="underline underline-offset-2">
           {t("turnInterruptedRecheck")}

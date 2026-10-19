@@ -13,7 +13,7 @@ import type { RatingsByDay } from "@/types/stats";
 export function RatingsTrendImpl({ data }: { data: RatingsByDay[] }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }} barGap={2}>
+      <BarChart data={data} margin={{ top: 4, right: 16, bottom: 0, left: 0 }} barGap={2}>
         {/* Solid hairline: a dashed grid is ink that is not data. */}
         <CartesianGrid stroke="oklch(from var(--color-foreground) l c h / 0.07)" vertical={false} />
         <XAxis
@@ -23,6 +23,12 @@ export function RatingsTrendImpl({ data }: { data: RatingsByDay[] }) {
           tickLine={false}
           axisLine={false}
           minTickGap={24}
+          tickMargin={8}
+          interval="preserveStartEnd"
+          // Month and day, as the runs chart beside it prints them: the year is
+          // the same on every tick, and four full dates were wider than the
+          // card, so the last one was cut at its edge.
+          tickFormatter={(date: string) => date.slice(5)}
           tick={{
             fontFamily: "var(--font-mono)",
             fill: "oklch(from var(--color-foreground) l c h / 0.45)",

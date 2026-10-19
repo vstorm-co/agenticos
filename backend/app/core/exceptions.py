@@ -155,6 +155,36 @@ class ConfigurationError(AppException):
     status_code = 503
 
 
+class RunFailedError(AppException):
+    """A run started over the API failed, its terminal status already recorded (500).
+
+    `AgentRunnerService._run` records the run `failed` with our own sentence for
+    why (`run_failure_summary`) and commits before re-raising, so the run exists and
+    can be read. The unhandled-exception handler answered that as a bare 500 with
+    no details, and the caller never learnt the id of the run it had just paid for
+    (#2121). This carries it: `details.run_id` and `details.status`, and the
+    recorded reason in the message - never the raw exception, which can hold a
+    provider's request URL.
+    """
+
+    message = "The run failed"
+    code = "RUN_FAILED"
+    status_code = 500
+
+
+class ModelCallFailedError(RunFailedError):
+    """The model provider refused or failed a run's request (502).
+
+    Its own status because it is somebody else's failure: the request reached the
+    provider and the provider answered with an error, so a retry later - or a
+    different model - may well succeed where retrying our own bug would not.
+    """
+
+    message = "The model provider did not complete the request"
+    code = "MODEL_CALL_FAILED"
+    status_code = 502
+
+
 class RunExecutionError(AppException):
     """A run failed while executing, its terminal status already recorded (500).
 
@@ -207,11 +237,12 @@ class AiAssistanceDisabledError(AuthorizationError):
 
 
 class SystemAgentUnavailableError(BadRequestError):
-    """A seeded system agent exists but cannot run for this caller (400).
+    """A system agent cannot run for this caller (400).
 
-    `reason` says which it is - `not_seeded`, `unpublished`, `archived`,
-    `no_access` or `no_model` - because each has a different fix, and a person
-    told only "unavailable" cannot tell whether to pick a model or ask for a grant.
+    `reason` says why - `not_seeded`, `missing` (the agent picked for the job is
+    gone), `unpublished`, `archived`, `no_access` or `no_model` - because each has
+    a different fix, and a person told only "unavailable" cannot tell whether to
+    pick a model or ask for a grant.
     """
 
     message = "This system agent cannot run"
@@ -220,6 +251,28 @@ class SystemAgentUnavailableError(BadRequestError):
     def __init__(self, message: str, *, key: str, reason: str) -> None:
         super().__init__(message=message, details={"key": key, "reason": reason})
         self.reason = reason
+
+
+class SystemAgentRestrictedError(BadRequestError):
+    """A system agent was asked to do what only an ordinary agent does (400).
+
+    A system agent runs for the platform - the eval judge grades scores - and
+    only through the system agent runner. It is never chatted with, exposed on a
+    channel, embedded, scheduled or delegated to. `action` names what was refused.
+    """
+
+    message = "This is a system agent"
+    code = "SYSTEM_AGENT_RESTRICTED"
+
+    def __init__(self, *, name: str, agent_id: UUID, action: str) -> None:
+        super().__init__(
+            message=(
+                f"'{name}' is a system agent: the platform runs it, so it cannot be "
+                f"used for {action}."
+            ),
+            details={"agent_id": agent_id, "action": action},
+        )
+        self.action = action
 
 
 class SystemAgentRunError(BadRequestError):
@@ -243,15 +296,18 @@ class SystemAgentOutputError(BadRequestError):
     """A system agent answered, but not in the shape its caller asked for (400).
 
     Not retried: a second call costs as much as the first and an edited prompt
-    that broke the format breaks it again. `run_id` names the recorded run.
+    that broke the format breaks it again. `run_id` names the recorded run;
+    `answer` is what the agent answered, for the caller to show, never placed in
+    `details`.
     """
 
     message = "The system agent's answer could not be read"
     code = "SYSTEM_AGENT_OUTPUT_INVALID"
 
-    def __init__(self, message: str, *, run_id: UUID) -> None:
+    def __init__(self, message: str, *, run_id: UUID, answer: str = "") -> None:
         super().__init__(message=message, details={"run_id": run_id})
         self.run_id = run_id
+        self.answer = answer
 
 
 class NothingToScoreError(BadRequestError):

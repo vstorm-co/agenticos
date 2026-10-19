@@ -1,5 +1,5 @@
 ---
-source_sha: "f73b608eac37"
+source_sha: "91d430ebf0bb"
 title: "AgenticOS vergleichen"
 seo_title: "AgenticOS im Vergleich: souveräne Schicht für KI-Agents"
 description: "Die souveräne, selbst gehostete Open-Source-Schicht AgenticOS im Vergleich mit Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n und Coding-Agents."
@@ -18,7 +18,10 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. Agen
 | Einen Chat-Assistenten für das Unternehmen oder Agents, die Ihrer Organisation gehören | Claude Team und Enterprise, ChatGPT Business und Enterprise | [Claude](claude-apps.md) · [ChatGPT](chatgpt.md) |
 | Einen Builder in der Cloud-Suite eines Anbieters | Microsoft Copilot Studio, Google Gemini Enterprise | [Copilot Studio](copilot-studio.md) · [Gemini Enterprise](gemini-enterprise.md) |
 | Einen selbst gehosteten Builder oder ein Automatisierungswerkzeug | Dify, n8n | [Dify](dify.md) · [n8n](n8n.md) |
-| Einen Teammate-Dienst in Slack oder Teams | Viktor | [Viktor](viktor.md) |
+| Ein dauerhaft laufendes KI-Teammate mit eigenem Computer | OpenAI dots, Grok Bot, Viktor | [dots](openai-dots.md) · [Grok Bot](grok-bot.md) · [Viktor](viktor.md) |
+| Eine Plattform oder Steuerungsebene eines Anbieters für Unternehmens-Agents | OpenAI Frontier, Microsoft Agent 365 | [Frontier](openai-frontier.md) · [Agent 365](microsoft-agent-365.md) |
+| Eine gehostete Agent-Laufzeit für Entwickler | Claude Managed Agents | [Managed Agents](claude-managed-agents.md) |
+| Einen persönlichen Open-Source-Agent | OpenClaw, NVIDIA NemoClaw | [OpenClaw](openclaw.md) |
 | Eine gelieferte Enterprise-Plattform | Wonderful | [Wonderful](wonderful.md) |
 | Einen Coding-Agent oder eine Schicht für alle anderen | Claude Code, OpenAI Codex, OpenCode | [Claude Code](claude-code.md) · [Codex](codex.md) · [OpenCode](opencode.md) |
 
@@ -26,7 +29,7 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. Agen
 
 | Produkt | Was es ist | Wo es läuft | Quellcode | Modelle |
 | --- | --- | --- | --- | --- |
-| **AgenticOS** | Eine souveräne Schicht für Unternehmens-Agents, im Browser aufgebaut | Ihre Infrastruktur | Apache-2.0 | 27 Provider, darunter lokale |
+| **AgenticOS** | Eine souveräne Schicht für Unternehmens-Agents, im Browser aufgebaut | Ihre Infrastruktur | Apache-2.0 | 28 Provider, darunter lokale |
 | Claude Team / Enterprise | Der Assistenten-Workspace von Anthropic | Die Cloud von Anthropic | Proprietär | Nur Claude |
 | ChatGPT Business / Enterprise | Der Assistenten-Workspace von OpenAI, mit Workspace-Agents | Die Cloud von OpenAI | Proprietär | Nur OpenAI |
 | Copilot Studio | Ein Low-Code-Agent-Builder auf der Power Platform | Die Cloud von Microsoft | Proprietär | Modelle von OpenAI und Anthropic, dazu Azure Foundry |
@@ -34,6 +37,12 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. Agen
 | Dify | Ein visueller Builder für LLM-Apps und Workflows | Selbst gehostet oder Dify Cloud | Modifizierte Apache 2.0 mit Bedingungen | Viele, darunter Ollama |
 | n8n | Workflow-Automatisierung mit KI-Agent-Knoten | Selbst gehostet oder n8n Cloud | Sustainable Use License | Viele, darunter Ollama |
 | Viktor | Ein KI-Teammate pro Slack- oder Teams-Workspace | Die Cloud von Viktor | Proprietär | OpenAI, Anthropic, Google, Kimi |
+| OpenAI dots | Dauerhaft laufende Agents in ChatGPT, jeder mit einem Cloud-Computer | Die Cloud von OpenAI | Proprietär | Nur OpenAI |
+| Grok Bot | Benannte Teammates auf einem gemeinsamen Cloud-Computer | Die Cloud von xAI | Proprietär | Nur Grok |
+| OpenAI Frontier | Eine Plattform zur Verwaltung von KI-Kollegen im Unternehmen | Lokal, Ihre Cloud oder OpenAI | Proprietär | OpenAI |
+| Microsoft Agent 365 | Eine Steuerungsebene über Agents in Microsoft 365 | Die Cloud von Microsoft | Proprietär | Über die Agents, die es steuert |
+| Claude Managed Agents | Eine gehostete Agent-Laufzeit für Entwickler | Die Cloud von Anthropic | Proprietär | Nur Claude |
+| OpenClaw / NemoClaw | Ein persönlicher Open-Source-Agent; die Enterprise-Distribution von NVIDIA | Ihr Rechner oder Server | Open Source | Viele |
 | Wonderful | Eine Enterprise-KI-Plattform mit Deployment-Teams | SaaS, Single-Tenant, Ihre Cloud oder On-Premises | Proprietär | Modellunabhängig, pro Aufgabe geroutet |
 | Claude Code | Ein Coding-Agent für Entwickler | Entwicklerrechner, Anthropic-Cloud | Proprietär | Nur Claude |
 | OpenAI Codex | Ein Coding-Agent für Entwickler | Entwicklerrechner, OpenAI-Cloud | CLI Apache-2.0, Cloud proprietär | OpenAI; die CLI nimmt auch andere |
@@ -47,7 +56,7 @@ Souveränität bedeutet hier vier Dinge, die Sie entscheiden: wo das Produkt lä
 
 | Produkt | Wo es läuft | Welche Modelle Sie nutzen dürfen | Was die Lizenz erlaubt | Anmeldung, Audit und Kostenkontrolle |
 | --- | --- | --- | --- | --- |
-| **AgenticOS** | Ihre Infrastruktur; eine frische Installation sendet nichts nach außen | Jeder der 27 Provider oder ausschließlich lokale Modelle | Apache-2.0: lesen, ändern, unter eigener Marke anbieten und für andere betreiben; der Standard-PDF-Parser steht unter AGPL-3.0, sodass ein verändertes Image, das Sie anderen bereitstellen, ihnen seinen Quellcode schuldet ([Details](../licenses.md#the-agpl-component)) | Anmeldung: OIDC-SSO, LDAP und Kerberos · Audit: Log mit Manipulationsnachweis · Ausgaben: Budgets pro Agent und pro Organisation · alles in jedem Deployment |
+| **AgenticOS** | Ihre Infrastruktur; eine frische Installation sendet nichts nach außen | Jeder der 28 Provider oder ausschließlich lokale Modelle | Apache-2.0: lesen, ändern, unter eigener Marke anbieten und für andere betreiben; der Standard-PDF-Parser steht unter AGPL-3.0, sodass ein verändertes Image, das Sie anderen bereitstellen, ihnen seinen Quellcode schuldet ([Details](../licenses.md#the-agpl-component)) | Anmeldung: OIDC-SSO, LDAP und Kerberos · Audit: Log mit Manipulationsnachweis · Ausgaben: Budgets pro Agent und pro Organisation · alles in jedem Deployment |
 | Claude Team / Enterprise | Cloud von Anthropic | Nur Claude | Proprietär | Anmeldung: SSO in Team und Enterprise · Audit: Enterprise, 180 Tage Ereignisse · Ausgaben: Limits pro Organisation, Gruppe und Nutzer |
 | ChatGPT Business / Enterprise | Cloud von OpenAI; in Enterprise Speicherort in zehn Regionen wählbar | Nur OpenAI | Proprietär | Anmeldung: SSO in Business; SCIM und eigene Rollen in Enterprise · Audit: Compliance API in Enterprise und Edu · Ausgaben: Credit-Pools und Überziehungslimits |
 | Copilot Studio | Cloud von Microsoft, in Power-Platform-Umgebungen | Standardmäßig GPT-Modelle, Claude-Modelle, Azure-Foundry-Modelle separat abgerechnet | Proprietär | Anmeldung: Entra ID · Audit: Purview · Ausgaben: monatliche Limits pro Agent |
@@ -55,6 +64,12 @@ Souveränität bedeutet hier vier Dinge, die Sie entscheiden: wo das Produkt lä
 | Dify | Selbst gehostet oder Dify Cloud | Viele, darunter Ollama | Apache 2.0 mit Bedingungen: ein mandantenfähiger Dienst braucht eine schriftliche Erlaubnis, und das Logo darf nicht geändert werden | Anmeldung: E-Mail; SSO in Enterprise · Audit: Enterprise · Ausgaben: Abrechnung beim Provider oder Nachrichten-Credits in der Cloud |
 | n8n | Selbst gehostet oder n8n Cloud in Frankfurt | Viele, darunter Ollama | Sustainable Use License: interne Geschäftszwecke, nicht kommerzielle oder private Nutzung; kostenpflichtige Funktionen brauchen einen Lizenzschlüssel, der täglich den Lizenzserver von n8n kontaktiert | Anmeldung: SSO in kostenpflichtigen Plänen · Audit: Log-Streaming in Enterprise · Ausgaben: Ausführungskontingente pro Plan |
 | Viktor | Cloud von Viktor, auf AWS us-east-1 | Voreinstellungen für OpenAI, Anthropic, Google und Kimi oder ein eigener OpenRouter-Schlüssel | Proprietär | Anmeldung: SAML-SSO in Enterprise · Audit: Audit-Logs in Enterprise · Ausgaben: Credit-Pool, Limits nach Absprache in Enterprise |
+| OpenAI dots | Cloud von OpenAI; der Pro-Tarif war zum Start nicht im EWR, in der Schweiz und im Vereinigten Königreich verfügbar | Nur OpenAI | Proprietär | Anmeldung: ChatGPT-Konten · Audit: für dots nicht angegeben · Ausgaben: im Tarif enthalten |
+| Grok Bot | Cloud von xAI | Nur Grok | Proprietär | Anmeldung: xAI- oder Cursor-Konten · Audit: angekündigt · Ausgaben: Tarifpreis, kein genanntes Limit |
+| OpenAI Frontier | Lokal, Ihre Cloud oder OpenAI | OpenAI | Proprietär | Anmeldung, Audit und Ausgaben: nicht öffentlich angegeben; Berechtigungen pro Agent und Dashboards angekündigt |
+| Microsoft Agent 365 | Cloud von Microsoft | Über die Agents, die es steuert | Proprietär | Anmeldung: Entra ID · Audit: Purview · Ausgaben: Microsoft-365-Lizenzen |
+| Claude Managed Agents | Cloud von Anthropic | Nur Claude | Proprietär | Anmeldung: Anthropic-API-Schlüssel · Audit: nicht angegeben · Ausgaben: Tokens plus Gebühr pro Sitzungsstunde, Organisationslimits |
+| OpenClaw / NemoClaw | Ihr Rechner oder Server | Viele | Open Source; NemoClaw ist die Distribution von NVIDIA | Anmeldung, Audit und Zugriffskontrolle: minimal in OpenClaw; ergänzt durch NemoClaw |
 | Wonderful | Mandantenfähiges SaaS, Single-Tenant, Ihre Cloud oder netzwerkisoliert on-premises | Pro Aufgabe von der Plattform geroutet | Proprietär; Agents und Konfiguration lassen sich über UI oder API exportieren | Anmeldung: auf seinen Seiten nicht angegeben · Audit: Audit-Logs im AI Gateway · Ausgaben: Budgetgrenzen pro Team |
 
 Dify und n8n laufen ebenfalls auf Ihren eigenen Servern mit lokalen Modellen, und Wonderful bietet eine netzwerkisolierte On-Premises-Bereitstellung. Unter den Produkten in dieser Tabelle ist AgenticOS das einzige, bei dem alle vier Antworten bei Ihnen bleiben.
@@ -66,7 +81,7 @@ Wer AgenticOS selbst betreibt, macht damit nicht jedes Modell, jeden Parser und 
 Diese Punkte ziehen sich durch jeden Leitfaden und stehen deshalb einmal hier.
 
 - **Die Bereitstellung gehört Ihnen.** Sie läuft auf Ihrer Hardware mit Ihrem eigenen Postgres und Speicher, und eine frische Installation sendet nichts nach außen. Eine vollständig lokale Einrichtung ist möglich, mit lokalen Chat-Modellen, lokalen Embeddings und lokalem Parsing. Siehe [standardmäßig verlässt nichts das System](../data-protection.md#nothing-leaves-by-default).
-- **Jedes Modell, an einer Stelle umgestellt.** [27 Provider](../models.md#providers) stehen hinter einem [Modellprofil](../models.md#a-model-profile) mit [Fallbacks](../models.md#fallbacks). Ändern Sie das Profil, und jeder Agent, der es nutzt, zieht mit, ohne erneute Veröffentlichung.
+- **Jedes Modell, an einer Stelle umgestellt.** [28 Provider](../models.md#providers) stehen hinter einem [Modellprofil](../models.md#a-model-profile) mit [Fallbacks](../models.md#fallbacks). Ändern Sie das Profil, und jeder Agent, der es nutzt, zieht mit, ohne erneute Veröffentlichung.
 - **Ein Agent ist ein versioniertes Dokument.** Die Veröffentlichung friert eine [Version](../concepts.md#version) ein, [Umgebungen](../environments.md#what-an-environment-is) verweisen auf Versionen, und der Spec [wird als YAML exportiert](../features.md#exportable-into-your-own-repository), in Ihr eigenes Git-Repository.
 - **Governance steckt im Open-Source-Produkt.** [Budgets](../governance.md#enforcement-is-before-the-request) werden vor jeder Modellanfrage geprüft. [Freigaben](../governance.md#approvals) halten einen Run an, bis jemand entscheidet. Das [Audit-Log](../governance.md#audit) macht Manipulationen nachweisbar. Nichts davon wartet auf eine Enterprise-Stufe.
 - **Viele Teams, eine Bereitstellung.** Organisationen sind Mandanten, im Schema isoliert. Das [Berechtigungsmodell](../permissions.md#the-built-in-roles) hat sechs Rollen und Grants pro Ressource. [OIDC Single Sign-on, LDAP und Kerberos](../directory.md#signing-in-with-a-directory-account) ordnen Verzeichnisgruppen Rollen zu.
@@ -83,7 +98,7 @@ Ein Vergleich, der die eigenen Lücken verschweigt, ist Werbung. Prüfen Sie die
 - Es gibt keine Evaluierungsumgebung und kein Trace-Dashboard. Bewertungen und Run-Verlauf gibt es. Siehe [wo es noch nicht fertig ist](index.md#where-this-one-is-not-finished).
 - Es gibt keinen Konversationskanal für Microsoft Teams, WhatsApp, Sprache oder E-Mail.
 - Es gibt keine visuelle Workflow-Arbeitsfläche. Mehrstufige Arbeit nutzt Delegation, Planung und Trigger.
-- Freigabeeinstellungen erreichen die Werkzeuge von Capabilities. MCP-Werkzeuge werden pro Konversation freigegeben, nicht pro Werkzeug. Siehe [was MCP Ihnen nicht bietet](../mcp.md#what-mcp-does-not-get-you).
+- Die Werkzeuge eines MCP-Servers warten nach den Nur-Lesen-Markierungen des Servers selbst auf Freigabe, also läuft ein Werkzeug, das er fälschlich als nur lesend markiert, ungefragt. Siehe [was MCP Ihnen nicht bietet](../mcp.md#what-mcp-does-not-get-you).
 - Die Bereitstellung erfolgt mit Docker Compose auf einem Host. Es gibt keine Kubernetes-Manifeste.
 - Sie betreiben es selbst, oder Sie vereinbaren den Betrieb mit Vstorm oder einem anderen Partner.
 
@@ -107,7 +122,7 @@ Ja. AgenticOS steht unter Apache-2.0 und läuft mit Docker Compose auf Ihrer eig
 
 ### Ist AgenticOS eine selbst gehostete Alternative zu ChatGPT Enterprise oder Claude Enterprise? { #is-agenticos-a-self-hosted-alternative-to-chatgpt-enterprise-or-claude-enterprise }
 
-Für Agents, die Ihrer Organisation gehören, ja. Es betreibt Agents auf jedem von 27 Modell-Providern, OpenAI und Anthropic eingeschlossen, mit Budgets, Freigaben und Audit-Logs in jeder Bereitstellung. Es ist kein persönlicher Assistent für jeden Mitarbeiter; siehe die Leitfäden zu [ChatGPT](chatgpt.md) und [Claude](claude-apps.md).
+Für Agents, die Ihrer Organisation gehören, ja. Es betreibt Agents auf jedem von 28 Modell-Providern, OpenAI und Anthropic eingeschlossen, mit Budgets, Freigaben und Audit-Logs in jeder Bereitstellung. Es ist kein persönlicher Assistent für jeden Mitarbeiter; siehe die Leitfäden zu [ChatGPT](chatgpt.md) und [Claude](claude-apps.md).
 
 ### Was kostet AgenticOS? { #how-much-does-agenticos-cost }
 

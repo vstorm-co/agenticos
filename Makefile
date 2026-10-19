@@ -301,7 +301,7 @@ deps-upgrade-all:
 #
 # The frontend half was missing entirely until #143: `make lint` ran ruff, ty and
 # the guard scripts, while CI additionally ran eslint, prettier and tsc - so
-# `make lint` passed on a branch with a type error in a `.tsx`, and CLAUDE.md's
+# `make lint` passed on a branch with a type error in a `.tsx`, and AGENTS.md's
 # "ruff + ty + eslint + tsc" described a command that ran half of that.
 lint: lint-backend lint-frontend lint-spelling lint-precommit
 
@@ -411,9 +411,11 @@ format:
 # === Testing ===
 # `test` is the gate: it fails if platform-layer coverage drops below 100%.
 #
-# CI overrides the report because Codecov wants XML and a terminal diff is no use
-# in a log nobody reads when it is green. Same run, same gate, either way.
+# CI overrides the report because Codecov wants XML. The terminal list of
+# uncovered lines is kept beside it, files at 100% skipped: a red gate that says
+# only "99.99%" sends whoever reads it hunting through every module by hand.
 COV_REPORT ?= term-missing
+COV_TERM := $(if $(findstring term,$(COV_REPORT)),,--cov-report=term-missing:skip-covered)
 
 # `-n auto --maxprocesses 4`: run across worker processes. The integration
 # suite is I/O-bound on one Postgres and roughly halves; the unit suite is
@@ -423,7 +425,7 @@ COV_REPORT ?= term-missing
 # per-worker data, so the 100% gate holds unchanged. A scoped `pytest <file>`
 # stays serial: worker startup is not worth paying for one file.
 test:
-	uv run --directory backend pytest tests/ -v --cov --cov-report=$(COV_REPORT) -n auto --maxprocesses 4
+	uv run --directory backend pytest tests/ -v --cov --cov-report=$(COV_REPORT) $(COV_TERM) -n auto --maxprocesses 4
 
 # Fast loop while writing code — no coverage, no gate.
 test-fast:
@@ -717,9 +719,9 @@ docs-slug-check:
 	uv run --directory backend --group docs pytest -q \
 		tests/test_check_docs_i18n.py::test_the_slug_derivation_matches_the_renderer
 
-# Two decks are published pages, and the only copies: the 14-slide open-source
+# Two decks are published pages, and the only copies: the 17-slide open-source
 # introduction at `docs/presentation/index.html` (served at /presentation/) and the
-# 44-slide product tour at `docs/presentation/tour/index.html` (/presentation/tour/),
+# 47-slide product tour at `docs/presentation/tour/index.html` (/presentation/tour/),
 # which shares the introduction's `media/` and `fonts/`. Both are guided decks that
 # show one slide at a time, so printing either page gives one page, not a deck.
 # This checks what the README promises - each deck's slide count - and that every
@@ -729,7 +731,7 @@ docs-slug-check:
 # CONTENT_OS points at the content toolkit behind the `content-deck` skill, which is
 # not in this repository; `scripts/gen` runs its tools with the toolkit's Python.
 CONTENT_OS ?= $(HOME)/PycharmProjects/content-os
-PRESENTATIONS := docs/presentation/index.html:14 docs/presentation/tour/index.html:44
+PRESENTATIONS := docs/presentation/index.html:17 docs/presentation/tour/index.html:47
 presentation:
 	@test -x "$(CONTENT_OS)/scripts/gen" || { echo "content toolkit not found at $(CONTENT_OS); set CONTENT_OS="; exit 1; }
 	@for entry in $(PRESENTATIONS); do \

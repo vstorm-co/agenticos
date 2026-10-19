@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { Suspense, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { DEFAULT_SCORING } from "@/lib/scoring";
 import { useOrgStore } from "@/stores";
 import DatasetPage from "./page";
 
@@ -54,7 +55,19 @@ const DATASET = {
   latest_version: 2,
   case_count: 4,
   can_edit: false,
+  can_run: false,
   pending_proposals: 0,
+  scoring: DEFAULT_SCORING,
+  judge_name: null,
+  stats: {
+    with_reference: 0,
+    with_counter_example: 0,
+    with_tool_calls: 0,
+    with_checks: 0,
+    expectation_mix: [],
+    by_source: { manual: 0, import: 0, conversation: 0, synthetic: 0 },
+    top_tags: [],
+  },
   created_at: "2026-10-13T00:00:00Z",
   updated_at: null,
 };

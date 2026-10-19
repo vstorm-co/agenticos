@@ -143,6 +143,15 @@ class TriggerCreate(BaseSchema):
     name: str | None = Field(default=None, max_length=120)
     trigger_type: Literal["schedule", "event"] = "schedule"
     environment_id: UUID | None = None
+    runs_as_creator: bool = Field(
+        default=False,
+        description=(
+            "Fire as the person who made the trigger: their memory and their own "
+            "MCP connections, as in their own chat. Only that person may turn it "
+            "on, for themselves; an event trigger reads memory but never writes it, "
+            "and conversation search stays closed either way (#2027)"
+        ),
+    )
 
     # Schedule fields.
     schedule_kind: Literal["interval", "cron"] = "interval"
@@ -252,7 +261,7 @@ class TriggerCreate(BaseSchema):
             raise ValueError("cron_expression is not valid for an event trigger")
 
 
-_UPDATE_NOT_NULLABLE = ("prompt", "is_active")
+_UPDATE_NOT_NULLABLE = ("prompt", "is_active", "runs_as_creator")
 
 
 class TriggerUpdate(BaseSchema):
@@ -290,6 +299,13 @@ class TriggerUpdate(BaseSchema):
     cron_expression: str | None = Field(default=None, max_length=255)
     is_active: bool | None = None
     environment_id: UUID | None = None
+    runs_as_creator: bool | None = Field(
+        default=None,
+        description=(
+            "Turn acting as the creator on or off. Only the creator may turn it on; "
+            "anyone else's change to the prompt, environment or filter turns it off"
+        ),
+    )
     # An event trigger's filter. Re-validated against its source's typed model in
     # the service (which owns `event_source`), so an unknown key is refused there
     # rather than stored to match nothing; a schedule has no filter and one sent
@@ -339,6 +355,7 @@ class TriggerRead(BaseSchema, TimestampSchema):
     created_by_user_id: UUID | None = None
     is_active: bool
     environment_id: UUID | None = None
+    runs_as_creator: bool = False
     trigger_type: Literal["schedule", "event"]
     schedule_kind: Literal["interval", "cron"]
     interval_seconds: int | None = None

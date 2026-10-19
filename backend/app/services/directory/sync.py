@@ -40,6 +40,7 @@ from app.core.permissions import OrgRoleName
 from app.db.models.directory_mapping import DirectoryGroupMapping
 from app.db.models.organization import MembershipSource
 from app.repositories import directory_mapping_repo, group_repo, member_repo
+from app.services.member import end_membership
 
 logger = logging.getLogger(__name__)
 
@@ -120,10 +121,7 @@ class DirectorySyncService:
                 continue
             if membership.role == OrgRoleName.OWNER:
                 continue
-            await group_repo.delete_memberships_in_org(
-                self.db, organization_id=membership.organization_id, user_id=user_id
-            )
-            await member_repo.delete(self.db, membership)
+            await end_membership(self.db, membership)
             await self._audit(
                 "directory.member_removed",
                 user_id,

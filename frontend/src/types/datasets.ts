@@ -69,11 +69,21 @@ export interface DatasetCaseList {
 }
 
 /** What the newest version's cases test against. The four expectations overlap; the sources sum to the case count. */
+/** How many cases hold one combination of what a scorer reads. */
+export interface ExpectationMix {
+  checks: boolean;
+  tool_calls: boolean;
+  reference: boolean;
+  cases: number;
+}
+
 export interface DatasetStats {
   with_reference: number;
   with_counter_example: number;
   with_tool_calls: number;
   with_checks: number;
+  /** Cases counted by whether each has checks, expected calls and a reference at once. */
+  expectation_mix: ExpectationMix[];
   by_source: Record<CaseSource, number>;
   /** The most used tags, most used first. */
   top_tags: { tag: string; cases: number }[];
@@ -89,10 +99,14 @@ export interface Dataset {
   case_count: number;
   /** Whether the caller may change this dataset's cases. */
   can_edit: boolean;
+  /** Whether the caller may run this dataset - start an eval on it, score against it. */
+  can_run: boolean;
   /** Generated cases waiting for a decision; 0 for a caller who may not decide. */
   pending_proposals: number;
   /** How this dataset's cases are scored. */
   scoring: DatasetScoring;
+  /** The judge grading it - its own or the default one; null when that judge is gone. */
+  judge_name: string | null;
   stats: DatasetStats;
   created_at: string;
   updated_at: string | null;

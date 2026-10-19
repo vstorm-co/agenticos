@@ -12,6 +12,7 @@ import { AddToDatasetButton } from "@/components/datasets/add-to-dataset-button"
 import { FileCard, FileViewer } from "@/components/files";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { useRunTranscript } from "@/hooks";
+import { toolDisplayName } from "@/lib/agent-step-captions";
 import { conversationMessageToChatMessage } from "@/lib/conversation-to-chat";
 import { getRunFileUrl, runAttachmentAccess } from "@/lib/file-api";
 import { isRenderSafeImage, suffixOf } from "@/lib/file-kinds";
@@ -173,7 +174,7 @@ function TimelineGroup({
   const stamp = first?.created_at;
 
   return (
-    <li ref={ref} className={cn("rounded-lg border", anchored ? "border-primary/40" : "")}>
+    <li ref={ref}>
       <button
         type="button"
         aria-expanded={open}
@@ -195,14 +196,15 @@ function TimelineGroup({
         )}
       </button>
       {open && (
-        <ol className="space-y-4 border-t px-3 py-3">
-          {group.items.map((item) => (
+        <ol className="space-y-4 px-1 pt-3">
+          {group.items.map((item, index) => (
             <TimelineTurn
               key={item.id}
               item={item}
               runId={runId}
               ownTurn={anchored}
               locale={locale}
+              reply={replyEndingAt(group.items, index)}
             />
           ))}
         </ol>
@@ -211,11 +213,28 @@ function TimelineGroup({
   );
 }
 
+/**
+ * The agent's reply that `items[index]` ends - the steps it wrote in a row, a
+ * tool call's and the answer's alike - with whether anybody rated one of them
+ * down, or `null` when the reply goes on past it.
+ */
+function replyEndingAt(
+  items: RunTranscriptMessage[],
+  index: number,
+): { ratedDown: boolean } | null {
+  if (items[index]!.role !== "assistant" || items[index + 1]?.role === "assistant") return null;
+  let start = index;
+  while (start > 0 && items[start - 1]!.role === "assistant") start -= 1;
+  const steps = items.slice(start, index + 1);
+  return { ratedDown: steps.some((step) => (step.rating_count?.dislikes ?? 0) > 0) };
+}
+
 function TimelineTurn({
   item,
   runId,
   ownTurn,
   locale,
+  reply,
 }: {
   item: RunTranscriptMessage;
   /**
@@ -229,6 +248,8 @@ function TimelineTurn({
   /** Written by the focused run - marked, where the rest of the thread is context. */
   ownTurn: boolean;
   locale: string;
+  /** The agent's reply this turn ends, which is added to a dataset as one case. */
+  reply: { ratedDown: boolean } | null;
 }) {
   const t = useTranslations("pages.runs");
 
@@ -272,9 +293,9 @@ function TimelineTurn({
             {t("ratedDownCount", { count: dislikes })}
           </span>
         )}
-        {item.role === "assistant" && (
+        {reply !== null && (
           <span className="ml-auto">
-            <AddToDatasetButton messageId={item.id} ratedDown={dislikes > 0} />
+            <AddToDatasetButton messageId={item.id} ratedDown={reply.ratedDown} />
           </span>
         )}
       </div>
@@ -436,18 +457,42 @@ function CopyablePanel({
 
 function RawToolCall({ toolCall }: { toolCall: ToolCall }) {
   const t = useTranslations("pages.runs");
+  const tTools = useTranslations("chat.tools");
   const args = JSON.stringify(toolCall.args, null, 2);
   const result =
     typeof toolCall.result === "string"
       ? toolCall.result
       : JSON.stringify(toolCall.result, null, 2);
   return (
-    <details className="rounded-md border">
-      <summary className="flex cursor-pointer items-center justify-between gap-2 px-3 py-1.5 font-mono text-xs select-none">
-        <span>{toolCall.name}</span>
-        <span className="text-muted-foreground">{toolCall.status}</span>
+    <details className="group/tool bg-muted/40 rounded-lg">
+      {/* What the step did in words, with the tool's own id beside it for the
+          reader matching it against a trace - and how it ended as a dot and a
+          word rather than the raw state name. */}
+      <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-xs select-none">
+        <ChevronRight
+          className="text-muted-foreground h-3.5 w-3.5 shrink-0 transition-transform group-open/tool:rotate-90"
+          aria-hidden
+        />
+        <span className="text-foreground font-medium">
+          {toolDisplayName(toolCall.name, tTools)}
+        </span>
+        <span className="text-muted-foreground truncate font-mono">{toolCall.name}</span>
+        <span className="text-muted-foreground ml-auto flex shrink-0 items-center gap-1.5">
+          <span
+            aria-hidden
+            className={cn(
+              "h-1.5 w-1.5 rounded-full",
+              toolCall.status === "completed"
+                ? "bg-success"
+                : toolCall.status === "error"
+                  ? "bg-destructive"
+                  : "bg-muted-foreground/50",
+            )}
+          />
+          {t("toolState", { status: toolCall.status })}
+        </span>
       </summary>
-      <div className="space-y-2 border-t p-3">
+      <div className="space-y-2 px-3 pt-1 pb-3">
         <div className="group flex items-center justify-between gap-2">
           <p className="text-muted-foreground text-xs tracking-wide uppercase">{t("toolInput")}</p>
           <CopyButton text={args} />

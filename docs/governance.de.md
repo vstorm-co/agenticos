@@ -1,5 +1,5 @@
 ---
-source_sha: "02144b8f1d9d"
+source_sha: "fc3416380853"
 ---
 
 # Governance { #governance }
@@ -51,7 +51,7 @@ lässt, ist ein 403, der den Runner überhaupt nie erreicht.
 
 ## Budgets { #budgets }
 
-!!! abstract "Zwei Ebenen, und sie sind keine Varianten einer Zahl"
+!!! abstract "Drei Ebenen, und sie sind keine Varianten einer Zahl"
 
     Das Cap eines Agents, gemessen an der Gesamtsumme der Organisation, wird von
     den Runs seiner Nachbarn aufgebraucht; das der Organisation, gemessen an
@@ -61,6 +61,7 @@ lässt, ist ein 403, der den Runner überhaupt nie erreicht.
 | Ebene | Gesetzt in | Misst | Angehoben von |
 |---|---|---|---|
 | **Agent, monatlich** | dem Spec des Agents | den eigenen Runs dieses Agents | wer den Agent bearbeiten darf |
+| **Abteilung, monatlich** | den Einstellungen der Abteilung | den Runs, die ihre Mitglieder gestartet haben, auf jedem Agent | wer `members:manage` und `budgets:manage` hält |
 | **Organisation, monatlich** | den Einstellungen der Organisation | jedem Run *und* jeder Ingestion in der Organisation | wer `budgets:manage` hält |
 
 Eine **neue Organisation startet mit bereits gesetzter Obergrenze für die
@@ -97,6 +98,21 @@ Version, denn das ist die, die der Runner durchsetzt, und nicht das, was der
 Draft gerade verspricht. Die Headroom-Karte des Dashboards verbindet diese mit
 `GET /spend`, sodass ein Cap im Anmarsch zu sehen ist, bevor `budget_exceeded` in
 der Run-Historie auftaucht.
+
+### Das Cap einer Abteilung { #a-departments-cap }
+
+Eine [Abteilung](departments.md#a-departments-budget) kann ein eigenes
+monatliches Cap tragen. Es liegt zwischen den anderen beiden: Ein Run wird gegen
+das Cap des Agents geprüft, dann gegen jede Abteilung mit Cap, in der die Person
+ist, die ihn gestartet hat, dann gegen das der Organisation. Jede Abteilung misst
+den Monat ihrer eigenen Mitglieder, sodass eine Person in Finanzen und Vertrieb
+von derjenigen gestoppt wird, die zuerst ausgeschöpft ist, und die Ablehnung
+nennt sie - *Sales department monthly budget exhausted*.
+
+Die Leitung der Abteilung und die Administratoren werden einmal benachrichtigt,
+wenn sie 80 % ihres Monats überschreitet, und erneut, wenn ihr Cap einen Run
+stoppt. Ein Run, den niemand gestartet hat - ein Zeitplan, ein Besucher in einem
+Kanal - gehört zu keiner Abteilung und wird nicht gezählt.
 
 ### Durchgesetzt wird vor der Anfrage { #enforcement-is-before-the-request }
 
@@ -143,6 +159,17 @@ der Anfrage sehr wohl begrenzt. Deshalb ist das Cap eine Obergrenze auf
 Ein Deployment, das ein striktes Cap braucht, lässt seine Agents durch eine
 einzige Queue laufen statt parallel.
 
+### Evals zahlen aus denselben Budgets { #evals-spend-from-the-same-budgets }
+
+Ein [Eval-Run](evals.md) besteht aus gewöhnlichen Runs. Jeder Fall wird daher
+vor jeder Modellanfrage gegen die Limits des Agents und der Organisation
+geprüft, und was er ausgibt, zählt gegen beide - ein eigenes Eval-Budget gibt
+es nicht. Ein großes Dataset kann deshalb das Monatsbudget aufbrauchen, das der
+Produktionsverkehr braucht. Der Start eines Runs zeigt, was jedes Limit nach
+der geschätzten Ausgabe behält, und wird abgelehnt, bevor etwas läuft, wenn die
+Schätzung höher ist als das, was einem der beiden bleibt; siehe
+[Das verbleibende Budget](evals.md#the-budget-it-leaves).
+
 ### Ein Run kostet mehr als seine Modellanfragen { #a-run-costs-more-than-its-model-requests }
 
 Eine Wissenssuche bettet die Frage ein, bevor sie danach suchen kann, und dieses
@@ -158,8 +185,8 @@ Also gehört der Zähler zum vorbereiteten Run und nicht zur Oberfläche. Einen 
 öffnen ist kein Schritt, von dem eine neue Oberfläche wissen muss, denn es gibt
 keinen Weg, einen vorbereiteten Agent ohne ihn auszuführen.
 
-[Context-Management](reference/capabilities.md#context-management) ist das
-andere. Seine zusammenfassende Strategie schreibt die Zusammenfassung über einen
+Die Capability [Lange Gespräche](reference/capabilities.md#context-management) ist das
+andere. Ihre zusammenfassende Strategie schreibt die Zusammenfassung über einen
 Agent, den sie selbst baut, sodass diese Anfrage an keinem Budget-Guard
 vorbeikommt; die Capability bucht ihre Kosten gegen denselben Zähler.
 *Außerhalb* des Guards zu liegen hat eine Konsequenz, die man kennen sollte: Die
@@ -204,8 +231,8 @@ einer Nachricht ab, mit der jemand etwas anfangen kann. Ein Workspace lehnt eine
 Schreibvorgang ab. Ein **Context-Window** wird vom Provider abgelehnt, mitten in
 der Antwort, und der Run scheitert einfach.
 
-Jeder Agent trägt deshalb eine Anzeige — nicht nur einer mit gebundenem
-[Context-Management](reference/capabilities.md#context-management), denn die
+Jeder Agent trägt deshalb eine Anzeige — nicht nur einer mit gebundener
+Capability [Lange Gespräche](reference/capabilities.md#context-management), denn die
 Warnung zählt am meisten für den Agent, der *nicht* kompaktieren wird. Sie
 meldet, wie viele Token die letzte Anfrage eines Turns getragen hat, *nach* jeder
 Kompaktierung: Der Wert fällt, wenn die Kompaktierung wirkt, weil er misst, was
@@ -678,6 +705,12 @@ Kosten eines Delegates einmal landen, innerhalb des Runs, der ihn gestartet hat.
 Und sie deckt das Fenster ab, das der Rest des Tabs zeigt, statt einer eigenen
 rollenden Voreinstellung.
 
+**Wann es ausgegeben wurde** ist ein Balken pro UTC-Tag über dasselbe Fenster, aus
+`by_day` — die eigenen Kosten jedes Runs, sodass die Tage dieselbe Rechnung ergeben,
+die die Aufschlüsselungen teilen. Ein Tag ohne Runs wird als null gezeichnet statt
+ausgelassen. Jede Aufschlüsselung zeigt den Anteil jeder Zeile an ihrer Summe, und ein
+Agent mit Monatslimit zeigt den bisherigen Monat gegen dieses Limit.
+
 Die Personen der Organisation zu benennen ist dieselbe Entscheidung, die auch die
 Dashboard-Karte trifft, also nimmt sie dasselbe Gate: `runs:view`, gehalten von
 Builder und Operator ebenso wie von den beiden Verwaltern, und sie sagt das in
@@ -961,6 +994,54 @@ Die andere Art von Ausreißer ist eine Tool-Schleife: billig je Aufruf, und sie
 wird nie fertig. Ein Budget rechnet dafür nur ab. `max_steps` deckelt, wie viele
 Modellanfragen ein Run stellen darf, und ist das, was sie tatsächlich stoppt.
 
+Der Schleifenwächter stoppt die meisten Schleifen früher und sagt, warum. Jeder
+Agent hat ihn, standardmäßig eingeschaltet. Ruft ein Run ein Tool viermal in
+Folge mit denselben Argumenten auf oder durchläuft er einen Zyklus aus zwei oder
+drei Aufrufen dreimal, wird dem Modell gesagt, dass es in einer Schleife steckt
+und anders vorgehen soll. Laufen die Aufrufe nach dieser Warnung wieder in eine
+Schleife, endet der Run als `loop_stopped`, mit einer Begründung, die die Tools
+nennt - nie ihre Argumente. Aufrufe mit anderen Argumenten sind nie eine
+Schleife, und nur die Aufrufe des Runs selbst zählen. Der Builder setzt beide
+Schwellen oder schaltet den Wächter aus, neben `max_steps` (`loop_guard` im
+Spec).
+
+### Run-Reviewer { #run-reviewers }
+
+Ein langer Run driftet: Anweisungen verblassen, Behauptungen ohne Quelle häufen
+sich, der Agent entfernt sich von der Anfrage. Ein Agent kann bis zu fünf
+Reviewer haben (`reviewers` im Spec, *Run-Reviewer* im Builder neben den
+Limits), jeder ein zweites, meist günstigeres Modell mit einem Anliegen. Alle
+`every` Modell-Requests liest ein Reviewer die letzten `window` Tokens des Runs
+und lässt ihn entweder laufen oder schickt eine kurze Korrektur, die das Modell
+des Runs beim nächsten Request mit dem Namen des Reviewers erhält. Die
+Run-Ansicht listet jede Korrektur und wer sie geschickt hat.
+
+Die Aufrufe eines Reviewers werden vor dem Absenden gegen das Budget des Agents
+und der Organisation geprüft und auf dem Run gebucht, bepreist als das Modell des
+Reviewers. Ein wegen des Budgets abgelehnter Aufruf wird übersprungen, und ein
+Reviewer, der scheitert, wird geloggt; keines von beiden lässt den Run scheitern.
+Ein Agent ohne Reviewer macht keine zusätzlichen Modellaufrufe.
+
+### Code-Modus { #code-mode }
+
+Ein Agent, der Datensätze abarbeitet - zehn Zeilen aktualisieren, dann
+zusammenfassen -, zahlt für jeden abhängigen Aufruf einen Modell-Turn, und jeder
+Turn schickt den ganzen Kontext erneut. Mit eingeschaltetem *Code-Modus*
+(`code_mode` im Spec, neben den Limits im Builder) werden die Tools des Agents in
+ein einziges `run_code`-Tool gefaltet: Das Modell schreibt ein kurzes
+Python-Skript, das in der Monty-Sandbox läuft und die Tools in Schleifen und
+parallel aufruft, bis zu `max_tool_calls` pro Skript.
+
+Höchstens vier Aufrufe eines Skripts laufen gleichzeitig, der Rest wartet, sodass
+ein Skript, das Hunderte Sandbox-Aufrufe auffächert, sie nicht alle zugleich
+öffnet.
+
+Jeder Aufruf aus einem Skript durchläuft dieselben Guardrails, dasselbe Budget
+und dieselben Berechtigungsprüfungen wie ein direkter Aufruf. Ein Tool, das eine
+Freigabe braucht, wird nie hineingefaltet: Es bleibt ein normaler Aufruf, und der
+Run hält wie immer für die Person an. Die Run-Ansicht listet jedes Skript und
+jeden Aufruf, den es gemacht hat.
+
 ### Berichte { #reporting }
 
 Ein Run, der sich nicht bepreisen ließ — ein Modell, das `genai-prices` nicht
@@ -968,16 +1049,54 @@ kennt —, wird mit einer Warnung bei null festgehalten, und die Summe wird als
 **Untergrenze** gekennzeichnet, statt geraten zu werden. Die UI zeigt das als ein
 `+` neben der Zahl.
 
+**Cache-Lese- und Schreibvorgänge werden getrennt geführt.** Die Eingabetokens
+eines Runs enthalten die, die der Anbieter aus seinem Prompt-Cache bedient hat,
+und die, die er hineingeschrieben hat, und alle drei werden getrennt bepreist -
+bei Claude Sonnet 5.5 kostet ein Cache-Lesevorgang 5 % des Eingabepreises und ein
+Schreibvorgang 125 %. Jeder Run und jede Antwort speichert `cache_read_tokens` und
+`cache_write_tokens` neben der Summe, die Kosten werden aus dieser Aufteilung
+berechnet, und die Run-Ansicht und die Kosten unter jeder Antwort zeigen sie -
+damit lässt sich ein Run mit der Konsole des Anbieters abgleichen.
+
+**Die Kosten eines Runs enthalten seine Delegationen.** Der Run, den jemand
+gestartet hat, trägt das ganze Ledger, Delegates eingeschlossen; die eigene Zeile
+einer Delegation teilt dasselbe Geld nach Agent auf, und die Run-Ansicht sagt,
+dass ihre Delegationen schon in der Zahl darüber stecken. Beide zu addieren zählt
+die Delegationen doppelt.
+
+**Ein Prompt-Cache, der nicht mehr trifft, wird markiert.** Caching lohnt sich
+nur, solange der Anfang jedes Requests gleich bleibt; eine umgestellte Tool-Liste
+oder ein Zeitstempel in den Anweisungen lässt den Anbieter den vollen Preis für
+Tokens berechnen, die er im Cache hatte. Jeder Agent liest bei jeder Antwort die
+Cache-Zahlen des Anbieters, und ein Request, dessen gecachter Präfix
+eingebrochen ist, wird im Request-Wasserfall des Runs markiert - *Cache
+gebrochen*, solange der Anbieter ihn noch hätte halten sollen, *Cache
+abgelaufen*, wenn die Aufbewahrung vorbei war - mit der Zahl der gecachten
+Tokens, die er nicht zurückgelesen hat, und mit Agent und Modell geloggt. Der erste Request eines
+Turns wird mit dem verglichen, was der vorige Turn gecacht hat, wenn derselbe
+API-Worker beide bedient.
+
+Die Zahlen werden an jedem Run gespeichert, daher summiert **Runs → Spend**, wo
+der Cache nicht gehalten hat: eine Karte *Prompt-Cache*, eine Zeile pro Agent
+und Modell, mit Busts, Abläufen und den gecachten Tokens, die nicht zurückgelesen
+wurden, im Zeitraum - ein Maß für den Fehlgriff, nicht für erneut Berechnetes, da
+auch eine Komprimierung den gecachten Prompt verkleinern kann. Solange jeder Cache gehalten hat, erscheint die Karte nicht.
+
 ## Freigaben { #approvals }
 
-Ein Tool, das auf die Außenwelt einwirkt, parkt den Run und wartet auf eine
-Person.
+Ein Tool, das der Autor des Agents hinter ein Gate gestellt hat, parkt den Run und
+wartet auf eine Person. Nichts steht hinter einem Gate, bis jemand darum bittet:
+Ein Gate, das niemand gewählt hat, parkt Runs in Kanälen und Routinen, in denen
+niemand da ist, um zu antworten.
 
 Die Auflösung geht vom Spezifischsten aus:
 
 1. die eigene Übersteuerung des Tools, falls es eine hat
 2. der `approval`-Modus der Capability (`required` | `never` | `default`)
-3. was `side_effecting` entscheidet, für `default`
+3. keine Freigabe, wenn beide `default` sagen
+
+`side_effecting` entscheidet hier nichts mehr. Der Builder zeigt es neben der
+Wahl, sodass ein Autor die Tools, die auf die Welt einwirken, zuerst sieht.
 
 Der Builder benennt das Ergebnis in Worten, statt die Regel zu beschreiben, denn
 eine Regel, die der Leser im Kopf ausführen muss, ist eine Einstellung, an die
@@ -1145,9 +1264,10 @@ Vier Dinge machen es zu einer Sitzungseinstellung statt zu einem Loch im Modell:
 strengeren Modus ist keine besondere Berechtigung nötig. Der Modus erfasst MCP-Aufrufe,
 die der Runner ausführt, obwohl diese Tools nicht von Capabilities deklariert
 werden. Erlaubnislisten an Verbindung und Agent-Bindung bestimmen, welche
-MCP-Tools verfügbar sind; sie fordern selbst keine Freigabe an. Der Standardmodus
-**Follow the agent** wendet die Capability-Regeln des Agenten an und ergänzt
-für diese MCP-Tools kein Freigabe-Gate.
+MCP-Tools verfügbar sind; was sie für eine Person zurückhält, ist die eigene
+`approval`-Regel der Bindung - `writes` oder `all` -, die der Standardmodus
+**Follow the agent** wie die einer Capability anwendet (siehe
+[welche Aufrufe auf eine Person warten](mcp.md#which-calls-wait-for-a-person)).
 
 ### Eine Entscheidung, die niemand trifft { #a-decision-nobody-makes }
 
@@ -1287,13 +1407,14 @@ des Delegates es nicht konnte — die Message-Historie der Bibliothek ist Teleme
 nach bestem Bemühen, und eine von vorn ausgeführte Delegation hat trotzdem
 ausgegeben, was sie ausgegeben hat.
 
-!!! warning "MCP-Freigaben hängen vom Ausführungsmodus ab"
+!!! warning "MCP-Freigaben werden an der Bindung eingestellt"
 
-    Die Freigabeeinstellung einer Capability deckt MCP-Tools nicht ab. Im
-    Webchat erfasst **Ask about everything** (`ask_all`) auch MCP-Aufrufe,
-    die der Runner ausführt; der Standardmodus **Follow the agent** nicht.
-    Beschränken Sie Tools an der Verbindung und ihrer Agent-Bindung und testen
-    Sie den vorgesehenen Ausführungsmodus. Die strengere Einstellung einer
+    Die Freigabeeinstellung einer Capability deckt MCP-Tools nicht ab; die
+    `approval`-Regel der Bindung tut es, auf jeder Oberfläche, auf der der Agent
+    läuft. `writes` hält die Tools zurück, die der Server nicht als schreibgeschützt
+    markiert - das ist die Angabe des Servers selbst, wählen Sie für einen Server
+    außerhalb Ihrer Kontrolle also `all`. Im Webchat erfasst **Ask about
+    everything** (`ask_all`) auch den Rest; die strengere Einstellung einer
     Chatsitzung gilt nicht automatisch für einen Zeitplan oder einen anderen
     Zugang. Beim Modellanbieter ausgeführte Tools durchlaufen das lokale
     Freigabe-Gate nicht.
@@ -1320,8 +1441,9 @@ Beide Kanäle werden unabhängig voneinander geschaltet, je Ereignis, unter
 **Settings → Notifications** - eine Person kann die In-App-Zeile für
 Freigaben behalten und ihre E-Mail abschalten, oder umgekehrt. Dieselbe Seite
 trägt auch jedes andere Ereignis, das das Postfach zustellt: einen Run, der
-unbeaufsichtigt fertig wird oder scheitert, die Ingestion eines Dokuments, die
-**scheitert**, die eigene Gesamtzahl eines Konnektor-Laufs, und die eigene
+unbeaufsichtigt fertig wird oder scheitert - ein `eval`-Run, einer der vielen,
+die ein Eval startet, sendet keines von beiden -, die Ingestion eines
+Dokuments, die **scheitert**, die eigene Gesamtzahl eines Konnektor-Laufs, und die eigene
 Ankündigung eines App-Admins - `POST /admin/announcements`, noch keine
 Console-Seite - adressiert nach Organisation und, optional, nach Rolle, und
 beschränkt auf einen oder beide Kanäle.
@@ -1552,12 +1674,17 @@ Abgleich der Tool-Aufrufe aus, hält die Kriterien des Judge mit der Begründung
 als übersprungen fest und lässt einen Fall, dessen Judge erforderlich war,
 unbewertet statt bestanden. Urteile von Menschen bleiben verfügbar.
 
-Diese Funktionen laufen als [System-Agents](concepts.md#system-agents). Jeder
-Run ist ein gewöhnlicher Run: Er wird vor jedem Modellaufruf gegen das eigene
-Monatsbudget des Agents und das der Organisation geprüft, seine Kosten werden
+Diese Funktionen laufen als [Bewerter](concepts.md#system-agents). Jeder Run
+ist ein gewöhnlicher Run: Er wird vor jedem Modellaufruf gegen das eigene
+Monatsbudget des Bewerters und das der Organisation geprüft, seine Kosten werden
 aufgezeichnet, und er wird in Activity unter der Oberfläche `eval` aufgeführt.
-Ein System-Agent startet mit einem eigenen Budget - das des Judge beträgt 5 $
-im Monat -, das sich wie das jedes Agents ändern lässt.
+Ein Bewerter startet mit einem eigenen Budget - 5 $ im Monat -, das sich wie das
+jedes Agents ändern lässt.
+
+Ein Bewerter wird nie bereitgestellt: Kein Kanal, kein Embed, keine
+öffentliche Seite und kein Zeitplan lassen sich an ihn hängen, kein Agent kann
+an ihn delegieren, und ein Run auf einer anderen Oberfläche als `eval` wird
+abgelehnt. Seine Ausgaben entstehen daher nur durch die Funktionen oben.
 
 ## Audit { #audit }
 
@@ -1708,8 +1835,8 @@ Ort für die Fristen je Tenant.
 |---|---|---|
 | Gespräche | Nachrichten, Tool-Aufrufe und die daran hängenden Chat-Dateien — die gespeicherten Bytes **vor** den Zeilen, sodass eine Datei, die sich nicht entfernen ließ, ihre Zeile für den nächsten Durchlauf behält, statt sie unauffindbar zu überleben | Der letzten Aktivität des Threads, damit einer, zu dem jemand zurückkehrt, nicht alt ist |
 | Runs | Die Run-Zeile, ihr Manifest und ihre Tool-Freigaben | Dem Start des Runs |
-| Workspaces | Die Aufzeichnung der Plattform über die Dateien eines Agenten. Beim `state`-Backend *ist* die Zeile der Speicher; die Dateien eines Sandbox-Backends räumt dessen eigene TTL ab | Der letzten Nutzung |
-| Artefakte | Eine [veröffentlichte Seite](artifacts.md) mit jeder Version, ihren gespeicherten Bytes (**vor** den Zeilen, wie bei Gesprächen), ihren Grants und ihrem öffentlichen Link | Der letzten Veröffentlichung, damit ein Bericht, den ein Zeitplan neu veröffentlicht, nicht alt ist |
+| Workspaces | Die Aufzeichnung der Plattform über die Dateien eines Agenten. Beim `state`-Backend *ist* die Zeile der Speicher; die Dateien eines Sandbox-Backends räumt dessen eigene TTL ab. Die eines Projekts bleiben, solange das Projekt besteht | Der letzten Nutzung |
+| Apps | Eine [veröffentlichte Seite](artifacts.md) mit jeder Version, ihren gespeicherten Bytes (**vor** den Zeilen, wie bei Gesprächen), ihren Grants und ihrem öffentlichen Link | Der letzten Veröffentlichung, damit ein Bericht, den ein Zeitplan neu veröffentlicht, nicht alt ist |
 | Gedächtnis | Die Gedächtnisdateien eines Agenten | Dem letzten Schreiben, denn eine Notiz wird einmal geschrieben und monatelang gelesen |
 | Hochgeladene Dokumente | Die Zeile, ihre Vektoren und die hochgeladene Datei | Dem Zeitpunkt des Hochladens |
 | Audit | Einträge auf der Spur dieser Organisation | Dem Zeitpunkt des Eintrags |

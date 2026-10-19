@@ -29,10 +29,10 @@ function step(status: PlanStepStatus, content = "Read the handbook", id = "s1"):
   return { id, content, status };
 }
 
-function draw(steps: PlanStep[]) {
+function draw(steps: PlanStep[], live = false) {
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
-      <PlanChecklist steps={steps} />
+      <PlanChecklist steps={steps} live={live} />
     </NextIntlClientProvider>,
   );
 }
@@ -78,6 +78,21 @@ describe("PlanChecklist - where the agent is, one row per step", () => {
       </NextIntlClientProvider>,
     );
     expect(screen.getByText("Read the handbook")).toHaveStyle({ backgroundSize: "100% 1px" });
+  });
+
+  it("spins the step in flight only while a turn is working it", () => {
+    // A plan whose run ended - finished, failed or stopped - is worked by
+    // nobody, and a spinner under it said otherwise until a reload (#2149).
+    const { container, rerender } = draw([step("in_progress")], true);
+    expect(container.querySelector(".animate-spin")).not.toBeNull();
+
+    rerender(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <PlanChecklist steps={[step("in_progress")]} />
+      </NextIntlClientProvider>,
+    );
+    expect(container.querySelector(".animate-spin")).toBeNull();
+    expect(screen.getByLabelText("In progress")).toBeInTheDocument();
   });
 
   it("leaves a step that has not finished unstruck", () => {

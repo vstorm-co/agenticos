@@ -17,18 +17,26 @@ import * as adminUser from "./admin/users/[userId]/route";
 import * as adminUsers from "./admin/users/route";
 import * as agent from "./agent/[[...path]]/route";
 import * as agents from "./agents/[[...path]]/route";
+import * as apiKeys from "./api-keys/[[...path]]/route";
+import * as assistant from "./assistant/[[...path]]/route";
 import * as approvals from "./approvals/[[...path]]/route";
-import * as artifacts from "./artifacts/[[...path]]/route";
+import * as apps from "./apps/[[...path]]/route";
 import * as audit from "./audit/[[...path]]/route";
 import * as catalog from "./catalog/[[...path]]/route";
 import * as channels from "./channels/[[...path]]/route";
 import * as context from "./context/[[...path]]/route";
 import * as conversations from "./conversations/[[...path]]/route";
 import * as datasets from "./datasets/[[...path]]/route";
+import * as evalRuns from "./eval-runs/[[...path]]/route";
+import * as externalAgents from "./external-agents/[[...path]]/route";
+import * as visuals from "./visuals/[[...path]]/route";
 import * as kb from "./kb/[[...path]]/route";
 import * as localServices from "./local-services/[[...path]]/route";
 import * as mcpConnections from "./mcp-connections/[[...path]]/route";
+import * as mcpOauth from "./mcp-oauth/[[...path]]/route";
 import * as memory from "./memory/[[...path]]/route";
+import * as projects from "./projects/[[...path]]/route";
+import * as browserSignIns from "./browser-sign-ins/[[...path]]/route";
 import * as channelLink from "./me/channel-link/[[...path]]/route";
 import * as notifications from "./notifications/[[...path]]/route";
 import * as permissions from "./me/permissions/route";
@@ -51,6 +59,11 @@ import * as orgGroups from "./orgs/[id]/groups/route";
 import * as orgGroup from "./orgs/[id]/groups/[groupId]/route";
 import * as orgGroupMembers from "./orgs/[id]/groups/[groupId]/members/route";
 import * as orgGroupMember from "./orgs/[id]/groups/[groupId]/members/[userId]/route";
+import * as orgGroupResources from "./orgs/[id]/groups/[groupId]/resources/route";
+import * as orgGroupShareable from "./orgs/[id]/groups/[groupId]/shareable/route";
+import * as orgGroupQuality from "./orgs/[id]/groups/[groupId]/quality/route";
+import * as orgGroupShares from "./orgs/[id]/groups/[groupId]/shares/route";
+import * as orgGroupSpendCsv from "./orgs/[id]/groups/[groupId]/spend.csv/route";
 import * as orgDirectoryMappings from "./orgs/[id]/directory-mappings/route";
 import * as orgDirectoryMapping from "./orgs/[id]/directory-mappings/[mappingId]/route";
 import * as providers from "./providers/[[...path]]/route";
@@ -93,17 +106,24 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["admin/users/[userId]/detail", adminUserDetail],
   ["agent", agent],
   ["agents", agents],
+  ["api-keys", apiKeys],
+  ["assistant", assistant],
   ["approvals", approvals],
-  ["artifacts", artifacts],
+  ["apps", apps],
   ["audit", audit],
+  ["browser-sign-ins", browserSignIns],
   ["catalog", catalog],
   ["channels", channels],
   ["context", context],
   ["conversations", conversations],
   ["datasets", datasets],
+  ["eval-runs", evalRuns],
+  ["external-agents", externalAgents],
+  ["visuals", visuals],
   ["kb", kb],
   ["local-services", localServices],
   ["mcp-connections", mcpConnections],
+  ["mcp-oauth", mcpOauth],
   ["memory", memory],
   ["me/channel-link", channelLink],
   ["me/mcp-connections", myMcpConnections],
@@ -112,6 +132,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["me/mcp-connections/oauth/start", mcpOauthStart],
   ["me/slash-commands", slashCommands],
   ["notifications", notifications],
+  ["projects", projects],
   ["orgs", orgs],
   ["orgs/[id]", org],
   ["orgs/[id]/invitations", orgInvitations],
@@ -123,6 +144,11 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["orgs/[id]/groups/[groupId]", orgGroup],
   ["orgs/[id]/groups/[groupId]/members", orgGroupMembers],
   ["orgs/[id]/groups/[groupId]/members/[userId]", orgGroupMember],
+  ["orgs/[id]/groups/[groupId]/resources", orgGroupResources],
+  ["orgs/[id]/groups/[groupId]/shareable", orgGroupShareable],
+  ["orgs/[id]/groups/[groupId]/quality", orgGroupQuality],
+  ["orgs/[id]/groups/[groupId]/shares", orgGroupShares],
+  ["orgs/[id]/groups/[groupId]/spend.csv", orgGroupSpendCsv],
   ["orgs/[id]/directory-mappings", orgDirectoryMappings],
   ["orgs/[id]/directory-mappings/[mappingId]", orgDirectoryMapping],
   ["providers", providers],

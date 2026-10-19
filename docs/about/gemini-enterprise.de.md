@@ -1,5 +1,5 @@
 ---
-source_sha: "a4ea427a6641"
+source_sha: "5a0847ae121e"
 title: "AgenticOS vs Gemini Enterprise"
 seo_title: "AgenticOS vs Gemini Enterprise: selbst gehostete Alternative"
 description: "Google Gemini Enterprise vs. AgenticOS: jedes Modell in jedem Agent, keine Platzgebühr, keine Erstellungskontingente, acht Oberflächen, auf Ihren Servern."
@@ -17,7 +17,7 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. Agen
 | --- | --- | --- |
 | Wo es läuft | Google Cloud, in `global`, `us`, `eu` und einigen nationalen Regionen | Ihre Infrastruktur |
 | Quellcode | Proprietär | Apache-2.0 |
-| Modelle | Gemini in der App und im Workflow Builder; andere Modelle nur in eigenen Agents auf der Agent Platform | 27 Provider in jedem Agent, einschließlich lokaler |
+| Modelle | Gemini in der App und im Workflow Builder; andere Modelle nur in eigenen Agents auf der Agent Platform | 28 Provider in jedem Agent, einschließlich lokaler |
 | Wer es nutzt | Mitarbeiter mit einem Platz | Mitarbeiter, Kunden und Systeme, auf acht Oberflächen |
 | Oberflächen | Web-App, mobile App, Slack | Web-Chat, Widget, gehostete Seite, HTTP-API, WebSocket, Slack, Telegram, Mattermost |
 | Erstellen | Workflow Builder; eigene und Partner-Agents bei Standard und Plus | Der Builder, für jeden Agent |
@@ -29,7 +29,7 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. Agen
 
 ### Jedes Modell, in jedem Agent { #every-model-in-every-agent }
 
-In Gemini Enterprise nutzen die App und der Workflow Builder Gemini-Modelle. Claude, Mistral und Open-Weight-Modelle sind nur für eigene Agents verfügbar, die auf der Agent Platform von Google gebaut werden. In AgenticOS kann jeder Agent jeden der [27 Provider](../models.md#providers) nutzen, einschließlich Gemini und Vertex, und mit einem einzigen [Modellprofil](../models.md#a-model-profile) wechseln.
+In Gemini Enterprise nutzen die App und der Workflow Builder Gemini-Modelle. Claude, Mistral und Open-Weight-Modelle sind nur für eigene Agents verfügbar, die auf der Agent Platform von Google gebaut werden. In AgenticOS kann jeder Agent jeden der [28 Provider](../models.md#providers) nutzen, einschließlich Gemini und Vertex, und mit einem einzigen [Modellprofil](../models.md#a-model-profile) wechseln.
 
 ### Agents über den Platz des Mitarbeiters hinaus { #agents-beyond-the-employees-seat }
 
@@ -65,7 +65,7 @@ Für Agents, die Ihrer Organisation gehören und die sie veröffentlicht, ja. Ag
 
 ### Kann AgenticOS Gemini-Modelle nutzen? { #can-agenticos-use-gemini-models }
 
-Ja, über Modellprofile für Google Gemini oder Vertex AI, zwei der 27 Provider, die AgenticOS unterstützt.
+Ja, über Modellprofile für Google Gemini oder Vertex AI, zwei der 28 Provider, die AgenticOS unterstützt.
 
 ### Begrenzt AgenticOS, wie viele Agents Sie erstellen können? { #does-agenticos-limit-how-many-agents-you-can-create }
 

@@ -162,10 +162,10 @@ do not lend it their **identity**. Nobody is listening to an unattended run, so
 it answers to no identified person, the same as an embedded widget visitor. These
 per-person stores are closed to it:
 
-- [Memory files](reference/capabilities.md#memory-files) and
+- [Memory](reference/capabilities.md#memory-files) and
   [mem0](reference/capabilities.md#memory-mem0): every tool answers that the
   conversation has no memory.
-- [Conversation search](reference/capabilities.md#conversation-search): both
+- [Past conversations](reference/capabilities.md#conversation-search): both
   tools refuse.
 - A [personal MCP binding](mcp.md#whose-account-a-binding-speaks-through): the creator's own Notion or mailbox is absent, and the agent is told why.
 - [Artifacts](reference/capabilities.md#artifacts): `publish_artifact` still publishes, and the page is
@@ -173,24 +173,38 @@ per-person stores are closed to it:
   whole page rather than editing one.
 
 This is deliberate. A store kept for a person is read back to that person, and a
-fire nobody started must not write into it on their behalf. No setting changes it
-today.
+fire nobody started must not write into it on their behalf. A
+[sandbox](sandbox.md) with `session_scope: user` keeps the same rule: a fire has
+no workspace of its own there.
 
-!!! warning "A user-scoped sandbox is the exception"
+### Unless its creator lets it run as them
 
-    A [sandbox](sandbox.md) with `session_scope: user` is not closed. A fire
-    opens the creator's own workspace for that agent, and it can read and write
-    the creator's files there. A member without `agents:edit` cannot edit or fire
-    a trigger that another member created, because a changed prompt could copy
-    those files out on the next fire.
+**Run as me**, a setting on the trigger, is the one exception, and only the
+creator can turn it on, for themselves. A fire then reaches their memory and
+their own MCP connections as their own chat does — the morning *tell me what
+matters in my inbox* the default cannot do — on these terms:
+
+- **A schedule reads and writes memory; an event only reads it.** An event's
+  prompt carries a mail or a webhook body nobody vetted, and a note written from
+  it would be read by every later chat as the creator's own.
+- **Past conversations stay closed** either way.
+- **Somebody else's edit turns it off.** Changing the message, the environment or
+  the filter of a trigger you did not create switches it off, so nobody rewrites
+  what runs as you. An administrator acting as you through impersonation, or a
+  script holding your API key, cannot turn it on.
+- **So does a new version you did not publish yourself.** A publish, a
+  promotion or a rollback by anybody else turns it off - and so does one made
+  through your API key or by an administrator impersonating you.
+- **The record says so.** The run names the trigger that fired it, and every audit
+  entry the fire records carries `via_trigger` with the member it acted as.
 
 The rule decides how you design an agent that runs on a trigger:
 
 | An unattended run needs | Use |
 |---|---|
-| Standing facts or preferences | The trigger's own prompt, or a [context file](context.md) bound to the agent |
+| Standing facts or preferences | The trigger's own prompt, a [context file](context.md) bound to the agent, or the creator's memory with **Run as me** |
 | State kept from one fire to the next | A [sandbox](sandbox.md) with `session_scope: conversation`: every fire of one trigger appends to the same run-log conversation |
-| A mailbox or another external service | A connection bound with the organization's account, not each person's |
+| A mailbox or another external service | A connection bound with the organization's account, or the creator's own with **Run as me** |
 
 [Competitor monitoring](howto/competitor-monitoring.md) and
 [a personal assistant](howto/personal-assistant.md) both meet this rule and show
@@ -287,6 +301,7 @@ correctly:
 | `failed` | broke |
 | `budget_exceeded` | reached a cap — a spending limit doing its job |
 | `guardrail_blocked` | was refused by a [guardrail](reference/capabilities.md#guardrails) |
+| `loop_stopped` | kept repeating the same tool calls after it was warned, and was [stopped](governance.md#step-limits) |
 | `cancelled` | was stopped: the composer's stop button, a socket that went away, a delegation cancelled from above. On every surface, not only the streaming one |
 | `awaiting_approval` | parked on an approval, and is **resumable** — its message history is stored, so the decision applies to the conversation it belongs to |
 
@@ -422,7 +437,7 @@ Approval resolves most-specific-first:
 
 1. the tool's own override, then
 2. the capability's mode, then
-3. whether the capability is `side_effecting`.
+3. no approval, when neither says anything.
 
 The Builder states the *outcome* in words rather than describing the rule, because
 a rule the reader has to run in their head is a setting nobody dares touch.
@@ -487,6 +502,12 @@ So use a specialist for work that should not require publishing an agent —
 "summarise this in three bullets" — and a delegate for a capability the
 organization owns and reuses.
 
+A third kind sits beside them: a **remote agent**, another vendor's agent reached
+over A2A and registered in the organization by its agent card. It is called the
+same way and billed against the same budget, but it is not versioned here — its
+owner changes it on their side — so a reference names the registration rather than
+a version. See [Remote agents over A2A](reference/capabilities.md#remote-agents).
+
 #### Dynamic specialists, and the way out
 
 A third kind sits below the inline one: a **dynamic specialist**, invented by the
@@ -547,25 +568,41 @@ delegate to what.
 
 ---
 
-## System agents { #system-agents }
+## Judges { #system-agents }
 
-Some agents are started by the platform rather than by a person: the **Eval
-judge** grades answers for [dataset scoring](datasets.md#judge). These are
-**system agents**. Every organization gets them when it is created, and an
-organization created earlier gets one the first time something needs it.
+Some agents are started by the platform rather than by a person: **judges**,
+which grade answers for [dataset grading](datasets.md#judge). An agent's kind
+says which it is - `agent` for the ones people use, `judge` for these. Every
+organization gets the default **Eval judge** when it is created, an organization
+created earlier gets it the first time something needs it, and a dataset may get
+a judge of its own.
 
-A system agent is an ordinary agent. It is listed in Agents with a **System**
-badge, its instructions and model can be edited, it can be shared, and its runs
-are budget-checked and recorded like any other. It starts with a small monthly
-budget of its own, so a new organization cannot spend its whole budget on
-evaluation by accident.
+A judge is the platform's to run, not an agent people use. Agents lists judges
+apart, in a folded **Judges** band under **Agents**, each card saying which
+datasets it grades and the seeded one marked **Default judge**; agent pickers
+leave them out. Whoever holds `agents:edit` opens one to change its
+instructions, model and budget - its page holds those, its limits, its history
+and the datasets that picked it, grading or not - each opening on its latest
+grades there and the eval runs they came from - with how often people agreed
+with it on the results it graded and they decided, and nothing else.
 
-When the organization already has a model profile, the agent is published on
-the oldest one. Without one, it is created as a draft, and a person picks its
-model and publishes it. The features that use it say so until then.
+Its runs are budget-checked and recorded like any other, and send no run
+notification. A judge starts with a small monthly budget of its own, so a new
+organization cannot spend its whole budget on evaluation by accident.
+
+Only the platform runs it. Chat, the API, an embed or a public page, a channel,
+a schedule and delegation from another agent all refuse it, in the service that
+would start the run rather than only in the console.
+
+When the organization already has a model profile, a judge is published on the
+oldest one, or on the one picked when it was created. Without one, it is
+created as a draft. The seeded Eval judge is published on the organization's
+first model as soon as one is added; a dataset's own judge waits for a person
+to pick its model and publish it, and the features that use it say so until
+then.
 
 The organization's [AI assistance switch](governance.md#ai-assistance) decides
-whether system agents run at all.
+whether judges run at all.
 
 ## Model profiles
 

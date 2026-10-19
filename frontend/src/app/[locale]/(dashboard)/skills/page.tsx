@@ -33,7 +33,8 @@ import {
   SearchInput,
   useDebounced,
 } from "@/components/ui";
-import { usePermissions, useSkill, useSkills } from "@/hooks";
+import { GroupFilter, NothingSharedWithGroup } from "@/components/groups/group-filter";
+import { usePermissions, useSkill, useSkills, useUrlState } from "@/hooks";
 import type { SkillEdit, SkillSort } from "@/hooks/use-skills";
 import { getErrorMessage } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
@@ -88,6 +89,8 @@ export default function SkillsPage() {
   // Debounced because the search is a request, not a filter: an organization's
   // skills are paged by the database, so the client never holds them all.
   const search = useDebounced(query);
+  // In the address, so a group's skills are a link somebody can send.
+  const [groupId, setGroupId] = useUrlState("group");
   const { skills, total, categories, suggestedCategories, isLoading, error, refetch, remove } =
     useSkills({
       search,
@@ -95,6 +98,7 @@ export default function SkillsPage() {
       sort,
       skip: page * PAGE_SIZE,
       limit: PAGE_SIZE,
+      groupId,
     });
   const { can, isLoading: isLoadingPermissions } = usePermissions();
 
@@ -109,7 +113,7 @@ export default function SkillsPage() {
   const canEdit = can(Perm.skillsEdit);
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const isSearching = search.trim() !== "";
-  const isFiltering = isSearching || selectedCategories.length > 0;
+  const isFiltering = isSearching || selectedCategories.length > 0 || groupId !== null;
 
   function toggleCategory(entry: string) {
     setSelectedCategories((picked) =>
@@ -172,7 +176,7 @@ export default function SkillsPage() {
     return (
       <div className="space-y-6">
         {header}
-        <ListCard title={t("skills")} counted={null}>
+        <ListCard namedByPage title={t("skills")} counted={null}>
           <LoadingState variant="skeleton-cards" rows={3} />
         </ListCard>
       </div>
@@ -204,11 +208,13 @@ export default function SkillsPage() {
 
       <ListCard
         data-tour="skills-list"
+        namedByPage
         title={t("skills")}
         // The count is a claim about the organization, and a failed request has
         // made none - so an error draws the skeleton, not "0 skills".
         counted={error ? null : t("skillCount", { count: total })}
         controls={controls}
+        empty={!error && !isFiltering && total === 0 && categories.length === 0}
       >
         <div className="space-y-4">
           {(categories.length > 0 || isFiltering || total > 0) && (
@@ -222,7 +228,12 @@ export default function SkillsPage() {
                 {categories.length > 0 && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="sm">
+                      {/* Drawn like every other filter in the console - the
+                          agents' label filters and the selects beside them. */}
+                      <Button
+                        variant="outline"
+                        className="border-input h-9 rounded-lg border-[1.5px] px-3 font-normal"
+                      >
                         <ListFilter className="h-4 w-4" />
                         {selectedCategories.length === 0
                           ? t("allCategories")
@@ -261,6 +272,13 @@ export default function SkillsPage() {
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}
+                <GroupFilter
+                  value={groupId}
+                  onChange={(next) => {
+                    setGroupId(next);
+                    setPage(0);
+                  }}
+                />
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="text-muted-foreground text-xs">{t("sort")}</span>
@@ -293,6 +311,11 @@ export default function SkillsPage() {
               description={getErrorMessage(error, tErrors)}
               cta={{ label: tc("retry"), onClick: () => void refetch() }}
             />
+          ) : skills.length === 0 &&
+            groupId !== null &&
+            !isSearching &&
+            selectedCategories.length === 0 ? (
+            <NothingSharedWithGroup groupId={groupId} />
           ) : skills.length === 0 ? (
             <ListCardEmpty
               icon={BookOpen}
@@ -351,7 +374,7 @@ export default function SkillsPage() {
         }}
       >
         {selected !== null && (
-          <DialogContent className={cn(DIALOG_FILL, DIALOG_CANVAS)}>
+          <DialogContent className={cn(DIALOG_FILL, DIALOG_CANVAS, "max-md:overflow-y-auto")}>
             <DialogHeader>
               <DialogTitle className="font-mono">{selected.name}</DialogTitle>
               <DialogDescription>{t("nameHowModelRefers")}</DialogDescription>

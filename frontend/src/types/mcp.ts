@@ -43,6 +43,27 @@ export interface McpCatalogEntry {
   reviewed?: boolean;
   /** Brand mark to draw, by name. Null falls back to a monogram. */
   icon: string | null;
+  /** The last catalog check found it answering as this entry says (#2103). */
+  verified?: boolean;
+  /** What that check found; absent or null when it was never checked. */
+  check?: McpCatalogCheck | null;
+}
+
+/** What `agenticos cmd mcp-catalog-check` found when it last called a server. */
+export interface McpCatalogCheck {
+  outcome:
+    | "open"
+    | "sign_in"
+    | "token"
+    | "unreachable"
+    | "broken"
+    | "refused"
+    | "duplicate"
+    | "self_hosted";
+  checked_at: string;
+  /** Tools it listed without a credential; null where it could not. */
+  tools: number | null;
+  read_only_tools: number | null;
 }
 
 export interface McpCatalog {
@@ -68,3 +89,17 @@ export interface McpCatalog {
  */
 export type McpConnectionState =
   "not-connected" | "needs-authorization" | "disabled" | "error" | "connected";
+
+/** One tool of this deployment's own MCP server, as a binding chooses from (#2190). */
+export interface PlatformMcpTool {
+  name: string;
+  /** The first line of what the model reads. */
+  description: string;
+  /** Whether it changes something - held for approval under `approval: writes`. */
+  writes: boolean;
+}
+
+export interface PlatformMcpToolList {
+  items: PlatformMcpTool[];
+  total: number;
+}

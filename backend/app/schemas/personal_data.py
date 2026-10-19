@@ -45,6 +45,9 @@ class PersonalDataExport(BaseModel):
     case_verdicts: list[dict[str, Any]] = Field(
         description="Eval scores they passed or failed by hand, with the note they left."
     )
+    scored_answers: list[dict[str, Any]] = Field(
+        description="Answers to their runs that an eval score kept, with when it was scored."
+    )
     sessions: list[dict[str, Any]] = Field(
         description="Where and when they signed in. Never the credential; the row holds a hash."
     )
@@ -66,6 +69,24 @@ class PersonalDataExport(BaseModel):
     notification_preferences: list[dict[str, Any]] = Field(
         description="Which events they chose to hear about, per channel."
     )
+    browser_sign_ins: list[dict[str, Any]] = Field(
+        description=(
+            "The sites they kept a browser sign-in to, and when it was last used. "
+            "Never the sign-in itself, which is their session on that site."
+        )
+    )
+    api_keys: list[dict[str, Any]] = Field(
+        description=(
+            "The API keys they issued: name, prefix, permissions and dates. "
+            "Never the key or its hash."
+        )
+    )
+    oauth_grants: list[dict[str, Any]] = Field(
+        description=(
+            "The clients they let act as them, with the permissions and dates. "
+            "Never a code or token the consent was exchanged for."
+        )
+    )
     case_proposals: list[dict[str, Any]] = Field(
         description=(
             "Test cases drafted from their conversations and still waiting for a "
@@ -86,6 +107,9 @@ class PersonalDataPurge(BaseModel):
     )
     dataset_cases: int = Field(
         description="Dataset cases taken from their conversations, kept but unlinked from them."
+    )
+    scored_answers: int = Field(
+        description="Eval scores of their runs, kept but without the answer they scored."
     )
     case_proposals: int = Field(
         description="Proposed dataset cases drafted from their conversations, deleted undecided.",

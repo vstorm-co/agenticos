@@ -9,14 +9,15 @@ server-side, and handed to the run on `AgentDeps`.
 
 An audience has at most one person and at most one room:
 
-- **private** - one person, no room. Web chat, the HTTP API, and a direct message
-  on a chat platform. The person is the only listener.
+- **private** - one person, no room. Web chat and a direct message on a chat
+  platform. The person is the only listener.
 - **room** - a group chat. The speaker is known, but so is everyone else in the
   channel; the answer is read by all of them.
 - **anonymous** - neither. A public widget or an embed, where the run is carried
   by the publisher rather than by whoever is typing (see
   `AuthContext.subject_is_publisher_fallback`), and there is no person to
-  attribute anything to.
+  attribute anything to. A run started with an API key is the same: the key
+  carries its issuer for audit and budget, but a script holding it is not them.
 
 Nothing here is taken from the model. Both fields are derived in
 :func:`derive_audience` from the identity the request arrived with, which is what
@@ -31,6 +32,7 @@ toolset turns it into a corpus or a refusal.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 from uuid import UUID
 
 __all__ = ["RunAudience", "derive_audience"]
@@ -59,6 +61,34 @@ class RunAudience:
     the channel layer sees.
     """
 
+    writes_memory: bool = True
+    """Whether this run may change the store it reads, not only read it (#2027).
+
+    False for an event trigger acting as its creator: its prompt carries a mail
+    or a webhook body nobody vetted, and a note written from it would be read by
+    every later conversation as the creator's own.
+    """
+
+    searches_conversations: bool = True
+    """Whether this run may search the person's past conversations (#2027).
+
+    False for any trigger acting as its creator. Memory and the creator's own
+    connections are what a morning report needs; every chat they have had is the
+    widest window there is onto them, and no fire needs it.
+    """
+
+    browses_signed_in: bool = False
+    """Whether the web browser may start signed in with the person's saved sign-ins (#2129).
+
+    True only when the run *is* the person at the keyboard, privately: their chat,
+    their direct message, their own schedule acting as them. Not in a room, where
+    the answer is read by everyone in it; not through an API key, which is a
+    script the person handed a credential to rather than the person; and not for
+    an event trigger, whose prompt carries a mail or a webhook body nobody vetted -
+    a page that body named would be opened signed in as them. False by default,
+    so a run parked before this existed resumes signed out.
+    """
+
     @property
     def private(self) -> bool:
         """Whether the person is the only listener.
@@ -73,13 +103,15 @@ def derive_audience(
     *,
     user_id: UUID | None,
     subject_is_publisher_fallback: bool,
+    fired_as_creator: Literal["schedule", "event"] | None = None,
     room_key: str | None,
+    via_api_key: bool = False,
 ) -> RunAudience:
     """The audience of a run, from the identity the request arrived with.
 
     The person is resolved **account first**: a real subject keys on their app
-    user, whatever surface they arrived on, so web chat, the HTTP API and a linked
-    chat account all reach one store. That is not a lookup - on a channel, a linked
+    user, whatever surface they arrived on, so web chat and a linked chat account
+    reach one store. That is not a lookup - on a channel, a linked
     sender already runs as themselves (`_membership_context` builds the
     `AuthContext` from `ChannelIdentity.user_id`), so the join is in `user_id`
     before this is called. Keying on the chat identity first would have split the
@@ -101,7 +133,14 @@ def derive_audience(
     A direct message passes `room_key=None` and stays private, which is what makes
     a DM and web chat the same audience for the same person.
     """
+    # A key run has no person either: the key holds its issuer's identity for
+    # audit, budget and ownership, but whoever holds the key is not that person,
+    # and their memory, conversations and signed-in sites are not the key's.
+    person = None if subject_is_publisher_fallback or via_api_key else user_id
     return RunAudience(
-        user_id=None if subject_is_publisher_fallback else user_id,
+        user_id=person,
         room_key=room_key,
+        writes_memory=fired_as_creator != "event",
+        searches_conversations=fired_as_creator is None,
+        browses_signed_in=(person is not None and room_key is None and fired_as_creator != "event"),
     )

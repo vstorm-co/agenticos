@@ -17,12 +17,12 @@ Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS b
 | Who it is for | A developer, in a repository | An organization: business teams, end users and engineers |
 | Where it runs | The developer's machine; `opencode serve` for a local HTTP server | A shared service on your infrastructure |
 | Source | MIT | Apache-2.0 |
-| Models | 75+ providers through Models.dev, including local | 27 providers, including local |
+| Models | 75+ providers through Models.dev, including local | 28 providers, including local |
 | Users and access | One user; Zen teams have Admin and Member | Organizations, six roles, 27 permissions, per-resource grants |
 | Approvals | `allow`, `ask` or `deny` per tool, answered at the keyboard | A person with `approvals:decide`, from a shared queue |
 | Spend control | Monthly limits on its Zen gateway | A budget per agent and per organization, checked before each model request |
 | Audit | Not documented | Tamper-evident audit log |
-| Sharing | Public share links on `opncd.ai` until unshared | Grants, hosted pages and artifacts with owner and visibility |
+| Sharing | Public share links on `opncd.ai` until unshared | Grants, hosted pages and apps with owner and visibility |
 | Pricing | Free; optional Zen pay-as-you-go and Go at $10 a month; Enterprise per seat | No licence fee; model usage and infrastructure |
 
 ## Where AgenticOS goes further

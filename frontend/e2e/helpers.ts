@@ -27,8 +27,8 @@ export const OWNER_EMAIL = process.env.E2E_OWNER_EMAIL ?? "admin@example.com";
 export const OWNER_PASSWORD = process.env.E2E_OWNER_PASSWORD ?? "admin123";
 
 /** The published agent bootstrap leaves behind, by name and by handle. */
-export const SEEDED_AGENT_NAME = "Getting Started";
-export const SEEDED_AGENT_HANDLE = "@getting-started";
+export const SEEDED_AGENT_NAME = "Claude Code like";
+export const SEEDED_AGENT_HANDLE = "@claude-code-like";
 /** The default model profile bootstrap creates, and the model it points at. */
 export const SEEDED_MODEL_LABEL = "openai default";
 export const SEEDED_MODEL_ID = "gpt-4.1";
@@ -165,6 +165,13 @@ export const SEEDED_ORG_MCP_SECRET = "sk-e2eORGmcpnotarealtoken4KQ2";
 export const RENDERED_SECRET = /sk-[A-Za-z0-9]{20,}/;
 
 /** The page's own title, as `PageHeader` renders it. */
+/**
+ * The dashboard's heading on the view everybody opens on, their own: a
+ * greeting for the time of day rather than the page's name. Unanchored, because
+ * the heading opens on the date above the greeting.
+ */
+export const DASHBOARD_GREETING = /Good (morning|afternoon|evening)/;
+
 export function pageHeading(page: Page, name?: string | RegExp): Locator {
   return page.getByRole("heading", { level: 1, name });
 }
@@ -494,8 +501,11 @@ export async function chooseLlamaParseKey(
 }
 
 export async function chooseEmbeddingKey(page: Page, dialog: Locator, name: string): Promise<void> {
-  await dialog.locator("summary", { hasText: "Embeddings" }).click();
-  const key = dialog.getByRole("combobox", { name: "Key" });
+  // The section is open in the dialog: the model and the key are decided at
+  // creation, so nothing has to be unfolded to reach them.
+  const key = dialog
+    .locator('[data-tour="kb-dialog-embeddings"]')
+    .getByRole("combobox", { name: "Key" });
   await key.click();
   await page.getByRole("option", { name: new RegExp(name) }).click();
   await expect(key).toHaveText(new RegExp(name));

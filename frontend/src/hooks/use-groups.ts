@@ -11,12 +11,20 @@ import {
   createGroup,
   deleteGroup,
   listGroupMembers,
+  listGroupResources,
   listGroups,
   removeGroupMember,
   updateGroup,
+  getGroupSpend,
+  getGroupQuality,
+  getGroupsQuality,
+  type QualityWindow,
+  listShareableWithGroup,
+  setGroupLead,
+  shareWithGroup,
 } from "@/lib/groups-api";
 import { qk } from "@/lib/query-keys";
-import type { GroupCreate, GroupUpdate } from "@/types/groups";
+import type { GroupCreate, GroupShareRequest, GroupUpdate } from "@/types/groups";
 
 /**
  * Invalidates one organization's groups, and with them every group's member
@@ -118,5 +126,130 @@ export function useGroupMembers(orgId: string, groupId: string) {
     onError: (failure) => toast.error(getErrorMessage(failure, tErrors)),
   });
 
-  return { members: data?.items ?? [], isLoading, error, add, remove };
+  const setLead = useMutation({
+    mutationFn: ({ userId, isLead }: { userId: string; isLead: boolean }) =>
+      setGroupLead(orgId, groupId, userId, isLead),
+    onSuccess: async () => {
+      await invalidate();
+      toast.success(t("leadChanged"));
+    },
+    onError: (failure) => toast.error(getErrorMessage(failure, tErrors)),
+  });
+
+  return { members: data?.items ?? [], isLoading, error, add, remove, setLead };
+}
+
+/**
+ * What the caller could share with one group, and sharing several at once (#2072).
+ *
+ * Used by the dialog that offers it, which mounts only when opened: the list is
+ * everything the caller may edit, of every kind.
+ */
+export function useGroupSharing(orgId: string, groupId: string) {
+  const t = useTranslations("groups");
+  const tErrors = useTranslations("errors");
+  const queryClient = useQueryClient();
+  const { data, isLoading, error } = useQuery({
+    queryKey: qk.organizations.groupShareable(orgId, groupId),
+    queryFn: () => listShareableWithGroup(orgId, groupId),
+    enabled: !!orgId && !!groupId,
+  });
+  const share = useMutation({
+    mutationFn: (request: GroupShareRequest) => shareWithGroup(orgId, groupId, request),
+    onSuccess: async (_done, request) => {
+      await queryClient.invalidateQueries({
+        queryKey: qk.organizations.groupResources(orgId, groupId),
+      });
+      await queryClient.invalidateQueries({
+        queryKey: qk.organizations.groupShareable(orgId, groupId),
+      });
+      toast.success(t("sharedWithGroup", { count: request.items.length }));
+    },
+    onError: (failure) => toast.error(getErrorMessage(failure, tErrors)),
+  });
+  return { shareable: data?.items ?? [], isLoading, error, share };
+}
+
+/** What one group has been given - agents, knowledge, skills, context and apps (#2072). */
+export function useGroupResources(orgId: string, groupId: string) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: qk.organizations.groupResources(orgId, groupId),
+    queryFn: () => listGroupResources(orgId, groupId),
+    enabled: !!orgId && !!groupId,
+  });
+  return { resources: data?.items ?? [], isLoading, error };
+}
+
+/**
+ * Every department's month against its cap (#2072). Off for a caller without
+ * `runs:view`, whom the server would refuse.
+ */
+export function useGroupSpend(orgId: string | null | undefined, enabled = true) {
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: qk.organizations.groupSpend(orgId ?? ""),
+    queryFn: () => getGroupSpend(orgId ?? ""),
+    enabled: !!orgId && enabled,
+  });
+  return { spend: data, isLoading, error, refetch };
+}
+
+/**
+ * How each department's people rated answers in a window (#2101). Off for a
+ * caller without `runs:view`, whom the server would refuse.
+ */
+export function useGroupsQuality(
+  orgId: string | null | undefined,
+  window: QualityWindow,
+  enabled = true,
+) {
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: qk.organizations.groupsQuality(orgId ?? "", window),
+    queryFn: () => getGroupsQuality(orgId ?? "", window),
+    enabled: !!orgId && enabled,
+  });
+  return { quality: data, isLoading, error, refetch };
+}
+
+/**
+ * One department's answer quality over the last 30 days (#2101): the split, its
+ * busiest agents and its worst-rated answers. Off unless the caller may read it -
+ * `runs:view`, or leading this department.
+ */
+export function useGroupQuality(
+  orgId: string | null | undefined,
+  groupId: string | null | undefined,
+  enabled = true,
+) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: qk.organizations.groupQuality(orgId ?? "", groupId ?? ""),
+    queryFn: () => getGroupQuality(orgId ?? "", groupId ?? ""),
+    enabled: !!orgId && !!groupId && enabled,
+  });
+  return { quality: data, isLoading, error };
+}
+
+/**
+ * Create several departments at once from the templates (#2072), with one toast.
+ *
+ * One at a time, so a name already taken stops the batch where it is rather than
+ * leaving the reader to work out which of five requests failed.
+ */
+export function useAddDepartments(orgId: string) {
+  const t = useTranslations("groups");
+  const tErrors = useTranslations("errors");
+  const invalidate = useInvalidateGroups(orgId);
+  return useMutation({
+    mutationFn: async (departments: GroupCreate[]) => {
+      for (const department of departments) await createGroup(orgId, department);
+      return departments.length;
+    },
+    onSuccess: async (count) => {
+      await invalidate();
+      toast.success(t("departmentsAdded", { count }));
+    },
+    onError: async (failure) => {
+      await invalidate();
+      toast.error(getErrorMessage(failure, tErrors));
+    },
+  });
 }

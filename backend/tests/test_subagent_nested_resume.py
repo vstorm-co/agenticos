@@ -933,6 +933,8 @@ class TestABilledShareSurvivesAPark:
                     billed_cost_usd=Decimal("0.75"),
                     billed_input_tokens=INPUT_TOKENS * 3,
                     billed_output_tokens=OUTPUT_TOKENS * 3,
+                    billed_cache_read_tokens=INPUT_TOKENS * 2,
+                    billed_cache_write_tokens=INPUT_TOKENS // 2,
                 ),
                 started_at=None,
             ),
@@ -975,6 +977,10 @@ class TestABilledShareSurvivesAPark:
         # own $0.25 is already inside the researcher's $0.75 either way.)
         assert plan.spent["researcher-call"].billed_cost_usd == Decimal("0.75")
         assert plan.spent["researcher-call"].billed_input_tokens == INPUT_TOKENS * 3
+        # And the cache split of those tokens, so the row written when it ends can
+        # be reconciled with the provider (#2170).
+        assert plan.spent["researcher-call"].billed_cache_read_tokens == INPUT_TOKENS * 2
+        assert plan.spent["researcher-call"].billed_cache_write_tokens == INPUT_TOKENS // 2
 
 
 class TestAnOlderParkedRun:

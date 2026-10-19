@@ -1,5 +1,5 @@
 ---
-source_sha: "b7162a5c58d3"
+source_sha: "8c2d10c549a3"
 title: "AgenticOS vs Copilot Studio"
 seo_title: "AgenticOS vs Copilot Studio: alternatywa self-hosted"
 description: "Porównaj Microsoft Copilot Studio z AgenticOS: bez Copilot Credits, dowolny provider modeli, własna infrastruktura, budżety per agent i otwarty audyt."
@@ -19,7 +19,7 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 25 września 2026. Wersja baz
 | --- | --- | --- |
 | Gdzie działa | Chmura Microsoftu, w środowiskach Power Platform | Twoja infrastruktura |
 | Kod | Własnościowy | Apache-2.0 |
-| Modele | Domyślnie modele GPT, modele Claude ogólnie dostępne, modele Azure Foundry rozliczane osobno | 27 providerów, w tym lokalne |
+| Modele | Domyślnie modele GPT, modele Claude ogólnie dostępne, modele Azure Foundry rozliczane osobno | 28 providerów, w tym lokalne |
 | Rozliczenie | 200 USD miesięcznie za 25 000 Copilot Credits albo 0,01 USD za kredyt w modelu pay-as-you-go | Brak opłaty licencyjnej; użycie modeli według stawek twojego providera |
 | Jak liczone jest użycie | Kredyty za funkcję: odpowiedź generatywna to 2, akcja agenta 5, ugruntowanie w grafie tenanta 10 | Tokeny modelu, wyceniane według providera |
 | Egzekwowanie wydatków | Miesięczne limity na agenta; agenci są wyłączani przy 125% przedpłaconej puli | Budżet na agenta i na organizację, sprawdzany przed każdym zapytaniem do modelu |
@@ -39,7 +39,7 @@ Copilot Studio działa w chmurze Microsoftu. Microsoft zaznacza, że modele Anth
 
 ### Każdy provider modeli na równych prawach { #every-model-provider-first-class }
 
-Standardowy harness Copilot Studio oferuje modele GPT i Claude, a do własnych modeli Azure Foundry, rozliczane osobno. AgenticOS traktuje [27 providerów](../models.md#providers) jednakowo. Mają wspólny format [profilu modelu](../models.md#a-model-profile), te same [fallbacki](../models.md#fallbacks) i ten sam zapis kosztów.
+Standardowy harness Copilot Studio oferuje modele GPT i Claude, a do własnych modeli Azure Foundry, rozliczane osobno. AgenticOS traktuje [28 providerów](../models.md#providers) jednakowo. Mają wspólny format [profilu modelu](../models.md#a-model-profile), te same [fallbacki](../models.md#fallbacks) i ten sam zapis kosztów.
 
 ### Otwarty tam, gdzie to ważne dla audytora { #open-where-it-matters-to-an-auditor }
 

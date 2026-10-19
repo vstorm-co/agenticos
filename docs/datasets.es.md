@@ -1,5 +1,5 @@
 ---
-source_sha: "c32b05fa816a"
+source_sha: "bd5fba4675a0"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -27,7 +27,7 @@ verdad la decepcionó.
 | Respuesta de referencia | Lo que dice una buena respuesta |
 | Contraejemplo | Una respuesta que se sabe incorrecta |
 | Llamadas a herramientas esperadas | Las herramientas que el agent debería llamar, cada una con los argumentos que deben coincidir. Los argumentos que el caso no indica se ignoran. Un caso también indica cómo se comparan las llamadas: `any` en cualquier orden, `in_order` en el orden dado con otras llamadas permitidas entre ellas, o `exact`: exactamente estas, en este orden, y ninguna otra |
-| Comprobaciones | Reglas sobre la respuesta, cada una un objeto cuyo `type` nombra la regla, con sus parámetros al lado. [La puntuación](#checks) enumera los tipos, y un caso con un tipo que no conoce se rechaza |
+| Comprobaciones | Reglas sobre la respuesta, cada una un objeto cuyo `type` nombra la regla, con sus parámetros al lado. [La calificación](#checks) enumera los tipos, y un caso con un tipo que no conoce se rechaza |
 | Etiquetas | Rótulos para agrupar resultados, como `billing` o `refusal` |
 | Nota | Por qué existe el caso: qué salió mal o qué protege |
 | Origen | `manual`, `import`, `conversation` o `synthetic`: lo fija la plataforma, no se escribe |
@@ -81,10 +81,24 @@ indicando cuántas hay ocupadas; borrar un dataset libera sus filas.
 
 ### En la consola { #in-the-console }
 
-Abre **Datasets**, crea un dataset y elige **Añadir caso**. Escribe la entrada
-y al menos una de las cuatro expectativas de arriba. La conversación, las llamadas a herramientas esperadas
-y las comprobaciones se escriben como listas JSON: el mismo texto con el que las
-guarda una exportación CSV.
+Abre **Datasets**, crea un dataset (se abre en cuanto existe) y elige **Añadir
+caso**. Escribe la entrada y al menos una de las cuatro expectativas de arriba.
+La conversación se escribe turno a turno, cada llamada a herramienta esperada
+como un nombre de herramienta y sus argumentos como filas de nombre y valor, y
+cada comprobación como un tipo elegido de la lista junto a lo que comprueba.
+**Edit as JSON** muestra el caso entero con la forma que tiene en una
+importación.
+
+Un caso de la lista se abre tal como se lee, con la conversación como burbujas de
+chat; **Edit** lo convierte en el formulario, que indica qué versión crea un
+guardado y cuáles de los evaluadores del dataset calificarían el caso tal como
+está escrito. Un enlace a `?tab=cases&case={case_id}` en la página del dataset
+abre un caso.
+
+Guardar un caso nuevo cuya pregunta ya hace otro caso (sin tener en cuenta
+mayúsculas ni espacios) se detiene para avisarlo, con **Open it** para leer ese
+caso en su lugar y **Add anyway** para conservar ambos. La comprobación es `GET
+/datasets/{id}/cases?same_input=`.
 
 ### Desde un archivo { #import-and-export }
 
@@ -138,24 +152,35 @@ Hay dos caminos y los dos crean el mismo caso:
   el mensaje dice qué mitad falló. Quitar la valoración más tarde deja el caso
   donde está: es una copia, versionada con su dataset. La consola recuerda el
   último dataset al que añadiste, así que el siguiente añadido es un clic.
-- **En Actividad**, cada turno del agent tiene un control **Añadir al dataset**.
-  Es donde se curan las respuestas, así que una buena respuesta se guarda como
-  referencia tan fácilmente como una mala como contraejemplo.
+- **En Actividad**, cada respuesta de un agent tiene un control **Añadir al
+  dataset**, una vez, en su último paso: una respuesta escrita en pasos (una
+  llamada a herramienta y luego el texto) es un solo caso. Es donde se curan las
+  respuestas, así que una buena respuesta se guarda como referencia tan
+  fácilmente como una mala como contraejemplo. Sin ningún dataset al que añadir,
+  crea uno, visible para la organización; abierto desde **Add from Activity** de
+  un dataset, añade a ese dataset y ofrece volver a él.
 
 En ambos casos, el caso se crea a partir de ese turno:
 
 - la pregunta se convierte en la entrada, y los turnos anteriores en la
   conversación antes de la entrada;
-- la respuesta se convierte en el contraejemplo. Si nadie la valoró con un
-  pulgar abajo, se ofrece en su lugar como respuesta de referencia, y puedes
-  elegir cualquiera de las dos;
+- la respuesta es la respuesta entera del agent a la pregunta (cada paso que
+  escribió antes de la siguiente pregunta), y su texto se convierte en el
+  contraejemplo. Si nadie la valoró con un pulgar abajo, se ofrece en su lugar
+  como respuesta de referencia, y puedes elegir cualquiera de las dos; guardada
+  como referencia, las herramientas que llamó pasan a ser las llamadas esperadas
+  del caso, por nombre (las que salieron bien y cambian algo, no una llamada
+  fallida ni una que su agent declara de solo lectura), y una respuesta sin
+  texto se guarda solo como esas llamadas;
 - el comentario más reciente dejado con un pulgar abajo se convierte en la
   nota.
 
-Los dos caminos solo los ven los miembros que pueden editar un dataset. El mensaje debe
-pertenecer a tu organización y debes poder leerlo: o tienes `runs:view`, que lee
-cada run de la organización como hace Actividad, o puedes abrir la conversación.
-Un mensaje de otra organización se rechaza como si no existiera.
+Los dos caminos solo los ven los miembros que pueden editar un dataset. El
+mensaje debe pertenecer a tu organización y debes poder leerlo: o tienes
+`runs:view`, que lee cada run de la organización como hace Actividad, o puedes
+abrir la conversación. Un mensaje de otra organización se rechaza como si no
+existiera, y una respuesta que ya es un caso de la versión más reciente del
+dataset se rechaza en lugar de añadirse dos veces.
 
 ### Generados por el generador de casos { #generating-cases }
 
@@ -229,24 +254,37 @@ oculta las credenciales de las preguntas y los fragmentos que entrega al
 generador, antes de que salgan hacia el modelo. La entrada de auditoría del
 cambio registra cuántos valores se ocultaron, nunca los valores.
 
-## Puntuación { #scoring }
+## Calificación { #scoring }
 
-Un dataset indica cómo se puntúan sus casos en su pestaña **Scoring**. Cuatro
-evaluadores pueden aplicarse a un caso, y cada uno se activa o desactiva y se
-marca como obligatorio o no:
+Un dataset indica cómo se califican sus casos en su pestaña **Grading**, en
+tres tarjetas que se guardan juntas: **When a case passes** contiene las
+comprobaciones y las llamadas a herramientas esperadas, **Judge** indica qué
+juez califica y sobre qué, y **Review by a person** indica qué espera la
+decisión de alguien. Cuatro evaluadores pueden aplicarse a un caso, y cada uno
+se activa o desactiva y se marca como **Must pass** o no:
 
 | Evaluador | Qué compara | Coste |
 |---|---|---|
 | Comprobaciones | La respuesta con las reglas del caso, y con reglas por defecto que el dataset da a cada caso | Nada |
-| Llamadas a herramientas | Las herramientas que llamó el agent con las llamadas esperadas del caso | Nada |
-| Juez | La respuesta con una rúbrica de criterios con nombre, calificada por el juez de evals | Un run del juez |
-| Respuesta de referencia | La respuesta con la respuesta de referencia del caso, calificada por el juez de evals | El mismo run del juez |
+| Llamadas a herramientas esperadas | Las herramientas que llamó el agent con las llamadas esperadas del caso | Nada |
+| Juez | La respuesta con una rúbrica de criterios con nombre, calificada por el juez del dataset | Un run del juez |
+| Respuesta de referencia | La respuesta con la respuesta de referencia del caso, calificada por el juez del dataset | El mismo run del juez |
 
 Cada evaluador devuelve aprobado o suspendido, una puntuación de 0 a 1 y un
-motivo. Un caso **aprueba** cuando aprueba cada evaluador obligatorio. Cuando un
-evaluador obligatorio no pudo ejecutarse (el juez estaba desactivado, su budget
-se había agotado), el caso queda **sin puntuar**, no aprobado: un resultado que
-nadie comprobó no cuenta como aprobado.
+motivo. Un caso **aprueba** cuando aprueba cada evaluador marcado como Must
+pass, y **suspende** cuando uno de ellos suspende. Cuando uno de ellos no llegó
+a un veredicto (el juez estaba desactivado, su budget se había agotado, su run
+falló o su respuesta no se pudo leer), el caso queda **sin calificar**: ni
+aprobado ni suspendido, porque nadie comprobó la respuesta. La puntuación dice
+por qué, y se puede [volver a puntuar](#judge) una vez resuelta la causa.
+
+Cada evaluador indica cuántos casos contienen lo que lee, y la pestaña avisa
+cuando la configuración en pantalla calificaría algunos casos sin nada que
+comprobar. A un dataset cuyos casos tienen respuestas de referencia con las que
+nada compara las respuestas se le ofrece la comparación con la respuesta de
+referencia. Una tarjeta con un cambio aún no guardado lo indica, una barra al
+pie de la pantalla guarda o descarta todos los cambios a la vez, y la página
+pregunta antes de salir de ella.
 
 La configuración no se versiona con los casos, porque cómo califica un equipo no
 es lo que pregunta. Cada puntuación guarda una copia de la configuración con la
@@ -286,7 +324,7 @@ Una comprobación `judge` es un criterio solo para un caso, calificado en el
 mismo run del juez que la rúbrica del dataset. Úsala para lo que una regla no
 puede expresar, como "se niega y no revela la dirección del cliente".
 
-### Llamadas a herramientas { #trajectory }
+### Llamadas a herramientas esperadas { #trajectory }
 
 Las llamadas del agent se comparan con las llamadas esperadas del caso por
 nombre de herramienta y por cada argumento que el caso indica. El modo de orden
@@ -302,75 +340,208 @@ que se renombrara una herramienta espera el nombre antiguo.
 
 ### El juez { #judge }
 
-El juez es el **Eval judge**, un agent que la plataforma añade a cada
-organización (consulta [Agents del sistema](concepts.md#system-agents)). Se
-ejecuta como la persona que pidió la puntuación: se comprueba su acceso a él, se
-comprueba contra su propio budget y el de la organización antes de llamar al
-modelo, y su run aparece en Activity bajo la superficie `eval`. Sus
-instrucciones se pueden editar como las de cualquier agent, y un dataset puede
-indicar otro modelo para él.
+Un juez es un agent de tipo `judge` (consulta
+[Jueces](concepts.md#system-agents)). Un dataset califica con el **Eval judge**
+que la plataforma añade a cada organización, o con un juez propio: **Create a
+judge for this dataset**, en la tarjeta Judge, crea uno cuyo prompt es el del
+Eval judge, con sus reglas de calificación, seguido del nombre y la descripción
+del dataset y de lo que indiques que el juez debe saber para calificar (una
+política, una lista de precios), sobre el primer modelo de la organización o uno
+que elijas. El prompt se puede editar antes de crearlo (`GET
+/datasets/{id}/judge-template`). Crearlo requiere `agents:edit` además de
+`datasets:edit`.
+
+El juez es tan visible como el dataset, porque su prompt contiene el nombre y la
+descripción del dataset, y queda como borrador para quien pueda publicarlo
+(`agents:publish`) cuando su creador no puede.
+
+El modelo se elige en el mismo panel que el de un agent: un provider, su lista
+completa de modelos y una clave para quien puede añadir un modelo
+(`connections:manage`), y los modelos guardados para los demás.
+
+Donde la asistencia de IA está activada, crearlo también activa la
+calificación: el juez, con un criterio inicial para sustituir cuando el dataset
+no tiene ninguno, y la comparación con la respuesta de referencia cuando algún
+caso la tiene. Los criterios, la escala y la nota de aprobado se quedan en el
+dataset; el prompt, el modelo y el budget del juez se editan en su propia
+página, el único lugar donde se fija su modelo; la tarjeta Judge lo muestra.
+
+Un juez se ejecuta como la persona que pidió la puntuación: se comprueba su
+acceso a él, se comprueba contra su propio budget y el de la organización antes
+de llamar al modelo, y su run aparece en Activity bajo la superficie `eval`.
+
+El juez recibe la nota del caso, como el motivo por el que existe, sus turnos
+anteriores y la pregunta, la respuesta de referencia cuando se califica, el
+contraejemplo, cada llamada a herramienta que hizo el agent (con sus argumentos,
+y si un run aislado la bloqueó) y la respuesta.
+
+Un caso con contraejemplo se califica siempre también con un criterio
+obligatorio **counter-example**: la respuesta no debe repetir la respuesta mala
+conocida, y se pide al juez que cite lo que distingue la respuesta de ella. Un
+aprobado es un error cuando solo cita lo que ambas dicen, o no cita nada de una
+respuesta que copia el contraejemplo; cualquier otro sin nada citado se
+mantiene, marcado como no verificado. Una respuesta que conserva el
+contraejemplo y añade lo que le faltaba aprueba con una cita de lo añadido. Una
+respuesta que es el contraejemplo, o una parte de él, suspende el criterio diga
+lo que diga el juez.
+
+Los jueces empiezan con temperatura 0, para que la misma respuesta se califique
+igual dos veces; un modelo que no acepta temperatura, como un modelo de
+razonamiento, califica sin ella.
 
 El juez solo se ejecuta donde la [asistencia de IA](governance.md#ai-assistance)
 está activada, y está desactivada hasta que un administrador la activa para la
 organización. Hasta entonces, los criterios del juez y de la respuesta de
 referencia se registran como omitidos, solo puntúan los evaluadores basados en
-reglas, y la pestaña Scoring lo indica con un enlace al interruptor para quien
-pueda cambiarlo.
+reglas, y la pestaña Grading lo indica con un enlace al interruptor para quien
+pueda cambiarlo. Mientras tanto no se pueden activar el juez ni la comparación
+con la respuesta de referencia; uno ya activado sigue activado y se omite.
 
 Cada criterio se califica de 1 al máximo de la escala y aprueba en la nota de
-aprobado o por encima. Cuando el juez no puede calificar, sus criterios se
-registran como omitidos o como errores, con un motivo que nombra la causa: la
-asistencia de IA está desactivada, el juez no tiene una versión publicada, está
-archivado, su modelo ya no existe o no tiene clave, la persona no puede
-ejecutarlo o su budget se ha agotado. Los
-evaluadores basados en reglas siguen puntuando.
+aprobado o por encima. En cada criterio el juez cita el fragmento de la
+respuesta en que se basa su calificación y nombra la regla de la que se sigue.
+Una calificación cuyo motivo está hecho sobre todo de las palabras del propio
+criterio, sin una cita que la respuesta contenga, es un error: nada muestra que
+el juez leyera la respuesta. Una calificación máxima sin cita de la respuesta
+se mantiene, marcada como no verificada.
+
+Cuando el juez no puede calificar, sus criterios se registran como omitidos o
+como errores, con un motivo que nombra la causa: la asistencia de IA está
+desactivada, el juez que eligió el dataset ya no existe, no tiene una versión
+publicada, está archivado, su modelo ya no existe o no tiene clave, la persona
+no puede ejecutarlo, su budget se ha agotado, su run falló o su respuesta no se
+pudo leer, de la que se guardan los primeros 2.000 caracteres junto al motivo.
+Los evaluadores basados en reglas siguen puntuando.
+
+Resuelta la causa, **Score again** en un resultado sin calificar (o en todos
+los de un grupo de un eval run en la pestaña Review) vuelve a calificar la
+misma respuesta, con la configuración con la que se calificó la primera vez
+(`POST /datasets/{id}/scores/rescore`, hasta diez puntuaciones por petición).
+El agent no se vuelve a ejecutar, y la puntuación conserva su eval run y
+cualquier decisión que una persona tomara sobre ella; una en la que cada
+evaluador llegó a un veredicto se queda como está.
+
+Una causa que sigue ahí (la asistencia de IA desactivada, el juez sin publicar)
+se rechaza tal cual, igual que el juez de un run de evaluación publicado de
+nuevo desde que falló, o una puntuación de ese run fijada a un prompt de juez
+anterior, cuya calificación no sería comparable con el resto del run; entonces
+no se califica nada.
+
+Una respuesta calificada por sí sola, desde el chat o desde Activity, no tiene
+un run con el que compararse: la califica la versión publicada ahora, y su pin
+nombra esa versión. Una puntuación se fija tanto si su juez calificó como si
+falló, así que una fallida queda atada a la versión y al prompt con los que
+falló.
 
 Una calificación puede citar la respuesta, hasta 12 fragmentos; una cita que la
-respuesta no contiene palabra por palabra se señala en el motivo como no
-verificada, y la calificación se mantiene. Cada puntuación registra el juez que
-la calificó - su perfil de modelo, la versión de su spec y un hash de la
-rúbrica - para que las puntuaciones de jueces distintos no se comparen como
-equivalentes.
+respuesta no contiene palabra por palabra se guarda junto a la calificación
+como no verificada, se muestra en su propia línea bajo el motivo, y la
+calificación se mantiene.
 
-### Revisión y veredictos { #review }
+Lo que respalda una calificación nunca la anula: una cita vacía o demasiado
+larga se descarta, las citas más allá de doce y una regla de más de 300
+caracteres se recortan, y solo la falta de un identificador de criterio o de una
+nota hace ilegible un veredicto. Un criterio calificado más de una vez es un
+error, en lugar de la nota que llegó la última. El run del juez en Activity
+indica qué campos no se pudieron leer, nunca la respuesta, que puede repetir un
+caso de un dataset que quien lo lee no puede ver.
 
-Un dataset puede enviar resultados a una **cola de revisión**: ninguno hasta que
-alguien envíe uno, cada resultado que no aprobó, o cada resultado. La pestaña
-Scores muestra los resultados de un dataset, y la tarjeta del dashboard
-**Awaiting review** muestra la cola de todos los datasets que puedes ver:
-cuántos resultados no aprobaron, no se pudieron puntuar o aprobaron, y en qué
-datasets, cada uno abriéndose en su pestaña Scores. La tarjeta está en el panel
-por defecto.
+Cada puntuación registra el juez que la calificó - el agent juez, su perfil de
+modelo, la versión de su spec, un hash de la rúbrica y la versión de la tarea
+que la plataforma entrega a cada juez - para que las puntuaciones de jueces
+distintos no se comparen como equivalentes. Cambiar el juez, o su modelo en su
+página, está permitido; cambiar de juez pide confirmación antes, y la tarjeta
+Judge avisa de que las puntuaciones calificadas antes no serán comparables con
+las calificadas después.
 
-El veredicto de una persona se guarda junto a los resultados de los evaluadores
-y decide el resultado final. Nunca cambia lo que dijo el juez: las
+### Revisión { #review }
+
+Una puntuación espera en la **cola de revisión** cuando alguien la envía allí, o
+lo hace un run de eval. Tras volver a ejecutar lo que cambió, un run de eval
+envía las regresiones que confirmó y las respuestas en las que el juez falló con
+un error (no las que omitió, que esperan a volver a puntuarse): una puntuación
+por caso. Su página envía otras puntuaciones que elijas, todas a la vez mediante
+`POST /datasets/{id}/scores/review` con hasta 500 identificadores de puntuación:
+todas o ninguna.
+
+Una puntuación enviada allí, por un run de eval o a mano, ocupa el lugar de una
+de su caso que aún espera cuando tiene más rango, o el mismo y es más reciente.
+Una puntuación calificada (una regresión, o un fail enviado a mano) tiene más
+rango que una que nada calificó, como un error del juez, así que un juez que
+falla en un caso nunca saca su regresión de la cola. La sustituida sale de la
+cola sin decidir y sigue siendo una puntuación; si no, la que espera conserva su
+lugar y la enviada no entra en la cola. Una puntuación decidida nunca se toca.
+
+Una puntuación pedida a mano desde Activity sigue el ajuste **Review by a
+person** del dataset: nada hasta que alguien envíe una, cada resultado que no
+aprobó, o cada resultado. Una puntuación ya decidida sigue decidida.
+
+La pestaña **Review** se abre en lo que espera una decisión, con cada resultado
+a un clic de distancia, cada uno con su recuento, y se filtra por resultado, por
+el agent que respondió y por una etiqueta del caso. Agrupa las puntuaciones de
+cada run de eval bajo un encabezado que enlaza al run, desde el que se pueden
+sacar de la cola sin decidir (`POST /datasets/{id}/scores/review/withdraw`).
+
+Cada tarjeta muestra lo que el caso preguntaba y esperaba (la pregunta,
+enlazada al caso, la respuesta de referencia, las llamadas a herramientas
+esperadas y las comprobaciones), la respuesta tal como se calificó, qué agent y
+qué versión respondieron (con un aviso cuando el juez calificó con el modelo
+que respondió, porque un juez puede favorecer respuestas como las suyas), qué
+encontró cada evaluador y por qué, primero los que fallaron, y la decisión de
+revisión, que se puede deshacer desde el mensaje que la confirma.
+
+La nota que acompaña a una decisión suele ser la regla que el juez pasó por
+alto, así que la tarjeta ofrece convertirla en un criterio del juez: solo para
+ese caso, como una comprobación `judge` en una nueva versión del dataset, o
+para todos los casos, en la rúbrica, lo que activa el juez.
+
+La tarjeta del dashboard **Waiting for review** muestra la cola de todos los
+datasets que puedes ver: cuántos resultados no aprobaron, no se calificaron o
+aprobaron, y en qué datasets, cada uno abriéndose en su pestaña Review. La
+tarjeta está en el panel por defecto.
+
+La decisión de revisión de una persona se guarda junto a los resultados de los
+evaluadores y decide el resultado final. Nunca cambia lo que dijo el juez: las
 calificaciones y los motivos del juez se quedan en la puntuación después de que
-se anule. Un veredicto se puede retirar, y la puntuación vuelve entonces a
+se anule. Una decisión se puede retirar, y la puntuación vuelve entonces a
 esperar revisión.
 
 ### Puntuar un run { #scoring-a-run }
 
-En **Activity**, abre un run y elige **Score against a case**. Elige el dataset
-y el caso, y la respuesta y las llamadas a herramientas del run se puntúan con
-cada evaluador que configura el dataset. Un run sin transcripción no tiene
-respuesta que puntuar.
+En **Activity**, abre un run, abre su menú **⋯** y elige **Score against a
+case**. El caso que hace la misma pregunta que el run se elige por ti; cuando el
+dataset no tiene ninguno, el diálogo ofrece añadir la respuesta del run como
+caso. La respuesta y las llamadas a herramientas del run se califican con cada
+evaluador que configura el dataset. Un run sin transcripción no tiene respuesta
+que calificar.
+
+El diálogo nombra al juez que calificará y el modelo en el que califica, con
+enlaces para cambiar el juez del dataset en su pestaña Grading y el modelo del
+juez en su página: ambos cambios se aplican a cada respuesta calificada después,
+así que ninguno se hace desde el diálogo.
 
 | Para | Necesitas |
 |---|---|
-| Cambiar cómo se puntúa un dataset | `datasets:edit` sobre él |
+| Cambiar cómo se califica un dataset | `datasets:edit` sobre él |
+| Crear un juez para él | `datasets:edit` sobre él, y `agents:edit` |
 | Puntuar un run contra él | `datasets:run` sobre él, y `runs:view` |
 | Leer sus puntuaciones | `datasets:view` sobre él |
-| Registrar o retirar un veredicto | `datasets:edit` sobre él |
+| Enviar puntuaciones a revisión, registrar o retirar una decisión | `datasets:edit` sobre él |
 
 Un motivo que escribió el juez pasa por la misma ocultación de credenciales que
 un caso antes de guardarse.
+
+Para que un agent responda a todos los casos de una versión, se puntúe cada
+respuesta de una vez y el resultado se compare con una versión anterior, inicia
+un [eval run](evals.md).
 
 ## Acceso { #access }
 
 Un dataset es un recurso compartido con un propietario, una visibilidad y
 grants, como un [skill](skills.md) o un [archivo de contexto](context.md). Un
-dataset nuevo es privado para quien lo creó hasta que se comparte desde su
-página. El catálogo tiene tres permisos para datasets:
+dataset nuevo lo ve toda la organización, salvo que quien lo crea lo empiece
+como privado; después se cambia desde su página. El catálogo tiene tres
+permisos para datasets:
 
 | Permiso | Permite a un miembro | Nivel de grant que lo da |
 |---|---|---|
@@ -390,6 +561,15 @@ algo que no debe saber. Un grant amplía el acceso a un dataset y nunca cambia u
 rol. Consulta [Permisos](permissions.md) para ver cómo se combinan los ámbitos y
 los grants.
 
+La respuesta de una puntuación es del agent, así que leerla exige también acceso
+a ese agent: quien lee el dataset pero no puede ver el agent que respondió
+(`agents:view` sobre él, por rol o por un grant) lee el resultado, el estado y
+el caso, y la respuesta queda oculta, junto con cada motivo, cita y respuesta
+del juez que pueda repetirla. Vale en todo lugar donde se leen puntuaciones: la
+pestaña Review, la cola de revisión y la pestaña Datasets de un juez. Una
+respuesta cuyo run o agent ya no existe solo la ve quien puede ver todos los
+agents de la organización.
+
 ## Datos personales { #personal-data }
 
 Un caso tomado de una conversación es una copia de lo que escribió una persona y
@@ -400,10 +580,13 @@ la persona borrada. Lo que queda es el texto, que puede seguir conteniendo datos
 personales que alguien escribió y que solo desaparece al eliminar el caso.
 Consulta [Protección de datos](data-protection.md#what-deletion-reaches).
 
-Una puntuación se conserva de la misma forma. Cuando se elimina el run que
-puntuó, la puntuación se queda sin el vínculo con él, y cuando se borra a la
-persona que la pidió o la decidió, su nombre se quita de ella. El motivo de un
-juez puede citar la respuesta que calificó.
+Una puntuación se conserva de la misma forma. Guarda una copia de la respuesta
+que calificó, hasta 8.000 caracteres con las credenciales ocultadas, para que
+quien revisa la lea junto al caso. Esa copia vuelve en la exportación de la
+persona de cuyo run se trata, y se borra cuando se borra a esa persona. Cuando
+se elimina el run que puntuó, la puntuación se queda sin el vínculo con él, y
+cuando se borra a la persona que la pidió o la decidió, su nombre se quita de
+ella. El motivo de un juez puede citar la respuesta que calificó.
 
 Un caso generado que aún espera una decisión no se conserva así. Cuando se
 borra la conversación de la que se redactó, o se borra a la persona que hizo la

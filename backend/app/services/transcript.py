@@ -39,6 +39,7 @@ from pydantic_ai.messages import (
     ToolReturnPart,
 )
 
+from app.agents.ask_user import parked_status
 from app.repositories import chat_file as chat_file_repo
 from app.repositories import conversation as conversation_repo
 
@@ -249,11 +250,13 @@ class TranscriptService:
         prompt: str | None,
         answer: str,
         attachments: Sequence[ChatFile] = (),
+        attachment_context: str | None = None,
         tool_calls: Sequence[RecordedToolCall] = (),
         settled: Mapping[str, str] | None = None,
         parked: Collection[str] = (),
         model_label: str | None = None,
         context_used_tokens: int | None = None,
+        mcp_origins: Mapping[str, UUID] | None = None,
     ) -> None:
         """Write whatever this run produced, and never fail the run for it.
 
@@ -268,6 +271,10 @@ class TranscriptService:
         read in `/chat` was `co tu widzisz` followed by `--- Attached file: …
         (/uploads/…, 43 KB, image)`. The dashboard's own uploads have been rows
         since they existed; a channel's became nothing at all.
+
+        `attachment_context` is that briefing, kept beside the row rather than in
+        it: the transcript shows what the person wrote, and a later turn's history
+        appends this so the model still knows the file is there.
 
         An empty *prompt* with a file beside it is a turn, because a picture
         posted with no caption is one: the row is what the file hangs off, and
@@ -293,6 +300,10 @@ class TranscriptService:
         the call it belongs to (:func:`settled_calls_in`). So the one call somebody
         deliberately reviewed used to be the one call the transcript showed
         finishing with nothing under it.
+
+        `mcp_origins` maps a tool the run was given by an organization MCP
+        connection to that connection, and each call to one is stored against it
+        - what the server's call log reads (#2072).
 
         `parked` names the calls this run just stopped on, and their rows are
         written `awaiting_approval` rather than `running`. The parked state
@@ -326,11 +337,21 @@ class TranscriptService:
                         conversation_id=run.conversation_id,
                         role="user",
                         content=prompt or what_arrived(attachments),
+                        attachment_context=attachment_context,
                         run_id=run.id,
                         # Off the run rather than passed in: the run row already
                         # records which chat account asked, and a second route to
                         # the same fact is a second route to getting it wrong.
                         channel_identity_id=run.channel_identity_id,
+                        # Whoever started the run typed it - unless it ran as a
+                        # surface's publisher for a visitor, or a chat account
+                        # says who instead.
+                        author_user_id=(
+                            None
+                            if run.initiated_by_publisher_fallback
+                            or run.channel_identity_id is not None
+                            else run.user_id
+                        ),
                     )
                     await self._attach(asked.id, attachments)
                 for tool_call_id, result in (settled or {}).items():
@@ -344,6 +365,7 @@ class TranscriptService:
                         parked=parked,
                         model_label=model_label,
                         context_used_tokens=context_used_tokens,
+                        mcp_origins=mcp_origins or {},
                     )
         except Exception:
             # `exception`, not `warning`: this is the only place in this file that
@@ -419,6 +441,7 @@ class TranscriptService:
         parked: Collection[str],
         model_label: str | None,
         context_used_tokens: int | None,
+        mcp_origins: Mapping[str, UUID],
     ) -> None:
         """The assistant turn and the calls it made, attributed to the version.
 
@@ -433,16 +456,18 @@ class TranscriptService:
         # The *difference*, not the run row's figure: a run that parked and was
         # resumed writes two assistant turns and the row is cumulative, so
         # stamping both with it would count the parked half twice.
-        spent_in, spent_out, spent_usd = await conversation_repo.attributed_to_run(self.db, run.id)
+        spent = await conversation_repo.attributed_to_run(self.db, run.id)
         message = await conversation_repo.create_message(
             self.db,
             conversation_id=conversation_id,
             role="assistant",
             content=answer,
             model_name=model_label,
-            input_tokens=run.input_tokens - spent_in,
-            output_tokens=run.output_tokens - spent_out,
-            cost_usd=run.cost_usd - spent_usd,
+            input_tokens=run.input_tokens - spent.input_tokens,
+            output_tokens=run.output_tokens - spent.output_tokens,
+            cache_read_tokens=run.cache_read_tokens - spent.cache_read_tokens,
+            cache_write_tokens=run.cache_write_tokens - spent.cache_write_tokens,
+            cost_usd=run.cost_usd - spent.cost_usd,
             # Not a difference: one unpriced request makes the whole run's figure a
             # floor, and every turn of it is short by an amount nobody can split.
             cost_is_partial=run.cost_is_partial,
@@ -465,7 +490,8 @@ class TranscriptService:
                 tool_name=call.tool_name,
                 args=call.args,
                 started_at=now,
-                status="awaiting_approval" if call.tool_call_id in parked else "running",
+                status=parked_status(call.tool_name) if call.tool_call_id in parked else "running",
+                mcp_connection_id=mcp_origins.get(call.tool_name),
             )
             if call.result is not None:
                 await conversation_repo.complete_tool_call(

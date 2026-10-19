@@ -34,16 +34,22 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 let params = new URLSearchParams();
 vi.mock("next/navigation", () => ({
+  // The empty Activity window offers to ask an agent (#2075).
+  useRouter: () => ({ push: vi.fn() }),
   useSearchParams: () => params,
   usePathname: () => "/runs",
 }));
 
 const EMPTY_SPEND = {
   period_days: 30,
+  from_date: "2026-07-01T00:00:00Z",
+  to_date: null,
   month_to_date_usd: "0.00",
   by_agent: [],
   by_provider: [],
   by_key: [],
+  by_day: [],
+  cache_by_agent_model: [],
 };
 
 function wrapper({ children }: { children: ReactNode }) {

@@ -24,7 +24,7 @@ vi.mock("next/navigation", () => ({
 
 // The DOM/query boundary; the element hunt and tab reveal are stubbed so the
 // coach's orchestration is what is under test, not driver-less DOM work jsdom
-// cannot do. `spotlightPath` is kept real — the freeze layer calls it on render.
+// cannot do. `spotlightPath` is kept real - the freeze layer calls it on render.
 vi.mock("@/components/onboarding/spotlight", async (importActual) => {
   const actual = await importActual<typeof import("./spotlight")>();
   return {
@@ -76,7 +76,7 @@ beforeEach(() => {
   vi.mocked(waitForElement).mockImplementation(async () => document.createElement("div"));
   vi.mocked(onlyHiddenMatches).mockReturnValue(false);
   // A floating layer a prior test appended to simulate one would leak forward, and
-  // the coach reads the *document* for them — so an un-removed Radix popper leaves
+  // the coach reads the *document* for them - so an un-removed Radix popper leaves
   // `overlayOpen` true for every test after it, silently disabling the freeze and
   // everything that hangs off it. Both shapes go, not just the dialog.
   document
@@ -119,6 +119,32 @@ describe("OnboardingCoach", () => {
     // Last step, so the manual control reads Finish; clicking it advances.
     await userEvent.click(screen.getByRole("button", { name: "Finish" }));
     expect(next).toHaveBeenCalled();
+  });
+
+  it("says an optional step's control is not there, frees the page, and picks it up once it is", async () => {
+    const finish = vi.fn();
+    const optional = step({
+      id: "flow-test-draft",
+      target: "agent-test-draft",
+      signal: { kind: "opened" },
+      optional: true,
+    });
+    let appear: (element: Element) => void = () => undefined;
+    vi.mocked(waitForElement)
+      .mockImplementationOnce(async () => null)
+      .mockImplementationOnce(() => new Promise((resolve) => (appear = resolve)));
+    flow.state = makeState({ step: optional, steps: [optional], finish });
+    render(<OnboardingCoach />);
+
+    expect(await screen.findByText(/nothing to test yet/)).toBeVisible();
+    expect(document.querySelector("[data-coach-freeze]")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Finish" }));
+    expect(finish).toHaveBeenCalled();
+
+    // The draft changed meanwhile: the button is there, and the step is back on.
+    appear(document.createElement("div"));
+    expect(await screen.findByText(/differs from the live version/)).toBeVisible();
+    await waitFor(() => expect(document.querySelector("[data-coach-freeze]")).toBeInTheDocument());
   });
 
   it("navigates to the step's page when the reader is elsewhere", async () => {
@@ -217,7 +243,7 @@ describe("OnboardingCoach", () => {
 
   it("gives a Next to an in-dialog step whose dialog the reader cancelled", async () => {
     // Cancel and the dialog's own X stay live while the coach guides it. Without
-    // this the last field step — which waits for a creation and carries no Next —
+    // this the last field step - which waits for a creation and carries no Next —
     // could neither advance nor reopen the form, so the walk sat there until the
     // whole coach was closed.
     const dialog = document.createElement("div");
@@ -291,7 +317,7 @@ describe("OnboardingCoach", () => {
 
   it("frames the control with air around it, and never with a square corner", async () => {
     // Sat on the control's own box with its own radius, the ring drew a hard
-    // rectangle tight around whatever it pointed at — on a plain `div`, square
+    // rectangle tight around whatever it pointed at - on a plain `div`, square
     // corners, and on a bordered field group indistinguishable from the outline a
     // form puts on an invalid input.
     const target = document.createElement("div");
@@ -311,7 +337,7 @@ describe("OnboardingCoach", () => {
       return found;
     });
 
-    // Six pixels of air on every side — so twelve more across, and the origin back
+    // Six pixels of air on every side - so twelve more across, and the origin back
     // by six in both directions.
     expect(ring.style.top).toBe("94px");
     expect(ring.style.left).toBe("194px");
@@ -414,7 +440,7 @@ describe("OnboardingCoach", () => {
   it("cancels Space on the guarded submit, so Tab-then-Space cannot create the resource early", async () => {
     // The freeze blocks pointers, not Tab. A focused submit button activates on
     // Space as well as Enter, so a keyboard user could Tab to Create and press
-    // Space, jumping past the field steps — the dead-end the guard exists to stop.
+    // Space, jumping past the field steps - the dead-end the guard exists to stop.
     const guarded = step({ blockSubmit: "skills-new" });
     flow.state = makeState({ step: guarded, steps: [guarded] });
     render(<OnboardingCoach />);
@@ -428,7 +454,7 @@ describe("OnboardingCoach", () => {
     // fireEvent returns false when a handler called preventDefault.
     expect(fireEvent.keyDown(submit, { key: " " })).toBe(false);
 
-    // Space must survive in a text field — there it types a space, not a submit.
+    // Space must survive in a text field - there it types a space, not a submit.
     const input = document.createElement("input");
     document.body.appendChild(input);
     input.focus();
@@ -437,7 +463,7 @@ describe("OnboardingCoach", () => {
 
   it("lets Tab reach the control the step is waiting on, not only the card", async () => {
     // The step the walk spends most of its time on has a signal and therefore no
-    // Next — the reader is meant to operate the spotlit control, and that is the
+    // Next - the reader is meant to operate the spotlit control, and that is the
     // whole advance. A trap confined to the card would leave a keyboard user with
     // no route to it and abandoning the walk as the only exit, which is worse than
     // no trap at all.
@@ -478,7 +504,7 @@ describe("OnboardingCoach", () => {
     });
     flow.state = makeState({ flowId: "create-agent", step: fork, steps: [fork] });
     render(<OnboardingCoach />);
-    await screen.findByText("No knowledge base yet — create one?");
+    await screen.findByText("No knowledge base yet - create one?");
 
     // A control on the frozen page behind, where focus can be stranded.
     const outside = document.createElement("button");
@@ -516,8 +542,8 @@ describe("OnboardingCoach", () => {
   });
 
   it("leaves Tab alone on a roam step, where the reader is meant to work the page", async () => {
-    // A roam step draws no freeze at all — the reader is choosing among many
-    // controls — so trapping the keyboard there would lock them out of the very
+    // A roam step draws no freeze at all - the reader is choosing among many
+    // controls - so trapping the keyboard there would lock them out of the very
     // choice the step asks for.
     const roaming = step({ roam: true, signal: undefined });
     flow.state = makeState({ step: roaming, steps: [roaming] });

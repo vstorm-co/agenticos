@@ -52,7 +52,7 @@ beforeEach(() => {
 /**
  * The panel beside the transcript.
  *
- * Two properties carry it. It is always reachable - a strip holding one icon,
+ * Two properties carry it. It is always reachable - one icon among the composer's controls,
  * because hiding it until a workspace row exists made it unreachable for the whole
  * of a parked turn and for every upload that arrived before the agent did anything.
  * And it says whose files these are, because under `agent` scope one workspace is
@@ -65,8 +65,21 @@ beforeEach(() => {
  * has a copy of is one file rather than two.
  */
 describe("the workspace panel", () => {
+  it("draws its button only once the composer has a place for it", () => {
+    draw(<WorkspaceFiles buttonSlot={null} conversationId="c1" attachments={[]} revision={0} />);
+
+    expect(screen.queryByRole("button", { name: /^Show the files/ })).toBeNull();
+  });
+
   it("lists what the agent is keeping as tiles, with what each file weighs", async () => {
-    draw(<WorkspaceFiles conversationId="c1" attachments={[]} revision={0} />);
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        attachments={[]}
+        revision={0}
+      />,
+    );
     await openPanel();
 
     // The name, not the path: a 288-pixel column of monospace paths is unreadable,
@@ -93,21 +106,42 @@ describe("the workspace panel", () => {
         total: 1,
       }),
     );
-    draw(<WorkspaceFiles conversationId="c1" attachments={[]} revision={0} />);
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        attachments={[]}
+        revision={0}
+      />,
+    );
     await openPanel();
 
     await waitFor(() => expect(screen.getByText("month,total")).toBeVisible());
   });
 
   it("says whose files these are", async () => {
-    draw(<WorkspaceFiles conversationId="c1" attachments={[]} revision={0} />);
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        attachments={[]}
+        revision={0}
+      />,
+    );
     await openPanel();
 
     await waitFor(() => expect(screen.getByText(/This conversation/)).toBeVisible());
   });
 
   it("reports what a stored workspace is holding in total", async () => {
-    draw(<WorkspaceFiles conversationId="c1" attachments={[]} revision={0} />);
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        attachments={[]}
+        revision={0}
+      />,
+    );
     await openPanel();
 
     await waitFor(() => expect(screen.getByText(/2\.0 KB stored/)).toBeVisible());
@@ -127,7 +161,14 @@ describe("the workspace panel", () => {
       workspace({ backend: "none", items: [], total: 0, bytes_total: 0 }),
     );
 
-    draw(<WorkspaceFiles conversationId="c1" attachments={[]} revision={0} />);
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        attachments={[]}
+        revision={0}
+      />,
+    );
     await openPanel();
 
     expect(screen.getByText(/keeps no files/)).toBeVisible();
@@ -146,7 +187,14 @@ describe("the workspace panel", () => {
     let answer: (value: unknown) => void = () => {};
     vi.mocked(apiClient.get).mockImplementation(() => new Promise((resolve) => (answer = resolve)));
 
-    draw(<WorkspaceFiles conversationId="c1" attachments={[]} revision={0} />);
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        attachments={[]}
+        revision={0}
+      />,
+    );
 
     await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
     expect(screen.getByRole("button", { name: /^Show the files/ })).toBeVisible();
@@ -157,7 +205,12 @@ describe("the workspace panel", () => {
 
   it("is absent before a conversation exists", () => {
     const { container } = draw(
-      <WorkspaceFiles conversationId={null} attachments={[]} revision={0} />,
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId={null}
+        attachments={[]}
+        revision={0}
+      />,
     );
 
     expect(container).toBeEmptyDOMElement();
@@ -165,7 +218,14 @@ describe("the workspace panel", () => {
   });
 
   it("does not list a directory as a file", async () => {
-    draw(<WorkspaceFiles conversationId="c1" attachments={[]} revision={0} />);
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        attachments={[]}
+        revision={0}
+      />,
+    );
     await openPanel();
 
     await waitFor(() => expect(screen.getByText("report.csv")).toBeVisible());
@@ -175,7 +235,14 @@ describe("the workspace panel", () => {
   it("says the workspace is empty when it is, rather than showing nothing", async () => {
     vi.mocked(apiClient.get).mockResolvedValue(workspace({ items: [], total: 0, bytes_total: 0 }));
 
-    draw(<WorkspaceFiles conversationId="c1" attachments={[]} revision={0} />);
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        attachments={[]}
+        revision={0}
+      />,
+    );
     await openPanel();
 
     await waitFor(() => expect(screen.getByText(/Nothing yet/)).toBeVisible());
@@ -184,7 +251,14 @@ describe("the workspace panel", () => {
   it("reports a workspace it could not read", async () => {
     vi.mocked(apiClient.get).mockRejectedValue(new Error("The sandbox service is unreachable"));
 
-    draw(<WorkspaceFiles conversationId="c1" attachments={[]} revision={0} />);
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        attachments={[]}
+        revision={0}
+      />,
+    );
     await openPanel();
 
     await waitFor(() =>
@@ -199,7 +273,12 @@ describe("the workspace panel", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const { rerender } = render(
       <QueryClientProvider client={client}>
-        <WorkspaceFiles conversationId="c1" attachments={[]} revision={0} />
+        <WorkspaceFiles
+          buttonSlot={document.body}
+          conversationId="c1"
+          attachments={[]}
+          revision={0}
+        />
       </QueryClientProvider>,
     );
     await openPanel();
@@ -208,7 +287,12 @@ describe("the workspace panel", () => {
 
     rerender(
       <QueryClientProvider client={client}>
-        <WorkspaceFiles conversationId="c1" attachments={[]} revision={1} />
+        <WorkspaceFiles
+          buttonSlot={document.body}
+          conversationId="c1"
+          attachments={[]}
+          revision={1}
+        />
       </QueryClientProvider>,
     );
 
@@ -225,7 +309,14 @@ describe("the workspace panel", () => {
         : workspace(),
     );
 
-    draw(<WorkspaceFiles conversationId="c1" attachments={[]} revision={0} />);
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        attachments={[]}
+        revision={0}
+      />,
+    );
     await openPanel();
 
     await userEvent.click(await screen.findByRole("button", { name: /report\.csv/ }));
@@ -251,7 +342,14 @@ describe("the workspace panel", () => {
         : workspace(),
     );
 
-    draw(<WorkspaceFiles conversationId="c1" attachments={[]} revision={0} />);
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        attachments={[]}
+        revision={0}
+      />,
+    );
     await openPanel();
     await userEvent.click(await screen.findByRole("button", { name: /report\.csv/ }));
 
@@ -268,7 +366,14 @@ describe("the workspace panel", () => {
         : workspace(),
     );
 
-    draw(<WorkspaceFiles conversationId="c1" attachments={[]} revision={0} />);
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        attachments={[]}
+        revision={0}
+      />,
+    );
     await openPanel();
     await userEvent.click(await screen.findByRole("button", { name: /report\.csv/ }));
 
@@ -292,7 +397,14 @@ describe("the workspace panel", () => {
         : workspace(),
     );
 
-    draw(<WorkspaceFiles conversationId="c1" attachments={[]} revision={0} />);
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        attachments={[]}
+        revision={0}
+      />,
+    );
     await openPanel();
     await userEvent.click(await screen.findByRole("button", { name: /report\.csv/ }));
     await userEvent.click(await screen.findByRole("button", { name: "Download" }));
@@ -309,7 +421,14 @@ describe("the workspace panel", () => {
         : workspace(),
     );
 
-    draw(<WorkspaceFiles conversationId="c1" attachments={[]} revision={0} />);
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        attachments={[]}
+        revision={0}
+      />,
+    );
     await openPanel();
     await userEvent.click(await screen.findByRole("button", { name: /report\.csv/ }));
 
@@ -326,7 +445,14 @@ describe("the workspace panel", () => {
       return workspace();
     });
 
-    draw(<WorkspaceFiles conversationId="c1" attachments={[]} revision={0} />);
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        attachments={[]}
+        revision={0}
+      />,
+    );
     await openPanel();
     await userEvent.click(await screen.findByRole("button", { name: /report\.csv/ }));
 
@@ -340,7 +466,14 @@ describe("the workspace panel", () => {
       path.includes("/file") ? null : workspace(),
     );
 
-    draw(<WorkspaceFiles conversationId="c1" attachments={[]} revision={0} />);
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        attachments={[]}
+        revision={0}
+      />,
+    );
     await openPanel();
     await userEvent.click(await screen.findByRole("button", { name: /report\.csv/ }));
 
@@ -360,7 +493,14 @@ describe("the workspace panel", () => {
       }),
     );
 
-    draw(<WorkspaceFiles conversationId="c1" attachments={[]} revision={0} />);
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        attachments={[]}
+        revision={0}
+      />,
+    );
     await openPanel();
 
     await waitFor(() => expect(screen.getByText("TXT · 12 B")).toBeVisible());
@@ -371,14 +511,28 @@ describe("the workspace panel", () => {
   it("is a button in the corner until somebody opens it", async () => {
     // A permanent third column took space from every conversation, including the
     // ones where the agent keeps nothing worth looking at.
-    draw(<WorkspaceFiles conversationId="c1" attachments={[]} revision={0} />);
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        attachments={[]}
+        revision={0}
+      />,
+    );
 
     expect(await screen.findByRole("button", { name: /^Show the files/ })).toBeVisible();
     expect(screen.queryByText("report.csv")).toBeNull();
   });
 
   it("says on the button how many files there are to see", async () => {
-    draw(<WorkspaceFiles conversationId="c1" attachments={[]} revision={0} />);
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        attachments={[]}
+        revision={0}
+      />,
+    );
 
     expect(await screen.findByRole("button", { name: "Show the files (1)" })).toBeVisible();
   });
@@ -388,13 +542,27 @@ describe("the workspace panel", () => {
     // take the control away, or a workspace that fills up later is unreachable.
     vi.mocked(apiClient.get).mockResolvedValue(workspace({ items: [], total: 0 }));
 
-    draw(<WorkspaceFiles conversationId="c1" attachments={[]} revision={0} />);
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        attachments={[]}
+        revision={0}
+      />,
+    );
 
     expect(await screen.findByRole("button", { name: "Show the files" })).toBeVisible();
   });
 
   it("closes again", async () => {
-    draw(<WorkspaceFiles conversationId="c1" attachments={[]} revision={0} />);
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        attachments={[]}
+        revision={0}
+      />,
+    );
     await openPanel();
     await waitFor(() => expect(screen.getByText("report.csv")).toBeVisible());
 
@@ -416,7 +584,14 @@ describe("the workspace panel", () => {
       }),
     );
 
-    draw(<WorkspaceFiles conversationId="c1" attachments={[]} revision={0} />);
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        attachments={[]}
+        revision={0}
+      />,
+    );
     await openPanel();
 
     await waitFor(() => expect(screen.getByText(/No workspace root/)).toBeVisible());
@@ -439,7 +614,14 @@ describe("the workspace panel", () => {
         workspace({ backend: "none", items: [], total: 0, bytes_total: 0 }),
       );
 
-      draw(<WorkspaceFiles conversationId="c1" attachments={[attachment()]} revision={0} />);
+      draw(
+        <WorkspaceFiles
+          buttonSlot={document.body}
+          conversationId="c1"
+          attachments={[attachment()]}
+          revision={0}
+        />,
+      );
       await openPanel();
 
       expect(screen.getByText("Attached to the chat")).toBeVisible();
@@ -456,6 +638,7 @@ describe("the workspace panel", () => {
 
       draw(
         <WorkspaceFiles
+          buttonSlot={document.body}
           conversationId="c1"
           attachments={[
             attachment({ id: "p", filename: "shot.png", mime_type: "image/png" }),
@@ -473,7 +656,14 @@ describe("the workspace panel", () => {
     });
 
     it("counts them on the button beside the agent's own", async () => {
-      draw(<WorkspaceFiles conversationId="c1" attachments={[attachment()]} revision={0} />);
+      draw(
+        <WorkspaceFiles
+          buttonSlot={document.body}
+          conversationId="c1"
+          attachments={[attachment()]}
+          revision={0}
+        />,
+      );
 
       // One workspace file (the directory does not count) plus one attachment.
       expect(await screen.findByRole("button", { name: /Show the files \(2\)/ })).toBeVisible();
@@ -490,7 +680,14 @@ describe("the workspace panel", () => {
         }),
       );
 
-      draw(<WorkspaceFiles conversationId="c1" attachments={[attachment()]} revision={0} />);
+      draw(
+        <WorkspaceFiles
+          buttonSlot={document.body}
+          conversationId="c1"
+          attachments={[attachment()]}
+          revision={0}
+        />,
+      );
       await openPanel();
 
       expect(screen.queryByText("Attached to the chat")).toBeNull();
@@ -507,7 +704,12 @@ describe("the workspace panel", () => {
         );
 
         const view = draw(
-          <WorkspaceFiles conversationId="c1" attachments={[attachment()]} revision={0} />,
+          <WorkspaceFiles
+            buttonSlot={document.body}
+            conversationId="c1"
+            attachments={[attachment()]}
+            revision={0}
+          />,
         );
         await openPanel();
 
@@ -526,7 +728,14 @@ describe("the workspace panel", () => {
         }),
       );
 
-      draw(<WorkspaceFiles conversationId="c1" attachments={[attachment()]} revision={0} />);
+      draw(
+        <WorkspaceFiles
+          buttonSlot={document.body}
+          conversationId="c1"
+          attachments={[attachment()]}
+          revision={0}
+        />,
+      );
       await openPanel();
 
       expect(screen.getByText("Attached to the chat")).toBeVisible();
@@ -543,7 +752,14 @@ describe("the workspace panel", () => {
         workspace({ backend: "none", items: [], total: 0, bytes_total: 0 }),
       );
 
-      draw(<WorkspaceFiles conversationId="c1" attachments={[attachment()]} revision={0} />);
+      draw(
+        <WorkspaceFiles
+          buttonSlot={document.body}
+          conversationId="c1"
+          attachments={[attachment()]}
+          revision={0}
+        />,
+      );
       await openPanel();
       await userEvent.click(screen.getByText("invoice.pdf"));
 

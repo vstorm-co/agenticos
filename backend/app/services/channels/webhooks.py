@@ -18,6 +18,8 @@ wrong: Slack's receiver is its Events API endpoint and ends in `/events`, not
 receiver breaks a test rather than a deployment.
 """
 
+import hashlib
+import hmac
 from uuid import UUID
 
 from app.core.config import settings
@@ -63,3 +65,45 @@ def inbound_webhook_url(platform: str, bot_id: UUID) -> str:
         raise KeyError(f"No inbound webhook route for platform '{platform}'")
     base = settings.PUBLIC_BASE_URL.rstrip("/")
     return f"{base}{INBOUND_PATHS[platform].format(bot_id=bot_id)}"
+
+
+MATTERMOST_ACTIONS_PATH = "/api/v1/mattermost/{bot_id}/actions"
+"""Where a Mattermost server posts a press on one of the bot's buttons."""
+
+
+def inbound_actions_url(bot_id: str) -> str:
+    """The public URL a Mattermost button calls back when pressed (#2068)."""
+    base = settings.PUBLIC_BASE_URL.rstrip("/")
+    return f"{base}{MATTERMOST_ACTIONS_PATH.format(bot_id=bot_id)}"
+
+
+MATTERMOST_DIALOGS_PATH = "/api/v1/mattermost/{bot_id}/dialogs"
+"""Where a Mattermost server posts a submitted dialog - "what was wrong?" (#2084)."""
+
+
+def inbound_dialogs_url(bot_id: str) -> str:
+    """The URL a Mattermost dialog of this bot posts its answers to."""
+    base = settings.PUBLIC_BASE_URL.rstrip("/")
+    return f"{base}{MATTERMOST_DIALOGS_PATH.format(bot_id=bot_id)}"
+
+
+MATTERMOST_COMMANDS_PATH = "/api/v1/mattermost/{bot_id}/commands"
+"""Where a Mattermost server posts the bot's `/agent` slash command (#2084)."""
+
+
+def inbound_command_url(bot_id: str) -> str:
+    """The URL to paste as the `/agent` slash command's request URL in Mattermost."""
+    base = settings.PUBLIC_BASE_URL.rstrip("/")
+    return f"{base}{MATTERMOST_COMMANDS_PATH.format(bot_id=bot_id)}"
+
+
+def sign_press(bot_id: str, value: str) -> str:
+    """This deployment's signature over a button's value, for a platform that signs nothing.
+
+    Mattermost posts a press with whatever context the button was given and no
+    signature of its own, so the button carries ours: a press is honoured only
+    if it names a value this deployment put on a button of this bot.
+    """
+    return hmac.new(
+        settings.SECRET_KEY.encode(), f"{bot_id}:{value}".encode(), hashlib.sha256
+    ).hexdigest()

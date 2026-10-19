@@ -256,7 +256,7 @@ def linked_targets(page: Path, *, into: str | None = None) -> list[str]:
     without it gives the ones it does.
 
     A target is localized only where that translation exists, so `docs/ROADMAP.md`
-    (not published, owed no translation), `CLAUDE.md` and external URLs other than
+    (not published, owed no translation), `AGENTS.md` and external URLs other than
     our published documentation are left alone rather than pointed at a file
     nobody wrote.
 

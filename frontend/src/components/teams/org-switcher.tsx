@@ -82,7 +82,7 @@ export function OrganizationMenuItems() {
             <Check className="text-muted-foreground ml-auto h-3.5 w-3.5 shrink-0" aria-hidden />
           ) : (
             org.is_personal && (
-              <span className="text-muted-foreground ml-auto text-[11px]">{t("personal")}</span>
+              <span className="text-muted-foreground ml-auto text-xs">{t("personal")}</span>
             )
           )}
         </DropdownMenuItem>

@@ -30,14 +30,14 @@ import contextlib
 import contextvars
 import logging
 from binascii import Error as BinasciiError
-from collections.abc import AsyncIterator, Callable, Coroutine, Sequence
+from collections.abc import AsyncGenerator, Callable, Coroutine, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
 from functools import partial
 from io import BytesIO
 from pathlib import PurePosixPath
-from typing import Any
+from typing import Any, Literal, cast
 from uuid import UUID
 
 from PIL import Image, ImageOps
@@ -63,10 +63,13 @@ from app.agents.capabilities.sandbox._identity import (
 from app.agents.capabilities.sandbox._recording import RecordingWorkspace
 from app.agents.capabilities.tool_output_limits import OVERFLOW_PREFIX
 from app.agents.spec import AgentSpec
+from app.core.background import spawn_after_commit
+from app.core.blocking import run_blocking
 from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent_workspace import AgentWorkspace
+from app.db.models.project import Project
 from app.repositories import agent as agent_repo
 from app.repositories import agent_workspace as workspace_repo
 from app.repositories import conversation as conversation_repo
@@ -208,29 +211,67 @@ class WorkspaceOverview:
     """
 
 
-NOT_BROWSABLE = (*RESERVED_SKILL_PREFIXES, f"{OVERFLOW_PREFIX}/")
+PLATFORM_DIR = ".agenticos"
+"""Where the platform keeps its own working files in a workspace - a coding task's
+events and session (`app.agents.capabilities.coding_agent._task.WORK_DIR`), a
+project's task files - and so not somewhere a person writes or browses."""
+
+NOT_BROWSABLE = (
+    *RESERVED_SKILL_PREFIXES,
+    f"{OVERFLOW_PREFIX}/",
+    f"{PLATFORM_DIR}/",
+    f"workspace/{PLATFORM_DIR}/",
+)
 """Prefixes the file browser drops, matched after the leading slash.
 
-Both are the platform's own writing rather than the agent's work for a person, and
-both are needed on disk: a skill's resource is a script the shell runs and
-`collect_changes` diffs, and a spill is what a tool's overflowing output was
-written to. A listing of what an agent is keeping is not the place either belongs -
-`/workspaces` was mostly `skills/<name>/SKILL.md` before this (#1064)."""
+All are the platform's own writing rather than the agent's work for a person, and
+all are needed on disk: a skill's resource is a script the shell runs and
+`collect_changes` diffs, a spill is what a tool's overflowing output was written
+to, and `.agenticos/` holds a coding task's events and the session the next task
+continues. A listing of what an agent is keeping is not the place any of them
+belongs - `/workspaces` was mostly `skills/<name>/SKILL.md` before this (#1064),
+and `.agenticos/coding-agent/<id>.exit` once the coding agent ran."""
+
+
+TOOLING_DIRS = frozenset(
+    {
+        ".venv",
+        "venv",
+        "node_modules",
+        "__pycache__",
+        ".pytest_cache",
+        ".mypy_cache",
+        ".ruff_cache",
+        ".tox",
+        ".git",
+        ".next",
+        ".cache",
+    }
+)
+"""Folders a program's tools fill, dropped wherever they sit in a workspace.
+
+A coding agent that sets up a project installs its dependencies and runs its
+tests in the sandbox, and one FastAPI app with a virtualenv is a thousand files -
+`site-packages`, caches, compiled bytecode - which buried the dozen it wrote
+among them on Documents. They stay on disk for the next task; they are not what a
+person comes to the page for."""
 
 
 def browsable(entries: list[FileInfo]) -> list[FileInfo]:
-    """The entries a person is shown, without what the platform put there itself.
+    """The entries a person is shown, without what the platform or a toolchain put there.
 
     The directories too, not only what is in them: a container lists `skills`
     itself beside its files, and with the files dropped it read as an empty
     folder the agent had made for nothing.
     """
 
-    def platform_owned(path: str) -> bool:
+    def hidden(path: str) -> bool:
         relative = path.lstrip("/").rstrip("/")
-        return f"{relative}/".startswith(NOT_BROWSABLE)
+        if f"{relative}/".startswith(NOT_BROWSABLE):
+            return True
+        return any(segment in TOOLING_DIRS for segment in relative.split("/"))
 
-    return [entry for entry in entries if not platform_owned(str(entry.get("path", "")))]
+    return [entry for entry in entries if not hidden(str(entry.get("path", "")))]
 
 
 @dataclass(frozen=True)
@@ -325,6 +366,13 @@ class OpenWorkspace:
     container-backed one, which keeps its files on the host rather than here.
     """
 
+    opened_files: dict[str, Any] = field(default_factory=dict)
+    opened_directories: tuple[str, ...] = ()
+    """The document as this run loaded it, which is what tells the flush what the
+    run changed from what somebody else stored in between. A shallow copy: the
+    file entries themselves are shared with the document, never mutated in place.
+    """
+
     document: CappedStateBackend | None = None
     """The stored document a `state` workspace works in, flushed back at close."""
 
@@ -341,6 +389,19 @@ class OpenWorkspace:
     prefix, because concurrent runs share a longer-scoped workspace and a prefix
     sweep would take another run's spills mid-flight.
     """
+
+
+def project_sandbox(project: Project) -> SandboxConfig:
+    """The workspace every run in a project shares, as a sandbox configuration.
+
+    The shell is always on: a project is somewhere work is done, and which agent
+    answered a chat in it should not decide whether its files can be run.
+    """
+    return SandboxConfig(
+        backend=cast("Literal['state', 'service']", project.backend),
+        connection_id=project.sandbox_connection_id,
+        runtime=project.runtime,
+    )
 
 
 def sandbox_config(spec: AgentSpec) -> SandboxConfig | None:
@@ -471,8 +532,19 @@ class SandboxWorkspaceService:
         config = sandbox_config(spec)
         if config is None:
             return None
+        return await self._open_config(
+            config, ctx=ctx, identity=identity, scope=scope_override or config.session_scope
+        )
 
-        scope = scope_override or config.session_scope
+    async def _open_config(
+        self,
+        config: SandboxConfig,
+        *,
+        ctx: AuthContext,
+        identity: WorkspaceIdentity,
+        scope: SessionScope,
+    ) -> OpenWorkspace:
+        """`open`, for a configuration already read out of a spec or a project."""
         if config.backend == "state":
             return await self._open_state(
                 config, identity, self._key(identity, scope, "state"), scope
@@ -532,6 +604,8 @@ class SandboxWorkspaceService:
             scope_key=key,
             row_id=row.id if row is not None else None,
             opened_version=row.version if row is not None else None,
+            opened_files=dict(row.files or {}) if row is not None else {},
+            opened_directories=tuple(row.directories or ()) if row is not None else (),
         )
 
     async def _open_service(
@@ -679,7 +753,9 @@ class SandboxWorkspaceService:
         return await workspace_repo.create(
             self.db,
             organization_id=identity.organization_id,
-            agent_id=identity.agent_id,
+            # A project's container is every agent's in it and no one agent's.
+            agent_id=None if scope == "project" else identity.agent_id,
+            project_id=identity.project_id if scope == "project" else None,
             conversation_id=(identity.conversation_id if scope == "conversation" else None),
             owner_ref=identity.user_id if scope == "user" else None,
             scope=scope,
@@ -687,6 +763,70 @@ class SandboxWorkspaceService:
             backend=config.backend,
             connection_id=connection_id,
         )
+
+    async def open_project(self, ctx: AuthContext, project: Project) -> OpenWorkspace:
+        """A project's container, opened outside any run - to add or remove files.
+
+        The caller has already decided the caller may work in the project. The
+        same key a run in the project opens, so a file put here is the file the
+        agent finds, and `close` must follow as it does after a run.
+        """
+        return await self._open_config(
+            project_sandbox(project),
+            ctx=ctx,
+            identity=WorkspaceIdentity(
+                organization_id=ctx.organization_id,
+                agent_id=None,
+                run_id=None,
+                project_id=project.id,
+            ),
+            scope="project",
+        )
+
+    async def project_files(
+        self, ctx: AuthContext, project: Project
+    ) -> tuple[AgentWorkspace, WorkspaceContents] | None:
+        """What a project's container holds, read off the host without starting it.
+
+        `None` before anything has been put in it. The caller has already decided
+        the caller may see the project.
+        """
+        row = await workspace_repo.get_for_project(
+            self.db, organization_id=ctx.organization_id, project_id=project.id
+        )
+        if row is None:
+            return None
+        return row, await self._tiled(ctx, row)
+
+    async def project_bytes(self, ctx: AuthContext, project: Project, *, path: str) -> bytes:
+        """One file of a project's container, as bytes.
+
+        Raises:
+            NotFoundError: If the project holds no files, or no such file.
+            BadRequestError: If the host cannot be read.
+        """
+        row = await workspace_repo.get_for_project(
+            self.db, organization_id=ctx.organization_id, project_id=project.id
+        )
+        if row is None:
+            raise NotFoundError(
+                message="This project holds no files", details={"project_id": str(project.id)}
+            )
+        return await self._bytes_from(ctx, row, await self._browsable(ctx, row), path)
+
+    async def purge_project(self, ctx: AuthContext, project: Project) -> None:
+        """Remove every container a project has had from its host, before the project goes.
+
+        Every one, not the latest: a project moved to another sandbox connection
+        left a container on the first, and the rows naming them go with the
+        project - after which nothing would know to delete that one.
+        """
+        rows = await workspace_repo.list_for_project(
+            self.db, organization_id=ctx.organization_id, project_id=project.id
+        )
+        for row in rows:
+            if row.backend != "state":
+                await self._purge_remote(ctx, row)
 
     async def close(self, workspace: OpenWorkspace | None, *, keep_spills: bool = False) -> None:
         """Persist or release what the run was using.
@@ -697,7 +837,8 @@ class SandboxWorkspaceService:
 
         Args:
             keep_spills: Leave this run's spilled tool returns where they are -
-                for a run parked on an approval, whose history still names them.
+                for a run parked on an approval or a question, whose history
+                still names them.
                 Deleted at the park, the resumed run was handed handles to files
                 that no longer existed, and a shell sent to read one found no
                 directory. The run that resumes it spills into the same
@@ -722,11 +863,16 @@ class SandboxWorkspaceService:
         # of what this session loaded at `open`. Without it the identity map answers
         # with the row as it was, and a flush by another run - another person under
         # `agent` scope, the same person on a second surface - is invisible by
-        # construction. One SELECT per finish is what the detection below costs.
+        # construction. Locked from this read to the commit: two flushes that both
+        # read the same version before either wrote would each skip the merge,
+        # and the later write would erase the earlier. Locked, the second waits,
+        # reads the first's version and merges onto it.
         row = (
             None
             if workspace.row_id is None
-            else await self.db.get(AgentWorkspace, workspace.row_id, populate_existing=True)
+            else await self.db.get(
+                AgentWorkspace, workspace.row_id, populate_existing=True, with_for_update=True
+            )
         )
         if row is None:
             # The conversation was deleted while the run was in flight. The files
@@ -735,13 +881,14 @@ class SandboxWorkspaceService:
         document = workspace.document
         if document is None:  # pragma: no cover - `open` sets one on every `state` workspace
             raise RuntimeError("A state workspace was opened without its document")
-        self._warn_if_overtaken(workspace, row, document.files)
 
         def dropped(path: str) -> bool:
             return _is_legacy_skill(path) or (not keep_spills and _is_spill(path))
 
         files = {path: data for path, data in document.files.items() if not dropped(path)}
         directories = sorted(path for path in document.directories if not dropped(path))
+        if workspace.opened_version is not None and row.version != workspace.opened_version:
+            files, directories = self._merged(workspace, row, files, directories)
         await workspace_repo.save_files(
             self.db,
             workspace=row,
@@ -751,33 +898,54 @@ class SandboxWorkspaceService:
         )
 
     @staticmethod
-    def _warn_if_overtaken(
-        workspace: OpenWorkspace, row: AgentWorkspace, files: dict[str, FileData]
-    ) -> None:
-        """Say so when this flush is about to overwrite somebody else's.
+    def _merged(
+        workspace: OpenWorkspace,
+        row: AgentWorkspace,
+        files: dict[str, FileData],
+        directories: list[str],
+    ) -> tuple[dict[str, FileData], list[str]]:
+        """This run's changes laid over what somebody else stored since it opened.
 
-        The write still happens - see `save_files` for why refusing it would lose
-        the finished turn's work to protect a turn that already finished - so this
-        is the whole of the mechanism, and without it the overwrite was silent.
+        Two runs holding one workspace - a project's teammates, every user of an
+        `agent`-scoped one - each load the document and store it at the end, and
+        storing it whole let the second erase whatever the first had written in
+        between. So only what this run changed from the document it loaded is
+        applied, path by path, over the stored one: a file it wrote or removed
+        is its, and everything else stays as the other run left it.
 
-        The paths it lost are named rather than counted. "A file went missing" is
-        the report that arrives, and the only thing that makes it actionable is
-        knowing which file and which two workspaces.
+        A path both runs changed takes this run's version, the later one, and is
+        logged by name - "a file went missing" is the report that arrives, and
+        only the path and the two versions make it actionable.
         """
-        opened = workspace.opened_version
-        if opened is None or row.version == opened:
-            return
-        overwritten = sorted(set(row.files or {}) - set(files))
-        logger.warning(
-            "workspace_flush_overtaken",
-            extra={
-                "scope_key": workspace.scope_key,
-                "scope": workspace.scope,
-                "opened_version": opened,
-                "found_version": row.version,
-                "paths_lost": overwritten,
-            },
+        base, theirs = workspace.opened_files, dict(row.files or {})
+        merged = dict(theirs)
+        conflicts: list[str] = []
+        for path in set(base) | set(files):
+            mine = files.get(path)
+            if mine == base.get(path):
+                continue
+            if theirs.get(path) != base.get(path) and theirs.get(path) != mine:
+                conflicts.append(path)
+            if mine is None:
+                merged.pop(path, None)
+            else:
+                merged[path] = mine
+        base_dirs, mine_dirs = set(workspace.opened_directories), set(directories)
+        merged_dirs = (set(row.directories or ()) | (mine_dirs - base_dirs)) - (
+            base_dirs - mine_dirs
         )
+        if conflicts:
+            logger.warning(
+                "workspace_flush_conflict",
+                extra={
+                    "scope_key": workspace.scope_key,
+                    "scope": workspace.scope,
+                    "opened_version": workspace.opened_version,
+                    "found_version": row.version,
+                    "paths_overwritten": sorted(conflicts),
+                },
+            )
+        return merged, sorted(merged_dirs)
 
     async def _settle_session(self, workspace: OpenWorkspace) -> bool:
         """Record which session this workspace is now, and whether it was lost.
@@ -907,7 +1075,7 @@ class SandboxWorkspaceService:
         return len(rows)
 
     async def _purge_remote(self, ctx: AuthContext, row: AgentWorkspace) -> None:
-        """Delete the sandbox behind a workspace whose conversation is going.
+        """Delete the sandbox behind a workspace whose conversation or project is going.
 
         Both kinds are reached, and the cloud one matters more. A container has
         `sandboxd`'s TTL behind it, so failing here costs a host some disk until
@@ -915,6 +1083,11 @@ class SandboxWorkspaceService:
         only thing that knows the conversation is gone, and the organization pays
         for the sandbox until somebody deletes it. This used to return early for
         anything that was not Docker, so that was never.
+
+        The sandbox is destroyed once the deletion has committed, never before:
+        a rollback after the destroy would restore rows naming files that no
+        longer exist. Its connection is resolved now, while the transaction can
+        still read the vault, and only the call is deferred.
         """
         if row.connection_id is None:
             return
@@ -922,17 +1095,19 @@ class SandboxWorkspaceService:
         try:
             resolved = await self._connection(ctx, row.connection_id)
             sandbox = self._service_capability(resolved, row.scope_key)
-            # By the name it was opened under; attach-only, so a session already
-            # gone is fine rather than one opened just to delete it.
-            await sandbox.destroy(
-                WorkspaceRef(provider=_provider(sandbox), id=row.session_id or row.scope_key)
-            )
         except Exception:
             # A service that is down must not stop a user deleting their chat.
             # The workspace TTL is the net under exactly this.
             logger.warning(
                 "workspace_purge_failed", extra={"scope_key": row.scope_key}, exc_info=True
             )
+            return
+        # By the name it was opened under; attach-only, so a session already
+        # gone is fine rather than one opened just to delete it.
+        ref = WorkspaceRef(provider=_provider(sandbox), id=row.session_id or row.scope_key)
+        spawn_after_commit(
+            self.db, _destroy_best_effort(sandbox, ref, row.scope_key), name="workspace-purge"
+        )
 
     async def visible_to(self, ctx: AuthContext) -> list[WorkspaceOverview]:
         """The workspaces this caller may see, with what a table needs beside each.
@@ -963,7 +1138,9 @@ class SandboxWorkspaceService:
         if not rows:
             return []
         agents = await agent_repo.get_many(
-            self.db, [row.agent_id for row in rows], organization_id=ctx.organization_id
+            self.db,
+            [row.agent_id for row in rows if row.agent_id is not None],
+            organization_id=ctx.organization_id,
         )
         titles = await conversation_repo.titles_for(
             self.db,
@@ -974,7 +1151,11 @@ class SandboxWorkspaceService:
         # conversation-scoped workspace has exactly one by construction, and
         # counting it would be a query answering a question nobody asked.
         owners = await self._owner_names(rows, organization_id=ctx.organization_id)
-        shared = {row.agent_id for row in rows if row.scope in ("agent", "channel")}
+        shared = {
+            row.agent_id
+            for row in rows
+            if row.scope in ("agent", "channel") and row.agent_id is not None
+        }
         counts = (
             await conversation_repo.count_by_agent(
                 self.db, list(shared), organization_id=ctx.organization_id
@@ -982,39 +1163,34 @@ class SandboxWorkspaceService:
             if shared
             else {}
         )
-        return [
-            WorkspaceOverview(
-                row=row,
-                agent_name=(
-                    agents[row.agent_id].name if row.agent_id in agents else "a deleted agent"
-                ),
-                agent_slug=(agents[row.agent_id].slug if row.agent_id in agents else ""),
-                agent_has_avatar=(
-                    agents[row.agent_id].has_avatar if row.agent_id in agents else False
-                ),
-                conversation_title=(
-                    None
-                    if row.conversation_id is None
-                    else (head.title if (head := titles.get(row.conversation_id)) else None)
-                ),
-                conversation_is_callers=(
-                    row.conversation_id is not None
-                    and (owner := titles.get(row.conversation_id)) is not None
-                    and owner.user_id is not None
-                    and owner.user_id == ctx.user_id
-                ),
-                conversations=(
-                    1
-                    if row.conversation_id is not None
-                    else counts.get(row.agent_id, 0)
-                    if row.scope in ("agent", "channel")
-                    else 0
-                ),
-                access_label=access_label(row),
-                owner_name=owners.get(row.id),
+        overviews: list[WorkspaceOverview] = []
+        for row in rows:
+            agent = agents.get(row.agent_id) if row.agent_id is not None else None
+            head = titles.get(row.conversation_id) if row.conversation_id is not None else None
+            overviews.append(
+                WorkspaceOverview(
+                    row=row,
+                    agent_name=agent.name if agent is not None else "a deleted agent",
+                    agent_slug=agent.slug if agent is not None else "",
+                    agent_has_avatar=agent.has_avatar if agent is not None else False,
+                    conversation_title=head.title if head is not None else None,
+                    conversation_is_callers=(
+                        head is not None
+                        and head.user_id is not None
+                        and head.user_id == ctx.user_id
+                    ),
+                    conversations=(
+                        1
+                        if row.conversation_id is not None
+                        else counts.get(row.agent_id, 0)
+                        if row.scope in ("agent", "channel") and row.agent_id is not None
+                        else 0
+                    ),
+                    access_label=access_label(row),
+                    owner_name=owners.get(row.id),
+                )
             )
-            for row in rows
-        ]
+        return overviews
 
     async def _owner_names(
         self, rows: list[AgentWorkspace], *, organization_id: UUID
@@ -1128,11 +1304,11 @@ class SandboxWorkspaceService:
         overviews = await self.visible_to(ctx)
         files: list[FlatEntry] = []
         # A budget across the whole request, not per workspace: a host's thumbnail
-        # is a `read_bytes` for that file, and twenty-five workspaces of photographs
-        # would be a page that fetches two hundred images to draw them 64 pixels
-        # wide. The tiles past it fall back to the grey glyph, which is what every
-        # container-backed image looked like before.
-        budget = HOST_THUMBNAIL_BUDGET
+        # is a `read_bytes` for that file, a stored one a decode of bytes already in
+        # hand, and twenty-five workspaces of photographs would be a page that decodes
+        # two hundred images to draw them 64 pixels wide. The tiles past it fall back
+        # to the grey glyph.
+        budget = THUMBNAIL_BUDGET
         opened = overviews[:limit]
         listed = await self._entries_of(ctx, [overview.row for overview in opened])
         readable: list[tuple[WorkspaceOverview, list[FileInfo]]] = [
@@ -1146,10 +1322,7 @@ class SandboxWorkspaceService:
         # Shared out in listing order before anything is fetched, so which tiles are
         # drawn does not depend on which host happened to answer first.
         shares: list[int] = []
-        for overview, entries in readable:
-            if overview.row.backend == "state":
-                shares.append(0)
-                continue
+        for _overview, entries in readable:
             picked, budget = thumbnail_picks(entries, budget)
             shares.append(len(picked))
         tiled = await _concurrently(
@@ -1189,30 +1362,23 @@ class SandboxWorkspaceService:
         return await _concurrently([partial(self._entries, ctx, row) for row in rows])
 
     async def _host_thumbnails(
-        self,
-        ctx: AuthContext,
-        row: AgentWorkspace,
-        entries: list[FileInfo],
-        budget: int,
-    ) -> tuple[dict[str, str], int]:
-        """Thumbnails for a host's images, within what is left of the budget.
+        self, ctx: AuthContext, row: AgentWorkspace, paths: list[str]
+    ) -> dict[str, str]:
+        """Thumbnails for a host's images, the ones :func:`thumbnail_picks` chose.
 
-        A stored image arrives base64 in the document this listing already read, so
-        drawing it costs nothing; a host's is a `read_bytes` for that one file. So
-        this is bounded and the size is checked *before* fetching, off the listing
-        entry - a 20 MB photograph would be read in full to be thrown away by the
-        scaler's own ceiling.
+        A host's image is a `read_bytes` for that one file, which is why the pick
+        checks the size *before* fetching, off the listing entry - a 20 MB
+        photograph would be read in full to be thrown away by the scaler's own
+        ceiling.
 
         Failure is silence. A file whose suffix says PNG and whose bytes are not
         one, or a host that stops answering mid-grid, leaves that tile with the
         glyph every container-backed image had before this existed.
         """
-        paths, budget = thumbnail_picks(entries, budget)
         tiles = await _concurrently(
             [partial(self._host_thumbnail, ctx, row, path) for path in paths]
         )
-        drawn = {path: tile for path, tile in zip(paths, tiles, strict=True) if tile is not None}
-        return drawn, budget
+        return {path: tile for path, tile in zip(paths, tiles, strict=True) if tile is not None}
 
     async def _host_thumbnail(self, ctx: AuthContext, row: AgentWorkspace, path: str) -> str | None:
         """One host image drawn as a tile, or `None` for the glyph."""
@@ -1223,7 +1389,7 @@ class SandboxWorkspaceService:
             return None
         if raw is None:
             return None
-        return thumbnail_of(path, raw)
+        return await run_blocking(thumbnail_of, path, raw)
 
     async def files_of(
         self, ctx: AuthContext, workspace_id: UUID
@@ -1237,6 +1403,10 @@ class SandboxWorkspaceService:
         a `run`-scoped one never had one, and an `agent`-scoped one belongs to
         all of them.
 
+        Without tiles: the explorer that reads this draws a tree of names and
+        sizes, so previews and thumbnails here were up to a budget of image reads
+        and decodes per request that nothing displayed (#1930).
+
         Raises:
             NotFoundError: If it is not this organization's, or not one this
                 caller may see. Reported as missing rather than refused in both
@@ -1244,7 +1414,7 @@ class SandboxWorkspaceService:
                 - in another organization, or in a colleague's conversation.
         """
         row = await self._workspace_of(ctx, workspace_id)
-        return row, await self._tiled(ctx, row)
+        return row, await self._browsable(ctx, row)
 
     async def _workspace_of(self, ctx: AuthContext, workspace_id: UUID) -> AgentWorkspace:
         """The workspace by its id, when this caller may read it - see :meth:`files_of`."""
@@ -1258,11 +1428,10 @@ class SandboxWorkspaceService:
     async def _conversation_workspace(
         self, ctx: AuthContext, conversation_id: UUID
     ) -> AgentWorkspace | None:
-        """The workspace a conversation keeps, if it keeps one - see :meth:`listing`."""
-        rows = await workspace_repo.list_for_conversation(
+        """The workspace a conversation works in, if any - see :meth:`listing`."""
+        return await workspace_repo.kept_for_conversation(
             self.db, organization_id=ctx.organization_id, conversation_id=conversation_id
         )
-        return rows[0] if rows else None
 
     async def _browsable(self, ctx: AuthContext, row: AgentWorkspace) -> WorkspaceContents:
         """A workspace's browsable entries, without tiles.
@@ -1285,7 +1454,7 @@ class SandboxWorkspaceService:
             ctx,
             row,
             [entry for entry in contents.entries if not entry.get("is_dir")],
-            HOST_THUMBNAIL_BUDGET,
+            THUMBNAIL_BUDGET,
         )
         return replace(contents, previews=previews, thumbnails=thumbnails)
 
@@ -1295,25 +1464,32 @@ class SandboxWorkspaceService:
         """Each file's preview and thumbnail, by path, and what is left of the budget.
 
         A stored workspace's bytes are in the row already, so every text file gets
-        its first lines and every image its thumbnail at no cost. A host's are a
-        round trip per file, so only images are drawn, within `budget` - see
-        :meth:`_host_thumbnails`.
+        its first lines at no cost. A host's are a round trip per file, so it gets
+        no previews - see :meth:`_host_thumbnails`.
+
+        Images are drawn within `budget` on both backends. A stored image costs no
+        fetch, but its decode is not free: about 48 compressed 4096x4096 PNGs fit
+        under the stored cap, and drawing all of them was 800 megapixels decoded
+        for one listing (#1930). The decode runs on the file pool rather than the
+        event loop, so a grid of photographs does not hold every other request.
         """
+        paths, budget = thumbnail_picks(files, budget)
         if row.backend == "state":
             stored = dict(row.files or {})
             previews: dict[str, str] = {}
-            thumbnails: dict[str, str] = {}
             for entry in files:
                 path = str(entry.get("path"))
                 preview = stored_preview(stored.get(path))
                 if preview is not None:
                     previews[path] = preview
-                thumbnail = stored_thumbnail(path, stored.get(path))
-                if thumbnail is not None:
-                    thumbnails[path] = thumbnail
+            tiles = await _concurrently(
+                [partial(run_blocking, stored_thumbnail, path, stored.get(path)) for path in paths]
+            )
+            thumbnails = {
+                path: tile for path, tile in zip(paths, tiles, strict=True) if tile is not None
+            }
             return previews, thumbnails, budget
-        drawn, budget = await self._host_thumbnails(ctx, row, files, budget)
-        return {}, drawn, budget
+        return {}, await self._host_thumbnails(ctx, row, paths), budget
 
     async def _may_read(self, ctx: AuthContext, row: AgentWorkspace) -> bool:
         """Whether this caller reaches one workspace by id.
@@ -1323,7 +1499,13 @@ class SandboxWorkspaceService:
         that serves it by id is not access control. The query is reused rather than
         reimplemented for exactly that reason: two copies of "who can see this"
         disagree eventually, and the one that is wrong is the one nobody reads.
+
+        Never a project's, whoever asks: it is read through the project, whose
+        sharing decides who may - `connections:manage` included, since the
+        listing leaves it out for them too.
         """
+        if row.project_id is not None:
+            return False
         if self._sees_every_workspace(ctx):
             return True
         visible = await workspace_repo.list_for_reader(
@@ -1624,7 +1806,7 @@ class SandboxWorkspaceService:
     @asynccontextmanager
     async def _archive(
         self, ctx: AuthContext, row: AgentWorkspace, *, timeout: float = DEFAULT_TIMEOUT_SECONDS
-    ) -> AsyncIterator[Any | None]:
+    ) -> AsyncGenerator[Any | None, None]:
         """A reader for the host volume behind a container-backed workspace.
 
         `None` when the workspace has no connection left to ask - the host was
@@ -1676,6 +1858,16 @@ class SandboxWorkspaceService:
                 cached = await self.connections.resolve(ctx, connection_id)
                 self._connections_by_id[connection_id] = cached
             return cached
+
+
+async def _destroy_best_effort(
+    sandbox: SandboxdWorkspace | DaytonaWorkspace, ref: WorkspaceRef, scope_key: str
+) -> None:
+    """Destroy a sandbox whose rows are gone; a host that is down is logged, not raised."""
+    try:
+        await sandbox.destroy(ref)
+    except Exception:
+        logger.warning("workspace_purge_failed", extra={"scope_key": scope_key}, exc_info=True)
 
 
 def _absent(row: AgentWorkspace, contents: WorkspaceContents, path: str) -> bool:
@@ -1742,12 +1934,12 @@ def stored_preview(data: FileData | None) -> str | None:
 THUMBNAIL_BOX = (160, 128)
 """Twice the card's 64px band, so the tile is not soft on a retina screen."""
 
-HOST_THUMBNAIL_BUDGET = 24
-"""How many host-backed images one flat listing will fetch to draw.
+THUMBNAIL_BUDGET = 24
+"""How many images one listing will decode to draw, on either backend.
 
-A stored image is already in the document the listing reads; a host's is a
-`read_bytes` per file. Twenty-four is one screen of tiles - past it the grey glyph
-is what a container-backed image looked like before any of them were drawn."""
+A host's image is a `read_bytes` per file; a stored one is already in the document
+the listing reads, but decoding it is still the expensive half. Twenty-four is one
+screen of tiles - past it the grey glyph is drawn instead."""
 
 THUMBNAIL_SOURCE_LIMIT = 4 * 1024 * 1024
 """The largest stored image this will decode.
@@ -1819,13 +2011,11 @@ def stored_thumbnail(path: str, data: FileData | None) -> str | None:
 
 
 def thumbnail_picks(entries: list[FileInfo], budget: int) -> tuple[list[str], int]:
-    """Which of a host's images a listing will fetch, and the budget left.
+    """Which images a listing will draw, and the budget left.
 
-    A stored image arrives base64 in the document the listing already read, so
-    drawing it costs nothing; a host's is a `read_bytes` for that one file. So this
-    is bounded and the size is checked *before* fetching, off the listing entry - a
-    20 MB photograph would be read in full to be thrown away by the scaler's own
-    ceiling.
+    Bounded on both backends - see :data:`THUMBNAIL_BUDGET`. The size is checked
+    *before* anything is fetched or decoded, off the listing entry: a 20 MB
+    photograph would be read in full to be thrown away by the scaler's own ceiling.
     """
     picked: list[str] = []
     for entry in entries:
@@ -1919,6 +2109,8 @@ def access_label(row: AgentWorkspace) -> str:
         return "Everybody who talks to this agent"
     if row.scope == "channel":
         return "Everybody in that chat"
+    if row.scope == "project":
+        return "Everybody the project is shared with"
     return "Nobody - it is deleted when the run ends"
 
 
@@ -1935,4 +2127,6 @@ def owner_label(row: AgentWorkspace) -> str:
         return "Your files for this agent"
     if row.scope == "agent":
         return "Shared by everyone who uses this agent"
+    if row.scope == "project":
+        return "This project, shared by every chat in it"
     return "This run only"

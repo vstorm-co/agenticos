@@ -26,7 +26,12 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import AgentStatus
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.services import system_agent_runner
-from app.services.system_agent_runner import SystemAgentRunner, output_contract, parse_output
+from app.services.system_agent_runner import (
+    SystemAgentRunner,
+    _unreadable,
+    output_contract,
+    parse_output,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -199,3 +204,16 @@ class TestRun:
 
         assert raised.value.run_id == run.id
         execute.assert_awaited_once()
+
+
+def test_an_unreadable_answer_leaves_why_on_its_run_and_never_the_answer() -> None:
+    class Shape(BaseModel):
+        grades: list[int]
+
+    with pytest.raises(ValidationError) as refused:
+        Shape.model_validate_json('{"grades": ["the private question"]}')
+
+    kept = _unreadable(refused.value)
+
+    assert kept.startswith("The answer did not match the shape asked for - grades.0: ")
+    assert "private question" not in kept

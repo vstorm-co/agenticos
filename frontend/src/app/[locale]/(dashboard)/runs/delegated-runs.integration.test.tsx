@@ -48,6 +48,8 @@ function queryPanel() {
 
 const params = new URLSearchParams();
 vi.mock("next/navigation", () => ({
+  // The empty Activity window offers to ask an agent (#2075).
+  useRouter: () => ({ push: vi.fn() }),
   useSearchParams: () => params,
   // The header's "?" reads the path to decide whether this page has tips.
   usePathname: () => "/runs",
@@ -79,6 +81,8 @@ const SPEND = {
   ],
   by_provider: [],
   by_key: [],
+  by_day: [],
+  cache_by_agent_model: [],
 };
 
 function run(overrides: Partial<AgentRun> = {}): AgentRun {
@@ -449,7 +453,11 @@ describe("walking the run's conversation from the detail", () => {
     // Tokens in → out, the cost, and the agent's name resolved from its id.
     // The cost also sits in the delegations table below, so the header's copy
     // is read as the first of the two rather than as the only one.
-    expect(await screen.findByText("1000 → 100")).toBeVisible();
+    expect(
+      await screen.findByText(
+        (_, element) => element?.tagName === "DD" && element.textContent === "1,000 → 100",
+      ),
+    ).toBeVisible();
     expect(screen.getAllByText("$1.0000").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Orchestrator")).toBeVisible();
   });

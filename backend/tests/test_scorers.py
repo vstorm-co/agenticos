@@ -8,12 +8,14 @@ from __future__ import annotations
 
 import time
 import uuid
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
 from pydantic import ValidationError
 
 from app.schemas.scoring import (
+    CaseScoreRead,
     DatasetScoring,
     JudgeCheck,
     JudgeScorer,
@@ -26,16 +28,20 @@ from app.services.scorers import (
     MAX_QUOTE,
     MAX_QUOTES,
     MAX_REASON,
+    MAX_RULE,
     CaseView,
     JudgeGrade,
     JudgeVerdict,
     ScoredAnswer,
     ScoredCall,
     case_passed,
+    copies,
     graded,
     judge_criteria,
     judge_prompt,
     not_graded,
+    repeats,
+    restates,
     run_checks,
     score_trajectory,
 )
@@ -327,15 +333,44 @@ class TestCasePassed:
     def test_every_required_scorer_passing_passes(self) -> None:
         assert case_passed([_result("pass"), _result("fail", required=False)]) is True
 
-    @pytest.mark.parametrize("status", ["fail", "error"])
-    def test_one_required_failure_fails(self, status) -> None:
-        assert case_passed([_result("pass"), _result(status), _result("skipped")]) is False
+    def test_one_required_failure_fails_whatever_else_reached_no_verdict(self) -> None:
+        assert (
+            case_passed([_result("pass"), _result("error"), _result("fail"), _result("skipped")])
+            is False
+        )
 
-    def test_a_required_scorer_skipped_leaves_the_case_unscored(self) -> None:
-        assert case_passed([_result("pass"), _result("skipped")]) is None
+    @pytest.mark.parametrize("status", ["skipped", "error"])
+    def test_a_required_scorer_without_a_verdict_leaves_the_case_unscored(self, status) -> None:
+        """A judge that errored checked nothing, so the case is neither passed nor failed."""
+        assert case_passed([_result("pass"), _result(status)]) is None
+
+    def test_an_optional_error_does_not_hold_the_case(self) -> None:
+        assert case_passed([_result("pass"), _result("error", required=False)]) is True
 
     def test_nothing_required_leaves_the_case_unscored(self) -> None:
         assert case_passed([_result("pass", required=False)]) is None
+
+    def test_an_unscored_score_names_the_first_required_scorer_without_a_verdict(self) -> None:
+        def read(results: list[ScorerResult], passed: bool | None) -> CaseScoreRead:
+            return CaseScoreRead(
+                id=uuid.uuid4(),
+                dataset_id=uuid.uuid4(),
+                case_id=uuid.uuid4(),
+                case_revision_id=uuid.uuid4(),
+                question="q",
+                results=results,
+                passed=passed,
+                review_state="none",
+                created_at=datetime.now(UTC),
+            )
+
+        budget = _result("skipped").model_copy(update={"reason_code": "judge_budget"})
+        optional = _result("error", required=False).model_copy(update={"reason_code": "x"})
+
+        assert read([optional, budget, _result("error")], None).unscored_reason == "judge_budget"
+        assert read([_result("error")], None).unscored_reason == "error"
+        assert read([_result("pass", required=False)], None).unscored_reason is None
+        assert read([_result("fail"), budget], False).unscored_reason is None
 
 
 class TestJudgeCriteria:
@@ -391,8 +426,71 @@ class TestJudgeCriteria:
             "from 1 (does not meet it at all) to 5",
             "- r1 (correctness): Facts are right",
             "- ref (reference answer):",
+            "For counter, quote what sets the answer apart from the counter-example",
         ):
             assert part in prompt
+
+    def test_a_case_without_a_counter_example_is_not_told_how_to_quote_one(self) -> None:
+        criteria = judge_criteria(_case(), self._scoring(), [])
+
+        prompt = judge_prompt(_case(), _answer("30 days"), criteria, scale_max=5)
+
+        assert "For counter" not in prompt
+
+    def test_the_prompt_says_why_the_case_exists_and_what_the_agent_called(self) -> None:
+        case = _case(note="Customers keep getting the old 90-day window")
+        criteria = judge_criteria(case, self._scoring(), [])
+        answer = _answer(
+            "30 days",
+            calls=(
+                ScoredCall(tool="search_kb", args={"query": "refund"}),
+                ScoredCall(tool="send_email", args={"to": "a@b.c"}, blocked=True),
+            ),
+        )
+
+        prompt = judge_prompt(case, answer, criteria, scale_max=5)
+
+        assert "<why_this_case_exists>\nCustomers keep getting the old 90-day window\n" in prompt
+        assert '1. search_kb {"query": "refund"} (ran)' in prompt
+        assert '2. send_email {"to": "a@b.c"} (blocked before it ran)' in prompt
+        assert prompt.index("<why_this_case_exists>") < prompt.index("<question>")
+
+    def test_a_prompt_with_no_calls_says_so_and_a_long_trajectory_is_cut(self) -> None:
+        criteria = judge_criteria(_case(), self._scoring(), [])
+
+        quiet = judge_prompt(_case(), _answer(), criteria, scale_max=5)
+        busy = judge_prompt(
+            _case(),
+            _answer(calls=tuple(ScoredCall(tool="t", args={"q": "x" * 2000}) for _ in range(52))),
+            criteria,
+            scale_max=5,
+        )
+
+        assert "The agent called no tools." in quiet
+        assert "<why_this_case_exists>" not in quiet
+        assert "50. t " in busy
+        assert "51. t" not in busy
+        assert "… and 2 more" in busy
+        assert f'{{"q": "{"x" * 993}…' in busy
+
+    def test_a_counter_example_is_a_required_criterion_once_the_judge_grades(self) -> None:
+        case = _case(counter_example="Ninety days.")
+        rubric_off = DatasetScoring(
+            judge=JudgeScorer(enabled=False), reference=ReferenceScorer(enabled=True)
+        )
+
+        for scoring in (self._scoring(), rubric_off):
+            counter = judge_criteria(case, scoring, [])[-1]
+            assert (counter.id, counter.scorer, counter.name, counter.required) == (
+                "counter",
+                "reference",
+                "counter-example",
+                True,
+            )
+        assert judge_criteria(case, DatasetScoring(), []) == []
+        assert "<reference_answer>" not in judge_prompt(
+            case, _answer(), judge_criteria(case, rubric_off, []), scale_max=5
+        )
 
     def test_the_reference_is_withheld_when_it_is_not_a_criterion(self) -> None:
         case = _case(reference_answer="Thirty days.")
@@ -436,6 +534,318 @@ class TestGrades:
         assert result.status == "error"
         assert result.reason_code == "judge_ungraded"
 
+    @pytest.mark.parametrize(
+        "reason",
+        [
+            "Facts are right",
+            "facts are RIGHT.",
+            "The answer agrees with the reference answer on every fact",
+            "Yes: The answer agrees with the reference answer on every fact the question "
+            "turns on. Wording may differ; a missing or contradicted fact does not.",
+        ],
+    )
+    def test_a_reason_that_restates_the_criterion_is_an_error(self, reason) -> None:
+        scoring = TestJudgeCriteria()._scoring(reference=ReferenceScorer(enabled=True))
+        criteria = judge_criteria(_case(reference_answer="30"), scoring, [])
+        verdict = JudgeVerdict(
+            grades=[
+                JudgeGrade(id="r1", score=5, reason=reason),
+                JudgeGrade(id="r2", score=5, reason="Thanks the customer by name"),
+                JudgeGrade(id="ref", score=5, reason=reason),
+            ]
+        )
+
+        results = graded(criteria, verdict, answer="", scale_max=5, pass_at=4, run_id=uuid.uuid4())
+
+        echoed = [r for r in results if r.status == "error"]
+        assert echoed
+        assert {r.reason_code for r in echoed} == {"judge_reason_echo"}
+        assert results[1].status == "pass"
+
+    def test_a_criterion_copied_with_one_word_swapped_is_still_restated(self) -> None:
+        criterion = (
+            "The decision (approve, deny or need more info) follows the store's refund policy, "
+            "and the answer never promises a refund the policy does not allow."
+        )
+        copied = (
+            "The decision (deny) follows the store's refund policy, and the answer never "
+            "promises a refund the policy does not allow."
+        )
+
+        assert restates(copied, criterion)
+        assert restates("The decision follows the store's refund policy.", criterion)
+
+    @pytest.mark.parametrize(
+        ("reason", "criterion"),
+        [
+            ("The answer is polite", "Polite"),
+            ("Says 30 days, which the reference also gives", "Facts are right"),
+            ("It is ok", "Facts are right"),
+        ],
+    )
+    def test_a_reason_of_its_own_is_not_restated(self, reason, criterion) -> None:
+        assert not restates(reason, criterion)
+
+    def test_a_quote_the_answer_holds_saves_a_reason_close_to_the_criterion(self) -> None:
+        criteria = judge_criteria(_case(), TestJudgeCriteria()._scoring(), [])[:1]
+        verdict = JudgeVerdict(
+            grades=[
+                JudgeGrade(
+                    id="r1",
+                    score=5,
+                    reason="Facts are right",
+                    rule="Refunds within 30 days",
+                    quotes=["within 30 days"],
+                )
+            ]
+        )
+
+        [result] = graded(
+            criteria,
+            verdict,
+            answer="You can return it within 30 days.",
+            scale_max=5,
+            pass_at=4,
+            run_id=uuid.uuid4(),
+        )
+
+        assert (result.status, result.rule, result.unverified) == (
+            "pass",
+            "Refunds within 30 days",
+            False,
+        )
+
+    def test_passing_on_the_counter_example_needs_a_quote_it_does_not_also_say(self) -> None:
+        case = _case(counter_example="You have 30 days to return it.")
+        scoring = DatasetScoring(reference=ReferenceScorer(enabled=True))
+        criteria = judge_criteria(case, scoring, [])
+        answer = "You have 30 days to return it, receipt or not."
+
+        def grade(**given) -> ScorerResult:
+            [result] = graded(
+                criteria,
+                JudgeVerdict(grades=[JudgeGrade(id="counter", reason="Differs", **given)]),
+                answer=answer,
+                scale_max=5,
+                pass_at=4,
+                run_id=uuid.uuid4(),
+                counter_example=case.counter_example,
+            )
+            return result
+
+        echoed = grade(score=5, quotes=["30 days to return it"])
+        backed = grade(score=4, quotes=["receipt or not"])
+        cut = grade(score=4, quotes=["eceipt or not"])
+        failed = grade(score=1, quotes=["30 days to return it"])
+
+        assert (echoed.status, echoed.reason_code, echoed.judge_said) == (
+            "error",
+            "judge_counter_unsupported",
+            "Differs",
+        )
+        assert (backed.status, backed.unverified) == ("pass", False)
+        assert (cut.status, cut.reason_code) == ("error", "judge_counter_unsupported")
+        assert failed.status == "fail"
+
+    def test_a_pass_on_the_counter_example_with_nothing_quoted_stands_unverified(self) -> None:
+        """Judges grade an answer that plainly refuses what the bad answer did as
+        unlike it and quote nothing; the answer is still graded."""
+        case = _case(counter_example="Sure, I have refunded your gift code.")
+        criteria = judge_criteria(case, DatasetScoring(reference=ReferenceScorer(enabled=True)), [])
+        verdict = JudgeVerdict(
+            grades=[
+                JudgeGrade(
+                    id="counter",
+                    score=4,
+                    reason="It refuses the refund the counter-example grants",
+                    quotes=[],
+                )
+            ]
+        )
+
+        [result] = graded(
+            criteria,
+            verdict,
+            answer="Gift codes are never refundable once redeemed. I cannot process a refund.",
+            scale_max=5,
+            pass_at=4,
+            run_id=uuid.uuid4(),
+            counter_example=case.counter_example,
+        )
+
+        assert (result.status, result.reason_code, result.unverified) == ("pass", None, True)
+
+    @pytest.mark.parametrize(
+        ("answer", "quotes", "grade"),
+        [
+            ("sure - I've refunded your gift code!", [], 5),
+            ("Sure - I've refunded your gift code.", ["Sure - I've"], 5),
+            ("Sure, I\u2019ve refunded your gift code.", ["I\u2019ve refunded your gift code"], 4),
+            ("I've refunded your gift code", [], 1),
+        ],
+    )
+    def test_an_answer_that_is_the_counter_example_fails_on_it_whatever_the_judge_said(
+        self, answer, quotes, grade
+    ) -> None:
+        case = _case(counter_example="Sure, I've refunded your gift code.")
+        criteria = judge_criteria(case, DatasetScoring(reference=ReferenceScorer(enabled=True)), [])
+        verdict = JudgeVerdict(
+            grades=[JudgeGrade(id="counter", score=grade, reason="Unlike it", quotes=quotes)]
+        )
+
+        [result] = graded(
+            criteria,
+            verdict,
+            answer=answer,
+            scale_max=5,
+            pass_at=4,
+            run_id=uuid.uuid4(),
+            counter_example=case.counter_example,
+        )
+
+        assert (result.status, result.reason_code, result.score) == ("fail", None, 0.2)
+        assert result.reason == "The answer repeats the counter-example"
+
+    def test_an_answer_that_is_the_counter_example_fails_even_with_no_grade(self) -> None:
+        case = _case(counter_example="Sure, I've refunded your gift code.")
+        criteria = judge_criteria(case, DatasetScoring(reference=ReferenceScorer(enabled=True)), [])
+
+        [result] = graded(
+            criteria,
+            JudgeVerdict(grades=[]),
+            answer="Sure, I've refunded your gift code.",
+            scale_max=5,
+            pass_at=4,
+            run_id=uuid.uuid4(),
+            counter_example=case.counter_example,
+        )
+
+        assert result.status == "fail"
+
+    def test_more_around_the_counter_example_quoting_only_it_cannot_pass(self) -> None:
+        case = _case(counter_example="Sure, I've refunded your gift code.")
+        criteria = judge_criteria(case, DatasetScoring(reference=ReferenceScorer(enabled=True)), [])
+        verdict = JudgeVerdict(
+            grades=[JudgeGrade(id="counter", score=5, reason="Fine", quotes=["I\u2019ve refunded"])]
+        )
+
+        [result] = graded(
+            criteria,
+            verdict,
+            answer="Sure, I\u2019ve refunded your gift code. Bye!",
+            scale_max=5,
+            pass_at=4,
+            run_id=uuid.uuid4(),
+            counter_example=case.counter_example,
+        )
+
+        assert (result.status, result.reason_code) == ("error", "judge_counter_unsupported")
+
+    def test_a_shared_passage_quoted_in_other_punctuation_is_still_shared(self) -> None:
+        case = _case(counter_example="You have 30 days to return it.")
+        criteria = judge_criteria(case, DatasetScoring(reference=ReferenceScorer(enabled=True)), [])
+        verdict = JudgeVerdict(
+            grades=[JudgeGrade(id="counter", score=5, reason="Differs", quotes=["30 days - to"])]
+        )
+
+        [result] = graded(
+            criteria,
+            verdict,
+            answer="Within 30 days - to be exact - you may return it, receipt or not.",
+            scale_max=5,
+            pass_at=4,
+            run_id=uuid.uuid4(),
+            counter_example=case.counter_example,
+        )
+
+        assert (result.status, result.reason_code) == ("error", "judge_counter_unsupported")
+
+    @pytest.mark.parametrize(
+        ("answer", "copied"),
+        [
+            ("Sure, I have refunded your gift code.", True),
+            ("Hello! Sure, I have refunded your gift code. Anything else?", True),
+            ("I have refunded", True),
+            ("Your gift code.", True),
+            ("Gift code.", False),
+            ("I have not refunded your gift code.", False),
+            ("Your gift code I have refunded, sure.", False),
+            ("...", False),
+        ],
+    )
+    def test_only_the_counter_examples_own_words_in_order_are_a_copy(self, answer, copied) -> None:
+        assert copies(answer, "Sure, I have refunded your gift code.") is copied
+
+    @pytest.mark.parametrize(
+        ("answer", "repeated"),
+        [
+            ("Sure, I have refunded your gift code.", True),
+            ("I have refunded", True),
+            ("Gift code.", False),
+            ("Hello! Sure, I have refunded your gift code. Anything else?", False),
+            ("...", False),
+        ],
+    )
+    def test_only_an_answer_saying_nothing_more_repeats_the_counter_example(
+        self, answer, repeated
+    ) -> None:
+        assert repeats(answer, "Sure, I have refunded your gift code.") is repeated
+
+    def test_a_criterion_graded_twice_is_an_error_whichever_grade_came_last(self) -> None:
+        criteria = judge_criteria(_case(), TestJudgeCriteria()._scoring(), [])
+        twice = [
+            JudgeGrade(id="r1", score=5, reason="Right", quotes=["30 days"]),
+            JudgeGrade(id="r1", score=1, reason="Wrong", quotes=["30 days"]),
+            JudgeGrade(id="r2", score=5, reason="Warm", quotes=["30 days"]),
+        ]
+
+        for grades in (twice, list(reversed(twice))):
+            first, second = graded(
+                criteria,
+                JudgeVerdict(grades=grades),
+                answer="30 days.",
+                scale_max=5,
+                pass_at=4,
+                run_id=uuid.uuid4(),
+            )
+
+            assert (first.status, first.reason_code) == ("error", "judge_graded_twice")
+            assert second.status == "pass"
+
+    def test_a_restated_reason_keeps_what_the_judge_wrote(self) -> None:
+        criteria = judge_criteria(_case(), TestJudgeCriteria()._scoring(), [])[:1]
+
+        [result] = graded(
+            criteria,
+            JudgeVerdict(grades=[JudgeGrade(id="r1", score=2, reason="Facts are not right")]),
+            answer="",
+            scale_max=5,
+            pass_at=4,
+            run_id=uuid.uuid4(),
+        )
+
+        assert (result.status, result.reason_code, result.judge_said) == (
+            "error",
+            "judge_reason_echo",
+            "Facts are not right",
+        )
+
+    def test_a_top_grade_with_nothing_quoted_from_the_answer_is_unverified(self) -> None:
+        criteria = judge_criteria(_case(), TestJudgeCriteria()._scoring(), [])
+        verdict = JudgeVerdict(
+            grades=[
+                JudgeGrade(id="r1", score=5, reason="Gives the date", quotes=["not there"]),
+                JudgeGrade(id="r2", score=4, reason="Courteous"),
+            ]
+        )
+
+        top, lower = graded(
+            criteria, verdict, answer="30 days.", scale_max=5, pass_at=4, run_id=uuid.uuid4()
+        )
+
+        assert (top.status, top.unverified, top.rule) == ("pass", True, None)
+        assert (lower.status, lower.unverified) == ("pass", False)
+
     def test_a_quote_not_in_the_answer_is_flagged_and_the_grade_stands(self) -> None:
         criteria = judge_criteria(_case(), TestJudgeCriteria()._scoring(), [])
         verdict = JudgeVerdict(
@@ -454,15 +864,12 @@ class TestGrades:
             run_id=uuid.uuid4(),
         )
 
-        assert [(r.status, r.reason) for r in results] == [
-            ("pass", "4/5: Right"),
-            (
-                "pass",
-                f'5/5: Warm [not in the answer, unverified: "Happy to help", "{"x" * 80}…"]',
-            ),
+        assert [(r.status, r.reason, r.unverified_quotes) for r in results] == [
+            ("pass", "4/5: Right", []),
+            ("pass", "5/5: Warm", ["Happy to help", f"{'x' * 80}…"]),
         ]
 
-    def test_a_flag_survives_a_reason_at_the_length_limit(self) -> None:
+    def test_an_unverified_quote_stays_out_of_a_reason_at_the_length_limit(self) -> None:
         criteria = judge_criteria(_case(), TestJudgeCriteria()._scoring(), [])[:1]
         verdict = JudgeVerdict(
             grades=[JudgeGrade(id="r1", score=4, reason="r" * 3000, quotes=["absent"])]
@@ -471,25 +878,45 @@ class TestGrades:
         [result] = graded(criteria, verdict, answer="", scale_max=5, pass_at=4, run_id=uuid.uuid4())
 
         assert len(result.reason) == MAX_REASON
-        assert result.reason.endswith('[not in the answer, unverified: "absent"]')
+        assert set(result.reason[5:]) == {"r"}
+        assert (result.unverified_quotes, result.status) == (["absent"], "pass")
 
-    def test_a_flag_however_long_leaves_the_grade_and_the_limit(self) -> None:
-        criteria = judge_criteria(_case(), TestJudgeCriteria()._scoring(), [])[:1]
-        escaped = ["\x01" * MAX_QUOTE] * MAX_QUOTES
-        verdict = JudgeVerdict(grades=[JudgeGrade(id="r1", score=4, reason="r", quotes=escaped)])
+    def test_a_grade_overrunning_what_backs_it_stands_with_the_overrun_cut(self) -> None:
+        quotes = ["", "   ", "q" * (MAX_QUOTE + 1), 7, *[f"passage {n}" for n in range(15)]]
 
-        [result] = graded(criteria, verdict, answer="", scale_max=5, pass_at=4, run_id=uuid.uuid4())
+        [grade] = JudgeVerdict.model_validate(
+            {
+                "grades": [
+                    {"id": "r1", "score": 4, "reason": "r", "rule": "x" * 500, "quotes": quotes}
+                ]
+            }
+        ).grades
 
-        assert len(result.reason) <= MAX_REASON
-        assert result.reason.startswith("4/5: r [not in the answer, unverified: ")
-        assert result.status == "pass"
+        assert grade.score == 4
+        assert grade.rule == "x" * MAX_RULE
+        assert grade.quotes == [f"passage {n}" for n in range(MAX_QUOTES)]
 
-    @pytest.mark.parametrize("quotes", [["q"] * (MAX_QUOTES + 1), ["q" * (MAX_QUOTE + 1)], [""]])
-    def test_quotes_past_the_limits_are_not_a_valid_verdict(self, quotes) -> None:
+    @pytest.mark.parametrize(("quotes", "kept"), [("one passage", ["one passage"]), (None, [])])
+    def test_quotes_not_given_as_a_list_are_read_as_well_as_they_can_be(self, quotes, kept) -> None:
+        [grade] = JudgeVerdict.model_validate(
+            {"grades": [{"id": "r1", "score": 4, "reason": "r", "rule": 3, "quotes": quotes}]}
+        ).grades
+
+        assert (grade.quotes, grade.rule) == (kept, "")
+
+    @pytest.mark.parametrize("grade", [{"score": 4, "reason": "r"}, {"id": "r1", "reason": "r"}])
+    def test_a_grade_without_its_criterion_or_its_score_is_not_a_verdict(self, grade) -> None:
         with pytest.raises(ValidationError):
-            JudgeVerdict.model_validate(
-                {"grades": [{"id": "r1", "score": 4, "reason": "r", "quotes": quotes}]}
-            )
+            JudgeVerdict.model_validate({"grades": [grade]})
+
+    def test_not_graded_keeps_what_an_unreadable_judge_said(self) -> None:
+        criteria = judge_criteria(_case(), TestJudgeCriteria()._scoring(), [])[:1]
+
+        [result] = not_graded(
+            criteria, skipped=False, code="judge_output_invalid", reason="x", said="It is fine."
+        )
+
+        assert (result.status, result.judge_said) == ("error", "It is fine.")
 
     def test_not_graded_says_why_on_every_criterion(self) -> None:
         criteria = judge_criteria(_case(), TestJudgeCriteria()._scoring(), [])

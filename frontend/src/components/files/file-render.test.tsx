@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -51,25 +51,45 @@ describe("showing a file's characters", () => {
     expect(screen.getByText("{not json")).toBeInTheDocument();
   });
 
-  it("fences code with the language its name implies", () => {
-    // Reusing the Markdown pipeline is what gives syntax highlighting for free.
-    render(<FileTextView kind="code" name="run.py" text="print(1)" />);
+  it("shows code as an editor does: numbered, and coloured in its own language", async () => {
+    // Not a chat's fenced block, which is a box the size of its content: in a
+    // tall viewer that left a short file in a small box over empty space.
+    render(<FileTextView kind="code" name="run.py" text={"def run():\n    return 1"} />);
 
-    expect(screen.getByTestId("markdown")).toHaveTextContent("```python");
+    expect(screen.queryByTestId("markdown")).toBeNull();
+    expect(document.querySelector("pre[aria-hidden]")!.textContent).toBe("1\n2");
+    await waitFor(() => expect(document.querySelector(".hljs-keyword")).not.toBeNull());
   });
 
-  it("fences a file whose language nobody mapped as plain text", () => {
-    render(<FileTextView kind="code" name="thing.unknownlang" text="something" />);
+  it("leaves a file whose language nobody mapped uncoloured", async () => {
+    render(<FileTextView kind="code" name="thing.unknownlang" text="def something" />);
 
-    expect(screen.getByTestId("markdown")).toHaveTextContent("```text");
+    expect(screen.getByText("def something")).toBeInTheDocument();
+    // Long enough for the grammars to have loaded, had they been asked for.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(document.querySelector("[class^=hljs-]")).toBeNull();
   });
 
-  it("shows plain text as it is, preserving its whitespace", () => {
-    render(<FileTextView kind="text" name="a.log" text={"line one\n  line two"} />);
+  it("wraps plain text, keeping its whitespace and each line's number beside it", () => {
+    render(<FileTextView kind="text" name="a.log" text={"line one\n  line two\n\nend"} />);
 
-    // `pre`, not `pre-wrap`: source is read by its indentation, and wrapping a long
-    // line back to the left margin destroys the thing a Source view is for.
+    // Prose and pastes are read down: one long line wraps instead of running off
+    // the side. Each line is its own row, so a number stays with its line.
+    expect(screen.getByText("line one")).toHaveClass("whitespace-pre-wrap");
+    expect(screen.getByText("4")).toBeInTheDocument();
+  });
+
+  it("keeps source unwrapped, because it is read by its indentation", () => {
+    render(<FileTextView kind="markdown" name="notes.md" text={"line one\n  line two"} asSource />);
+
     expect(screen.getByText(/line one/)).toHaveClass("whitespace-pre");
+  });
+
+  it("wraps a file too long to number as one block", () => {
+    const text = Array.from({ length: 5001 }, (_, index) => `row ${index}`).join("\n");
+    const { container } = render(<FileTextView kind="text" name="big.txt" text={text} />);
+
+    expect(container.querySelector("pre.whitespace-pre-wrap")).not.toBeNull();
   });
 
   it("shows the characters when that is what was asked for", () => {
@@ -190,7 +210,7 @@ describe("showing a file's bytes", () => {
     );
 
     expect(
-      screen.getByText("This one cannot be shown here — the server serves it as a file."),
+      screen.getByText("This one cannot be shown here - the server serves it as a file."),
     ).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /Download/ }));
     expect(onDownload).toHaveBeenCalled();
@@ -252,5 +272,38 @@ describe("the Source view", () => {
     render(<FileTextView kind="csv" name="runs.csv" text={huge} asSource />);
 
     expect(document.querySelector("pre[aria-hidden]")).toBeNull();
+  });
+});
+
+/**
+ * Inside a pane that is already a frame - the folder page's reader - the text
+ * fills it rather than sitting in a second box inside it.
+ */
+describe("drawn bare", () => {
+  it("drops the box around the characters", () => {
+    const { container } = render(<FileTextView kind="code" name="run.py" text="print(1)" bare />);
+
+    expect(container.firstElementChild).not.toHaveClass("border");
+  });
+
+  it("gives prose, a table and an empty file a margin of their own instead", () => {
+    const { container, unmount } = render(
+      <FileTextView kind="markdown" name="notes.md" text="# Title" bare />,
+    );
+    expect(container.firstElementChild).toHaveClass("px-6");
+    unmount();
+
+    const table = render(<FileTextView kind="csv" name="a.csv" text={"a,b\n1,2"} bare />);
+    expect(table.container.firstElementChild).toHaveClass("p-3");
+    table.unmount();
+
+    const empty = render(<FileTextView kind="text" name="a.txt" text=" " bare />);
+    expect(empty.container.firstElementChild).toHaveClass("p-4");
+  });
+
+  it("draws a page with no frame of its own", () => {
+    render(<FileTextView kind="html" name="report.html" text="<p>hi</p>" bare />);
+
+    expect(screen.getByTitle("report.html, rendered")).not.toHaveClass("border");
   });
 });

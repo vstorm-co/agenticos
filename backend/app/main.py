@@ -1,6 +1,8 @@
 # ruff: noqa: I001 - Imports structured for Jinja2 template conditionals
 """FastAPI application entry point."""
 
+import asyncio
+import contextlib
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -12,6 +14,17 @@ from starlette.middleware.gzip import DEFAULT_EXCLUDED_CONTENT_TYPES, GZipMiddle
 from starlette.middleware.sessions import SessionMiddleware
 
 from app import __version__
+from starlette.routing import Route
+
+from app.services import (
+    browse_plans,
+    change_feed,
+    chat_room,
+    live_browse,
+    live_turn,
+    platform_mcp,
+)
+from app.services.change_feed import ChangeFeedMiddleware
 from app.api.exception_handlers import register_exception_handlers
 from app.api.router import api_router
 from app.agents.capabilities import load_builtins
@@ -43,6 +56,7 @@ from app.services import trigger_dedupe
 from app.services.channels import dedupe as channel_dedupe
 from app.services.channels import connection_state as channel_connection_state
 from app.services.channels import membership as channel_membership
+from app.services.channels import stream_lease
 from app.services.channels.supervisor import allow_intake, begin_shutdown, open_inbound_stream
 
 logger = logging.getLogger(__name__)
@@ -92,8 +106,28 @@ async def _start_channel_polling(channel: str) -> None:
     """
     async with get_db_context() as _db:
         _bots = await get_active_polling_bots(_db, channel)
+    leases = stream_lease.leases()
+    # Only a bot nobody serves: every worker runs this, at startup and on each
+    # pass of `_keep_channel_streams`, and a bot gets one stream per deployment -
+    # Telegram allows one `getUpdates` per bot (#2168).
+    claimed = [
+        str(_bot.id)
+        for _bot in _bots
+        if str(_bot.id) not in leases.held and await leases.claim(str(_bot.id))
+    ]
+    if not claimed:
+        return
+    # Read again once the leases are held: a pause or an edit committed after
+    # the read above withdrew or took its lease before this claim, and the row
+    # as it is now is the one to open with.
+    async with get_db_context() as _db:
+        current = {str(_bot.id): _bot for _bot in await get_active_polling_bots(_db, channel)}
     started = 0
-    for _bot in _bots:
+    for bot_id in claimed:
+        _bot = current.get(bot_id)
+        if _bot is None:
+            await leases.release_one(bot_id)
+            continue
         try:
             token = unseal_bot_token(_bot)
             app_token = unseal_slack_app_token(_bot)
@@ -104,18 +138,46 @@ async def _start_channel_polling(channel: str) -> None:
             await channel_connection_state.record_down(
                 _bot.id, _UNSEALABLE_TOKEN.format(exc.message)
             )
+            # Kept, with no stream: the next pass would otherwise claim it again
+            # and log the same refusal every few seconds. Entering the token
+            # again takes the lease and opens the stream.
+            leases.hold(bot_id, channel)
             continue
+        leases.hold(bot_id, channel)
         await open_inbound_stream(
-            bot_id=str(_bot.id),
+            bot_id=bot_id,
             platform=channel,
             token=token,
             api_base_url=_bot.api_base_url,
             app_token=app_token,
+            take_over=False,
         )
         started += 1
-    logger.info(
-        "%s: polling started for %d of %d bot(s)", channel.capitalize(), started, len(_bots)
-    )
+    if started:
+        logger.info(
+            "%s: polling started for %d of %d bot(s)", channel.capitalize(), started, len(_bots)
+        )
+
+
+_POLLING_PLATFORMS = ("telegram", "mattermost", "slack")
+
+
+async def _keep_channel_streams() -> None:
+    """Renew this worker's stream leases, and claim the bots nobody serves.
+
+    Runs for the life of the lifespan. A bot whose holder stopped or died is
+    picked up here, by whichever worker passes first; a stream whose lease went
+    to another worker is closed here. One failed pass is logged and the next one
+    tries again: this loop going away would leave every bot it held to lapse.
+    """
+    while True:
+        await asyncio.sleep(stream_lease.RENEW_EVERY_SECONDS)
+        try:
+            await stream_lease.leases().renew()
+            for platform in _POLLING_PLATFORMS:
+                await _start_channel_polling(platform)
+        except Exception:
+            logger.exception("Could not renew this worker's channel streams")
 
 
 @asynccontextmanager
@@ -159,6 +221,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # only the supervisor holding that socket knows and which the channels
     # listing has to read from another worker entirely (#1351).
     channel_connection_state.configure(redis_client)
+    # And which worker holds each polling bot's stream, so a deployment runs one
+    # per bot however many workers it has (#2168).
+    stream_lease.configure(redis_client)
     # And an event trigger's delivery dedupe, so a provider's redelivery of one
     # webhook does not fire a second run - the fire runs in a dispatched flow,
     # outside any request the claim could read `request.state` from.
@@ -166,6 +231,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # And the maintenance gate, which runs above the dependency graph on every
     # request and so has no `request.state` to read either.
     maintenance.configure(redis_client)
+    # And the change feed (#2061): its middleware publishes above the dependency
+    # graph, and its sockets outlive the request that opened them.
+    change_feed.configure(redis_client)
+    # And browses' live views (#2128): published from a tool call, read by sockets
+    # that outlive any request.
+    live_browse.configure(redis_client)
+    # And chat turns still being written, for a person who comes back to one.
+    live_turn.configure(redis_client)
+    chat_room.configure(redis_client)
+    # And a person's replayable browse steps, kept between their runs.
+    browse_plans.configure(redis_client)
     try:
         embedder = EmbeddingService(settings=settings.rag)
         embedder.warmup()
@@ -208,6 +284,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     except (OSError, ValueError, RuntimeError) as _slack_exc:
         logger.error("Slack: failed to start Socket Mode: %s", _slack_exc)
 
+    keeping_streams = asyncio.create_task(_keep_channel_streams(), name="keep_channel_streams")
+
     # Started once startup is done and stopped only at the very end, so it
     # covers serving and shutdown: a worker whose event loop stops turning is
     # invisible to every other recovery path this deployment has, and it kills
@@ -215,12 +293,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # policy on the dev stack - already replaces. Startup is deliberately not
     # watched; app/core/watchdog.py says why.
     watchdog.start()
-    yield state
+    async with platform_mcp.serve_platform_mcp(app, app.state):
+        yield state
     # Decline new intake before anything else: a bot activated moments ago left a
     # deferred `open_inbound_stream` that `drain()` below awaits, and without this
     # its `start_polling` would reopen a stream after the stop loops - after intake
     # was meant to be closed (#1119).
     begin_shutdown()
+    keeping_streams.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await keeping_streams
     # The channel consumers stop first, and the engine goes after them (in
     # `close_db` below). Serving is already drained by the time this runs, but a
     # polling task is work this process owns: an inbound Telegram or Slack
@@ -239,6 +321,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # is left stuck in `processing` forever (#417 is the same row, from the other
     # end).
     await background.drain()
+    # Given back now rather than left to run out, so another worker takes these
+    # bots over on its next pass instead of half a minute later. After the drain,
+    # so a deferred open still taking its lease is given back too.
+    await stream_lease.leases().release()
     # Close each adapter's reused HTTP client now that no polling task or drained
     # background turn can still be mid-request on it (#952).
     for _adapter in (_telegram_adapter, _mattermost_adapter, _slack_adapter):
@@ -258,8 +344,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     rate_limit.configure(None)
     channel_membership.configure(None)
     channel_connection_state.configure(None)
+    stream_lease.configure(None)
     trigger_dedupe.configure(None)
     maintenance.configure(None)
+    change_feed.configure(None)
+    live_browse.configure(None)
+    live_turn.configure(None)
+    chat_room.configure(None)
+    browse_plans.configure(None)
     if "redis" in state:
         await state["redis"].close()
 
@@ -372,6 +464,10 @@ OS for your agents.
         exclude_content_types=UNCOMPRESSED_CONTENT_TYPES,
     )
 
+    # Directly above GZip: pure ASGI, so it re-streams nothing, and it reads a
+    # created row's id from a compressed answer by decoding it.
+    app.add_middleware(ChangeFeedMiddleware)
+
     # Outermost of the three, because it exists to answer before anything reads the
     # body - a middleware under CORS or the session would run after the request had
     # already been received.
@@ -412,6 +508,12 @@ OS for your agents.
     )
 
     app.include_router(api_router, prefix=settings.API_V1_STR)
+
+    # The platform's own MCP server (#2058), served beside the API rather than
+    # under its prefix: an MCP client is pointed at `<host>/mcp`, and the OAuth
+    # metadata path it discovers is fixed by the spec.
+    for path in platform_mcp.ROUTE_PATHS:
+        app.router.routes.append(Route(path, endpoint=platform_mcp.forward))
 
     return app
 

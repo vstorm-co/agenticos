@@ -43,6 +43,10 @@ KEYWORDS = ("tenant", "permission", "budget", "approval", "secret", "plaintext")
 # honest by `TestNoStaleExemptions`, which fails if an entry no longer exists or
 # no longer matches the net.
 EXEMPT: dict[str, str] = {
+    "tests/integration/test_channel_prompts.py::test_an_approval_prompt_must_name_its_approval": "a table check constraint on a prompt row, no refusal of a caller",
+    "tests/test_ask_user.py::test_a_parked_question_s_step_waits_for_an_answer_and_any_other_for_approval": "the stored step status a parked call reads, no refusal",
+    "tests/test_channel_prompts.py::TestOffering::test_each_approval_and_each_question_is_its_own_message": "what a chat is offered, display, no refusal",
+    "tests/test_agent_runner.py::TestParkedQuestions::test_a_question_parked_beside_an_approval_is_declined_when_it_resumes": "a question's resume answer beside an approval, no refusal",
     "tests/api/test_platform_routes.py::TestEveryPlatformRouteIsGuarded::test_every_gated_route_is_named_in_the_permission_table": "meta test that the CALLS gate fixture is complete, no runtime refusal",
     "tests/api/test_platform_routes.py::TestEveryPlatformRouteIsGuarded::test_the_permission_table_has_no_stale_entries": "meta test of gate-fixture hygiene, no runtime refusal",
     "tests/api/test_platform_routes.py::TestPermissionIntrospectionIsOpenToEveryMember::test_every_role_can_read_its_own_permissions": "permission introspection is open to every role, no refusal",
@@ -54,6 +58,7 @@ EXEMPT: dict[str, str] = {
     "tests/integration/test_platform_flows.py::TestTheListingCarriesThePublishedCap::test_a_version_with_no_budget_block_answers_null": "a version with no budget block reports a null cap, listing, no refusal",
     "tests/integration/test_platform_flows.py::TestTheOrganizationsSecrets::test_a_deleted_secret_is_gone_and_a_second_delete_says_so": "delete is idempotent (a second delete returns False), CRUD, no refusal",
     "tests/integration/test_platform_flows.py::TestTheOrganizationsSecrets::test_deleting_the_organization_takes_its_secrets_with_it": "deleting the organization cascades its secrets, lifecycle, no refusal",
+    "tests/test_coding_agent.py::TestConfiguringIt::test_a_binding_with_no_secret_builds_without_a_key": "the capability builds with no secret bound, construction, no refusal",
     "tests/integration/test_platform_flows.py::TestTheOrganizationsSecrets::test_several_secrets_resolve_in_one_query": "batch resolves several secrets for a run, query feature, no refusal",
     "tests/integration/test_admin_org_owner.py::TestTheDetail::test_it_carries_the_members_owner_budget_and_size": "reads the budget onto an admin's page, display, no refusal",
     "tests/test_media_offload.py::TestTheBytesHaveALifetime::test_the_tenant_s_media_is_removed_with_the_tenant": "a teardown removing a prefix, not a refusal - the isolation case beside it carries the marker",
@@ -79,6 +84,7 @@ EXEMPT: dict[str, str] = {
     "tests/test_agent_chat.py::TestWhatTheTurnCost::test_an_agent_whose_budget_block_names_no_amount_has_no_cap": "reports no cap when the budget names no amount, reporting, no refusal",
     "tests/test_agent_chat.py::TestWhatTheTurnCost::test_an_agent_with_no_budget_block_reports_no_cap_of_its_own": "reports no agent cap when the budget block is absent, reporting, no refusal",
     "tests/test_agent_observability.py::TestInstrumentation::test_a_secret_deleted_after_publish_leaves_the_agent_running": "a deleted tracing secret degrades gracefully, resilience, no refusal/masking",
+    "tests/test_agent_session.py::TestTellingThePersonWhoLeft::test_a_turn_that_parked_on_an_approval_says_nothing_more": "a parked turn sends no away notice; notification wording, no approval decision",
     "tests/test_agent_session.py::TestATurnThatDidNotFinish::test_a_budget_stop_says_why_the_answer_stopped": "surfaces an error frame explaining the budget stop, display, no enforcement",
     "tests/test_agent_spec_and_factory.py::TestBudgetComposition::test_an_agent_with_no_budget_under_an_uncapped_org_is_unlimited": "no budget under an uncapped org yields no limit, config, no refusal",
     "tests/test_agent_spec_and_factory.py::TestBudgetComposition::test_budgets_are_decimal_not_float": "budgets are stored as exact Decimal, precision, no refusal",

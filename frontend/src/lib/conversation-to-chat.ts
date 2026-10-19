@@ -1,5 +1,13 @@
 import { storedUsage } from "./message-usage";
-import type { ChatMessage, ChatMessageFile, MessagePart, ToolCall } from "@/types";
+import type { MentionKind, Mentionable } from "@/types/mention";
+import type {
+  ChatMessage,
+  ChatMessageFile,
+  ChatPerson,
+  MessagePart,
+  MessageReply,
+  ToolCall,
+} from "@/types";
 
 /**
  * Shape of a persisted message as returned by the backend (MessageRead).
@@ -15,8 +23,11 @@ export interface RawToolCall {
 
 /** One entry of a stored timeline - see `MessagePart` in the backend schemas. */
 export interface RawMessagePart {
-  type: "text" | "thinking" | "tool" | "ask_user";
+  type: "text" | "thinking" | "tool" | "ask_user" | "steer" | "mention";
   text?: string | null;
+  /** For a `mention` entry on a user turn (#2189). */
+  mention_kind?: MentionKind | null;
+  mention_id?: string | null;
   tool_call_id?: string | null;
   question?: string | null;
   answer?: string | null;
@@ -34,6 +45,7 @@ export interface RawMessage {
   /** The run that produced this turn. Null for a turn written outside one. */
   run_id?: string | null;
   run_status?: string | null;
+  run_duration_ms?: number | null;
   /** The version number of the frozen spec that produced it. */
   agent_version?: number | null;
   tool_calls?: RawToolCall[] | null;
@@ -49,6 +61,9 @@ export interface RawMessage {
   user_rating?: number | null;
   rating_count?: { likes: number; dislikes: number } | null;
   files?: ChatMessageFile[] | null;
+  sender?: ChatPerson | null;
+  sender_gone?: boolean;
+  reply_to?: WireReply | null;
   /** What the turn cost. Absent on a message written before it was recorded. */
   input_tokens?: number | null;
   output_tokens?: number | null;
@@ -91,7 +106,8 @@ export function replayStoredParts(
       });
       return;
     }
-    if (!entry.text) return;
+    // A user turn's mention is its own chip, never a block of the timeline.
+    if (!entry.text || entry.type === "mention") return;
     // Indexed, because a turn has more than one block of each kind - that is the
     // whole point of storing the order - and `${msgId}-text` twice is one React
     // key for two rows.
@@ -167,6 +183,11 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
         : buildAssistantParts(toolCalls ?? [], msg.content, msg.id, msg.thinking);
 
   const files = Array.isArray(msg.files) ? msg.files : undefined;
+  const mentions = (msg.parts ?? []).flatMap((part): Mentionable[] =>
+    part.type === "mention" && part.mention_kind && part.mention_id
+      ? [{ kind: part.mention_kind, id: part.mention_id, name: part.text ?? part.mention_id }]
+      : [],
+  );
 
   return {
     id: msg.id,
@@ -175,12 +196,16 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
     thinking: msg.thinking ?? undefined,
     timestamp: new Date(msg.created_at),
     conversationId: msg.conversation_id,
+    sender: msg.sender ?? undefined,
+    senderGone: msg.sender_gone === true || undefined,
+    replyTo: replyFromWire(msg.reply_to),
     agentId: msg.agent_id ?? undefined,
     agentVersion: msg.agent_version ?? undefined,
     runId: msg.run_id ?? undefined,
     // Only the one worth drawing. A completed run needs no marker, and a run
     // still going has no answer on screen to mark.
     wasStopped: msg.run_status === "cancelled",
+    runDurationMs: msg.run_duration_ms ?? undefined,
     usage: storedUsage(msg) ?? undefined,
     toolCalls,
     parts,
@@ -188,9 +213,32 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
     rating_count: msg.rating_count ?? undefined,
     files,
     fileIds: files?.map((f) => f.id),
+    mentions: mentions.length > 0 ? mentions : undefined,
   };
 }
 
 export function conversationMessagesToChatMessages(msgs: RawMessage[]): ChatMessage[] {
   return msgs.map(conversationMessageToChatMessage);
+}
+
+/** The message a turn answers, as the API and the live turn frame both send it. */
+export interface WireReply {
+  message_id: string;
+  role: ChatMessage["role"];
+  excerpt: string;
+  sender?: ChatPerson | null;
+  agent_id?: string | null;
+}
+
+/** The quote a turn carries, or nothing for a turn that answers no message. */
+export function replyFromWire(reply: WireReply | null | undefined): MessageReply | undefined {
+  return reply
+    ? {
+        messageId: reply.message_id,
+        role: reply.role,
+        excerpt: reply.excerpt,
+        sender: reply.sender ?? undefined,
+        agentId: reply.agent_id ?? undefined,
+      }
+    : undefined;
 }

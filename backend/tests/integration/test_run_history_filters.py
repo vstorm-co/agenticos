@@ -267,6 +267,19 @@ class TestNarrowingByWhereItCameFrom:
 
         assert (rows, total) == ([str(slack.id)], 1)
 
+    async def test_leaving_one_surface_out(self, db) -> None:
+        """How run history hides the eval traffic, which outnumbers people."""
+        org, user = await _org(db)
+        agent = await _agent(db, org)
+        web = await _run(db, org, agent, surface=RunSurface.WEB.value)
+        await _run(db, org, agent, surface=RunSurface.EVAL.value)
+
+        rows, total = await _listed(
+            db, org, user, filters=RunFilters(exclude_surface=RunSurface.EVAL.value)
+        )
+
+        assert (rows, total) == ([str(web.id)], 1)
+
     async def test_who_the_run_ran_as(self, db) -> None:
         """Not always who asked: a widget's runs carry the widget owner's id,
         because the visitor is anonymous and has no row anywhere."""
@@ -324,6 +337,24 @@ class TestNarrowingByWhatRan:
         )
 
         assert (rows, total) == ([str(parent.id)], 1)
+
+
+class TestTestRuns:
+    """#2074: a run from the Builder's test panel is told apart from real use."""
+
+    async def test_the_test_filter_takes_either_half_and_unset_takes_both(self, db) -> None:
+        org, user = await _org(db)
+        agent = await _agent(db, org)
+        tried = await _run(db, org, agent, is_test=True)
+        used = await _run(db, org, agent)
+
+        tests, _ = await _listed(db, org, user, filters=RunFilters(is_test=True))
+        real, _ = await _listed(db, org, user, filters=RunFilters(is_test=False))
+        both, total = await _listed(db, org, user, filters=RunFilters())
+
+        assert tests == [str(tried.id)]
+        assert real == [str(used.id)]
+        assert total == 2 and set(both) == {str(tried.id), str(used.id)}
 
 
 class TestSortingByHowLongItTook:

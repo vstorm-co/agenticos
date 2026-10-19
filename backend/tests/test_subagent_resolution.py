@@ -39,8 +39,10 @@ from app.agents.capabilities.budget import SpendLedger
 from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.isolation import RunIsolation
+from app.agents.manifest import RecordedRequest, RunRecorder
 from app.agents.spec import (
     AgentSpec,
+    CapabilityBindingSpec,
     ObservabilitySpec,
     OrgMcpServerRef,
     PersonalMcpServerRef,
@@ -53,7 +55,7 @@ from app.agents.subagent_runtime import (
     ResolvedSubagent,
     SubagentRuntime,
 )
-from app.core.exceptions import BadRequestError
+from app.core.exceptions import BadRequestError, SystemAgentRestrictedError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import AgentStatus
 from app.db.models.agent_environment import AgentEnvironmentConnection
@@ -67,6 +69,21 @@ from app.services.agent_runner import (
 from app.services.mcp_connection import ResolvedMcpToolsets, UnavailablePersonalService
 
 pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture(autouse=True)
+def _in_no_group(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Nobody here is in a group; `test_prompt_variables` covers `{{groups}}`."""
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "app.services.agent_runner.group_repo.names_for_member", AsyncMock(return_value=[])
+    )
+    monkeypatch.setattr(
+        "app.services.agent_runner.group_repo.capped_groups_for_member",
+        AsyncMock(return_value=[]),
+    )
+
 
 RUNNER = "app.services.agent_runner"
 
@@ -143,7 +160,7 @@ def _agent_row(
     `name` is assigned rather than passed to the constructor, where `MagicMock`
     would take it as the mock's own name and leave the attribute unset.
     """
-    row = MagicMock(id=agent_id, slug=slug, status=status)
+    row = MagicMock(id=agent_id, slug=slug, status=status, system_key=None, kind="agent")
     row.name = slug
     return row
 
@@ -263,7 +280,9 @@ async def _prepare(
     """
     ctx = ctx or _ctx()
     service = AgentRunnerService(_db())
-    agent = MagicMock(id=agent_id or uuid.uuid4(), current_version_id=uuid.uuid4())
+    agent = MagicMock(
+        id=agent_id or uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None, kind="agent"
+    )
     run = MagicMock(
         id=uuid.uuid4(),
         conversation_id=uuid.uuid4(),
@@ -635,6 +654,32 @@ class TestSharingACapabilityWithADelegate:
 
 
 class TestAPublishedDelegate:
+    async def test_it_is_built_with_its_own_reviewers_models(self):
+        """An agent reviewed when called directly is reviewed as a delegate too:
+        `_reviewers` leaves out any reviewer whose model was not resolved (#2106)."""
+        delegate_id = uuid.uuid4()
+        reviewer_profile = uuid.uuid4()
+        pinned = _version(
+            delegate_id,
+            AgentSpec(
+                name="Research Bot",
+                reviewers=[
+                    {
+                        "name": "sources",
+                        "model_profile_id": str(reviewer_profile),
+                        "instructions": "Flag claims without a source.",
+                    }
+                ],
+            ),
+        )
+        spec = _delegating(
+            subagents=[SubagentRef(agent_id=delegate_id, agent_version_id=pinned.id)]
+        )
+
+        prepared = await _prepare(spec, versions={pinned.id: pinned})
+
+        assert set(prepared.built("research-bot")["reviewer_models"]) == {reviewer_profile}
+
     async def test_it_runs_the_version_it_is_pinned_to(self):
         """Not whatever is published now, and not what the parent's environment
         resolves: `get_runnable_spec` resolves an environment, so a delegate
@@ -724,6 +769,19 @@ class TestAPublishedDelegate:
             "agent_id": str(delegate_id),
             "slug": "research-bot",
         }
+
+    async def test_a_delegate_that_became_a_judge_is_refused_at_run_time(self):
+        """A judge is never a delegate, even through a pin published before."""
+        delegate_id = uuid.uuid4()
+        pinned = _version(delegate_id, AgentSpec(name="Eval judge"))
+        spec = _delegating(
+            subagents=[SubagentRef(agent_id=delegate_id, agent_version_id=pinned.id)]
+        )
+        judge = _agent_row(delegate_id, slug="eval-judge")
+        judge.kind = "judge"
+
+        with pytest.raises(SystemAgentRestrictedError, match="a delegate"):
+            await _prepare(spec, versions={pinned.id: pinned}, agents={delegate_id: judge})
 
     async def test_a_pin_naming_another_agents_version_is_refused(self):
         """A version id is only meaningful through the agent that owns it - and
@@ -820,6 +878,38 @@ class TestAPublishedDelegate:
 
         assert prepared.built("mailer")["isolation"] is isolation
 
+    @pytest.mark.security
+    async def test_a_delegates_platform_credential_is_the_runs_own_persons(self):
+        """Review on #2062: a delegate bound to the platform minted a key from
+        `ctx` alone - on a resume, the approver's role."""
+        from app.agents.spec import PlatformMcpServerRef
+
+        delegate_id = uuid.uuid4()
+        pinned = _version(
+            delegate_id,
+            AgentSpec(name="Admin Bot", mcp_servers=[PlatformMcpServerRef(account="platform")]),
+        )
+        spec = _delegating(
+            subagents=[SubagentRef(agent_id=delegate_id, agent_version_id=pinned.id)]
+        )
+
+        with (
+            patch(
+                f"{RUNNER}.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+            ),
+            patch(
+                f"{RUNNER}.AgentRunnerService._platform_credential",
+                new=AsyncMock(return_value=None),
+            ) as credential,
+        ):
+            prepared = await _prepare(spec, versions={pinned.id: pinned})
+            prepared.built("admin-bot")
+
+        delegate_call = credential.await_args_list[-1]
+        # Resolved against the run, which is how a resume reaches its owner.
+        assert len(delegate_call.args) == 3 and delegate_call.args[2] is not None
+
     async def test_a_delegate_with_no_description_is_still_describable(self):
         """The description is what the parent's model reads before deciding to
         delegate, and an empty string is not something it can act on."""
@@ -899,6 +989,34 @@ class TestHowDeepDelegationGoes:
         # And one stash, because a delegation two levels down parks the run
         # somebody started and is continued from that run's stored state.
         assert nested.stash is prepared.runtime.stash
+
+    @pytest.mark.security
+    async def test_every_level_streams_under_the_delegating_runs_output_check(self):
+        """A delegate's text reaches the reader of the run, however deep it is,
+        so the run's own output check screens it (agenticos#2000)."""
+        parent, versions = self._two_levels(max_depth=2)
+        parent.capabilities.insert(
+            0, CapabilityBindingSpec(id="guardrails", config={"redact_secrets_out": True})
+        )
+
+        prepared = await _prepare(parent, versions=versions)
+        nested = prepared.built("research-bot")["resources"][SUBAGENT_RUNTIME_RESOURCE]
+
+        assert prepared.runtime.output_screen is not None
+        assert nested.output_screen is prepared.runtime.output_screen
+
+    async def test_without_an_output_check_nothing_screens_the_delegates(self):
+        parent, versions = self._two_levels(max_depth=2)
+        parent.capabilities.insert(
+            0,
+            CapabilityBindingSpec(
+                id="guardrails", enabled=False, config={"redact_secrets_out": True}
+            ),
+        )
+
+        prepared = await _prepare(parent, versions=versions)
+
+        assert prepared.runtime.output_screen is None
 
     async def test_the_default_stops_a_delegate_from_delegating_at_all(self):
         """One level, which is what `max_depth=1` says and what an author reads.
@@ -1355,6 +1473,17 @@ class TestRecordingADelegation:
     they corrupt the session and take the parent's run row with them.
     """
 
+    async def test_a_delegate_the_loop_guard_stopped_is_recorded_as_such(self):
+        """The library has three outcomes and calls it `failed`; the row says why (#2086)."""
+        agent_id, version_id = uuid.uuid4(), uuid.uuid4()
+        outcome = _outcome(
+            status="failed", loop_stopped=True, agent_id=agent_id, agent_version_id=version_id
+        )
+
+        result = await _record(outcome, attribution={version_id: _model()})
+
+        assert result.only.status is RunStatus.LOOP_STOPPED
+
     async def test_a_delegation_is_described_and_its_id_answered_immediately(self):
         agent_id, version_id = uuid.uuid4(), uuid.uuid4()
         model = _model(secret_id=uuid.uuid4())
@@ -1649,6 +1778,53 @@ class TestWritingTheQueuedRows:
         # version, and a delegate's version came from a pin.
         assert "environment_id" not in written
 
+    async def test_a_delegates_cache_busts_go_on_its_own_row_not_the_parents(self):
+        """The Spend card groups busts by each row's agent and model, so a delegate's
+        must not be counted under the parent's (#2109). It is built once per run,
+        so a second call to it carries none of the first's."""
+        delegate_id = uuid.uuid4()
+        first, second = self._queued(agent_id=delegate_id), self._queued(agent_id=delegate_id)
+        prepared = self._prepared([first, second])
+        prepared.run.agent_id = uuid.uuid4()
+        prepared.built.recorder = RunRecorder()
+
+        def busted() -> RunRecorder:
+            recorder = RunRecorder()
+            recorder.requests.append(
+                RecordedRequest(
+                    index=0,
+                    started_at=datetime.now(UTC),
+                    duration_ms=1,
+                    model="m",
+                    message_count=1,
+                    input_tokens=10,
+                    output_tokens=1,
+                    cache_read_tokens=0,
+                    tool_calls=[],
+                    finish_reason="stop",
+                    cache="bust",
+                    cache_missed_tokens=900,
+                )
+            )
+            return recorder
+
+        # The parent's own inline specialist is built as the parent's agent.
+        prepared.delegate_recorders = [(delegate_id, busted()), (prepared.run.agent_id, busted())]
+        service = AgentRunnerService(_db())
+
+        with (
+            patch(f"{RUNNER}.agent_run_repo.finish_run", new=AsyncMock()) as finish,
+            patch(f"{RUNNER}.agent_run_repo.record_delegated_run", new=AsyncMock()) as write,
+        ):
+            await service.finish(prepared, status=RunStatus.COMPLETED)
+
+        assert finish.await_args.kwargs["cache_busts"] == 1
+        rows = [call.kwargs for call in write.await_args_list]
+        assert [(row["cache_busts"], row["cache_missed_tokens"]) for row in rows] == [
+            (1, 900),
+            (0, 0),
+        ]
+
     async def test_the_parent_row_is_written_before_the_rows_that_reference_it(self):
         """They carry `parent_run_id`. The parent's row exists from the start of
         the run, so this is belt and braces - but a change that created it later
@@ -1765,6 +1941,15 @@ class TestResumingIntoADelegation:
     run's stored state the continuation comes out of.
     """
 
+    @pytest.fixture(autouse=True)
+    def _no_assistant(self):
+        """None of these runs is the organization's assistant's (#2063)."""
+        with patch(
+            "app.services.agent_registry.organization_assistant_repo.for_agent",
+            new=AsyncMock(return_value=None),
+        ):
+            yield
+
     async def test_the_reassembled_tree_holds_the_place_the_parked_delegate_left(self):
         parked_at = "the-parents-task-call"
         frame = {
@@ -1783,6 +1968,7 @@ class TestResumingIntoADelegation:
             surface="api",
             status=RunStatus.AWAITING_APPROVAL.value,
             paused_state={"messages": [], "tool_call_ids": {}, "delegations": [frame]},
+            test_spec=None,
             model_label="gpt-4.1",
             input_tokens=0,
             output_tokens=0,
@@ -1802,7 +1988,11 @@ class TestResumingIntoADelegation:
             patch(f"{RUNNER}.agent_run_repo.mark_running", new=AsyncMock()),
             patch(f"{RUNNER}.agent_run_repo.finish_run", new=AsyncMock()),
             patch(f"{RUNNER}.agent_repo.get_version", new=AsyncMock(return_value=version)),
-            patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
+            patch.object(
+                service.registry,
+                "get",
+                new=AsyncMock(return_value=MagicMock(system_key=None, kind="agent")),
+            ),
             patch.object(service.models, "resolve", new=AsyncMock(return_value=MagicMock())),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch.object(service.secrets, "resolve_for_bindings", new=AsyncMock(return_value={})),

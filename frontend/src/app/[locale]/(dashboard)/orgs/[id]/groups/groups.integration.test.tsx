@@ -183,6 +183,8 @@ describe("the groups page", () => {
       expect(apiClient.post).toHaveBeenCalledWith("/orgs/org-1/groups", {
         name: "Legal",
         description: null,
+        icon: null,
+        monthly_budget_usd: null,
       }),
     );
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
@@ -206,6 +208,8 @@ describe("the groups page", () => {
     expect(apiClient.post).toHaveBeenCalledWith("/orgs/org-1/groups", {
       name: "Finance",
       description: "Money people",
+      icon: null,
+      monthly_budget_usd: null,
     });
     // Typing again clears it, since the name it was about is gone.
     await userEvent.type(screen.getByLabelText("Name"), "!");
@@ -241,6 +245,8 @@ describe("the groups page", () => {
       expect(apiClient.patch).toHaveBeenCalledWith("/orgs/org-1/groups/g-fin", {
         name: "Money",
         description: null,
+        icon: null,
+        monthly_budget_usd: null,
       }),
     );
   });

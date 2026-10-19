@@ -98,8 +98,10 @@ export default function DatasetsPage() {
         ) : datasets.length === 0 ? (
           <ListCardEmpty
             icon={FlaskConical}
-            title={isFiltering ? t("noMatches") : t("empty")}
-            description={isFiltering ? t("noMatchesBody") : t("emptyBody")}
+            title={isFiltering ? t("noMatches") : canCreate ? t("empty") : t("noneShared")}
+            description={
+              isFiltering ? t("noMatchesBody") : canCreate ? t("emptyBody") : t("noneSharedBody")
+            }
             cta={
               canCreate && !isFiltering
                 ? { label: t("newDataset"), onClick: () => setCreateOpen(true) }

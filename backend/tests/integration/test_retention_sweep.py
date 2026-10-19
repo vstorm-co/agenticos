@@ -31,6 +31,7 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.models.run_manifest import RunManifest
 from app.db.models.user import User
+from app.repositories import project_repo
 from app.schemas.retention import RetentionUpdate
 from app.services.retention import RetentionService
 from app.services.spend import organization_spend_since
@@ -283,6 +284,39 @@ class TestTheOtherClasses:
                     last_used_at=NOW - timedelta(days=age),
                 )
             )
+        organization.retention_days = {"workspaces": 30}
+        await db.flush()
+
+        await RetentionService(db).sweep(now=NOW)
+
+        assert await _count(db, AgentWorkspace) == 1
+
+    async def test_a_projects_files_outlive_the_workspace_window(self, db: AsyncSession):
+        """A project's files are the project's, kept as long as it is however long
+        nobody ran an agent in them."""
+        organization, user = await _tenant(db)
+        project = await project_repo.create(
+            db,
+            organization_id=organization.id,
+            owner_user_id=user.id,
+            name="Launch",
+            description="",
+            instructions="",
+            default_agent_id=None,
+            backend="state",
+            visibility="private",
+        )
+        db.add(
+            AgentWorkspace(
+                organization_id=organization.id,
+                project_id=project.id,
+                scope="project",
+                scope_key=f"k-{uuid.uuid4().hex[:8]}",
+                backend="state",
+                files={},
+                last_used_at=NOW - timedelta(days=120),
+            )
+        )
         organization.retention_days = {"workspaces": 30}
         await db.flush()
 

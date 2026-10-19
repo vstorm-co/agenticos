@@ -1,5 +1,5 @@
 ---
-source_sha: "82ec723c8c80"
+source_sha: "bb644bc0a7d4"
 ---
 
 # Skills { #skills }
@@ -115,6 +115,12 @@ archivo que leer.
 Un spec vincula skills por id en `skill_ids`, así que un agent ve los que se le
 dieron y nada más.
 
+**Desde el propio skill.** Cada tarjeta de la página de Skills tiene **Add to an
+agent**: eliges el agent y el skill se añade a su borrador, con la capability
+Skills activada, listo para publicar en el Builder. La tarjeta dice también qué
+agents usan el skill, o que todavía ninguno. Los archivos de contexto y las bases
+de conocimiento ofrecen lo mismo.
+
 **El nombre de un skill es el id con el que un modelo lo carga**, así que
 tiene la forma en que los modelos escriben ids: minúsculas y dígitos unidos por
 guiones simples, como `refund-policy`. Un nombre con espacios o mayúsculas se
@@ -196,7 +202,7 @@ dado más trabajo, no más información.
 **Los incluidos ya están ahí.** El repositorio trae cuatro: tres ejemplos
 trabajados — `refund-policy`, `code-review` e `incident-report` — y
 `artifact-pages`, que enseña a un agent a construir una página para la
-capability [Artifacts](artifacts.md#the-library-set). Toda organización empieza
+capability [Apps](artifacts.md#the-library-set). Toda organización empieza
 con ellos. Crear una organización copia dentro la biblioteca
 entera que se distribuye, como skills normales, cuyo dueño es el owner de la
 organización y visibles para la organización.

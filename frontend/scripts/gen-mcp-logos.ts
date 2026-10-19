@@ -69,8 +69,17 @@ async function fetchDataUri(domain: string): Promise<string | null> {
  * leading label stripped, down to the registrable domain. The map's key stays
  * the host either way, because the host is what the lookup asks with (#614).
  */
+/**
+ * Hosts whose parent domains are not the brand's at all, so walking up never
+ * reaches its icon: Todoist serves MCP from `ai.todoist.net`, and `todoist.net`
+ * has no favicon - the brand lives on `todoist.com`.
+ */
+const BRAND_DOMAIN: Readonly<Record<string, string>> = {
+  "ai.todoist.net": "todoist.com",
+};
+
 async function fetchLogoFor(host: string): Promise<string | null> {
-  const labels = host.split(".");
+  const labels = (BRAND_DOMAIN[host] ?? host).split(".");
   for (let start = 0; start <= labels.length - 2; start++) {
     const uri = await fetchDataUri(labels.slice(start).join("."));
     if (uri) return uri;

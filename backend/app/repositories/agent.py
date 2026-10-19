@@ -6,16 +6,19 @@ predicate pieces the access layer resolved rather than re-deriving them here.
 """
 
 from collections.abc import Collection, Sequence
+from typing import Literal
 from uuid import UUID
 
-from sqlalchemy import Float, and_, false, func, or_, select
+from sqlalchemy import Float, and_, bindparam, false, func, or_, select, text
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.sql.elements import ColumnElement
 
-from app.db.models.agent import Agent, AgentStatus, AgentVersion
+from app.db.models.agent import Agent, AgentKind, AgentStatus, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.agent_run import AgentRun, RunStatus
+from app.db.models.organization_assistant import OrganizationAssistant
 from app.db.models.resource_grant import Visibility
 
 
@@ -67,6 +70,28 @@ async def get(db: AsyncSession, agent_id: UUID, *, organization_id: UUID) -> Age
     return result.scalar_one_or_none()
 
 
+async def get_served_over_a2a(db: AsyncSession, agent_id: UUID) -> Agent | None:
+    """A published agent its organization chose to serve over A2A, whatever the tenant.
+
+    The one cross-tenant read by id, because an agent card is fetched before any
+    caller is known. What it finds is only what the organization made discoverable -
+    and not an assistant it has switched off, which reads as no agent at all.
+    """
+    switched_off = select(OrganizationAssistant.agent_id).where(
+        OrganizationAssistant.agent_id == agent_id, OrganizationAssistant.enabled.is_(False)
+    )
+    result = await db.execute(
+        select(Agent).where(
+            Agent.id == agent_id,
+            Agent.a2a_enabled.is_(True),
+            Agent.status == AgentStatus.PUBLISHED.value,
+            Agent.current_version_id.is_not(None),
+            Agent.id.not_in(switched_off),
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_by_slug(db: AsyncSession, slug: str, *, organization_id: UUID) -> Agent | None:
     result = await db.execute(
         select(Agent).where(Agent.slug == slug, Agent.organization_id == organization_id)
@@ -101,13 +126,18 @@ def _visible_clauses(
     shared_ids: list[UUID],
     shared_with_me: bool,
     include_archived: bool,
+    kind: AgentKind,
 ) -> list[ColumnElement[bool]]:
     """The rows a member may list, before any discovery filter narrows them.
 
     Shared by `list_visible` and `list_visible_labels` so the filter's choices
-    can never be drawn from a wider set than the listing they filter.
+    can never be drawn from a wider set than the listing they filter. `kind`
+    keeps one kind of agent: the ones people use, or the judges.
     """
-    where: list[ColumnElement[bool]] = [Agent.organization_id == organization_id]
+    where: list[ColumnElement[bool]] = [
+        Agent.organization_id == organization_id,
+        Agent.kind == kind.value,
+    ]
     if not include_archived:
         where.append(Agent.status != AgentStatus.ARCHIVED.value)
     if shared_with_me:
@@ -141,6 +171,7 @@ async def list_visible(
     shared_ids: list[UUID],
     shared_with_me: bool = False,
     include_archived: bool = False,
+    kind: AgentKind = AgentKind.AGENT,
     categories: Sequence[str] = (),
     tags: Sequence[str] = (),
     skip: int = 0,
@@ -173,6 +204,7 @@ async def list_visible(
         shared_ids=shared_ids,
         shared_with_me=shared_with_me,
         include_archived=include_archived,
+        kind=kind,
     )
     # Guard on the (already-normalized) list being non-empty: a blank param that
     # normalized to `[]` upstream must apply no predicate rather than match `{}`.
@@ -198,6 +230,7 @@ async def list_visible_labels(
     shared_ids: list[UUID],
     shared_with_me: bool = False,
     include_archived: bool = False,
+    kind: AgentKind = AgentKind.AGENT,
 ) -> tuple[list[str], list[str]]:
     """Every distinct category and tag on the agents this member may list.
 
@@ -214,6 +247,7 @@ async def list_visible_labels(
         shared_ids=shared_ids,
         shared_with_me=shared_with_me,
         include_archived=include_archived,
+        kind=kind,
     )
 
     async def distinct(column: InstrumentedAttribute[list[str]]) -> list[str]:
@@ -380,9 +414,9 @@ async def list_active_run_versions(db: AsyncSession) -> list[tuple[Agent, AgentV
     `audit-skill-bindings` sweep is deployment-wide. A run records the version it
     executed in `agent_version_id`, and a run that has not ended still loads it: a
     `running` run is executing it now, and an `awaiting_approval` run reloads it
-    when :meth:`AgentRunnerService.resume` continues it. The five terminal states -
-    `completed`, `failed`, `cancelled`, `budget_exceeded` and `guardrail_blocked` -
-    never load it again, so there `agent_version_id` is only a historical record.
+    when :meth:`AgentRunnerService.resume` continues it. The six terminal states -
+    `completed`, `failed`, `cancelled`, `budget_exceeded`, `guardrail_blocked` and
+    `loop_stopped` - never load it again, so there `agent_version_id` is only a historical record.
     A parked run resumes only from stored `paused_state`; one without it can never
     continue, so it is excluded rather than seeding a version no resume can reach.
 
@@ -406,7 +440,9 @@ async def list_active_run_versions(db: AsyncSession) -> list[tuple[Agent, AgentV
             or_(
                 AgentRun.status == RunStatus.RUNNING.value,
                 and_(
-                    AgentRun.status == RunStatus.AWAITING_APPROVAL.value,
+                    AgentRun.status.in_(
+                        [RunStatus.AWAITING_APPROVAL.value, RunStatus.AWAITING_ANSWER.value]
+                    ),
                     AgentRun.paused_state.isnot(None),
                 ),
             )
@@ -581,6 +617,36 @@ async def newest_version(
     return result.scalar_one_or_none()
 
 
+async def get_version_by_number(
+    db: AsyncSession, *, agent_id: UUID, number: int, organization_id: UUID
+) -> AgentVersion | None:
+    result = await db.execute(
+        select(AgentVersion).where(
+            AgentVersion.agent_id == agent_id,
+            AgentVersion.version == number,
+            AgentVersion.organization_id == organization_id,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def version_before(
+    db: AsyncSession, *, agent_id: UUID, number: int, organization_id: UUID
+) -> AgentVersion | None:
+    """The highest-numbered version below `number` - what a version is measured against."""
+    result = await db.execute(
+        select(AgentVersion)
+        .where(
+            AgentVersion.agent_id == agent_id,
+            AgentVersion.version < number,
+            AgentVersion.organization_id == organization_id,
+        )
+        .order_by(AgentVersion.version.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 async def count_for_organization(db: AsyncSession, *, organization_id: UUID) -> int:
     """How many agents this organization holds, archived ones excluded.
 
@@ -614,3 +680,120 @@ async def count_versions(db: AsyncSession, *, agent_id: UUID, organization_id: U
         )
     )
     return int(result.scalar_one())
+
+
+BoundResourceField = Literal["skill_ids", "context_ids", "collection_ids"]
+
+
+async def _attach_agents(
+    db: AsyncSession, usage: dict[UUID, list[Agent]], rows: Sequence[tuple[UUID, str]]
+) -> dict[UUID, list[Agent]]:
+    """Load the agents named by `(agent id, bound id)` rows into `usage`, each list by name."""
+    if not rows:
+        return usage
+    agents = {
+        agent.id: agent
+        for agent in (
+            await db.execute(select(Agent).where(Agent.id.in_({agent_id for agent_id, _ in rows})))
+        ).scalars()
+    }
+    for agent_id, ref in sorted(rows, key=lambda row: agents[row[0]].name.casefold()):
+        usage[UUID(ref)].append(agents[agent_id])
+    return usage
+
+
+async def binding_mcp_connections(
+    db: AsyncSession, *, organization_id: UUID, connection_ids: Collection[UUID]
+) -> dict[UUID, list[Agent]]:
+    """For each organization MCP connection, the live agents whose draft binds it (#2072).
+
+    The MCP counterpart of :func:`binding_resources`: `mcp_servers` holds objects,
+    so the id is read out of each one's `connection_id` - a personal binding has
+    none and binds no connection. Same draft-not-published reason, same archived
+    agents left out, same keys and order.
+    """
+    usage: dict[UUID, list[Agent]] = {connection_id: [] for connection_id in connection_ids}
+    if not usage:
+        return usage
+    pairs = text(
+        """
+        SELECT a.id, ref ->> 'connection_id'
+        FROM agents a
+        CROSS JOIN LATERAL jsonb_array_elements(
+            CASE
+                WHEN jsonb_typeof(a.draft_spec -> 'mcp_servers') = 'array'
+                THEN a.draft_spec -> 'mcp_servers'
+                ELSE '[]'::jsonb
+            END
+        ) AS ref
+        WHERE a.organization_id = :organization_id
+          AND a.status != :archived
+          AND ref ->> 'connection_id' IN :connection_ids
+        """
+    ).bindparams(
+        bindparam("organization_id", type_=PG_UUID(as_uuid=True)),
+        bindparam("connection_ids", expanding=True),
+    )
+    rows = (
+        await db.execute(
+            pairs,
+            {
+                "organization_id": organization_id,
+                "archived": AgentStatus.ARCHIVED.value,
+                "connection_ids": [str(connection_id) for connection_id in usage],
+            },
+        )
+    ).all()
+    return await _attach_agents(db, usage, [(agent_id, ref) for agent_id, ref in rows])
+
+
+async def binding_resources(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    field: BoundResourceField,
+    resource_ids: Collection[UUID],
+) -> dict[UUID, list[Agent]]:
+    """For each resource, the live agents whose draft binds it - in one query.
+
+    The draft rather than the published version, for the reason the vault's
+    `agents_using_for_secrets` gives: an agent about to be published with a skill
+    is using it. Archived agents are left out; nobody runs them. Every requested
+    id is a key, a resource nothing binds mapping to an empty list, and each list
+    is in name order.
+    """
+    usage: dict[UUID, list[Agent]] = {resource_id: [] for resource_id in resource_ids}
+    if not usage:
+        return usage
+    # `jsonb_array_elements_text` errors on anything that is not an array, so a
+    # draft missing the field hands it an empty one instead.
+    pairs = text(
+        f"""
+        SELECT a.id, ref
+        FROM agents a
+        CROSS JOIN LATERAL jsonb_array_elements_text(
+            CASE
+                WHEN jsonb_typeof(a.draft_spec -> '{field}') = 'array'
+                THEN a.draft_spec -> '{field}'
+                ELSE '[]'::jsonb
+            END
+        ) AS ref
+        WHERE a.organization_id = :organization_id
+          AND a.status != :archived
+          AND ref IN :resource_ids
+        """  # noqa: S608 - `field` is one of three literals, never input
+    ).bindparams(
+        bindparam("organization_id", type_=PG_UUID(as_uuid=True)),
+        bindparam("resource_ids", expanding=True),
+    )
+    rows = (
+        await db.execute(
+            pairs,
+            {
+                "organization_id": organization_id,
+                "archived": AgentStatus.ARCHIVED.value,
+                "resource_ids": [str(resource_id) for resource_id in usage],
+            },
+        )
+    ).all()
+    return await _attach_agents(db, usage, [(agent_id, ref) for agent_id, ref in rows])
