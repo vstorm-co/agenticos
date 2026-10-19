@@ -19,11 +19,11 @@ vi.mock("sonner", () => ({
   },
 }));
 
-const navigation = vi.hoisted(() => ({ params: new URLSearchParams() }));
+const navigation = vi.hoisted(() => ({ params: new URLSearchParams(), replace: vi.fn() }));
 vi.mock("next/navigation", () => ({
   useSearchParams: () => navigation.params,
   usePathname: () => "/agents/agent-1/evals/run-1",
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), replace: navigation.replace }),
 }));
 
 const review = vi.hoisted(() => ({ canEdit: false, mutate: vi.fn(), rescore: vi.fn() }));
@@ -791,6 +791,20 @@ describe("EvalRunView", () => {
       "run-1",
       expect.objectContaining({ arm: "arm-2", skip: 0 }),
     ]);
+  });
+
+  it("moves a run opened under another agent to the agent that ran it", () => {
+    navigation.params = new URLSearchParams("case=case-1");
+    state.run = { ...state.run, run: evalRun({ agent_id: "agent-2" }) };
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(navigation.replace).toHaveBeenCalledWith("/agents/agent-2/evals/run-1?case=case-1");
+    expect(screen.queryByRole("link", { name: /back/i })).toBeNull();
+  });
+
+  it("moves a run with nothing asked of it to its agent's address alone", () => {
+    state.run = { ...state.run, run: evalRun({ agent_id: "agent-2" }) };
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(navigation.replace).toHaveBeenCalledWith("/agents/agent-2/evals/run-1");
   });
 
   it("tells an answer that never finished from one that was not decided", () => {

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Lock } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -48,7 +48,9 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
   const [broken, setBroken] = useState(false);
   const [testingAgain, setTestingAgain] = useState(false);
   // `?case=` names one case to open - how Activity hands a case back to its run.
-  const asked = useSearchParams().get("case");
+  const params = useSearchParams();
+  const asked = params.get("case");
+  const router = useRouter();
   const [only, setOnly] = useState<string | null>(asked);
   const cases = useRef<HTMLDivElement>(null);
   const focus = arm ?? candidates[0]?.id ?? null;
@@ -72,8 +74,17 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
   useEffect(() => {
     if (asked !== null && loaded) cases.current?.scrollIntoView?.({ block: "start" });
   }, [asked, loaded]);
+  // Everything on the page - access, back link, testing again, publishing - is
+  // read off the agent in the address, so a run of another agent moves there.
+  const owner = run?.agent_id;
+  const misplaced = owner !== undefined && owner !== agentId;
+  useEffect(() => {
+    if (!misplaced) return;
+    const query = params.toString();
+    router.replace(`${ROUTES.AGENTS}/${owner}/evals/${runId}${query ? `?${query}` : ""}`);
+  }, [misplaced, owner, runId, params, router]);
 
-  if (isLoading) return <LoadingState variant="skeleton-cards" rows={3} />;
+  if (isLoading || misplaced) return <LoadingState variant="skeleton-cards" rows={3} />;
   if (error instanceof ApiError && error.status === 403) {
     return <EmptyState icon={Lock} title={t("noAccess.title")} description={t("noAccess.body")} />;
   }
