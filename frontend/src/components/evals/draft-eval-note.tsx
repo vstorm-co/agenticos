@@ -18,8 +18,22 @@ import { quoted } from "./verdict-headline";
  */
 export function DraftEvalNote({ agentId, onTest }: { agentId: string; onTest: () => void }) {
   const t = useTranslations("evals");
-  const { runs, isLoading } = useDraftEvalRuns(agentId);
+  const tc = useTranslations("common");
+  const { runs, isLoading, error, refetch } = useDraftEvalRuns(agentId);
   if (isLoading) return null;
+  if (error) {
+    return (
+      <div
+        role="alert"
+        className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm"
+      >
+        <span className="text-muted-foreground">{t("draftNote.unread")}</span>
+        <Button size="sm" variant="outline" onClick={() => void refetch()}>
+          {tc("retry")}
+        </Button>
+      </div>
+    );
+  }
   const [run] = runs;
   if (run === undefined) {
     return (

@@ -6,7 +6,12 @@ import { arm, comparison, evalRun } from "@/test-utils/eval-runs";
 import type { EvalOutcome } from "@/types/eval-runs";
 import { DraftEvalNote } from "./draft-eval-note";
 
-const draft = vi.hoisted(() => ({ runs: [] as unknown[], isLoading: false }));
+const draft = vi.hoisted(() => ({
+  runs: [] as unknown[],
+  isLoading: false,
+  error: null as Error | null,
+  refetch: (() => undefined) as () => unknown,
+}));
 vi.mock("@/hooks/use-eval-runs", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/use-eval-runs")>()),
   useDraftEvalRuns: () => draft,
@@ -28,9 +33,22 @@ const OUTCOME: EvalOutcome = {
 beforeEach(() => {
   draft.runs = [];
   draft.isLoading = false;
+  draft.error = null;
 });
 
 describe("DraftEvalNote", () => {
+  it("says the last test could not be read rather than that there was none", async () => {
+    draft.error = new Error("boom");
+    draft.refetch = vi.fn();
+    render(<DraftEvalNote agentId="agent-1" onTest={vi.fn()} />);
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Could not read how this draft last tested.",
+    );
+    expect(screen.queryByText(/was not tested/)).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(draft.refetch).toHaveBeenCalled();
+  });
+
   it("says a draft made things worse, and links the run that said so", () => {
     draft.runs = [evalRun({ outcome: OUTCOME })];
     render(<DraftEvalNote agentId="agent-1" onTest={vi.fn()} />);

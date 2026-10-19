@@ -333,7 +333,12 @@ export function useDraftEvalRuns(agentId: string | null, { enabled = true } = {}
     queryFn: () => apiClient.get<EvalRunList>(`/agents/${agentId}/eval-runs?draft=current&limit=1`),
     enabled: enabled && agentId !== null,
   });
-  return { runs: query.data?.items ?? [], isLoading: query.isLoading };
+  return {
+    runs: query.data?.items ?? [],
+    isLoading: query.isLoading,
+    error: query.error,
+    refetch: query.refetch,
+  };
 }
 
 /** The organization's latest runs the caller may read - the dashboard's card. */

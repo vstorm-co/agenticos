@@ -7843,6 +7843,7 @@
     },
     "draftNote": {
       "untested": "Ten draft nie był testowany od ostatniej zmiany.",
+      "unread": "Nie udało się odczytać ostatniego testu tego draftu.",
       "test": "Przetestuj",
       "running": "Ten draft jest właśnie testowany.",
       "unfinished": "Ostatni test tego draftu {status, select, cancelled {został zatrzymany} budget_exceeded {wyczerpał budżet} other {nie powiódł się}}, zanim doszedł do werdyktu.",

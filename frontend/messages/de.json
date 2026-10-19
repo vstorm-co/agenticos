@@ -7950,6 +7950,7 @@
     },
     "draftNote": {
       "untested": "Dieser Entwurf wurde seit seiner letzten Änderung nicht getestet.",
+      "unread": "Der letzte Test dieses Entwurfs konnte nicht gelesen werden.",
       "test": "Testen",
       "running": "Dieser Entwurf wird gerade getestet.",
       "unfinished": "Der letzte Test dieses Entwurfs {status, select, cancelled {wurde gestoppt} budget_exceeded {hat sein Budget aufgebraucht} other {ist fehlgeschlagen}}, bevor er zu einem Urteil kam.",

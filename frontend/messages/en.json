@@ -8067,6 +8067,7 @@
     },
     "draftNote": {
       "untested": "This draft was not tested since it last changed.",
+      "unread": "Could not read how this draft last tested.",
       "test": "Test it",
       "running": "This draft is being tested now.",
       "unfinished": "The last test of this draft {status, select, cancelled {was stopped} budget_exceeded {ran out of budget} other {failed}} before it reached a verdict.",
