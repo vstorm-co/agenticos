@@ -196,10 +196,12 @@ at all the verdict is `no_difference`.
 ### A different judge invalidates the comparison { #a-different-judge-invalidates-the-comparison }
 
 Every score records the [judge that graded it](datasets.md#judge): its model,
-its version and a fingerprint of the rubric. When the two sides were scored
-with different scoring settings, or graded by a different judge, model or
-rubric, the comparison is `invalid` and gives no verdict - a flip there says
-something about the grading, not about the agent.
+its version and a fingerprint of the rubric. When the two sides were scored with
+different scoring settings, or graded by a different judge, model or rubric, the
+comparison is `invalid` and gives no verdict - a flip there says something about
+the grading, not about the agent. So is a run whose judge changed while its
+cases were graded: a case whose tries carry two judges' grades settles by
+whichever graded more of them.
 
 ### Two axes, quality first { #two-axes-quality-first }
 

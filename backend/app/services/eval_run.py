@@ -1825,6 +1825,14 @@ class EvalRunService:
         )
         mine = await self._pins(ctx, await self._arm_attempts(ctx, candidate, attempts))
         theirs = await self._pins(ctx, await self._arm_attempts(ctx, baseline.arm, other_attempts))
+        # One case's tries graded by two judges settle by whichever graded more of
+        # them, so two sides holding the same two pins in other proportions still
+        # do not compare.
+        if any(len(pins) > 1 for side in (mine, theirs) for pins in side.values()):
+            return (
+                "The judge changed while this run's cases were being graded, so its "
+                "grades do not compare. Run it again."
+            )
         differ = [
             case_id for case_id in mine.keys() & theirs.keys() if mine[case_id] != theirs[case_id]
         ]

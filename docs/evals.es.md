@@ -1,5 +1,5 @@
 ---
-source_sha: "eb529dfb0b4c"
+source_sha: "dd1b2dc902e0"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -211,7 +211,9 @@ Cada puntuación registra el [juez que la puso](datasets.md#judge): su modelo, s
 versión y una huella de la rúbrica. Cuando los dos lados se puntuaron con
 ajustes de puntuación distintos, o los calificó otro juez, modelo o rúbrica, la
 comparación es `invalid` y no da veredicto: ahí un cambio dice algo de la
-calificación, no del agent.
+calificación, no del agent. Lo mismo ocurre con un run cuyo juez cambió mientras
+se calificaban sus casos: un caso cuyos intentos llevan calificaciones de dos
+jueces se decide por el que calificó más de ellos.
 
 ### Dos ejes, primero la calidad { #two-axes-quality-first }
 

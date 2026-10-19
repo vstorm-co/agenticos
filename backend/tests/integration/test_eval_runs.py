@@ -1049,6 +1049,25 @@ async def test_a_flip_against_a_baseline_in_the_same_run_reruns_both_sides(db) -
     case = next(c for c in comparison.cases if c.flip == "regression")
     assert (case.baseline_reruns, case.candidate_reruns) == ([True], [False])
 
+    # The judge republished between a case's first answers and its reruns: both
+    # sides hold both judges' grades, in opposite proportions, and do not compare.
+    old = {"agent_version_id": None, "rubric_hash": "a"}
+    new = {"agent_version_id": str(uuid.uuid4()), "rubric_hash": "a"}
+    tries = await db.execute(
+        select(EvalRunCase, EvalRunArm.role)
+        .join(EvalRunArm, EvalRunArm.id == EvalRunCase.arm_id)
+        .where(EvalRunCase.eval_run_id == started.id)
+    )
+    for attempt, role in tries.all():
+        score = await db.get(CaseScore, attempt.case_score_id)
+        assert score is not None
+        first = attempt.attempt == 0
+        score.judge = old if first == (role == "candidate") else new
+    await db.flush()
+    mixed = await service.compare(ctx, started.id)
+    assert mixed.verdict == "invalid"
+    assert "judge changed while" in (mixed.invalid_reason or "")
+
 
 async def test_the_estimate_counts_the_judge_and_the_agents_own_cap(db) -> None:
     ctx = await _owner(db)

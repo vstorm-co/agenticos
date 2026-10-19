@@ -1,5 +1,5 @@
 ---
-source_sha: "eb529dfb0b4c"
+source_sha: "dd1b2dc902e0"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -207,9 +207,11 @@ potwierdzonego odwrócenia werdykt to `no_difference`.
 
 Każda ocena zapisuje [sędziego, który ją wystawił](datasets.md#judge): jego
 model, jego wersję i odcisk rubryki. Gdy obie strony były oceniane innymi
-ustawieniami oceniania albo przez innego sędziego, model lub rubrykę,
-porównanie jest `invalid` i nie daje werdyktu - odwrócenie mówi wtedy coś o
-ocenianiu, nie o agencie.
+ustawieniami oceniania albo przez innego sędziego, model lub rubrykę, porównanie
+jest `invalid` i nie daje werdyktu - odwrócenie mówi wtedy coś o ocenianiu, nie
+o agencie. Tak samo jest z runem, którego sędzia zmienił się w trakcie oceniania
+przypadków: przypadek, którego próby mają oceny dwóch sędziów, rozstrzyga się
+według tego, który ocenił ich więcej.
 
 ### Dwie osie, najpierw jakość { #two-axes-quality-first }
 

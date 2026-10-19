@@ -1,5 +1,5 @@
 ---
-source_sha: "eb529dfb0b4c"
+source_sha: "dd1b2dc902e0"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -216,11 +216,13 @@ gibt keine Mindestzahl an Fällen; ein kleines Dataset meldet nur häufiger
 ### Ein anderer Judge macht den Vergleich ungültig { #a-different-judge-invalidates-the-comparison }
 
 Jede Bewertung hält den [Judge fest, der sie vergeben hat](datasets.md#judge):
-sein Modell, seine Version und einen Fingerabdruck der Rubrik. Wurden die
-beiden Seiten mit unterschiedlichen Scoring-Einstellungen bewertet oder von
-einem anderen Judge, Modell oder einer anderen Rubrik, ist der Vergleich
-`invalid` und gibt kein Urteil - ein Kippen sagt dann etwas über die Bewertung,
-nicht über den Agent.
+sein Modell, seine Version und einen Fingerabdruck der Rubrik. Wurden die beiden
+Seiten mit unterschiedlichen Scoring-Einstellungen bewertet oder von einem
+anderen Judge, Modell oder einer anderen Rubrik, ist der Vergleich `invalid` und
+gibt kein Urteil - ein Kippen sagt dann etwas über die Bewertung, nicht über den
+Agent. Ebenso ein Run, dessen Judge sich änderte, während seine Fälle bewertet
+wurden: Ein Fall, dessen Versuche Bewertungen zweier Judges tragen, entscheidet
+sich nach dem, der mehr davon bewertet hat.
 
 ### Zwei Achsen, Qualität zuerst { #two-axes-quality-first }
 
