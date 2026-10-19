@@ -18,8 +18,8 @@ Every table is new and the column was already nullable, so nothing is
 backfilled. The downgrade drops what was added and loses every eval run and
 its results; the column stays, as scoring's.
 
-Revision ID: 0111_eval_runs
-Revises: 0108_eval_scoring
+Revision ID: 0138_eval_runs
+Revises: 0137_eval_scoring
 Create Date: 2026-10-14
 """
 
@@ -30,8 +30,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0111_eval_runs"
-down_revision: str | None = "0108_eval_scoring"
+revision: str = "0138_eval_runs"
+down_revision: str | None = "0137_eval_scoring"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
