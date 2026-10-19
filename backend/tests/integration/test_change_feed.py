@@ -605,6 +605,40 @@ class TestStream:
         assert [frame["resource"] for frame in heard["directory"]] == ["member", "agent"]
         assert heard["directory"][1]["actor_name"] == "Ada"
 
+    async def test_a_disconnect_mid_query_lets_the_session_finish_and_sends_nothing(
+        self, db: AsyncSession, bus: _Bus, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """#2241: the read the disconnect lands in completes, and its session closes whole."""
+        owner = await _person(db)
+        organization = await _organization(db, owner)
+        shared = await _agent(db, organization, owner, Visibility.ORG)
+        await db.commit()
+        socket = _Socket()
+        reading, release = anyio.Event(), anyio.Event()
+        finished: list[bool] = []
+        real = change_feed._subscriber
+
+        async def slow_subscriber(*args: Any) -> AuthContext | None:
+            reading.set()
+            await release.wait()
+            ctx = await real(*args)
+            finished.append(ctx is not None)
+            return ctx
+
+        monkeypatch.setattr(change_feed, "_subscriber", slow_subscriber)
+        async with anyio.create_task_group() as tasks:
+            tasks.start_soon(_stream, socket, organization, create_access_token(str(owner.id)))
+            await _settled(bus.listening)
+            await change_feed.publish(_event(organization, owner, id=shared.id))
+            await _settled(reading)
+            await socket.frame({"type": "websocket.disconnect"})
+            await anyio.sleep(0.05)
+            release.set()
+
+        assert finished == [True]
+        assert socket.sent == []
+        assert socket.closed is None
+
     async def test_a_subscription_redis_ends_closes_the_socket_for_a_retry(
         self, db: AsyncSession, bus: _Bus
     ) -> None:

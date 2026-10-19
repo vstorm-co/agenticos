@@ -152,6 +152,11 @@ Two things are versioned separately from this file and worth knowing about:
   records the recovery; the channels listing used to keep naming the other
   poller for up to five minutes, and the heartbeat could read `up` while the
   conflict still lasted.
+- **Closing a console tab no longer leaves a dead database connection behind**
+  (#2241). A live-updates socket that disconnected in the middle of its
+  per-event read cancelled the query and the connection's close with it, and
+  the pool handed the closed connection to the next request on that worker, a
+  500. The read now finishes before the stream stops.
 
 ## [1.7.1] - 2026-10-19
 
