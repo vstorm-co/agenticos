@@ -188,8 +188,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- **`/onboarding` renders instead of failing with a 500.** The page called the
-  client-side branding hook from a server component.
+- **`/onboarding` renders instead of failing.** The page called the client-side
+  branding hook from a server component, a 500, and handed the empty state its
+  icon across the server boundary, which ended in the error boundary.
 - **Signing out cannot be undone by a session check still on its way.** A
   `/auth/me` that set out before the sign-out and answered after it signed the
   person back in.
