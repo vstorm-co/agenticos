@@ -1,5 +1,5 @@
 ---
-source_sha: "7be8e7eac85b"
+source_sha: "e91ae3fc8f5b"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -366,11 +366,12 @@ Ocena może cytować odpowiedź, do 12 fragmentów; cytat, którego odpowiedź n
 zawiera słowo w słowo, jest zachowywany obok oceny jako niezweryfikowany,
 pokazywany w osobnej linii pod uzasadnieniem, a ocena pozostaje.
 
-To, co uzasadnia ocenę, nigdy jej nie unieważnia: pusty albo za długi cytat
-jest pomijany, cytaty ponad dwanaście i reguła ponad 300 znaków są przycinane,
-a werdykt jest nieczytelny tylko bez identyfikatora kryterium albo oceny. Run
-sędziego w Activity mówi, których pól nie dało się odczytać, nigdy samą
-odpowiedź, która może powtarzać przypadek datasetu, którego czytający nie
+To, co uzasadnia ocenę, nigdy jej nie unieważnia: pusty albo za długi cytat jest
+pomijany, cytaty ponad dwanaście i reguła ponad 300 znaków są przycinane, a
+werdykt jest nieczytelny tylko bez identyfikatora kryterium albo oceny.
+Kryterium ocenione więcej niż raz jest błędem, a nie tą oceną, która przyszła
+ostatnia. Run sędziego w Activity mówi, których pól nie dało się odczytać, nigdy
+samą odpowiedź, która może powtarzać przypadek datasetu, którego czytający nie
 widzi.
 
 Każdy wynik zapisuje sędziego, który go ocenił - agenta sędziego, jego profil

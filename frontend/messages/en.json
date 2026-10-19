@@ -6458,6 +6458,7 @@
         "judgeMissing": "The judge this dataset picked no longer exists. Pick another on its Grading tab.",
         "judgeRunFailed": "The judge's run did not finish.",
         "judgeOutputInvalid": "The judge answered in a form that could not be read.",
+        "judgeGradedTwice": "The judge graded this criterion more than once, so neither grade counts.",
         "judgeUngraded": "The judge gave no grade on the scale for this criterion.",
         "judgeReasonEcho": "The judge restated the criterion instead of saying why the answer meets it.",
         "judgeCounterUnsupported": "The judge passed the answer as unlike the counter-example, though the answer repeats it or the judge quoted only what the two share."

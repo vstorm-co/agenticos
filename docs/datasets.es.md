@@ -1,5 +1,5 @@
 ---
-source_sha: "7be8e7eac85b"
+source_sha: "e91ae3fc8f5b"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -377,10 +377,11 @@ calificación se mantiene.
 
 Lo que respalda una calificación nunca la anula: una cita vacía o demasiado
 larga se descarta, las citas más allá de doce y una regla de más de 300
-caracteres se recortan, y solo la falta de un identificador de criterio o de
-una nota hace ilegible un veredicto. El run del juez en Activity indica qué
-campos no se pudieron leer, nunca la respuesta, que puede repetir un caso de un
-dataset que quien lo lee no puede ver.
+caracteres se recortan, y solo la falta de un identificador de criterio o de una
+nota hace ilegible un veredicto. Un criterio calificado más de una vez es un
+error, en lugar de la nota que llegó la última. El run del juez en Activity
+indica qué campos no se pudieron leer, nunca la respuesta, que puede repetir un
+caso de un dataset que quien lo lee no puede ver.
 
 Cada puntuación registra el juez que la calificó - el agent juez, su perfil de
 modelo, la versión de su spec, un hash de la rúbrica y la versión de la tarea

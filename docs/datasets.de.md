@@ -1,5 +1,5 @@
 ---
-source_sha: "7be8e7eac85b"
+source_sha: "e91ae3fc8f5b"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -396,9 +396,10 @@ Bewertung bleibt bestehen.
 Was eine Bewertung stützt, macht sie nie ungültig: Ein leeres oder zu langes
 Zitat wird verworfen, Zitate über zwölf und eine Regel über 300 Zeichen werden
 gekürzt, und nur eine fehlende Kriteriums-ID oder Note macht ein Urteil
-unlesbar. Der Run des Bewerters in Activity nennt die Felder, die sich nicht
-lesen ließen, nie die Antwort selbst, die einen Fall eines Datasets wiederholen
-kann, das sein Leser nicht sehen darf.
+unlesbar. Ein mehrfach bewertetes Kriterium ist ein Fehler, nicht die zuletzt
+gekommene Note. Der Run des Bewerters in Activity nennt die Felder, die sich
+nicht lesen ließen, nie die Antwort selbst, die einen Fall eines Datasets
+wiederholen kann, das sein Leser nicht sehen darf.
 
 Jedes Ergebnis hält den Bewerter fest, der es bewertet hat - den Bewerter-Agent,
 sein Modellprofil, die Version seines Specs, einen Hash der Rubrik und die

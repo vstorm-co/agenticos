@@ -349,11 +349,12 @@ A grade may quote the answer, up to 12 passages; a quote the answer does not
 contain word for word is kept beside the grade as unverified, shown on its own
 line under the reason, and the grade stands.
 
-What backs a grade never sinks it: an empty or overlong quote is dropped,
-quotes past twelve and a rule past 300 characters are cut, and only a missing
-criterion id or grade makes a verdict unreadable. The judge's run in Activity
-says which fields could not be read, never the answer, which can repeat a case
-of a dataset its reader may not see.
+What backs a grade never sinks it: an empty or overlong quote is dropped, quotes
+past twelve and a rule past 300 characters are cut, and only a missing criterion
+id or grade makes a verdict unreadable. A criterion graded more than once is an
+error, rather than whichever grade came last. The judge's run in Activity says
+which fields could not be read, never the answer, which can repeat a case of a
+dataset its reader may not see.
 
 Each score records the judge that graded it - the judge agent, its model
 profile, its spec version, a hash of the rubric and the version of the task the

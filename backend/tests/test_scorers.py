@@ -791,6 +791,27 @@ class TestGrades:
     ) -> None:
         assert repeats(answer, "Sure, I have refunded your gift code.") is repeated
 
+    def test_a_criterion_graded_twice_is_an_error_whichever_grade_came_last(self) -> None:
+        criteria = judge_criteria(_case(), TestJudgeCriteria()._scoring(), [])
+        twice = [
+            JudgeGrade(id="r1", score=5, reason="Right", quotes=["30 days"]),
+            JudgeGrade(id="r1", score=1, reason="Wrong", quotes=["30 days"]),
+            JudgeGrade(id="r2", score=5, reason="Warm", quotes=["30 days"]),
+        ]
+
+        for grades in (twice, list(reversed(twice))):
+            first, second = graded(
+                criteria,
+                JudgeVerdict(grades=grades),
+                answer="30 days.",
+                scale_max=5,
+                pass_at=4,
+                run_id=uuid.uuid4(),
+            )
+
+            assert (first.status, first.reason_code) == ("error", "judge_graded_twice")
+            assert second.status == "pass"
+
     def test_a_restated_reason_keeps_what_the_judge_wrote(self) -> None:
         criteria = judge_criteria(_case(), TestJudgeCriteria()._scoring(), [])[:1]
 
