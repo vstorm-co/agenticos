@@ -91,7 +91,8 @@ def _polling(*platforms: str) -> list[ColumnElement[bool]]:
 async def get_active_polling_bot_ids(db: AsyncSession, *platforms: str) -> list[UUID]:
     """The ids of every active polling bot on these platforms, across every organization.
 
-    What the stream keeper claims leases from. Ids, not rows: every API worker
+    Deliberately unscoped, like `get_active_polling_bots`: the keeper serves the
+    whole deployment. What it claims leases from. Ids, not rows: every API worker
     asked for the full rows - sealed tokens included - every ten seconds, which
     was most of production's statements on an idle day.
     """
