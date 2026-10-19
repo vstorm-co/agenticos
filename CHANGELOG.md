@@ -141,6 +141,19 @@ Two things are versioned separately from this file and worth knowing about:
   held: ten `GET /conversations`, now four. Invalidations within 250 ms are sent
   once. A page load also reads `/auth/me` once instead of twice: the auth
   guard's answer now counts as the page's session check.
+- **The Documents page asks each sandbox host once, not once per workspace.**
+  It built a client and sent a `tree` request for every workspace it showed -
+  eighteen connections and requests for one page on the production host, which
+  took 2.3 s at the median - and now sends one `trees` request per host through
+  a client kept for the request, thumbnails included. The stored files of
+  every workspace a person can see are no longer read to list a page of 25, or
+  to check access to one. Needs sandboxd 0.2.37 (`pydantic-ai-backend` 0.2.37):
+  pull `ghcr.io/vstorm-co/sandboxd:0.2` again on a host that pinned it earlier.
+- **A chat turn opens fewer database connections before its first token.**
+  The history, the attachments and the run share the turn's session, the
+  budget's spend reads take a pooled connection instead of a new one each (two
+  or three per run), and presence does not query to name the socket's own
+  person.
 - **A busy schedule now skips by default.** Before, a schedule whose run was
   still going fired once as soon as it ended; existing schedules take `skip`.
   Set `overlap` to `queue` for the old behaviour.

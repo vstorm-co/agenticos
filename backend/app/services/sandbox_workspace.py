@@ -44,6 +44,7 @@ from PIL import Image, ImageOps
 from pydantic_ai.workspaces import Workspace, WorkspaceRef
 from pydantic_ai_backends import FileData, FileInfo, StateBackend
 from pydantic_ai_backends.remote.archive import DEFAULT_TIMEOUT_SECONDS
+from pydantic_ai_backends.remote.wire import MAX_TREES
 from pydantic_ai_backends.workspaces import (
     DaytonaWorkspace,
     SandboxdWorkspace,
@@ -600,6 +601,9 @@ class SandboxWorkspaceService:
         # query on the one session this service holds - which must not be used by
         # two coroutines at once.
         self._resolving = asyncio.Lock()
+        # Archives kept open for the length of `_sharing_archives`, one per host:
+        # `None` outside it, where each read builds and closes its own.
+        self._shared_archives: dict[UUID, Any] | None = None
 
     async def open(
         self,
@@ -1444,6 +1448,10 @@ class SandboxWorkspaceService:
         readable, and `unreadable` is what stops the shorter list reading as fewer
         files.
         """
+        async with self._sharing_archives():
+            return await self._flat_files(ctx, limit=limit)
+
+    async def _flat_files(self, ctx: AuthContext, *, limit: int) -> FlatFileListing:
         overviews = await self.visible_to(ctx)
         files: list[FlatEntry] = []
         # A budget across the whole request, not per workspace: a host's thumbnail
@@ -1502,7 +1510,74 @@ class SandboxWorkspaceService:
         anything. A host that will not answer still comes back as
         `unreadable_reason`, never as a raise, so one of them cannot fail the rest.
         """
-        return await _concurrently([partial(self._entries, ctx, row) for row in rows])
+        # `list_for_reader` leaves the stored files out; these are the ones read.
+        await workspace_repo.load_files(self.db, rows)
+        hosted: dict[UUID, list[int]] = {}
+        answers: dict[int, WorkspaceContents] = {}
+        for index, row in enumerate(rows):
+            if row.backend == "state" or row.connection_id is None:
+                answers[index] = await self._entries(ctx, row)
+            else:
+                hosted.setdefault(row.connection_id, []).append(index)
+        # One `trees` request per host, where each workspace used to be a
+        # connection and a request of its own - eighteen for one Documents page
+        # on production, p50 2.3 s (#2248).
+        batches = [
+            indexes[start : start + MAX_TREES]
+            for indexes in hosted.values()
+            for start in range(0, len(indexes), MAX_TREES)
+        ]
+        listed = await _concurrently(
+            [partial(self._host_trees, ctx, [rows[i] for i in batch]) for batch in batches]
+        )
+        for batch, contents in zip(batches, listed, strict=True):
+            answers.update(zip(batch, contents, strict=True))
+        return [answers[index] for index in range(len(rows))]
+
+    async def _host_trees(
+        self, ctx: AuthContext, rows: list[AgentWorkspace]
+    ) -> list[WorkspaceContents]:
+        """What each of several workspaces on one host holds, in one request to it.
+
+        A host that cannot be asked at all makes every one of them unreadable,
+        for the reason it gave; a workspace the host could not list is that
+        workspace's own `unreadable_reason`, the rest still listed.
+        """
+        sessions = [row.session_id or row.scope_key for row in rows]
+        try:
+            async with self._archive(ctx, rows[0], timeout=_BROWSE_TIMEOUT_SECONDS) as archive:
+                if archive is None:
+                    return [WorkspaceContents(entries=[]) for _ in rows]
+                trees = await _on_host_thread(
+                    partial(
+                        archive.trees,
+                        sessions,
+                        ".",
+                        max_depth=_MAX_LISTED_DEPTH,
+                        max_entries=_MAX_LISTED_ENTRIES,
+                    )
+                )
+        except Exception as exc:
+            logger.warning(
+                "workspace_listing_failed",
+                extra={"connection_id": str(rows[0].connection_id)},
+                exc_info=True,
+            )
+            reason = _reason(exc)
+            return [WorkspaceContents(entries=[], unreadable_reason=reason) for _ in rows]
+        contents: list[WorkspaceContents] = []
+        for session in sessions:
+            tree = trees[session]
+            if isinstance(tree, Exception):
+                contents.append(WorkspaceContents(entries=[], unreadable_reason=_reason(tree)))
+                continue
+            if tree.truncated:
+                logger.warning(
+                    "workspace_listing_truncated",
+                    extra={"session": session, "listed": len(tree.entries)},
+                )
+            contents.append(WorkspaceContents(entries=list(tree.entries), truncated=tree.truncated))
+        return contents
 
     async def _host_thumbnails(
         self, ctx: AuthContext, row: AgentWorkspace, paths: list[str]
@@ -1928,6 +2003,21 @@ class SandboxWorkspaceService:
             return None
 
     @asynccontextmanager
+    async def _sharing_archives(self) -> AsyncGenerator[None]:
+        """Keep one archive - one HTTP pool - per host open until the block ends.
+
+        A page that lists many workspaces and draws their thumbnails built a
+        client, and so a connection, for every workspace and every image.
+        """
+        self._shared_archives = {}
+        try:
+            yield
+        finally:
+            archives, self._shared_archives = list(self._shared_archives.values()), None
+            for archive in archives:
+                await asyncio.to_thread(archive.close)
+
+    @asynccontextmanager
     async def _archive(
         self, ctx: AuthContext, row: AgentWorkspace, *, timeout: float = DEFAULT_TIMEOUT_SECONDS
     ) -> AsyncGenerator[Any | None]:
@@ -1953,6 +2043,15 @@ class SandboxWorkspaceService:
         resolved = await self._connection(ctx, row.connection_id)
         if resolved.kind != "docker" or not resolved.row.base_url:
             yield None
+            return
+        if self._shared_archives is not None:
+            shared = self._shared_archives.get(row.connection_id)
+            if shared is None:
+                shared = WorkspaceArchive(
+                    resolved.row.base_url, token=resolved.token, timeout=timeout
+                )
+                self._shared_archives[row.connection_id] = shared
+            yield shared
             return
         archive = WorkspaceArchive(resolved.row.base_url, token=resolved.token, timeout=timeout)
         try:
