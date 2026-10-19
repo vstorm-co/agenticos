@@ -123,6 +123,13 @@ Two things are versioned separately from this file and worth knowing about:
   default four API workers can open 120 connections between their two pools,
   and the worker another 30; at the stock 100 Postgres refused them before any
   pool could queue or shed the load.
+- **The channel stream keeper reads bot ids once a minute instead of full rows
+  every ten seconds.** Every API worker asked the database for every active
+  polling bot - sealed tokens included - on each ten-second pass, in a
+  transaction of its own: 28,778 of those reads and twice as many `BEGIN`s and
+  `COMMIT`s in production's last day, about four in five of all its statements.
+  The leases are still checked on every pass, so a bot whose worker died is
+  taken over as quickly as before.
 - **A busy schedule now skips by default.** Before, a schedule whose run was
   still going fired once as soon as it ended; existing schedules take `skip`.
   Set `overlap` to `queue` for the old behaviour.
