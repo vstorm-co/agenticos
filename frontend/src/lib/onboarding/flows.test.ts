@@ -308,8 +308,12 @@ describe("create-routine", () => {
       "flow-test-run",
       "flow-test-verdict",
     ]);
-    // With nothing published there is no Test draft button to start from.
-    expect(ids(EMPTY)[0]).toBe("flow-test-target");
+    // With nothing published there is no Test draft button to start from, so no
+    // step either: an inert flow, not a page frozen waiting for the button.
+    expect(ids(EMPTY)).toEqual([]);
+    // Nor for a reader who may read runs but not edit the agent or run a dataset.
+    const readOnly = (permission: Permission) => permission === Perm.runsView;
+    expect(stepsForFlow(FLOWS["test-change"], STOCKED, readOnly, NO_CHOICES)).toEqual([]);
   });
 });
 

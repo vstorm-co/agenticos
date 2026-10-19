@@ -407,6 +407,17 @@ function mcpDialogSteps(page: string, requires?: string): FlowStep[] {
   ];
 }
 
+/**
+ * Whether the reader can test a change on this page: the Test draft button the
+ * walk starts from shows only on a published agent, to a reader who may edit it
+ * and run a dataset. Every step of that walk shares it, so a reader who cannot
+ * gets no step at all - an inert flow - rather than a page frozen on a button
+ * that never appears.
+ */
+function testable(state: OrgState, can: (permission: Permission) => boolean): boolean {
+  return state.hasPublishedAgent && can(Perm.agentsEdit) && can(Perm.datasetsRun);
+}
+
 export const FLOWS: Record<FlowId, CreationFlow> = {
   "create-agent": {
     id: "create-agent",
@@ -897,7 +908,7 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         page: AGENT_BUILDER,
         target: "agent-test-draft",
         permission: Perm.runsView,
-        include: (state) => state.hasPublishedAgent,
+        include: testable,
         signal: { kind: "opened" },
       },
       {
@@ -905,6 +916,7 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         page: AGENT_BUILDER,
         target: "eval-target",
         permission: Perm.runsView,
+        include: testable,
         inOverlay: true,
       },
       {
@@ -912,6 +924,7 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         page: AGENT_BUILDER,
         target: "eval-run-start",
         permission: Perm.runsView,
+        include: testable,
         inOverlay: true,
         signal: { kind: "arrived", page: EVAL_RUN },
       },
@@ -920,6 +933,7 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         page: EVAL_RUN,
         target: "eval-verdict",
         permission: Perm.runsView,
+        include: testable,
       },
     ],
   },
