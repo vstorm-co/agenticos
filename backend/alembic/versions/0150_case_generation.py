@@ -12,7 +12,7 @@ case drafted from a knowledge passage to its document, the way
 passage was copied into the case. And `generate` joins the version change kinds,
 so a dataset's history says which version came from accepted drafts. The
 case generator is an agent of its own `generator` kind, which `ck_agent_kind`
-now admits.
+now admits beside the knowledge gap `drafter`.
 
 The downgrade drops both tables and the column, and rewrites `generate` versions
 as `add` before restoring the narrower CHECK - what those versions did is still
@@ -247,13 +247,15 @@ def upgrade() -> None:
     )
 
     op.drop_constraint("ck_agent_kind", "agents", type_="check")
-    op.create_check_constraint("ck_agent_kind", "agents", "kind IN ('agent', 'judge', 'generator')")
+    op.create_check_constraint(
+        "ck_agent_kind", "agents", "kind IN ('agent', 'judge', 'drafter', 'generator')"
+    )
 
 
 def downgrade() -> None:
     op.execute("UPDATE agents SET kind = 'agent' WHERE kind = 'generator'")
     op.drop_constraint("ck_agent_kind", "agents", type_="check")
-    op.create_check_constraint("ck_agent_kind", "agents", "kind IN ('agent', 'judge')")
+    op.create_check_constraint("ck_agent_kind", "agents", "kind IN ('agent', 'judge', 'drafter')")
 
     op.execute("UPDATE dataset_versions SET change = 'add' WHERE change = 'generate'")
     op.drop_constraint(

@@ -166,7 +166,7 @@ class Agent(Base, TimestampMixin):
         UniqueConstraint("organization_id", "slug", name="uq_agent_org_slug"),
         CheckConstraint("status IN ('draft', 'published', 'archived')", name="ck_agent_status"),
         CheckConstraint("visibility IN ('private', 'team', 'org')", name="ck_agent_visibility"),
-        CheckConstraint("kind IN ('agent', 'judge', 'generator')", name="ck_agent_kind"),
+        CheckConstraint("kind IN ('agent', 'judge', 'drafter', 'generator')", name="ck_agent_kind"),
         # GIN so the discovery filter's `categories && ARRAY[...]` overlap is an
         # index scan. Declared here as well as in the migration for the reason the
         # comment above says: a schema built from the models must carry them too.
