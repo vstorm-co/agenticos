@@ -71,6 +71,10 @@ async def resume(db: AsyncSession, kind: str) -> bool:
     return result.scalar_one_or_none() is not None
 
 
+async def get(db: AsyncSession, kind: str) -> BackgroundTaskKind | None:
+    return await db.get(BackgroundTaskKind, kind)
+
+
 async def list_all(db: AsyncSession) -> Sequence[BackgroundTaskKind]:
     result = await db.execute(select(BackgroundTaskKind).order_by(BackgroundTaskKind.kind))
     return result.scalars().all()

@@ -237,7 +237,7 @@ class Worker:
                     await self._lost(db, job)
                     return
                 await kind_repo.record_survival(db, job.kind)
-            case Died(reason=reason):
+            case Died(reason=reason):  # pragma: no branch - `Outcome` has no fourth shape
                 error = f"{reason} (attempt {fence} of {job.max_attempts})"
                 result = await job_repo.fail(
                     db, job.id, fence=fence, error=error, retry_in=self._retry_in(fence)

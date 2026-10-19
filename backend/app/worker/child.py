@@ -1,6 +1,6 @@
 """A child process that runs one job at a time for its parent worker (#2219).
 
-Run by `app.worker.children.ChildPool`, never by hand:
+Run by `app.worker.executors.ChildPool`, never by hand:
 
     python -m app.worker.child app.worker.handlers:production
 
@@ -60,7 +60,11 @@ def load_handlers(reference: str) -> Handlers:
 
 
 async def run_one(handlers: Handlers, request: ChildRequest) -> ChildReply:
-    """Run one job, turning how it ended into the reply the parent settles it on."""
+    """Run one job, turning how it ended into the reply the parent settles it on.
+
+    The in-process executor runs its jobs through this too, so a job ends the
+    same way whichever executor ran it. Cancellation propagates.
+    """
     handler = handlers.get(request.kind)
     if handler is None:
         return ChildReply(
@@ -71,7 +75,7 @@ async def run_one(handlers: Handlers, request: ChildRequest) -> ChildReply:
     except ValidationError as exc:
         return ChildReply(ok=False, error=describe(exc), permanent=True)
     except Exception as exc:
-        logger.exception("child_job_failed", extra={"kind": request.kind})
+        logger.exception("background_job_failed", extra={"kind": request.kind})
         return ChildReply(ok=False, error=describe(exc))
     return ChildReply(ok=True, result=result)
 
@@ -90,7 +94,11 @@ async def serve(handlers: Handlers, requests: IO[str], replies: IO[str]) -> None
         replies.flush()
 
 
-def main(argv: list[str]) -> None:
+def main(
+    argv: list[str],
+) -> (
+    None
+):  # pragma: no cover - only in the spawned child; tests/test_worker_child_pool.py drives it
     replies = os.fdopen(os.dup(sys.stdout.fileno()), "w", buffering=1)
     os.dup2(sys.stderr.fileno(), sys.stdout.fileno())
 

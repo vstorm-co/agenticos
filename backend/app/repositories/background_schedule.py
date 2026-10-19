@@ -109,14 +109,3 @@ async def advance(
 async def list_all(db: AsyncSession) -> Sequence[BackgroundSchedule]:
     result = await db.execute(select(BackgroundSchedule).order_by(BackgroundSchedule.name))
     return result.scalars().all()
-
-
-async def last_fired(db: AsyncSession) -> datetime | None:
-    """When any schedule last fired, or `None` if none ever has."""
-    result = await db.execute(
-        select(BackgroundSchedule.last_fired_at)
-        .where(BackgroundSchedule.last_fired_at.is_not(None))
-        .order_by(BackgroundSchedule.last_fired_at.desc())
-        .limit(1)
-    )
-    return result.scalar_one_or_none()

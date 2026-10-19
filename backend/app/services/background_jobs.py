@@ -207,10 +207,7 @@ class BackgroundJobService:
 
     async def _read(self, job_id: UUID) -> BackgroundJobRead:
         job = await background_job_repo.get(self.db, job_id)
-        if job is None:
-            raise NotFoundError(
-                message="Background job not found.", details={"job_id": str(job_id)}
-            )
+        assert job is not None, "read back in the transaction that just updated it"
         await self.db.refresh(job)
         return BackgroundJobRead.model_validate(job)
 
@@ -226,12 +223,12 @@ class BackgroundJobService:
         )
 
     async def _kind(self, kind: str) -> BackgroundKindRead:
-        for row in await background_task_kind_repo.list_all(self.db):
-            if row.kind == kind:
-                return BackgroundKindRead.model_validate(row)
-        return BackgroundKindRead(
-            kind=kind, consecutive_deaths=0, lease_lost=0, paused_at=None, paused_reason=None
-        )
+        row = await background_task_kind_repo.get(self.db, kind)
+        assert row is not None, "pausing writes the row, and only a paused kind is resumed"
+        # The pause and the resume are statements, not ORM writes: refresh so
+        # the row read back is the one they left.
+        await self.db.refresh(row)
+        return BackgroundKindRead.model_validate(row)
 
     @staticmethod
     def _known(kind: str) -> None:

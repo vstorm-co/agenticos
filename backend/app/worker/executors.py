@@ -24,8 +24,7 @@ from typing import Protocol
 import psutil
 from pydantic import JsonValue, ValidationError
 
-from app.worker.child import READY, ChildReply, ChildRequest
-from app.worker.errors import describe
+from app.worker.child import READY, ChildReply, ChildRequest, run_one
 from app.worker.registry import Handlers
 
 logger = logging.getLogger(__name__)
@@ -73,18 +72,14 @@ class Executor(Protocol):
 
 
 async def run_handler(handlers: Handlers, kind: str, payload: dict[str, JsonValue]) -> Outcome:
-    """Run one job in this process and say how it ended. Cancellation propagates."""
-    handler = handlers.get(kind)
-    if handler is None:
-        return Failed(f"no handler for the job kind {kind!r}", permanent=True)
-    try:
-        result = await handler.execute(payload)
-    except ValidationError as exc:
-        return Failed(describe(exc), permanent=True)
-    except Exception as exc:
-        logger.exception("background_job_failed", extra={"kind": kind})
-        return Failed(describe(exc))
-    return Succeeded(result)
+    """Run one job in this process and say how it ended - the verdict a child would give."""
+    return _outcome(await run_one(handlers, ChildRequest(kind=kind, payload=payload)))
+
+
+def _outcome(reply: ChildReply) -> Outcome:
+    if reply.ok:
+        return Succeeded(reply.result)
+    return Failed(reply.error or "the job failed without saying why", permanent=reply.permanent)
 
 
 @dataclass
@@ -267,9 +262,7 @@ class ChildPool:
             await self._stop(child)
             return Failed(f"the child process answered something unreadable: {line[:200]!r}")
         child.jobs_run += 1
-        if reply.ok:
-            return Succeeded(reply.result)
-        return Failed(reply.error or "the job failed without saying why", permanent=reply.permanent)
+        return _outcome(reply)
 
     async def _died(self, child: _Child) -> Died:
         child.healthy = False

@@ -17,7 +17,12 @@ from httpx import ASGITransport, AsyncClient
 from app.api.deps import get_background_job_service, get_current_user
 from app.core.config import settings
 from app.main import app
-from app.schemas.background_job import BackgroundJobList
+from app.schemas.background_job import (
+    BackgroundJobList,
+    BackgroundJobRead,
+    BackgroundJobsOverview,
+    BackgroundKindRead,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -92,3 +97,56 @@ async def test_a_status_the_queue_does_not_have_is_a_422(service: MagicMock) -> 
     async for client in _client(_user(app_admin=True), service):
         response = await client.get(f"{BASE}/jobs", params={"status": "exploded"})
     assert response.status_code == 422
+
+
+async def test_the_owner_reaches_every_action_as_themselves(service: MagicMock) -> None:
+    owner = _user(app_admin=True)
+    now = datetime.now(UTC)
+    job = BackgroundJobRead(
+        id=uuid4(),
+        kind="ingest-document",
+        pool="ingest",
+        status="queued",
+        priority=0,
+        attempts=0,
+        max_attempts=2,
+        organization_id=None,
+        schedule_name=None,
+        worker_id=None,
+        last_error=None,
+        run_after=now,
+        created_at=now,
+        started_at=None,
+        finished_at=None,
+    )
+    kind = BackgroundKindRead(
+        kind="ingest-document",
+        consecutive_deaths=0,
+        lease_lost=0,
+        paused_at=None,
+        paused_reason=None,
+    )
+    service.overview = AsyncMock(
+        return_value=BackgroundJobsOverview(counts={}, kinds=[], workers=[], schedules=[])
+    )
+    service.retry = AsyncMock(return_value=job)
+    service.cancel = AsyncMock(return_value=job)
+    service.pause_kind = AsyncMock(return_value=kind)
+    service.resume_kind = AsyncMock(return_value=kind)
+
+    async for client in _client(owner, service):
+        answers = [
+            await client.get(BASE),
+            await client.post(f"{BASE}/jobs/{job.id}/retry"),
+            await client.post(f"{BASE}/jobs/{job.id}/cancel"),
+            await client.post(f"{BASE}/kinds/ingest-document/pause", json={"reason": "a bad PDF"}),
+            await client.post(f"{BASE}/kinds/ingest-document/resume"),
+        ]
+
+    assert [answer.status_code for answer in answers] == [200] * 5
+    service.retry.assert_awaited_once_with(job.id, actor_user_id=owner.id)
+    service.cancel.assert_awaited_once_with(job.id, actor_user_id=owner.id)
+    service.pause_kind.assert_awaited_once_with(
+        "ingest-document", reason="a bad PDF", actor_user_id=owner.id
+    )
+    service.resume_kind.assert_awaited_once_with("ingest-document", actor_user_id=owner.id)

@@ -7,9 +7,14 @@ out-of-memory killer does. Each time the parent survives, says why, and has a
 fresh child ready for the next job.
 """
 
+import asyncio
+import logging
+import os
+import subprocess
 import sys
 from collections.abc import AsyncGenerator
 from datetime import timedelta
+from unittest.mock import AsyncMock
 
 import pytest
 from pydantic import JsonValue
@@ -23,6 +28,7 @@ from app.worker.executors import (
     Succeeded,
     _ChildSlot,
     describe_exit,
+    resident_bytes,
 )
 
 pytestmark = pytest.mark.anyio
@@ -145,6 +151,92 @@ async def test_a_child_that_cannot_start_fails_the_pool_start() -> None:
     with pytest.raises(ChildStartFailed, match="did not start"):
         await broken.start()
     await broken.close()
+
+
+async def test_a_job_cancelled_mid_run_stops_its_child_and_a_fresh_one_serves(
+    pool: ChildPool,
+) -> None:
+    """A shutdown cancels the job: its child goes with it, rather than finishing unwatched."""
+    first = await _child_serving(pool)
+    running = asyncio.create_task(_run(pool, "test-ok", {"seconds": 30}))
+    await asyncio.sleep(0.5)
+    running.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await running
+
+    assert first.process.returncode is not None
+    assert await _run(pool, "test-ok") == Succeeded()
+
+
+async def test_a_child_that_answers_something_unreadable_is_stopped(pool: ChildPool) -> None:
+    child = await _child_serving(pool)
+
+    outcome = await pool._answer(child, b"Traceback (most recent call last):\n")
+
+    assert isinstance(outcome, Failed)
+    assert "unreadable" in outcome.error
+    assert child.process.returncode is not None
+
+
+async def test_a_replacement_that_fails_to_start_is_tried_again(
+    pool: ChildPool, caplog: pytest.LogCaptureFixture
+) -> None:
+    spawn = pool._spawn
+    pool._spawn = AsyncMock(side_effect=[ChildStartFailed("not today"), await spawn()])  # type: ignore[method-assign]  - one failed start, then the real one
+
+    with caplog.at_level(logging.ERROR, logger="app.worker.executors"):
+        assert isinstance(await _run(pool, "test-suicide"), Died)
+        assert await _run(pool, "test-ok") == Succeeded()
+
+    assert "background_child_start_failed" in [record.message for record in caplog.records]
+
+
+async def test_a_replacement_that_crashes_is_logged(
+    pool: ChildPool, caplog: pytest.LogCaptureFixture
+) -> None:
+    pool._spawn = AsyncMock(side_effect=RuntimeError("no fork for you"))  # type: ignore[method-assign]  - a respawn that crashes outright
+
+    with caplog.at_level(logging.ERROR, logger="app.worker.executors"):
+        assert isinstance(await _run(pool, "test-suicide"), Died)
+        await asyncio.gather(*pool._respawning, return_exceptions=True)
+
+    assert "background_child_respawn_failed" in [record.message for record in caplog.records]
+
+
+async def test_a_slot_given_back_after_close_starts_no_replacement() -> None:
+    children = ChildPool(size=1, handlers=HANDLERS, memory_limit_bytes=None, max_jobs=1)
+    await children.start()
+    slot = await children.acquire()
+    await children.close()
+
+    children.release(slot)
+
+    assert children._respawning == set()
+
+
+async def test_a_child_that_never_says_ready_fails_its_start() -> None:
+    silent = ChildPool(
+        size=1,
+        handlers=HANDLERS,
+        memory_limit_bytes=None,
+        max_jobs=1,
+        start_timeout=0.5,
+        command=(sys.executable, "-c", "import time; time.sleep(30)"),
+    )
+    with pytest.raises(ChildStartFailed, match="did not start"):
+        await silent.start()
+    await silent.close()
+
+
+def test_a_childs_memory_counts_what_it_started_and_nothing_once_it_is_gone() -> None:
+    gone = subprocess.Popen([sys.executable, "-c", "pass"])
+    gone.wait()
+    with subprocess.Popen([sys.executable, "-c", "import time; time.sleep(5)"]) as started:
+        try:
+            assert resident_bytes(os.getpid()) > resident_bytes(started.pid) > 0
+        finally:
+            started.kill()
+    assert resident_bytes(gone.pid) == 0
 
 
 def test_an_exit_is_described_by_its_signal_or_its_status() -> None:
