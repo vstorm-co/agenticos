@@ -130,6 +130,10 @@ export function useAdoptSession(): (user: User, accessToken: string | null) => v
     (user: User, accessToken: string | null) => {
       adoptUser(queryClient, setUser, user);
       useAuthStore.getState().setAccessToken(accessToken);
+      // What was adopted is the answer the once-per-page check would fetch: the
+      // guard's own `/auth/me` and then `useAuth`'s were two reads of one
+      // identity on every page load.
+      authChecked = true;
     },
     [queryClient, setUser],
   );

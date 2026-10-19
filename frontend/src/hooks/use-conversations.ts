@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
+import { invalidateSoon } from "@/lib/coalesced-invalidation";
 import { qk } from "@/lib/query-keys";
 import { setUrlParam } from "@/lib/utils";
 import {
@@ -282,7 +283,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
    * holding it when somebody switches tab.
    */
   const invalidateLists = useCallback(
-    () => queryClient.invalidateQueries({ queryKey: qk.conversations.list() }),
+    () => invalidateSoon(queryClient, qk.conversations.list()),
     [queryClient],
   );
 

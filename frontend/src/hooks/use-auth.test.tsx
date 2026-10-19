@@ -116,6 +116,18 @@ describe("checking the session on load", () => {
     expect(apiClient.get).toHaveBeenCalledTimes(1);
   });
 
+  it("does not ask again for a session the auth guard has just adopted", async () => {
+    // The guard reads `/auth/me` before the dashboard mounts, and `useAuth`
+    // then read it again: two requests for one identity on every page load.
+    const { result: adopt } = renderHook(() => useAdoptSession(), { wrapper });
+    act(() => adopt.current(user(), "t-1"));
+
+    renderHook(() => useAuth(), { wrapper });
+
+    expect(apiClient.get).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().accessToken).toBe("t-1");
+  });
+
   it("clears a persisted session the server no longer honours", async () => {
     useAuthStore.setState({ user: user(), isAuthenticated: true, accessToken: "stale" });
     vi.mocked(apiClient.get).mockRejectedValue(new ApiError(401, "Token expired"));

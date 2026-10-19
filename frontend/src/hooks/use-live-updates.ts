@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { useWebSocket } from "@/hooks/use-websocket";
+import { invalidateSoon } from "@/lib/coalesced-invalidation";
 import { announceChange, staleQueries } from "@/lib/live-updates";
 import { useAuthStore, useLiveFeedStore, useOrgStore } from "@/stores";
 import type { ChangeEvent } from "@/types/change-events";
@@ -41,8 +42,10 @@ export function useLiveUpdates(): void {
   const onMessage = useCallback(
     (message: MessageEvent) => {
       const event = JSON.parse(String(message.data)) as ChangeEvent;
+      // Gathered with this tab's own refreshes: the feed echoes the change the
+      // tab just made, and both used to refetch the same list.
       for (const queryKey of staleQueries(event)) {
-        void queryClient.invalidateQueries({ queryKey });
+        void invalidateSoon(queryClient, queryKey);
       }
       announceChange(event);
     },

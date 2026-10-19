@@ -4,7 +4,8 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useLiveUpdates } from "./use-live-updates";
-import { onRemoteChange } from "@/lib/live-updates";
+import { onRemoteChange, staleQueries } from "@/lib/live-updates";
+import { COALESCE_MS } from "@/lib/coalesced-invalidation";
 import { qk } from "@/lib/query-keys";
 import { useAuthStore, useLiveFeedStore, useOrgStore } from "@/stores";
 import type { ChangeEvent } from "@/types/change-events";
@@ -95,6 +96,7 @@ describe("useLiveUpdates", () => {
   });
 
   it("marks what the change made stale and tells whoever is listening", () => {
+    vi.useFakeTimers();
     const invalidate = vi.spyOn(client, "invalidateQueries");
     const heard = vi.fn();
     const stop = onRemoteChange(heard);
@@ -103,8 +105,25 @@ describe("useLiveUpdates", () => {
     socket.options?.onMessage(new MessageEvent("message", { data: JSON.stringify(EVENT) }));
     stop();
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.agents.all() });
+    // Told at once; marked stale with whatever else arrives in the same window.
     expect(heard).toHaveBeenCalledWith(EVENT);
+    vi.advanceTimersByTime(COALESCE_MS);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.agents.all() });
+    vi.useRealTimers();
+  });
+
+  it("marks one change heard twice stale once", () => {
+    vi.useFakeTimers();
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    renderHook(() => useLiveUpdates(), { wrapper });
+
+    socket.options?.onMessage(new MessageEvent("message", { data: JSON.stringify(EVENT) }));
+    socket.options?.onMessage(new MessageEvent("message", { data: JSON.stringify(EVENT) }));
+    vi.advanceTimersByTime(COALESCE_MS);
+
+    // Each key the change stales, once - not once per time it was heard.
+    expect(invalidate).toHaveBeenCalledTimes(new Set(staleQueries(EVENT).map(String)).size);
+    vi.useRealTimers();
   });
 });
 

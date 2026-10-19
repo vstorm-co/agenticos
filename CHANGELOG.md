@@ -135,6 +135,12 @@ Two things are versioned separately from this file and worth knowing about:
   `Prefer: respond-async` the whole body went into a queued job; an asynchronous
   run is now also refused at once for an agent the caller may not run, rather
   than by the worker later.
+- **A chat turn costs the console 17 requests instead of 27.** The sidebar was
+  marked stale five times for one reply - the turn's own frames and the live
+  feed's echo of the same change - and each time it refetched every page it
+  held: ten `GET /conversations`, now four. Invalidations within 250 ms are sent
+  once. A page load also reads `/auth/me` once instead of twice: the auth
+  guard's answer now counts as the page's session check.
 - **A busy schedule now skips by default.** Before, a schedule whose run was
   still going fired once as soon as it ended; existing schedules take `skip`.
   Set `overlap` to `queue` for the old behaviour.
