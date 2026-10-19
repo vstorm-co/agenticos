@@ -1,5 +1,5 @@
 ---
-source_sha: "1bad6c649346"
+source_sha: "e93184aec4c0"
 ---
 
 # Begriffe { #concepts }
@@ -178,39 +178,58 @@ niemand zu, also antwortet er keiner identifizierten Person, genau wie ein
 Besucher eines eingebetteten Widgets. Diese pro Person geführten Speicher sind
 für ihn verschlossen:
 
-- [Gedächtnisdateien](reference/capabilities.md#memory-files) und
+- [Gedächtnis](reference/capabilities.md#memory-files) und
   [mem0](reference/capabilities.md#memory-mem0): Jedes Tool antwortet, dass die
   Unterhaltung kein Gedächtnis hat.
-- [Unterhaltungssuche](reference/capabilities.md#conversation-search): Beide
+- [Frühere Gespräche](reference/capabilities.md#conversation-search): Beide
   Tools verweigern.
 - Eine [persönliche MCP-Bindung](mcp.md#whose-account-a-binding-speaks-through):
   Das eigene Notion oder Postfach des Erstellers fehlt, und der Agent erfährt,
   warum.
-- [Artefakte](reference/capabilities.md#artifacts): `publish_artifact` veröffentlicht weiterhin, und die
+- [Apps](reference/capabilities.md#artifacts): `publish_artifact` veröffentlicht weiterhin, und die
   Seite ist für den Ersteller privat, aber `read_artifact` lehnt ab, sodass eine
   Auslösung eine ganze Seite neu veröffentlicht, statt eine zu bearbeiten.
 
 Das ist Absicht. Ein Speicher, der für eine Person geführt wird, wird dieser
 Person vorgelesen, und ein Auslösen, das niemand gestartet hat, darf nicht in
-ihrem Namen hineinschreiben. Heute ändert keine Einstellung daran etwas.
+ihrem Namen hineinschreiben. Eine [Sandbox](sandbox.md) mit
+`session_scope: user` folgt derselben Regel: Ein Auslösen hat dort keinen eigenen
+Workspace.
 
-!!! warning "Eine Sandbox mit Benutzer-Scope ist die Ausnahme"
+### Es sei denn, der Ersteller lässt es als sich laufen { #unless-its-creator-lets-it-run-as-them }
 
-    Eine [Sandbox](sandbox.md) mit `session_scope: user` ist nicht verschlossen.
-    Ein Auslösen öffnet den eigenen Workspace des Erstellers für diesen Agent und
-    kann dort die Dateien des Erstellers lesen und schreiben. Ein Mitglied ohne
-    `agents:edit` kann einen Trigger, den ein anderes Mitglied angelegt hat,
-    weder bearbeiten noch auslösen, denn ein geänderter Prompt könnte diese
-    Dateien beim nächsten Auslösen hinauskopieren.
+**Als ich ausführen**, eine Einstellung am Trigger, ist die einzige Ausnahme, und
+nur der Ersteller kann sie einschalten, für sich selbst. Ein Auslösen erreicht
+dann sein Gedächtnis und seine eigenen MCP-Verbindungen wie sein eigener Chat —
+das morgendliche *sag mir, was in meinem Postfach wichtig ist*, das der Standard
+nicht kann — zu diesen Bedingungen:
+
+- **Ein Zeitplan liest und schreibt das Gedächtnis; ein Ereignis liest es nur.**
+  Der Prompt eines Ereignisses trägt eine Mail oder einen Webhook-Body, den
+  niemand geprüft hat, und eine daraus geschriebene Notiz würde jeder spätere Chat
+  als die eigene des Erstellers lesen.
+- **Frühere Gespräche bleiben verschlossen**, so oder so.
+- **Die Änderung eines anderen schaltet es aus.** Wer die Nachricht, die Umgebung
+  oder den Filter eines Triggers ändert, den er nicht angelegt hat, schaltet es
+  aus, sodass niemand umschreibt, was als Sie läuft. Ein Administrator, der per
+  Impersonation als Sie handelt, oder ein Skript mit Ihrem API-Schlüssel kann es
+  nicht einschalten.
+- **Ebenso eine neue Version, die du nicht selbst veröffentlicht hast.** Eine
+  Veröffentlichung, eine Promotion oder ein Rollback durch jemand anderen schaltet
+  es ab - auch eine über deinen API-Schlüssel oder durch einen Administrator, der
+  dich impersoniert.
+- **Der Nachweis sagt es.** Der Run nennt den Trigger, der ihn ausgelöst hat, und
+  jeder Audit-Eintrag, den das Auslösen schreibt, trägt `via_trigger` mit dem
+  Mitglied, als das es gehandelt hat.
 
 Die Regel entscheidet, wie Sie einen Agent entwerfen, der über einen Trigger
 läuft:
 
 | Ein unbeaufsichtigter Run braucht | Verwenden Sie |
 |---|---|
-| Stehende Fakten oder Vorlieben | Den eigenen Prompt des Triggers oder eine an den Agent gebundene [Context-Datei](context.md) |
+| Stehende Fakten oder Vorlieben | Den eigenen Prompt des Triggers, eine an den Agent gebundene [Context-Datei](context.md) oder das Gedächtnis des Erstellers mit **Als ich ausführen** |
 | Zustand, der von einem Auslösen zum nächsten erhalten bleibt | Eine [Sandbox](sandbox.md) mit `session_scope: conversation`: Jedes Auslösen eines Triggers hängt an dieselbe Run-Log-Unterhaltung an |
-| Ein Postfach oder einen anderen externen Dienst | Eine Verbindung, die mit dem Konto der Organisation gebunden ist, nicht mit dem jeder Person |
+| Ein Postfach oder einen anderen externen Dienst | Eine Verbindung, die mit dem Konto der Organisation gebunden ist, oder die eigene des Erstellers mit **Als ich ausführen** |
 
 [Webseiten auf Änderungen prüfen](howto/competitor-monitoring.md) und
 [ein persönlicher Assistent](howto/personal-assistant.md) treffen beide auf diese
@@ -311,6 +330,7 @@ Problemen filtert, sollte nicht durch korrekt arbeitende Plattform waten müssen
 | `failed` | ist kaputtgegangen |
 | `budget_exceeded` | hat eine Obergrenze erreicht — ein Ausgabenlimit, das seine Arbeit tut |
 | `guardrail_blocked` | wurde von einem [Guardrail](reference/capabilities.md#guardrails) abgelehnt |
+| `loop_stopped` | wiederholte nach einer Warnung dieselben Tool-Aufrufe und wurde [gestoppt](governance.md#step-limits) |
 | `cancelled` | wurde gestoppt: die Stopp-Schaltfläche im Composer, ein weggefallener Socket, eine von oben abgebrochene Delegation. Auf jeder Oberfläche, nicht nur der streamenden |
 | `awaiting_approval` | ist auf einem Approval geparkt und ist **fortsetzbar** — sein Nachrichtenverlauf ist gespeichert, sodass die Entscheidung für die Unterhaltung gilt, zu der sie gehört |
 
@@ -462,7 +482,7 @@ Ein Approval löst vom Spezifischsten her auf:
 
 1. die eigene Übersteuerung des Tools, dann
 2. der Modus der Capability, dann
-3. ob die Capability `side_effecting` ist.
+3. keine Freigabe, wenn keines von beiden etwas sagt.
 
 Der Builder nennt das *Ergebnis* in Worten, statt die Regel zu beschreiben, denn
 eine Regel, die der Leser im Kopf durchrechnen muss, ist eine Einstellung, die
@@ -533,6 +553,13 @@ Nehmen Sie also einen Spezialisten für Arbeit, die keine Veröffentlichung eine
 Agents verlangen sollte — "fasse das in drei Stichpunkten zusammen" —, und einen
 Delegate für eine Fähigkeit, die die Organisation besitzt und wiederverwendet.
 
+Eine dritte Art steht daneben: ein **Remote Agent**, der Agent eines anderen
+Anbieters, über A2A erreichbar und in der Organisation über seine Agent Card
+registriert. Er wird genauso aufgerufen und gegen dasselbe Budget abgerechnet, ist
+hier aber nicht versioniert — sein Eigentümer ändert ihn auf seiner Seite —, daher
+nennt ein Verweis die Registrierung statt einer Version. Siehe
+[Remote Agents über A2A](reference/capabilities.md#remote-agents).
+
 #### Dynamische Spezialisten, und der Weg heraus { #dynamic-specialists-and-the-way-out }
 
 Unterhalb des Inline-Spezialisten sitzt eine dritte Art: ein **dynamischer
@@ -598,31 +625,48 @@ wer an was delegieren darf.
 
 ---
 
-## System-Agents { #system-agents }
+## Bewerter { #system-agents }
 
 Manche Agents werden von der Plattform gestartet und nicht von einem Menschen:
-Der **Eval judge** bewertet Antworten für das
-[Scoring von Datasets](datasets.md#judge), und der **Knowledge gap drafter**
-entwirft die Passage, die einer
-[Wissenslücke](knowledge-gaps.md#drafting-the-missing-content) fehlt. Das sind
-**System-Agents**. Jede
-Organisation erhält sie bei ihrer Erstellung, und eine früher erstellte
-Organisation erhält einen, sobald etwas ihn zum ersten Mal braucht.
+**Bewerter**, die Antworten für die [Bewertung von Datasets](datasets.md#judge)
+benoten, und der **Knowledge gap drafter**, der die Passage entwirft, die einer
+[Wissenslücke](knowledge-gaps.md#drafting-the-missing-content) fehlt. Die Art
+eines Agents sagt, welcher er ist - `agent` für die, die Menschen benutzen,
+`judge` und `drafter` für diese. Jede Organisation erhält bei ihrer Erstellung
+den Standard-Bewerter **Eval judge** und den Drafter, eine früher erstellte
+Organisation erhält jeden davon, sobald etwas ihn zum ersten Mal braucht, und
+ein Dataset kann einen eigenen Bewerter bekommen.
 
-Ein System-Agent ist ein gewöhnlicher Agent. Er steht in Agents mit einem
-**System**-Badge, seine Instruktionen und sein Modell lassen sich bearbeiten, er
-kann geteilt werden, und seine Runs werden wie alle anderen gegen das Budget
-geprüft und aufgezeichnet. Er startet mit einem eigenen kleinen Monatsbudget,
-damit eine neue Organisation nicht versehentlich ihr ganzes Budget für
-Evaluierung ausgibt.
+Ein Bewerter wird von der Plattform ausgeführt und ist kein Agent, den Menschen
+benutzen. Agents führt Bewerter getrennt, in einem eingeklappten Band
+**Bewerter** unter **Agents**: Jede Karte sagt, welche Datasets er bewertet, und
+der von der Plattform angelegte ist als **Standard-Bewerter** markiert;
+Agent-Auswahlen lassen sie weg. Wer `agents:edit` hat, öffnet einen, um
+Instruktionen, Modell und Budget zu ändern - seine Seite enthält diese, seine
+Limits, seinen Verlauf und die Datasets, die ihn gewählt haben, mit Bewertung
+oder ohne - jedes klappt seine letzten Bewertungen dort und die Eval-Runs auf,
+aus denen sie stammen - samt der Angabe, wie oft Menschen ihm bei den von ihm
+bewerteten und von ihnen entschiedenen Ergebnissen zustimmten, und sonst nichts.
 
-Hat die Organisation bereits ein Model-Profil, wird der Agent auf dem ältesten
-veröffentlicht. Ohne eines wird er als Draft angelegt, und ein Mensch wählt sein
-Modell und veröffentlicht ihn. Bis dahin sagen das die Funktionen, die ihn
+Seine Runs werden wie alle anderen gegen das Budget geprüft und aufgezeichnet
+und senden keine Run-Benachrichtigung. Ein Bewerter startet mit einem eigenen
+kleinen Monatsbudget, damit eine neue Organisation nicht versehentlich ihr
+ganzes Budget für Evaluierung ausgibt.
+
+Nur die Plattform führt ihn aus. Chat, API, ein Embed oder eine öffentliche
+Seite, ein Kanal, ein Zeitplan und die Delegation durch einen anderen Agent
+lehnen ihn ab, im Service, der den Run starten würde, nicht nur in der Konsole.
+
+Hat die Organisation bereits ein Model-Profil, wird ein Bewerter auf dem
+ältesten veröffentlicht oder auf dem, das bei seiner Erstellung gewählt wurde.
+Ohne eines wird er als Draft angelegt. Der mitgelieferte Eval judge wird auf
+dem ersten Modell der Organisation veröffentlicht, sobald eines hinzugefügt
+wird; der eigene Bewerter eines Datasets wartet, bis ein Mensch sein Modell
+wählt und ihn veröffentlicht, und bis dahin sagen das die Funktionen, die ihn
 verwenden.
 
 Der [Schalter für KI-Unterstützung](governance.md#ai-assistance) der
-Organisation entscheidet, ob System-Agents überhaupt laufen.
+Organisation entscheidet, ob Bewerter überhaupt laufen.
 
 ## Model-Profile { #model-profiles }
 

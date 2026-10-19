@@ -29,7 +29,10 @@ after an edit it answers the same question ten to fifty times slower.
 | `frontend/` | `bunx vitest run src/components/chat/usage-meter.test.tsx` | 2s |
 | `frontend/` | `bunx vitest run src/components/chat` | a directory |
 
-Then, once, before the push:
+**The whole suites run in CI, not on a laptop.** They take tens of minutes and load
+the machine somebody is working on, so locally stop at the batches above plus
+`make lint` (or the half for the side you touched). Push, and read the run for that
+commit's SHA - this is what it runs:
 
 ```bash
 make lint               # ruff, ruff format, ty, vulture, deptry, eslint, prettier, tsc,
@@ -37,11 +40,14 @@ make lint               # ruff, ruff format, ty, vulture, deptry, eslint, pretti
 make test               # backend + the 100% gate; runs across workers (-n auto,
                         # capped at 4), pytest-cov combines their data
 make test-frontend-cov  # frontend + its gate: 100% lines/stmts/funcs, 97.5% branches
-make test-integration   # only if the change is near the database; also parallel
+make test-integration   # the tests needing a real database; also parallel
 make check              # every CI job except e2e - lint, test, db-check,
                         # test-frontend-cov, build-frontend, docs-build, audit.
-                        # About five minutes.
 ```
+
+`gh run list --branch <branch>` finds the run, `gh run view <id> --log-failed` the
+error in a red job. A gate that has not run yet is reported as not run, never as
+passing.
 
 `make check` is CI, not an approximation of it: `.github/workflows/ci.yml` calls
 those targets rather than repeating their commands, and `tests/test_ci_parity.py`

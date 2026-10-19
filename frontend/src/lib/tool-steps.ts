@@ -23,6 +23,8 @@
  * module cannot reach one (#446).
  */
 
+import type { DelegationStep } from "@/types";
+
 import { toolCaption, toolDisplayName, type Translate } from "./agent-step-captions";
 import { toolEntry, type StepKind } from "./tool-catalog";
 
@@ -125,10 +127,27 @@ function hostOf(url: string): string | null {
   }
 }
 
-/** "create_issue" -> "Create issue": a sentence, not a title. */
+/** "create_issue" or "create-issue" -> "Create issue": a sentence, not a title. */
 function sentence(value: string): string {
-  const words = value.split("_").filter(Boolean).join(" ");
+  const words = value.split(/[_-]/).filter(Boolean).join(" ");
   return words === "" ? value : words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/**
+ * What a server's tool does, without the server's name it repeats.
+ *
+ * Notion's own server names its tools `notion-search` and `notion-fetch`, so the
+ * step read "notion · Notion-search" - the service twice, the verb last.
+ */
+function actionOf(action: string, server: string): string {
+  const prefix = mcpToolPrefix(server);
+  const bare = action.replace(new RegExp(`^${prefix}[-_]`, "i"), "");
+  return bare === "" ? action : bare;
+}
+
+/** A connection named in lower case reads as the service: "notion" is Notion. */
+function serverLabel(name: string): string {
+  return name === name.toLowerCase() ? name.charAt(0).toUpperCase() + name.slice(1) : name;
 }
 
 /** Words, title-cased: a tool's name, a skill's name, anything snake_cased. */
@@ -161,7 +180,7 @@ export function toolStep(
     // where the side effect landed, and `linear_create_issue` says it in a way
     // nobody reads.
     return {
-      label: `${fromMcp.server} · ${sentence(fromMcp.action)}`,
+      label: `${serverLabel(fromMcp.server)} · ${sentence(actionOf(fromMcp.action, fromMcp.server))}`,
       detail: null,
       kind: "mcp",
       logoDomain: fromMcp.domain,
@@ -236,4 +255,34 @@ function subjectOf(
   const path = pathArg(given);
   if (path !== null) return name === "ls" ? path : basename(path);
   return text(given.query) ?? text(given.url) ?? text(given.skill_name);
+}
+
+/** How a coding harness's step kinds read as the console's own step kinds. */
+const CODING_STEP_KINDS: Record<string, StepKind> = {
+  read: "read",
+  search: "search",
+  edit: "edit",
+  command: "shell",
+  web: "web",
+  other: "tool",
+};
+
+/** The sandbox's working directory, which every path a harness reports starts in. */
+const WORKSPACE_ROOT = /^\/workspace\//;
+
+/**
+ * One step a delegation took, as a line.
+ *
+ * A step that names its subject - Claude Code or Codex reading a file, running a
+ * command - reads as the verb and that subject ("Edited hello.py"), present
+ * tense while it runs. A delegate's own tool names nothing more, so it is captioned
+ * as any tool call is.
+ */
+export function delegationStep(step: DelegationStep, t: Translate): ToolStep {
+  if (step.title === null) return toolStep(step.name, undefined, step.ok !== null, t);
+  return {
+    label: t(step.ok === null ? "codingStepRunning" : "codingStepDone", { kind: step.name }),
+    detail: step.title.replace(WORKSPACE_ROOT, ""),
+    kind: CODING_STEP_KINDS[step.name] ?? "tool",
+  };
 }

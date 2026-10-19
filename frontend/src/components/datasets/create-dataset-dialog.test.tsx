@@ -12,6 +12,11 @@ vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+const push = vi.hoisted(() => vi.fn());
+vi.mock("next/navigation", async (original) => ({
+  ...(await original<typeof import("next/navigation")>()),
+  useRouter: () => ({ push }),
+}));
 import { toast } from "sonner";
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -23,11 +28,8 @@ function wrapper({ children }: { children: ReactNode }) {
 
 function mount() {
   const onOpenChange = vi.fn();
-  const onCreated = vi.fn();
-  render(<CreateDatasetDialog open onOpenChange={onOpenChange} onCreated={onCreated} />, {
-    wrapper,
-  });
-  return { onOpenChange, onCreated };
+  render(<CreateDatasetDialog open onOpenChange={onOpenChange} />, { wrapper });
+  return { onOpenChange };
 }
 
 describe("CreateDatasetDialog", () => {
@@ -36,19 +38,20 @@ describe("CreateDatasetDialog", () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
   });
 
-  it("creates a dataset, trimming what was typed, and hands it back", async () => {
+  it("creates a dataset, trimming what was typed, and opens it", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({ id: "d1", name: "refunds" });
-    const { onOpenChange, onCreated } = mount();
+    const { onOpenChange } = mount();
     expect(screen.getByRole("button", { name: "Create" })).toBeDisabled();
 
     await userEvent.type(screen.getByLabelText(/^Name/), " refunds ");
     await userEvent.type(screen.getByLabelText("Description"), " returns ");
     await userEvent.click(screen.getByRole("button", { name: "Create" }));
 
-    await waitFor(() => expect(onCreated).toHaveBeenCalledWith({ id: "d1", name: "refunds" }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/datasets/d1"));
     expect(apiClient.post).toHaveBeenCalledWith("/datasets", {
       name: "refunds",
       description: "returns",
+      visibility: "org",
     });
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
@@ -68,6 +71,7 @@ describe("CreateDatasetDialog", () => {
     expect(apiClient.post).toHaveBeenCalledWith("/datasets", {
       name: "refunds",
       description: null,
+      visibility: "org",
     });
     expect(toast.error).not.toHaveBeenCalled();
   });
@@ -84,5 +88,25 @@ describe("CreateDatasetDialog", () => {
     const { onOpenChange } = mount();
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("says a new dataset is the organization's, and starts it private on request", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "d2", name: "drafts" });
+    mount();
+    expect(screen.getByText("Visible to the whole organization.")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Make it private" }));
+    expect(screen.getByText("Private to you until you share it.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Show it to the organization" }));
+    await userEvent.click(screen.getByRole("button", { name: "Make it private" }));
+    await userEvent.type(screen.getByLabelText(/^Name/), "drafts");
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/datasets",
+        expect.objectContaining({ visibility: "private" }),
+      ),
+    );
   });
 });

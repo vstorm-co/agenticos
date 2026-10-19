@@ -1,5 +1,5 @@
 ---
-source_sha: "74107fac73b3"
+source_sha: "018d5eb09c59"
 title: "AgenticOS vs OpenAI Codex"
 seo_title: "AgenticOS vs OpenAI Codex: Firmen-Agents oder Coding-Agent"
 description: "OpenAI Codex ist ein Coding-Agent für Entwickler, AgenticOS eine selbst gehostete Open-Source-Plattform für kontrollierte Firmen-Agents. Beide im Vergleich."
@@ -21,7 +21,7 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. Agen
 | Woran es arbeitet | Ein Code-Repository und eine Shell | Unternehmensdokumente, Werkzeuge und Systeme |
 | Wo es läuft | Entwicklerrechner; Cloud-Aufgaben in von OpenAI verwalteten Containern | Ihre Infrastruktur, als gemeinsamer Dienst |
 | Quellcode | CLI Apache-2.0; Cloud, Review und ChatGPT-App proprietär | Apache-2.0 |
-| Modelle | OpenAI mit ChatGPT-Anmeldung; die CLI akzeptiert auch Ollama, LM Studio, Bedrock und eigene Provider | 27 Provider, festgelegt pro Modellprofil |
+| Modelle | OpenAI mit ChatGPT-Anmeldung; die CLI akzeptiert auch Ollama, LM Studio, Bedrock und eigene Provider | 28 Provider, festgelegt pro Modellprofil |
 | Endbenutzer | Der Entwickler | Mitarbeiter, Kunden und Systeme, auf acht Oberflächen |
 | Freigaben | Sandbox-Modi und Freigaberichtlinien am Arbeitsplatz des Entwicklers | Eine Person mit `approvals:decide`, aus einer gemeinsamen Warteschlange |
 | Ausgabenkontrolle | Tariflimits pro Fünf-Stunden-Fenster und Credits, die mit ChatGPT Work geteilt werden | Ein monatliches Budget pro Agent und pro Organisation |
@@ -39,11 +39,11 @@ Codex setzt Sandbox- und Freigaberichtlinien auf dem Rechner jedes einzelnen Ent
 
 ### Jedes Modell mit jeder Funktion { #any-model-with-every-feature }
 
-Die Codex-CLI kann andere Provider nutzen, aber ihre Cloud-Aufgaben, das Code-Review und Slack erfordern eine ChatGPT-Anmeldung und Modelle von OpenAI. In AgenticOS erreicht jeder Provider dieselbe Plattform: [27 Provider](../models.md#providers), [Fallbacks](../models.md#fallbacks) und erfasste Kosten für jeden Run jedes Agents.
+Die Codex-CLI kann andere Provider nutzen, aber ihre Cloud-Aufgaben, das Code-Review und Slack erfordern eine ChatGPT-Anmeldung und Modelle von OpenAI. In AgenticOS erreicht jeder Provider dieselbe Plattform: [28 Provider](../models.md#providers), [Fallbacks](../models.md#fallbacks) und erfasste Kosten für jeden Run jedes Agents.
 
 ### Codeausführung als kontrollierte Capability { #code-execution-as-a-governed-capability }
 
-Codex führt Befehle in einer Betriebssystem-Sandbox auf dem Rechner des Entwicklers oder in einem Cloud-Container aus. AgenticOS gibt Agents [Run Python](../reference/capabilities.md#run-python), einen Monty-Interpreter ohne Netzwerk oder Dateisystem, und einen Workspace [Files & shell](../reference/capabilities.md#files-shell) in [Geschwister-Containern](../sandbox.md#isolation-plainly). Beide werden pro Agent eingeschaltet, mit Limits und einer Freigabeeinstellung.
+Codex führt Befehle in einer Betriebssystem-Sandbox auf dem Rechner des Entwicklers oder in einem Cloud-Container aus. AgenticOS gibt Agents [Calculations](../reference/capabilities.md#run-python), einen Monty-Interpreter ohne Netzwerk oder Dateisystem, und einen Workspace [Sandbox](../reference/capabilities.md#files-shell) in [Geschwister-Containern](../sandbox.md#isolation-plainly). Beide werden pro Agent eingeschaltet, mit Limits und einer Freigabeeinstellung.
 
 ## Wann Codex das richtige Werkzeug ist { #when-codex-is-the-right-tool }
 
@@ -75,7 +75,7 @@ Ja. Ein Entwickler kann mit Codex eine neue Capability in typisiertem Python sch
 
 ### Können AgenticOS-Agents Code ausführen? { #can-agenticos-agents-run-code }
 
-Ja. Run Python führt Code ohne Netzwerk oder Dateisystem aus, und Files & shell gibt einem Agent einen Workspace in isolierten Containern. Beide werden pro Agent eingeschaltet.
+Ja. Berechnungen führt Python ohne Netzwerk oder Dateisystem aus, und die Sandbox gibt einem Agent einen Workspace in isolierten Containern. Beide werden pro Agent eingeschaltet.
 
 ## Verwandte Vergleiche { #related-comparisons }
 

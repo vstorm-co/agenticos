@@ -6,18 +6,23 @@ from datetime import datetime
 from typing import Literal, get_args
 from uuid import UUID
 
-from pydantic import ConfigDict, Field, JsonValue, ValidationError, field_validator, model_validator
+from pydantic import Field, ValidationError, field_validator, model_validator
 from pydantic_core import InitErrorDetails, PydanticCustomError
 
 from app.schemas.base import BaseSchema
 from app.schemas.resource_grant import VisibilityLiteral
-from app.schemas.scoring import CHECK, DatasetScoring
+from app.schemas.scoring import (
+    CHECK,
+    CaseCheck,
+    DatasetScoring,
+    ExpectedToolCall,
+    ToolOrderModeLiteral,
+)
 
 CaseSourceLiteral = Literal["manual", "import", "conversation", "synthetic"]
 DatasetChangeLiteral = Literal["add", "edit", "remove", "import"]
 DatasetSort = Literal["name", "updated"]
 DatasetFileFormat = Literal["csv", "jsonl"]
-ToolOrderModeLiteral = Literal["any", "in_order", "exact"]
 
 # One field of a case. Generous enough for a long conversation turn or a whole
 # reference document, bounded so one import row cannot be a hundred megabytes.
@@ -36,35 +41,6 @@ class CaseMessage(BaseSchema):
 
     role: Literal["user", "assistant"]
     content: str = Field(max_length=MAX_CASE_TEXT)
-
-
-class ExpectedToolCall(BaseSchema):
-    """A tool the agent should call, and the arguments that must match.
-
-    `args` is a subset: a call passes when every key given here is present with
-    this value, whatever else the agent also sent. Empty means only the tool name
-    is checked.
-    """
-
-    tool: str = Field(min_length=1, max_length=200)
-    args: dict[str, JsonValue] = Field(default_factory=dict)
-
-
-class CaseCheck(BaseSchema):
-    """One rule a case's answer is scored against, named by `type`.
-
-    Only the shape is fixed here: an object with a `type`, and that rule's own
-    parameters beside it. Which types exist and what each requires belongs to
-    scoring (`app.schemas.scoring.Check`), checked when a case is written - and a
-    stored check it no longer accepts is still read, and scored as an error.
-    """
-
-    model_config = ConfigDict(
-        from_attributes=True, populate_by_name=True, str_strip_whitespace=True, extra="allow"
-    )
-    __pydantic_extra__: dict[str, JsonValue] = Field(init=False)
-
-    type: str = Field(min_length=1, max_length=64)
 
 
 def _known_checks(checks: list[CaseCheck]) -> list[CaseCheck]:
@@ -240,6 +216,13 @@ class DatasetCaseList(BaseSchema):
 class DatasetCreate(BaseSchema):
     name: str = Field(min_length=1, max_length=120, description="Unique per organization")
     description: str | None = Field(default=None, max_length=500)
+    visibility: VisibilityLiteral = Field(
+        default="org",
+        description=(
+            "Who sees it: the whole organization unless it starts `private` to its "
+            "creator, or `team`"
+        ),
+    )
 
 
 class DatasetUpdate(BaseSchema):
@@ -254,6 +237,19 @@ class DatasetTagCount(BaseSchema):
     cases: int
 
 
+class ExpectationMix(BaseSchema):
+    """How many cases hold this combination of what a scorer reads.
+
+    `reference` is a reference answer or a counter-example: the reference
+    comparison's judge grades either.
+    """
+
+    checks: bool
+    tool_calls: bool
+    reference: bool
+    cases: int
+
+
 class DatasetStats(BaseSchema):
     """What the newest version's cases test against, counted.
 
@@ -265,6 +261,13 @@ class DatasetStats(BaseSchema):
     with_counter_example: int = Field(default=0, description="Cases with a counter-example")
     with_tool_calls: int = Field(default=0, description="Cases expecting at least one tool call")
     with_checks: int = Field(default=0, description="Cases with at least one check")
+    expectation_mix: list[ExpectationMix] = Field(
+        default_factory=list,
+        description=(
+            "Cases counted by whether each has checks, expected tool calls and a reference "
+            "answer at once - what tells which cases a grading setup would grade nothing on"
+        ),
+    )
     by_source: dict[CaseSourceLiteral, int] = Field(
         default_factory=lambda: dict.fromkeys(get_args(CaseSourceLiteral), 0)
     )
@@ -284,8 +287,23 @@ class DatasetRead(BaseSchema):
     can_edit: bool = Field(
         default=False, description="Whether the caller may change this dataset's cases"
     )
+    can_run: bool = Field(
+        default=False,
+        description=(
+            "Whether the caller may run this dataset - start an eval on it, or score "
+            "an answer against it. Resolved per caller: a run grant on one dataset "
+            "reads true where the role alone would not, and a read grant reads false."
+        ),
+    )
     scoring: DatasetScoring = Field(
         default_factory=DatasetScoring, description="How this dataset's cases are scored"
+    )
+    judge_name: str | None = Field(
+        default=None,
+        description=(
+            "The judge that grades this dataset: the one picked in its scoring, or the "
+            "default eval judge. Null when the judge it names no longer exists."
+        ),
     )
     stats: DatasetStats = Field(default_factory=DatasetStats)
     created_at: datetime

@@ -1,5 +1,5 @@
 ---
-source_sha: "217a295cc0a5"
+source_sha: "27fe488f738b"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -130,6 +130,13 @@ recibe el archivo en lugar del texto:
 | pdf, docx, spreadsheet, document, presentation, email | texto parseado pegado en línea | escrito en `uploads/`, con el texto extraído al lado salvo que el runtime pueda leerlo (`email` siempre lo recibe — `lit` no lee `.msg`); referencia y 20 primeras líneas |
 | imagen | `BinaryContent` | `BinaryContent` **y** escrita; la referencia nombra la ruta |
 | tiff | página(s) PNG como `BinaryContent`, con el tope de páginas indicado | `.tiff` original escrito; página(s) PNG mostradas, con el tope de páginas indicado |
+
+**Un turno posterior sigue teniendo el archivo.** Lo que el adjunto añadió al
+prompt - el texto pegado, o la referencia con sus primeras líneas - se guarda junto
+al mensaje y se reproduce con el historial, así que «¿y marzo?» llega a un modelo
+que todavía sabe que el archivo existe. Una imagen se nombra en ese historial en
+lugar de enviarse de nuevo; un agent que necesita volver a mirarla la pide, o la
+abre desde `uploads/` si tiene workspace.
 
 **El texto extraído lo acompaña solo cuando nada puede leer el original.** Antes
 se escribía un `.txt` del parseo junto a cada PDF, `.docx` y hoja de cálculo,

@@ -69,8 +69,31 @@ describe("choosing which request to make", () => {
     show("pdf", { readBytes: () => Promise.resolve(new Blob(["x"])) }, "report.pdf");
 
     expect(
-      await screen.findByText("This one cannot be shown here — the server serves it as a file."),
+      await screen.findByText("This one cannot be shown here - the server serves it as a file."),
     ).toBeInTheDocument();
+  });
+});
+
+describe("inside a pane that is its own frame", () => {
+  it("rules the shortened note off from the text instead of spacing it", async () => {
+    function Wrapper({ children }: { children: ReactNode }) {
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    }
+    render(
+      <FileContent
+        access={access({
+          readText: () => Promise.resolve({ content: "print(1)", truncated: true }),
+        })}
+        kind="code"
+        name="run.py"
+        bare
+      />,
+      { wrapper: Wrapper },
+    );
+
+    const note = await screen.findByText(/shortened|first part|cut/i);
+    expect(note).toHaveClass("border-t");
   });
 });
 

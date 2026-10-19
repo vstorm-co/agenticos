@@ -6,67 +6,11 @@
  * `run` workspace never had one, and an `agent` one belongs to every conversation
  * the agent ever answered.
  *
- * The listing carries no files on purpose - a deployment can hold one per warm
- * conversation, so reading each to render a table would be a round trip per row
- * for a page nobody has asked a question of yet.
+ * The console reads every file at once for the Documents page, and one
+ * workspace's files for the folder a file sits in.
  */
 
 import { apiClient } from "./api-client";
-
-export interface WorkspaceSummary {
-  id: string;
-  agent_id: string;
-  /** Resolved server-side, so a row names something readable rather than a UUID. */
-  agent_name: string;
-  /** Its handle, which is what the generated face is drawn from. */
-  agent_slug: string;
-  /** Resolved server-side too - this reader may not hold agents:view. */
-  agent_has_avatar: boolean;
-  conversation_id: string | null;
-  /** The chat page lists its owner's threads, so the link is only the owner's. */
-  conversation_is_mine: boolean;
-  /** The chat these files belong to, named. Null when no single conversation owns it. */
-  conversation_title: string | null;
-  /** How many conversations reach these files. Zero for a run-scoped workspace. */
-  conversations: number;
-  scope: string;
-  backend: string;
-  /** Whose workspace this is, in words. Under `agent` scope this is the whole point. */
-  owner_label: string;
-  /**
-   * Whose files these are, *named* - an account's email, or the platform id of an
-   * owner who has none. Null where nobody owns them, which is every scope but
-   * `user`. `owner_label` is not this: it answers with the scope.
-   */
-  owner_name: string | null;
-  /** Who can see the files. `scope` is the mechanism; this is the consequence. */
-  access_label: string;
-  bytes_total: number;
-  /**
-   * How many files, or `null` for one nobody counted.
-   *
-   * Free for a stored workspace and a round trip per host for a container, so the
-   * listing asks for the second only when told to - `null` is "not counted" and
-   * never "empty".
-   */
-  file_count: number | null;
-  /** What the files come to. Separate from `bytes_total`, the stored document's size. */
-  measured_bytes: number | null;
-  version: number;
-  last_used_at: string | null;
-  created_at: string | null;
-}
-
-export interface WorkspaceSummaryList {
-  items: WorkspaceSummary[];
-  total: number;
-  /** How many workspaces were read to count their files. */
-  measured: number;
-  /** Hosts that would not answer, counted rather than dropped. */
-  unreadable: number;
-  /** Whether counting stopped short of the list. */
-  truncated: boolean;
-}
 
 export interface WorkspaceFile {
   path: string;
@@ -104,8 +48,16 @@ export interface WorkspaceFiles {
 /** One file in the flat view, with the workspace it came from named beside it. */
 export interface FlatFile extends WorkspaceFile {
   workspace_id: string;
+  agent_id: string;
   agent_name: string;
+  /** The handle the agent's generated face is drawn from; empty once it is deleted. */
+  agent_slug: string;
+  agent_has_avatar: boolean;
   access_label: string;
+  /** The conversation a conversation-scoped workspace belongs to; null otherwise. */
+  conversation_title?: string | null;
+  /** That conversation, set only when it is the reader's own to open. */
+  conversation_id?: string | null;
   /**
    * Whether a person attached this file rather than an agent writing it.
    *
@@ -144,18 +96,6 @@ export interface WorkspaceFileContent {
 }
 
 const ROOT = "/sandbox-workspaces";
-
-/**
- * The workspaces this reader can see.
- *
- * `measure` counts the files in the container-backed ones, which is a round trip
- * to a host per workspace - so it is a decision the page makes when somebody asks
- * for the numbers, not a cost the listing pays to open. A stored workspace is
- * counted either way, because its files came with the row.
- */
-export async function listWorkspaces(measure = false): Promise<WorkspaceSummaryList> {
-  return apiClient.get<WorkspaceSummaryList>(measure ? `${ROOT}?measure=true` : ROOT);
-}
 
 /**
  * One file's bytes: a download, or an image a preview can render.

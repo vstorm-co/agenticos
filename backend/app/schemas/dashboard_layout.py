@@ -120,13 +120,16 @@ WIDGET_IDS: frozenset[str] = frozenset(
         "approvals",
         "recent-failures",
         "budget-headroom",
+        "department-spend",
         "mcp-health",
         "knowledge-freshness",
         "members",
         "org-ratings",
+        "department-quality",
         "my-agents",
         "conversations",
         "my-activity",
+        "my-summary",
         "my-top-agents",
         "my-quality",
         "shared-with-you",
@@ -142,6 +145,9 @@ WIDGET_IDS: frozenset[str] = frozenset(
         "datasets",
         "knowledge-gaps",
         "review-queue",
+        "eval-runs",
+        "projects",
+        "recent-visuals",
     }
 )
 

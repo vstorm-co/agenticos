@@ -99,6 +99,13 @@ class TestAGithubOAuthAppSecretIsBoundToItsOrganization:
 
         row = await organization_secret_repo.get(db, stored.id, organization_id=mine.id)
         assert row is not None
+        # The locked read for a compare-and-swap draws the same boundary.
+        locked = await organization_secret_repo.get_locked(db, stored.id, organization_id=mine.id)
+        assert locked is row
+        assert (
+            await organization_secret_repo.get_locked(db, stored.id, organization_id=theirs.id)
+            is None
+        )
 
         with pytest.raises(BadRequestError, match="Failed to decrypt"):
             unseal_secret(

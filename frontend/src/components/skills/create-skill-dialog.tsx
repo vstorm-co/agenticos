@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  AudiencePicker,
+  EVERYONE,
+  audiencePayload,
+  type Audience,
+} from "@/components/sharing/audience-picker";
 import { useEffect, useMemo, useState } from "react";
 import { BookOpen, FilePlus, Upload } from "lucide-react";
 import { toast } from "sonner";
@@ -64,6 +70,14 @@ interface CreateSkillDialogProps {
 }
 
 /**
+ * On a phone the editor's fixed-height panes do not fit under the name, the
+ * description and the audience, and a dialog that clips its overflow then hides
+ * the editor and the Create button with no way to scroll to them. There the
+ * dialog scrolls as one column instead, and the panes keep their natural height.
+ */
+const PHONE_SCROLLS = "max-md:overflow-y-auto";
+
+/**
  * New skill, laid out as the editor it becomes.
  *
  * The same arrangement as `SkillWorkbench`, deliberately: a strip of facts on
@@ -84,6 +98,7 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
   const { create, categories, suggestedCategories } = useSkills();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [audience, setAudience] = useState<Audience>(EVERYONE);
   const [category, setCategory] = useState("");
   const [content, setContent] = useState("");
   // Held until the skill exists. A dropped folder is the common way a skill
@@ -146,6 +161,7 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
         // Whitespace-only means "no category" - the backend refuses an empty
         // string but takes null as uncategorized.
         category: category.trim() === "" ? null : category.trim(),
+        ...audiencePayload(audience),
       });
       // Files go up after the skill exists, because a resource hangs off a
       // skill id - there is nothing to attach them to before this point. A
@@ -158,6 +174,7 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
       setDescription("");
       setCategory("");
       setContent("");
+      setAudience(EVERYONE);
       setFiles([]);
       setOpenPath(null);
       setAdding(false);
@@ -179,13 +196,13 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn(DIALOG_FILL, DIALOG_CANVAS)}>
+      <DialogContent className={cn(DIALOG_FILL, DIALOG_CANVAS, PHONE_SCROLLS)}>
         <DialogHeader>
           <DialogTitle>{t("newSkill")}</DialogTitle>
           <DialogDescription>{t("availableEveryAgentOrganization")}</DialogDescription>
         </DialogHeader>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-3">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 max-md:flex-none">
           <div className="flex flex-wrap items-start gap-4 rounded-md border p-3">
             <div className="w-56 shrink-0 space-y-1.5" data-tour="skill-dialog-name">
               <Label htmlFor="new-skill-name">{t("name")}</Label>
@@ -228,7 +245,12 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
             </div>
           </div>
 
-          <div className="grid min-h-0 flex-1 gap-3 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
+          <div className="space-y-1.5">
+            <Label>{t("whoCanUseIt")}</Label>
+            <AudiencePicker value={audience} onChange={setAudience} />
+          </div>
+
+          <div className="grid min-h-0 flex-1 gap-3 max-md:flex-none md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
             <div className="flex min-h-0 flex-col gap-2">
               <div className="grid grid-cols-3 gap-1">
                 <Button
@@ -250,7 +272,7 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
                 <UploadButton icon={Upload} label={t("folder")} directory onPick={addFiles} />
               </div>
 
-              <div className="min-h-0 flex-1 overflow-auto rounded-md border p-1">
+              <div className="min-h-0 flex-1 overflow-auto rounded-md border p-1 max-md:max-h-48 max-md:min-h-24">
                 <button
                   type="button"
                   onClick={() => {
@@ -279,7 +301,10 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
               </div>
             </div>
 
-            <div className="flex min-h-0 flex-col" data-tour="skill-dialog-editor">
+            <div
+              className="flex min-h-0 flex-col max-md:min-h-[22rem]"
+              data-tour="skill-dialog-editor"
+            >
               {adding ? (
                 <NewFileForm
                   busy={false}

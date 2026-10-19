@@ -26,6 +26,7 @@
 
 import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
+import type { McpServerRef } from "@/types/agents";
 import type { PersonalServiceGapKind } from "@/types/chat";
 import type { McpAuthKind, McpCatalogEntry, McpConnectionState } from "@/types/mcp";
 
@@ -354,14 +355,13 @@ export function mergeServers(
  * Whether this person can speak to a catalog service through an account of
  * their own, as a binding to each person's own account would find it.
  *
- * Which connection answers is a pure reading of the list, the same choice
- * `_nominated` makes on the backend: one enabled connection needs no choosing,
- * several answer only the one marked default, and several with none marked are
- * `undecided`. Whether that connection's credential is usable is **not** re-derived
- * here - it is the server's `authorized`, so a chosen connection reads the same
- * `connected`/`unauthorized` the run reports. A bearer token the deployment can no
- * longer unseal used to read connected because the client only knew about OAuth
- * consent (#1443).
+ * The same reading the backend makes: every enabled account of theirs on the
+ * service answers (#2125), so they are connected while any one of them still
+ * authorizes, and `unauthorized` only once none does. Whether a credential is
+ * usable is **not** re-derived here - it is the server's `authorized`, so the
+ * list reads the same `connected`/`unauthorized` the run reports. A bearer token
+ * the deployment can no longer unseal used to read connected because the client
+ * only knew about OAuth consent (#1443).
  */
 export function ownAccountStatus(
   catalogKey: string,
@@ -371,7 +371,64 @@ export function ownAccountStatus(
     (connection) => connection.catalog_key === catalogKey && connection.is_enabled,
   );
   if (mine.length === 0) return "not_connected";
-  const chosen = mine.length === 1 ? mine[0] : mine.find((one) => one.is_default);
-  if (chosen === undefined) return "undecided";
-  return chosen.authorized ? "connected" : "unauthorized";
+  return mine.some((one) => one.authorized) ? "connected" : "unauthorized";
+}
+
+/**
+ * A backend category slug as a reader sees it.
+ *
+ * The catalog's categories are identifiers - `project-management`,
+ * `observability` - and uppercasing one in CSS turns the hyphen into a visible
+ * seam that reads as a machine field rather than a section of a catalogue.
+ */
+export function categoryLabel(category: string): string {
+  return category.replace(/-/g, " ");
+}
+
+/**
+ * `base`, or the first of `base-2`, `base-3`... nothing in `taken` holds.
+ *
+ * A connection's name is unique per owner and becomes its tool prefix, so a
+ * second account on a server must not seed the first one's name - its first
+ * submit, or its sign-in, would be a guaranteed conflict. Each suffixed
+ * candidate stays within the prefix pattern's 32 characters.
+ */
+export function freePrefix(base: string, taken: ReadonlySet<string>): string {
+  if (!taken.has(base)) return base;
+  for (let n = 2; ; n += 1) {
+    const suffix = `-${n}`;
+    const candidate = `${base.slice(0, 32 - suffix.length)}${suffix}`;
+    if (!taken.has(candidate)) return candidate;
+  }
+}
+
+/** How many MCP tools an agent's bindings lay before its model before Tool search narrows them. */
+export const MCP_TOOL_SEARCH_THRESHOLD = 30;
+
+/**
+ * How many MCP tools an agent's bindings put in front of its model on every request.
+ *
+ * A binding's own allowlist where it has one, otherwise the tools the server
+ * listed at its last check - the organization's connection for an organization
+ * binding, the reader's own account for a personal one. The platform's own
+ * server and a server nobody has checked count nothing: a number is only shown
+ * for what is known.
+ */
+export function mcpToolCount(
+  refs: McpServerRef[],
+  connections: OrgMcpConnectionRecord[],
+  personal: McpConnectionRecord[],
+  platformTools = 0,
+): number {
+  return refs.reduce((total, ref) => {
+    if (ref.allowed_tools) return total + ref.allowed_tools.length;
+    // The platform's own server, every tool of it: no list on the binding means all.
+    if (ref.account === "platform") return total + platformTools;
+    if (ref.account === "organization") {
+      return total + (connections.find((c) => c.id === ref.connection_id)?.last_tools?.length ?? 0);
+    }
+    return (
+      total + (personal.find((c) => c.catalog_key === ref.catalog_key)?.last_tools?.length ?? 0)
+    );
+  }, 0);
 }

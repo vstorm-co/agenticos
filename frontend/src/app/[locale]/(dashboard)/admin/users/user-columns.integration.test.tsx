@@ -109,6 +109,6 @@ describe("the admin users table", () => {
     render(<AdminUsersPage />, { wrapper });
     await screen.findByText("kacper@example.com");
 
-    expect(screen.getByText("App")).toBeInTheDocument();
+    expect(screen.getByText("Deployment admin")).toBeInTheDocument();
   });
 });

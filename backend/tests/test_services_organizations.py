@@ -76,7 +76,7 @@ class TestOrganizationService:
         """Seeding the system agents creates agents through the registry, which a
         mocked session cannot answer; what it writes is proven against a real
         database in `tests/integration/test_system_agents.py`."""
-        with patch("app.services.organization.SystemAgentService.seed", new=AsyncMock()) as seed:
+        with patch("app.services.system_agents.SystemAgentService.seed", new=AsyncMock()) as seed:
             yield seed
 
     @pytest.fixture

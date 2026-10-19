@@ -110,7 +110,7 @@ export function FileEditor({
           // tall panel leaves the text in a letterbox with dead space under it.
           <CodeArea
             value={content}
-            onChange={onChange}
+            onChange={onChange ? (next) => onChange(next) : undefined}
             readOnly={!canEdit}
             placeholder={placeholder}
             name={name}

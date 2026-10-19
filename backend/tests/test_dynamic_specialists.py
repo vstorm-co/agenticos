@@ -441,22 +441,26 @@ class TestADynamicSpecialistIsMetered:
 
 class TestInventingOneIsSomethingAPersonSeesFirst:
     @pytest.mark.security
-    async def test_both_entry_points_need_approval_by_default(self):
-        """The one place delegation and *dynamic* delegation part company.
-
-        `task` needs no approval, because what a delegate does is gated by the
-        delegate's own reviewed spec - and asking a person to approve the
-        delegation would ask them before the work that might need approving has
-        been proposed. There is no reviewed spec here: the instructions were
-        written by a model a moment ago, so the specialist itself is the thing
-        worth seeing. An author who wants it unattended clears it per tool.
+    async def test_an_author_can_gate_both_entry_points_and_leave_task_alone(self):
+        """Nothing is gated by default, this included; an author who wants to
+        see a specialist a model wrote a moment ago gates the two entry points
+        that make one, and `task` - gated by the delegate's own reviewed spec -
+        stays unattended.
         """
         gated = approval_required_tools(
-            AgentSpec(name="Orchestrator", capabilities=[{"id": "subagents", "config": {}}])
+            AgentSpec(
+                name="Orchestrator",
+                capabilities=[
+                    {
+                        "id": "subagents",
+                        "config": {},
+                        "tool_approval": {"create_agent": "required", "delegate": "required"},
+                    }
+                ],
+            )
         )
 
-        assert {"create_agent", "delegate"} <= gated
-        assert "task" not in gated
+        assert gated == {"create_agent", "delegate"}
 
 
 class TestTheModelIsChosenFromTheOrganizationsOwnProfiles:

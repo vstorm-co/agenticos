@@ -1,9 +1,11 @@
 "use client";
 
-import { create } from "zustand";
+import { create, createStore, type StateCreator } from "zustand";
+
+import { scopedStore } from "./chat-scope-context";
 import type { ChatMessageFile } from "@/types";
 
-interface FilePreviewState {
+export interface FilePreviewState {
   /**
    * Every file this conversation carries, in the order it arrived.
    *
@@ -32,7 +34,7 @@ interface FilePreviewState {
   close: () => void;
 }
 
-export const useFilePreviewStore = create<FilePreviewState>((set) => ({
+const filePreviewState: StateCreator<FilePreviewState> = (set) => ({
   available: [],
   openId: null,
   setAvailable: (files) => set({ available: files }),
@@ -48,4 +50,12 @@ export const useFilePreviewStore = create<FilePreviewState>((set) => ({
       return file === undefined ? {} : { openId: file.id };
     }),
   close: () => set({ openId: null }),
-}));
+});
+
+/** A copy of its own, for a conversation in a scope - see `ChatScope`. */
+export const createFilePreviewStore = () => createStore<FilePreviewState>()(filePreviewState);
+
+export const useFilePreviewStore = scopedStore(
+  create<FilePreviewState>()(filePreviewState),
+  (scope) => scope.filePreview,
+);

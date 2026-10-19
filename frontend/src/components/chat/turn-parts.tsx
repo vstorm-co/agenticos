@@ -1,17 +1,25 @@
 "use client";
 
-import { MessageCircleQuestion } from "lucide-react";
+import { Lightbulb, MessageCircleQuestion } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { useLinger, useSmoothText } from "@/hooks/use-smooth-text";
 import { toolEntry } from "@/lib/tool-catalog";
+import { isVisualTool } from "@/lib/visuals";
 import { cn } from "@/lib/utils";
+import { useInChatScope } from "@/stores/chat-scope-context";
+import type { DelegateRef } from "@/lib/delegations";
 import type { McpServerRef } from "@/lib/tool-steps";
-import type { MessagePart } from "@/types";
+import type { MessagePart, ToolCall } from "@/types";
+import type { Mentionable } from "@/types/mention";
 import { AgentSteps } from "./agent-step";
-import { ThinkingOrb } from "@/components/ui/thinking-orb";
+import { TurnBrowses } from "./browser-card";
 import { MarkdownContent } from "./markdown-content";
+import { RichText } from "./mention-chip";
 import { ToolCallCard } from "./tool-call-card";
+import { TurnVisuals } from "./visual-panel";
+import { YouFace } from "./you-face";
+import { useTurnElapsed, WorkFold, WorkingLine } from "./work-fold";
 
 /**
  * A turn's body: its reasoning, its work and its words, in the order they arrived.
@@ -39,71 +47,108 @@ export function TurnParts({
   isStreaming,
   isUser,
   mcpServers,
+  agents = [],
   openLastStep = false,
   conversationId,
   onCiteClick,
+  startedAt,
+  durationMs,
+  stopped = false,
 }: {
   parts: MessagePart[];
   isStreaming: boolean;
   isUser: boolean;
   /** The organization's MCP connections, or empty where the caller has none to offer. */
   mcpServers: McpServerRef[];
+  /** The agents the reader can see, for naming a delegate; empty on a public page. */
+  agents?: readonly DelegateRef[];
   openLastStep?: boolean;
   conversationId?: string;
   onCiteClick?: (index: number) => void;
+  /** When the turn began, which a live turn counts its working time from. */
+  startedAt?: Date;
+  /** How long the run took, for a reloaded turn; absent where it is not known. */
+  durationMs?: number;
+  /** The run was stopped part-way, so its work ends without an answer or a "Done". */
+  stopped?: boolean;
 }) {
-  return (
-    <>
-      {runsOf(parts).map((run) =>
-        run.kind === "tools" ? (
-          <div key={run.parts[0].id} className="w-full">
-            {/* The rail folds its own earlier steps away, but it cannot see what is
+  const runs = runsOf(parts);
+  const elapsed = useTurnElapsed(startedAt, isStreaming);
+  // A browse is shown in the turn whether or not the steps around it fold:
+  // inside a folded run it would be a live browser nobody can see is running.
+  const render = (run: PartRun, browses = true) =>
+    run.kind === "tools" ? (
+      <div key={run.parts[0].id} className="w-full">
+        {/* The rail folds its own earlier steps away, but it cannot see what is
                 in them - so whether this run holds something a person has to answer
                 is decided here, where the statuses and the names are. */}
-            <AgentSteps
-              showAll={mustShowEveryStep(run.parts)}
-              done={run.parts.length > 1 && !isStreaming}
-            >
-              {run.parts.map((part, step) => (
-                <ToolCallCard
-                  key={part.id}
-                  toolCall={part.toolCall!}
-                  conversationId={conversationId}
-                  mcpServers={mcpServers}
-                  // The last call of that turn, which is the one whose result the
-                  // reader is here for.
-                  startOpen={openLastStep && run.isLast && step === run.parts.length - 1}
-                />
-              ))}
-            </AgentSteps>
-          </div>
-        ) : run.part.type === "thinking" ? (
-          <ThinkingBlock
-            key={run.part.id}
-            text={run.content}
-            open={isStreaming && run.isLast}
-            // The block still taking deltas, not every block in a streaming
-            // turn: the orb marks where the thinking is arriving, and a turn
-            // that thought twice would otherwise show two of them.
-            isStreaming={isStreaming && run.isLast}
-          />
-        ) : run.part.type === "ask_user" ? (
-          <AskUserBlock
-            key={run.part.id}
-            question={run.part.question ?? ""}
-            answer={run.part.answer ?? ""}
-            askedBy={run.part.askedBy}
-          />
-        ) : (
-          <TextBubble
-            key={run.part.id}
-            text={run.content}
-            showCursor={isStreaming && run.isLast}
-            isUser={isUser}
-            onCiteClick={onCiteClick}
-          />
-        ),
-      )}
+        <AgentSteps
+          showAll={mustShowEveryStep(run.parts)}
+          done={run.parts.length > 1 && !isStreaming && !stopped}
+        >
+          {run.parts.map((part, step) => (
+            <ToolCallCard
+              key={part.id}
+              toolCall={part.toolCall!}
+              conversationId={conversationId}
+              mcpServers={mcpServers}
+              agents={agents}
+              // The last call of that turn, which is the one whose result the
+              // reader is here for.
+              startOpen={openLastStep && run.isLast && step === run.parts.length - 1}
+            />
+          ))}
+        </AgentSteps>
+        {browses && <TurnBrowses calls={browseCalls([run])} />}
+        {browses && <TurnVisuals calls={visualCalls([run])} />}
+      </div>
+    ) : run.part.type === "thinking" ? (
+      <ThinkingBlock
+        key={run.part.id}
+        text={run.content}
+        open={isStreaming && run.isLast}
+        // The block still taking deltas, not every block in a streaming
+        // turn: the orb marks where the thinking is arriving, and a turn
+        // that thought twice would otherwise show two of them.
+        isStreaming={isStreaming && run.isLast}
+      />
+    ) : run.part.type === "steer" ? (
+      <SteerBlock key={run.part.id} text={run.content} />
+    ) : run.part.type === "ask_user" ? (
+      <AskUserBlock
+        key={run.part.id}
+        question={run.part.question ?? ""}
+        answer={run.part.answer ?? ""}
+        askedBy={run.part.askedBy}
+      />
+    ) : (
+      <TextBubble
+        key={run.part.id}
+        text={run.content}
+        showCursor={isStreaming && run.isLast}
+        isUser={isUser}
+        onCiteClick={onCiteClick}
+      />
+    );
+
+  if (isStreaming) {
+    return (
+      <>
+        {runs.some(isWork) && <WorkingLine elapsedMs={elapsed} />}
+        {runs.map((run) => render(run))}
+      </>
+    );
+  }
+  const split = foldWork(runs, stopped);
+  if (split === null) return <>{runs.map((run) => render(run))}</>;
+  return (
+    <>
+      <WorkFold steps={split.steps} durationMs={durationMs ?? elapsed} stopped={stopped}>
+        {split.folded.map((run) => render(run, false))}
+      </WorkFold>
+      <TurnBrowses calls={browseCalls(split.folded)} />
+      <TurnVisuals calls={visualCalls(split.folded)} />
+      {split.shown.map((run) => render(run))}
     </>
   );
 }
@@ -124,16 +169,14 @@ export function ThinkingBlock({
           bordered panel around it gives it more weight on the page than the answer
           itself - which is backwards, and was the loudest thing in every turn. */}
       <summary className="text-muted-foreground hover:text-foreground/80 flex cursor-pointer items-center gap-2 text-[13px] select-none">
-        {/* The same mark either way: moving while the reasoning arrives, frozen
-            once it is done. Swapping it for a different glyph at the end drew
-            the eye to a change that meant nothing. */}
-        <ThinkingOrb
-          state="breathing"
-          size={20}
-          paused={!isStreaming}
-          className="-my-2 h-6 w-6 opacity-80"
-        />
-        {t("thoughtAboutIt")}
+        {/* A bulb, not the orb. The orb is the turn at work, and it sits on the
+            line above while the turn runs - two of them stacked read as the same
+            thing said twice. This row is an aside you can open, drawn like the
+            steps beside it: its own mark in the same slot, then its name. */}
+        <span aria-hidden className="flex h-6 w-6 shrink-0 items-center justify-center">
+          <Lightbulb className="h-3.5 w-3.5" />
+        </span>
+        <span className={cn(isStreaming && "shimmer-text")}>{t("thoughtAboutIt")}</span>
       </summary>
       {/* Markdown, not a `<pre>`. Reasoning is written the way the answer is - the
           models that expose it head each block with `**Analyzing attached files**`
@@ -145,6 +188,43 @@ export function ThinkingBlock({
         <MarkdownContent content={text} />
       </div>
     </details>
+  );
+}
+
+/**
+ * What the person sent into the running task (#2087), drawn as their every other
+ * message is - their face, "You", a filled bubble on the right - at the point in
+ * the turn where it reached the model; the text after it is the agent acting on
+ * it. An aside saying "You added:" made the person's own words read as a note
+ * the agent had taken.
+ */
+export function SteerBlock({ text }: { text: string }) {
+  const t = useTranslations("chat");
+  const compact = useInChatScope();
+  return (
+    <div className="flex flex-col items-end gap-2 py-2">
+      <div className="flex flex-row-reverse items-center gap-2">
+        <span
+          className={cn(
+            "flex shrink-0 items-center justify-center overflow-hidden rounded-full",
+            compact ? "h-6 w-6" : "h-7 w-7",
+          )}
+        >
+          <YouFace />
+        </span>
+        <span
+          className={cn(
+            "font-medium",
+            compact ? "text-muted-foreground text-xs" : "text-foreground text-sm",
+          )}
+        >
+          {t("rail.you")}
+        </span>
+      </div>
+      <div className="max-w-[85%]">
+        <TextBubble text={text} showCursor={false} isUser />
+      </div>
+    </div>
   );
 }
 
@@ -205,13 +285,18 @@ export function TextBubble({
   showCursor,
   isUser,
   onCiteClick,
+  mentions,
 }: {
   text: string;
   showCursor: boolean;
   isUser: boolean;
   onCiteClick?: (index: number) => void;
+  /** What the person picked with `@`, shown where it sits in their text. */
+  mentions?: readonly Mentionable[];
 }) {
   const visible = useSmoothText(text, showCursor && !isUser);
+  // The narrow chat beside a page reads at the size of the page around it.
+  const compact = useInChatScope();
   // Words keep their fade-in spans until the last one has finished fading: a fast
   // model ends its turn while its final words are still surfacing.
   const flowing = useLinger(showCursor || visible.length < text.length, WORD_FADE_MS);
@@ -219,11 +304,19 @@ export function TextBubble({
     // A panel rather than the inverted slab this was. `bg-foreground` made the
     // question the brightest object on the page, louder than the answer under
     // it - which is backwards: the question is what somebody already knows they
-    // asked. The border is what keeps the shape in the light theme, where the
-    // fill is three percent off the page.
+    // asked. A fill of the ink at low strength rather than a hairline around a
+    // fill three percent off the page: the shape holds in both themes without a
+    // line drawn round it.
     return (
-      <div className="bg-secondary text-secondary-foreground border-border/60 relative rounded-2xl rounded-tr-sm border px-3 py-2 sm:px-4 sm:py-2.5">
-        <p className="text-sm break-words whitespace-pre-wrap">{text}</p>
+      <div
+        className={cn(
+          "bg-foreground/[0.07] text-foreground relative rounded-2xl",
+          compact ? "px-3 py-1.5" : "px-3 py-2 sm:px-4 sm:py-2.5",
+        )}
+      >
+        <p className={cn("break-words whitespace-pre-wrap", compact ? "text-[13px]" : "text-sm")}>
+          <RichText text={text} mentions={mentions ?? []} />
+        </p>
       </div>
     );
   }
@@ -233,7 +326,11 @@ export function TextBubble({
     // into place and each new word fades in, instead of appearing; both come off
     // when the turn ends, so nothing already read ever animates again.
     <div
-      className={cn("prose-sm max-w-none text-[15px] leading-relaxed", showCursor && "stream-in")}
+      className={cn(
+        "prose-sm max-w-none leading-relaxed",
+        compact ? "text-[13.5px]" : "text-[15px]",
+        showCursor && "stream-in",
+      )}
     >
       <MarkdownContent content={visible} onCiteClick={onCiteClick} streaming={flowing} />
       {showCursor && (
@@ -250,7 +347,7 @@ export function TextBubble({
  * tools always has a first step, and a part of another kind always has the text that
  * earned it a run.
  */
-type PartRun =
+export type PartRun =
   | {
       kind: "tools";
       /** Never empty: the run exists because a call opened it. */
@@ -285,6 +382,10 @@ export function runsOf(parts: MessagePart[]): PartRun[] {
       runs.push({ kind: "other", part, content: "", isLast: false });
       continue;
     }
+    if (part.type === "steer" && part.content) {
+      runs.push({ kind: "other", part, content: part.content, isLast: false });
+      continue;
+    }
     if (
       (part.type === "text" || part.type === "thinking") &&
       part.content !== undefined &&
@@ -312,11 +413,95 @@ export function runsOf(parts: MessagePart[]): PartRun[] {
  * the same row the card reads to decide whether to open itself - so a tool is
  * described in one place and the rail and the card cannot disagree about it.
  */
+/**
+ * The calls that open a browser window in these runs, in the order they were made:
+ * every `browse_web`, and the first `browser_open` - the one that starts the agent
+ * driving the tab itself. A later `browser_open` in the same turn navigates that
+ * same tab, as its clicks do, so it is drawn in the window already there rather
+ * than as a second one beside it.
+ */
+export function browseCalls(runs: PartRun[]): ToolCall[] {
+  let driving = false;
+  return runs.flatMap((run) =>
+    run.kind === "tools"
+      ? run.parts.flatMap((part) => {
+          const call = part.toolCall;
+          if (call?.name === "browse_web") return [call];
+          if (call?.name !== "browser_open" || driving) return [];
+          driving = true;
+          return [call];
+        })
+      : [],
+  );
+}
+
+/**
+ * The calls that draw in these runs, in the order they were made. Like a browse,
+ * a drawing is shown whether or not the steps around it fold: it is what the
+ * turn produced, not a step of the work.
+ */
+export function visualCalls(runs: PartRun[]): ToolCall[] {
+  return runs.flatMap((run) =>
+    run.kind === "tools"
+      ? run.parts.flatMap((part) =>
+          part.toolCall && isVisualTool(part.toolCall.name) ? [part.toolCall] : [],
+        )
+      : [],
+  );
+}
+
 export function mustShowEveryStep(parts: MessagePart[]): boolean {
   return parts.some((part) => {
     const call = part.toolCall;
     if (!call) return false;
-    if (call.status === "error" || call.status === "awaiting_approval") return true;
+    if (
+      call.status === "error" ||
+      call.status === "awaiting_approval" ||
+      call.status === "awaiting_answer"
+    ) {
+      return true;
+    }
     return toolEntry(call.name)?.opensOnSight === true;
   });
+}
+
+/** Narration short enough to be part of the work rather than part of the answer. */
+const NARRATION_CHARS = 400;
+
+/** Whether a stretch is the agent working - calling tools or thinking. */
+function isWork(run: PartRun): boolean {
+  return run.kind === "tools" || run.part.type === "thinking";
+}
+
+/**
+ * A finished turn's work before its answer, split from what stays on the page.
+ *
+ * Folded: every run of tool calls and every thought before the last text, and the
+ * short narration between them ("Let me check the list."). Kept, in order: a run a
+ * person has to see (`mustShowEveryStep`), a question the agent asked, what the
+ * person added mid-turn, and a passage long enough to be an answer of its own.
+ * Null when there is no answer to fold the work above, or no work in front of it -
+ * except for a stopped turn, whose work folds whole: it ends where it was cut off,
+ * and the line saying so is the account of it.
+ */
+export function foldWork(
+  runs: PartRun[],
+  stopped = false,
+): { folded: PartRun[]; shown: PartRun[]; steps: number } | null {
+  const lastText = runs.findLastIndex((run) => run.kind === "other" && run.part.type === "text");
+  const answer = lastText <= 0 && stopped ? runs.length : lastText;
+  if (answer <= 0) return null;
+  const folded: PartRun[] = [];
+  const kept: PartRun[] = [];
+  for (const run of runs.slice(0, answer)) {
+    const foldable =
+      run.kind === "tools"
+        ? !mustShowEveryStep(run.parts)
+        : run.part.type === "thinking" ||
+          (run.part.type === "text" && run.content.length <= NARRATION_CHARS);
+    (foldable ? folded : kept).push(run);
+  }
+  if (!folded.some(isWork)) return null;
+  const steps = folded.reduce((sum, run) => sum + (run.kind === "tools" ? run.parts.length : 0), 0);
+  return { folded, shown: [...kept, ...runs.slice(answer)], steps };
 }

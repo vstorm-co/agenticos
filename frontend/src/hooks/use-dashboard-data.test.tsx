@@ -38,7 +38,7 @@ describe("useRecentFailures", () => {
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(apiClient.get).toHaveBeenCalledWith("/runs", {
-      params: { status: "failed,budget_exceeded", limit: "5" },
+      params: { status: "failed,budget_exceeded,loop_stopped", limit: "5" },
     });
     expect(result.current.failures).toHaveLength(1);
     expect(result.current.total).toBe(1);

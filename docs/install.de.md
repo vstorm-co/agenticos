@@ -1,5 +1,5 @@
 ---
-source_sha: "c27849d0d0ef"
+source_sha: "fcddf28be3f1"
 ---
 
 # Installation { #install }
@@ -187,35 +187,33 @@ diese Kette einmal ab:
 | Einen Owner | `admin@example.com` / `admin123`, oder `--email` / `--password` |
 | Einen Vault-Eintrag | Ihren Provider-Key, für diese Organisation versiegelt |
 | Ein Model Profile | `gpt-4.1`, `claude-sonnet-4-6`, `gemini-2.5-pro` oder `openai/gpt-4.1`, je nachdem, für welchen Provider der Key ist |
-| Eine Context-Datei | `AGENTS.md`, die erklärt, was diese Plattform ist |
-| Einen Agent | `@getting-started`, veröffentlicht, wenn es einen Key gibt |
+| Zwei Agents | Den **Architect** in der Ecke jeder Seite und **Claude Code like**, beide veröffentlicht, wenn es einen Key gibt |
 
 Öffnen Sie jetzt <http://localhost:3000>, melden Sie sich als
-`admin@example.com` / `admin123` an und gehen Sie zu
-**Agents → Getting Started → Test**.
+`admin@example.com` / `admin123` an und fragen Sie einen von beiden etwas:
+**Claude Code like** im **Chat** oder den **Architect** aus der Ecke jeder Seite.
 
-Sie haben einen funktionierenden Agent. Kein Platzhalter: Er kann im Web suchen
-und eine Seite holen, Python ausführen, ein Diagramm zeichnen, Dateien und eine
-Shell führen, eine Arbeit planen, sich etwas über eine Unterhaltung hinaus
-merken, durchsuchen, was früher gesagt wurde, die mitgelieferten Skills und
-`AGENTS.md` lesen und unabhängige Teile an Sub-Agents geben, die er im Moment
-selbst erfindet. Alles mit dem einen Key, den Sie gerade eingefügt haben — die
-Sandbox läuft im Speicher des Runs selbst, und die Suche nutzt standardmäßig
-DuckDuckGo, es gibt also kein zweites Credential und keinen Dienst aufzusetzen.
+Claude Code like ist ein Allzweck-Agent: Er liest, bevor er handelt, plant eine
+Arbeit in mehreren Schritten, bearbeitet Dateien und führt Befehle in seiner
+Sandbox aus, recherchiert im Web, delegiert an seine Spezialisten und prüft, was er
+getan hat. Der Architect kennt diese Plattform: Er findet Agents, Runs und
+Wissensdatenbanken, erklärt, warum ein Run gescheitert ist und was er gekostet hat,
+und entwirft einen Agent oder eine Wissensdatenbank zu Ihrer Freigabe.
 
-Öffnen Sie ihn im Builder, um zu sehen wie: Jedes davon ist eine Capability, die
-eingeschaltet wurde, und die Instruktionen des Agents sind ein Textfeld, das Sie
-ändern können.
+Öffnen Sie einen davon im Builder, um zu sehen wie: Jedes davon ist eine
+Capability, die eingeschaltet wurde, und die Instruktionen des Agents sind ein
+Textfeld, das Sie ändern können.
 
 !!! tip "Noch kein Provider-Key?"
 
-    Lassen Sie `BOOTSTRAP_API_KEY` weg. Es wird trotzdem alles angelegt, und der
-    Demo-Agent wird als **Entwurf** gespeichert statt veröffentlicht — ein Agent ohne
+    Lassen Sie `BOOTSTRAP_API_KEY` weg. Es wird trotzdem alles angelegt, und beide
+    Agents werden als **Entwürfe** gespeichert statt veröffentlicht — ein Agent ohne
     Modell kann nicht antworten, und einen zu veröffentlichen, der bei seiner ersten
     Nachricht scheitert, ist schlimmer, als ihn nicht zu veröffentlichen.
 
     Hinterlegen Sie einen Key unter **Settings → AI providers** und veröffentlichen
-    Sie ihn dann.
+    Sie dann Claude Code like. Der Architect veröffentlicht sich auf dem ersten
+    Modell der Organisation selbst.
 
 !!! note "`make seed` ist etwas anderes"
 

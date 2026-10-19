@@ -54,6 +54,7 @@ from app.agents.capabilities.sandbox._identity import (
 from app.agents.capabilities.sandbox._recording import RecordingWorkspace
 from app.agents.capabilities.tool_output_limits import OVERFLOW_PREFIX, WorkspaceOverflowStore
 from app.agents.spec import AgentSpec
+from app.core import background
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.repositories import agent_workspace as workspace_repo
@@ -413,20 +414,12 @@ class TestReadingTheSpec:
 
 
 class TestApprovalIsPerTool:
-    def test_only_running_commands_is_gated(self):
-        """One flag for the capability would gate `ls`, and authors would turn the
-        lot off rather than write seven overrides.
-
-        Writing is not gated either, which was a correction rather than a default:
-        a workspace is scratch space deleted with its conversation, so a write is
-        not the class of act an email is - and an agent that must ask before every
-        one cannot do multi-step work, which is how an author ends up turning off
-        the gate that mattered. `execute` runs arbitrary commands on somebody's
-        host, and that is the one worth a person looking at.
+    def test_nothing_is_gated_until_somebody_asks(self):
+        """Not even `execute`. A gate nobody chose parked runs in channels and
+        routines where nobody was there to answer it, so the author decides -
+        per tool, or for the whole capability.
         """
-        gated = approval_required_tools(_spec())
-
-        assert gated == {"execute"}
+        assert approval_required_tools(_spec()) == frozenset()
 
     def test_a_binding_still_overrides_the_code(self):
         spec = AgentSpec(
@@ -443,7 +436,12 @@ class TestApprovalIsPerTool:
         spec = AgentSpec(
             name="Renamed",
             capabilities=[
-                {"id": "sandbox", "config": {}, "tool_overrides": {"execute": {"name": "run_it"}}}
+                {
+                    "id": "sandbox",
+                    "config": {},
+                    "tool_overrides": {"execute": {"name": "run_it"}},
+                    "tool_approval": {"execute": "required"},
+                }
             ],
         )
 
@@ -686,20 +684,17 @@ class TestOpeningAndClosing:
 
         assert handle in saved.await_args.kwargs["files"]
 
-    async def test_a_flush_overtaken_by_another_run_says_which_paths_it_dropped(
+    async def test_a_flush_overtaken_by_another_run_keeps_what_that_run_stored(
         self, monkeypatch, mock_db_session, caplog
     ):
-        """The last flush wins, and this is what stops it winning silently.
-
-        Reachable under the scopes whose purpose is sharing - `agent`, `channel`,
-        `user` - where two runs hold one workspace and the socket's own guard does
-        not apply. `version` documented this detection long before anything read
-        the column.
-        """
-        opened = _row(version=4)
+        """Stored whole, the second flush erased what the first had written in
+        between - two teammates in a project, two users of an `agent`-scoped
+        workspace. Only what this run changed is laid over the stored document."""
+        opened = _row(version=4, files={"/shared.txt": {"content": ["v1"]}})
         monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=opened))
         monkeypatch.setattr(workspace_repo, "touch", AsyncMock(return_value=opened))
-        monkeypatch.setattr(workspace_repo, "save_files", AsyncMock(return_value=opened))
+        saved = AsyncMock(return_value=opened)
+        monkeypatch.setattr(workspace_repo, "save_files", saved)
         service = SandboxWorkspaceService(mock_db_session)
 
         workspace = await service.open(
@@ -707,18 +702,78 @@ class TestOpeningAndClosing:
         )
         assert workspace is not None
         await workspace.workspace.write_text("/mine.txt", "this run's work")
-        # Somebody else finished in between: the committed row has moved on, and
-        # holds a file this run never saw.
-        overtaken = _row(version=5, files={"/theirs.txt": {"content": ["gone"]}})
+        # Somebody else finished in between, with a file this run never saw.
+        overtaken = _row(
+            version=5,
+            files={"/shared.txt": {"content": ["v1"]}, "/theirs.txt": {"content": ["kept"]}},
+        )
         mock_db_session.get = AsyncMock(return_value=overtaken)
 
         with caplog.at_level(logging.WARNING):
             await service.close(workspace)
 
-        [record] = [r for r in caplog.records if r.message == "workspace_flush_overtaken"]
-        assert record.opened_version == 4
-        assert record.found_version == 5
-        assert record.paths_lost == ["/theirs.txt"]
+        stored = saved.await_args.kwargs["files"]
+        assert set(stored) == {"/mine.txt", "/shared.txt", "/theirs.txt"}
+        assert stored["/theirs.txt"] == {"content": ["kept"]}
+        assert not [r for r in caplog.records if r.message == "workspace_flush_conflict"]
+
+    async def test_a_path_both_runs_changed_is_this_runs_and_named(
+        self, monkeypatch, mock_db_session, caplog
+    ):
+        opened = _row(
+            version=4,
+            files={
+                "/plan.md": {
+                    "content": ["v1"],
+                    "created_at": "2026-10-18T00:00:00Z",
+                    "modified_at": "2026-10-18T00:00:00Z",
+                },
+                "/old.txt": {
+                    "content": ["x"],
+                    "created_at": "2026-10-18T00:00:00Z",
+                    "modified_at": "2026-10-18T00:00:00Z",
+                },
+            },
+        )
+        monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=opened))
+        monkeypatch.setattr(workspace_repo, "touch", AsyncMock(return_value=opened))
+        saved = AsyncMock(return_value=opened)
+        monkeypatch.setattr(workspace_repo, "save_files", saved)
+        service = SandboxWorkspaceService(mock_db_session)
+
+        workspace = await service.open(
+            _spec(session_scope="agent"), ctx=_ctx(), identity=_identity()
+        )
+        assert workspace is not None
+        await workspace.workspace.write_text("/plan.md", "mine")
+        await workspace.workspace.remove("/old.txt")
+        mock_db_session.get = AsyncMock(
+            return_value=_row(
+                version=5,
+                files={
+                    "/plan.md": {
+                        "content": ["theirs"],
+                        "created_at": "2026-10-18T00:00:00Z",
+                        "modified_at": "2026-10-18T00:00:00Z",
+                    },
+                    "/old.txt": {
+                        "content": ["x"],
+                        "created_at": "2026-10-18T00:00:00Z",
+                        "modified_at": "2026-10-18T00:00:00Z",
+                    },
+                },
+            )
+        )
+
+        with caplog.at_level(logging.WARNING):
+            await service.close(workspace)
+
+        stored = saved.await_args.kwargs["files"]
+        # The later write wins where both wrote; a removal this run made holds.
+        assert set(stored) == {"/plan.md"} and stored["/plan.md"]["content"] == ["mine"]
+        [record] = [r for r in caplog.records if r.message == "workspace_flush_conflict"]
+        assert (record.opened_version, record.found_version) == (4, 5)
+        assert record.paths_overwritten == ["/plan.md"]
         assert record.scope == "agent"
 
     async def test_an_uncontested_flush_says_nothing(self, monkeypatch, mock_db_session, caplog):
@@ -738,7 +793,7 @@ class TestOpeningAndClosing:
         with caplog.at_level(logging.WARNING):
             await service.close(workspace)
 
-        assert not [r for r in caplog.records if r.message == "workspace_flush_overtaken"]
+        assert not [r for r in caplog.records if r.message == "workspace_flush_conflict"]
 
     async def test_the_committed_row_is_read_rather_than_the_one_already_loaded(
         self, monkeypatch, mock_db_session
@@ -756,6 +811,8 @@ class TestOpeningAndClosing:
         await service.close(workspace)
 
         assert mock_db_session.get.await_args.kwargs["populate_existing"] is True
+        # Held to the commit, so a second flush waits and merges onto this one.
+        assert mock_db_session.get.await_args.kwargs["with_for_update"] is True
 
     async def test_the_skills_tree_from_before_the_move_is_not_persisted_again(
         self, monkeypatch, mock_db_session
@@ -967,6 +1024,18 @@ class TestWorkspacesAreScopedToTheirReader:
         await SandboxWorkspaceService(mock_db_session).files_of(_ctx(), row.id)
 
         listed.assert_not_called()
+
+    @pytest.mark.security
+    async def test_a_projects_workspace_is_not_read_by_id_even_by_an_operator(
+        self, monkeypatch, mock_db_session
+    ):
+        """A project's files are read through the project, whose sharing decides
+        who may; `connections:manage` is not a way around it."""
+        row = _row(files={}, scope="project", project_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "get", AsyncMock(return_value=row))
+
+        with pytest.raises(NotFoundError):
+            await SandboxWorkspaceService(mock_db_session).files_of(_ctx(), row.id)
 
 
 class TestListingAStoredWorkspace:
@@ -1317,6 +1386,8 @@ class TestServingAConversationsFileAsBytes:
         """An empty body would be indistinguishable from a file the agent wrote and
         left empty."""
         monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[]))
+        # Not in a project either, so there is no project's to fall back on.
+        mock_db_session.scalar = AsyncMock(return_value=None)
 
         with pytest.raises(NotFoundError):
             await SandboxWorkspaceService(mock_db_session).read_bytes(
@@ -2682,6 +2753,12 @@ class TestASessionAcrossRuns:
         assert [r for r in caplog.records if r.message == "workspace_lost_sandbox_not_deleted"]
 
 
+async def _committed(session: object) -> None:
+    """What the request's session does after its commit: start what it deferred."""
+    background.start_deferred(session)  # ty: ignore[invalid-argument-type]
+    await background.drain()
+
+
 def _conversation_holds(monkeypatch: pytest.MonkeyPatch, *rows: object) -> AsyncMock:
     monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=list(rows)))
     deleted = AsyncMock()
@@ -2713,6 +2790,9 @@ class TestDeletingAConversation:
         await SandboxWorkspaceService(mock_db_session).purge_for_conversation(
             _ctx(), conversation_id=uuid4()
         )
+        # Nothing is destroyed until the deletion has committed.
+        assert sandboxes.destroyed == []
+        await _committed(mock_db_session)
 
         # By the session the row recorded, on the connection's own provider name.
         assert sandboxes.destroyed == [
@@ -2737,13 +2817,14 @@ class TestDeletingAConversation:
 
         assert count == 1
         deleted.assert_awaited_once()
+        await _committed(mock_db_session)
         # The organization's own key, and the sandbox the row recorded.
         assert sandboxes.made[0]["config"].api_key == "dtn-live-key"
         assert sandboxes.destroyed == [WorkspaceRef(provider="daytona", id="dt-1")]
 
     @pytest.mark.parametrize("kind", ["docker", "daytona"])
     async def test_a_host_that_is_down_does_not_stop_the_deletion(
-        self, monkeypatch, mock_db_session, sandboxes, kind
+        self, monkeypatch, mock_db_session, sandboxes, kind, caplog
     ):
         """A provider having a bad day must not be the reason somebody cannot
         delete their own conversation; the workspace TTL is the net under a
@@ -2757,9 +2838,30 @@ class TestDeletingAConversation:
         count = await SandboxWorkspaceService(mock_db_session).purge_for_conversation(
             _ctx(), conversation_id=uuid4()
         )
+        with caplog.at_level(logging.WARNING):
+            await _committed(mock_db_session)
 
         assert count == 1
         deleted.assert_awaited_once()
+        assert [r for r in caplog.records if r.message == "workspace_purge_failed"]
+
+    async def test_a_deletion_that_rolls_back_leaves_the_sandbox_alone(
+        self, monkeypatch, mock_db_session, sandboxes
+    ):
+        """Destroyed before the commit, a rollback would restore rows naming
+        files that no longer exist."""
+        _serve(monkeypatch, _resolved())
+        _conversation_holds(
+            monkeypatch, _row(backend="service", session_id="dc-1", connection_id=uuid4())
+        )
+
+        await SandboxWorkspaceService(mock_db_session).purge_for_conversation(
+            _ctx(), conversation_id=uuid4()
+        )
+        background.discard_deferred(mock_db_session)
+        await background.drain()
+
+        assert sandboxes.destroyed == []
 
     async def test_a_connection_deleted_since_does_not_stop_the_deletion(
         self, monkeypatch, mock_db_session
@@ -2881,6 +2983,8 @@ class TestShowingTheFilesToAPerson:
         self, monkeypatch, mock_db_session
     ):
         monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[]))
+        # Not in a project either, so there is no project's to fall back on.
+        mock_db_session.scalar = AsyncMock(return_value=None)
 
         found = await SandboxWorkspaceService(mock_db_session).listing(
             _ctx(), conversation_id=uuid4()
@@ -2967,6 +3071,8 @@ class TestShowingTheFilesToAPerson:
         self, monkeypatch, mock_db_session
     ):
         monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[]))
+        # Not in a project either, so there is no project's to fall back on.
+        mock_db_session.scalar = AsyncMock(return_value=None)
 
         assert (
             await SandboxWorkspaceService(mock_db_session).read_text(
@@ -3867,12 +3973,12 @@ class TestDrawingAHostsImages:
         """Twenty-five workspaces of images would otherwise be two hundred reads to
         draw them 64 pixels wide."""
         from app.repositories import agent as agent_repo
-        from app.services.sandbox_workspace import HOST_THUMBNAIL_BUDGET
+        from app.services.sandbox_workspace import THUMBNAIL_BUDGET
 
         read: list[str] = []
         many = [
             {"path": f"shot-{n}.png", "name": f"shot-{n}.png", "is_dir": False, "size": 120}
-            for n in range(HOST_THUMBNAIL_BUDGET + 5)
+            for n in range(THUMBNAIL_BUDGET + 5)
         ]
         self._host(monkeypatch, many, {}, read)
         _serve(monkeypatch, _resolved())
@@ -3883,10 +3989,8 @@ class TestDrawingAHostsImages:
 
         listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
 
-        assert len(read) == HOST_THUMBNAIL_BUDGET
-        assert sum(1 for file in listing.files if file.thumbnail is not None) == (
-            HOST_THUMBNAIL_BUDGET
-        )
+        assert len(read) == THUMBNAIL_BUDGET
+        assert sum(1 for file in listing.files if file.thumbnail is not None) == (THUMBNAIL_BUDGET)
 
     async def test_the_budget_goes_to_the_first_workspaces_listed(
         self, monkeypatch, mock_db_session
@@ -3898,10 +4002,10 @@ class TestDrawingAHostsImages:
         from pydantic_ai_backends import remote as remote_module
 
         from app.repositories import agent as agent_repo
-        from app.services.sandbox_workspace import HOST_THUMBNAIL_BUDGET
+        from app.services.sandbox_workspace import THUMBNAIL_BUDGET
 
         png = self._png()
-        first = HOST_THUMBNAIL_BUDGET - 4
+        first = THUMBNAIL_BUDGET - 4
         quick_listed = threading.Event()
 
         class _Archive(_ClosesItsClient):
@@ -3954,7 +4058,7 @@ class TestDrawingAHostsImages:
         from pydantic_ai_backends import remote as remote_module
 
         from app.repositories import agent as agent_repo
-        from app.services.sandbox_workspace import _HOST_CALLS_AT_ONCE, HOST_THUMBNAIL_BUDGET
+        from app.services.sandbox_workspace import _HOST_CALLS_AT_ONCE, THUMBNAIL_BUDGET
 
         png = self._png()
         counter = threading.Lock()
@@ -3986,7 +4090,7 @@ class TestDrawingAHostsImages:
                 _leave()
                 return [
                     {"path": f"{session_id}-{n}.png", "is_dir": False, "size": 120}
-                    for n in range(HOST_THUMBNAIL_BUDGET // 2)
+                    for n in range(THUMBNAIL_BUDGET // 2)
                 ]
 
             def read_bytes(self, session_id, file_path):
@@ -4011,9 +4115,7 @@ class TestDrawingAHostsImages:
         )
 
         for listing in listings:
-            assert sum(file.thumbnail is not None for file in listing.files) == (
-                HOST_THUMBNAIL_BUDGET
-            )
+            assert sum(file.thumbnail is not None for file in listing.files) == (THUMBNAIL_BUDGET)
         assert 1 < most <= _HOST_CALLS_AT_ONCE
         assert threads and all(name.startswith("workspace-host") for name in threads)
 
@@ -4179,6 +4281,35 @@ class TestWhatTheBrowserDoesNotShow:
 
         assert [entry["path"] for entry in browsable(entries)] == ["/skillset.md", "/workspace/w"]
 
+    @pytest.mark.parametrize(
+        "path",
+        [
+            ".venv/lib/python3.12/site-packages/py.py",
+            "/workspace/app/__pycache__/main.cpython-312.pyc",
+            "web/node_modules/react/index.js",
+            ".pytest_cache",
+            ".git/HEAD",
+        ],
+    )
+    def test_what_a_toolchain_fills_is_left_out_at_any_depth(self, path: str):
+        """A coding agent's virtualenv was a thousand files on Documents."""
+        entries: list[FileInfo] = [
+            {"name": path.rsplit("/", 1)[-1], "path": path, "is_dir": False},
+            {"name": "main.py", "path": "/workspace/app/main.py", "is_dir": False},
+        ]
+        assert [entry["path"] for entry in browsable(entries)] == ["/workspace/app/main.py"]
+
+    @pytest.mark.parametrize(
+        "path", [".agenticos/coding-agent/a1.exit", "/workspace/.agenticos/coding-agent/x.session"]
+    )
+    def test_the_platforms_own_working_files_are_left_out(self, path: str):
+        """A coding task's events and session are the platform's, not the agent's work."""
+        entries: list[FileInfo] = [
+            {"name": path.rsplit("/", 1)[-1], "path": path, "is_dir": False},
+            {"name": "report.md", "path": "/workspace/report.md", "is_dir": False},
+        ]
+        assert [entry["path"] for entry in browsable(entries)] == ["/workspace/report.md"]
+
     async def test_the_flat_view_leaves_them_out_too(self, monkeypatch, mock_db_session):
         from app.repositories import agent as agent_repo
 
@@ -4246,21 +4377,105 @@ class TestAListingCarriesWhatEachTileDraws:
         assert set(contents.thumbnails) == {"/out/chart.png"}
         assert contents.thumbnails["/out/chart.png"].startswith("data:image/webp;base64,")
 
-    async def test_a_workspace_listing_carries_the_same(self, monkeypatch, mock_db_session):
+    async def test_a_workspace_listed_by_id_draws_no_tiles(self, monkeypatch, mock_db_session):
+        """The explorer reading it draws a tree of names, so a tile here would be an
+        image decoded for nobody (#1930)."""
         row = _row(files=self._stored())
         monkeypatch.setattr(workspace_repo, "get", AsyncMock(return_value=row))
         monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
 
         _found, contents = await SandboxWorkspaceService(mock_db_session).files_of(_ctx(), row.id)
 
-        assert set(contents.previews) == {"/uploads/sales.csv"}
-        assert set(contents.thumbnails) == {"/out/chart.png"}
+        assert {entry["path"] for entry in contents.entries} >= {
+            "/uploads/sales.csv",
+            "/out/chart.png",
+        }
+        assert contents.previews == {}
+        assert contents.thumbnails == {}
+
+    async def test_a_stored_workspace_draws_one_screen_of_images(
+        self, monkeypatch, mock_db_session
+    ):
+        """A stored image costs no fetch, but its decode is the expensive half: forty
+        large PNGs fit under the stored cap and used to be decoded on every listing."""
+        from app.services.sandbox_workspace import THUMBNAIL_BUDGET
+
+        stored = StateBackend()
+        for n in range(THUMBNAIL_BUDGET + 6):
+            stored.write_bytes(f"/out/shot-{n:02}.png", _png((8, 8)))
+        row = _row(files=dict(stored.files))
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+
+        found = await SandboxWorkspaceService(mock_db_session).listing(
+            _ctx(), conversation_id=uuid4()
+        )
+
+        assert found is not None
+        assert len(found[1].thumbnails) == THUMBNAIL_BUDGET
+
+    async def test_a_stored_image_is_decoded_off_the_event_loop(self, monkeypatch, mock_db_session):
+        """A grid of photographs decoded on the loop holds every other request."""
+        import threading
+
+        from app.services import sandbox_workspace as module
+
+        decoded_on: list[str] = []
+        real = module.stored_thumbnail
+
+        def _recording(path: str, data: object) -> str | None:
+            decoded_on.append(threading.current_thread().name)
+            return real(path, data)
+
+        monkeypatch.setattr(module, "stored_thumbnail", _recording)
+        row = _row(files=self._stored())
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+
+        found = await SandboxWorkspaceService(mock_db_session).listing(
+            _ctx(), conversation_id=uuid4()
+        )
+
+        assert found is not None
+        assert set(found[1].thumbnails) == {"/out/chart.png"}
+        assert decoded_on and all(name.startswith("file-io") for name in decoded_on)
+
+    async def test_stored_and_host_images_share_one_screen_of_tiles(
+        self, monkeypatch, mock_db_session
+    ):
+        """The flat view's allowance is request-wide: a stored workspace listed first
+        spends it before a host is asked for anything."""
+        from app.repositories import agent as agent_repo
+        from app.services.sandbox_workspace import THUMBNAIL_BUDGET, stored_entries
+
+        stored = StateBackend()
+        for n in range(THUMBNAIL_BUDGET):
+            stored.write_bytes(f"/out/shot-{n:02}.png", _png((8, 8)))
+        state_row = _row(files=dict(stored.files))
+        host_row = _row(backend="service", session_id="h-1", connection_id=uuid4())
+        monkeypatch.setattr(
+            workspace_repo, "list_for_reader", AsyncMock(return_value=[state_row, host_row])
+        )
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+        service = SandboxWorkspaceService(mock_db_session)
+        host_entries = [{"path": "/remote.png", "size": 10, "is_dir": False}]
+
+        async def _entries(ctx, row):
+            if row is host_row:
+                return WorkspaceContents(entries=host_entries)
+            return WorkspaceContents(entries=stored_entries(dict(row.files or {})))
+
+        monkeypatch.setattr(service, "_entries", _entries)
+        fetched = AsyncMock(return_value={})
+        monkeypatch.setattr(service, "_host_thumbnails", fetched)
+
+        listing = await service.flat_files(_ctx())
+
+        assert sum(file.thumbnail is not None for file in listing.files) == THUMBNAIL_BUDGET
+        assert fetched.await_args.args[2] == []
 
     async def test_a_host_backed_listing_draws_one_screen_of_images_and_previews_nothing(
         self, monkeypatch, mock_db_session
     ):
-        from app.services.sandbox_workspace import HOST_THUMBNAIL_BUDGET
-
         row = _row(backend="service", session_id="dc-1", connection_id=uuid4())
         monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
         service = SandboxWorkspaceService(mock_db_session)
@@ -4273,7 +4488,7 @@ class TestAListingCarriesWhatEachTileDraws:
             "_entries",
             AsyncMock(return_value=WorkspaceContents(entries=entries)),
         )
-        drawn = AsyncMock(return_value=({"/out/chart.png": "data:image/webp;base64,AA"}, 0))
+        drawn = AsyncMock(return_value={"/out/chart.png": "data:image/webp;base64,AA"})
         monkeypatch.setattr(service, "_host_thumbnails", drawn)
 
         found = await service.listing(_ctx(), conversation_id=uuid4())
@@ -4281,7 +4496,5 @@ class TestAListingCarriesWhatEachTileDraws:
         assert found is not None
         assert found[1].previews == {}
         assert found[1].thumbnails == {"/out/chart.png": "data:image/webp;base64,AA"}
-        # A directory is never fetched as an image, and one listing spends at most
-        # one screen of host reads.
-        assert [entry["path"] for entry in drawn.await_args.args[2]] == ["/out/chart.png"]
-        assert drawn.await_args.args[3] == HOST_THUMBNAIL_BUDGET
+        # A directory is never fetched as an image.
+        assert drawn.await_args.args[2] == ["/out/chart.png"]

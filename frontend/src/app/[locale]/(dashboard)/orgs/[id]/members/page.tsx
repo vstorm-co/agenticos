@@ -23,6 +23,7 @@ import {
   InviteMemberDialog,
   OrgAiAssistance,
   OrgApprovalWaiver,
+  OrgAssistant,
   OrgSpendingLimit,
 } from "@/components/teams";
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -310,7 +311,8 @@ export default function OrgMembersPage({ params }: PageProps) {
           { label: org?.name ?? t("members2") },
         ]}
         actions={
-          <div className="flex items-center gap-2">
+          // Wrapping, because four links are wider than a phone (#2075).
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" asChild>
               <Link href={ROUTES.ORG_ROLES(id)}>
                 <ShieldCheck className="h-4 w-4" />
@@ -465,6 +467,9 @@ export default function OrgMembersPage({ params }: PageProps) {
       {org && <OrgApprovalWaiver org={org} />}
 
       {org && <OrgAiAssistance org={org} />}
+      {/* Whether the organization has its AI Architect, and how it greets people.
+          The agent itself is edited in the Builder, which the card links to. */}
+      <OrgAssistant orgId={id} />
 
       {/* The table draws its own skeleton from the same column definitions, so
           the header and every column width are already right while it loads -

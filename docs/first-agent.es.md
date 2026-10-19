@@ -1,5 +1,5 @@
 ---
-source_sha: "3b3318780aed"
+source_sha: "aec1756f1b79"
 ---
 
 # Tu primer agent { #your-first-agent }
@@ -109,7 +109,7 @@ Aquí hay dos cosas que conviene saber:
 - **El nombre y la descripción de una tool son prompt.** Se echa mano de
   `search_refund_policy` en preguntas en las que `search_documents` se queda sin
   usar. Ambos son editables por agent.
-- Las herramientas declaradas con efectos solicitan aprobación según la política configurada. Revisa las excepciones de capability y herramienta antes de publicar.
+- Nada pide aprobación hasta que tú lo digas. Elige **Always ask** en una capability, o en una sola herramienta, que una persona deba ver antes de que se ejecute.
 
 ## 5. Dale algo que leer { #5-give-it-something-to-read }
 
@@ -207,8 +207,7 @@ Nueve pasos, y su forma es la forma de la plataforma:
 2. Nombraste un **perfil de modelo**, para que la clave y el modelo puedan
    cambiar sin que cambie el agent.
 3. Escribiste **instrucciones**.
-4. Activaste **capabilities**, y dejaste que las que tienen efectos pidan
-   aprobación.
+4. Activaste **capabilities**, y elegiste cuáles piden aprobación.
 5. Adjuntaste **conocimiento** para buscar y **skills** para leer.
 6. Pusiste un **budget** y un **límite de pasos**, y dijiste a quién se avisa.
 7. **Publicaste**, lo que congeló una versión y validó el spec.
@@ -305,6 +304,25 @@ Dos de ellos tienen a propósito otra forma:
 
     Cada disposición es por persona, así que experimentar no mueve la página de
     nadie más.
+
+## Lo que ya puedes hacer { #what-you-can-already-do }
+
+Cuatro cosas que la gente busca y no encuentra sola:
+
+- **Ponerlo en una web, una página alojada, un WebSocket o la API pública** - la
+  pestaña **Availability** del agent. El Builder la señala tras la primera
+  publicación.
+- **Conectar una herramienta con tu propia cuenta** - cada persona su GitHub,
+  Gmail o Notion - desde la tarjeta del servidor en **MCP servers**. Consulta
+  [MCP](mcp.md#personal-or-organization-wide).
+- **Encontrar los archivos que guardó un agent** - lo que la gente adjuntó y lo
+  que escribieron los agents está en **Documents**.
+- **Compartirlo como un documento** - **Share** en la cabecera del Builder añade
+  una persona o un grupo y decide quién más lo encuentra. Consulta
+  [Permisos](permissions.md).
+
+El **Architect**, en la esquina de cada página, responde a las mismas preguntas y
+enlaza con el control adecuado.
 
 ## Siguiente { #next }
 

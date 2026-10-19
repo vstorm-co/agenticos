@@ -85,6 +85,10 @@ The capability has one setting worth knowing. Turning **off** the read tool
 means only injected files reach the model and nothing is read on demand — a
 reasonable choice when you want an agent's inputs entirely predictable.
 
+You can also start from the file: **Add to an agent** on its card adds it to the
+agent's draft with the Context capability switched on, and the card says which
+agents carry it already. A knowledge base has the same action on its own page.
+
 ## Access
 
 A context file has an owner and a visibility, like any other resource here, and

@@ -223,7 +223,7 @@ describe("the list card", () => {
     );
     expect(screen.getByText("Whole organization")).toBeInTheDocument();
     expect(screen.getByText("Public link")).toBeInTheDocument();
-    expect(screen.getByRole("link").getAttribute("href")).toBe("/artifacts/a1");
+    expect(screen.getByRole("link").getAttribute("href")).toBe("/apps/a1");
     expect(screen.getByText(/Version 3/)).toBeInTheDocument();
   });
 
@@ -248,6 +248,15 @@ describe("the list card", () => {
     );
     expect(screen.getByText("staging")).toHaveAttribute("title", "Published from this environment");
   });
+
+  it("names the departments a page is shared with, as every other card does", () => {
+    render(
+      <ArtifactCard
+        artifact={artifact({ current_version: null, shared_groups: ["Finance", "Sales", "Ops"] })}
+      />,
+    );
+    expect(screen.getByText("Finance, Sales +1")).toBeInTheDocument();
+  });
 });
 
 describe("the public link card", () => {
@@ -264,7 +273,7 @@ describe("the public link card", () => {
       />,
     );
     expect(
-      screen.getByText("Only people this artifact is shared with can open it."),
+      screen.getByText("Only people this app is shared with can open it."),
     ).toBeInTheDocument();
     expect(screen.queryByText(/Opened|Not opened/)).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Create a public link" }));
@@ -354,8 +363,8 @@ describe("the version picker", () => {
 
 describe("the agent filter", () => {
   const agents = [
-    { id: "ag1", name: "Reporter" },
-    { id: "ag2", name: "Analyst" },
+    { id: "ag1", name: "Reporter", slug: "reporter", has_avatar: false, avatar_color: null },
+    { id: "ag2", name: "Analyst", slug: "analyst", has_avatar: true, avatar_color: 4 },
   ];
 
   it("is not drawn with one publisher and no filter on", () => {
@@ -546,9 +555,9 @@ describe("the public page", () => {
     unlockMock.mockReturnValue({ mutate, data: undefined, error: null, isPending: false });
     render(<PublicArtifact artifact={locked} publicKey="k" />);
 
-    expect(screen.getByRole("heading", { name: "This page is protected" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "This app is protected" })).toBeInTheDocument();
     expect(screen.queryByText("Weekly report")).toBeNull();
-    expect(screen.getByRole("button", { name: "Open the page" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Open the app" })).toBeDisabled();
     await userEvent.type(screen.getByLabelText("Password"), "hunter22{enter}");
     expect(mutate).toHaveBeenCalledWith("hunter22");
   });

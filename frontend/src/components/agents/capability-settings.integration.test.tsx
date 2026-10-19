@@ -20,6 +20,15 @@ vi.mock("@/lib/api-client", async () => {
   };
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+// The real one signs in with ChatGPT through a device code. What this form needs
+// from it is the callback, under the label the real one shows.
+vi.mock("@/components/vault/chatgpt-sign-in", () => ({
+  InlineChatGPTSignIn: ({ onCreated }: { onCreated: (id: string) => void }) => (
+    <button type="button" onClick={() => onCreated("sec-chatgpt")}>
+      Sign in with ChatGPT
+    </button>
+  ),
+}));
 
 /**
  * The capability the secret picker exists for: one that cannot work without a
@@ -30,6 +39,7 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
  * capability, and that capability is a weather lookup behind an API key.
  */
 const WEATHER: CapabilityCatalogEntry = {
+  recommended: null,
   id: "weather",
   name: "Weather",
   category: "utility",
@@ -191,7 +201,7 @@ describe("CapabilitySettings secret picker", () => {
     // Waited for the vault to have arrived, so this is the state with a key
     // available and nobody having picked it - not the one before the list landed.
     expect(await screen.findByText("Choose a secret")).toBeInTheDocument();
-    expect(screen.getByText(/cannot be published until it has one/)).toBeInTheDocument();
+    expect(screen.getByText(/cannot be published until something is/)).toBeInTheDocument();
     expect(picker()).toBeInvalid();
   });
 
@@ -235,6 +245,50 @@ describe("CapabilitySettings secret picker", () => {
     await userEvent.click(screen.getByRole("option", { name: /Weather API key/ }));
 
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ secret_id: "sec-1" }));
+  });
+
+  describe("a key the configuration can use but does not need", () => {
+    // A browser's proxy may sign in with a username and password, or be reached
+    // without one; a hosted browser always needs its key.
+    const BROWSER: CapabilityCatalogEntry = {
+      ...WEATHER,
+      requires_secret: {
+        kind: "api_key",
+        description: "The hosted browser's key, or the proxy's username:password",
+        required_when: { field: "connection", equals: ["hosted"] },
+        optional_when: { field: "connection", equals: ["proxy"] },
+        purpose: null,
+      },
+    };
+
+    it("is offered with a way to choose none, and none is no problem", async () => {
+      serve([API_KEY_SECRET]);
+      const onChange = vi.fn();
+      mount(binding({ config: { connection: "proxy" }, secret_id: "sec-1" }), {
+        definition: BROWSER,
+        onChange,
+      });
+
+      await userEvent.click(await screen.findByLabelText("Secret"));
+      await userEvent.click(screen.getByRole("option", { name: "No secret" }));
+
+      expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ secret_id: null }));
+    });
+
+    it("says nothing is missing while none is chosen", async () => {
+      serve([API_KEY_SECRET]);
+      mount(binding({ config: { connection: "proxy" } }), { definition: BROWSER });
+
+      await waitFor(() => expect(picker()).toHaveTextContent("No secret"));
+      expect(screen.queryByText(/No secret selected/)).not.toBeInTheDocument();
+    });
+
+    it("is not offered where nothing would read it", async () => {
+      serve([API_KEY_SECRET]);
+      mount(binding({ config: {} }), { definition: BROWSER });
+
+      await waitFor(() => expect(screen.queryByLabelText("Secret")).toBeNull());
+    });
   });
 
   it("sends somebody to the vault for a secret that is more than one field", async () => {
@@ -345,7 +399,7 @@ describe("CapabilitySettings secret picker", () => {
     expect(
       await screen.findByText(/says nothing about what your organization has stored/),
     ).toBeInTheDocument();
-    expect(screen.getByText(/cannot be published until it has one/)).toBeInTheDocument();
+    expect(screen.getByText(/cannot be published until something is/)).toBeInTheDocument();
   });
 
   it("names a stored secret of the wrong kind rather than silently dropping it", async () => {
@@ -514,7 +568,7 @@ const KNOWLEDGE: CapabilityCatalogEntry = {
     properties: {
       default_top_k: {
         type: "integer",
-        title: "Default top k",
+        title: "Passages per search",
         description: "How many chunks a search returns.",
       },
     },
@@ -549,7 +603,7 @@ describe("a capability configuration refused at publish", () => {
       { wrapper },
     );
 
-    const input = await screen.findByLabelText(/Default top k/);
+    const input = await screen.findByLabelText(/Passages per search/);
     expect(input).toHaveAttribute("aria-invalid", "true");
     expect(input).toHaveAccessibleDescription(
       expect.stringContaining("Input should be less than or equal to 50"),
@@ -569,7 +623,7 @@ describe("a capability configuration refused at publish", () => {
       { wrapper },
     );
 
-    expect(await screen.findByLabelText(/Default top k/)).not.toHaveAttribute(
+    expect(await screen.findByLabelText(/Passages per search/)).not.toHaveAttribute(
       "aria-invalid",
       "true",
     );
@@ -590,9 +644,68 @@ describe("a capability configuration refused at publish", () => {
       { wrapper },
     );
 
-    expect(await screen.findByLabelText(/Default top k/)).not.toHaveAttribute(
+    expect(await screen.findByLabelText(/Passages per search/)).not.toHaveAttribute(
       "aria-invalid",
       "true",
     );
+  });
+});
+
+/** The coding agent takes a key or a subscription, and says which of each its harness takes. */
+describe("CapabilitySettings coding agent sign-in", () => {
+  const CODER: CapabilityCatalogEntry = {
+    ...WEATHER,
+    id: "coding_agent",
+    name: "Coding agent",
+    requires_secret: {
+      kind: "api_key",
+      also_accepts: ["openai_codex"],
+      description:
+        "Claude Code: an Anthropic key or token. Codex: an OpenAI key or a ChatGPT sign-in.",
+      required_when: null,
+      purpose: null,
+    },
+  };
+  const SIGN_IN: Secret = {
+    id: "sec-3",
+    name: "My ChatGPT",
+    description: null,
+    kind: "openai_codex",
+    hint: "acc1",
+  };
+
+  it("offers a ChatGPT sign-in to Codex, and one already made among the keys", async () => {
+    serve([API_KEY_SECRET, SIGN_IN, AWS_SECRET]);
+    mount(binding({ id: "coding_agent", config: { harness: "codex" } }), { definition: CODER });
+
+    expect(await screen.findByRole("button", { name: "Sign in with ChatGPT" })).toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText("Key or sign-in"));
+    expect(await screen.findByRole("option", { name: /My ChatGPT/ })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Weather API key/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Ingest role/ })).toBeNull();
+  });
+
+  it("binds the sign-in it makes", async () => {
+    serve([API_KEY_SECRET]);
+    const onChange = vi.fn();
+    mount(binding({ id: "coding_agent", config: { harness: "codex" } }), {
+      definition: CODER,
+      onChange,
+    });
+
+    await userEvent.click(await screen.findByRole("button", { name: "Sign in with ChatGPT" }));
+
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ secret_id: "sec-chatgpt" }));
+  });
+
+  it("tells Claude Code where its subscription token comes from", async () => {
+    serve([API_KEY_SECRET]);
+    mount(binding({ id: "coding_agent", config: { harness: "claude_code" } }), {
+      definition: CODER,
+    });
+
+    expect(await screen.findByText("claude setup-token")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Sign in with ChatGPT" })).toBeNull();
+    expect(await screen.findByRole("button", { name: /Claude Code key/ })).toBeInTheDocument();
   });
 });

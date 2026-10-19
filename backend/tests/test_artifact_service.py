@@ -29,6 +29,26 @@ pytestmark = pytest.mark.anyio
 PATH = "app.services.artifact"
 
 
+@pytest.fixture(autouse=True)
+def _shared_with_no_group(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The listing names each page's groups; the session here is a mock."""
+
+    async def nowhere(*_args: object, resource_ids: list[uuid.UUID], **_kwargs: object):
+        return {resource_id: [] for resource_id in resource_ids}
+
+    monkeypatch.setattr(f"{PATH}.groups_sharing", nowhere)
+
+
+@pytest.fixture(autouse=True)
+def _nobody_follows(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The repository is mocked call by call here, and following is its own
+    concern - `TestFollowing` in `test_artifact_followers.py` covers it."""
+    from app.repositories import artifact as artifact_repo
+
+    monkeypatch.setattr(artifact_repo, "is_following", AsyncMock(return_value=False))
+    monkeypatch.setattr(artifact_repo, "follower_ids", AsyncMock(return_value=[]))
+
+
 def _ctx(role: str = OrgRoleName.OWNER, *, org_id: uuid.UUID | None = None) -> AuthContext:
     return AuthContext(user_id=uuid.uuid4(), organization_id=org_id or uuid.uuid4(), role=role)
 
@@ -300,6 +320,25 @@ class TestListing:
         assert result.total == 0
         assert listing.await_args.kwargs["see_all"] is True
 
+    async def test_a_project_s_apps_are_asked_for_only_once_the_project_is_seen(self) -> None:
+        """A project the caller cannot see answers 404, as opening it does, rather
+        than an empty list that says it exists and holds nothing."""
+        ctx = _ctx()
+        project_id = uuid.uuid4()
+        seen = AsyncMock()
+        with (
+            patch(f"{PATH}.ProjectService") as projects,
+            patch(f"{PATH}.visible_resource_ids", new=AsyncMock(return_value=None)),
+            patch(
+                f"{PATH}.artifact_repo.list_visible", new=AsyncMock(return_value=([], 0))
+            ) as listing,
+            patch(f"{PATH}.artifact_repo.latest_versions", new=AsyncMock(return_value={})),
+        ):
+            projects.return_value.get = seen
+            await _service().list_readable(ctx, project_id=project_id)
+        seen.assert_awaited_once_with(ctx, project_id)
+        assert listing.await_args.kwargs["project_id"] == project_id
+
     async def test_shared_with_me_asks_for_grants_even_when_the_role_reaches_everything(
         self,
     ) -> None:
@@ -532,7 +571,7 @@ class TestContent:
             ),
             patch(f"{PATH}.get_file_storage", return_value=storage),
             patch(f"{PATH}.logger") as log,
-            pytest.raises(NotFoundError, match="Artifact not found"),
+            pytest.raises(NotFoundError, match="App not found"),
         ):
             await _service().content(token)
         # Said out loud, because it is storage and the database disagreeing.
@@ -643,5 +682,5 @@ def test_the_console_address_is_the_artifact_s_page_in_its_organization() -> Non
     artifact_id, organization_id = uuid.uuid4(), uuid.uuid4()
     assert (
         artifacts.console_url_for(artifact_id, organization_id)
-        == f"/artifacts/{artifact_id}?org={organization_id}"
+        == f"/apps/{artifact_id}?org={organization_id}"
     )

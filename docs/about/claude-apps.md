@@ -19,7 +19,7 @@ Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS b
 | Unit of purchase | A seat per employee | A deployment; no seat fee |
 | Where it runs | Anthropic's cloud | Your infrastructure |
 | Source | Proprietary | Apache-2.0 |
-| Models | Claude only | 27 providers, Claude included, and local models |
+| Models | Claude only | 28 providers, Claude included, and local models |
 | What you build | Projects, skills and plugins for people who chat | Published agents, each a versioned spec |
 | Who uses it | Employees with a seat | Employees, customers and systems, on eight surfaces |
 | Surfaces | Web, desktop, mobile, Chrome, Office add-ins, Slack in beta | Web chat, widget, hosted page, HTTP API, WebSocket, Slack, Telegram, Mattermost |
@@ -36,11 +36,11 @@ Claude Projects hold instructions and knowledge for the people who chat in them.
 
 ### Any model, and the option to keep it local
 
-Claude plans use Claude models only. AgenticOS reaches [27 providers](../models.md#providers), including Anthropic and Bedrock for Claude, plus OpenAI, Google, Mistral, and Ollama or LiteLLM on your own hardware. A [model profile](../models.md#a-model-profile) with [fallbacks](../models.md#fallbacks) lets an agent move to another model or provider with no republish.
+Claude plans use Claude models only. AgenticOS reaches [28 providers](../models.md#providers), including Anthropic and Bedrock for Claude, plus OpenAI, Google, Mistral, and Ollama or LiteLLM on your own hardware. A [model profile](../models.md#a-model-profile) with [fallbacks](../models.md#fallbacks) lets an agent move to another model or provider with no republish.
 
 ### Approval by someone other than the requester
 
-In Cowork, the person running the task approves write actions, or turns on automatic approval. Anthropic's pages do not describe an approval routed to someone else. In AgenticOS a side-effecting capability tool [parks the run](../governance.md#approvals). The [alert](../governance.md#alerts) goes to the members you choose, and only someone holding `approvals:decide` can decide it, once.
+In Cowork, the person running the task approves write actions, or turns on automatic approval. Anthropic's pages do not describe an approval routed to someone else. In AgenticOS a tool the agent's author gated [parks the run](../governance.md#approvals). The [alert](../governance.md#alerts) goes to the members you choose, and only someone holding `approvals:decide` can decide it, once.
 
 ### Cost per agent, not per seat
 

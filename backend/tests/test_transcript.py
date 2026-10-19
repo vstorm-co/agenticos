@@ -35,6 +35,7 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 
+from app.repositories.conversation import Attributed
 from app.services.transcript import (
     RecordedToolCall,
     TranscriptService,
@@ -46,7 +47,11 @@ pytestmark = pytest.mark.anyio
 
 
 def _run(
-    *, in_a_conversation: bool = True, channel_identity_id: uuid.UUID | None = None
+    *,
+    in_a_conversation: bool = True,
+    channel_identity_id: uuid.UUID | None = None,
+    user_id: uuid.UUID | None = None,
+    publisher_fallback: bool = False,
 ) -> MagicMock:
     # `channel_identity_id` is named rather than left to the mock: an attribute
     # nobody set answers with a `MagicMock`, and this one is written to a column.
@@ -56,6 +61,8 @@ def _run(
         agent_version_id=uuid.uuid4(),
         conversation_id=uuid.uuid4() if in_a_conversation else None,
         channel_identity_id=channel_identity_id,
+        user_id=user_id,
+        initiated_by_publisher_fallback=publisher_fallback,
     )
 
 
@@ -304,7 +311,7 @@ class TestWritingTheTranscript:
             # What this run's earlier turns already claim of its cost. Zero on an
             # ordinary turn; the subtraction is what stops a resumed run counting
             # its parked half twice.
-            repo.attributed_to_run = AsyncMock(return_value=(0, 0, Decimal(0)))
+            repo.attributed_to_run = AsyncMock(return_value=Attributed())
             yield repo
 
     @pytest.fixture
@@ -339,6 +346,25 @@ class TestWritingTheTranscript:
             conversations.create_message.return_value.id,
             "user",
         ), "the file hangs off the turn that brought it, not off the answer"
+
+    async def test_what_the_files_told_the_model_is_kept_beside_the_turn(
+        self, conversations, files
+    ):
+        """Beside the words, not in them: the transcript shows what the person
+        wrote, and the next turn's history replays the rest."""
+        await TranscriptService(_session()).record(
+            _run(),
+            prompt="co tu widzisz",
+            answer="A dashboard.",
+            attachments=[MagicMock(id=uuid.uuid4(), user_id=uuid.uuid4())],
+            attachment_context="\n---\nAttached file: raport.csv",
+        )
+
+        asked = conversations.create_message.await_args_list[0].kwargs
+        assert (asked["content"], asked["attachment_context"]) == (
+            "co tu widzisz",
+            "\n---\nAttached file: raport.csv",
+        )
 
     async def test_a_file_with_no_caption_still_gets_a_turn_to_hang_off(self, conversations, files):
         """Somebody drops an image and says nothing. That is a turn, and its body
@@ -403,6 +429,22 @@ class TestWritingTheTranscript:
         assert (answer["role"], answer["content"], answer["run_id"]) == ("assistant", "two", run.id)
         assert answer["model_name"] == "gpt-4.1"
 
+    async def test_a_resumed_turn_records_only_its_own_cache_split(self, conversations):
+        """The row is cumulative across a park, so the continuation is written
+        with what it added - the cache counts as much as the tokens (#2170)."""
+        run = _run()
+        run.input_tokens, run.output_tokens, run.cost_usd = 900, 90, Decimal("0.9")
+        run.cache_read_tokens, run.cache_write_tokens = 700, 150
+        conversations.attributed_to_run = AsyncMock(
+            return_value=Attributed(400, 40, Decimal("0.4"), 300, 100)
+        )
+
+        await TranscriptService(_session()).record(run, prompt=None, answer="done")
+
+        answer = conversations.create_message.await_args_list[-1].kwargs
+        assert (answer["cache_read_tokens"], answer["cache_write_tokens"]) == (400, 50)
+        assert answer["input_tokens"] == 500
+
     async def test_the_answer_records_the_size_of_the_request_it_came_out_of(self, conversations):
         """Not the run's totals beside it: those sum every request of a tool loop,
         and this is the anchor a replayed history is measured against - a
@@ -442,6 +484,20 @@ class TestWritingTheTranscript:
         prompt = conversations.create_message.await_args_list[0].kwargs
         assert prompt["channel_identity_id"] is None
 
+    async def test_a_turn_names_whoever_started_the_run_and_only_them(self, conversations):
+        """A key's caller typed what their run was asked; a visitor running as the
+        publisher did not, and a chat account already says who it was."""
+        starter = uuid.uuid4()
+        for run, expected in (
+            (_run(user_id=starter), starter),
+            (_run(user_id=starter, publisher_fallback=True), None),
+            (_run(user_id=starter, channel_identity_id=uuid.uuid4()), None),
+        ):
+            conversations.create_message.reset_mock()
+            await TranscriptService(_session()).record(run, prompt="hej", answer="czesc")
+            prompt = conversations.create_message.await_args_list[0].kwargs
+            assert prompt["author_user_id"] == expected
+
     async def test_the_answer_is_attributed_to_the_version_that_ran(self, conversations):
         """An agent is rewritten between runs. Attributing last Tuesday's answer
         to the spec it has today would rewrite what it was told to do."""
@@ -475,6 +531,26 @@ class TestWritingTheTranscript:
         written = conversations.create_tool_call.await_args.kwargs
         assert (written["tool_name"], written["args"]) == ("send_email", {"to": "ada@example.com"})
         assert conversations.complete_tool_call.await_args.kwargs["result"] == "sent"
+
+    async def test_a_call_an_organization_server_served_is_stored_against_it(self, conversations):
+        """What a server's call log reads (#2072): the connection, not a prefix
+        that a member's own connection to the same service shares."""
+        linear = uuid.uuid4()
+        await TranscriptService(_session()).record(
+            _run(),
+            prompt="file it",
+            answer="filed",
+            tool_calls=[
+                RecordedToolCall(tool_call_id="c1", tool_name="linear_create", args={}),
+                RecordedToolCall(tool_call_id="c2", tool_name="send_email", args={}),
+            ],
+            mcp_origins={"linear_create": linear},
+        )
+
+        assert [
+            call.kwargs["mcp_connection_id"]
+            for call in conversations.create_tool_call.await_args_list
+        ] == [linear, None]
 
     async def test_a_call_that_never_returned_is_left_open_rather_than_completed(
         self, conversations

@@ -26,8 +26,11 @@ from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.memory_keys import person_owner_key
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent
+from app.db.models.agent_run import AgentRun
 from app.db.models.agent_workspace import AgentWorkspace
+from app.db.models.api_key import ApiKey
 from app.db.models.audit_log import AppAdminAuditLog
+from app.db.models.browser_sign_in import BrowserSignIn
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Message, ToolCall
@@ -39,11 +42,13 @@ from app.db.models.notification import (
     NotificationEventType,
 )
 from app.db.models.notification_preference import NotificationChannelPreference
+from app.db.models.oauth import OAuthClient, OAuthGrant
 from app.db.models.organization import Organization, OrganizationMember
 from app.repositories import (
     case_score_repo,
     conversation_repo,
     personal_data_repo,
+    project_repo,
     session_repo,
     user_repo,
 )
@@ -88,6 +93,54 @@ async def _org_and_agent(db) -> tuple[Organization, Agent]:
     db.add(agent)
     await db.flush()
     return organization, agent
+
+
+async def _scored_answer(
+    db,
+    organization: Organization,
+    agent: Agent,
+    *,
+    run_by: UUID | None,
+    for_a_visitor: bool = False,
+    results: list[dict[str, object]] | None = None,
+):
+    """A score of a run `run_by` started - or a visitor did, in `run_by`'s name -
+    keeping the answer it graded."""
+    owner = AuthContext(
+        user_id=organization.created_by_user_id,
+        organization_id=organization.id,
+        role=OrgRoleName.OWNER,
+    )
+    datasets = DatasetService(db)
+    dataset = await datasets.create(owner, DatasetCreate(name=f"refunds-{uuid4().hex[:8]}"))
+    case = await datasets.add_case(
+        owner, dataset.id, DatasetCaseCreate(input="Where is my refund?", reference_answer="a")
+    )
+    run = AgentRun(
+        id=uuid4(),
+        organization_id=organization.id,
+        agent_id=agent.id,
+        user_id=run_by,
+        initiated_by_publisher_fallback=for_a_visitor,
+    )
+    db.add(run)
+    await db.flush()
+    return await case_score_repo.create(
+        db,
+        organization_id=organization.id,
+        dataset_id=dataset.id,
+        case_revision_id=case.id,
+        case_id=case.case_id,
+        run_id=run.id,
+        eval_run_id=None,
+        answer="Your refund is on its way.",
+        scoring={},
+        results=results or [],
+        judge=None,
+        passed=False,
+        review_state="none",
+        created_by_user_id=None,
+    )
 
 
 async def _note_about(db, user_id: UUID, *, organization_id: UUID, agent_id: UUID) -> None:
@@ -295,6 +348,8 @@ class TestTheExport:
                 case_revision_id=case.id,
                 case_id=case.case_id,
                 run_id=None,
+                eval_run_id=None,
+                answer=None,
                 scoring={},
                 results=[],
                 judge=None,
@@ -325,6 +380,26 @@ class TestTheExport:
             "human_passed",
             "human_note",
             "reviewed_at",
+        }
+
+    async def test_it_carries_the_answers_to_their_runs_a_score_kept(self, db):
+        """A score copies the answer it graded, so it outlives the run and the thread."""
+        user = await _person(db, "export-answers@example.com")
+        organization, agent = await _org_and_agent(db)
+        score = await _scored_answer(db, organization, agent, run_by=user.id)
+
+        export = await PersonalDataService(db).export(user.id, actor_user_id=user.id)
+
+        assert [(row["id"], row["answer"]) for row in export.scored_answers] == [
+            (score.id, "Your refund is on its way.")
+        ]
+        assert set(export.scored_answers[0]) == {
+            "id",
+            "dataset_id",
+            "case_id",
+            "run_id",
+            "answer",
+            "created_at",
         }
 
     async def test_it_carries_the_notifications_addressed_to_them(self, db):
@@ -363,6 +438,68 @@ class TestTheExport:
         assert export.notifications[0]["in_app_visible"] is False
         assert [row["channel"] for row in export.notification_preferences] == ["email"]
 
+    async def test_it_names_the_sites_they_kept_a_sign_in_to_never_the_sign_in(self, db):
+        user = await _person(db, "export-sign-ins@example.com")
+        organization, _ = await _org_and_agent(db)
+        db.add(
+            BrowserSignIn(
+                organization_id=organization.id,
+                user_id=user.id,
+                site="portal.example.test",
+                sealed_state="sealed-cookies",
+            )
+        )
+        await db.flush()
+
+        export = await PersonalDataService(db).export(user.id, actor_user_id=user.id)
+
+        assert [row["site"] for row in export.browser_sign_ins] == ["portal.example.test"]
+        assert "sealed_state" not in export.browser_sign_ins[0]
+        assert "sealed-cookies" not in export.model_dump_json()
+
+    async def test_it_lists_their_keys_and_consents_never_a_credential(self, db):
+        user = await _person(db, "export-keys@example.com")
+        organization, _ = await _org_and_agent(db)
+        client = OAuthClient(client_id="export-client", info={"client_id": "export-client"})
+        db.add(client)
+        await db.flush()
+        grant = OAuthGrant(
+            client_id=client.client_id,
+            user_id=user.id,
+            organization_id=organization.id,
+            scopes=["agents:view"],
+        )
+        db.add(grant)
+        await db.flush()
+        for name, internal, grant_id, prefix in (
+            ("CI deploys", False, None, "sk-export-own"),
+            ("assistant", True, None, "sk-export-int"),
+            ("access token", False, grant.id, "sk-export-oau"),
+        ):
+            db.add(
+                ApiKey(
+                    organization_id=organization.id,
+                    user_id=user.id,
+                    name=name,
+                    prefix=prefix,
+                    key_hash=f"hash-of-{prefix}",
+                    scopes=["agents:run"],
+                    internal=internal,
+                    oauth_grant_id=grant_id,
+                )
+            )
+        await db.flush()
+
+        export = await PersonalDataService(db).export(user.id, actor_user_id=user.id)
+
+        assert [(row["name"], row["prefix"]) for row in export.api_keys] == [
+            ("CI deploys", "sk-export-own")
+        ]
+        assert [(row["client_id"], row["scopes"]) for row in export.oauth_grants] == [
+            ("export-client", ["agents:view"])
+        ]
+        assert "hash-of-" not in export.model_dump_json()
+
     async def test_it_carries_no_credential_anywhere(self, db):
         """A session row holds a hash of a refresh token, and an export is a file
         a person downloads and a laptop keeps."""
@@ -396,6 +533,52 @@ class TestTheExport:
         export = await PersonalDataService(db).export(my_id, actor_user_id=my_id)
 
         assert export.conversations == []
+
+    @pytest.mark.security
+    async def test_a_project_chat_carries_their_turns_and_the_answers_to_them_only(self, db):
+        """A project's chat is several people's. Its starter's export must not hand
+        over a teammate's questions, and a teammate who typed there is owed theirs."""
+        starter = await _person(db, "export-starter@example.com")
+        teammate = await _person(db, "export-teammate@example.com")
+        organization, _ = await _org_and_agent(db)
+        project = await project_repo.create(
+            db,
+            organization_id=organization.id,
+            owner_user_id=starter.id,
+            name="Launch",
+            description="",
+            instructions="",
+            default_agent_id=None,
+            backend="state",
+            visibility="org",
+        )
+        chat = await conversation_repo.create_conversation(
+            db,
+            organization_id=organization.id,
+            user_id=starter.id,
+            title="Plan",
+            project_id=project.id,
+        )
+        for author, role, content in [
+            (starter, "user", "Mine?"),
+            (None, "assistant", "Answer to mine."),
+            (teammate, "user", "Theirs?"),
+            (None, "assistant", "Answer to theirs."),
+        ]:
+            await conversation_repo.create_message(
+                db,
+                conversation_id=chat.id,
+                role=role,
+                content=content,
+                author_user_id=None if author is None else author.id,
+            )
+
+        mine = await PersonalDataService(db).export(starter.id, actor_user_id=starter.id)
+        theirs = await PersonalDataService(db).export(teammate.id, actor_user_id=teammate.id)
+
+        assert [row["content"] for row in mine.messages] == ["Mine?", "Answer to mine."]
+        assert [row["title"] for row in theirs.conversations] == ["Plan"]
+        assert [row["content"] for row in theirs.messages] == ["Theirs?", "Answer to theirs."]
 
     async def test_the_request_is_recorded_even_when_it_is_your_own(self, db):
         """An export is the shape of a breach when the caller is not who they
@@ -562,6 +745,60 @@ class TestWhatDeletionRemoves:
             )
         ).scalar_one()
         assert identities == 1
+
+    async def test_a_score_of_their_run_loses_the_answer_and_keeps_the_verdict(self, db):
+        """The score is the organization's; the copy of what their run answered is not."""
+        user = await _person(db, "purge-answers@example.com")
+        organization, agent = await _org_and_agent(db)
+        theirs = await _scored_answer(db, organization, agent, run_by=user.id)
+        others = await _scored_answer(db, organization, agent, run_by=None)
+
+        purged = await PersonalDataService(db).purge(user.id)
+
+        assert purged.scored_answers == 1
+        await db.refresh(theirs)
+        await db.refresh(others)
+        assert (theirs.answer, theirs.passed) == (None, False)
+        assert others.answer == "Your refund is on its way."
+
+    async def test_a_score_of_their_run_loses_what_its_results_quoted_of_the_answer(self, db):
+        """A judge's reason, quotes and unreadable answer can repeat the answer
+        word for word, so they go with it; the verdict each reached stays."""
+        user = await _person(db, "purge-reasons@example.com")
+        organization, agent = await _org_and_agent(db)
+        graded = {
+            "scorer": "judge",
+            "name": "tone",
+            "required": True,
+            "status": "fail",
+            "reason": "2/5: says 'Your refund is on its way.'",
+            "unverified_quotes": ["Your refund is on its way"],
+            "judge_said": "Your refund is on its way.",
+        }
+        theirs = await _scored_answer(db, organization, agent, run_by=user.id, results=[graded])
+
+        await PersonalDataService(db).purge(user.id)
+
+        await db.refresh(theirs)
+        [kept] = theirs.results
+        assert (kept["reason"], kept["unverified_quotes"], kept["judge_said"]) == ("", [], None)
+        assert (kept["status"], kept["name"]) == ("fail", "tone")
+
+    async def test_a_visitors_answer_on_their_published_surface_is_not_theirs(self, db):
+        """An embed or a hosted page runs a visitor's message in its publisher's
+        name; what the visitor was answered is neither exported to nor erased with
+        the publisher."""
+        user = await _person(db, "purge-visitor@example.com")
+        organization, agent = await _org_and_agent(db)
+        visitors = await _scored_answer(db, organization, agent, run_by=user.id, for_a_visitor=True)
+
+        export = await PersonalDataService(db).export(user.id, actor_user_id=user.id)
+        purged = await PersonalDataService(db).purge(user.id)
+
+        assert export.scored_answers == []
+        assert purged.scored_answers == 0
+        await db.refresh(visitors)
+        assert visitors.answer == "Your refund is on its way."
 
     async def test_an_identity_that_was_never_linked_is_left_where_it_is(self, db):
         """An unlinked identity is not this person's residue - it is a platform

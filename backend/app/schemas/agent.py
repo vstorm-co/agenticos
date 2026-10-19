@@ -8,11 +8,13 @@ from uuid import UUID
 
 from pydantic import Field, field_validator
 
+from app.agents.ask_user import QuestionItem
 from app.agents.capabilities import CapabilityToolInfo
-from app.agents.spec import AgentSpec, DelegationMode, SpecialistSpec
+from app.agents.spec import AgentSpec, CapabilityBindingSpec, DelegationMode, SpecialistSpec
 from app.core.secret_kinds import SecretRequirement
-from app.db.models.resource_grant import Visibility
+from app.db.models.agent import AgentKind
 from app.schemas.base import BaseSchema
+from app.schemas.resource_grant import AudienceChoice
 
 # The longest a single category/tag may be, matching the `String(32)` array
 # column that stores it. Measured on the *folded* value, since `casefold()` can
@@ -127,8 +129,22 @@ class AgentRead(BaseSchema):
         default=None,
         description=(
             "Set on an agent the platform seeded and starts itself - `eval_judge` for "
-            "the eval judge. It is edited and shared like any agent; the key is how "
-            "the console marks it as a system agent."
+            "the default eval judge. It is edited and shared like any agent."
+        ),
+    )
+    kind: AgentKind = Field(
+        default=AgentKind.AGENT,
+        description=(
+            "`judge` for an agent that grades evals and `drafter` for the one that "
+            "drafts a knowledge gap's missing content: only the platform runs them, and "
+            "the console lists them apart, without chat, channels or delegation."
+        ),
+    )
+    a2a_enabled: bool = Field(
+        default=False,
+        description=(
+            "Whether other systems may reach this agent over A2A: its card at "
+            "/a2a/{id}/.well-known/agent-card.json, its tasks at /a2a/{id} (#2092)."
         ),
     )
     has_avatar: bool = Field(
@@ -166,6 +182,13 @@ class AgentRead(BaseSchema):
             "How many members hold an explicit grant on this agent. Filled by the "
             "listing, which is the one place a card says 'shared with 3'; write "
             "endpoints answer with the default rather than paying a count nobody reads."
+        ),
+    )
+    shared_groups: list[str] = Field(
+        default_factory=list,
+        description=(
+            "The groups this agent is shared with, by name - the departments it "
+            "belongs to. Filled by the listing, same bargain as shared_user_count."
         ),
     )
     channels: list[str] = Field(
@@ -207,6 +230,16 @@ class AgentRead(BaseSchema):
             "not a security boundary, since every create endpoint re-checks server-side."
         ),
     )
+    can_edit: bool = Field(
+        default=False,
+        description=(
+            "Whether THIS caller may edit the agent - change its draft, test it on a "
+            "dataset, stop a run of it somebody else started. Resolved per caller like "
+            "can_run: an explicit edit grant reads true where the role-level check "
+            "would say false, and a role that may edit agents reads false on one it "
+            "cannot reach. Hides controls; every edit endpoint re-checks server-side."
+        ),
+    )
     published_model: PublishedModel | None = Field(
         default=None,
         description=(
@@ -244,7 +277,7 @@ class AgentList(BaseSchema):
     )
 
 
-class AgentCreate(BaseSchema):
+class AgentCreate(AudienceChoice):
     """Create an agent from a spec. The handle is derived from the name."""
 
     spec: AgentSpec
@@ -254,15 +287,6 @@ class AgentCreate(BaseSchema):
     # can still change them afterwards without a publish.
     categories: list[str] = Field(default_factory=list, max_length=MAX_CATEGORIES)
     tags: list[str] = Field(default_factory=list, max_length=MAX_TAGS)
-    visibility: Visibility = Field(
-        default=Visibility.ORG,
-        description=(
-            "Who can find this agent. `org` - the default - is everyone in the "
-            "organization; `private` is the owner and whoever they grant it to. "
-            "A draft cannot run either way, so this decides who sees it, not "
-            "what it does."
-        ),
-    )
 
     @field_validator("categories", "tags", mode="after")
     @classmethod
@@ -516,6 +540,14 @@ class CapabilityCatalogEntry(BaseSchema):
             "and description the model sees via tool_overrides, both keyed by the id here."
         )
     )
+    tool_settings: bool = Field(
+        default=True,
+        description=(
+            "Whether the Builder offers per-tool approval and tool text for this "
+            "capability. False where its one tool is the capability itself, so its "
+            "approval is the capability's own."
+        ),
+    )
     scopes: list[str]
     contracts: list[CapabilityToolContract] = Field(
         default_factory=list,
@@ -535,6 +567,36 @@ class CapabilityCatalogEntry(BaseSchema):
             "and stores its id in secret_id; the value itself never reaches the spec, "
             "the API or the model."
         ),
+    )
+    recommended: CapabilityBindingSpec | None = Field(
+        default=None,
+        description=(
+            "How the starter agent (the Claude Code like template) binds this "
+            "capability, or null where it does not. The console marks these "
+            "Recommended and switches them on for a new agent."
+        ),
+    )
+
+
+class McpCatalogCheck(BaseSchema):
+    """What `agenticos cmd mcp-catalog-check` found when it last called a listing."""
+
+    outcome: Literal[
+        "open", "sign_in", "token", "unreachable", "broken", "refused", "duplicate", "self_hosted"
+    ] = Field(
+        description=(
+            "open: answered and listed its tools with no credential; sign_in: asks for "
+            "OAuth; token: asks for a key or token; unreachable, broken, refused: did not "
+            "answer as an MCP server; duplicate: another listing is the same server; "
+            "self_hosted: no address to call until somebody connects one"
+        )
+    )
+    checked_at: datetime
+    tools: int | None = Field(
+        default=None, description="Tools it listed without a credential, where it did"
+    )
+    read_only_tools: int | None = Field(
+        default=None, description="How many of those it marks read-only"
     )
 
 
@@ -566,6 +628,16 @@ class McpCatalogEntry(BaseSchema):
             "hint because the registry has no such field."
         ),
     )
+    verified: bool = Field(
+        default=False,
+        description=(
+            "Whether the last catalog check found it answering the way this entry says "
+            "it does - reachable, speaking MCP, and asking for the sign-in it promises"
+        ),
+    )
+    check: McpCatalogCheck | None = Field(
+        default=None, description="What the last catalog check found; null if never checked"
+    )
 
 
 class McpCatalog(BaseSchema):
@@ -581,6 +653,19 @@ class McpCatalog(BaseSchema):
     )
 
 
+class PlatformMcpTool(BaseSchema):
+    name: str = Field(description="The tool's name on the platform's MCP server")
+    description: str = Field(description="The first line of what the model reads")
+    writes: bool = Field(
+        description="Whether it changes something - held for approval under `approval: writes`"
+    )
+
+
+class PlatformMcpToolList(BaseSchema):
+    items: list[PlatformMcpTool]
+    total: int
+
+
 class CapabilityCatalog(BaseSchema):
     items: list[CapabilityCatalogEntry]
     total: int
@@ -591,7 +676,14 @@ class AgentRunRequest(BaseSchema):
 
     prompt: str = Field(min_length=1)
     conversation_id: UUID | None = Field(
-        default=None, description="Continue an existing conversation"
+        default=None,
+        description=(
+            "One of the caller's own conversations to continue: the model reads "
+            "what was said in it before, the turn is recorded there, and a "
+            "conversation-scoped workspace is that conversation's. Left out, the run "
+            "opens a new conversation and returns its id. Unknown, or somebody "
+            "else's, answers 404"
+        ),
     )
     environment_id: UUID | None = Field(
         default=None,
@@ -625,6 +717,32 @@ class ParkedCall(BaseSchema):
     )
     tool_name: str
     tool_args: dict[str, Any] = Field(default_factory=dict)
+    account: str | None = Field(
+        default=None,
+        description="Which account of an MCP service the call acts as, where that is a question.",
+    )
+
+
+class ParkedQuestion(BaseSchema):
+    """An `ask_user_question` call a run is waiting on its person to answer (#2064)."""
+
+    tool_call_id: str = Field(description="The call to answer, which is what a client posts.")
+    questions: list[QuestionItem] = Field(
+        description="The questions, as the console's question card draws them."
+    )
+
+
+class QuestionAnswers(BaseSchema):
+    """The person's answers to the questions a run parked on."""
+
+    responses: dict[str, list[dict[str, Any]]] = Field(
+        min_length=1,
+        description=(
+            "Per parked call, the answers the question card sends: a list parallel "
+            "to its questions, each `{selected, answer, skipped}`. A call left out is "
+            "answered as declined."
+        ),
+    )
 
 
 class RunStep(BaseSchema):
@@ -658,6 +776,14 @@ class AgentRunResult(BaseSchema):
     """What the agent answered, and what the run cost."""
 
     run_id: UUID
+    conversation_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The conversation the turn was filed under. A run that named none opened "
+            "it; send it as `conversation_id` to continue, and the agent reads what "
+            "was said before"
+        ),
+    )
     output: str
     status: str
     cost_usd: Decimal
@@ -672,6 +798,12 @@ class AgentRunResult(BaseSchema):
     )
     input_tokens: int
     output_tokens: int
+    cache_read_tokens: int = Field(
+        default=0, description="Of `input_tokens`, those read from the provider's cache"
+    )
+    cache_write_tokens: int = Field(
+        default=0, description="Of `input_tokens`, those written to the provider's cache"
+    )
     steps: list[RunStep] = Field(
         default_factory=list,
         description=(
@@ -701,6 +833,13 @@ class AgentRunResult(BaseSchema):
             "that started it. The continuation runs over HTTP rather than the socket a "
             "conversation streams, so this response is the only place the new calls can "
             "arrive."
+        ),
+    )
+    questions: list[ParkedQuestion] = Field(
+        default_factory=list,
+        description=(
+            "The questions the run is now waiting on its person to answer, which is "
+            "empty unless it stopped on one again - the same reason `parked` exists."
         ),
     )
 
@@ -752,3 +891,54 @@ class TemplateInstallResult(BaseSchema):
     skills_installed: list[str] = Field(description="Gallery skills copied in for this agent")
     attach: list[str] = Field(description="What to attach before publishing")
     suggested_mcp: list[str] = Field(description="Catalog keys worth connecting")
+
+
+class PromptVariableRead(BaseSchema):
+    """A system variable an agent's instructions may write as `{{name}}` (#2065)."""
+
+    name: str
+    description: str
+    example: str
+
+
+class PromptVariableCatalog(BaseSchema):
+    items: list[PromptVariableRead]
+
+
+KnowledgeSourceKind = Literal["collection", "skill", "context", "mcp"]
+
+
+class KnowledgeSource(BaseSchema):
+    """One knowledge source an agent binds, and who it is shared with (#2072).
+
+    An organization MCP server counts: its tools read a department's systems as
+    surely as a knowledge base reads its documents.
+    """
+
+    kind: KnowledgeSourceKind
+    id: UUID
+    name: str
+    whole_organization: bool
+    groups: list[str] = Field(
+        default_factory=list, description="The groups it is shared with, by name"
+    )
+    reaches_fewer_than_agent: bool = Field(
+        description=(
+            "Whether the agent reaches people this source is not shared with - who "
+            "then get answers drawn from it all the same"
+        )
+    )
+
+
+class AgentKnowledgeReach(BaseSchema):
+    """Who an agent reaches, and where each of its knowledge sources comes from."""
+
+    whole_organization: bool
+    groups: list[str] = Field(default_factory=list)
+    sources: list[KnowledgeSource] = Field(default_factory=list)
+
+
+class AgentA2ARequest(BaseSchema):
+    """Serve this agent over A2A, or stop (#2092)."""
+
+    enabled: bool

@@ -32,7 +32,7 @@ __all__ = [
 
 @register(
     id="compaction",
-    name="Context management",
+    name="Long conversations",
     category="utility",
     description=(
         "Trim a long run's history so it keeps working instead of hitting the model's limit."

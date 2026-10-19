@@ -44,6 +44,7 @@ _MESSAGE_FIELDS = ("id", "conversation_id", "role", "content", "ordinal", "creat
 _TOOL_CALL_FIELDS = ("id", "message_id", "tool_name", "args", "result", "status", "started_at")
 _RATING_FIELDS = ("id", "message_id", "rating", "comment", "created_at")
 _VERDICT_FIELDS = ("id", "dataset_id", "case_id", "human_passed", "human_note", "reviewed_at")
+_SCORED_ANSWER_FIELDS = ("id", "dataset_id", "case_id", "run_id", "answer", "created_at")
 _SESSION_FIELDS = ("id", "device_name", "device_type", "ip_address", "created_at", "last_used_at")
 _RUN_FIELDS = ("id", "agent_id", "status", "surface", "cost_usd", "created_at")
 _KNOWLEDGE_SEARCH_FIELDS = ("id", "run_id", "agent_id", "query", "result_count", "created_at")
@@ -51,6 +52,25 @@ _MEMORY_FIELDS = ("id", "agent_id", "name", "content", "updated_at")
 _IDENTITY_FIELDS = ("id", "platform", "platform_user_id", "platform_username")
 _COMMAND_FIELDS = ("id", "name", "prompt", "created_at")
 _LAYOUT_FIELDS = ("id", "organization_id", "entries", "updated_at")
+# Which site, where and when - never `sealed_state`, which is their live session
+# on that site and would make the export a key to it.
+_SIGN_IN_FIELDS = ("id", "organization_id", "site", "created_at", "last_used_at")
+# Which key, what it may do and when - never `key_hash`, and the prefix only,
+# which the console already shows and which cannot be presented on its own.
+_API_KEY_FIELDS = (
+    "id",
+    "organization_id",
+    "name",
+    "prefix",
+    "scopes",
+    "created_at",
+    "expires_at",
+    "last_used_at",
+    "revoked_at",
+)
+# The consent, not what it was exchanged for: codes and refresh tokens are hashes
+# of live credentials and stay out.
+_OAUTH_GRANT_FIELDS = ("id", "client_id", "organization_id", "scopes", "created_at", "revoked_at")
 _NOTIFICATION_FIELDS = (
     "id",
     "event_type",
@@ -120,7 +140,7 @@ class PersonalDataService:
         conversations = await personal_data_repo.conversations_of(self.db, user_id)
         conversation_ids = [conversation.id for conversation in conversations]
         await self._refuse_if_too_large(conversation_ids)
-        messages = await personal_data_repo.messages_in(self.db, conversation_ids)
+        messages = await personal_data_repo.messages_in(self.db, conversation_ids, user_id=user_id)
         profile = personal_data_repo.as_rows([user], _PROFILE_FIELDS)[0]
         profile["id"] = str(user.id)
         export = PersonalDataExport(
@@ -140,6 +160,10 @@ class PersonalDataService:
             ),
             case_verdicts=personal_data_repo.as_rows(
                 await personal_data_repo.verdicts_of(self.db, user_id), _VERDICT_FIELDS
+            ),
+            scored_answers=personal_data_repo.as_rows(
+                await personal_data_repo.scored_answers_of(self.db, user_id),
+                _SCORED_ANSWER_FIELDS,
             ),
             sessions=personal_data_repo.as_rows(
                 await personal_data_repo.sessions_of(self.db, user_id), _SESSION_FIELDS
@@ -170,6 +194,15 @@ class PersonalDataService:
             notification_preferences=personal_data_repo.as_rows(
                 await personal_data_repo.notification_preferences_of(self.db, user_id),
                 _NOTIFICATION_PREFERENCE_FIELDS,
+            ),
+            browser_sign_ins=personal_data_repo.as_rows(
+                await personal_data_repo.browser_sign_ins_of(self.db, user_id), _SIGN_IN_FIELDS
+            ),
+            api_keys=personal_data_repo.as_rows(
+                await personal_data_repo.api_keys_of(self.db, user_id), _API_KEY_FIELDS
+            ),
+            oauth_grants=personal_data_repo.as_rows(
+                await personal_data_repo.oauth_grants_of(self.db, user_id), _OAUTH_GRANT_FIELDS
             ),
         )
 
@@ -262,7 +295,8 @@ class PersonalDataService:
         )
         dataset_cases = await personal_data_repo.unlink_dataset_cases_of(self.db, user_id)
         searches = await personal_data_repo.purge_knowledge_searches_of(self.db, user_id)
-        if notes or identities or workspaces or dataset_cases or searches:
+        scored_answers = await personal_data_repo.purge_scored_answers_of(self.db, user_id)
+        if notes or identities or workspaces or dataset_cases or searches or scored_answers:
             logger.info(
                 "personal_data_purged",
                 extra={
@@ -272,6 +306,7 @@ class PersonalDataService:
                     "workspaces": workspaces,
                     "dataset_cases": dataset_cases,
                     "knowledge_searches": searches,
+                    "scored_answers": scored_answers,
                 },
             )
         return PersonalDataPurge(
@@ -280,4 +315,5 @@ class PersonalDataService:
             workspaces=workspaces,
             dataset_cases=dataset_cases,
             knowledge_searches=searches,
+            scored_answers=scored_answers,
         )

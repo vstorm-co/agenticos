@@ -47,7 +47,8 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.audit import record_audit
+from app.agents.system_agents import refuse_system_agent
+from app.core.audit import current_impersonator, record_audit, set_acting_trigger
 from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.exceptions import (
@@ -258,6 +259,25 @@ def _audit_changes(changes: dict[str, Any]) -> dict[str, Any]:
     the column stores, the same encoder the error responses use.
     """
     return cast(dict[str, Any], jsonable_encoder(changes))
+
+
+def _acts_as_themselves(ctx: AuthContext, person: UUID | None) -> bool:
+    """Whether this caller is `person`, in person, and so may let a trigger act as them (#2027).
+
+    Not an administrator acting as them through impersonation - the #1438 rule for
+    every identity binding - and not a script holding one of their API keys, which
+    could otherwise turn a leaked key into standing access to their mailbox.
+    """
+    return (
+        person is not None
+        and ctx.user_id == person
+        and ctx.api_key_id is None
+        and current_impersonator() is None
+    )
+
+
+_WHAT_IT_DOES = ("prompt", "environment_id", "event_config")
+"""The edits that change what a fire does, and so end its acting as the creator."""
 
 
 def _update_action(changes: dict[str, Any]) -> str:
@@ -534,6 +554,7 @@ class AgentTriggerService:
                 rule every per-resource agent route follows.
         """
         agent = await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
+        refuse_system_agent(agent, action="a schedule or a trigger")
         # A trigger on a never-published agent is guaranteed to disable itself:
         # its first fire reaches for the runnable spec, finds no version, and
         # turns the trigger off. Refusing here turns that silent self-disable
@@ -545,6 +566,11 @@ class AgentTriggerService:
             )
         if data.environment_id is not None:
             await self._environment_of(ctx, agent.id, data.environment_id)
+        if data.runs_as_creator and not _acts_as_themselves(ctx, ctx.user_id):
+            raise AuthorizationError(
+                message="Only you, signed in as yourself, can let a trigger act as you",
+                details={"agent_id": str(agent_id)},
+            )
 
         now = datetime.now(UTC)
         event_source: str | None = None
@@ -646,6 +672,7 @@ class AgentTriggerService:
             connection_id=connection_id,
             portal_key=portal_key,
             delivery_mode=delivery_mode,
+            runs_as_creator=data.runs_as_creator,
         )
         # Open the run-log conversation now, not on the first fire, so a new
         # trigger is a clickable item in the sidebar the moment it exists - empty
@@ -668,6 +695,7 @@ class AgentTriggerService:
                 "interval_seconds": trigger.interval_seconds,
                 "cron_expression": trigger.cron_expression,
                 "event_source": trigger.event_source,
+                "runs_as_creator": trigger.runs_as_creator,
             },
         )
         # Auto-register the provider webhook for a preset whose portal supports it
@@ -859,6 +887,7 @@ class AgentTriggerService:
         """
         trigger = await self._owned(ctx, agent_id, trigger_id)
         changes = writable(data, over=AgentTrigger)
+        self._guard_acting_as_creator(ctx, trigger, changes)
 
         # A filter edit, the event mirror of a cadence edit: an event trigger's
         # `event_config` is re-normalised against its source, and one sent for a
@@ -911,6 +940,30 @@ class AgentTriggerService:
         # `_owned` let this caller through, so they manage it - say so on the read.
         setattr(updated, "can_manage", True)  # noqa: B010
         return updated
+
+    @staticmethod
+    def _guard_acting_as_creator(
+        ctx: AuthContext, trigger: AgentTrigger, changes: dict[str, Any]
+    ) -> None:
+        """Keep "run as me" the creator's own decision, edit by edit (#2027).
+
+        Turning it on is the creator's alone. And it does not survive anybody else
+        changing what the trigger does: otherwise a member who may edit the trigger
+        could write a prompt that reads the creator's mailbox and wait for the next
+        fire. A pause, a rename or a new cadence changes no such thing, so it stays.
+        """
+        themselves = _acts_as_themselves(ctx, trigger.created_by_user_id)
+        if changes.get("runs_as_creator") is True and not themselves:
+            raise AuthorizationError(
+                message="Only the person who made this trigger can let it act as them",
+                details={"trigger_id": str(trigger.id)},
+            )
+        if (
+            trigger.runs_as_creator
+            and not themselves
+            and any(field in changes for field in _WHAT_IT_DOES)
+        ):
+            changes["runs_as_creator"] = False
 
     async def delete(self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID) -> None:
         """Remove a schedule entirely - the agent stops running itself."""
@@ -1627,6 +1680,8 @@ class AgentTriggerService:
         # the wrong fire - the trigger appends every fire to one conversation (#589).
         previous_run_id = trigger.last_run_id
         runner = AgentRunnerService(self.db)
+        if ctx.fired_as_creator is not None:
+            set_acting_trigger(trigger.id, ctx.subject_id)
         try:
             _answer, run = await runner.execute(
                 ctx,
@@ -1635,6 +1690,9 @@ class AgentTriggerService:
                 surface=RunSurface.SCHEDULE,
                 conversation_id=conversation_id,
                 environment_id=trigger.environment_id,
+                # The creator's own MCP connections speak for this fire only when
+                # the creator let it act as them; otherwise nobody is speaking.
+                acts_for_sender=ctx.fired_as_creator is not None,
             )
         except (NotFoundError, AuthorizationError):
             # Access was withdrawn between the pre-check and the run. Same verdict:
@@ -1696,6 +1754,9 @@ class AgentTriggerService:
                 return
 
         trigger.last_run_id = run.id
+        # And the run says which trigger made it: with `user_id`, "trigger X,
+        # acting as member Y" rather than a run that reads as the member's own.
+        run.trigger_id = trigger.id
         # Stamp the fire on every path, not just the scheduled heartbeat: without
         # this an event trigger or a Run now reported "never fired" however many
         # runs it made, because only `claim_and_advance` used to set it.
@@ -1734,9 +1795,16 @@ class AgentTriggerService:
             user_id=trigger.created_by_user_id,
             organization_id=trigger.organization_id,
             role=membership.role,
-            # The creator is the authority a fire runs under, not a memory end-user: an
-            # unattended run must not read or write their personal store.
-            subject_is_publisher_fallback=True,
+            # The creator is the authority a fire runs under, not a memory end-user:
+            # an unattended run reaches no person's store or connections - unless the
+            # creator let this trigger act as them (#2027), and then on the terms
+            # `fired_as_creator` carries to the run.
+            subject_is_publisher_fallback=not trigger.runs_as_creator,
+            fired_as_creator=(
+                cast(Literal["schedule", "event"], trigger.trigger_type)
+                if trigger.runs_as_creator
+                else None
+            ),
         )
 
     async def _run_log(self, trigger: AgentTrigger, *, agent_name: str) -> UUID:

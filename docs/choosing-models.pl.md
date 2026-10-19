@@ -1,5 +1,5 @@
 ---
-source_sha: "5d457ec305b9"
+source_sha: "1b24107e2e10"
 ---
 
 # Wybór modelu { #choosing-a-model }
@@ -46,7 +46,7 @@ najczęstszy sposób, w jaki znika budżet agenta.
 
 ## Modele zamknięte czy otwarte wagi { #closed-models-or-open-weights }
 
-Jedno i drugie jest tu traktowane równorzędnie. Wśród 27 providerów są zamknięte
+Jedno i drugie jest tu traktowane równorzędnie. Wśród 28 providerów są zamknięte
 laboratoria z czołówki, hostingi modeli o otwartych wagach oraz dwie pozycje bez
 klucza — [Ollama](models.md) i proxy LiteLLM — dla modeli działających na
 sprzęcie, który należy do ciebie.
@@ -73,9 +73,20 @@ otwartych wagach u siebie bywa lepszą decyzją inżynierską, nie tylko tańsz�
     tego miejsce przechowywania danych albo gdy twój wolumen naprawdę przerasta
     sprzęt — a nie po to, by zaoszczędzić na czterdziestu rozmowach dziennie.
 
+**Zepsute wywołania narzędzi są naprawiane i liczone.** Modele z otwartymi
+wagami wysyłają wywołanie narzędzia z błędnym JSON-em - przecinkiem na końcu,
+pojedynczymi cudzysłowami, obiektem uciętym w połowie - znacznie częściej niż
+modele z czołówki. Każdy agent naprawia składnię, zanim argumenty zostaną
+zwalidowane, więc zepsute wywołanie trafia do narzędzia za pierwszym razem,
+zamiast kosztować ponowienie; brakujące pole albo zły typ nadal nie przechodzą
+walidacji, a naprawione wywołanie nadal przechodzi przez zatwierdzanie i
+guardraile. Każdy run liczy swoje naprawy, widoczne na runie i per model na
+karcie modeli w dashboardzie - model, który potrzebuje ich wiele, warto
+przemyśleć.
+
 ## Postawienie gatewaya z przodu { #putting-a-gateway-in-front }
 
-Trzy z tych 27 to nie dostawcy modeli, tylko routery: **OpenRouter**, **Vercel AI
+Trzy z tych 28 to nie dostawcy modeli, tylko routery: **OpenRouter**, **Vercel AI
 Gateway** i **proxy LiteLLM**, które uruchamiasz sam. Każdy daje jeden klucz
 i jeden endpoint przed wieloma modelami.
 
@@ -99,7 +110,7 @@ Zanim więc zmienisz model, sprawdź trzy rzeczy:
 - **`default_top_k` w capability wiedzy.** Osiem fragmentów tam, gdzie
   wystarczyłyby trzy, to najczęstsze ciche przepalanie budżetu.
 - **Instrukcje, które się powtarzają.** Są czytane w każdej turze.
-- **[Zarządzanie kontekstem](reference/capabilities.md)**, które utrzymuje długą
+- **[Długie rozmowy](reference/capabilities.md)**, które utrzymuje długą
   rozmowę wewnątrz okna, zamiast wysyłać ją w całości od nowa.
 
 [Budżety](governance.md#budgets) są zabezpieczeniem, a nie planem: budżet

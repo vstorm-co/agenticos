@@ -19,6 +19,7 @@ from app.api.deps import Auth, DatasetSvc, ScoringSvc, require
 from app.api.responses import csv_response, jsonl_response
 from app.core.permissions import Perm
 from app.schemas.dataset import (
+    MAX_CASE_TEXT,
     DatasetCaseCreate,
     DatasetCaseFromMessage,
     DatasetCaseList,
@@ -39,7 +40,16 @@ from app.schemas.scoring import (
     CaseScoreRead,
     CaseVerdict,
     DatasetScoring,
+    JudgeAgreement,
+    JudgeCreate,
+    JudgeTemplate,
+    Rescored,
+    RescoreRequest,
     ReviewQueue,
+    ReviewRequest,
+    ReviewRequested,
+    ReviewWithdrawn,
+    ScoreOutcome,
 )
 from app.services.dataset_files import MAX_IMPORT_BYTES
 
@@ -58,6 +68,7 @@ async def list_datasets(
     editable: bool = Query(
         False, description="Only the datasets the caller may change, by role or by a grant"
     ),
+    judge: UUID | None = Query(None, description="Only the datasets of this judge"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
@@ -67,10 +78,21 @@ async def list_datasets(
         shared_with_me=shared_with_me,
         editable=editable,
         search=q,
+        judge_id=judge,
         sort=sort,
         skip=skip,
         limit=limit,
     )
+
+
+@router.get(
+    "/judge-agreement",
+    response_model=JudgeAgreement,
+    dependencies=[Depends(require(Perm.DATASETS_VIEW))],
+)
+async def read_judge_agreement(service: ScoringSvc, ctx: Auth, judge: UUID = Query(...)) -> Any:
+    """How often people agreed with a judge, over the scores it graded that somebody decided."""
+    return await service.judge_agreement(ctx, judge)
 
 
 @router.get(
@@ -95,7 +117,10 @@ async def list_review_queue(
     dependencies=[Depends(require(Perm.DATASETS_EDIT))],
 )
 async def create_dataset(data: DatasetCreate, service: DatasetSvc, ctx: Auth) -> Any:
-    """An empty dataset, private to its creator. Its first case makes version 1."""
+    """An empty dataset, visible to the organization unless it asks to start private.
+
+    Its first case makes version 1.
+    """
     return await service.create(ctx, data)
 
 
@@ -137,9 +162,17 @@ async def list_dataset_cases(
     version: int | None = Query(None, ge=1, description="A version number; the newest if omitted"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
+    same_input: str | None = Query(
+        None,
+        min_length=1,
+        max_length=MAX_CASE_TEXT,
+        description="Only the cases asking this question, ignoring case and spacing",
+    ),
 ) -> Any:
     """A page of the cases one version holds, in their order."""
-    return await service.list_cases(ctx, dataset_id, version=version, skip=skip, limit=limit)
+    return await service.list_cases(
+        ctx, dataset_id, version=version, skip=skip, limit=limit, same_input=same_input
+    )
 
 
 @router.post(
@@ -166,6 +199,18 @@ async def add_dataset_case_from_message(
     reference answer, and the newest thumbs-down comment on it becomes the note.
     """
     return await service.add_from_message(ctx, dataset_id, data)
+
+
+@router.get("/{dataset_id}/cases/{case_id}", response_model=DatasetCaseRead)
+async def get_dataset_case(
+    dataset_id: UUID,
+    case_id: UUID,
+    service: DatasetSvc,
+    ctx: Auth,
+    version: int | None = Query(None, ge=1, description="A version number; the newest if omitted"),
+) -> Any:
+    """One case as a version holds it - what a link to the case opens."""
+    return await service.read_case(ctx, dataset_id, case_id, version=version)
 
 
 @router.patch("/{dataset_id}/cases/{case_id}", response_model=DatasetCaseRead)
@@ -228,6 +273,30 @@ async def set_dataset_scoring(
     return await service.set_scoring(ctx, dataset_id, data)
 
 
+@router.get("/{dataset_id}/judge-template", response_model=JudgeTemplate)
+async def read_dataset_judge_template(dataset_id: UUID, service: ScoringSvc, ctx: Auth) -> Any:
+    """The prompt a judge made for this dataset starts from, for the person creating it to edit.
+
+    The default judge's prompt - the rules of grading - with what the dataset is about.
+    """
+    return await service.judge_template(ctx, dataset_id)
+
+
+@router.post("/{dataset_id}/judge", response_model=DatasetRead, status_code=status.HTTP_201_CREATED)
+async def create_dataset_judge(
+    dataset_id: UUID, data: JudgeCreate, service: ScoringSvc, ctx: Auth
+) -> Any:
+    """Create a judge of the dataset's own and make it the one grading the dataset.
+
+    The judge is an agent of the `judge` kind, so it needs `agents:edit` as well
+    as `datasets:edit` on the dataset. The rubric stays on the dataset. Where AI
+    assistance is on, grading is switched on in the same write: the judge, on a
+    starting criterion when the rubric is empty, and the reference comparison
+    when a case has a reference answer.
+    """
+    return await service.create_judge(ctx, dataset_id, data)
+
+
 @router.post(
     "/{dataset_id}/cases/{case_id}/scores",
     response_model=CaseScoreRead,
@@ -251,14 +320,65 @@ async def list_dataset_scores(
     service: ScoringSvc,
     ctx: Auth,
     case_id: UUID | None = Query(None, description="Only this case's scores"),
-    pending: bool = Query(False, description="Only scores waiting for a person's verdict"),
+    pending: bool = Query(False, description="Only scores waiting for a person's decision"),
+    outcome: ScoreOutcome | None = Query(
+        None, description="Only the scores that failed, were not graded, or passed"
+    ),
+    agent_id: UUID | None = Query(None, description="Only answers this agent gave"),
+    eval_run_id: UUID | None = Query(None, description="Only the scores of this eval run"),
+    judge: UUID | None = Query(None, description="Only the scores this judge graded"),
+    tag: str | None = Query(None, max_length=64, description="Only cases carrying this tag"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
     """The dataset's scores, newest first."""
     return await service.list_scores(
-        ctx, dataset_id, case_id=case_id, pending=pending, skip=skip, limit=limit
+        ctx,
+        dataset_id,
+        case_id=case_id,
+        pending=pending,
+        outcome=outcome,
+        agent_id=agent_id,
+        eval_run_id=eval_run_id,
+        judge_id=judge,
+        tag=tag,
+        skip=skip,
+        limit=limit,
     )
+
+
+@router.post("/{dataset_id}/scores/review", response_model=ReviewRequested)
+async def request_case_score_reviews(
+    dataset_id: UUID, data: ReviewRequest, service: ScoringSvc, ctx: Auth
+) -> Any:
+    """Put several of the dataset's scores in the review queue - all of them or none.
+
+    A score already waiting, or already decided, is left as it is.
+    """
+    return await service.request_reviews(ctx, dataset_id, data)
+
+
+@router.post("/{dataset_id}/scores/review/withdraw", response_model=ReviewWithdrawn)
+async def withdraw_case_score_reviews(
+    dataset_id: UUID, data: ReviewRequest, service: ScoringSvc, ctx: Auth
+) -> Any:
+    """Take several of the dataset's scores out of the review queue, undecided.
+
+    All of them or none. A decided score keeps its decision.
+    """
+    return await service.withdraw_reviews(ctx, dataset_id, data)
+
+
+@router.post("/{dataset_id}/scores/rescore", response_model=Rescored)
+async def rescore_case_scores(
+    dataset_id: UUID, data: RescoreRequest, service: ScoringSvc, ctx: Auth
+) -> Any:
+    """Grade again, on the same answers, the scores a scorer reached no verdict on.
+
+    The agent is not run again. A score keeps its id, its eval run and any
+    person's verdict; one every scorer reached a verdict on comes back in `kept`.
+    """
+    return await service.rescore(ctx, dataset_id, data)
 
 
 @router.put("/{dataset_id}/scores/{score_id}/verdict", response_model=CaseScoreRead)

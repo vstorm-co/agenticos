@@ -17,12 +17,14 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
+from sqlalchemy import Select, and_, func, or_, select, update
 from sqlalchemy import delete as sa_delete
-from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent_run import AgentRun
 from app.db.models.agent_workspace import AgentWorkspace
+from app.db.models.api_key import ApiKey
+from app.db.models.browser_sign_in import BrowserSignIn
 from app.db.models.case_score import CaseScore
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.chat_file import ChatFile
@@ -34,36 +36,71 @@ from app.db.models.memory import AgentMemoryFile
 from app.db.models.message_rating import MessageRating
 from app.db.models.notification import Notification
 from app.db.models.notification_preference import NotificationChannelPreference
+from app.db.models.oauth import OAuthGrant
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.session import Session
 from app.db.models.user_slash_command import UserSlashCommand
 
 
 async def conversations_of(db: AsyncSession, user_id: UUID) -> list[Conversation]:
-    """The threads this person started, newest first."""
+    """The threads this person started, and the project chats they typed in, newest first.
+
+    A project's chat is several people's, so whoever started it is not the only
+    one with turns there: typing in one makes it part of this person's export
+    whether or not they began it.
+    """
+    typed_in = (
+        select(Message.id)
+        .where(Message.conversation_id == Conversation.id, Message.author_user_id == user_id)
+        .correlate(Conversation)
+        .exists()
+    )
     result = await db.execute(
         select(Conversation)
-        .where(Conversation.user_id == user_id)
+        .where(
+            or_(
+                Conversation.user_id == user_id,
+                and_(Conversation.project_id.is_not(None), typed_in),
+            )
+        )
         .order_by(Conversation.created_at.desc())
     )
     return list(result.scalars().all())
 
 
-async def messages_in(db: AsyncSession, conversation_ids: list[UUID]) -> list[Message]:
-    """Every turn of those threads, in the order they happened.
+async def messages_in(
+    db: AsyncSession, conversation_ids: list[UUID], *, user_id: UUID
+) -> list[Message]:
+    """This person's turns of those threads, in the order they happened.
 
-    Not filtered by author: a thread's answers are part of what the person is
-    asking to see, and a transcript with every second turn removed answers
-    nothing. A thread they did *not* start is not here at all.
+    Outside a project, every turn: a thread's answers are part of what the
+    person is asking to see, and a transcript with every second turn removed
+    answers nothing. In a project's chat the other members' turns are theirs,
+    not this person's, so it holds what this person typed and the turns that
+    answered it - everything after one of their turns up to somebody else's.
     """
     if not conversation_ids:
         return []
     result = await db.execute(
-        select(Message)
+        select(Message, Conversation.project_id)
+        .join(Conversation, Conversation.id == Message.conversation_id)
         .where(Message.conversation_id.in_(conversation_ids))
         .order_by(Message.conversation_id, Message.ordinal)
     )
-    return list(result.scalars().all())
+    kept: list[Message] = []
+    thread: UUID | None = None
+    theirs = False
+    for message, project_id in result.all():
+        if message.conversation_id != thread:
+            thread, theirs = message.conversation_id, False
+        if project_id is None:
+            kept.append(message)
+            continue
+        if message.role == "user":
+            theirs = message.author_user_id == user_id
+        if theirs:
+            kept.append(message)
+    return kept
 
 
 async def tool_calls_in(db: AsyncSession, message_ids: list[UUID]) -> list[ToolCall]:
@@ -125,6 +162,23 @@ async def verdicts_of(db: AsyncSession, user_id: UUID) -> list[CaseScore]:
         select(CaseScore)
         .where(CaseScore.reviewed_by_user_id == user_id)
         .order_by(CaseScore.reviewed_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+def _runs_they_started(user_id: UUID) -> Select[UUID]:
+    """Their runs, not a visitor's a surface they published ran in their name."""
+    return select(AgentRun.id).where(
+        AgentRun.user_id == user_id, AgentRun.initiated_by_publisher_fallback.is_(False)
+    )
+
+
+async def scored_answers_of(db: AsyncSession, user_id: UUID) -> list[CaseScore]:
+    """Eval scores of runs they started, each holding a copy of the answer it scored."""
+    result = await db.execute(
+        select(CaseScore)
+        .where(CaseScore.answer.is_not(None), CaseScore.run_id.in_(_runs_they_started(user_id)))
+        .order_by(CaseScore.created_at.desc())
     )
     return list(result.scalars().all())
 
@@ -209,6 +263,35 @@ async def slash_commands_of(db: AsyncSession, user_id: UUID) -> list[UserSlashCo
 
 async def dashboard_layouts_of(db: AsyncSession, user_id: UUID) -> list[DashboardLayout]:
     result = await db.execute(select(DashboardLayout).where(DashboardLayout.user_id == user_id))
+    return list(result.scalars().all())
+
+
+async def browser_sign_ins_of(db: AsyncSession, user_id: UUID) -> list[BrowserSignIn]:
+    """The sites they kept a browser sign-in to, in every organization."""
+    result = await db.execute(select(BrowserSignIn).where(BrowserSignIn.user_id == user_id))
+    return list(result.scalars().all())
+
+
+async def api_keys_of(db: AsyncSession, user_id: UUID) -> list[ApiKey]:
+    """The keys they issued, revoked ones included.
+
+    Not the platform's own short-lived keys for the in-app assistant, nor the
+    access tokens an OAuth client was handed: both are credentials minted per
+    run or per refresh, and the grant behind the second is exported on its own.
+    """
+    result = await db.execute(
+        select(ApiKey).where(
+            ApiKey.user_id == user_id,
+            ApiKey.internal.is_(False),
+            ApiKey.oauth_grant_id.is_(None),
+        )
+    )
+    return list(result.scalars().all())
+
+
+async def oauth_grants_of(db: AsyncSession, user_id: UUID) -> list[OAuthGrant]:
+    """Every consent they gave a client, revoked ones included."""
+    result = await db.execute(select(OAuthGrant).where(OAuthGrant.user_id == user_id))
     return list(result.scalars().all())
 
 
@@ -338,6 +421,33 @@ async def unlink_dataset_cases_of(db: AsyncSession, user_id: UUID) -> int:
     )
     await db.flush()
     return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+
+
+async def purge_scored_answers_of(db: AsyncSession, user_id: UUID) -> int:
+    """Clear the answer copied into every eval score of a run this person started.
+
+    Unscoped by organization, as every erasure is. The score stays - what the
+    scorers and a reviewer concluded is the organization's - and its run link
+    already goes when the run does; the copy of the answer goes now, with every
+    result's reason, quotes and what the judge said, which can repeat it.
+
+    Returns:
+        How many scores lost their answer.
+    """
+    result = await db.execute(
+        select(CaseScore).where(
+            CaseScore.answer.is_not(None), CaseScore.run_id.in_(_runs_they_started(user_id))
+        )
+    )
+    scores = list(result.scalars().all())
+    for score in scores:
+        score.answer = None
+        score.results = [
+            {**result, "reason": "", "unverified_quotes": [], "judge_said": None}
+            for result in score.results
+        ]
+    await db.flush()
+    return len(scores)
 
 
 async def attachment_paths_in(db: AsyncSession, conversation_id: UUID) -> list[str]:

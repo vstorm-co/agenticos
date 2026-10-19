@@ -1,0 +1,40 @@
+import { renderHook } from "@testing-library/react";
+import * as intl from "next-intl";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { useCapabilityFieldCopy } from "./capability-field-copy";
+
+afterEach(() => vi.restoreAllMocks());
+
+describe("useCapabilityFieldCopy", () => {
+  it("names a setting for a person rather than by its code name", () => {
+    const { result } = renderHook(() => useCapabilityFieldCopy("guardrails"));
+
+    expect(result.current("redact_pii_in")).toEqual({
+      title: "Hide personal data in the question",
+      description: "Redact emails, phone numbers, IBANs, cards and SSNs from the prompt",
+    });
+  });
+
+  it("shows a prompt field's placeholder as written, not as an ICU argument", () => {
+    const { result } = renderHook(() => useCapabilityFieldCopy("compaction"));
+
+    expect(result.current("summary_prompt")?.description).toContain("`{messages}`");
+  });
+
+  it("leaves a field the catalog does not hold to the schema", () => {
+    const { result } = renderHook(() => useCapabilityFieldCopy("guardrails"));
+
+    expect(result.current("added_after_the_catalog")).toBeNull();
+  });
+
+  it("leaves a field to the schema when the catalog holds something other than text", () => {
+    const translator = { has: () => true, raw: () => ({ nested: "object" }) };
+    vi.spyOn(intl, "useTranslations").mockReturnValue(
+      translator as unknown as ReturnType<typeof intl.useTranslations>,
+    );
+    const { result } = renderHook(() => useCapabilityFieldCopy("guardrails"));
+
+    expect(result.current("redact_pii_in")).toBeNull();
+  });
+});

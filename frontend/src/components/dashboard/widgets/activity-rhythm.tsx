@@ -36,7 +36,7 @@ export function ActivityRhythmWidget({
   const t = useTranslations("dashboard.widgets.activity-rhythm");
   const { byHour, isLoading, error, refetch } = useUsageByHour(
     { from: period.from, to: period.to },
-    { filter: { agentId: options?.agentId, userId: options?.userId } },
+    { filter: { agentId: options?.agentId, userId: options?.userId, groupId: options?.groupId } },
   );
 
   return (
@@ -65,7 +65,7 @@ export function ActivityRhythmWidget({
               and the catalog is keyed the same way - the mapping stays in one
               place rather than being undone here and redone in a translation. */}
           <div
-            className="text-muted-foreground grid text-[11px] leading-none"
+            className="text-muted-foreground grid text-xs leading-none"
             // i18n-exempt: a CSS grid template, not words on screen
             style={{ gridTemplateRows: "repeat(7, minmax(0, 1fr))" }}
           >
@@ -91,7 +91,7 @@ export function ActivityRhythmWidget({
           />
           <div aria-hidden />
           <div
-            className="text-muted-foreground grid text-[11px] leading-none tabular-nums"
+            className="text-muted-foreground grid text-xs leading-none tabular-nums"
             // i18n-exempt: a CSS grid template, not words on screen
             style={{ gridTemplateColumns: "repeat(24, minmax(0, 1fr))" }}
           >

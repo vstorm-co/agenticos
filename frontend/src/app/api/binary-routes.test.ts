@@ -626,8 +626,31 @@ describe("finishing an MCP OAuth flow", () => {
       failure: location.searchParams.get("mcp_oauth_failure"),
       detail: location.searchParams.get("mcp_oauth_detail"),
       name: location.searchParams.get("mcp_oauth_name"),
+      connection: location.searchParams.get("mcp_oauth_connection"),
     };
   }
+
+  it("names the organization's connection, and only the organization's, by id (#2075)", async () => {
+    vi.mocked(backendFetch).mockResolvedValueOnce({
+      ok: true,
+      connection_name: "Linear",
+      connection_id: "c1",
+      scope: "org",
+      error: null,
+    });
+    const organization = redirected(await callback(callbackRequest("code=abc&state=xyz")));
+
+    vi.mocked(backendFetch).mockResolvedValueOnce({
+      ok: true,
+      connection_name: "Linear",
+      connection_id: "c2",
+      scope: "user",
+      error: null,
+    });
+    const own = redirected(await callback(callbackRequest("code=abc&state=xyz")));
+
+    expect([organization.connection, own.connection]).toEqual(["c1", null]);
+  });
 
   it("names the connection it just authorized", async () => {
     vi.mocked(backendFetch).mockResolvedValue({

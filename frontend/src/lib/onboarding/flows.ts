@@ -2,6 +2,7 @@ import { ROUTES } from "@/lib/constants";
 import {
   AGENT_BUILDER,
   DATASET_DETAIL,
+  EVAL_RUN,
   KB_DETAIL,
   ORG_GROUPS,
   ORG_MEMBERS,
@@ -36,7 +37,8 @@ export type FlowId =
   | "create-group"
   | "create-routine"
   | "create-dataset"
-  | "explore-chat";
+  | "explore-chat"
+  | "test-change";
 
 /**
  * A resource whose *appearance* ends a step. It is the react-query list the coach
@@ -140,6 +142,15 @@ export interface FlowStep {
   activate?: string;
   permission?: Permission;
   signal?: FlowSignal;
+  /**
+   * The target may not be on the page, for a reason the flow cannot know ahead -
+   * Test draft shows only while the draft differs from what is live. Not found
+   * after a moment, the card says the step's `absent` copy, the page is left
+   * usable so the reader can bring the control about, and the walk can be ended
+   * there; the coach keeps watching, and picks the step up once the control
+   * appears.
+   */
+  optional?: boolean;
   /**
    * Run this step only when the organization's state calls for it. It is handed
    * `can` as well as the state, for the rare step that turns on a permission the
@@ -405,6 +416,17 @@ function mcpDialogSteps(page: string, requires?: string): FlowStep[] {
   ];
 }
 
+/**
+ * Whether the reader can test a change on this page: the Test draft button the
+ * walk starts from shows only on a published agent, to a reader who may edit it
+ * and run a dataset. Every step of that walk shares it, so a reader who cannot
+ * gets no step at all - an inert flow - rather than a page frozen on a button
+ * that never appears.
+ */
+function testable(state: OrgState, can: (permission: Permission) => boolean): boolean {
+  return state.hasPublishedAgent && can(Perm.agentsEdit) && can(Perm.datasetsRun);
+}
+
 export const FLOWS: Record<FlowId, CreationFlow> = {
   "create-agent": {
     id: "create-agent",
@@ -593,6 +615,16 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       // and on yes pointed at that button, gated on the `connections:manage` the
       // button itself carries. The connection lands in the picker's own cache and
       // the step advances in place, no trip to another page to make or return from.
+      // This platform's own server needs no connection, and so no
+      // `connections:manage`: every author is shown it, whatever the organization
+      // has connected - the fork below is about the others.
+      {
+        id: "flow-agent-platform-mcp",
+        page: AGENT_BUILDER,
+        target: "agent-platform-mcp",
+        activate: "agent-tab-mcp",
+        permission: Perm.agentsView,
+      },
       {
         id: "flow-agent-mcp",
         page: AGENT_BUILDER,
@@ -798,7 +830,13 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       {
         id: "flow-dataset-sources",
         page: DATASET_DETAIL,
-        target: "dataset-file-actions",
+        target: "datasets-menu",
+        permission: Perm.datasetsEdit,
+      },
+      {
+        id: "flow-dataset-next",
+        page: DATASET_DETAIL,
+        target: "datasets-scoring-tab",
         permission: Perm.datasetsEdit,
       },
     ],
@@ -878,6 +916,47 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
   // agent, so a reader with none is asked to build one first and yes hands off to
   // `create-agent`. That fork aside, anyone signed in can chat, so no step past it
   // carries a permission.
+  // Offered at the end of the builder's own walk, where the reader is already in
+  // an agent - so testing a change, not creating another agent, is what it ends on.
+  "test-change": {
+    id: "test-change",
+    permission: Perm.runsView,
+    steps: [
+      {
+        id: "flow-test-draft",
+        page: AGENT_BUILDER,
+        target: "agent-test-draft",
+        permission: Perm.runsView,
+        include: testable,
+        optional: true,
+        signal: { kind: "opened" },
+      },
+      {
+        id: "flow-test-target",
+        page: AGENT_BUILDER,
+        target: "eval-target",
+        permission: Perm.runsView,
+        include: testable,
+        inOverlay: true,
+      },
+      {
+        id: "flow-test-run",
+        page: AGENT_BUILDER,
+        target: "eval-run-start",
+        permission: Perm.runsView,
+        include: testable,
+        inOverlay: true,
+        signal: { kind: "arrived", page: EVAL_RUN },
+      },
+      {
+        id: "flow-test-verdict",
+        page: EVAL_RUN,
+        target: "eval-verdict",
+        permission: Perm.runsView,
+        include: testable,
+      },
+    ],
+  },
   "explore-chat": {
     id: "explore-chat",
     steps: [
@@ -923,8 +1002,9 @@ export function flowForPage(pageId: string): FlowId | null {
     case ROUTES.CHAT:
       return "explore-chat";
     case ROUTES.AGENTS:
-    case AGENT_BUILDER:
       return "create-agent";
+    case AGENT_BUILDER:
+      return "test-change";
     case ROUTES.SKILLS:
       return "create-skill";
     case ROUTES.RAG:

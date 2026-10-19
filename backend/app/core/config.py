@@ -285,6 +285,18 @@ class Settings(BaseSettings):
     # wrong hour. Long enough that a decision is never taken away from someone
     # who was going to make it; short enough that the queue has a ceiling.
     APPROVAL_EXPIRY_HOURS: int = 72
+    # How long an agent's unanswered `ask_user` question keeps its run parked
+    # before the run is ended with the question expired (#2064).
+    QUESTION_EXPIRY_HOURS: int = 24
+    # How long a chat turn goes on after the person who asked it has left - a
+    # closed tab, a quit app, a dropped connection - before it is stopped (#2108).
+    # The answer lands in the conversation and they are notified, so this bounds
+    # spend on an answer that may never be read rather than gating the feature.
+    # Long enough for a research or browsing task; a run still has its budget.
+    # At most two hours, the `RUNNING_HORIZON` past which the conversation list
+    # stops calling a run at work: a longer turn would go on unseen, and someone
+    # reopening the thread could ask again over an answer still being written.
+    CHAT_DETACHED_TURN_MINUTES: float = Field(default=60.0, gt=0, le=120)
     # How long a run may sit `running` before the sweep decides its process
     # died. The row is committed before the model is called (#12), so a worker
     # killed mid-run leaves it `running` with nothing left to finish it - in
@@ -294,6 +306,33 @@ class Settings(BaseSettings):
     # flipped back by its own terminal write, which lands later and wins.
     # Zero or below switches the sweep off.
     STALE_RUN_REAPED_AFTER_HOURS: float = 6.0
+    # An eval case is an ordinary run on live traffic's caps and providers, so how
+    # many run at once is bounded per run and per organization across its runs.
+    EVAL_RUN_CONCURRENCY: int = 3
+    EVAL_ORG_CONCURRENCY: int = 6
+    # Reruns of a case that flipped against its baseline; zero confirms nothing.
+    EVAL_RERUNS: int = 2
+    # How old a matching baseline arm may be and still be reused - providers drift,
+    # so an old one would compare against a different provider.
+    EVAL_BASELINE_CACHE_HOURS: float = 24.0
+    # A p-value of the test on confirmed flips at or above this is noise, not a verdict.
+    EVAL_SIGNIFICANCE: float = 0.05
+    # A relative change in cost, tokens or latency within this is "unchanged".
+    EVAL_EFFICIENCY_TOLERANCE: float = 0.05
+    # With no history on a model, a case is priced as this many tokens at the
+    # model's own price; one with no known price falls back to a flat guess.
+    EVAL_FALLBACK_INPUT_TOKENS: int = 2000
+    EVAL_FALLBACK_OUTPUT_TOKENS: int = 400
+    EVAL_FALLBACK_CASE_COST_USD: Decimal = Decimal("0.05")
+    EVAL_ESTIMATE_SAMPLE: int = 50
+    # A running eval run whose worker has not said it is alive, nor started or
+    # finished a case, for this long lost its worker. The worker says so every
+    # `EVAL_HEARTBEAT_SECONDS` while it works.
+    EVAL_ABANDONED_AFTER_MINUTES: float = 30.0
+    EVAL_HEARTBEAT_SECONDS: float = 60.0
+    # A queued run has no worker yet - it waits for a runner slot - so it is
+    # given up on only after this long.
+    EVAL_QUEUED_ABANDONED_AFTER_HOURS: float = 24.0
     ALGORITHM: str = "HS256"
     FRONTEND_URL: str = "http://localhost:3000"
     PUBLIC_BASE_URL: str = "http://localhost:8000"
@@ -577,6 +616,11 @@ class Settings(BaseSettings):
     # so the ceiling is about what one integration can do to a worker, not about
     # what a stranger can reach: this surface is authenticated.
     RATE_LIMIT_ML_PER_MINUTE: int = 30
+    # How many requests one organization API key may make per minute, across
+    # every public route. A key is a program, not a person, so the bound is on
+    # what one integration can do to the deployment; a run or an ML call is
+    # additionally counted against its own, smaller limit.
+    RATE_LIMIT_API_KEY_PER_MINUTE: int = 600
     # Whether `X-Forwarded-For` names the caller. Off by default because the
     # header is set by whoever is calling, so trusting it unconditionally is a
     # per-IP limit anybody bypasses by varying one string. On costs the mirror
@@ -593,23 +637,21 @@ class Settings(BaseSettings):
     # downtime, when the runner picks up a backlog of scheduled runs and would
     # otherwise start all of them - see app/worker/prefect_app.py.
     PREFECT_RUNNER_LIMIT: int = 5
-    # A floor under every scheduled interval, for a machine that is not a server.
+    # A floor under every Prefect schedule, for a machine that is not a server.
     #
-    # Four deployments tick every sixty seconds - the trigger heartbeat, the RAG
-    # sync check, the portal poll and the notification delivery sweep. On a
-    # deployment that is the point of them: a schedule that fires a minute late
-    # is a schedule nobody trusts. On a laptop running the whole stack beside an
-    # editor it is four fresh Python processes a minute, each importing the
-    # application before doing about two tenths of a second of work, and the
-    # import is what costs - measured at roughly seven seconds a run, four at a
-    # time.
+    # Each Prefect flow run is a fresh Python process importing the application,
+    # measured at roughly seven seconds on a laptop and fourteen on the production
+    # host. The four minute-scale sweeps - the trigger heartbeat, the RAG sync
+    # check, the portal poll and notification delivery - used to be deployments
+    # paying that every minute; they now run inside the worker's process
+    # (`app/worker/sweeps.py`, #2213) and take no floor. What remains scheduled
+    # ticks every fifteen minutes or slower.
     #
     # `0` changes nothing and is the default, so a deployment keeps the
     # intervals the code declares. Raising it lengthens only the schedules
     # already faster than it, which is why this is a floor rather than a
-    # multiplier: at 600 the four minute-ticks become ten minutes and the
-    # fifteen-minute, hourly and daily sweeps are untouched. `make dev` sets it;
-    # see `docs/configuration.md`.
+    # multiplier: hourly and daily sweeps are untouched by 600. `make dev` sets
+    # it; see `docs/configuration.md`.
     WORKER_MIN_INTERVAL_SECONDS: int = Field(default=0, ge=0)
 
     # Nothing about embeddings or parsing is a setting. The model, the provider
@@ -731,15 +773,27 @@ class Settings(BaseSettings):
     # as `MEM0_ALLOWED_HOSTS` does. Empty refuses browser automation outright.
     BROWSER_CDP_ALLOWED_HOSTS: list[str] = []
 
-    # Where a browsing agent's decision model may run, beyond the vendor's own
-    # endpoint. `decision_base_url` is in the agent spec and the vault key is
-    # unsealed and handed to that address, so an author who may *bind* a shared
-    # TypeSafe key - without being able to read it - could point it at a server
-    # of their own and collect it from the request header. This is
-    # `MEM0_ALLOWED_HOSTS` again, one field along, and the answer is the same
-    # one. Empty allows only the vendor endpoint, which is the default and the
-    # configuration nobody has to think about.
-    DECISION_MODEL_ALLOWED_HOSTS: list[str] = []
+    # The browser a person signs in to a site with from Settings (#2129). An
+    # agent's browser is named in its spec; signing in from Settings involves no
+    # agent, so the deployment names the one it runs - the compose `browser`
+    # service, `http://browser:9222`. Its host has to be in
+    # `BROWSER_CDP_ALLOWED_HOSTS` like any agent's. Empty hides the option.
+    BROWSER_SIGN_IN_CDP_URL: str = ""
+
+    # The browser a visual is drawn to a picture with (#2171), where no frame can
+    # run it: a chat app's reply and a dashboard thumbnail of a page. The compose
+    # `browser` service, `http://browser:9222`, whose host has to be in
+    # `BROWSER_CDP_ALLOWED_HOSTS`. The drawing reaches nothing from there - every
+    # request it makes is answered by the deployment or refused. Empty sends a
+    # drawing's title instead of its picture.
+    VISUAL_RENDER_CDP_URL: str = ""
+
+    # The proxy the deployment's own browser reaches every site through - the
+    # compose `browser-egress` service, `http://browser-egress:3128`, which refuses
+    # anything inside the deployment's network and connects to the address it
+    # checked. Used by every browse that has no proxy of the organization's own
+    # and is not on a hosted browser; empty sends the browser straight out.
+    BROWSER_EGRESS_PROXY: str = ""
 
     @field_validator("CORS_ORIGINS")
     @classmethod

@@ -3,7 +3,15 @@
 import Link from "next/link";
 import { BookOpen, Check, Plus } from "lucide-react";
 
-import { Badge, Pager, SearchInput, useListControls } from "@/components/ui";
+import {
+  Badge,
+  Pager,
+  PICKER_PAGE_SIZE,
+  SearchInput,
+  useChosenFirst,
+  useListControls,
+} from "@/components/ui";
+import { GroupsChip } from "@/components/sharing/audience-chip";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { SkillSummary } from "@/types/providers";
@@ -50,8 +58,10 @@ export function SkillGallery({
   // that publishing will be refused, made about a skill that is fine.
   const orphaned = skills.length >= total ? selectedIds.filter((id) => !known.has(id)) : [];
 
+  const ordered = useChosenFirst(skills, selectedIds);
   const list = useListControls({
-    items: skills,
+    items: ordered,
+    pageSize: PICKER_PAGE_SIZE,
     matches: (skill, query) =>
       skill.name.toLowerCase().includes(query) || skill.description.toLowerCase().includes(query),
   });
@@ -108,6 +118,7 @@ export function SkillGallery({
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="font-mono text-sm font-medium">{skill.name}</span>
                   {!skill.enabled && <Badge variant="outline">{t("disabled")}</Badge>}
+                  <GroupsChip groups={skill.shared_groups} />
                 </span>
                 <span className="text-muted-foreground mt-1 block text-sm">
                   {skill.description}

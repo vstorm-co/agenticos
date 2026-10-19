@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Compound interest</title>
+  <link rel="stylesheet" href="lib/agenticos-2.css">
+  <script src="lib/chart-4.5.1.umd.min.js"></script>
+  <script src="lib/agenticos-2.js"></script>
+  <style>
+    body { margin: 0; }
+    .wrap { padding: 20px; display: grid; gap: 16px; }
+    .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 16px; }
+    .control { display: grid; gap: 6px; }
+    .control-head { display: flex; justify-content: space-between; font-size: 13px; }
+    .control-head output { font-weight: 600; font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: currentColor; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <h1 style="margin: 0; font-size: 18px">Compound interest</h1>
+      <p class="ao-muted ao-small" style="margin: 4px 0 0">Interest earns interest. Move a slider and watch the gap grow.</p>
+    </header>
+
+    <section class="controls" aria-label="Inputs">
+      <label class="control">
+        <span class="control-head"><span>Starting amount</span><output id="amount-out"></output></span>
+        <input id="amount" type="range" min="1000" max="100000" step="1000" value="20000">
+      </label>
+      <label class="control">
+        <span class="control-head"><span>Yearly rate</span><output id="rate-out"></output></span>
+        <input id="rate" type="range" min="0.5" max="12" step="0.5" value="6">
+      </label>
+      <label class="control">
+        <span class="control-head"><span>Years</span><output id="years-out"></output></span>
+        <input id="years" type="range" min="1" max="40" step="1" value="25">
+      </label>
+    </section>
+
+    <section class="ao-grid-3" aria-label="Result">
+      <div class="ao-card ao-stat"><div class="ao-stat-label">Final value</div><div class="ao-stat-value" id="final"></div></div>
+      <div class="ao-card ao-stat"><div class="ao-stat-label">Interest earned</div><div class="ao-stat-value" id="interest"></div></div>
+      <div class="ao-card ao-stat"><div class="ao-stat-label">More than simple interest</div><div class="ao-stat-value ao-up" id="gain"></div></div>
+    </section>
+
+    <div class="ao-card"><div class="ao-chart"><canvas id="chart" role="img" aria-label="Value over the years"></canvas></div></div>
+  </main>
+
+  <script>
+    const state = { amount: 20000, rate: 6, years: 25 };
+    const money = (value) => AO.format.currency(value, "EUR");
+
+    function series() {
+      const years = Array.from({ length: state.years + 1 }, (_, year) => year);
+      const r = state.rate / 100;
+      return {
+        years,
+        compound: years.map((year) => state.amount * Math.pow(1 + r, year)),
+        simple: years.map((year) => state.amount * (1 + r * year)),
+      };
+    }
+
+    const chart = AO.chart("#chart", () => {
+      const data = series();
+      return {
+        type: "line",
+        data: {
+          labels: data.years,
+          datasets: [
+            { label: "Compound", data: data.compound, borderWidth: 2.5, pointRadius: 0 },
+            { label: "Simple", data: data.simple, borderDash: [5, 4], pointRadius: 0 },
+          ],
+        },
+        options: { interaction: { mode: "index", intersect: false }, maintainAspectRatio: false },
+      };
+    });
+
+    function render() {
+      const data = series();
+      const final = data.compound.at(-1);
+      document.getElementById("amount-out").textContent = money(state.amount);
+      document.getElementById("rate-out").textContent = `${state.rate}%`;
+      document.getElementById("years-out").textContent = state.years;
+      document.getElementById("final").textContent = money(final);
+      document.getElementById("interest").textContent = money(final - state.amount);
+      document.getElementById("gain").textContent = money(final - data.simple.at(-1));
+      chart.data.labels = data.years;
+      chart.data.datasets[0].data = data.compound;
+      chart.data.datasets[1].data = data.simple;
+      chart.update("none");
+    }
+
+    for (const key of Object.keys(state)) {
+      document.getElementById(key).addEventListener("input", (event) => {
+        state[key] = Number(event.target.value);
+        render();
+      });
+    }
+    render();
+  </script>
+</body>
+</html>

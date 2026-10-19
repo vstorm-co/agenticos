@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -33,6 +34,26 @@ from app.services.artifact import ArtifactService
 pytestmark = pytest.mark.anyio
 
 PATH = "app.services.artifact"
+
+
+@pytest.fixture(autouse=True)
+def _shared_with_no_group(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The listing names each page's groups; the session here is a mock."""
+
+    async def nowhere(*_args: object, resource_ids: list[uuid.UUID], **_kwargs: object):
+        return {resource_id: [] for resource_id in resource_ids}
+
+    monkeypatch.setattr(f"{PATH}.groups_sharing", nowhere)
+
+
+@pytest.fixture(autouse=True)
+def _nobody_follows(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The repository is mocked call by call here, and following is its own
+    concern - `TestFollowing` in `test_artifact_followers.py` covers it."""
+    from app.repositories import artifact as artifact_repo
+
+    monkeypatch.setattr(artifact_repo, "is_following", AsyncMock(return_value=False))
+    monkeypatch.setattr(artifact_repo, "follower_ids", AsyncMock(return_value=[]))
 
 
 def _ctx(role: str = OrgRoleName.OWNER) -> AuthContext:
@@ -416,6 +437,7 @@ class TestAppendingAVersion:
                 sha256="a" * 64,
                 storage_path="p",
                 run_id=None,
+                actor_user_id=None,
             )
         assert create.await_args.kwargs["number"] == 3
         assert artifact.published_at > datetime(2026, 9, 22, tzinfo=UTC)
@@ -843,11 +865,24 @@ class TestAgentFilter:
             patch(f"{PATH}.visible_resource_ids", new=AsyncMock(return_value=shared)),
             patch(
                 f"{PATH}.artifact_repo.publishing_agents",
-                new=AsyncMock(return_value=[(agent_id, "Reporter")]),
+                new=AsyncMock(
+                    return_value=[
+                        SimpleNamespace(
+                            id=agent_id,
+                            slug="reporter",
+                            has_avatar=True,
+                            avatar_color=3,
+                            name="Reporter",
+                        )
+                    ]
+                ),
             ) as agents,
         ):
             result = await _service().publishing_agents(ctx)
-        assert [(item.id, item.name) for item in result.items] == [(agent_id, "Reporter")]
+        assert [
+            (item.id, item.name, item.slug, item.has_avatar, item.avatar_color)
+            for item in result.items
+        ] == [(agent_id, "Reporter", "reporter", True, 3)]
         assert agents.await_args.kwargs["see_all"] is False
         assert agents.await_args.kwargs["shared_ids"] == shared
 
@@ -905,5 +940,5 @@ class TestTheBundledSkill:
         from app.agents.capabilities.artifacts._toolset import build_artifacts_toolset
 
         tool = build_artifacts_toolset().tools["publish_artifact"]
-        for name in artifacts.ARTIFACT_LIBRARY:
+        for name in set(artifacts.ARTIFACT_LIBRARY) - artifacts.FRAME_ONLY_LIBRARY:
             assert f"lib/{name}" in (tool.description or "")

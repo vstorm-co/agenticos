@@ -1,9 +1,10 @@
 "use client";
 
 import { useMemo } from "react";
+import { FlaskConical } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { Badge } from "@/components/ui";
+import { Badge, Button } from "@/components/ui";
 import { useAgentVersion } from "@/hooks";
 import type { AgentSpec } from "@/types/agents";
 
@@ -15,6 +16,8 @@ interface PublishStateProps {
   currentVersionId: string | null;
   /** The stored draft - the server's copy, never the local edit. */
   draftSpec: AgentSpec;
+  /** Test the draft against what is live; offered only while the two differ. */
+  onTest?: () => void;
 }
 
 /**
@@ -33,7 +36,7 @@ interface PublishStateProps {
  * "draft", and there is no version to differ from - and quiet until the
  * version arrives.
  */
-export function PublishState({ agentId, currentVersionId, draftSpec }: PublishStateProps) {
+export function PublishState({ agentId, currentVersionId, draftSpec, onTest }: PublishStateProps) {
   const t = useTranslations("agents");
   const { version } = useAgentVersion(agentId, currentVersionId);
   const differs = useMemo(
@@ -42,14 +45,28 @@ export function PublishState({ agentId, currentVersionId, draftSpec }: PublishSt
   );
   if (!version) return null;
   return differs ? (
-    <Badge
-      variant="outline"
-      className="text-muted-foreground"
-      title={t("draftDiffersHint", { version: version.version })}
-    >
-      <span aria-hidden className="bg-warning h-1.5 w-1.5 shrink-0 rounded-full" />
-      {t("draftDiffersFromPublished", { version: version.version })}
-    </Badge>
+    <>
+      <Badge
+        variant="outline"
+        className="text-muted-foreground"
+        title={t("draftDiffersHint", { version: version.version })}
+      >
+        <span aria-hidden className="bg-warning h-1.5 w-1.5 shrink-0 rounded-full" />
+        {t("draftDiffersFromPublished", { version: version.version })}
+      </Badge>
+      {onTest && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-6 px-2 text-xs"
+          onClick={onTest}
+          data-tour="agent-test-draft"
+        >
+          <FlaskConical className="h-3 w-3" aria-hidden />
+          {t("testDraft")}
+        </Button>
+      )}
+    </>
   ) : (
     <Badge variant="outline" className="text-muted-foreground">
       <span aria-hidden className="bg-success h-1.5 w-1.5 shrink-0 rounded-full" />

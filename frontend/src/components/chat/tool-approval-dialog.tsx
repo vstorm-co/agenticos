@@ -1,11 +1,22 @@
 "use client";
 
+import {
+  AGENT_DRAFT_TOOL,
+  AgentDraftProposal,
+  draftArgs,
+} from "@/components/chat/agent-draft-proposal";
+import {
+  AccountBadge,
+  ApprovalDetails,
+  ToolMark,
+  useActionPhrase,
+} from "@/components/runs/approval-request";
 import { Button } from "@/components/ui";
 import { usePermissions } from "@/hooks";
-import { toolEntry } from "@/lib/tool-catalog";
+import { callSummary } from "@/lib/approval-view";
+import { cn } from "@/lib/utils";
 import type { ActionRequest, ReviewConfig, Decision } from "@/types";
 import { Perm } from "@/types/permissions";
-import { ShieldAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 interface ToolApprovalDialogProps {
@@ -35,10 +46,12 @@ interface ToolApprovalDialogProps {
  * the edit path was dead, and the raw JSON box it needed was the loudest thing in
  * the transcript.
  *
- * What replaces it is the shape the rest of the chat uses: a card, the step's own
- * name from `lib/tool-catalog.ts`, its arguments as read-only code, and
- * two plain answers. Approve and Reject rather than "Submit 1 call" - the question
- * is not how many calls there are.
+ * What replaces it is a question a person can answer at a glance: the service's
+ * logo or the tool's mark, "Allow Search in Notion?", the one argument that says
+ * what it is about, and two plain answers - with every other argument folded
+ * behind Details, because a page of `"page_url": ""` leads with nothing. Approve
+ * and Reject rather than "Submit 1 call" - the question is not how many calls
+ * there are.
  */
 export function ToolApprovalDialog({
   actionRequests,
@@ -46,70 +59,87 @@ export function ToolApprovalDialog({
   disabled = false,
 }: ToolApprovalDialogProps) {
   const t = useTranslations("chat");
-  const tTools = useTranslations("chat.tools");
   const { can } = usePermissions();
   const mayDecide = can(Perm.approvalsDecide);
+  const phrase = useActionPhrase();
 
   const decideAll = (type: "approve" | "reject") =>
     onDecisions(actionRequests.map(() => ({ type })));
 
   return (
-    <div className="border-border bg-card space-y-3 rounded-xl border p-3 shadow-sm">
-      <div className="flex items-center gap-2">
-        <ShieldAlert className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
-        <span className="text-sm font-medium">{t("toolApprovalRequired")}</span>
+    // The answers sit beside the question rather than under it: under it, a
+    // folded Details left a band of empty card between what was asked and the
+    // buttons that answer it.
+    // Laid out by the card's own width, not the window's: in the Architect's
+    // widget the window is wide and the card is not, and buttons beside the
+    // question squeezed what was asked into a column a third of the card.
+    <div className="@container">
+      <div className="border-border bg-card flex flex-col gap-3 rounded-2xl border p-4 shadow-sm @xl:flex-row @xl:items-start">
+        <ul className="min-w-0 flex-1 space-y-4">
+          {actionRequests.map((action) => {
+            // The Architect's agent draft is decided as a draft, not as a JSON call (#1799).
+            const draft = action.tool_name === AGENT_DRAFT_TOOL ? draftArgs(action.args) : null;
+            const args = action.args ?? {};
+            const summary = draft === null ? callSummary(args) : null;
+            return (
+              <li key={action.id} className="flex gap-3">
+                <ToolMark toolName={action.tool_name} />
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  <p className="text-muted-foreground text-xs font-medium">
+                    {t("toolApprovalRequired")}
+                  </p>
+                  {/* The question, in the words the step above it uses - "Allow
+                    Search in Notion?" - rather than `notion_notion-search`. */}
+                  <p className="text-foreground text-sm font-medium">
+                    {draft !== null
+                      ? t("draftProposalTitle")
+                      : t("approvalAsk", { action: phrase(action.tool_name) })}
+                  </p>
+                  <AccountBadge account={action.account} />
+                  {/* The one argument that says what the call is about. A command
+                    is read by its characters, so it keeps a code face. */}
+                  {summary !== null && (
+                    <p
+                      className={cn(
+                        "text-foreground/80 truncate text-sm",
+                        "command" in args && "font-mono text-xs",
+                      )}
+                      title={summary}
+                    >
+                      {summary}
+                    </p>
+                  )}
+                  {draft !== null ? (
+                    <AgentDraftProposal draft={draft} />
+                  ) : (
+                    <ApprovalDetails toolName={action.tool_name} args={args} />
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+
+        {mayDecide ? (
+          <div className="flex shrink-0 justify-end gap-2 @xl:pt-4">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => decideAll("reject")}
+              disabled={disabled}
+            >
+              {t("reject")}
+            </Button>
+            <Button size="sm" onClick={() => decideAll("approve")} disabled={disabled}>
+              {t("approve")}
+            </Button>
+          </div>
+        ) : (
+          <p className="text-muted-foreground max-w-56 shrink-0 text-xs @xl:pt-4">
+            {t("decidingNeedsPermission")}
+          </p>
+        )}
       </div>
-
-      <ul className="space-y-2">
-        {actionRequests.map((action) => {
-          const entry = toolEntry(action.tool_name);
-          return (
-            <li key={action.id} className="border-border space-y-1.5 rounded-lg border p-2.5">
-              {/* The catalog's name where it has one - "Run Python" rather than
-                  `run_python`, the same words the step above it uses. */}
-              <span className="text-xs font-medium">
-                {entry?.displayNameKey === undefined
-                  ? action.tool_name
-                  : tTools(entry.displayNameKey)}
-              </span>
-              {/* Read-only, and scrolling rather than wrapping: a shell command is
-                  read by its structure, and a 300-character one reflowed to the left
-                  margin is unreadable in exactly the moment somebody has to judge it. */}
-              <pre className="bg-muted text-foreground/90 max-h-48 overflow-auto rounded-md p-2 font-mono text-xs leading-relaxed whitespace-pre">
-                {argumentLines(action)}
-              </pre>
-            </li>
-          );
-        })}
-      </ul>
-
-      {mayDecide ? (
-        <div className="flex justify-end gap-2">
-          <Button size="sm" variant="ghost" onClick={() => decideAll("reject")} disabled={disabled}>
-            {t("reject")}
-          </Button>
-          <Button size="sm" onClick={() => decideAll("approve")} disabled={disabled}>
-            {t("approve")}
-          </Button>
-        </div>
-      ) : (
-        <p className="text-muted-foreground text-xs">{t("decidingNeedsPermission")}</p>
-      )}
     </div>
   );
-}
-
-/**
- * The arguments as something a person judges, not as a JSON object.
- *
- * A gated call is nearly always one string that matters - the command, the path,
- * the address - and `{"command": "python - <<'PY'\nimport …"}` hides it behind
- * escaping: the newlines that make a script readable arrive as `\n`. So a single
- * string argument is shown as itself, and anything else is indented JSON.
- */
-function argumentLines(action: ActionRequest): string {
-  const values = Object.values(action.args ?? {});
-  const only = values.length === 1 ? values[0] : undefined;
-  if (typeof only === "string") return only;
-  return JSON.stringify(action.args ?? {}, null, 2);
 }

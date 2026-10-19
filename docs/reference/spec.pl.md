@@ -1,5 +1,5 @@
 ---
-source_sha: "74ed632657e1"
+source_sha: "c7ee53ab1f4e"
 ---
 
 # Spec agenta { #the-agent-spec }
@@ -13,6 +13,16 @@ wygenerowana niżej dokumentacja pól pozostaje po angielsku.
 
 ::: app.agents.spec.AgentSpec
 
+## Zmienne { #variables }
+
+`{{nazwa}}` w `instructions` jest uzupełniane na początku każdego runa: zmienną
+systemową, którą zna platforma (data i godzina, zalogowana osoba i jej
+[grupy](../departments.md), organizacja, agent, kanał), albo jedną z własnych `variables` agenta. `time_zone` decyduje,
+który zegar czyta `{{current_time}}`. Publikacja odrzuca nazwę, która nie jest
+żadną z nich.
+
+::: app.agents.spec.PromptVariableSpec
+
 ## Delegowanie { #delegation }
 
 Dwie formy, a [Koncepcje](../concepts.md#delegate-vs-inline-specialist)
@@ -20,6 +30,11 @@ wyjaśniają, po którą sięgnąć. `subagents` trzyma pierwszą; druga mieszka
 konfiguracji samej [capability `subagents`](capabilities.md#delegation).
 
 ::: app.agents.spec.SubagentRef
+
+`external_agents` wskazuje zdalnych agentów A2A zarejestrowanych w organizacji, których
+[delegowanie](capabilities.md#remote-agents) wywołuje obok powyższych.
+
+::: app.agents.spec.ExternalAgentRef
 
 ::: app.agents.spec.SpecialistSpec
 

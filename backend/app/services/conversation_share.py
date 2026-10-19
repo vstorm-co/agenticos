@@ -6,8 +6,14 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import AlreadyExistsError, AuthorizationError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
 from app.repositories import conversation_repo, conversation_share_repo, member_repo, user_repo
+from app.services import visual as visuals
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +57,14 @@ class ConversationShareService:
             )
         if conv.user_id != shared_by:
             raise AuthorizationError(message="Only the conversation owner can share it")
+        # Who reads a project's chat is the project's to say. A share - a public
+        # link above all - would outlive its starter's place in the project and
+        # go on showing teammates' later turns to whoever holds it.
+        if conv.project_id is not None:
+            raise BadRequestError(
+                message="A project's chat is shared through its project - share the project",
+                details={"conversation_id": str(conversation_id)},
+            )
 
         share_token = None
 
@@ -160,8 +174,11 @@ class ConversationShareService:
         conv = await conversation_repo.get_conversation_by_id(
             self.db, share.conversation_id, include_messages=True
         )
-        if not conv:
+        # A link made before its chat was in a project, or before that was
+        # refused, opens nothing: the project decides who reads it.
+        if not conv or conv.project_id is not None:
             raise NotFoundError(message="Conversation not found")
+        drawn = await visuals.shared_visuals(conv)
         return {
             "conversation": {
                 "id": str(conv.id),
@@ -172,6 +189,7 @@ class ConversationShareService:
                         "role": m.role,
                         "content": m.content,
                         "created_at": m.created_at.isoformat() if m.created_at else None,
+                        "visuals": drawn.get(m.id, []),
                     }
                     for m in (conv.messages or [])
                 ],

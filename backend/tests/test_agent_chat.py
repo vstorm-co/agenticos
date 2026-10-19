@@ -38,6 +38,8 @@ from app.agents.capabilities.compaction import ContextGauge
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.media import MediaOffload
 from app.agents.deps import AgentDeps
+from app.agents.loop_guard import ToolLoopStopped
+from app.agents.steering import SteeringInbox
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import OrgRoleName
 from app.db.models.agent_run import RunStatus, RunSurface
@@ -47,6 +49,7 @@ from app.services.agent_chat import (
     requested_agent_id,
     requested_environment_id,
     requested_model_profile_id,
+    requested_testing,
 )
 from app.services.agent_runner import AgentRunnerService, PersonalServiceGap, PreparedRun
 
@@ -199,7 +202,9 @@ def _prepared(output: object = "the refund window is 30 days") -> PreparedRun:
     built.deps = AgentDeps()
     built.agent.iter = MagicMock(return_value=_Iteration(_agent_run(output)))
     return PreparedRun(
-        run=MagicMock(id=uuid.uuid4()),
+        # No conversation on the row: the tests that run a real `finish` and
+        # `keep_plan` would otherwise write a plan through a mocked session.
+        run=MagicMock(id=uuid.uuid4(), conversation_id=None),
         agent=MagicMock(),
         spec=MagicMock(),
         built=built,
@@ -226,6 +231,7 @@ def _runner(
         members.get = AsyncMock(return_value=membership)
         runner_cls.return_value.prepare = AsyncMock(return_value=prepared)
         runner_cls.return_value.finish = AsyncMock()
+        runner_cls.return_value.keep_plan = AsyncMock()
         yield runner_cls.return_value
 
 
@@ -249,6 +255,7 @@ async def _run(
     subagent_events: Any = None,
     on_personal_gaps: Any = None,
     request_connection: Any = None,
+    steering: Any = None,
 ):
     return await ChatAgentRunner(db).run(
         user=user or _user(),
@@ -265,6 +272,7 @@ async def _run(
         subagent_events=subagent_events,
         on_personal_gaps=on_personal_gaps,
         request_connection=request_connection,
+        steering=steering,
     )
 
 
@@ -370,6 +378,19 @@ class TestAddressingAnEnvironment:
     @pytest.mark.parametrize("frame", [{}, {"environment_id": None}, {"environment_id": ""}])
     def test_a_frame_that_names_no_environment_gets_the_default(self, frame):
         assert requested_environment_id(frame) is None
+
+    @pytest.mark.parametrize(
+        ("frame", "expected"),
+        [
+            ({}, (False, False)),
+            ({"test": True}, (True, False)),
+            ({"draft": True}, (True, True)),
+            # Only a literal true: a string is not a request to run the draft.
+            ({"draft": "true", "test": 1}, (False, False)),
+        ],
+    )
+    def test_the_test_panel_s_flags_are_read_only_when_true(self, frame, expected):
+        assert tuple(requested_testing(frame)) == expected
 
     def test_a_named_environment_is_read_back_as_its_id(self):
         environment_id = uuid.uuid4()
@@ -515,6 +536,12 @@ class TestMeteringWhatTheTurnEmbedded:
         billed = finish_run.await_args.kwargs
         assert billed["cost_usd"] == Decimal("0.00002")
         assert billed["input_tokens"] == 1000
+        # A turn whose cache was never in play credits the row with nothing.
+        assert (billed["cache_busts"], billed["cache_expiries"], billed["cache_missed_tokens"]) == (
+            0,
+            0,
+            0,
+        )
 
     async def test_an_unpriced_embedding_makes_the_turns_cost_a_floor(self):
         """`cost_is_partial` is what the chat draws its `+` from. An embedding
@@ -683,6 +710,16 @@ class TestRecordingTheRun:
         assert finished["status"] is RunStatus.GUARDRAIL_BLOCKED
         assert finished["error"] == "This request was blocked."
 
+    async def test_a_run_stopped_for_looping_is_recorded_as_such_and_raised_on(self):
+        stopped = ToolLoopStopped("Stopped: the agent called `search` 4 times in a row.")
+
+        with _runner(_prepared()) as runner, pytest.raises(ToolLoopStopped):
+            await _run(_db(), stream=AsyncMock(side_effect=stopped))
+
+        finished = runner.finish.call_args.kwargs
+        assert finished["status"] is RunStatus.LOOP_STOPPED
+        assert finished["error"] == str(stopped)
+
     async def test_a_run_that_ends_with_nothing_at_all_fails_loudly(self):
         """An empty answer persisted as the agent's reply would be a lie about it."""
         prepared = _prepared()
@@ -692,6 +729,46 @@ class TestRecordingTheRun:
             await _run(_db())
 
         assert runner.finish.call_args.kwargs["status"] is RunStatus.FAILED
+
+
+class TestKeepingThePlan:
+    """The web chat keeps the checklist a turn ended on, as every other surface
+    does - without it the next message started from an empty plan and the
+    agent's `read_plan` answered "No plan yet." (#1077, #2162)."""
+
+    async def test_a_turn_keeps_its_plan_on_the_way_out(self):
+        prepared = _prepared()
+
+        with _runner(prepared) as runner:
+            await _run(_db(), conversation_id=uuid.uuid4())
+
+        runner.keep_plan.assert_awaited_once_with(prepared, status=RunStatus.COMPLETED)
+
+    async def test_a_stopped_turn_keeps_its_plan_as_interrupted(self):
+        """`keep_plan` puts the step in progress down for an interrupted run, so
+        it has to be told how this one ended."""
+
+        async def _cancelled(agent_run: Any) -> None:
+            raise asyncio.CancelledError
+
+        prepared = _prepared()
+        with _runner(prepared) as runner, pytest.raises(asyncio.CancelledError):
+            await _run(_db(), stream=_cancelled)
+
+        runner.keep_plan.assert_awaited_once_with(prepared, status=RunStatus.CANCELLED)
+
+    async def test_the_plan_lands_in_the_terminal_commit(self):
+        """Written before the commit that closes the run, not after it - the
+        session is not committed again once the turn returns."""
+        db = _db()
+        order: list[str] = []
+        db.commit = AsyncMock(side_effect=lambda: order.append("commit"))
+
+        with _runner(_prepared()) as runner:
+            runner.keep_plan = AsyncMock(side_effect=lambda *_, **__: order.append("plan"))
+            await _run(db)
+
+        assert order == ["commit", "plan", "commit"]
 
 
 class TestLinkingThePromptToTheRun:
@@ -929,6 +1006,41 @@ class TestAttachmentsAreRoutedHereAndNotBySurfaces:
         prompt = prepared.built.agent.iter.call_args.args[0]
         assert "month,total" in prompt
 
+    async def test_what_the_file_added_is_kept_on_the_prompt_for_the_next_turn(self):
+        """The paste reached this request and nothing after it, so a follow-up
+        about the file went to a model that had never been told of it."""
+        attachment = SimpleNamespace(
+            id=uuid.uuid4(),
+            filename="raport.csv",
+            mime_type="text/csv",
+            size=512,
+            storage_path="u/1/raport.csv",
+            file_type="text",
+            parsed_content="month,total\njan,10",
+        )
+        prepared = _prepared()
+        prepared.workspace = None
+        conversation_id, message_id = uuid.uuid4(), uuid.uuid4()
+
+        with (
+            _runner(prepared),
+            patch("app.services.agent_chat.conversation_repo.link_message_to_run", new=AsyncMock()),
+            patch(
+                "app.services.agent_chat.conversation_repo.set_attachment_context",
+                new=AsyncMock(),
+            ) as kept,
+        ):
+            await _run(
+                _db(),
+                attachments=[attachment],
+                conversation_id=conversation_id,
+                prompt_message_id=message_id,
+            )
+
+        written = kept.await_args.kwargs
+        assert (written["message_id"], written["conversation_id"]) == (message_id, conversation_id)
+        assert "month,total" in written["context"]
+
     async def test_the_workspace_the_run_opened_is_the_one_the_file_lands_in(self):
         """Not a fresh one, and not none - the file has to be where the agent
         will look for it."""
@@ -1086,3 +1198,15 @@ class TestTellingTheChatWhatThePersonCannotReach:
             await _run(_db(), request_connection=ask)
 
         assert runner.prepare.await_args.kwargs["request_connection"] is ask
+
+
+class TestAddingToTheTurnAndAskingAside:
+    """The chat runner's half of #2087."""
+
+    async def test_the_inbox_the_surface_holds_is_the_one_the_run_reads(self):
+        prepared = _prepared()
+        inbox = SteeringInbox()
+        with _runner(prepared):
+            await _run(_db(), steering=inbox)
+
+        assert prepared.deps.steering is inbox

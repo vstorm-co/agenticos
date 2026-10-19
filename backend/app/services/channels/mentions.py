@@ -57,10 +57,12 @@ from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.repositories import agent_exposure_repo, agent_repo, member_repo
+from app.services import visual_render
 from app.services.access import publisher_context
 from app.services.agent_runner import AgentRunnerService, RunStream
 from app.services.channels.base import ROOM_HANDLES, OutgoingAttachment, channel_key
 from app.services.channels.chart_png import render_chart_png
+from app.services.channels.steering import current_steering, is_asked_aside
 from app.services.transcript import RecordedToolCall
 from app.services.usage_report import (
     UsageReportService,
@@ -68,11 +70,15 @@ from app.services.usage_report import (
     needs_sandbox_sample,
     should_report,
 )
+from app.services.visual import DREW, VISUAL_TOOLS
 
 # Matches a leading handle and keeps everything after it as the prompt. Anchored
 # at the start on purpose: a slug appearing mid-sentence is someone talking
 # *about* an agent, not to it.
 _MENTION = re.compile(r"^\s*@([a-z0-9][a-z0-9-]{0,63})\b[:,]?\s*(.*)$", re.DOTALL)
+
+# What a channel turn can end waiting on that the chat itself can settle.
+_PARKED = (RunStatus.AWAITING_APPROVAL.value, RunStatus.AWAITING_ANSWER.value)
 
 # Which surface a run is stamped with, so run history can be filtered by where
 # it came from. Anything else is recorded as an API run rather than guessed at -
@@ -114,6 +120,32 @@ def drawn_chart(called: list[RecordedToolCall]) -> bytes | None:
         except Exception:
             logger.exception("Could not render a chart for a channel reply")
             return None
+    return None
+
+
+async def drawn_picture(
+    called: list[RecordedToolCall], *, organization_id: UUID, conversation_id: UUID | None
+) -> bytes | None:
+    """The last picture this turn made: a chart, or a visual the deployment's browser drew.
+
+    A reply carries one image, so it is the *last* of either kind. A visual with
+    no browser to draw it with gives none, and the answer goes without it.
+    """
+    for call in reversed(called):
+        if call.result is None:
+            continue
+        if call.tool_name == _CHART_TOOL:
+            return await asyncio.to_thread(drawn_chart, [call])
+        # A visual the tool refused - a retry, the last attempt's refusal - is no
+        # drawing; and one that cannot be drawn here leaves an earlier chart to go.
+        if call.tool_name in VISUAL_TOOLS and call.result.startswith(DREW):
+            picture = await visual_render.picture_of_turn(
+                [(c.tool_call_id, c.tool_name, c.args, c.result) for c in called],
+                organization_id=organization_id,
+                conversation_id=conversation_id,
+            )
+            if picture is not None:
+                return picture
     return None
 
 
@@ -206,6 +238,13 @@ class AnsweredTurn:
     on a product they reach through a bot - which is most of the way to not
     telling them at all.
     """
+
+    parked_run_id: UUID | None = None
+    """The run, when it stopped for somebody in this chat - a decision or a question -
+    so the chat is offered the choices as buttons (#2064, #2067)."""
+
+    run_id: UUID | None = None
+    """The run that answered, so the thumbs under the answer can rate it (#2084)."""
 
     image_png: bytes | None = None
     """A chart the turn drew, rendered for a surface that cannot run Recharts.
@@ -357,7 +396,16 @@ class ChannelAgentRouter:
             tool_calls=called,
             stream=stream,
             surface=_SURFACES.get(platform, RunSurface.API),
-            conversation_id=conversation_id,
+            # A question is asked here as buttons and answered later (#2064) - of
+            # a linked member. An unlinked sender's turn runs as the publisher,
+            # and a question parked for them could be answered only by the
+            # publisher, never by the stranger who was asked; it is declined.
+            parks_questions=sender is not None,
+            # A `/btw` answer is not part of the thread's transcript (#2087).
+            conversation_id=None if is_asked_aside() else conversation_id,
+            # What the sender adds while this runs, and the side question (#2087).
+            steering=current_steering(),
+            aside=is_asked_aside(),
             channel_key=(None if platform_chat_id is None else channel_key(platform_chat_id)),
             memory_room_key=memory_room_key,
             channel_directory=channel_directory,
@@ -383,11 +431,15 @@ class ChannelAgentRouter:
             ),
             attachments=produced,
             refused=refused,
-            image_png=await asyncio.to_thread(drawn_chart, called),
+            image_png=await drawn_picture(
+                called, organization_id=run.organization_id, conversation_id=run.conversation_id
+            ),
             awaiting_approval_run_id=(
                 run.id if run.status == RunStatus.AWAITING_APPROVAL else None
             ),
+            parked_run_id=run.id if run.status in _PARKED else None,
             status=run.status,
+            run_id=run.id,
         )
 
     async def answer_default(
@@ -463,7 +515,16 @@ class ChannelAgentRouter:
             tool_calls=called,
             stream=stream,
             surface=_SURFACES.get(platform, RunSurface.API),
-            conversation_id=conversation_id,
+            # A question is asked here as buttons and answered later (#2064) - of
+            # a linked member. An unlinked sender's turn runs as the publisher,
+            # and a question parked for them could be answered only by the
+            # publisher, never by the stranger who was asked; it is declined.
+            parks_questions=sender is not None,
+            # A `/btw` answer is not part of the thread's transcript (#2087).
+            conversation_id=None if is_asked_aside() else conversation_id,
+            # What the sender adds while this runs, and the side question (#2087).
+            steering=current_steering(),
+            aside=is_asked_aside(),
             channel_key=(None if platform_chat_id is None else channel_key(platform_chat_id)),
             memory_room_key=memory_room_key,
             channel_directory=channel_directory,
@@ -483,11 +544,15 @@ class ChannelAgentRouter:
             ),
             attachments=produced,
             refused=refused,
-            image_png=await asyncio.to_thread(drawn_chart, called),
+            image_png=await drawn_picture(
+                called, organization_id=run.organization_id, conversation_id=run.conversation_id
+            ),
             awaiting_approval_run_id=(
                 run.id if run.status == RunStatus.AWAITING_APPROVAL else None
             ),
+            parked_run_id=run.id if run.status in _PARKED else None,
             status=run.status,
+            run_id=run.id,
         )
 
     async def _with_usage(

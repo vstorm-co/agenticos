@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Box, Cloud, Pencil, Star, Trash2 } from "lucide-react";
+import { Box, Cloud, Pencil, ShieldCheck, Star, Trash2 } from "lucide-react";
 
 import { Badge, Button, DataTable, type Column } from "@/components/ui";
 import { ConnectionKindIcon } from "./connection-kind-icon";
@@ -55,20 +55,25 @@ export function ConnectionsTable({
     () => [
       {
         key: "name",
-        className: "pl-5",
+        // Takes what the others leave and cuts a long name short, rather than
+        // pushing the actions off a phone.
+        // The room the other columns leave, which they take first: they keep to
+        // one line (the address used to wrap while the name sat in a sea of
+        // space), and the name truncates only when the row truly runs out.
+        className: "w-full max-w-0 pl-5",
         header: t("name"),
         sortable: true,
         sortValue: (connection) => connection.name,
         cell: (connection) => (
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             {connection.kind === "daytona" ? (
-              <Cloud className="text-muted-foreground h-4 w-4" aria-hidden />
+              <Cloud className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
             ) : (
-              <Box className="text-muted-foreground h-4 w-4" aria-hidden />
+              <Box className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
             )}
-            <span className="font-medium">{connection.name}</span>
+            <span className="truncate font-medium">{connection.name}</span>
             {connection.is_default && (
-              <Badge variant="secondary" className="gap-1">
+              <Badge variant="secondary" className="shrink-0 gap-1">
                 <Star className="h-3 w-3" aria-hidden />
                 {t("default")}
               </Badge>
@@ -78,10 +83,12 @@ export function ConnectionsTable({
         ),
       },
       {
+        // Not on a phone, where they pushed the actions off the screen; the connection's dialog has them all.
         key: "kind",
+        hideBelow: "sm",
         header: t("kind"),
         cell: (connection) => (
-          <span className="text-muted-foreground flex items-center gap-2">
+          <span className="text-muted-foreground flex items-center gap-2 whitespace-nowrap">
             <ConnectionKindIcon kind={connection.kind} className="h-3.5 w-3.5" />
             {kindLabel(connection.kind, t)}
           </span>
@@ -89,15 +96,17 @@ export function ConnectionsTable({
       },
       {
         key: "address",
+        hideBelow: "sm",
         header: t("address"),
         cell: (connection) => (
-          <span className="text-muted-foreground font-mono text-xs">
+          <span className="text-muted-foreground font-mono text-xs whitespace-nowrap">
             {addressLabel(connection)}
           </span>
         ),
       },
       {
         key: "credential",
+        hideBelow: "sm",
         header: t("credential"),
         cell: (connection) =>
           connection.secret_id === null ? (
@@ -111,12 +120,20 @@ export function ConnectionsTable({
       },
       {
         key: "defaultRuntime",
+        hideBelow: "sm",
         header: t("defaultRuntime"),
-        cell: (connection) => (
-          <span className="text-muted-foreground font-mono text-xs">
-            {connection.default_runtime ?? t("serviceSOwn")}
-          </span>
-        ),
+        cell: (connection) =>
+          // A runtime's name is an identifier and reads as one; "the service's
+          // own" is a phrase and does not.
+          connection.default_runtime ? (
+            <span className="text-muted-foreground font-mono text-xs">
+              {connection.default_runtime}
+            </span>
+          ) : (
+            <span className="text-muted-foreground text-xs whitespace-nowrap">
+              {t("serviceSOwn")}
+            </span>
+          ),
       },
       {
         key: "actions",
@@ -132,7 +149,9 @@ export function ConnectionsTable({
                 onClick={() => onInspect(connection)}
                 aria-label={t("whatNamedAllows", { name: connection.name })}
               >
-                {t("whatAllows")}
+                {/* An icon on a phone, where the words took the name's room. */}
+                <ShieldCheck className="h-4 w-4 sm:hidden" aria-hidden />
+                <span className="max-sm:hidden">{t("whatAllows")}</span>
               </Button>
             )}
             <Button

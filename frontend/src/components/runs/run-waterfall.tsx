@@ -46,21 +46,41 @@ export function RunWaterfall({ requests }: { requests: ManifestRequest[] }) {
               )}
               style={{ width: `${Math.max((request.duration_ms / slowest) * 100, 4)}%` }}
             >
-              <span className="truncate font-mono text-[11px] whitespace-nowrap">
+              <span className="truncate font-mono text-xs whitespace-nowrap">
                 {request.failed ?? request.tool_calls.join(", ")}
               </span>
             </div>
           </div>
-          <span
-            className="text-muted-foreground font-mono text-[11px] tabular-nums"
-            title={t("requestDetail", {
-              input: request.input_tokens,
-              output: request.output_tokens,
-              messages: request.message_count,
-              finish: request.finish_reason ?? "-",
-            })}
-          >
-            {t("milliseconds", { ms: request.duration_ms })}
+          <span className="flex items-center gap-1.5">
+            {/* The request whose cached prompt prefix collapsed, and how many tokens
+                it re-sent at the full input rate - what an investigation into a
+                run's cost is looking for (#2109). */}
+            {request.cache && (
+              <span
+                className={cn(
+                  "rounded px-1 py-px text-[10px] font-medium",
+                  request.cache === "bust"
+                    ? "bg-warning/15 text-warning"
+                    : "bg-muted text-muted-foreground",
+                )}
+                title={t(request.cache === "bust" ? "cacheBustDetail" : "cacheExpiredDetail", {
+                  missed: request.cache_missed_tokens,
+                })}
+              >
+                {t(request.cache === "bust" ? "cacheBust" : "cacheExpired")}
+              </span>
+            )}
+            <span
+              className="text-muted-foreground font-mono text-xs tabular-nums"
+              title={t("requestDetail", {
+                input: request.input_tokens,
+                output: request.output_tokens,
+                messages: request.message_count,
+                finish: request.finish_reason ?? "-",
+              })}
+            >
+              {t("milliseconds", { ms: request.duration_ms })}
+            </span>
           </span>
         </li>
       ))}

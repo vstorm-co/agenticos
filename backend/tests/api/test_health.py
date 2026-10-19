@@ -88,10 +88,12 @@ async def test_liveness_probe_reports_the_build(client: AsyncClient):
     assert data["status"] == "alive"
     assert data["details"]["environment"] == settings.ENVIRONMENT
     # The name of this test claims it reports the build, and for a long time it
-    # asserted everything except that - so the probe answered 1.0.0 from a
-    # `getattr` against a setting that does not exist, through six releases.
+    # asserted everything except that - so the probe answered a hard-coded 1.0.0
+    # from a `getattr` against a setting that does not exist, through six
+    # releases. It is the installed package's version, which the release cut
+    # moves; a literal here would fail the day the real version matches it, as
+    # it did at 1.0.0.
     assert data["details"]["version"] == __version__
-    assert data["details"]["version"] != "1.0.0"
 
 
 @pytest.mark.anyio

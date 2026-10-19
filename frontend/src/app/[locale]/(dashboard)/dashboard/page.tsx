@@ -1,6 +1,6 @@
 "use client";
 
-import { type CSSProperties, Fragment, useMemo, useState } from "react";
+import { type CSSProperties, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ChevronDown, ChevronRight, LayoutGrid, MessageSquarePlus } from "lucide-react";
@@ -10,17 +10,16 @@ import { toast } from "sonner";
 import { DashboardEditor } from "@/components/dashboard/dashboard-editor";
 import { DashboardPresetMenu } from "@/components/dashboard/dashboard-preset-menu";
 import { FilterRow } from "@/components/dashboard/filter-row";
-import { OrgDivider } from "@/components/dashboard/org-divider";
+import { MeHeader } from "@/components/dashboard/me-header";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { DiscoverTips } from "@/components/dashboard/discover-tips";
+import { QuietGroup } from "@/components/dashboard/quiet-group";
+import { StartChecklist } from "@/components/dashboard/start-checklist";
+import { ViewSwitcher } from "@/components/dashboard/view-switcher";
 import { WIDGET_COMPONENTS } from "@/components/dashboard/widgets";
 import { Button } from "@/components/ui";
 import { EmptyState, LoadingState } from "@/components/states";
-import {
-  useDashboardLayout,
-  useDashboardPresets,
-  useOrganizationList,
-  usePermissions,
-} from "@/hooks";
+import { useDashboardLayout, useDashboardPresets, useGroups, usePermissions } from "@/hooks";
 import type { DashboardPreset } from "@/lib/dashboard-preset-api";
 import { useOrgStore } from "@/stores";
 import {
@@ -28,7 +27,10 @@ import {
   resolveAudience,
   ROW_CLASS,
   SPAN_CLASS,
+  viewLayout,
   visibleSections,
+  DASHBOARD_VIEWS,
+  type DashboardView,
   type SectionDef,
 } from "@/lib/dashboard/layouts";
 import {
@@ -103,11 +105,9 @@ export default function DashboardPage() {
     setCollapseOverrides({});
   }
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
-  const organizations = useOrganizationList();
-  const activeOrgName = useMemo(
-    () => organizations.data?.find((organization) => organization.id === activeOrgId)?.name ?? null,
-    [organizations.data, activeOrgId],
-  );
+  const { groups, isLoading: groupsLoading } = useGroups(activeOrgId ?? "");
+  const [viewParam, setViewParam] = useState<string | null>(() => searchParams.get("view"));
+  const [groupParam, setGroupParam] = useState<string | null>(() => searchParams.get("group"));
 
   // can() answers false while permissions load; resolving the audience from
   // that would flash a viewer-shaped page at a steward, so hold the skeleton
@@ -115,7 +115,10 @@ export default function DashboardPage() {
   // no preference while it loads, so the audience default renders first and a
   // saved arrangement settles it into place - the gate runs on both, so the
   // brief default is never a wider page than the person may see.
-  if (isLoading) {
+  // A link to a group's view waits for the groups too: deciding without them
+  // would open the organization's view for a moment and ask all of its
+  // questions unnarrowed before the group arrived.
+  if (isLoading || (viewParam === "group" && groupsLoading)) {
     return (
       <div className="space-y-6">
         <PageHeader title={t("title")} />
@@ -126,12 +129,45 @@ export default function DashboardPage() {
 
   const audience = resolveAudience(role, isAppAdmin);
   const isCustom = storedEntries !== null;
-  const effective = resolveEffectiveLayout(audience, storedEntries);
+
+  // The views this reader may open, in the switcher's order. The organization's
+  // asks for `runs:view` - or for an arrangement the person already saved, which
+  // is theirs to keep reading - a group's for that and a group to read, and the
+  // deployment's for the app admin flag. Their own is everybody's.
+  const available = DASHBOARD_VIEWS.filter((option) => {
+    if (option === "org") return can(Perm.runsView) || isCustom;
+    if (option === "group") return can(Perm.runsView) && groups.length > 0;
+    if (option === "deployment") return isAppAdmin;
+    return true;
+  });
+  // Everybody opens on their own view - the greeting, their activity and the
+  // tips - and switches to the organization's from there.
+  const fallbackView: DashboardView = "me";
+  const view: DashboardView = available.includes(viewParam as DashboardView)
+    ? (viewParam as DashboardView)
+    : fallbackView;
+  const group = groups.find((entry) => entry.id === groupParam) ?? groups[0] ?? null;
+  const arrangeable = view === "org";
+
+  const effective = arrangeable
+    ? resolveEffectiveLayout(audience, storedEntries)
+    : viewLayout(view, audience);
   const visible = visibleSections(effective, can, isAppAdmin);
 
   const changePeriod = (next: Period) => {
     setPeriod(next);
     setUrlParam("period", formatPeriodParam(next));
+  };
+  const changeView = (next: DashboardView) => {
+    setViewParam(next);
+    setUrlParam("view", next === fallbackView ? null : next);
+    // A section chosen on one view names nothing on another.
+    setSectionsParam(null);
+    setUrlParam("sections", null);
+  };
+  const changeGroup = (next: string) => {
+    setGroupParam(next);
+    setUrlParam("group", next);
   };
   const changeSections = (selected: string[] | null) => {
     const value = formatSectionsParam(selected);
@@ -213,21 +249,26 @@ export default function DashboardPage() {
   // every other page in the product puts its primary in (`New agent` on
   // Agents, `New collection` on Knowledge bases).
   const headerActions = (
-    <div className="flex items-center gap-2">
-      <div data-tour="dashboard-customize" className="flex items-center gap-2">
-        <DashboardPresetMenu
-          presets={presets}
-          isCustom={isCustom}
-          onApply={handleApplyPreset}
-          onUseDefault={handleReset}
-          onNewBlank={() => openEditor(true)}
-          onDelete={removePreset}
-        />
-        <Button variant="outline" className="gap-1.5" onClick={() => openEditor(false)}>
-          <LayoutGrid className="size-4" aria-hidden />
-          {t("edit.customize")}
-        </Button>
-      </div>
+    // Wrapping, because three buttons are wider than a phone (#2075).
+    <div className="flex flex-wrap items-center gap-2">
+      {/* Arranging belongs to the organization's view: the others are fixed
+          pages, each made of the cards that answer its question. */}
+      {arrangeable ? (
+        <div data-tour="dashboard-customize" className="flex flex-wrap items-center gap-2">
+          <DashboardPresetMenu
+            presets={presets}
+            isCustom={isCustom}
+            onApply={handleApplyPreset}
+            onUseDefault={handleReset}
+            onNewBlank={() => openEditor(true)}
+            onDelete={removePreset}
+          />
+          <Button variant="outline" className="gap-1.5" onClick={() => openEditor(false)}>
+            <LayoutGrid className="size-4" aria-hidden />
+            {t("edit.customize")}
+          </Button>
+        </div>
+      ) : null}
       {can(Perm.agentsRun) ? (
         <Button asChild className="gap-1.5">
           <Link href={ROUTES.CHAT}>
@@ -244,7 +285,7 @@ export default function DashboardPage() {
   if (visible.length === 0) {
     return (
       <div className="space-y-6">
-        <PageHeader title={t("title")} description={t(`subtitles.${audience}`)} />
+        <PageHeader title={t("title")} description={t(`views.${view}.description`)} />
         <EmptyState
           icon={LayoutGrid}
           title={t("edit.emptyTitle")}
@@ -258,14 +299,125 @@ export default function DashboardPage() {
 
   const selectedSections = parseSectionsParam(sectionsParam, visible);
   const sections = applySectionsFilter(visible, selectedSections);
-  const firstOrgSectionId = sections.find((section) => section.id !== "deployment")?.id;
+
+  const bands = (
+    <div className={cn(BAND_GAP, "mt-6")}>
+      {sections.map((section) => {
+        // A custom divider carries the person's own caption (`title`) and an
+        // accent; the curated defaults carry a translated `titleKey` and no
+        // colour. Neutral is the absence of an accent — rendered plain, like a
+        // default section — so only a real colour (a preset or a custom hex)
+        // tints the band, carried on `--dash-solid` by the decoration.
+        const heading = sectionLabel(section, t) || null;
+        const coloured = isAccentColour(section.accent);
+        const decoration = coloured ? accentDecoration(section.accent as string) : null;
+        const collapsed =
+          section.id in collapseOverrides ? collapseOverrides[section.id] : !!section.collapsed;
+        const toggleCollapsed = () =>
+          setCollapseOverrides((current) => ({ ...current, [section.id]: !collapsed }));
+        return (
+          <section
+            key={section.id}
+            className={cn(coloured && "dash-section-accent p-4", decoration?.className)}
+            style={decoration?.style as CSSProperties | undefined}
+          >
+            {/* A band label, not a title. A section heading set at the same
+                  size and weight as the card titles under it gave the page two
+                  levels where it has three, so nothing marked where one band
+                  ended and the next began - a mono kicker is the level
+                  between. */}
+            {heading ? (
+              <h2 className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={toggleCollapsed}
+                  aria-expanded={!collapsed}
+                  aria-label={
+                    collapsed
+                      ? t("edit.expand", { title: heading })
+                      : t("edit.collapse", { title: heading })
+                  }
+                  className="text-muted-foreground hover:text-foreground -ml-1 flex size-5 shrink-0 items-center justify-center"
+                >
+                  {collapsed ? (
+                    <ChevronRight className="size-4" aria-hidden />
+                  ) : (
+                    <ChevronDown className="size-4" aria-hidden />
+                  )}
+                </button>
+                {coloured ? (
+                  <span className="dash-swatch size-2.5 shrink-0 rounded-full" aria-hidden />
+                ) : null}
+                <span className="text-muted-foreground truncate font-mono text-xs font-medium tracking-[0.1em] uppercase">
+                  {heading}
+                </span>
+                <span className="bg-border h-px min-w-6 flex-1" aria-hidden />
+              </h2>
+            ) : null}
+            {collapsed ? null : (
+              <div className={cn("rise-in", ARRANGED_GRID_CLASS, heading && HEADING_GAP)}>
+                {section.entries.map((entry, index) => {
+                  const Widget = WIDGET_COMPONENTS[entry.widget];
+                  // Width and height, both from the placement. The shipped
+                  // default carries a height on every card now - it is a page
+                  // somebody arranged - so this is the same grid an arranged
+                  // layout renders in and the editor previews. A placement
+                  // predating heights falls back to the widget's own.
+                  const cell = `${SPAN_CLASS[entry.span]} ${ROW_CLASS[entry.rows ?? WIDGETS[entry.widget].defaultRows]}`;
+                  return (
+                    <div
+                      key={`${entry.widget}-${index}`}
+                      className={cn(cell, coloured && "dash-tile-accent")}
+                    >
+                      <Widget
+                        title={t(entry.titleKey ?? `widgets.${entry.widget}.title`)}
+                        hint={t(`widgets.${entry.widget}.description`)}
+                        // A card pinning its own window gets that one; every
+                        // other card follows the page's filter. Resolved here
+                        // rather than inside the widget, so a widget never has
+                        // to know which of the two it was handed - and so the
+                        // preset is resolved once against one "today".
+                        period={
+                          entry.options?.period ? resolvePreset(entry.options.period) : period
+                        }
+                        seeAll={WIDGETS[entry.widget].seeAll}
+                        // The group view narrows every card to its group; the
+                        // saved options never carry one.
+                        options={
+                          view === "group" && group !== null
+                            ? { ...entry.options, groupId: group.id }
+                            : entry.options
+                        }
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        );
+      })}
+    </div>
+  );
 
   return (
     <div>
-      <PageHeader
-        title={t("title")}
-        description={t(`subtitles.${audience}`)}
-        actions={headerActions}
+      {view === "me" ? (
+        <MeHeader period={period} canRun={can(Perm.agentsRun)} actions={headerActions} />
+      ) : (
+        <PageHeader
+          title={t("title")}
+          description={t(`views.${view}.description`)}
+          actions={headerActions}
+        />
+      )}
+      <ViewSwitcher
+        views={available}
+        view={view}
+        onViewChange={changeView}
+        groups={groups}
+        groupId={group?.id ?? null}
+        onGroupChange={changeGroup}
       />
       <FilterRow
         period={period}
@@ -274,104 +426,25 @@ export default function DashboardPage() {
         selectedSections={selectedSections}
         onSectionsChange={changeSections}
       />
+      {/* Setting the organization up belongs where somebody acts on it - their
+          own view or the organization's - not beside a group's or the host's
+          numbers. */}
+      {activeOrgId && (view === "org" || view === "me") && <StartChecklist orgId={activeOrgId} />}
+      {view === "me" && <DiscoverTips />}
       {/* The bands own a rhythm of their own, four times the gap between two
           cards, which is what makes a band read as a band. The header and the
           control strip above keep the 24px every other page uses. */}
-      <div className={cn(BAND_GAP, "mt-6")}>
-        {sections.map((section) => {
-          // A custom divider carries the person's own caption (`title`) and an
-          // accent; the curated defaults carry a translated `titleKey` and no
-          // colour. Neutral is the absence of an accent — rendered plain, like a
-          // default section — so only a real colour (a preset or a custom hex)
-          // tints the band, carried on `--dash-solid` by the decoration.
-          const heading = sectionLabel(section, t) || null;
-          const coloured = isAccentColour(section.accent);
-          const decoration = coloured ? accentDecoration(section.accent as string) : null;
-          const collapsed =
-            section.id in collapseOverrides ? collapseOverrides[section.id] : !!section.collapsed;
-          const toggleCollapsed = () =>
-            setCollapseOverrides((current) => ({ ...current, [section.id]: !collapsed }));
-          return (
-            <Fragment key={section.id}>
-              {!isCustom && audience === "app_admin" && section.id === firstOrgSectionId ? (
-                <OrgDivider name={activeOrgName} />
-              ) : null}
-              <section
-                className={cn(coloured && "dash-section-accent p-4", decoration?.className)}
-                style={decoration?.style as CSSProperties | undefined}
-              >
-                {/* A band label, not a title. A section heading set at the same
-                  size and weight as the card titles under it gave the page two
-                  levels where it has three, so nothing marked where one band
-                  ended and the next began - the mono kicker `OrgDivider`
-                  already used is the level between. */}
-                {heading ? (
-                  <h2 className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={toggleCollapsed}
-                      aria-expanded={!collapsed}
-                      aria-label={
-                        collapsed
-                          ? t("edit.expand", { title: heading })
-                          : t("edit.collapse", { title: heading })
-                      }
-                      className="text-muted-foreground hover:text-foreground -ml-1 flex size-5 shrink-0 items-center justify-center"
-                    >
-                      {collapsed ? (
-                        <ChevronRight className="size-4" aria-hidden />
-                      ) : (
-                        <ChevronDown className="size-4" aria-hidden />
-                      )}
-                    </button>
-                    {coloured ? (
-                      <span className="dash-swatch size-2.5 shrink-0 rounded-full" aria-hidden />
-                    ) : null}
-                    <span className="text-muted-foreground truncate font-mono text-xs font-medium tracking-[0.1em] uppercase">
-                      {heading}
-                    </span>
-                    <span className="bg-border h-px min-w-6 flex-1" aria-hidden />
-                  </h2>
-                ) : null}
-                {collapsed ? null : (
-                  <div className={cn("rise-in", ARRANGED_GRID_CLASS, heading && HEADING_GAP)}>
-                    {section.entries.map((entry, index) => {
-                      const Widget = WIDGET_COMPONENTS[entry.widget];
-                      // Width and height, both from the placement. The shipped
-                      // default carries a height on every card now - it is a page
-                      // somebody arranged - so this is the same grid an arranged
-                      // layout renders in and the editor previews. A placement
-                      // predating heights falls back to the widget's own.
-                      const cell = `${SPAN_CLASS[entry.span]} ${ROW_CLASS[entry.rows ?? WIDGETS[entry.widget].defaultRows]}`;
-                      return (
-                        <div
-                          key={`${entry.widget}-${index}`}
-                          className={cn(cell, coloured && "dash-tile-accent")}
-                        >
-                          <Widget
-                            title={t(entry.titleKey ?? `widgets.${entry.widget}.title`)}
-                            hint={t(`widgets.${entry.widget}.description`)}
-                            // A card pinning its own window gets that one; every
-                            // other card follows the page's filter. Resolved here
-                            // rather than inside the widget, so a widget never has
-                            // to know which of the two it was handed - and so the
-                            // preset is resolved once against one "today".
-                            period={
-                              entry.options?.period ? resolvePreset(entry.options.period) : period
-                            }
-                            seeAll={WIDGETS[entry.widget].seeAll}
-                            options={entry.options}
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </section>
-            </Fragment>
-          );
-        })}
-      </div>
+      {view === "group" && group !== null ? (
+        <QuietGroup
+          group={group}
+          period={period}
+          onWiden={period.preset === "90d" ? undefined : () => changePeriod(resolvePreset("90d"))}
+        >
+          {bands}
+        </QuietGroup>
+      ) : (
+        bands
+      )}
     </div>
   );
 }

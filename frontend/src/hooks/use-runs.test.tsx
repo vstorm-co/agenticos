@@ -140,6 +140,14 @@ describe("useRuns", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/runs", { params: { rated: "down" } });
   });
 
+  it("asks for the runs that are not test runs, saying false rather than nothing (#2074)", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    const { result } = renderHook(() => useRuns(undefined, { isTest: false }), { wrapper });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/runs", { params: { test: "false" } });
+  });
+
   it("narrows by person and version, and pages by rows to skip", async () => {
     // The filter bar's two identity narrowings and the pager's offset, in the
     // route's own names - each computed in SQL over the whole history.

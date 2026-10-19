@@ -41,7 +41,7 @@ scaffolding for one review, today.
    topics via `docs/file-processing.md`. Identify which components (boxes) and interactions
    (edges) the diff touches. There is no separate ADR log in this repository — the closest
    record of *why* a boundary exists is `docs/about/design.md` ("the six decisions that shape
-   the codebase") and the Hard boundaries section of `CLAUDE.md`; cite those where relevant
+   the codebase") and the Hard boundaries section of `AGENTS.md`; cite those where relevant
    instead of an ADR number. Prefer reusing the existing diagrams over inventing a new topology.
 
 3. **Build the walkthrough as a self-contained HTML page**. Load the `artifact-design` skill
@@ -61,7 +61,7 @@ scaffolding for one review, today.
      transaction-boundary change, a spec/schema change, a migration, a vault/credential path)
      and a one-line "why read this next" per group.
    - **Anchors back to the code** — link each file/group to its path (and line where useful)
-     and cite the governing rule under `.claude/rules/` or the hard boundary in `CLAUDE.md` it
+     and cite the governing rule under `.claude/rules/` or the hard boundary in `AGENTS.md` it
      touches.
 
 4. **Publish it** with the `Artifact` tool, where that tool is available to the session (it

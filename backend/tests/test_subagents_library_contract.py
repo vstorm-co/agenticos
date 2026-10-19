@@ -607,3 +607,18 @@ def _a_run_context() -> RunContext[AgentDeps]:
 
 def _nothing(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
     return ModelResponse(parts=[TextPart("")])
+
+
+def test_a_parked_question_is_not_handed_to_a_delegate() -> None:
+    """Review on #2062: on a channel a delegate's question parked as a deferral of
+    the parent's `task` call with nothing to decide, and the run waited for ever.
+    A live surface's asking is still inherited."""
+
+    async def ask(_requests: Any) -> Any:  # pragma: no cover - only handed on
+        return None
+
+    parked = AgentDeps(ask_questions=ask, parks_questions=True).clone_for_subagent()
+    live = AgentDeps(ask_questions=ask).clone_for_subagent()
+
+    assert parked.ask_questions is None
+    assert live.ask_questions is ask

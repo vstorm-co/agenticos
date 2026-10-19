@@ -53,21 +53,21 @@ function LogRow({ log }: { log: RAGSyncLog }) {
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
           <span className="text-foreground text-xs font-medium capitalize">{log.status}</span>
-          <span className="text-muted-foreground font-mono text-[11px] tracking-wide uppercase">
+          <span className="text-muted-foreground font-mono text-xs tracking-wide uppercase">
             {log.mode}
           </span>
           {log.started_at && (
-            <span className="text-muted-foreground text-[11px]">
+            <span className="text-muted-foreground text-xs">
               {timeAgo(log.started_at, tTime, locale)}
             </span>
           )}
-          <span className="text-muted-foreground text-[11px]">{duration(log)}</span>
+          <span className="text-muted-foreground text-xs">{duration(log)}</span>
         </div>
         {log.status !== "running" && log.status !== "pending" && (
-          <p className="text-muted-foreground mt-0.5 text-[11px]">{outcome.join(" · ")}</p>
+          <p className="text-muted-foreground mt-0.5 text-xs">{outcome.join(" · ")}</p>
         )}
         {log.error_message && (
-          <p className="text-destructive mt-0.5 text-[11px] leading-snug">{log.error_message}</p>
+          <p className="text-destructive mt-0.5 text-xs leading-snug">{log.error_message}</p>
         )}
       </div>
     </div>

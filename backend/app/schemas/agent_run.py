@@ -1,6 +1,6 @@
 """Schemas for run history, approvals and the cost dashboard."""
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -9,6 +9,7 @@ from pydantic import Field, model_validator
 
 from app.schemas.base import BaseSchema
 from app.schemas.conversation import MessageRead
+from app.schemas.eval_run import EvalCaseLinkRead
 
 
 class AgentRunRead(BaseSchema):
@@ -19,6 +20,9 @@ class AgentRunRead(BaseSchema):
     agent_version_id: UUID | None = None
     user_id: UUID | None = None
     surface: str
+    is_test: bool = Field(
+        default=False, description="Started from the Builder's test panel (#2074)"
+    )
     status: str
     model_label: str | None = None
     provider: str | None = Field(
@@ -31,11 +35,39 @@ class AgentRunRead(BaseSchema):
             "change under the same label"
         ),
     )
-    input_tokens: int
+    input_tokens: int = Field(
+        description=(
+            "Prompt tokens, cache reads and writes included - Pydantic AI's convention. "
+            "The two cache fields say how many of them were priced at the cache rates"
+        )
+    )
     output_tokens: int
+    cache_read_tokens: int = Field(
+        default=0,
+        description=(
+            "Of `input_tokens`, those served from the provider's cache, priced at a "
+            "fraction of the input rate. With `cache_write_tokens`, what reconciles a "
+            "run with the provider's console. Like `cost_usd`, a parent's figure "
+            "includes its delegations' requests; their own rows divide the same tokens "
+            "by agent"
+        ),
+    )
+    cache_write_tokens: int = Field(
+        default=0,
+        description="Of `input_tokens`, those written to the provider's cache, priced above it",
+    )
     cost_usd: Decimal
     cost_is_partial: bool = Field(
         description="True when a model in this run had no price - the cost is a floor"
+    )
+    tool_args_repaired: int = Field(
+        default=0,
+        description=(
+            "Tool calls whose arguments arrived as malformed JSON - a trailing comma, "
+            "single quotes, an object cut short - and were repaired before validation "
+            "rather than retried. Each one is a model request saved; a model that "
+            "needs many is one to reconsider"
+        ),
     )
     logfire_trace_id: str | None = Field(
         default=None,
@@ -70,6 +102,22 @@ class AgentRunRead(BaseSchema):
     next_run_id: UUID | None = Field(
         default=None,
         description="The run after this one in its own conversation. See `prev_run_id`",
+    )
+    preview: str | None = Field(
+        default=None,
+        description=(
+            "What the run was asked, as one line: its first user turn, or the eval "
+            "case's question for a run that answered or graded one. Sent on the "
+            "listing; null for a run that kept no conversation"
+        ),
+    )
+    eval_case: EvalCaseLinkRead | None = Field(
+        default=None,
+        description=(
+            "The eval run and case this run answered - or graded, on the judge's "
+            "single-run read - when the caller may see the dataset; such a run keeps "
+            "no conversation, and its answer and grade are read on the eval run"
+        ),
     )
     error: str | None = None
     conversation_id: UUID | None = Field(
@@ -248,6 +296,13 @@ class ApprovalRead(BaseSchema):
             "accountability trail and a bare UUID is not one"
         ),
     )
+    account: str | None = Field(
+        default=None,
+        description=(
+            "Which account of an MCP service the call acts as, where its binding "
+            "names one - the mailbox a Send mail would send from"
+        ),
+    )
     subagent_name: str | None = Field(
         default=None,
         description=(
@@ -392,6 +447,37 @@ class CostByKey(BaseSchema):
     run_count: int
 
 
+class CacheByAgentModel(BaseSchema):
+    """Prompt-cache collapses for one agent on one model over the window (#2109).
+
+    A *bust* is a cached prefix that moved while the provider should still have
+    held it - tools reordered, a timestamp in the instructions; an *expiry* is one
+    whose retention had passed. `missed_tokens` is the cached prefix that was not
+    read back - a measure of the miss, not of tokens billed again, since a
+    compaction can also shrink the prompt the cache held. Only pairs with at
+    least one of either are listed.
+    """
+
+    agent_id: UUID
+    agent_slug: str
+    agent_name: str
+    model_label: str | None
+    busts: int
+    expiries: int
+    missed_tokens: int = Field(
+        description="Tokens earlier requests had cached that these requests did not read back"
+    )
+    run_count: int = Field(description="Runs with at least one bust or expiry")
+
+
+class CostByDay(BaseSchema):
+    """One day's spend, for the bars over the window."""
+
+    day: date
+    cost_usd: Decimal
+    run_count: int
+
+
 class CostSummary(BaseSchema):
     """What the cost dashboard renders."""
 
@@ -428,3 +514,14 @@ class CostSummary(BaseSchema):
     by_agent: list[CostByAgent]
     by_provider: list[CostByProvider]
     by_key: list[CostByKey]
+    by_day: list[CostByDay] = Field(
+        default_factory=list,
+        description="Spend per UTC day over the window; a day with no runs has no entry",
+    )
+    cache_by_agent_model: list[CacheByAgentModel] = Field(
+        default_factory=list,
+        description=(
+            "Prompt-cache busts and expiries per agent and model over the window, most "
+            "busts first; empty when every cache held"
+        ),
+    )

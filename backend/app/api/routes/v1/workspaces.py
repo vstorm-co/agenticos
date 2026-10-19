@@ -123,8 +123,15 @@ async def list_all_files(workspaces: WorkspaceSvc, ctx: Auth) -> Any:
             is_dir=False,
             modified_at=file.info.get("modified_at"),
             workspace_id=file.overview.row.id,
+            agent_id=file.overview.row.agent_id,
             agent_name=file.overview.agent_name,
+            agent_slug=file.overview.agent_slug,
+            agent_has_avatar=file.overview.agent_has_avatar,
             access_label=file.overview.access_label,
+            conversation_title=file.overview.conversation_title,
+            conversation_id=(
+                file.overview.row.conversation_id if file.overview.conversation_is_callers else None
+            ),
             from_upload=is_attachment(str(file.info.get("path"))),
             preview=file.preview,
             thumbnail=file.thumbnail,

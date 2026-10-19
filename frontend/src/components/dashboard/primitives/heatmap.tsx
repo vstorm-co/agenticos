@@ -19,9 +19,11 @@ export interface HeatCell {
  * measures 1.63:1 against the card, so five steps of it are five shades of
  * nearly-white and the busiest hour of the week reads the same as a quiet one.
  * The ramp is built on the stroke tone instead - the same hue, the fuller
- * step - so the top of the scale is a mark and the bottom is a tint.
+ * step - so the top of the scale is a mark and the bottom is a tint. The first
+ * step starts at a quarter so that "barely" stands clear of the empty slots
+ * around it, which are the background at half strength.
  */
-const STEPS = [0.18, 0.36, 0.56, 0.78, 1] as const;
+const STEPS = [0.26, 0.44, 0.62, 0.81, 1] as const;
 
 /**
  * A grid where colour is magnitude - one hue, light to dark.

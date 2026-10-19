@@ -72,7 +72,7 @@ export function ReviewQueueWidget({ title, hint, seeAll, options }: DashboardWid
             {datasets.slice(0, SHOWN).map((dataset) => (
               <li key={dataset.dataset_id}>
                 <Link
-                  href={`${ROUTES.DATASET_DETAIL(dataset.dataset_id)}?tab=scores`}
+                  href={`${ROUTES.DATASET_DETAIL(dataset.dataset_id)}?tab=review`}
                   className="hover:bg-accent/40 flex flex-col gap-1 rounded-md px-1 py-2"
                 >
                   <span className="text-foreground truncate text-sm">{dataset.name}</span>

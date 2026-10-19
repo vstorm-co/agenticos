@@ -18,6 +18,7 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 from pydantic import (
     AliasPath,
+    ConfigDict,
     Field,
     JsonValue,
     TypeAdapter,
@@ -36,6 +37,8 @@ ScorerKind = Literal["check", "trajectory", "judge", "reference"]
 ScorerStatus = Literal["pass", "fail", "skipped", "error"]
 ReviewState = Literal["none", "pending", "done"]
 ReviewSelect = Literal["none", "failed", "all"]
+ToolOrderModeLiteral = Literal["any", "in_order", "exact"]
+ScoreOutcome = Literal["failed", "not_graded", "passed"]
 
 
 class TextCheck(BaseSchema):
@@ -181,18 +184,32 @@ class RubricCriterion(BaseSchema):
 
 
 class JudgeScorer(BaseSchema):
-    """The eval judge grading every case on a rubric.
+    """The judge grading every case on a rubric.
 
-    Each criterion is graded from 1 to `scale_max` and passes at `pass_at` or
-    above. `model_profile_id` runs the judge on another model than the one it
-    publishes on.
+    `agent_id` is the dataset's own judge, one of the organization's judges;
+    null is the platform's default eval judge. Each criterion is graded from 1
+    to `scale_max` and passes at `pass_at` or above. A judge grades on the model
+    its own page publishes it on.
     """
 
     enabled: bool = False
-    model_profile_id: UUID | None = None
+    agent_id: UUID | None = None
+    model_profile_id: UUID | None = Field(
+        default=None,
+        description=(
+            "Withdrawn: a judge grades on the model its own page publishes it on. "
+            "Still accepted, so an older client's request validates, and always null."
+        ),
+        json_schema_extra={"deprecated": True},
+    )
     scale_max: int = Field(default=5, ge=2, le=10)
     pass_at: int = Field(default=4, ge=1, le=10)
     criteria: list[RubricCriterion] = Field(default_factory=list, max_length=20)
+
+    @field_validator("model_profile_id")
+    @classmethod
+    def _withdrawn(cls, _: UUID | None) -> None:
+        return None
 
     @model_validator(mode="after")
     def _pass_mark_on_the_scale(self) -> JudgeScorer:
@@ -232,7 +249,11 @@ class ScorerResult(BaseSchema):
 
     `score` is normalized to 0..1. `reason_code` names why a scorer was skipped or
     failed to run - `ai_assistance_off`, `judge_unpublished`, `judge_budget` - so
-    each can be shown, and fixed, on its own.
+    each can be shown, and fixed, on its own. `unverified_quotes` are the parts of
+    the answer the judge quoted that the answer does not hold. `rule` is the rule
+    the judge says its grade follows from; `unverified` marks a top grade with
+    nothing quoted from the answer to show for it. `judge_said` is the start of
+    an answer the judge gave that could not be read.
     """
 
     scorer: ScorerKind
@@ -242,7 +263,40 @@ class ScorerResult(BaseSchema):
     score: float | None = None
     reason: str
     reason_code: str | None = None
+    unverified_quotes: list[str] = Field(default_factory=list)
+    rule: str | None = None
+    unverified: bool = False
+    judge_said: str | None = None
     judge_run_id: UUID | None = None
+
+
+class ExpectedToolCall(BaseSchema):
+    """A tool the agent should call, and the arguments that must match.
+
+    `args` is a subset: a call passes when every key given here is present with
+    this value, whatever else the agent also sent. Empty means only the tool name
+    is checked.
+    """
+
+    tool: str = Field(min_length=1, max_length=200)
+    args: dict[str, JsonValue] = Field(default_factory=dict)
+
+
+class CaseCheck(BaseSchema):
+    """One rule a case's answer is scored against, named by `type`.
+
+    Only the shape is fixed here: an object with a `type`, and that rule's own
+    parameters beside it. Which types exist and what each requires belongs to
+    scoring (`app.schemas.scoring.Check`), checked when a case is written - and a
+    stored check it no longer accepts is still read, and scored as an error.
+    """
+
+    model_config = ConfigDict(
+        from_attributes=True, populate_by_name=True, str_strip_whitespace=True, extra="allow"
+    )
+    __pydantic_extra__: dict[str, JsonValue] = Field(init=False)
+
+    type: str = Field(min_length=1, max_length=64)
 
 
 class CaseScoreCreate(BaseSchema):
@@ -266,26 +320,47 @@ class CaseVerdict(BaseSchema):
 class JudgePin(BaseSchema):
     """Which judge graded a score.
 
-    Two scores are graded alike only when every field matches. `rubric_hash`
-    fingerprints what the judge was asked: each criterion it graded and the
-    scale. `model_profile_id` is the model it ran on - the dataset's choice, or
-    the one its version publishes on.
+    Two scores are graded alike only when every field matches. `agent_id` is the
+    judge agent, `rubric_hash` fingerprints what it was asked: each criterion it
+    graded and the scale. `model_profile_id` is the model it ran on - the
+    dataset's choice, or the one its version publishes on. `prompt_version` is
+    the version of the task the platform hands every judge around the case;
+    null on a score graded before it was recorded, which was version 1.
     """
 
+    agent_id: UUID | None = None
     model_profile_id: UUID | None = None
     agent_version_id: UUID | None = None
     spec_version: int | None = None
     rubric_hash: str
+    prompt_version: int | None = None
 
 
 class CaseScoreRead(BaseSchema):
     """One run's answer scored against one case.
 
-    `passed` is what the scorers concluded; null means a required scorer could not
-    run, so the case is unscored rather than passed. `human_passed` is a person's
+    `passed` is what the scorers concluded; null means a required scorer reached
+    no verdict, so the case is unscored rather than passed or failed, and
+    `unscored_reason` names why: the `reason_code` of the first such scorer, or
+    its status when it has none. `human_passed` is a person's
     verdict, kept beside it. `outcome` is the one that counts: the person's when
-    there is one, the scorers' otherwise. `question` and `reference_answer` are
-    the scored revision's, which a later edit of the case does not change.
+    there is one, the scorers' otherwise.
+
+    What the case expected - `question`, `reference_answer`,
+    `expected_tool_calls`, `checks` - and its `case_tags` are the scored
+    revision's, which a later edit of the case does not change. `answer` is
+    what the run answered, kept with the score so it reads without the run.
+    `agent_id`, `agent_version_id` and `run_model` are the scored run's;
+    `agent_name` and `agent_version` are filled where scores are listed.
+    `eval_run_id` is the eval run that scored it, null for a score asked for
+    by hand. `judge_model` is the name of the model the judge graded on, while
+    that model exists; beside `run_model` it says when a judge graded the model
+    it runs on.
+
+    `answer_hidden` is true for a reader who may not view the agent that
+    answered: `answer` is then empty, and so is every result's reason, quotes
+    and what the judge said, which can repeat the answer; the outcome and the
+    case stay.
     """
 
     id: UUID
@@ -296,7 +371,30 @@ class CaseScoreRead(BaseSchema):
     reference_answer: str | None = Field(
         default=None, validation_alias=AliasPath("case_revision", "reference_answer")
     )
+    expected_tool_calls: list[ExpectedToolCall] = Field(
+        default_factory=list, validation_alias=AliasPath("case_revision", "expected_tool_calls")
+    )
+    order_mode: ToolOrderModeLiteral = Field(
+        default="any", validation_alias=AliasPath("case_revision", "order_mode")
+    )
+    checks: list[CaseCheck] = Field(
+        default_factory=list, validation_alias=AliasPath("case_revision", "checks")
+    )
+    case_tags: list[str] = Field(
+        default_factory=list, validation_alias=AliasPath("case_revision", "tags")
+    )
+    answer: str | None = None
     run_id: UUID | None = None
+    run_model: str | None = Field(default=None, validation_alias=AliasPath("run", "model_label"))
+    agent_id: UUID | None = Field(default=None, validation_alias=AliasPath("run", "agent_id"))
+    agent_version_id: UUID | None = Field(
+        default=None, validation_alias=AliasPath("run", "agent_version_id")
+    )
+    agent_name: str | None = None
+    agent_version: int | None = None
+    judge_model: str | None = None
+    answer_hidden: bool = False
+    eval_run_id: UUID | None = None
     results: list[ScorerResult]
     judge: JudgePin | None = None
     passed: bool | None = None
@@ -313,6 +411,20 @@ class CaseScoreRead(BaseSchema):
     def outcome(self) -> bool | None:
         return self.human_passed if self.human_passed is not None else self.passed
 
+    @computed_field
+    @property
+    def unscored_reason(self) -> str | None:
+        if self.passed is not None:
+            return None
+        return next(
+            (
+                result.reason_code or result.status
+                for result in self.results
+                if result.required and result.status in ("skipped", "error")
+            ),
+            None,
+        )
+
 
 class CaseScoreList(BaseSchema):
     items: list[CaseScoreRead]
@@ -323,6 +435,83 @@ class PendingScore(CaseScoreRead):
     """A score in the review queue, with the dataset it belongs to."""
 
     dataset_name: str
+
+
+class JudgeCreate(BaseSchema):
+    """A judge of a dataset's own, made from the default judge's definition.
+
+    `instructions` are the judge's prompt as edited from the dataset's judge
+    template (`JudgeTemplate`); omitted, the template is used as it is.
+    `knowledge` is what the judge must know to grade that the cases do not say -
+    a policy, a price list - and is added to its instructions.
+    """
+
+    name: str = Field(min_length=1, max_length=128)
+    instructions: str | None = Field(default=None, min_length=1, max_length=20_000)
+    knowledge: str | None = Field(default=None, max_length=20_000)
+    model_profile_id: UUID | None = Field(
+        default=None, description="The model it runs on; the organization's oldest if omitted"
+    )
+
+
+class ReviewRequest(BaseSchema):
+    """Scores of one dataset to put in the review queue."""
+
+    score_ids: list[UUID] = Field(min_length=1, max_length=500)
+
+
+class JudgeTemplate(BaseSchema):
+    """The prompt a dataset's own judge starts from: the default judge's, with the dataset.
+
+    The rules of grading are the default judge's, so a judge made for a dataset
+    grades by the same ones; only what the dataset is about is added.
+    """
+
+    instructions: str
+
+
+class RescoreRequest(BaseSchema):
+    """Scores of one dataset to grade again. Each one runs the judge, so a request is small."""
+
+    score_ids: list[UUID] = Field(min_length=1, max_length=10)
+
+
+class Rescored(BaseSchema):
+    """What grading again changed: the scores `rescored`, and the ids `kept` as they were.
+
+    A score is kept when every scorer reached a verdict on it: there is nothing to
+    grade again.
+    """
+
+    rescored: list[CaseScoreRead]
+    kept: list[UUID]
+
+
+class JudgeAgreement(BaseSchema):
+    """How often people agreed with a judge: `agreed` of the `decided` scores it graded."""
+
+    agreed: int
+    decided: int
+
+
+class ReviewRequested(BaseSchema):
+    """What a review request changed.
+
+    `queued` are newly waiting. `replaced` were waiting on the same cases, older
+    than the ones queued, and no longer wait. `already` were not queued: waiting
+    or decided already, or not the newest of their case.
+    """
+
+    queued: int
+    replaced: int
+    already: int
+
+
+class ReviewWithdrawn(BaseSchema):
+    """What taking scores out of the queue changed: `removed` were waiting, `kept` were not."""
+
+    removed: int
+    kept: int
 
 
 class PendingDataset(BaseSchema):

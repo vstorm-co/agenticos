@@ -13,6 +13,7 @@ import {
   PopoverTrigger,
   RingingBell,
 } from "@/components/ui";
+import { NotificationGlyph } from "@/components/layout/notification-glyph";
 import { useNotificationInbox, useUnreadNotificationCount } from "@/hooks";
 import { isInAppPath } from "@/lib/notification-link";
 import type { Notification } from "@/lib/notifications-api";
@@ -71,7 +72,10 @@ export function NotificationBell({ variant = "row" }: NotificationBellProps) {
       <PopoverContent
         side={variant === "row" ? "right" : "bottom"}
         align="start"
-        className="w-[min(24rem,calc(100vw-2rem))] p-0"
+        // Kept off the screen's edge: from the phone header's bell at the right
+        // edge it was pushed flush against it, with a gap only on the left.
+        collisionPadding={12}
+        className="w-[min(24rem,calc(100vw-1.5rem))] p-0"
       >
         <NotificationPanel
           open={open}
@@ -91,7 +95,7 @@ function UnreadBadge({ count }: { count: number }) {
     <Badge
       variant="default"
       aria-label={t("unreadCount", { count })}
-      className="h-5 min-w-5 shrink-0 justify-center rounded-full px-1 text-[11px] leading-none"
+      className="h-5 min-w-5 shrink-0 justify-center rounded-full px-1 text-xs leading-none"
     >
       {count > 99 ? "99+" : count}
     </Badge>
@@ -232,7 +236,7 @@ function NotificationRow({
   const locale = useLocale();
   const unread = item.read_at === null;
   const rowClassName =
-    "hover:bg-muted/60 focus-visible:ring-ring flex w-full items-start gap-2 rounded-md px-2 py-2 pr-7 text-left outline-none focus-visible:ring-2";
+    "hover:bg-muted/60 focus-visible:ring-ring flex w-full items-start gap-3 rounded-md px-2 py-2 pr-7 text-left outline-none focus-visible:ring-2";
 
   // A row's own click is fire-and-forget: nothing here needs to know its
   // outcome, but an unhandled rejection (a row the read-time gate has since
@@ -254,13 +258,7 @@ function NotificationRow({
 
   const content = (
     <>
-      <span
-        aria-hidden
-        className={cn(
-          "mt-1.5 size-1.5 shrink-0 rounded-full",
-          unread ? "bg-primary" : "bg-transparent",
-        )}
-      />
+      <NotificationGlyph item={item} />
       <span className="min-w-0 flex-1">
         <span className="sr-only">
           {unread ? tNotifications("rowUnread") : tNotifications("rowRead")}
@@ -277,6 +275,13 @@ function NotificationRow({
           {timeAgo(item.created_at, tTime, locale)}
         </span>
       </span>
+      <span
+        aria-hidden
+        className={cn(
+          "mt-1.5 size-2 shrink-0 rounded-full",
+          unread ? "bg-primary" : "bg-transparent",
+        )}
+      />
     </>
   );
 

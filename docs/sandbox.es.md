@@ -1,5 +1,5 @@
 ---
-source_sha: "28df8e05f4b0"
+source_sha: "66a783c397fe"
 ---
 
 # La sandbox { #the-sandbox }
@@ -83,6 +83,11 @@ El **scope** es un campo del spec del agent: `run`, `conversation`, `channel`,
 contenedor y un directorio por chat; `agent` significa que todos los runs de ese
 agent comparten uno.
 
+`user` es de la persona que inició sesión, así que un run que sustituye a alguien
+no tiene ninguno: el visitante de un widget y el disparo de un trigger se rechazan
+en lugar de recibir el workspace del publicador o del creador — salvo que el
+trigger [se ejecute como su creador](concepts.md#unless-its-creator-lets-it-run-as-them).
+
 La clave es también el **nombre** de la sesión en el host —el id de una sesión de
 `sandboxd`, el nombre de un sandbox de Daytona—, así que cada run de un scope la
 abre por ese nombre: el primero la crea y los demás se conectan a ella, también los
@@ -125,6 +130,7 @@ Lo que separa un tenant de otro:
 |---|---|
 | Construido sobre | `python:3.12-slim` |
 | Lenguajes | Python 3.12; Node 24.19.0 LTS con npm 11 y `tsx` para TypeScript |
+| Coding agents | Claude Code 2.1.288 y Codex 0.160.0, para el [coding agent](reference/capabilities.md#coding-agent) |
 | Herramientas | `git`, `curl`, `ripgrep`, `fd`, `jq`, `less`, `procps`, `unzip`, `zip`, `uv`, `pdftotext`/`pdfinfo` |
 | Lectura | **liteparse** (`lit`) — PDFs e imágenes a texto o markdown, OCR incluido; `poppler-utils` para la vía rápida de la capa de texto y un recuento de páginas |
 | Documentos | `pypdf`, `python-docx`, `openpyxl`, `python-pptx`, `reportlab`; **LibreOffice** headless para la conversión y los formatos antiguos |
@@ -464,10 +470,10 @@ Lo que queda, dicho en lugar de dado por supuesto:
 
 ## Qué muestra el navegador de archivos, y qué deja fuera { #what-the-file-browser-shows-and-what-it-leaves-out }
 
-`/workspaces` lista lo que un agent guarda **para una persona**, que no es el mismo
-conjunto que lo que hay en el volumen. Dos prefijos se descartan de cada listado
-que lee una persona —la vista plana, los archivos propios de un workspace, el
-panel de una conversación y los recuentos de archivos—:
+**Documents** (`/documents`) lista lo que un agent guarda **para una persona**, que no es el mismo
+conjunto que lo que hay en el volumen. Tres prefijos se descartan de cada listado
+que lee una persona —la lista de todos los archivos, los archivos de una carpeta,
+el panel de una conversación y los recuentos de archivos—:
 
 - `skills/` — el cuerpo de un skill y sus recursos, escritos al principio de cada
   run que tiene skills y workspace. Ahí hacen falta: un recurso es un script que la
@@ -476,9 +482,22 @@ panel de una conversación y los recuentos de archivos—:
   eso, que era la queja correcta sobre la cosa equivocada (#1064).
 - el directorio de desbordamiento, donde se escribió la salida desbordada de una
   tool.
+- `.agenticos/` — los eventos de una tarea del coding agent y la sesión que
+  continúa la siguiente.
+
+También las carpetas que llena una toolchain, estén donde estén: `.venv`, `venv`,
+`node_modules`, `__pycache__`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`,
+`.tox`, `.git`, `.next` y `.cache`. Un coding agent que montó una app de FastAPI
+puso mil en la página, entre la docena de archivos que escribió.
 
 Un recuento también tiene que descartarlos, o un workspace que informa de cuatro
 archivos donde se ve uno es un recuento que nadie puede comprobar.
+**Todos los archivos** agrupa lo que queda por el workspace que lo guarda, lo más
+reciente primero, bajo la conversación a la que pertenece: archivos sueltos y
+adjuntos como filas, cada carpeta de primer nivel como una fila con sus primeros
+archivos, y un enlace a la carpeta para el resto. Los archivos más recientes se
+muestran en vista previa sobre los grupos, y una búsqueda lista sus resultados
+planos.
 
 ### De quién es el workspace, y quién más puede verlo { #whose-workspace-it-is-and-who-else-can-see-it }
 

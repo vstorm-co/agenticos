@@ -91,6 +91,7 @@ decides which fields exist.
 | `github_oauth_app` | A GitHub OAuth App's public client id and its secret |
 | `git_token` | An access token for git over HTTPS, and the one host it may be sent to |
 | `entra_app` | A Microsoft Entra app registration's tenant id, client id and client secret |
+| `openai_codex` | A ChatGPT sign-in: an access token, a refresh token and the account id |
 | `none` | Not a secret — the marker for an endpoint needing no credential |
 
 `github_oauth_app` is spent by the platform rather than picked by a person — the
@@ -112,6 +113,12 @@ it `Sites.Selected` on the one site the source reads — see [SharePoint and One
 setup](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup). Its hint is
 the last four characters of the client id, which is public, rather than of the
 secret.
+
+`openai_codex` is the one kind nobody types. It is stored by [signing in with
+ChatGPT](models.md#running-on-a-chatgpt-subscription), and it changes while it is
+used: each refresh spends the refresh token, so the new pair is sealed back under
+the same id. Its hint is the last four characters of the account id. When a sign-in
+stops working, **Reconnect** signs in again in its place.
 
 `aws_credentials` is the clearest case for kinds existing at all: the access key id
 is not secret and the secret access key is, and a single field cannot express that.
@@ -177,7 +184,6 @@ own key for:
 | Exa | `web_research` |
 | Logfire | Per-agent [observability](reference/spec.md#observability) — traces to a project of its own |
 | LlamaParse | PDF parsing, billed to the organization's own key |
-| TypeSafe | [`browser_choice`](reference/capabilities.md#browser-automation-choose) — the model that picks an operation and an element on each step of a browse. Not a model provider: it answers typed questions rather than generating text, so it is not offered as a model to run an agent on |
 | mem0 | [`memory_mem0`](reference/capabilities.md#memory-mem0) — the whole capability, which keeps an agent's semantic memories in a mem0 service (cloud or self-hosted) rather than here. Nothing is stored in this deployment, so mem0 bills its own embedding out of band and sending memories to mem0's cloud is a data-residency choice the Builder names. A self-hosted `base_url` must be https and on the `MEM0_ALLOWED_HOSTS` allowlist, so the vault key is never sent to an agent-controlled origin. There is no operator console for these memories: mem0 has its own store, its own listing and its own delete. |
 
 ## What never happens

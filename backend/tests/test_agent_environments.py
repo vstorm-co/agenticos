@@ -34,8 +34,19 @@ _ORG = uuid.uuid4()
 _CALLER = uuid.uuid4()
 
 _REPO = "app.services.agent_environment.agent_environment_repo"
+_EVALS = "app.services.agent_environment.eval_run_repo.count_live_in_environment"
 _AGENTS = "app.services.agent_environment.agent_repo"
 _AUDIT = "app.services.agent_environment.record_audit"
+
+
+@pytest.fixture(autouse=True)
+def _consent(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+    """No trigger runs as its creator unless a test says so."""
+    withdraw = AsyncMock(return_value=0)
+    monkeypatch.setattr(
+        "app.services.agent_registry.agent_trigger_repo.withdraw_creator_consent", withdraw
+    )
+    return withdraw
 
 
 def _ctx(role: str = OrgRoleName.OWNER) -> AuthContext:
@@ -218,6 +229,57 @@ class TestPromoteAndRename:
         assert agents.await_args.kwargs["update_data"] == {
             "current_version_id": environment.version_id
         }
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("delegated", ["key", "impersonation"])
+    async def test_a_publish_through_a_key_or_an_impersonator_keeps_nobody_s_consent(
+        self, _consent: AsyncMock, delegated: str
+    ):
+        """Codex on #2062: the creator's own key kept their consent while it swapped
+        the spec a routine runs as them."""
+        from dataclasses import replace
+
+        from app.services.agent_registry import AgentRegistryService
+
+        ctx = _ctx()
+        if delegated == "key":
+            ctx = replace(ctx, api_key_id=uuid.uuid4())
+        agent = _agent()
+        with patch(
+            "app.services.agent_registry.current_impersonator",
+            return_value=uuid.uuid4() if delegated == "impersonation" else None,
+        ):
+            await AgentRegistryService(MagicMock()).withdraw_creator_consent(ctx, agent)
+
+        assert _consent.await_args.kwargs == {"agent_id": agent.id, "kept_for": None}
+
+    async def test_a_promotion_withdraws_other_peoples_run_as_me(self, _consent: AsyncMock):
+        """Codex on #2062: a creator agreed to what the agent did then, not to a
+        version somebody else put in front of their trigger."""
+        agent = _agent()
+        environment = _environment(agent_id=agent.id)
+        version = _version(agent_id=agent.id, number=3)
+        service = _service(agent)
+        ctx = _ctx()
+        _consent.return_value = 2
+
+        with (
+            patch(_REPO) as environments,
+            patch(f"{_AGENTS}.get_version", new=AsyncMock(return_value=version)),
+            patch(f"{_AGENTS}.update", new=AsyncMock()),
+            patch(_AUDIT, new=AsyncMock()) as audit,
+            patch("app.services.agent_registry.record_audit", new=AsyncMock()) as withdrawn,
+        ):
+            environments.get = AsyncMock(return_value=environment)
+            environments.update = AsyncMock(return_value=environment)
+            await service.update(
+                ctx, agent.id, environment.id, EnvironmentUpdate(version_id=version.id)
+            )
+
+        assert _consent.await_args.kwargs == {"agent_id": agent.id, "kept_for": ctx.user_id}
+        assert withdrawn.await_args.kwargs["action"] == "agent_trigger.creator_consent_withdrawn"
+        assert withdrawn.await_args.kwargs["details"] == {"triggers": 2}
+        audit.assert_awaited()
 
     async def test_switching_to_follows_latest_adopts_the_newest_version_now(self):
         """A mode that claims to follow and does not until something else happens is
@@ -849,6 +911,28 @@ class TestDelete:
         # Locked before counting, so no run can start in it between the two.
         assert order == ["lock", "count"]
 
+    async def test_an_environment_with_an_eval_run_waiting_is_not_removed(self):
+        """A queued eval run would otherwise go on against production's connections."""
+        agent = _agent()
+        environment = _environment(agent_id=agent.id, name="staging")
+        service = _service(agent)
+
+        with (
+            patch(_REPO) as environments,
+            patch(
+                "app.services.agent_environment.agent_run_repo.count_unfinished_in_environment",
+                new=AsyncMock(return_value=0),
+            ),
+            patch(_EVALS, new=AsyncMock(return_value=1)),
+        ):
+            environments.get = AsyncMock(return_value=environment)
+            environments.lock = AsyncMock()
+            environments.delete = AsyncMock()
+            with pytest.raises(ConcurrentChangeError, match="1 eval run"):
+                await service.delete(_ctx(), agent.id, environment.id)
+
+        environments.delete.assert_not_awaited()
+
     async def test_a_named_environment_is_removed_and_audited(self):
         agent = _agent()
         environment = _environment(agent_id=agent.id, name="dev")
@@ -866,6 +950,7 @@ class TestDelete:
                 "app.services.agent_environment.agent_run_repo.count_unfinished_in_environment",
                 new=AsyncMock(return_value=0),
             ),
+            patch(_EVALS, new=AsyncMock(return_value=0)),
         ):
             environments.get = AsyncMock(return_value=environment)
             environments.lock = AsyncMock()

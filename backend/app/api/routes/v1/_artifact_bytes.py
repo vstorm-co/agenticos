@@ -43,6 +43,29 @@ def library_response(data: bytes, media_type: str) -> Response:
             # Loaded by a page in an opaque origin, which is cross-origin to
             # everything - `same-origin` here would refuse every page it is for.
             "Cross-Origin-Resource-Policy": "cross-origin",
+            # A module script (three.js) is fetched in CORS mode, and from an
+            # opaque origin its `Origin` is `null`: without this the import is
+            # refused. The files are public and versioned, so `*` gives away
+            # nothing a plain `<script src>` did not.
+            "Access-Control-Allow-Origin": "*",
+        },
+    )
+
+
+def visual_frame_response(document: bytes) -> Response:
+    """The visual renderer, under the same sandbox policy as every app's page."""
+    return Response(
+        content=document,
+        media_type="text/html; charset=utf-8",
+        headers={
+            "Content-Security-Policy": content_security_policy(),
+            "X-Content-Type-Options": "nosniff",
+            "Referrer-Policy": "no-referrer",
+            # The same page for every visual, and no secret in it - but ten
+            # kilobytes, so it is fetched fresh rather than risk a frame and a
+            # console from two different releases.
+            "Cache-Control": "no-cache",
+            "Cross-Origin-Resource-Policy": "cross-origin",
         },
     )
 
@@ -61,5 +84,22 @@ def embed_response(embed: EmbedDocument) -> Response:
             # frame one that has expired.
             "Cache-Control": "private, no-store",
             "Cross-Origin-Resource-Policy": "cross-origin",
+        },
+    )
+
+
+def visual_image_response(data: bytes, media_type: str) -> Response:
+    """One image of a visual, for the console to read - never a page of its own.
+
+    An SVG among them is the agent's choice of file, so the response is sandboxed
+    and allows nothing: opened directly it renders as an image and runs no script.
+    """
+    return Response(
+        content=data,
+        media_type=media_type,
+        headers={
+            "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "private, max-age=3600",
         },
     )

@@ -5,15 +5,19 @@ and a forgotten tenant filter must not look like an ordinary call (see
 tests/test_org_scope_regression.py).
 """
 
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import ColumnElement, func, select
+from sqlalchemy import update as sql_update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.agent_run import AgentRun
 from app.db.models.case_score import CaseScore
-from app.db.models.dataset import Dataset
+from app.db.models.dataset import Dataset, DatasetCase
 from app.repositories._visibility import visible_to_caller
+from app.schemas.scoring import ScoreOutcome
 
 
 async def create(
@@ -24,6 +28,8 @@ async def create(
     case_revision_id: UUID,
     case_id: UUID,
     run_id: UUID | None,
+    eval_run_id: UUID | None,
+    answer: str | None,
     scoring: dict[str, Any],
     results: list[dict[str, Any]],
     judge: dict[str, Any] | None,
@@ -37,6 +43,8 @@ async def create(
         case_revision_id=case_revision_id,
         case_id=case_id,
         run_id=run_id,
+        eval_run_id=eval_run_id,
+        answer=answer,
         scoring=scoring,
         results=results,
         judge=judge,
@@ -63,6 +71,93 @@ async def get(
     return result.scalar_one_or_none()
 
 
+async def get_many(
+    db: AsyncSession, score_ids: list[UUID], *, organization_id: UUID, dataset_id: UUID
+) -> dict[UUID, CaseScore]:
+    """The scores of this dataset among `score_ids`, by id."""
+    result = await db.execute(
+        select(CaseScore).where(
+            CaseScore.id.in_(score_ids),
+            CaseScore.organization_id == organization_id,
+            CaseScore.dataset_id == dataset_id,
+        )
+    )
+    return {score.id: score for score in result.scalars().all()}
+
+
+async def existing_ids(
+    db: AsyncSession, score_ids: list[UUID], *, organization_id: UUID, dataset_id: UUID
+) -> set[UUID]:
+    """Which of `score_ids` are scores of this dataset."""
+    result = await db.execute(
+        select(CaseScore.id).where(
+            CaseScore.id.in_(score_ids),
+            CaseScore.organization_id == organization_id,
+            CaseScore.dataset_id == dataset_id,
+        )
+    )
+    return set(result.scalars().all())
+
+
+async def waiting_for_cases(
+    db: AsyncSession, case_ids: list[UUID], *, organization_id: UUID, dataset_id: UUID
+) -> list[CaseScore]:
+    """The scores of this dataset waiting for a person on any of `case_ids`."""
+    result = await db.execute(
+        select(CaseScore).where(
+            CaseScore.case_id.in_(case_ids),
+            CaseScore.organization_id == organization_id,
+            CaseScore.dataset_id == dataset_id,
+            CaseScore.review_state == "pending",
+        )
+    )
+    return list(result.scalars().all())
+
+
+async def queue_for_review(
+    db: AsyncSession, score_ids: list[UUID], *, organization_id: UUID, dataset_id: UUID
+) -> int:
+    """Put the scores no one was asked to review in the queue; how many that was."""
+    result = cast(
+        CursorResult[Any],
+        await db.execute(
+            sql_update(CaseScore)
+            .where(
+                CaseScore.id.in_(score_ids),
+                CaseScore.organization_id == organization_id,
+                CaseScore.dataset_id == dataset_id,
+                CaseScore.review_state == "none",
+            )
+            .values(review_state="pending")
+            .execution_options(synchronize_session="fetch")
+        ),
+    )
+    await db.flush()
+    return result.rowcount or 0
+
+
+async def dequeue(
+    db: AsyncSession, score_ids: list[UUID], *, organization_id: UUID, dataset_id: UUID
+) -> int:
+    """Take the waiting scores out of the queue, undecided; how many that was."""
+    result = cast(
+        CursorResult[Any],
+        await db.execute(
+            sql_update(CaseScore)
+            .where(
+                CaseScore.id.in_(score_ids),
+                CaseScore.organization_id == organization_id,
+                CaseScore.dataset_id == dataset_id,
+                CaseScore.review_state == "pending",
+            )
+            .values(review_state="none")
+            .execution_options(synchronize_session="fetch")
+        ),
+    )
+    await db.flush()
+    return result.rowcount or 0
+
+
 async def list_for_dataset(
     db: AsyncSession,
     *,
@@ -70,15 +165,47 @@ async def list_for_dataset(
     dataset_id: UUID,
     case_id: UUID | None = None,
     review_state: str | None = None,
+    outcome: ScoreOutcome | None = None,
+    agent_id: UUID | None = None,
+    eval_run_id: UUID | None = None,
+    judge_id: UUID | None = None,
+    tag: str | None = None,
     skip: int = 0,
     limit: int = 50,
 ) -> tuple[list[CaseScore], int]:
-    """A dataset's scores, newest first, narrowed to one case or one review state."""
+    """A dataset's scores, newest first, narrowed by case, review state, outcome, the
+    agent that answered, the eval run that scored them, or a tag of the scored case.
+
+    `outcome` reads the person's decision where there is one, the scorers' otherwise.
+    """
     where = [CaseScore.organization_id == organization_id, CaseScore.dataset_id == dataset_id]
     if case_id is not None:
         where.append(CaseScore.case_id == case_id)
     if review_state is not None:
         where.append(CaseScore.review_state == review_state)
+    if outcome is not None:
+        settled = func.coalesce(CaseScore.human_passed, CaseScore.passed)
+        where.append(
+            settled.is_(None) if outcome == "not_graded" else settled.is_(outcome == "passed")
+        )
+    if agent_id is not None:
+        runs = select(AgentRun.id).where(
+            AgentRun.organization_id == organization_id, AgentRun.agent_id == agent_id
+        )
+        where.append(CaseScore.run_id.in_(runs))
+    if eval_run_id is not None:
+        where.append(CaseScore.eval_run_id == eval_run_id)
+    if judge_id is not None:
+        where.append(CaseScore.judge["agent_id"].astext == str(judge_id))
+    if tag is not None:
+        where.append(
+            CaseScore.case_revision_id.in_(
+                select(DatasetCase.id).where(
+                    DatasetCase.organization_id == organization_id,
+                    DatasetCase.tags.contains([tag]),
+                )
+            )
+        )
     total = await db.scalar(select(func.count(CaseScore.id)).where(*where)) or 0
     result = await db.execute(
         select(CaseScore)
@@ -137,6 +264,43 @@ async def pending_counts(
         .group_by(Dataset.id, Dataset.name, CaseScore.passed)
     )
     return [(row[0], row[1], row[2], row[3]) for row in result.all()]
+
+
+async def decided_for_judge(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    judge_id: UUID,
+    user_id: UUID,
+    see_all: bool,
+    shared_ids: list[UUID],
+) -> list[tuple[list[dict[str, Any]], bool]]:
+    """The results and the person's decision of every decided score one judge graded.
+
+    In the datasets one member may see; whether the judge reached a verdict of
+    its own is the caller's to read from the results.
+    """
+    where = [
+        CaseScore.organization_id == organization_id,
+        CaseScore.judge["agent_id"].astext == str(judge_id),
+        CaseScore.human_passed.is_not(None),
+    ]
+    if not see_all:
+        where.append(
+            visible_to_caller(
+                Dataset.owner_user_id,
+                Dataset.visibility,
+                Dataset.id,
+                user_id=user_id,
+                shared_ids=shared_ids,
+            )
+        )
+    rows = await db.execute(
+        select(CaseScore.results, CaseScore.human_passed)
+        .join(Dataset, Dataset.id == CaseScore.dataset_id)
+        .where(*where)
+    )
+    return [(results, bool(human)) for results, human in rows.all()]
 
 
 def _pending(

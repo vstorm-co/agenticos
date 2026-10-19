@@ -3,7 +3,15 @@
 
 from fastapi import APIRouter
 
-from app.api.routes.v1 import health
+from app.api.routes.v1 import (
+    api_keys,
+    assistant,
+    browse_live,
+    change_events,
+    health,
+    mcp_oauth,
+    public_openapi,
+)
 from app.api.routes.v1 import admin_users, auth, users
 from app.api.routes.v1 import admin_ratings
 from app.api.routes.v1 import oauth
@@ -35,14 +43,17 @@ from app.api.routes.v1 import skill_changes
 from app.api.routes.v1 import workspaces as agent_workspaces
 from app.api.routes.v1 import skills as agent_skills
 from app.api.routes.v1 import artifacts
+from app.api.routes.v1 import visuals
 from app.api.routes.v1 import context as context_files
 from app.api.routes.v1 import datasets
+from app.api.routes.v1 import eval_runs
 from app.api.routes.v1 import knowledge_gaps
 from app.api.routes.v1 import memory as memory_files
+from app.api.routes.v1 import browser_sign_ins
 from app.api.routes.v1 import permissions
 from app.api.routes.v1 import telegram_webhook
 from app.api.routes.v1 import slack_webhook
-from app.api.routes.v1 import mattermost_webhook
+from app.api.routes.v1 import a2a, external_agents, mattermost_webhook, projects
 from app.api.routes.v1 import embed as embed_widget
 from app.api.routes.v1 import members, organizations
 from app.api.routes.v1 import groups, directory_mappings, directory_auth
@@ -65,12 +76,16 @@ from app.api.routes.v1 import admin_announcements
 v1_router = APIRouter()
 
 v1_router.include_router(health.router, tags=["health"])
+v1_router.include_router(public_openapi.router)
 
 v1_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 v1_router.include_router(directory_auth.router, prefix="/auth", tags=["auth"])
 v1_router.include_router(users.router, prefix="/users", tags=["users"])
 v1_router.include_router(permissions.router, tags=["permissions"])
 v1_router.include_router(audit.router, tags=["audit"])
+v1_router.include_router(api_keys.router, prefix="/api-keys", tags=["api-keys"])
+v1_router.include_router(assistant.router, prefix="/assistant", tags=["assistant"])
+v1_router.include_router(mcp_oauth.router, prefix="/mcp-oauth", tags=["mcp-oauth"])
 v1_router.include_router(notifications.router, tags=["notifications"])
 v1_router.include_router(
     admin_announcements.router, prefix="/admin/announcements", tags=["admin:announcements"]
@@ -92,16 +107,26 @@ v1_router.include_router(stats.router, tags=["stats"])
 v1_router.include_router(agent_skills.router, prefix="/skills", tags=["skills"])
 v1_router.include_router(context_files.router, prefix="/context", tags=["context"])
 v1_router.include_router(datasets.router, prefix="/datasets", tags=["datasets"])
+v1_router.include_router(eval_runs.router, tags=["evals"])
 v1_router.include_router(knowledge_gaps.router, prefix="/knowledge-gaps", tags=["knowledge-gaps"])
-v1_router.include_router(artifacts.router, prefix="/artifacts", tags=["artifacts"])
+# Apps were called artifacts until #2071. The old paths stay as deprecated
+# aliases for the v1 policy's 90 days (docs/api.md), so a script written against
+# them keeps working while it is moved.
+v1_router.include_router(artifacts.router, prefix="/apps", tags=["apps"])
+v1_router.include_router(artifacts.public_router, prefix="/public/apps", tags=["apps:public"])
+v1_router.include_router(artifacts.router, prefix="/artifacts", tags=["apps"], deprecated=True)
+v1_router.include_router(visuals.router, prefix="/visuals", tags=["visuals"])
 v1_router.include_router(
-    artifacts.public_router, prefix="/public/artifacts", tags=["artifacts:public"]
+    artifacts.public_router, prefix="/public/artifacts", tags=["apps:public"], deprecated=True
 )
 v1_router.include_router(
     artifacts.content_router, prefix="/artifact-content", tags=["artifacts:content"]
 )
 v1_router.include_router(artifacts.embed_router, prefix="/artifact-embed", tags=["artifacts:embed"])
 v1_router.include_router(memory_files.router, prefix="/memory", tags=["memory"])
+v1_router.include_router(
+    browser_sign_ins.router, prefix="/browser-sign-ins", tags=["browser-sign-ins"]
+)
 v1_router.include_router(skill_changes.router, prefix="/skill-changes", tags=["skills:changes"])
 v1_router.include_router(
     sharing.collection_sharing_router, prefix="/kb", tags=["collections:sharing"]
@@ -115,8 +140,12 @@ v1_router.include_router(
     sharing.dataset_sharing_router, prefix="/datasets", tags=["datasets:sharing"]
 )
 v1_router.include_router(sharing.secret_sharing_router, prefix="/secrets", tags=["secrets:sharing"])
+v1_router.include_router(sharing.artifact_sharing_router, prefix="/apps", tags=["apps:sharing"])
 v1_router.include_router(
-    sharing.artifact_sharing_router, prefix="/artifacts", tags=["artifacts:sharing"]
+    sharing.mcp_connection_sharing_router, prefix="/mcp-connections", tags=["mcp:sharing"]
+)
+v1_router.include_router(
+    sharing.artifact_sharing_router, prefix="/artifacts", tags=["apps:sharing"], deprecated=True
 )
 
 v1_router.include_router(admin_ratings.router, prefix="/admin/ratings", tags=["admin:ratings"])
@@ -147,6 +176,8 @@ v1_router.include_router(
 )
 
 v1_router.include_router(agent.router, tags=["agent"])
+v1_router.include_router(change_events.router, tags=["change-events"])
+v1_router.include_router(browse_live.router, tags=["browse-live"])
 
 v1_router.include_router(rag.router, prefix="/rag", tags=["rag"])
 
@@ -167,6 +198,15 @@ v1_router.include_router(telegram_webhook.router, prefix="/telegram", tags=["tel
 v1_router.include_router(slack_webhook.router, prefix="/slack", tags=["slack"])
 
 v1_router.include_router(mattermost_webhook.router, prefix="/mattermost", tags=["mattermost"])
+v1_router.include_router(a2a.card_router, prefix="/a2a", tags=["a2a"])
+v1_router.include_router(a2a.router, prefix="/a2a", tags=["a2a"])
+v1_router.include_router(
+    external_agents.router, prefix="/external-agents", tags=["external-agents"]
+)
+v1_router.include_router(projects.router, prefix="/projects", tags=["projects"])
+v1_router.include_router(
+    sharing.project_sharing_router, prefix="/projects", tags=["projects:sharing"]
+)
 
 v1_router.include_router(organizations.router, prefix="/orgs", tags=["organizations"])
 v1_router.include_router(members.router, prefix="/orgs", tags=["members"])

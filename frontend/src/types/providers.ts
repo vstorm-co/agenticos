@@ -8,6 +8,8 @@
  * branches on, because it says which shape of credential each provider takes.
  */
 
+import type { AgentUsage } from "./agents";
+
 import type { SecretKind } from "./secrets";
 
 /** Which of OpenAI's two APIs a profile's requests go to. */
@@ -130,12 +132,21 @@ export interface SkillSummary {
   description: string;
   category: string | null;
   enabled: boolean;
+  /** `org` is everyone; `private` is its owner and whoever it is shared with. */
+  visibility: string;
   /** How many files the skill carries beyond its body. */
   file_count: number;
   /** Whether this skill shipped with the deployment, matched by library name. */
   built_in: boolean;
   /** The body's first lines, front matter dropped - what the card's page shows. */
   excerpt: string;
+  /**
+   * The agents whose draft binds this, among those the caller may see (#2075).
+   * Optional because only the listings carry it.
+   */
+  used_by?: AgentUsage[];
+  /** The groups it is shared with, by name (#2072). Only the listings carry it. */
+  shared_groups?: string[];
 }
 
 export interface SkillList {
@@ -175,9 +186,18 @@ export interface ContextFileSummary {
   format: string;
   mode: ContextMode;
   enabled: boolean;
+  /** `org` is everyone; `private` is its owner and whoever it is shared with. */
+  visibility: string;
   size_bytes: number;
   /** The body's first lines, front matter dropped - what the card's page shows. */
   excerpt: string;
+  /**
+   * The agents whose draft binds this, among those the caller may see (#2075).
+   * Optional because only the listings carry it.
+   */
+  used_by?: AgentUsage[];
+  /** The groups it is shared with, by name (#2072). Only the listings carry it. */
+  shared_groups?: string[];
 }
 
 export interface ContextFileList {

@@ -21,6 +21,13 @@ interface SidebarState {
    */
   isCollapsed: boolean;
   toggleCollapsed: () => void;
+  /**
+   * The folding groups somebody opened, by label key. Persisted for the same
+   * reason the collapse is: somebody who keeps Connections open wants it open
+   * tomorrow too.
+   */
+  openGroups: string[];
+  toggleGroup: (key: string) => void;
 }
 
 export const useSidebarStore = create<SidebarState>()(
@@ -32,12 +39,19 @@ export const useSidebarStore = create<SidebarState>()(
       toggle: () => set((state) => ({ isOpen: !state.isOpen })),
       isCollapsed: false,
       toggleCollapsed: () => set((state) => ({ isCollapsed: !state.isCollapsed })),
+      openGroups: [],
+      toggleGroup: (key) =>
+        set((state) => ({
+          openGroups: state.openGroups.includes(key)
+            ? state.openGroups.filter((open) => open !== key)
+            : [...state.openGroups, key],
+        })),
     }),
     {
       name: "agenticos.sidebar",
-      // Only the collapse. `isOpen` is the phone's slide-over, and restoring it
-      // would open a drawer over the page somebody just loaded.
-      partialize: (state) => ({ isCollapsed: state.isCollapsed }),
+      // Not `isOpen`: that is the phone's slide-over, and restoring it would
+      // open a drawer over the page somebody just loaded.
+      partialize: (state) => ({ isCollapsed: state.isCollapsed, openGroups: state.openGroups }),
     },
   ),
 );

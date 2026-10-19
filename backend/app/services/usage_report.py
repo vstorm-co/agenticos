@@ -122,6 +122,10 @@ class UsageReport:
     output_tokens: int
     cost_usd: Decimal
     cost_is_partial: bool = False
+    cache_read_tokens: int = 0
+    """Of `input_tokens`, those read from the provider's cache (#2170)."""
+    cache_write_tokens: int = 0
+    """Of `input_tokens`, those written to the provider's cache (#2170)."""
     """Whether `cost_usd` is a floor rather than the whole of it.
 
     True when the run reached a model `genai-prices` has no entry for: the ledger
@@ -256,6 +260,8 @@ class UsageReportService:
         return UsageReport(
             input_tokens=run.input_tokens,
             output_tokens=run.output_tokens,
+            cache_read_tokens=run.cache_read_tokens,
+            cache_write_tokens=run.cache_write_tokens,
             cost_usd=run.cost_usd,
             cost_is_partial=run.cost_is_partial,
             period_spend_usd=period_spend_usd,
@@ -267,12 +273,11 @@ class UsageReportService:
         )
 
     async def _sandbox(self, ctx: AuthContext, conversation_id: UUID) -> SandboxUsage | None:
-        rows = await agent_workspace_repo.list_for_conversation(
+        row = await agent_workspace_repo.kept_for_conversation(
             self.db, organization_id=ctx.organization_id, conversation_id=conversation_id
         )
-        if not rows:
+        if row is None:
             return None
-        row = rows[0]
         if row.backend == "state":
             return SandboxUsage(
                 kind="state",
@@ -339,6 +344,8 @@ def usage_frame(report: UsageReport | None) -> dict[str, Any] | None:
     frame: dict[str, Any] = {
         "input_tokens": report.input_tokens,
         "output_tokens": report.output_tokens,
+        "cache_read_tokens": report.cache_read_tokens,
+        "cache_write_tokens": report.cache_write_tokens,
         "cost_usd": str(report.cost_usd),
         "cost_is_partial": report.cost_is_partial,
         "budget_percent": report.budget_percent,

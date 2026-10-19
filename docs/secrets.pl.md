@@ -1,5 +1,5 @@
 ---
-source_sha: "dfb14d9e1139"
+source_sha: "11255bcc5d61"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -98,6 +98,7 @@ kończy z poświadczeniem, które zawodzi przy pierwszym runie. Sekret ma więc
 | `github_oauth_app` | Publiczny client id aplikacji GitHub OAuth App i jej sekret |
 | `git_token` | Token dostępu do git przez HTTPS i jedyny host, do którego wolno go wysłać |
 | `entra_app` | Tenant id, client id i client secret rejestracji aplikacji Microsoft Entra |
+| `openai_codex` | Logowanie do ChatGPT: token dostępu, refresh token i id konta |
 | `none` | Nie jest sekretem — znacznik endpointu, który nie potrzebuje poświadczenia |
 
 `github_oauth_app` jest zużywany przez platformę, a nie wybierany przez
@@ -121,6 +122,13 @@ witrynie, którą czyta źródło — zobacz [Konfiguracja SharePoint i
 OneDrive](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup). Jego
 podpowiedź (hint) to ostatnie cztery znaki client id, który jest publiczny, a nie
 sekretu.
+
+`openai_codex` to jedyny rodzaj, którego nikt nie wpisuje. Zapisuje się go przez
+[zalogowanie do ChatGPT](models.md#running-on-a-chatgpt-subscription) i zmienia
+się w trakcie używania: każde odświeżenie zużywa refresh token, więc nowa para
+jest zapieczętowywana z powrotem pod tym samym id. Jego podpowiedź to ostatnie
+cztery znaki id konta. Gdy logowanie przestaje działać, **Reconnect** loguje
+ponownie w jego miejsce.
 
 `aws_credentials` to najczytelniejszy argument za tym, żeby rodzaje w ogóle
 istniały: access key id nie jest tajny, a secret access key jest, i jedno pole
@@ -193,7 +201,6 @@ przynieść własny klucz:
 | Exa | `web_research` |
 | Logfire | [Obserwowalność](reference/spec.md#observability) per agent — ślady do osobnego projektu |
 | LlamaParse | Parsowanie PDF-ów, rozliczane na własny klucz organizacji |
-| TypeSafe | [`browser_choice`](reference/capabilities.md#browser-automation-choose) — model, który na każdym kroku przeglądania wybiera operację i element. Nie jest providerem modeli: odpowiada na pytania z typem, a nie generuje tekst, więc nie jest oferowany jako model do uruchomienia agenta |
 | mem0 | [`memory_mem0`](reference/capabilities.md#memory-mem0) — cała capability, która trzyma semantyczne wspomnienia agenta w usłudze mem0 (chmurowej albo self-hosted), a nie tutaj. Nic nie jest zapisywane w tym wdrożeniu, więc mem0 rozlicza własny embedding poza pasmem, a wysyłanie wspomnień do chmury mem0 jest decyzją o rezydencji danych, którą podejmuje Builder. Self-hostowany `base_url` musi być https i musi być na liście dozwolonych `MEM0_ALLOWED_HOSTS`, więc klucz z vault nigdy nie trafia do originu kontrolowanego przez agenta. Dla tych wspomnień nie ma konsoli operatora: mem0 ma własny magazyn, własne listowanie i własne usuwanie. |
 
 ## Co nigdy się nie zdarza { #what-never-happens }

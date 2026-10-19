@@ -41,6 +41,7 @@ class TestEveryMemberIsAssignedBySomething:
             "web",
             "embed",
             "api",
+            "a2a",
             "slack",
             "telegram",
             "mattermost",

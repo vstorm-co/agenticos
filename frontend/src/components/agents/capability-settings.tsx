@@ -4,9 +4,10 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { ChevronRight, ShieldAlert } from "lucide-react";
 
-import { capabilityConfigErrors } from "@/lib/agent-spec";
+import { CODING_AGENT_ID, capabilityConfigErrors } from "@/lib/agent-spec";
 import { getErrorMessage } from "@/lib/api-error";
 import type { FieldProblem } from "@/lib/api-error";
+import { useCapabilityFieldCopy } from "@/components/agents/capability-field-copy";
 import { SchemaForm } from "@/components/agents/schema-form";
 import {
   Badge,
@@ -27,9 +28,11 @@ import {
   TabsTrigger,
   Textarea,
 } from "@/components/ui";
+import { InlineChatGPTSignIn } from "@/components/vault/chatgpt-sign-in";
 import { InlineSecret } from "@/components/vault/inline-secret";
 import { ProviderRow } from "@/components/vault/provider-row";
 import { useSecrets } from "@/hooks";
+import { useCapabilityGuide } from "@/hooks/use-capability-guide";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type {
@@ -42,7 +45,7 @@ import type {
   ToolOverride,
   ToolParameterSchema,
 } from "@/types/agents";
-import { secretIsRequired } from "@/types/secrets";
+import { acceptsKind, secretIsOffered, secretIsRequired } from "@/types/secrets";
 import type { Secret, SecretRequirement } from "@/types/secrets";
 import { useTranslations } from "next-intl";
 
@@ -107,7 +110,7 @@ function approvalHint(mode: ApprovalMode, sideEffecting: boolean): string {
 
 /**
  * Approval for one tool, most specific rule first: the tool's own override, then
- * the capability's mode, then what `side_effecting` decides.
+ * the capability's mode, and no approval when neither says anything.
  *
  * This is the frontend's copy of a rule the runtime also applies. It exists so
  * the Builder can *say* what a setting will do rather than describe the rule and
@@ -117,15 +120,17 @@ function approvalHint(mode: ApprovalMode, sideEffecting: boolean): string {
 export function resolveToolApproval(
   binding: CapabilityBindingSpec,
   toolId: string,
-  sideEffecting: boolean,
 ): ResolvedApproval {
-  return overrideFor(binding, toolId) ?? resolveCapabilityApproval(binding.approval, sideEffecting);
+  return overrideFor(binding, toolId) ?? resolveCapabilityApproval(binding.approval);
 }
 
-/** What a capability's own mode comes out to, `default` included. */
-function resolveCapabilityApproval(mode: ApprovalMode, sideEffecting: boolean): ResolvedApproval {
-  if (mode !== "default") return mode;
-  return sideEffecting ? "required" : "never";
+/**
+ * What a capability's own mode comes out to. `default` is no approval: a gate
+ * nobody chose parks runs in channels and routines where nobody is there to
+ * answer it, so a person is asked only once the author says so.
+ */
+function resolveCapabilityApproval(mode: ApprovalMode): ResolvedApproval {
+  return mode === "required" ? "required" : "never";
 }
 
 /**
@@ -141,8 +146,8 @@ function resolveCapabilityApproval(mode: ApprovalMode, sideEffecting: boolean): 
  * on *any* capability, so "this only reads, but in my organization somebody
  * approves it anyway" is a real decision, and there was no way to express it.
  *
- * `side_effecting` still decides what *default* resolves to. It no longer
- * decides whether you may see the question.
+ * `side_effecting` no longer decides anything: it is shown beside the choice,
+ * and the hint under it says what leaving it unanswered means for this one.
  */
 export function CapabilitySettings({
   catalog,
@@ -293,6 +298,7 @@ export function CapabilityDetail({
 }: CapabilityDetailProps) {
   const t = useTranslations("agents");
   const configErrors = capabilityConfigErrors(configProblems ?? [], binding.id);
+  const copyFor = useCapabilityFieldCopy(binding.id);
   const settings = (
     <>
       {settingsExtra}
@@ -304,6 +310,7 @@ export function CapabilityDetail({
           value={binding.config}
           disabled={disabled}
           errors={configErrors}
+          copyFor={copyFor}
           onChange={(config) => onChange({ ...binding, config })}
         />
       )}
@@ -313,10 +320,11 @@ export function CapabilityDetail({
             names the configurations it applies to; asking for a key the server
             will not demand is as wrong as not asking for one it will. */}
       {definition.requires_secret !== null &&
-        secretIsRequired(definition.requires_secret, binding.config) && (
+        secretIsOffered(definition.requires_secret, binding.config) && (
           <SecretField
             binding={binding}
             requirement={definition.requires_secret}
+            optional={!secretIsRequired(definition.requires_secret, binding.config)}
             onChange={onChange}
             disabled={disabled}
           />
@@ -325,6 +333,12 @@ export function CapabilityDetail({
       {definition.requires_secret === null && binding.secret_id !== null && (
         <StaleSecretNotice binding={binding} onChange={onChange} disabled={disabled} />
       )}
+
+      {definition.tool_settings === false &&
+        (Object.keys(binding.tool_approval).length > 0 ||
+          Object.keys(binding.tool_overrides).length > 0) && (
+          <StaleToolSettingsNotice binding={binding} onChange={onChange} disabled={disabled} />
+        )}
 
       <div className="space-y-2">
         <Label htmlFor={`${binding.id}-approval`}>{t("humanApproval")}</Label>
@@ -346,7 +360,9 @@ export function CapabilityDetail({
         </Select>
         <p className="text-muted-foreground text-xs">
           {t(approvalHint(binding.approval, definition.side_effecting))}
-          {definition.tools.length > 0 && ` ${t("everyToolFollowsThis")}`}
+          {definition.tools.length > 0 &&
+            definition.tool_settings !== false &&
+            ` ${t("everyToolFollowsThis")}`}
         </p>
       </div>
 
@@ -356,12 +372,13 @@ export function CapabilityDetail({
     </>
   );
 
-  const tools = definition.tools.length > 0 && (
+  // A capability whose one tool is the capability itself has nothing per tool to
+  // set: its approval is the one above.
+  const tools = definition.tools.length > 0 && definition.tool_settings !== false && (
     <ToolList
       binding={binding}
       tools={definition.tools}
       contracts={definition.contracts}
-      sideEffecting={definition.side_effecting}
       onChange={onChange}
       disabled={disabled}
     />
@@ -400,6 +417,7 @@ export function CapabilityDetail({
         </div>
 
         <p className="text-muted-foreground text-sm">{definition.description}</p>
+        <CapabilityGuideNotes capabilityId={definition.id} />
 
         {/* Always the tab shell, even for the capability whose Settings is one
             select: every panel then reads the same way, and "this one looks
@@ -473,13 +491,13 @@ export function secretProblem(
   t: (key: string, values?: Record<string, string>) => string,
 ): string | null {
   if (secretId === null) {
-    return t("noSecretSelected", { kind: requirement.kind });
+    return t("noSecretSelected");
   }
   const secret = secrets.find((candidate) => candidate.id === secretId);
   if (secret === undefined) {
     return t("secretMissingFromVault");
   }
-  if (secret.kind !== requirement.kind) {
+  if (!acceptsKind(requirement, secret.kind)) {
     return t("secretOfWrongKind", {
       name: secret.name,
       kind: secret.kind,
@@ -492,6 +510,8 @@ export function secretProblem(
 interface SecretFieldProps {
   binding: CapabilityBindingSpec;
   requirement: SecretRequirement;
+  /** This configuration can use a key but does not need one. */
+  optional: boolean;
   onChange: (binding: CapabilityBindingSpec) => void;
   disabled?: boolean;
 }
@@ -558,7 +578,10 @@ function fitsPurpose(secret: Secret, purpose: string | null, selectedId: string 
  * state that blocks publishing - but it is reached by not having chosen, never
  * by choosing, so offering it would be offering a way to break the agent.
  */
-function SecretField({ binding, requirement, onChange, disabled }: SecretFieldProps) {
+/** The picker's "no key" choice; Radix refuses an empty string as an item's value. */
+const NO_SECRET = "__none__";
+
+function SecretField({ binding, requirement, optional, onChange, disabled }: SecretFieldProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
   const { secrets, isLoading, listError } = useSecrets();
@@ -566,7 +589,8 @@ function SecretField({ binding, requirement, onChange, disabled }: SecretFieldPr
   const errorId = `${fieldId}-error`;
   const purpose = purposeOf(binding, requirement);
   const usable = secrets.filter(
-    (secret) => secret.kind === requirement.kind && fitsPurpose(secret, purpose, binding.secret_id),
+    (secret) =>
+      acceptsKind(requirement, secret.kind) && fitsPurpose(secret, purpose, binding.secret_id),
   );
   const state = vaultState(isLoading, listError, usable.length);
   // Having selected nothing is a fact about the spec, so it is said whatever the
@@ -575,17 +599,19 @@ function SecretField({ binding, requirement, onChange, disabled }: SecretFieldPr
   // is what a full vault also looks like - a stored secret would otherwise read
   // as deleted on every load.
   const vaultWasRead = state === "ready" || state === "empty";
+  const signIn = signInFor(binding);
   const problem =
-    binding.secret_id === null || vaultWasRead
-      ? secretProblem(requirement, binding.secret_id, secrets, t)
-      : null;
+    optional && binding.secret_id === null
+      ? null
+      : binding.secret_id === null || vaultWasRead
+        ? secretProblem(requirement, binding.secret_id, secrets, t)
+        : null;
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <Label htmlFor={fieldId}>{t("secret")}</Label>
-        <span className="text-muted-foreground font-mono text-xs">{requirement.kind}</span>
-      </div>
+      <Label htmlFor={fieldId}>
+        {(requirement.also_accepts ?? []).length > 0 ? t("keyOrSignIn") : t("secret")}
+      </Label>
 
       <Select
         // Only a reference that resolves to an offered secret is handed over:
@@ -593,9 +619,14 @@ function SecretField({ binding, requirement, onChange, disabled }: SecretFieldPr
         // deleted, wrong-kind or unreadable reference would leave the control
         // blank and silent. Falling back to the placeholder puts the state into
         // words, and the line below says which state it is.
-        value={usable.find((secret) => secret.id === binding.secret_id)?.id ?? ""}
+        value={
+          usable.find((secret) => secret.id === binding.secret_id)?.id ??
+          (optional && binding.secret_id === null ? NO_SECRET : "")
+        }
         disabled={disabled || state !== "ready"}
-        onValueChange={(secretId) => onChange({ ...binding, secret_id: secretId })}
+        onValueChange={(secretId) =>
+          onChange({ ...binding, secret_id: secretId === NO_SECRET ? null : secretId })
+        }
       >
         <SelectTrigger
           id={fieldId}
@@ -605,6 +636,7 @@ function SecretField({ binding, requirement, onChange, disabled }: SecretFieldPr
           <SelectValue placeholder={placeholderFor(state, requirement, t)} />
         </SelectTrigger>
         <SelectContent>
+          {optional && <SelectItem value={NO_SECRET}>{t("noSecret")}</SelectItem>}
           {usable.map((secret) => (
             <SelectItem key={secret.id} value={secret.id} textValue={secret.name}>
               {/* What the key is for is what `fitsPurpose` filtered on, and it
@@ -649,11 +681,31 @@ function SecretField({ binding, requirement, onChange, disabled }: SecretFieldPr
           // "brave". Recording it is what lets the select above offer only the
           // right keys next time instead of every API key in the vault.
           purpose={purpose ?? "custom"}
-          suggestedName={secretNameFor(binding.id)}
+          suggestedName={
+            signIn === null ? secretNameFor(binding.id) : t("codingAgentKeyName", { signIn })
+          }
           helpUrl={SECRET_HELP[binding.id]}
           disabled={disabled}
           onCreated={(secretId) => onChange({ ...binding, secret_id: secretId })}
         />
+      )}
+
+      {/* A subscription the coding agent can run on instead of a metered key:
+          Codex signs in with ChatGPT here, and Claude Code takes the token its own
+          `claude setup-token` prints, stored as a key above. */}
+      {(state === "empty" || state === "ready") &&
+        signIn === "chatgpt" &&
+        acceptsKind(requirement, "openai_codex") && (
+          <InlineChatGPTSignIn
+            suggestedName={t("chatgptSignInName")}
+            disabled={disabled}
+            onCreated={(secretId) => onChange({ ...binding, secret_id: secretId })}
+          />
+        )}
+      {signIn === "claudeToken" && (
+        <p className="text-muted-foreground text-xs">
+          {t.rich("claudeTokenHint", { code: (chunks) => <code>{chunks}</code> })}
+        </p>
       )}
 
       {state === "empty" && requirement.kind !== "api_key" && (
@@ -690,6 +742,17 @@ type VaultState = "loading" | "unreadable" | "empty" | "ready";
 const SECRET_HELP: Record<string, string | undefined> = {
   web_research: "https://tavily.com",
 };
+
+/**
+ * Which subscription sign-in a capability offers beside its key, as it is set up.
+ *
+ * Only the coding agent has one, and which is the harness's: Codex signs in with
+ * ChatGPT, Claude Code with the token `claude setup-token` prints.
+ */
+function signInFor(binding: CapabilityBindingSpec): "chatgpt" | "claudeToken" | null {
+  if (binding.id !== CODING_AGENT_ID) return null;
+  return binding.config.harness === "codex" ? "chatgpt" : "claudeToken";
+}
 
 /** A name somebody would have typed anyway, so the field starts filled in. */
 function secretNameFor(capabilityId: string): string {
@@ -755,11 +818,44 @@ function StaleSecretNotice({ binding, onChange, disabled }: StaleSecretNoticePro
   );
 }
 
+/**
+ * Per-tool settings a capability no longer offers, carried over from when it did.
+ *
+ * The coding agent had a tool per mode and now has one tool that is the
+ * capability, so the Builder shows no tool list - and an entry left for a tool
+ * that is gone would refuse the next publish with nothing on screen to remove it
+ * by. Clearing carries any "always ask" up to the capability, so a gate the
+ * author set is moved rather than lost.
+ */
+function StaleToolSettingsNotice({ binding, onChange, disabled }: StaleSecretNoticeProps) {
+  const t = useTranslations("agents");
+  const gated = Object.values(binding.tool_approval).includes("required");
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3">
+      <p className="text-muted-foreground text-xs">{t("capabilityHasNoToolSettings")}</p>
+      <Button
+        variant="ghost"
+        size="sm"
+        disabled={disabled}
+        onClick={() =>
+          onChange({
+            ...binding,
+            approval: gated ? "required" : binding.approval,
+            tool_approval: {},
+            tool_overrides: {},
+          })
+        }
+      >
+        {t("useCapabilityApproval")}
+      </Button>
+    </div>
+  );
+}
+
 interface ToolListProps {
   binding: CapabilityBindingSpec;
   tools: CapabilityTool[];
   contracts: CapabilityToolContract[];
-  sideEffecting: boolean;
   onChange: (binding: CapabilityBindingSpec) => void;
   disabled?: boolean;
 }
@@ -773,7 +869,7 @@ interface ToolListProps {
  * because the alternative is walking back through every row to find which of
  * them stopped following it.
  */
-function ToolList({ binding, tools, contracts, sideEffecting, onChange, disabled }: ToolListProps) {
+function ToolList({ binding, tools, contracts, onChange, disabled }: ToolListProps) {
   const t = useTranslations("agents");
   const changed = tools.filter((tool) => isToolOverridden(binding, tool.id));
 
@@ -810,7 +906,6 @@ function ToolList({ binding, tools, contracts, sideEffecting, onChange, disabled
             binding={binding}
             tool={tool}
             contract={contracts.find((entry) => entry.tool_id === tool.id)}
-            sideEffecting={sideEffecting}
             onChange={onChange}
             disabled={disabled}
           />
@@ -825,12 +920,11 @@ interface ToolRowProps {
   tool: CapabilityTool;
   /** What the model is really told. Absent only if the catalog could not read it. */
   contract?: CapabilityToolContract;
-  sideEffecting: boolean;
   onChange: (binding: CapabilityBindingSpec) => void;
   disabled?: boolean;
 }
 
-function ToolRow({ binding, tool, contract, sideEffecting, onChange, disabled }: ToolRowProps) {
+function ToolRow({ binding, tool, contract, onChange, disabled }: ToolRowProps) {
   const t = useTranslations("agents");
   const fieldId = (suffix: string) => `${binding.id}-tool-${tool.id}-${suffix}`;
   const approval = overrideFor(binding, tool.id);
@@ -899,7 +993,7 @@ function ToolRow({ binding, tool, contract, sideEffecting, onChange, disabled }:
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="default">
-                {resolveCapabilityApproval(binding.approval, sideEffecting) === "required"
+                {resolveCapabilityApproval(binding.approval) === "required"
                   ? t("followCapabilityAlwaysAsk")
                   : t("followCapabilityNeverAsk")}
               </SelectItem>
@@ -1156,4 +1250,31 @@ function withoutToolOverride(
     tool_overrides[toolId] = remaining;
   }
   return { ...binding, tool_overrides };
+}
+
+/**
+ * What a capability is for, beyond its one sentence: a few uses, what it needs and
+ * what it never does - the three questions somebody who is not a developer asks
+ * before switching it on (#2070). Nothing where the console has no words for it.
+ */
+function CapabilityGuideNotes({ capabilityId }: { capabilityId: string }) {
+  const t = useTranslations("agents");
+  const guide = useCapabilityGuide()(capabilityId);
+  if (!guide) return null;
+  return (
+    <dl className="grid gap-x-4 gap-y-2 text-xs sm:grid-cols-[auto_minmax(0,1fr)]">
+      <dt className="text-muted-foreground font-medium">{t("capabilityForExample")}</dt>
+      <dd>
+        <ul className="list-disc space-y-0.5 pl-4">
+          {guide.examples.map((example) => (
+            <li key={example}>{example}</li>
+          ))}
+        </ul>
+      </dd>
+      <dt className="text-muted-foreground font-medium">{t("capabilityNeeds")}</dt>
+      <dd>{guide.needs}</dd>
+      <dt className="text-muted-foreground font-medium">{t("capabilityNever")}</dt>
+      <dd>{guide.never}</dd>
+    </dl>
+  );
 }

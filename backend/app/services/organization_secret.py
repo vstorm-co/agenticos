@@ -494,6 +494,20 @@ class OrganizationSecretService:
             key_version=row.key_version,
         )
 
+    async def get_usable(
+        self, ctx: AuthContext, secret_id: UUID, *, kind: SecretKind
+    ) -> OrganizationSecret:
+        """A secret of `kind` the caller may see, for naming on something that sends it.
+
+        Raises:
+            NotFoundError: If the caller may not see it, or it is another kind - the
+                two read alike, as everywhere secrets are referenced.
+        """
+        secret = await self._get(ctx, secret_id)
+        if secret.kind != kind.value:
+            raise NotFoundError(message="Secret not found", details={"secret_id": str(secret_id)})
+        return secret
+
     async def _get(
         self, ctx: AuthContext, secret_id: UUID, *, perm: Perm = Perm.SECRETS_VIEW
     ) -> OrganizationSecret:

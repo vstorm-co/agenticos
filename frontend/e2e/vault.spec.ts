@@ -71,7 +71,7 @@ test.describe("Vault", () => {
     // "Add credential".
     await page.getByRole("button", { name: "Add key" }).first().click();
     const dialog = page.getByRole("dialog");
-    await expect(dialog.getByText("Add a secret")).toBeVisible();
+    await expect(dialog.getByText("Add a key")).toBeVisible();
 
     // The family first, then the service - two questions rather than a scroll
     // through thirty-one. Which service decides every field below it.
@@ -144,7 +144,7 @@ test.describe("Vault", () => {
     await add.getByRole("textbox", { name: /API key/i }).fill("sk-e2eROTATEfirstvalueAAAA");
     await submitDialog(page, {
       dialog: add,
-      submit: add.getByRole("button", { name: "Store secret" }),
+      submit: add.getByRole("button", { name: "Store key" }),
       path: "/api/secrets",
     });
 
@@ -228,7 +228,7 @@ test.describe("Vault", () => {
     await dialog.getByRole("textbox", { name: /API key/i }).fill("sk-e2eREFRESHretryCCCC");
     await submitDialog(page, {
       dialog,
-      submit: dialog.getByRole("button", { name: "Store secret" }),
+      submit: dialog.getByRole("button", { name: "Store key" }),
       path: "/api/secrets",
     });
 

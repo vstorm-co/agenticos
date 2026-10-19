@@ -48,13 +48,15 @@ from app.db.models.conversation import Conversation
 from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.dataset import Dataset, DatasetCase
 from app.db.models.deployment_settings import DeploymentSettings
-from app.db.models.group import Group
+from app.db.models.group import Group, GroupMember
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.local_service import LocalService
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.organization_assistant import OrganizationAssistant
 from app.db.models.organization_secret import OrganizationSecret
+from app.db.models.project import Project
 from app.db.models.sandbox_connection import SandboxConnection
 from app.db.models.skill import Skill, SkillResource
 from app.db.models.sync_source import SyncSource
@@ -67,19 +69,21 @@ from app.schemas.agent_environment import EnvironmentUpdate
 from app.schemas.agent_exposure import ExposureUpdate
 from app.schemas.agent_trigger import TriggerUpdate
 from app.schemas.artifact import ArtifactPublicLinkUpdate, ArtifactUpdate
+from app.schemas.assistant import AssistantUpdate
 from app.schemas.channel_bot import ChannelBotUpdate
 from app.schemas.context import ContextFileUpdate
 from app.schemas.conversation import ConversationUpdate
 from app.schemas.dashboard_layout import DashboardLayoutUpdate
 from app.schemas.dataset import DatasetCaseUpdate, DatasetUpdate
 from app.schemas.deployment_settings import DeploymentSettingsUpdate
-from app.schemas.group import GroupUpdate
+from app.schemas.group import GroupLeadUpdate, GroupUpdate
 from app.schemas.knowledge_base import KnowledgeBaseUpdate
 from app.schemas.local_service import LocalServiceUpdate
 from app.schemas.mcp_connection import McpConnectionUpdate, OrgMcpConnectionUpdate
 from app.schemas.memory import MemoryNoteUpdate
 from app.schemas.notification import NotificationPreferenceUpdate
 from app.schemas.organization import OrganizationMemberUpdate, OrganizationUpdate
+from app.schemas.project import ProjectUpdate
 from app.schemas.resource_grant import VisibilityUpdate
 from app.schemas.retention import RetentionUpdate
 from app.schemas.sandbox_connection import SandboxConnectionUpdate
@@ -101,6 +105,8 @@ from app.schemas.user_slash_command import UserSlashCommandUpdate
 UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     AgentDraftUpdate: None,
     ArtifactPublicLinkUpdate: Artifact,
+    # The organization's assistant row; the agent itself is edited in the Builder.
+    AssistantUpdate: OrganizationAssistant,
     ArtifactUpdate: Artifact,
     ChannelBotUpdate: ChannelBot,
     ContextFileUpdate: ContextFile,
@@ -113,6 +119,7 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     EnvironmentUpdate: AgentEnvironment,
     ExposureUpdate: AgentExposure,
     GroupUpdate: Group,
+    GroupLeadUpdate: GroupMember,
     KnowledgeBaseUpdate: KnowledgeBase,
     LocalServiceUpdate: LocalService,
     McpConnectionUpdate: McpConnection,
@@ -121,6 +128,7 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     OrgMcpConnectionUpdate: McpConnection,
     OrganizationMemberUpdate: OrganizationMember,
     OrganizationUpdate: Organization,
+    ProjectUpdate: Project,
     RetentionUpdate: Organization,
     SandboxConnectionUpdate: SandboxConnection,
     SecretUpdate: OrganizationSecret,

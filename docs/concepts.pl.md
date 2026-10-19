@@ -1,5 +1,5 @@
 ---
-source_sha: "1bad6c649346"
+source_sha: "e93184aec4c0"
 ---
 
 # Koncepcje { #concepts }
@@ -166,36 +166,52 @@ swojej **tożsamości**. Nikt nie słucha runa bez nadzoru, więc nie odpowiada 
 żadnej zidentyfikowanej osobie, tak samo jak gość na osadzonym widgecie. Te
 magazyny prowadzone dla konkretnej osoby są dla niego zamknięte:
 
-- [Pliki pamięci](reference/capabilities.md#memory-files) i
+- [Pamięć](reference/capabilities.md#memory-files) i
   [mem0](reference/capabilities.md#memory-mem0): każde narzędzie odpowiada, że
   rozmowa nie ma pamięci.
-- [Wyszukiwanie w rozmowach](reference/capabilities.md#conversation-search): oba
+- [Poprzednie rozmowy](reference/capabilities.md#conversation-search): oba
   narzędzia odmawiają.
 - [Osobiste powiązanie MCP](mcp.md#whose-account-a-binding-speaks-through):
   własnego Notion albo skrzynki twórcy nie ma, a agent dostaje informację dlaczego.
-- [Artefakty](reference/capabilities.md#artifacts): `publish_artifact` nadal publikuje, a strona jest
+- [Aplikacje](reference/capabilities.md#artifacts): `publish_artifact` nadal publikuje, a strona jest
   prywatna dla twórcy, ale `read_artifact` odmawia, więc odpalenie publikuje
   całą stronę od nowa zamiast ją edytować.
 
 Tak jest celowo. Magazyn prowadzony dla osoby jest odczytywany tej osobie, a
 odpalenie, którego nikt nie rozpoczął, nie może do niego pisać w jej imieniu.
-Dziś żadne ustawienie tego nie zmienia.
+[Sandbox](sandbox.md) z `session_scope: user` trzyma się tej samej reguły:
+odpalenie nie ma tam własnego workspace'u.
 
-!!! warning "Wyjątkiem jest sandbox o zakresie użytkownika"
+### Chyba że twórca pozwoli mu działać jako on { #unless-its-creator-lets-it-run-as-them }
 
-    [Sandbox](sandbox.md) z `session_scope: user` nie jest zamknięty. Odpalenie
-    otwiera własny workspace twórcy dla tego agenta i może czytać oraz zapisywać
-    tam pliki twórcy. Członek bez `agents:edit` nie może edytować ani odpalić
-    triggera utworzonego przez innego członka, bo zmieniony prompt mógłby
-    wynieść te pliki przy następnym odpaleniu.
+**Uruchamiaj jako ja**, ustawienie triggera, to jedyny wyjątek, i włączyć je może
+tylko twórca, dla siebie. Odpalenie sięga wtedy do jego pamięci i jego własnych
+połączeń MCP tak jak jego własny czat — poranne *powiedz mi, co ważnego w mojej
+skrzynce*, którego domyślne ustawienie nie potrafi — na tych warunkach:
+
+- **Harmonogram czyta i zapisuje pamięć; zdarzenie tylko ją czyta.** Prompt
+  zdarzenia niesie maila albo treść webhooka, której nikt nie sprawdził, a
+  notatka zapisana na jej podstawie byłaby czytana w każdym kolejnym czacie jako
+  własna notatka twórcy.
+- **Poprzednie rozmowy pozostają zamknięte** w obu przypadkach.
+- **Edycja kogoś innego to wyłącza.** Zmiana wiadomości, środowiska albo filtra
+  triggera, którego nie utworzyłeś, wyłącza ustawienie, więc nikt nie przepisze
+  tego, co działa jako ty. Administrator działający jako ty przez impersonację
+  ani skrypt z twoim kluczem API nie mogą go włączyć.
+- **Tak samo nowa wersja opublikowana nie przez ciebie osobiście.** Publikacja, promocja
+  albo cofnięcie przez kogokolwiek innego to wyłącza - także zrobione twoim
+  kluczem API albo przez administratora w impersonacji.
+- **Zapis to pokazuje.** Run wskazuje trigger, który go odpalił, a każdy wpis
+  audytu zapisany przez odpalenie niesie `via_trigger` z członkiem, jako który
+  działało.
 
 Ta reguła decyduje o tym, jak projektujesz agenta uruchamianego przez trigger:
 
 | Run bez nadzoru potrzebuje | Użyj |
 |---|---|
-| Stałych faktów albo preferencji | Własnego promptu triggera albo [pliku kontekstowego](context.md) podpiętego do agenta |
+| Stałych faktów albo preferencji | Własnego promptu triggera, [pliku kontekstowego](context.md) podpiętego do agenta albo pamięci twórcy z **Uruchamiaj jako ja** |
 | Stanu zachowanego od jednego odpalenia do następnego | [Sandboksa](sandbox.md) z `session_scope: conversation`: każde odpalenie jednego triggera dopisuje się do tej samej rozmowy z logiem runów |
-| Skrzynki pocztowej albo innej zewnętrznej usługi | Połączenia powiązanego kontem organizacji, a nie kontem każdej osoby |
+| Skrzynki pocztowej albo innej zewnętrznej usługi | Połączenia powiązanego kontem organizacji albo własnego połączenia twórcy z **Uruchamiaj jako ja** |
 
 [Obserwowanie stron pod kątem zmian](howto/competitor-monitoring.md) i
 [osobisty asystent](howto/personal-assistant.md) trafiają na tę regułę i
@@ -295,6 +311,7 @@ działającą platformę:
 | `failed` | zepsuł się |
 | `budget_exceeded` | dobił do limitu — limit wydatków robiący swoje |
 | `guardrail_blocked` | został odrzucony przez [guardrail](reference/capabilities.md#guardrails) |
+| `loop_stopped` | powtarzał te same wywołania narzędzi po ostrzeżeniu i został [zatrzymany](governance.md#step-limits) |
 | `cancelled` | został zatrzymany: przyciskiem stop w kompozytorze, przez zerwany socket, przez delegację anulowaną z góry. Na każdej powierzchni, nie tylko na strumieniowej |
 | `awaiting_approval` | zaparkował na zatwierdzeniu i jest **wznawialny** — jego historia wiadomości jest zapisana, więc decyzja dotyczy rozmowy, do której należy |
 
@@ -438,7 +455,7 @@ Zatwierdzenie rozstrzyga się od najbardziej szczegółowego:
 
 1. własne nadpisanie narzędzia, potem
 2. tryb capability, potem
-3. to, czy capability jest `side_effecting`.
+3. brak zatwierdzania, gdy żadne z nich nic nie mówi.
 
 Builder podaje *wynik* słowami, zamiast opisywać regułę, bo reguła, którą
 czytelnik musi przeliczyć w głowie, to ustawienie, którego nikt nie śmie
@@ -505,6 +522,12 @@ Używaj więc specjalisty do pracy, która nie powinna wymagać publikowania age
 „streść to w trzech punktach” — a delegata do zdolności, którą organizacja
 posiada i wykorzystuje wielokrotnie.
 
+Trzeci rodzaj stoi obok nich: **zdalny agent**, agent innego dostawcy osiągalny
+przez A2A i zarejestrowany w organizacji po jego agent card. Wywołuje się go tak samo
+i rozlicza z tego samego budżetu, ale nie jest tu wersjonowany — jego właściciel
+zmienia go po swojej stronie — więc odwołanie wskazuje rejestrację, a nie wersję.
+Zobacz [Zdalni agenci przez A2A](reference/capabilities.md#remote-agents).
+
 #### Specjaliści dynamiczni i droga wyjścia { #dynamic-specialists-and-the-way-out }
 
 Pod tym inline siedzi trzeci rodzaj: **specjalista dynamiczny**, wymyślony przez
@@ -566,28 +589,47 @@ dowiedzieć się, kto komu może delegować.
 
 ---
 
-## Agenci systemowi { #system-agents }
+## Sędziowie { #system-agents }
 
-Niektórych agentów uruchamia platforma, a nie człowiek: **Eval judge** ocenia
-odpowiedzi na potrzeby [oceniania datasetów](datasets.md#judge), a
-**Knowledge gap drafter** pisze szkic fragmentu, którego brakuje przy
-[luce w wiedzy](knowledge-gaps.md#drafting-the-missing-content). To są
-**agenci systemowi**. Każda organizacja dostaje ich przy utworzeniu, a
-organizacja utworzona wcześniej dostaje danego agenta wtedy, gdy coś po raz
-pierwszy go potrzebuje.
+Niektórych agentów uruchamia platforma, a nie człowiek: **sędziów**, którzy
+oceniają odpowiedzi na potrzeby [oceniania datasetów](datasets.md#judge), oraz
+**Knowledge gap drafter**, który pisze szkic fragmentu, którego brakuje przy
+[luce w wiedzy](knowledge-gaps.md#drafting-the-missing-content). Rodzaj agenta
+mówi, którym jest - `agent` dla tych, których używają ludzie, `judge` i
+`drafter` dla tych. Każda organizacja dostaje domyślnego **Eval judge** i
+draftera przy utworzeniu, organizacja utworzona wcześniej dostaje każdego z nich
+wtedy, gdy coś po raz pierwszy go potrzebuje, a dataset może dostać własnego
+sędziego.
 
-Agent systemowy jest zwykłym agentem. Jest widoczny w Agents z plakietką
-**System**, jego instrukcje i model można edytować, można go udostępnić, a jego
-runy są sprawdzane względem budżetu i zapisywane jak każde inne. Startuje z
-niewielkim własnym miesięcznym budżetem, żeby nowa organizacja nie mogła
-przypadkiem wydać całego swojego budżetu na ewaluację.
+Sędzia należy do platformy, która go uruchamia, a nie jest agentem, którego
+używają ludzie. Agents pokazuje sędziów osobno, w zwiniętym pasie **Sędziowie**
+pod **Agenci**; każda karta mówi, które datasety ocenia dany sędzia, a ten
+utworzony przez platformę jest oznaczony jako **Domyślny sędzia**. Wybory agenta
+ich pomijają. Kto ma `agents:edit`, otwiera sędziego, żeby zmienić jego
+instrukcje, model i budżet - jego strona zawiera je, jego limity, historię i
+datasety, które go wybrały, z włączonym ocenianiem albo bez - każdy rozwija się
+na jego ostatnie oceny i runy ewaluacji, z których pochodzą - wraz z tym, jak
+często ludzie zgodzili się z nim w wynikach, które ocenił, a oni rozstrzygnęli,
+i nic więcej.
 
-Gdy organizacja ma już profil modelu, agent jest publikowany na najstarszym z
-nich. Bez profilu jest tworzony jako draft, a człowiek wybiera mu model i go
-publikuje. Do tego czasu mówią o tym funkcje, które z niego korzystają.
+Jego runy są sprawdzane względem budżetu i zapisywane jak każde inne, i nie
+wysyłają powiadomienia o runie. Sędzia startuje z niewielkim własnym
+miesięcznym budżetem, żeby nowa organizacja nie mogła przypadkiem wydać całego
+swojego budżetu na ewaluację.
+
+Uruchamia go tylko platforma. Czat, API, embed albo publiczna strona, kanał,
+harmonogram i delegowanie z innego agenta odmawiają go w usłudze, która
+uruchomiłaby run, a nie tylko w konsoli.
+
+Gdy organizacja ma już profil modelu, sędzia jest publikowany na najstarszym z
+nich albo na tym, który wybrano przy jego tworzeniu. Bez profilu jest tworzony
+jako draft. Seedowany Eval judge jest publikowany na pierwszym modelu
+organizacji, gdy tylko zostanie on dodany; własny sędzia datasetu czeka, aż
+człowiek wybierze mu model i go opublikuje, a do tego czasu mówią o tym
+funkcje, które z niego korzystają.
 
 [Przełącznik wsparcia AI](governance.md#ai-assistance) organizacji decyduje, czy
-agenci systemowi w ogóle działają.
+sędziowie w ogóle działają.
 
 ## Profile modeli { #model-profiles }
 

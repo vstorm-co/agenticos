@@ -117,6 +117,19 @@ describe("streaming text", () => {
     expect(store().messages[0]?.content).toBe("Let me check. Thirty days.");
   });
 
+  it("starts a new text part when a new model response begins", () => {
+    // #2108: a background tool answers as a message, with no tool step between.
+    store().addMessage(message());
+    store().appendTextDelta("m-1", "A haiku while it runs.");
+
+    store().appendTextDelta("m-1", "The heading is Example Domain.", true);
+
+    expect(timeline()).toEqual([
+      "text:A haiku while it runs.",
+      "text:The heading is Example Domain.",
+    ]);
+  });
+
   it("gives every part its own id, so a rendered row is never reused", () => {
     store().addMessage(message());
     store().appendTextDelta("m-1", "a");
@@ -291,5 +304,32 @@ describe("part ids on a runtime without randomUUID", () => {
     expect(new Set(ids).size).toBe(2);
 
     vi.unstubAllGlobals();
+  });
+});
+
+describe("the reply being written", () => {
+  it("is chosen, and goes with the conversation it was chosen in", () => {
+    const reply = { messageId: "m-1", role: "assistant" as const, excerpt: "x" };
+    useChatStore.getState().setReplyTo(reply);
+    expect(useChatStore.getState().replyTo).toEqual(reply);
+
+    useChatStore.getState().clearMessages();
+    expect(useChatStore.getState().replyTo).toBeNull();
+  });
+
+  it("stays while the same conversation is read again", () => {
+    const reply = { messageId: "m-1", role: "assistant" as const, excerpt: "x" };
+    useChatStore.getState().addMessage({
+      id: "m-1",
+      role: "assistant",
+      content: "x",
+      timestamp: new Date(),
+    });
+    useChatStore.getState().setReplyTo(reply);
+
+    useChatStore.getState().rereadMessages();
+
+    expect(useChatStore.getState().messages).toEqual([]);
+    expect(useChatStore.getState().replyTo).toEqual(reply);
   });
 });

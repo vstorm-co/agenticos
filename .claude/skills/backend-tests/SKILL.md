@@ -5,7 +5,7 @@ description: Write or extend the backend Python test suite — a unit test for a
 
 # Backend tests — four layers and a 100% gate
 
-**Read `docs/testing.md`** and the `## Testing` section of `CLAUDE.md`; both are
+**Read `docs/testing.md`** and the `## Testing` section of `AGENTS.md`; both are
 current. `.claude/rules/testing.md` has the naming and fixture shapes. This file is
 where a test goes and what actually breaks.
 

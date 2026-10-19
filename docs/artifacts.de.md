@@ -1,25 +1,25 @@
 ---
-source_sha: "8c8da72b2c36"
+source_sha: "06f8c1ff3994"
 ---
 
-# Artefakte { #artifacts }
+# Apps { #artifacts }
 
-Ein **Artefakt** ist eine Seite, die ein Agent veröffentlicht hat: ein Bericht,
+Eine **App** ist eine Seite, die ein Agent veröffentlicht hat: ein Bericht,
 ein kleines Dashboard, eine einseitige Zusammenfassung, die jemand im Browser
-öffnet. Es hat einen Link, der gleich bleibt, wenn der Agent es erneut
+öffnet. Sie hat einen Link, der gleich bleibt, wenn der Agent sie erneut
 veröffentlicht, sodass „veröffentliche jeden Montag die Zahlen der Woche auf
 dieser Seite“ ein Link ist, den man sich als Lesezeichen speichert, statt jede
 Woche einen neuen.
 
-Ein Artefakt ist keine Datei. Ein Diagramm, ein erzeugtes PDF und eine Datei im
-Workspace haben bereits ein Zuhause im Chat und im [Workspace](sandbox.md). Ein
-Artefakt ist das, was *ausgeliefert* wird: Es hat einen Besitzer, eine
-Sichtbarkeit und Grants wie ein Agent oder ein Skill, und es kann einen
+Eine App ist keine Datei. Ein Diagramm, ein erzeugtes PDF und eine Datei im
+Workspace haben bereits ein Zuhause im Chat und im [Workspace](sandbox.md). Eine
+App ist das, was *ausgeliefert* wird: Sie hat einen Besitzer, eine
+Sichtbarkeit und Grants wie ein Agent oder ein Skill, und sie kann einen
 öffentlichen Link für jemanden ohne Konto bekommen.
 
-## Eines veröffentlichen { #publishing-one }
+## Eine veröffentlichen { #publishing-one }
 
-Schalten Sie für den Agent die Capability **Artifacts** ein. Sie fügt zwei Tools
+Schalten Sie für den Agent die Capability **Apps** ein. Sie fügt zwei Tools
 hinzu: `publish_artifact`, das das Modell aufruft, wenn das Ergebnis etwas ist,
 das eine Person öffnen sollte, statt es einmal im Chat zu lesen, und
 `read_artifact`, das eine veröffentlichte Seite zurückliest.
@@ -28,7 +28,7 @@ Die Seite kommt von einer von drei Stellen:
 
 - **Eine Datei im Workspace des Agents**, die auf `.html` oder `.md` endet. Das
   ist der übliche Fall für einen Agent mit der Capability
-  [Dateien & Shell](reference/capabilities.md#files-shell): Er schreibt
+  [Sandbox](reference/capabilities.md#files-shell): Er schreibt
   `report.html`, führt aus, was auch immer sie baut, und veröffentlicht dann die
   Datei. Die Bytes werden über das eigene Workspace-Backend des Runs gelesen,
   deshalb funktioniert das auf jedem Sandbox-Backend.
@@ -62,9 +62,9 @@ trotzdem Text hinter dem Schnitt nennen.
 
 ## Ein Name, ein Link { #one-name-one-link }
 
-Die Identität eines Artefakts ist sein **Name innerhalb des Agents** —
+Die Identität einer App ist ihr **Name innerhalb des Agents** —
 `weekly-report`, `churn-dashboard`. Wer unter demselben Namen veröffentlicht,
-aktualisiert dasselbe Artefakt, von jeder Oberfläche aus: dem Chat, der API,
+aktualisiert dieselbe App, von jeder Oberfläche aus: dem Chat, der API,
 einem [Trigger](triggers.md) oder einem Workflow. Ein neuer Name ergibt eine neue
 Seite. Der Name besteht aus Kleinbuchstaben, Ziffern und Bindestrichen, bis zu
 64 Zeichen.
@@ -77,15 +77,15 @@ die Leser in Produktion als Lesezeichen haben. Die Umgebung wird vom Run selbst
 gelesen, nie vom Modell, und die Liste und die Seite nennen sie.
 
 Den Namen teilen sich alle, die den Agent ausführen, die Seite aber nicht. Ein
-Run veröffentlicht ein bestehendes Artefakt nur dann erneut, wenn die Person, für
-die er handelt, es besitzt oder `artifacts:edit` darauf hat — aus der Rolle oder
+Run veröffentlicht eine bestehende App nur dann erneut, wenn die Person, für
+die er handelt, sie besitzt oder `artifacts:edit` darauf hat — aus der Rolle oder
 aus einem `edit`-Grant, dieselbe Regel wie bei der Verwaltung in der Konsole. Der
 Run jeder anderen Person erfährt, dass der Name vergeben ist, und veröffentlicht
 unter einem anderen. Eine Kollegin, die denselben geteilten Agent um einen
 `weekly-report` bittet, kann die Seite hinter Ihrem Link also nicht ersetzen.
 
 Jede Veröffentlichung ist eine neue **Version**. Nichts wird überschrieben, daher
-ist die Versionsliste auf der Seite des Artefakts die Geschichte der Seite. Zwei
+ist die Versionsliste auf der Seite der App die Geschichte der Seite. Zwei
 Dinge halten diese Geschichte begrenzt:
 
 - Wer genau die Bytes veröffentlicht, die die aktuelle Version enthält, fügt
@@ -140,12 +140,18 @@ später auf einen anderen Origin verlegt:
 | `lib/agenticos-2.css` | Das Aussehen der Konsole für Seiten, hell und dunkel, und die `ao-`-Komponenten, aus denen eine Seite gebaut wird |
 | `lib/agenticos-2.js` | `window.AO`: Chart.js im Stil der Konsole, Zahlenformate in der Sprache der Seite, Icons, Tabs |
 | `lib/agenticos-1.css` | Die erste Version des Aussehens, behalten für die Seiten, die gegen sie veröffentlicht wurden |
+| `lib/three-0.186.0/three.module.js` | three.js 0.186.0 als ES-Modul, mit `addons/controls/OrbitControls.js` daneben - `three` und `three/addons/` per Import Map darauf abbilden |
+| `lib/mermaid-12.1.0.min.js` | Mermaid 12.1.0, als `window.mermaid` |
 
 Jeder Name trägt seine Version und wird ein Jahr lang gecacht. Ein Upgrade fügt
 eine neue Datei neben der alten hinzu, sodass eine Seite, die gegen eine Version
 veröffentlicht wurde, weiter genau diese bekommt. Nichts wird von außerhalb des
 Deployments geholt, also funktioniert ein Deployment ohne Internetzugang genauso.
 Die Dateien sind in `backend/app/core/catalog/artifact_lib/` aufgeführt.
+
+Die Dateien antworten mit `Access-Control-Allow-Origin: *`, weil ein Modulskript im
+CORS-Modus geladen wird und eine Seite in einem opaken Origin `Origin: null` sendet -
+ohne das würde three.js nicht importiert.
 
 Der mitgelieferte [Skill](skills.md) **`artifact-pages`** bringt einem Agent bei, sie
 zu nutzen: zwei Vorlagen (ein Dashboard und ein Bericht), den Hausstil mit seinen
@@ -155,32 +161,83 @@ anderen mitgelieferten Skills, eine bestehende über `seed-skills`, und der Tab
 **Page style** der Capability Artifacts im Builder bietet ihn an. Bearbeiten Sie
 den Skill, um Ihre eigene Marke zu beschreiben, und der Agent folgt ihr.
 
-## Wer es öffnen kann { #who-can-open-it }
+## Visuals { #visuals }
 
-Ein neues Artefakt ist **privat** für die Person, für die der veröffentlichende
+Ein [Visual](reference/capabilities.md#visuals) ist eine App, die noch nicht
+gespeichert wurde: eine Zeichnung, die ein Agent mit `draw` ins Gespräch schreibt und
+die unter seiner Nachricht erscheint, während sie geschrieben wird. Es ist dieselbe Art
+Dokument - ein `html`-Visual ist eine Seite, ein `svg`- oder `mermaid`-Visual wird zu
+einer Seite, die es enthält - und es wird mit derselben Isolation gezeichnet.
+
+**Der Rahmen.** `/api/v1/artifact-content/visual-frame` ist eine feste Seite auf dem
+Content-Origin, ausgeliefert mit genau der Policy, die jede App-Seite bekommt. Sie
+enthält keine Zeichnung: Die Konsole gibt die Zeichnung beim Streamen hinein, sodass
+nichts gespeichert werden muss, bevor es gezeigt wird, und die Isolation kommt aus dem
+Response-Header statt aus einem `srcdoc`-Meta-Tag. Während des Streamens formt der
+Rahmen das Markup an Ort und Stelle um, ohne Skripte und `on*`-Attribute; ist es
+vollständig, schreibt er das ganze Dokument, damit seine Skripte laufen, genau wie auf
+der gespeicherten Seite. Der Rahmen meldet seine Größe, seine Fehler und einen
+Herzschlag; eine Zeichnung, die nicht mehr schlägt, wird geschlossen, statt den Tab
+festzuhalten.
+
+**Im Chat.** Das Panel zeigt die ganze Zeichnung - ein SVG nach seiner `viewBox`
+eingepasst, eine Seite in der Breite des Panels gesetzt und über 560 Pixel verkleinert -
+unter ihrem Titel, in der Nachricht des Agent, nie als Teil der Konsole. Vollbild
+zeigt sie in ihrer eigenen Größe; auf einem Telefon öffnet ein Tippen das Vollbild.
+Der Zoom erscheint in der unteren rechten Ecke der Zeichnung, solange der Zeiger auf
+der Karte ist, in der Vorschau und im Vollbild: ein SVG wird größer gezeichnet, eine
+Seite skaliert, und der Rahmen scrollt, sobald die Zeichnung über ihn hinauswächst.
+Darüber stehen *Code anzeigen*, *Herunterladen* (`.svg`, `.html` oder die
+Mermaid-Quelle) und *Als Bild kopieren* für ein SVG, und ein Fehler, den die Zeichnung
+meldet, kommt mit *Beheben*, das den Agent fragt.
+
+**Herunterladen.** Eine von der Festplatte geöffnete Datei hat keinen Rahmen um
+sich, also trägt der Download mit, was der Rahmen durchgesetzt hat. Ein SVG behält
+die Zeichnung und verliert, was laufen oder nach außen greifen könnte: Skripte,
+Handler, eingebettete Dokumente und jeden Verweis außerhalb der Datei. Eine Seite
+öffnet sich mit der Richtlinie des Rahmens vor allem, was sie geschrieben hat, und
+lädt ihre Bibliotheken vom Artefakt-Origin dieses Deployments.
+
+**Als App speichern.** *In Apps speichern* nimmt einen Titel und einen Namen, beide
+vorausgefüllt, und veröffentlicht das Visual als Version einer App unter dem Agent,
+dessen Turn es gezeichnet hat, in der Umgebung, in der dieser Turn lief, im Besitz der Person, die speichert, und privat, bis
+sie es teilt. Der Server baut das Visual aus dem Transkript neu - Überarbeitungen
+angewendet - statt Bytes aus dem Browser zu nehmen, sodass die App genau das ist, was
+der Agent gezeichnet hat. Unter einem Namen gespeichert, den die Person schon hat, wird
+es eine Version dieser App - so aktualisiert eine Überarbeitung einer gespeicherten
+Zeichnung die Seite, unter der sie geteilt wurde. Speichern erfordert `artifacts:edit`.
+
+**Aus einem Delegate.** Eine Zeichnung bleibt in dem Run, der sie gemacht hat, also
+zeichnet ein Agent, der als Delegate eines anderen Agents arbeitet, nicht: `draw`
+sagt es ihm, und er beschreibt das Bild in seinem Ergebnis, damit der Agent, für den
+er arbeitet, es im Gespräch zeichnet.
+
+## Wer sie öffnen kann { #who-can-open-it }
+
+Eine neue App ist **privat** für die Person, für die der veröffentlichende
 Run gehandelt hat: die Person im Chat oder der Ersteller eines Triggers.
 
-Sein Link - der, auf den die Karte im Chat und die Antwort des Agents zeigen -
+Ihr Link - der, auf den die Karte im Chat und die Antwort des Agents zeigen -
 öffnet die Seite selbst, fensterfüllend unter einer Leiste mit Titel, Version
 und **Share**. Der Link allein lässt niemanden hinein: Er öffnet sich nur für
 ein angemeldetes Mitglied, das die Regeln unten bereits hereinlassen. Er nennt
-die Organisation, in der das Artefakt liegt (`?org=`), sodass ein Mitglied
+die Organisation, in der die App liegt (`?org=`), sodass ein Mitglied
 mehrerer Organisationen in der richtigen landet.
 
 Unter **Share**
-kann jeder, der es verwalten darf, es auf drei Wegen teilen:
+kann jeder, der sie verwalten darf, sie auf drei Wegen teilen:
 
 | Reichweite | Wie | Wer |
 |---|---|---|
 | Bestimmte Personen | Ein Grant, mit `read` oder `edit` | Diese Mitglieder, in dieser Organisation |
-| Die Organisation | Sichtbarkeit auf die ganze Organisation gesetzt | Jedes Mitglied, dessen Rolle geteilte Artefakte erreicht |
+| Die Organisation | Sichtbarkeit auf die ganze Organisation gesetzt | Jedes Mitglied, dessen Rolle geteilte Apps erreicht |
 | Jeder mit dem Link | **Create a public link** | Jeder, der die Adresse hat, ohne Konto |
 
 Teilen und Sichtbarkeit verwenden dasselbe Panel und dieselben Regeln wie bei
-Agents und Skills; siehe [Berechtigungen](permissions.md). Ein Artefakt zu
-verwalten — es zu teilen, seinen öffentlichen Link und dessen Einstellungen, eine
-Version wiederherzustellen, es zu löschen — erfordert `artifacts:edit` auf diesem
-Artefakt, aus der Rolle oder aus einem `edit`-Grant. Es zu öffnen, erfordert
+Agents und Skills; siehe [Berechtigungen](permissions.md). Eine App zu
+verwalten — sie zu teilen, ihren öffentlichen Link und dessen Einstellungen, eine
+Version wiederherzustellen, sie zu löschen — erfordert `artifacts:edit` auf dieser
+App, aus der Rolle oder aus einem `edit`-Grant. Sie zu öffnen, erfordert
 `artifacts:view`.
 
 Der Agent kann nicht erweitern, wer eine Seite liest. Er veröffentlicht; eine
@@ -202,7 +259,7 @@ Eine Seite, die jemand bereits geöffnet hat, wird weiter angezeigt, bis ihre
 signierte Inhaltsadresse abläuft, höchstens `ARTIFACT_VIEW_TTL_SECONDS`
 (standardmäßig fünf Minuten).
 
-Einem entzogenen Mitglied geht es genauso: Es verliert das Artefakt bei seiner
+Einem entzogenen Mitglied geht es genauso: Es verliert die App bei seiner
 nächsten Anfrage, und eine Seite, die es bereits geöffnet hatte, bleibt
 höchstens für dasselbe Zeitfenster.
 
@@ -240,9 +297,9 @@ Frame auf einer fremden Website an.
 
 ## Wie die Seite isoliert wird { #how-the-page-is-isolated }
 
-Ein Artefakt ist HTML mit Skript darin, geschrieben von einem Modell, das
-möglicherweise etwas Feindseliges gelesen hat. Es wird so ausgeliefert, dass
-nichts, was es tut, die Konsole oder die Person erreichen kann, die es ansieht:
+Eine App ist HTML mit Skript darin, geschrieben von einem Modell, das
+möglicherweise etwas Feindseliges gelesen hat. Sie wird so ausgeliefert, dass
+nichts, was sie tut, die Konsole oder die Person erreichen kann, die sie ansieht:
 
 - Die Bytes kommen von einer separaten Route,
   `/api/v1/artifact-content/<token>`, die kein Cookie und keine Session liest.
@@ -278,7 +335,7 @@ nichts, was es tut, die Konsole oder die Person erreichen kann, die es ansieht:
   Frame zeichnen, und das Ausstellen über einen öffentlichen Link ist selbst pro
   Link begrenzt.
 
-Die Liste **Artifacts** zeichnet die aktuelle Seite jeder Karte als
+Die Liste **Apps** zeichnet die aktuelle Seite jeder Karte als
 Live-Vorschau, durch dieselbe Art von Frame, mit Skript und sonst nichts: keine
 Dialoge, keine Popups, keine Formulare. Mit Skript, damit ein Dashboard, dessen
 Diagramme eine Bibliothek zeichnet, auf seiner Karte keine leere Fläche ist. Die
@@ -296,21 +353,39 @@ Voraussetzung. Setzen Sie die Variable für das Backend und für das Frontend, d
 diesen Origin zu seinem `frame-src` hinzufügt. Siehe
 [Konfiguration](configuration.md#published-artifacts).
 
+## Einer Seite folgen { #following-a-page }
+
+**Folgen** in der Leiste einer Seite legt jedes Mal eine Benachrichtigung in
+Ihren Posteingang, wenn die Seite eine neue Version erhält - ein Agent hat sie
+mit anderem Inhalt neu veröffentlicht, oder jemand hat eine ältere Version
+wiederhergestellt. Eine Neuveröffentlichung, die nichts ändert, benachrichtigt
+niemanden, sodass ein Zeitplan, der nichts Neues gefunden hat, still bleibt. Wer
+die Version mit seinem Run oder seiner Wiederherstellung erzeugt hat, wird über
+die eigene Änderung nicht benachrichtigt.
+
+Folgen gewährt keinen Zugriff. Jeder, der die Seite öffnen kann, kann ihr
+folgen, und wer den Zugriff verliert, erhält keine Benachrichtigungen mehr, ohne
+entfolgen zu müssen. Der Posteingang prüft den Zugriff beim Lesen erneut, sodass
+eine Benachrichtigung über eine Seite, die Sie nicht mehr öffnen dürfen, mit
+diesem Zugriff verschwindet. Die Benachrichtigung kann auch per E-Mail kommen;
+jeden Kanal schalten Sie unter **Einstellungen → Benachrichtigungen → App
+aktualisiert** ab.
+
 ## Aufbewahrung und Löschung { #retention-and-deletion }
 
-Artefakte sind eine eigene [Aufbewahrungsklasse](governance.md#the-classes),
+Apps sind eine eigene [Aufbewahrungsklasse](governance.md#the-classes),
 gemessen ab der **letzten Veröffentlichung** — ein Bericht, der jede Woche neu
 veröffentlicht wird, lebt, wie alt seine erste Version auch ist. Wie jede Klasse
-behält sie Artefakte für immer, bis eine Organisation oder das Deployment eine
+behält sie Apps für immer, bis eine Organisation oder das Deployment eine
 Frist setzt.
 
-Ein Artefakt zu löschen — von Hand oder durch die Aufbewahrung — entfernt jede
+Eine App zu löschen — von Hand oder durch die Aufbewahrung — entfernt jede
 Version, ihre gespeicherten Bytes, ihre Grants und ihren öffentlichen Link. Den
-Agent zu löschen, löscht seine Artefakte nicht: Sie bleiben lesbar und haben
+Agent zu löschen, löscht seine Apps nicht: Sie bleiben lesbar und haben
 einfach keinen Herausgeber mehr. Eine benannte Umgebung zu löschen, tut dasselbe
 mit den Seiten, die aus ihr veröffentlicht wurden, sodass sie nie auf der
 gleichnamigen Seite der Standardumgebung landen. Die Organisation zu löschen,
-entfernt sie. Die Artefakte einer gelöschten Person bleiben und verlieren ihren
+entfernt sie. Die Apps einer gelöschten Person bleiben und verlieren ihren
 Besitzer, so wie ihre Agents und Skills.
 
 Die Bytes liegen im [Dateispeicher](configuration.md#uploaded-files-at-rest) des
@@ -335,6 +410,14 @@ Deployments, unter `artifacts/<organization>/<artifact>/`.
 - **Entfernte Versionen sind weg.** Eine Unterhaltung, die auf eine Version
   verlinkt, die älter als das aufbewahrte Fenster ist, kann nur die neueste
   anbieten.
+- **Ein Visual wird nur im Web-Chat und in einem geteilten Thread gezeichnet.** Eine
+  Chat-App bekommt ein Bild davon, wo `VISUAL_RENDER_CDP_URL` einen Browser nennt,
+  sonst seinen Titel; das Widget und eine Einbettung auf einer anderen Website
+  zeigen seinen Titel.
+- **Ein geteilter Thread zeigt seine zwölf neuesten Visuals**, zusammen höchstens
+  16 MB. Wer den Link hat, kann ihn beliebig oft öffnen, also ist ein Aufruf
+  begrenzt; ein Turn jenseits einer der Grenzen behält seinen Text und zeigt keine
+  Zeichnung.
 
 ## Zusammenfassung { #recap }
 

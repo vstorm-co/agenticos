@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 
+import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui";
 import type { ArtifactAgent } from "@/types/artifact";
 
@@ -34,7 +35,20 @@ export function AgentFilter({ agents, value, onChange }: AgentFilterProps) {
         <SelectItem value={EVERY}>{t("everyAgent")}</SelectItem>
         {agents.map((agent) => (
           <SelectItem key={agent.id} value={agent.id}>
-            {agent.name}
+            <span className="flex min-w-0 items-center gap-2">
+              {/* Hidden from the accessible name, which is the agent's name alone. */}
+              <span aria-hidden>
+                <AgentAvatar
+                  agentId={agent.id}
+                  slug={agent.slug}
+                  hasAvatar={agent.has_avatar}
+                  colorSlot={agent.avatar_color}
+                  size="sm"
+                  className="h-5 w-5"
+                />
+              </span>
+              <span className="truncate">{agent.name}</span>
+            </span>
           </SelectItem>
         ))}
       </SelectContent>

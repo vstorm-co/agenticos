@@ -1,6 +1,6 @@
 ---
 title: "Research a question with subagents and publish a report"
-description: "Split a question into independent sub-questions, delegate each to a one-off specialist, and publish a sourced comparison as an artifact."
+description: "Split a question into independent sub-questions, delegate each to a one-off specialist, and publish a sourced comparison as an app."
 ---
 
 # Research a question with subagents and publish a report
@@ -46,15 +46,16 @@ organization that only runs a modified copy internally owes nobody a release.
    that lets the model invent a one-off specialist for a sub-question nobody
    pre-wrote a specialist for. Set the mode to **Async**, so the three
    sub-questions run at once instead of one after another, and leave the
-   fan-out ceiling at 3.
+   fan-out ceiling at 3. Set **Always ask** on `delegate`, so you read each
+   specialist the model writes before it runs.
 3. Still on Delegation, toggle **Share Web search with delegates** and
    **Share Web fetch with delegates**. A specialist the model invents gets no
    capabilities of its own [by design](../reference/capabilities.md#delegation) -
    only what the parent explicitly shares reaches it, so without this step
    every invented specialist could delegate but could not search.
-4. Enable **Web search** (method DuckDuckGo) and **Web fetch** on the parent
+4. Enable **Web search** (method DuckDuckGo) and **Read web pages** on the parent
    itself - sharing only reaches a delegate what the parent is bound to.
-5. Enable **Planning** and **Artifacts**.
+5. Enable **Planning** and **Apps**.
 6. Set a budget and a step limit for the trial. The recorded run used 40 steps
    and cost about 0.43 USD.
 7. Set the instructions below, then **Publish**.
@@ -80,8 +81,8 @@ Do not answer from your own training knowledge without a source URL next to it.
 Open a new chat with the agent and send the question from *Prepare the input*.
 
 The model calls `delegate` three times, once per licence - each one is its own
-delegation, not a single call doing all three. **Delegate is side-effecting**,
-so all three park for approval together, as one model step can park several
+delegation, not a single call doing all three. **You gated `delegate`**, so
+all three park for approval together, as one model step can park several
 calls at once. Read the three proposed specialists, then **Approve**. The run
 resumes, fires the three specialists in the background and calls `wait_tasks`
 to collect them before it writes the report.
@@ -96,7 +97,7 @@ to collect them before it writes the report.
 | GPLv3 obligation | Licence text, per-file changes, and the complete source on distribution |
 | Every claim | Carries a source URL next to it, not collected in one list at the end |
 | Disagreement or gap | The report says so explicitly, or states there was none |
-| Artifact | **Artifacts** lists `licence-comparison`, private to you |
+| App | **Apps** lists `licence-comparison`, private to you |
 | A two-part question with only one real source (e.g. asking about a licence that does not exist) | The report says it could not confirm that part, rather than inventing an answer |
 
 !!! example "Recorded on v0.0.504, 25 September 2026"
@@ -108,7 +109,7 @@ to collect them before it writes the report.
     and got `3/3 finished`. The report matched the reference table exactly, cited
     the OSI, Apache.org, GNU.org and FSF FAQ pages, and closed with "No source
     disagreements found" naming the sources that agreed. It published
-    `licence-comparison` as an HTML artifact. Total cost: 0.43 USD, all three
+    `licence-comparison` as an HTML app. Total cost: 0.43 USD, all three
     delegations included - no separate `agent_runs` row exists for a dynamic
     specialist, since it is not a published agent.
 
@@ -133,8 +134,8 @@ to collect them before it writes the report.
 ## Record the trial
 
 Keep the question, the plan the agent wrote, each delegation's name and result,
-the sources cited, the artifact and its version, and the cost from Activity. A
-person still reads the artifact against the reference facts before trusting it,
+the sources cited, the app and its version, and the cost from Activity. A
+person still reads the app against the reference facts before trusting it,
 decides who may read it, and judges whether the "could not confirm" section is
 honest or is hiding a search that should have been tried again.
 

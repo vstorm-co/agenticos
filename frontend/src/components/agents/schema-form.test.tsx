@@ -5,6 +5,34 @@ import userEvent from "@testing-library/user-event";
 import { SchemaForm } from "./schema-form";
 import type { JsonSchema } from "@/types/agents";
 
+vi.mock("@/hooks", () => ({
+  useModelProviders: () => ({ profiles: [{ id: "p-fast" }], profilesStatus: "ready" }),
+}));
+
+// The picker has its own tests; here it stands in as the value it shows and the
+// two answers it can give - a profile, or back to the agent's own model.
+vi.mock("@/components/agents/model-profile-picker", () => ({
+  ModelProfilePicker: ({
+    value,
+    profiles,
+    onChange,
+  }: {
+    value: string | null;
+    profiles: { id: string }[];
+    onChange: (id: string | null) => void;
+  }) => (
+    <div>
+      <span>picked: {value ?? "none"}</span>
+      <button type="button" onClick={() => onChange(profiles[0]!.id)}>
+        choose
+      </button>
+      <button type="button" onClick={() => onChange(null)}>
+        clear
+      </button>
+    </div>
+  ),
+}));
+
 const SCHEMA: JsonSchema = {
   type: "object",
   properties: {
@@ -34,22 +62,6 @@ const SCHEMA: JsonSchema = {
   required: ["default_top_k"],
 };
 
-/** A field that suggests the usual answers and accepts any other. */
-const OPEN_SCHEMA: JsonSchema = {
-  type: "object",
-  properties: {
-    decision_model: {
-      type: "string",
-      title: "Decision model",
-      description: "The model that picks each step",
-      default: "jev-latest",
-      "x-suggestions": ["jev-latest", "jev-preview"],
-      "x-enum-labels": { "jev-latest": "Jev (latest)", "jev-preview": "Jev (preview)" },
-      "x-placeholder": "jev-latest",
-    },
-  },
-};
-
 function renderForm(value: Record<string, unknown> = {}, onChange = vi.fn()) {
   render(<SchemaForm schema={SCHEMA} value={value} onChange={onChange} idPrefix="knowledge" />);
   return onChange;
@@ -70,6 +82,29 @@ describe("SchemaForm", () => {
 
   it("humanises a field name when the schema has no title", () => {
     renderForm();
+    expect(screen.getByLabelText(/Default top k/)).toBeInTheDocument();
+  });
+
+  it("says a field in the catalog's words where the caller has them", () => {
+    // A capability's settings carry their copy in each locale's catalog (#2098);
+    // a field it has none for keeps the schema's own English.
+    render(
+      <SchemaForm
+        schema={SCHEMA}
+        value={{}}
+        onChange={vi.fn()}
+        idPrefix="x"
+        copyFor={(field) =>
+          field === "tool_name"
+            ? { title: "Nazwa narzędzia", description: "Zmień nazwę narzędzia dla modelu" }
+            : null
+        }
+      />,
+    );
+
+    expect(screen.getByLabelText("Nazwa narzędzia")).toBeInTheDocument();
+    expect(screen.getByText("Zmień nazwę narzędzia dla modelu")).toBeInTheDocument();
+    expect(screen.queryByText("Rename the search tool for the model")).not.toBeInTheDocument();
     expect(screen.getByLabelText(/Default top k/)).toBeInTheDocument();
   });
 
@@ -977,68 +1012,194 @@ describe("a masked multiline field", () => {
   });
 });
 
-describe("a field that suggests rather than restricts", () => {
-  function renderOpen(value: Record<string, unknown> = {}) {
+describe("advanced settings (#2070)", () => {
+  const schema: JsonSchema = {
+    type: "object",
+    properties: {
+      mode: { type: "string", title: "Mode", default: "fast" },
+      max_results: { type: "integer", title: "Max results", default: 5, "x-advanced": true },
+    },
+  };
+
+  const fold = (value: Record<string, unknown>, errors?: Record<string, string>) => {
+    render(
+      <SchemaForm schema={schema} value={value} onChange={vi.fn()} idPrefix="t" errors={errors} />,
+    );
+    return screen.getByText("Advanced settings").closest("details");
+  };
+
+  it("folds a field marked advanced and keeps the others in view", () => {
+    const details = fold({});
+
+    expect(details).not.toHaveAttribute("open");
+    expect(details).toContainElement(screen.getByLabelText("Max results"));
+    expect(details).not.toContainElement(screen.getByLabelText("Mode"));
+  });
+
+  it("opens where an advanced field was set", () => {
+    expect(fold({ max_results: 8 })).toHaveAttribute("open");
+  });
+
+  it("opens where an advanced field was refused", () => {
+    expect(fold({}, { max_results: "Too many" })).toHaveAttribute("open");
+  });
+
+  it("draws a model profile picker for a field that names one", async () => {
+    const schema: JsonSchema = {
+      type: "object",
+      properties: {
+        step_model_profile_id: {
+          title: "Model for each browse step",
+          anyOf: [{ type: "string", format: "uuid" }, { type: "null" }],
+          "x-widget": "model-profile",
+        },
+      },
+    };
     const onChange = vi.fn();
     render(
-      <SchemaForm schema={OPEN_SCHEMA} value={value} onChange={onChange} idPrefix="browser" />,
-    );
-    return onChange;
-  }
-
-  it("is an input somebody can type into, not a closed select", () => {
-    // An `<input list=...>` reports `combobox`, which is what it is - the
-    // distinction that matters is that it takes free text, where `enum`
-    // would have rendered a select and forbidden the pinned build this
-    // field exists to allow.
-    renderOpen();
-    const field = screen.getByRole("combobox");
-    expect(field.tagName).toBe("INPUT");
-    expect(field).toHaveAttribute("list");
-  });
-
-  it("offers the catalog through a datalist", () => {
-    const { container } = render(
-      <SchemaForm schema={OPEN_SCHEMA} value={{}} onChange={vi.fn()} idPrefix="browser" />,
+      <SchemaForm
+        schema={schema}
+        value={{ step_model_profile_id: "p-old" }}
+        onChange={onChange}
+        idPrefix="browser_use"
+      />,
     );
 
-    const list = container.querySelector("datalist");
-    expect(list).not.toBeNull();
-    expect([...(list?.querySelectorAll("option") ?? [])].map((o) => o.value)).toEqual([
-      "jev-latest",
-      "jev-preview",
-    ]);
-    // Labelled the way a select labels its options.
-    expect(list?.textContent).toContain("Jev (latest)");
-    expect(screen.getByRole("combobox")).toHaveAttribute(
-      "list",
-      "browser-decision_model-suggestions",
-    );
-  });
-
-  it("shows the default until somebody types", () => {
-    renderOpen();
-    expect(screen.getByRole("combobox")).toHaveValue("jev-latest");
-  });
-
-  it("accepts a value the catalog does not hold", () => {
-    // `fireEvent.change` rather than typing: the form is controlled by its
-    // caller, and this test's `value` never moves - so typing would report
-    // one character at a time rather than the string.
-    const onChange = renderOpen();
-
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "jev-1.13.0" } });
-
-    expect(onChange).toHaveBeenLastCalledWith({ decision_model: "jev-1.13.0" });
-  });
-
-  it("clearing it means unset rather than an empty string", () => {
-    // An unset field falls back to the capability's own default; an empty
-    // string is a model id nothing answers to.
-    const onChange = renderOpen({ decision_model: "jev-preview" });
-
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "" } });
-
+    expect(screen.getByText("picked: p-old")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "choose" }));
+    expect(onChange).toHaveBeenLastCalledWith({ step_model_profile_id: "p-fast" });
+    await userEvent.click(screen.getByRole("button", { name: "clear" }));
     expect(onChange).toHaveBeenLastCalledWith({});
+  });
+
+  it("shows no profile picked where the field is unset", () => {
+    const schema: JsonSchema = {
+      type: "object",
+      properties: { step_model_profile_id: { "x-widget": "model-profile" } },
+    };
+    render(<SchemaForm schema={schema} value={{}} onChange={vi.fn()} idPrefix="b" />);
+
+    expect(screen.getByText("picked: none")).toBeInTheDocument();
+  });
+});
+
+describe("a field shown only for some choices (#2130)", () => {
+  const schema: JsonSchema = {
+    type: "object",
+    properties: {
+      connection: {
+        type: "string",
+        title: "Connection",
+        enum: ["built_in", "proxy"],
+        default: "built_in",
+      },
+      proxy_url: {
+        type: "string",
+        title: "Proxy address",
+        "x-visible-when": { field: "connection", equals: ["proxy"] },
+      },
+    },
+  };
+
+  it("is hidden while the deciding field holds its default", () => {
+    render(<SchemaForm schema={schema} value={{}} onChange={vi.fn()} idPrefix="v" />);
+    expect(screen.queryByLabelText("Proxy address")).toBeNull();
+  });
+
+  it("appears for the choice that needs it", () => {
+    render(
+      <SchemaForm
+        schema={schema}
+        value={{ connection: "proxy" }}
+        onChange={vi.fn()}
+        idPrefix="v"
+      />,
+    );
+    expect(screen.getByLabelText("Proxy address")).toBeInTheDocument();
+  });
+});
+
+/** Choices that depend on another field: the coding agent's models follow its harness. */
+describe("x-enum-when", () => {
+  const CODER: JsonSchema = {
+    type: "object",
+    properties: {
+      harness: {
+        type: "string",
+        enum: ["claude_code", "codex"],
+        default: "claude_code",
+        title: "Coding agent",
+      },
+      model: {
+        title: "Model",
+        default: null,
+        anyOf: [{ type: "string", enum: ["anthropic:a", "openai:b"] }, { type: "null" }],
+        "x-enum-when": {
+          field: "harness",
+          choices: { claude_code: ["anthropic:a"], codex: ["openai:b"] },
+        },
+      },
+    },
+  };
+
+  it("offers only the choices the other field allows, read with its default", async () => {
+    render(<SchemaForm schema={CODER} value={{}} onChange={vi.fn()} idPrefix="coder" />);
+
+    await userEvent.click(screen.getByLabelText("Model"));
+    expect(screen.getByRole("option", { name: "anthropic:a" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "openai:b" })).toBeNull();
+  });
+
+  it("clears a choice the other field no longer allows, and keeps one it does", async () => {
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <SchemaForm
+        schema={CODER}
+        value={{ harness: "claude_code", model: "anthropic:a" }}
+        onChange={onChange}
+        idPrefix="coder"
+      />,
+    );
+
+    await userEvent.click(screen.getByLabelText("Coding agent"));
+    await userEvent.click(screen.getByRole("option", { name: "codex" }));
+    expect(onChange).toHaveBeenLastCalledWith({ harness: "codex", model: undefined });
+
+    rerender(
+      <SchemaForm
+        schema={{
+          ...CODER,
+          properties: {
+            ...CODER.properties,
+            model: {
+              ...CODER.properties!.model!,
+              "x-enum-when": {
+                field: "harness",
+                choices: { claude_code: ["anthropic:a"], codex: ["anthropic:a", "openai:b"] },
+              },
+            },
+          },
+        }}
+        value={{ harness: "claude_code", model: "anthropic:a" }}
+        onChange={onChange}
+        idPrefix="coder"
+      />,
+    );
+    await userEvent.click(screen.getByLabelText("Coding agent"));
+    await userEvent.click(screen.getByRole("option", { name: "codex" }));
+    expect(onChange).toHaveBeenLastCalledWith({ harness: "codex", model: "anthropic:a" });
+  });
+
+  it("offers nothing for a value the map does not name", async () => {
+    render(
+      <SchemaForm
+        schema={CODER}
+        value={{ harness: "other" }}
+        onChange={vi.fn()}
+        idPrefix="coder"
+      />,
+    );
+    await userEvent.click(screen.getByLabelText("Model"));
+    expect(screen.queryByRole("option", { name: /anthropic|openai/ })).toBeNull();
   });
 });

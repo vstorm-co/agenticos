@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
 import type { ReactNode } from "react";
 import { getErrorMessage } from "@/lib/api-error";
 import { Button, Spinner } from "@/components/ui";
-import { Send, Mic, MicOff, Paperclip } from "lucide-react";
+import { Send, Mic, MicOff } from "lucide-react";
 import { toast } from "sonner";
 
 import { uploadFile, type FileUploadResponse } from "@/lib/file-api";
@@ -13,6 +13,9 @@ import { createPortal } from "react-dom";
 
 import { AttachmentCard, PendingAttachmentCard } from "./attachment-card";
 import { AttachmentRow } from "./attachment-row";
+import { ReplyingTo } from "./reply-quote";
+import { useChatStore } from "@/stores";
+import { ComposerSheet } from "./composer-sheet";
 
 /**
  * Render `row` where the page wants it, or in place when it named nowhere.
@@ -36,7 +39,20 @@ import {
   type SlashCommandContext,
 } from "./slash-commands";
 import { SlashCommandPalette } from "./slash-command-palette";
+import { ComposerEditor, type ComposerEditorHandle } from "./composer-editor";
+import { ComposerHints } from "./composer-hints";
+import { MentionPalette } from "./mention-palette";
+import { useMentionables } from "@/hooks/use-mentionables";
+import {
+  insertMention,
+  matching,
+  mentionAt,
+  stillMentioned,
+  type MentionQuery,
+} from "@/lib/mentions";
+import type { Mentionable } from "@/types/mention";
 import { FileDropOverlay } from "@/components/files";
+import { cn } from "@/lib/utils";
 import { useChanged } from "@/hooks/use-changed";
 import { useFileDrop } from "@/hooks/use-file-drop";
 import { useTranslations } from "next-intl";
@@ -52,6 +68,9 @@ import type { UseMicrophoneResult } from "voice-glow";
  * Below it nothing changes: the text lands in the textarea as it always has.
  */
 const PASTE_AS_FILE_CHARS = 2000;
+
+/** What one message may point at; the server refuses a frame with more (`agent_chat.MAX_MENTIONS`). */
+const MAX_MENTIONS = 10;
 
 /** A file queued for upload, shown as a card before the server has answered. */
 interface PendingUpload {
@@ -74,7 +93,21 @@ interface Attachment {
 }
 
 interface ChatInputProps {
-  onSend: (message: string, fileIds?: string[], files?: FileUploadResponse[]) => void;
+  onSend: (
+    message: string,
+    fileIds?: string[],
+    files?: FileUploadResponse[],
+    mentions?: Mentionable[],
+  ) => void;
+  /**
+   * The agent this turn is addressed to, whose servers, delegates and knowledge
+   * `@` offers (#2189). Absent where the composer offers no mentions.
+   */
+  agentId?: string | null;
+  /** Offer what the Builder's draft reaches - its test panel runs the draft. */
+  mentionsFromDraft?: boolean;
+  /** Suggest what can be asked while the box is empty - a conversation with nothing in it yet. */
+  hints?: boolean;
   disabled?: boolean;
   isProcessing?: boolean;
   /** When set, a stop control replaces the send button while processing. */
@@ -105,12 +138,40 @@ interface ChatInputProps {
    * stay inside this `<form>` to submit it.
    */
   controlsSlot?: ReactNode;
+  /** Opens the project picker from the `+`; absent where a chat cannot change project. */
+  onProject?: () => void;
   /**
    * Icons drawn before the microphone: what the conversation is using, and the
    * model it runs on. Icons, because a line of readings and a model's name took
    * the width of the row and were read past on every message.
    */
   actionsSlot?: ReactNode;
+  /**
+   * Files handed in from outside the composer - the AI Architect's screenshot of
+   * the page (#2063) - attached as if picked, once per `id`.
+   */
+  incoming?: IncomingFiles | null;
+  /** Called as the person types, so a shared chat can say they are. */
+  onTyping?: () => void;
+  /**
+   * Projects `@` offers beside what the agent reaches, before the first message;
+   * picking one starts the chat in it rather than mentioning it.
+   */
+  projects?: Mentionable[];
+  onPickProject?: (projectId: string) => void;
+}
+
+/** Files to attach from outside the composer, once per `id`, and words to go with them. */
+export interface IncomingFiles {
+  id: number;
+  files: File[];
+  /** Written into the message, after whatever is already being typed. */
+  text?: string;
+}
+
+/** Whether typing happens on a touch keyboard - a phone or a tablet. */
+function touchKeyboard(): boolean {
+  return typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches === true;
 }
 
 export function ChatInput({
@@ -123,10 +184,21 @@ export function ChatInput({
   attachmentSlot,
   mic,
   controlsSlot,
+  onProject,
   actionsSlot,
+  incoming = null,
+  agentId = null,
+  mentionsFromDraft = false,
+  hints = false,
+  onTyping,
+  projects,
+  onPickProject,
 }: ChatInputProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("chat.input");
+  // The message this turn will answer, chosen with Reply on it.
+  const replyTo = useChatStore((state) => state.replyTo);
+  const setReplyTo = useChatStore((state) => state.setReplyTo);
   const tCommands = useTranslations("chat.commands");
   const { chatMaxUploadSizeMb } = usePublicConfig();
   const [message, setMessage] = useState("");
@@ -138,11 +210,71 @@ export function ChatInput({
   // Slash-command palette state. Open while message starts with "/" and the
   // caller wired a context - without one, commands have nothing to do.
   const [paletteIndex, setPaletteIndex] = useState(0);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<ComposerEditorHandle>(null);
+  // Reply was just chosen on a message: the person goes on to type the answer.
+  useEffect(() => {
+    if (replyTo) editorRef.current?.focus();
+  }, [replyTo]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   const showPalette = !!slashContext && message.startsWith("/") && !message.includes("\n");
+  // `@`-mentions (#2189): what was picked, and the one being typed at the caret.
+  // A pick stays in the text as `@Name`; deleting that text unpicks it, so what
+  // is sent is always what the message still says.
+  const [picked, setPicked] = useState<Mentionable[]>([]);
+  const mentions = useMemo(() => stillMentioned(message, picked), [message, picked]);
+  const [mentionQuery, setMentionQuery] = useState<MentionQuery | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const mentionOpen = mentionQuery !== null && agentId !== null && !showPalette;
+  const offered = useMentionables(agentId, mentionsFromDraft);
+  const mentionMatches = useMemo(
+    () =>
+      mentionOpen && mentionQuery
+        ? matching([...offered.items, ...(projects ?? [])], mentionQuery.query)
+        : [],
+    [mentionOpen, mentionQuery, offered.items, projects],
+  );
+  if (useChanged(`${mentionMatches.length}|${mentionQuery?.query ?? ""}`)) setMentionIndex(0);
+  // Another agent's servers and knowledge are not this one's, so a switch drops
+  // what was picked for the previous one rather than sending what it cannot reach.
+  if (useChanged(agentId ?? "") && picked.length > 0) setPicked([]);
+
+  // Where the caret goes once the picked `@query` is replaced - set as that text
+  // commits, so the next keystroke lands after what was picked.
+  const caretAfterPick = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    if (caretAfterPick.current === null) return;
+    editorRef.current?.setCaret(caretAfterPick.current);
+    caretAfterPick.current = null;
+  }, [message]);
+
+  const typed = (text: string, at: number) => {
+    setMessage(text);
+    setMentionQuery(mentionAt(text, at));
+    if (text.trim()) onTyping?.();
+  };
+
+  const full = mentions.length >= MAX_MENTIONS;
+  const pickMention = (item: Mentionable) => {
+    if (mentionQuery === null) return;
+    if (item.kind === "project") {
+      // Not a word in the message: the chat moves into the project, and the
+      // `@` typed to find it goes.
+      setMentionQuery(null);
+      const rest = message.slice(mentionQuery.start + 1 + mentionQuery.query.length);
+      setMessage(message.slice(0, mentionQuery.start) + rest.replace(/^ /, ""));
+      caretAfterPick.current = mentionQuery.start;
+      onPickProject?.(item.id);
+      return;
+    }
+    if (full && !mentions.includes(item)) return;
+    setMentionQuery(null);
+    const next = insertMention(message, mentionQuery, item);
+    setMessage(next.text);
+    caretAfterPick.current = next.caret;
+    setPicked(mentions.includes(item) ? mentions : [...mentions, item]);
+  };
   // The palette before the user's own commands have loaded: the built-ins, with their
   // copy resolved here because the registry holds keys (#446).
   const allCommands = useMemo(
@@ -159,17 +291,8 @@ export function ChatInput({
   if (useChanged(`${filteredCommands.length}|${message}`)) setPaletteIndex(0);
 
   useEffect(() => {
-    if (!isProcessing && !isUploading && textareaRef.current) {
-      textareaRef.current.focus();
-    }
+    if (!isProcessing && !isUploading) editorRef.current?.focus();
   }, [isProcessing, isUploading]);
-
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
-    }
-  }, [message]);
 
   const runSlashCommand = useCallback(
     (cmd: SlashCommand) => {
@@ -207,12 +330,40 @@ export function ChatInput({
       trimmed || t("analyzeFiles"),
       files?.map((f) => f.id),
       files,
+      mentions.length > 0 ? mentions : undefined,
     );
     setMessage("");
     setAttachedFiles([]);
+    setPicked([]);
+    setMentionQuery(null);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (mentionOpen) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setMentionQuery(null);
+        return;
+      }
+      if (mentionMatches.length > 0) {
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          setMentionIndex((i) => (i + 1) % mentionMatches.length);
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          setMentionIndex((i) => (i - 1 + mentionMatches.length) % mentionMatches.length);
+          return;
+        }
+        if (e.key === "Enter" || e.key === "Tab") {
+          e.preventDefault();
+          const item = mentionMatches[mentionIndex];
+          if (item) pickMention(item);
+          return;
+        }
+      }
+    }
     if (showPalette && filteredCommands.length > 0) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -237,7 +388,9 @@ export function ChatInput({
         return;
       }
     }
-    if (e.key === "Enter" && !e.shiftKey) {
+    // On a touch keyboard Enter is a new line, as in every messaging app: there
+    // is no Shift to hold for one, and the send button is a thumb away (#2066).
+    if (e.key === "Enter" && !e.shiftKey && !touchKeyboard()) {
       e.preventDefault();
       handleSubmit(e);
     }
@@ -337,8 +490,28 @@ export function ChatInput({
     [chatMaxUploadSizeMb, t, tErrors],
   );
 
+  const attachedIncoming = useRef<number | null>(null);
+  useEffect(() => {
+    if (incoming === null || attachedIncoming.current === incoming.id) return;
+    attachedIncoming.current = incoming.id;
+    void uploadFiles(incoming.files);
+    if (incoming.text) editorRef.current?.focus();
+  }, [incoming, uploadFiles]);
+  // The words that came with them, once per hand-off and after whatever is
+  // already typed - written during render, as state that follows a prop is.
+  const [wroteIncoming, setWroteIncoming] = useState<number | null>(null);
+  if (incoming?.text && wroteIncoming !== incoming.id) {
+    const text = incoming.text;
+    setWroteIncoming(incoming.id);
+    setMessage((typed) => (typed.trim() ? `${typed.trimEnd()}\n${text}` : text));
+  }
+
   /**
-   * A paste long enough to be a document becomes one.
+   * A pasted file or picture is attached, and a paste long enough to be a
+   * document becomes one.
+   *
+   * A screenshot or a file copied in Finder arrives as clipboard files, which
+   * the textarea ignores - Ctrl+V did nothing. They are attached as if picked.
    *
    * Pasting a wiki page into the textarea pushed the question somebody was
    * writing off the screen and left the transcript one enormous bubble. Past
@@ -346,7 +519,13 @@ export function ChatInput({
    * textarea is left alone, so the question gets typed beside it.
    */
   const handlePaste = useCallback(
-    (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    (e: React.ClipboardEvent<HTMLElement>) => {
+      const pastedFiles = Array.from(e.clipboardData.files);
+      if (pastedFiles.length > 0) {
+        e.preventDefault();
+        void uploadFiles(pastedFiles);
+        return;
+      }
       const text = e.clipboardData.getData("text/plain");
       if (text.length <= PASTE_AS_FILE_CHARS) return;
       e.preventDefault();
@@ -398,6 +577,17 @@ export function ChatInput({
         title={t("dropFilesAttach")}
         hint={t("dropMaxSize", { max: chatMaxUploadSizeMb })}
       />
+      {mentionOpen && (
+        <MentionPalette
+          items={mentionMatches}
+          selectedIndex={mentionIndex}
+          onSelectIndex={setMentionIndex}
+          onPick={pickMention}
+          isLoading={offered.isLoading}
+          failed={offered.isError}
+          full={full ? MAX_MENTIONS : undefined}
+        />
+      )}
       {showPalette && (
         <SlashCommandPalette
           commands={filteredCommands}
@@ -426,41 +616,41 @@ export function ChatInput({
           </AttachmentRow>,
         )}
 
+      {replyTo && <ReplyingTo reply={replyTo} onCancel={() => setReplyTo(null)} />}
+
       {/* The text has the box to itself, and every control is on one row under
           it. The buttons used to sit *beside* the textarea, which is fine on
           one line and wrong on ten: the send button drifted to the vertical
           middle of a tall message, with text above it and text below. */}
-      <textarea
-        ref={textareaRef}
+      {/* Plain text with real chips in it: a picked mention and a settled
+          address are drawn as what they name, and the message is still the
+          one string it always was. */}
+      <ComposerEditor
+        ref={editorRef}
         value={message}
-        onChange={(e) => setMessage(e.target.value)}
+        mentions={mentions}
+        onChange={typed}
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
         placeholder={t("placeholder")}
+        idle={
+          hints && !disabled ? (
+            <ComposerHints
+              offered={offered.items}
+              commands={allCommands.map((command) => command.name)}
+            />
+          ) : undefined
+        }
         disabled={disabled}
-        rows={1}
-        className="placeholder:text-muted-foreground block min-h-[40px] w-full resize-none scrollbar-thin bg-transparent py-2.5 text-sm focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 sm:text-base"
+        // What a phone's keyboard offers: a return key that reads as a line
+        // break where Enter makes one. 16px text, never less: iOS zooms the
+        // page into any field smaller than that when it is focused (#2066).
+        enterKeyHint={touchKeyboard() ? "enter" : "send"}
       />
 
       {/* `min-w-0` and a shrinkable right group: at 390px the controls used to
           run 27px past the composer's own edge, measured on an iPhone 15. */}
       <div className="flex items-center gap-1.5 pt-0.5 pb-1">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={disabled || isUploading}
-          className="h-9 w-9 shrink-0"
-          title={t("attachFile")}
-          aria-label={t("attachFile")}
-        >
-          {isUploading ? (
-            <Spinner className="text-muted-foreground h-4 w-4" />
-          ) : (
-            <Paperclip className="text-muted-foreground h-4 w-4" />
-          )}
-        </Button>
         <input
           ref={fileInputRef}
           type="file"
@@ -469,6 +659,21 @@ export function ChatInput({
           multiple
           className="hidden"
         />
+        <ComposerSheet
+          onAttach={() => fileInputRef.current?.click()}
+          onVoice={toggleMic}
+          onCommand={
+            slashContext
+              ? () => {
+                  setMessage("/");
+                  editorRef.current?.focus();
+                }
+              : undefined
+          }
+          onProject={onProject}
+          disabled={disabled || isUploading}
+        />
+        {isUploading && <Spinner className="text-muted-foreground h-4 w-4 shrink-0" />}
         {controlsSlot ? (
           <div className="flex min-w-0 items-center gap-1">{controlsSlot}</div>
         ) : null}
@@ -481,7 +686,8 @@ export function ChatInput({
             size="icon"
             onClick={toggleMic}
             disabled={disabled}
-            className="h-9 w-9 shrink-0"
+            // It starts from the `+`, and shows here only to stop.
+            className={cn("h-9 w-9 shrink-0", !isListening && "hidden")}
             title={isListening ? t("stopRecording") : t("voiceInput")}
             aria-label={isListening ? t("stopRecording") : t("voiceInput")}
           >
@@ -507,7 +713,7 @@ export function ChatInput({
             <Button
               type="submit"
               size="icon"
-              className="shrink-0"
+              className="shrink-0 transition-transform active:scale-90"
               disabled={disabled || isUploading || (!message.trim() && attachedFiles.length === 0)}
             >
               {isProcessing ? <Spinner className="h-4 w-4" /> : <Send className="h-4 w-4" />}

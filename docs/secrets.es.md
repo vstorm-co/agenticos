@@ -1,5 +1,5 @@
 ---
-source_sha: "dfb14d9e1139"
+source_sha: "11255bcc5d61"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }
@@ -100,6 +100,7 @@ secreto tiene un **kind**, y el kind decide qué campos existen.
 | `github_oauth_app` | El client id público de una GitHub OAuth App y su secreto |
 | `git_token` | Un access token para git sobre HTTPS, y el único host al que puede enviarse |
 | `entra_app` | El tenant id, el client id y el client secret de un registro de aplicación de Microsoft Entra |
+| `openai_codex` | Un inicio de sesión de ChatGPT: un access token, un refresh token y el id de cuenta |
 | `none` | No es un secreto — la marca para un endpoint que no necesita credencial |
 
 `github_oauth_app` lo gasta la plataforma en lugar de elegirlo una persona — el
@@ -122,6 +123,13 @@ un token no dice cuáles son. Concédele `Sites.Selected` sobre el único sitio 
 lee la fuente — consulta [Configurar SharePoint y
 OneDrive](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup). Su pista
 son los cuatro últimos caracteres del client id, que es público, y no del secreto.
+
+`openai_codex` es el único kind que nadie teclea. Se guarda [iniciando sesión con
+ChatGPT](models.md#running-on-a-chatgpt-subscription), y cambia mientras se usa:
+cada renovación gasta el refresh token, así que el par nuevo se vuelve a sellar
+bajo el mismo id. Su pista son los cuatro últimos caracteres del id de cuenta.
+Cuando un inicio de sesión deja de funcionar, **Reconnect** vuelve a iniciar
+sesión en su lugar.
 
 `aws_credentials` es el caso más claro de por qué existen los kinds: el access key
 id no es secreto y el secret access key sí lo es, y un único campo no puede
@@ -192,7 +200,6 @@ organización puede traer su propia clave:
 | Exa | `web_research` |
 | Logfire | [Observabilidad](reference/spec.md#observability) por agent — trazas a un proyecto propio |
 | LlamaParse | Parseo de PDF, facturado a la clave propia de la organización |
-| TypeSafe | [`browser_choice`](reference/capabilities.md#browser-automation-choose) — el modelo que elige la operación y el elemento en cada paso de un recorrido. No es un proveedor de modelos: responde preguntas con tipo en lugar de generar texto, así que no se ofrece como modelo para ejecutar un agent |
 | mem0 | [`memory_mem0`](reference/capabilities.md#memory-mem0) — la capability entera, que guarda las memorias semánticas de un agent en un servicio mem0 (en la nube o autoalojado) en vez de aquí. En este despliegue no se guarda nada, así que mem0 factura su propio embedding por fuera y enviar memorias a la nube de mem0 es una decisión de residencia de datos que nombra el Builder. Una `base_url` autoalojada tiene que ser https y estar en la lista de permitidos `MEM0_ALLOWED_HOSTS`, para que la clave del vault nunca se envíe a un origen controlado por el agent. No hay consola de operador para estas memorias: mem0 tiene su propio almacén, su propio listado y su propio borrado. |
 
 ## Lo que nunca ocurre { #what-never-happens }

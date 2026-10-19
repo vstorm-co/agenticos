@@ -25,6 +25,9 @@ const useRunsMock = vi.fn();
 // filter controls, so the holder is given everything - except the no-access
 // case, which flips this off.
 const holdsEverything = vi.hoisted(() => ({ value: true }));
+vi.mock("@/hooks/use-agents", () => ({
+  useJudges: () => ({ agents: [{ id: "judge-1", slug: "eval-judge", name: "Eval judge" }] }),
+}));
 vi.mock("@/hooks", () => ({
   useRuns: (agentId?: string, options?: unknown) => useRunsMock(agentId, options),
   usePermissions: () => ({ can: () => holdsEverything.value }),
@@ -158,6 +161,8 @@ describe("run history controls", () => {
       rated: undefined,
       statuses: undefined,
       surface: undefined,
+      // The eval traffic is left out until asked for.
+      excludeSurface: "eval",
       userId: undefined,
       agentVersionId: undefined,
       skip: 0,
@@ -240,13 +245,39 @@ describe("run history controls", () => {
     expect(lastOptions()).toMatchObject({ statuses: ["failed"] });
   });
 
-  it("problems is failed and stopped-by-budget together, the way they are stored apart", async () => {
+  it("problems is failed, stopped-by-budget and stopped-for-looping together", async () => {
     renderTab();
 
     await userEvent.click(screen.getByRole("combobox", { name: "Filter by status" }));
     await userEvent.click(screen.getByRole("option", { name: "Problems" }));
 
-    expect(lastOptions()).toMatchObject({ statuses: ["failed", "budget_exceeded"] });
+    expect(lastOptions()).toMatchObject({
+      statuses: ["failed", "budget_exceeded", "loop_stopped"],
+    });
+  });
+
+  it("names the judge on its grading runs, which other agent lists leave out", () => {
+    useRunsMock.mockReturnValue({
+      runs: [{ ...aRun(), agent_id: "judge-1", surface: "eval" }],
+      total: 1,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    renderTab();
+    expect(screen.getAllByText("Eval judge").length).toBeGreaterThan(0);
+  });
+
+  it("puts the eval traffic back, or shows it alone, when asked", async () => {
+    renderTab();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Filter by surface" }));
+    await userEvent.click(screen.getByRole("option", { name: "Every surface, evals included" }));
+    expect(lastOptions()).toMatchObject({ surface: undefined, excludeSurface: undefined });
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Filter by surface" }));
+    await userEvent.click(screen.getByRole("option", { name: "Eval" }));
+    expect(lastOptions()).toMatchObject({ surface: "eval", excludeSurface: undefined });
   });
 
   it("narrows to one surface", async () => {
@@ -340,7 +371,7 @@ describe("run history controls", () => {
     const onFocusRun = vi.fn();
     renderTab({ onFocusRun });
 
-    await userEvent.click(screen.getByText("openai · gpt-5"));
+    await userEvent.click(screen.getByText("gpt-5"));
 
     expect(onFocusRun).toHaveBeenCalledWith("run-1");
   });
@@ -439,5 +470,17 @@ describe("the model narrowing", () => {
     await userEvent.click(await screen.findByRole("option", { name: "gpt-4o-mini" }));
 
     expect(lastOptions()).toMatchObject({ modelLabel: "gpt-4o-mini" });
+  });
+
+  it.each([
+    ["Only test runs", true],
+    ["Without test runs", false],
+  ])("narrows to the Builder's test runs or away from them (%s)", async (option, isTest) => {
+    renderTab();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Test runs" }));
+    await userEvent.click(await screen.findByRole("option", { name: option }));
+
+    expect(lastOptions()).toMatchObject({ isTest });
   });
 });

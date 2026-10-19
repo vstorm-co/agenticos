@@ -21,6 +21,7 @@ dashboard says green while a terminal says red.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from typing import TYPE_CHECKING
 
 import click
@@ -41,6 +42,7 @@ if TYPE_CHECKING:
 
     from app.db.models.organization_secret import OrganizationSecret
     from app.db.models.sandbox_connection import SandboxConnection
+    from app.schemas.health import SystemCheck
 
 # What each outcome prints. `unconfigured` is deliberately not a failure: a
 # deployment that never ingests a document and never runs an agent is installed
@@ -106,6 +108,22 @@ async def _redis_reachable() -> tuple[str, str]:
     return ("healthy", "PING answered") if answered else ("unhealthy", "PING failed")
 
 
+async def _scheduler() -> SystemCheck:
+    """`probe_scheduler`, on a Redis connection of its own - see `_redis_reachable`.
+
+    One that cannot connect leaves the probe to report Redis as what failed.
+    """
+    from app.clients.redis import RedisClient
+
+    redis = RedisClient()
+    try:
+        with contextlib.suppress(Exception):
+            await redis.connect()
+        return await probe_scheduler(redis)
+    finally:
+        await redis.close()
+
+
 async def _postgres_tls(db: AsyncSession) -> tuple[str, str]:
     """Whether the connection this doctor made to Postgres was encrypted.
 
@@ -165,7 +183,7 @@ def _file_storage() -> tuple[str, str]:
 
 
 async def _browser_endpoints() -> tuple[str, str]:
-    """Whether the browsers a `browser_choice` agent may drive are answering.
+    """Whether the browsers a web-browsing agent may drive are answering.
 
     `BROWSER_CDP_ALLOWED_HOSTS` is the whole list an author can name, so it is
     the whole list worth looking at - and looking here is the difference between
@@ -356,7 +374,7 @@ async def _run(profile: str | None = None) -> int:
     status, detail = _file_storage()
     failures += _report("file storage", status, detail)
 
-    scheduler = await probe_scheduler()
+    scheduler = await _scheduler()
     failures += _report("scheduler", scheduler.status, scheduler.detail)
 
     # A session of its own, after the vault check rather than beside the database

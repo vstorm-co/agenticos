@@ -33,6 +33,7 @@ from app.db.models.user import User
 from app.db.updates import writable
 from app.repositories import (
     collection_teardown_repo,
+    conversation_repo,
     knowledge_base_repo,
     member_repo,
     organization_repo,
@@ -761,6 +762,10 @@ class UserService:
         them, and their documents, files and vector table would be retained and
         unreachable while the collection name kept blocking reuse. They are torn
         down explicitly, with the same store the org purge needs (#1131).
+
+        A sixth is a loss rather than an orphan: a project's chat the user
+        started, which the `users` cascade would delete for every teammate who
+        reads and continues it. It is kept, with no starter.
         """
         from app.services.rag.embeddings import EmbeddingService
         from app.services.rag.vectorstore import process_vector_store
@@ -820,6 +825,11 @@ class UserService:
                 )
 
         await organization_secret_repo.promote_owned_private_to_org(self.db, owner_user_id=user_id)
+        # A project's chat is the team's, not its starter's: teammates read and
+        # continue it, and the cascade from `users` would take it - transcript and
+        # all - with the account. Unowned, it stays with the project; the
+        # person's own chats outside any project still go.
+        await conversation_repo.release_project_chats(self.db, user_id=user_id)
 
         await self._purge_personal_collections(user_id)
 

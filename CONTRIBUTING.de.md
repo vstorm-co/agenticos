@@ -2,7 +2,7 @@
 source_sha: "7cb876b5ef26"
 ---
 
-<!-- source_sha: 7cb876b5ef26 -->
+<!-- source_sha: 6ba9e8a85274 -->
 
 # Zu AgenticOS beitragen
 
@@ -41,7 +41,7 @@ wird.
 
 ## Die Tests ausführen
 
-Das vollständige Bild steht in [`CLAUDE.md`](CLAUDE.md#testing). Die kurze
+Das vollständige Bild steht in [`AGENTS.md`](AGENTS.md#testing). Die kurze
 Fassung:
 
 ```bash

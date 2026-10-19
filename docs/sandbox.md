@@ -75,6 +75,11 @@ The **scope** is a field of the agent's spec — `run`, `conversation`, `channel
 `user` or `agent`. So `conversation`, the usual choice, means one container and one
 directory per chat; `agent` means every run of that agent shares one.
 
+`user` is the signed-in person's own, so a run standing in for somebody has none:
+a widget's visitor and a trigger's fire are refused rather than handed the
+publisher's or the creator's workspace — unless the trigger
+[runs as its creator](concepts.md#unless-its-creator-lets-it-run-as-them).
+
 The key is also the session's **name** on the host — a `sandboxd` session's id, a
 Daytona sandbox's name — so every run of a scope opens it by that name: the first
 creates it and the others attach, concurrent ones included, and nothing has to
@@ -114,6 +119,7 @@ What separates one tenant from another:
 |---|---|
 | Built on | `python:3.12-slim` |
 | Languages | Python 3.12; Node 24.19.0 LTS with npm 11 and `tsx` for TypeScript |
+| Coding agents | Claude Code 2.1.288 and Codex 0.160.0, for the [coding agent](reference/capabilities.md#coding-agent) |
 | Tools | `git`, `curl`, `ripgrep`, `fd`, `jq`, `less`, `procps`, `unzip`, `zip`, `uv`, `pdftotext`/`pdfinfo` |
 | Reading | **liteparse** (`lit`) — PDFs and images to text or markdown, OCR included; `poppler-utils` for the fast text-layer path and a page count |
 | Documents | `pypdf`, `python-docx`, `openpyxl`, `python-pptx`, `reportlab`; **LibreOffice** headless for conversion and the legacy formats |
@@ -434,10 +440,10 @@ What remains, stated rather than implied:
 
 ## What the file browser shows, and what it leaves out
 
-`/workspaces` lists what an agent is keeping **for a person**, which is not the
-same set as what is on the volume. Two prefixes are dropped from every listing a
-person reads - the flat view, a workspace's own files, a conversation's panel, and
-the file counts:
+**Documents** (`/documents`) lists what an agent is keeping **for a person**, which is not the
+same set as what is on the volume. Three prefixes are dropped from every listing a
+person reads - the list of every file, one folder's files, a conversation's panel,
+and the file counts:
 
 - `skills/` — a skill's body and its resources, written at the start of every run
   that has both skills and a workspace. They are needed there: a resource is a
@@ -445,9 +451,20 @@ the file counts:
   somebody accepts. They were removed once because the listing was mostly them,
   which was the right complaint about the wrong thing (#1064).
 - the spill directory — where a tool's overflowing output was written.
+- `.agenticos/` — a coding task's events and the session the next one continues.
+
+So are the folders a toolchain fills, wherever they sit: `.venv`, `venv`,
+`node_modules`, `__pycache__`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`,
+`.tox`, `.git`, `.next` and `.cache`. A coding agent that set up one FastAPI app
+put a thousand of them on the page, among the dozen files it wrote.
 
 A count has to drop them too, or a workspace reporting four files where one is
 visible is a count nobody can check.
+**All files** groups what is left by the workspace that holds it, newest first,
+under the conversation it belongs to: loose files and attachments as rows, each
+top-level folder as one row naming its first files, and a link to the folder for
+the rest. The newest files are previewed above the groups, and a search lists its
+matches flat.
 
 ### Whose workspace it is, and who else can see it
 

@@ -31,12 +31,13 @@ import {
 import { cn } from "@/lib/utils";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { DEFAULT_ENV, EnvironmentField } from "@/components/triggers/environment-field";
+import { RunAsCreatorField } from "@/components/triggers/run-as-creator-field";
 import { EventSourceMark } from "@/components/triggers/event-source-mark";
 import { TriggerTemplatePicker } from "@/components/triggers/trigger-template-picker";
 import { SecretRevealField } from "@/components/triggers/secret-reveal-field";
 import { useAgentEnvironments, useAgents } from "@/hooks";
 import { useTriggers } from "@/hooks/use-triggers";
-import { useAgentSelectionStore } from "@/stores";
+import { useAgentSelectionStore, useAuthStore } from "@/stores";
 import {
   type CronFrequency,
   eventFilterConfig,
@@ -124,6 +125,8 @@ interface TriggerFormDialogProps {
   trigger?: Trigger | null;
   /** Which concept a new trigger starts on. Ignored when editing. */
   initialType?: TriggerType;
+  /** A template the new trigger starts from - an idea picked on the Routines page. */
+  initialTemplate?: TriggerTemplate | null;
 }
 
 /**
@@ -146,6 +149,7 @@ export function TriggerFormDialog({
   onOpenChange,
   trigger = null,
   initialType = "schedule",
+  initialTemplate = null,
 }: TriggerFormDialogProps) {
   const t = useTranslations("triggers");
   const editing = trigger !== null;
@@ -187,6 +191,10 @@ export function TriggerFormDialog({
   const [prompt, setPrompt] = useState(trigger?.prompt ?? "");
   const [name, setName] = useState(trigger?.name ?? "");
   const [environmentId, setEnvironmentId] = useState(trigger?.environment_id ?? DEFAULT_ENV);
+  const [runsAsCreator, setRunsAsCreator] = useState(trigger?.runs_as_creator ?? false);
+  // A new trigger is the caller's own; an existing one is whoever made it.
+  const me = useAuthStore((state) => state.user?.id ?? null);
+  const isCreator = trigger === null || trigger.created_by_user_id === me;
 
   const seed = trigger?.interval_seconds
     ? intervalToUnit(trigger.interval_seconds)
@@ -276,12 +284,18 @@ export function TriggerFormDialog({
     );
   }
 
+  // The name a template wrote, so picking another replaces it and Start from
+  // scratch clears it - while a name somebody typed is theirs and stays.
+  const [templateName, setTemplateName] = useState<string | null>(null);
+
   /** Prefill what the template's mode can use, still editable below: the
-   *  message always, the cadence only from a schedule template - an event
-   *  template has none. */
+   *  message and the name always, the cadence only from a schedule template -
+   *  an event template has none. */
   function applyTemplate(template: TriggerTemplate) {
     setTemplateKey(template.key);
     setPrompt(template.prompt);
+    if (name.trim() === "" || name === templateName) setName(template.label);
+    setTemplateName(template.label);
     const cadence = template.suggested_cadence;
     if (!cadence) return;
     setCadenceTouched(true);
@@ -302,10 +316,20 @@ export function TriggerFormDialog({
     }
   }
 
+  // Seeded once, during render rather than in an effect, so the first frame
+  // already shows the picked idea instead of a blank form flashing to it.
+  const [seeded, setSeeded] = useState(false);
+  if (!seeded && initialTemplate !== null && trigger === null) {
+    setSeeded(true);
+    applyTemplate(initialTemplate);
+  }
+
   /** Clear the template prefill and return to a blank message. */
   function scratchTemplate() {
     setTemplateKey(null);
     setPrompt("");
+    if (name === templateName) setName("");
+    setTemplateName(null);
   }
 
   /** Set the cadence controls to a quick preset; they stay editable below it. */
@@ -361,6 +385,9 @@ export function TriggerFormDialog({
       name: name.trim() || null,
       trigger_type: type,
       environment_id: environmentId === DEFAULT_ENV ? null : environmentId,
+      // Only when asked for: off is the server's default, and the request then
+      // says nothing about acting as anybody.
+      ...(runsAsCreator ? { runs_as_creator: true } : {}),
     };
     if (type === "schedule") {
       return { ...base, ...scheduleCadence() };
@@ -385,6 +412,7 @@ export function TriggerFormDialog({
         if (nextName !== (trigger.name ?? null)) patch.name = nextName;
         const env = environmentId === DEFAULT_ENV ? null : environmentId;
         if (env !== (trigger.environment_id ?? null)) patch.environment_id = env;
+        if (runsAsCreator !== trigger.runs_as_creator) patch.runs_as_creator = runsAsCreator;
         // A schedule's cadence, only when a cadence control was actually touched.
         // The server recomputes next_fire_at on any cadence field it receives, so
         // echoing the cadence on a prompt-only edit would needlessly reset the
@@ -590,6 +618,13 @@ export function TriggerFormDialog({
                 defaultEnvironment={defaultEnvironment}
               />
             )}
+
+            <RunAsCreatorField
+              checked={runsAsCreator}
+              onChange={setRunsAsCreator}
+              type={trigger.trigger_type}
+              isCreator={isCreator}
+            />
           </div>
 
           <DialogFooter className="sm:justify-between">
@@ -695,6 +730,13 @@ export function TriggerFormDialog({
                   defaultEnvironment={defaultEnvironment}
                 />
               )}
+
+              <RunAsCreatorField
+                checked={runsAsCreator}
+                onChange={setRunsAsCreator}
+                type={type}
+                isCreator={isCreator}
+              />
             </div>
           )}
 

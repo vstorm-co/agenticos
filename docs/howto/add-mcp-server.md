@@ -88,6 +88,9 @@ missing one: every icon set is finite and this catalog is not.
    looks identical in the UI to one that is merely slow.
 4. Check the name does not collide with an existing entry's
    [tool prefix](../mcp.md#name-collisions).
+5. Run `uv run agenticos cmd mcp-catalog-check --source catalog` and confirm the
+   entry is marked verified in the report, then refresh the bundled snapshot with
+   a full run and `--snapshot` - see [how the catalog is kept](../mcp.md#how-the-catalog-is-kept).
 
 ## What does not need changing
 

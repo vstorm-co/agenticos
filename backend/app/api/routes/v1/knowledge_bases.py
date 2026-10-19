@@ -20,6 +20,7 @@ from app.api.deps import (
     VectorStoreSvc,
     require,
 )
+from app.api.public_api import PUBLIC
 from app.api.routes.v1._stored_bytes import stored_file_response
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
@@ -43,9 +44,10 @@ from app.schemas.sync_source import (
     SyncSourceList,
     SyncSourceRead,
 )
+from app.services.collection_access import in_knowledge_base
 from app.services.ingestion_config import parse_override
 
-router = APIRouter()
+router = APIRouter(dependencies=[PUBLIC])
 
 
 @router.get(
@@ -57,6 +59,7 @@ async def list_knowledge_bases(
     shared_with_me: bool = Query(
         False, description="Only what was shared with the caller - never their own rows"
     ),
+    group_id: UUID | None = Query(None, description="Only what is shared with this group"),
 ) -> Any:
     """List the Knowledge Bases this caller may read in the active organization.
 
@@ -65,7 +68,7 @@ async def list_knowledge_bases(
     between collections, and a name alone does not distinguish the one with four
     hundred documents in it from the one somebody made and never filled.
     """
-    return await service.list_readable(ctx, shared_with_me=shared_with_me)
+    return await service.list_readable(ctx, shared_with_me=shared_with_me, group_id=group_id)
 
 
 @router.post(
@@ -146,10 +149,16 @@ async def list_kb_documents(
     ctx: Auth,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
+    filename: str | None = Query(None, max_length=255),
 ) -> Any:
-    """List documents ingested into a Knowledge Base."""
+    """List documents ingested into a Knowledge Base.
+
+    `filename` returns only the documents with exactly that name: a search
+    result or an agent's citation names its file, and this is how the console
+    opens the original from one.
+    """
     await service.get(kb_id, ctx=ctx)
-    return await rag_doc_service.list_for_kb(kb_id=kb_id, skip=skip, limit=limit)
+    return await rag_doc_service.list_for_kb(kb_id=kb_id, skip=skip, limit=limit, filename=filename)
 
 
 @router.post(
@@ -219,7 +228,7 @@ async def download_kb_document(
     """Download (or open inline) the original file for a KB document."""
     kb = await service.get(kb_id, ctx=ctx)
     doc = await rag_doc_svc.get_document(str(doc_id))
-    if doc.collection_name != kb.collection_name:
+    if not in_knowledge_base(doc, kb):
         raise NotFoundError(
             message="Document not found in this knowledge base",
             details={"kb_id": str(kb_id), "doc_id": str(doc_id)},
@@ -257,7 +266,7 @@ async def get_kb_document_parsed(
     """
     kb = await service.get(kb_id, ctx=ctx)
     doc = await rag_doc_svc.get_document(str(doc_id))
-    if doc.collection_name != kb.collection_name:
+    if not in_knowledge_base(doc, kb):
         raise NotFoundError(
             message="Document not found in this knowledge base",
             details={"kb_id": str(kb_id), "doc_id": str(doc_id)},
@@ -293,7 +302,7 @@ async def delete_kb_document(
     """
     kb = await service.get_for_write(kb_id, ctx=ctx)
     doc = await rag_doc_service.get_document(str(doc_id))
-    if doc.collection_name != kb.collection_name:
+    if not in_knowledge_base(doc, kb):
         raise NotFoundError(
             message="Document not found in this knowledge base",
             details={"kb_id": str(kb_id), "doc_id": str(doc_id)},
@@ -412,7 +421,7 @@ async def trigger_kb_sync_source(
     """Manually trigger a sync run for one of this KB's sources."""
     kb = await service.get_for_write(kb_id, ctx=ctx)
     source = await sync_source_svc.get_source(str(source_id))
-    if source.collection_name != kb.collection_name:
+    if not in_knowledge_base(source, kb):
         raise NotFoundError(
             message="Sync source not found in this knowledge base",
             details={"kb_id": str(kb_id), "source_id": str(source_id)},
@@ -447,7 +456,7 @@ async def list_kb_sync_source_logs(
     """
     kb = await service.get(kb_id, ctx=ctx)
     source = await sync_source_svc.get_source(str(source_id))
-    if source.collection_name != kb.collection_name:
+    if not in_knowledge_base(source, kb):
         raise NotFoundError(
             message="Sync source not found in this knowledge base",
             details={"kb_id": str(kb_id), "source_id": str(source_id)},
@@ -470,7 +479,7 @@ async def delete_kb_sync_source(
     """Remove a sync source from this KB."""
     kb = await service.get_for_write(kb_id, ctx=ctx)
     source = await sync_source_svc.get_source(str(source_id))
-    if source.collection_name != kb.collection_name:
+    if not in_knowledge_base(source, kb):
         raise NotFoundError(
             message="Sync source not found in this knowledge base",
             details={"kb_id": str(kb_id), "source_id": str(source_id)},

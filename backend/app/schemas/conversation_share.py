@@ -18,7 +18,50 @@ __all__ = [
     "ConversationShareCreate",
     "ConversationShareList",
     "ConversationShareRead",
+    "SharedConversationRead",
 ]
+
+
+class SharedVisual(BaseSchema):
+    """A drawing in a shared thread, as a finished document - never the call that made it."""
+
+    id: str
+    title: str
+    kind: Literal["svg", "html", "mermaid"]
+    content: str = Field(description="The drawing, revisions applied and pictures inlined")
+
+
+class SharedMessage(BaseSchema):
+    """One turn of a thread shared by link: what was said, and what was drawn."""
+
+    id: UUID
+    role: str
+    content: str
+    created_at: datetime | None = None
+    visuals: list[SharedVisual] = Field(default_factory=list)
+
+
+class SharedConversation(BaseSchema):
+    id: UUID
+    title: str | None = None
+    messages: list[SharedMessage]
+
+
+class SharedLink(BaseSchema):
+    id: UUID
+    permission: str
+    share_token: str | None = None
+
+
+class SharedConversationRead(BaseSchema):
+    """A thread opened by its public link: its turns, and the link it was opened by.
+
+    Narrower than a conversation read by a member, on purpose: no tool calls, no
+    costs, no participants - the link is shown to whoever holds it.
+    """
+
+    conversation: SharedConversation
+    share: SharedLink
 
 
 class ConversationShareCreate(BaseSchema):

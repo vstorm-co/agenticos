@@ -1,5 +1,5 @@
 ---
-source_sha: "0f2e647408d7"
+source_sha: "6cb5b2cda7af"
 ---
 
 # Permisos { #permissions }
@@ -96,9 +96,14 @@ decisiones.
 Dos clases de permiso, y se comportan de forma distinta.
 
 Los permisos **globales** son binarios y valen para toda la organización:
-`members:manage`, `roles:manage`, `org:settings`, `org:delete`,
+`members:view`, `members:manage`, `roles:manage`, `org:settings`, `org:delete`,
 `budgets:manage`, `approvals:decide`, `connections:view`, `connections:manage`,
-`mcp:manage`, `channels:manage`, `runs:view`, `audit:read`, `ml:invoke`.
+`channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`.
+
+`api_keys:create` permite a un miembro emitir [claves de
+API](api.md#organization-api-keys) para sí mismo; `api_keys:manage` lista y
+revoca las de todos. Una clave tiene un subconjunto de estos permisos, nunca más
+de lo que su emisor tiene ahora.
 
 !!! example "Por qué `ml:invoke` no es `agents:run`"
 
@@ -129,6 +134,12 @@ Los permisos de **recurso** llevan un `Scope`, porque responden a la segunda
 pregunta que un rol no puede: no "¿puede este rol tocar agents?" sino *qué*
 agents.
 
+`mcp:manage` es uno de ellos: un servidor MCP de la organización se puede limitar
+a grupos o personas, como un skill
+([Departamentos](departments.md#a-departments-mcp-servers)). Un rol que lo tiene en
+`SHARED` ve los servidores de la organización, los suyos y los compartidos con él;
+`ALL` los ve todos.
+
 ### Scope { #scope }
 
 Ordenado `NONE < OWN < SHARED < TEAM < ALL`.
@@ -157,10 +168,10 @@ Hoy `TEAM` no lo usa ningún rol integrado; existe para los roles personalizados
 |---|---|---|---|---|
 | `owner` | posee la organización | todos `ALL` | `ALL` | todo, incluido `org:delete` |
 | `admin` | la lleva en el día a día | todos `ALL` | `ALL` | todo **menos** `org:delete` |
-| `builder` | construye, y aprende de toda la organización | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke` |
-| `operator` | mantiene sano el sistema en marcha | `view`/`run` `ALL`, sin edit | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke` |
-| `member` | el usuario de cada día | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke` |
-| `viewer` | lee | `view` `SHARED` | ninguno | ninguno |
+| `builder` | construye, y aprende de toda la organización | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
+| `operator` | mantiene sano el sistema en marcha | `view`/`run` `ALL`, sin edit | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
+| `member` | el usuario de cada día | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke`, `api_keys:create`, `members:view` |
+| `viewer` | lee | `view` `SHARED` | ninguno | `members:view` |
 
 La distinción entre `builder` y `admin` es la interesante: un builder ve la
 organización entera para poder aprender de ella, pero edita solo lo suyo o lo que
@@ -267,6 +278,13 @@ exposición lo alcanza, así que esto decide quién lo ve, no lo que hace.
 | `use` | además ejecutarlo o adjuntarlo |
 | `edit` | además cambiarlo |
 
+En la consola es un solo diálogo, como se comparte un documento: el botón
+**Share** de un agent, un skill, una base de conocimiento o un archivo de contexto
+- en cualquier momento después de crearlo, no solo al crearlo - añade una persona
+o un grupo con un nivel, lista quién tiene
+acceso con el propietario primero y fija el **acceso general** - *Only people with
+access* es `private`, *Everyone in the organization* es `org`.
+
 Una concesión a un grupo alcanza a quien esté en el grupo en el momento en que se
 comprueba el acceso, así que entrar en el grupo es ganar el acceso y salir de él
 es perderlo. Una persona con varias concesiones sobre una fila - la suya propia y
@@ -355,15 +373,18 @@ hace falta filtrar") y una **lista vacía** para un contexto sin sujeto. Son
 opuestos, así que confundirlos ampliaría un listado a toda la organización
 justo en el momento en que debería estrecharse a nada.
 
-`accessible_ids` es la contraparte por lotes de `resolve_access`: dada una página
-de filas ya cargadas, devuelve el subconjunto sobre el que quien llama puede
-ejercer un permiso. Aplica la misma regla `max(role scope, grant)` por fila, pero
-lee todas las concesiones en una consulta en vez de una por fila, y ninguna
-cuando el rol alcanza todo. Es lo que rellena las banderas de capacidad de un
-listado - `AgentRead.can_run`, el suelo para ofrecer "new trigger" en una tarjeta
-- así que un Viewer con concesión de run ve el control ahí y en ningún otro
-sitio. Un contexto sin sujeto, y una entrada vacía, se resuelven al conjunto
-vacío antes de consultar.
+`accessible_ids` es la contraparte por lotes de `resolve_access`: dada una
+página de filas ya cargadas, devuelve el subconjunto sobre el que quien llama
+puede ejercer un permiso. Aplica la misma regla `max(role scope, grant)` por
+fila, pero lee todas las concesiones en una consulta en vez de una por fila, y
+ninguna cuando el rol alcanza todo. Es lo que rellena las banderas de capacidad
+de un listado - `AgentRead.can_run`, el suelo para ofrecer "new trigger" en una
+tarjeta, y `AgentRead.can_edit`, con el que la consola ofrece probar un borrador
+o detener y publicar un eval run - así que un Viewer con concesión de run ve el
+control ahí y en ningún otro sitio.
+
+Un contexto sin sujeto, y una entrada vacía, se resuelven al conjunto vacío
+antes de consultar.
 
 Los listados de agents, skills y kb aceptan además `?shared_with_me=true`: solo
 las filas compartidas deliberadamente con quien llama - visibles para la

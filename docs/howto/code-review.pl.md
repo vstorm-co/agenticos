@@ -1,5 +1,5 @@
 ---
-source_sha: "7588e57ff61c"
+source_sha: "63ed58260c3c"
 title: "Przejrzyj zmianę w repozytorium"
 description: "Niech agent zbuduje w sandboksie małe repozytorium git, przejrzy jeden diff według wbudowanego skilla code-review i znajdzie oba podłożone błędy we właściwych liniach."
 ---
@@ -78,7 +78,7 @@ Kryterium: diff między wersjami ma dokładnie dwa prawdziwe defekty. `return to
 ## Zbuduj agenta { #build-the-agent }
 
 1. Utwórz agenta w **Agents → New agent** i wybierz swój profil modelu.
-2. W **Toolbox** włącz **Files & shell**. Wybierz **Container**, swoje połączenie sandboksa i runtime `workbench`, a zakres zostaw na poziomie rozmowy.
+2. W **Toolbox** włącz **Sandbox**. Wybierz **Container**, swoje połączenie sandboksa i runtime `workbench`, a zakres zostaw na poziomie rozmowy.
 3. Włącz **Skills** i przypisz `code-review`.
 4. Ustaw budżet na czas próby. Zapisany run użył około 40 kroków i kosztował około 0,18 USD, głównie przez powtarzane zatwierdzenia poleceń powłoki.
 5. Wpisz poniższe instrukcje, a potem **Publish**.

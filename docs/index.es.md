@@ -1,10 +1,10 @@
 ---
-source_sha: "42ec3d82641d"
+source_sha: "4d356103b6b2"
 ---
 
 <div class="agenticos-hero" markdown>
 
-![AgenticOS](assets/amigo.svg){ .agenticos-hero__mark }
+![AgenticOS](assets/logo-animated.svg){ .agenticos-hero__mark }
 
 <p class="agenticos-hero__name">AgenticOS</p>
 
@@ -250,7 +250,7 @@ vino la pregunta.
 | **Agents** | Construidos en una UI, versionados al publicar, exportables como YAML a tu propio repositorio git |
 | **[Capabilities](reference/capabilities.md)** | Retrieval, búsqueda y descarga web, un navegador de verdad, Python, una sandbox con archivos y una shell, gráficos, imágenes, delegación, planificación, guardrails — activados por agent |
 | **[Integraciones](mcp.md)** | Servidores MCP compatibles, con 59 de los más habituales en el selector — GitHub, Linear, Notion, Slack, Stripe, Postgres |
-| **[Modelos](models.md)** | 27 providers, claves por organización, fallbacks y Ollama autoalojado o un proxy LiteLLM |
+| **[Modelos](models.md)** | 28 providers, claves por organización, fallbacks y Ollama autoalojado o un proxy LiteLLM |
 | **[Conocimiento](file-processing.md)** | Retrieval sobre tus documentos con tres parsers de PDF, tu propio chunking, OCR y descripción de imágenes — por colección, anulable por subida. Sincronización con Google Drive y S3 |
 | **[Skills](skills.md)** | Conocimiento escrito que el agent carga solo cuando decide que es relevante |
 | **[Gobernanza](governance.md)** | Budgets mensuales, aprobación humana, un rastro de auditoría, alertas por agent |

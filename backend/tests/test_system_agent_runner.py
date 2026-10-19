@@ -17,6 +17,7 @@ from pydantic import BaseModel, ValidationError
 from app.agents.system_agents import JUDGE
 from app.core.exceptions import (
     AiAssistanceDisabledError,
+    NotFoundError,
     SystemAgentOutputError,
     SystemAgentRunError,
     SystemAgentUnavailableError,
@@ -25,7 +26,12 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import AgentStatus
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.services import system_agent_runner
-from app.services.system_agent_runner import SystemAgentRunner, output_contract, parse_output
+from app.services.system_agent_runner import (
+    SystemAgentRunner,
+    _unreadable,
+    output_contract,
+    parse_output,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -152,6 +158,27 @@ class TestRun:
         assert raised.value.reason == reason
         execute.assert_not_awaited()
 
+    async def test_a_runnable_agent_is_handed_back_without_a_run(self, monkeypatch) -> None:
+        agent = _agent()
+        runner, execute = _runner(monkeypatch, agent=agent)
+
+        assert await runner.require_runnable(_ctx(), key=JUDGE.key) is agent
+        execute.assert_not_awaited()
+
+    async def test_an_unreachable_model_is_refused_before_any_run(self, monkeypatch) -> None:
+        runner, execute = _runner(monkeypatch)
+        monkeypatch.setattr(
+            system_agent_runner.ModelProfileService,
+            "resolve",
+            AsyncMock(side_effect=NotFoundError(message="Model profile not found")),
+        )
+
+        with pytest.raises(SystemAgentUnavailableError) as raised:
+            await runner.run(_ctx(), key=JUDGE.key, prompt="Grade it", output_type=Verdict)
+
+        assert raised.value.reason == "no_model"
+        execute.assert_not_awaited()
+
     @pytest.mark.parametrize(
         "status",
         [RunStatus.BUDGET_EXCEEDED, RunStatus.GUARDRAIL_BLOCKED, RunStatus.AWAITING_APPROVAL],
@@ -177,3 +204,16 @@ class TestRun:
 
         assert raised.value.run_id == run.id
         execute.assert_awaited_once()
+
+
+def test_an_unreadable_answer_leaves_why_on_its_run_and_never_the_answer() -> None:
+    class Shape(BaseModel):
+        grades: list[int]
+
+    with pytest.raises(ValidationError) as refused:
+        Shape.model_validate_json('{"grades": ["the private question"]}')
+
+    kept = _unreadable(refused.value)
+
+    assert kept.startswith("The answer did not match the shape asked for - grades.0: ")
+    assert "private question" not in kept

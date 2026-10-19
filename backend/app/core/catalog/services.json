@@ -32,7 +32,8 @@
     "category": "observability",
     "kind": "api_key",
     "help_url": "https://logfire.pydantic.dev",
-    "description": "A write token that sends an agent's traces to a Logfire project of its own."
+    "description": "A write token that sends an agent's traces to a Logfire project of its own.",
+    "icon": "pydantic"
   },
   {
     "id": "llamaparse",
@@ -42,14 +43,6 @@
     "help_url": "https://cloud.llamaindex.ai",
     "description": "Parse PDFs with LlamaParse, billed to this organization's own key.",
     "icon": "llamaparse"
-  },
-  {
-    "id": "typesafe",
-    "label": "TypeSafe",
-    "category": "other",
-    "kind": "api_key",
-    "help_url": "https://docs.typesafe.ai",
-    "description": "Answer a browsing agent's typed questions with TypeSafe's Jev model."
   },
   {
     "id": "mem0",
@@ -65,6 +58,13 @@
     "category": "other",
     "kind": "api_key",
     "description": "The token a sandbox service accepts. Whoever holds it can open a session, and a session runs commands on the host holding the Docker socket."
+  },
+  {
+    "id": "a2a",
+    "label": "Remote agent (A2A)",
+    "category": "other",
+    "kind": "api_key",
+    "description": "The bearer token another vendor's A2A agent accepts, sent with every task this organization's agents delegate to it."
   },
   {
     "id": "daytona",

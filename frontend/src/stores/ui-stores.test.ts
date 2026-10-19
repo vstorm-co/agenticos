@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useChatSidebarStore } from "./chat-sidebar-store";
+import {
+  DEFAULT_COLLAPSED_BANDS,
+  useChatBandsStore,
+  useChatSidebarStore,
+} from "./chat-sidebar-store";
 import { useConversationStore } from "./conversation-store";
 import { useFilePreviewStore } from "./file-preview-store";
 import { useOrgStore } from "./org-store";
@@ -55,15 +59,19 @@ describe("the two sidebars", () => {
     expect(useSidebarStore.getState().isCollapsed).toBe(false);
   });
 
-  it("remembers the collapse and nothing else about itself", () => {
+  it("remembers the collapse and the open groups, never the drawer", () => {
     // A preference that resets on every load is one nobody sets twice - but
     // restoring `isOpen` would open a drawer over a page somebody just
-    // loaded, so only one of the two is persisted.
-    useSidebarStore.setState({ isOpen: true, isCollapsed: true });
+    // loaded, so it is the one thing not persisted.
+    useSidebarStore.setState({ isOpen: true, isCollapsed: true, openGroups: [] });
+    useSidebarStore.getState().toggleGroup("connections");
 
     const persisted = JSON.parse(window.localStorage.getItem("agenticos.sidebar") ?? "{}");
 
-    expect(persisted.state).toEqual({ isCollapsed: true });
+    expect(persisted.state).toEqual({ isCollapsed: true, openGroups: ["connections"] });
+
+    useSidebarStore.getState().toggleGroup("connections");
+    expect(useSidebarStore.getState().openGroups).toEqual([]);
   });
 });
 
@@ -294,5 +302,41 @@ describe("the theme", () => {
 
     vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: false }));
     expect(getResolvedTheme("system")).toBe("light");
+  });
+});
+
+describe("useChatBandsStore", () => {
+  it("starts with no choice recorded, so every band follows the default", () => {
+    expect(DEFAULT_COLLAPSED_BANDS).toEqual(["week", "month", "older"]);
+    expect(useChatBandsStore.getInitialState().folded).toEqual([]);
+    expect(useChatBandsStore.getInitialState().opened).toEqual([]);
+  });
+
+  it("drops a layout that stored the default folds as the reader's own", async () => {
+    localStorage.setItem(
+      "chat-collapsed-bands",
+      JSON.stringify({ state: { collapsed: ["week", "month", "older"] }, version: 1 }),
+    );
+    await useChatBandsStore.persist.rehydrate();
+    expect(useChatBandsStore.getState().folded).toEqual([]);
+    expect(useChatBandsStore.getState().opened).toEqual([]);
+  });
+
+  it("records a fold and an open as the reader's, from how the band is drawn", () => {
+    useChatBandsStore.setState({ folded: [], opened: [] });
+    useChatBandsStore.getState().toggle("today", false);
+    useChatBandsStore.getState().toggle("older", true);
+    expect(useChatBandsStore.getState().folded).toEqual(["today"]);
+    expect(useChatBandsStore.getState().opened).toEqual(["older"]);
+
+    useChatBandsStore.getState().toggle("today", true);
+    expect(useChatBandsStore.getState().folded).toEqual([]);
+    expect(useChatBandsStore.getState().opened).toEqual(["older", "today"]);
+
+    // Folding one the reader had opened moves it across, leaving the others.
+    useChatBandsStore.setState({ folded: ["week"], opened: ["older", "today"] });
+    useChatBandsStore.getState().toggle("older", false);
+    expect(useChatBandsStore.getState().folded).toEqual(["week", "older"]);
+    expect(useChatBandsStore.getState().opened).toEqual(["today"]);
   });
 });

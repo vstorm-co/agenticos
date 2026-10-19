@@ -11,30 +11,35 @@ Framework-specific concerns (multimodal input, streaming events) stay in the rou
 
 import json
 import logging
-from collections.abc import Collection
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
 from fastapi import WebSocket, WebSocketDisconnect
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_conversation_service
 from app.core.exceptions import AppException, AuthorizationError, BadRequestError, NotFoundError
+from app.core.permissions import AuthContext
 from app.db.models.conversation import Conversation
 from app.db.session import get_db_context
 from app.repositories import conversation as conversation_repo
+from app.repositories import member_repo
 from app.schemas.conversation import (
     ConversationCreate,
     ConversationUpdate,
     MessageCreate,
     MessagePart,
+    MessageReplyRef,
     ToolCallComplete,
     ToolCallCreate,
 )
+from app.schemas.mention import Mentionable
 from app.services.conversation import ConversationService
+from app.services.project import ProjectService
 from app.services.transcript import what_arrived
 from app.services.usage_report import UsageReport
 
@@ -106,6 +111,23 @@ class PersistedPrompt:
     conversation_id: str | None
     newly_created: bool
     message_id: UUID | None = None
+    # How the model reads the turn, where that is more than what was typed: who
+    # said it in a project's chat, and the message it replies to. `None` means
+    # just the text.
+    for_model: str | None = None
+    # The message the turn answers, quoted as the transcript quotes it - for the
+    # teammates following the turn live, who have no transcript to read it from.
+    reply: MessageReplyRef | None = None
+
+
+def _message_uuid(message_id: str) -> UUID:
+    """A replied-to message id off the wire, refusing rather than crashing."""
+    try:
+        return UUID(message_id)
+    except ValueError as exc:
+        raise BadRequestError(
+            message="That is not a message id", details={"reply_to": message_id}
+        ) from exc
 
 
 def _conversation_uuid(conversation_id: str) -> UUID:
@@ -154,6 +176,32 @@ async def _resolve_in_org(
         ) from exc
 
 
+async def _project_to_start_in(
+    db: AsyncSession, user: Any, organization_id: UUID, project_id: str
+) -> UUID:
+    """The project a new chat starts in, when this person may work in it.
+
+    Raises:
+        BadRequestError: For an id that is not one.
+        NotFoundError, AuthorizationError: For a project they cannot see, or see
+            and may not work in.
+    """
+    try:
+        requested = UUID(project_id)
+    except ValueError as exc:
+        raise BadRequestError(
+            message="That is not a project id", details={"project_id": project_id}
+        ) from exc
+    membership = await member_repo.get(db, organization_id=organization_id, user_id=user.id)
+    if membership is None:
+        raise AuthorizationError(
+            message="You are not a member of this organization",
+            details={"org_id": str(organization_id)},
+        )
+    ctx = AuthContext(user_id=user.id, organization_id=organization_id, role=membership.role)
+    return (await ProjectService(db).check_can_start(ctx, requested)).id
+
+
 async def persist_user_turn(
     user: Any,
     user_message: str,
@@ -161,6 +209,9 @@ async def persist_user_turn(
     requested_conversation_id: str | None,
     current_conversation_id: str | None,
     organization_id: UUID,
+    project_id: str | None = None,
+    reply_to: str | None = None,
+    mentions: Sequence[Mentionable] = (),
 ) -> PersistedPrompt:
     """Resolve the conversation, persist the user message, and link any uploaded files.
 
@@ -193,6 +244,12 @@ async def persist_user_turn(
     """
     newly_created = False
     message_id: UUID | None = None
+    for_model: str | None = None
+    reply: MessageReplyRef | None = None
+    replied = _message_uuid(reply_to) if reply_to else None
+    # The thread as resolved or created here; a turn continuing the socket's own
+    # thread names none, and reads to the model as typed.
+    conversation: Conversation | None = None
     try:
         async with get_db_context() as db:
             conv_service = get_conversation_service(db)
@@ -206,10 +263,12 @@ async def persist_user_turn(
                 # `except` below and was logged as a persistence failure. The
                 # guard that followed never ran, and neither did the write - so
                 # every message after the first was silently dropped (#5).
-                conv = await _resolve_in_org(
+                conv = conversation = await _resolve_in_org(
                     conv_service, requested, organization_id=organization_id, user_id=user.id
                 )
-                if not conv.title and user_message:
+                # The owner's to name: a teammate continuing a project's chat may
+                # add a turn and nothing else.
+                if not conv.title and user_message and conv.user_id == user.id:
                     await conv_service.update_conversation(
                         requested,
                         ConversationUpdate(title=truncate_title(user_message)),
@@ -217,11 +276,17 @@ async def persist_user_turn(
                         user_id=user.id,
                     )
             elif not current_conversation_id:
+                project = (
+                    await _project_to_start_in(db, user, organization_id, project_id)
+                    if project_id
+                    else None
+                )
                 conversation = await conv_service.create_conversation(
                     ConversationCreate(
                         user_id=user.id,
                         organization_id=organization_id,
                         title=truncate_title(user_message),
+                        project_id=project,
                     )
                 )
                 current_conversation_id = str(conversation.id)
@@ -234,11 +299,34 @@ async def persist_user_turn(
                 )
             user_msg = await conv_service.add_message(
                 UUID(current_conversation_id),
-                MessageCreate(role="user", content=content),
+                MessageCreate(
+                    role="user",
+                    content=content,
+                    reply_to_message_id=replied,
+                    parts=[
+                        MessagePart(
+                            type="mention",
+                            mention_kind=mention.kind,
+                            mention_id=mention.id,
+                            text=mention.name,
+                        )
+                        for mention in mentions
+                    ]
+                    or None,
+                ),
                 organization_id=organization_id,
                 user_id=user.id,
             )
             message_id = user_msg.id
+            if replied is not None:
+                reply = await conv_service.reply_quoted(user_msg)
+            if conversation is None:
+                # The socket's own thread: still read, because in a project's chat
+                # the model has to be told who is speaking on every turn.
+                conversation = await conv_service.find_conversation(UUID(current_conversation_id))
+            if conversation is not None:
+                spoken = await conv_service.model_text(user_msg, conversation)
+                for_model = spoken if spoken != content else None
             if file_ids:
                 try:
                     await conv_service.link_files_to_message(user_msg.id, file_ids, user_id=user.id)
@@ -267,6 +355,8 @@ async def persist_user_turn(
         conversation_id=current_conversation_id,
         newly_created=newly_created,
         message_id=message_id,
+        for_model=for_model,
+        reply=reply,
     )
 
 
@@ -292,6 +382,7 @@ async def persist_assistant_turn(
     usage: UsageReport | None = None,
     run_id: UUID | None = None,
     parked_tool_call_ids: Collection[str] = (),
+    mcp_origins: Mapping[str, UUID] | None = None,
 ) -> str | None:
     """Persist the assistant message and any tool calls. Returns the saved message id.
 
@@ -331,12 +422,15 @@ async def persist_assistant_turn(
     conversation read the one call somebody has to decide about as a step that
     ran (#601). The resume settles the row through the transcript service, and an
     expiry settles it with the timeout notice.
+
+    `mcp_origins` stores each call to an organization MCP connection against it,
+    as the transcript service does for every other surface (#2072).
     """
     try:
         async with get_db_context() as db:
             conv_service = get_conversation_service(db)
-            spent_in, spent_out, spent_usd = (
-                (0, 0, Decimal(0))
+            spent = (
+                conversation_repo.Attributed()
                 if run_id is None
                 else await conversation_repo.attributed_to_run(db, run_id)
             )
@@ -363,9 +457,19 @@ async def persist_assistant_turn(
                     # cumulative, so stamping both with it counts the parked half
                     # twice. Nothing is attributed yet on an ordinary turn, where
                     # the difference is the whole of it.
-                    input_tokens=None if usage is None else usage.input_tokens - spent_in,
-                    output_tokens=None if usage is None else usage.output_tokens - spent_out,
-                    cost_usd=None if usage is None else usage.cost_usd - spent_usd,
+                    input_tokens=None if usage is None else usage.input_tokens - spent.input_tokens,
+                    output_tokens=None
+                    if usage is None
+                    else usage.output_tokens - spent.output_tokens,
+                    cache_read_tokens=(
+                        None if usage is None else usage.cache_read_tokens - spent.cache_read_tokens
+                    ),
+                    cache_write_tokens=(
+                        None
+                        if usage is None
+                        else usage.cache_write_tokens - spent.cache_write_tokens
+                    ),
+                    cost_usd=None if usage is None else usage.cost_usd - spent.cost_usd,
                     # Beside the total, because without it the total lies: a turn
                     # that reached an unpriced model is booked at zero for that
                     # request, and rendered identically to one measured exactly
@@ -394,6 +498,7 @@ async def persist_assistant_turn(
                             started_at=datetime.now(UTC),
                         ),
                         parked=tc["tool_call_id"] in parked_tool_call_ids,
+                        mcp_connection_id=(mcp_origins or {}).get(tc["tool_name"]),
                     )
                     if tc.get("result"):
                         await conv_service.complete_tool_call(

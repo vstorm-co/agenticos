@@ -14,11 +14,15 @@ from app.api.deps import (
     AgentRunnerSvc,
     ApprovalSvc,
     Auth,
+    ConversationSvc,
+    EvalRunSvc,
     RunExportSvc,
     require,
 )
+from app.api.public_api import PUBLIC
 from app.api.responses import csv_response
 from app.api.routes.v1._chat_file_bytes import chat_file_response
+from app.api.routes.v1._run_results import run_result
 from app.core.permissions import Perm
 from app.db.models.agent_run import (
     ApprovalStatus,
@@ -28,28 +32,32 @@ from app.db.models.agent_run import (
     RunSurface,
 )
 from app.repositories.agent_run import ApprovalFilters, RunFilters
-from app.schemas.agent import AgentRunResult, ParkedCall, RunStep, SettledCall
+from app.schemas.agent import AgentRunResult, ParkedCall, ParkedQuestion, QuestionAnswers
 from app.schemas.agent_run import (
     AgentRunList,
     AgentRunRead,
     ApprovalDecision,
     ApprovalList,
     ApprovalRead,
+    CacheByAgentModel,
     CostByAgent,
+    CostByDay,
     CostByKey,
     CostByProvider,
     CostSummary,
     RunTranscript,
     RunTranscriptMessage,
 )
+from app.schemas.conversation import MessageList
 from app.schemas.run_manifest import RunManifestRead
 
-router = APIRouter()
+router = APIRouter(dependencies=[PUBLIC])
 
 
 @router.get("/runs", response_model=AgentRunList, dependencies=[Depends(require(Perm.RUNS_VIEW))])
 async def list_runs(
     service: AgentRunnerSvc,
+    evals: EvalRunSvc,
     ctx: Auth,
     agent_id: UUID | None = Query(None),
     status: str | None = Query(
@@ -62,6 +70,9 @@ async def list_runs(
         False, description="Include delegated runs - what one agent itself did"
     ),
     surface: RunSurface | None = Query(None, description="Where the run came from"),
+    exclude_surface: RunSurface | None = Query(
+        None, description="Leave out runs from this surface - the eval traffic, say"
+    ),
     user_id: UUID | None = Query(None, description="Who the run ran as"),
     conversation_id: UUID | None = Query(
         None,
@@ -85,6 +96,9 @@ async def list_runs(
     exposure_id: UUID | None = Query(None, description="Runs admitted through this binding"),
     agent_version_id: UUID | None = Query(None, description="Runs that executed this frozen spec"),
     rated: RunRating | None = Query(None, description="Only runs somebody rated this way"),
+    test: bool | None = Query(
+        None, description="Only runs from the Builder's test panel, or only the rest"
+    ),
     order_by: RunOrder = Query(
         RunOrder.STARTED_AT, description="Sort by start time, duration, cost or tokens"
     ),
@@ -133,6 +147,7 @@ async def list_runs(
         filters=RunFilters(
             statuses=RunStatus.parse_csv(status),
             surface=None if surface is None else surface.value,
+            exclude_surface=None if exclude_surface is None else exclude_surface.value,
             user_id=user_id,
             conversation_id=conversation_id,
             model_label=model_label,
@@ -142,6 +157,7 @@ async def list_runs(
             exposure_id=exposure_id,
             agent_version_id=agent_version_id,
             rated=rated,
+            is_test=test,
         ),
         order_by=order_by,
         descending=descending,
@@ -151,9 +167,23 @@ async def list_runs(
     down_rated = (
         await service.down_rated_run_ids(ctx, [run.id for run in items]) if items else set()
     )
+    # An eval run's answer keeps no conversation to preview; its case's question is it.
+    links = await evals.case_links(
+        ctx, [run.id for run in items if run.surface == RunSurface.EVAL.value]
+    )
+    previews = await service.previews(
+        [run.id for run in items],
+        questions={run_id: link.case_input for run_id, link in links.items()},
+    )
     return AgentRunList(
         items=[
-            AgentRunRead.model_validate(run).model_copy(update={"down_rated": run.id in down_rated})
+            AgentRunRead.model_validate(run).model_copy(
+                update={
+                    "down_rated": run.id in down_rated,
+                    "eval_case": links.get(run.id),
+                    "preview": previews.get(run.id),
+                }
+            )
             for run in items
         ],
         total=total,
@@ -175,12 +205,14 @@ async def export_runs(
     parent_run_id: UUID | None = Query(None),
     include_delegations: bool = Query(False),
     surface: RunSurface | None = Query(None),
+    exclude_surface: RunSurface | None = Query(None),
     user_id: UUID | None = Query(None),
     model_label: str | None = Query(None, max_length=255),
     environment_id: UUID | None = Query(None),
     exposure_id: UUID | None = Query(None),
     agent_version_id: UUID | None = Query(None),
     rated: RunRating | None = Query(None),
+    test: bool | None = Query(None),
 ) -> Any:
     """Run history as CSV, over exactly the rows `GET /runs` would list.
 
@@ -199,6 +231,7 @@ async def export_runs(
         filters=RunFilters(
             statuses=RunStatus.parse_csv(status),
             surface=None if surface is None else surface.value,
+            exclude_surface=None if exclude_surface is None else exclude_surface.value,
             user_id=user_id,
             model_label=model_label,
             started_from=started_from,
@@ -207,6 +240,7 @@ async def export_runs(
             exposure_id=exposure_id,
             agent_version_id=agent_version_id,
             rated=rated,
+            is_test=test,
         ),
     )
     return csv_response(result)
@@ -215,16 +249,19 @@ async def export_runs(
 @router.get(
     "/runs/{run_id}", response_model=AgentRunRead, dependencies=[Depends(require(Perm.RUNS_VIEW))]
 )
-async def get_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
+async def get_run(run_id: UUID, service: AgentRunnerSvc, evals: EvalRunSvc, ctx: Auth) -> Any:
     """One run, its trace link, and its neighbours in its conversation.
 
     `logfire_url` is on this read and not on the list: resolving it needs the
     version's stored spec, because an agent may redirect its traces to a client's
     own Logfire project, and fifty rows have no use for fifty trace links.
     `prev_run_id`/`next_run_id` ride here for the same reason - a detail view
-    walks to its neighbours, a list already is the neighbours.
+    walks to its neighbours, a list already is the neighbours. `eval_case` names
+    the eval run and the case an eval run's answer belongs to, which is where its
+    answer and grade are read - such a run keeps no conversation.
     """
     run = await service.get_run(ctx, run_id)
+    eval_case = await evals.case_link(ctx, run.id) if run.surface == RunSurface.EVAL.value else None
     down_rated = await service.down_rated_run_ids(ctx, [run.id])
     prev_run_id, next_run_id = await service.neighbor_run_ids(ctx, run)
     return AgentRunRead.model_validate(run).model_copy(
@@ -233,6 +270,7 @@ async def get_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
             "down_rated": run.id in down_rated,
             "prev_run_id": prev_run_id,
             "next_run_id": next_run_id,
+            "eval_case": eval_case,
         }
     )
 
@@ -286,6 +324,38 @@ async def get_run_transcript(
         ],
         total=total,
     )
+
+
+@router.get(
+    "/conversations/{conversation_id}/transcript",
+    response_model=MessageList,
+    dependencies=[Depends(require(Perm.RUNS_VIEW))],
+)
+async def get_conversation_transcript(
+    conversation_id: UUID,
+    conversations: ConversationSvc,
+    ctx: Auth,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+) -> Any:
+    """One of the caller's own conversations, turn by turn (#2122).
+
+    For a script continuing a conversation it opened over the API: what was asked
+    and answered, with the tools each turn called and what the thread has cost.
+    The caller's own conversations only - a key reads as its issuer, and another
+    member's thread answers `404` like one that does not exist. The console reads
+    the same transcript through its own route.
+    """
+    items, total, cost = await conversations.transcript(
+        conversation_id,
+        skip=skip,
+        limit=limit,
+        include_tool_calls=True,
+        organization_id=ctx.organization_id,
+        user_id=ctx.subject_id,
+        ctx=ctx,
+    )
+    return MessageList(items=items, total=total, cost=cost)  # ty: ignore[invalid-argument-type]
 
 
 @router.get("/runs/{run_id}/files/{file_id}", response_model=None)
@@ -382,41 +452,31 @@ async def resume_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
     last outstanding call is what makes this call possible, not what performs
     it.
     """
-    segment = await service.resume(ctx, run_id)
-    run = segment.run
-    return AgentRunResult(
-        run_id=run.id,
-        output=segment.output,
-        status=run.status,
-        cost_usd=run.cost_usd,
-        cost_is_partial=run.cost_is_partial,
-        input_tokens=run.input_tokens,
-        output_tokens=run.output_tokens,
-        # What the continuation actually did. Nothing else carries it: the run
-        # executes inside this request rather than on the socket the conversation
-        # streams, so a caller given only the answer had to draw the second half
-        # of a turn out of nothing.
-        steps=[
-            RunStep(
-                tool_call_id=call.tool_call_id,
-                tool_name=call.tool_name,
-                args=call.args,
-                result=call.result,
-            )
-            for call in segment.tool_calls
-        ],
-        # And what the approved call returned. It belongs to a step the caller
-        # drew before the run parked, so it updates that step rather than adding
-        # one - the alternative is the same command twice in one turn.
-        settled=[
-            SettledCall(tool_call_id=tool_call_id, result=result)
-            for tool_call_id, result in segment.settled.items()
-        ],
-        # Empty unless the continuation stopped again, which it does whenever the
-        # agent reaches a second gated call. Without it a caller was told the run is
-        # still awaiting approval and given nothing to approve.
-        parked=await service.parked_calls(ctx, run),
-    )
+    return await run_result(service, ctx, await service.resume(ctx, run_id))
+
+
+@router.get("/runs/{run_id}/questions", response_model=list[ParkedQuestion])
+async def get_parked_questions(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
+    """The questions this run is waiting on you to answer (#2064).
+
+    A run whose agent asked something you left unanswered parks, and reopening the
+    conversation is where the card comes back - the frame that carried it live
+    went with the page. Empty unless the run is waiting on *your* answer.
+    """
+    run = await service.get_run(ctx, run_id)
+    return await service.parked_questions(ctx, run)
+
+
+@router.post("/runs/{run_id}/answers", response_model=AgentRunResult)
+async def answer_run(
+    run_id: UUID, data: QuestionAnswers, service: AgentRunnerSvc, ctx: Auth
+) -> Any:
+    """Answer the questions a run parked on, and continue it (#2064).
+
+    Only the person the run asked may answer. The continuation runs here, like a
+    resume, and its answer comes back in the response.
+    """
+    return await run_result(service, ctx, await service.answer(ctx, run_id, data.responses))
 
 
 @router.get(
@@ -575,6 +635,27 @@ async def get_spend(
             CostByKey(secret_id=secret_id, label=label, cost_usd=cost, run_count=runs)
             for secret_id, label, cost, runs in await service.spend_by_key(
                 ctx, since=since, until=to_date
+            )
+        ],
+        by_day=[
+            CostByDay(day=day, cost_usd=cost, run_count=runs)
+            for day, cost, runs in await service.spend_by_day(ctx, since=since, until=to_date)
+        ],
+        # Where a cost investigation looks for full-price tokens the provider
+        # could have served from cache (#2109).
+        cache_by_agent_model=[
+            CacheByAgentModel(
+                agent_id=agent_id,
+                agent_name=name,
+                agent_slug=slug,
+                model_label=model,
+                busts=busts,
+                expiries=expiries,
+                missed_tokens=missed,
+                run_count=runs,
+            )
+            for agent_id, name, slug, model, busts, expiries, missed, runs in (
+                await service.cache_collapses(ctx, since=since, until=to_date)
             )
         ],
     )

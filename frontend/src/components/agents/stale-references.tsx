@@ -67,9 +67,11 @@ export function staleReferences(
     context_ids: contextComplete ? spec.context_ids.filter((id) => !contextFiles.has(id)) : [],
     skill_ids: skillsComplete ? spec.skill_ids.filter((id) => !skills.has(id)) : [],
     mcp_servers: spec.mcp_servers.filter((ref) =>
-      ref.account === "organization"
-        ? !connections.has(ref.connection_id)
-        : !catalog.has(ref.catalog_key),
+      ref.account === "platform"
+        ? false
+        : ref.account === "organization"
+          ? !connections.has(ref.connection_id)
+          : !catalog.has(ref.catalog_key),
     ),
   };
 }

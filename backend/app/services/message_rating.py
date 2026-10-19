@@ -21,6 +21,7 @@ from app.schemas.message_rating import (
     RatingSummary,
     RatingValue,
 )
+from app.services.conversation import ConversationService
 from app.services.stats import resolve_window
 
 
@@ -69,24 +70,31 @@ class MessageRatingService:
                 details={"message_id": str(message_id), "conversation_id": str(conversation_id)},
             )
 
-    async def _validate_conversation_ownership(self, conversation_id: UUID, user_id: UUID) -> None:
-        """Validate that the conversation belongs to the specified user.
+    async def _validate_conversation_access(
+        self, conversation_id: UUID, user_id: UUID, organization_id: UUID
+    ) -> None:
+        """Validate that this reader may read the conversation the rating is in.
+
+        The same question opening the transcript asks, so whoever can read an
+        answer can rate it - a teammate in a project chat, somebody it was
+        shared with - and nobody else. A rating is the reader's own either way.
 
         Raises:
-            NotFoundError: If conversation doesn't exist or belongs to a different user
+            NotFoundError: If the conversation does not exist or is not theirs to read
         """
-        conv = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
-        if not conv or conv.user_id != user_id:
-            raise NotFoundError(
-                message="Conversation not found",
-                details={"conversation_id": str(conversation_id)},
-            )
+        await ConversationService(self.db).get_conversation(
+            conversation_id,
+            organization_id=organization_id,
+            user_id=user_id,
+            include_favourite=False,
+        )
 
     async def rate_message(
         self,
         conversation_id: UUID,
         message_id: UUID,
         user_id: UUID,
+        organization_id: UUID,
         data: MessageRatingCreate,
     ) -> tuple[MessageRatingRead, bool]:
         """Rate or update rating for a message.
@@ -104,7 +112,7 @@ class MessageRatingService:
             ValidationError: If trying to rate a non-assistant message
             NotFoundError: If message doesn't exist or not in the specified conversation
         """
-        await self._validate_conversation_ownership(conversation_id, user_id)
+        await self._validate_conversation_access(conversation_id, user_id, organization_id)
         await self._validate_message_in_conversation(message_id, conversation_id)
 
         message_role = await self._get_message_role(message_id)
@@ -149,6 +157,7 @@ class MessageRatingService:
         conversation_id: UUID,
         message_id: UUID,
         user_id: UUID,
+        organization_id: UUID,
     ) -> None:
         """Remove a user's rating from a message.
 
@@ -160,7 +169,7 @@ class MessageRatingService:
         Raises:
             NotFoundError: If message doesn't exist, not in conversation, or no rating exists
         """
-        await self._validate_conversation_ownership(conversation_id, user_id)
+        await self._validate_conversation_access(conversation_id, user_id, organization_id)
         await self._validate_message_in_conversation(message_id, conversation_id)
 
         rating = await rating_repo.get_rating_by_message_and_user(self.db, message_id, user_id)

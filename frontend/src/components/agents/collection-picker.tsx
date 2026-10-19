@@ -3,7 +3,15 @@
 import Link from "next/link";
 import { AlertTriangle, Check, Database, Layers, Loader2, Plus } from "lucide-react";
 
-import { Badge, Pager, SearchInput, useListControls } from "@/components/ui";
+import {
+  Badge,
+  Pager,
+  PICKER_PAGE_SIZE,
+  SearchInput,
+  useChosenFirst,
+  useListControls,
+} from "@/components/ui";
+import { GroupsChip } from "@/components/sharing/audience-chip";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { KnowledgeBase } from "@/types/knowledge-base";
@@ -52,8 +60,10 @@ export function CollectionPicker({
   // publish is where it surfaces.
   const orphaned = selectedIds.filter((id) => !known.has(id));
 
+  const ordered = useChosenFirst(collections, selectedIds);
   const list = useListControls({
-    items: collections,
+    items: ordered,
+    pageSize: PICKER_PAGE_SIZE,
     matches: (collection, query) =>
       collection.name.toLowerCase().includes(query) ||
       (collection.description ?? "").toLowerCase().includes(query),
@@ -116,6 +126,7 @@ export function CollectionPicker({
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="truncate text-sm font-medium">{collection.name}</span>
                   {collection.is_default && <Badge variant="outline">{t("default")}</Badge>}
+                  <GroupsChip groups={collection.shared_groups} />
                 </span>
 
                 {collection.description && (

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { ChevronRight, Eye, EyeOff } from "lucide-react";
 
 import {
   Input,
@@ -15,9 +15,12 @@ import {
   Switch,
   Textarea,
 } from "@/components/ui";
+import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { BrandIcon, type BrandName } from "@/components/icons/brand-icon";
+import { useModelProviders } from "@/hooks";
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import { BRAND_GLYPHS } from "@/lib/brand-glyphs.generated";
+import type { FieldCopy, FieldCopyFor } from "@/components/agents/capability-field-copy";
 import { cn } from "@/lib/utils";
 import type { JsonSchema, JsonSchemaProperty } from "@/types/agents";
 import { useTranslations } from "next-intl";
@@ -47,6 +50,12 @@ interface SchemaFormProps {
    * be acted on and then takes it away.
    */
   errors?: Readonly<Record<string, string>>;
+  /**
+   * Each field's title and description in the reader's language, where a
+   * catalog holds them - a capability's settings do (#2098). Without it, or for
+   * a field it has no copy for, the schema's own English is shown.
+   */
+  copyFor?: FieldCopyFor;
 }
 
 /**
@@ -75,33 +84,123 @@ export function SchemaForm({
   disabled,
   idPrefix,
   errors,
+  copyFor,
 }: SchemaFormProps) {
   const properties = Object.entries(schema.properties ?? {}).filter(
     // A field with exactly one legal value is not a question. Rendering it
     // would offer a control whose every other answer the server refuses, and
     // for a secret payload that control is the `kind` the caller already chose.
-    ([, property]) => property.const === undefined,
+    ([, property]) => property.const === undefined && visible(property, schema, value),
   );
   if (properties.length === 0) return null;
 
-  const set = (key: string, fieldValue: unknown) => onChange({ ...value, [key]: fieldValue });
+  const set = (key: string, fieldValue: unknown) => {
+    const next: Record<string, unknown> = { ...value, [key]: fieldValue };
+    // A choice that depended on this field and is no longer offered goes,
+    // rather than staying selected where the form cannot show it.
+    for (const [other, property] of Object.entries(schema.properties ?? {})) {
+      const when = property["x-enum-when"];
+      if (when?.field !== key || next[other] === undefined) continue;
+      if (!(when.choices[String(fieldValue)] ?? []).includes(String(next[other]))) {
+        next[other] = undefined;
+      }
+    }
+    onChange(next);
+  };
+  const field = ([key, property]: [string, JsonSchemaProperty]) => (
+    <SchemaField
+      key={key}
+      id={`${idPrefix}-${key}`}
+      name={key}
+      property={narrowed(property, schema, value)}
+      value={value[key]}
+      required={schema.required?.includes(key) ?? false}
+      disabled={disabled}
+      error={errors?.[key]}
+      copy={copyFor?.(key) ?? null}
+      onChange={(fieldValue) => set(key, fieldValue)}
+    />
+  );
+  const basic = properties.filter(([, property]) => property["x-advanced"] !== true);
+  const advanced = properties.filter(([, property]) => property["x-advanced"] === true);
 
   return (
     <div className="space-y-4">
-      {properties.map(([key, property]) => (
-        <SchemaField
-          key={key}
-          id={`${idPrefix}-${key}`}
-          name={key}
-          property={property}
-          value={value[key]}
-          required={schema.required?.includes(key) ?? false}
-          disabled={disabled}
-          error={errors?.[key]}
-          onChange={(fieldValue) => set(key, fieldValue)}
-        />
-      ))}
+      {basic.map(field)}
+      {advanced.length > 0 && (
+        <AdvancedFields
+          // Open where something in it was set or refused: a value hidden behind
+          // a fold is a value nobody remembers choosing.
+          open={advanced.some(([key]) => value[key] !== undefined || errors?.[key] !== undefined)}
+        >
+          {advanced.map(field)}
+        </AdvancedFields>
+      )}
     </div>
+  );
+}
+
+/**
+ * The property with only the choices `x-enum-when` allows for what the form holds now.
+ *
+ * Read with the deciding field's schema default, as `visible` does, because the
+ * form shows a default without storing it.
+ */
+function narrowed(
+  property: JsonSchemaProperty,
+  schema: JsonSchema,
+  value: Record<string, unknown>,
+): JsonSchemaProperty {
+  const when = property["x-enum-when"];
+  if (when === undefined) return property;
+  const current = value[when.field] ?? schema.properties?.[when.field]?.default;
+  const allowed = new Set(when.choices[String(current)] ?? []);
+  const keep = (values: unknown[] | undefined) =>
+    values?.filter((choice) => allowed.has(String(choice)));
+  return {
+    ...property,
+    enum: keep(property.enum),
+    anyOf: property.anyOf?.map((branch) =>
+      branch.enum ? { ...branch, enum: keep(branch.enum) } : branch,
+    ),
+  };
+}
+
+/**
+ * Whether a field marked `x-visible-when` applies to what the form holds now.
+ *
+ * The deciding field is read with its schema default, because the form shows a
+ * default without storing it until somebody changes it.
+ */
+function visible(
+  property: JsonSchemaProperty,
+  schema: JsonSchema,
+  value: Record<string, unknown>,
+): boolean {
+  const when = property["x-visible-when"];
+  if (when === undefined) return true;
+  const current = value[when.field] ?? schema.properties?.[when.field]?.default;
+  return when.equals.includes(String(current));
+}
+
+/**
+ * The settings a capability works without touching, folded away (#2070).
+ *
+ * A field is here because its capability marks it `x-advanced`: limits, cache
+ * lifetimes, prompts and tuning that change how well something runs rather than
+ * what it does. Fewer decisions up front for whoever is building their first
+ * agent, and nothing taken away from whoever needs one.
+ */
+function AdvancedFields({ open, children }: { open: boolean; children: React.ReactNode }) {
+  const t = useTranslations("agents");
+  return (
+    <details className="group" open={open}>
+      <summary className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1.5 text-xs">
+        <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
+        {t("advancedSettings")}
+      </summary>
+      <div className="mt-3 space-y-4">{children}</div>
+    </details>
   );
 }
 
@@ -113,6 +212,7 @@ interface SchemaFieldProps {
   required: boolean;
   disabled?: boolean;
   error?: string;
+  copy: FieldCopy | null;
   onChange: (value: unknown) => void;
 }
 
@@ -124,10 +224,12 @@ function SchemaField({
   required,
   disabled,
   error,
+  copy,
   onChange,
 }: SchemaFieldProps) {
   const t = useTranslations("agents");
-  const label = property.title ?? humanise(name);
+  const label = copy?.title ?? property.title ?? humanise(name);
+  const description = copy?.description ?? property.description;
   const choices = enumChoices(property);
   const kind = resolveKind(property);
   const masked = isSecret(property);
@@ -178,34 +280,6 @@ function SchemaField({
           />
         )}
       </div>
-
-      {kind === "suggested" && (
-        <>
-          <Input
-            id={id}
-            list={`${id}-suggestions`}
-            placeholder={placeholder}
-            value={typeof value === "string" ? value : typeof fallback === "string" ? fallback : ""}
-            disabled={disabled}
-            onChange={(event) =>
-              onChange(event.target.value === "" ? undefined : event.target.value)
-            }
-            {...invalid}
-          />
-          {/* A native datalist rather than a combobox component: this is an
-              ordinary text field that offers the usual answers, and anything
-              richer would be a widget standing between somebody and a string
-              they already know how to type. i18n-exempt: option values are
-              identifiers the backend validates, not copy. */}
-          <datalist id={`${id}-suggestions`}>
-            {(suggestions(property) ?? []).map((choice) => (
-              <option key={choice} value={choice}>
-                {enumLabel(property, choice)}
-              </option>
-            ))}
-          </datalist>
-        </>
-      )}
 
       {kind === "number" && (
         <Input
@@ -279,6 +353,14 @@ function SchemaField({
             onChange(parseList(event.target.value));
           }}
           {...invalid}
+        />
+      )}
+
+      {kind === "modelProfile" && (
+        <SchemaModelProfile
+          value={typeof value === "string" ? value : null}
+          disabled={disabled}
+          onChange={(profileId) => onChange(profileId ?? undefined)}
         />
       )}
 
@@ -391,9 +473,7 @@ function SchemaField({
         </div>
       )}
 
-      {property.description && (
-        <p className="text-muted-foreground text-xs">{property.description}</p>
-      )}
+      {description && <p className="text-muted-foreground text-xs">{description}</p>}
 
       {error !== undefined && (
         <p id={errorId} className="text-destructive text-xs">
@@ -404,7 +484,33 @@ function SchemaField({
   );
 }
 
-type FieldKind = "string" | "number" | "boolean" | "enum" | "suggested" | "stringList";
+/**
+ * A model profile for a capability's own use - `browse_web`'s step model - from
+ * the same picker as the agent's model. Its own component, so the query it
+ * reads is made only by a form that has such a field.
+ */
+function SchemaModelProfile({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: string | null;
+  disabled?: boolean;
+  onChange: (profileId: string | null) => void;
+}) {
+  const { profiles, profilesStatus } = useModelProviders();
+  return (
+    <ModelProfilePicker
+      profiles={profiles}
+      profilesStatus={profilesStatus}
+      value={value}
+      disabled={disabled}
+      onChange={onChange}
+    />
+  );
+}
+
+type FieldKind = "string" | "number" | "boolean" | "enum" | "stringList" | "modelProfile";
 
 /**
  * What kind of input a property needs.
@@ -413,26 +519,8 @@ type FieldKind = "string" | "number" | "boolean" | "enum" | "suggested" | "strin
  * rather than a plain type, so the null branch has to be looked past - without
  * that, every optional field would fall through to a text box.
  */
-/**
- * The values a field suggests without restricting itself to them.
- *
- * `x-suggestions` is the open counterpart of `enum`: the backend validates a
- * plain string and the catalog is what most people want, so the form offers the
- * catalog and still accepts anything. A browsing agent's `decision_model` is the
- * case it was added for - the catalog holds the moving aliases, and an agent
- * whose confidence floor was tuned against a pinned build has to be able to name
- * that build.
- */
-function suggestions(property: JsonSchemaProperty): string[] | null {
-  const values = property["x-suggestions"];
-  return Array.isArray(values) && values.every((v) => typeof v === "string") ? values : null;
-}
-
 function resolveKind(property: JsonSchemaProperty): FieldKind {
-  // Before the enum check: a field carrying suggestions is an *open* string
-  // that happens to know the usual answers, and rendering it as a closed
-  // select would forbid the unusual one it exists to allow.
-  if (suggestions(property) !== null) return "suggested";
+  if (property["x-widget"] === "model-profile") return "modelProfile";
   // Before the type check, not after: a `Literal` is a string, and a text box
   // for a closed set of values is a way to type one the backend will refuse.
   if (enumChoices(property) !== null) return "enum";

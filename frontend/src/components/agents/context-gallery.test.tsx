@@ -13,6 +13,7 @@ function file(overrides: Partial<ContextFileSummary> = {}): ContextFileSummary {
     format: "md",
     mode: "inject",
     enabled: true,
+    visibility: "org",
     size_bytes: 100,
     excerpt: "",
     ...overrides,
@@ -101,6 +102,19 @@ describe("ContextGallery", () => {
     );
     expect(screen.getByRole("checkbox", { name: "escalation" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "glossary" })).not.toBeChecked();
+  });
+
+  it("shows the attached files first", () => {
+    render(
+      <ContextGallery
+        files={[file(), file({ id: "c2", name: "escalation" })]}
+        total={2}
+        selectedIds={["c2"]}
+        onToggle={vi.fn()}
+      />,
+    );
+    const shown = screen.getAllByRole("checkbox").map((box) => box.getAttribute("aria-label"));
+    expect(shown).toEqual(["escalation", "glossary"]);
   });
 
   it("attaches the file that was pressed", async () => {
