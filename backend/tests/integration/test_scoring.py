@@ -1656,6 +1656,30 @@ class TestVerdicts:
         assert (hidden.outcome, hidden.question) == (owned.outcome, owned.question)
         assert (granted.answer, granted.answer_hidden) == (owned.answer, False)
 
+    @pytest.mark.security
+    async def test_an_answer_whose_run_is_gone_is_read_only_by_who_sees_every_agent(
+        self, db, judge
+    ) -> None:
+        tenant = await _tenant(db)
+        dataset, case = await _dataset(db, tenant, scoring=DatasetScoring(), visibility="org")
+        run = await _scored_run(db, tenant)
+        service = ScoringService(db)
+        score = await service.score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+        row = await case_score_repo.get(
+            db, score.id, organization_id=tenant.organization.id, dataset_id=dataset.id
+        )
+        assert row is not None
+        await case_score_repo.update(db, score=row, update_data={"run_id": None})
+        viewer = await _join(db, tenant, OrgRoleName.VIEWER)
+
+        [owned] = (await service.list_scores(tenant.ctx, dataset.id)).items
+        [hidden] = (await service.list_scores(viewer, dataset.id)).items
+
+        assert (owned.answer is not None, owned.answer_hidden) == (True, False)
+        assert (hidden.answer, hidden.answer_hidden) == (None, True)
+
     async def test_a_score_keeps_the_answer_it_graded_and_who_gave_it(self, db, judge) -> None:
         tenant = await _tenant(db)
         dataset, case = await _dataset(db, tenant, scoring=DatasetScoring())

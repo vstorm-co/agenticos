@@ -1,5 +1,5 @@
 ---
-source_sha: "a1ed42dbcce7"
+source_sha: "7be8e7eac85b"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -522,7 +522,8 @@ nicht sehen darf (`agents:view` darauf, per Rolle oder Grant), liest Ergebnis,
 Status und Fall, und die Antwort ist ausgeblendet - mit jeder Begründung, jedem
 Zitat und jeder Antwort des Bewerters, die sie wiederholen kann. Das gilt
 überall, wo Ergebnisse gelesen werden: im Tab Prüfung, in der Prüfwarteschlange
-und im Tab Datasets eines Bewerters.
+und im Tab Datasets eines Bewerters. Eine Antwort, deren Run oder Agent nicht
+mehr existiert, sieht nur, wer jeden Agent der Organisation sehen darf.
 
 ## Personenbezogene Daten { #personal-data }
 

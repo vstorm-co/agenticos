@@ -1,5 +1,5 @@
 ---
-source_sha: "a1ed42dbcce7"
+source_sha: "7be8e7eac85b"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -498,7 +498,9 @@ a ese agent: quien lee el dataset pero no puede ver el agent que respondió
 (`agents:view` sobre él, por rol o por un grant) lee el resultado, el estado y
 el caso, y la respuesta queda oculta, junto con cada motivo, cita y respuesta
 del juez que pueda repetirla. Vale en todo lugar donde se leen puntuaciones: la
-pestaña Review, la cola de revisión y la pestaña Datasets de un juez.
+pestaña Review, la cola de revisión y la pestaña Datasets de un juez. Una
+respuesta cuyo run o agent ya no existe solo la ve quien puede ver todos los
+agents de la organización.
 
 ## Datos personales { #personal-data }
 

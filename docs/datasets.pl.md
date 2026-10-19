@@ -1,5 +1,5 @@
 ---
-source_sha: "a1ed42dbcce7"
+source_sha: "7be8e7eac85b"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -491,6 +491,8 @@ agenta: czytelnik datasetu, który nie może zobaczyć agenta, który odpowiedzi
 odpowiedź jest ukryta - razem z każdym uzasadnieniem, cytatem i odpowiedzią
 sędziego, które mogą ją powtarzać. Dotyczy to każdego miejsca, w którym czyta
 się wyniki: zakładki Przegląd, kolejki przeglądu i zakładki Datasets sędziego.
+Odpowiedź, której run albo agent już nie istnieje, widzi tylko ktoś, kto może
+zobaczyć każdego agenta organizacji.
 
 ## Dane osobowe { #personal-data }
 

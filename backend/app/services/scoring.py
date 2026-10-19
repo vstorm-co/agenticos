@@ -39,7 +39,7 @@ from app.core.exceptions import (
     SystemAgentUnavailableError,
 )
 from app.core.field_errors import refused_field
-from app.core.permissions import AuthContext, Perm
+from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.agent import AgentKind
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.case_score import CaseScore
@@ -833,7 +833,9 @@ class ScoringService:
 
         A reader who may not view the agent that answered reads the outcome and
         the case, not the answer: it, and every result's reason, quotes and what
-        the judge said, are left out, and `answer_hidden` says so.
+        the judge said, are left out, and `answer_hidden` says so. An answer
+        whose run or agent is gone is read only by somebody who may view every
+        agent, since nothing is left to check the reader against.
         """
         reads = [CaseScoreRead.model_validate(score) for score in scores]
         models = await credential_repo.get_profiles_by_ids(
@@ -862,10 +864,12 @@ class ScoringService:
             for agent in agents.values()
             if not await resolve_access(self.db, ctx, agent, Perm.AGENTS_VIEW, resource_type=AGENT)
         }
+        sees_every_agent = ctx.scope_for(Perm.AGENTS_VIEW) >= Scope.ALL
         named = []
         for read in reads:
             agent = None if read.agent_id is None else agents.get(read.agent_id)
-            if agent is not None and agent.id in hidden:
+            unchecked = agent is None and read.answer is not None and not sees_every_agent
+            if unchecked or (agent is not None and agent.id in hidden):
                 read = _without_answer(read)
             version = None if read.agent_version_id is None else versions.get(read.agent_version_id)
             judged_on = (

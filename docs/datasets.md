@@ -464,7 +464,8 @@ well: a reader of the dataset who may not view the agent that answered
 (`agents:view` on it, by role or by a grant) reads the score's outcome, status
 and case, and the answer is hidden - with every reason, quote and judge's answer
 that can repeat it. This holds wherever scores are read: the Review tab, the
-review queue and a judge's Datasets tab.
+review queue and a judge's Datasets tab. An answer whose run or agent is gone is
+shown only to somebody who may view every agent of the organization.
 
 ## Personal data { #personal-data }
 
