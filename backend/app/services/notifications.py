@@ -60,6 +60,7 @@ from app.core.permissions import OrgRoleName
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, ToolApproval
 from app.db.models.audit_log import AppAdminAuditLog
+from app.db.models.eval_suite import EvalSuite, EvalSuiteResult, EvalSuiteResultStatus
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.notification import NotificationEventType
 from app.db.models.rag_document import RAGDocument
@@ -69,6 +70,7 @@ from app.repositories import group as group_repo
 from app.repositories import member as member_repo
 from app.repositories import organization as organization_repo
 from app.repositories import user as user_repo
+from app.schemas.eval_suite import EvalSuiteSummary, ThresholdReason
 from app.services.notification_center import NotificationCenterService, absolute_context_url
 from app.services.spend import month_start, organization_spend_since
 
@@ -720,6 +722,51 @@ class NotificationService:
             use_savepoint=True,
         )
 
+    async def eval_suite_failed(
+        self, suite: EvalSuite, result: EvalSuiteResult, *, agent: Agent
+    ) -> None:
+        """A suite's run fell below its threshold, or could not run.
+
+        Its owner hears once per run of such results on a version - the caller
+        sends only the first - and the occurrence is that first result, so a
+        retried write is a no-op. A failure names the cases that broke, so the
+        owner knows what to open before they open anything.
+        """
+        recipients = await member_repo.list_member_ids_for(
+            self.db,
+            organization_id=suite.organization_id,
+            user_ids=[suite.owner_user_id] if suite.owner_user_id else [],
+        )
+        if not recipients:
+            return
+        summary = EvalSuiteSummary.model_validate(result.summary) if result.summary else None
+        path = (
+            f"/agents/{agent.id}/evals/{result.eval_run_id}"
+            if result.eval_run_id is not None
+            else f"/agents/{agent.id}?tab=evals"
+        )
+        failing = [case.input for case in summary.failing_cases] if summary else []
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.EVAL_SUITE_FAILED,
+            occurrence_id=f"{suite.id}:{result.id}",
+            summary=_suite_summary(suite, result, agent=agent, summary=summary),
+            context_url=self._link(path, suite.organization_id),
+            render_context={
+                "agent_name": agent.name,
+                **agent_face(agent),
+                "suite_name": suite.name,
+                "status": result.status,
+                "reason": result.reason,
+                "version": result.version_number,
+                "failing_cases": failing,
+                "app_name": settings.PROJECT_NAME,
+                "run_url": absolute_context_url(self._link(path, suite.organization_id)),
+            },
+            organization_id=suite.organization_id,
+            use_savepoint=True,
+        )
+
     async def _mcp_audience(self, connection: McpConnection, organization_id: UUID) -> set[UUID]:
         """Whoever manages the organization's servers, and whoever owns an agent bound to this one.
 
@@ -1171,3 +1218,43 @@ class NotificationService:
             )
 
         return recipients
+
+
+_SHOWN_CASES = 5
+
+
+def _suite_summary(
+    suite: EvalSuite, result: EvalSuiteResult, *, agent: Agent, summary: EvalSuiteSummary | None
+) -> str:
+    """One line saying which suite, on what, why - and, for a failure, which cases."""
+    on = f"{agent.name} v{result.version_number}" if result.version_number else agent.name
+    if result.status != EvalSuiteResultStatus.FAILED.value:
+        why = (summary.message if summary and summary.message else None) or (result.reason or "")
+        return f"{suite.name} did not run on {on}: {why.rstrip('.')}."
+    reasons = summary.reasons if summary else []
+    said = "; ".join(_reason_text(reason) for reason in reasons) or "below its threshold"
+    line = f"{suite.name} failed on {on}: {said}."
+    cases = [case.input for case in summary.failing_cases] if summary else []
+    if cases:
+        named = ", ".join(f"'{text}'" for text in cases[:_SHOWN_CASES])
+        more = len(cases) - _SHOWN_CASES
+        line += f" Failing: {named}" + (f" and {more} more." if more > 0 else ".")
+    return line
+
+
+def _reason_text(reason: ThresholdReason) -> str:
+    value = reason.value or 0
+    limit = reason.limit or 0
+    match reason.code:
+        case "pass_rate_below":
+            return f"pass rate {value:.0%} is below {limit:.0%}"
+        case "nothing_graded":
+            return "no case could be graded"
+        case "regressions":
+            return f"{int(value)} case(s) break reproducibly"
+        case "cost_per_pass_rise":
+            return f"cost per passed case rose {value:.0%}"
+        case "p95_rise":
+            return f"p95 latency rose {value:.0%}"
+        case _:
+            return "the comparison is invalid"

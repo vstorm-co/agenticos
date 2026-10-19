@@ -422,12 +422,29 @@ class RAGDocumentService:
                 keep_id=doc.id,
                 source_path=doc.source_path,
             )
+        await self._content_changed(doc)
         # No notification on the way out. A document that indexed cleanly is
         # not news: the collection already shows its status, and one row per
         # file made the ordinary case - thirty files dropped in at once -
         # thirty interruptions that buried the rows worth reading.
         # `ingestion_failed` still fires, and a connector run still reports its
         # whole-attempt figure through `sync_completed`.
+
+    async def _content_changed(self, doc: RAGDocument) -> None:
+        """Queue the eval suites of the agents that search this document's knowledge base.
+
+        What a collection holds is what its agents answer from, and it changes
+        with no publish - so the suites watching for that change are what notice.
+        """
+        if doc.organization_id is None or doc.knowledge_base_id is None:
+            return
+        from app.services.eval_suite import EvalSuiteService
+
+        await EvalSuiteService(self.db).dependency_changed(
+            organization_id=doc.organization_id,
+            kind="knowledge_base",
+            resource_id=doc.knowledge_base_id,
+        )
 
     async def _retire_superseded(
         self,
@@ -645,6 +662,7 @@ class RAGDocumentService:
         # share (#1684). Read now, before the row is deleted.
         tenant = await self._vector_tenant(doc)
         await rag_document_repo.delete(self.db, doc.id)
+        await self._content_changed(doc)
 
         from app.core.background import spawn_after_commit
 

@@ -49,6 +49,14 @@ def _consent(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
     return withdraw
 
 
+@pytest.fixture(autouse=True)
+def _no_suites(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No eval suite watches a promotion here; `integration/test_eval_suites` covers that."""
+    monkeypatch.setattr(
+        "app.services.eval_suite.EvalSuiteService.environment_promoted", AsyncMock()
+    )
+
+
 def _ctx(role: str = OrgRoleName.OWNER) -> AuthContext:
     return AuthContext(user_id=_CALLER, organization_id=_ORG, role=role)
 

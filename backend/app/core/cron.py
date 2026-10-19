@@ -51,3 +51,14 @@ def cron_next(expression: str, *, now: datetime, time_zone: str = "UTC") -> date
     local = now.astimezone(ZoneInfo(time_zone))
     # croniter ships no type information; the cast is what annotates the result.
     return cast(datetime, croniter(expression, local).get_next(datetime)).astimezone(UTC)
+
+
+def cron_fires(
+    expression: str, *, start: datetime, end: datetime, time_zone: str = "UTC", limit: int
+) -> int:
+    """How many times a cron expression fires after `start` and up to `end`, counting at most `limit`."""
+    schedule = croniter(expression, start.astimezone(ZoneInfo(time_zone)))
+    fires = 0
+    while fires < limit and cast(datetime, schedule.get_next(datetime)) <= end:
+        fires += 1
+    return fires

@@ -1,0 +1,38 @@
+"""The eval suite sweep: three steps a tick, each in a transaction of its own."""
+
+from __future__ import annotations
+
+from contextlib import asynccontextmanager
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from app.worker.tasks import eval_suite_tasks
+
+pytestmark = pytest.mark.anyio
+
+
+async def test_a_tick_schedules_starts_and_settles_in_three_transactions() -> None:
+    sessions: list[MagicMock] = []
+
+    @asynccontextmanager
+    async def session():
+        db = MagicMock()
+        sessions.append(db)
+        yield db
+
+    service = MagicMock()
+    service.fire_schedules = AsyncMock(return_value=1)
+    service.start_due = AsyncMock(return_value=2)
+    service.settle_finished = AsyncMock(return_value=3)
+    with (
+        patch.object(eval_suite_tasks, "get_worker_db_context", session),
+        patch("app.services.change_feed.connect_in_worker", AsyncMock()) as connect,
+        patch("app.services.eval_suite.EvalSuiteService", return_value=service) as built,
+    ):
+        counts = await eval_suite_tasks.check_eval_suites()
+
+    assert counts == {"fired": 1, "started": 2, "settled": 3}
+    assert [call.args[0] for call in built.call_args_list] == sessions
+    assert len(sessions) == 3
+    connect.assert_awaited_once()

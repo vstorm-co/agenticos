@@ -103,6 +103,7 @@ TENANT_REQUIRED = [
     (eval_suite_repo, "get_by_name"),
     (eval_suite_repo, "lock"),
     (eval_suite_repo, "list_for_agents"),
+    (eval_suite_repo, "list_for_organization"),
     (eval_suite_repo, "list_watching"),
     (eval_suite_repo, "add_result"),
     (eval_suite_repo, "get_result"),

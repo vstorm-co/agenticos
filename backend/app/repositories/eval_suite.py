@@ -75,6 +75,16 @@ async def list_for_agents(
     return list(result.scalars().all())
 
 
+async def list_for_organization(db: AsyncSession, *, organization_id: UUID) -> list[EvalSuite]:
+    """Every suite of the organization, by agent and name - the dashboard narrows them."""
+    result = await db.execute(
+        select(EvalSuite)
+        .where(EvalSuite.organization_id == organization_id)
+        .order_by(EvalSuite.agent_id, EvalSuite.name)
+    )
+    return list(result.scalars().all())
+
+
 async def list_watching(
     db: AsyncSession, *, organization_id: UUID, flag: EventFlag, agent_id: UUID | None = None
 ) -> list[EvalSuite]:
@@ -270,7 +280,11 @@ async def previous_settled(
     query = select(EvalSuiteResult).where(
         EvalSuiteResult.suite_id == suite_id,
         EvalSuiteResult.organization_id == organization_id,
-        EvalSuiteResult.agent_version_id == agent_version_id,
+        (
+            EvalSuiteResult.agent_version_id.is_(None)
+            if agent_version_id is None
+            else EvalSuiteResult.agent_version_id == agent_version_id
+        ),
         EvalSuiteResult.status.in_(_SETTLED),
         EvalSuiteResult.settled_at < before,
     )
@@ -303,7 +317,9 @@ async def list_results(
     result = await db.execute(
         select(EvalSuiteResult)
         .where(*where)
-        .order_by(EvalSuiteResult.created_at.desc(), EvalSuiteResult.id)
+        .order_by(
+            EvalSuiteResult.created_at.desc(), EvalSuiteResult.due_at.desc(), EvalSuiteResult.id
+        )
         .offset(skip)
         .limit(limit)
     )

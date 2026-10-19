@@ -1,0 +1,81 @@
+"""Holding one eval run to a suite's threshold.
+
+Quality decides first: the settled pass rate against its minimum and the
+confirmed regressions against their maximum - zero unless the owner allowed
+more, so one case that breaks reproducibly fails the suite. The McNemar
+direction a comparison reports is shown beside the result and never decides it:
+on the five to twenty cases a dataset usually holds, it cannot tell, and a
+regression somebody can reproduce is a regression whatever the test says.
+
+Efficiency is the second axis and is checked only where the owner set a
+ceiling: a rise in cost per passed case or in p95 latency against the baseline.
+A comparison the two sides of which were graded differently decides nothing,
+so the result is inconclusive rather than passed.
+"""
+
+from __future__ import annotations
+
+from decimal import Decimal
+
+from app.db.models.eval_suite import EvalSuiteResultStatus
+from app.schemas.eval_run import ArmSummaryRead, EvalComparisonRead
+from app.schemas.eval_suite import EvalSuiteThreshold, ThresholdReason
+
+
+def rise(candidate: Decimal | float | None, baseline: Decimal | float | None) -> float | None:
+    """How much larger the candidate is than the baseline, as a fraction of it."""
+    if candidate is None or baseline is None or baseline <= 0:
+        return None
+    return float(candidate) / float(baseline) - 1
+
+
+def judge(
+    threshold: EvalSuiteThreshold, summary: ArmSummaryRead, comparison: EvalComparisonRead
+) -> tuple[EvalSuiteResultStatus, list[ThresholdReason]]:
+    """Whether a run meets the threshold, and every way it does not.
+
+    `summary` is the candidate over every case it answered; `comparison` is the
+    candidate against its baseline, over the cases both answered.
+    """
+    if comparison.verdict == "invalid":
+        return EvalSuiteResultStatus.INCONCLUSIVE, [
+            ThresholdReason(code="invalid_comparison", detail=comparison.invalid_reason)
+        ]
+    reasons: list[ThresholdReason] = []
+    if threshold.min_pass_rate is not None:
+        if summary.pass_rate is None:
+            reasons.append(ThresholdReason(code="nothing_graded", limit=threshold.min_pass_rate))
+        elif summary.pass_rate < threshold.min_pass_rate:
+            reasons.append(
+                ThresholdReason(
+                    code="pass_rate_below", value=summary.pass_rate, limit=threshold.min_pass_rate
+                )
+            )
+    if (
+        comparison.baseline is not None
+        and comparison.regressions_confirmed > threshold.max_confirmed_regressions
+    ):
+        reasons.append(
+            ThresholdReason(
+                code="regressions",
+                value=comparison.regressions_confirmed,
+                limit=threshold.max_confirmed_regressions,
+            )
+        )
+    theirs = comparison.baseline_summary
+    if theirs is not None:
+        mine = comparison.candidate_summary
+        ceilings = (
+            (
+                "cost_per_pass_rise",
+                threshold.max_cost_per_pass_rise,
+                mine.cost_per_pass_usd,
+                theirs.cost_per_pass_usd,
+            ),
+            ("p95_rise", threshold.max_p95_rise, mine.p95_ms, theirs.p95_ms),
+        )
+        for code, ceiling, candidate, baseline in ceilings:
+            grew = rise(candidate, baseline)
+            if ceiling is not None and grew is not None and grew > ceiling:
+                reasons.append(ThresholdReason(code=code, value=round(grew, 4), limit=ceiling))
+    return (EvalSuiteResultStatus.FAILED if reasons else EvalSuiteResultStatus.PASSED), reasons

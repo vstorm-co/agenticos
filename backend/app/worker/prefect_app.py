@@ -35,6 +35,7 @@ from app.core.config import settings
 from app.core.logging import setup_logging
 from app.worker.sweeps import Sweep, run_sweeps
 from app.worker.tasks.approval_tasks import approval_expiry_sweep_flow
+from app.worker.tasks.eval_suite_tasks import check_eval_suites
 from app.worker.tasks.eval_tasks import run_eval_flow
 from app.worker.tasks.invitation_tasks import invitation_expiry_sweep_flow
 from app.worker.tasks.mcp_tasks import mcp_connection_sweep_flow
@@ -80,6 +81,9 @@ SWEEPS = (
     Sweep("notification-delivery-sweep", 60, deliver_due_notifications),
     # Start the sync check when a source is due; the syncs stay a flow run.
     Sweep("rag-sync-check", 60, dispatch_due_syncs),
+    # Queue the eval suites whose schedule came due, start what is due as eval
+    # runs, and hold the runs that ended to their suite's threshold.
+    Sweep("eval-suites-check", 60, check_eval_suites),
 )
 """The minute-scale work, in this process - see `app/worker/sweeps.py`."""
 

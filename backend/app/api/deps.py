@@ -808,6 +808,16 @@ def get_eval_run_service(db: DBSession) -> EvalRunService:
 
 EvalRunSvc = Annotated[EvalRunService, Depends(get_eval_run_service)]
 
+from app.services.eval_suite import EvalSuiteService
+
+
+def get_eval_suite_service(db: DBSession) -> EvalSuiteService:
+    """Create EvalSuiteService instance with database session."""
+    return EvalSuiteService(db)
+
+
+EvalSuiteSvc = Annotated[EvalSuiteService, Depends(get_eval_suite_service)]
+
 
 def get_mention_service(db: DBSession) -> MentionService:
     return MentionService(db)

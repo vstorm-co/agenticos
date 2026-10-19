@@ -23,10 +23,12 @@ ChangeResource = Literal[
     "secret",
     "mcp_connection",
     "run",
+    "eval_suite",
 ]
-"""What changed. A `trigger` event names the agent whose routines changed, since
-that is what a subscriber's access to them is decided by; a `run` event is a run
-moving through its states (started, parked, finished), which no request made."""
+"""What changed. A `trigger` or `eval_suite` event names the agent whose routines
+or suites changed, since that is what a subscriber's access to them is decided by;
+a `run` event is a run moving through its states (started, parked, finished),
+which no request made."""
 ChangeAction = Literal["created", "updated", "deleted"]
 ChangeSurface = Literal["console", "api_key", "mcp", "assistant", "run"]
 """Where a change came from: a console session, an organization API key, an MCP

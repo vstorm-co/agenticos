@@ -18,6 +18,7 @@ class TestCronHasNext:
             "* * * * * *",  # a seconds column the minute sweep cannot honour
             "0 9 * *",
             "not a cron",
+            "a b c d e",  # five fields, none of them cron
             "0 0 31 2 *",  # valid syntax, but February never has a 31st
         ],
     )

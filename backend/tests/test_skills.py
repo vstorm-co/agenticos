@@ -43,6 +43,12 @@ def _used_nowhere(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("app.services.skills.groups_sharing", nowhere)
 
 
+@pytest.fixture(autouse=True)
+def _no_suites(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No eval suite watches a skill here; `integration/test_eval_suites` covers that."""
+    monkeypatch.setattr("app.services.eval_suite.EvalSuiteService.dependency_changed", AsyncMock())
+
+
 def _ctx(role: str = OrgRoleName.OWNER, *, org_id=None, user_id=None) -> AuthContext:
     return AuthContext(
         user_id=user_id or uuid.uuid4(),

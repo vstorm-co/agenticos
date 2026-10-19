@@ -428,6 +428,7 @@ class SkillService:
         skill = await self.get(ctx, skill_id, perm=Perm.SKILLS_EDIT)
         update_data = {**writable(data, over=Skill), "version": skill.version + 1}
         updated = await skill_repo.update(self.db, skill=skill, update_data=update_data)
+        await self._changed(updated)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -569,6 +570,7 @@ class SkillService:
                 "library_fingerprint": bundled.fingerprint,
             },
         )
+        await self._changed(updated)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -895,6 +897,19 @@ class SkillService:
         unchanged when its reference table had been rewritten.
         """
         await skill_repo.update(self.db, skill=skill, update_data={"version": skill.version + 1})
+        await self._changed(skill)
+
+    async def _changed(self, skill: Skill) -> None:
+        """Queue the eval suites of the agents that read this skill.
+
+        A skill has no draft: an edit reaches every bound agent on its next run,
+        so the suites watching for that change are the only check it gets.
+        """
+        from app.services.eval_suite import EvalSuiteService
+
+        await EvalSuiteService(self.db).dependency_changed(
+            organization_id=skill.organization_id, kind="skill", resource_id=skill.id
+        )
 
     async def delete(self, ctx: AuthContext, skill_id: UUID) -> None:
         skill = await self.get(ctx, skill_id, perm=Perm.SKILLS_EDIT)
