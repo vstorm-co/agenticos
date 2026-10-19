@@ -4832,13 +4832,53 @@ class TestTheWaitNotice:
         assert sandboxes.made[0]["on_wait"] is opened.wait_notice
 
 
-def test_the_real_client_is_handed_the_notice():
+async def test_the_real_client_is_handed_the_notice_and_the_shared_client():
     """Against the installed library, not the fake: `on_wait` arrived in
     pydantic-ai-backend 0.2.34, and an older one would refuse the keyword."""
     from pydantic_ai_backends.workspaces import SandboxdWorkspace as RealSandboxd
 
     notice = sandbox_workspace.WaitNotice()
     made = SandboxWorkspaceService._service_capability(_resolved(), "sc-1", on_wait=notice)
+    again = SandboxWorkspaceService._service_capability(_resolved(), "sc-2")
 
     assert isinstance(made, RealSandboxd)
     assert made.on_wait is notice
+    # One pool for every workspace in the process, not a connection per request.
+    assert made.client is not None
+    assert made.client is again.client
+    await sandbox_workspace.close_sandboxd_client()
+
+
+class TestTheSharedSandboxdClient:
+    def test_another_loop_gets_its_own_client(self):
+        """Connections belong to the loop that opened them."""
+        import asyncio
+
+        async def take() -> object:
+            return sandbox_workspace._sandboxd_http()
+
+        first = asyncio.run(take())
+        second = asyncio.run(take())
+
+        assert first is not second
+        asyncio.run(sandbox_workspace.close_sandboxd_client())
+
+    def test_closing_from_another_loop_drops_it_rather_than_raising(self):
+        import asyncio
+
+        async def warm() -> None:
+            sandbox_workspace._sandboxd_http()
+
+        asyncio.run(warm())
+        asyncio.run(sandbox_workspace.close_sandboxd_client())
+
+        assert sandbox_workspace._sandboxd_client is None
+
+    async def test_a_closed_client_is_rebuilt(self):
+        first = sandbox_workspace._sandboxd_http()
+        await first.aclose()
+
+        assert sandbox_workspace._sandboxd_http() is not first
+        await sandbox_workspace.close_sandboxd_client()
+        # Closing twice is a shutdown that found nothing to close.
+        await sandbox_workspace.close_sandboxd_client()

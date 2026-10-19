@@ -34,6 +34,10 @@ Two things are versioned separately from this file and worth knowing about:
     whatever size the workspace had reached.
   - A write is measured by serialising only the file it wrote, not the whole
     document on the event loop.
+- **Sandbox calls share one connection pool per process.** `SandboxdWorkspace`
+  without a client of its own opened a new connection, and built an SSL context,
+  for every command and file operation of a run. One client per event loop now
+  serves every `sandboxd` workspace, and the API closes it at shutdown.
 
 ### Fixed
 

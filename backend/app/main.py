@@ -334,9 +334,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # closed the same way now that nothing can still be mid-request on them (#1263).
     from app.agents.capabilities.web_research._search import close_http_client
     from app.services.model_catalog import close_listing_client
+    from app.services.sandbox_workspace import close_sandboxd_client
 
     await close_http_client()
     await close_listing_client()
+    await close_sandboxd_client()
     # The knowledge capability caches a store of its own, built on the first
     # search and reachable from no request; a shutdown followed by more work -
     # a test, a reload - must not search through it once `close_db` has run.

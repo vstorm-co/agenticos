@@ -41,6 +41,7 @@ from pathlib import PurePosixPath
 from typing import Any, Literal, cast
 from uuid import UUID
 
+import httpx
 from PIL import Image, ImageOps
 from pydantic_ai.workspaces import Workspace, WorkspaceRef
 from pydantic_ai_backends import FileData, FileInfo, StateBackend
@@ -127,6 +128,49 @@ async def _on_host_thread[T](call: Callable[..., T], *args: object) -> T:
     return await asyncio.get_running_loop().run_in_executor(
         _HOST_CALLS, partial(context.run, call, *args)
     )
+
+
+_sandboxd_client: httpx.AsyncClient | None = None
+_sandboxd_loop: asyncio.AbstractEventLoop | None = None
+
+
+def _sandboxd_http() -> httpx.AsyncClient:
+    """The client every `sandboxd` workspace in this process shares.
+
+    Without one, `SandboxdWorkspace` builds a client per request: a new
+    connection, and an SSL context, for every command and every file operation
+    of a run - several milliseconds each, against operations that take four
+    since the service answers file calls itself.
+
+    Rebuilt when the event loop changes, as `model_catalog`'s client is: its
+    connections belong to the loop that opened them, and one process runs
+    requests and Prefect flows on different loops. Unbounded, because a
+    command holds its connection for as long as it runs, and a pool cap would
+    queue the next run's commands behind the last one's. The timeouts ride each
+    request.
+    """
+    global _sandboxd_client, _sandboxd_loop
+    loop = asyncio.get_running_loop()
+    if _sandboxd_client is None or _sandboxd_client.is_closed or _sandboxd_loop is not loop:
+        _sandboxd_client = httpx.AsyncClient(limits=httpx.Limits(max_connections=None))
+        _sandboxd_loop = loop
+    return _sandboxd_client
+
+
+async def close_sandboxd_client() -> None:
+    """Close the shared `sandboxd` client at shutdown.
+
+    A client whose loop has already gone has nothing left to release, and
+    `aclose` says so by raising; dropping the reference is the close then.
+    """
+    global _sandboxd_client, _sandboxd_loop
+    if _sandboxd_client is not None and not _sandboxd_client.is_closed:
+        try:
+            await _sandboxd_client.aclose()
+        except RuntimeError:
+            logger.debug("sandboxd client outlived its event loop; dropping it unclosed")
+    _sandboxd_client = None
+    _sandboxd_loop = None
 
 
 _BROWSE_TIMEOUT_SECONDS = 10.0
@@ -782,6 +826,7 @@ class SandboxWorkspaceService:
             # Opening can build the runtime's image first; this is how the chat
             # learns to say so instead of sitting silent (#2222).
             on_wait=on_wait,
+            client=_sandboxd_http(),
         )
 
     async def _row(
