@@ -1,5 +1,5 @@
 ---
-source_sha: "236f1dc11eec"
+source_sha: "f266859926c0"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -293,6 +293,11 @@ Datasets auf der Version vor dem Kandidaten - bei einem Draft die
 veröffentlichte Version. Beide Seiten sind mit Datum, Modell und
 Dataset-Version beschriftet, weil sie sich in jedem davon unterscheiden können.
 
+Ein Run kann stattdessen einen **früheren Run** desselben Agents auf demselben
+Dataset als Baseline nennen (`baseline_run_id`). Seine gekippten Fälle werden
+dann gegen diesen Run wiederholt und bestätigt - so sieht eine
+[Eval-Suite](#suites), die täglich dieselbe Version prüft, die Drift.
+
 ### Eine Baseline im selben Run { #a-baseline-in-the-same-run }
 
 Wenn eine Entscheidung vom Ergebnis abhängt - ein Promotion-Gate, eine mit
@@ -438,8 +443,8 @@ bestandenem Fall und der p95-Latenz gegenüber der Baseline; leer prüfen sie
 nichts.
 
 Ein Ergebnis, dessen Vergleich
-[ungültig](#a-different-judge-invalidates-the-comparison) ist, ist **ohne
-Ergebnis**, nie bestanden. Ein Ergebnis **ist nicht gelaufen**, wenn es mehr
+[ungültig](#a-different-judge-invalidates-the-comparison) ist oder in dem kein
+Fall bewertet werden konnte, ist **ohne Ergebnis**, nie bestanden. Ein Ergebnis **ist nicht gelaufen**, wenn es mehr
 kosten würde, als ein Budget oder die eigene Grenze der Suite hergibt, wenn nur
 der Judge es bewerten könnte und die KI-Unterstützung aus ist, oder wenn es
 keine veröffentlichte Version zum Prüfen gibt. Geplante Läufe und Läufe nach
@@ -455,7 +460,8 @@ einem geplanten Lauf beim Start zu, also stimmt, wer eine Suite speichert,
 ihren Kosten zu, und das Formular nennt vorher den Preis eines Laufs und eines
 Monats des Zeitplans. Wer die Suite sonst ändert, übernimmt sie. Eine Suite,
 deren Eigentümer die Organisation verlässt oder sie nicht mehr ausführen kann,
-pausiert mit dem Grund.
+pausiert mit dem Grund - ebenso eine, deren Umgebung entfernt wird, statt still
+eine andere Version zu prüfen.
 
 Der Eigentümer wird benachrichtigt, wenn ein Ergebnis nicht besteht oder nicht
 läuft - einmal pro Serie solcher Ergebnisse auf einer Version, mit den
@@ -497,11 +503,13 @@ erfordern außerdem `datasets:view` darauf und listen nur die Agents, die die
 lesende Person sehen darf.
 
 Eine Suite anzulegen, zu ändern, zu pausieren oder auszuführen erfordert
-`agents:edit` auf dem Agent, `datasets:run` auf dem Dataset und `runs:view`,
+`agents:edit` und `agents:run` auf dem Agent, `datasets:run` auf dem Dataset und
+`runs:view`,
 und eine Person, die als sie selbst angemeldet ist: Eine Suite gibt als die
 Person aus, die sie speichert, also kann das weder ein API-Schlüssel noch ein
 Administrator, der für jemanden handelt. Die Suites eines Agents zu lesen
-erfordert `runs:view` und den Agent.
+erfordert `runs:view` und den Agent; die Fragen der Fälle, die ein Ergebnis
+nennt, sieht nur, wer das Dataset öffnen darf.
 
 ## Was ein Run behält { #what-a-run-keeps }
 

@@ -262,6 +262,11 @@ on the version before the candidate - the published version, for a draft.
 Both sides are labelled with their date, model and dataset version, because the
 two may differ in any of them.
 
+A run may instead name an **earlier run** of the same agent and dataset as its
+baseline (`baseline_run_id`). Its flips are then rerun and confirmed against
+that run - which is how an [eval suite](#suites) checking the same version
+every day sees it drift.
+
 ### A baseline in the same run { #a-baseline-in-the-same-run }
 
 When a decision rests on the result - a promotion gate, a proposed change
@@ -388,8 +393,8 @@ beside the result and never decides it. Two optional ceilings check
 efficiency: the rise in cost per passed case and in p95 latency against the
 baseline; left empty, they check nothing.
 
-A result whose comparison is [invalid](#a-different-judge-invalidates-the-comparison)
-is **inconclusive**, never passed. A result **did not run** when it would cost
+A result whose comparison is [invalid](#a-different-judge-invalidates-the-comparison),
+or in which no case could be graded, is **inconclusive**, never passed. A result **did not run** when it would cost
 more than a budget has left or more than the suite's own ceiling, when only
 the judge could grade it and AI assistance is off, or when there is no
 published version to check. Scheduled and dependency runs are compared with
@@ -403,7 +408,8 @@ authority as it is when the run starts. Nobody watches a scheduled run start,
 so saving a suite is agreeing to its spend, and the form prices one run and a
 month of the schedule first. Somebody else who changes the suite takes it
 over. A suite whose owner leaves the organization, or can no longer run it,
-pauses with the reason and says so.
+pauses with the reason and says so - as does one whose environment is removed,
+rather than quietly checking another version.
 
 The owner is told when a result fails or does not run - once per run of such
 results on a version, naming the cases that broke - in the notification
@@ -443,11 +449,13 @@ asking for it by id answers `404`, as a run of another organization does. A
 dataset's runs also need `datasets:view` on it, and list only the agents the
 reader may see.
 
-Setting up, changing, pausing or running a suite needs `agents:edit` on the
-agent, `datasets:run` on the dataset and `runs:view`, and a person signed in as
+Setting up, changing, pausing or running a suite needs `agents:edit` and
+`agents:run` on the agent, `datasets:run` on the dataset and `runs:view`, and a
+person signed in as
 themselves: a suite spends as whoever saves it, so neither an API key nor an
 administrator acting as somebody can. Reading an agent's suites needs
-`runs:view` and the agent.
+`runs:view` and the agent; the questions of the cases a result names are shown
+only to a reader who may open the dataset.
 
 ## What a run keeps { #what-a-run-keeps }
 

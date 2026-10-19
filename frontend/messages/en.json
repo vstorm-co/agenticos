@@ -8449,7 +8449,8 @@
       "paused": {
         "byPerson": "Paused",
         "owner_inactive": "Paused: its owner left",
-        "owner_lacks_access": "Paused: its owner lost access"
+        "owner_lacks_access": "Paused: its owner lost access",
+        "environment_gone": "Paused: its environment was removed"
       },
       "next": "Next {date}",
       "runNow": "Run now",
@@ -8491,7 +8492,9 @@
         "run_gone": "Its eval run is gone.",
         "cancelled": "Its eval run was stopped.",
         "failed": "Its eval run failed.",
-        "budget_exceeded": "Its eval run ran out of budget."
+        "budget_exceeded": "Its eval run ran out of budget.",
+        "start_failed": "The suite could not start its eval run.",
+        "settle_failed": "The suite could not read its eval run's result."
       },
       "form": {
         "newTitle": "New suite",

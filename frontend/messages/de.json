@@ -8332,7 +8332,8 @@
       "paused": {
         "byPerson": "Pausiert",
         "owner_inactive": "Pausiert: Eigentümer ausgeschieden",
-        "owner_lacks_access": "Pausiert: Eigentümer hat keinen Zugriff mehr"
+        "owner_lacks_access": "Pausiert: Eigentümer hat keinen Zugriff mehr",
+        "environment_gone": "Pausiert: ihre Umgebung wurde entfernt"
       },
       "next": "Nächster Lauf {date}",
       "runNow": "Jetzt ausführen",
@@ -8374,7 +8375,9 @@
         "run_gone": "Ihr Eval-Run existiert nicht mehr.",
         "cancelled": "Ihr Eval-Run wurde gestoppt.",
         "failed": "Ihr Eval-Run ist fehlgeschlagen.",
-        "budget_exceeded": "Ihrem Eval-Run ist das Budget ausgegangen."
+        "budget_exceeded": "Ihrem Eval-Run ist das Budget ausgegangen.",
+        "start_failed": "Die Suite konnte ihren Eval-Run nicht starten.",
+        "settle_failed": "Die Suite konnte das Ergebnis ihres Eval-Runs nicht lesen."
       },
       "form": {
         "newTitle": "Neue Suite",

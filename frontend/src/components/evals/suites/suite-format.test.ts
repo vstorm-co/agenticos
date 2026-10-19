@@ -91,6 +91,9 @@ describe("reasonText", () => {
 describe("skipText", () => {
   it("words a known reason, and falls back to the message or the code", () => {
     expect(skipText(suiteResult({ status: "skipped", reason: "budget" }), t)).toBe("skip.budget");
+    expect(skipText(suiteResult({ status: "error", reason: "start_failed" }), t)).toBe(
+      "skip.start_failed",
+    );
     expect(
       skipText(
         suiteResult({

@@ -130,6 +130,8 @@ const KNOWN_SKIPS = new Set([
   "cancelled",
   "failed",
   "budget_exceeded",
+  "start_failed",
+  "settle_failed",
 ]);
 
 /** Why a result skipped or ended without a verdict, in the console's words where it has them. */

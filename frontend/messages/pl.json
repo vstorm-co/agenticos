@@ -7692,7 +7692,8 @@
       "paused": {
         "byPerson": "Wstrzymana",
         "owner_inactive": "Wstrzymana: właściciel odszedł",
-        "owner_lacks_access": "Wstrzymana: właściciel stracił dostęp"
+        "owner_lacks_access": "Wstrzymana: właściciel stracił dostęp",
+        "environment_gone": "Wstrzymana: jej środowisko usunięto"
       },
       "next": "Następnie {date}",
       "runNow": "Uruchom teraz",
@@ -7734,7 +7735,9 @@
         "run_gone": "Jej run evala już nie istnieje.",
         "cancelled": "Jej run evala zatrzymano.",
         "failed": "Jej run evala się nie powiódł.",
-        "budget_exceeded": "Jej run evala wyczerpał budżet."
+        "budget_exceeded": "Jej run evala wyczerpał budżet.",
+        "start_failed": "Suita nie mogła uruchomić swojego runa evala.",
+        "settle_failed": "Suita nie mogła odczytać wyniku swojego runa evala."
       },
       "form": {
         "newTitle": "Nowa suita",

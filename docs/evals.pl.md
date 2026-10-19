@@ -1,5 +1,5 @@
 ---
-source_sha: "236f1dc11eec"
+source_sha: "f266859926c0"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -278,6 +278,11 @@ które odpowiedziała tylko jedna strona, liczą się jako nieporównane.
 wersji przed kandydatem - dla draftu na opublikowanej wersji. Obie strony są
 opisane datą, modelem i wersją datasetu, bo mogą się różnić w każdej z nich.
 
+Run może zamiast tego wskazać jako baseline **wcześniejszy run** tego samego
+agenta na tym samym datasecie (`baseline_run_id`). Jego odwrócenia są wtedy
+powtarzane i potwierdzane względem tamtego runa - tak
+[suita evali](#suites) sprawdzająca codziennie tę samą wersję widzi dryf.
+
 ### Baseline w tym samym runie { #a-baseline-in-the-same-run }
 
 Gdy od wyniku zależy decyzja - bramka promocji, proponowana zmiana sprawdzana
@@ -418,8 +423,9 @@ zaliczony przypadek i opóźnienia p95 względem baseline'u; puste niczego nie
 sprawdzają.
 
 Wynik, którego porównanie jest
-[nieważne](#a-different-judge-invalidates-the-comparison), jest **bez
-rozstrzygnięcia**, nigdy zaliczony. Wynik **nie został uruchomiony**, gdy
+[nieważne](#a-different-judge-invalidates-the-comparison) albo w którym nie
+udało się ocenić żadnego przypadku, jest **bez rozstrzygnięcia**, nigdy
+zaliczony. Wynik **nie został uruchomiony**, gdy
 kosztowałby więcej, niż zostało w budżecie albo niż własny limit suity, gdy
 ocenić go mógłby tylko sędzia, a wsparcie AI jest wyłączone, albo gdy nie ma
 opublikowanej wersji do sprawdzenia. Runy z harmonogramu i po zmianie
@@ -434,7 +440,8 @@ startuje run z harmonogramu, więc zapisanie suity to zgoda na jej koszt, a
 formularz najpierw pokazuje cenę jednego runa i miesiąca harmonogramu. Ktoś
 inny, kto zmieni suitę, przejmuje ją. Suita, której właściciel opuści
 organizację albo nie może jej już uruchomić, zostaje wstrzymana z podanym
-powodem.
+powodem - tak samo jak suita, której środowisko usunięto, zamiast po cichu
+sprawdzać inną wersję.
 
 Właściciel dostaje wiadomość, gdy wynik nie przechodzi albo się nie
 uruchamia - raz na serię takich wyników na danej wersji, z nazwami
@@ -473,11 +480,13 @@ wyświetlany, a prośba o niego po id odpowiada `404`, tak jak run innej
 organizacji. Runy datasetu wymagają też `datasets:view` na nim i wymieniają
 tylko agentów, których czytający może widzieć.
 
-Utworzenie, zmiana, wstrzymanie albo uruchomienie suity wymaga `agents:edit` na
-agencie, `datasets:run` na datasecie i `runs:view`, a do tego osoby zalogowanej
+Utworzenie, zmiana, wstrzymanie albo uruchomienie suity wymaga `agents:edit` i
+`agents:run` na agencie, `datasets:run` na datasecie i `runs:view`, a do tego
+osoby zalogowanej
 jako ona sama: suita wydaje jako ta, kto ją zapisze, więc nie może tego zrobić
 ani klucz API, ani administrator działający w czyimś imieniu. Odczyt suit
-agenta wymaga `runs:view` i dostępu do agenta.
+agenta wymaga `runs:view` i dostępu do agenta; pytania przypadków wskazanych w
+wyniku widzi tylko ktoś, kto może otworzyć dataset.
 
 ## Co run zachowuje { #what-a-run-keeps }
 

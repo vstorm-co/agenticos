@@ -1,5 +1,5 @@
 ---
-source_sha: "236f1dc11eec"
+source_sha: "f266859926c0"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -277,6 +277,11 @@ dataset en la versión anterior al candidato - la versión publicada, para un
 borrador. Ambos lados llevan su fecha, su modelo y su versión del dataset,
 porque pueden diferir en cualquiera de ellos.
 
+Un run puede nombrar en su lugar un **run anterior** del mismo agent sobre el
+mismo dataset como baseline (`baseline_run_id`). Sus cambios se repiten y se
+confirman entonces frente a ese run: así una [suite de evals](#suites) que
+comprueba la misma versión cada día ve la deriva.
+
 ### Un baseline en el mismo run { #a-baseline-in-the-same-run }
 
 Cuando una decisión depende del resultado - una puerta de promoción, un cambio
@@ -417,8 +422,8 @@ límites opcionales comprueban la eficiencia: la subida del coste por caso
 aprobado y de la latencia p95 frente al baseline; vacíos, no comprueban nada.
 
 Un resultado cuya comparación es
-[no válida](#a-different-judge-invalidates-the-comparison) queda **sin
-conclusión**, nunca aprobado. Un resultado **no se ejecutó** cuando costaría
+[no válida](#a-different-judge-invalidates-the-comparison), o en el que no se
+pudo puntuar ningún caso, queda **sin conclusión**, nunca aprobado. Un resultado **no se ejecutó** cuando costaría
 más de lo que le queda a un presupuesto o más que el límite propio de la
 suite, cuando solo el juez podría puntuarlo y la asistencia de IA está
 desactivada, o cuando no hay una versión publicada que comprobar. Las
@@ -434,7 +439,8 @@ cómo arranca una ejecución programada, así que guardar una suite es aceptar s
 gasto, y el formulario muestra antes el precio de una ejecución y de un mes de
 horario. Otra persona que cambie la suite pasa a ser su propietaria. Una suite
 cuyo propietario deja la organización, o ya no puede ejecutarla, queda en pausa
-con el motivo.
+con el motivo, igual que una cuyo entorno se elimina, en lugar de comprobar en
+silencio otra versión.
 
 Al propietario se le avisa cuando un resultado no pasa o no se ejecuta - una
 vez por serie de esos resultados sobre una versión, con los casos que se
@@ -474,11 +480,13 @@ pedirlo por id responde `404`, igual que un run de otra organización. Los runs
 de un dataset requieren además `datasets:view` sobre él, y solo listan los
 agents que el lector puede ver.
 
-Crear, cambiar, pausar o ejecutar una suite requiere `agents:edit` en el agent,
-`datasets:run` en el dataset y `runs:view`, y una persona que haya iniciado
+Crear, cambiar, pausar o ejecutar una suite requiere `agents:edit` y
+`agents:run` en el agent, `datasets:run` en el dataset y `runs:view`, y una
+persona que haya iniciado
 sesión como ella misma: una suite gasta como quien la guarda, así que no puede
 hacerlo ni una clave de API ni un administrador que actúe en nombre de otro.
-Leer las suites de un agent requiere `runs:view` y el agent.
+Leer las suites de un agent requiere `runs:view` y el agent; las preguntas de
+los casos que nombra un resultado solo las ve quien puede abrir el dataset.
 
 ## Qué conserva un run { #what-a-run-keeps }
 
