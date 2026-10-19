@@ -107,6 +107,9 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
   // Kept after the wizard closes, so it does not turn back into the create
   // form while it animates out; opening it to connect is what clears it.
   const [editingSource, setEditingSource] = useState<SyncSourceRead | null>(null);
+  // Bumped each time the wizard opens, so a save that finishes after it was
+  // dismissed and reopened does not close the newer one.
+  const wizardSession = useRef(0);
   const [viewerDoc, setViewerDoc] = useState<KBDocument | null>(null);
   const [ingestionOpen, setIngestionOpen] = useState(false);
   const [embeddingOpen, setEmbeddingOpen] = useState(false);
@@ -342,10 +345,12 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
             connectorsFailed={sectionFailures.connectors}
             mayEdit={mayEdit}
             onConnect={() => {
+              wizardSession.current += 1;
               setEditingSource(null);
               setWizardOpen(true);
             }}
             onEdit={(source) => {
+              wizardSession.current += 1;
               setEditingSource(source);
               setWizardOpen(true);
             }}
@@ -477,10 +482,11 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         submitting={creatingSource}
         editing={editingSource}
         onUpdate={async (sourceId, data) => {
+          const session = wizardSession.current;
           setCreatingSource(true);
           try {
             await updateSyncSource(sourceId, data);
-            setWizardOpen(false);
+            if (wizardSession.current === session) setWizardOpen(false);
           } finally {
             setCreatingSource(false);
           }

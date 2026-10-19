@@ -445,7 +445,14 @@ class SyncSourceService:
 
         if "config" in updates and updates["config"] is not None:
             raw_existing = _raw_config(existing)
-            merged: dict = {**raw_existing, **updates["config"]}
+            # A key patched to null is removed: a form that clears an optional
+            # field has no other way to say so, and the merge would keep the
+            # old value.
+            merged: dict = {
+                key: value
+                for key, value in {**raw_existing, **updates["config"]}.items()
+                if value is not None
+            }
             await _refuse_a_credential_in_the_config(merged, existing.connector_type)
             # The merged config, not the patch: a caller sends one field and the
             # connector judges the whole thing it will actually run with. Asked

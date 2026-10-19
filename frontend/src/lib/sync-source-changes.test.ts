@@ -90,6 +90,19 @@ describe("syncSourceChanges", () => {
     const added = { ...syncSourceForm(SOURCE), config: { ...SOURCE.config, extra: "x" } };
     expect(syncSourceChanges(SOURCE, added).config).toEqual({ ...SOURCE.config, extra: "x" });
     const removed = { ...syncSourceForm(SOURCE), config: { folder_id: "1AbC" } };
-    expect(syncSourceChanges(SOURCE, removed).config).toEqual({ folder_id: "1AbC" });
+    expect(syncSourceChanges(SOURCE, removed).config).toEqual({
+      folder_id: "1AbC",
+      recursive: null,
+    });
+  });
+
+  it("sends a cleared config field as null, so the server's merge removes it", () => {
+    const form = {
+      ...syncSourceForm(SOURCE),
+      config: { folder_id: "1AbC", recursive: undefined },
+    };
+    expect(syncSourceChanges(SOURCE, form)).toEqual({
+      config: { folder_id: "1AbC", recursive: null },
+    });
   });
 });

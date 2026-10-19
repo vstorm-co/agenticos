@@ -20,6 +20,23 @@ function sameConfig(a: Record<string, unknown>, b: Record<string, unknown>): boo
 }
 
 /**
+ * The edited config, with a key the form cleared sent as null.
+ *
+ * The server merges a patch over the stored config, so a key simply left out
+ * would keep its old value; null is how a patch removes it.
+ */
+function configPatch(
+  before: Record<string, unknown>,
+  after: Record<string, unknown>,
+): Record<string, unknown> {
+  const patch: Record<string, unknown> = { ...after };
+  for (const key of Object.keys(before)) {
+    if (after[key] === undefined) patch[key] = null;
+  }
+  return patch;
+}
+
+/**
  * What the edit changed, and nothing else.
  *
  * Not the whole form, because resending a field is not neutral: a `secret_id`
@@ -32,7 +49,9 @@ export function syncSourceChanges(
 ): SyncSourceUpdate {
   const changes: SyncSourceUpdate = {};
   if (form.name !== before.name) changes.name = form.name;
-  if (!sameConfig(form.config, before.config)) changes.config = form.config;
+  if (!sameConfig(form.config, before.config)) {
+    changes.config = configPatch(before.config, form.config);
+  }
   if ((form.secret_id ?? null) !== before.secret_id) changes.secret_id = form.secret_id ?? null;
   if ((form.organizational_unit ?? null) !== before.organizational_unit) {
     changes.organizational_unit = form.organizational_unit ?? null;

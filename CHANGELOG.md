@@ -25,8 +25,10 @@ Two things are versioned separately from this file and worth knowing about:
   a source, moving it to another folder or changing its schedule no longer
   means deleting it and losing its sync history. It saves through a new
   `PATCH /kb/{kb_id}/sync-sources/{source_id}`, which an `edit` grant on the
-  base is enough for, and which refuses a source of another base (404) or a
-  move to one. Contributed by @henfircreo in #2199.
+  base is enough for, and which refuses a source of another base or of another
+  organization (404) and a move out of the base. A config key patched to
+  `null` is now removed rather than kept by the merge, so a field cleared in
+  the form is cleared on the source. Contributed by @henfircreo in #2199.
 
 ## [1.7.1] - 2026-10-19
 

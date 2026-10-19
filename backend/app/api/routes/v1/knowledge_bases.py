@@ -481,18 +481,21 @@ async def update_kb_sync_source(
     it again, as the caller's own choice, and a credential private to whoever
     set the source up is then refused.
 
-    The source stays filed under this KB: a `collection_name` naming another one
-    is refused rather than followed, because moving a source changes who can
-    read what it syncs and that is not a decision made from inside one base.
+    The source stays filed under this KB: a `collection_name` naming another one,
+    or `null`, is refused rather than followed, because moving a source changes
+    who can read what it syncs and that is not a decision made from inside one
+    base.
+
+    A key set to `null` in `config` removes it from the stored config.
     """
     kb = await service.get_for_write(kb_id, ctx=ctx)
     source = await sync_source_svc.get_source(str(source_id))
-    if source.collection_name != kb.collection_name:
+    if not in_knowledge_base(source, kb):
         raise NotFoundError(
             message="Sync source not found in this knowledge base",
             details={"kb_id": str(kb_id), "source_id": str(source_id)},
         )
-    if data.collection_name is not None and data.collection_name != kb.collection_name:
+    if "collection_name" in data.model_fields_set and data.collection_name != kb.collection_name:
         raise refused_field(
             "collection_name", "A source cannot be moved to another knowledge base from here"
         )

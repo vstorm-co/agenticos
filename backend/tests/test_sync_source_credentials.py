@@ -27,7 +27,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.core.exceptions import BadRequestError
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.repositories import organization_secret_repo
 from app.schemas.sync_source import (
@@ -283,6 +283,30 @@ class TestACredentialInTheConfigIsRefused:
             )
 
         assert "service_account_json" in exc.value.details["fields"]
+
+    async def test_a_config_key_patched_to_null_is_removed(self, monkeypatch):
+        """A form that clears an optional field sends null for it; merged over the
+        stored config, anything else would keep the value the editor cleared."""
+        service = _service(monkeypatch)
+        existing = SimpleNamespace(
+            connector_type="s3",
+            ctx=_ctx(_ORG),
+            config={"bucket": "docs", "prefix": "marketing/"},
+            secret_id=None,
+            collection_name="handbook",
+        )
+        monkeypatch.setattr(service, "get_source", AsyncMock(return_value=existing))
+        update = AsyncMock(return_value=None)
+        monkeypatch.setattr(sync_source_module.sync_source_repo, "update", update)
+
+        with pytest.raises(NotFoundError):
+            await service.update_source(
+                str(uuid.uuid4()),
+                SyncSourceUpdate(config={"prefix": None}),
+                ctx=_ctx(_ORG),
+            )
+
+        assert update.await_args.kwargs["config"] == {"bucket": "docs"}
 
 
 class TestWhatTheReadCarries:

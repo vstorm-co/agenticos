@@ -53,12 +53,15 @@ def _read(**overrides: Any) -> SyncSourceRead:
 
 class _Fakes:
     def __init__(self) -> None:
+        self.org_id = uuid.uuid4()
         self.kb_service = MagicMock()
         self.kb_service.get_for_write = AsyncMock(
-            return_value=MagicMock(collection_name="handbook")
+            return_value=MagicMock(collection_name="handbook", organization_id=self.org_id)
         )
         self.sources = MagicMock()
-        self.sources.get_source = AsyncMock(return_value=MagicMock(collection_name="handbook"))
+        self.sources.get_source = AsyncMock(
+            return_value=MagicMock(collection_name="handbook", organization_id=self.org_id)
+        )
         self.sources.update_source = AsyncMock(
             return_value=_read(name="Renamed", schedule_minutes=60)
         )
@@ -106,7 +109,24 @@ class TestUpdateKbSyncSource:
         assert data.model_fields_set == {"name", "schedule_minutes"}
 
     async def test_a_source_of_another_base_is_missing(self, client, fakes: _Fakes) -> None:
-        fakes.sources.get_source.return_value = MagicMock(collection_name="elsewhere")
+        fakes.sources.get_source.return_value = MagicMock(
+            collection_name="elsewhere", organization_id=fakes.org_id
+        )
+
+        async with client() as opened:
+            response = await opened.patch(_URL, json={"name": "Renamed"})
+
+        assert response.status_code == 404
+        fakes.sources.update_source.assert_not_awaited()
+
+    async def test_another_organizations_source_in_a_same_named_collection_is_missing(
+        self, client, fakes: _Fakes
+    ) -> None:
+        """Collection names are not unique across tenants, so the name alone would
+        let a caller who edits their own base write another organization's source."""
+        fakes.sources.get_source.return_value = MagicMock(
+            collection_name="handbook", organization_id=uuid.uuid4()
+        )
 
         async with client() as opened:
             response = await opened.patch(_URL, json={"name": "Renamed"})
@@ -142,6 +162,17 @@ class TestUpdateKbSyncSource:
     ) -> None:
         async with client() as opened:
             response = await opened.patch(_URL, json={"collection_name": "elsewhere"})
+
+        assert response.status_code == 400
+        fields = response.json()["error"]["details"]["fields"]
+        assert [problem["field"] for problem in fields] == ["collection_name"]
+        fakes.sources.update_source.assert_not_awaited()
+
+    async def test_a_null_collection_is_refused_rather_than_detaching_the_source(
+        self, client, fakes: _Fakes
+    ) -> None:
+        async with client() as opened:
+            response = await opened.patch(_URL, json={"collection_name": None})
 
         assert response.status_code == 400
         fields = response.json()["error"]["details"]["fields"]
