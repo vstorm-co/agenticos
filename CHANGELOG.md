@@ -17,6 +17,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **A sync source can be edited from its knowledge base.** The pencil on a
+  row of the **Sync** tab opens the connect wizard filled in from the source,
+  with its connector fixed, and saves only the fields that changed: renaming
+  a source, moving it to another folder or changing its schedule no longer
+  means deleting it and losing its sync history. It saves through a new
+  `PATCH /kb/{kb_id}/sync-sources/{source_id}`, which an `edit` grant on the
+  base is enough for, and which refuses a source of another base (404) or a
+  move to one. Contributed by @henfircreo in #2199.
+
 ## [1.7.1] - 2026-10-19
 
 ### Fixed
