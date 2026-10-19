@@ -1,28 +1,25 @@
-"""The three services that hand a flow work it can only do after the commit.
+"""The services that hand background work a row they have just written (#417, #2219).
 
-#417. Each of these writes a row and dispatches a Prefect flow whose first act
-is to read that row back by id, on a session of its own. Started when it was
-created, the flow looked for a row no other transaction could see yet and gave
-up: an upload that answered `{"status": "processing"}` and stayed that way, a
-sync log that never moved off `running`.
+Each of these writes a row and asks for work whose first act is to read that row
+back by id, on a session of its own. Started before the commit, the work looked
+for a row no other transaction could see yet and gave up: an upload that answered
+`{"status": "processing"}` and stayed that way, a sync log that never moved off
+`running`.
 
-`tests/integration/test_flow_starts_after_commit.py` proves the ordering
-against a real database. These pin the three call sites to it - that the work
-is *queued on the session* and not started, and that it runs when the session
-says the transaction landed.
+Now the work is a job written on the service's own session, so it commits with
+the row or not at all - `tests/integration/test_background_job_queue.py` proves
+that a rolled-back enqueue leaves nothing behind. These pin each call site to
+it: the job is queued on *this* session, as the right kind, carrying the ids
+the worker will read back.
 """
-
-from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
 
-from app.core import background
 from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError
 from app.core.permissions import AuthContext
@@ -33,94 +30,67 @@ from app.services.ingestion_config import IngestionConfig, IngestionConfigServic
 from app.services.rag_document import RAGDocumentService
 from app.services.rag_sync import RAGSyncService
 from app.services.sync_source import SyncSourceService
-from app.worker.tasks import rag_tasks
+from app.worker import jobs
 
 pytestmark = pytest.mark.anyio
 
 
-@pytest.fixture(autouse=True)
-def no_leftovers():
-    """Module state, so a task one test starts is not drained by the next."""
-    background._running.clear()
-    yield
-    background._running.clear()
-
-
 @pytest.fixture
 def session():
-    """A session with no bind: only its `info` is in play here."""
+    """A session with no bind: the queued job is captured before it would reach one."""
     from sqlalchemy.ext.asyncio import AsyncSession
 
     return AsyncSession()
 
 
-def _nothing_started(what: str) -> str:
-    """Why an empty task set is the assertion rather than an empty result list.
+@pytest.fixture
+def queued(monkeypatch) -> list[tuple[object, jobs.TaskKind, jobs.Payload, dict[str, object]]]:
+    """Every `enqueue` the services make, with the session it was made on."""
+    calls: list[tuple[object, jobs.TaskKind, jobs.Payload, dict[str, object]]] = []
 
-    A task created with `spawn` has not *run* when the call returns either - the
-    loop starts it at the next suspension point, and there is none between the
-    service returning and the assertion. What separates the two handoffs at that
-    instant is whether a task exists at all.
-    """
-    return f"{what} was handed to the event loop before the commit (#417)"
+    async def enqueue(db, task, payload, **options):
+        calls.append((db, task, payload, options))
+        return uuid4()
+
+    for module in (
+        "app.services.rag_sync",
+        "app.services.sync_source",
+        "app.services.rag_document",
+    ):
+        monkeypatch.setattr(f"{module}.enqueue", enqueue)
+    return calls
 
 
-async def _run_deferred(session) -> None:
-    """What `_managed_session` does the instant its commit returns."""
-    background.start_deferred(session)
-    await background.drain(timeout=5.0)
-
-
-async def test_a_local_sync_starts_after_its_log_row_is_committed(session, monkeypatch) -> None:
-    dispatched: list[str] = []
+async def test_a_local_sync_is_queued_on_the_session_that_wrote_its_log(
+    session, queued, monkeypatch
+) -> None:
     sync_log = SimpleNamespace(id=uuid4())
-    monkeypatch.setattr(sync_log_repo, "create", AsyncMock(return_value=sync_log))
-
-    async def flow(*, sync_log_id: str, **_: Any) -> None:
-        dispatched.append(sync_log_id)
-
-    monkeypatch.setattr(rag_tasks, "sync_collection_flow", flow)
-
-    await RAGSyncService(session).start_local_sync(
-        collection_name="handbooks", mode="full", path="/srv/docs"
-    )
-
-    assert not background._running, _nothing_started("the local sync")
-    assert dispatched == []
-
-    await _run_deferred(session)
-    assert dispatched == [str(sync_log.id)]
-
-
-async def test_a_local_sync_carries_the_authorized_knowledge_base_id(session, monkeypatch) -> None:
-    """The route resolves the base it authorized and passes its id, so the flow can
-    read that base's tenant and stamp the synced rows with it rather than writing
-    them untagged into an org-backed collection (#1684)."""
     kb_id = uuid4()
-    captured: dict[str, Any] = {}
-    monkeypatch.setattr(
-        sync_log_repo, "create", AsyncMock(return_value=SimpleNamespace(id=uuid4()))
-    )
-
-    async def flow(*, knowledge_base_id: str | None = None, **_: Any) -> None:
-        captured["knowledge_base_id"] = knowledge_base_id
-
-    monkeypatch.setattr(rag_tasks, "sync_collection_flow", flow)
+    monkeypatch.setattr(sync_log_repo, "create", AsyncMock(return_value=sync_log))
 
     await RAGSyncService(session).start_local_sync(
         collection_name="handbooks", mode="full", path="/srv/docs", knowledge_base_id=kb_id
     )
-    await _run_deferred(session)
 
-    assert captured["knowledge_base_id"] == str(kb_id)
+    [(db, task, payload, _)] = queued
+    assert db is session
+    assert task is jobs.SYNC_COLLECTION
+    assert payload == jobs.SyncCollection(
+        sync_log_id=sync_log.id,
+        source="local",
+        collection_name="handbooks",
+        mode="full",
+        path="/srv/docs",
+        knowledge_base_id=kb_id,
+    )
 
 
-async def test_a_triggered_source_sync_starts_after_its_log_row_is_committed(
-    session, monkeypatch
+async def test_a_triggered_source_sync_is_queued_waiting_behind_any_other_sync_of_it(
+    session, queued, monkeypatch
 ) -> None:
-    dispatched: list[tuple[str, str]] = []
     source = SimpleNamespace(
         id=uuid4(),
+        organization_id=uuid4(),
         connector_type="google_drive",
         collection_name="handbooks",
         sync_mode="full",
@@ -129,26 +99,21 @@ async def test_a_triggered_source_sync_starts_after_its_log_row_is_committed(
     monkeypatch.setattr(sync_source_repo, "get_by_id", AsyncMock(return_value=source))
     monkeypatch.setattr(sync_log_repo, "create", AsyncMock(return_value=sync_log))
 
-    async def flow(source_id: str, sync_log_id: str) -> None:
-        dispatched.append((source_id, sync_log_id))
-
-    monkeypatch.setattr(rag_tasks, "sync_single_source_flow", flow)
-
     await SyncSourceService(session).trigger_sync(str(source.id))
 
-    assert not background._running, _nothing_started("the source sync")
-    assert dispatched == []
+    [(db, task, payload, options)] = queued
+    assert db is session
+    assert task is jobs.SYNC_SOURCE
+    assert payload == jobs.SyncConnectorSource(source_id=source.id, sync_log_id=sync_log.id)
+    assert options["concurrency_key"] == options["dedupe_key"] == f"sync-source:{source.id}"
+    assert options["organization_id"] == source.organization_id
 
-    await _run_deferred(session)
-    assert dispatched == [(str(source.id), str(sync_log.id))]
 
-
-async def test_an_uploaded_document_is_parsed_after_its_row_is_committed(
-    session, monkeypatch, tmp_path: Path
+async def test_an_uploaded_document_is_queued_for_parsing_on_the_session_that_wrote_it(
+    session, queued, monkeypatch, tmp_path: Path
 ) -> None:
     """The upload path, which is where #417 was actually noticed."""
-    dispatched: list[str] = []
-    document = SimpleNamespace(id=uuid4())
+    document = SimpleNamespace(id=uuid4(), organization_id=uuid4())
     collection = SimpleNamespace(
         collection_name="handbooks",
         embedding_model="text-embedding-3-small",
@@ -166,11 +131,6 @@ async def test_an_uploaded_document_is_parsed_after_its_row_is_committed(
     storage = SimpleNamespace(save=AsyncMock(return_value="rag/handbooks/policy.txt"))
     monkeypatch.setattr("app.services.rag_document.get_file_storage", lambda: storage)
 
-    async def flow(*, rag_document_id: str, **_: Any) -> None:
-        dispatched.append(rag_document_id)
-
-    monkeypatch.setattr(rag_tasks, "ingest_document_flow", flow)
-
     accepted = await RAGDocumentService(session).dispatch_upload(
         ctx=AuthContext(user_id=uuid4(), organization_id=uuid4(), role="owner"),
         collection=collection,
@@ -181,15 +141,13 @@ async def test_an_uploaded_document_is_parsed_after_its_row_is_committed(
     )
 
     assert accepted.status == "processing"
-    assert not background._running, (
-        "the parse was started before the commit, so it looks for this document "
-        "by id and finds nothing - and the upload it answered `processing` stays "
-        "that way forever (#417)"
-    )
-    assert dispatched == []
-
-    await _run_deferred(session)
-    assert dispatched == [str(document.id)]
+    [(db, task, payload, options)] = queued
+    assert db is session
+    assert task is jobs.INGEST_DOCUMENT
+    assert isinstance(payload, jobs.IngestDocument)
+    assert (payload.rag_document_id, payload.attempt, payload.replace) == (document.id, 1, False)
+    assert Path(payload.filepath).read_bytes() == b"a policy nobody reads"
+    assert options["organization_id"] == document.organization_id
 
 
 async def test_an_upload_to_a_name_mid_teardown_is_refused(session, monkeypatch) -> None:
@@ -233,11 +191,12 @@ def _failed_document() -> SimpleNamespace:
         collection_name="handbooks",
         filename="policy.txt",
         ingestion_attempt=1,
+        organization_id=uuid4(),
     )
 
 
 async def test_retrying_a_failed_document_parses_it_again(
-    session, monkeypatch, tmp_path: Path
+    session, queued, monkeypatch, tmp_path: Path
 ) -> None:
     """#441: the retry endpoint reported queueing a parse and queued nothing.
 
@@ -245,9 +204,8 @@ async def test_retrying_a_failed_document_parses_it_again(
     worse than the failure it was asked to fix - the diagnosis is gone and the
     document waits for a worker that was never told about it.
     """
-    dispatched: list[tuple[str, bool]] = []
     document = _failed_document()
-    retried = SimpleNamespace(**{**vars(document), "status": "processing"})
+    retried = SimpleNamespace(**{**vars(document), "status": "processing", "ingestion_attempt": 2})
 
     monkeypatch.setattr(settings, "MEDIA_DIR", str(tmp_path))
     monkeypatch.setattr(rag_document_repo, "get_by_id", AsyncMock(return_value=document))
@@ -255,17 +213,12 @@ async def test_retrying_a_failed_document_parses_it_again(
     storage = SimpleNamespace(load=AsyncMock(return_value=b"a policy nobody reads"))
     monkeypatch.setattr("app.services.rag_document.get_file_storage", lambda: storage)
 
-    async def flow(*, rag_document_id: str, replace: bool, **_: Any) -> None:
-        dispatched.append((rag_document_id, replace))
-
-    monkeypatch.setattr(rag_tasks, "ingest_document_flow", flow)
-
     await RAGDocumentService(session).retry_ingestion(str(document.id))
 
-    assert not background._running, _nothing_started("the retried parse")
-
-    await _run_deferred(session)
-    assert dispatched == [(str(document.id), True)], (
+    [(db, task, payload, _)] = queued
+    assert (db, task) == (session, jobs.INGEST_DOCUMENT)
+    assert isinstance(payload, jobs.IngestDocument)
+    assert (payload.rag_document_id, payload.replace, payload.attempt) == (document.id, True, 2), (
         "a retry must replace what the first attempt indexed, or a document "
         "that half-succeeded is represented twice in the collection"
     )
@@ -273,7 +226,7 @@ async def test_retrying_a_failed_document_parses_it_again(
 
 
 async def test_retrying_a_document_conditions_the_write_on_the_attempt_it_read(
-    session, monkeypatch, tmp_path: Path
+    session, queued, monkeypatch, tmp_path: Path
 ) -> None:
     """Two concurrent retries reading the same `ingestion_attempt` must not
     both win - the same "still current, not just read-then-write" guarantee
@@ -289,7 +242,6 @@ async def test_retrying_a_document_conditions_the_write_on_the_attempt_it_read(
     monkeypatch.setattr(rag_document_repo, "update_status", update)
     storage = SimpleNamespace(load=AsyncMock(return_value=b"a policy nobody reads"))
     monkeypatch.setattr("app.services.rag_document.get_file_storage", lambda: storage)
-    monkeypatch.setattr(rag_tasks, "ingest_document_flow", AsyncMock())
 
     await RAGDocumentService(session).retry_ingestion(str(document.id))
 

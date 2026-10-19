@@ -361,7 +361,7 @@ class TestRetention:
             patch("app.repositories.sandbox_operation.delete_older_than") as sweep,
         ):
             sweep.return_value = 4
-            await trigger_tasks.sweep_sandbox_operations_flow()
+            await trigger_tasks.sweep_sandbox_operations()
 
         cutoff = sweep.await_args.kwargs["cutoff"]
         expected = datetime.now(UTC) - timedelta(days=OPERATION_RETENTION_DAYS)

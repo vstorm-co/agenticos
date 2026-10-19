@@ -74,9 +74,14 @@ class SyncCollection(Payload):
     knowledge_base_id: UUID | None
 
 
-class SyncSource(Payload):
+class SyncConnectorSource(Payload):
     source_id: UUID
     sync_log_id: UUID | None
+
+
+def sync_source_key(source_id: UUID) -> str:
+    """What every sync of one source shares: one queued at a time, one running at a time."""
+    return f"sync-source:{source_id}"
 
 
 class FireTrigger(Payload):
@@ -152,7 +157,7 @@ SYNC_COLLECTION = Task(
 )
 SYNC_SOURCE = Task(
     kind="sync-source",
-    payload_type=SyncSource,
+    payload_type=SyncConnectorSource,
     pool=Pool.INGEST,
     max_attempts=2,
     timeout=timedelta(hours=4),

@@ -21,7 +21,7 @@ from __future__ import annotations
 import json
 import uuid
 from collections.abc import AsyncGenerator
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy import text
@@ -36,6 +36,7 @@ from app.services.organization import OrganizationService
 from app.services.rag.config import RAGSettings
 from app.services.rag.filters import AppScope, RetrievalQuery
 from app.services.rag.vectorstore import PgVectorStore
+from app.worker.jobs import Restamp
 from app.worker.tasks.teardown_tasks import cleanup_external_state
 
 # Every test here defends a tenant boundary, so the module carries the security
@@ -274,7 +275,9 @@ class TestTheDeferredCleanup:
         await _make_kb(db, kb_id)
         await _track(db, kb_id, ["doc-a"])
 
-        result = await cleanup_external_state([], [], [[COLLECTION, str(ORG_A), str(kb_id)]])
+        result = await cleanup_external_state(
+            [], [], [Restamp(collection=COLLECTION, organization_id=ORG_A, knowledge_base_id=kb_id)]
+        )
 
         assert result["restamped"] == 1
         reader = _store(engine)
@@ -341,9 +344,9 @@ class TestThePurgeEndToEnd:
         db.add_all([org_kb, personal_kb])
         await db.flush()
 
-        dispatch = MagicMock(return_value=None)
+        dispatch = AsyncMock(return_value=None)
         with (
-            patch("app.worker.tasks.teardown_tasks.dispatch_external_state_cleanup", dispatch),
+            patch("app.worker.tasks.teardown_tasks.queue_external_state_cleanup", dispatch),
             patch("app.core.background.spawn_after_commit"),
         ):
             await OrganizationService(db, vector_store=MagicMock()).purge(org)
@@ -354,6 +357,8 @@ class TestThePurgeEndToEnd:
         await db.refresh(survivor)
         assert survivor.organization_id is None  # the `SET NULL` that would strand it
 
-        _paths, to_drop, restamps = dispatch.call_args.args
+        _db, _paths, to_drop, restamps = dispatch.call_args.args
         assert to_drop == ["orgbook"]
-        assert restamps == [["mybook", str(ORG_A), str(personal_kb.id)]]
+        assert restamps == [
+            Restamp(collection="mybook", organization_id=ORG_A, knowledge_base_id=personal_kb.id)
+        ]

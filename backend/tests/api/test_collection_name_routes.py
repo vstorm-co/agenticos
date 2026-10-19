@@ -161,7 +161,7 @@ class TestDroppingACollection:
         )
         dispatch = AsyncMock()
         monkeypatch.setattr(
-            "app.worker.tasks.teardown_tasks.dispatch_external_state_cleanup", dispatch
+            "app.worker.tasks.teardown_tasks.queue_external_state_cleanup", dispatch
         )
 
         response = await client.delete(f"{settings.API_V1_STR}/rag/collections/handbook")

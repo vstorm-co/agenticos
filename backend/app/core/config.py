@@ -598,30 +598,39 @@ class Settings(BaseSettings):
     # deployment - see `docs/configuration.md`.
     RATE_LIMIT_TRUST_FORWARDED_FOR: bool = False
 
-    PREFECT_API_URL: str = "http://localhost:4200/api"
-    PREFECT_API_KEY: str | None = None
-    # How many flow runs the runner may execute at once. Each one is a separate
-    # Python process that imports the whole application, so the ceiling is memory
-    # rather than CPU: five of them is about 600 MB. It matters most after
-    # downtime, when the runner picks up a backlog of scheduled runs and would
-    # otherwise start all of them - see app/worker/prefect_app.py.
-    PREFECT_RUNNER_LIMIT: int = 5
-    # A floor under every Prefect schedule, for a machine that is not a server.
-    #
-    # Each Prefect flow run is a fresh Python process importing the application,
-    # measured at roughly seven seconds on a laptop and fourteen on the production
-    # host. The four minute-scale sweeps - the trigger heartbeat, the RAG sync
-    # check, the portal poll and notification delivery - used to be deployments
-    # paying that every minute; they now run inside the worker's process
-    # (`app/worker/sweeps.py`, #2213) and take no floor. What remains scheduled
-    # ticks every fifteen minutes or slower.
-    #
-    # `0` changes nothing and is the default, so a deployment keeps the
-    # intervals the code declares. Raising it lengthens only the schedules
-    # already faster than it, which is why this is a floor rather than a
-    # multiplier: hourly and daily sweeps are untouched by 600. `make dev` sets
-    # it; see `docs/configuration.md`.
-    WORKER_MIN_INTERVAL_SECONDS: int = Field(default=0, ge=0)
+    # The background workers (`python -m app.worker`, #2219). Each process serves
+    # the pools in `WORKER_POOLS`; a deployment that wants ingestion on its own
+    # container runs two workers, one with `agent,system` and one with `ingest`.
+    WORKER_POOLS: str = "agent,ingest,system"
+    # Agent runs at once per worker process. They wait on models rather than
+    # compute, so this is bounded by the database pool and the providers' rate
+    # limits more than by CPU.
+    WORKER_AGENT_CONCURRENCY: int = Field(default=10, ge=1)
+    # Sweeps, cleanups and reports at once per worker process.
+    WORKER_SYSTEM_CONCURRENCY: int = Field(default=4, ge=1)
+    # Child processes of the ingest pool: one parse each at a time. Each holds an
+    # imported application (about 450 MB) plus what its parse needs.
+    WORKER_INGEST_CHILDREN: int = Field(default=2, ge=1)
+    # The memory one ingest child may hold, with whatever it started, before the
+    # watchdog stops it and the job is written down as over the limit. Below the
+    # container's own limit, so the watchdog - which says why - acts before the
+    # kernel does.
+    WORKER_INGEST_MEMORY_MB: int = Field(default=1536, ge=256)
+    # Jobs an ingest child runs before it is replaced, so a parser that leaks a
+    # little per document is bounded by the recycling.
+    WORKER_INGEST_MAX_JOBS: int = Field(default=100, ge=1)
+    # How long a claimed job is held without a heartbeat. A worker that dies
+    # gives its jobs back this long after it stopped, at the latest.
+    WORKER_LEASE_SECONDS: int = Field(default=60, ge=10)
+    # Worker deaths in a row, across a kind's jobs, that pause the kind and tell
+    # the deployment's owners. A single job's own attempts already stop it from
+    # looping; this stops a kind from killing workers job after job.
+    WORKER_BREAKER_DEATHS: int = Field(default=5, ge=2)
+    # The file the container's health check reads: touched after every heartbeat
+    # that reached the database.
+    WORKER_HEALTH_FILE: str = "/tmp/agenticos-worker-alive"  # noqa: S108 - per-container
+    # Finished jobs kept for the panel; older ones are deleted daily.
+    BACKGROUND_JOB_RETENTION_DAYS: int = Field(default=14, ge=1)
 
     # Nothing about embeddings or parsing is a setting. The model, the provider
     # and the vault key that pays are recorded on the collection; where a local

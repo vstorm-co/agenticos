@@ -291,11 +291,11 @@ class KnowledgeBaseService:
         The table is dropped only when no base *other than this one* still references
         the name. The vector namespace is not tenant-unique, so a name a sibling - or
         another org - still holds backs a table their chunks live in too, and dropping
-        it would destroy theirs (#913). The drop is handed to the durable cleanup after
-        the commit (`spawn_after_commit` → `dispatch_external_state_cleanup`), not run
-        in the request: an in-request drop stranded a rolled-back delete on a dropped
-        table, lost it to a worker restart, and raced a concurrent claim (#1347, #1349,
-        #1355). The name is held against a claim while the reference check and the
+        it would destroy theirs (#913). The drop is a cleanup job queued in this
+        transaction (`queue_external_state_cleanup`), not run in the request, so it
+        happens only once the delete has committed: an in-request drop stranded a
+        rolled-back delete on a dropped table, lost it to a worker restart, and
+        raced a concurrent claim (#1347, #1349, #1355). The name is held against a claim while the reference check and the
         reservation are made, and reserved in `collection_teardowns` until the drop
         runs, so neither a create (`claim`) nor an upload (`dispatch_upload`) can slip
         onto the name and have this drop destroy its table (#1362, #1364).
@@ -317,14 +317,9 @@ class KnowledgeBaseService:
         ]
         if not others:
             await collection_teardown_repo.reserve(self.db, collection)
-            from app.core.background import spawn_after_commit
-            from app.worker.tasks.teardown_tasks import dispatch_external_state_cleanup
+            from app.worker.tasks.teardown_tasks import queue_external_state_cleanup
 
-            spawn_after_commit(
-                self.db,
-                dispatch_external_state_cleanup([], [collection]),
-                name="drop-rag-collection",
-            )
+            await queue_external_state_cleanup(self.db, [], [collection])
 
     async def get(self, kb_id: UUID, *, ctx: AuthContext) -> KnowledgeBase:
         """The knowledge base, or "not found" - for absent and out-of-reach alike."""
@@ -752,14 +747,12 @@ class KnowledgeBaseService:
         the row, then the table - dropped only when no other base still references
         the name, which is not tenant-unique (#913).
 
-        The stored files and the vector table are torn down by a durable cleanup
-        handed over after the commit (`spawn_after_commit` →
-        `dispatch_external_state_cleanup`). Deferring past the commit means a
-        rollback keeps them beside the rows it restores rather than stranding those
-        rows on a missing file or a dropped table (#1293, #1347); a Prefect
-        deployment run rather than an in-process task means a worker restart
-        mid-cleanup no longer orphans them - the run is recorded on the server and
-        retried (#1349). The flow re-reads the reference check on its own session
+        The stored files and the vector table are torn down by a cleanup job queued
+        in this transaction (`queue_external_state_cleanup`). A worker runs it only
+        once the delete has committed, so a rollback keeps them beside the rows it
+        restores rather than stranding those rows on a missing file or a dropped
+        table (#1293, #1347), and the job survives a worker restart mid-cleanup and
+        is retried (#1349). The job re-reads the reference check on its own session
         before dropping, because the name is not tenant-unique and a second org can
         reclaim it in the window between the commit and the drop (#913), and it
         builds its own vector engine - which is why this no longer takes a store.
@@ -802,14 +795,9 @@ class KnowledgeBaseService:
             # concurrent claim cannot adopt the still-populated table (#1362).
             await collection_teardown_repo.reserve(self.db, collection)
         if storage_paths or collections_to_drop:
-            from app.core.background import spawn_after_commit
-            from app.worker.tasks.teardown_tasks import dispatch_external_state_cleanup
+            from app.worker.tasks.teardown_tasks import queue_external_state_cleanup
 
-            spawn_after_commit(
-                self.db,
-                dispatch_external_state_cleanup(storage_paths, collections_to_drop),
-                name="delete-kb-cleanup",
-            )
+            await queue_external_state_cleanup(self.db, storage_paths, collections_to_drop)
 
     def _check_create_permission(self, *, scope: str, ctx: AuthContext) -> None:
         if scope == KBScope.APP.value and not ctx.is_app_admin:

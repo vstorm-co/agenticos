@@ -48,7 +48,6 @@ from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import current_impersonator, record_audit, set_acting_trigger
-from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.exceptions import (
     AppException,
@@ -85,9 +84,11 @@ from app.schemas.portal import PortalPresetRead, PortalRead
 from app.services import portal_catalog, portals, trigger_dedupe, trigger_events
 from app.services.access import AGENT, resolve_access, visible_resource_ids
 from app.services.agent_registry import AgentRegistryService
+from app.services.background_jobs import enqueue
 from app.services.mcp_connection import McpConnectionService
 from app.services.portal_catalog import DeliveryMode
 from app.services.portals.github_app import GitHubAppPortalAdapter
+from app.worker.jobs import FIRE_TRIGGER, FireTrigger
 
 logger = logging.getLogger(__name__)
 
@@ -153,13 +154,12 @@ def _connect_blocked_by(
 
 @dataclass(frozen=True)
 class EventFireDecision:
-    """A verified, matched delivery that should fire - the route dispatches it.
+    """A verified, matched delivery that should fire - queued as a job, not run.
 
     Returned by :meth:`AgentTriggerService.prepare_event_fire` rather than firing
     inline, because the fire runs an agent and a provider (GitHub's 10s) would time
-    the webhook out. The route hands this to a background task that calls
-    :meth:`AgentTriggerService.fire` with the `event_context` off its own session,
-    exactly as a channel mention is processed after its webhook returns.
+    the webhook out. `queue_event_fire` queues it, and a worker calls
+    :meth:`AgentTriggerService.fire` with the `event_context` off its own session.
     """
 
     trigger_id: UUID
@@ -1172,15 +1172,13 @@ class AgentTriggerService:
         timeout - 60s by default on nginx - answered the caller 504 while the run
         carried on and committed server-side: a failure reported for something that
         was working, and an invitation to press the button again and fire the
-        schedule twice. It is dispatched as its own `run-scheduled-trigger` flow -
-        the same durable, capped door the heartbeat and the webhook path use -
-        rather than an in-process task, because the 202 is a promise: a task
-        living in the API process is lost with the process (a restart, a deploy,
-        an exceeded drain timeout), leaving the caller polling for a `last_run_id`
-        that will never arrive, while an accepted flow run survives the API and is
-        performed by the worker. `spawn_after_commit`, not `spawn`, because the
-        fire reads the trigger on a session of its own and must not outrun this
-        request's transaction.
+        schedule twice. It is queued as a `fire-trigger` job - the same durable,
+        capped door the heartbeat and the webhook path use - rather than an
+        in-process task, because the 202 is a promise: a task living in the API
+        process is lost with the process (a restart, a deploy, an exceeded drain
+        timeout), leaving the caller polling for a `last_run_id` that will never
+        arrive. The job is written in this request's transaction, so it exists
+        exactly when the audit entry beside it does, and a worker runs it.
 
         Returns the trigger as it stands, which is why the route answers 202: the
         run has not happened yet, so `last_run_id` still names the previous one. The
@@ -1196,13 +1194,7 @@ class AgentTriggerService:
             target_id=str(agent_id),
             details={"trigger_id": str(trigger.id)},
         )
-        # Local, like the webhook route's: `trigger_tasks` pulls in Prefect, and
-        # the API import must stay free of it (#520).
-        from app.worker.tasks.trigger_tasks import dispatch_trigger_fire
-
-        spawn_after_commit(
-            self.db, dispatch_trigger_fire(str(trigger.id)), name=f"trigger-run-now-{trigger.id}"
-        )
+        await self.queue_fire(trigger.id, organization_id=trigger.organization_id)
         # `_owned` let this caller through, so they manage it - say so on the read.
         setattr(trigger, "can_manage", True)  # noqa: B010
         return trigger
@@ -1470,8 +1462,58 @@ class AgentTriggerService:
             key_version=cast(int, trigger.secret_key_version),
         )
 
+    async def queue_fire(
+        self,
+        trigger_id: UUID,
+        *,
+        organization_id: UUID | None,
+        event_context: str | None = None,
+        claimed_at: datetime | None = None,
+    ) -> None:
+        """Queue one fired run of `trigger_id`, in this unit of work's transaction.
+
+        Every door reaches the fire through here - the scheduled check, a polled
+        portal, an inbound webhook, the run-now button - so all of them run as a
+        `fire-trigger` job on the agent pool, capped and isolated from whatever
+        asked, and none as an agent run competing with request handling on the
+        API's loop. `claimed_at` is the scheduled claim's ticket (see `fire`);
+        only `claim_and_advance` has one.
+        """
+        await enqueue(
+            self.db,
+            FIRE_TRIGGER,
+            FireTrigger(trigger_id=trigger_id, event_context=event_context, claimed_at=claimed_at),
+            organization_id=organization_id,
+        )
+
+    async def queue_event_fire(
+        self, source: str, trigger_id: UUID, *, body: bytes, headers: Mapping[str, str]
+    ) -> bool:
+        """Authenticate and match an inbound delivery, and queue its fire. Answers whether it fired.
+
+        `False` - nothing to do - is answered by the route exactly as a fire is,
+        so a caller holding the secret cannot tell an existing trigger from a
+        missing one (see `prepare_event_fire`).
+        """
+        decision = await self.prepare_event_fire(source, trigger_id, body=body, headers=headers)
+        if decision is None:
+            return False
+        await self.queue_fire(
+            decision.trigger_id, organization_id=None, event_context=decision.event_context
+        )
+        return True
+
+    async def queue_app_fires(self, *, body: bytes, headers: Mapping[str, str]) -> int:
+        """Authenticate a GitHub App delivery and queue a fire for every trigger it matches."""
+        decisions = await self.prepare_app_fires(body=body, headers=headers)
+        for decision in decisions:
+            await self.queue_fire(
+                decision.trigger_id, organization_id=None, event_context=decision.event_context
+            )
+        return len(decisions)
+
     async def claim_and_advance(self, *, now: datetime, limit: int = 100) -> list[AgentTrigger]:
-        """Claim the triggers due now, advancing each so no later tick re-fires it.
+        """Claim the triggers due now, advance each so no later tick re-fires it, and queue its fire.
 
         The claim locks each row `FOR UPDATE SKIP LOCKED`, and advancing
         `next_fire_at` happens under that same lock, so two heartbeats running at
@@ -1487,8 +1529,11 @@ class AgentTriggerService:
         An orphaned schedule - one whose creator's user row was hard-deleted, so
         `created_by_user_id` is null - is claimed now (the query no longer filters
         it out) and disabled here rather than dispatched: it can never run, and
-        `fire` would only disable it after a wasted flow run. Dispatching is left to
-        the schedules that can still fire.
+        `fire` would only disable it after a wasted job. Firing is left to the
+        schedules that can still fire.
+
+        The fire is queued in the claim's own transaction, so a trigger is never
+        advanced without its run queued, nor queued twice: the two commit together.
         """
         triggers = await agent_trigger_repo.claim_due(self.db, now=now, limit=limit)
         live: list[AgentTrigger] = []
@@ -1502,13 +1547,14 @@ class AgentTriggerService:
             # claimable to the next tick. This timestamp is the claim's ticket: the
             # scheduled fire this claim dispatches is handed it back as `claimed_at`
             # and clears the marker only while it still matches (`fire`), so a fire
-            # that outran the lease cannot clear a newer claim's marker. A dispatch
-            # that never started a run leaves the marker for the lease to free rather
-            # than clearing it eagerly - the child flow may have started even when the
-            # submit call raised.
+            # that outran the lease cannot clear a newer claim's marker.
             trigger.fire_in_flight_since = now
             live.append(trigger)
         await self.db.flush()
+        for trigger in live:
+            await self.queue_fire(
+                trigger.id, organization_id=trigger.organization_id, claimed_at=now
+            )
         return live
 
     async def fire(

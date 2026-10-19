@@ -38,6 +38,7 @@ from app.services.agent_trigger import (
 )
 from app.services.portal_catalog import DeliveryMode
 from app.services.portals import PortalTarget, RegisteredWebhook, WebhookRegistrationForbidden
+from app.worker.jobs import FIRE_TRIGGER, FireTrigger
 
 _SIGNING_SECRET = "a-signing-secret-16-plus"
 
@@ -95,13 +96,6 @@ def _service(agent: MagicMock | None = None) -> AgentTriggerService:
         return_value=_named(id=uuid.uuid4(), name="grant")
     )
     return service
-
-
-async def _run_deferred(db: MagicMock) -> None:
-    """Run what the session deferred, as `_managed_session` does after its commit."""
-    for queue in db.info.values():
-        for deferred in queue:
-            await deferred.coro
 
 
 def _trigger(**overrides: object) -> MagicMock:
@@ -757,27 +751,27 @@ class TestManagingAnotherMembersTrigger:
         resolve.assert_not_awaited()
 
 
-@pytest.fixture
-def fired(monkeypatch: pytest.MonkeyPatch) -> list[str]:
-    """The trigger ids the dispatched fire was handed, in order.
+@pytest.fixture(autouse=True)
+def queued_fires(monkeypatch: pytest.MonkeyPatch) -> list[FireTrigger]:
+    """Every fire the service queued, as the job's payload, in order.
 
-    `run_now` queues `dispatch_trigger_fire` for after the commit rather than
-    awaiting `fire`, so what was fired is recorded here and not on the service.
-    Every test that reaches `_run_deferred` needs this: without it the queued
-    coroutine is the real dispatcher, which submits a Prefect flow run.
+    A fire is a `fire-trigger` job written on the service's session; the tests
+    here use a mocked session, so what would have been written is recorded.
     """
-    ids: list[str] = []
+    fires: list[FireTrigger] = []
 
-    async def _fire(
-        trigger_id: str,
-        *,
-        event_context: str | None = None,
-        claimed_at: datetime | None = None,
-    ) -> None:
-        ids.append(trigger_id)
+    async def enqueue(_db, task, payload, **_options):
+        assert task is FIRE_TRIGGER
+        fires.append(payload)
+        return uuid.uuid4()
 
-    monkeypatch.setattr("app.worker.tasks.trigger_tasks.dispatch_trigger_fire", _fire)
-    return ids
+    monkeypatch.setattr("app.services.agent_trigger.enqueue", enqueue)
+    return fires
+
+
+@pytest.fixture
+def fired(queued_fires: list[FireTrigger]) -> list[FireTrigger]:
+    return queued_fires
 
 
 class TestRunningNow:
@@ -790,14 +784,13 @@ class TestRunningNow:
         with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
             repo.get = AsyncMock(return_value=trigger)
             await service.run_now(_ctx(), agent.id, trigger.id)
-            await _run_deferred(service.db)
         assert service.agents.get.call_args.kwargs["perm"].value == "agents:run"
 
-    async def test_running_now_answers_before_the_run_it_dispatches(self, fired):
-        """#658: the fire is handed over, not awaited inside the request.
+    async def test_running_now_answers_before_the_run_it_queues(self, fired):
+        """#658: the fire is queued, not awaited inside the request.
 
-        Nothing has run by the time the caller is answered; the fire starts when
-        the session commits.
+        Nothing has run by the time the caller is answered; a worker runs the job
+        once the session commits.
         """
         agent = _agent()
         service = _service(agent)
@@ -810,9 +803,7 @@ class TestRunningNow:
             repo.get = AsyncMock(return_value=trigger)
             await service.run_now(_ctx(), agent.id, trigger.id)
             service.fire.assert_not_awaited()
-            assert fired == []
-            await _run_deferred(service.db)
-        assert fired == [str(trigger.id)]
+        assert [fire.trigger_id for fire in fired] == [trigger.id]
 
     async def test_running_now_fires_without_rescheduling(self, fired):
         """A manual fire is one extra run, not a reschedule - next_fire_at stands."""
@@ -823,7 +814,6 @@ class TestRunningNow:
         with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
             repo.get = AsyncMock(return_value=trigger)
             result = await service.run_now(_ctx(), agent.id, trigger.id)
-            await _run_deferred(service.db)
         assert trigger.next_fire_at == original_next
         assert result is trigger
 
@@ -840,7 +830,6 @@ class TestRunningNow:
         ):
             repo.get = AsyncMock(return_value=trigger)
             await service.run_now(_ctx(), agent.id, trigger.id)
-            await _run_deferred(service.db)
         assert audit.call_args.kwargs["action"] == "agent.trigger_run_now"
         assert audit.call_args.kwargs["actor_user_id"] == _CALLER
 
@@ -851,26 +840,14 @@ class TestRunningNow:
             repo.get = AsyncMock(return_value=_trigger(agent_id=uuid.uuid4()))
             with pytest.raises(NotFoundError):
                 await service.run_now(_ctx(), agent.id, uuid.uuid4())
-            await _run_deferred(service.db)
         assert fired == []
 
     async def test_running_now_on_an_event_trigger_fires_with_no_event_context(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, queued_fires: list[FireTrigger]
     ):
         """Run now is a deliberate manual test-fire on an event trigger too, not a
         400: it dispatches the fire with no delivery context, so the agent runs its
         base prompt exactly as it would before any webhook arrived."""
-        calls: list[tuple[str, str | None]] = []
-
-        async def _fire(
-            trigger_id: str,
-            *,
-            event_context: str | None = None,
-            claimed_at: datetime | None = None,
-        ) -> None:
-            calls.append((trigger_id, event_context))
-
-        monkeypatch.setattr("app.worker.tasks.trigger_tasks.dispatch_trigger_fire", _fire)
         agent = _agent()
         service = _service(agent)
         trigger = _event_trigger(agent_id=agent.id)
@@ -880,8 +857,9 @@ class TestRunningNow:
         ):
             repo.get = AsyncMock(return_value=trigger)
             await service.run_now(_ctx(), agent.id, trigger.id)
-            await _run_deferred(service.db)
-        assert calls == [(str(trigger.id), None)]
+        assert [(fire.trigger_id, fire.event_context) for fire in queued_fires] == [
+            (trigger.id, None)
+        ]
 
 
 class TestClaiming:
@@ -932,6 +910,67 @@ class TestClaiming:
         assert orphan.is_active is False
         assert claimed == []
         assert audit.call_args.kwargs["details"]["reason"] == "creator_not_active"
+
+    async def test_each_claimed_trigger_has_its_fire_queued_with_the_claims_ticket(
+        self, queued_fires: list[FireTrigger]
+    ):
+        """Queued in the claim's own transaction, carrying the `now` the claim
+        stamped on the marker, so the fire clears only the marker its claim set -
+        and an orphan, disabled instead, has no fire queued at all."""
+        service = _service()
+        now = datetime(2026, 6, 1, tzinfo=UTC)
+        live = [_trigger(interval_seconds=300) for _ in range(2)]
+        orphan = _trigger(created_by_user_id=None)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.claim_due = AsyncMock(return_value=[live[0], orphan, live[1]])
+            await service.claim_and_advance(now=now)
+
+        assert queued_fires == [
+            FireTrigger(trigger_id=trigger.id, event_context=None, claimed_at=now)
+            for trigger in live
+        ]
+
+
+class TestQueueingDeliveredFires:
+    async def test_a_matched_delivery_queues_its_fire_with_the_rendered_context(
+        self, queued_fires: list[FireTrigger]
+    ):
+        service = _service()
+        decision = EventFireDecision(trigger_id=uuid.uuid4(), event_context="ISSUE #7")
+        service.prepare_event_fire = AsyncMock(return_value=decision)
+
+        assert await service.queue_event_fire("github", decision.trigger_id, body=b"{}", headers={})
+        assert queued_fires == [
+            FireTrigger(trigger_id=decision.trigger_id, event_context="ISSUE #7")
+        ]
+
+    async def test_a_delivery_with_nothing_to_do_queues_nothing(
+        self, queued_fires: list[FireTrigger]
+    ):
+        service = _service()
+        service.prepare_event_fire = AsyncMock(return_value=None)
+
+        assert not await service.queue_event_fire("github", uuid.uuid4(), body=b"{}", headers={})
+        assert queued_fires == []
+
+    async def test_one_app_delivery_queues_a_fire_for_every_trigger_it_matched(
+        self, queued_fires: list[FireTrigger]
+    ):
+        """All of them in the request's transaction: the delivery's dedupe claim was
+        taken for every decision, so they are queued together or not at all."""
+        service = _service()
+        decisions = [
+            EventFireDecision(trigger_id=uuid.uuid4(), event_context=f"e{n}") for n in range(3)
+        ]
+        service.prepare_app_fires = AsyncMock(return_value=decisions)
+
+        assert await service.queue_app_fires(body=b"{}", headers={}) == 3
+        assert [(f.trigger_id, f.event_context) for f in queued_fires] == [
+            (d.trigger_id, d.event_context) for d in decisions
+        ]
 
 
 class TestFiring:

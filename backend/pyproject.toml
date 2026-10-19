@@ -48,7 +48,6 @@ dependencies = [
     # the OAuth handshake. Declared here rather than left transitive because the
     # middleware is ours: Starlette itself installs without it (#155).
     "itsdangerous>=2.2.0",
-    "prefect>=3.8.7",
     # The floor is ours as well as `pydantic-ai-harness`'s: the sandbox runs on
     # `pydantic_ai.workspaces` and passes `workspace=` to a run, both from 2.52,
     # and stating it keeps a resolver from picking a slim the harness cannot run

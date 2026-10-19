@@ -18,20 +18,17 @@ discover.
 
 import logging
 
-from prefect import flow
-
 from app.db.session import get_db_context
 from app.services.mcp_connection import check_organization_servers, sweep_oauth_connections
 
 logger = logging.getLogger(__name__)
 
 
-@flow(name="mcp-connection-sweep")
-async def mcp_connection_sweep_flow() -> dict[str, int]:
+async def sweep_mcp_connections() -> dict[str, int]:
     """Renew OAuth tokens near expiry, mark those that cannot be, and check servers answer.
 
-    Returns the per-outcome counts so a run's result says what it found without
-    anybody reading the logs.
+    Returns the per-outcome counts so a caller can say what the sweep found
+    without anybody reading the logs.
     """
     async with get_db_context() as db:
         counts = await sweep_oauth_connections(db)

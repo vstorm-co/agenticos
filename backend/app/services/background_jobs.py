@@ -12,7 +12,7 @@ queued it, and a Prefect submission made after the commit was lost if the
 process died between the two (#1349).
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -55,4 +55,17 @@ async def enqueue[P: Payload](
         dedupe_active=dedupe_active,
         concurrency_key=concurrency_key,
         schedule_name=schedule_name,
+    )
+
+
+async def tell_owners_paused(db: AsyncSession, kind: str, reason: str) -> None:
+    """Tell the deployment's owners a kind of job is paused, in the pausing transaction.
+
+    The worker's circuit breaker calls this once per pause; the notification is
+    written with the pause, so it is never sent for a pause that rolled back.
+    """
+    from app.services.notifications import NotificationService
+
+    await NotificationService(db).background_task_paused(
+        kind, reason=reason, paused_at=datetime.now(UTC)
     )

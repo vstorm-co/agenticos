@@ -8,23 +8,17 @@ the runs that never got one.
 
 import logging
 
-from prefect import flow
-
 from app.db.session import get_worker_db_context
 from app.services.run_reaper import RunReaperService
 
 logger = logging.getLogger(__name__)
 
 
-@flow(name="stale-run-sweep")
-async def stale_run_sweep_flow() -> int:
+async def reap_stale_runs() -> int:
     """Fail every run left `running` past `STALE_RUN_REAPED_AFTER_HOURS`.
 
-    On the worker context, not the pooled one: successive flow runs do not
-    share an event loop, and a pooled connection made on one loop breaks
-    whoever checks it out on the next - the reason `get_worker_db_context`
-    exists. Returns how many runs were reaped, so a flow run's result says
-    what it found without anybody reading the logs.
+    Returns how many runs were reaped, so a caller can say what the sweep
+    found without anybody reading the logs.
     """
     async with get_worker_db_context() as db:
         reaped = await RunReaperService(db).reap_stale()

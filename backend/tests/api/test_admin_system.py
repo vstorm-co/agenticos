@@ -20,7 +20,6 @@ from httpx import ASGITransport, AsyncClient
 from app.api.deps import get_current_user, get_db_session, get_redis
 from app.core.config import settings
 from app.main import app
-from app.services import health
 
 pytestmark = pytest.mark.anyio
 
@@ -89,12 +88,23 @@ async def member_client(mock_redis: Any) -> AsyncGenerator[AsyncClient, None]:
 async def test_every_check_says_what_it_verified(
     admin_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    async def just_now(*_: object) -> datetime:
-        return datetime.now(UTC)
+    from types import SimpleNamespace
 
-    # The worker's sweep heartbeat and Prefect's last completed run.
-    monkeypatch.setattr(health.worker_heartbeat, "last", just_now)
-    monkeypatch.setattr(health, "_last_prefect_run", just_now)
+    from app.repositories import background_schedule, background_task_kind, background_worker
+
+    async def alive(*_: object, **__: object) -> list[SimpleNamespace]:
+        return [SimpleNamespace(id="w1")]
+
+    async def fired(*_: object) -> list[SimpleNamespace]:
+        return [SimpleNamespace(name="m", interval_seconds=60, last_fired_at=datetime.now(UTC))]
+
+    async def nothing_paused(*_: object) -> list[SimpleNamespace]:
+        return []
+
+    # A worker alive, a minute schedule that just fired, and nothing paused.
+    monkeypatch.setattr(background_worker, "list_seen_since", alive)
+    monkeypatch.setattr(background_schedule, "list_all", fired)
+    monkeypatch.setattr(background_task_kind, "list_all", nothing_paused)
 
     response = await admin_client.get(f"{settings.API_V1_STR}/admin/system")
 

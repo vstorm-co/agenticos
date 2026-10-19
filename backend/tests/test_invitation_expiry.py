@@ -19,7 +19,7 @@ import pytest
 from app.core.exceptions import BadRequestError
 from app.db.models.organization import InvitationStatus, OrgRole
 from app.services.invitation import InvitationService
-from app.worker.tasks.invitation_tasks import invitation_expiry_sweep_flow
+from app.worker.tasks.invitation_tasks import expire_invitations
 
 pytestmark = pytest.mark.anyio
 
@@ -70,7 +70,7 @@ class TestTheScheduledSweep:
             db_context.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
             db_context.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            assert await invitation_expiry_sweep_flow() == 2
+            assert await expire_invitations() == 2
 
     async def test_the_service_sweep_is_the_repository_sweep(self):
         """One UPDATE, cross-tenant by construction - a schedule has no tenant

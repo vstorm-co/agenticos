@@ -62,9 +62,9 @@ async def _run_deferred(db: MagicMock) -> None:
 
 
 def _patch_dispatch(monkeypatch) -> AsyncMock:
-    """Stand in for the durable cleanup dispatch a committed retire hands to Prefect."""
+    """Stand in for the cleanup job a retire queues."""
     dispatch = AsyncMock()
-    monkeypatch.setattr("app.worker.tasks.teardown_tasks.dispatch_external_state_cleanup", dispatch)
+    monkeypatch.setattr("app.worker.tasks.teardown_tasks.queue_external_state_cleanup", dispatch)
     return dispatch
 
 
@@ -313,12 +313,10 @@ class TestRetiringWhatAReplacementDeleted:
             attempt=1,
         )
 
-        # The row goes in the transaction; the file's unlink is handed to a durable
-        # cleanup only once it commits, so a rollback keeps it (#1293, #1349).
+        # The row and the file's cleanup job go in the same transaction, so a
+        # rollback keeps the file beside the row it restores (#1293, #1349).
         assert deleted == [stale_id]
-        dispatch.assert_not_awaited()
-        await _run_deferred(db)
-        dispatch.assert_awaited_once_with(["rag/docs/handbook.md"], [])
+        dispatch.assert_awaited_once_with(db, ["rag/docs/handbook.md"], [])
 
     async def test_a_row_with_no_stored_file_is_deleted_without_a_cleanup(self, monkeypatch):
         """The sync path creates its tracking rows with no `storage_path` at all,

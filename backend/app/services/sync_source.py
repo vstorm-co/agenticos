@@ -19,6 +19,7 @@ from app.db.models.sync_log import SyncLog
 from app.db.models.sync_source import SyncSource
 from app.db.vector_tables import validate_collection_name
 from app.services.access import SECRET, resolve_access
+from app.services.background_jobs import enqueue
 from app.services.rag.connectors import CONNECTOR_REGISTRY
 from app.repositories import organization_secret_repo
 from app.repositories import sync_log as sync_log_repo
@@ -33,6 +34,7 @@ from app.schemas.sync_source import (
     SyncSourceRead,
     SyncSourceUpdate,
 )
+from app.worker.jobs import SYNC_SOURCE, Priority, SyncConnectorSource, sync_source_key
 
 # The credential field names the two shipped connectors used to hold in `config`.
 # Kept as a list so a caller posting the old shape is told what to do instead of
@@ -517,15 +519,18 @@ class SyncSourceService:
             sync_source_id=source.id,
             triggered_by_user_id=user_id,
         )
-        from app.core.background import spawn_after_commit
-        from app.worker.tasks.rag_tasks import sync_single_source_flow
-
-        # The flow reads this sync log by id on its own session, so it starts
-        # after the commit rather than after this line (#417).
-        spawn_after_commit(
+        # The job reads this sync log by id on its own session, and commits with
+        # it (#417). One sync of a source waits behind another rather than racing
+        # it, and a second click while one is still queued adds nothing.
+        key = sync_source_key(source.id)
+        await enqueue(
             self.db,
-            sync_single_source_flow(source_id, str(sync_log.id)),
-            name=f"sync-source-{source_id}",
+            SYNC_SOURCE,
+            SyncConnectorSource(source_id=source.id, sync_log_id=sync_log.id),
+            organization_id=source.organization_id,
+            priority=Priority.INTERACTIVE,
+            dedupe_key=key,
+            concurrency_key=key,
         )
         return sync_log
 

@@ -21,7 +21,7 @@ from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import ApprovalStatus, RunStatus
 from app.services.approvals import ApprovalService
-from app.worker.tasks.approval_tasks import approval_expiry_sweep_flow
+from app.worker.tasks.approval_tasks import expire_approvals
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
@@ -331,7 +331,7 @@ class TestTheScheduledSweep:
             db_context.return_value.__aenter__ = AsyncMock(return_value=_db())
             db_context.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            assert await approval_expiry_sweep_flow() == 3
+            assert await expire_approvals() == 3
 
         # The unanswered questions are swept in the same pass (#2064).
         service.expire_unanswered.assert_awaited_once()
