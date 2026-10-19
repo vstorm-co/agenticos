@@ -106,6 +106,8 @@ async def open_inbound_stream(
         logger.info("Not reopening inbound stream for bot %s: the server is shutting down", bot_id)
         return
     await adapter.start_polling(bot_id, token)
+    # The holder, so two copies of one stream can be told apart in the log (#2224).
+    logger.info("%s: stream of bot %s opened on worker %s", platform, bot_id, leases.holder)
 
 
 async def close_inbound_stream(*, bot_id: str, platform: str) -> None:

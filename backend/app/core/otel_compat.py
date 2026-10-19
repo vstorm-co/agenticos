@@ -32,18 +32,44 @@ is.
 missed, the same fallback they already use in the branch they guarded. Copying
 their loop would leave us owning route-matching logic that changes underneath us;
 this owns one `except`.
+
+**The route list, flattened once.** The same helper runs on every request, and it
+starts by flattening `app.routes` through FastAPI's `iter_route_contexts`, which
+rebuilds each included router's dependants - `inspect.signature` on every
+endpoint, 524 of them - to produce a list that is the same every time. On prod it
+was the largest single cost of serving a request (#2226). The flattened list is
+kept per route list, and a list that grows (a test adding a route) is flattened
+again.
 """
 
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from typing import Any
 
+from opentelemetry.instrumentation.fastapi import (
+    _flatten_routes as _upstream_flatten_routes,
+)
 from opentelemetry.instrumentation.fastapi import (
     _get_route_details as _upstream_route_details,
 )
 
 logger = logging.getLogger(__name__)
+
+_flattened: dict[tuple[int, int], list[Any]] = {}
+
+
+def flatten_routes(routes: list[Any]) -> Iterable[Any]:
+    """Upstream's flattened routes, built once per route list rather than per request.
+
+    Keyed by the list's identity and length: the app's list is the same object
+    for the life of the process, and the only way it changes is by growing.
+    """
+    key = (id(routes), len(routes))
+    if key not in _flattened:
+        _flattened[key] = list(_upstream_flatten_routes(routes))
+    return _flattened[key]
 
 
 def route_details(scope: dict[str, Any]) -> Any:
@@ -61,7 +87,8 @@ def route_details(scope: dict[str, Any]) -> Any:
 
 
 def patch_route_details() -> None:
-    """Install `route_details` in place of the helper that raises.
+    """Install `route_details` in place of the helper that raises, and
+    `flatten_routes` in place of the one rebuilt on every request.
 
     Patched on the module rather than passed as an argument because there is no
     argument: `FastAPIInstrumentor.instrument_app` hardcodes
@@ -75,6 +102,8 @@ def patch_route_details() -> None:
 
     if getattr(instrumentation._get_route_details, "__module__", None) == __name__:
         return
+    # Read as a module global by upstream's `_get_route_details`, the same way.
+    instrumentation._flatten_routes = flatten_routes  # ty: ignore[invalid-assignment]
     # Upstream types the global as its own `def _get_route_details(scope)`, and
     # replacing it is the whole point - there is no argument to pass a replacement in
     # through. `route_details` above takes and returns what that one does.

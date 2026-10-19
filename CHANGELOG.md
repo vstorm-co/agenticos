@@ -17,6 +17,117 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-19
+
+### Changed
+
+- **Backend dependencies move up.**
+  - Pydantic AI 2.57.0 and the harness 0.57.0, FastAPI 0.143.2, pydantic-settings 2.16.0, Authlib 1.9.1, LiteParse 2.16.0, google-auth 2.62.0, google-genai 2.31.0, boto3 1.43.114 and aiohttp 3.14.5.
+  - The tools: ruff 0.17.1, ty 0.0.88, pre-commit 4.7.0 and mkdocstrings 1.0.7.
+  - pydantic-ai-backend 0.2.36 for the sandbox changes below.
+  - The floors in `pyproject.toml` follow. ty 0.0.88 flags the narrowed `visibility` on `ProjectCreate`; it is suppressed with the reason beside it.
+  - Replaces Dependabot's #2233 and #2234.
+- **A chat's workspace holds 32 MiB, up from 4.** `SANDBOX_STATE_MAX_BYTES` is
+  the ceiling of the `state` workspace every agent gets by default. 4 MiB
+  refused a single large attachment. Two costs that grew with the ceiling now
+  don't:
+  - A turn that changed no file stores nothing; only `last_used_at` moves.
+    Before, every message rewrote the whole JSONB column and its WAL, at
+    whatever size the workspace had reached.
+  - A write is measured by serialising only the file it wrote, not the whole
+    document on the event loop.
+- **Sandbox calls share one connection pool per process.** `SandboxdWorkspace`
+  without a client of its own opened a new connection, and built an SSL context,
+  for every command and file operation of a run. One client per event loop now
+  serves every `sandboxd` workspace, and the API closes it at shutdown.
+- **A container workspace's files are listed in one request.** The listing
+  walked the host with one `ls` per directory, up to six levels deep. It now
+  asks `sandboxd` for the whole bounded tree at once (pydantic-ai-backend
+  0.2.35). A folder below the root that cannot be read now marks the listing
+  incomplete instead of disappearing from it silently. The same release serves
+  an agent's file reads and writes from the host's disk, at ~4 ms instead of
+  50-500 ms through `docker exec`, and ships the `sandboxd` image with BuildKit.
+- **sandboxd fixes from its audit** (pydantic-ai-backend 0.2.36). The ones a
+  deployment notices:
+  - The deploy's prepare step now builds the image a session runs. With
+    `SANDBOXD_SANDBOX_UID` set, as the compose files set it, it built a variant
+    no session used, and the first chat still waited for a build.
+  - A file write that fails part-way leaves the old file.
+  - The console's path checks no longer cost a `docker exec` each.
+  - A command running past the idle timeout is no longer reaped under it.
+
+### Fixed
+
+- **A host short of CPU no longer restarts the API in a loop.** Uvicorn's
+  supervisor killed any worker that took more than 5 seconds to answer its ping.
+  On a starved host it hit live workers and then their replacements before they
+  had started, 17 times in 20 minutes on prod, and each restart re-imported the
+  whole application. Every compose file that runs `--workers` now waits
+  `UVICORN_WORKER_HEALTHCHECK_TIMEOUT` seconds, 60 by default. A blocked event
+  loop is still the watchdog's to catch (#2223).
+- **A slow production deployment can be diagnosed without reading raw logs.**
+  - Every service in the production compose files caps its log at five files
+    of 20 MB. Prod held 570 MB and growing.
+  - Postgres preloads `pg_stat_statements`, and migration
+    `0143_pg_stat_statements` creates the extension. Where the role may not,
+    the migration logs a notice and goes on.
+  - With `ENVIRONMENT=production` Logfire no longer prints a console line per
+    SQL and Redis call.
+  - `doctor` gains `query statistics` and `tracing` lines, which say whether
+    either is recording.
+  - Health probes use `urllib` instead of importing httpx, which halves the
+    cost of the interpreter each one starts every 15-30 seconds (#2228).
+- **Two pollers on one Telegram token stop fighting.** Telegram ends one of
+  two `getUpdates` requests on every poll, and aiogram retries for ever, so on
+  prod two copies of one bot ended each other's polls for fifteen minutes. The
+  adapter now hears the conflict:
+  - a worker that does not hold the bot's stream lease closes its copy;
+  - the holder keeps polling and marks the bot down with "another process is
+    polling this bot's token".
+
+  The log now names the worker each stream opens and closes on (#2224).
+- **An idle deployment queries its bots a third as often.** Every API worker
+  checks for polling bots nobody serves every 10 seconds. That was one query
+  per platform, three per pass, and most of an idle prod's transactions. One
+  query now covers all three (#2227).
+- **Naming a request's span no longer rebuilds the whole route table.**
+  OpenTelemetry's FastAPI instrumentation flattened `app.routes` on every
+  request, and FastAPI 0.143 rebuilds each included router's dependants to do
+  it: `inspect.signature` on all 524 endpoints. That was the largest single
+  cost of serving a request on prod. The flattened list is now built once per
+  process. Locally it goes from 0.40 ms to 0.18 ms per request (#2226).
+- **Every API worker and flow run starts lighter.** The SDKs that only one
+  optional capability or connector calls are now imported where they are used:
+  mem0 (with qdrant-client and numpy), PyMuPDF, python-docx, boto3 and the
+  Google API client. Measured on a laptop, `import app.main` goes from 4.19 s to
+  3.62 s and from 382 MB to 298 MB. A test keeps them out of the startup import
+  (#2225).
+- **The first sandboxed chat after a release no longer waits on an image
+  build.** A release that changed a sandbox runtime made sandboxd build it on
+  the production host inside the first session that asked, and every session
+  request answered 409 for minutes. `scripts/deploy.sh` now runs
+  `python -m pydantic_ai_backends.remote.prepare` in a one-off container of the
+  new sandboxd image before the old one is replaced. Each build is retried
+  (pydantic-ai-backend 0.2.34). A runtime it could not prepare is named in the
+  deploy log and still built on demand.
+  - While a session does wait on a build, the chat says "Preparing the
+    sandbox" above the composer, until the sandbox opens or the turn fails.
+  - Opening waits up to ten minutes instead of giving up after 30 seconds
+    (pydantic-ai-backend 0.2.34, `on_wait` and `opening_timeout`) (#2222).
+- **A remote sandbox outlives a deleted conversation only until the provider
+  answers.** Deleting a conversation or a project destroyed its sandboxes once,
+  after the commit. A failure - host down, worker restarted in between - left
+  nothing that knew they existed, and a Daytona sandbox kept billing the
+  organization.
+  - The deletion now writes a tombstone in the same transaction
+    (`pending_sandbox_destroys`, migration `0144_pending_sandbox_destroys`), and
+    a successful destroy removes it.
+  - A new worker sweep, `sandbox-destroy-retry`, retries the rest from 2
+    minutes up to 6 hours apart.
+  - A switched-off connection still has its sandboxes destroyed. A connection
+    with tombstones left cannot be deleted.
+  - The `scheduler` health check counts it with the other sweeps (#2209).
+
 ## [1.6.3] - 2026-10-18
 
 ### Fixed

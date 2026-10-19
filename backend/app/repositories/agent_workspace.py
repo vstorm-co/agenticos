@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -123,6 +123,19 @@ async def touch(db: AsyncSession, *, workspace: AgentWorkspace) -> AgentWorkspac
     await db.flush()
     await db.refresh(workspace)
     return workspace
+
+
+async def mark_used(db: AsyncSession, *, workspace_id: UUID) -> None:
+    """Record that a run used this workspace and changed none of its files.
+
+    An `UPDATE` by id rather than :func:`touch`, which needs the row loaded -
+    and loading it reads the whole stored document to write one timestamp.
+    """
+    await db.execute(
+        update(AgentWorkspace)
+        .where(AgentWorkspace.id == workspace_id)
+        .values(last_used_at=datetime.now(UTC))
+    )
 
 
 async def get_for_project(

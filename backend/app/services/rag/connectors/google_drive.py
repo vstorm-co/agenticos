@@ -18,16 +18,15 @@ Setup:
    each Drive source at it
 """
 
+from __future__ import annotations
+
 import asyncio
 import json as _json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
-from google.oauth2.service_account import Credentials
-from googleapiclient.discovery import Resource, build
-from googleapiclient.http import MediaIoBaseDownload
 from pydantic import BaseModel, Field
 
 from app.core.exceptions import BadRequestError
@@ -40,6 +39,9 @@ from app.services.rag.connectors import (
     RemoteListing,
 )
 from app.services.rag.remote_names import checked_drive_folder_id
+
+if TYPE_CHECKING:
+    from googleapiclient.discovery import Resource
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +123,11 @@ class GoogleDriveConnector(BaseSyncConnector):
                     "the one it names is not one."
                 )
             )
+        # The Google SDK is imported where it is used: every API worker and flow run
+        # imports this module, and only Drive sources need the SDK (#2225).
+        from google.oauth2.service_account import Credentials
+        from googleapiclient.discovery import build
+
         info = _json.loads(credential.service_account_json.get_secret_value())
         creds = Credentials.from_service_account_info(info, scopes=SCOPES)
         return build("drive", "v3", credentials=creds)
@@ -256,6 +263,8 @@ class GoogleDriveConnector(BaseSyncConnector):
                 )
             else:
                 request = service.files().get_media(fileId=file.id)  # ty: ignore[unresolved-attribute]
+
+            from googleapiclient.http import MediaIoBaseDownload
 
             with open(dest_path, "wb") as fh:
                 downloader = MediaIoBaseDownload(fh, request)

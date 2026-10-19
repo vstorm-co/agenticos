@@ -37,16 +37,17 @@ import os
 # and its default is on.
 os.environ.setdefault("MEM0_TELEMETRY", "False")
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
 from uuid import UUID
-
-from mem0 import AsyncMemoryClient
 
 from app.core.config import settings
 from app.core.exceptions import ExternalServiceError
 
 __all__ = ["Mem0Fact", "mem0_forget_person", "mem0_recall", "mem0_remember", "namespace"]
+
+if TYPE_CHECKING:
+    from mem0 import AsyncMemoryClient
 
 logger = logging.getLogger(__name__)
 
@@ -151,6 +152,11 @@ def _construct(api_key: str, base_url: str | None) -> AsyncMemoryClient:
     not end the run: a memory service being down is a refusal the model reads, the
     same as any other external service.
     """
+    # Here rather than at the top: the SDK pulls in qdrant-client and numpy,
+    # 0.4 s of every API worker's and every flow run's import for a capability
+    # most deployments never enable (#2225).
+    from mem0 import AsyncMemoryClient
+
     try:
         return AsyncMemoryClient(api_key=api_key, host=base_url)
     except Exception as exc:

@@ -1,5 +1,5 @@
 ---
-source_sha: "de38073f9286"
+source_sha: "64fce98b00b5"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -69,6 +69,23 @@ obsługującego ruch, kiedy
 zastępuje zaklinowane rodzeństwo. Jeden worker to ustawienie, którego należy
 unikać: zablokowana pętla zdarzeń jest wtedy całym wdrożeniem, dopóki worker się
 nie zabije.
+
+Host, któremu brakuje CPU, daje inny objaw: wpisy `Child process [N] died` w logu
+`app` bez werdyktu watchdoga nad nimi, a każda strona działa wolno. To workery,
+które supervisor uvicorna zabił za spóźnioną odpowiedź na ping, a nie workery,
+które padły. Czeka on
+[`UVICORN_WORKER_HEALTHCHECK_TIMEOUT`](configuration.md#a-worker-whose-event-loop-has-stopped-turning)
+sekund, domyślnie 60. Zanim to podniesiesz, sprawdź CPU steal na hoście.
+
+Dwa ustawienia sprawiają, że wolne wdrożenie da się zdiagnozować:
+
+- **Każdy log ma limit.** Każda usługa w produkcyjnych plikach compose zapisuje
+  najwyżej pięć plików po 20 MB. Domyślnie Docker trzyma log kontenera, dopóki
+  kontener nie zostanie usunięty, i nic na hoście go nie rotuje.
+- **Postgres zapisuje, ile kosztuje każde zapytanie.** Usługa `db` ładuje
+  `pg_stat_statements` przy starcie, a migracja tworzy rozszerzenie. Tam, gdzie
+  rola bazy nie może go utworzyć, migracja loguje notice i idzie dalej.
+  `agenticos cmd doctor` w każdym przypadku wypisuje linię `query statistics`.
 
 !!! note "Baza danych jest strojona wobec własnego limitu"
 

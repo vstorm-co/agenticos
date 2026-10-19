@@ -62,6 +62,23 @@ Two workers suit a team of ten and still leave one serving while
 replaces a wedged sibling. One worker is the setting to avoid: a blocked event
 loop is then the whole deployment, until it kills itself.
 
+A host short of CPU shows a different symptom: `Child process [N] died` lines
+in the `app` log with no watchdog verdict above them, while every page is slow.
+Those are workers uvicorn's supervisor killed for answering its ping late, not
+workers that failed. It waits
+[`UVICORN_WORKER_HEALTHCHECK_TIMEOUT`](configuration.md#a-worker-whose-event-loop-has-stopped-turning)
+seconds, 60 by default. Look at the host's CPU steal before you raise it.
+
+Two settings keep a slow deployment diagnosable:
+
+- **Every log is capped.** Each service in the production compose files writes
+  at most five files of 20 MB. Docker's default keeps a container's log until
+  the container is removed, and nothing on the host rotates it.
+- **Postgres records what each statement costs.** The `db` service preloads
+  `pg_stat_statements` and a migration creates the extension. Where the
+  database role may not create it, the migration logs a notice and goes on.
+  `agenticos cmd doctor` prints a `query statistics` line either way.
+
 !!! note "The database is tuned against its own limit"
 
     `docker-compose-prod.yml` runs Postgres with `shared_buffers=512MB` against a

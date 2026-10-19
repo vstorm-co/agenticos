@@ -33,6 +33,7 @@ from prefect.client.schemas.schedules import IntervalSchedule
 from app.clients.redis import RedisClient
 from app.core.config import settings
 from app.core.logging import setup_logging
+from app.services.sandbox_workspace import retry_pending_destroys
 from app.worker.sweeps import Sweep, run_sweeps
 from app.worker.tasks.approval_tasks import approval_expiry_sweep_flow
 from app.worker.tasks.eval_tasks import run_eval_flow
@@ -80,6 +81,9 @@ SWEEPS = (
     Sweep("notification-delivery-sweep", 60, deliver_due_notifications),
     # Start the sync check when a source is due; the syncs stay a flow run.
     Sweep("rag-sync-check", 60, dispatch_due_syncs),
+    # Destroy the remote sandboxes a deleted conversation or project left behind
+    # (#2209). Each tombstone carries its own backoff, so most ticks find none due.
+    Sweep("sandbox-destroy-retry", 60, retry_pending_destroys),
 )
 """The minute-scale work, in this process - see `app/worker/sweeps.py`."""
 

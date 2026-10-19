@@ -13,15 +13,14 @@ What is left here is boto3's vocabulary and nothing else - the listing loop, the
 or GCS connector is a client rather than a second copy of them (#988).
 """
 
+from __future__ import annotations
+
 import logging
 from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
-import boto3
-from botocore.client import BaseClient
-from botocore.config import Config
 from pydantic import BaseModel, Field
 
 from app.core.config import settings
@@ -29,6 +28,9 @@ from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import AwsCredentialsSecret, SecretKind, StorableSecret
 from app.services.rag.connectors import ConnectorConfig
 from app.services.rag.connectors.object_store import ObjectStoreConnector, StoredObject
+
+if TYPE_CHECKING:
+    from botocore.client import BaseClient
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +124,11 @@ class S3Connector(ObjectStoreConnector):
         endpoint = config.get("endpoint_url") or settings.S3_RAG_ENDPOINT
         if endpoint:
             client_kwargs["endpoint_url"] = endpoint
+        # Imported where a client is built: boto3 is the S3 sources' alone, and
+        # every API worker and flow run imports this module (#2225).
+        import boto3
+        from botocore.config import Config
+
         return boto3.client("s3", **client_kwargs, config=Config(signature_version="s3v4"))
 
     def _objects(

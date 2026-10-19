@@ -199,8 +199,25 @@ compose_up() {
 # The migrations are the `migrate` service, which `app` waits on, so `up -d` is
 # the whole of it; `docker compose logs migrate` has the story when the API
 # never comes up.
+# Before the new sandboxd replaces the old one. sandboxd builds a runtime's image
+# lazily, so a release that changed a runtime left the first sandboxed chat
+# waiting minutes on a build on this host, every session request answering 409
+# (#2222). A one-off container of the new image builds them now, while the old
+# service keeps serving, and the new one starts with every image in the cache.
+# Not fatal: a runtime this cannot prepare is still built when a session asks.
+# Takes the compose file and profile arguments; does nothing without the sandbox
+# profile, since there is then no sandboxd to prepare for.
+prepare_sandbox_runtimes() {
+  case " $* " in *" --profile sandbox "*) ;; *) return 0 ;; esac
+  say "Preparing the sandbox runtimes"
+  if ! compose "$@" run --rm --no-deps -T sandboxd python -m pydantic_ai_backends.remote.prepare; then
+    echo "  Not every sandbox runtime is prepared; sandboxd builds the rest when a session asks." >&2
+  fi
+}
+
 say "Pulling and starting the API"
 compose "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}" pull --quiet
+prepare_sandbox_runtimes "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}"
 compose_up "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}"
 
 say "Pulling and starting the frontend"
