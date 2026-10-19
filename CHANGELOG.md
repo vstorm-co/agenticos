@@ -22,7 +22,7 @@ Two things are versioned separately from this file and worth knowing about:
 - **Backend dependencies move up.**
   - Pydantic AI 2.57.0 and the harness 0.57.0, FastAPI 0.143.2, pydantic-settings 2.16.0, Authlib 1.9.1, LiteParse 2.16.0, google-auth 2.62.0, google-genai 2.31.0, boto3 1.43.114 and aiohttp 3.14.5.
   - The tools: ruff 0.17.1, ty 0.0.88, pre-commit 4.7.0 and mkdocstrings 1.0.7.
-  - pydantic-ai-backend 0.2.35 for the sandbox changes below.
+  - pydantic-ai-backend 0.2.36 for the sandbox changes below.
   - The floors in `pyproject.toml` follow. ty 0.0.88 flags the narrowed `visibility` on `ProjectCreate`; it is suppressed with the reason beside it.
   - Replaces Dependabot's #2233 and #2234.
 - **A chat's workspace holds 32 MiB, up from 4.** `SANDBOX_STATE_MAX_BYTES` is
@@ -45,6 +45,14 @@ Two things are versioned separately from this file and worth knowing about:
   incomplete instead of disappearing from it silently. The same release serves
   an agent's file reads and writes from the host's disk, at ~4 ms instead of
   50-500 ms through `docker exec`, and ships the `sandboxd` image with BuildKit.
+- **sandboxd fixes from its audit** (pydantic-ai-backend 0.2.36). The ones a
+  deployment notices:
+  - The deploy's prepare step now builds the image a session runs. With
+    `SANDBOXD_SANDBOX_UID` set, as the compose files set it, it built a variant
+    no session used, and the first chat still waited for a build.
+  - A file write that fails part-way leaves the old file.
+  - The console's path checks no longer cost a `docker exec` each.
+  - A command running past the idle timeout is no longer reaped under it.
 
 ### Fixed
 
