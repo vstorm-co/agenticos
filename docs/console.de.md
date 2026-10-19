@@ -1,5 +1,5 @@
 ---
-source_sha: "cb36b7fb6577"
+source_sha: "6ffd6407de27"
 ---
 
 # Die Konsole { #the-console }
@@ -231,6 +231,11 @@ anhalten und enden: Ein Run, den ein Zeitplan auslöst, erscheint auf einer
 offenen Activity-Seite und ändert dort seinen Status, ohne dass eine Anfrage von
 Ihnen dahintersteht.
 
+Ebenso Datasets: ein hinzugefügter oder entfernter Fall, eine Änderung an der
+Bewertung, ein Score oder eine Review-Entscheidung und Entwürfe, die der
+[Fallgenerator](datasets.md#generating-cases) im Hintergrund fertigstellt - sie
+erscheinen ohne Neuladen im Tab Generated eines offenen Datasets.
+
 Die Ausnahme ist der Builder, weil er Ihren Entwurf beim Tippen speichert. Ändert
 sich der Agent, den Sie bearbeiten, anderswo, hört er auf zu speichern und holt
 die neue Version. Ohne ungespeicherte Änderungen übernimmt er sie einfach; mit
@@ -239,8 +244,8 @@ Ihre Wahl: **Neu laden** (deren Version) oder **Meine Änderungen behalten** (Ih
 über deren gespeichert).
 
 Sie erfahren nur, was Sie lesen dürfen: Eine Änderung an einem Agent, einem
-Skill, einer Wissensbasis, einer Kontextdatei, einer Seite, einem Schlüssel oder
-einem MCP-Server, die Sie nicht sehen, erreicht Ihre Konsole nie, und eine
+Skill, einer Wissensbasis, einer Kontextdatei, einer Seite, einem Schlüssel,
+einem MCP-Server oder einem Dataset, die Sie nicht sehen, erreicht Ihre Konsole nie, und eine
 Löschung erreicht nur Rollen, die jede Zeile dieser Art sehen. Runs erreichen die
 Rollen, die den Run-Verlauf lesen oder über Freigaben entscheiden, Kanal-Bots die
 Rollen, die sie verwalten, und Ihre Benachrichtigungen nur Sie. Bricht die Verbindung ab, arbeitet die Konsole wie

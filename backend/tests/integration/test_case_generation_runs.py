@@ -43,8 +43,9 @@ from app.db.models.organization import Organization
 from app.db.models.rag_document import DocumentStatus
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
 from app.schemas.case_generation import CaseGenerationRequest
+from app.schemas.change_event import ChangeEvent
 from app.schemas.dataset import DatasetCreate
-from app.services import agent_runner
+from app.services import agent_runner, change_feed
 from app.services.case_generation import CaseGenerationService, facade, generation
 from app.services.case_generation.drafts import DraftedCase, DraftedCases, split
 from app.services.case_generation.generation import FAILED, NOTHING_KEPT, generate
@@ -456,9 +457,30 @@ async def test_a_queued_generation_runs_on_a_session_of_its_own(db, monkeypatch)
         run=await _run_row(db, owner, agent),
     )
 
+    published: list[ChangeEvent] = []
+
+    async def publish(event: ChangeEvent) -> None:
+        published.append(event)
+
+    monkeypatch.setattr(change_feed, "publish", publish)
+
     await generation.run_generation(
-        generation_id=row.id, ctx=owner, prompt="p", material=material, quotas=quotas
+        generation_id=row.id,
+        dataset_id=dataset.id,
+        ctx=owner,
+        prompt="p",
+        material=material,
+        quotas=quotas,
     )
 
     await db.refresh(row)
     assert row.status == "ready"
+    # Its end is announced, so an open dataset page reads the drafts.
+    [event] = published
+    assert (event.resource, event.id, event.action, event.surface) == (
+        "dataset",
+        dataset.id,
+        "updated",
+        "run",
+    )
+    assert event.actor_user_id == owner.user_id

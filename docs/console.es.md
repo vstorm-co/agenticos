@@ -1,5 +1,5 @@
 ---
-source_sha: "cb36b7fb6577"
+source_sha: "6ffd6407de27"
 ---
 
 # La consola { #the-console }
@@ -216,6 +216,11 @@ pregunta y terminan: un run que lanza una programación aparece en una página
 Activity abierta y cambia de estado allí, sin que haya ninguna petición tuya
 detrás.
 
+También los datasets: un caso añadido o quitado, un cambio en la calificación,
+una puntuación o una decisión de revisión, y los borradores que el
+[generador de casos](datasets.md#generating-cases) termina en segundo plano, que
+aparecen en la pestaña Generated de un dataset abierto sin recargar.
+
 La excepción es el Builder, porque guarda tu borrador mientras escribes. Cuando el
 agent que editas cambia en otro lugar, deja de guardar y obtiene la nueva versión.
 Si no hay nada sin guardar, simplemente la adopta; si hay cambios sin guardar, te
@@ -223,8 +228,8 @@ dice quién lo cambió y por dónde, y espera a que elijas **Recargar** (su vers
 o **Conservar mis cambios** (la tuya, guardada encima de la suya).
 
 Solo te enteras de lo que podrías leer: un cambio en un agent, un skill, una base
-de conocimiento, un archivo de contexto, una página, una clave o un servidor MCP
-que no ves nunca llega a tu consola, y una eliminación solo llega a los roles que
+de conocimiento, un archivo de contexto, una página, una clave, un servidor MCP
+o un dataset que no ves nunca llega a tu consola, y una eliminación solo llega a los roles que
 ven todas las filas de ese tipo. Los runs llegan a los roles que leen el historial
 de runs o deciden aprobaciones, los bots de canal a los roles que los gestionan, y
 tus notificaciones solo a ti. Si la conexión se corta, la consola funciona como antes y se reconecta sola.

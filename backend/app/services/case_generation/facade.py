@@ -204,6 +204,7 @@ class CaseGenerationService:
             self.db,
             run_generation(
                 generation_id=generation.id,
+                dataset_id=dataset_id,
                 ctx=ctx,
                 prompt=prompt,
                 material=material,

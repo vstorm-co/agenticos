@@ -1,5 +1,5 @@
 ---
-source_sha: "cb36b7fb6577"
+source_sha: "6ffd6407de27"
 ---
 
 # Konsola { #the-console }
@@ -213,6 +213,11 @@ Ogłaszane są też runy: gdy startują, zatrzymują się na zatwierdzeniu lub p
 i gdy się kończą. Run uruchomiony przez harmonogram pojawia się na otwartej
 stronie Activity i zmienia tam status, choć nie stoi za nim żadne twoje żądanie.
 
+Ogłaszane są też datasety: dodany albo usunięty przypadek, zmiana oceniania,
+wynik albo decyzja przeglądu, a także propozycje, które
+[generator przypadków](datasets.md#generating-cases) kończy w tle - pojawiają się
+w zakładce Generated otwartego datasetu bez przeładowania.
+
 Wyjątkiem jest Builder, bo zapisuje draft w trakcie pisania. Gdy edytowany agent
 zmieni się gdzie indziej, Builder przestaje zapisywać i pobiera nową wersję. Bez
 niezapisanych zmian po prostu ją przyjmuje; z niezapisanymi zmianami mówi, kto i
@@ -220,7 +225,7 @@ którędy go zmienił, i czeka na twój wybór: **Przeładuj** (ich wersja) albo
 **Zachowaj moje zmiany** (twoja, zapisana zamiast ich).
 
 Słyszysz tylko o tym, co możesz odczytać: zmiana agenta, skilla, bazy wiedzy,
-pliku kontekstu, strony, klucza albo serwera MCP, których nie widzisz, nigdy nie
+pliku kontekstu, strony, klucza, serwera MCP albo datasetu, których nie widzisz, nigdy nie
 trafia do twojej konsoli, a usunięcie trafia tylko do ról, które widzą każdy
 wiersz danego rodzaju. Runy trafiają do ról, które czytają historię runów albo
 decydują o zatwierdzeniach, boty kanałów do ról, które nimi zarządzają, a twoje

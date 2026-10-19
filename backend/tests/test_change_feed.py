@@ -129,6 +129,59 @@ class TestWhatIsAChange:
         )
 
 
+class TestDatasets:
+    def test_every_write_to_a_dataset_is_a_change_to_it(self) -> None:
+        dataset_id, case_id = uuid.uuid4(), str(uuid.uuid4())
+        params = {"dataset_id": str(dataset_id)}
+
+        created = _change("POST", "/datasets", {}, f'{{"id": "{dataset_id}"}}'.encode())
+        writes = [
+            _change("POST", f"/datasets/{dataset_id}/cases", params),
+            _change(
+                "DELETE", f"/datasets/{dataset_id}/cases/{case_id}", {**params, "case_id": case_id}
+            ),
+            _change("PUT", f"/datasets/{dataset_id}/scoring", params),
+            _change("POST", f"/datasets/{dataset_id}/generations", params),
+            _change("POST", f"/datasets/{dataset_id}/proposals/accept", params),
+        ]
+        removed = _change("DELETE", f"/datasets/{dataset_id}", params)
+
+        assert created is not None and removed is not None
+        assert (created.resource, created.id, created.action) == ("dataset", dataset_id, "created")
+        for change in writes:
+            assert change is not None
+            assert (change.resource, change.id, change.action) == ("dataset", dataset_id, "updated")
+        assert (removed.id, removed.action) == (dataset_id, "deleted")
+
+    def test_estimating_a_generation_changes_nothing(self) -> None:
+        dataset_id = str(uuid.uuid4())
+
+        assert (
+            _change(
+                "POST", f"/datasets/{dataset_id}/generations/estimate", {"dataset_id": dataset_id}
+            )
+            is None
+        )
+
+    async def test_a_finished_generation_is_announced_as_its_dataset(self, redis: Any) -> None:
+        organization_id, dataset_id, actor = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+
+        await change_feed.publish_dataset(
+            organization_id=organization_id, dataset_id=dataset_id, actor_user_id=actor
+        )
+
+        channel, payload = redis.raw.publish.await_args.args
+        event = ChangeEvent.model_validate_json(payload)
+        assert channel == f"changes:{organization_id}"
+        assert (event.resource, event.id, event.action, event.surface) == (
+            "dataset",
+            dataset_id,
+            "updated",
+            "run",
+        )
+        assert (event.actor_user_id, event.actor_name) == (actor, None)
+
+
 class TestConsoleOnlyRoutes:
     """The routes only the console calls, which publish since #2099."""
 
@@ -143,6 +196,7 @@ class TestConsoleOnlyRoutes:
             ("/artifacts", "artifact"),
             ("/secrets", "secret"),
             ("/mcp-connections", "mcp_connection"),
+            ("/datasets", "dataset"),
         ],
     )
     def test_sharing_a_row_updates_that_row(self, prefix: str, resource: str) -> None:

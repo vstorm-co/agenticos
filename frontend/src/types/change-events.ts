@@ -15,7 +15,8 @@ export type ChangeResource =
   | "notification"
   | "secret"
   | "mcp_connection"
-  | "run";
+  | "run"
+  | "dataset";
 
 export type ChangeAction = "created" | "updated" | "deleted";
 
@@ -40,9 +41,12 @@ export interface MadeChange extends ChangeEventBase {
   actor_name: string;
 }
 
-/** A run moving through its states - started, parked, finished - which nobody wrote. */
+/**
+ * A change a run made rather than a request: a run moving through its states -
+ * started, parked, finished - or a dataset the case generator finished drafting into.
+ */
 export interface RunChange extends ChangeEventBase {
-  resource: "run";
+  resource: "run" | "dataset";
   surface: "run";
   /** The member the run acts as, when it acts as one. */
   actor_user_id: string | null;

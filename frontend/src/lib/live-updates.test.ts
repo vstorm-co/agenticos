@@ -41,6 +41,7 @@ describe("staleQueries", () => {
       qk.mcpConnections.all(),
       qk.sharing.all(),
     ]);
+    expect(staleQueries(change("dataset"))).toEqual([qk.datasets.all(), qk.sharing.all()]);
   });
 
   it("refreshes the surfaces an agent is exposed on with the channel bots", () => {

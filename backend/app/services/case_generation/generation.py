@@ -22,6 +22,7 @@ from app.core.permissions import AuthContext
 from app.db.models.case_generation import CaseOrigin, CaseProposal, GenerationStatus
 from app.db.session import get_db_context
 from app.repositories import case_generation_repo
+from app.services import change_feed
 from app.services.case_generation.drafts import DraftedCases, keep
 from app.services.case_generation.sources import Material
 from app.services.dataset import redacted_case
@@ -39,12 +40,17 @@ _ERROR_LIMIT = 500
 async def run_generation(
     *,
     generation_id: UUID,
+    dataset_id: UUID,
     ctx: AuthContext,
     prompt: str,
     material: Material,
     quotas: dict[CaseOrigin, int],
 ) -> None:
-    """Run one generation on a session of its own. Started after the request commits."""
+    """Run one generation on a session of its own. Started after the request commits.
+
+    Its end is announced once the session has committed it, so an open dataset
+    page that refetches reads the drafts.
+    """
     async with get_db_context() as db:
         await generate(
             db,
@@ -54,6 +60,9 @@ async def run_generation(
             material=material,
             quotas=quotas,
         )
+    await change_feed.publish_dataset(
+        organization_id=ctx.organization_id, dataset_id=dataset_id, actor_user_id=ctx.user_id
+    )
 
 
 async def _finish(
