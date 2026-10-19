@@ -21,6 +21,7 @@ const state = vi.hoisted(() => ({
   toCriterion: vi.fn(),
   refetch: vi.fn(),
   canRun: true,
+  canViewRuns: true,
   agents: [] as { id: string; name: string }[],
 }));
 vi.mock("@/hooks/use-scoring", () => ({
@@ -44,7 +45,10 @@ vi.mock("@/hooks/use-scoring", () => ({
 }));
 vi.mock("@/hooks/use-agents", () => ({ useAgents: () => ({ agents: state.agents }) }));
 vi.mock("@/hooks/use-permissions", () => ({
-  usePermissions: () => ({ can: (perm: string) => perm !== "datasets:run" || state.canRun }),
+  usePermissions: () => ({
+    can: (perm: string) =>
+      (perm !== "datasets:run" || state.canRun) && (perm !== "runs:view" || state.canViewRuns),
+  }),
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 import { toast } from "sonner";
@@ -89,6 +93,7 @@ beforeEach(() => {
   state.calls = [];
   state.agents = [{ id: "a1", name: "Support" }];
   state.canRun = true;
+  state.canViewRuns = true;
 });
 
 describe("ReviewPanel", () => {
@@ -343,8 +348,11 @@ describe("ReviewPanel", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Gone"));
   });
 
-  it("offers no scoring again to somebody who may not run the dataset", () => {
-    state.canRun = false;
+  it.each([
+    ["run the dataset", { canRun: false, canViewRuns: true }],
+    ["read the runs it would read the answers back from", { canRun: true, canViewRuns: false }],
+  ])("offers no scoring again to somebody who may not %s", (_who, perms) => {
+    Object.assign(state, perms);
     state.answer = {
       scores: [
         caseScore({ id: "a", unscored_reason: "judge_budget" }),

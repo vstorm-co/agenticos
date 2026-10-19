@@ -28,6 +28,7 @@ from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.credential import ModelProfile
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
+from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
 from app.schemas.agent_embed import EmbedCreate
 from app.schemas.agent_exposure import ExposureCreate
@@ -206,7 +207,11 @@ class TestADatasetsOwnJudge:
     async def test_it_is_refused_everywhere_the_seeded_judge_is(self, db) -> None:
         ctx = await _owner(db)
         own = await SystemAgentService(db).create_judge(
-            ctx, name="Refunds judge", description="Grades refunds.", instructions="Be strict."
+            ctx,
+            name="Refunds judge",
+            description="Grades refunds.",
+            visibility=Visibility.ORG,
+            instructions="Be strict.",
         )
 
         with pytest.raises(SystemAgentRestrictedError):
@@ -220,7 +225,11 @@ class TestADatasetsOwnJudge:
     async def test_its_own_runner_reaches_it_by_id(self, db) -> None:
         ctx = await _owner(db)
         own = await SystemAgentService(db).create_judge(
-            ctx, name="Refunds judge", description="Grades refunds.", instructions="Be strict."
+            ctx,
+            name="Refunds judge",
+            description="Grades refunds.",
+            visibility=Visibility.ORG,
+            instructions="Be strict.",
         )
 
         agent = await SystemAgentRunner(db).require_runnable(ctx, key=JUDGE.key, agent_id=own.id)
@@ -242,7 +251,11 @@ class TestListing:
         ctx = await _owner(db)
         judge = await _judge(db, ctx)
         own = await SystemAgentService(db).create_judge(
-            ctx, name="Refunds judge", description="Grades refunds.", instructions="Be strict."
+            ctx,
+            name="Refunds judge",
+            description="Grades refunds.",
+            visibility=Visibility.ORG,
+            instructions="Be strict.",
         )
         registry = AgentRegistryService(db)
         mine = await registry.create(ctx, AgentSpec(name="Support"))

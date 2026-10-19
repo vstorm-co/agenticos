@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
@@ -684,7 +685,8 @@ def graded(
     run_id: UUID,
     counter_example: str | None = None,
 ) -> list[ScorerResult]:
-    """The judge's grades as results; a criterion it skipped or misgraded is an error.
+    """The judge's grades as results; a criterion it skipped, misgraded or graded
+    more than once is an error.
 
     A quote is checked against the part of `answer` the judge was shown; one it
     does not hold is kept beside the grade rather than in its reason. A grade
@@ -699,6 +701,9 @@ def graded(
     against it.
     """
     grades = {grade.id: grade for grade in verdict.grades}
+    graded_twice = {
+        id_ for id_, times in Counter(g.id for g in verdict.grades).items() if times > 1
+    }
     shown = answer[:MAX_MATCH_TEXT]
     results = []
     for criterion in criteria:
@@ -711,6 +716,19 @@ def graded(
                     status="fail",
                     score=1 / scale_max,
                     reason="The answer repeats the counter-example",
+                    judge_run_id=run_id,
+                )
+            )
+            continue
+        if criterion.id in graded_twice:
+            results.append(
+                ScorerResult(
+                    scorer=criterion.scorer,
+                    name=criterion.name,
+                    required=criterion.required,
+                    status="error",
+                    reason="The judge graded this criterion more than once",
+                    reason_code="judge_graded_twice",
                     judge_run_id=run_id,
                 )
             )

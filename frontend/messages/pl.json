@@ -6798,6 +6798,7 @@
         "judgeMissing": "Sędzia wybrany dla tego datasetu już nie istnieje. Wybierz innego w zakładce Ocenianie.",
         "judgeRunFailed": "Run sędziego się nie zakończył.",
         "judgeOutputInvalid": "Sędzia odpowiedział w formie, której nie da się odczytać.",
+        "judgeGradedTwice": "Sędzia ocenił to kryterium więcej niż raz, więc żadna z ocen się nie liczy.",
         "judgeUngraded": "Sędzia nie dał oceny na skali za to kryterium.",
         "judgeReasonEcho": "Sędzia powtórzył kryterium, zamiast napisać, dlaczego odpowiedź je spełnia.",
         "judgeCounterUnsupported": "Sędzia uznał, że odpowiedź różni się od kontrprzykładu, choć odpowiedź go powtarza albo sędzia zacytował tylko to, co oba mówią."

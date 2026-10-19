@@ -14,12 +14,11 @@ runs on. `docs/security.md` has the table, with the reason for each.
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any
 from uuid import UUID
 
+from sqlalchemy import Select, func, or_, select, update
 from sqlalchemy import delete as sa_delete
-from sqlalchemy import func, or_, select, update
-from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent_run import AgentRun
@@ -132,14 +131,18 @@ async def verdicts_of(db: AsyncSession, user_id: UUID) -> list[CaseScore]:
     return list(result.scalars().all())
 
 
+def _runs_they_started(user_id: UUID) -> Select[UUID]:
+    """Their runs, not a visitor's a surface they published ran in their name."""
+    return select(AgentRun.id).where(
+        AgentRun.user_id == user_id, AgentRun.initiated_by_publisher_fallback.is_(False)
+    )
+
+
 async def scored_answers_of(db: AsyncSession, user_id: UUID) -> list[CaseScore]:
     """Eval scores of runs they started, each holding a copy of the answer it scored."""
     result = await db.execute(
         select(CaseScore)
-        .where(
-            CaseScore.answer.is_not(None),
-            CaseScore.run_id.in_(select(AgentRun.id).where(AgentRun.user_id == user_id)),
-        )
+        .where(CaseScore.answer.is_not(None), CaseScore.run_id.in_(_runs_they_started(user_id)))
         .order_by(CaseScore.created_at.desc())
     )
     return list(result.scalars().all())
@@ -349,24 +352,26 @@ async def purge_scored_answers_of(db: AsyncSession, user_id: UUID) -> int:
 
     Unscoped by organization, as every erasure is. The score stays - what the
     scorers and a reviewer concluded is the organization's - and its run link
-    already goes when the run does; the copy of the answer goes now.
+    already goes when the run does; the copy of the answer goes now, with every
+    result's reason, quotes and what the judge said, which can repeat it.
 
     Returns:
         How many scores lost their answer.
     """
-    result = cast(
-        CursorResult[Any],
-        await db.execute(
-            update(CaseScore)
-            .where(
-                CaseScore.answer.is_not(None),
-                CaseScore.run_id.in_(select(AgentRun.id).where(AgentRun.user_id == user_id)),
-            )
-            .values(answer=None)
-        ),
+    result = await db.execute(
+        select(CaseScore).where(
+            CaseScore.answer.is_not(None), CaseScore.run_id.in_(_runs_they_started(user_id))
+        )
     )
+    scores = list(result.scalars().all())
+    for score in scores:
+        score.answer = None
+        score.results = [
+            {**result, "reason": "", "unverified_quotes": [], "judge_said": None}
+            for result in score.results
+        ]
     await db.flush()
-    return result.rowcount or 0
+    return len(scores)
 
 
 async def attachment_paths_in(db: AsyncSession, conversation_id: UUID) -> list[str]:

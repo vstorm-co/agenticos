@@ -1,5 +1,5 @@
 ---
-source_sha: "8f0c46cd2246"
+source_sha: "1935eea9fc70"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -271,16 +271,19 @@ narzędzia oczekuje starej nazwy.
 
 ### Sędzia { #judge }
 
-Sędzia to agent rodzaju `judge` (zobacz
-[Sędziowie](concepts.md#system-agents)). Dataset ocenia za pomocą **Eval
-judge**, którego platforma dodaje do każdej organizacji, albo za pomocą
-własnego sędziego: **Utwórz sędziego dla tego datasetu** na karcie Sędzia
-tworzy sędziego, którego prompt to prompt Eval judge z jego zasadami oceniania,
-a po nim nazwa i opis datasetu oraz to, co według ciebie sędzia musi wiedzieć,
-żeby oceniać - polityka, cennik - na pierwszym modelu organizacji albo na
-wybranym przez ciebie. Prompt można edytować przed utworzeniem (`GET
-/datasets/{id}/judge-template`). Utworzenie go wymaga `agents:edit` oraz
-`datasets:edit`.
+Sędzia to agent rodzaju `judge` (zobacz [Sędziowie](concepts.md#system-agents)).
+Dataset ocenia za pomocą **Eval judge**, którego platforma dodaje do każdej
+organizacji, albo za pomocą własnego sędziego: **Utwórz sędziego dla tego
+datasetu** na karcie Sędzia tworzy sędziego, którego prompt to prompt Eval judge
+z jego zasadami oceniania, a po nim nazwa i opis datasetu oraz to, co według
+ciebie sędzia musi wiedzieć, żeby oceniać - polityka, cennik - na pierwszym
+modelu organizacji albo na wybranym przez ciebie. Prompt można edytować przed
+utworzeniem (`GET /datasets/{id}/judge-template`). Utworzenie go wymaga
+`agents:edit` oraz `datasets:edit`.
+
+Sędzia jest widoczny tak szeroko jak dataset, bo jego prompt zawiera nazwę i
+opis datasetu, a gdy jego twórca nie może go opublikować, zostaje szkicem dla
+kogoś, kto może (`agents:publish`).
 
 Model wybiera się w tym samym panelu co dla agenta: provider, pełna lista jego
 modeli i klucz dla kogoś, kto może dodać model (`connections:manage`), a
@@ -363,11 +366,12 @@ Ocena może cytować odpowiedź, do 12 fragmentów; cytat, którego odpowiedź n
 zawiera słowo w słowo, jest zachowywany obok oceny jako niezweryfikowany,
 pokazywany w osobnej linii pod uzasadnieniem, a ocena pozostaje.
 
-To, co uzasadnia ocenę, nigdy jej nie unieważnia: pusty albo za długi cytat
-jest pomijany, cytaty ponad dwanaście i reguła ponad 300 znaków są przycinane,
-a werdykt jest nieczytelny tylko bez identyfikatora kryterium albo oceny. Run
-sędziego w Activity mówi, których pól nie dało się odczytać, nigdy samą
-odpowiedź, która może powtarzać przypadek datasetu, którego czytający nie
+To, co uzasadnia ocenę, nigdy jej nie unieważnia: pusty albo za długi cytat jest
+pomijany, cytaty ponad dwanaście i reguła ponad 300 znaków są przycinane, a
+werdykt jest nieczytelny tylko bez identyfikatora kryterium albo oceny.
+Kryterium ocenione więcej niż raz jest błędem, a nie tą oceną, która przyszła
+ostatnia. Run sędziego w Activity mówi, których pól nie dało się odczytać, nigdy
+samą odpowiedź, która może powtarzać przypadek datasetu, którego czytający nie
 widzi.
 
 Każdy wynik zapisuje sędziego, który go ocenił - agenta sędziego, jego profil
@@ -492,6 +496,8 @@ agenta: czytelnik datasetu, który nie może zobaczyć agenta, który odpowiedzi
 odpowiedź jest ukryta - razem z każdym uzasadnieniem, cytatem i odpowiedzią
 sędziego, które mogą ją powtarzać. Dotyczy to każdego miejsca, w którym czyta
 się wyniki: zakładki Przegląd, kolejki przeglądu i zakładki Datasets sędziego.
+Odpowiedź, której run albo agent już nie istnieje, widzi tylko ktoś, kto może
+zobaczyć każdego agenta organizacji.
 
 ## Dane osobowe { #personal-data }
 

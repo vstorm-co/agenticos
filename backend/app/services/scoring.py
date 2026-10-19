@@ -39,12 +39,14 @@ from app.core.exceptions import (
     SystemAgentUnavailableError,
 )
 from app.core.field_errors import refused_field
-from app.core.permissions import AuthContext, Perm
+from app.core.permissions import AuthContext, Perm, Scope
+from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import AgentKind
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.case_score import CaseScore
 from app.db.models.dataset import Dataset, DatasetCase
 from app.db.models.intercepted_tool_call import InterceptionOutcome
+from app.db.models.resource_grant import Visibility
 from app.repositories import (
     agent_repo,
     agent_run_repo,
@@ -277,7 +279,8 @@ class ScoringService:
         """Create a judge of the dataset's own and make it the one grading the dataset.
 
         Needs `datasets:edit` on the dataset and `agents:edit`, since a judge is
-        an agent. Its prompt is the one edited from :meth:`judge_template`, or
+        an agent; it is as widely visible as the dataset, and stays a draft for a
+        caller who may not publish it. Its prompt is the one edited from :meth:`judge_template`, or
         that template when none is sent. The rubric stays the dataset's; only
         which judge grades changes, so scores graded before keep the judge they
         were graded by. What the judge must know is added to its instructions
@@ -305,6 +308,7 @@ class ScoringService:
             name=data.name,
             description=f"Grades the cases of the dataset '{dataset.name}'.",
             instructions=_with_knowledge(instructions, data.knowledge),
+            visibility=Visibility(dataset.visibility),
             model_profile_id=data.model_profile_id,
         )
         scoring = DatasetScoring.model_validate(dataset.scoring)
@@ -858,7 +862,9 @@ class ScoringService:
 
         A reader who may not view the agent that answered reads the outcome and
         the case, not the answer: it, and every result's reason, quotes and what
-        the judge said, are left out, and `answer_hidden` says so.
+        the judge said, are left out, and `answer_hidden` says so. An answer
+        whose run or agent is gone is read only by somebody who may view every
+        agent, since nothing is left to check the reader against.
         """
         reads = [CaseScoreRead.model_validate(score) for score in scores]
         models = await credential_repo.get_profiles_by_ids(
@@ -887,10 +893,12 @@ class ScoringService:
             for agent in agents.values()
             if not await resolve_access(self.db, ctx, agent, Perm.AGENTS_VIEW, resource_type=AGENT)
         }
+        sees_every_agent = ctx.scope_for(Perm.AGENTS_VIEW) >= Scope.ALL
         named = []
         for read in reads:
             agent = None if read.agent_id is None else agents.get(read.agent_id)
-            if agent is not None and agent.id in hidden:
+            unchecked = agent is None and read.answer is not None and not sees_every_agent
+            if unchecked or (agent is not None and agent.id in hidden):
                 read = _without_answer(read)
             version = None if read.agent_version_id is None else versions.get(read.agent_version_id)
             judged_on = (
@@ -1015,6 +1023,8 @@ class ScoringService:
             held = newest.get(score.case_id)
             if held is None or _rank(score) > _rank(held):
                 newest[score.case_id] = score
+        for case_id in sorted(newest):
+            await hold_subject(self.db, LockScope.REVIEW_PER_CASE, case_id)
         waiting = await case_score_repo.waiting_for_cases(
             self.db, list(newest), organization_id=ctx.organization_id, dataset_id=dataset_id
         )

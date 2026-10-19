@@ -68,6 +68,7 @@ const REASON_KEYS = {
   judge_run_failed: "reason.judgeRunFailed",
   judge_output_invalid: "reason.judgeOutputInvalid",
   judge_ungraded: "reason.judgeUngraded",
+  judge_graded_twice: "reason.judgeGradedTwice",
   judge_reason_echo: "reason.judgeReasonEcho",
   judge_counter_unsupported: "reason.judgeCounterUnsupported",
 } as const;

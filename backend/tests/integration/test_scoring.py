@@ -7,6 +7,7 @@ its run row and its surface is what the platform does, not what a stub was told.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 import uuid
@@ -19,6 +20,7 @@ import pytest
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.spec import AgentSpec
@@ -45,7 +47,7 @@ from app.db.models.intercepted_tool_call import (
 )
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
-from app.db.models.resource_grant import GrantLevel, ResourceGrant
+from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
 from app.db.models.user import User
 from app.repositories import (
     agent_repo,
@@ -680,6 +682,46 @@ class TestADatasetsOwnJudge:
         assert judged.agent_id == own
         assert score.judge is not None and score.judge.agent_id == own
 
+    @pytest.mark.security
+    async def test_it_is_as_visible_as_the_dataset_it_grades(self, db, judge) -> None:
+        """Its prompt holds the dataset's name, description and what it must know,
+        so a private dataset does not get a judge the whole organization reads."""
+        tenant = await _tenant(db)
+        await _model(db, tenant)
+        private, _ = await _dataset(db, tenant, scoring=_rubric())
+        shared, _ = await _dataset(db, tenant, scoring=_rubric(), visibility="org")
+        scoring = ScoringService(db)
+
+        hidden = await scoring.create_judge(
+            tenant.ctx, private.id, JudgeCreate(name="Private judge")
+        )
+        seen = await scoring.create_judge(tenant.ctx, shared.id, JudgeCreate(name="Org judge"))
+
+        visibility = {}
+        for made in (hidden, seen):
+            own = made.scoring.judge.agent_id
+            assert own is not None
+            agent = await agent_repo.get(db, own, organization_id=tenant.organization.id)
+            assert agent is not None
+            visibility[made.id] = agent.visibility
+        assert visibility == {private.id: "private", shared.id: "org"}
+
+    async def test_a_creator_who_may_not_publish_gets_a_draft_judge(self, db, judge) -> None:
+        tenant = await _tenant(db)
+        await _model(db, tenant)
+        member = await _join(db, tenant, OrgRoleName.MEMBER)
+        dataset = await DatasetService(db).create(member, DatasetCreate(name="Mine"))
+
+        made = await ScoringService(db).create_judge(
+            member, dataset.id, JudgeCreate(name="My judge")
+        )
+
+        own = made.scoring.judge.agent_id
+        assert own is not None
+        agent = await agent_repo.get(db, own, organization_id=tenant.organization.id)
+        assert agent is not None
+        assert (agent.kind, agent.current_version_id) == ("judge", None)
+
     async def test_it_grades_by_the_default_judge_s_rules_with_the_dataset_added(
         self, db, judge
     ) -> None:
@@ -832,7 +874,11 @@ class TestADatasetsOwnJudge:
         tenant = await _tenant(db)
         dataset, _ = await _dataset(db, tenant, scoring=DatasetScoring())
         other = await SystemAgentService(db).create_judge(
-            tenant.ctx, name="Tone judge", description="Grades tone.", instructions="Be fair."
+            tenant.ctx,
+            name="Tone judge",
+            description="Grades tone.",
+            visibility=Visibility.ORG,
+            instructions="Be fair.",
         )
 
         saved = await ScoringService(db).set_scoring(
@@ -1578,6 +1624,45 @@ class TestVerdicts:
         waiting = (await service.list_scores(tenant.ctx, dataset.id, pending=True)).items
         assert [score.id for score in waiting] == [regression.id]
 
+    async def test_two_sends_of_one_case_at_once_leave_one_score_waiting(
+        self, db, engine, judge
+    ) -> None:
+        """Each send reads which of the case's scores waits before it queues; racing,
+        both read none and both queued, until the case is locked for the read."""
+        tenant = await _tenant(db)
+        dataset, case = await _dataset(db, tenant, scoring=DatasetScoring())
+        run = await _scored_run(db, tenant)
+        older_run = await _eval_run(db, tenant, dataset, run)
+        newer_run = await _eval_run(db, tenant, dataset, run)
+        older = await _score_for_an_eval(db, tenant, dataset, case, run, older_run)
+        newer = await _score_for_an_eval(db, tenant, dataset, case, run, newer_run)
+        await case_score_repo.update(
+            db, score=older, update_data={"created_at": datetime.now(UTC) - timedelta(days=1)}
+        )
+        await db.commit()
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        first_sent = asyncio.Event()
+
+        async def send(score_id: uuid.UUID, *, first: bool) -> None:
+            async with factory() as session:
+                if not first:
+                    await first_sent.wait()
+                await ScoringService(session).route_to_review(
+                    tenant.ctx, dataset_id=dataset.id, score_ids=[score_id]
+                )
+                if first:
+                    first_sent.set()
+                    await asyncio.sleep(0.3)
+                await session.commit()
+
+        await asyncio.gather(send(older.id, first=True), send(newer.id, first=False))
+
+        async with factory() as fresh:
+            waiting = await case_score_repo.waiting_for_cases(
+                fresh, [case.case_id], organization_id=tenant.organization.id, dataset_id=dataset.id
+            )
+        assert [score.id for score in waiting] == [newer.id]
+
     async def test_an_older_score_sent_by_hand_leaves_the_newer_one_waiting(
         self, db, judge
     ) -> None:
@@ -1657,6 +1742,30 @@ class TestVerdicts:
         assert [r.status for r in hidden.results] == [r.status for r in owned.results]
         assert (hidden.outcome, hidden.question) == (owned.outcome, owned.question)
         assert (granted.answer, granted.answer_hidden) == (owned.answer, False)
+
+    @pytest.mark.security
+    async def test_an_answer_whose_run_is_gone_is_read_only_by_who_sees_every_agent(
+        self, db, judge
+    ) -> None:
+        tenant = await _tenant(db)
+        dataset, case = await _dataset(db, tenant, scoring=DatasetScoring(), visibility="org")
+        run = await _scored_run(db, tenant)
+        service = ScoringService(db)
+        score = await service.score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+        row = await case_score_repo.get(
+            db, score.id, organization_id=tenant.organization.id, dataset_id=dataset.id
+        )
+        assert row is not None
+        await case_score_repo.update(db, score=row, update_data={"run_id": None})
+        viewer = await _join(db, tenant, OrgRoleName.VIEWER)
+
+        [owned] = (await service.list_scores(tenant.ctx, dataset.id)).items
+        [hidden] = (await service.list_scores(viewer, dataset.id)).items
+
+        assert (owned.answer is not None, owned.answer_hidden) == (True, False)
+        assert (hidden.answer, hidden.answer_hidden) == (None, True)
 
     async def test_a_score_keeps_the_answer_it_graded_and_who_gave_it(self, db, judge) -> None:
         tenant = await _tenant(db)

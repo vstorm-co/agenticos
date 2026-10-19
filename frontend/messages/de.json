@@ -6404,6 +6404,7 @@
         "judgeMissing": "Der für dieses Dataset gewählte Bewerter existiert nicht mehr. Wählen Sie im Tab Bewertung einen anderen.",
         "judgeRunFailed": "Der Run des Bewerters wurde nicht beendet.",
         "judgeOutputInvalid": "Der Bewerter hat in einer Form geantwortet, die sich nicht lesen ließ.",
+        "judgeGradedTwice": "Der Bewerter hat dieses Kriterium mehr als einmal bewertet, daher zählt keine der Bewertungen.",
         "judgeUngraded": "Der Bewerter hat für dieses Kriterium keine Note auf der Skala vergeben.",
         "judgeReasonEcho": "Der Bewerter hat das Kriterium wiederholt, statt zu sagen, warum die Antwort es erfüllt.",
         "judgeCounterUnsupported": "Der Bewerter hat die Antwort als anders als das Gegenbeispiel bestanden, obwohl die Antwort es wiederholt oder der Bewerter nur zitiert hat, was beide sagen."
