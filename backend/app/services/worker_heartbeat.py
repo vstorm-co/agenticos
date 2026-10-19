@@ -10,7 +10,13 @@ from datetime import datetime
 
 from app.clients.redis import RedisClient
 
-SWEEPS = ("agent-triggers-check", "portal-poll", "notification-delivery-sweep", "rag-sync-check")
+SWEEPS = (
+    "agent-triggers-check",
+    "portal-poll",
+    "notification-delivery-sweep",
+    "rag-sync-check",
+    "sandbox-destroy-retry",
+)
 """Every sweep `app/worker/prefect_app.py` runs, by name - each records on its own."""
 
 _KEY = "worker:sweep:{}"

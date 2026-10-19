@@ -16,9 +16,11 @@ import errno
 import logging
 import os
 import threading
-from collections.abc import Mapping
+from collections.abc import AsyncGenerator, Mapping
+from contextlib import asynccontextmanager
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
@@ -37,6 +39,7 @@ from pydantic_ai.workspaces import (
     WorkspaceUnavailableError,
 )
 from pydantic_ai_backends import ConsoleCapability, FileInfo, StateBackend
+from pydantic_ai_backends.remote import WorkspaceTree
 
 from app.agents.capabilities import build as build_capabilities
 from app.agents.capabilities import get as get_capability
@@ -58,11 +61,15 @@ from app.core import background
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.repositories import agent_workspace as workspace_repo
+from app.services import sandbox_workspace
 from app.services.sandbox_connection import ResolvedConnection, SandboxConnectionService
 from app.services.sandbox_workspace import (
+    RETRY_CAP,
     SandboxWorkspaceService,
     WorkspaceContents,
     browsable,
+    next_destroy_attempt,
+    retry_pending_destroys,
     sandbox_config,
 )
 from tests.workspaces import document_workspace
@@ -126,6 +133,8 @@ def _serve(monkeypatch, resolved: ResolvedConnection | Exception) -> None:
         return resolved
 
     monkeypatch.setattr(SandboxConnectionService, "resolve", _resolve)
+    # Teardown resolves the same connection without the switched-off check.
+    monkeypatch.setattr(SandboxConnectionService, "resolve_for_teardown", _resolve)
 
 
 class _ClosesItsClient:
@@ -143,6 +152,41 @@ class _ClosesItsClient:
 
     def close(self) -> None:
         self.closed = True
+
+    def ls(self, session_id: str, path: str = ".") -> list[dict[str, object]]:
+        return []
+
+    def tree(
+        self, session_id: str, path: str = ".", *, max_depth: int, max_entries: int
+    ) -> WorkspaceTree:
+        """The service's `/tree`, walked over this fake's `ls` the way it walks disk.
+
+        A directory below the start that raises is left out and marks the
+        listing truncated; the start's failure is raised.
+        """
+        found: list[FileInfo] = []
+        truncated = False
+        queue = [(path, 1)]
+        while queue:
+            directory, depth = queue.pop(0)
+            try:
+                entries = self.ls(session_id, directory)
+            except Exception:
+                if depth == 1:
+                    raise
+                truncated = True
+                continue
+            for entry in entries:
+                if len(found) == max_entries:
+                    return WorkspaceTree(entries=found, truncated=True)
+                found.append(cast(FileInfo, entry))
+                if not entry.get("is_dir"):
+                    continue
+                if depth < max_depth:
+                    queue.append((str(entry.get("path")), depth + 1))
+                else:
+                    truncated = True
+        return WorkspaceTree(entries=found, truncated=truncated)
 
 
 class TestWhoSharesAWorkspace:
@@ -357,6 +401,38 @@ class TestTheStorageCeiling:
         document.write_bytes("/big.txt", b"small")
 
         assert document_size(document.files) <= 400
+
+    def test_the_running_measure_is_the_stored_size(self):
+        """`stored_size()` must agree with what the store is charged, byte for byte."""
+        document = CappedStateBackend(max_bytes=10_000_000)
+        assert document.stored_size() == document_size(document.files, document.directories)
+        document.write_bytes("/notes/żółw.md", 'zażółć gęślą jaźń\n"quoted"'.encode())
+        document.write_bytes("/bin/chart.png", bytes(range(256)))
+        document.write_bytes("/a/b/c/deep.txt", b"deep")
+        document.write_bytes("/notes/żółw.md", b"shorter")
+        document.remove("/bin/chart.png")
+        document.make_dir("/empty")
+
+        assert document.stored_size() == document_size(document.files, document.directories)
+
+    def test_a_write_serialises_only_the_file_it_wrote(self, monkeypatch):
+        """Dumping the whole document per write cost its size on the event loop."""
+        from app.agents.capabilities.sandbox import _capped
+
+        document = CappedStateBackend(max_bytes=10_000_000)
+        for index in range(20):
+            document.write_bytes(f"/f{index}.txt", b"x" * 1000)
+        measured: list[str] = []
+        real = _capped._entry_size
+
+        def counted(path: str, data: Any) -> int:
+            measured.append(path)
+            return real(path, data)
+
+        monkeypatch.setattr(_capped, "_entry_size", counted)
+        document.write_bytes("/f3.txt", b"changed")
+
+        assert measured == ["/f3.txt"]
 
     def test_a_failing_write_is_reported_as_itself_rather_than_measured(self):
         """A path the document rejects never reaches the ceiling check."""
@@ -808,11 +884,87 @@ class TestOpeningAndClosing:
         service = SandboxWorkspaceService(mock_db_session)
 
         workspace = await service.open(_spec(), ctx=_ctx(), identity=_identity())
+        assert workspace.document is not None
+        workspace.document.write_bytes("/workspace/out.txt", b"written")
         await service.close(workspace)
 
         assert mock_db_session.get.await_args.kwargs["populate_existing"] is True
         # Held to the commit, so a second flush waits and merges onto this one.
         assert mock_db_session.get.await_args.kwargs["with_for_update"] is True
+
+    async def test_a_turn_that_wrote_nothing_stores_nothing(self, monkeypatch, mock_db_session):
+        """Storing it anyway rewrote the whole column, and its WAL, every message."""
+        row = _row(version=1)
+        monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=row))
+        monkeypatch.setattr(workspace_repo, "touch", AsyncMock(return_value=row))
+        saved = AsyncMock(return_value=row)
+        used = AsyncMock()
+        monkeypatch.setattr(workspace_repo, "save_files", saved)
+        monkeypatch.setattr(workspace_repo, "mark_used", used)
+        mock_db_session.get = AsyncMock(return_value=row)
+        service = SandboxWorkspaceService(mock_db_session)
+
+        workspace = await service.open(_spec(), ctx=_ctx(), identity=_identity())
+        await service.close(workspace)
+
+        saved.assert_not_awaited()
+        # Not even read back: that alone loads the whole document.
+        mock_db_session.get.assert_not_awaited()
+        used.assert_awaited_once_with(mock_db_session, workspace_id=row.id)
+
+    @pytest.mark.parametrize(
+        ("rewrite", "stored"),
+        [
+            # A skill written again with the same text: only `modified_at` moved.
+            (b"same", False),
+            (b"different", True),
+            (b"\xff\xfe", True),
+        ],
+    )
+    async def test_a_rewrite_counts_only_when_the_content_changed(
+        self, monkeypatch, mock_db_session, rewrite, stored
+    ):
+        original = StateBackend()
+        original.write_bytes("/workspace/skills/a/SKILL.md", b"same")
+        # And a file nobody touched, which is compared by identity alone.
+        original.write_bytes("/workspace/notes.md", b"untouched")
+        row = _row(version=1)
+        row.files = dict(original.files)
+        row.directories = sorted(original.directories)
+        monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=row))
+        monkeypatch.setattr(workspace_repo, "touch", AsyncMock(return_value=row))
+        saved = AsyncMock(return_value=row)
+        monkeypatch.setattr(workspace_repo, "save_files", saved)
+        monkeypatch.setattr(workspace_repo, "mark_used", AsyncMock())
+        mock_db_session.get = AsyncMock(return_value=row)
+        service = SandboxWorkspaceService(mock_db_session)
+
+        workspace = await service.open(_spec(), ctx=_ctx(), identity=_identity())
+        assert workspace.document is not None
+        workspace.document.write_bytes("/workspace/skills/a/SKILL.md", rewrite)
+        await service.close(workspace)
+
+        assert saved.await_count == (1 if stored else 0)
+
+    async def test_a_removed_file_is_a_change(self, monkeypatch, mock_db_session):
+        original = StateBackend()
+        original.write_bytes("/workspace/gone.txt", b"bye")
+        row = _row(version=1)
+        row.files = dict(original.files)
+        row.directories = sorted(original.directories)
+        monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=row))
+        monkeypatch.setattr(workspace_repo, "touch", AsyncMock(return_value=row))
+        saved = AsyncMock(return_value=row)
+        monkeypatch.setattr(workspace_repo, "save_files", saved)
+        mock_db_session.get = AsyncMock(return_value=row)
+        service = SandboxWorkspaceService(mock_db_session)
+
+        workspace = await service.open(_spec(), ctx=_ctx(), identity=_identity())
+        assert workspace.document is not None
+        workspace.document.remove("/workspace/gone.txt")
+        await service.close(workspace)
+
+        saved.assert_awaited_once()
 
     async def test_the_skills_tree_from_before_the_move_is_not_persisted_again(
         self, monkeypatch, mock_db_session
@@ -889,6 +1041,9 @@ class TestOpeningAndClosing:
         service = SandboxWorkspaceService(mock_db_session)
 
         workspace = await service.open(_spec(), ctx=_ctx(), identity=_identity())
+        # A change to store, or the flush is skipped and never reaches the failure.
+        assert workspace is not None and workspace.document is not None
+        workspace.document.write_bytes("/workspace/out.txt", b"kept")
 
         await service.close(workspace)
 
@@ -2759,6 +2914,56 @@ async def _committed(session: object) -> None:
     await background.drain()
 
 
+class _Tombstones:
+    """The tombstone repository and the session `_destroy_and_forget` opens, faked.
+
+    Every purge writes a tombstone now (#2209), and a destroy that succeeds opens
+    a session of its own to remove it. Faked for the whole module, so no purge
+    test reaches for a real database from a background task, where a failure is
+    only a log line.
+    """
+
+    def __init__(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self.added: list[dict[str, object]] = []
+        self.removed: list[UUID] = []
+        self.postponed: list[tuple[UUID, int, datetime]] = []
+        self.due: list[Any] = []
+
+        async def add(_db: object, **fields: object) -> Any:
+            self.added.append(fields)
+            return MagicMock(id=uuid4(), **fields)
+
+        async def remove(_db: object, pending_id: UUID) -> None:
+            self.removed.append(pending_id)
+
+        async def postpone(
+            _db: object, pending_id: UUID, *, attempts: int, until: datetime
+        ) -> None:
+            self.postponed.append((pending_id, attempts, until))
+
+        async def claim_due(_db: object, *, now: datetime, limit: int) -> list[Any]:
+            return self.due[:limit]
+
+        @asynccontextmanager
+        async def session() -> AsyncGenerator[MagicMock, None]:
+            yield MagicMock()
+
+        repo = sandbox_workspace.pending_destroy_repo
+        for name, fake in (
+            ("add", add),
+            ("remove", remove),
+            ("postpone", postpone),
+            ("claim_due", claim_due),
+        ):
+            monkeypatch.setattr(repo, name, fake)
+        monkeypatch.setattr(sandbox_workspace, "get_db_context", session)
+
+
+@pytest.fixture(autouse=True)
+def tombstones(monkeypatch: pytest.MonkeyPatch) -> _Tombstones:
+    return _Tombstones(monkeypatch)
+
+
 def _conversation_holds(monkeypatch: pytest.MonkeyPatch, *rows: object) -> AsyncMock:
     monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=list(rows)))
     deleted = AsyncMock()
@@ -3681,16 +3886,13 @@ class TestWalkingAHostsDirectories:
     def _archive(monkeypatch, tree: dict[str, list[dict[str, object]]], asked: list[str]):
         from pydantic_ai_backends import remote as remote_module
 
-        class _Archive:
+        class _Archive(_ClosesItsClient):
             def __init__(self, url, token="", timeout=None):
                 pass
 
             def ls(self, session_id, path="."):
                 asked.append(path)
                 return tree.get(path, [])
-
-            def close(self):
-                pass
 
         monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
 
@@ -3790,7 +3992,8 @@ class TestWalkingAHostsDirectories:
 
         Walking every level made every level able to fail the whole listing, so a
         single directory the agent chmod'ed away would report a workspace nobody
-        can read - where before the walk it reported the root's files.
+        can read - where before the walk it reported the root's files. What it
+        held is missing from the page, so the listing says it is incomplete.
         """
         from pydantic_ai_backends import remote as remote_module
 
@@ -3801,7 +4004,7 @@ class TestWalkingAHostsDirectories:
             ]
         }
 
-        class _Archive:
+        class _Archive(_ClosesItsClient):
             def __init__(self, url, token="", timeout=None):
                 pass
 
@@ -3825,7 +4028,7 @@ class TestWalkingAHostsDirectories:
         assert found is not None
         _, contents = found
         assert contents.unreadable_reason is None
-        assert contents.truncated is False
+        assert contents.truncated is True
         assert [str(entry.get("path")) for entry in contents.entries] == ["notes.md", "locked"]
 
     async def test_a_root_that_refuses_is_still_the_hosts_failure(
@@ -3833,7 +4036,7 @@ class TestWalkingAHostsDirectories:
     ):
         from pydantic_ai_backends import remote as remote_module
 
-        class _Archive:
+        class _Archive(_ClosesItsClient):
             def __init__(self, url, token="", timeout=None):
                 pass
 
@@ -3882,7 +4085,7 @@ class TestDrawingAHostsImages:
 
         png = self._png()
 
-        class _Archive:
+        class _Archive(_ClosesItsClient):
             def __init__(self, url, token="", timeout=None):
                 pass
 
@@ -4127,7 +4330,7 @@ class TestDrawingAHostsImages:
 
         from app.repositories import agent as agent_repo
 
-        class _Archive:
+        class _Archive(_ClosesItsClient):
             def __init__(self, url, token="", timeout=None):
                 pass
 
@@ -4166,7 +4369,7 @@ class TestDrawingAHostsImages:
 
         from app.repositories import agent as agent_repo
 
-        class _Archive:
+        class _Archive(_ClosesItsClient):
             def __init__(self, url, token="", timeout=None):
                 pass
 
@@ -4498,3 +4701,240 @@ class TestAListingCarriesWhatEachTileDraws:
         assert found[1].thumbnails == {"/out/chart.png": "data:image/webp;base64,AA"}
         # A directory is never fetched as an image.
         assert drawn.await_args.args[2] == ["/out/chart.png"]
+
+
+class TestADestroyThatFailsIsRetried:
+    """#2209: the rows naming a remote sandbox go with the conversation or the
+    project, so a destroy that failed after the commit left nothing that knew the
+    sandbox existed - and a Daytona sandbox has no TTL behind it."""
+
+    async def test_the_deletion_writes_a_tombstone_naming_the_sandbox(
+        self, monkeypatch, mock_db_session, sandboxes, tombstones
+    ):
+        _serve(monkeypatch, _resolved())
+        connection_id = uuid4()
+        row = _row(backend="service", session_id="dc-1", connection_id=connection_id)
+        _conversation_holds(monkeypatch, row)
+
+        await SandboxWorkspaceService(mock_db_session).purge_for_conversation(
+            _ctx(), conversation_id=uuid4()
+        )
+
+        assert tombstones.added == [
+            {
+                "organization_id": row.organization_id,
+                "connection_id": connection_id,
+                "ref_id": "dc-1",
+                "scope_key": row.scope_key,
+            }
+        ]
+
+    async def test_a_destroy_that_succeeds_removes_its_tombstone(
+        self, monkeypatch, mock_db_session, sandboxes, tombstones
+    ):
+        _serve(monkeypatch, _resolved())
+        _conversation_holds(
+            monkeypatch, _row(backend="service", session_id="dc-1", connection_id=uuid4())
+        )
+
+        await SandboxWorkspaceService(mock_db_session).purge_for_conversation(
+            _ctx(), conversation_id=uuid4()
+        )
+        await _committed(mock_db_session)
+
+        assert len(sandboxes.destroyed) == 1
+        assert len(tombstones.removed) == 1
+
+    async def test_a_destroy_that_fails_leaves_its_tombstone(
+        self, monkeypatch, mock_db_session, sandboxes, tombstones
+    ):
+        sandboxes.unreachable = RuntimeError("connection refused")
+        _serve(monkeypatch, _resolved(kind="daytona", base_url=None))
+        _conversation_holds(
+            monkeypatch, _row(backend="service", session_id="dt-1", connection_id=uuid4())
+        )
+
+        await SandboxWorkspaceService(mock_db_session).purge_for_conversation(
+            _ctx(), conversation_id=uuid4()
+        )
+        await _committed(mock_db_session)
+
+        assert len(tombstones.added) == 1
+        assert tombstones.removed == []
+
+    async def test_a_connection_that_cannot_be_resolved_still_leaves_a_tombstone(
+        self, monkeypatch, mock_db_session, sandboxes, tombstones
+    ):
+        """Resolving reads the vault; a key rotated away must not lose the sandbox."""
+        _serve(monkeypatch, RuntimeError("vault refused"))
+        _conversation_holds(
+            monkeypatch, _row(backend="service", session_id="dc-1", connection_id=uuid4())
+        )
+
+        await SandboxWorkspaceService(mock_db_session).purge_for_conversation(
+            _ctx(), conversation_id=uuid4()
+        )
+        await _committed(mock_db_session)
+
+        assert len(tombstones.added) == 1
+        assert sandboxes.destroyed == []
+
+    async def test_the_sweep_destroys_what_is_due_and_forgets_it(
+        self, monkeypatch, sandboxes, tombstones
+    ):
+        resolved = _resolved()
+        _serve(monkeypatch, resolved)
+        pending = MagicMock(
+            id=uuid4(),
+            organization_id=uuid4(),
+            connection_id=resolved.row.id,
+            ref_id="dc-1",
+            scope_key="sc-1",
+            attempts=2,
+        )
+        tombstones.due = [pending]
+
+        assert await retry_pending_destroys() == 1
+
+        assert sandboxes.destroyed == [
+            WorkspaceRef(provider=f"sandboxd:{resolved.row.id}", id="dc-1")
+        ]
+        assert tombstones.removed == [pending.id]
+        assert tombstones.postponed == []
+
+    async def test_a_sweep_that_fails_postpones_and_moves_on(
+        self, monkeypatch, sandboxes, tombstones, caplog
+    ):
+        """One provider that is down must not hold back the next sandbox."""
+        sandboxes.unreachable = RuntimeError("connection refused")
+        _serve(monkeypatch, _resolved(kind="daytona", base_url=None))
+        first = MagicMock(
+            id=uuid4(),
+            organization_id=uuid4(),
+            connection_id=uuid4(),
+            ref_id="dt-1",
+            scope_key="sc-1",
+            attempts=0,
+        )
+        second = MagicMock(
+            id=uuid4(),
+            organization_id=uuid4(),
+            connection_id=uuid4(),
+            ref_id="dt-2",
+            scope_key="sc-2",
+            attempts=3,
+        )
+        tombstones.due = [first, second]
+
+        with caplog.at_level(logging.WARNING):
+            assert await retry_pending_destroys() == 0
+
+        assert [(pid, attempts) for pid, attempts, _ in tombstones.postponed] == [
+            (first.id, 1),
+            (second.id, 4),
+        ]
+        assert tombstones.removed == []
+        assert [r for r in caplog.records if r.message == "workspace_purge_retry_failed"]
+
+    def test_the_pause_doubles_up_to_six_hours(self):
+        now = datetime(2026, 10, 19, tzinfo=UTC)
+
+        assert next_destroy_attempt(1, now) - now == timedelta(minutes=2)
+        assert next_destroy_attempt(3, now) - now == timedelta(minutes=8)
+        assert next_destroy_attempt(20, now) - now == RETRY_CAP
+
+
+class TestTheWaitSink:
+    """#2222: the sandbox client is handed the surface's sink as it is built."""
+
+    async def test_a_sandboxd_workspace_is_handed_the_runs_sink(
+        self, monkeypatch, mock_db_session, sandboxes
+    ):
+        _serve(monkeypatch, _resolved())
+        _a_row_is_created(monkeypatch)
+        heard = AsyncMock()
+
+        await SandboxWorkspaceService(mock_db_session).open(
+            _spec(backend="service"), ctx=_ctx(), identity=_identity(), on_wait=heard
+        )
+        await sandboxes.made[0]["on_wait"]()
+
+        heard.assert_awaited_once_with(True)
+
+    async def test_the_end_of_the_open_is_said_once_and_only_after_a_wait(self):
+        heard = AsyncMock()
+        notice = sandbox_workspace._OpeningNotice(heard)
+
+        await notice.settled()
+        assert heard.await_count == 0
+        await notice.waiting()
+        await notice.settled()
+        await notice.settled()
+
+        assert [call.args for call in heard.await_args_list] == [(True,), (False,)]
+
+    async def test_with_no_surface_there_is_no_sink(self, monkeypatch, mock_db_session, sandboxes):
+        _serve(monkeypatch, _resolved())
+        _a_row_is_created(monkeypatch)
+
+        await SandboxWorkspaceService(mock_db_session).open(
+            _spec(backend="service"), ctx=_ctx(), identity=_identity()
+        )
+
+        assert sandboxes.made[0]["on_wait"] is None
+
+
+async def test_the_real_client_is_handed_the_notice_and_the_shared_client():
+    """Against the installed library, not the fake: `on_wait` arrived in
+    pydantic-ai-backend 0.2.34, and an older one would refuse the keyword."""
+    from pydantic_ai_backends.workspaces import SandboxdWorkspace as RealSandboxd
+
+    notice = AsyncMock()
+    made = SandboxWorkspaceService._service_capability(_resolved(), "sc-1", on_wait=notice)
+    again = SandboxWorkspaceService._service_capability(_resolved(), "sc-2")
+
+    assert isinstance(made, RealSandboxd)
+    assert made.on_wait is notice
+    # One pool for every workspace in the process, not a connection per request.
+    assert made.client is not None
+    assert made.client is again.client
+    await sandbox_workspace.close_sandboxd_client()
+
+
+class TestTheSharedSandboxdClient:
+    def test_another_loop_gets_its_own_client(self):
+        """Connections belong to the loop that opened them."""
+        import asyncio
+
+        async def take() -> object:
+            return sandbox_workspace._sandboxd_http()
+
+        first = asyncio.run(take())
+        second = asyncio.run(take())
+
+        assert first is not second
+        asyncio.run(sandbox_workspace.close_sandboxd_client())
+
+    def test_closing_from_another_loop_drops_it_rather_than_raising(self, monkeypatch):
+        import asyncio
+
+        async def warm() -> None:
+            client = sandbox_workspace._sandboxd_http()
+            # What `aclose` says for connections whose loop has gone.
+            monkeypatch.setattr(
+                client, "aclose", AsyncMock(side_effect=RuntimeError("Event loop is closed"))
+            )
+
+        asyncio.run(warm())
+        asyncio.run(sandbox_workspace.close_sandboxd_client())
+
+        assert sandbox_workspace._sandboxd_client is None
+
+    async def test_a_closed_client_is_rebuilt(self):
+        first = sandbox_workspace._sandboxd_http()
+        await first.aclose()
+
+        assert sandbox_workspace._sandboxd_http() is not first
+        await sandbox_workspace.close_sandboxd_client()
+        # Closing twice is a shutdown that found nothing to close.
+        await sandbox_workspace.close_sandboxd_client()

@@ -1,5 +1,5 @@
 ---
-source_sha: "66a783c397fe"
+source_sha: "852d8bf0dfea"
 ---
 
 # La sandbox { #the-sandbox }
@@ -426,7 +426,21 @@ en segundo plano **mientras el servicio arranca** en lugar de dentro de la prime
 petición de alguien: una build son diez segundos para arriba. Las imágenes se
 cachean, así que un host paga una vez.
 
-Lo que queda por esperar: la primera sesión abierta *durante* un prewarm, y un
+Un despliegue las construye aún antes. `scripts/deploy.sh` ejecuta el
+`python -m pydantic_ai_backends.remote.prepare` de la biblioteca en un contenedor
+de un solo uso de la nueva imagen de sandboxd, antes de reemplazar el servicio
+viejo. Así, una versión que cambia un runtime paga la construcción mientras el
+servicio viejo sigue atendiendo. Antes, el 18.10.2026, el primer chat con sandbox
+tras una versión así esperó minutos, y cada petición de sesión respondió 409 hasta
+que terminó la construcción. Una construcción que falla se reintenta tres veces
+ahí y dos al arrancar. Un runtime que siga sin construir se construye bajo
+demanda, como antes, y el log del despliegue lo nombra.
+
+Mientras una sesión espera una construcción así, el chat lo dice encima del campo
+de escritura: «Preparando el sandbox». Abrirla espera hasta diez minutos, no los 30
+segundos de una petición normal.
+
+Lo que queda por esperar: un runtime que el despliegue no pudo preparar, y un
 host cuya caché de imágenes se vació. `SANDBOXD_PERSIST_CONTAINERS: true` quita
 entonces casi todo lo demás: una sesión cerrada conserva su contenedor, así que la
 siguiente sesión sobre ese workspace arranca sin build y con lo que el agent
@@ -527,15 +541,17 @@ es indistinguible de una persona, y nada se lo impide.
 
 ### Listar un contenedor cuesta viajes de ida y vuelta, así que dos cosas están acotadas { #listing-a-container-costs-round-trips-so-two-things-are-bounded }
 
-El `ls` del archivo lee un directorio, así que el listado camina: en anchura, seis
-niveles de profundidad como mucho, parando a las 2.000 entradas, porque un host
-con un `node_modules` no debe convertir un workspace en diez mil filas.
+El `ls` del archivo lee un directorio, así que el listado pide al host su `tree`:
+una petición, recorrida en anchura sobre el propio disco del host, seis niveles de
+profundidad como mucho, parando a las 2.000 entradas, porque un host con un
+`node_modules` no debe convertir un workspace en diez mil filas.
 
 **Las dos cotas se informan.** La página de un workspace dice claramente que esto
 no es todo archivo, porque un árbol que se detiene sin decirlo es uno que alguien
 lee como todo lo que el agent guarda.
 
-Un directorio que no responde se registra y se salta. Solo si se niega la *raíz*
+Un directorio que no responde se salta, y el listado avisa de que está incompleto.
+Solo si se niega la *raíz*
 el workspace se vuelve ilegible, porque una carpeta a la que el agent quitó los
 permisos no es un host que nadie pueda leer.
 
@@ -580,6 +596,19 @@ viene.
 
 Borrar una conversación purga su workspace a través del producto, así que esto va
 sobre lo que nadie borra y no sobre lo que sí borran.
+
+Esa purga no depende de que el proveedor responda en ese momento. El borrado
+escribe, en la misma transacción, una lápida por cada sandbox remoto, y un destroy
+la quita cuando el proveedor lo confirma. Si el host del sandbox está caído, una
+clave de Daytona se rechaza o el worker se reinicia entre medias, el sweep
+`sandbox-destroy-retry` del worker lo vuelve a intentar. La pausa se duplica cada
+vez, de 2 minutos a 6 horas, hasta que el destroy sale bien. Un sandbox de Daytona
+no tiene TTL detrás, así que solo esto lo termina.
+
+A una conexión apagada se le siguen eliminando sus sandboxes, porque apagarla
+detiene el trabajo nuevo y no la factura. Una conexión a la que le quedan
+tombstones no se puede borrar: se irían con ella, y son el único registro de lo
+que sigue en marcha en el proveedor.
 
 ## Resumen { #recap }
 

@@ -38,8 +38,8 @@ class _Session:
         return None
 
 
-def _bot() -> MagicMock:
-    return MagicMock(id=uuid4(), api_base_url=None)
+def _bot(platform: str = "telegram") -> MagicMock:
+    return MagicMock(id=uuid4(), api_base_url=None, platform=platform)
 
 
 @pytest.mark.parametrize(
@@ -57,7 +57,7 @@ async def test_a_bot_whose_token_cannot_be_unsealed_is_skipped_and_the_rest_star
     open, and a key version `VAULT_MASTER_KEYS` does not hold at all. The bot is
     recorded `down` with a reason an operator can act on, so the console does
     not go on showing a heartbeat from the run before the restart."""
-    sealed_elsewhere, readable = _bot(), _bot()
+    sealed_elsewhere, readable = _bot("slack"), _bot("slack")
     monkeypatch.setattr(main, "get_db_context", _Session)
     monkeypatch.setattr(
         main, "get_active_polling_bots", AsyncMock(return_value=[sealed_elsewhere, readable])
@@ -92,7 +92,7 @@ async def test_a_bot_with_a_readable_token_still_raises_when_its_stream_cannot_o
     adapter's failure, and the lifespan's own handler around this call decides
     what to do with it - as before."""
     monkeypatch.setattr(main, "get_db_context", _Session)
-    monkeypatch.setattr(main, "get_active_polling_bots", AsyncMock(return_value=[_bot()]))
+    monkeypatch.setattr(main, "get_active_polling_bots", AsyncMock(return_value=[_bot("slack")]))
     monkeypatch.setattr(main, "unseal_bot_token", MagicMock(return_value="xoxb"))
     monkeypatch.setattr(main, "unseal_slack_app_token", MagicMock(return_value=None))
     monkeypatch.setattr(main, "open_inbound_stream", AsyncMock(side_effect=OSError("refused")))
@@ -184,7 +184,7 @@ async def test_a_bot_paused_after_the_first_read_is_given_back_not_opened(
 async def test_a_claimed_bot_opens_with_the_row_as_it_is_now_and_only_if_still_held(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    before, now = _bot(), _bot()
+    before, now = _bot("mattermost"), _bot("mattermost")
     now.id = before.id
     now.api_base_url = "https://chat.example.com"
     monkeypatch.setattr(main, "get_db_context", _Session)
@@ -198,3 +198,29 @@ async def test_a_claimed_bot_opens_with_the_row_as_it_is_now_and_only_if_still_h
 
     assert opened.await_args.kwargs["api_base_url"] == "https://chat.example.com"
     assert opened.await_args.kwargs["take_over"] is False
+
+
+async def test_the_keeper_asks_about_every_platform_in_one_query(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every worker runs the pass every 10 seconds, and it was one query per
+    platform - most of an idle deployment's transactions on prod (#2227). One
+    query finds the bots of all three, and each opens on its own platform."""
+    telegram, slack = _bot("telegram"), _bot("slack")
+    monkeypatch.setattr(main, "get_db_context", _Session)
+    read = AsyncMock(return_value=[telegram, slack])
+    monkeypatch.setattr(main, "get_active_polling_bots", read)
+    monkeypatch.setattr(main, "unseal_bot_token", MagicMock(return_value="tok"))
+    monkeypatch.setattr(main, "unseal_slack_app_token", MagicMock(return_value=None))
+    opened = AsyncMock()
+    monkeypatch.setattr(main, "open_inbound_stream", opened)
+
+    await main._start_channel_polling(*main._POLLING_PLATFORMS)
+    # Everything is held now, so the next pass is the one read and no re-read.
+    await main._start_channel_polling(*main._POLLING_PLATFORMS)
+
+    assert read.await_count == 3
+    assert {call.args[1:] for call in read.await_args_list} == {main._POLLING_PLATFORMS}
+    assert {
+        (call.kwargs["bot_id"], call.kwargs["platform"]) for call in opened.await_args_list
+    } == {(str(telegram.id), "telegram"), (str(slack.id), "slack")}

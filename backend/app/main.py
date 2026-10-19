@@ -88,8 +88,8 @@ _UNSEALABLE_TOKEN = (
 )
 
 
-async def _start_channel_polling(channel: str) -> None:
-    """Open a stream for every active polling bot on this platform.
+async def _start_channel_polling(*platforms: str) -> None:
+    """Open a stream for every active polling bot on these platforms.
 
     The catch-up pass, and only that. A bot registered *while* the process is
     running has its stream opened by `ChannelBotService`, through the same
@@ -105,7 +105,7 @@ async def _start_channel_polling(channel: str) -> None:
     where the quickstart had reused a development stack's database.
     """
     async with get_db_context() as _db:
-        _bots = await get_active_polling_bots(_db, channel)
+        _bots = await get_active_polling_bots(_db, *platforms)
     leases = stream_lease.leases()
     # Only a bot nobody serves: every worker runs this, at startup and on each
     # pass of `_keep_channel_streams`, and a bot gets one stream per deployment -
@@ -121,7 +121,7 @@ async def _start_channel_polling(channel: str) -> None:
     # the read above withdrew or took its lease before this claim, and the row
     # as it is now is the one to open with.
     async with get_db_context() as _db:
-        current = {str(_bot.id): _bot for _bot in await get_active_polling_bots(_db, channel)}
+        current = {str(_bot.id): _bot for _bot in await get_active_polling_bots(_db, *platforms)}
     started = 0
     for bot_id in claimed:
         _bot = current.get(bot_id)
@@ -133,7 +133,9 @@ async def _start_channel_polling(channel: str) -> None:
             app_token = unseal_slack_app_token(_bot)
         except (BadRequestError, ConfigurationError) as exc:
             logger.exception(
-                "%s: bot %s skipped - its token cannot be unsealed", channel.capitalize(), _bot.id
+                "%s: bot %s skipped - its token cannot be unsealed",
+                _bot.platform.capitalize(),
+                _bot.id,
             )
             await channel_connection_state.record_down(
                 _bot.id, _UNSEALABLE_TOKEN.format(exc.message)
@@ -141,12 +143,12 @@ async def _start_channel_polling(channel: str) -> None:
             # Kept, with no stream: the next pass would otherwise claim it again
             # and log the same refusal every few seconds. Entering the token
             # again takes the lease and opens the stream.
-            leases.hold(bot_id, channel)
+            leases.hold(bot_id, _bot.platform)
             continue
-        leases.hold(bot_id, channel)
+        leases.hold(bot_id, _bot.platform)
         await open_inbound_stream(
             bot_id=bot_id,
-            platform=channel,
+            platform=_bot.platform,
             token=token,
             api_base_url=_bot.api_base_url,
             app_token=app_token,
@@ -155,7 +157,7 @@ async def _start_channel_polling(channel: str) -> None:
         started += 1
     if started:
         logger.info(
-            "%s: polling started for %d of %d bot(s)", channel.capitalize(), started, len(_bots)
+            "%s: polling started for %d of %d bot(s)", "/".join(platforms), started, len(_bots)
         )
 
 
@@ -174,8 +176,7 @@ async def _keep_channel_streams() -> None:
         await asyncio.sleep(stream_lease.RENEW_EVERY_SECONDS)
         try:
             await stream_lease.leases().renew()
-            for platform in _POLLING_PLATFORMS:
-                await _start_channel_polling(platform)
+            await _start_channel_polling(*_POLLING_PLATFORMS)
         except Exception:
             logger.exception("Could not renew this worker's channel streams")
 
@@ -333,9 +334,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # closed the same way now that nothing can still be mid-request on them (#1263).
     from app.agents.capabilities.web_research._search import close_http_client
     from app.services.model_catalog import close_listing_client
+    from app.services.sandbox_workspace import close_sandboxd_client
 
     await close_http_client()
     await close_listing_client()
+    await close_sandboxd_client()
     # The knowledge capability caches a store of its own, built on the first
     # search and reachable from no request; a shutdown followed by more work -
     # a test, a reload - must not search through it once `close_db` has run.

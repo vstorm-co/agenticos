@@ -1,5 +1,5 @@
 ---
-source_sha: "dcefccd16f75"
+source_sha: "380aaee8c6be"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1662,6 +1662,13 @@ schlecht abschneidet, zeigt es.
   bedient, öffnet die neue Verbindung sofort, und die alte schließt sich bei der
   nächsten Erneuerung ihres Halters. Ist Redis nicht erreichbar, verbindet sich
   wie bisher jeder Worker.
+- **Ein zweiter Telegram-Poller wird bemerkt, nicht bekämpft.** Beendet Telegram
+  den Poll eines Bots, weil ein anderer Prozess denselben Token abfragt, schließt
+  ein Worker, der den Lease des Bots nicht hält, seine Kopie sofort. Der Halter
+  fragt weiter ab und markiert den Bot auf der Kanalseite als gestört: „ein
+  anderer Prozess fragt den Token dieses Bots ab“. Dieser Prozess liegt außerhalb
+  des Deployments, meist ein zweites Deployment oder ein Skript mit demselben
+  Token, und nur sein Besitzer kann ihn stoppen.
 - **Die Instruktionen einer Bindung dürfen benennen, was nur die Plattform weiß.**
   `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{member_count}`,
   `{member_list}` - eingesetzt, wenn ein Run startet, aus denselben Aufrufen, die

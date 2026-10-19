@@ -154,9 +154,7 @@ class TestTheGoogleDriveConnector:
         service.files.return_value.get.return_value.execute.return_value = {
             "mimeType": "text/plain"
         }
-        monkeypatch.setattr(
-            "app.services.rag.connectors.google_drive.MediaIoBaseDownload", _Downloader
-        )
+        monkeypatch.setattr("googleapiclient.http.MediaIoBaseDownload", _Downloader)
         connector = GoogleDriveConnector()
         monkeypatch.setattr(connector, "_get_drive_service", lambda credential: service)
 
@@ -324,9 +322,7 @@ class TestTheLegacyCliSources:
             "name": "../../evil.txt",
             "mimeType": "text/plain",
         }
-        monkeypatch.setattr(
-            "app.services.rag.sources.google_drive.MediaIoBaseDownload", _Downloader
-        )
+        monkeypatch.setattr("googleapiclient.http.MediaIoBaseDownload", _Downloader)
 
         local = await source.download_file("f1", sync_dir)
 
@@ -454,7 +450,7 @@ def test_the_s3_connector_refuses_when_the_source_names_no_credential() -> None:
     """
     connector = S3Connector()
     with (
-        patch("app.services.rag.connectors.s3.boto3.client") as client,
+        patch("boto3.client") as client,
         patch.object(settings, "S3_RAG_ACCESS_KEY", "operator-key"),
         patch.object(settings, "S3_RAG_SECRET_KEY", "operator-secret"),
         pytest.raises(BadRequestError, match="no credential"),
@@ -473,7 +469,7 @@ def test_the_s3_connector_signs_with_the_vault_credential_it_was_given() -> None
         region_name="eu-west-1",
     )
     with (
-        patch("app.services.rag.connectors.s3.boto3.client") as client,
+        patch("boto3.client") as client,
         patch.object(settings, "S3_RAG_ACCESS_KEY", "operator-key"),
         patch.object(settings, "S3_RAG_SECRET_KEY", "operator-secret"),
     ):
@@ -492,7 +488,7 @@ def test_the_s3_connector_refuses_a_credential_of_the_wrong_kind() -> None:
     wrong = GcpServiceAccountSecret(service_account_json=SecretStr(_SERVICE_ACCOUNT_JSON))
 
     with (
-        patch("app.services.rag.connectors.s3.boto3.client") as client,
+        patch("boto3.client") as client,
         pytest.raises(BadRequestError, match="AWS key pair"),
     ):
         connector._get_s3_client({"bucket": "ours"}, wrong)

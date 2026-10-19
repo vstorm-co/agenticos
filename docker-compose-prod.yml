@@ -29,6 +29,16 @@
 # database was correctly unreachable and so was api.anthropic.com, so no agent
 # could have answered anything.
 
+# Every service's log, capped. Docker's `json-file` driver keeps a container's
+# output until the container is removed, and nothing else on the host rotates it:
+# prod held 570 MB of logs and growing when this was added (#2228). Five files of
+# 20 MB is about a day of a busy API and every line `docker compose logs` needs.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 20m
+    max-file: "5"
+
 services:
   # Runs the migrations and exits; `app` and `prefect-runner` wait for it to have
   # completed. This is what `make prod` and `scripts/deploy.sh` used to do with
@@ -36,6 +46,7 @@ services:
   # did not do at all. `docker compose logs migrate` is where a failed migration
   # says why the API never started.
   migrate:
+    logging: *logging
     image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-latest}
     command: agenticos db upgrade
     env_file:
@@ -52,6 +63,7 @@ services:
     restart: "no"
 
   app:
+    logging: *logging
     image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-latest}
     # Longer than background.drain()'s 30s timeout, or Docker's 10s default
     # SIGKILLs the container mid-drain and an upload stays `processing` (#11).
@@ -73,16 +85,20 @@ services:
     # production exactly as much as it does locally.
     #
     # --workers puts uvicorn's own `Multiprocess` supervisor at PID 1, and it is
-    # deliberately left there (#358): it pings each worker and replaces one that
-    # does not answer within `timeout_worker_healthcheck`, which covers a worker
-    # that died, hung or was stopped. What it cannot cover is a worker whose
-    # event loop is blocked, because the ping is answered by a thread
-    # (`Process.always_pong`) that keeps answering regardless - so the one
-    # stack with cover had cover against the least likely failure. The worker
-    # now judges its own loop (`app/core/watchdog.py`) and kills itself, which
-    # this supervisor already replaces twice a second. Subclassing it instead
-    # would have meant owning four upstream call sites in the one process whose
-    # job is to survive whatever killed the worker.
+    # deliberately left there (#358): it replaces a worker that died, and pings
+    # the live ones over a pipe. What the ping cannot see is a worker whose
+    # event loop is blocked, because a thread (`Process.always_pong`) answers it
+    # regardless - so the worker judges its own loop (`app/core/watchdog.py`)
+    # and kills itself, which this supervisor replaces twice a second.
+    # Subclassing it instead would have meant owning four upstream call sites
+    # in the one process whose job is to survive whatever killed the worker.
+    #
+    # That leaves the ping one job: a process that is stopped outright. Its
+    # default window of 5 seconds is shorter than a starved host takes to
+    # answer, and on prod it killed live workers and their half-started
+    # replacements 17 times in 20 minutes (#2223) - each one an import of the
+    # whole application, added to the CPU pressure that got it killed. A
+    # minute costs nothing the watchdog does not already cover.
     #
     # How many workers is a deployment's decision, not a constant: each one is a
     # *spawned* process that imports the application on its own - 460 MiB
@@ -93,7 +109,9 @@ services:
     # default; lower both together.
     command: >-
       uvicorn app.main:app --host 0.0.0.0 --port 8000
-      --workers ${UVICORN_WORKERS:-4} --ws websockets-sansio
+      --workers ${UVICORN_WORKERS:-4}
+      --timeout-worker-healthcheck ${UVICORN_WORKER_HEALTHCHECK_TIMEOUT:-60}
+      --ws websockets-sansio
     networks:
       data:
       edge:
@@ -114,7 +132,7 @@ services:
     # `raise_for_status` and a 30s start_period are not what the image had. Four
     # workers import the application four times, so the grace matters more here.
     healthcheck:
-      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/api/v1/health').raise_for_status()"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -135,6 +153,7 @@ services:
           memory: 512M
 
   db:
+    logging: *logging
     # pgvector, not stock postgres: the RAG store runs
     # `CREATE EXTENSION IF NOT EXISTS vector` when a collection is first
     # written to, and on postgres:16-alpine that fails with
@@ -146,8 +165,14 @@ services:
     # `effective_cache_size` describing what the host's page cache is likely to
     # be holding on top. `random_page_cost` and `effective_io_concurrency` say
     # the storage is an SSD, which every deployment of this now is.
+    #
+    # `pg_stat_statements` records what each statement costs, which is the only
+    # place a slow query shows up without reading logs (#2228). It has to be
+    # loaded at server start; the migration that creates the extension is
+    # `0143_pg_stat_statements`, and `doctor` says whether it is recording.
     command: >-
       postgres
+      -c shared_preload_libraries=pg_stat_statements
       -c shared_buffers=512MB
       -c effective_cache_size=1536MB
       -c maintenance_work_mem=128MB
@@ -188,6 +213,7 @@ services:
           memory: 2G
 
   redis:
+    logging: *logging
     image: valkey/valkey:8-alpine
     # A cache with no ceiling is a cache that grows until the container is
     # killed, and this one holds rate-limit buckets, channel dedupe claims and
@@ -220,6 +246,7 @@ services:
           memory: 512M
 
   prefect-server:
+    logging: *logging
     # Production had no Prefect at all, which meant document ingestion,
     # collection syncs and scheduled reports never ran: an upload was accepted
     # and the document stayed unsearchable forever.
@@ -264,6 +291,7 @@ services:
           memory: 768M
 
   prefect-runner:
+    logging: *logging
     image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-latest}
     volumes:
       - media_data:/app/media
@@ -297,7 +325,7 @@ services:
     # 503 once the runner has missed two polls; the start_period covers the
     # application import and the first poll. See docker-compose.yml.
     healthcheck:
-      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://127.0.0.1:8080/health').raise_for_status()"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=5)"]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -316,6 +344,7 @@ services:
   # the socket on a shared host is a deliberate act) and that the image tag is
   # pinned rather than tracking a minor.
   sandboxd:
+    logging: *logging
     image: ghcr.io/vstorm-co/sandboxd:0.2
     profiles: [sandbox]
     # The token comes from the same file every other secret in this stack comes

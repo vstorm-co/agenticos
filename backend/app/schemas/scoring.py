@@ -294,7 +294,9 @@ class CaseCheck(BaseSchema):
     model_config = ConfigDict(
         from_attributes=True, populate_by_name=True, str_strip_whitespace=True, extra="allow"
     )
-    __pydantic_extra__: dict[str, JsonValue] = Field(init=False)
+    # Pydantic's documented way to type a model's extra fields. The base declares
+    # them `dict[str, Any] | None`, and narrowing that to JSON values is the point.
+    __pydantic_extra__: dict[str, JsonValue] = Field(init=False)  # ty: ignore[invalid-mutable-override]
 
     type: str = Field(min_length=1, max_length=64)
 

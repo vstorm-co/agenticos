@@ -21,8 +21,8 @@ chooses to trust that server.
 
 Both tables are new and the column has a default, so nothing is backfilled.
 
-Revision ID: 0144_environment_connections
-Revises: 0143_datasets
+Revision ID: 0146_environment_connections
+Revises: 0145_datasets
 Create Date: 2026-10-13
 """
 
@@ -33,8 +33,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0144_environment_connections"
-down_revision: str | None = "0143_datasets"
+revision: str = "0146_environment_connections"
+down_revision: str | None = "0145_datasets"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

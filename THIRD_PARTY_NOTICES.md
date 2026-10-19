@@ -60,7 +60,7 @@ names no author is in the evidence column below.
 | aiofiles | 25.1.0 | Apache-2.0 | https://github.com/Tinche/aiofiles | License field |
 | aiogram | 3.31.0 | MIT | https://github.com/aiogram/aiogram/ | License-Expression |
 | aiohappyeyeballs | 2.7.1 | PSF-2.0 | https://github.com/aio-libs/aiohappyeyeballs | License field |
-| aiohttp | 3.14.4 | Apache-2.0 AND MIT | https://github.com/aio-libs/aiohttp | License-Expression |
+| aiohttp | 3.14.5 | Apache-2.0 AND MIT | https://github.com/aio-libs/aiohttp | License-Expression |
 | aiohttp-retry | 2.9.1 | MIT | https://github.com/inyutin/aiohttp_retry | License field |
 | aiosignal | 1.4.0 | Apache-2.0 | https://github.com/aio-libs/aiosignal | License field |
 | aiosmtplib | 5.1.3 | MIT | https://github.com/cole/aiosmtplib | License field |
@@ -76,14 +76,14 @@ names no author is in the evidence column below.
 | asgiref | 3.12.1 | BSD-3-Clause | https://asgi.readthedocs.io/ | License field |
 | asyncpg | 0.32.0 | Apache-2.0 | https://github.com/MagicStack/asyncpg | License-Expression |
 | attrs | 26.1.0 | MIT | https://github.com/python-attrs/attrs | License-Expression |
-| authlib | 1.8.0 | BSD-3-Clause | https://github.com/authlib/authlib | License field |
+| authlib | 1.9.1 | BSD-3-Clause | https://github.com/authlib/authlib | License field |
 | backoff | 2.2.1 | MIT | https://github.com/litl/backoff | License field |
 | bcrypt | 5.0.0 | Apache-2.0 | https://github.com/pyca/bcrypt/ | License field |
 | beartype | 0.22.9 | MIT | https://github.com/beartype/beartype | License field |
 | beautifulsoup4 | 4.15.0 | MIT | https://www.crummy.com/software/BeautifulSoup/bs4/ | License field |
 | bidict | 0.24.1 | MPL-2.0 | https://github.com/jab/bidict | License-Expression; review accepted |
-| boto3 | 1.43.111 | Apache-2.0 | https://github.com/boto/boto3 | License field |
-| botocore | 1.43.112 | Apache-2.0 | https://github.com/boto/botocore | License field |
+| boto3 | 1.43.114 | Apache-2.0 | https://github.com/boto/boto3 | License field |
+| botocore | 1.43.114 | Apache-2.0 | https://github.com/boto/botocore | License field |
 | bracex | 3.0.1 | MIT | https://github.com/facelessuser/bracex | License-Expression |
 | burner-redis | 0.1.7 | MIT | https://github.com/PrefectHQ/burner-redis | License field |
 | cachetools | 7.1.8 | MIT | https://github.com/tkem/cachetools/ | License-Expression |
@@ -121,7 +121,7 @@ names no author is in the evidence column below.
 | eval-type-backport | 0.4.0 | MIT | https://github.com/alexmojaki/eval_type_backport | License field |
 | exceptiongroup | 1.3.1 | MIT | https://github.com/agronholm/exceptiongroup | classifier |
 | executing | 2.2.1 | MIT | https://github.com/alexmojaki/executing | License field |
-| fastapi | 0.143.1 | MIT | https://github.com/fastapi/fastapi | License-Expression |
+| fastapi | 0.143.2 | MIT | https://github.com/fastapi/fastapi | License-Expression |
 | fastavro | 1.12.2 | MIT | https://github.com/fastavro/fastavro | License field |
 | fastmcp | 4.1.0 | Apache-2.0 | https://github.com/PrefectHQ/fastmcp | License-Expression |
 | fastmcp-slim | 4.1.0 | Apache-2.0 | https://github.com/PrefectHQ/fastmcp | License-Expression; no licence file, attributed to Jeremiah Lowin, Nate Nowack |
@@ -131,9 +131,9 @@ names no author is in the evidence column below.
 | genai-prices | 0.1.13 | MIT | https://github.com/pydantic/genai-prices | License-Expression |
 | google-api-core | 2.37.0 | Apache-2.0 | https://github.com/googleapis/google-cloud-python | License field |
 | google-api-python-client | 2.201.0 | Apache-2.0 | https://github.com/googleapis/google-api-python-client/ | License field |
-| google-auth | 2.61.0 | Apache-2.0 | https://github.com/googleapis/google-cloud-python/tree/main/packages/google-auth | License field |
+| google-auth | 2.62.0 | Apache-2.0 | https://github.com/googleapis/google-cloud-python/tree/main/packages/google-auth | License field |
 | google-auth-httplib2 | 0.4.2 | Apache-2.0 | https://github.com/googleapis/google-cloud-python/packages/google-auth-httplib2 | License field |
-| google-genai | 2.28.0 | Apache-2.0 | https://github.com/googleapis/python-genai | License-Expression |
+| google-genai | 2.31.0 | Apache-2.0 | https://github.com/googleapis/python-genai | License-Expression |
 | googleapis-common-protos | 1.75.3 | Apache-2.0 | https://github.com/googleapis/google-cloud-python/tree/main/packages/googleapis-common-protos | License-Expression |
 | graphviz | 0.21 | MIT | https://github.com/xflr6/graphviz | License-Expression |
 | greenlet | 3.5.6 | MIT AND PSF-2.0 | https://github.com/python-greenlet/greenlet | License-Expression |
@@ -177,7 +177,7 @@ names no author is in the evidence column below.
 | jsonschema-specifications | 2025.9.1 | MIT | https://github.com/python-jsonschema/jsonschema-specifications | License-Expression |
 | keyring | 25.7.0 | MIT | https://github.com/jaraco/keyring | License-Expression |
 | ldap3 | 2.9.1 | LGPL-3.0-only | https://github.com/cannatag/ldap3 | classifier; review accepted |
-| liteparse | 2.15.1 | Apache-2.0 | https://github.com/run-llama/liteparse | License-Expression; no licence file, attributed to Logan Markewich |
+| liteparse | 2.16.0 | Apache-2.0 | https://github.com/run-llama/liteparse | License-Expression; no licence file, attributed to Logan Markewich |
 | llama-cloud | 2.18.0 | MIT | https://github.com/run-llama/llama-parse-py | License field |
 | logfire | 5.2.0 | MIT | https://github.com/pydantic/logfire | License-Expression |
 | logfire-api | 5.1.0 | MIT | https://pypi.org/project/logfire-api/5.1.0/ | License-Expression; no licence file, attributed to Pydantic Team, Samuel Colvin, Hasan Ramezani, Adrian Garcia Badaracco, David Montague, Marcelo Trylesinski, David Hewitt, Alex Hall |
@@ -240,17 +240,17 @@ names no author is in the evidence column below.
 | pyasn1-modules | 0.4.2 | BSD-2-Clause | https://github.com/pyasn1/pyasn1-modules | licence file text |
 | pycparser | 3.0 | BSD-3-Clause | https://github.com/eliben/pycparser | License-Expression |
 | pydantic | 2.13.5 | MIT | https://github.com/pydantic/pydantic | License-Expression |
-| pydantic-ai-backend | 0.2.33 | MIT | https://github.com/vstorm-co/pydantic-ai-backend | License-Expression |
-| pydantic-ai-harness | 0.55.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
+| pydantic-ai-backend | 0.2.36 | MIT | https://github.com/vstorm-co/pydantic-ai-backend | License-Expression |
+| pydantic-ai-harness | 0.57.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
 | pydantic-ai-skills | 2.1.0 | MIT | https://github.com/dougtrajano/pydantic-ai-skills | License-Expression |
-| pydantic-ai-slim | 2.55.0 | MIT | https://github.com/pydantic/pydantic-ai/tree/main/pydantic_ai_slim | License-Expression |
+| pydantic-ai-slim | 2.57.0 | MIT | https://github.com/pydantic/pydantic-ai/tree/main/pydantic_ai_slim | License-Expression |
 | pydantic-core | 2.46.5 | MIT | https://github.com/pydantic/pydantic/tree/main/pydantic-core | License-Expression |
 | pydantic-extra-types | 2.11.1 | MIT | https://github.com/pydantic/pydantic-extra-types | License-Expression |
-| pydantic-graph | 2.55.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
+| pydantic-graph | 2.57.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
 | pydantic-monty | 1.1.0 | MIT | https://github.com/pydantic/monty | License-Expression; no licence file, attributed to Pydantic Services Inc. |
 | pydantic-monty-client | 1.1.0 | MIT | https://github.com/pydantic/monty | License field; no licence file, attributed to Pydantic Services Inc. |
 | pydantic-monty-runtime | 1.1.0 | MIT | https://github.com/pydantic/monty | License field; no licence file, attributed to Pydantic Services Inc. |
-| pydantic-settings | 2.15.0 | MIT | https://github.com/pydantic/pydantic-settings | License-Expression |
+| pydantic-settings | 2.16.0 | MIT | https://github.com/pydantic/pydantic-settings | License-Expression |
 | pydocket | 0.25.2 | MIT | https://github.com/chrisguidry/docket | classifier |
 | pygments | 2.21.0 | BSD-2-Clause | https://github.com/pygments/pygments | License-Expression |
 | pyjwt | 2.15.1 | MIT | https://github.com/jpadilla/pyjwt | License-Expression |

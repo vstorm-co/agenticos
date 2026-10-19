@@ -71,6 +71,7 @@ from app.services.agent_runner import (
 )
 from app.services.attachments import AttachmentRouter
 from app.services.mentions import MentionService, ResolvedMentions
+from app.services.sandbox_workspace import SandboxWaitSink
 from app.services.usage_report import UsageReport, UsageReportService, context_fill
 
 logger = logging.getLogger(__name__)
@@ -413,6 +414,7 @@ class ChatAgentRunner:
         subagent_events: SubagentEventSink | None = None,
         on_compaction: CompactionSink | None = None,
         browser_events: BrowserEventSink | None = None,
+        on_sandbox_wait: SandboxWaitSink | None = None,
         on_personal_gaps: PersonalGapSink | None = None,
         request_connection: ConnectionCallback | None = None,
         model_profile_id: UUID | None = None,
@@ -466,6 +468,9 @@ class ChatAgentRunner:
                 confidences and, when the agent asked for them, the viewport. A
                 `browse_web` call is the longest tool call this platform makes;
                 without this it is a tool call that goes quiet for a minute.
+            on_sandbox_wait: Told when the run's sandbox is still opening a few
+                seconds in - after an update the host builds the runtime's image
+                first, which is minutes of nothing streaming (#2222).
             request_connection: How to ask the person to connect one of their
                 own services while the run waits. Given, a personal service they
                 have not connected is asked for when the agent reaches for it,
@@ -512,6 +517,10 @@ class ChatAgentRunner:
             # run believing it has consent it was never given (#925).
             approval_mode=approval_mode,
             request_connection=request_connection,
+            # A sandbox whose image is still being built is minutes in which no
+            # token and no tool step arrives. Passed in rather than set on the
+            # prepared run: preparing already opens the session.
+            on_sandbox_wait=on_sandbox_wait,
             person_time_zone=person_time_zone,
             draft=testing.draft,
             test=testing.test,

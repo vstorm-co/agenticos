@@ -8,8 +8,8 @@ alternative; it copies every case's text on every one-case edit, where a
 membership row copies sixteen bytes of id. Nothing existing is touched, so the
 downgrade drops the four tables and loses only what was written into them.
 
-Revision ID: 0143_datasets
-Revises: 0142_message_reply_to
+Revision ID: 0145_datasets
+Revises: 0144_pending_sandbox_destroys
 Create Date: 2026-10-13
 """
 
@@ -20,8 +20,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0143_datasets"
-down_revision: str | None = "0142_message_reply_to"
+revision: str = "0145_datasets"
+down_revision: str | None = "0144_pending_sandbox_destroys"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
