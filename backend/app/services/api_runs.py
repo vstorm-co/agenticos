@@ -14,7 +14,9 @@ key revoked while its run waited does not run it.
 
 An `Idempotency-Key` makes a retry safe: the same key and the same request answer
 the same run request, in any state; the same key with a different request is a
-`409`, never a second run.
+`409`, never a second run. A key is the asker's own: two people in one
+organization sending the same key are two requests, so a colleague who guesses
+a key can neither read the run it names nor reserve it.
 """
 
 import hashlib
@@ -54,6 +56,17 @@ def digest(agent_id: UUID, request: AgentRunRequest) -> str:
     return hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()
 
 
+def scoped_key(ctx: AuthContext, idempotency_key: str) -> str:
+    """The stored form of a caller's key: theirs alone, and the length of a digest.
+
+    The unique index is per organization, so the asker goes into the stored key
+    rather than beside it - a lookup keyed on the organization alone replayed one
+    member's finished run, output included, to another who sent the same key.
+    Hashed so that a 255-character header plus the asker still fits the column.
+    """
+    return hashlib.sha256(f"{ctx.subject_id}:{idempotency_key}".encode()).hexdigest()
+
+
 class ApiRunService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
@@ -74,9 +87,10 @@ class ApiRunService:
             BadRequestError: The conversation was not opened over the API.
         """
         fingerprint = digest(agent_id, request)
-        if idempotency_key is not None:
+        stored_key = None if idempotency_key is None else scoped_key(ctx, idempotency_key)
+        if stored_key is not None:
             existing = await background_job_repo.get_by_idempotency_key(
-                self.db, organization_id=ctx.organization_id, idempotency_key=idempotency_key
+                self.db, organization_id=ctx.organization_id, idempotency_key=stored_key
             )
             if existing is not None:
                 return self._replay(existing, fingerprint)
@@ -104,14 +118,14 @@ class ApiRunService:
                     RUN_AGENT,
                     payload,
                     organization_id=ctx.organization_id,
-                    idempotency_key=idempotency_key,
+                    idempotency_key=stored_key,
                 )
         except IntegrityError:
             # Another request with the same key won the race between the lookup
             # above and this insert; answer as its replay.
-            assert idempotency_key is not None
+            assert stored_key is not None
             winner = await background_job_repo.get_by_idempotency_key(
-                self.db, organization_id=ctx.organization_id, idempotency_key=idempotency_key
+                self.db, organization_id=ctx.organization_id, idempotency_key=stored_key
             )
             assert winner is not None
             return self._replay(winner, fingerprint)

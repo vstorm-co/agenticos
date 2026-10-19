@@ -1814,6 +1814,7 @@ class TestPreparingAnEventFire:
             patch("app.services.agent_trigger.unseal", return_value="secret"),
             patch("app.services.agent_trigger.trigger_events") as events,
             patch("app.services.agent_trigger.trigger_dedupe") as dedupe,
+            patch("app.services.agent_trigger.spawn_after_rollback") as on_rollback,
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
             events.verify_signature = MagicMock(return_value=True)
@@ -1829,6 +1830,14 @@ class TestPreparingAnEventFire:
             )
         assert decision == EventFireDecision(trigger_id=trigger.id, event_context="ISSUE #7")
         dedupe.claim_event_delivery.assert_awaited_once()
+        # The fire is a job row in this transaction; rolled back, the claim goes with it.
+        dedupe.release_event_delivery.assert_called_once_with(
+            trigger_id=trigger.id, delivery_id="delivery-1"
+        )
+        assert on_rollback.call_args.args == (
+            service.db,
+            dedupe.release_event_delivery.return_value,
+        )
 
     async def test_a_redelivered_event_already_claimed_does_not_fire_again(self):
         """At-least-once: a redelivery carrying the same provider delivery id is

@@ -183,8 +183,8 @@ class Worker:
                 outcome = await slot.run(job.kind, job.payload, timeout=task.timeout)
             await self._settle(job, outcome)
         except asyncio.CancelledError:
-            # A shutdown, not a failure: the job goes back with its attempt, so a
-            # deploy does not spend the attempts of everything that was running.
+            # A shutdown, not a failure - but the attempt is spent: the job ran,
+            # and what it did happened. It goes back if it has attempts left.
             await asyncio.shield(self._give_back(job))
             raise
         finally:

@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.pool import NullPool
 
-from app.core.background import discard_deferred, start_deferred
+from app.core.background import discard_deferred, start_after_rollback, start_deferred
 from app.core.config import settings
 from app.core.exceptions import AppException
 
@@ -105,6 +105,10 @@ async def _managed_session(
             start_deferred(session)
         finally:
             discard_deferred(session)
+            # Here rather than beside the rollback above: a cancelled request
+            # skips that branch, and its transaction did not commit either.
+            # After a commit `start_deferred` has already emptied this queue.
+            start_after_rollback(session)
 
 
 async def get_db_session() -> AsyncGenerator[AsyncSession]:

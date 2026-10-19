@@ -20,7 +20,7 @@ from datetime import datetime, timedelta
 from uuid import UUID
 
 from pydantic import JsonValue
-from sqlalchemy import ColumnElement, case, delete, func, select, text, tuple_, update
+from sqlalchemy import ColumnElement, String, case, cast, delete, func, select, text, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -277,11 +277,15 @@ async def bury(db: AsyncSession, job_id: UUID, *, fence: int, error: str) -> boo
 
 
 async def release(db: AsyncSession, job_id: UUID, *, fence: int) -> bool:
-    """Put a job back as it was before the claim: the worker is stopping, not failing.
+    """Put back a job its worker stopped under: queued again if it has attempts left, else dead.
 
-    The attempt is given back, because a shutdown said nothing about the job.
-    Fenced like every other write, so a job already taken over stays taken.
+    The attempt stays spent. A job cancelled by a shutdown has run for as long as
+    the drain allowed, and what it did - a model call paid for, a tool's side
+    effect - happened; handing the attempt back would have let even a
+    `max_attempts=1` agent run start again on the next worker. Fenced like every
+    other write, so a job already taken over stays taken.
     """
+    exhausted = BackgroundJob.attempts >= BackgroundJob.max_attempts
     result = await db.execute(
         update(BackgroundJob)
         .where(
@@ -290,11 +294,17 @@ async def release(db: AsyncSession, job_id: UUID, *, fence: int) -> bool:
             BackgroundJob.attempts == fence,
         )
         .values(
-            status="queued",
-            attempts=BackgroundJob.attempts - 1,
+            status=case((exhausted, "dead"), else_="queued"),
+            finished_at=case((exhausted, func.now()), else_=None),
+            last_error=(
+                "the worker stopped while it ran (attempt "
+                + cast(BackgroundJob.attempts, String)
+                + " of "
+                + cast(BackgroundJob.max_attempts, String)
+                + ")"
+            ),
             lease_until=None,
             worker_id=None,
-            started_at=None,
         )
         .returning(BackgroundJob.id)
     )
@@ -340,6 +350,18 @@ async def rescue_expired(
 
 
 async def _active_with_key(db: AsyncSession, dedupe_key: str) -> bool:
+    """Whether a queued or running job holds `dedupe_key`, decided one enqueuer at a time.
+
+    The unique index covers queued rows only, so the check and the insert after it
+    would otherwise race: a second enqueuer reads before the first commits, a
+    worker moves the first's row to `running`, and the second's insert meets no
+    queued row to conflict with - two copies of one sync. The transaction-scoped
+    advisory lock makes the next enqueuer of the key wait for this transaction,
+    and its read, in a statement of its own, then sees what this one committed.
+    """
+    await db.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"), {"key": dedupe_key}
+    )
     result = await db.execute(
         select(BackgroundJob.id)
         .where(BackgroundJob.dedupe_key == dedupe_key, BackgroundJob.status.in_(ACTIVE_STATUSES))
@@ -363,6 +385,30 @@ async def has_active_for_schedule(db: AsyncSession, schedule_name: str) -> bool:
 
 async def get(db: AsyncSession, job_id: UUID) -> BackgroundJob | None:
     return await db.get(BackgroundJob, job_id)
+
+
+async def latest_with_dedupe_key(db: AsyncSession, dedupe_key: str) -> BackgroundJob | None:
+    """The most recently queued job under `dedupe_key`, whatever it has got to since."""
+    result = await db.execute(
+        select(BackgroundJob)
+        .where(BackgroundJob.dedupe_key == dedupe_key)
+        .order_by(BackgroundJob.created_at.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def replace_queued_payload(
+    db: AsyncSession, job_id: UUID, payload: dict[str, JsonValue]
+) -> bool:
+    """Rewrite a job's payload while nobody has claimed it. `False` once a worker has."""
+    result = await db.execute(
+        update(BackgroundJob)
+        .where(BackgroundJob.id == job_id, BackgroundJob.status == "queued")
+        .values(payload=payload)
+        .returning(BackgroundJob.id)
+    )
+    return result.scalar_one_or_none() is not None
 
 
 async def get_by_idempotency_key(
@@ -416,6 +462,16 @@ async def count_by_status(db: AsyncSession) -> dict[JobStatus, int]:
     )
     found = dict(result.tuples().all())
     return {status: found.get(status, 0) for status in JOB_STATUSES}
+
+
+async def queued_with_key(db: AsyncSession, dedupe_key: str) -> bool:
+    """Whether a queued job holds `dedupe_key` - which a requeued copy would collide with."""
+    result = await db.execute(
+        select(BackgroundJob.id)
+        .where(BackgroundJob.dedupe_key == dedupe_key, BackgroundJob.status == "queued")
+        .limit(1)
+    )
+    return result.scalar_one_or_none() is not None
 
 
 async def requeue_dead(db: AsyncSession, job_id: UUID) -> bool:

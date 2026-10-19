@@ -46,6 +46,7 @@ from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import current_impersonator, record_audit, set_acting_trigger
+from app.core.background import spawn_after_rollback
 from app.core.config import settings
 from app.core.exceptions import (
     AppException,
@@ -1256,13 +1257,10 @@ class AgentTriggerService:
         # not fire a second run and a second spend. Claim the provider's delivery
         # id; a delivery that carries none, or a Redis that cannot be reached, fails
         # open and fires, and a duplicate answers the same nothing-to-do `None` an
-        # unmatched delivery does, so it stays unprobeable. The claim is kept even
-        # when the route's hand-off then raises - the raise is ambiguous, the flow
-        # may have been enqueued - and lapses with its TTL (see the route).
+        # unmatched delivery does, so it stays unprobeable. A transaction that
+        # then rolls back queued nothing and gives the claim back (`_claim`).
         delivery = trigger_events.delivery_id(source, headers)
-        if delivery is not None and not await trigger_dedupe.claim_event_delivery(
-            trigger_id=trigger.id, delivery_id=delivery
-        ):
+        if delivery is not None and not await self._claim(trigger.id, delivery):
             return None
         context = trigger_events.render_context(source, payload=payload)
         return EventFireDecision(trigger_id=trigger.id, event_context=context)
@@ -1345,9 +1343,7 @@ class AgentTriggerService:
             ):
                 continue
             delivery = trigger_events.delivery_id(EventSource.GITHUB.value, headers)
-            if delivery is not None and not await trigger_dedupe.claim_event_delivery(
-                trigger_id=trigger.id, delivery_id=delivery
-            ):
+            if delivery is not None and not await self._claim(trigger.id, delivery):
                 continue
             decisions.append(
                 EventFireDecision(
@@ -1443,9 +1439,7 @@ class AgentTriggerService:
                     event_source, headers={}, payload=event.payload, config=trigger.event_config
                 ):
                     continue
-                if not await trigger_dedupe.claim_event_delivery(
-                    trigger_id=trigger.id, delivery_id=event.delivery_id
-                ):
+                if not await self._claim(trigger.id, event.delivery_id):
                     continue
                 decisions.append(
                     EventFireDecision(
@@ -1456,6 +1450,19 @@ class AgentTriggerService:
                     )
                 )
         return decisions
+
+    async def _claim(self, trigger_id: UUID, delivery_id: str) -> bool:
+        """Claim a delivery for this unit of work, given back if it does not commit."""
+        if not await trigger_dedupe.claim_event_delivery(
+            trigger_id=trigger_id, delivery_id=delivery_id
+        ):
+            return False
+        spawn_after_rollback(
+            self.db,
+            trigger_dedupe.release_event_delivery(trigger_id=trigger_id, delivery_id=delivery_id),
+            name="release a trigger delivery claim",
+        )
+        return True
 
     def _unseal_event_secret(self, trigger: AgentTrigger) -> str:
         """The trigger's signing secret, unsealed for its organization.

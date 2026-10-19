@@ -374,6 +374,7 @@ async def probe_scheduler(db: AsyncSession) -> SystemCheck:
     from app.repositories import background_schedule as schedule_repo
     from app.repositories import background_task_kind as kind_repo
     from app.repositories import background_worker as worker_repo
+    from app.worker.jobs import Pool
 
     start = perf_counter()
     now = datetime.now(UTC)
@@ -397,6 +398,17 @@ async def probe_scheduler(db: AsyncSession) -> SystemCheck:
     problems: list[str] = []
     if not workers:
         problems.append(f"no worker has said it is alive in two minutes, so {_WHAT_STOPS}")
+    else:
+        # A split deployment runs a pool per worker: a live `agent,system` worker
+        # keeps every schedule firing while the dead `ingest` one leaves uploads
+        # queued for ever, so one live worker is not enough to call it healthy.
+        served = {pool for worker in workers for pool in worker.pools}
+        unserved = [pool.value for pool in Pool if pool.value not in served]
+        if unserved:
+            problems.append(
+                f"no live worker serves the {', '.join(unserved)} pool(s), "
+                "so jobs queued there are not running"
+            )
     for schedule in schedules:
         if schedule.interval_seconds > 60:
             continue

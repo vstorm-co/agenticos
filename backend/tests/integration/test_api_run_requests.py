@@ -22,7 +22,7 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.repositories import background_job as job_repo
 from app.schemas.agent import AgentRunRequest
-from app.services.api_runs import ApiRunService, digest
+from app.services.api_runs import ApiRunService, digest, scoped_key
 from app.worker.jobs import RUN_AGENT
 
 pytestmark = pytest.mark.anyio
@@ -113,6 +113,29 @@ async def test_keys_are_per_organization(db: AsyncSession, stubbed) -> None:
     b = await ApiRunService(db).queue(other, agent_id, _ask(), idempotency_key="order-7")
 
     assert a.id != b.id
+
+
+async def test_keys_are_per_person_inside_one_organization(db: AsyncSession, stubbed) -> None:
+    """A colleague who sends the same key neither reads the run nor blocks the key."""
+    asker = await _person(db)
+    colleague = AuthContext(
+        user_id=uuid.uuid4(), organization_id=asker.organization_id, role="member"
+    )
+    db.add(
+        User(id=colleague.subject_id, email=f"{uuid.uuid4().hex}@example.com", hashed_password="x")
+    )
+    await db.flush()
+    agent_id = uuid.uuid4()
+
+    mine = await ApiRunService(db).queue(asker, agent_id, _ask(), idempotency_key="order-7")
+    theirs = await ApiRunService(db).queue(
+        colleague, agent_id, _ask("something else"), idempotency_key="order-7"
+    )
+
+    assert mine.id != theirs.id
+    stored = await job_repo.get(db, mine.id)
+    assert stored is not None and stored.idempotency_key == scoped_key(asker, "order-7")
+    assert "order-7" not in stored.idempotency_key
 
 
 async def test_a_lost_race_on_the_key_answers_as_the_winners_replay(

@@ -15,10 +15,11 @@ process died between the two (#1349).
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
-from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.repositories import background_job as background_job_repo
 from app.repositories import background_schedule as background_schedule_repo
 from app.repositories import background_task_kind as background_task_kind_repo
@@ -150,8 +151,28 @@ class BackgroundJobService:
         )
 
     async def retry(self, job_id: UUID, *, actor_user_id: UUID) -> BackgroundJobRead:
-        """Give a dead job a fresh set of attempts, and audit who did."""
-        if not await background_job_repo.requeue_dead(self.db, job_id):
+        """Give a dead job a fresh set of attempts, and audit who did.
+
+        Raises:
+            NotFoundError: No such job.
+            BadRequestError: The job is not dead.
+            AlreadyExistsError: A newer job for the same work is already queued,
+                and two queued copies of one dedupe key cannot exist.
+        """
+        job = await background_job_repo.get(self.db, job_id)
+        if (
+            job is not None
+            and job.dedupe_key is not None
+            and await background_job_repo.queued_with_key(self.db, job.dedupe_key)
+        ):
+            raise self._superseded(job_id)
+        try:
+            async with self.db.begin_nested():
+                requeued = await background_job_repo.requeue_dead(self.db, job_id)
+        except IntegrityError:
+            # The newer copy was queued between the check above and this update.
+            raise self._superseded(job_id) from None
+        if not requeued:
             raise await self._refusal(job_id, action="retried", allowed="dead")
         await record_audit(
             self.db,
@@ -163,7 +184,23 @@ class BackgroundJobService:
         return await self._read(job_id)
 
     async def cancel(self, job_id: UUID, *, actor_user_id: UUID) -> BackgroundJobRead:
-        """Withdraw a job nobody has started, and audit who did."""
+        """Withdraw a job nobody has started, and audit who did.
+
+        Raises:
+            NotFoundError: No such job.
+            BadRequestError: The job is not queued, or is of a kind whose document
+                or sync log would be left in progress for good.
+        """
+        job = await background_job_repo.get(self.db, job_id)
+        task = None if job is None else TASKS.get(job.kind)
+        if task is not None and not task.cancellable:
+            raise BadRequestError(
+                message=(
+                    f"A {task.kind} job cannot be cancelled: its document or sync would stay "
+                    "in progress with nothing left to finish it. Pause the kind instead."
+                ),
+                details={"job_id": str(job_id), "kind": task.kind},
+            )
         if not await background_job_repo.cancel_queued(self.db, job_id):
             raise await self._refusal(job_id, action="cancelled", allowed="queued")
         await record_audit(
@@ -210,6 +247,13 @@ class BackgroundJobService:
         assert job is not None, "read back in the transaction that just updated it"
         await self.db.refresh(job)
         return BackgroundJobRead.model_validate(job)
+
+    @staticmethod
+    def _superseded(job_id: UUID) -> AlreadyExistsError:
+        return AlreadyExistsError(
+            message="A newer job for the same work is already queued; this one cannot be retried.",
+            details={"job_id": str(job_id)},
+        )
 
     async def _refusal(self, job_id: UUID, *, action: str, allowed: str) -> Exception:
         job = await background_job_repo.get(self.db, job_id)

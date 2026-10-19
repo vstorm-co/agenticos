@@ -12,9 +12,15 @@ The claim is one atomic `SET NX` against the deployment's shared Redis, keyed on
 the provider's own delivery id - the id a provider reuses when it re-sends, so the
 retry lands on the same key. It is the same mechanism the channel webhooks use
 (:mod:`app.services.channels.dedupe`); a trigger keys on the delivery id rather
-than a channel message id, and deliberately has no release-on-failure: the claim
-is taken before the fire is queued, and one whose request then failed simply
-lapses with `SEEN_TTL_SECONDS`, after which a provider retry fires normally.
+than a channel message id.
+
+The claim is taken before the fire is queued, and the fire is a job row in the
+same transaction - so a transaction that rolls back has queued nothing, and its
+claim is released (`release_event_delivery`, through `spawn_after_rollback`).
+Kept, it would answer the provider's retry as a duplicate for fifteen minutes,
+the provider would stop retrying, and the event would be lost. Under Prefect the
+release was deliberately absent: a dispatch that raised might have reached the
+server anyway, so a failure said nothing about whether the fire existed.
 """
 
 import logging
@@ -77,3 +83,19 @@ async def claim_event_delivery(*, trigger_id: UUID, delivery_id: str) -> bool:
     except Exception:
         logger.warning("trigger_dedupe_redis_unavailable", exc_info=True)
         return True
+
+
+async def release_event_delivery(*, trigger_id: UUID, delivery_id: str) -> None:
+    """Give a claim back, because the transaction that queued its fire rolled back.
+
+    Unconditional: the only other writer of this key is another delivery of the
+    same event, and releasing its claim lets at most one more retry fire - the
+    direction `claim_event_delivery` already fails in. A Redis that cannot be
+    reached leaves the claim to lapse with its TTL, logged.
+    """
+    if _redis is None:
+        return
+    try:
+        await _redis.delete(_key(trigger_id, delivery_id))
+    except Exception:
+        logger.warning("trigger_dedupe_release_failed", exc_info=True)

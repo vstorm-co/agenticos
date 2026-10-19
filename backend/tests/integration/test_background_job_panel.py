@@ -13,7 +13,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.db.models.audit_log import AppAdminAuditLog
 from app.repositories import background_job as job_repo
 from app.repositories import background_schedule as schedule_repo
@@ -39,6 +39,33 @@ async def _dead(db: AsyncSession):
     assert claimed is not None
     await job_repo.rescue_expired(db, retry_in=timedelta(0))
     return job_id
+
+
+async def _dead_with_a_newer_copy_queued(db: AsyncSession):
+    """A dead sync whose source was synced again since: the newer copy holds the key."""
+    dead = await job_repo.add(
+        db,
+        kind="expire-approvals",
+        pool="system",
+        payload={},
+        max_attempts=1,
+        priority=1,
+        dedupe_key="sync:7",
+    )
+    assert dead is not None
+    await job_repo.claim(db, pool="system", worker_id="w", lease=timedelta(seconds=-1))
+    await job_repo.rescue_expired(db, retry_in=timedelta(0))
+    newer = await job_repo.add(
+        db,
+        kind="expire-approvals",
+        pool="system",
+        payload={},
+        max_attempts=1,
+        priority=1,
+        dedupe_key="sync:7",
+    )
+    assert newer is not None
+    return dead
 
 
 async def _audited(db: AsyncSession) -> list[tuple[str, str | None]]:
@@ -101,6 +128,32 @@ async def test_retrying_a_dead_job_requeues_it_and_audits_the_owner(db: AsyncSes
     assert ("background_job.retried", str(job_id)) in await _audited(db)
 
 
+async def test_a_retry_that_would_collide_with_newer_queued_work_is_refused(
+    db: AsyncSession,
+) -> None:
+    dead = await _dead_with_a_newer_copy_queued(db)
+
+    with pytest.raises(AlreadyExistsError, match="newer job for the same work"):
+        await BackgroundJobService(db).retry(dead, actor_user_id=ADMIN)
+    assert (await job_repo.get(db, dead)).status == "dead"  # type: ignore[union-attr]
+    assert await _audited(db) == []
+
+
+async def test_a_newer_copy_queued_after_the_check_is_refused_the_same_way(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The check and the update race; the unique index decides, and the answer is a 409."""
+    dead = await _dead_with_a_newer_copy_queued(db)
+
+    async def missed(*_: object) -> bool:
+        return False
+
+    monkeypatch.setattr(job_repo, "queued_with_key", missed)
+    with pytest.raises(AlreadyExistsError):
+        await BackgroundJobService(db).retry(dead, actor_user_id=ADMIN)
+    assert (await job_repo.get(db, dead)).status == "dead"  # type: ignore[union-attr]
+
+
 async def test_only_a_dead_job_can_be_retried(db: AsyncSession) -> None:
     job_id = await _job(db)
 
@@ -127,6 +180,18 @@ async def test_cancelling_withdraws_a_queued_job_and_refuses_a_running_one(
         await service.cancel(running, actor_user_id=ADMIN)
     with pytest.raises(NotFoundError):
         await service.cancel(uuid4(), actor_user_id=ADMIN)
+
+
+async def test_a_job_whose_document_waits_on_it_cannot_be_cancelled(db: AsyncSession) -> None:
+    """Cancelled, the document would read `processing` for good."""
+    job_id = await _job(db, kind="ingest-document")
+
+    with pytest.raises(BadRequestError, match="cannot be cancelled") as refused:
+        await BackgroundJobService(db).cancel(job_id, actor_user_id=ADMIN)
+
+    assert refused.value.details == {"job_id": str(job_id), "kind": "ingest-document"}
+    assert (await job_repo.get(db, job_id)).status == "queued"  # type: ignore[union-attr]
+    assert await _audited(db) == []
 
 
 async def test_a_kind_paused_by_hand_stops_being_claimed_until_resumed(db: AsyncSession) -> None:

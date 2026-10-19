@@ -129,6 +129,10 @@ class TaskKind:
     max_attempts: int
     timeout: timedelta
     priority: Priority
+    # Whether an administrator may withdraw a queued job of this kind. Not when a
+    # row outside the queue - a document, a sync log - waits in `processing` for
+    # the job to settle it: cancelled, nothing ever would.
+    cancellable: bool = True
 
 
 @dataclass(frozen=True)
@@ -162,6 +166,7 @@ INGEST_DOCUMENT = Task(
     max_attempts=2,
     timeout=timedelta(hours=1),
     priority=Priority.INTERACTIVE,
+    cancellable=False,
 )
 SYNC_COLLECTION = Task(
     kind="sync-collection",
@@ -170,6 +175,7 @@ SYNC_COLLECTION = Task(
     max_attempts=2,
     timeout=timedelta(hours=4),
     priority=Priority.BULK,
+    cancellable=False,
 )
 SYNC_SOURCE = Task(
     kind="sync-source",
@@ -178,12 +184,17 @@ SYNC_SOURCE = Task(
     max_attempts=2,
     timeout=timedelta(hours=4),
     priority=Priority.BULK,
+    cancellable=False,
 )
+# One attempt, for the reason `RUN_AGENT` below has one: a fire is an agent run,
+# and a worker that died under it may already have paid for its model calls and
+# made its tools' side effects. The dead job waits on Admin -> Background jobs,
+# where somebody who knows what the run did can retry it.
 FIRE_TRIGGER = Task(
     kind="fire-trigger",
     payload_type=FireTrigger,
     pool=Pool.AGENT,
-    max_attempts=3,
+    max_attempts=1,
     timeout=timedelta(hours=3),
     priority=Priority.SCHEDULED,
 )

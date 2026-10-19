@@ -225,6 +225,44 @@ class TestWorkThatMustNotOutrunItsTransaction:
         assert caplog.text == ""
 
 
+class TestUndoingWhatAStoppedTransactionClaimed:
+    """The mirror of #417: work that undoes a side effect the commit would have made true."""
+
+    async def test_a_rolled_back_session_starts_its_undoing(self) -> None:
+        released = asyncio.Event()
+
+        async def release() -> None:
+            released.set()
+
+        session = AsyncSession()
+        background.spawn_after_rollback(session, release(), name="release a claim")
+        await asyncio.sleep(0)
+        assert not released.is_set()
+
+        background.start_after_rollback(session)
+        await background.drain(timeout=5.0)
+
+        assert released.is_set()
+
+    async def test_a_committed_session_closes_its_undoing_unrun(self, caplog) -> None:
+        released = asyncio.Event()
+
+        async def release() -> None:
+            released.set()
+
+        session = AsyncSession()
+        background.spawn_after_rollback(session, release(), name="release a claim")
+
+        with caplog.at_level(logging.WARNING, logger=background.__name__):
+            background.start_deferred(session)
+            background.start_after_rollback(session)
+        await asyncio.sleep(0)
+
+        assert not released.is_set()
+        assert not background._running
+        assert caplog.text == ""
+
+
 class TestDrainingOnShutdown:
     async def test_nothing_in_flight_is_nothing_to_wait_for(self) -> None:
         await background.drain()

@@ -96,10 +96,13 @@ async def test_a_triggered_source_sync_is_queued_waiting_behind_any_other_sync_o
         sync_mode="full",
     )
     sync_log = SimpleNamespace(id=uuid4())
+    savepoint = SimpleNamespace(commit=AsyncMock(), rollback=AsyncMock())
+    monkeypatch.setattr(session, "begin_nested", AsyncMock(return_value=savepoint))
     monkeypatch.setattr(sync_source_repo, "get_by_id", AsyncMock(return_value=source))
     monkeypatch.setattr(sync_log_repo, "create", AsyncMock(return_value=sync_log))
 
-    await SyncSourceService(session).trigger_sync(str(source.id))
+    assert await SyncSourceService(session).trigger_sync(str(source.id)) is sync_log
+    savepoint.commit.assert_awaited_once()
 
     [(db, task, payload, options)] = queued
     assert db is session
@@ -107,6 +110,129 @@ async def test_a_triggered_source_sync_is_queued_waiting_behind_any_other_sync_o
     assert payload == jobs.SyncConnectorSource(source_id=source.id, sync_log_id=sync_log.id)
     assert options["concurrency_key"] == options["dedupe_key"] == f"sync-source:{source.id}"
     assert options["organization_id"] == source.organization_id
+
+
+def _source() -> SimpleNamespace:
+    return SimpleNamespace(
+        id=uuid4(),
+        organization_id=uuid4(),
+        connector_type="google_drive",
+        collection_name="handbooks",
+        sync_mode="full",
+    )
+
+
+def _dropping(monkeypatch, session, source, *, queued: list[object], logs: dict) -> SimpleNamespace:
+    """`enqueue` drops every insert; `latest_with_dedupe_key` answers `queued` in turn."""
+    savepoint = SimpleNamespace(commit=AsyncMock(), rollback=AsyncMock())
+    created = SimpleNamespace(id=uuid4())
+    logs[created.id] = created
+    monkeypatch.setattr(session, "begin_nested", AsyncMock(return_value=savepoint))
+    monkeypatch.setattr(sync_source_repo, "get_by_id", AsyncMock(return_value=source))
+    monkeypatch.setattr(sync_log_repo, "create", AsyncMock(return_value=created))
+    monkeypatch.setattr(sync_log_repo, "get_by_id", AsyncMock(side_effect=lambda db, i: logs[i]))
+    monkeypatch.setattr("app.services.sync_source.enqueue", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        "app.services.sync_source.background_job_repo.latest_with_dedupe_key",
+        AsyncMock(side_effect=queued),
+    )
+    savepoint.created = created
+    return savepoint
+
+
+def _queued_job(source, log_id, *, status: str = "queued") -> SimpleNamespace:
+    return SimpleNamespace(
+        id=uuid4(),
+        status=status,
+        payload=jobs.SYNC_SOURCE.dump(
+            jobs.SyncConnectorSource(source_id=source.id, sync_log_id=log_id)
+        ),
+    )
+
+
+async def test_a_sync_asked_for_while_one_is_queued_answers_with_that_one(
+    session, monkeypatch
+) -> None:
+    """No log for a sync no job will ever run: it would read `running` for good."""
+    source = _source()
+    queued_log = SimpleNamespace(id=uuid4())
+    savepoint = _dropping(
+        monkeypatch,
+        session,
+        source,
+        queued=[_queued_job(source, queued_log.id)],
+        logs={queued_log.id: queued_log},
+    )
+
+    answer = await SyncSourceService(session).trigger_sync(str(source.id))
+
+    assert answer is queued_log
+    savepoint.rollback.assert_awaited_once()
+    savepoint.commit.assert_not_awaited()
+
+
+async def test_a_queued_scheduled_sync_adopts_the_askers_log(session, monkeypatch) -> None:
+    """The scheduler queues a sync with no log; the person who asked gets one that finishes."""
+    source = _source()
+    scheduled = _queued_job(source, None)
+    savepoint = _dropping(monkeypatch, session, source, queued=[scheduled], logs={})
+    adopt = AsyncMock(return_value=True)
+    monkeypatch.setattr(
+        "app.services.sync_source.background_job_repo.replace_queued_payload", adopt
+    )
+
+    answer = await SyncSourceService(session).trigger_sync(str(source.id))
+
+    assert answer is savepoint.created
+    savepoint.commit.assert_awaited_once()
+    (_db, job_id, payload) = adopt.await_args.args
+    assert job_id == scheduled.id
+    assert jobs.SYNC_SOURCE.load(payload).sync_log_id == savepoint.created.id
+
+
+async def test_a_queued_sync_claimed_before_it_was_looked_at_is_queued_behind(
+    session, monkeypatch
+) -> None:
+    source = _source()
+    savepoint = _dropping(
+        monkeypatch,
+        session,
+        source,
+        queued=[_queued_job(source, None, status="running")],
+        logs={},
+    )
+    monkeypatch.setattr("app.services.sync_source.enqueue", AsyncMock(side_effect=[None, uuid4()]))
+
+    answer = await SyncSourceService(session).trigger_sync(str(source.id))
+
+    assert answer is savepoint.created
+    savepoint.commit.assert_awaited_once()
+
+
+async def test_a_scheduled_sync_claimed_while_adopting_is_queued_behind(
+    session, monkeypatch
+) -> None:
+    source = _source()
+    savepoint = _dropping(
+        monkeypatch, session, source, queued=[_queued_job(source, None), None], logs={}
+    )
+    monkeypatch.setattr(
+        "app.services.sync_source.background_job_repo.replace_queued_payload",
+        AsyncMock(return_value=False),
+    )
+    monkeypatch.setattr("app.services.sync_source.enqueue", AsyncMock(side_effect=[None, uuid4()]))
+
+    assert await SyncSourceService(session).trigger_sync(str(source.id)) is savepoint.created
+
+
+async def test_dropped_twice_with_nothing_queued_is_a_bug_not_an_answer(
+    session, monkeypatch
+) -> None:
+    source = _source()
+    _dropping(monkeypatch, session, source, queued=[None, None], logs={})
+
+    with pytest.raises(AssertionError, match="dropped as queued twice"):
+        await SyncSourceService(session).trigger_sync(str(source.id))
 
 
 async def test_an_uploaded_document_is_queued_for_parsing_on_the_session_that_wrote_it(

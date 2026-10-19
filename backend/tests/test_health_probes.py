@@ -112,6 +112,7 @@ def _heartbeat(
     fired: datetime | Exception | None,
     every: int = 60,
     paused: tuple[str, ...] = (),
+    pools: tuple[str, ...] = ("agent", "ingest", "system"),
 ) -> None:
     """Make the queue's tables report these workers, one schedule and these paused kinds."""
     from app.repositories import background_schedule, background_task_kind, background_worker
@@ -119,7 +120,7 @@ def _heartbeat(
     async def seen(*_: object, **__: object) -> list[SimpleNamespace]:
         if isinstance(fired, Exception):
             raise fired
-        return [SimpleNamespace(id=f"w{n}") for n in range(workers)]
+        return [SimpleNamespace(id=f"w{n}", pools=list(pools)) for n in range(workers)]
 
     async def schedules(*_: object) -> list[SimpleNamespace]:
         assert not isinstance(fired, Exception)
@@ -455,6 +456,17 @@ class TestSchedulerProbe:
         assert check.status == "unhealthy"
         assert "no worker has said it is alive" in check.detail
         assert "scheduled triggers" in check.detail
+
+    async def test_a_pool_no_live_worker_serves_is_unhealthy_by_name(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The `ingest` worker died; the `agent,system` one keeps the schedules firing."""
+        _heartbeat(monkeypatch, fired=datetime.now(UTC), pools=("agent", "system"))
+
+        check = await health.probe_scheduler(_Session())  # type: ignore[arg-type]
+
+        assert check.status == "unhealthy"
+        assert "no live worker serves the ingest pool(s)" in check.detail
 
     async def test_a_minute_schedule_five_ticks_late_is_unhealthy_by_name(
         self, monkeypatch: pytest.MonkeyPatch

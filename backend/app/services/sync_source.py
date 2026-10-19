@@ -21,6 +21,7 @@ from app.db.vector_tables import validate_collection_name
 from app.services.access import SECRET, resolve_access
 from app.services.background_jobs import enqueue
 from app.services.rag.connectors import CONNECTOR_REGISTRY
+from app.repositories import background_job as background_job_repo
 from app.repositories import organization_secret_repo
 from app.repositories import sync_log as sync_log_repo
 from app.repositories import sync_source as sync_source_repo
@@ -511,6 +512,12 @@ class SyncSourceService:
                 message="Cannot sync a source without an assigned knowledge base collection.",
                 details={"source_id": source_id},
             )
+        # The log and its job in one savepoint: the job reads this log by id on its
+        # own session, and commits with it (#417). One sync of a source waits
+        # behind another rather than racing it, and a second click while one is
+        # still queued adds no second sync - nor a log that no job would finish.
+        key = sync_source_key(source.id)
+        savepoint = await self.db.begin_nested()
         sync_log = await sync_log_repo.create(
             self.db,
             source=source.connector_type,
@@ -519,20 +526,51 @@ class SyncSourceService:
             sync_source_id=source.id,
             triggered_by_user_id=user_id,
         )
-        # The job reads this sync log by id on its own session, and commits with
-        # it (#417). One sync of a source waits behind another rather than racing
-        # it, and a second click while one is still queued adds nothing.
-        key = sync_source_key(source.id)
-        await enqueue(
-            self.db,
-            SYNC_SOURCE,
-            SyncConnectorSource(source_id=source.id, sync_log_id=sync_log.id),
-            organization_id=source.organization_id,
-            priority=Priority.INTERACTIVE,
-            dedupe_key=key,
-            concurrency_key=key,
-        )
-        return sync_log
+        payload = SyncConnectorSource(source_id=source.id, sync_log_id=sync_log.id)
+        for _ in range(2):
+            job_id = await enqueue(
+                self.db,
+                SYNC_SOURCE,
+                payload,
+                organization_id=source.organization_id,
+                priority=Priority.INTERACTIVE,
+                dedupe_key=key,
+                concurrency_key=key,
+            )
+            if job_id is not None:
+                await savepoint.commit()
+                return sync_log
+            existing = await self._queued_sync_log(key, payload)
+            if existing is not None and existing.id == sync_log.id:
+                await savepoint.commit()
+                return sync_log
+            if existing is not None:
+                await savepoint.rollback()
+                return existing
+            # The queued copy was claimed between the insert and the look: nothing
+            # is queued now, so this one queues behind it.
+        raise AssertionError("a sync was dropped as queued twice with nothing queued")
+
+    async def _queued_sync_log(self, key: str, payload: SyncConnectorSource) -> SyncLog | None:
+        """The log of the sync already queued under `key`, which this caller's request joins.
+
+        A scheduled sync is queued with no log - the job writes one when it starts
+        - so it adopts this caller's instead, and the caller is answered with a
+        log that will be finished and notified. `None` when the queued sync has
+        been claimed in the meantime.
+        """
+        queued = await background_job_repo.latest_with_dedupe_key(self.db, key)
+        if queued is None or queued.status != "queued":
+            return None
+        queued_log_id = SYNC_SOURCE.load(queued.payload).sync_log_id
+        if queued_log_id is not None:
+            return await sync_log_repo.get_by_id(self.db, queued_log_id)
+        if await background_job_repo.replace_queued_payload(
+            self.db, queued.id, SYNC_SOURCE.dump(payload)
+        ):
+            assert payload.sync_log_id is not None
+            return await sync_log_repo.get_by_id(self.db, payload.sync_log_id)
+        return None
 
     async def update_after_sync(
         self,

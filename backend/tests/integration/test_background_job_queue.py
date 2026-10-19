@@ -262,9 +262,10 @@ async def test_a_failure_retries_after_its_backoff_and_the_last_one_is_dead(
     assert (job.status, job.last_error) == ("dead", "boom again")
 
 
-async def test_a_released_job_gets_its_attempt_back(
+async def test_a_job_stopped_under_a_shutdown_keeps_its_attempt_spent(
     sessions: async_sessionmaker[AsyncSession],
 ) -> None:
+    """It ran, and what it did happened: a one-attempt job is not started again."""
     job_id = await _queue(sessions, max_attempts=1)
     claimed = await _claim(sessions)
     assert claimed is not None
@@ -272,8 +273,25 @@ async def test_a_released_job_gets_its_attempt_back(
     async with sessions() as db, db.begin():
         assert await job_repo.release(db, job_id, fence=claimed.attempts) is True
     job = await _status(sessions, job_id)
-    assert (job.status, job.attempts) == ("queued", 0)
-    assert await _claim(sessions) is not None
+    assert (job.status, job.attempts) == ("dead", 1)
+    assert job.last_error == "the worker stopped while it ran (attempt 1 of 1)"
+    assert job.finished_at is not None
+    assert await _claim(sessions) is None
+
+
+async def test_a_job_with_attempts_left_goes_back_after_a_shutdown(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    job_id = await _queue(sessions, max_attempts=2)
+    claimed = await _claim(sessions)
+    assert claimed is not None
+
+    async with sessions() as db, db.begin():
+        assert await job_repo.release(db, job_id, fence=claimed.attempts) is True
+    job = await _status(sessions, job_id)
+    assert (job.status, job.attempts, job.finished_at) == ("queued", 1, None)
+    again = await _claim(sessions)
+    assert again is not None and again.attempts == 2
 
 
 async def test_a_second_enqueue_with_a_queued_dedupe_key_is_dropped(
@@ -315,6 +333,58 @@ async def test_a_second_enqueue_with_a_queued_dedupe_key_is_dropped(
             )
             is None
         )
+
+
+async def test_two_enqueuers_of_an_active_key_are_decided_one_at_a_time(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    """The second waits for the first to commit, then sees its row - not a gap to insert into."""
+
+    async def add(db: AsyncSession) -> UUID | None:
+        return await job_repo.add(
+            db,
+            kind="probe",
+            pool="system",
+            payload={},
+            max_attempts=1,
+            priority=1,
+            dedupe_key="sync:race",
+            dedupe_active=True,
+        )
+
+    async with sessions() as first_db:
+        async with first_db.begin():
+            first = await add(first_db)
+            assert first is not None
+
+            async def second() -> UUID | None:
+                async with sessions() as db, db.begin():
+                    return await add(db)
+
+            racing = asyncio.create_task(second())
+            await asyncio.sleep(0.3)
+            assert not racing.done(), "the second enqueuer read before the first committed"
+        # Committed; the first copy is claimed at once, so only `running` holds the key.
+        await _claim(sessions)
+
+    assert await racing is None
+
+
+async def test_a_queued_payload_can_be_rewritten_until_a_worker_claims_it(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    job_id = await _queue(sessions, dedupe_key="sync:adopt")
+    async with sessions() as db, db.begin():
+        latest = await job_repo.latest_with_dedupe_key(db, "sync:adopt")
+        assert latest is not None and latest.id == job_id
+        assert await job_repo.latest_with_dedupe_key(db, "sync:nothing") is None
+        assert await job_repo.replace_queued_payload(db, job_id, {"log": "mine"}) is True
+    assert (await _status(sessions, job_id)).payload == {"log": "mine"}
+
+    await _claim(sessions)
+    async with sessions() as db, db.begin():
+        assert await job_repo.replace_queued_payload(db, job_id, {"log": "late"}) is False
+    assert (await _status(sessions, job_id)).payload == {"log": "mine"}
 
 
 async def test_jobs_sharing_a_concurrency_key_run_one_at_a_time(

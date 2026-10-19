@@ -102,11 +102,12 @@ class _Deferred:
 # thrown away with it. Module-private, so nothing else writes it and the casts
 # below are the only place the queue's type is asserted rather than checked.
 _DEFERRED_KEY = "app.core.background.deferred"
+_ON_ROLLBACK_KEY = "app.core.background.on_rollback"
 
 
-def _take(session: AsyncSession) -> list[_Deferred]:
-    """Empty the session's queue, so neither caller can run it twice."""
-    return cast(list[_Deferred], session.info.pop(_DEFERRED_KEY, []))
+def _take(session: AsyncSession, key: str = _DEFERRED_KEY) -> list[_Deferred]:
+    """Empty one of the session's queues, so neither caller can run it twice."""
+    return cast(list[_Deferred], session.info.pop(key, []))
 
 
 def spawn_after_commit(session: AsyncSession, coro: Coroutine[Any, Any, Any], *, name: str) -> None:
@@ -136,9 +137,41 @@ def spawn_after_commit(session: AsyncSession, coro: Coroutine[Any, Any, Any], *,
     queue.append(_Deferred(coro=coro, name=name))
 
 
+def spawn_after_rollback(
+    session: AsyncSession, coro: Coroutine[Any, Any, Any], *, name: str
+) -> None:
+    """Queue work that undoes, outside the database, what `session` did not commit.
+
+    The mirror of `spawn_after_commit`: started by `start_after_rollback` when the
+    transaction rolls back, is cancelled or never commits, and closed unrun when
+    it commits. For a side effect taken *before* the commit that the commit is
+    what makes true - a Redis claim on a webhook delivery, whose job row is in
+    this transaction: rolled back, the claim would answer the provider's retry
+    as a duplicate of a fire that never happened.
+
+    Args:
+        session: The unit of work whose fate decides.
+        coro: The undoing. Created now and started later: ids and primitives only.
+        name: What it is, used in the log line when it fails.
+    """
+    queue = cast(list[_Deferred], session.info.setdefault(_ON_ROLLBACK_KEY, []))
+    queue.append(_Deferred(coro=coro, name=name))
+
+
 def start_deferred(session: AsyncSession) -> None:
-    """Start what the session deferred, now that its transaction has committed."""
+    """Start what the session deferred, now that its transaction has committed.
+
+    What was queued to undo a rollback is closed unrun: there is nothing to undo.
+    """
     for deferred in _take(session):
+        spawn(deferred.coro, name=deferred.name)
+    for deferred in _take(session, _ON_ROLLBACK_KEY):
+        deferred.coro.close()
+
+
+def start_after_rollback(session: AsyncSession) -> None:
+    """Start the undoing queued with `spawn_after_rollback`: the session did not commit."""
+    for deferred in _take(session, _ON_ROLLBACK_KEY):
         spawn(deferred.coro, name=deferred.name)
 
 
