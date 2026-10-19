@@ -37,7 +37,17 @@ cd "$BACKEND"
 
 pids=()
 stop() {
-    for pid in "${pids[@]}"; do kill "$pid" 2>/dev/null || true; done
+    # A process tree, not a pid: the Prefect server and the worker start children
+    # of their own. Twenty seconds to stop cleanly, then SIGKILL - uvicorn holding
+    # a WebSocket open once waited the better part of an hour.
+    for pid in "${pids[@]}"; do pkill -TERM -P "$pid" 2>/dev/null || true; kill "$pid" 2>/dev/null || true; done
+    for _ in $(seq 1 20); do
+        alive=0
+        for pid in "${pids[@]}"; do kill -0 "$pid" 2>/dev/null && alive=1; done
+        [[ $alive == 0 ]] && break
+        sleep 1
+    done
+    for pid in "${pids[@]}"; do pkill -KILL -P "$pid" 2>/dev/null || true; kill -9 "$pid" 2>/dev/null || true; done
     wait 2>/dev/null || true
 }
 trap stop EXIT
@@ -57,7 +67,10 @@ for _ in $(seq 1 120); do
 done
 curl -fsS "$BASE_URL/api/v1/health" >/dev/null
 
+seed_started=$(date +%s)
 "$PYTHON" ../loadtest/seed.py --base-url "$BASE_URL" --stub-url "http://127.0.0.1:$STUB_PORT"
+# Upload to searchable, for the whole corpus: the seed waits until it is indexed.
+echo "seeded in $(($(date +%s) - seed_started))s" >"$LOGS/seed-seconds.txt"
 # A Postgres DSN, when given, adds connection saturation to the report.
 db_probe=()
 if [[ -n "${LOAD_DATABASE_URL:-}" ]]; then db_probe=(--database-url "$LOAD_DATABASE_URL"); fi
