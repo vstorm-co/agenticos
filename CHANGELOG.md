@@ -125,6 +125,11 @@ Two things are versioned separately from this file and worth knowing about:
 - **Prefect.** The `prefect` dependency and the 39 Python distributions only it
   needed, the Prefect UI on port 4200, the `prefect_data` volume and the
   `PREFECT_*` settings are gone (#2219).
+- **`google-api-python-client` from the image.** Google Drive sources call the
+  four Drive endpoints they use over HTTPS, and `google-auth` still signs the
+  service account's token. The SDK and the six distributions only it needed were
+  about 112 MB of the image, nearly all of it discovery documents for other
+  Google APIs. Drive sources behave as before.
 
 ## [1.7.1] - 2026-10-19
 

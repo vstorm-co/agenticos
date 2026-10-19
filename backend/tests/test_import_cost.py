@@ -24,7 +24,7 @@ DEFERRED = {
     "pymupdf": "parsing a PDF",
     "docx": "parsing a .docx",
     "boto3": "an S3 source",
-    "googleapiclient": "a Google Drive source",
+    "google.oauth2": "signing a Google Drive service account token",
 }
 
 

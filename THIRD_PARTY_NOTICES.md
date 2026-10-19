@@ -23,8 +23,8 @@ names no author is in the evidence column below.
 
 | Licence | Backend | Frontend |
 |---|---:|---:|
-| MIT | 107 | 241 |
-| Apache-2.0 | 69 | 24 |
+| MIT | 105 | 241 |
+| Apache-2.0 | 65 | 24 |
 | BSD-3-Clause | 24 | 4 |
 | ISC | 3 | 16 |
 | BSD-2-Clause | 7 | 0 |
@@ -37,7 +37,6 @@ names no author is in the evidence column below.
 | Apache-2.0 AND CNRI-Python | 1 | 0 |
 | Apache-2.0 OR BSD-3-Clause | 1 | 0 |
 | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 | 1 | 0 |
-| BSD-3-Clause OR Apache-2.0 | 1 | 0 |
 | CC-BY-4.0 | 0 | 1 |
 | LGPL-2.1-or-later | 1 | 0 |
 | LGPL-3.0-only | 1 | 0 |
@@ -49,7 +48,7 @@ names no author is in the evidence column below.
 
 ## Backend image (Python)
 
-230 distributions.
+223 distributions.
 
 | Component | Version | Licence | Source | Evidence |
 |---|---|---|---|---|
@@ -115,10 +114,7 @@ names no author is in the evidence column below.
 | frozenlist | 1.8.0 | Apache-2.0 | https://github.com/aio-libs/frozenlist | License field |
 | fsspec | 2026.7.0 | BSD-3-Clause | https://github.com/fsspec/filesystem_spec | License-Expression |
 | genai-prices | 0.1.13 | MIT | https://github.com/pydantic/genai-prices | License-Expression |
-| google-api-core | 2.37.0 | Apache-2.0 | https://github.com/googleapis/google-cloud-python | License field |
-| google-api-python-client | 2.201.0 | Apache-2.0 | https://github.com/googleapis/google-api-python-client/ | License field |
 | google-auth | 2.62.0 | Apache-2.0 | https://github.com/googleapis/google-cloud-python/tree/main/packages/google-auth | License field |
-| google-auth-httplib2 | 0.4.2 | Apache-2.0 | https://github.com/googleapis/google-cloud-python/packages/google-auth-httplib2 | License field |
 | google-genai | 2.31.0 | Apache-2.0 | https://github.com/googleapis/python-genai | License-Expression |
 | googleapis-common-protos | 1.75.3 | Apache-2.0 | https://github.com/googleapis/google-cloud-python/tree/main/packages/googleapis-common-protos | License-Expression |
 | greenlet | 3.5.6 | MIT AND PSF-2.0 | https://github.com/python-greenlet/greenlet | License-Expression |
@@ -131,7 +127,6 @@ names no author is in the evidence column below.
 | hpack | 4.2.0 | MIT | https://github.com/python-hyper/hpack/ | License-Expression |
 | httpcore | 1.0.9 | BSD-3-Clause | https://github.com/encode/httpcore | License-Expression |
 | httpcore2 | 2.13.1 | BSD-3-Clause | https://github.com/pydantic/httpx2/blob/main/src/httpcore2 | License-Expression |
-| httplib2 | 0.32.0 | MIT | https://github.com/httplib2/httplib2 | License field |
 | httptools | 0.9.0 | MIT | https://github.com/MagicStack/httptools | License-Expression |
 | httpx | 0.28.1 | BSD-3-Clause | https://github.com/encode/httpx | License field |
 | httpx-ws | 0.9.0 | MIT | https://github.com/frankie567/httpx-ws | classifier |
@@ -202,7 +197,6 @@ names no author is in the evidence column below.
 | posthog | 7.54.0 | MIT | https://github.com/posthog/posthog-python | License-Expression |
 | primp | 2.0.1 | MIT | https://github.com/deedy5/primp | License field; no licence file, attributed to deedy5 |
 | propcache | 0.5.3 | Apache-2.0 | https://github.com/aio-libs/propcache | License field |
-| proto-plus | 1.28.4 | Apache-2.0 | https://github.com/googleapis/google-cloud-python | License field |
 | protobuf | 6.33.6 | BSD-3-Clause | https://developers.google.com/protocol-buffers/ | License field |
 | psutil | 7.2.2 | BSD-3-Clause | https://github.com/giampaolo/psutil | License field |
 | psycopg2-binary | 2.9.13 | LGPL-3.0-or-later | https://psycopg.org/ | licence file text; review accepted |
@@ -224,7 +218,6 @@ names no author is in the evidence column below.
 | pygments | 2.21.0 | BSD-2-Clause | https://github.com/pygments/pygments | License-Expression |
 | pyjwt | 2.15.1 | MIT | https://github.com/jpadilla/pyjwt | License-Expression |
 | pymupdf | 1.28.2 | AGPL-3.0-only | https://github.com/pymupdf/pymupdf | licence file text; review accepted |
-| pyparsing | 3.3.2 | MIT | https://github.com/pyparsing/pyparsing.git | License-Expression |
 | pyperclip | 1.11.0 | BSD-3-Clause | https://github.com/asweigart/pyperclip | licence file text |
 | python-dateutil | 2.9.0.post0 | Apache-2.0 | https://github.com/dateutil/dateutil | licence file text |
 | python-docx | 1.2.0 | MIT | https://github.com/python-openxml/python-docx | License field |
@@ -269,7 +262,6 @@ names no author is in the evidence column below.
 | typing-extensions | 4.16.0 | PSF-2.0 | https://github.com/python/typing_extensions | License-Expression |
 | typing-inspection | 0.4.4 | MIT | https://github.com/pydantic/typing-inspection | License-Expression |
 | uncalled-for | 0.4.0 | MIT | https://github.com/chrisguidry/uncalled-for | classifier |
-| uritemplate | 4.2.0 | BSD-3-Clause OR Apache-2.0 | https://github.com/python-hyper/uritemplate | override: uritemplate-4.2.0.dist-info/licenses/LICENSE: 'made available under the terms of either of the licenses found in LICENSE.APACHE or LICENSE.BSD'; the License field says 'BSD 3-Clause OR Apache-2.0' in non-SPDX spelling |
 | urllib3 | 2.8.0 | MIT | https://urllib3.readthedocs.io | License-Expression |
 | uvicorn | 0.54.0 | BSD-3-Clause | https://github.com/Kludex/uvicorn | License-Expression |
 | uvloop | 0.23.0 | MIT | https://github.com/MagicStack/uvloop | License field |
@@ -307,9 +299,9 @@ names no author is in the evidence column below.
 | @img/sharp-libvips-linux-x64 | 1.3.4 | LGPL-3.0-or-later | https://github.com/lovell/sharp-libvips | package.json license; review accepted |
 | @img/sharp-linux-arm64 | 0.35.5 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
 | @img/sharp-linux-x64 | 0.35.5 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
-| @next/env | 16.3.8 | MIT | https://github.com/vercel/next.js | package.json license; no licence file, attributed to Next.js Team <support@vercel.com> |
-| @next/swc-linux-arm64-gnu | 16.3.8 | MIT | https://github.com/vercel/next.js | package.json license |
-| @next/swc-linux-x64-gnu | 16.3.8 | MIT | https://github.com/vercel/next.js | package.json license |
+| @next/env | 16.4.2 | MIT | https://github.com/vercel/next.js | package.json license; no licence file, attributed to Next.js Team <support@vercel.com> |
+| @next/swc-linux-arm64-gnu | 16.4.2 | MIT | https://github.com/vercel/next.js | package.json license |
+| @next/swc-linux-x64-gnu | 16.4.2 | MIT | https://github.com/vercel/next.js | package.json license |
 | @opentelemetry/api | 1.9.1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-js | package.json license |
 | @opentelemetry/api-logs | 0.221.0 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-js | package.json license |
 | @opentelemetry/core | 2.10.0 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-js | package.json license |
@@ -517,7 +509,7 @@ names no author is in the evidence column below.
 | ms | 2.1.3 | MIT | https://github.com/vercel/ms | package.json license |
 | nanoid | 3.3.19 | MIT | https://github.com/ai/nanoid | package.json license |
 | negotiator | 1.0.0 | MIT | https://github.com/jshttp/negotiator | package.json license |
-| next | 16.3.8 | MIT | https://github.com/vercel/next.js | package.json license |
+| next | 16.4.2 | MIT | https://github.com/vercel/next.js | package.json license |
 | next-intl | 4.14.5 | MIT | https://github.com/amannn/next-intl | package.json license |
 | next-intl-swc-plugin-extractor | 4.14.5 | MIT | https://github.com/amannn/next-intl | package.json license |
 | node-addon-api | 7.1.1 | MIT | https://github.com/nodejs/node-addon-api | package.json license |

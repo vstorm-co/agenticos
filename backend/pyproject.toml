@@ -31,7 +31,10 @@ dependencies = [
     # Alembic's, not the application's. Every application URL is
     # `postgresql+asyncpg`, so this reads as dead to a grep - but `alembic/env.py`
     # builds a *sync* engine from `DATABASE_URL_SYNC`, which is
-    # `postgresql+psycopg2://`. Removing it breaks every migration (#155).
+    # `postgresql+psycopg2://`. Removing it breaks every migration (#155). Moving
+    # Alembic to asyncpg was tried for 9 MB of image (#2219) and dropped: asyncpg
+    # is strict about bind types where psycopg2 is not, and the backfills that
+    # would meet that run only against data no local check has.
     "psycopg2-binary>=2.9.13",
     "alembic>=1.19.2",
     "greenlet>=3.5.5",
@@ -100,8 +103,10 @@ dependencies = [
     "openpyxl>=3.1.0",
     "llama-cloud>=2.18.0",
     "liteparse>=2.16.0",
-    "google-api-python-client>=2.201.0",
-    "google-auth>=2.62.0",
+    # Google Drive speaks plain REST through `app/services/rag/drive_api.py`;
+    # `google-auth` only signs the service account's token, over `requests`.
+    # `google-api-python-client` was 108 MB of discovery documents for four URLs.
+    "google-auth[requests]>=2.62.0",
     "boto3>=1.43.114",
     # Two HTTP libraries, deliberately. `httpx` is what fourteen modules build
     # and send their own requests with - the portals, the channels, the model
@@ -508,16 +513,13 @@ ignore = [
 "app/services/channels/telegram.py" = ["TRY300", "S107"]
 "app/services/rag/ingestion.py" = ["TRY300", "PTH123"]
 "app/services/rag/documents.py" = ["PTH123"]
-"app/services/rag/sources/google_drive.py" = ["ASYNC230", "PTH123"]
 "app/worker/tasks/rag_tasks.py" = ["TRY300"]
 "app/clients/redis.py" = ["TRY300"]
 "app/core/security.py" = ["TRY300"]
 "app/commands/seed.py" = ["S311"]
-# A polling loop that exits on a flag rather than an Event, and one more
-# blocking read inside a Google SDK call. Same tracked debt as the rest of the
-# generator's channel and connector code.
+# A polling loop that exits on a flag rather than an Event. Same tracked debt as
+# the rest of the generator's channel code.
 "app/services/channels/slack.py" = ["ASYNC110"]
-"app/services/rag/connectors/google_drive.py" = ["PTH123"]
 # The CLI binds 0.0.0.0 because that is what a container needs, and its
 # command bodies read fine as try/except/return.
 "cli/**" = ["S104", "TRY300"]
@@ -801,6 +803,9 @@ include = [
     # remote file may be written, and what may reach a Drive query - so the
     # branch that is never taken in normal operation is the whole point of it.
     "app/services/rag/remote_names.py",
+    # The Drive REST client that replaced Google's discovery SDK: written here,
+    # so held to the bar.
+    "app/services/rag/drive_api.py",
     # What a chunk is, and therefore what a search can find. Written here rather
     # than imported (#158), and the rest of the pipeline can only retrieve what
     # this module decided to store - so it is held to the bar the code it
@@ -1275,6 +1280,9 @@ include = [
     # remote file may be written, and what may reach a Drive query - so the
     # branch that is never taken in normal operation is the whole point of it.
     "app/services/rag/remote_names.py",
+    # The Drive REST client that replaced Google's discovery SDK: written here,
+    # so held to the bar.
+    "app/services/rag/drive_api.py",
     # What a chunk is, and therefore what a search can find. Written here rather
     # than imported (#158), and the rest of the pipeline can only retrieve what
     # this module decided to store - so it is held to the bar the code it
