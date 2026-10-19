@@ -108,7 +108,6 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
         canPublish={can(Perm.agentsPublish) && agent?.can_edit === true}
         comparison={live ? undefined : comparison}
         onCancel={
-          // Who started the run may stop it, and so may an editor of the agent.
           live && (run.created_by_user_id === me || agent?.can_edit === true)
             ? () =>
                 cancel.mutate(undefined, {
