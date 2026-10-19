@@ -632,113 +632,103 @@
   "lost": 0,
   "duplicated": 0,
   "re_executed": 0,
-  "makespan_s": 1.05072021484375,
-  "throughput_per_s": 0.9517281440604124,
-  "wait_p50": 1.0495545864105225,
-  "wait_p95": 1.0495545864105225,
-  "wait_p99": 1.0495545864105225,
-  "e2e_p50": 1.05072021484375,
-  "e2e_p95": 1.05072021484375,
+  "makespan_s": 1.215085744857788,
+  "throughput_per_s": 0.822987187720681,
+  "wait_p50": 1.2130191326141357,
+  "wait_p95": 1.2130191326141357,
+  "wait_p99": 1.2130191326141357,
+  "e2e_p50": 1.215085744857788,
+  "e2e_p95": 1.215085744857788,
   "pg": {
-   "commits": 80,
+   "commits": 106,
    "rollbacks": 0,
-   "inserted": 4,
-   "updated": 2,
-   "deleted": 0,
-   "wal_bytes": 5352
+   "inserted": 10,
+   "updated": 166,
+   "deleted": 6,
+   "wal_bytes": 250112
   },
   "resources": {
    "roles": {
     "workers": {
-     "cpu_avg": 2.9,
-     "cpu_p95": 3.26,
-     "mem_max": 1496.6
+     "cpu_avg": 0.9,
+     "cpu_p95": 1.71,
+     "mem_max": 296.0
     },
     "postgres": {
-     "cpu_avg": 0.0,
-     "cpu_p95": 0.0,
-     "mem_max": 61.3
-    },
-    "prefect-server": {
-     "cpu_avg": 3.7,
-     "cpu_p95": 3.7,
-     "mem_max": 310.0
+     "cpu_avg": 2.05,
+     "cpu_p95": 3.8949999999999996,
+     "mem_max": 59.8
     },
     "redis": {
-     "cpu_avg": 0.0,
-     "cpu_p95": 0.0,
-     "mem_max": 11.4
+     "cpu_avg": 0.7,
+     "cpu_p95": 1.3299999999999998,
+     "mem_max": 11.0
     }
    },
    "total": {
-    "cpu_avg": 6.6,
-    "mem_max": 1879.3
+    "cpu_avg": 3.65,
+    "mem_max": 366.8
    }
   },
-  "cold_start_s": 5.81900429725647
+  "cold_start_s": 8.932523488998413
  },
  {
   "label": "dbos-mix",
   "variant": "dbos",
   "scenario": "mix",
-  "expected": 730,
-  "finished": 730,
+  "expected": 728,
+  "finished": 728,
   "timed_out": false,
   "lost": 0,
   "duplicated": 0,
   "re_executed": 0,
-  "makespan_s": 307.9304847717285,
-  "throughput_per_s": 2.3706649263425645,
-  "wait_p50": 0.5790514945983887,
-  "wait_p95": 1.072062051296234,
-  "wait_p99": 1.5640322661399844,
-  "e2e_p50": 5.519510984420776,
-  "e2e_p95": 10.364160513877868,
+  "makespan_s": 308.44928312301636,
+  "throughput_per_s": 2.3601935223485593,
+  "wait_p50": 0.6234289407730103,
+  "wait_p95": 1.4187292098999023,
+  "wait_p99": 2.104506413936619,
+  "e2e_p50": 5.761976599693298,
+  "e2e_p95": 10.412996673583983,
   "pg": {
-   "commits": 11247,
+   "commits": 11134,
    "rollbacks": 1,
-   "inserted": 4566,
-   "updated": 1787,
-   "deleted": 52,
-   "wal_bytes": 4165136
+   "inserted": 4536,
+   "updated": 1829,
+   "deleted": 64,
+   "wal_bytes": 4396376
   },
   "resources": {
    "roles": {
+    "postgres": {
+     "cpu_avg": 3.4455737704918037,
+     "cpu_p95": 8.68,
+     "mem_max": 89.1
+    },
     "workers": {
-     "cpu_avg": 28.89193714073394,
-     "cpu_p95": 157.2999999999999,
-     "mem_max": 1761.5
+     "cpu_avg": 23.62393442622951,
+     "cpu_p95": 78.14,
+     "mem_max": 301.7
     },
     "redis": {
-     "cpu_avg": 0.6218543046357616,
-     "cpu_p95": 1.5,
-     "mem_max": 14.2
-    },
-    "postgres": {
-     "cpu_avg": 2.4579470198675497,
-     "cpu_p95": 4.895,
-     "mem_max": 93.4
-    },
-    "prefect-server": {
-     "cpu_avg": 4.111258278145695,
-     "cpu_p95": 9.5,
-     "mem_max": 318.3
+     "cpu_avg": 0.7111842105263159,
+     "cpu_p95": 1.7,
+     "mem_max": 12.3
     }
    },
    "total": {
-    "cpu_avg": 36.08299674338295,
-    "mem_max": 2187.4
+    "cpu_avg": 27.78069240724763,
+    "mem_max": 403.09999999999997
    }
   },
-  "agent_wait_p50": 0.5899722576141357,
-  "agent_wait_p95": 1.0526348590850831,
-  "agent_wait_p99": 1.6314870071411123,
-  "parse_wait_p50": 0.5320541858673096,
-  "parse_wait_p95": 1.1532536506652833,
-  "parse_wait_p99": 1.4384442996978766,
+  "agent_wait_p50": 0.6043398380279541,
+  "agent_wait_p95": 1.4838262319564839,
+  "agent_wait_p99": 2.1778540802001944,
+  "parse_wait_p50": 0.6906864643096924,
+  "parse_wait_p95": 1.3366563320159912,
+  "parse_wait_p99": 1.6779031276702876,
   "sweeps": 5,
-  "sweep_gap_mean": 60.299535155296326,
-  "sweep_gap_max_dev": 5.31650185585022
+  "sweep_gap_mean": 59.998117446899414,
+  "sweep_gap_max_dev": 3.729034662246704
  },
  {
   "label": "dbos-oom-probe",
@@ -866,20 +856,20 @@
   "lost": 0,
   "duplicated": 0,
   "re_executed": 0,
-  "makespan_s": 0.20303106307983398,
-  "throughput_per_s": 4.925354696127407,
-  "wait_p50": 0.18702387809753418,
-  "wait_p95": 0.18702387809753418,
-  "wait_p99": 0.18702387809753418,
-  "e2e_p50": 0.20303106307983398,
-  "e2e_p95": 0.20303106307983398,
+  "makespan_s": 0.07891964912414551,
+  "throughput_per_s": 12.67111563594179,
+  "wait_p50": 0.07659387588500977,
+  "wait_p95": 0.07659387588500977,
+  "wait_p99": 0.07659387588500977,
+  "e2e_p50": 0.07891964912414551,
+  "e2e_p95": 0.07891964912414551,
   "pg": {
-   "commits": 177,
+   "commits": 156,
    "rollbacks": 0,
-   "inserted": 8,
-   "updated": 166,
-   "deleted": 6,
-   "wal_bytes": 249800
+   "inserted": 2,
+   "updated": 2,
+   "deleted": 0,
+   "wal_bytes": 5824
   },
   "resources": {
    "roles": {},
@@ -888,70 +878,65 @@
     "mem_max": 0
    }
   },
-  "cold_start_s": 9.536762952804565
+  "cold_start_s": 6.439436912536621
  },
  {
   "label": "dbos-poll100-mix",
   "variant": "dbos-poll100",
   "scenario": "mix",
-  "expected": 725,
-  "finished": 725,
+  "expected": 729,
+  "finished": 729,
   "timed_out": false,
   "lost": 0,
   "duplicated": 0,
   "re_executed": 0,
-  "makespan_s": 308.2762973308563,
-  "throughput_per_s": 2.351786388630121,
-  "wait_p50": 0.09479403495788574,
-  "wait_p95": 0.6621500015258786,
-  "wait_p99": 1.2758801460266114,
-  "e2e_p50": 5.138084888458252,
-  "e2e_p95": 9.874145030975342,
+  "makespan_s": 303.62534642219543,
+  "throughput_per_s": 2.4009853215163233,
+  "wait_p50": 0.08518815040588379,
+  "wait_p95": 0.5138930797576906,
+  "wait_p99": 0.7965630054473893,
+  "e2e_p50": 4.976945161819458,
+  "e2e_p95": 9.806992435455323,
   "pg": {
-   "commits": 19978,
+   "commits": 20236,
    "rollbacks": 1,
-   "inserted": 4531,
-   "updated": 1784,
-   "deleted": 62,
-   "wal_bytes": 4529728
+   "inserted": 4521,
+   "updated": 1785,
+   "deleted": 53,
+   "wal_bytes": 4243112
   },
   "resources": {
    "roles": {
-    "postgres": {
-     "cpu_avg": 4.775165562913907,
-     "cpu_p95": 10.795,
-     "mem_max": 88.2
-    },
-    "prefect-server": {
-     "cpu_avg": 6.760797342192691,
-     "cpu_p95": 17.7,
-     "mem_max": 322.0
+    "redis": {
+     "cpu_avg": 0.6539999999999999,
+     "cpu_p95": 1.5050000000000012,
+     "mem_max": 14.4
     },
     "workers": {
-     "cpu_avg": 45.550498338870426,
-     "cpu_p95": 196.4,
-     "mem_max": 879.0
+     "cpu_avg": 27.231666666666666,
+     "cpu_p95": 80.99000000000002,
+     "mem_max": 301.3
     },
-    "redis": {
-     "cpu_avg": 0.8458471760797343,
-     "cpu_p95": 2.2,
-     "mem_max": 12.1
+    "postgres": {
+     "cpu_avg": 3.621,
+     "cpu_p95": 6.5,
+     "mem_max": 86.0
     }
    },
    "total": {
-    "cpu_avg": 57.932308420056756,
-    "mem_max": 1301.3
+    "cpu_avg": 31.506666666666664,
+    "mem_max": 401.7
    }
   },
-  "agent_wait_p50": 0.09411025047302246,
-  "agent_wait_p95": 0.6691407203674317,
-  "agent_wait_p99": 1.2768653678894044,
-  "parse_wait_p50": 0.09909892082214355,
-  "parse_wait_p95": 0.6270768761634827,
-  "parse_wait_p99": 0.9825235915184023,
-  "sweeps": 5,
-  "sweep_gap_mean": 59.51258057355881,
-  "sweep_gap_max_dev": 2.845646858215332
+  "agent_wait_p50": 0.08811068534851074,
+  "agent_wait_p95": 0.5254200220108034,
+  "agent_wait_p99": 0.7662606000900285,
+  "parse_wait_p50": 0.08059060573577881,
+  "parse_wait_p95": 0.46460332870483445,
+  "parse_wait_p99": 0.8312944102287265,
+  "sweeps": 6,
+  "sweep_gap_mean": 60.663289880752565,
+  "sweep_gap_max_dev": 3.8128979206085205
  },
  {
   "label": "dbos-poll100-tenants-probe",
@@ -2603,20 +2588,20 @@
   "lost": 0,
   "duplicated": 0,
   "re_executed": 0,
-  "makespan_s": 0.03516101837158203,
-  "throughput_per_s": 28.44058694296021,
-  "wait_p50": 0.03323841094970703,
-  "wait_p95": 0.03323841094970703,
-  "wait_p99": 0.03323841094970703,
-  "e2e_p50": 0.03516101837158203,
-  "e2e_p95": 0.03516101837158203,
+  "makespan_s": 0.03266096115112305,
+  "throughput_per_s": 30.617592525001825,
+  "wait_p50": 0.029767513275146484,
+  "wait_p95": 0.029767513275146484,
+  "wait_p99": 0.029767513275146484,
+  "e2e_p50": 0.03266096115112305,
+  "e2e_p95": 0.03266096115112305,
   "pg": {
-   "commits": 68,
+   "commits": 7,
    "rollbacks": 0,
-   "inserted": 9,
-   "updated": 165,
-   "deleted": 7,
-   "wal_bytes": 251184
+   "inserted": 1,
+   "updated": 0,
+   "deleted": 0,
+   "wal_bytes": 5464
   },
   "resources": {
    "roles": {},
@@ -2625,70 +2610,65 @@
     "mem_max": 0
    }
   },
-  "cold_start_s": 7.602641344070435
+  "cold_start_s": 6.549459934234619
  },
  {
   "label": "pgqueuer-mix",
   "variant": "pgqueuer",
   "scenario": "mix",
-  "expected": 748,
-  "finished": 748,
+  "expected": 717,
+  "finished": 717,
   "timed_out": false,
   "lost": 0,
   "duplicated": 0,
   "re_executed": 0,
-  "makespan_s": 307.6725571155548,
-  "throughput_per_s": 2.4311560543863138,
-  "wait_p50": 0.007025241851806641,
-  "wait_p95": 0.3820555567741394,
-  "wait_p99": 0.6515489435195922,
-  "e2e_p50": 4.911414861679077,
-  "e2e_p95": 9.700187230110169,
+  "makespan_s": 309.4340536594391,
+  "throughput_per_s": 2.3171334619463866,
+  "wait_p50": 0.006911516189575195,
+  "wait_p95": 0.37330579757690446,
+  "wait_p99": 0.6322367858886727,
+  "e2e_p50": 5.060101747512817,
+  "e2e_p95": 9.674460601806643,
   "pg": {
-   "commits": 17059,
+   "commits": 16668,
    "rollbacks": 0,
-   "inserted": 6099,
-   "updated": 3052,
-   "deleted": 751,
-   "wal_bytes": 4594736
+   "inserted": 5892,
+   "updated": 3018,
+   "deleted": 719,
+   "wal_bytes": 4438792
   },
   "resources": {
    "roles": {
     "workers": {
-     "cpu_avg": 31.236499245951087,
-     "cpu_p95": 177.0049999999999,
-     "mem_max": 873.3
+     "cpu_avg": 21.95392156862745,
+     "cpu_p95": 80.825,
+     "mem_max": 291.2
     },
     "postgres": {
-     "cpu_avg": 3.01523178807947,
-     "cpu_p95": 5.994999999999999,
-     "mem_max": 92.7
+     "cpu_avg": 3.3193442622950817,
+     "cpu_p95": 6.840000000000003,
+     "mem_max": 96.5
     },
     "redis": {
-     "cpu_avg": 0.6165562913907285,
-     "cpu_p95": 1.4,
-     "mem_max": 12.5
-    },
-    "prefect-server": {
-     "cpu_avg": 4.846357615894039,
-     "cpu_p95": 10.895,
-     "mem_max": 318.5
+     "cpu_avg": 0.7013114754098361,
+     "cpu_p95": 1.6,
+     "mem_max": 12.3
     }
    },
    "total": {
-    "cpu_avg": 39.71464494131533,
-    "mem_max": 1297.0
+    "cpu_avg": 25.974577306332367,
+    "mem_max": 400.0
    }
   },
-  "agent_wait_p50": 0.007004737854003906,
-  "agent_wait_p95": 0.38935694694519063,
-  "agent_wait_p99": 0.6464532995223998,
-  "parse_wait_p50": 0.0071566104888916016,
-  "parse_wait_p95": 0.3356003761291504,
-  "parse_wait_p99": 0.7289147377014163,
-  "sweeps": 6,
-  "sweep_gap_mean": 60.040413284301756,
-  "sweep_gap_max_dev": 0.2019805908203125
+  "agent_wait_p50": 0.006930828094482422,
+  "agent_wait_p95": 0.4147754907608037,
+  "agent_wait_p99": 0.6530960845947262,
+  "parse_wait_p50": 0.0068340301513671875,
+  "parse_wait_p95": 0.32636108398437513,
+  "parse_wait_p99": 0.37069166660308844,
+  "sweeps": 5,
+  "sweep_gap_mean": 60.15338051319122,
+  "sweep_gap_max_dev": 0.6109716892242432
  },
  {
   "label": "pgqueuer-oom-probe",
