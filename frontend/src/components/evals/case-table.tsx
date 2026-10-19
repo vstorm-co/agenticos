@@ -148,9 +148,9 @@ export function CaseTable({
   const [outcome, setOutcome] = useState<string>(ALL);
   const [skip, setSkip] = useState(0);
   const [open, setOpen] = useState<string | null>(opened);
-  // Page three of one tag's cases is not page three of another's. Compared as a
-  // value: the ids arrive as a new array on every render.
-  const scope = JSON.stringify([tag, caseIds]);
+  // Page three of one tag's or one side's cases is not page three of another's.
+  // Compared as a value: the ids arrive as a new array on every render.
+  const scope = JSON.stringify([arm, tag, caseIds]);
   const [seenScope, setSeenScope] = useState(scope);
   if (seenScope !== scope) {
     setSeenScope(scope);

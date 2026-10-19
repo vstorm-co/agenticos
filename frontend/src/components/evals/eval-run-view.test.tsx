@@ -777,14 +777,20 @@ describe("EvalRunView", () => {
       ...state.run,
       run: evalRun({ arms: [arm(), arm({ id: "arm-2", model_label: "claude" })] }),
     };
+    state.cases = { cases: [evalCase()], total: 60, isLoading: false, error: null };
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(state.comparisonArgs.at(-1)).toEqual(["run-1", { arm: "arm-1", live: false }]);
+    await userEvent.click(screen.getByRole("button", { name: /next/i }));
+    expect(state.casesArgs.at(-1)).toEqual(["run-1", expect.objectContaining({ skip: 25 })]);
 
     await userEvent.click(screen.getByRole("combobox", { name: "Compare this model" }));
     await userEvent.click(screen.getByRole("option", { name: "v7 · claude" }));
     expect(state.comparisonArgs.at(-1)).toEqual(["run-1", { arm: "arm-2", live: false }]);
-    // The outcome filter reads the picked model's answers too.
-    expect(state.casesArgs.at(-1)).toEqual(["run-1", expect.objectContaining({ arm: "arm-2" })]);
+    // The outcome filter reads the picked model's answers too, from their first page.
+    expect(state.casesArgs.at(-1)).toEqual([
+      "run-1",
+      expect.objectContaining({ arm: "arm-2", skip: 0 }),
+    ]);
   });
 
   it("filters the cases by outcome and tag, back to the first page", async () => {
