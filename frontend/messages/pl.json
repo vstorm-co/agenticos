@@ -6866,6 +6866,7 @@
       "agentGone": "Agent, którego już nie ma",
       "agentVersion": "{name} · v{version}",
       "answer": "Odpowiedź",
+      "answerHidden": "Odpowiedź ukryta: nie masz dostępu do agenta, który jej udzielił, więc pomijamy ją i uzasadnienia, które ją cytują.",
       "answerGone": "Odpowiedź nie jest przechowywana.",
       "showAll": "Pokaż całość",
       "showLess": "Pokaż mniej",

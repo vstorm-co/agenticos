@@ -6589,6 +6589,7 @@
       "agentGone": "An agent that is gone",
       "agentVersion": "{name} · v{version}",
       "answer": "Answer",
+      "answerHidden": "Answer hidden: you cannot view the agent that gave it, so its answer and the reasons that quote it are left out.",
       "answerGone": "The answer is not kept.",
       "showAll": "Show all",
       "showLess": "Show less",

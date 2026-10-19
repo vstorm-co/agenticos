@@ -33,7 +33,7 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, OrgRoleName
 from app.core.secret_kinds import ApiKeySecret, SecretKind, seal_secret
 from app.core.vault import VaultScope
-from app.db.models.agent import AgentStatus
+from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.credential import ModelProfile
 from app.db.models.dataset import DatasetVersion
@@ -45,6 +45,7 @@ from app.db.models.intercepted_tool_call import (
 )
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
+from app.db.models.resource_grant import GrantLevel, ResourceGrant
 from app.db.models.user import User
 from app.repositories import (
     agent_repo,
@@ -1611,6 +1612,51 @@ class TestVerdicts:
         assert (sent.queued, sent.replaced, sent.already) == (0, 0, 2)
         waiting = (await service.list_scores(tenant.ctx, dataset.id, pending=True)).items
         assert [score.id for score in waiting] == [newer.id]
+
+    @pytest.mark.security
+    async def test_a_reader_who_may_not_view_the_agent_reads_the_outcome_not_the_answer(
+        self, db, judge
+    ) -> None:
+        """A dataset shared with somebody does not share the answers of an agent
+        they may not see - nor the reasons and quotes that repeat them."""
+        tenant = await _tenant(db)
+        dataset, case = await _dataset(db, tenant, scoring=DatasetScoring(), visibility="org")
+        run = await _scored_run(db, tenant, answer='{"days": 30} as the private policy says')
+        service = ScoringService(db)
+        await service.score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+        agent = await db.get(Agent, run.agent_id)
+        assert agent is not None
+        agent.visibility = "private"
+        await db.flush()
+        viewer = await _join(db, tenant, OrgRoleName.VIEWER)
+
+        [owned] = (await service.list_scores(tenant.ctx, dataset.id)).items
+        [hidden] = (await service.list_scores(viewer, dataset.id)).items
+        db.add(
+            ResourceGrant(
+                organization_id=tenant.organization.id,
+                resource_type="agent",
+                resource_id=agent.id,
+                subject_user_id=viewer.user_id,
+                level=GrantLevel.READ.value,
+                created_by_user_id=tenant.owner.id,
+            )
+        )
+        await db.flush()
+        [granted] = (await service.list_scores(viewer, dataset.id)).items
+
+        assert owned.answer is not None and not owned.answer_hidden
+        assert any(result.reason for result in owned.results)
+        assert (hidden.answer, hidden.answer_hidden) == (None, True)
+        assert all(
+            (result.reason, result.unverified_quotes, result.judge_said) == ("", [], None)
+            for result in hidden.results
+        )
+        assert [r.status for r in hidden.results] == [r.status for r in owned.results]
+        assert (hidden.outcome, hidden.question) == (owned.outcome, owned.question)
+        assert (granted.answer, granted.answer_hidden) == (owned.answer, False)
 
     async def test_a_score_keeps_the_answer_it_graded_and_who_gave_it(self, db, judge) -> None:
         tenant = await _tenant(db)

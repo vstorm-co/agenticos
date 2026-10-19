@@ -226,7 +226,7 @@ export function ScoreCard({
         </p>
       )}
       <ScoreExpectation score={score} />
-      <ScoreAnswer answer={score.answer} />
+      <ScoreAnswer answer={score.answer} hidden={score.answer_hidden} />
 
       {score.passed === null && score.unscored_reason !== null && (
         <NotGraded code={score.unscored_reason} onRescore={onRescore} busy={busy} />

@@ -9,8 +9,17 @@ import { cn } from "@/lib/utils";
 /** Past this many characters the answer opens folded, to three lines. */
 const FOLDED_PAST = 240;
 
-/** What the run answered, folded when long; `null` once nothing of it is kept. */
-export function ScoreAnswer({ answer }: { answer: string | null }) {
+/**
+ * What the run answered, folded when long; `null` once nothing of it is kept, or
+ * `hidden` from a reader who may not view the agent that gave it.
+ */
+export function ScoreAnswer({
+  answer,
+  hidden = false,
+}: {
+  answer: string | null;
+  hidden?: boolean;
+}) {
   const t = useTranslations("datasets.scoring");
   const long = answer !== null && answer.length > FOLDED_PAST;
   const [open, setOpen] = useState(false);
@@ -18,7 +27,9 @@ export function ScoreAnswer({ answer }: { answer: string | null }) {
   return (
     <div>
       <p className="text-muted-foreground text-xs">{t("answer")}</p>
-      {answer === null ? (
+      {hidden ? (
+        <p className="text-muted-foreground text-sm italic">{t("answerHidden")}</p>
+      ) : answer === null ? (
         <p className="text-muted-foreground text-sm italic">{t("answerGone")}</p>
       ) : (
         <>

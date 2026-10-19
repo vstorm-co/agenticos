@@ -78,7 +78,7 @@ from app.schemas.scoring import (
     ScoreOutcome,
     ScorerResult,
 )
-from app.services.access import DATASET, visible_resource_ids
+from app.services.access import AGENT, DATASET, resolve_access, visible_resource_ids
 from app.services.agent_runner import AgentRunnerService
 from app.services.ai_assistance import AiAssistanceService
 from app.services.dataset import DatasetService
@@ -854,7 +854,12 @@ class ScoringService:
 
     async def _reads(self, ctx: AuthContext, scores: list[CaseScore]) -> list[CaseScoreRead]:
         """Scores as read, each with the name and version number of the agent that
-        answered, and the name of the model the judge graded on."""
+        answered, and the name of the model the judge graded on.
+
+        A reader who may not view the agent that answered reads the outcome and
+        the case, not the answer: it, and every result's reason, quotes and what
+        the judge said, are left out, and `answer_hidden` says so.
+        """
         reads = [CaseScoreRead.model_validate(score) for score in scores]
         models = await credential_repo.get_profiles_by_ids(
             self.db,
@@ -877,9 +882,16 @@ class ScoringService:
             list({read.agent_version_id for read in reads if read.agent_version_id is not None}),
             organization_id=ctx.organization_id,
         )
+        hidden = {
+            agent.id
+            for agent in agents.values()
+            if not await resolve_access(self.db, ctx, agent, Perm.AGENTS_VIEW, resource_type=AGENT)
+        }
         named = []
         for read in reads:
             agent = None if read.agent_id is None else agents.get(read.agent_id)
+            if agent is not None and agent.id in hidden:
+                read = _without_answer(read)
             version = None if read.agent_version_id is None else versions.get(read.agent_version_id)
             judged_on = (
                 None
@@ -1057,3 +1069,19 @@ class ScoringService:
                 details={"dataset_id": dataset_id, "missing": missing},
             )
         return wanted
+
+
+def _without_answer(read: CaseScoreRead) -> CaseScoreRead:
+    """A score with the answer, and everything that can repeat it, left out."""
+    return read.model_copy(
+        update={
+            "answer": None,
+            "answer_hidden": True,
+            "results": [
+                result.model_copy(
+                    update={"reason": "", "unverified_quotes": [], "judge_said": None}
+                )
+                for result in read.results
+            ],
+        }
+    )
