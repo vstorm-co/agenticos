@@ -33,7 +33,7 @@ import hashlib
 import json
 import logging
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -44,6 +44,7 @@ from pydantic_ai.usage import RunUsage
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import price_request
+from app.agents.capabilities.skills import SkillBody
 from app.agents.spec import AgentSpec
 from app.agents.system_agents import JUDGE
 from app.core.background import spawn_after_commit
@@ -133,10 +134,24 @@ def scoring_hash(scoring: DatasetScoring) -> str:
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 
-def spec_hash(spec: AgentSpec) -> str:
-    """A fingerprint of a spec, equal for equal specs whatever order their keys were written in."""
-    canonical = json.dumps(spec.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
+def spec_hash(spec: AgentSpec, skill_bodies: Mapping[UUID, SkillBody] | None = None) -> str:
+    """A fingerprint of a spec, equal for equal specs whatever order their keys were written in.
+
+    Skill bodies served in place of the stored ones are part of what an arm runs,
+    so they are part of its fingerprint when there are any.
+    """
+    content: dict[str, object] = spec.model_dump(mode="json")
+    if skill_bodies:
+        content = {"spec": content, "skills": _bodies_json(skill_bodies)}
+    canonical = json.dumps(content, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode()).hexdigest()
+
+
+def _bodies_json(skill_bodies: Mapping[UUID, SkillBody]) -> dict[str, dict[str, str]]:
+    return {
+        str(skill_id): {"description": body.description, "content": body.content}
+        for skill_id, body in skill_bodies.items()
+    }
 
 
 def attempt_outcome(attempt: EvalRunCase, score: CaseScore | None) -> Outcome:
@@ -206,6 +221,7 @@ class ArmPlan:
     model_profile_id: UUID | None
     model_label: str
     cached: tuple[EvalRunArm, EvalRun] | None = None
+    skill_bodies: Mapping[UUID, SkillBody] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -301,6 +317,7 @@ class EvalRunService:
         scoring: DatasetScoring | None = None,
         candidate_spec: AgentSpec | None = None,
         exclude_conversations: Sequence[UUID] = (),
+        candidate_skills: Mapping[UUID, SkillBody] | None = None,
     ) -> RunPlan:
         """Decide what a run is, refusing anything that could not or should not run.
 
@@ -311,6 +328,8 @@ class EvalRunService:
         `exclude_conversations` leaves out the cases taken from those
         conversations - a proposal's own evidence - and the baseline then runs
         fresh beside the candidate, so both sides answer the same cases.
+        `candidate_skills` serves proposed skill bodies on the candidate in place
+        of the stored ones, so a skill change is measured with the agent held still.
 
         Raises:
             NotFoundError: The agent, dataset or environment cannot be reached.
@@ -357,15 +376,18 @@ class EvalRunService:
             )
         source, version, spec = await self._candidate(ctx, agent, request, candidate_spec)
         candidates = [
-            await self._arm(
-                ctx,
-                agent,
-                role=ArmRole.CANDIDATE,
-                source=source,
-                version=version,
-                spec=spec,
-                model_profile_id=profile_id,
-                environment_id=request.environment_id,
+            replace(
+                await self._arm(
+                    ctx,
+                    agent,
+                    role=ArmRole.CANDIDATE,
+                    source=source,
+                    version=version,
+                    spec=spec,
+                    model_profile_id=profile_id,
+                    environment_id=request.environment_id,
+                ),
+                skill_bodies=dict(candidate_skills or {}),
             )
             for profile_id in (request.model_profile_ids or [spec.model_profile_id])
         ]
@@ -641,6 +663,7 @@ class EvalRunService:
         scoring: DatasetScoring | None = None,
         candidate_spec: AgentSpec | None = None,
         exclude_conversations: Sequence[UUID] = (),
+        candidate_skills: Mapping[UUID, SkillBody] | None = None,
     ) -> EvalRunEstimate:
         """What a run would cost, against what the agent and organization have left."""
         plan = await self.plan(
@@ -651,6 +674,7 @@ class EvalRunService:
             scoring=scoring,
             candidate_spec=candidate_spec,
             exclude_conversations=exclude_conversations,
+            candidate_skills=candidate_skills,
         )
         return await self._estimate(ctx, plan)
 
@@ -806,6 +830,7 @@ class EvalRunService:
         scoring: DatasetScoring | None = None,
         candidate_spec: AgentSpec | None = None,
         exclude_conversations: Sequence[UUID] = (),
+        candidate_skills: Mapping[UUID, SkillBody] | None = None,
     ) -> EvalRunRead:
         """Write a run and hand it to the worker - or refuse it before anything is spent.
 
@@ -821,6 +846,7 @@ class EvalRunService:
             scoring=scoring,
             candidate_spec=candidate_spec,
             exclude_conversations=exclude_conversations,
+            candidate_skills=candidate_skills,
         )
         estimate = await self._estimate(ctx, plan)
         if not estimate.affordable:
@@ -862,7 +888,8 @@ class EvalRunService:
                 agent_version_id=arm.version.id if arm.version else None,
                 version_number=arm.version.version if arm.version else None,
                 spec=None if arm.version else arm.spec.model_dump(mode="json"),
-                spec_hash=spec_hash(arm.spec),
+                spec_hash=spec_hash(arm.spec, arm.skill_bodies),
+                skill_bodies=_bodies_json(arm.skill_bodies) if arm.skill_bodies else None,
                 model_profile_id=arm.model_profile_id,
                 model_label=arm.model_label,
                 reused_from_arm_id=arm.cached[0].id if arm.cached else None,

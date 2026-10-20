@@ -263,3 +263,6 @@ class ProposalCheck(BaseSchema):
         default=None,
         description="For a skill change: the agent, bound to the skill, the dataset runs on.",
     )
+    proposal_id: UUID | None = Field(
+        default=None, description="For a skill change: the pending change to check."
+    )

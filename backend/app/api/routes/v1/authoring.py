@@ -125,3 +125,27 @@ async def start_skill_authoring(
 async def list_skill_authoring(skill_id: UUID, service: AuthoringSvc, ctx: Auth) -> Any:
     """The assistant's latest requests on this skill, newest first."""
     return await service.for_skill(ctx, skill_id)
+
+
+@router.post("/skills/{skill_id}/authoring/check/estimate", response_model=EvalRunEstimate)
+async def estimate_skill_check(
+    skill_id: UUID, data: ProposalCheck, service: AuthoringSvc, ctx: Auth
+) -> Any:
+    """What checking a pending change to this skill on one agent would cost. Writes nothing."""
+    return await service.estimate_skill_check(ctx, skill_id, data)
+
+
+@router.post(
+    "/skills/{skill_id}/authoring/check",
+    response_model=EvalRunRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def check_skill_change(
+    skill_id: UUID, data: ProposalCheck, service: AuthoringSvc, ctx: Auth
+) -> Any:
+    """Run a dataset on an agent using the skill, serving the proposed body in its place.
+
+    Applying a skill change is live for every agent bound to it, so it is checked
+    first. The agent runs its published version on both sides.
+    """
+    return await service.check_skill(ctx, skill_id, data)

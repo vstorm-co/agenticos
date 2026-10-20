@@ -147,6 +147,7 @@ from app.agents.capabilities.sandbox import (
     WorkspaceIdentity,
 )
 from app.agents.capabilities.sandbox._identity import SessionScope
+from app.agents.capabilities.skills import SKILL_BODIES_RESOURCE, SkillBody
 from app.agents.capabilities.subagents import SubagentsConfig, acting_delegate
 from app.agents.capabilities.tool_output_limits import SPILL_LOG_RESOURCE
 from app.agents.connect_on_use import (
@@ -250,6 +251,7 @@ from app.services.agent_registry import (
     DELEGATION_CAPABILITY_ID,
     AgentRegistryService,
     Candidate,
+    UnpublishedCandidate,
     delegation_binding,
 )
 from app.services.api_key import mint_for_run
@@ -2648,6 +2650,7 @@ class AgentRunnerService:
             agent, spec, version_id = await self.registry.get_candidate_spec(
                 ctx, agent_id, candidate, environment_id=effective_environment_id
             )
+        skill_bodies = candidate.skill_bodies if isinstance(candidate, UnpublishedCandidate) else {}
         spec = await self._with_environment_observability(
             ctx, spec, environment_id=effective_environment_id
         )
@@ -2686,6 +2689,7 @@ class AgentRunnerService:
             person_time_zone=person_time_zone,
             is_test=test or draft,
             test_spec=test_spec,
+            skill_bodies=skill_bodies,
         )
         if on_compaction is not None:
             # Set on the built deps rather than passed into `_assemble`: it is a
@@ -2801,6 +2805,7 @@ class AgentRunnerService:
         person_time_zone: str | None = None,
         is_test: bool = False,
         test_spec: dict[str, Any] | None = None,
+        skill_bodies: Mapping[UUID, SkillBody] | None = None,
         on_sandbox_wait: SandboxWaitSink | None = None,
     ) -> PreparedRun:
         """Build the agent for a run, opening its row unless one is being resumed.
@@ -2893,6 +2898,7 @@ class AgentRunnerService:
             "kb_collection_names": await self._collection_names(spec, ctx),
             "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
             CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(ctx, spec.context_ids),
+            SKILL_BODIES_RESOURCE: dict(skill_bodies or {}),
         }
         # What an earlier turn of this thread wrote down. Read here rather than
         # beside the build below, because one of the three is a resource.

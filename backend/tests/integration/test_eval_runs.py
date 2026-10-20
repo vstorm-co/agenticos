@@ -2182,3 +2182,43 @@ async def test_a_dataset_made_wholly_of_the_evidence_is_refused(db) -> None:
             candidate_spec=AgentSpec(name="Clerk", instructions="Proposed"),
             exclude_conversations=[evidence],
         )
+
+
+async def test_a_proposed_skill_body_reaches_every_candidate_answer(db) -> None:
+    """A skill change is measured with the agent held still: the candidate serves the
+    proposed body, the baseline the stored one."""
+    from app.agents.capabilities.skills import SkillBody
+
+    ctx = await _owner(db)
+    agent, versions = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    skill_id = uuid.uuid4()
+    body = SkillBody(description="Refunds", content="Say 30 days.")
+    published = AgentSpec.model_validate(versions[7].spec)
+    model = Model(db)
+    service = EvalRunService(db)
+
+    started = await service.start(
+        ctx,
+        agent.id,
+        EvalRunRequest(dataset_id=dataset.id, paired_baseline=True),
+        candidate_spec=published,
+        candidate_skills={skill_id: body},
+    )
+    await _run_to_end(db, model, started.id, ctx)
+
+    candidates = [call["candidate"] for call in model.calls]
+    served = [c.skill_bodies for c in candidates if isinstance(c, UnpublishedCandidate)]
+    assert served == [{skill_id: body}]
+    assert any(isinstance(c, PublishedCandidate) for c in candidates)
+    arms = (
+        (await db.execute(select(EvalRunArm).where(EvalRunArm.eval_run_id == started.id)))
+        .scalars()
+        .all()
+    )
+    candidate = next(arm for arm in arms if arm.role == "candidate")
+    baseline = next(arm for arm in arms if arm.role == "baseline")
+    assert candidate.skill_bodies == {
+        str(skill_id): {"description": "Refunds", "content": "Say 30 days."}
+    }
+    assert candidate.spec_hash != baseline.spec_hash

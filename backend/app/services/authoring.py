@@ -36,6 +36,7 @@ from pydantic_ai.usage import RunUsage
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import price_request
+from app.agents.capabilities.skills import SkillBody
 from app.agents.spec import AgentSpec
 from app.agents.system_agents import IMPROVER
 from app.core.audit import record_audit
@@ -62,7 +63,8 @@ from app.db.models.authoring import (
     SpecProposalHunk,
 )
 from app.db.models.eval_run import EvalRunPurpose
-from app.repositories import agent_run_repo, authoring_repo, organization_repo
+from app.db.models.skill_proposal import ProposalStatus
+from app.repositories import agent_run_repo, authoring_repo, organization_repo, skill_proposal_repo
 from app.schemas.authoring import (
     AgentAuthoringRead,
     AuthoringEstimate,
@@ -633,6 +635,89 @@ class AuthoringService:
             purpose=EvalRunPurpose.GATE,
             candidate_spec=projected,
             exclude_conversations=batch.evidence_conversation_ids,
+        )
+
+    async def _skill_check(
+        self, ctx: AuthContext, skill_id: UUID, body: ProposalCheck
+    ) -> tuple[Agent, AgentSpec, dict[UUID, SkillBody], list[UUID]]:
+        """The agent a skill change is checked on, its published spec, the body, and what to leave out.
+
+        Raises:
+            NotFoundError: No such pending change to this skill.
+            BadRequestError: No agent named, or one that does not use the skill.
+        """
+        skill = await self.skills.get(ctx, skill_id, perm=Perm.SKILLS_EDIT)
+        proposal = (
+            None
+            if body.proposal_id is None
+            else await skill_proposal_repo.get(
+                self.db, body.proposal_id, organization_id=ctx.organization_id
+            )
+        )
+        if (
+            proposal is None
+            or proposal.skill_id != skill.id
+            or proposal.status != ProposalStatus.PENDING.value
+        ):
+            raise NotFoundError(
+                message="No change to this skill is waiting", details={"skill_id": skill.id}
+            )
+        if body.agent_id is None:
+            raise BadRequestError(
+                message="Pick an agent that uses this skill to check the change on",
+                details={"skill_id": skill.id},
+            )
+        agent = await self.registry.get(ctx, body.agent_id, perm=Perm.AGENTS_RUN)
+        published = await self._published(ctx, agent)
+        if published is None or skill.id not in published.skill_ids:
+            raise BadRequestError(
+                message=f"'{agent.name}' does not use '{skill.name}' in its published version",
+                details={"agent_id": agent.id, "skill_id": skill.id},
+            )
+        request = (
+            None
+            if proposal.authoring_request_id is None
+            else await authoring_repo.get_request(
+                self.db, proposal.authoring_request_id, organization_id=ctx.organization_id
+            )
+        )
+        evidence = [] if request is None else request.evidence.get("conversation_ids", [])
+        bodies = {skill.id: SkillBody(description=proposal.description, content=proposal.content)}
+        return agent, published, bodies, [UUID(str(conversation)) for conversation in evidence]
+
+    async def estimate_skill_check(
+        self, ctx: AuthContext, skill_id: UUID, body: ProposalCheck
+    ) -> EvalRunEstimate:
+        """What checking a pending skill change on one agent would cost."""
+        agent, published, bodies, evidence = await self._skill_check(ctx, skill_id, body)
+        return await EvalRunService(self.db).estimate(
+            ctx,
+            agent.id,
+            self._check_request(body),
+            purpose=EvalRunPurpose.GATE,
+            candidate_spec=published,
+            candidate_skills=bodies,
+            exclude_conversations=evidence,
+        )
+
+    async def check_skill(
+        self, ctx: AuthContext, skill_id: UUID, body: ProposalCheck
+    ) -> EvalRunRead:
+        """Run a dataset on an agent using the skill, with the proposed body in place of its own.
+
+        The agent is held still - its published version on both sides - so the
+        comparison measures the skill change alone. Applying the change is live
+        for every agent bound to the skill, which is why it is checked before.
+        """
+        agent, published, bodies, evidence = await self._skill_check(ctx, skill_id, body)
+        return await EvalRunService(self.db).start(
+            ctx,
+            agent.id,
+            self._check_request(body),
+            purpose=EvalRunPurpose.GATE,
+            candidate_spec=published,
+            candidate_skills=bodies,
+            exclude_conversations=evidence,
         )
 
     async def check(self, ctx: AuthContext, agent_id: UUID, body: ProposalCheck) -> EvalRunRead:

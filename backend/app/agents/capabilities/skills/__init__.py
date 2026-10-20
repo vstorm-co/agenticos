@@ -8,12 +8,14 @@ from app.agents.capabilities._registry import (
 )
 from app.agents.capabilities.skills._capability import (
     SAFE_SKILL_TOOLS,
+    SKILL_BODIES_RESOURCE,
     SKILL_TEXTS,
+    SkillBody,
     Skills,
     to_toolkit_skill,
 )
 
-__all__ = ["SAFE_SKILL_TOOLS", "Skills", "to_toolkit_skill"]
+__all__ = ["SAFE_SKILL_TOOLS", "SKILL_BODIES_RESOURCE", "SkillBody", "Skills", "to_toolkit_skill"]
 
 
 @register(
@@ -56,4 +58,4 @@ def _build(ctx: CapabilityBuildContext) -> Skills | None:
     skills = ctx.resources.get("skills") or []
     if not skills:
         return None
-    return Skills(skills=skills)
+    return Skills(skills=skills, bodies=ctx.resources.get(SKILL_BODIES_RESOURCE))

@@ -72,6 +72,8 @@ def service() -> MagicMock:
     stub.estimate_skill = stub.estimate_agent
     stub.start_skill = AsyncMock(return_value=_REQUEST)
     stub.for_skill = AsyncMock(return_value=[_REQUEST])
+    stub.estimate_skill_check = AsyncMock(return_value=_ESTIMATE)
+    stub.check_skill = AsyncMock(return_value=_RUN)
     return stub
 
 
@@ -128,6 +130,9 @@ async def test_each_skill_route_answers_with_its_status(client: OpenClient) -> N
         assert (await http.post(_url(f"{skill}/estimate"), json={})).status_code == 200
         assert (await http.post(_url(skill), json={})).status_code == 201
         listed = await http.get(_url(skill))
+        check = {"dataset_id": str(uuid.uuid4()), "proposal_id": str(uuid.uuid4())}
+        assert (await http.post(_url(f"{skill}/check/estimate"), json=check)).status_code == 200
+        assert (await http.post(_url(f"{skill}/check"), json=check)).status_code == 201
 
     assert listed.status_code == 200 and len(listed.json()) == 1
 

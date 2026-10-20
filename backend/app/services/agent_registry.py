@@ -18,7 +18,7 @@ import contextlib
 import logging
 import re
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 from uuid import UUID
@@ -44,6 +44,7 @@ from app.agents.capabilities.browser_use import (
 )
 from app.agents.capabilities.browser_use._route import check_address
 from app.agents.capabilities.coding_agent import CODING_AGENT_ID, CodingAgentConfig
+from app.agents.capabilities.skills import SkillBody
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
 from app.agents.mcp import PLATFORM_MCP_PREFIX, prefix_collisions
@@ -203,6 +204,8 @@ class UnpublishedCandidate:
     """
 
     spec: AgentSpec
+    skill_bodies: Mapping[UUID, SkillBody] = field(default_factory=dict)
+    """Proposed skill bodies served in place of the stored ones, by skill id."""
 
 
 type Candidate = PublishedCandidate | UnpublishedCandidate

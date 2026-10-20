@@ -247,6 +247,12 @@ class EvalRunArm(Base):
         ForeignKey("eval_run_arms.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # Proposed skill bodies served in place of the stored ones, keyed by skill id:
+    # `{id: {description, content}}`. Set on the candidate of a run that checks a
+    # skill change, so the agent stays the same and only the skill differs.
+    skill_bodies: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
 
     __table_args__ = (
         UniqueConstraint("eval_run_id", "position", name="uq_eval_run_arm_position"),

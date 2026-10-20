@@ -13,7 +13,7 @@ from uuid import UUID
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from app.agents.capabilities.skills import SAFE_SKILL_TOOLS, Skills
+from app.agents.capabilities.skills import SAFE_SKILL_TOOLS, SkillBody, Skills
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.resource_grant import GrantLevel, Visibility
@@ -143,6 +143,19 @@ class TestCatalogConstruction:
         assert skill.defer_loading is True
         assert skill.get_description() == "How refunds are handled."
         assert "Check the order first." in "".join(skill.get_instructions())
+
+    def test_a_proposed_body_is_served_in_place_of_the_stored_one(self):
+        """How an eval checks a skill change: the agent is the same, the skill is not."""
+        stored = _skill()
+        leaves = []
+        Skills(
+            skills=[stored],
+            bodies={stored.id: SkillBody(description="Refunds, revised.", content="Say 30 days.")},
+        ).apply(leaves.append)
+
+        (skill,) = [leaf for leaf in leaves if leaf.id == "refunds"]
+        assert skill.get_description() == "Refunds, revised."
+        assert "Say 30 days." in "".join(skill.get_instructions())
 
     def test_script_execution_is_not_exposed(self):
         """Without a sandbox, run_skill_script is remote code execution."""

@@ -12,6 +12,8 @@ the proposals an agent's workspace has already written keep applying as before.
 
 `eval_runs.excluded_case_ids` lists the cases a check leaves out because they
 were taken from the proposal's own evidence; existing runs excluded nothing.
+`eval_run_arms.skill_bodies` holds the proposed skill bodies a candidate serves
+when a run checks a skill change; existing arms served none.
 
 `ck_agent_kind` gains `improver`, and states every kind the milestone defines,
 so the constraint is the same whichever order the kinds' migrations land in.
@@ -307,6 +309,10 @@ def upgrade() -> None:
             "excluded_case_ids", postgresql.ARRAY(sa.UUID()), server_default="{}", nullable=False
         ),
     )
+    op.add_column(
+        "eval_run_arms",
+        sa.Column("skill_bodies", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    )
 
     op.drop_constraint("ck_agent_kind", "agents", type_="check")
     op.create_check_constraint("ck_agent_kind", "agents", _KINDS)
@@ -321,6 +327,7 @@ def downgrade() -> None:
     op.drop_constraint("ck_agent_kind", "agents", type_="check")
     op.create_check_constraint("ck_agent_kind", "agents", _KINDS_BEFORE)
 
+    op.drop_column("eval_run_arms", "skill_bodies")
     op.drop_column("eval_runs", "excluded_case_ids")
 
     op.drop_constraint(

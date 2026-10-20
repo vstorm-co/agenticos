@@ -20,6 +20,7 @@ import re
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
@@ -190,6 +191,13 @@ async def _rated(
     db.add(MessageRating(message_id=answer.id, user_id=ctx.user_id, rating=rating, comment=comment))
     await db.flush()
     return run
+
+
+@dataclass(frozen=True)
+class AuthoringContext:
+    ctx: AuthContext
+    agent: Agent
+    dataset_id: uuid.UUID
 
 
 class Improver:
@@ -1001,3 +1009,119 @@ async def test_an_agent_never_published_has_nothing_to_verify_against(db):
     )
 
     assert estimate.reason == "no_draft_change" and estimate.calls == 0
+
+
+class TestSkillCheck:
+    async def _proposal(self, db: AsyncSession) -> tuple[AuthoringContext, Skill, SkillProposal]:
+        ctx, agent, run = await _setup(db)
+        skill = Skill(
+            organization_id=ctx.organization_id,
+            owner_user_id=ctx.user_id,
+            visibility="org",
+            name="refunds",
+            description="Refunds",
+            content="Refunds take 90 days.",
+        )
+        db.add(skill)
+        await db.flush()
+        spec = {**agent.draft_spec, "skill_ids": [str(skill.id)]}
+        agent.draft_spec = spec
+        version = await db.get(AgentVersion, agent.current_version_id)
+        assert version is not None
+        version.spec = spec
+        request = await authoring_repo.create_request(
+            db,
+            organization_id=ctx.organization_id,
+            kind="improve",
+            target="skill",
+            agent_id=None,
+            skill_id=skill.id,
+            created_by_user_id=ctx.user_id,
+            estimate_usd=Decimal("0.02"),
+            window_days=30,
+        )
+        request.evidence = {"conversation_ids": [str(run.conversation_id)]}
+        proposal = SkillProposal(
+            organization_id=ctx.organization_id,
+            skill_id=skill.id,
+            name="refunds",
+            description="Refunds, revised",
+            content="Refunds take 30 days.",
+            resources={},
+            authoring_request_id=request.id,
+        )
+        db.add(proposal)
+        await db.flush()
+        datasets = DatasetService(db)
+        dataset = await datasets.create(ctx, DatasetCreate(name="refund-cases"))
+        await datasets.add_case(
+            ctx,
+            dataset.id,
+            DatasetCaseCreate(input="Q", checks=[{"type": "contains", "value": "30 days"}]),
+        )
+        return AuthoringContext(ctx=ctx, agent=agent, dataset_id=dataset.id), skill, proposal
+
+    async def test_a_skill_change_is_checked_on_an_agent_that_uses_it(self, db):
+        setup, skill, proposal = await self._proposal(db)
+        service = AuthoringService(db)
+        body = ProposalCheck(
+            dataset_id=setup.dataset_id, agent_id=setup.agent.id, proposal_id=proposal.id
+        )
+
+        estimate = await service.estimate_skill_check(setup.ctx, skill.id, body)
+        started = await service.check_skill(setup.ctx, skill.id, body)
+
+        assert estimate.cases == 1
+        assert started.paired and started.arms[0].source == "explicit"
+        await db.refresh(skill)
+        assert skill.content == "Refunds take 90 days."
+
+    async def test_a_check_needs_a_waiting_change_and_an_agent_that_uses_the_skill(self, db):
+        setup, skill, proposal = await self._proposal(db)
+        service = AuthoringService(db)
+        other = await _clerk(db, setup.ctx)
+
+        with pytest.raises(NotFoundError, match="No change to this skill"):
+            await service.check_skill(
+                setup.ctx, skill.id, ProposalCheck(dataset_id=setup.dataset_id)
+            )
+        with pytest.raises(BadRequestError, match="Pick an agent"):
+            await service.check_skill(
+                setup.ctx,
+                skill.id,
+                ProposalCheck(dataset_id=setup.dataset_id, proposal_id=proposal.id),
+            )
+        with pytest.raises(BadRequestError, match="does not use"):
+            await service.check_skill(
+                setup.ctx,
+                skill.id,
+                ProposalCheck(
+                    dataset_id=setup.dataset_id, agent_id=other.id, proposal_id=proposal.id
+                ),
+            )
+        proposal.authoring_request_id = None
+        proposal.status = "discarded"
+        await db.flush()
+        with pytest.raises(NotFoundError):
+            await service.check_skill(
+                setup.ctx,
+                skill.id,
+                ProposalCheck(
+                    dataset_id=setup.dataset_id, agent_id=setup.agent.id, proposal_id=proposal.id
+                ),
+            )
+
+    async def test_a_change_without_a_request_leaves_nothing_out(self, db):
+        setup, skill, proposal = await self._proposal(db)
+        proposal.authoring_request_id = None
+        await db.flush()
+
+        started = await AuthoringService(db).check_skill(
+            setup.ctx,
+            skill.id,
+            ProposalCheck(
+                dataset_id=setup.dataset_id, agent_id=setup.agent.id, proposal_id=proposal.id
+            ),
+        )
+
+        assert started.excluded_case_ids == []
