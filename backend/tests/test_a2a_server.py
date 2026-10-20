@@ -233,6 +233,19 @@ class TestSendingATask:
             await _ask(served, _send(contextId=str(uuid.uuid4())))
         served.conversations.delete_conversation.assert_not_awaited()
 
+    async def test_a_context_that_is_not_an_api_conversation_is_a_bad_parameter(self) -> None:
+        """Refused by `for_api_run` as begun in the console: still a JSON-RPC answer,
+        not an HTTP 400 a client reads as the agent being unreachable."""
+        served = _Served(_agent())
+        served.conversations.for_api_run.side_effect = BadRequestError(
+            message="That conversation was not started through the API"
+        )
+        answer = await _ask(served, _send(contextId=str(uuid.uuid4())))
+        assert answer["error"] == {
+            "code": -32602,
+            "message": "That conversation was not started through the API",
+        }
+
     async def test_a_context_naming_no_conversation_is_a_bad_parameter(self) -> None:
         served = _Served(_agent())
         served.conversations.for_api_run.side_effect = NotFoundError(message="No conversation")

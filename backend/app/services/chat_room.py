@@ -85,9 +85,11 @@ async def leave(conversation_id: str, user_id: UUID, socket: str) -> None:
     """
     if _redis is None:
         return
-    with contextlib.suppress(Exception):
+    try:
         async with asyncio.timeout(redis_view.TIMEOUT_SECONDS):
             await _redis.raw.hdel(_here(conversation_id), _entry(user_id, socket))
+    except Exception as error:
+        redis_view.failed(logger, "chat_room_leave_failed", error)
     await _announce(conversation_id, PRESENCE)
 
 
@@ -158,11 +160,15 @@ async def typing(conversation_id: str, user_id: UUID) -> None:
 async def _announce(conversation_id: str, kind: str, **fields: Any) -> None:
     if _redis is None:
         return
-    with contextlib.suppress(Exception):
+    try:
         async with asyncio.timeout(redis_view.TIMEOUT_SECONDS):
             await _redis.raw.publish(
                 _channel(conversation_id), json.dumps({"type": kind, **fields})
             )
+    except Exception as error:
+        # Lost, and said so: a `turn_begun` that never went out is teammates
+        # who never start following the answer.
+        redis_view.failed(logger, "chat_room_announce_failed", error)
 
 
 async def events(conversation_id: str) -> AsyncGenerator[dict[str, Any]]:

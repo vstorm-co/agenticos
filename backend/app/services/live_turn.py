@@ -198,7 +198,12 @@ async def end(turn: Turn) -> None:
 
 
 async def _forget(turn: Turn) -> None:
-    """Take the turn off the conversation's running ones. Never raises."""
+    """Take the turn off the conversation's running ones. Never raises.
+
+    Also done by whoever reads a turn's end: `end` doing it can time out while
+    the end itself is kept, and an ended turn still listed hid an older one
+    still running from everybody following the conversation.
+    """
     assert _redis is not None
     with contextlib.suppress(Exception):
         async with asyncio.timeout(redis_view.TIMEOUT_SECONDS):
@@ -283,6 +288,7 @@ async def follow(conversation_id: str, token: str) -> AsyncGenerator[dict[str, A
             last = frame["seq"]
             yield frame
             if frame["type"] == END:
+                await _forget(turn)
                 return
         if not await _alive(turn):
             return
@@ -298,6 +304,7 @@ async def follow(conversation_id: str, token: str) -> AsyncGenerator[dict[str, A
             last = frame["seq"]
             yield frame
             if frame["type"] == END:
+                await _forget(turn)
                 return
     except Exception as error:
         redis_view.failed(logger, "live_turn_follow_failed", error)

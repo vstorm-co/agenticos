@@ -408,6 +408,22 @@ class TestKeepingATurn:
         assert [kind for kind, _ in await _followed()] == ["text_delta"]
         assert await live_turn.live_token(CONVERSATION) is None
 
+    async def test_an_ended_turn_left_listed_is_taken_off_by_whoever_reads_its_end(
+        self, store: _Store
+    ) -> None:
+        """`end` timing out on its removal but keeping its end left the turn listed,
+        and the newer ended turn hid an older one still being written."""
+        older = await _begin()
+        newer = await _begin()
+        with patch.object(store, "lrem", side_effect=ConnectionError("timed out")):
+            await live_turn.end(newer)
+        assert await live_turn.live_token(CONVERSATION) == newer.token
+
+        assert [kind for kind, _ in await _followed()] == [live_turn.END]
+
+        assert await live_turn.live_token(CONVERSATION) == older.token
+        await live_turn.end(older)
+
     async def test_a_quiet_writer_still_there_is_waited_on(self, store: _Store) -> None:
         """A long tool call sends nothing for minutes; its writer is alive, so the
         follower keeps listening through the quiet and gets what comes after."""
@@ -955,6 +971,12 @@ class TestTheRoom:
         async def left(*_args: Any) -> None:
             order.append("left")
 
+        stop_following = session._stop_following
+
+        async def stopped_following() -> None:
+            order.append("stopped following")
+            await stop_following()
+
         room = {
             "join": AsyncMock(),
             "leave": AsyncMock(side_effect=left),
@@ -971,9 +993,12 @@ class TestTheRoom:
             db.return_value.__aexit__ = AsyncMock(return_value=False)
             await session.handle_frame({"type": "attach", "conversation_id": CONVERSATION})
             await listening.wait()
-            await session.shutdown()
+            with patch.object(session, "_stop_following", side_effect=stopped_following):
+                await session.shutdown()
 
-        assert order == ["stopped listening", "left"]
+        # Its listener stopped before its follower: still listening, it could
+        # start a new follower for this room while the old one unwound.
+        assert order[-3:] == ["stopped listening", "stopped following", "left"]
 
     async def test_a_socket_that_closes_leaves(self) -> None:
         session = _session()

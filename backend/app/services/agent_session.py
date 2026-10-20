@@ -1321,13 +1321,15 @@ class AgentSession:
         self._room_task = asyncio.create_task(self._in_room(conversation_id))
 
     async def _leave_room(self) -> None:
-        # A turn followed in the room is the room's: leaving stops drawing it.
-        await self._stop_following()
         room, task = self._room, self._room_task
         self._room, self._room_task = None, None
-        # Wound down before leaving: its heartbeat, cancelled and not awaited,
-        # could count this socket back in after the leave below.
+        # Wound down before anything else: its heartbeat, cancelled and not
+        # awaited, could count this socket back in after the leave below, and its
+        # listener, still running, could start a new follower for this room
+        # while the old one unwinds.
         await _cancelled(task)
+        # A turn followed in the room is the room's: leaving stops drawing it.
+        await self._stop_following()
         if room is not None:
             await chat_room.leave(room, self.user.id, self._socket)
 

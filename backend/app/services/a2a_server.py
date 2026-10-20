@@ -25,7 +25,12 @@ from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.exceptions import AppException, AuthorizationError, NotFoundError
+from app.core.exceptions import (
+    AppException,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
@@ -233,6 +238,10 @@ class A2AServerService:
             )
         except NotFoundError as unknown:
             raise _RpcError(INVALID_PARAMS, "contextId names no conversation here") from unknown
+        except BadRequestError as refused:
+            # A conversation of theirs that is not an API one - begun in the
+            # console or a channel - is a bad parameter too, not a failed request.
+            raise _RpcError(INVALID_PARAMS, refused.message) from refused
         runner = AgentRunnerService(self.db)
         try:
             output, run = await runner.execute(
