@@ -1,4 +1,4 @@
-function (window, document, config) {
+function agenticosDataBridge(window, document, config) {
   "use strict";
   // The page side of a bound artifact's data (#1974). The console fetches the
   // bindings as the viewer and posts them here; this page never reaches the

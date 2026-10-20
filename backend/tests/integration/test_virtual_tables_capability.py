@@ -21,8 +21,10 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.agents.capabilities.virtual_tables import VirtualTables
-from app.agents.capabilities.virtual_tables._access import TableOperation
+from app.agents.capabilities.virtual_tables._access import Mistake, TableOperation
+from app.agents.capabilities.virtual_tables._toolset import _call_as_person
 from app.agents.deps import AgentDeps
+from app.core.exceptions import ValidationError
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.db.models.virtual_table import VirtualTableRecord
@@ -627,3 +629,41 @@ async def test_share_view_refuses_an_admin_sharing_someone_else_s_view(world: _W
     answer = await call("share_view", _ctx(_person_deps(world, admin)), view_id=view.id)
 
     assert answer == "Only the view's owner can share it."
+
+
+@pytest.mark.security
+async def test_a_member_who_left_mid_run_cannot_list_views(world: _World):
+    call, _cap, _ts = _tools({world.orders.id: ALL})
+    deps = _person_deps(world)
+    async with world.factory() as db:
+        await db.execute(
+            delete(OrganizationMember).where(OrganizationMember.user_id == world.owner.id)
+        )
+        await db.commit()
+
+    answer = await call("list_views", _ctx(deps), table_id=world.orders.id)
+
+    assert answer == "The member this agent acts for is no longer in the organization."
+
+
+async def test_sharing_a_view_that_does_not_exist_is_refused_with_its_code(world: _World):
+    call, _cap, _ts = _tools({world.orders.id: ALL})
+
+    answer = await call("share_view", _ctx(_person_deps(world)), view_id=uuid.uuid4())
+
+    assert answer.startswith("Refused (NOT_FOUND): View not found")
+
+
+@pytest.mark.parametrize(
+    "raised",
+    [Mistake("Name the column by its label."), ValidationError("Name the column by its label")],
+    ids=["mistake", "validation-error"],
+)
+async def test_a_view_tool_steers_a_call_the_model_composed_wrongly(world: _World, raised):
+    # list_views and share_view raise neither today; the wrapper they share with
+    # every view tool still steers one rather than refusing it.
+    async def work(*_args: object) -> str:
+        raise raised
+
+    with pytest.raises(ModelRetry, match="Name the column by its label"):
+        await _call_as_person(_ctx(_person_deps(world)), work)

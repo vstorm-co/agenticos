@@ -43,6 +43,10 @@ KEYWORDS = ("tenant", "permission", "budget", "approval", "secret", "plaintext")
 # honest by `TestNoStaleExemptions`, which fails if an entry no longer exists or
 # no longer matches the net.
 EXEMPT: dict[str, str] = {
+    "tests/integration/test_artifact_data.py::TestTheDeadline::test_a_page_past_its_budget_answers_timeout_and_commits": "'budget' names a live page's read deadline, answered as a timeout, not a spend cap or a refusal",
+    "tests/integration/test_virtual_table_links.py::test_read_bound_never_loads_linked_cells_past_the_budget": "'budget' names the bound reader's byte allowance, a size limit, not a spend cap or a refusal",
+    "tests/integration/test_virtual_table_records.py::test_read_bound_stops_at_the_byte_budget_measured_on_shaped_records": "'budget' names the bound reader's byte allowance, a size limit, not a spend cap or a refusal",
+    "tests/integration/test_virtual_table_records.py::test_read_bound_does_not_fetch_rows_past_the_budget": "'budget' names the bound reader's byte allowance, a size limit, not a spend cap or a refusal",
     "tests/test_logfire_redaction.py::test_a_route_with_nothing_secret_in_its_path_keeps_its_arguments": "a span with no secret-bearing address keeps its arguments, the redaction's complement",
     "tests/test_logging.py::TestSecretPaths::test_an_address_with_nothing_secret_in_it_is_left_alone": "an address with no credential segment is left alone, the redaction's complement",
     "tests/integration/test_workflow_error_foreach.py::test_an_approval_inside_an_iteration_resumes_that_iteration": "an approval resuming a loop iteration, not a refusal",

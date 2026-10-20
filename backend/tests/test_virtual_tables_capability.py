@@ -122,6 +122,7 @@ def _tool_info(tool_id: str):
     return next(tool for tool in get("virtual_tables").tools if tool.id == tool_id)
 
 
+@pytest.mark.security
 def test_share_view_is_gated_by_approval_by_default():
     binding = CapabilityBindingSpec(id="virtual_tables")
 
@@ -131,6 +132,7 @@ def test_share_view_is_gated_by_approval_by_default():
     )
 
 
+@pytest.mark.security
 def test_share_view_follows_the_capability_wide_approval():
     tool = _tool_info("share_view")
     never = CapabilityBindingSpec(id="virtual_tables", approval="never")

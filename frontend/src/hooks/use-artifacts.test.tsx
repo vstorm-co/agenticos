@@ -373,7 +373,7 @@ describe("settle", () => {
     await waitFor(() => expect(result.current.view.data).toBeDefined());
     await waitFor(() => expect(result.current.data.data).toBeDefined());
     const views = calls("/view");
-    const datas = calls("/data");
+    const dataLoads = calls("/data");
     const linked = { ...DETAIL, public_url: "https://x/a/k" };
     vi.mocked(apiClient.get).mockImplementation((path: string) =>
       Promise.resolve(path.endsWith("/versions") ? { items: [], total: 0 } : linked),
@@ -381,7 +381,7 @@ describe("settle", () => {
     await act(() => result.current.artifact.enablePublicLink.mutateAsync());
     await waitFor(() => expect(result.current.artifact.artifact?.public_url).toBe("https://x/a/k"));
     expect(calls("/view")).toBe(views);
-    expect(calls("/data")).toBe(datas);
+    expect(calls("/data")).toBe(dataLoads);
   });
 
   it("reloads the current page after a restore", async () => {
@@ -390,9 +390,9 @@ describe("settle", () => {
     await waitFor(() => expect(result.current.view.data).toBeDefined());
     await waitFor(() => expect(result.current.data.data).toBeDefined());
     const views = calls("/view");
-    const datas = calls("/data");
+    const dataLoads = calls("/data");
     await act(() => result.current.artifact.restoreVersion.mutateAsync("v2"));
     await waitFor(() => expect(calls("/view")).toBeGreaterThan(views));
-    await waitFor(() => expect(calls("/data")).toBeGreaterThan(datas));
+    await waitFor(() => expect(calls("/data")).toBeGreaterThan(dataLoads));
   });
 });
