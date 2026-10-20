@@ -293,11 +293,14 @@ async def test_the_poll_reads_what_the_worker_finished_with(db: AsyncSession, st
     )
 
 
-async def test_a_follow_up_waits_for_the_run_before_it_in_its_conversation(
-    db: AsyncSession, stubbed
-) -> None:
+async def test_a_conversations_runs_are_claimed_one_at_a_time(db: AsyncSession, stubbed) -> None:
     """Codex on #2248: two runs of one thread claimed at once, the second read the
-    history before the first answer was written, and both wrote into the thread."""
+    history before the first answer was written, and both wrote into the thread.
+
+    Which is claimed first is not asserted: both are queued in this test's one
+    transaction, so they share `run_after` and the tie falls to the id. A real
+    follow-up is a later request, and a later transaction, so it queues behind.
+    """
     ctx = await _person(db)
     first = await ApiRunService(db).queue(ctx, uuid.uuid4(), _ask(), idempotency_key=None)
     follow_up = await ApiRunService(db).queue(
@@ -306,14 +309,14 @@ async def test_a_follow_up_waits_for_the_run_before_it_in_its_conversation(
     assert first.conversation_id == follow_up.conversation_id
 
     claimed = await job_repo.claim(db, pool="agent", worker_id="w", lease=timedelta(minutes=1))
-    assert claimed is not None and claimed.id == first.id
+    assert claimed is not None and claimed.id in {first.id, follow_up.id}
     assert (
         await job_repo.claim(db, pool="agent", worker_id="w2", lease=timedelta(minutes=1)) is None
     )
 
-    await job_repo.complete(db, first.id, fence=claimed.attempts, result={})
-    claimed = await job_repo.claim(db, pool="agent", worker_id="w2", lease=timedelta(minutes=1))
-    assert claimed is not None and claimed.id == follow_up.id
+    await job_repo.complete(db, claimed.id, fence=claimed.attempts, result={})
+    other = await job_repo.claim(db, pool="agent", worker_id="w2", lease=timedelta(minutes=1))
+    assert other is not None and {claimed.id, other.id} == {first.id, follow_up.id}
 
 
 async def test_a_run_that_died_reads_as_failed_with_why(db: AsyncSession, stubbed) -> None:

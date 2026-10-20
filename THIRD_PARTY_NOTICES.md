@@ -79,7 +79,7 @@ names no author is in the evidence column below.
 | bracex | 3.0.1 | MIT | https://github.com/facelessuser/bracex | License-Expression |
 | cachetools | 7.1.8 | MIT | https://github.com/tkem/cachetools/ | License-Expression |
 | caio | 0.12.4 | Apache-2.0 | https://github.com/mosquito/caio/ | License-Expression |
-| certifi | 2026.7.22 | MPL-2.0 | https://github.com/certifi/python-certifi | License field; review accepted |
+| certifi | 2026.10.19 | MPL-2.0 | https://github.com/certifi/python-certifi | License field; review accepted |
 | cffi | 2.1.1 | MIT-0 | https://github.com/python-cffi/cffi | License-Expression |
 | chardet | 7.6.0 | 0BSD | https://github.com/chardet/chardet | License-Expression |
 | charset-normalizer | 3.5.1 | MIT | https://charset-normalizer.readthedocs.io/ | License field |
@@ -191,7 +191,7 @@ names no author is in the evidence column below.
 | packaging | 25.0 | Apache-2.0 | https://github.com/pypa/packaging | licence file text |
 | pathable | 0.6.0 | Apache-2.0 | https://github.com/p1c2u/pathable | License field |
 | phonenumberslite | 9.0.41 | Apache-2.0 | https://github.com/daviddrysdale/python-phonenumbers | License-Expression |
-| pillow | 12.3.0 | MIT-CMU | https://github.com/python-pillow/Pillow | License-Expression |
+| pillow | 13.0.0 | MIT-CMU | https://github.com/python-pillow/Pillow | License-Expression |
 | platformdirs | 4.11.8 | MIT | https://github.com/tox-dev/platformdirs | License-Expression |
 | portalocker | 3.2.0 | BSD-3-Clause | https://github.com/wolph/portalocker/ | License-Expression |
 | posthog | 7.54.0 | MIT | https://github.com/posthog/posthog-python | License-Expression |
