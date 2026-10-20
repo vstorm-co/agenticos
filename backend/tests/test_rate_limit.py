@@ -152,6 +152,19 @@ class TestDegradingRatherThanRefusing:
 
         assert "unmetered" in caplog.text
 
+    @pytest.mark.security
+    async def test_the_degraded_line_names_the_surface_but_not_the_caller(self, caplog):
+        """A caller can be a public link's key or a form's token, so the line that
+        says it went unmetered must not be where that credential is written down."""
+        caller = "key:pk_live_secret_public_link_key"
+        with caplog.at_level("WARNING"):
+            await rate_limit.consume(surface="public_artifact", caller=caller, limit=Limit(1))
+
+        (record,) = [r for r in caplog.records if "unmetered" in r.getMessage()]
+        assert "public_artifact" in record.getMessage()
+        assert caller not in record.getMessage()
+        assert "pk_live_secret_public_link_key" not in repr(record.args)
+
 
 class TestALocalFloorWhenTheSharedLimiterCannotCount:
     """`consume_with_local_floor` is for a surface whose limit is a production

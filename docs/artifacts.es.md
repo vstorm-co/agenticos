@@ -1,5 +1,5 @@
 ---
-source_sha: "8c8da72b2c36"
+source_sha: "e1c773b1851d"
 ---
 
 # Artefactos { #artifacts }
@@ -280,8 +280,8 @@ aparte** fijando `ARTIFACT_ORIGIN`, por ejemplo
 `https://agenticos-content.example.net`, enrutado a la misma API. La página queda
 entonces en otro sitio por completo. El origen opaco ya la aísla, así que esto es
 un endurecimiento que puede pedir una revisión de seguridad, no un requisito.
-Fija la variable para el backend y para el frontend, que añade ese origen a su
-`frame-src`. Consulta [Configuración](configuration.md#published-artifacts).
+Fija la variable para el backend y para el frontend, que añade la ruta de
+contenido de ese origen a su `frame-src`. Consulta [Configuración](configuration.md#published-artifacts).
 
 ## Retención y borrado { #retention-and-deletion }
 

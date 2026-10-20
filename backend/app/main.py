@@ -132,6 +132,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # correct but pays a connect per request (#1079).
     claim_pooled_engines()
     watchdog = EventLoopWatchdog(wedged_after=settings.EVENT_LOOP_WEDGED_AFTER)
+    # Again, now that the server has configured its own loggers: uvicorn's access
+    # log has a handler of its own, and in some launch modes it is created after
+    # `create_app` ran the first call.
+    setup_logging()
     setup_logfire()
     # Capability modules register themselves on import; nothing the Builder can
     # offer exists until this has run.

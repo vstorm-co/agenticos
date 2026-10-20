@@ -706,19 +706,33 @@ async def list_records(
 ) -> list[VirtualTableRecord]:
     """A page of records. The order is total: the record id always breaks a tie.
 
-    Records with no value in the sorted column come last in either direction.
+    Records with no value in the sorted column come last in either direction. A
+    `created_at` sort breaks its ties on the id in its own direction, and every
+    other sort on the id ascending.
     """
-    if sort.column_id is not None:
-        key = _typed(sort.column_id, sort.kind)
-    elif sort.field == "updated_at":
-        key = VirtualTableRecord.updated_at
+    desc = sort.direction == "desc"
+    record_id = VirtualTableRecord.id
+    if sort.column_id is None and sort.field != "updated_at":
+        # The default listing, and the one an index serves:
+        # `virtual_table_records_table_created_idx` is `(table_id, created_at, id)`,
+        # read forwards or backwards. That takes no `NULLS LAST` - a no-op on a NOT
+        # NULL column, but one the planner does not see through - and a tiebreak
+        # running the same way as the key: `created_at DESC, id ASC` is an order no
+        # scan of the index produces, so "latest first" sorted every matching
+        # record to return one page.
+        created = VirtualTableRecord.created_at
+        order = (created.desc(), record_id.desc()) if desc else (created.asc(), record_id.asc())
     else:
-        key = VirtualTableRecord.created_at
-    ordered = key.desc().nulls_last() if sort.direction == "desc" else key.asc().nulls_last()
+        key = (
+            VirtualTableRecord.updated_at
+            if sort.column_id is None
+            else _typed(sort.column_id, sort.kind)
+        )
+        order = (key.desc().nulls_last() if desc else key.asc().nulls_last(), record_id.asc())
     query = (
         select(VirtualTableRecord)
         .where(_matching(table_id, organization_id, filters, search))
-        .order_by(ordered, VirtualTableRecord.id.asc())
+        .order_by(*order)
         .offset(skip)
         .limit(limit)
     )

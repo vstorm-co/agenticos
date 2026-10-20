@@ -1,5 +1,5 @@
 ---
-source_sha: "e271559652ed"
+source_sha: "72c9b49ab9c2"
 ---
 
 # Konfiguracja { #configuration }
@@ -721,7 +721,8 @@ serwowane. Zobacz [Artefakty](artifacts.md).
 | `ARTIFACT_ORIGIN` | (puste) | Skąd serwowana jest treść - strony, ich [zestaw bibliotek](artifacts.md#the-library-set) i dokument do osadzania. Puste serwuje ją z `PUBLIC_BASE_URL`, izolowaną polityką `sandbox`. Ustaw na host w osobnej domenie rejestrowalnej, skierowany do tego API, żeby dodatkowo umieścić stronę w innej witrynie |
 
 **`ARTIFACT_ORIGIN` jest czytane dwa razy i obie strony muszą je widzieć.** Backend
-podpisuje na nim adresy treści, a frontend dodaje je do `frame-src` konsoli.
+podpisuje na nim adresy treści, a frontend dodaje jego ścieżkę treści,
+`/api/v1/artifact-content/`, do `frame-src` konsoli.
 Ustaw je w środowisku backendu i w środowisku frontendu; pliki compose przekazują
 je obu. Wartość tylko w jednym z nich daje pustą ramkę, bo przeglądarka odmawia
 załadowania strony z originu, na który konsola nie pozwoliła.

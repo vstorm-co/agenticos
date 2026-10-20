@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
-import pytest
-from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
+from datetime import UTC, datetime
+from typing import Any
 
+import pytest
+from sqlalchemy import event, update
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
+
+from app.db.models.virtual_table import VirtualTableRecord
 from app.schemas.virtual_table import (
     ColumnInput,
     RecordCreate,
@@ -87,11 +92,13 @@ async def test_an_edited_record_moves_to_the_front_of_updated_at_desc(engine: As
 async def test_records_tied_on_the_sort_field_come_out_in_id_order_in_either_direction(
     engine: AsyncEngine, direction
 ):
-    """The record id breaks every tie, ascending, whichever way the sort runs.
+    """A column sort breaks every tie on the record id, ascending, whichever way it runs.
 
-    The records are created in separate transactions so their creation order is not their id
-    order. Rows read in one transaction share a `created_at`, and the index the listing scans
-    then hands them over sorted by id already, which would hide a missing tiebreak.
+    A `created_at` sort is the exception: it breaks its ties on the id in its own direction
+    (`test_latest_first_breaks_a_creation_tie_on_the_id_newest_first_too`). Record ids are
+    random, so the order the records were written in - the order a listing without the
+    tiebreak would most likely hand back - is not their id order, and a missing tiebreak
+    shows.
     """
     factory, ctx, table, _records = await _table_with_three_committed_records(engine)
     note = str(table.columns[0].id)
@@ -110,3 +117,85 @@ async def test_records_tied_on_the_sort_field_come_out_in_id_order_in_either_dir
     tied = [item.id for item in page.items if item.values.get(note) == "same"]
     assert len(tied) == 10
     assert tied == sorted(tied)
+
+
+async def _table_with_records_created_at_once(db: AsyncSession, count: int):
+    """`count` records sharing one `created_at`, so only the id can order them.
+
+    Set by hand: each write stamps its own clock, so even records written in one
+    transaction do not reliably tie.
+    """
+    owner = await make_user(db)
+    org = await make_org(db, owner=owner)
+    ctx = ctx_for(owner, org)
+    service = VirtualTableService(db)
+    table = await service.create_table(
+        ctx, TableCreate(name="Orders", columns=[ColumnInput(label="Note", type="text")])
+    )
+    for n in range(count):
+        await service.create_record(ctx, table.id, RecordCreate(external_id=f"r{n}", values={}))
+    await db.execute(
+        update(VirtualTableRecord)
+        .where(VirtualTableRecord.table_id == table.id)
+        .values(created_at=datetime(2026, 1, 1, tzinfo=UTC))
+    )
+    return service, ctx, table
+
+
+async def test_latest_first_breaks_a_creation_tie_on_the_id_newest_first_too(db):
+    """A `created_at` listing breaks its ties on the id in its own direction - the order
+    its index holds - and paging through it still meets every record exactly once."""
+    service, ctx, table = await _table_with_records_created_at_once(db, 7)
+
+    for direction in ("asc", "desc"):
+        sort = RecordSort(by="created_at", direction=direction)
+        listed = await service.list_records(ctx, table.id, RecordQuery(sort=sort, limit=100))
+        keys = [(item.created_at, item.id) for item in listed.items]
+        assert len({created for created, _ in keys}) == 1, "the records must tie"
+        assert keys == sorted(keys, reverse=direction == "desc")
+
+        paged = []
+        for skip in (0, 3, 6):
+            page = await service.list_records(
+                ctx, table.id, RecordQuery(sort=sort, skip=skip, limit=3)
+            )
+            paged.extend(item.id for item in page.items)
+        assert paged == [item.id for item in listed.items]
+
+
+@pytest.mark.parametrize("direction", ["asc", "desc"])
+async def test_a_listing_by_creation_time_is_read_off_its_index_without_sorting(db, direction):
+    """`created_at DESC NULLS LAST, id ASC` is an order no scan of
+    `(table_id, created_at, id)` produces, so "latest first" sorted every matching
+    record to return a page. The plan for the listing's own statement must be the
+    index read in order - backwards for `desc` - with no Sort above it.
+
+    Sequential scans are switched off for the plan: on a table this small the planner
+    would rightly prefer one, and what is asked is whether the index *can* serve it.
+    """
+    service, ctx, table = await _table_with_records_created_at_once(db, 3)
+    captured: list[tuple[str, Any]] = []
+
+    def capture(_conn, _cursor, statement, parameters, _context, _executemany) -> None:
+        if "FROM virtual_table_records" in statement and "ORDER BY" in statement:
+            captured.append((statement, parameters))
+
+    sync_engine = db.get_bind()
+    event.listen(sync_engine, "before_cursor_execute", capture)
+    try:
+        await service.list_records(
+            ctx, table.id, RecordQuery(sort=RecordSort(by="created_at", direction=direction))
+        )
+    finally:
+        event.remove(sync_engine, "before_cursor_execute", capture)
+
+    [(statement, parameters)] = captured
+    connection = await db.connection()
+    await connection.exec_driver_sql("SET LOCAL enable_seqscan = off")
+    plan = "\n".join(
+        row[0] for row in await connection.exec_driver_sql(f"EXPLAIN {statement}", parameters)
+    )
+
+    assert "virtual_table_records_table_created_idx" in plan
+    assert ("Backward" in plan) is (direction == "desc")
+    assert "Sort" not in plan
