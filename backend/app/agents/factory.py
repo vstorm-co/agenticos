@@ -268,8 +268,8 @@ def build_agent(
             enforce because the model provider executes the tool.
     """
     refuse_ungateable_approvals(spec)
-    # Function-local: the virtual_tables package reaches `app.services` at import, which
-    # leads back to this module. Task 4a removes the cycle; this import then moves up.
+    # Function-local: `virtual_tables/_toolset.py` imports `app.services.virtual_tables` at
+    # module level, which loops back through the factory to this module.
     from app.agents.capabilities.virtual_tables import TABLE_GRANTS_RESOURCE, table_grants_of
 
     bindings = spec.bindings()

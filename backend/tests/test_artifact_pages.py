@@ -29,6 +29,7 @@ from app.db.models.resource_grant import Visibility
 from app.schemas.artifact import ArtifactPublicLinkUpdate
 from app.services import artifact as artifacts
 from app.services.artifact import ArtifactService
+from app.services.artifact_bindings import BindingCheck
 
 pytestmark = pytest.mark.anyio
 
@@ -375,7 +376,8 @@ class TestRestore:
         assert append.await_args.kwargs["sha256"] == source.sha256
         assert append.await_args.kwargs["run_id"] is None
         assert audit.await_args.kwargs["action"] == "artifact.version_restored"
-        assert audit.await_args.kwargs["details"] == {"version": 9, "restored": 2}
+        assert audit.await_args.kwargs["details"] == {"version": 9, "restored": 2, "bindings": {}}
+        assert append.await_args.kwargs["bindings"] == []
 
     async def test_restoring_the_current_version_changes_nothing(self) -> None:
         artifact = _artifact(_ctx())
@@ -395,6 +397,127 @@ class TestRestore:
         artifact = _artifact(_ctx())
         with pytest.raises(NotFoundError, match="no longer kept"):
             await self._restore(artifact, None, None)
+
+
+def _stored_binding(**overrides: Any) -> dict[str, Any]:
+    values: dict[str, Any] = {
+        "name": "tickets",
+        "view_id": str(uuid.uuid4()),
+        "table_id": str(uuid.uuid4()),
+        "fields": {"status": str(uuid.uuid4())},
+        "status": "ok",
+        "reason": None,
+    }
+    values.update(overrides)
+    return values
+
+
+class TestRestoringBindings:
+    """Which spec a restore checks a page's bindings against: the one that runs."""
+
+    async def _restore(
+        self,
+        artifact: Artifact,
+        *,
+        environment: AgentEnvironment | None = None,
+        agent: Any = None,
+        spec: dict[str, Any] | None = None,
+    ) -> tuple[AsyncMock, AsyncMock, AsyncMock]:
+        ctx = _ctx()
+        source = _version(artifact, number=2, sha="a")
+        source.bindings = [_stored_binding()]
+        storage = MagicMock()
+        storage.exists = AsyncMock(return_value=True)
+        published = None
+        if spec is not None:
+            # Set after construction: `MagicMock(spec=...)` would read it as the mock's own spec.
+            published = MagicMock()
+            published.spec = spec
+        checked = AsyncMock(
+            side_effect=lambda _db, **kw: [
+                BindingCheck(b.name, b, None, False) for b in kw["previous"]
+            ]
+        )
+        with (
+            patch(f"{PATH}.get_file_storage", return_value=storage),
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
+            patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{PATH}.artifact_repo.lock", new=AsyncMock(return_value=artifact)),
+            patch(f"{PATH}.artifact_repo.get_version", new=AsyncMock(return_value=source)),
+            patch(
+                f"{PATH}.artifact_repo.latest_version",
+                new=AsyncMock(return_value=_version(artifact, number=8)),
+            ),
+            patch(
+                f"{PATH}.agent_environment_repo.get", new=AsyncMock(return_value=environment)
+            ) as environments,
+            patch(f"{PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(
+                f"{PATH}.agent_repo.get_version", new=AsyncMock(return_value=published)
+            ) as versions,
+            patch(f"{PATH}.check_bindings", new=checked),
+            patch(f"{PATH}.artifact_repo.environment_names", new=AsyncMock(return_value={})),
+            patch(
+                f"{PATH}._append_version",
+                new=AsyncMock(return_value=_version(artifact, number=9)),
+            ) as append,
+            patch(f"{PATH}.record_audit", new=AsyncMock()),
+        ):
+            await _service().restore_version(ctx, artifact.id, uuid.uuid4())
+        assert environments.await_count == (1 if artifact.environment_id else 0)
+        return append, checked, versions
+
+    async def test_a_named_environment_s_page_is_checked_against_that_environment_s_spec(
+        self,
+    ) -> None:
+        table_id = uuid.uuid4()
+        artifact = _artifact(_ctx(), environment_id=uuid.uuid4())
+        environment = AgentEnvironment(id=artifact.environment_id, version_id=uuid.uuid4())
+        spec = {
+            "name": "Reporter",
+            "capabilities": [
+                {
+                    "id": "virtual_tables",
+                    "config": {"tables": [{"table_id": str(table_id), "operations": ["read"]}]},
+                }
+            ],
+        }
+
+        append, checked, versions = await self._restore(
+            artifact, environment=environment, spec=spec
+        )
+
+        assert versions.await_args.args[1] == environment.version_id
+        kwargs = checked.await_args.kwargs
+        assert kwargs["requested"] is None
+        assert kwargs["recheck_person"] is True
+        assert kwargs["grants"] == {table_id: frozenset({"read"})}
+        assert [b["status"] for b in append.await_args.kwargs["bindings"]] == ["ok"]
+
+    async def test_the_default_environment_s_page_is_checked_against_the_agent_s_current_spec(
+        self,
+    ) -> None:
+        artifact = _artifact(_ctx())
+        agent = MagicMock(current_version_id=uuid.uuid4())
+
+        _append, checked, versions = await self._restore(
+            artifact, agent=agent, spec={"name": "Reporter"}
+        )
+
+        assert versions.await_args.args[1] == agent.current_version_id
+        assert checked.await_args.kwargs["grants"] == {}
+
+    @pytest.mark.parametrize("gone", ["environment", "agent"])
+    async def test_a_spec_that_cannot_be_found_marks_every_binding_unavailable(
+        self, gone: str
+    ) -> None:
+        artifact = _artifact(_ctx(), environment_id=uuid.uuid4() if gone == "environment" else None)
+
+        append, checked, _versions = await self._restore(artifact)
+
+        checked.assert_not_awaited()
+        [binding] = append.await_args.kwargs["bindings"]
+        assert (binding["status"], binding["reason"]) == ("unavailable", "no_agent")
 
 
 class TestAppendingAVersion:

@@ -26,6 +26,7 @@ from app.agents.capabilities.artifacts import Artifacts
 from app.agents.capabilities.artifacts._toolset import (
     READ_LIMIT,
     ArtifactEdit,
+    PublishedArtifactResult,
     apply_edits,
     build_artifacts_toolset,
     parse_published_artifact,
@@ -33,13 +34,19 @@ from app.agents.capabilities.artifacts._toolset import (
 from app.agents.capabilities.virtual_tables import TABLE_GRANTS_RESOURCE, table_grants_of
 from app.agents.deps import AgentDeps
 from app.agents.spec import AgentSpec
-from app.core.exceptions import AuthorizationError, ConcurrentChangeError, NotFoundError
+from app.core.exceptions import (
+    AuthorizationError,
+    BadRequestError,
+    ConcurrentChangeError,
+    NotFoundError,
+)
 from app.db.models.artifact import ArtifactMediaType
+from app.schemas.artifact import BindingRequest
 from app.services.artifact import ArtifactSource, PublishedArtifact
 
 pytestmark = pytest.mark.anyio
 
-PUBLISH = "app.agents.capabilities.artifacts._toolset.artifacts.publish"
+PUBLISH = "app.services.artifact.publish"
 
 
 def _deps(**overrides: Any) -> AgentDeps:
@@ -157,6 +164,71 @@ class TestPublishing:
             await _tool()(_ctx(_deps()), name="r", title=f"  {'t' * 300} ", content="<p>x</p>")
         assert publish.await_args.kwargs["title"] == "t" * 200
 
+    async def test_bindings_are_resolved_and_echoed(self) -> None:
+        """The run's person and the spec's grants come from the run, never from the model."""
+        table_id, person = uuid.uuid4(), uuid.uuid4()
+        grants = {table_id: frozenset({"read"})}
+        requested = {"tickets": BindingRequest(view=uuid.uuid4(), fields={"status": "Status"})}
+        echo = {"tickets": {"status": "Status (single_select)"}}
+        tool = build_artifacts_toolset(table_grants=grants).tools["publish_artifact"].function
+        with patch(PUBLISH, new=AsyncMock(return_value=_published(bindings=echo))) as publish:
+            result = await tool(
+                _ctx(_deps(run_person=person)), name="r", content="<p>x</p>", bindings=requested
+            )
+
+        kwargs = publish.await_args.kwargs
+        assert (kwargs["bindings"], kwargs["run_person"]) == (requested, person)
+        assert kwargs["table_grants"] == grants
+        parsed = parse_published_artifact(result)
+        assert parsed is not None
+        assert parsed.bindings == echo
+
+    async def test_a_result_from_before_bindings_still_parses(self) -> None:
+        stored = _published()
+        payload = json.loads(
+            PublishedArtifactResult(
+                artifact_id=stored.artifact_id,
+                version_id=stored.version_id,
+                version=1,
+                name="r",
+                title="R",
+                url="/artifacts/x",
+                created=True,
+                unchanged=False,
+                visibility="private",
+                public=False,
+            ).model_dump_json()
+        )
+        del payload["bindings"]
+        parsed = parse_published_artifact(json.dumps(payload))
+        assert parsed is not None
+        assert parsed.bindings == {}
+
+    async def test_a_markdown_page_with_bindings_is_steered(self) -> None:
+        refused = BadRequestError(
+            message="Bindings need an HTML page; a Markdown page runs no scripts."
+        )
+        with (
+            patch(PUBLISH, new=AsyncMock(side_effect=refused)),
+            pytest.raises(ModelRetry, match="Bindings need an HTML page"),
+        ):
+            await _tool()(
+                _ctx(_deps()),
+                name="r",
+                content="# x",
+                format="markdown",
+                bindings={"t": BindingRequest(view=uuid.uuid4(), fields={"a": "A"})},
+            )
+
+    @pytest.mark.security
+    async def test_a_live_page_refusal_is_returned_not_steered(self) -> None:
+        refused = AuthorizationError(
+            message="This page reads live data; only a run acting for a member can republish it."
+        )
+        with patch(PUBLISH, new=AsyncMock(side_effect=refused)):
+            result = await _tool()(_ctx(_deps(run_person=None)), name="r", content="<p>x</p>")
+        assert result == refused.message
+
     async def test_a_run_for_nobody_publishes_with_no_owner(self) -> None:
         with patch(PUBLISH, new=AsyncMock(return_value=_published())) as publish:
             await _tool()(_ctx(_deps(user_id=None)), name="r", title="R", content="<p>x</p>")
@@ -256,7 +328,7 @@ class TestRegistration:
         assert set(toolset.tools) == {"publish_artifact", "read_artifact"}
 
 
-READ_SOURCE = "app.agents.capabilities.artifacts._toolset.artifacts.read_source"
+READ_SOURCE = "app.services.artifact.read_source"
 
 
 def _source(text: str = "<h1>Old</h1><p>body</p>", **overrides: Any) -> ArtifactSource:

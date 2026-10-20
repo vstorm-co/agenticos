@@ -27,8 +27,8 @@ import hashlib
 import logging
 import re
 import secrets
-from collections.abc import Sequence
-from dataclasses import dataclass
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from html import escape
 from pathlib import Path
@@ -39,11 +39,14 @@ from markdown_it import MarkdownIt
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.virtual_tables import table_grants_of
+from app.agents.spec import AgentSpec
 from app.core.audit import record_audit
 from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.exceptions import (
     AuthorizationError,
+    BadRequestError,
     ConcurrentChangeError,
     NotFoundError,
 )
@@ -61,6 +64,7 @@ from app.db.session import get_db_context
 from app.db.updates import writable
 from app.repositories import (
     agent_environment_repo,
+    agent_repo,
     agent_run_repo,
     artifact_repo,
     member_repo,
@@ -69,6 +73,8 @@ from app.repositories import (
 from app.schemas.artifact import (
     ArtifactAgent,
     ArtifactAgentList,
+    ArtifactBinding,
+    ArtifactBindingRead,
     ArtifactDetail,
     ArtifactList,
     ArtifactPublicLinkRead,
@@ -78,15 +84,34 @@ from app.schemas.artifact import (
     ArtifactVersionList,
     ArtifactVersionRead,
     ArtifactView,
+    BindingRequest,
     PublicArtifactRead,
 )
-from app.services.access import ARTIFACT, resolve_access, visible_resource_ids
+from app.services.access import ARTIFACT, member_context, resolve_access, visible_resource_ids
+from app.services.artifact_bindings import check_bindings
 from app.services.file_storage import get_file_storage
+from app.services.virtual_tables import TableViewService
 
 logger = logging.getLogger(__name__)
 
 NAME_PATTERN = r"^[a-z0-9][a-z0-9-]{0,63}$"
 """What a name may be. The same rule as the column's CHECK, stated once for the tool."""
+
+LIVE_PAGE = "This page reads live data; only a run acting for a member can republish it."
+"""The one refusal a run with no member behind it gets for changing a bound page.
+
+One text whatever it sent, so such a run cannot tell from the refusal whether a
+binding it guessed at resolves to the stored one.
+"""
+
+_MARKDOWN_BINDINGS = "Bindings need an HTML page; a Markdown page runs no scripts."
+
+KEPT = "kept"
+"""What the publish result says of a field kept from the previous version.
+
+Its column's label is not repeated: a binding carried forward is checked without
+the person behind the run, who may not see its view.
+"""
 
 _PUBLIC_KEY_BYTES = 24
 """192 bits, the hosted page's rule: the key is the whole of what guards the link."""
@@ -345,6 +370,9 @@ class PublishedArtifact:
     """True when the bytes matched the current version and no version was added."""
     visibility: str
     public: bool
+    bindings: dict[str, dict[str, str]] = field(default_factory=dict)
+    """Each binding's fields, as `Status (single_select)` for a field this publication
+    resolved, or :data:`KEPT` for one carried from the previous version."""
 
 
 @dataclass(frozen=True)
@@ -459,6 +487,9 @@ async def publish(
     media_type: ArtifactMediaType,
     data: bytes,
     expected_version: int | None = None,
+    bindings: Mapping[str, BindingRequest] | None = None,
+    run_person: UUID | None = None,
+    table_grants: Mapping[UUID, frozenset[str]] | None = None,
 ) -> PublishedArtifact:
     """Publish from a run, on a short-lived session of its own. See :func:`publish_with`."""
     async with get_db_context() as db:
@@ -473,6 +504,9 @@ async def publish(
             media_type=media_type,
             data=data,
             expected_version=expected_version,
+            bindings=bindings,
+            run_person=run_person,
+            table_grants=table_grants,
         )
 
 
@@ -488,6 +522,9 @@ async def publish_with(
     media_type: ArtifactMediaType,
     data: bytes,
     expected_version: int | None = None,
+    bindings: Mapping[str, BindingRequest] | None = None,
+    run_person: UUID | None = None,
+    table_grants: Mapping[UUID, frozenset[str]] | None = None,
 ) -> PublishedArtifact:
     """Publish a page as a new version of the agent's artifact of this name.
 
@@ -511,14 +548,31 @@ async def publish_with(
     The caller has already checked :func:`publish_problem`; the size is enforced
     again here because this is the function that writes.
 
+    A version stores the bindings it reads live data through, and they are part of
+    what "unchanged" compares. They are checked by
+    :func:`~app.services.artifact_bindings.check_bindings` as the member behind the
+    run, read again here. A page whose current version has bindings is changed only
+    by a run acting for a member: a run with none behind it - a widget visitor, an
+    outsider's webhook - must not swap the code that receives a member's records. It
+    may still republish the page unchanged, which takes the new title and
+    publication time.
+
     Args:
         expected_version: The version an edit was made against. When the current
             version is another one by the time the lock is held, nothing is
             written - the edits would silently undo whatever landed in between.
+        bindings: The bindings the model asked for, replacing the current ones
+            whole; `None` keeps the current version's, `{}` clears them.
+        run_person: The member the run acts for (`AgentDeps.run_person`), or `None`.
+            One who has since left, or been deactivated, counts as none.
+        table_grants: The agent spec's operations per table id; `None` grants none.
 
     Raises:
         AuthorizationError: The name belongs to an artifact this run's person
-            may not edit. The message is written for the model.
+            may not edit, or the page reads live data and no member is behind
+            the run (:data:`LIVE_PAGE`). The message is written for the model.
+        BadRequestError: A binding cannot stand, or a Markdown page would have
+            bindings. The message is written for the model.
         ConcurrentChangeError: `expected_version` is no longer the current one.
     """
     if len(data) > settings.ARTIFACT_MAX_BYTES:
@@ -553,12 +607,50 @@ async def publish_with(
             ),
             details={"name": name, "version": latest.number if latest is not None else None},
         )
+    person = (
+        await member_context(db, organization_id=organization_id, user_id=run_person)
+        if run_person is not None
+        else None
+    )
+    previous = _bindings_of(latest)
+    same_bytes = latest is not None and latest.sha256 == sha256 and latest.media_type == media_type
+    # Before anything is checked: a run with nobody behind it hears this one text for
+    # every change to a bound page, never what is wrong with a binding it carried or
+    # whether its guesses resolve to the stored ones.
+    if person is None and previous and not same_bytes:
+        raise _live_page(name)
+    checks = await check_bindings(
+        db,
+        organization_id=organization_id,
+        requested=bindings,
+        previous=previous,
+        person=person,
+        grants=table_grants or {},
+    )
+    if person is None and previous and any(c.problem or c.changed for c in checks):
+        raise _live_page(name)
+    problems = list(dict.fromkeys(c.problem for c in checks if c.problem is not None))
+    if problems:
+        raise BadRequestError(message=" ".join(problems), details={"name": name})
+    # Every check without a problem carries its binding.
+    resolved = [(c.binding, c.changed) for c in checks if c.binding is not None]
+    effective = [binding for binding, _changed in resolved]
+    if effective and media_type == ArtifactMediaType.MARKDOWN:
+        raise BadRequestError(message=_MARKDOWN_BINDINGS, details={"name": name})
+    canonical = sorted(
+        (binding.model_dump(mode="json") for binding in effective), key=lambda b: b["name"]
+    )
+    unchanged = same_bytes and latest is not None and latest.bindings == canonical
+    if person is None and previous and not unchanged:
+        raise _live_page(name)
+    echo = await _echo(db, person, resolved)
+
     retitle = {"title": title} if title else {}
-    if latest is not None and latest.sha256 == sha256 and latest.media_type == media_type:
+    if unchanged and latest is not None:
         artifact = await artifact_repo.update(
             db, artifact=artifact, update_data={**retitle, "published_at": datetime.now(UTC)}
         )
-        return _published(artifact, latest, created=created, unchanged=True)
+        return _published(artifact, latest, created=created, unchanged=True, bindings=echo)
 
     path = _storage_path(artifact, sha256, media_type)
     await get_file_storage().save_at(path, data)
@@ -573,7 +665,7 @@ async def publish_with(
         sha256=sha256,
         storage_path=path,
         run_id=run_id,
-        bindings=[],
+        bindings=canonical,
     )
     await record_audit(
         db,
@@ -584,7 +676,54 @@ async def publish_with(
         target_id=str(artifact.id),
         details={"name": name, "version": version.number, "agent_id": str(agent_id)},
     )
-    return _published(artifact, version, created=created, unchanged=False)
+    return _published(artifact, version, created=created, unchanged=False, bindings=echo)
+
+
+def _binding_reads(version: ArtifactVersion | None) -> list[ArtifactBindingRead]:
+    """A version's bindings as a client reads them: field names, never column ids."""
+    return [
+        ArtifactBindingRead(
+            name=binding.name,
+            view_id=binding.view_id,
+            table_id=binding.table_id,
+            fields=list(binding.fields),
+            status=binding.status,
+            reason=binding.reason,
+        )
+        for binding in _bindings_of(version)
+    ]
+
+
+def _live_page(name: str) -> AuthorizationError:
+    return AuthorizationError(message=LIVE_PAGE, details={"name": name})
+
+
+def _bindings_of(version: ArtifactVersion | None) -> list[ArtifactBinding]:
+    return [] if version is None else [ArtifactBinding.model_validate(b) for b in version.bindings]
+
+
+async def _echo(
+    db: AsyncSession, person: AuthContext | None, resolved: Sequence[tuple[ArtifactBinding, bool]]
+) -> dict[str, dict[str, str]]:
+    """What each binding's fields read, for the model to check against what it meant.
+
+    A binding the request named anew was checked as `person`, who sees its view, so
+    its columns are read as theirs. One carried from the previous version says only
+    that it was kept.
+    """
+    views = TableViewService(db)
+    echo: dict[str, dict[str, str]] = {}
+    for binding, changed in resolved:
+        if changed and person is not None:
+            bound = await views.find_view(person, binding.view_id)
+            columns = {column.id: column for column in bound.columns}
+            echo[binding.name] = {
+                name: f"{columns[column_id].label} ({columns[column_id].type})"
+                for name, column_id in binding.fields.items()
+            }
+        else:
+            echo[binding.name] = dict.fromkeys(binding.fields, KEPT)
+    return echo
 
 
 async def _append_version(
@@ -769,7 +908,12 @@ async def _prune(db: AsyncSession, artifact: Artifact) -> None:
 
 
 def _published(
-    artifact: Artifact, version: ArtifactVersion, *, created: bool, unchanged: bool
+    artifact: Artifact,
+    version: ArtifactVersion,
+    *,
+    created: bool,
+    unchanged: bool,
+    bindings: dict[str, dict[str, str]],
 ) -> PublishedArtifact:
     return PublishedArtifact(
         artifact_id=artifact.id,
@@ -782,6 +926,7 @@ def _published(
         unchanged=unchanged,
         visibility=artifact.visibility,
         public=artifact.public_key is not None,
+        bindings=bindings,
     )
 
 
@@ -980,6 +1125,7 @@ class ArtifactService:
                 embed_origins=list(artifact.embed_origins or []),
                 embed_url=embed_url_for(artifact),
             ),
+            bindings=_binding_reads(current) if can_edit else [],
         )
 
     @staticmethod
@@ -1004,6 +1150,7 @@ class ArtifactService:
             current_version=(
                 ArtifactVersionRead.model_validate(current) if current is not None else None
             ),
+            live=current is not None and bool(current.bindings),
             created_at=artifact.created_at,
             updated_at=artifact.updated_at,
         )
@@ -1122,6 +1269,7 @@ class ArtifactService:
                 message="That version's content is gone from storage, so it cannot be restored",
                 details={"artifact_id": artifact_id, "version_id": version_id},
             )
+        bindings = await self._rechecked(ctx, locked, _bindings_of(source))
         version = await _append_version(
             self.db,
             locked,
@@ -1131,7 +1279,7 @@ class ArtifactService:
             sha256=source.sha256,
             storage_path=source.storage_path,
             run_id=None,
-            bindings=[],
+            bindings=[binding.model_dump(mode="json") for binding in bindings],
         )
         await record_audit(
             self.db,
@@ -1140,9 +1288,70 @@ class ArtifactService:
             action="artifact.version_restored",
             target_type="artifact",
             target_id=str(locked.id),
-            details={"version": version.number, "restored": source.number},
+            details={
+                "version": version.number,
+                "restored": source.number,
+                "bindings": {binding.name: binding.status for binding in bindings},
+            },
         )
         return await self._detail(locked, can_edit=True)
+
+    async def _rechecked(
+        self, ctx: AuthContext, artifact: Artifact, stored: list[ArtifactBinding]
+    ) -> list[ArtifactBinding]:
+        """A restored version's bindings, checked again as the person restoring it.
+
+        Against the spec that runs the page's agent now, since that is what serves its
+        data. One that fails is kept, `unavailable` with the reason; with no agent, or
+        no published version of it, every one is.
+        """
+        if not stored:
+            return []
+        grants = await self._running_grants(artifact)
+        if grants is None:
+            return [
+                binding.model_copy(update={"status": "unavailable", "reason": "no_agent"})
+                for binding in stored
+            ]
+        checks = await check_bindings(
+            self.db,
+            organization_id=artifact.organization_id,
+            requested=None,
+            previous=stored,
+            person=ctx,
+            grants=grants,
+            recheck_person=True,
+        )
+        # A recheck returns every binding, failed ones marked.
+        return [check.binding for check in checks if check.binding is not None]
+
+    async def _running_grants(self, artifact: Artifact) -> dict[UUID, frozenset[str]] | None:
+        """The table grants of the spec the artifact's runs answer from, or `None` without one.
+
+        The named environment's version when the artifact belongs to one, else the
+        agent's current version.
+        """
+        if artifact.agent_id is None:
+            return None
+        organization_id = artifact.organization_id
+        if artifact.environment_id is not None:
+            environment = await agent_environment_repo.get(
+                self.db, artifact.environment_id, organization_id=organization_id
+            )
+            version_id = environment.version_id if environment is not None else None
+        else:
+            agent = await agent_repo.get(
+                self.db, artifact.agent_id, organization_id=organization_id
+            )
+            version_id = agent.current_version_id if agent is not None else None
+        version = (
+            await agent_repo.get_version(self.db, version_id, organization_id=organization_id)
+            if version_id is not None
+            else None
+        )
+        if version is None:
+            return None
+        return table_grants_of(AgentSpec.model_validate(version.spec))
 
     async def set_public_link(self, ctx: AuthContext, artifact_id: UUID) -> ArtifactDetail:
         """Turn on the "anyone with the link" address, or rotate it when it is on.

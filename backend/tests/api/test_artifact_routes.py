@@ -66,6 +66,7 @@ def _version(artifact: Artifact, *, number: int = 1) -> ArtifactVersion:
         sha256="0" * 64,
         storage_path="artifacts/x/y/z.html",
         run_id=None,
+        bindings=[],
         created_at=datetime(2026, 9, 22, tzinfo=UTC),
     )
 

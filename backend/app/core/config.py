@@ -128,6 +128,10 @@ class Settings(BaseSettings):
     # a separate registrable domain that routes to this API, it also puts the
     # page on another site, which a security review may ask for.
     ARTIFACT_ORIGIN: str | None = None
+    # How many saved table views one page version may bind. Each binding is a
+    # query run as the viewer every time the page is shown or refreshed, so the
+    # cap bounds what one open page costs the database, not what a page may say.
+    ARTIFACT_DATA_MAX_BINDINGS: int = Field(default=5, ge=1)
 
     # What a *stranger* may upload to a hosted page, in megabytes. Its own
     # setting and much smaller, because the two callers are not comparable: a

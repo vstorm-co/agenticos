@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -51,7 +52,11 @@ def _artifact(ctx: AuthContext, *, public_key: str | None = None) -> Artifact:
 
 
 def _version(
-    artifact: Artifact, *, number: int = 1, media_type: str = ArtifactMediaType.HTML.value
+    artifact: Artifact,
+    *,
+    number: int = 1,
+    media_type: str = ArtifactMediaType.HTML.value,
+    bindings: list[dict[str, Any]] | None = None,
 ) -> ArtifactVersion:
     return ArtifactVersion(
         id=uuid.uuid4(),
@@ -62,6 +67,7 @@ def _version(
         sha256="0" * 64,
         storage_path=f"artifacts/{artifact.organization_id}/{artifact.id}/x.html",
         run_id=None,
+        bindings=bindings or [],
         created_at=datetime(2026, 9, 22, tzinfo=UTC),
     )
 
@@ -257,6 +263,47 @@ class TestRead:
         assert read.current_version is not None
         assert read.current_version.number == 3
         assert read.public_url == f"{artifacts.settings.FRONTEND_URL.rstrip('/')}/a/{'k' * 32}"
+
+    async def test_a_bound_page_reads_as_live_and_shows_its_editor_the_field_names(
+        self,
+    ) -> None:
+        ctx = _ctx()
+        artifact = _artifact(ctx)
+        view_id, table_id = uuid.uuid4(), uuid.uuid4()
+        binding = {
+            "name": "tickets",
+            "view_id": str(view_id),
+            "table_id": str(table_id),
+            "fields": {"status": str(uuid.uuid4()), "title": str(uuid.uuid4())},
+            "status": "unavailable",
+            "reason": "field_missing",
+        }
+        version = _version(artifact, bindings=[binding])
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
+            patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=version)),
+        ):
+            read = await _service().read(ctx, artifact.id)
+        assert read.live is True
+        [shown] = read.bindings
+        assert (shown.name, shown.view_id, shown.table_id) == ("tickets", view_id, table_id)
+        assert (shown.fields, shown.status, shown.reason) == (
+            ["status", "title"],
+            "unavailable",
+            "field_missing",
+        )
+
+    async def test_a_page_with_no_version_is_not_live(self) -> None:
+        ctx = _ctx()
+        artifact = _artifact(ctx)
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
+            patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=None)),
+        ):
+            read = await _service().read(ctx, artifact.id)
+        assert (read.live, read.bindings) == (False, [])
 
     @pytest.mark.security
     async def test_a_reader_is_told_they_may_not_manage_it(self) -> None:

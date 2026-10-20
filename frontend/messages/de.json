@@ -1234,6 +1234,8 @@
       "tablesListing": "Prüft, welche Tabellen es nutzen kann",
       "tablesChecking": "Prüft eine Tabelle",
       "tablesDescribing": "Liest die Spalten einer Tabelle",
+      "viewsListing": "Liest die gespeicherten Ansichten einer Tabelle",
+      "viewsSharing": "Gibt eine gespeicherte Ansicht frei",
       "tablesCreating": "Erstellt eine Tabelle",
       "recordsChecking": "Sucht nach einem Datensatz",
       "recordsListing": "Listet Datensätze auf",

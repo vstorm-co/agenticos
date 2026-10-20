@@ -1239,6 +1239,8 @@
       "tablesListing": "Checking which tables it can use",
       "tablesChecking": "Checking a table",
       "tablesDescribing": "Reading a table's columns",
+      "viewsListing": "Listing a table's saved views",
+      "viewsSharing": "Sharing a saved view",
       "tablesCreating": "Creating a table",
       "recordsChecking": "Checking for a record",
       "recordsListing": "Listing records",

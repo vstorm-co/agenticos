@@ -24,6 +24,7 @@ from pydantic_ai import RunContext
 from pydantic_ai.toolsets import FunctionToolset
 
 from app.agents.capabilities._failures import steer
+from app.agents.capabilities._members import acting_member
 from app.agents.capabilities.virtual_tables._access import (
     Mistake,
     Refused,
@@ -39,7 +40,9 @@ from app.agents.deps import AgentDeps
 from app.core.exceptions import AppException, NotFoundError
 from app.core.permissions import AuthContext
 from app.db.session import get_db_context
+from app.schemas.table_view import TableViewConfig, TableViewRead, TableViewUpdate
 from app.schemas.virtual_table import (
+    ColumnDef,
     ColumnInput,
     RecordCreate,
     RecordFilter,
@@ -49,8 +52,13 @@ from app.schemas.virtual_table import (
     RecordUpsert,
     TableCreate,
 )
-from app.services.virtual_tables.facade import VirtualTableService
-from app.services.virtual_tables.presentation import filters_by_label, labelled, schema
+from app.services.virtual_tables.facade import TableViewService, VirtualTableService
+from app.services.virtual_tables.presentation import (
+    describe_filters,
+    filters_by_label,
+    labelled,
+    schema,
+)
 from app.services.virtual_tables.receipts import derived_operation_key
 
 Grants = dict[UUID, frozenset[TableOperation]]
@@ -80,6 +88,53 @@ async def _call(
         if is_mistake(exc):
             return steer(ctx, refusal_text(exc))
         return refusal_text(exc)
+
+
+async def _call_as_person(
+    ctx: RunContext[AgentDeps],
+    work: Callable[[TableViewService, VirtualTableService, AuthContext], Awaitable[str]],
+) -> str:
+    """Run `work` as the member the run answers for, and say how it went.
+
+    Saved views belong to a person: a private one serves data only to its owner. So
+    this resolves `run_person`, not the run's `user_id` - which a widget, embed or
+    public workflow run sets to its publisher - and refuses a run that has none.
+    """
+    if ctx.deps.run_person is None:
+        return _NO_PERSON
+    try:
+        async with get_db_context() as db:
+            person = await acting_member(db, ctx.deps.organization_id, str(ctx.deps.run_person))
+            if person is None:
+                return "The member this agent acts for is no longer in the organization."
+            return await work(TableViewService(db), VirtualTableService(db), person)
+    except Refused as refused:
+        return str(refused)
+    except Mistake as mistake:
+        return steer(ctx, str(mistake))
+    except AppException as exc:
+        if is_mistake(exc):
+            return steer(ctx, refusal_text(exc))
+        return refusal_text(exc)
+
+
+_NO_PERSON = "Only a run acting for a member can use saved views."
+
+
+def _view_json(
+    view: TableViewRead, columns: list[ColumnDef], person: AuthContext
+) -> dict[str, Any]:
+    config: TableViewConfig = view.config
+    return {
+        "id": str(view.id),
+        "name": view.name,
+        "kind": view.kind,
+        "visibility": view.visibility,
+        "yours": view.owner_user_id == person.subject_id,
+        "filters": describe_filters(columns, config.filters),
+        "sort": config.sort.model_dump(mode="json"),
+        "search": config.search,
+    }
 
 
 def build_tables_toolset(*, grants: Grants, allow_create: bool) -> FunctionToolset[AgentDeps]:
@@ -167,6 +222,66 @@ def build_tables_toolset(*, grants: Grants, allow_create: bool) -> FunctionTools
             return as_json(schema(await service.describe_table(auth, table_id)))
 
         return await _call(ctx, work)
+
+    @toolset.tool
+    async def list_views(ctx: RunContext[AgentDeps], table_id: UUID) -> str:
+        """List a table's saved views, to bind a page to one.
+
+        A private view serves data only to you; offer to share it with share_view
+        before binding a page others will open to it.
+
+        Args:
+            table_id: The table's id, from list_tables.
+
+        Returns:
+            A JSON object `{table, views}`: the table as describe_table returns it,
+            and each view as `{id, name, kind, visibility, yours, filters, sort,
+            search}` - your own views and the shared ones.
+        """
+
+        async def work(
+            views: TableViewService, service: VirtualTableService, person: AuthContext
+        ) -> str:
+            require(grants, table_id, TableOperation.READ)
+            table = await service.describe_table(person, table_id)
+            listed = await views.list_views(person, table_id)
+            return as_json(
+                {
+                    "table": schema(table),
+                    "views": [_view_json(view, table.columns, person) for view in listed.items],
+                }
+            )
+
+        return await _call_as_person(ctx, work)
+
+    @toolset.tool
+    async def share_view(ctx: RunContext[AgentDeps], view_id: UUID) -> str:
+        """Share one of your own private views with the organization.
+
+        Only the view's owner can: sharing lets everyone who may read the table see
+        the view's filters and the rows it selects.
+
+        Args:
+            view_id: The view's id, from list_views.
+
+        Returns:
+            The view as list_views returns it, now shared.
+        """
+
+        async def work(
+            views: TableViewService, service: VirtualTableService, person: AuthContext
+        ) -> str:
+            bound = await views.find_view(person, view_id)
+            require(grants, bound.table_id, TableOperation.READ)
+            # Before update_view, which also lets a caller with ALL-scope edit manage it.
+            if bound.view.owner_user_id != person.subject_id:
+                raise Refused("Only the view's owner can share it.")
+            shared = await views.update_view(
+                person, bound.table_id, view_id, TableViewUpdate(visibility="shared")
+            )
+            return as_json(_view_json(shared, bound.columns, person))
+
+        return await _call_as_person(ctx, work)
 
     @toolset.tool
     async def record_exists(ctx: RunContext[AgentDeps], table_id: UUID, external_id: str) -> str:

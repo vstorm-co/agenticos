@@ -9,7 +9,7 @@ and write the same way.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from app.schemas.virtual_table import CellValue, ColumnDef, RecordFilter, RecordRead, TableRead
@@ -100,6 +100,36 @@ def filters_by_label(table: TableRead, filters: list[RecordFilter]) -> list[Reco
             value = _option_id(column, value)
         resolved.append(condition.model_copy(update={"value": value}))
     return resolved
+
+
+def _option_label(labels: Mapping[str, str], value: object) -> object:
+    return labels.get(value, value) if isinstance(value, str) else value
+
+
+def describe_filters(
+    columns: Sequence[ColumnDef], filters: Sequence[RecordFilter]
+) -> list[dict[str, Any]]:
+    """`filters` as a person reads them: by column label, a choice by its option's label.
+
+    The reverse of `filters_by_label`. An archived option still reads by its label, and
+    an operand that names no option reads as stored. A filter on a column that is no
+    longer live is left out: reading the view drops it too.
+    """
+    live = {column.id: column for column in columns if not column.archived}
+    described: list[dict[str, Any]] = []
+    for condition in filters:
+        column = live.get(condition.column_id)
+        if column is None:
+            continue
+        value: object = condition.value
+        if column.type in _SELECTS and condition.op != "is_null":
+            labels = {str(option.id): option.label for option in column.options}
+            if isinstance(value, list):
+                value = [_option_label(labels, item) for item in value]
+            else:
+                value = _option_label(labels, value)
+        described.append({"column": column.label, "op": condition.op, "value": value})
+    return described
 
 
 def labelled(table: TableRead, record: RecordRead) -> dict[str, Any]:

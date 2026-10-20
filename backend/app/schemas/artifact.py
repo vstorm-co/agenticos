@@ -84,6 +84,9 @@ class ArtifactRead(BaseSchema):
     )
     published_at: datetime
     current_version: ArtifactVersionRead | None = None
+    live: bool = Field(
+        default=False, description="Whether the current version reads live data through bindings"
+    )
     created_at: datetime
     updated_at: datetime | None = None
 
@@ -122,6 +125,13 @@ class ArtifactDetail(ArtifactRead):
         )
     )
     public_link: ArtifactPublicLinkRead
+    bindings: list[ArtifactBindingRead] = Field(
+        default_factory=list,
+        description=(
+            "The current version's bindings, each with its status and, when unavailable, "
+            "why. Only for a caller who may edit it; empty otherwise"
+        ),
+    )
 
 
 class ArtifactList(BaseSchema):

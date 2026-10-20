@@ -15,6 +15,7 @@ from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RunUsage
 
 from app.agents.capabilities._registry import CapabilityBuildContext, get
+from app.agents.capabilities.approval import tool_needs_approval
 from app.agents.capabilities.virtual_tables import (
     VirtualTables,
     VirtualTablesConfig,
@@ -115,3 +116,27 @@ def test_table_grants_of_reads_the_enabled_binding_only():
     assert table_grants_of(enabled) == {table_id: frozenset({"read", "update"})}
     assert table_grants_of(disabled) == {}
     assert table_grants_of(AgentSpec(name="Clerk")) == {}
+
+
+def _tool_info(tool_id: str):
+    return next(tool for tool in get("virtual_tables").tools if tool.id == tool_id)
+
+
+def test_share_view_is_gated_by_approval_by_default():
+    binding = CapabilityBindingSpec(id="virtual_tables")
+
+    assert tool_needs_approval(tool=_tool_info("share_view"), binding=binding, side_effecting=False)
+    assert not tool_needs_approval(
+        tool=_tool_info("list_views"), binding=binding, side_effecting=False
+    )
+
+
+def test_share_view_follows_the_capability_wide_approval():
+    tool = _tool_info("share_view")
+    never = CapabilityBindingSpec(id="virtual_tables", approval="never")
+    pinned = CapabilityBindingSpec(
+        id="virtual_tables", approval="never", tool_approval={"share_view": "required"}
+    )
+
+    assert not tool_needs_approval(tool=tool, binding=never, side_effecting=False)
+    assert tool_needs_approval(tool=tool, binding=pinned, side_effecting=False)

@@ -47,6 +47,8 @@ def _writes(tool_id: str, description: str) -> CapabilityToolInfo:
             "describe_table",
             "Describe a table's live columns: id, label, type, and options for a select.",
         ),
+        _reads("list_views", "List a table's saved views, to bind a page to one."),
+        _writes("share_view", "Share one of your own private views with the organization."),
         _writes("create_table", "Create a new table with the given columns."),
         _reads(
             "record_exists",

@@ -31,9 +31,14 @@ from app.agents.audience import RunAudience
 from app.agents.capabilities._failures import steer
 from app.agents.deps import AgentDeps
 from app.core.config import settings
-from app.core.exceptions import AuthorizationError, ConcurrentChangeError, NotFoundError
+from app.core.exceptions import (
+    AuthorizationError,
+    BadRequestError,
+    ConcurrentChangeError,
+    NotFoundError,
+)
 from app.db.models.artifact import ArtifactMediaType
-from app.services import artifact as artifacts
+from app.schemas.artifact import BindingRequest
 
 _FORMATS: dict[str, ArtifactMediaType] = {
     "html": ArtifactMediaType.HTML,
@@ -94,6 +99,10 @@ class PublishedArtifactResult(BaseModel):
     unchanged: bool
     visibility: str
     public: bool
+    bindings: dict[str, dict[str, str]] = Field(
+        default_factory=dict,
+        description="Each binding's fields and the column each reads, or `kept` when carried",
+    )
 
 
 def parse_published_artifact(result: str) -> PublishedArtifactResult | None:
@@ -165,6 +174,7 @@ def build_artifacts_toolset(
         content: str | None = None,
         edits: list[ArtifactEdit] | None = None,
         format: Literal["html", "markdown"] | None = None,  # noqa: A002 - the model's word for it
+        bindings: dict[str, BindingRequest] | None = None,
     ) -> str:
         """Publish a finished page - a report, a small dashboard, a summary - under a stable link.
 
@@ -175,11 +185,21 @@ def build_artifacts_toolset(
         a new page. To change part of a page you published, read it with `read_artifact`
         and pass `edits` rather than the whole page again.
 
-        The page must be self-contained. It is shown in an isolated frame with no network
-        access: inline your data, images (as `data:` URIs) and any script of your own, and
-        do not rely on a CDN or an API call - anything fetched from elsewhere will not
-        load. The deployment serves a small library set the page may load by a relative
-        address, which costs nothing to include:
+        The page is shown in an isolated frame with no network access: it cannot fetch
+        anything, so images go in as `data:` URIs and scripts inline, and a CDN or an API
+        call will not load. For records that should stay current, bind the page to saved
+        table views with `bindings` instead of copying the records in: an HTML page then
+        calls `agenticos.onData(render)`, and `render(data)` runs with
+        `data.<binding>` = `{status: "ok" | "unavailable", records: [{id, <field>: value}],
+        fields: {<field>: {label, type, options, state}}, count, truncated, limit}`
+        each time the person viewing it loads or refreshes it. Draw an `unavailable`
+        binding as "no data" - that viewer may not see the view, or it is gone; when
+        `truncated` is true, say the list is cut (`limit` is `records` or `bytes`). Write
+        record text with `textContent`, never `innerHTML`. Find a view's id and columns
+        with `list_views`; a private view serves only its owner, so share it first for
+        anyone else. Data you only need once still goes inline. The deployment serves a
+        small library set the page may load by a relative address, which costs nothing
+        to include:
         `<link rel="stylesheet" href="lib/agenticos-2.css">` (the product's look, light
         and dark, with `ao-` components), `lib/chart-4.5.1.umd.min.js` (Chart.js,
         `window.Chart`), `lib/d3-7.9.0.min.js` (d3, `window.d3`),
@@ -207,15 +227,27 @@ def build_artifacts_toolset(
                 in order. Each `old` must appear exactly once.
             format: `html` or `markdown`. Inferred from `path`'s extension; for
                 `content` it defaults to `html`. An edit keeps the page's format.
+            bindings: Live data for an HTML page, as `{name: {view, fields}}`: `view` is a
+                saved view's id, `fields` maps each name the page reads to the column it
+                is, by id or label, e.g.
+                `{"tickets": {"view": "<id>", "fields": {"status": "Status"}}}`. Names are
+                lower-case letters, digits and `_`. Omit to keep the page's current
+                bindings; `{}` removes them.
 
         Returns:
             A JSON reference to the published page - its `url`, the `version` number,
-            whether it was `created` or updated, and `unchanged` when the content was
-            identical to the current version (nothing new was stored). The interface
+            whether it was `created` or updated, `unchanged` when the content and
+            bindings were identical to the current version (nothing new was stored), and
+            `bindings`: each field and the column it reads, as `Status (single_select)`,
+            or `kept` for one carried from the previous version. The interface
             shows the user a card with the link; tell them in one line what you
             published. New pages are private to the person this run is for until they
             share it.
         """
+        # Function-local: `app.services.artifact` imports virtual tables, which reach this
+        # package through the factory (an import cycle).
+        from app.services import artifact as artifacts
+
         deps = ctx.deps
         if deps.organization_id is None or deps.agent_id is None:
             return _NO_AGENT
@@ -297,13 +329,17 @@ def build_artifacts_toolset(
                 media_type=media_type,
                 data=data,
                 expected_version=expected_version,
+                bindings=bindings,
+                run_person=deps.run_person,
+                table_grants=table_grants,
             )
         except AuthorizationError as refused:
             # A refusal, so returned rather than steered: the name is somebody
-            # else's page, and the model picks another one or says so.
+            # else's page, or a page reading live data and nobody behind this run,
+            # and the model picks another name or says so.
             return refused.message
-        except ConcurrentChangeError as moved:
-            return steer(ctx, moved.message)
+        except (BadRequestError, ConcurrentChangeError) as fixable:
+            return steer(ctx, fixable.message)
         return PublishedArtifactResult(
             artifact_id=published.artifact_id,
             version_id=published.version_id,
@@ -316,6 +352,7 @@ def build_artifacts_toolset(
             unchanged=published.unchanged,
             visibility=published.visibility,
             public=published.public,
+            bindings=published.bindings,
         ).model_dump_json()
 
     async def read_artifact(ctx: RunContext[AgentDeps], name: str) -> str:
@@ -334,6 +371,10 @@ def build_artifacts_toolset(
             an edit can still name text past the cut. When there is no page of that
             name this run may open, a sentence saying so.
         """
+        # Function-local: `app.services.artifact` imports virtual tables, which reach this
+        # package through the factory (an import cycle).
+        from app.services import artifact as artifacts
+
         deps = ctx.deps
         if deps.organization_id is None or deps.agent_id is None:
             return _NO_AGENT

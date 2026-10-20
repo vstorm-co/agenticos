@@ -13,7 +13,7 @@ empty, rather than showing a private table's values to someone outside it.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
@@ -24,12 +24,63 @@ from app.core.permissions import AuthContext, Perm
 from app.repositories import virtual_table_repo
 from app.schemas.virtual_table import CellValue, ColumnDef, LinkedRecord, RecordRead
 from app.services.access import TABLE, resolve_access
-from app.services.virtual_tables.formula import work_out
+from app.services.virtual_tables.formula import references, work_out
 from app.services.virtual_tables.types import READ_THROUGH_LINK
 
 _NAMED_BY = ("text", "email", "url", "phone", "long_text")
 """The types a linked record is named by, its first live column of one of them."""
 MAX_LABEL = 200
+
+
+@dataclass(frozen=True)
+class Reach:
+    """What reading some columns of a table takes: the columns behind them and the linked tables."""
+
+    columns: frozenset[UUID]
+    """The columns named, and every column one of them is worked out from."""
+    linked: Mapping[UUID, frozenset[UUID]]
+    """Each linked table read, and the columns read there. A link alone reads none:
+    its records' names come from the linked table's naming column, chosen at read time."""
+
+
+def reach(columns: Sequence[ColumnDef], named: Iterable[UUID]) -> Reach:
+    """Every column and linked table that reading `named` from a table of `columns` takes.
+
+    Pure: nothing is read. A formula takes the live columns its labels name, matched
+    exactly as `check_formula` matches them; a lookup or rollup takes its link column
+    and, unless it counts the links, its target column in the linked table; a link
+    takes its linked table. A formula may not name a formula or a link, so the walk
+    goes no deeper than formula, then lookup or rollup, then link.
+    """
+    by_id = {column.id: column for column in columns}
+    live_labels = {column.label: column.id for column in columns if not column.archived}
+    reached: set[UUID] = set()
+    linked: dict[UUID, set[UUID]] = {}
+    pending = list(named)
+    while pending:
+        column_id = pending.pop()
+        if column_id in reached:
+            continue
+        reached.add(column_id)
+        column = by_id.get(column_id)
+        if column is None:
+            continue
+        if column.type == "formula":
+            labels = references(column.formula or "")
+            pending.extend(live_labels[label] for label in labels if label in live_labels)
+        elif column.type in READ_THROUGH_LINK and column.link_column_id is not None:
+            pending.append(column.link_column_id)
+            link = by_id.get(column.link_column_id)
+            if link is not None and link.link_table_id is not None:
+                targets = linked.setdefault(link.link_table_id, set())
+                if column.aggregate != "count" and column.target_column_id is not None:
+                    targets.add(column.target_column_id)
+        elif column.type == "link" and column.link_table_id is not None:
+            linked.setdefault(column.link_table_id, set())
+    return Reach(
+        columns=frozenset(reached),
+        linked={table_id: frozenset(targets) for table_id, targets in linked.items()},
+    )
 
 
 @dataclass(frozen=True)

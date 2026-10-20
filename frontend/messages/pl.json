@@ -267,6 +267,8 @@
       "tablesListing": "Sprawdzam, których tabel może używać",
       "tablesChecking": "Sprawdzam tabelę",
       "tablesDescribing": "Czytam kolumny tabeli",
+      "viewsListing": "Wyświetlam zapisane widoki tabeli",
+      "viewsSharing": "Udostępniam zapisany widok",
       "tablesCreating": "Tworzę tabelę",
       "recordsChecking": "Sprawdzam, czy rekord istnieje",
       "recordsListing": "Wyświetlam rekordy",

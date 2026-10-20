@@ -5,6 +5,7 @@ and the dependency checker that refuses archiving a column a view still uses.
 
 from __future__ import annotations
 
+import uuid
 from unittest.mock import AsyncMock
 
 import pytest
@@ -18,7 +19,7 @@ from app.schemas.table_view import TableViewConfig, TableViewCreate, TableViewUp
 from app.schemas.virtual_table import RecordFilter, RecordSort, SchemaUpdate
 from app.services.access import TABLE
 from app.services.virtual_tables import TableViewService, VirtualTableService
-from app.services.virtual_tables.exceptions import SchemaDependencyError
+from app.services.virtual_tables.exceptions import SchemaDependencyError, TableArchivedError
 from tests.integration.virtual_table_support import (
     column,
     ctx_for,
@@ -605,3 +606,238 @@ async def test_listing_views_pages_them_and_counts_them_all(db):
     assert [item.name for item in first.items] == ["A", "B"]
     assert [item.name for item in rest.items] == ["C"]
     assert first.total == rest.total == 3
+
+
+async def _a_colleague_with(db, org, table):
+    """A member holding an edit grant on `table`."""
+    colleague = await make_user(db)
+    await resource_grant_repo.upsert(
+        db,
+        organization_id=org.id,
+        subject_user_id=colleague.id,
+        resource_type=TABLE.key,
+        resource_id=table.id,
+        level=GrantLevel.EDIT,
+    )
+    return ctx_for(colleague, org, "member")
+
+
+def _is_view_not_found(error: NotFoundError, view_id: uuid.UUID) -> bool:
+    return error.message == "View not found" and error.details == {"view_id": view_id}
+
+
+@pytest.mark.security
+async def test_a_colleague_cannot_find_a_private_view_by_id(db):
+    views, _tables, ctx, _owner, org, table = await _setup(db)
+    colleague_ctx = await _a_colleague_with(db, org, table)
+    private = await views.create_view(ctx, table.id, TableViewCreate(name="Mine", kind="table"))
+
+    with pytest.raises(NotFoundError) as raised:
+        await views.find_view(colleague_ctx, private.id)
+
+    assert _is_view_not_found(raised.value, private.id)
+
+
+@pytest.mark.security
+async def test_an_org_owner_cannot_find_someone_else_s_private_view(db):
+    views, _tables, owner_ctx, _owner, org, table = await _setup(db)
+    member_ctx = await _a_colleague_with(db, org, table)
+    private = await views.create_view(
+        member_ctx, table.id, TableViewCreate(name="Mine", kind="table")
+    )
+
+    with pytest.raises(NotFoundError) as raised:
+        await views.find_view(owner_ctx, private.id)
+
+    assert _is_view_not_found(raised.value, private.id)
+
+
+@pytest.mark.security
+async def test_a_member_app_admin_cannot_find_someone_else_s_private_view(db):
+    """A platform superadmin holds every permission at `ALL`, and still no one's private view."""
+    views, _tables, owner_ctx, _owner, org, table = await _setup(db)
+    private = await views.create_view(
+        owner_ctx, table.id, TableViewCreate(name="Mine", kind="table")
+    )
+    app_admin = AuthContext(
+        user_id=(await make_user(db)).id, organization_id=org.id, role="member", is_app_admin=True
+    )
+
+    with pytest.raises(NotFoundError) as raised:
+        await views.find_view(app_admin, private.id)
+
+    assert _is_view_not_found(raised.value, private.id)
+
+
+@pytest.mark.security
+async def test_a_view_in_another_org_is_not_found(db):
+    views, _tables, ctx, _owner, _org, table = await _setup(db)
+    shared = await views.create_view(
+        ctx, table.id, TableViewCreate(name="Team", kind="table", visibility="shared")
+    )
+    outsider = await make_user(db)
+    intruder = ctx_for(outsider, await make_org(db, owner=outsider), "owner")
+
+    with pytest.raises(NotFoundError) as raised:
+        await views.find_view(intruder, shared.id)
+
+    assert _is_view_not_found(raised.value, shared.id)
+
+
+async def test_a_shared_view_is_found_with_its_live_config(db):
+    views, tables, builder_ctx, member_ctx, table = await _builders_table_and_an_editing_member(db)
+    status_id = next(c.id for c in table.columns if c.label == "Status")
+    customer_id = next(c.id for c in table.columns if c.label == "Customer")
+    shared = await views.create_view(
+        member_ctx,
+        table.id,
+        TableViewCreate(
+            name="Team board",
+            kind="kanban",
+            visibility="shared",
+            config=TableViewConfig(
+                filters=[RecordFilter(column_id=status_id, op="is_null", value=False)],
+                visible_columns=[customer_id, status_id],
+                group_by=status_id,
+            ),
+        ),
+    )
+    await tables.update_schema(builder_ctx, table.id, _without(table, "Status"))
+
+    bound = await views.find_view(builder_ctx, shared.id)
+
+    assert bound.view.id == shared.id
+    assert bound.table_id == table.id
+    assert bound.config.filters == []
+    assert bound.config.group_by is None
+    assert bound.config.visible_columns == [customer_id]
+    assert bound.filters_dropped is True
+    # The current schema, the archived column included.
+    assert [(c.id, c.archived) for c in bound.columns if c.id == status_id] == [(status_id, True)]
+    assert len(bound.columns) == len(table.columns)
+
+
+async def test_a_view_with_every_filter_live_has_none_dropped(db):
+    views, _tables, ctx, _owner, _org, table = await _setup(db)
+    status_id = next(c.id for c in table.columns if c.label == "Status")
+    view = await views.create_view(
+        ctx,
+        table.id,
+        TableViewCreate(
+            name="Open",
+            kind="table",
+            config=TableViewConfig(
+                filters=[RecordFilter(column_id=status_id, op="is_null", value=False)]
+            ),
+        ),
+    )
+
+    bound = await views.find_view(ctx, view.id)
+
+    assert [item.column_id for item in bound.config.filters] == [status_id]
+    assert bound.filters_dropped is False
+
+
+async def test_a_view_on_an_archived_table_is_refused(db):
+    views, tables, ctx, _owner, _org, table = await _setup(db)
+    own = await views.create_view(ctx, table.id, TableViewCreate(name="Mine", kind="table"))
+    await tables.archive_table(ctx, table.id)
+
+    with pytest.raises(TableArchivedError):
+        await views.find_view(ctx, own.id)
+
+
+@pytest.mark.security
+async def test_someone_else_s_private_view_on_an_archived_table_is_not_found(db):
+    views, tables, owner_ctx, _owner, org, table = await _setup(db)
+    member_ctx = await _a_colleague_with(db, org, table)
+    private = await views.create_view(
+        member_ctx, table.id, TableViewCreate(name="Mine", kind="table")
+    )
+    await tables.archive_table(owner_ctx, table.id)
+
+    with pytest.raises(NotFoundError) as raised:
+        await views.find_view(owner_ctx, private.id)
+
+    assert _is_view_not_found(raised.value, private.id)
+
+
+@pytest.mark.security
+async def test_a_view_on_an_unreachable_table_and_a_missing_view_raise_the_same_error(db):
+    """The table's own 404 names the table: re-raised as is, it would say a view exists there."""
+    views, _tables, ctx, _owner, org, table = await _setup(db)
+    shared = await views.create_view(
+        ctx, table.id, TableViewCreate(name="Team", kind="table", visibility="shared")
+    )
+    stranger_ctx = ctx_for(await make_user(db), org, "member")
+    missing_id = uuid.uuid4()
+
+    with pytest.raises(NotFoundError) as unreachable:
+        await views.find_view(stranger_ctx, shared.id)
+    with pytest.raises(NotFoundError) as missing:
+        await views.find_view(stranger_ctx, missing_id)
+
+    assert unreachable.value.message == missing.value.message == "View not found"
+    assert unreachable.value.code == missing.value.code
+    assert unreachable.value.details == {"view_id": shared.id}
+    assert missing.value.details == {"view_id": missing_id}
+    assert unreachable.value.__cause__ is None
+    assert unreachable.value.__suppress_context__ is True
+
+
+async def test_find_view_reads_the_view_once(db, monkeypatch):
+    views, _tables, ctx, _owner, _org, table = await _setup(db)
+    view = await views.create_view(ctx, table.id, TableViewCreate(name="Mine", kind="table"))
+    spy = AsyncMock(wraps=table_view_repo.get)
+    monkeypatch.setattr(table_view_repo, "get", spy)
+
+    await views.find_view(ctx, view.id)
+
+    assert spy.await_count == 1
+
+
+async def test_a_view_is_found_for_a_binding_without_a_person(db):
+    views, _tables, ctx, _owner, org, table = await _setup(db)
+    status_id = next(c.id for c in table.columns if c.label == "Status")
+    private = await views.create_view(
+        ctx,
+        table.id,
+        TableViewCreate(name="Mine", kind="table", config=TableViewConfig(group_by=status_id)),
+    )
+
+    bound = await views.view_for_binding(org.id, private.id)
+
+    assert bound.view.id == private.id
+    assert bound.table_id == table.id
+    assert bound.config.group_by == status_id
+    assert [c.id for c in bound.columns] == [c.id for c in table.columns]
+    assert bound.filters_dropped is False
+
+
+@pytest.mark.security
+async def test_view_for_binding_never_crosses_organizations(db):
+    views, _tables, ctx, _owner, _org, table = await _setup(db)
+    shared = await views.create_view(
+        ctx, table.id, TableViewCreate(name="Team", kind="table", visibility="shared")
+    )
+    outsider = await make_user(db)
+    other_org = await make_org(db, owner=outsider)
+
+    with pytest.raises(NotFoundError) as raised:
+        await views.view_for_binding(other_org.id, shared.id)
+
+    assert _is_view_not_found(raised.value, shared.id)
+
+
+async def test_view_for_binding_gives_the_live_columns_and_refuses_an_archived_table(db):
+    views, tables, ctx, _owner, org, table = await _setup(db)
+    quantity_id = next(c.id for c in table.columns if c.label == "Quantity")
+    view = await views.create_view(ctx, table.id, TableViewCreate(name="Mine", kind="table"))
+    await tables.update_schema(ctx, table.id, _without(table, "Quantity"))
+
+    bound = await views.view_for_binding(org.id, view.id)
+
+    assert [c.archived for c in bound.columns if c.id == quantity_id] == [True]
+    await tables.archive_table(ctx, table.id)
+    with pytest.raises(TableArchivedError):
+        await views.view_for_binding(org.id, view.id)
