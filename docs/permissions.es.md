@@ -1,5 +1,5 @@
 ---
-source_sha: "c4f8ea3975a6"
+source_sha: "5682a9e15af4"
 ---
 
 # Permisos { #permissions }
@@ -65,8 +65,10 @@ efectos:
    organización, y ninguna puede expresar "cada organización"
    ([Governance](governance.md#alerts)).
 2. **Un bypass en `AuthContext.permissions`**, que devuelve todos los permisos
-   con `Scope.ALL` - en todas las organizaciones, incluidas aquellas en las que
-   no tiene membresía alguna.
+   con `Scope.ALL` - en todas las organizaciones de las que es miembro. No llega
+   a una en la que no tiene membresía: la organización activa se resuelve antes
+   de leer ningún permiso, y eso rechaza a quien no es miembro, incluido un app
+   admin.
 
 El bypass es deliberado y el docstring dice por qué: una persona así administra
 el despliegue y ya tiene acceso a la base de datos, así que fingir lo contrario

@@ -1,5 +1,5 @@
 ---
-source_sha: "e271559652ed"
+source_sha: "72c9b49ab9c2"
 ---
 
 # Konfiguration { #configuration }
@@ -760,8 +760,8 @@ sie ausgeliefert werden. Siehe [Artefakte](artifacts.md).
 | `ARTIFACT_ORIGIN` | (empty) | Von wo Inhalte ausgeliefert werden - die Seiten, ihr [Bibliothekssatz](artifacts.md#the-library-set) und das Einbettungsdokument. Leer liefert sie von `PUBLIC_BASE_URL` aus, isoliert durch ihre `sandbox`-Policy. Setzen Sie ihn auf einen Host auf einer separaten registrierbaren Domain, auf diese API geroutet, um die Seite zusätzlich auf eine andere Site zu legen |
 
 **`ARTIFACT_ORIGIN` wird zweimal gelesen, und beide Stellen müssen ihn sehen.**
-Das Backend signiert Inhaltsadressen darauf, und das Frontend fügt ihn zum
-`frame-src` der Konsole hinzu. Setzen Sie ihn in der Umgebung des Backends und in
+Das Backend signiert Inhaltsadressen darauf, und das Frontend fügt seine
+Content-Route, `/api/v1/artifact-content/`, zum `frame-src` der Konsole hinzu. Setzen Sie ihn in der Umgebung des Backends und in
 der des Frontends; die Compose-Dateien reichen ihn an beide weiter. Ein Wert in
 nur einer von beiden zeigt einen leeren Frame, weil der Browser sich weigert, die
 Seite von einem Origin zu laden, den die Konsole nicht erlaubt hat.

@@ -254,7 +254,8 @@ domain** by setting `ARTIFACT_ORIGIN` - for example
 `https://agenticos-content.example.net`, routed to the same API. The page is
 then on another site entirely. The opaque origin already isolates it, so this is
 hardening a security review may ask for, not a requirement. Set the variable for
-the backend and for the frontend, which adds that origin to its `frame-src`. See
+the backend and for the frontend, which adds that origin's content route to its
+`frame-src`. See
 [Configuration](configuration.md#published-artifacts).
 
 ## Retention and deletion

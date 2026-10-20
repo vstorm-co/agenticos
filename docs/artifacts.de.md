@@ -1,5 +1,5 @@
 ---
-source_sha: "8c8da72b2c36"
+source_sha: "e1c773b1851d"
 ---
 
 # Artefakte { #artifacts }
@@ -293,7 +293,7 @@ Domain** ausliefern, indem es `ARTIFACT_ORIGIN` setzt — zum Beispiel
 liegt dann auf einer ganz anderen Site. Der opake Origin isoliert sie bereits,
 das ist also eine Härtung, die ein Security-Review verlangen kann, keine
 Voraussetzung. Setzen Sie die Variable für das Backend und für das Frontend, das
-diesen Origin zu seinem `frame-src` hinzufügt. Siehe
+die Content-Route dieses Origins zu seinem `frame-src` hinzufügt. Siehe
 [Konfiguration](configuration.md#published-artifacts).
 
 ## Aufbewahrung und Löschung { #retention-and-deletion }

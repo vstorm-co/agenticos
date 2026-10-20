@@ -1,5 +1,5 @@
 ---
-source_sha: "8c8da72b2c36"
+source_sha: "e1c773b1851d"
 ---
 
 # Artefakty { #artifacts }
@@ -269,8 +269,8 @@ ustawiając `ARTIFACT_ORIGIN` — na przykład
 `https://agenticos-content.example.net`, skierowaną do tego samego API. Strona
 jest wtedy w zupełnie innej witrynie. Nieprzezroczysty origin już ją izoluje, więc
 to jest utwardzenie, o które może poprosić przegląd bezpieczeństwa, a nie wymóg.
-Ustaw zmienną dla backendu i dla frontendu, który dodaje ten origin do swojego
-`frame-src`. Zobacz [Konfiguracja](configuration.md#published-artifacts).
+Ustaw zmienną dla backendu i dla frontendu, który dodaje ścieżkę treści tego
+originu do swojego `frame-src`. Zobacz [Konfiguracja](configuration.md#published-artifacts).
 
 ## Retencja i usuwanie { #retention-and-deletion }
 

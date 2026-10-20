@@ -43,6 +43,8 @@ from opentelemetry.instrumentation.fastapi import (
     _get_route_details as _upstream_route_details,
 )
 
+from app.core.logging import redact_secret_paths
+
 logger = logging.getLogger(__name__)
 
 
@@ -51,13 +53,17 @@ def route_details(scope: dict[str, Any]) -> Any:
 
     `AttributeError` is what upstream's own guarded branch catches, and
     `scope["path"]` is what it falls back to - so this widens their handling to the
-    branch they missed rather than inventing a policy. Anything else propagates: a
-    span name is not worth swallowing an unrelated failure for.
+    branch they missed rather than inventing a policy. The one difference: an
+    artifact's credential segment is redacted (`redact_secret_paths`), because the
+    path becomes the span's name. Anything else propagates: a span name is not
+    worth swallowing an unrelated failure for.
     """
     try:
         return _upstream_route_details(scope)
     except AttributeError:
-        return scope.get("path")
+        path = scope.get("path")
+        # The span is named after it, and an artifact's address is a credential.
+        return redact_secret_paths(path) if isinstance(path, str) else path
 
 
 def patch_route_details() -> None:

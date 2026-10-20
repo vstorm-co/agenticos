@@ -1,5 +1,5 @@
 ---
-source_sha: "c4f8ea3975a6"
+source_sha: "5682a9e15af4"
 ---
 
 # Berechtigungen { #permissions }
@@ -66,8 +66,10 @@ Ein Boolean am Nutzer, gänzlich außerhalb von Organisationen. Zwei Wirkungen:
    Organisation auflöst und keiner von ihnen "jede Organisation" ausdrücken
    kann ([Governance](governance.md#alerts)).
 2. **Eine Umgehung in `AuthContext.permissions`**, die jede Berechtigung auf
-   `Scope.ALL` zurückgibt - in jeder Organisation, auch in solchen, in denen die
-   Person keine Mitgliedschaft hat.
+   `Scope.ALL` zurückgibt - in jeder Organisation, in der die Person Mitglied ist.
+   Eine Organisation, in der sie keine Mitgliedschaft hat, erreicht sie nicht: Die
+   aktive Organisation wird aufgelöst, bevor irgendeine Berechtigung gelesen wird,
+   und diese Auflösung weist ein Nicht-Mitglied ab, einen App-Admin eingeschlossen.
 
 Die Umgehung ist Absicht, und der Docstring sagt warum: Eine solche Person
 verwaltet das Deployment und hat ohnehin Datenbankzugriff, sodass etwas anderes

@@ -42,6 +42,23 @@ log:
 
 accessLog:
   format: common
+  # Without the request path. Some paths are credentials: a public link's key
+  # (`/a/<key>`, `/api/v1/public/artifacts/<key>`, `/api/v1/artifact-embed/<key>`),
+  # a signed content address (`/api/v1/artifact-content/<token>`), the token of a
+  # shared conversation, a workflow form, a webhook test, a channel link or an
+  # invitation (`/invitations/<token>`), and a workflow run's resume token -
+  # `backend/app/core/logging.py` lists the API's. Traefik can keep, drop or
+  # redact a whole field but cannot rewrite part of one, so the path goes. The
+  # API's own access log still records its addresses, with those segments and
+  # the values below redacted. `RequestPath` is the request URI, query string
+  # included, so dropping it also drops the credentials that travel in a query:
+  # the agent widget socket's `visitor` and `token`, a sign-in's `code`, `state`
+  # and `invitation_handle`, and the `token` of a password reset, magic-link or
+  # email-change link.
+  # `docs/deploy.md` says what keeping it costs.
+  fields:
+    names:
+      RequestPath: drop
 
 entryPoints:
   web:

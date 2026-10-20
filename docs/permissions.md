@@ -58,8 +58,9 @@ A boolean on the user, entirely outside organizations. Two effects:
    organization, and none of them can express "every organization"
    ([Governance](governance.md#alerts)).
 2. **A bypass in `AuthContext.permissions`**, which returns every permission at
-   `Scope.ALL` - in every organization, including ones where they hold no
-   membership.
+   `Scope.ALL` - in every organization they are a member of. It does not reach
+   one where they hold no membership: the active organization is resolved before
+   any permission is read, and that refuses a non-member, an app admin included.
 
 The bypass is deliberate and the docstring says why: such a person administers
 the deployment and already has database access, so pretending otherwise would be

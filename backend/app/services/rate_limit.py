@@ -43,6 +43,7 @@ the caller for as long as the outage lasts rather than none at all.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import logging
 import time
 from collections.abc import Callable
@@ -143,6 +144,18 @@ def _bounded(caller: str) -> str:
     return f"h:{hashlib.sha256(caller.encode()).hexdigest()}"
 
 
+def _log_digest(caller: str) -> str:
+    """A short stand-in for `caller` in a log line, that tells callers apart and names none.
+
+    A caller can be a credential - a public link's key, a form's or a content
+    address's token - or an id or a network address. Keyed by the deployment's
+    secret rather than a bare hash, because the IPv4 space is small enough to hash
+    in full and match the line back to an address.
+    """
+    digest = hmac.new(settings.SECRET_KEY.encode(), caller.encode(), hashlib.sha256)
+    return digest.hexdigest()[:16]
+
+
 async def consume(*, surface: str, caller: str, limit: Limit) -> Decision:
     """Count one attempt by `caller` against `surface`, and say whether it may.
 
@@ -151,7 +164,11 @@ async def consume(*, surface: str, caller: str, limit: Limit) -> Decision:
     limited at all", so it is a warning rather than a debug.
     """
     if _redis is None:
-        logger.warning("Rate limiting not configured - %s reached unmetered by %s", surface, caller)
+        logger.warning(
+            "Rate limiting not configured - %s reached unmetered by caller %s",
+            surface,
+            _log_digest(caller),
+        )
         return Decision(allowed=True, retry_after_seconds=0, metered=False)
 
     key = f"ratelimit:{surface}:{_bounded(caller)}"
@@ -351,8 +368,11 @@ async def artifact_content_allowed(token: str) -> Decision:
     Keyed on the address, not the caller's. The token is minted by this server -
     behind a grant, or behind the public link's own limit - so it cannot be
     varied for free the way a visitor key can, and one leaked address replayed
-    from anywhere spends one allowance. Getting more means minting more, which
-    is metered where it happens. The address is also the one thing every viewer
+    from anywhere spends one allowance. Getting more means minting more: through
+    a public link that spends the link's own allowance, but a member's
+    `GET /artifacts/{id}/view` mints one per call with no limit of its own, so
+    for somebody the artifact's access rules admit this caps one address, not
+    how often they load the page. The address is also the one thing every viewer
     has of their own: counting per network address would put a whole office
     behind one proxy in one bucket.
 

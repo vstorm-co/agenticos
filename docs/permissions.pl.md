@@ -1,5 +1,5 @@
 ---
-source_sha: "c4f8ea3975a6"
+source_sha: "5682a9e15af4"
 ---
 
 # Uprawnienia { #permissions }
@@ -62,8 +62,10 @@ Boolean na użytkowniku, całkowicie poza organizacjami. Dwa skutki:
    uprawnień rozwiązuje się względem jednej organizacji, a żaden z nich nie
    umie wyrazić „każdej organizacji” ([Governance](governance.md#alerts)).
 2. **Obejście w `AuthContext.permissions`**, które zwraca każde uprawnienie na
-   `Scope.ALL` — w każdej organizacji, także w tych, w których taka osoba nie ma
-   żadnego członkostwa.
+   `Scope.ALL` — w każdej organizacji, której taka osoba jest członkiem. Nie
+   sięga do organizacji, w której nie ma ona członkostwa: aktywna organizacja jest
+   ustalana, zanim zostanie odczytane jakiekolwiek uprawnienie, a to odmawia
+   każdemu, kto nie jest członkiem — także app adminowi.
 
 Obejście jest celowe, a docstring mówi dlaczego: taka osoba administruje
 wdrożeniem i tak czy inaczej ma dostęp do bazy danych, więc udawanie czegoś

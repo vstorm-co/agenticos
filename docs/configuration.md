@@ -712,7 +712,8 @@ file storage above; these bound them and say where they are served from. See
 | `ARTIFACT_ORIGIN` | (empty) | Where content is served from - the pages, their [library set](artifacts.md#the-library-set) and the embed document. Empty serves it from `PUBLIC_BASE_URL`, isolated by its `sandbox` policy. Set it to a host on a separate registrable domain, routed to this API, to also put the page on another site |
 
 **`ARTIFACT_ORIGIN` is read twice, and both have to see it.** The backend signs
-content addresses on it, and the frontend adds it to the console's `frame-src`.
+content addresses on it, and the frontend adds its content route,
+`/api/v1/artifact-content/`, to the console's `frame-src`.
 Set it in the backend's environment and in the frontend's; the compose files
 pass it to both. A value in only one of them shows an empty frame, because the
 browser refuses to load the page from an origin the console did not allow.

@@ -1,5 +1,5 @@
 ---
-source_sha: "11e8f02699df"
+source_sha: "d0388f484f62"
 ---
 
 # Das Deployment selbst { #the-deployment-itself }
@@ -100,9 +100,14 @@ Härtungs-Header, definiert in `frontend/src/lib/csp.ts` und
 `frontend/src/lib/security-headers.ts`, beide durch Tests abgesichert. Die Policy
 ist `default-src 'self'` mit einem `connect-src`, das genau diese Origin,
 `PUBLIC_API_URL` und `PUBLIC_WS_URL` benennt, einem `img-src`, das `data:` für
-die Markenglyphen und Avatare erlaubt, `frame-src 'self' blob:` für
-Dokumentvorschauen, `object-src 'none'`, `base-uri 'self'` und
-`frame-ancestors 'none'`.
+die Markenglyphen und Avatare erlaubt, einem `frame-src`, das `'self'` und
+`blob:` für Dokumentvorschauen sowie die Inhaltsroute der Artifacts
+(`{ARTIFACT_ORIGIN or PUBLIC_API_URL}/api/v1/artifact-content/`) erlaubt,
+`object-src 'none'`, `base-uri 'self'` und `frame-ancestors 'none'`. Die
+Inhaltsroute wird über ihren Pfad benannt, nicht über ihre Origin, sodass ein
+Frame eine veröffentlichte Seite laden kann und sonst nichts, was die API
+ausliefert; siehe
+[Wie die Seite isoliert wird](artifacts.md#how-the-page-is-isolated).
 
 `script-src` enthält kein `'unsafe-inline'`. Die Middleware erzeugt pro Anfrage
 einen Nonce, schreibt `'nonce-…' 'strict-dynamic'` in die Direktive, und Next

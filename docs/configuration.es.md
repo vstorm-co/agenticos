@@ -1,5 +1,5 @@
 ---
-source_sha: "e271559652ed"
+source_sha: "72c9b49ab9c2"
 ---
 
 # Configuración { #configuration }
@@ -738,8 +738,8 @@ dónde se sirven. Consulta [Artefactos](artifacts.md).
 | `ARTIFACT_ORIGIN` | (vacío) | Desde dónde se sirve el contenido: las páginas, su [conjunto de bibliotecas](artifacts.md#the-library-set) y el documento para incrustar. Vacío lo sirve desde `PUBLIC_BASE_URL`, aislado por su política `sandbox`. Fíjalo en un host de un dominio registrable aparte, enrutado a esta API, para poner además la página en otro sitio |
 
 **`ARTIFACT_ORIGIN` se lee dos veces, y ambas tienen que verlo.** El backend firma
-las direcciones de contenido sobre él, y el frontend lo añade al `frame-src` de la
-consola. Fíjalo en el entorno del backend y en el del frontend; los ficheros de
+las direcciones de contenido sobre él, y el frontend añade su ruta de contenido,
+`/api/v1/artifact-content/`, al `frame-src` de la consola. Fíjalo en el entorno del backend y en el del frontend; los ficheros de
 compose se lo pasan a ambos. Un valor en solo uno de ellos muestra un frame vacío,
 porque el navegador se niega a cargar la página desde un origen que la consola no
 ha permitido.
