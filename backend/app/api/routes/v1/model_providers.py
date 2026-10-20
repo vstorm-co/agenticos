@@ -30,11 +30,16 @@ from app.schemas.model_profile import (
     SpeechToTextModelRead,
     SpeechToTextProviderList,
     SpeechToTextProviderRead,
+    TextToSpeechModelRead,
+    TextToSpeechProviderList,
+    TextToSpeechProviderRead,
+    TextToSpeechVoiceRead,
 )
 from app.services.image_models import image_providers
 from app.services.model_catalog import models_for
 from app.services.model_profile import provider_catalog
 from app.services.speech_to_text import providers as speech_to_text_providers
+from app.services.text_to_speech_models import providers as text_to_speech_providers
 
 router = APIRouter()
 
@@ -180,6 +185,57 @@ async def list_speech_to_text_models() -> Any:
                 models=[
                     SpeechToTextModelRead(
                         id=model.id, name=model.name, description=model.description
+                    )
+                    for model in entry.models
+                ],
+            )
+            for entry in offered
+        ],
+        total=len(offered),
+    )
+
+
+@router.get(
+    "/text-to-speech-models",
+    response_model=TextToSpeechProviderList,
+    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+)
+async def list_text_to_speech_models() -> Any:
+    """Which providers can speak a text aloud, with which models, voices and formats.
+
+    The same shape and the same reasoning as `/image-models`: the catalog is the
+    platform's, so a console that kept a copy would hold one a catalog change makes
+    wrong. Voices are listed per model because OpenAI's older models speak in only
+    some of its voices. A provider whose voices belong to the account - ElevenLabs -
+    lists none and says so in `account_voices`, and a binding names one by id.
+
+    No credential is read. This says what the deployment can offer, not what this
+    organization has a key for - the secret field beside it does that.
+
+    Declared before `/{provider}/models`, which would otherwise match
+    "text-to-speech-models" as a provider.
+    """
+    offered = text_to_speech_providers()
+    return TextToSpeechProviderList(
+        items=[
+            TextToSpeechProviderRead(
+                provider=entry.provider,
+                name=entry.name,
+                formats=list(entry.formats),
+                account_voices=entry.account_voices,
+                models=[
+                    TextToSpeechModelRead(
+                        id=model.id,
+                        name=model.name,
+                        description=model.description,
+                        max_characters=model.max_characters,
+                        takes_instructions=model.takes_instructions,
+                        voices=[
+                            TextToSpeechVoiceRead(
+                                id=voice.id, name=voice.name, description=voice.description
+                            )
+                            for voice in entry.voices_for(model)
+                        ],
                     )
                     for model in entry.models
                 ],

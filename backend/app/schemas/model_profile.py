@@ -189,6 +189,46 @@ class SpeechToTextProviderList(BaseSchema):
     total: int
 
 
+class TextToSpeechVoiceRead(BaseSchema):
+    """One voice a provider offers to every account."""
+
+    id: str = Field(description="The id stored on the binding")
+    name: str = Field(description="What to show")
+    description: str = Field(description="How it sounds, where the provider says")
+
+
+class TextToSpeechModelRead(BaseSchema):
+    """One model that speaks."""
+
+    id: str = Field(description="The id stored on the binding")
+    name: str = Field(description="What to show")
+    description: str = Field(description="When to reach for this one rather than another")
+    max_characters: int = Field(
+        description="The most text one request takes; longer is sent in parts"
+    )
+    takes_instructions: bool = Field(description="Whether it reads a direction on how to speak")
+    voices: list[TextToSpeechVoiceRead] = Field(
+        description="The voices this model can speak in. Empty where voices belong to the account"
+    )
+
+
+class TextToSpeechProviderRead(BaseSchema):
+    """One provider that can speak, and what may be chosen on it."""
+
+    provider: str = Field(description="The catalog id, e.g. `elevenlabs`")
+    name: str = Field(description="What to show")
+    formats: list[str] = Field(description="Audio formats it returns, by file extension")
+    account_voices: bool = Field(
+        description="Whether voices belong to the account, so a binding names one by id"
+    )
+    models: list[TextToSpeechModelRead]
+
+
+class TextToSpeechProviderList(BaseSchema):
+    items: list[TextToSpeechProviderRead]
+    total: int
+
+
 class ProviderModelList(BaseSchema):
     items: list[ProviderModelRead]
     total: int

@@ -772,6 +772,7 @@ include = [
     "app/services/mcp_audit.py",
     "app/services/speech_to_text.py",
     "app/services/transcription.py",
+    "app/services/text_to_speech_models.py",
     # The rest of `app/services/rag/` came with the template and is reported
     # rather than gated. This module is ours and is only refusals - where a
     # remote file may be written, and what may reach a Drive query - so the
@@ -1235,6 +1236,7 @@ include = [
     "app/services/mcp_audit.py",
     "app/services/speech_to_text.py",
     "app/services/transcription.py",
+    "app/services/text_to_speech_models.py",
     # The rest of `app/services/rag/` came with the template and is reported
     # rather than gated. This module is ours and is only refusals - where a
     # remote file may be written, and what may reach a Drive query - so the
