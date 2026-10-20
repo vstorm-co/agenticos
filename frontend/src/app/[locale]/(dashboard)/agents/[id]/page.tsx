@@ -349,9 +349,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   const canEdit = can(Perm.agentsEdit);
   const canPublish = can(Perm.agentsPublish);
-  // Only the platform runs a system agent - a judge, the case generator - so
-  // nobody chats with it, gives it tools or exposes it, and its page holds what
-  // changes how it works, and nothing else.
+  // Only the platform runs a system agent - nobody chats with it, gives it tools
+  // or exposes it - so its page holds what changes how it works, and nothing else.
   const isJudge = agent?.kind === "judge";
   const isSystem = agent?.kind !== undefined && agent.kind !== "agent";
   const canViewRuns = can(Perm.runsView);
