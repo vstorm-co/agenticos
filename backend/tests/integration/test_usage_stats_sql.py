@@ -659,6 +659,49 @@ class TestSurfacesAndCost:
         assert usage.cost.period_usd == Decimal("1.75")
         assert usage.cost.previous_period_usd == Decimal("0.5")
 
+    async def test_the_authoring_assistant_is_billed_apart_from_evals(self, db) -> None:
+        """It runs on the eval surface like every system agent, but it improves agents
+        rather than measuring them, so the bill names its cost on a line of its own."""
+        organization, owner = await _org_with_owner(db, "Authoring")
+        judge = await _agent(db, organization, owner, slug="eval-judge")
+        improver = await _agent(db, organization, owner, slug="authoring-assistant")
+        improver.kind = "improver"
+        await db.flush()
+        for each, cost in ((judge, "0.25"), (improver, "0.10"), (improver, "0.05")):
+            await _run(
+                db,
+                organization=organization,
+                agent=each,
+                started_at=START,
+                duration_seconds=60,
+                user_id=owner.id,
+                surface=RunSurface.EVAL.value,
+                cost=Decimal(cost),
+            )
+        await _run(
+            db,
+            organization=organization,
+            agent=improver,
+            started_at=START - timedelta(days=10),
+            surface=RunSurface.EVAL.value,
+            cost=Decimal("0.5"),
+        )
+
+        usage = await StatsService(db).usage(
+            AuthContext(
+                user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER.value
+            ),
+            from_date=START.date(),
+            to_date=(END - timedelta(days=1)).date(),
+        )
+
+        assert usage.total_runs == 0
+        assert usage.cost is not None
+        assert usage.cost.eval_usd == Decimal("0.25")
+        assert usage.cost.authoring_usd == Decimal("0.15")
+        assert usage.cost.period_usd == Decimal("0.40")
+        assert usage.cost.previous_period_usd == Decimal("0.5")
+
     async def test_the_cost_window_sums_only_its_own_days(self, db) -> None:
         organization, owner = await _org_with_owner(db, "Cost")
         agent = await _agent(db, organization, owner)

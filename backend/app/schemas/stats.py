@@ -156,7 +156,7 @@ class CostBlock(BaseSchema):
     it were two different definitions of cost sitting on one card with nothing
     saying so - on a deployment that indexes documents they simply disagreed.
 
-    `model_usd`, `eval_usd` and `ingestion_usd` sum to it. They are separate fields rather
+    `model_usd`, `eval_usd`, `authoring_usd` and `ingestion_usd` sum to it. They are separate fields rather
     than a computed split because the two are answered by different tables and
     a reader deciding where the money went should not have to subtract.
 
@@ -165,7 +165,9 @@ class CostBlock(BaseSchema):
 
     `eval_usd` is what eval runs and their judge cost - inside `period_usd`,
     because it is money spent, but outside `model_usd`, which is production
-    traffic as every other figure on the dashboard is.
+    traffic as every other figure on the dashboard is. `authoring_usd` is what
+    the authoring assistant cost proposing improvements: it runs on the eval
+    surface too, but is not measurement, so it is named apart from `eval_usd`.
 
     The calendar month-to-date figure still lives on `GET /spend`: it
     reconciles against an invoice and must not move with a period filter.
@@ -175,6 +177,7 @@ class CostBlock(BaseSchema):
     previous_period_usd: Decimal
     model_usd: Decimal
     eval_usd: Decimal
+    authoring_usd: Decimal = Decimal(0)
     ingestion_usd: Decimal
     by_provider: list[ProviderCost]
 
