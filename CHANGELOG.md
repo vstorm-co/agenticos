@@ -219,6 +219,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **The composer's @-menu draws MCP servers as the MCP page does.** The
+  platform's own server wore a letter "A"; it now wears the deployment's mark,
+  and every other server its brand logo in colour, from the host it is reached
+  on (`host` on a mentionable - the host alone, never the address).
 - **A theme change in a background tab no longer raises an error.** The system
   turning dark, or another tab changing the theme, while a tab was hidden made
   the browser skip the sweep and reject it unhandled ("Skipped ViewTransition due
