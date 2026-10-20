@@ -295,6 +295,10 @@ Two things are versioned separately from this file and worth knowing about:
   foreign key now refuses the delete, and deleting a connection can confirm that
   its sandboxes were removed on the provider by hand. The console asks, where a
   refused delete used to vanish without a word.
+- **Recent visuals shows a published app as its page.** An app with no kept
+  thumbnail drew only the kind's mark wherever the deployment has no browser to
+  photograph it; its tile now shows the page itself, live and shrunk, as the
+  apps listing does.
 - **Google and Microsoft sign in under their own full-colour marks.** The
   sign-in buttons drew both in a single colour; they now use Google's
   four-colour G and Microsoft's four squares, fetched in colour by
