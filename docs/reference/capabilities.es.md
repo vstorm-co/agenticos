@@ -1,5 +1,5 @@
 ---
-source_sha: "e00bb9806c8f"
+source_sha: "d8a950528ed9"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -32,7 +32,7 @@ capabilities cubren además cosas que no son herramientas en absoluto, y por eso
 | `memory_files` | Archivos de memoria | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
 | `memory_mem0` | Memoria (mem0) | knowledge | `remember`, `recall` | — | obligatoria |
 | `conversation_search` | Búsqueda de conversaciones | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
-| `virtual_tables` | Tablas | data | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record` | `tables:read` | — |
+| `virtual_tables` | Tablas | data | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record`, `list_views`, `share_view` | `tables:read` | — |
 | `workflows` | Workflows | automation | `list_workflows`, `run_workflow`, `get_workflow_run` | `workflows:run` | — |
 | `web_research` | Búsqueda web | research | `web_search` | `web:read` | para servicios de pago |
 | `web_fetch` | Lectura de páginas web | research | `web_fetch` | `web:fetch` | — |
@@ -1065,6 +1065,29 @@ incruste sus propios datos y cargue los gráficos desde el
 [conjunto de bibliotecas](../artifacts.md#the-library-set) del despliegue en lugar
 de un CDN. Consulta [cómo se aísla la página](../artifacts.md#how-the-page-is-isolated).
 
+**Datos en vivo.** Los `bindings` de `publish_artifact` vinculan una página HTML a
+[vistas de tabla](../virtual-tables.md#saved-views) guardadas como
+`{name: {view, fields}}`, donde `fields` asigna cada nombre que lee la página a una
+columna por id o etiqueta. El spec del agent tiene que conceder lectura sobre la
+tabla. La página llama a `agenticos.onData(render)`, que se ejecuta con los primeros
+datos y en cada refresco; `agenticos.data` es una Promise de los primeros datos. Los
+registros se leen cuando alguien mira la página, con el acceso propio del lector, y
+nunca se guardan en ella. Un binding que el lector no puede leer llega
+`unavailable`. Los nombres son `^[a-z_][a-z0-9_]{0,63}$`, con como máximo 5 bindings
+y 50 campos cada uno. El resultado devuelve cada campo como `Label (type)`, y `kept`
+para un binding que se arrastra. [Datos en vivo](../artifacts.md#live-data) tiene los
+límites.
+
+**Un run sin persona.** Una página con bindings solo la publica un run que actúa en
+nombre de un miembro: el miembro con sesión iniciada (chat web, API HTTP), un
+remitente de canal vinculado o el creador de una programación. Un visitante de un
+widget, un embed o una página alojada, un remitente de canal no vinculado, la
+entrega de un trigger de eventos de un agent (GitHub, correo, relé de webhooks) y un
+run de workflow admitido por una puerta pública, o cualquier punto de la cadena de
+ese run, no publican ninguna página vinculada. Un autor que quiera aprobar cada
+nueva publicación de una página vinculada fija `tool_approval` en
+`publish_artifact`.
+
 ## Delegación { #delegation }
 
 `task` — *entrega una pieza de trabajo autocontenida a uno de los especialistas de
@@ -1533,6 +1556,15 @@ o un rol reducido detiene la llamada siguiente.
 `tables:create`. Las herramientas de registros nunca crean tablas. Una tabla que
 crea el agent se puede usar el resto de ese run.
 
+`list_views` devuelve las vistas guardadas de las tablas que el agent puede leer, con
+el id de cada vista, sus columnas y si está compartida; una página se vincula a una
+vista por ese id. `share_view` hace visible una vista privada para todos los que
+pueden ver la tabla, algo que necesita una página para otras personas. Solo el
+propietario de la vista puede compartirla. Por defecto espera la solicitud de
+aprobación; una `approval` de toda la capability en `virtual_tables` también la
+decide, y solo `tool_approval.share_view` la apunta a ella sola. Las dos necesitan un
+run que actúe en nombre de un miembro.
+
 Las herramientas de escritura tienen efectos secundarios por herramienta, así que una
 política de aprobación las cubre a ellas y no a las lecturas. La clave de operación
 de una escritura sale del run y de la llamada a la herramienta, así que una llamada
@@ -1565,7 +1597,9 @@ efectos secundarios, así que una política de aprobación puede retenerlo mient
 lecturas corren libres. Un agente que se ejecuta como paso de un workflow no inicia nada
 por esta vía: un paso **Run a workflow** llama a otro workflow y conserva los límites de
 bucle y de profundidad de la cadena. Por eso el diálogo del agente del propio paso no
-ofrece esta capability.
+ofrece esta capability. Una ejecución sin un miembro detrás (un visitante de un
+widget, un embed o una página alojada, un remitente de canal no vinculado, la entrega
+de un trigger de eventos de un agente) no inicia ninguno.
 
 ## Fecha y hora { #date-and-time }
 

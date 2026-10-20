@@ -1,5 +1,5 @@
 ---
-source_sha: "aba33b00ad86"
+source_sha: "1498bf3bb484"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -394,6 +394,22 @@ vista: un filtro sobre ella desaparece, un orden por ella vuelve a `created_at`,
 agrupación por ella se vacía, y sale de `visible_columns` - una vista que ya no
 muestra ninguna de sus columnas elegidas muestra todas las vivas. La configuración
 guardada no se reescribe.
+
+### Las vistas como contrato de datos para páginas { #views-for-pages }
+
+Un [artefacto](artifacts.md#live-data) publicado se vincula a vistas guardadas, y la
+vista es lo que lee: los filtros, el orden y las columnas visibles definen los
+registros y los campos que recibe la página. Un agent con esta capability encuentra
+vistas con `list_views`, que devuelve el id de cada vista, sus columnas y si está
+compartida, para las tablas que puede leer.
+
+Una vista privada solo sirve a su propietario, así que una página que abren otros
+necesita una compartida. `share_view` hace visible una vista para todos los que
+pueden ver la tabla, y solo el propietario de la vista puede compartirla. Por
+defecto espera la solicitud de aprobación. Una `approval` de toda la capability en
+`virtual_tables` también la decide, y solo `tool_approval.share_view` la apunta a
+ella sola. Quien mira la página sigue leyendo solo lo que le permite su propio
+acceso a la tabla.
 
 ## Triggers { #triggers }
 

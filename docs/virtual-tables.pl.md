@@ -1,5 +1,5 @@
 ---
-source_sha: "aba33b00ad86"
+source_sha: "1498bf3bb484"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -391,6 +391,22 @@ jego odczycie: filtr na niej znika, sortowanie po niej wraca do `created_at`,
 grupowanie po niej jest czyszczone, a ona sama wypada z `visible_columns` - widok,
 który nie pokazuje już żadnej z wybranych kolumn, pokazuje wszystkie żywe. Zapisana
 konfiguracja nie jest przepisywana.
+
+### Widoki jako kontrakt danych dla stron { #views-for-pages }
+
+Opublikowany [artefakt](artifacts.md#live-data) wiąże się z zapisanymi widokami, a
+widok jest tym, co strona czyta: jego filtry, sortowanie i widoczne kolumny
+wyznaczają rekordy i pola, które strona dostaje. Agent z tą capability znajduje
+widoki przez `list_views`, które dla tabel, które agent może czytać, zwraca id
+każdego widoku, jego kolumny i to, czy jest współdzielony.
+
+Prywatny widok obsługuje tylko swojego właściciela, więc strona, którą otwierają
+inni, potrzebuje widoku współdzielonego. `share_view` udostępnia widok każdemu, kto
+widzi tabelę, a udostępnić go może tylko właściciel widoku. Domyślnie czeka na
+prośbę o zatwierdzenie. Decyduje o nim także `approval` ustawione dla całej
+capability `virtual_tables`, a tylko `tool_approval.share_view` dotyczy wyłącznie
+jego. Oglądający stronę nadal czyta tylko to, na co pozwala mu jego własny dostęp
+do tabeli.
 
 ## Wyzwalacze { #triggers }
 

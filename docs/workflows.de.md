@@ -1,5 +1,5 @@
 ---
-source_sha: "4c451cd217e6"
+source_sha: "7b28466fa425"
 ---
 
 # Workflows { #workflows }
@@ -843,6 +843,10 @@ Antwort. Der Lauf wird geprüft, abgerechnet und auditiert wie einer aus **Start
 und die Seite der Läufe sagt, dass **An agent** ihn gestartet hat. Einem Agenten lässt
 sich nur ein veröffentlichter Workflow geben, der mit **Manual**, **API request** oder
 **Called by a workflow** beginnt.
+
+Ein Run, hinter dem kein Mitglied steht (der Besucher eines Widgets, eines Embeds
+oder einer gehosteten Seite, ein nicht verknüpfter Absender in einem Kanal, die
+Zustellung eines Ereignis-Triggers eines Agenten), startet keinen.
 
 ### Wenn ein anderer Workflow fehlschlägt { #when-another-workflow-fails }
 

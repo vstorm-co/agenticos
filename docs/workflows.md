@@ -745,6 +745,9 @@ billed and audited like one started from **Start a run**, and the runs page says
 was started by **An agent**. Only a published workflow starting from **Manual**,
 **API request** or **Called by a workflow** can be given to an agent.
 
+A run with no member behind it (a widget, embed or hosted-page visitor, an
+unlinked channel sender, an agent event trigger's delivery) starts none.
+
 ### When another workflow fails { #when-another-workflow-fails }
 
 An **On failure of a workflow** trigger makes an error workflow. Picked as another

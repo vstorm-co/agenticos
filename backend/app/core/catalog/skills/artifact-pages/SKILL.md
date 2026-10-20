@@ -15,7 +15,9 @@ precise, graphite - not like a landing page.
 ## What the page can load
 
 The page runs in an isolated frame with **no network**. It cannot fetch data,
-call an API or load anything from a CDN. Put the data in the page.
+call an API or load anything from a CDN. Data you only need once goes in the
+page; records that should stay current arrive through `agenticos.onData` (see
+"Live data" below).
 
 The deployment serves a small set of files beside the page. Load them by these
 relative addresses - they cost nothing to include and every page gets the same
@@ -119,8 +121,9 @@ data rather than starting from an empty page:
 - `templates/report.html` - something to read: the answer in a callout, key
   facts, sections, a table, next steps.
 
-Keep the data in one `const data = {...}` at the top of the script, as numbers
-rather than formatted strings, so the next refresh changes one place.
+Keep static data in one `const data = {...}` at the top of the script, as numbers
+rather than formatted strings, so the next refresh changes one place. Data you
+bound to a table view does not live there: it comes from `onData`.
 
 ## Rules
 
@@ -147,6 +150,38 @@ bookmarked shows the new version.
 
 **Check it on a phone in your head**: the grids stack, tables scroll, nothing is
 wider than the screen.
+
+## Live data
+
+When the page shows records from a Virtual Table, bind it to saved views
+instead of copying the records in: pass `bindings` to `publish_artifact`
+(`list_views` gives each view's id and columns), then read them in the page.
+
+```js
+agenticos.onData(function (data) {
+  // data.tickets = {status, records, fields, count, truncated, limit}
+  render(data);
+});
+```
+
+- **`onData(render)` is the default.** It runs with the first data and again on
+  every refresh, so draw from scratch each time. `agenticos.data` is a Promise
+  of the first data only.
+- **Draw a loading state first**, then the data. Until the first call the page
+  has nothing to show.
+- **Draw `unavailable`.** A binding whose `status` is `unavailable` means this
+  viewer cannot read it. Show "No data", not an empty chart.
+- **Show a cut list.** When `truncated` is true, say the list is cut and why:
+  `limit` is `records` or `bytes`. `count` is how many records you got.
+- **Never `innerHTML` with record text.** Use `textContent`; a record is
+  whatever somebody typed.
+- Each record is `{id, <field>: value}`. A field whose column was removed has a
+  `null` value and state `missing`; an archived one, state `archived`.
+- Names: lower-case letters, digits and `_`, at most 64 characters; at most 5
+  bindings and 50 fields per binding.
+
+A private view serves only its owner, so a page for other people needs a shared
+view. Data you need once still goes inline.
 
 ## Changing a page you published
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "4c451cd217e6"
+source_sha: "7b28466fa425"
 ---
 
 # Workflows { #workflows }
@@ -796,6 +796,10 @@ se comprueba, se factura y se audita como una iniciada desde **Start a run**, y 
 página de ejecuciones dice que la inició **An agent**. A un agente solo se le puede dar
 un workflow publicado que empiece con **Manual**, **API request** o **Called by a
 workflow**.
+
+Una ejecución sin un miembro detrás (un visitante de un widget, un embed o una página
+alojada, un remitente de canal no vinculado, la entrega de un trigger de eventos de un
+agente) no inicia ninguno.
 
 ### Cuando otro workflow falla { #when-another-workflow-fails }
 

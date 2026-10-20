@@ -1,5 +1,5 @@
 ---
-source_sha: "4c451cd217e6"
+source_sha: "7b28466fa425"
 ---
 
 # Workflows { #workflows }
@@ -770,6 +770,10 @@ imieniu działa, i czeka na odpowiedź do limitu bindingu. Run jest sprawdzany, 
 i audytowany jak uruchomiony przez **Start a run**, a strona runów podaje, że uruchomił
 go **An agent**. Agentowi można dać tylko opublikowany workflow startujący od
 **Manual**, **API request** albo **Called by a workflow**.
+
+Run, za którym nie stoi żaden członek (odwiedzający widget, embed albo hostowaną
+stronę, niepowiązany nadawca z kanału, dostarczenie triggera zdarzeniowego agenta),
+niczego nie uruchamia.
 
 ### Gdy inny workflow zawiedzie { #when-another-workflow-fails }
 

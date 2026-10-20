@@ -28,7 +28,7 @@ tools listed.
 | `memory_files` | Memory files | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
 | `memory_mem0` | Memory (mem0) | knowledge | `remember`, `recall` | — | required |
 | `conversation_search` | Conversation search | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
-| `virtual_tables` | Tables | data | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record` | `tables:read` | — |
+| `virtual_tables` | Tables | data | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record`, `list_views`, `share_view` | `tables:read` | — |
 | `workflows` | Workflows | automation | `list_workflows`, `run_workflow`, `get_workflow_run` | `workflows:run` | — |
 | `web_research` | Web search | research | `web_search` | `web:read` | for paid services |
 | `web_fetch` | Web fetch | research | `web_fetch` | `web:fetch` | — |
@@ -997,6 +997,25 @@ policy with `connect-src 'none'`, and the tool text tells the model to inline it
 own data and load charts from the deployment's [library set](../artifacts.md#the-library-set)
 rather than a CDN. See [how the page is isolated](../artifacts.md#how-the-page-is-isolated).
 
+**Live data.** `bindings` on `publish_artifact` bind an HTML page to saved
+[table views](../virtual-tables.md#saved-views) as `{name: {view, fields}}`, where
+`fields` maps each name the page reads to a column by id or label. The agent's
+spec must grant read on the table. The page calls `agenticos.onData(render)`,
+which runs with the first data and on every refresh; `agenticos.data` is a Promise
+of the first data. Records are read when somebody views the page, with the
+viewer's own access, and are never stored in it. A binding the viewer cannot read
+arrives `unavailable`. Names are `^[a-z_][a-z0-9_]{0,63}$`, at most 5 bindings and
+50 fields each. The result echoes each field as `Label (type)`, and `kept` for a
+binding carried forward. [Live data](../artifacts.md#live-data) has the limits.
+
+**A run with no person.** A page with bindings is published only by a run acting
+for a member: the signed-in member (web chat, HTTP API), a linked channel sender
+or a schedule's creator. A widget, embed or hosted-page visitor, an unlinked
+channel sender, an agent event trigger's delivery (GitHub, email, webhook relay)
+and a workflow run admitted by a public door, or anywhere in such a run's chain,
+publish no bound page. An author who wants each republish of a bound page
+approved sets `tool_approval` on `publish_artifact`.
+
 ## Delegation
 
 `task` — *hand a self-contained piece of work to one of this agent's specialists.*
@@ -1429,6 +1448,14 @@ unshared or a role narrowed mid-run stops the next call.
 `tables:create`. Record tools never create tables. A table the agent makes is usable
 for the rest of that run.
 
+`list_views` returns the saved views of the tables the agent may read, with each
+view's id, its columns and whether it is shared; a page binds to a view by that id.
+`share_view` makes a private view visible to everyone who can see the table, which
+a page for other people needs. Only the view's owner can share it. It waits for
+the approval prompt by default; a capability-wide `approval` on `virtual_tables`
+decides it too, and only `tool_approval.share_view` targets it alone. Both need a
+run acting for a member.
+
 The write tools are side-effecting per tool, so an approval policy gates them and
 not the reads. A write's operation key comes from the run and the tool call, so a
 retried call replays its first answer. Values are keyed by column id or label, and a
@@ -1458,6 +1485,8 @@ side-effecting, so an approval policy can gate it while the reads run freely. An
 agent running as a workflow's own step starts nothing this way: a **Run a
 workflow** step calls another workflow, keeping the chain's loop and depth limits.
 That is also why the step's own agent dialog does not offer this capability.
+A run with no member behind it (a widget, embed or hosted-page visitor, an
+unlinked channel sender, an agent event trigger's delivery) starts none.
 
 ## Date and time
 

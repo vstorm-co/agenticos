@@ -1,5 +1,5 @@
 ---
-source_sha: "aba33b00ad86"
+source_sha: "1498bf3bb484"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -421,6 +421,22 @@ der Ansicht weggelassen: ein Filter darauf entfällt, eine Sortierung danach fä
 `created_at` zurück, eine Gruppierung danach wird geleert, und sie verlässt
 `visible_columns` - eine Ansicht, die keine ihrer gewählten Spalten mehr zeigt, zeigt
 alle lebenden. Die gespeicherte Konfiguration wird nicht umgeschrieben.
+
+### Ansichten als Datenvertrag für Seiten { #views-for-pages }
+
+Ein veröffentlichtes [Artefakt](artifacts.md#live-data) bindet sich an gespeicherte
+Ansichten, und die Ansicht ist das, was es liest: Filter, Sortierung und sichtbare
+Spalten legen fest, welche Datensätze und Felder die Seite bekommt. Ein Agent mit
+dieser Capability findet Ansichten mit `list_views`, das für die Tabellen, die er
+lesen darf, die ID jeder Ansicht, ihre Spalten und ob sie geteilt ist liefert.
+
+Eine private Ansicht liefert nur an ihren Besitzer, eine Seite, die andere öffnen,
+braucht also eine geteilte. `share_view` macht eine Ansicht für jeden sichtbar, der
+die Tabelle sehen kann, und nur der Besitzer der Ansicht kann sie teilen. Es wartet
+standardmäßig auf eine Freigabe. Ein `approval` für die ganze Capability auf
+`virtual_tables` entscheidet auch darüber, und nur `tool_approval.share_view` zielt
+allein auf dieses Tool. Ein Betrachter der Seite liest weiterhin nur, was sein
+eigener Zugriff auf die Tabelle erlaubt.
 
 ## Trigger { #triggers }
 

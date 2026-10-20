@@ -1,5 +1,5 @@
 ---
-source_sha: "e1c773b1851d"
+source_sha: "4f828eda9f79"
 ---
 
 # Artefakty { #artifacts }
@@ -52,6 +52,116 @@ jeszcze raz — edytowana kopia starszej strony nigdy nie zastępuje nowszej. Od
 podlega tej samej zasadzie co otwarcie strony w konsoli: osoba, w imieniu której
 działa run, musi mieć prawo ją otworzyć. Strona dłuższa niż 100 000 znaków wraca
 ucięta i to mówi; edycja nadal może wskazać tekst za cięciem.
+
+## Dane na żywo { #live-data }
+
+Strona może pokazywać rekordy z [Virtual Tables](virtual-tables.md), które są
+aktualne, zamiast kopii, z którą ją opublikowano. Agent przekazuje `bindings` do
+`publish_artifact`: każdy binding to nazwa, [zapisany widok](virtual-tables.md#saved-views)
+i kolumny, które strona z niego czyta. `list_views` daje agentowi id i kolumny
+każdego widoku. Strona wywołuje `agenticos.onData(render)`, a `render(data)` działa
+z pierwszymi danymi i ponownie przy każdym odświeżeniu. `agenticos.data` to Promise
+pierwszych danych.
+
+```js
+agenticos.onData((data) => {
+  // data.tickets = { status, records, fields, count, truncated, limit }
+});
+```
+
+Każdy binding przychodzi jako `status` (`ok` albo `unavailable`), `records`
+(`{id, <field>: value}`), `fields` (etykieta, typ, opcje i stan każdego pola),
+`count`, `truncated` i `limit`. Strona, która nie dostanie odpowiedzi w ciągu 10
+sekund, widzi każdy binding jako `unavailable`; listener dodany później pyta jeszcze
+raz. Binding jest `unavailable`, gdy ten oglądający nie może czytać jego widoku albo
+widok zniknął. Pole, którego kolumnę usunięto, jest serwowane pod swoją nazwą pola
+jako pole `text` o wartości `null` i stanie `missing`; zarchiwizowana kolumna daje
+`null` ze stanem `archived`.
+
+Rekordy są czytane **wtedy, gdy ktoś ogląda stronę, z własnym dostępem tego
+oglądającego**, i nigdy nie są w niej przechowywane. Dwie osoby, które otworzą tę
+samą stronę, mogą zobaczyć różne wiersze. Prywatny widok obsługuje tylko swojego
+właściciela, więc agent udostępnia widok, zanim zwiąże z nim stronę dla innych
+osób. Wynik publikacji wymienia każde pole jako `Label (type)`, więc agent może
+sprawdzić, czy związał kolumnę, o którą mu chodziło; binding przeniesiony bez zmian
+mówi `kept`.
+
+Nazwy bindingów i nazwy pól składają się z małych liter, cyfr i `_`, maksymalnie
+64 znaki, a `__proto__`, `constructor` i `prototype` są zarezerwowane dla obu (dla
+pola także `id`). Strona ma najwyżej 5 bindingów, a binding najwyżej 50 pól.
+
+### Co widzi oglądający { #what-the-viewer-sees }
+
+Strona z bindingami pokazuje plakietkę **Live** na swojej karcie, w widgecie
+artefaktów na dashboardzie i w podglądzie. Na starszej wersji podgląd nie pokazuje
+plakietki.
+
+Podgląd ma przycisk **Refresh**, który czyta dane ponownie i aktualizuje w miejscu
+stronę korzystającą z `agenticos.onData`; w podpowiedzi przycisku widać, kiedy dane
+odczytano ostatnio. Obok jest menu automatycznego odświeżania: wyłączone, co minutę,
+co 5, 15 albo 60 minut. Każdy oglądający wybiera własne ustawienie, a wybór jest
+zapamiętywany per strona w tej przeglądarce.
+
+Automatyczne odświeżanie nic nie robi, gdy karta jest ukryta, i czyta raz, gdy karta
+wraca, jeśli jakiś takt został pominięty. Zatrzymuje się, gdy dostęp do danych
+zostaje odmówiony (strona nie istnieje już dla tego oglądającego) i gdy żadnego
+źródła na stronie nie da się odczytać — dopóki oglądający nie kliknie Refresh i
+odczyt się nie powiedzie. Błąd, który nic nie mówi o stronie, na przykład błąd
+serwera, nie przerywa odpytywania. Odpowiedź „zajęty” (429) jest ponawiana dwa
+razy, co sekundę, zanim oglądający zobaczy komunikat „Busy, try again in a
+moment.”
+
+Wiersz pod paskiem pojawia się tylko wtedy, gdy coś wymaga uwagi. Strona, do której
+dostępu odmówiono, mówi „This page's live data is not available to you.” Czytelnik,
+którego źródeł nie da się odczytać, widzi, ilu („2 of 3 sources unavailable to
+you”). Edytor, czyli każdy, kto może edytować stronę, widzi też dla każdego źródła
+powód (na przykład usunięto jego zapisany widok, jego tabela jest zarchiwizowana,
+agent nie dostał grantu na tabelę albo nie możesz czytać jego zapisanego widoku) z
+linkiem **Open the table** do związanego widoku.
+
+Na starszej wersji dane na żywo nie są czytane. Podgląd mówi „Live data only on the
+current version.” z przyciskiem **Open current**, a edytorowi pokazuje też
+**Restore** dla tej wersji. Przywrócenie wersji, której źródła danych na żywo są
+niedostępne, mówi, które to są.
+
+### Limity { #limits }
+
+Każda odpowiedź jest ograniczona, więc jedna strona nie położy wdrożenia:
+
+| Limit | Wartość |
+|---|---|
+| Bindingi na stronę | 5 |
+| Rekordy na binding | 1000 |
+| Dane po ukształtowaniu na stronę | 4 MiB, podzielone sprawiedliwie między bindingi |
+| Jedno zapytanie | najwyżej 2 s |
+| Jedna strona | termin 5 s |
+| Ładowania danych | 30 na minutę na oglądającego, jedno w toku na oglądającego i limit na proces |
+
+Ucięty binding mówi `truncated: true`, z `limit` ustawionym na `records` albo
+`bytes` i `count` równym liczbie podanych rekordów. `bytes` obejmuje też odczyt,
+którego zmierzony koszt wyczerpał się, zanim ukształtowane dane wypełniły przypadającą
+na binding część strony.
+
+Termin jest egzekwowany bez anulowania żadnego zapytania: każde zapytanie trwa
+najwyżej krócej z 2 s i czasu pozostałego z 5 s, a po wyczerpaniu 5 s żadne nowe
+zapytanie nie startuje, więc strona odpowiada w około 5 s. Po przekroczeniu limitu
+zapytań trasa odpowiada 429; konsola ponawia odpowiedź „zajęty” dwa razy. Gdy Redis
+nie działa, dolny próg limitu zapytań i limit żądań w toku liczą się per worker API,
+a limit na proces nadal ogranicza każdy worker.
+
+### Kto może opublikować stronę z bindingami { #who-may-publish-a-bound-page }
+
+Strona wiąże się z tabelą tylko wtedy, gdy spec publikującego agenta przyznaje
+odczyt tej tabeli, co jest sprawdzane przy publikacji strony albo przywróceniu
+wersji. Późniejsze odebranie grantu nie zatrzymuje stron już opublikowanych, a każdy
+oglądający nadal czyta tylko to, na co pozwala mu jego własny dostęp.
+
+Stronę z bindingami może ponownie opublikować tylko run działający w imieniu
+członka: zalogowanego członka (czat webowy, HTTP API), powiązanego nadawcy z kanału
+albo twórcy harmonogramu. Odwiedzający widget, embed albo hostowaną stronę,
+niepowiązany nadawca z kanału i dostarczenie triggera zdarzeniowego agenta (GitHub,
+e-mail, przekaźnik webhooków) się nie liczą, podobnie jak run workflow przyjęty
+przez publiczne wejście albo cokolwiek w łańcuchu takiego runa.
 
 ## Jedna nazwa, jeden link { #one-name-one-link }
 
@@ -109,10 +219,11 @@ skrypt, style i obrazy (jako URI `data:`) do tego jednego pliku.
 
     Skrypty działają, więc wykres rysowany przez bibliotekę zadziała. Ale strona
     nie może niczego skądkolwiek załadować ani niczego nigdzie wysłać — skrypt z
-    CDN, font z adresu URL i wywołanie API kończą się błędem. Jedynym wyjątkiem
-    jest zestaw bibliotek poniżej, który wdrożenie serwuje samo. Narzędzie mówi to
-    modelowi. To celowe, a [Jak strona jest izolowana](#how-the-page-is-isolated)
-    wyjaśnia dlaczego.
+    CDN, font z adresu URL i wywołanie API kończą się błędem. Wyjątkami są
+    zestaw bibliotek poniżej, który wdrożenie serwuje samo, i
+    [dane na żywo](#live-data), które konsola przekazuje stronie z
+    zadeklarowanymi bindingami. Narzędzie mówi to modelowi. To celowe, a
+    [Jak strona jest izolowana](#how-the-page-is-isolated) wyjaśnia dlaczego.
 
 ### Zestaw bibliotek { #the-library-set }
 
@@ -145,7 +256,8 @@ się go trzymał.
 ## Kto może go otworzyć { #who-can-open-it }
 
 Nowy artefakt jest **prywatny** dla osoby, w imieniu której działał publikujący
-run: dla osoby na czacie albo dla twórcy triggera.
+run: dla osoby na czacie albo dla twórcy triggera. Prywatną stronę widzą też
+role Owner, Admin, Builder i Operator.
 
 Jego link - ten, na który wskazują karta w czacie i odpowiedź agenta - otwiera
 samą stronę, na całe okno, pod jednym paskiem z tytułem, wersją i przyciskiem
@@ -171,9 +283,12 @@ Otwarcie go wymaga `artifacts:view`.
 
 Agent nie może poszerzyć grona czytelników strony. Agent publikuje; o tym, kto ją
 widzi, decyduje człowiek. Dlatego capability domyślnie nie prosi o zatwierdzenie:
-pierwsza publikacja jest prywatna. Autor, który chce, żeby człowiek zatwierdzał
-każdą ponowną publikację już udostępnionej strony, ustawia `tool_approval` na
-`publish_artifact` w specu.
+pierwsza publikacja jest prywatna, a o tym, co pokazuje strona z bindingami,
+decyduje w chwili oglądania własny dostęp każdego oglądającego. Autor, który chce,
+żeby człowiek zatwierdzał każdą ponowną publikację już udostępnionej strony albo
+strony z bindingami, ustawia `tool_approval` na `publish_artifact` w specu. Stronę
+z bindingami może ponownie opublikować tylko run działający w imieniu członka
+(zobacz [Dane na żywo](#live-data)).
 
 ### Publiczny link { #the-public-link }
 
@@ -250,6 +365,12 @@ ani osoby, która go ogląda:
   osadzenia robi to samo w pasku pod stroną. Strona mogłaby wysłać tę wiadomość
   sama, więc jest ona prośbą, a nigdy zgodą — to człowiek czytający adres stoi
   między stroną po prompt injection a adresem, pod który wysłałaby swoje liczby.
+- Dane na żywo przychodzą przez `postMessage` z konsoli, która pobiera je jako
+  oglądający. Trasa treści nigdy nie niesie rekordów. Żądanie strony niesie nonce,
+  dzięki któremu konsola dopasowuje każdą odpowiedź do właściwego załadowania
+  strony; to **korelacja, a nie kontrola dostępu**. Dostępem jest własna sesja
+  oglądającego na trasie danych, więc strona dostaje zawsze tylko to, co
+  oglądający może czytać.
 - Jeden podpisany adres ładuje swoją stronę najwyżej kilka razy na minutę, licząc
   per adres, zanim cokolwiek zostanie odczytane. Konsola i strona publiczna
   wydają świeży adres za każdym razem, gdy rysują ramkę, a wydanie go przez
@@ -293,9 +414,11 @@ wdrożenia, pod `artifacts/<organization>/<artifact>/`.
 ## Ograniczenia { #limitations }
 
 - **Jeden samodzielny dokument na wersję.** Bez paczek i bez sieci z wnętrza
-  strony poza serwowanym zestawem bibliotek.
-- **Bez danych na żywo.** Dashboard pokazuje dane, z którymi został opublikowany.
-  Odświeża się, gdy agent opublikuje go ponownie — zwykle robi to harmonogram.
+  strony poza serwowanym zestawem bibliotek i [danymi na żywo](#live-data), które
+  przekazuje jej konsola.
+- **Dane na żywo są ograniczone.** Pięć bindingów, po 1000 rekordów i około 5 s
+  na załadowanie; zobacz [limity](#limits). Dane, które nie są związane, to strona
+  taka, jak ją opublikowano, i zmieniają się, gdy agent opublikuje ją ponownie.
 - **Nic na stronie nie działa.** Formularz albo przycisk nie mają dokąd wysłać
   tego, co zbiorą.
 - **Otwarta strona przeżywa odwołanie o jeden czas życia podpisanego adresu**,
@@ -316,6 +439,9 @@ wdrożenia, pod `artifacts/<organization>/<artifact>/`.
 - Domyślnie prywatny; udostępniany grantami, organizacji albo publicznym linkiem —
   przez człowieka. Publiczny link może wygasnąć, przypiąć wersję, pytać o hasło i
   być osadzony na wymienionych witrynach.
+- Strona może związać się z zapisanymi widokami tabel i pokazywać dane na żywo,
+  czytane w chwili oglądania z własnym dostępem oglądającego i nigdy nie
+  przechowywane w stronie.
 - Serwowany z trasy bez ciasteczek, w nieprzezroczystym originie bez sieci poza
   własnym zestawem bibliotek wdrożenia, z linkami, które pytają przed otwarciem, i
   opcjonalnie z własnej domeny.

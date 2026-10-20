@@ -1,5 +1,5 @@
 ---
-source_sha: "e00bb9806c8f"
+source_sha: "d8a950528ed9"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -33,7 +33,7 @@ Capabilities decken außerdem Dinge ab, die gar keine Tools sind — deshalb ste
 | `memory_files` | Gedächtnisdateien | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
 | `memory_mem0` | Gedächtnis (mem0) | knowledge | `remember`, `recall` | — | erforderlich |
 | `conversation_search` | Unterhaltungssuche | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
-| `virtual_tables` | Tabellen | data | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record` | `tables:read` | — |
+| `virtual_tables` | Tabellen | data | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record`, `list_views`, `share_view` | `tables:read` | — |
 | `workflows` | Workflows | automation | `list_workflows`, `run_workflow`, `get_workflow_run` | `workflows:run` | — |
 | `web_research` | Websuche | research | `web_search` | `web:read` | für kostenpflichtige Dienste |
 | `web_fetch` | Webabruf | research | `web_fetch` | `web:fetch` | — |
@@ -1110,6 +1110,30 @@ Modell, seine eigenen Daten einzubetten und Diagramme aus dem
 CDN zu laden. Siehe
 [wie die Seite isoliert wird](../artifacts.md#how-the-page-is-isolated).
 
+**Live-Daten.** `bindings` an `publish_artifact` binden eine HTML-Seite an
+gespeicherte [Tabellenansichten](../virtual-tables.md#saved-views), als
+`{name: {view, fields}}`, wobei `fields` jeden Namen, den die Seite liest, per ID
+oder Label einer Spalte zuordnet. Der Spec des Agents muss Lesezugriff auf die
+Tabelle freigeben. Die Seite ruft `agenticos.onData(render)` auf, das mit den
+ersten Daten und bei jeder Aktualisierung läuft; `agenticos.data` ist ein Promise
+auf die ersten Daten. Datensätze werden gelesen, wenn jemand die Seite ansieht,
+mit dem eigenen Zugriff des Betrachters, und nie in der Seite gespeichert. Ein
+Binding, das der Betrachter nicht lesen kann, kommt als `unavailable` an. Namen
+folgen `^[a-z_][a-z0-9_]{0,63}$`, höchstens 5 Bindings mit je 50 Feldern. Das
+Ergebnis gibt jedes Feld als `Label (type)` zurück und `kept` für ein übernommenes
+Binding. [Live-Daten](../artifacts.md#live-data) nennt die Grenzen.
+
+**Ein Run ohne Person.** Eine Seite mit Bindings veröffentlicht nur ein Run, der
+für ein Mitglied handelt: das angemeldete Mitglied (Web-Chat, HTTP-API), ein
+verknüpfter Absender in einem Kanal oder der Ersteller eines Zeitplans. Der
+Besucher eines Widgets, eines Embeds oder einer gehosteten Seite, ein nicht
+verknüpfter Absender in einem Kanal, die Zustellung eines Ereignis-Triggers eines
+Agents (GitHub, E-Mail, Webhook-Relay) und ein Workflow-Run, den ein öffentlicher
+Eingang zugelassen hat, oder irgendein Run in der Kette eines solchen Runs
+veröffentlichen keine gebundene Seite. Ein Autor, der jede erneute
+Veröffentlichung einer gebundenen Seite genehmigt haben möchte, setzt
+`tool_approval` auf `publish_artifact`.
+
 ## Delegation { #delegation }
 
 `task` — *übergibt ein in sich geschlossenes Stück Arbeit an einen der
@@ -1611,6 +1635,15 @@ geteilte Tabelle oder eine eingeschränkte Rolle stoppt also den nächsten Aufru
 weiterhin `tables:create`. Datensatz-Tools legen nie Tabellen an. Eine Tabelle, die
 der Agent anlegt, ist für den Rest dieses Runs nutzbar.
 
+`list_views` liefert die gespeicherten Ansichten der Tabellen, die der Agent lesen
+darf, mit der ID jeder Ansicht, ihren Spalten und ob sie geteilt ist; eine Seite
+bindet sich über diese ID an eine Ansicht. `share_view` macht eine private Ansicht
+für jeden sichtbar, der die Tabelle sehen kann, was eine Seite für andere braucht.
+Nur der Besitzer der Ansicht kann sie teilen. Es wartet standardmäßig auf eine
+Freigabe; ein `approval` für die ganze Capability auf `virtual_tables` entscheidet
+auch darüber, und nur `tool_approval.share_view` zielt allein auf dieses Tool.
+Beide brauchen einen Run, der für ein Mitglied handelt.
+
 Die Schreib-Tools sind pro Tool als seiteneffektbehaftet markiert, sodass eine
 Freigaberichtlinie sie erfasst und nicht die Lesezugriffe. Der Operationsschlüssel
 eines Schreibzugriffs stammt aus dem Run und dem Tool-Aufruf, daher spielt ein
@@ -1644,6 +1677,9 @@ frei laufen. Ein Agent, der als Schritt eines Workflows läuft, startet auf dies
 nichts: Ein Schritt **Run a workflow** ruft einen anderen Workflow auf und behält die
 Schleifen- und Tiefengrenzen der Kette. Deshalb bietet auch der Agentendialog des
 Schritts diese Capability nicht an.
+Ein Run, hinter dem kein Mitglied steht (der Besucher eines Widgets, eines Embeds
+oder einer gehosteten Seite, ein nicht verknüpfter Absender in einem Kanal, die
+Zustellung eines Ereignis-Triggers eines Agents), startet keinen.
 
 ## Datum und Uhrzeit { #date-and-time }
 

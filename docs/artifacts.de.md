@@ -1,5 +1,5 @@
 ---
-source_sha: "e1c773b1851d"
+source_sha: "4f828eda9f79"
 ---
 
 # Artefakte { #artifacts }
@@ -59,6 +59,125 @@ ersetzt. Das Lesen folgt derselben Regel wie das Öffnen in der Konsole: Die
 Person, für die der Run handelt, muss die Seite öffnen dürfen. Eine Seite über
 100.000 Zeichen kommt abgeschnitten zurück und sagt das; eine Änderung kann
 trotzdem Text hinter dem Schnitt nennen.
+
+## Live-Daten { #live-data }
+
+Eine Seite kann Datensätze aus [Virtual Tables](virtual-tables.md) zeigen, die
+aktuell bleiben, statt der Kopie, mit der sie veröffentlicht wurde. Der Agent
+übergibt `publish_artifact` dafür `bindings`: Jedes Binding besteht aus einem
+Namen, einer [gespeicherten Ansicht](virtual-tables.md#saved-views) und den
+Spalten, die die Seite daraus liest. `list_views` liefert dem Agent die ID und die
+Spalten jeder Ansicht. Die Seite ruft `agenticos.onData(render)` auf, und
+`render(data)` läuft mit den ersten Daten und erneut bei jeder Aktualisierung.
+`agenticos.data` ist ein Promise auf die ersten Daten.
+
+```js
+agenticos.onData((data) => {
+  // data.tickets = { status, records, fields, count, truncated, limit }
+});
+```
+
+Jedes Binding kommt als `status` (`ok` oder `unavailable`), `records`
+(`{id, <field>: value}`), `fields` (Label, Typ, Optionen und Zustand jedes Felds),
+`count`, `truncated` und `limit` an. Eine Seite, die innerhalb von 10 Sekunden
+keine Antwort bekommt, sieht jedes Binding als `unavailable`; ein danach
+hinzugefügter Listener fragt noch einmal. Ein Binding ist `unavailable`, wenn
+dieser Betrachter seine Ansicht nicht lesen darf oder die Ansicht nicht mehr
+existiert. Ein Feld, dessen Spalte entfernt wurde, wird unter seinem Feldnamen als
+`text`-Feld mit dem Wert `null` und dem Zustand `missing` ausgeliefert; eine
+archivierte Spalte ergibt `null` mit dem Zustand `archived`.
+
+Die Datensätze werden gelesen, **wenn jemand die Seite ansieht, mit dem eigenen
+Zugriff dieses Betrachters**, und nie in der Seite gespeichert. Zwei Personen, die
+dieselbe Seite öffnen, können unterschiedliche Zeilen sehen. Eine private Ansicht
+liefert nur an ihren Besitzer, deshalb teilt der Agent eine Ansicht, bevor er eine
+Seite für andere daran bindet. Das Ergebnis der Veröffentlichung führt jedes Feld
+als `Label (type)` auf, sodass der Agent prüfen kann, ob er die gemeinte Spalte
+gebunden hat; ein unverändert übernommenes Binding meldet `kept`.
+
+Namen von Bindings und Feldern bestehen aus Kleinbuchstaben, Ziffern und `_`,
+höchstens 64 Zeichen, und `__proto__`, `constructor` und `prototype` sind für
+beide reserviert (für ein Feld außerdem `id`). Eine Seite hat höchstens 5
+Bindings, ein Binding höchstens 50 Felder.
+
+### Was der Betrachter sieht { #what-the-viewer-sees }
+
+Eine Seite mit Bindings trägt ein Badge **Live** auf ihrer Karte, im
+Artefakt-Widget des Dashboards und in der Seitenanzeige. Auf einer älteren Version
+zeigt die Seitenanzeige kein Badge.
+
+Die Seitenanzeige hat **Refresh**, das die Daten erneut liest und eine Seite, die
+`agenticos.onData` verwendet, an Ort und Stelle aktualisiert; der Tooltip der
+Schaltfläche sagt, wann zuletzt gelesen wurde. Daneben liegt ein Menü für die
+automatische Aktualisierung: aus, jede Minute oder alle 5, 15 oder 60 Minuten.
+Jeder Betrachter wählt selbst, und die Wahl wird pro Seite in diesem Browser
+gespeichert.
+
+Die automatische Aktualisierung tut nichts, solange der Tab verborgen ist, und
+liest einmal, wenn der Tab zurückkommt und ein Takt verpasst wurde. Sie hört auf,
+wenn die Daten abgelehnt werden (die Seite ist für diesen Betrachter nicht mehr
+da) und wenn keine Quelle der Seite gelesen werden kann, bis der Betrachter auf
+Refresh klickt und ein Lesen antwortet. Ein Fehler, der nichts über die Seite
+aussagt, etwa ein Serverfehler, lässt sie weiter abfragen. Eine Antwort „busy“
+(429) wird zweimal im Abstand von einer Sekunde wiederholt, bevor der Betrachter
+„Busy, try again in a moment.“ liest.
+
+Eine Zeile unter der Leiste erscheint nur, wenn etwas Aufmerksamkeit braucht. Eine
+abgelehnte Seite sagt „This page's live data is not available to you.“ Ein Leser,
+dessen Quellen nicht gelesen werden können, sieht, wie viele („2 of 3 sources
+unavailable to you“). Wer die Seite bearbeiten darf, sieht außerdem für jede
+Quelle den Grund (zum Beispiel wurde ihre gespeicherte Ansicht gelöscht, ihre
+Tabelle ist archiviert, die Tabelle ist dem Agent nicht freigegeben, oder Sie
+können ihre gespeicherte Ansicht nicht lesen), mit einem Link **Open the table**
+zur gebundenen Ansicht.
+
+Auf einer älteren Version werden keine Live-Daten gelesen. Die Seitenanzeige sagt
+„Live data only on the current version.“ mit **Open current** und, für jemanden,
+der die Seite bearbeiten darf, **Restore** für diese Version. Wer eine Version
+wiederherstellt, deren Live-Quellen nicht verfügbar sind, erfährt, welche.
+
+### Grenzen { #limits }
+
+Jede Antwort ist begrenzt, damit eine einzelne Seite nicht das Deployment
+lahmlegen kann:
+
+| Grenze | Wert |
+|---|---|
+| Bindings pro Seite | 5 |
+| Datensätze pro Binding | 1.000 |
+| Aufbereitete Daten pro Seite | 4 MiB, gerecht auf die Bindings verteilt |
+| Eine Abfrage | höchstens 2 s |
+| Eine Seite | Frist von 5 s |
+| Datenladevorgänge | 30 pro Minute je Betrachter, einer gleichzeitig je Betrachter und eine Obergrenze pro Prozess |
+
+Ein gekürztes Binding meldet `truncated: true`, mit `limit` auf `records` oder
+`bytes` und `count` als Zahl der ausgelieferten Datensätze. `bytes` deckt auch ein
+Lesen ab, dessen gemessene Kosten aufgebraucht waren, bevor die aufbereiteten Daten
+den Anteil der Seite gefüllt hatten.
+
+Die Frist wird durchgesetzt, ohne eine Abfrage abzubrechen: Jede Abfrage läuft
+höchstens so lange wie das Kleinere aus 2 s und der Restzeit der 5 s, und sind die
+5 s verbraucht, beginnt keine Abfrage mehr, sodass eine Seite in etwa 5 s
+antwortet. Jenseits eines Rate-Limits antwortet die Route mit 429; die Konsole
+wiederholt eine Antwort „busy“ zweimal. Ist Redis ausgefallen, zählen die
+Untergrenze des Rate-Limits und das Limit gleichzeitiger Ladevorgänge pro
+API-Worker, und die Obergrenze pro Prozess begrenzt weiterhin jeden Worker.
+
+### Wer eine gebundene Seite veröffentlichen darf { #who-may-publish-a-bound-page }
+
+Eine Seite bindet sich nur dann an eine Tabelle, wenn der Spec des
+veröffentlichenden Agents Lesezugriff auf sie freigibt, geprüft beim
+Veröffentlichen der Seite oder beim Wiederherstellen einer Version. Wird die
+Freigabe später entzogen, hält das bereits veröffentlichte Seiten nicht an, und
+jeder Betrachter liest weiterhin nur, was sein eigener Zugriff erlaubt.
+
+Eine gebundene Seite kann nur ein Run erneut veröffentlichen, der für ein Mitglied
+handelt: das angemeldete Mitglied (Web-Chat, HTTP-API), ein verknüpfter Absender
+in einem Kanal oder der Ersteller eines Zeitplans. Der Besucher eines Widgets,
+eines Embeds oder einer gehosteten Seite, ein nicht verknüpfter Absender in einem
+Kanal und die Zustellung eines Ereignis-Triggers eines Agents (GitHub, E-Mail,
+Webhook-Relay) zählen nicht, ebenso wenig ein Workflow-Run, den ein öffentlicher
+Eingang zugelassen hat, oder irgendein Run in der Kette eines solchen Runs.
 
 ## Ein Name, ein Link { #one-name-one-link }
 
@@ -121,9 +240,11 @@ Dateien: Betten Sie Ihr eigenes Skript, Ihre Stile und Bilder (als
     Skripte laufen, ein von einer Bibliothek gezeichnetes Diagramm funktioniert
     also. Aber die Seite kann nichts von irgendwoher laden und nichts irgendwohin
     senden — ein CDN-Skript, eine Webschrift von einer URL und ein API-Aufruf
-    schlagen alle fehl. Die einzige Ausnahme ist der Bibliothekssatz unten, den das
-    Deployment selbst ausliefert. Das Tool sagt das dem Modell. Es ist Absicht, und
-    [Wie die Seite isoliert wird](#how-the-page-is-isolated) sagt, warum.
+    schlagen alle fehl. Die Ausnahmen sind der Bibliothekssatz unten, den das
+    Deployment selbst ausliefert, und die [Live-Daten](#live-data), die die Konsole
+    einer Seite mit deklarierten Bindings übergibt. Das Tool sagt das dem Modell.
+    Es ist Absicht, und [Wie die Seite isoliert wird](#how-the-page-is-isolated)
+    sagt, warum.
 
 ### Der Bibliothekssatz { #the-library-set }
 
@@ -158,7 +279,8 @@ den Skill, um Ihre eigene Marke zu beschreiben, und der Agent folgt ihr.
 ## Wer es öffnen kann { #who-can-open-it }
 
 Ein neues Artefakt ist **privat** für die Person, für die der veröffentlichende
-Run gehandelt hat: die Person im Chat oder der Ersteller eines Triggers.
+Run gehandelt hat: die Person im Chat oder der Ersteller eines Triggers. Eine
+private Seite sehen außerdem die Rollen Owner, Admin, Builder und Operator.
 
 Sein Link - der, auf den die Karte im Chat und die Antwort des Agents zeigen -
 öffnet die Seite selbst, fensterfüllend unter einer Leiste mit Titel, Version
@@ -185,9 +307,13 @@ Artefakt, aus der Rolle oder aus einem `edit`-Grant. Es zu öffnen, erfordert
 
 Der Agent kann nicht erweitern, wer eine Seite liest. Er veröffentlicht; eine
 Person entscheidet, wer sie sieht. Deshalb verlangt die Capability standardmäßig
-keine Genehmigung: Eine erste Veröffentlichung ist privat. Ein Autor, der möchte,
-dass eine Person jede erneute Veröffentlichung einer bereits geteilten Seite
-genehmigt, setzt im Spec `tool_approval` auf `publish_artifact`.
+keine Genehmigung: Eine erste Veröffentlichung ist privat, und was eine gebundene
+Seite zeigt, entscheidet beim Ansehen der eigene Zugriff jedes Betrachters. Ein
+Autor, der möchte, dass eine Person jede erneute Veröffentlichung einer bereits
+geteilten Seite oder einer gebundenen Seite genehmigt, setzt im Spec
+`tool_approval` auf `publish_artifact`. Eine gebundene Seite kann nur ein Run
+erneut veröffentlichen, der für ein Mitglied handelt (siehe
+[Live-Daten](#live-data)).
 
 ### Der öffentliche Link { #the-public-link }
 
@@ -272,6 +398,12 @@ nichts, was es tut, die Konsole oder die Person erreichen kann, die es ansieht:
   selbst senden, sie ist also eine Bitte und nie eine Erlaubnis — die Person, die
   die Adresse liest, steht zwischen einer per Prompt Injection manipulierten
   Seite und der Adresse, an die sie ihre Zahlen schicken würde.
+- Live-Daten kommen per `postMessage` von der Konsole, die sie als der Betrachter
+  abruft. Die Content-Route transportiert nie Datensätze. Die Anfrage der Seite
+  trägt eine Nonce, mit der die Konsole jede Antwort dem richtigen Laden der Seite
+  zuordnet; das ist **Korrelation, keine Zugriffskontrolle**. Den Zugriff regelt
+  die eigene Session des Betrachters auf der Daten-Route, sodass eine Seite immer
+  nur bekommt, was der Betrachter lesen darf.
 - Eine signierte Adresse lädt ihre Seite höchstens einige Male pro Minute,
   gezählt pro Adresse, bevor irgendetwas gelesen wird. Die Konsole und die
   öffentliche Seite stellen jedes Mal eine frische Adresse aus, wenn sie den
@@ -319,10 +451,12 @@ Deployments, unter `artifacts/<organization>/<artifact>/`.
 ## Einschränkungen { #limitations }
 
 - **Ein in sich geschlossenes Dokument pro Version.** Keine Bündel und kein
-  Netzwerk aus der Seite heraus außer dem ausgelieferten Bibliothekssatz.
-- **Keine Live-Daten.** Ein Dashboard zeigt die Daten, mit denen es
-  veröffentlicht wurde. Es aktualisiert sich, wenn der Agent erneut
-  veröffentlicht — ein Zeitplan ist der übliche Weg.
+  Netzwerk aus der Seite heraus außer dem ausgelieferten Bibliothekssatz und den
+  [Live-Daten](#live-data), die die Konsole ihr übergibt.
+- **Live-Daten sind begrenzt.** Fünf Bindings, je 1.000 Datensätze und etwa 5 s
+  pro Ladevorgang; siehe die [Grenzen](#limits). Nicht gebundene Daten sind die
+  Seite, wie sie veröffentlicht wurde, und ändern sich, wenn der Agent erneut
+  veröffentlicht.
 - **Nichts auf der Seite handelt.** Ein Formular oder ein Knopf hat keinen Ort,
   an den es senden könnte, was es sammelt.
 - **Eine offene Seite überdauert einen Entzug um eine Lebensdauer der signierten
@@ -347,6 +481,9 @@ Deployments, unter `artifacts/<organization>/<artifact>/`.
   öffentlichen Link, durch eine Person. Der öffentliche Link kann ablaufen, eine
   Version anheften, nach einem Passwort fragen und auf aufgeführten Websites
   eingebettet werden.
+- Eine Seite kann sich an gespeicherte Tabellenansichten binden und Live-Daten
+  zeigen, gelesen beim Ansehen mit dem eigenen Zugriff des Betrachters und nie in
+  der Seite gespeichert.
 - Ausgeliefert von einer Route ohne Cookies in einem opaken Origin ohne Netzwerk
   außer dem eigenen Bibliothekssatz des Deployments, mit Links, die vor dem
   Öffnen fragen, und optional von einer eigenen Domain.

@@ -1,5 +1,5 @@
 ---
-source_sha: "e1c773b1851d"
+source_sha: "4f828eda9f79"
 ---
 
 # Artefactos { #artifacts }
@@ -53,6 +53,117 @@ sigue la misma regla que abrir la página en la consola: la persona por la que
 actúa el run tiene que poder abrirla. Una página de más de 100.000 caracteres
 vuelve cortada, y lo dice; un cambio puede seguir nombrando texto más allá del
 corte.
+
+## Datos en vivo { #live-data }
+
+Una página puede mostrar registros de [Virtual Tables](virtual-tables.md) que se
+mantienen al día, en lugar de la copia con la que se publicó. El agent pasa
+`bindings` a `publish_artifact`: cada binding es un nombre, una [vista guardada](virtual-tables.md#saved-views)
+y las columnas que la página lee de ella. `list_views` da al agent el id y las
+columnas de cada vista. La página llama a `agenticos.onData(render)`, y
+`render(data)` se ejecuta con los primeros datos y de nuevo en cada refresco.
+`agenticos.data` es una Promise de los primeros datos.
+
+```js
+agenticos.onData((data) => {
+  // data.tickets = { status, records, fields, count, truncated, limit }
+});
+```
+
+Cada binding llega como `status` (`ok` o `unavailable`), `records`
+(`{id, <field>: value}`), `fields` (etiqueta, tipo, opciones y estado de cada uno),
+`count`, `truncated` y `limit`. Una página que no recibe respuesta en 10 segundos
+ve todos sus bindings `unavailable`; un listener añadido después de eso pregunta
+una vez más. Un binding es `unavailable` cuando este lector no puede leer su vista
+o la vista ya no existe. Un campo cuya columna se eliminó se sirve con su nombre de
+campo como campo `text` con valor `null` y estado `missing`; una columna archivada
+da `null` con estado `archived`.
+
+Los registros se leen **cuando alguien mira la página, con el acceso de ese
+lector**, y nunca se guardan en ella. Dos personas que abren la misma página pueden
+ver filas distintas. Una vista privada solo sirve a su propietario, así que el agent
+comparte una vista antes de que una página para otras personas se vincule a ella.
+El resultado de la publicación enumera cada campo como `Label (type)`, para que el
+agent compruebe que vinculó la columna que pretendía; un binding que se arrastra
+sin cambios dice `kept`.
+
+Los nombres de binding y de campo son letras minúsculas, dígitos y `_`, hasta 64
+caracteres, y `__proto__`, `constructor` y `prototype` están reservados para
+ambos (`id` también, para un campo). Una página tiene como máximo 5 bindings, y un
+binding como máximo 50 campos.
+
+### Lo que ve el lector { #what-the-viewer-sees }
+
+Una página con bindings muestra una insignia **Live** en su tarjeta, en el widget
+de artefactos del dashboard y en el visor. En una versión anterior el visor no
+muestra ninguna insignia.
+
+El visor tiene **Refresh**, que vuelve a leer los datos y actualiza en el sitio una
+página que usa `agenticos.onData`, con la hora de la última lectura en el tooltip
+del botón. Junto a él hay un menú para refrescar automáticamente: Off, o cada 1, 5,
+15 o 60 minutos. Cada lector elige el suyo, y la elección se recuerda por página en
+ese navegador.
+
+El refresco automático no hace nada mientras la pestaña está oculta, y lee una vez
+cuando la pestaña vuelve si se perdió un ciclo. Se detiene cuando los datos se
+rechazan (la página ya no existe para este lector) y cuando no se puede leer
+ninguna fuente de la página, hasta que el lector pulsa Refresh y una lectura
+responde. Un fallo que no dice nada de la página, como un error del servidor, lo
+mantiene consultando. Una respuesta de ocupado (429) se reintenta dos veces, con un
+segundo entre medias, antes de decir al lector "Busy, try again in a moment."
+
+Bajo la barra aparece una línea solo cuando algo requiere atención. Una página
+rechazada dice "This page's live data is not available to you." Un lector cuyas
+fuentes no se pueden leer ve cuántas ("2 of 3 sources unavailable to you"). Un
+editor, es decir, cualquiera que pueda editar la página, ve además el motivo de
+cada fuente (por ejemplo, que se borró su vista guardada, que su tabla está
+archivada, que al agent no se le concedió la tabla o que no puedes leer su vista
+guardada) con un enlace **Open the table** a la vista vinculada.
+
+En una versión anterior no se leen datos en vivo. El visor dice "Live data only on
+the current version." con **Open current** y, para un editor, **Restore** para esa
+versión. Restaurar una versión cuyas fuentes en vivo no están disponibles dice
+cuáles.
+
+### Límites { #limits }
+
+Toda respuesta está acotada, así que una sola página no puede tumbar el despliegue:
+
+| Límite | Valor |
+|---|---|
+| Bindings por página | 5 |
+| Registros por binding | 1.000 |
+| Datos ya formados por página | 4 MiB, repartidos equitativamente entre los bindings |
+| Una consulta | como máximo 2 s |
+| Una página | plazo de 5 s |
+| Cargas de datos | 30 por minuto por lector, una en curso por lector y un tope por proceso |
+
+Un binding cortado dice `truncated: true`, con `limit` a `records` o `bytes` y
+`count` como el número de registros servidos. `bytes` cubre también una lectura
+cuyo coste medido se agotó antes de que los datos formados llenaran la parte que le
+corresponde de la página.
+
+El plazo se cumple sin cancelar ninguna consulta: cada consulta dura como máximo lo
+menor entre 2 s y lo que queda de los 5 s, y ninguna consulta empieza una vez
+agotados los 5 s, así que una página responde en unos 5 s. Pasado un límite de
+peticiones la ruta responde 429; la consola reintenta dos veces una respuesta de
+ocupado. Con Redis caído, el suelo del límite de peticiones y el límite de cargas
+en curso cuentan por worker de la API, y el tope por proceso sigue acotando cada
+worker.
+
+### Quién puede publicar una página vinculada { #who-may-publish-a-bound-page }
+
+Una página se vincula a una tabla solo si el spec del agent que la publica concede
+lectura sobre ella, y eso se comprueba al publicar la página o al restaurar una
+versión. Revocar el grant más tarde no detiene las páginas ya publicadas, y cada
+lector sigue leyendo solo lo que su propio acceso le permite.
+
+Una página vinculada solo puede volver a publicarla un run que actúe en nombre de un
+miembro: el miembro con sesión iniciada (chat web, API HTTP), un remitente de canal
+vinculado o el creador de una programación. Un visitante de un widget, un embed o
+una página alojada, un remitente de canal no vinculado y la entrega de un trigger de
+eventos de un agent (GitHub, correo, relé de webhooks) no cuentan, ni tampoco un run
+de workflow admitido por una puerta pública ni nada en la cadena de ese run.
 
 ## Un nombre, un enlace { #one-name-one-link }
 
@@ -114,8 +225,9 @@ incrusta tu propio script, tus estilos y las imágenes (como URI `data:`) en el
     Los scripts se ejecutan, así que un gráfico dibujado por una librería
     funciona. Pero la página no puede cargar nada de ningún sitio ni enviar nada a
     ninguna parte: un script de una CDN, una fuente web desde una URL y una
-    llamada a una API fallan todos. La única excepción es el conjunto de
-    bibliotecas de abajo, que el propio despliegue sirve. La herramienta se lo dice
+    llamada a una API fallan todos. Las excepciones son el conjunto de bibliotecas
+    de abajo, que el propio despliegue sirve, y los [datos en vivo](#live-data) que
+    la consola entrega a una página que declaró bindings. La herramienta se lo dice
     al modelo. Es deliberado, y [Cómo se aísla la página](#how-the-page-is-isolated)
     explica por qué.
 
@@ -152,7 +264,8 @@ propia marca, y el agent la sigue.
 ## Quién puede abrirlo { #who-can-open-it }
 
 Un artefacto nuevo es **privado** para la persona en nombre de la cual actuó el
-run que lo publicó: la persona del chat, o el creador de un trigger.
+run que lo publicó: la persona del chat, o el creador de un trigger. Una página
+privada también es visible para los roles Owner, Admin, Builder y Operator.
 
 Su enlace - al que apuntan la tarjeta del chat y la respuesta del agente - abre
 la propia página, a toda la ventana, bajo una única barra con el título, la
@@ -177,9 +290,12 @@ requiere `artifacts:edit` sobre ese artefacto, desde el rol o desde un grant
 
 El agent no puede ampliar quién lee una página. Publica; una persona decide quién
 la ve. Por eso la capability no pide aprobación por defecto: una primera
-publicación es privada. Un autor que quiera que una persona apruebe cada nueva
-publicación de una página ya compartida fija `tool_approval` en
-`publish_artifact` en el spec.
+publicación es privada, y lo que muestra una página vinculada lo decide en el
+momento de verla el propio acceso de cada lector. Un autor que quiera que una
+persona apruebe cada nueva publicación de una página ya compartida, o de una página
+vinculada, fija `tool_approval` en `publish_artifact` en el spec. Una página
+vinculada solo puede volver a publicarla un run que actúe en nombre de un miembro
+(consulta [Datos en vivo](#live-data)).
 
 ### El enlace público { #the-public-link }
 
@@ -261,6 +377,12 @@ consola ni a la persona que lo mira:
   petición y nunca un permiso: la persona que lee la dirección es lo que se
   interpone entre una página manipulada por prompt injection y la dirección a la
   que enviaría sus cifras.
+- Los datos en vivo llegan por `postMessage` desde la consola, que los obtiene
+  como el lector. La ruta de contenido nunca lleva registros. La petición de la
+  página lleva un nonce que permite a la consola emparejar cada respuesta con la
+  carga de página correcta; eso es **correlación, no control de acceso**. El
+  acceso es la propia sesión del lector en la ruta de datos, así que una página
+  solo recibe lo que el lector puede leer.
 - Una dirección firmada carga su página unas pocas veces por minuto como mucho,
   contadas por dirección antes de leer nada. La consola y la página pública
   emiten una dirección nueva cada vez que dibujan el frame, y emitirla a través
@@ -305,10 +427,12 @@ del despliegue, bajo `artifacts/<organization>/<artifact>/`.
 ## Limitaciones { #limitations }
 
 - **Un único documento autocontenido por versión.** Sin paquetes, y sin red desde
-  dentro de la página más allá del conjunto de bibliotecas servido.
-- **Sin datos en vivo.** Un dashboard muestra los datos con los que se publicó. Se
-  actualiza cuando el agent vuelve a publicar; una programación es la forma
-  habitual.
+  dentro de la página más allá del conjunto de bibliotecas servido y de los
+  [datos en vivo](#live-data) que le entrega la consola.
+- **Los datos en vivo están acotados.** Cinco bindings, 1.000 registros cada uno y
+  unos 5 s por carga; consulta los [límites](#limits). Los datos que no están
+  vinculados son la página tal como se publicó, y cambian cuando el agent vuelve a
+  publicar.
 - **Nada en la página actúa.** Un formulario o un botón no tiene adónde enviar lo
   que recoge.
 - **Una página abierta sobrevive a una revocación durante la vida de una
@@ -331,6 +455,9 @@ del despliegue, bajo `artifacts/<organization>/<artifact>/`.
 - Privado por defecto; compartido por una persona mediante grants, la
   organización o un enlace público. El enlace público puede caducar, fijar una
   versión, pedir una contraseña e incrustarse en los sitios enumerados.
+- Una página puede vincularse a vistas guardadas de tablas y mostrar datos en vivo,
+  leídos en el momento de verla con el propio acceso del lector y nunca guardados
+  en la página.
 - Servido desde una ruta sin cookies, en un origen opaco sin red salvo el propio
   conjunto de bibliotecas del despliegue, con enlaces que preguntan antes de
   abrirse, y opcionalmente desde un dominio propio.
