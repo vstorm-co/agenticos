@@ -155,6 +155,12 @@ Two things are versioned separately from this file and worth knowing about:
   budget's spend reads take a pooled connection instead of a new one each (two
   or three per run), and presence does not query to name the socket's own
   person.
+- **The dashboard reuses its answers for half an hour.** Every card asked again
+  on each visit and each return to the tab, about thirty requests a time. What
+  moves - runs, approvals, agents, connections - arrives on the live feed and
+  refreshes at once; the usage and spend figures refresh after thirty minutes.
+  A feed that reconnects after a drop marks every cached answer stale, since it
+  missed the changes in between.
 - **The AI Architect's bubble costs one request on every page instead of
   three.** To say whether approvals were waiting, the organization had no agent
   yet, or the reader's run had failed, the widget fetched every agent, the

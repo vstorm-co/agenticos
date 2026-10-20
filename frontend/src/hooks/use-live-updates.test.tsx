@@ -140,3 +140,31 @@ describe("whether the feed is live", () => {
     expect(useLiveFeedStore.getState().connected).toBe(false);
   });
 });
+
+describe("coming back after a drop", () => {
+  it("marks every cached answer stale, since the changes meanwhile were missed", () => {
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    const { unmount } = renderHook(() => useLiveUpdates(), { wrapper });
+
+    socket.options?.onOpen();
+    expect(invalidate).not.toHaveBeenCalled();
+    socket.options?.onClose();
+    socket.options?.onOpen();
+
+    expect(invalidate).toHaveBeenCalledWith();
+    unmount();
+  });
+
+  it("leaves another organization's first open alone - its queries are new keys", () => {
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    const { rerender, unmount } = renderHook(() => useLiveUpdates(), { wrapper });
+    socket.options?.onOpen();
+
+    useOrgStore.setState({ activeOrgId: "org-2" });
+    rerender();
+    socket.options?.onOpen();
+
+    expect(invalidate).not.toHaveBeenCalled();
+    unmount();
+  });
+});

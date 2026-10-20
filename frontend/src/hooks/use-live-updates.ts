@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
@@ -52,7 +52,18 @@ export function useLiveUpdates(): void {
     [queryClient],
   );
   const setConnected = useLiveFeedStore((state) => state.setConnected);
-  const onOpen = useCallback(() => setConnected(true), [setConnected]);
+  // The address this tab's feed was last open on. A socket that comes back to
+  // it after a drop missed whatever changed meanwhile, and the queries that
+  // lean on the feed - a dashboard holds its answers for half an hour - would
+  // show the old rows until then, so every cached answer is marked stale. A
+  // different address is another organization, whose queries are new keys
+  // already being fetched.
+  const openedOn = useRef<string | null>(null);
+  const onOpen = useCallback(() => {
+    if (openedOn.current === url) void queryClient.invalidateQueries();
+    openedOn.current = url;
+    setConnected(true);
+  }, [queryClient, setConnected, url]);
   const onClose = useCallback(() => setConnected(false), [setConnected]);
   const { connect, disconnect } = useWebSocket({
     url,
