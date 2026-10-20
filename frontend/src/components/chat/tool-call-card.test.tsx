@@ -435,6 +435,15 @@ describe("a tool call in the transcript", () => {
     expect(container.querySelector("audio")).toHaveAttribute("src", "/api/generated/x_speech.mp3");
   });
 
+  it("plays a generated video on sight, since the clip is the answer", () => {
+    const { container } = card({
+      name: "generate_video",
+      result: JSON.stringify({ kind: "generated_video", filename: "x_video.mp4", prompt: "rain" }),
+    });
+
+    expect(container.querySelector("video")).toHaveAttribute("src", "/api/generated/x_video.mp4");
+  });
+
   it("keeps a published page to one line, its card being under the answer", async () => {
     // The card sits under the reply, so the step does not open over the work -
     // which is what lets a turn that published an app fold away like any other.

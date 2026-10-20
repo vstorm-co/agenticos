@@ -59,6 +59,7 @@ browser is pointed at the deployment's browser service
 | `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — |
 | `image_generation` | Image generation | analysis | `generate_image` | — | required |
 | `text_to_speech` | Text to speech | analysis | `generate_speech` | — | required |
+| `video_generation` | Video generation | analysis | `generate_video` | — | required |
 | `coding_agent` | Coding agent | analysis | `run_coding_agent` | `sandbox:execute` | required |
 | `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
 | `planning` | Planning | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
@@ -1084,6 +1085,56 @@ text the provider refuses is steered back to the model, as is a provider that is
 rate limiting or down. A refused key, an unknown voice and a spent budget are
 answered as the result, because only the author or the operator can fix them. The
 provider's own error text is logged and never reaches the model.
+
+## Video generation
+
+`generate_video` — *Make a short video from a written description.*
+
+Makes a short clip through a video provider the author picks, and behaves as
+image generation does: the clip is stored, shown in the conversation as a player,
+and written under `output/` when a workspace is open (#2260). It can start from an
+image - the `filename` `generate_image` returned, or a workspace path.
+
+| Config | Default | Values |
+|---|---|---|
+| `provider` | `google` | `google`, `byteplus`, `xai`, `alibaba` |
+| `model` | `gemini-omni-1.1-flash` | That provider's models, from `app/core/catalog/video_models.json` |
+| `resolution` | the model's first | The resolutions the model renders |
+| `aspect_ratio` | the model's first | The aspect ratios the model renders |
+| `seconds` | 5, or the nearest the model makes | Within the model's range; ignored by Gemini Omni |
+| `max_seconds` | the model's longest | The longest clip the agent may ask for |
+| `audio` | provider default | On or off, where the model makes sound optional |
+| `timeout_seconds` | `600` | 60–1800 |
+
+**What each model can make is data.** The catalog states each model's length
+range, aspect ratios, resolutions, whether its clips carry sound and whether it
+starts from an image, and the Builder offers only those. BytePlus is a
+[secret purpose](../secrets.md) in the vault; Google, xAI and Alibaba Cloud are
+model providers already. OpenAI is absent: its video API was shut down on
+2026-09-24.
+
+**A clip is a job, waited for like a picture.** Gemini answers in the request;
+BytePlus, xAI and Alibaba take a job that is polled. Either way the call waits,
+for a minute or several, up to `timeout_seconds`. A job past it is cancelled
+where the provider allows it - BytePlus, while still queued - and the call is
+answered rather than retried, because xAI and Alibaba document no cancel and may
+still finish and bill the job. The clip is downloaded before the provider's
+address expires, and the key is never sent to a storage host.
+
+**The budget is asked with the clip's price.** Every provider bills by the second
+at a rate set by the resolution, so the catalog holds a dated price per second
+per resolution. A run is refused a clip that would carry it past a cap, then the
+length the provider reports is booked. Gemini Omni decides its own length and
+reports none, so a clip there is priced and booked at the model's longest.
+
+**It is side-effecting**, for the reasons image generation is, and more so: a
+clip is the most expensive single call an agent makes.
+
+**Failures go to whoever can fix them.** An empty prompt, a length or shape the
+model does not make, an image that cannot be read and a prompt the provider's
+content policy refused are steered back to the model, as is a provider that is
+rate limiting or down. A refused key, a spent budget and a job past the time limit
+are answered as the result.
 
 ## Coding agent { #coding-agent }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "5d2c68b0fb1b"
+source_sha: "29da4a63c669"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -66,6 +66,7 @@ Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
 | `visuals` | Wizualizacje | analiza | `draw`, `revise_visual`, `read_visual` | — | — |
 | `image_generation` | Generowanie obrazów | analiza | `generate_image` | — | wymagany |
 | `text_to_speech` | Zamiana tekstu na mowę | analiza | `generate_speech` | — | wymagany |
+| `video_generation` | Generowanie wideo | analiza | `generate_video` | — | wymagany |
 | `coding_agent` | Coding agent | analiza | `run_coding_agent` | `sandbox:execute` | wymagany |
 | `subagents` | Subagenci | rozumowanie | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
 | `planning` | Planowanie | rozumowanie | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
@@ -1144,6 +1145,58 @@ pieniądze i tworzy nagranie, które ktoś może opublikować.
 provider, który ogranicza ruch albo nie działa. Odrzucony klucz, nieznany głos i
 wyczerpany budget są zwracane jako wynik, bo naprawić je może tylko autor albo
 operator. Własny tekst błędu providera jest logowany i nigdy nie trafia do modelu.
+
+## Generowanie wideo { #video-generation }
+
+`generate_video` — *Make a short video from a written description.*
+
+Tworzy krótki klip przez providera wideo wybranego przez autora i zachowuje się
+jak generowanie obrazów: klip jest zapisywany, pokazywany w rozmowie jako
+odtwarzacz i zapisywany w `output/`, gdy workspace jest otwarty (#2260). Może
+zacząć od obrazu - `filename` zwróconego przez `generate_image` albo ścieżki w
+workspace.
+
+| Konfiguracja | Domyślnie | Wartości |
+|---|---|---|
+| `provider` | `google` | `google`, `byteplus`, `xai`, `alibaba` |
+| `model` | `gemini-omni-1.1-flash` | Modele tego providera z `app/core/catalog/video_models.json` |
+| `resolution` | pierwsza modelu | Rozdzielczości, które renderuje model |
+| `aspect_ratio` | pierwsze modelu | Proporcje obrazu, które renderuje model |
+| `seconds` | 5 albo najbliższa wartość modelu | W zakresie modelu; pomijane przez Gemini Omni |
+| `max_seconds` | najdłuższy klip modelu | Najdłuższy klip, o jaki może poprosić agent |
+| `audio` | domyślne providera | Włączony albo wyłączony, gdy model pozwala wybrać |
+| `timeout_seconds` | `600` | 60–1800 |
+
+**To, co potrafi każdy model, to dane.** Katalog podaje zakres długości modelu,
+proporcje obrazu, rozdzielczości, czy klipy mają dźwięk i czy model może zacząć
+od obrazu, a Builder oferuje tylko to. BytePlus jest [celem sekretu](../secrets.md)
+w vault; Google, xAI i Alibaba Cloud już są providerami modeli. Brakuje OpenAI:
+jego API wideo wyłączono 24.09.2026.
+
+**Klip to zadanie, na które czeka się jak na obraz.** Gemini odpowiada w samym
+żądaniu; BytePlus, xAI i Alibaba przyjmują zadanie, o które się odpytuje. W obu
+przypadkach wywołanie czeka minutę albo kilka, najwyżej `timeout_seconds`.
+Zadanie po tym czasie jest anulowane tam, gdzie provider na to pozwala - w
+BytePlus, póki czeka w kolejce - a wywołanie dostaje odpowiedź zamiast ponowienia,
+bo xAI i Alibaba nie dokumentują anulowania i mogą dokończyć oraz rozliczyć
+zadanie. Klip jest pobierany, zanim wygaśnie adres providera, a klucz nigdy nie
+trafia do hosta z plikami.
+
+**Budget jest pytany z ceną klipu.** Każdy provider rozlicza sekundy według
+stawki zależnej od rozdzielczości, więc katalog trzyma datowaną cenę za sekundę
+dla każdej rozdzielczości. Run dostaje odmowę klipu, który przekroczyłby limit, a
+potem księgowana jest długość podana przez providera. Gemini Omni sam decyduje o
+długości i jej nie podaje, więc tam klip jest wyceniany i księgowany według
+najdłuższego klipu modelu.
+
+**Ma skutki uboczne**, z tych samych powodów co generowanie obrazów, i to
+bardziej: klip to najdroższe pojedyncze wywołanie, jakie robi agent.
+
+**Błędy trafiają do tego, kto może je naprawić.** Pusty prompt, długość albo
+kształt, których model nie robi, obraz, którego nie da się odczytać, i prompt
+odrzucony przez politykę treści providera wracają do modelu, podobnie provider,
+który ogranicza ruch albo nie działa. Odrzucony klucz, wyczerpany budget i
+zadanie po limicie czasu są zwracane jako wynik.
 
 ## Coding agent { #coding-agent }
 

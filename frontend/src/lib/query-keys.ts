@@ -161,6 +161,7 @@ export const qk = {
     imageModels: () => ["providers", "image-models"] as const,
     speechToTextModels: () => ["providers", "speech-to-text-models"] as const,
     textToSpeechModels: () => ["providers", "text-to-speech-models"] as const,
+    videoModels: () => ["providers", "video-models"] as const,
   },
   secrets: {
     all: () => ["secrets"] as const,

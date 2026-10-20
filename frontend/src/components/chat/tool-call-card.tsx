@@ -15,6 +15,10 @@ import {
   GeneratedSpeechResult,
   parseGeneratedSpeech,
 } from "@/components/chat/tool-results/generated-speech";
+import {
+  GeneratedVideoResult,
+  parseGeneratedVideo,
+} from "@/components/chat/tool-results/generated-video";
 import { LoadSkillResult, LoadedSkillResult } from "./tool-results/skills";
 import { ContextListResult, SkillListResult } from "./tool-results/catalogs";
 import { PlanToolResult } from "./tool-results/plan";
@@ -167,6 +171,13 @@ export function ToolCallCard({
       ? parseGeneratedSpeech(toolCall.result)
       : null;
 
+  const generatedVideo =
+    renderer === "generated-video" &&
+    toolCall.status === "completed" &&
+    typeof toolCall.result === "string"
+      ? parseGeneratedVideo(toolCall.result)
+      : null;
+
   const publishedArtifact =
     renderer === "artifact" &&
     toolCall.status === "completed" &&
@@ -274,6 +285,8 @@ export function ToolCallCard({
         <GeneratedImageResult data={generatedImage} />
       ) : generatedSpeech !== null ? (
         <GeneratedSpeechResult data={generatedSpeech} />
+      ) : generatedVideo !== null ? (
+        <GeneratedVideoResult data={generatedVideo} />
       ) : publishedArtifact !== null ? (
         <PublishedArtifactResult data={publishedArtifact} />
       ) : chartSpec !== null ? (

@@ -1,5 +1,5 @@
 ---
-source_sha: "5d2c68b0fb1b"
+source_sha: "29da4a63c669"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -66,6 +66,7 @@ hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installati
 | `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — |
 | `image_generation` | Bilderzeugung | analysis | `generate_image` | — | erforderlich |
 | `text_to_speech` | Sprachausgabe | analysis | `generate_speech` | — | erforderlich |
+| `video_generation` | Videoerzeugung | analysis | `generate_video` | — | erforderlich |
 | `coding_agent` | Coding Agent | analysis | `run_coding_agent` | `sandbox:execute` | erforderlich |
 | `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
 | `planning` | Planung | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
@@ -1210,6 +1211,60 @@ ebenso ein Provider, der drosselt oder ausgefallen ist. Ein abgelehnter
 Schlüssel, eine unbekannte Stimme und ein ausgeschöpftes Budget werden als
 Ergebnis beantwortet, weil nur der Autor oder der Betreiber sie beheben kann. Der
 Fehlertext des Providers wird protokolliert und erreicht das Modell nie.
+
+## Videoerzeugung { #video-generation }
+
+`generate_video` — *Erzeugt ein kurzes Video aus einer schriftlichen Beschreibung.*
+
+Erzeugt einen kurzen Clip über einen Video-Provider, den der Autor wählt, und
+verhält sich wie die Bilderzeugung: Der Clip wird gespeichert, im Gespräch als
+Player gezeigt und unter `output/` abgelegt, wenn ein Workspace offen ist (#2260).
+Er kann mit einem Bild beginnen - dem `filename`, den `generate_image` zurückgab,
+oder einem Pfad im Workspace.
+
+| Konfiguration | Standard | Werte |
+|---|---|---|
+| `provider` | `google` | `google`, `byteplus`, `xai`, `alibaba` |
+| `model` | `gemini-omni-1.1-flash` | Die Modelle dieses Providers aus `app/core/catalog/video_models.json` |
+| `resolution` | die erste des Modells | Die Auflösungen, die das Modell rendert |
+| `aspect_ratio` | das erste des Modells | Die Seitenverhältnisse, die das Modell rendert |
+| `seconds` | 5 oder der nächste Wert des Modells | Im Bereich des Modells; von Gemini Omni ignoriert |
+| `max_seconds` | der längste Clip des Modells | Der längste Clip, den der Agent verlangen darf |
+| `audio` | Voreinstellung des Providers | An oder aus, wo das Modell Ton zur Wahl stellt |
+| `timeout_seconds` | `600` | 60–1800 |
+
+**Was jedes Modell erzeugen kann, sind Daten.** Der Katalog nennt für jedes
+Modell den Längenbereich, die Seitenverhältnisse, die Auflösungen, ob seine Clips
+Ton haben und ob es mit einem Bild beginnen kann, und der Builder bietet nur das
+an. BytePlus ist ein [Secret-Zweck](../secrets.md) im Vault; Google, xAI und
+Alibaba Cloud sind bereits Modell-Provider. OpenAI fehlt: Seine Video-API wurde
+am 24.09.2026 abgeschaltet.
+
+**Ein Clip ist ein Job, auf den gewartet wird wie auf ein Bild.** Gemini antwortet
+in der Anfrage selbst; BytePlus, xAI und Alibaba nehmen einen Job an, der abgefragt
+wird. In beiden Fällen wartet der Aufruf eine Minute oder mehrere, höchstens
+`timeout_seconds`. Ein Job darüber hinaus wird abgebrochen, wo der Provider es
+erlaubt - bei BytePlus, solange er wartet -, und der Aufruf wird beantwortet statt
+wiederholt, weil xAI und Alibaba keinen Abbruch dokumentieren und den Job noch
+fertigstellen und abrechnen können. Der Clip wird heruntergeladen, bevor die
+Adresse des Providers abläuft, und der Schlüssel geht nie an einen Speicher-Host.
+
+**Das Budget wird mit dem Preis des Clips gefragt.** Jeder Provider rechnet pro
+Sekunde ab, zu einem Satz, den die Auflösung bestimmt, also hält der Katalog einen
+datierten Preis pro Sekunde und Auflösung. Ein Run, den der Clip über eine Grenze
+tragen würde, wird abgelehnt; danach wird die Länge gebucht, die der Provider
+meldet. Gemini Omni bestimmt seine Länge selbst und meldet keine, also wird ein
+Clip dort zur längsten Länge des Modells bepreist und gebucht.
+
+**Sie hat Nebenwirkungen**, aus denselben Gründen wie die Bilderzeugung, und
+stärker: Ein Clip ist der teuerste einzelne Aufruf, den ein Agent macht.
+
+**Fehler gehen an den, der sie beheben kann.** Ein leerer Prompt, eine Länge oder
+Form, die das Modell nicht erzeugt, ein Bild, das nicht gelesen werden kann, und
+ein Prompt, den die Inhaltsrichtlinie des Providers abgelehnt hat, gehen an das
+Modell zurück, ebenso ein Provider, der drosselt oder ausgefallen ist. Ein
+abgelehnter Schlüssel, ein ausgeschöpftes Budget und ein Job über dem Zeitlimit
+werden als Ergebnis beantwortet.
 
 ## Coding Agent { #coding-agent }
 

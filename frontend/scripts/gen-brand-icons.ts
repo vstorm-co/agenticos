@@ -177,6 +177,8 @@ const PROVIDERS: Readonly<Record<string, Source>> = {
   anthropic: lobehub("anthropic"),
   azure: lobehub("azure"),
   bedrock: lobehub("bedrock"),
+  // BytePlus is ByteDance's cloud, and lobehub draws it with ByteDance's mark.
+  byteplus: lobehub("bytedance"),
   cerebras: lobehub("cerebras"),
   cohere: lobehub("cohere"),
   deepseek: lobehub("deepseek"),

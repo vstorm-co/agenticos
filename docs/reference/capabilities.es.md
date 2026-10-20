@@ -1,5 +1,5 @@
 ---
-source_sha: "5d2c68b0fb1b"
+source_sha: "29da4a63c669"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -66,6 +66,7 @@ guarda archivos. El navegador web apunta al servicio de navegador del despliegue
 | `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — |
 | `image_generation` | Generación de imágenes | analysis | `generate_image` | — | obligatoria |
 | `text_to_speech` | Texto a voz | analysis | `generate_speech` | — | obligatoria |
+| `video_generation` | Generación de vídeo | analysis | `generate_video` | — | obligatoria |
 | `coding_agent` | Coding agent | analysis | `run_coding_agent` | `sandbox:execute` | obligatoria |
 | `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
 | `planning` | Planificación | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
@@ -1159,6 +1160,59 @@ provider que limita el tráfico o no responde. Una clave rechazada, una voz
 desconocida y un budget agotado se responden como resultado, porque solo el autor
 o el operador pueden arreglarlos. El texto de error del provider se registra y
 nunca llega al modelo.
+
+## Generación de vídeo { #video-generation }
+
+`generate_video` — *Crea un vídeo corto a partir de una descripción escrita.*
+
+Crea un clip corto con el provider de vídeo que elige el autor y se comporta como
+la generación de imágenes: el clip se guarda, aparece en la conversación como
+reproductor y se escribe en `output/` cuando hay un workspace abierto (#2260).
+Puede empezar desde una imagen: el `filename` que devolvió `generate_image` o una
+ruta del workspace.
+
+| Configuración | Por defecto | Valores |
+|---|---|---|
+| `provider` | `google` | `google`, `byteplus`, `xai`, `alibaba` |
+| `model` | `gemini-omni-1.1-flash` | Los modelos de ese provider, de `app/core/catalog/video_models.json` |
+| `resolution` | la primera del modelo | Las resoluciones que renderiza el modelo |
+| `aspect_ratio` | la primera del modelo | Las proporciones que renderiza el modelo |
+| `seconds` | 5, o la más cercana del modelo | Dentro del rango del modelo; Gemini Omni lo ignora |
+| `max_seconds` | el clip más largo del modelo | El clip más largo que puede pedir el agente |
+| `audio` | la del provider | Activado o no, cuando el modelo deja elegir el sonido |
+| `timeout_seconds` | `600` | 60–1800 |
+
+**Lo que puede hacer cada modelo son datos.** El catálogo indica el rango de
+duración de cada modelo, sus proporciones, sus resoluciones, si sus clips llevan
+sonido y si puede empezar desde una imagen, y el Builder solo ofrece eso. BytePlus
+es un [propósito de secreto](../secrets.md) en el vault; Google, xAI y Alibaba
+Cloud ya son providers de modelos. Falta OpenAI: su API de vídeo se cerró el
+24-09-2026.
+
+**Un clip es un trabajo que se espera como una imagen.** Gemini responde en la
+propia petición; BytePlus, xAI y Alibaba aceptan un trabajo que se consulta. En
+ambos casos la llamada espera uno o varios minutos, como mucho `timeout_seconds`.
+Un trabajo que lo supera se cancela donde el provider lo permite - en BytePlus,
+mientras sigue en cola - y la llamada recibe una respuesta en vez de reintentarse,
+porque xAI y Alibaba no documentan la cancelación y pueden terminar y facturar el
+trabajo. El clip se descarga antes de que caduque la dirección del provider, y la
+clave nunca va a un host de almacenamiento.
+
+**Al budget se le pregunta con el precio del clip.** Todos los providers facturan
+por segundo con una tarifa que fija la resolución, así que el catálogo guarda un
+precio fechado por segundo y resolución. Se rechaza un clip que llevaría el run
+más allá de un límite; después se registra la duración que informa el provider.
+Gemini Omni decide su duración y no la informa, así que allí el clip se tarifica y
+se registra con la duración máxima del modelo.
+
+**Tiene efectos secundarios**, por las mismas razones que la generación de
+imágenes, y más: un clip es la llamada individual más cara que hace un agente.
+
+**Los fallos van a quien puede arreglarlos.** Un prompt vacío, una duración o
+forma que el modelo no hace, una imagen que no se puede leer y un prompt que
+rechazó la política de contenido del provider vuelven al modelo, igual que un
+provider que limita el tráfico o no responde. Una clave rechazada, un budget
+agotado y un trabajo que supera el límite de tiempo se responden como resultado.
 
 ## Coding agent { #coding-agent }
 

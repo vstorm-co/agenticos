@@ -315,3 +315,51 @@ export function useTextToSpeechProviders() {
 
   return { providers: data?.items ?? [], isLoading, isError };
 }
+
+/** One model that makes video, and what it can make. */
+export interface VideoModel {
+  id: string;
+  name: string;
+  description: string;
+  min_seconds: number;
+  max_seconds: number;
+  /** Whether a call may ask for a length; where not, the model decides its own. */
+  duration_choosable: boolean;
+  /** The first is the default. */
+  aspect_ratios: string[];
+  /** The first is the default. */
+  resolutions: string[];
+  audio: "always" | "optional" | "never";
+  first_frame: boolean;
+}
+
+/** One provider that can make video, and what may be chosen on it. */
+export interface VideoProvider {
+  provider: string;
+  name: string;
+  models: VideoModel[];
+}
+
+interface VideoProviderList {
+  items: VideoProvider[];
+  total: number;
+}
+
+/**
+ * The providers that can make a video, and what each of their models can make.
+ *
+ * The catalog is `app/core/catalog/video_models.json`, served whole, so the
+ * Builder offers only the lengths, shapes and resolutions the chosen model
+ * renders. No credential is read.
+ */
+export function useVideoProviders() {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: qk.providers.videoModels(),
+    queryFn: () => apiClient.get<VideoProviderList>("/providers/video-models"),
+    // Fixed until the platform is redeployed, like the provider catalog.
+    staleTime: Infinity,
+    retry: false,
+  });
+
+  return { providers: data?.items ?? [], isLoading, isError };
+}

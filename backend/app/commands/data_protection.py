@@ -118,6 +118,7 @@ OUTBOUND_CAPABILITIES: dict[str, str] = {
     "memory_mem0": "the mem0 host the binding names (MEM0_ALLOWED_HOSTS bounds it)",
     "sandbox": "the sandbox runtime this deployment configures",
     "text_to_speech": "the speech provider named in the binding",
+    "video_generation": "the video provider named in the binding, with any starting image",
     # A drawing's pictures by address, only for an agent that already reads the
     # web and only on a host its `web_fetch` or `browser_use` may reach.
     # And, for a channel reply's picture and a thumbnail, the whole drawing with

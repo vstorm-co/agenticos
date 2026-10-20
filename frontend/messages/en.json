@@ -840,7 +840,21 @@
     "speechVoiceIdPlaceholder": "Voice id",
     "speechAccountVoiceDetail": "{provider} voices belong to your account. Paste the id of one from your voice library.",
     "speechProvidersLoading": "Reading what each provider offers…",
-    "speechProvidersUnavailable": "The list of providers could not be read. The model above is still what will be used."
+    "speechProvidersUnavailable": "The list of providers could not be read. The model above is still what will be used.",
+    "videoProvider": "Provider",
+    "videoProviderPlaceholder": "Choose a provider",
+    "videoProviderDetail": "The providers in the video catalog whose key the vault can hold.",
+    "videoModel": "Model",
+    "videoModelPlaceholder": "Choose a model",
+    "videoModelDetail": "Every model this provider can be asked to make video with.",
+    "videoModelUnknownProvider": "This binding names {provider}, which cannot make video. Pick a provider above.",
+    "videoResolution": "Resolution",
+    "videoResolutionDetail": "The resolutions this model renders. Higher costs more per second.",
+    "videoAspectRatio": "Aspect ratio",
+    "videoLengthRange": "This model makes clips of {min} to {max} seconds.",
+    "videoLengthDecided": "This model decides its own length, {min} to {max} seconds.",
+    "videoProvidersLoading": "Reading what each provider offers…",
+    "videoProvidersUnavailable": "The list of providers could not be read. The model above is still what will be used."
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -1491,7 +1505,10 @@
       "generateSpeech": "Speech",
       "generatingSpeech": "Recording speech",
       "speechNotStored": "The speech was recorded but not saved.",
-      "spokenBy": "Voice: {voice}"
+      "spokenBy": "Voice: {voice}",
+      "generateVideo": "Video",
+      "generatingVideo": "Making a video",
+      "videoNotStored": "The video was made but not saved."
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -6849,6 +6866,14 @@
       "needs": "An API key for the speech provider in the vault. Each clip is billed by that provider, per character.",
       "never": "Never sends audio anywhere; the clip appears in the conversation."
     },
+    "video_generation": {
+      "name": "Video generation",
+      "does": "Makes a short video from a description, or from an image it starts with.",
+      "example1": "A ten-second teaser for a product launch",
+      "example2": "An animated version of a generated logo",
+      "needs": "An API key for the video provider in the vault. Each clip is billed by that provider, per second.",
+      "never": "Never posts a video anywhere; it appears in the conversation."
+    },
     "knowledge": {
       "name": "Knowledge search",
       "does": "Lets the agent answer from your documents and say which one each answer came from.",
@@ -7231,6 +7256,40 @@
       "max_characters": {
         "title": "Longest text",
         "description": "The most text one call may speak, which caps what a single call can cost."
+      }
+    },
+    "video_generation": {
+      "provider": {
+        "title": "Provider",
+        "description": "Whose model makes the video. Offered: the providers in `app/core/catalog/video_models.json` whose key the vault can hold."
+      },
+      "model": {
+        "title": "Video model",
+        "description": "Which of that provider's video models makes the clip. A model outside the catalog is refused here rather than mid-run."
+      },
+      "resolution": {
+        "title": "Resolution",
+        "description": "Left empty, the model's first. Higher costs more per second."
+      },
+      "aspect_ratio": {
+        "title": "Aspect ratio",
+        "description": "The shape a clip takes unless the agent asks for another; left empty, the model's first."
+      },
+      "seconds": {
+        "title": "Length",
+        "description": "Seconds a clip runs unless the agent asks for another length; left empty, five, or the nearest the model makes. Ignored by a model that decides its own length."
+      },
+      "max_seconds": {
+        "title": "Longest clip",
+        "description": "The longest clip the agent may ask for, which caps what one call can cost; left empty, the model's own limit."
+      },
+      "audio": {
+        "title": "Sound",
+        "description": "Whether clips carry sound, where the model makes it optional; left empty, the provider's default."
+      },
+      "timeout_seconds": {
+        "title": "Time limit",
+        "description": "How long to wait for a clip, in seconds. A job not finished by then is cancelled where the provider allows it, and the call fails."
       }
     },
     "knowledge": {

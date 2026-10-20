@@ -15,6 +15,7 @@ import { RAGSearchResults, parseRAGResults } from "./rag";
 import { WebSearchResults, parseWebSearch } from "./web-search";
 import { GeneratedImageResult, parseGeneratedImage } from "./generated-image";
 import { GeneratedSpeechResult, parseGeneratedSpeech } from "./generated-speech";
+import { GeneratedVideoResult, parseGeneratedVideo } from "./generated-video";
 import { ContextListResult, SkillListResult, parseContextList, parseSkillList } from "./catalogs";
 import { PlanToolResult } from "./plan";
 import type { ToolCall } from "@/types";
@@ -921,5 +922,62 @@ describe("the generated speech", () => {
     render(<GeneratedSpeechResult data={{ voice: "marin", url: null }} />);
 
     expect(screen.getByText("The speech was recorded but not saved.")).toBeInTheDocument();
+  });
+});
+
+describe("the generated video", () => {
+  const PAYLOAD = JSON.stringify({
+    kind: "generated_video",
+    filename: "abc123_video.mp4",
+    url: "/api/v1/generated/abc123_video.mp4",
+    media_type: "video/mp4",
+    prompt: "a red bicycle in the rain",
+    seconds: 5,
+  });
+
+  it("addresses the clip through the same-origin proxy, not the backend URL", () => {
+    expect(parseGeneratedVideo(PAYLOAD)).toEqual({
+      prompt: "a red bicycle in the rain",
+      url: "/api/generated/abc123_video.mp4",
+    });
+  });
+
+  it("has no URL when the clip was made but not stored", () => {
+    expect(
+      parseGeneratedVideo(JSON.stringify({ kind: "generated_video", filename: null })),
+    ).toEqual({
+      prompt: "",
+      url: null,
+    });
+  });
+
+  it("refuses anything that is not that payload", () => {
+    expect(parseGeneratedVideo("Not made: no key")).toBeNull();
+    expect(parseGeneratedVideo(JSON.stringify({ kind: "generated_image" }))).toBeNull();
+    expect(parseGeneratedVideo("null")).toBeNull();
+  });
+
+  it("plays the clip where an image would be shown, captioned by its prompt", () => {
+    const { container } = render(<GeneratedVideoResult data={parseGeneratedVideo(PAYLOAD)!} />);
+
+    expect(container.querySelector("video")).toHaveAttribute(
+      "src",
+      "/api/generated/abc123_video.mp4",
+    );
+    expect(screen.getByText("a red bicycle in the rain")).toBeInTheDocument();
+  });
+
+  it("has no caption when the prompt is empty", () => {
+    const { container } = render(
+      <GeneratedVideoResult data={{ prompt: "", url: "/api/generated/x_video.mp4" }} />,
+    );
+
+    expect(container.querySelector("figcaption")).toBeNull();
+  });
+
+  it("says the clip was not kept when there is nothing to play", () => {
+    render(<GeneratedVideoResult data={{ prompt: "x", url: null }} />);
+
+    expect(screen.getByText("The video was made but not saved.")).toBeInTheDocument();
   });
 });

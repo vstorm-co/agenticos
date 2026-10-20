@@ -840,7 +840,21 @@
     "speechVoiceIdPlaceholder": "Stimmen-ID",
     "speechAccountVoiceDetail": "{provider}-Stimmen gehören zu Ihrem Konto. Fügen Sie die ID einer Stimme aus Ihrer Stimmenbibliothek ein.",
     "speechProvidersLoading": "Lese, was jeder Provider anbietet…",
-    "speechProvidersUnavailable": "Die Liste der Provider konnte nicht gelesen werden. Das Modell oben wird trotzdem verwendet."
+    "speechProvidersUnavailable": "Die Liste der Provider konnte nicht gelesen werden. Das Modell oben wird trotzdem verwendet.",
+    "videoProvider": "Provider",
+    "videoProviderPlaceholder": "Provider wählen",
+    "videoProviderDetail": "Die Provider aus dem Videokatalog, deren Schlüssel der Vault speichern kann.",
+    "videoModel": "Modell",
+    "videoModelPlaceholder": "Modell wählen",
+    "videoModelDetail": "Jedes Modell, mit dem dieser Provider Videos erzeugen kann.",
+    "videoModelUnknownProvider": "Dieses Binding nennt {provider}, der keine Videos erzeugen kann. Wählen Sie oben einen Provider.",
+    "videoResolution": "Auflösung",
+    "videoResolutionDetail": "Die Auflösungen, die dieses Modell rendert. Höher kostet mehr pro Sekunde.",
+    "videoAspectRatio": "Seitenverhältnis",
+    "videoLengthRange": "Dieses Modell erzeugt Clips von {min} bis {max} Sekunden.",
+    "videoLengthDecided": "Dieses Modell bestimmt seine Länge selbst, {min} bis {max} Sekunden.",
+    "videoProvidersLoading": "Lese, was jeder Provider anbietet…",
+    "videoProvidersUnavailable": "Die Liste der Provider konnte nicht gelesen werden. Das Modell oben wird trotzdem verwendet."
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -1491,7 +1505,10 @@
       "generateSpeech": "Sprache",
       "generatingSpeech": "Nimmt Sprache auf",
       "speechNotStored": "Die Sprache wurde aufgenommen, aber nicht gespeichert.",
-      "spokenBy": "Stimme: {voice}"
+      "spokenBy": "Stimme: {voice}",
+      "generateVideo": "Video",
+      "generatingVideo": "Erzeugt ein Video",
+      "videoNotStored": "Das Video wurde erzeugt, aber nicht gespeichert."
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -6732,6 +6749,14 @@
       "needs": "Ein API-Schlüssel des Sprachanbieters im Vault. Jeden Clip rechnet dieser Anbieter ab, pro Zeichen.",
       "never": "Verschickt nie Audio; der Clip erscheint im Gespräch."
     },
+    "video_generation": {
+      "name": "Videoerzeugung",
+      "does": "Erzeugt ein kurzes Video aus einer Beschreibung oder aus einem Bild, mit dem es beginnt.",
+      "example1": "Ein zehnsekündiger Teaser für einen Produktstart",
+      "example2": "Eine animierte Fassung eines erzeugten Logos",
+      "needs": "Ein API-Schlüssel des Videoanbieters im Vault. Jeden Clip rechnet dieser Anbieter ab, pro Sekunde.",
+      "never": "Veröffentlicht nie ein Video; es erscheint im Gespräch."
+    },
     "knowledge": {
       "name": "Wissenssuche",
       "does": "Der Agent antwortet aus Ihren Dokumenten und sagt, aus welchem jede Antwort stammt.",
@@ -7114,6 +7139,40 @@
       "max_characters": {
         "title": "Längster Text",
         "description": "Der meiste Text, den ein Aufruf sprechen darf, was die Kosten eines einzelnen Aufrufs begrenzt."
+      }
+    },
+    "video_generation": {
+      "provider": {
+        "title": "Provider",
+        "description": "Wessen Modell das Video erzeugt. Zur Auswahl stehen die Provider aus `app/core/catalog/video_models.json`, deren Schlüssel der Vault speichern kann."
+      },
+      "model": {
+        "title": "Videomodell",
+        "description": "Welches Videomodell dieses Providers den Clip erzeugt. Ein Modell außerhalb des Katalogs wird hier abgelehnt statt mitten im Lauf."
+      },
+      "resolution": {
+        "title": "Auflösung",
+        "description": "Leer bedeutet die erste Auflösung des Modells. Höher kostet mehr pro Sekunde."
+      },
+      "aspect_ratio": {
+        "title": "Seitenverhältnis",
+        "description": "Die Form eines Clips, sofern der Agent keine andere verlangt; leer bedeutet die erste des Modells."
+      },
+      "seconds": {
+        "title": "Länge",
+        "description": "Wie viele Sekunden ein Clip läuft, sofern der Agent keine andere Länge verlangt; leer bedeutet fünf oder den nächsten Wert, den das Modell erzeugt. Von einem Modell, das seine Länge selbst bestimmt, ignoriert."
+      },
+      "max_seconds": {
+        "title": "Längster Clip",
+        "description": "Der längste Clip, den der Agent verlangen darf, was die Kosten eines Aufrufs begrenzt; leer bedeutet das eigene Limit des Modells."
+      },
+      "audio": {
+        "title": "Ton",
+        "description": "Ob Clips Ton haben, wo das Modell es zur Wahl stellt; leer bedeutet die Voreinstellung des Providers."
+      },
+      "timeout_seconds": {
+        "title": "Zeitlimit",
+        "description": "Wie lange auf einen Clip gewartet wird, in Sekunden. Ein bis dahin nicht fertiger Job wird abgebrochen, wo der Provider es erlaubt, und der Aufruf schlägt fehl."
       }
     },
     "knowledge": {

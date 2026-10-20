@@ -8,6 +8,7 @@ import {
   useModelProviders,
   useProviderModels,
   useTextToSpeechProviders,
+  useVideoProviders,
 } from "./use-model-providers";
 import { apiClient } from "@/lib/api-client";
 
@@ -229,6 +230,30 @@ describe("useTextToSpeechProviders", () => {
   it("answers with an empty list and says it failed, rather than throwing", async () => {
     vi.mocked(apiClient.get).mockRejectedValue(new Error("502"));
     const { result } = renderHook(() => useTextToSpeechProviders(), { wrapper });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.providers).toEqual([]);
+  });
+});
+
+describe("useVideoProviders", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("asks the platform which providers can make video and what each model makes", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [{ provider: "xai", name: "xAI (Grok)", models: [] }],
+      total: 1,
+    });
+    const { result } = renderHook(() => useVideoProviders(), { wrapper });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/providers/video-models");
+    expect(result.current.providers[0]?.provider).toBe("xai");
+  });
+
+  it("answers with an empty list and says it failed, rather than throwing", async () => {
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("502"));
+    const { result } = renderHook(() => useVideoProviders(), { wrapper });
 
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.providers).toEqual([]);

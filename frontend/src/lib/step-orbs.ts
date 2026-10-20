@@ -15,7 +15,7 @@ import type { StepKind } from "@/lib/tool-catalog";
  * listing and searching are all a scan, so they share the sweeping meridian.
  * Writing and editing braid, because a file being rewritten is strands going
  * back together. A delegation wires up a constellation, which is what handing
- * work to another agent is. `shaping` is for the steps that produce a picture or a sound.
+ * work to another agent is. `shaping` is for the steps that produce a picture, a sound or a clip.
  * Nothing uses `listening`: that one belongs to the microphone, where a person
  * is actually being heard.
  */
@@ -29,6 +29,7 @@ export const STEP_ORBS: Record<StepKind, OrbState> = {
   chart: "shaping",
   image: "shaping",
   audio: "shaping",
+  video: "shaping",
   knowledge: "searching",
   web: "connecting",
   skill: "composing",

@@ -1,5 +1,5 @@
 ---
-source_sha: "18c9648216d7"
+source_sha: "07a30e248ed1"
 ---
 
 # Protección de datos { #data-protection }
@@ -40,7 +40,7 @@ configura así y el software coopera:
 | Trazas | Deja `LOGFIRE_TOKEN` sin definir y no vincules ningún token `observability` a un spec ni a un entorno. Los runs siguen registrando localmente un id de traza |
 | Búsqueda, navegación, memoria, herramientas | No vincules ningún secreto `search`, ninguna capability `web_fetch`, `browser_use` ni `memory_mem0`, ninguna conexión MCP. El navegador web puede quedarse si cada sitio que puede abrir está en `allowed_domains` y sus pasos van a un modelo que alojas tú |
 | Correo | Tu propio relay SMTP |
-| Voz e imágenes | Perfiles en un provider que alojes tú, o ningún perfil de ese tipo; ninguna capability `text_to_speech` |
+| Voz e imágenes | Perfiles en un provider que alojes tú, o ningún perfil de ese tipo; ninguna capability `text_to_speech` ni `video_generation` |
 
 Los embeddings incluidos: el catálogo nombra OpenRouter y OpenAI, a los que una
 colección llega con una clave del vault, y `ollama`, al que una colección llega a
@@ -134,6 +134,7 @@ lista completa de destinos, con la configuración que decide cada uno.
 | Logfire | Spans de cada petición y cada run | `LOGFIRE_TOKEN` a nivel de deployment; un token `observability` en un spec, o `logfire_token_secret_id` en un entorno, redirige esos runs a otro proyecto. `LOGFIRE_BASE_URL` elige el deployment de EE. UU. o el de la UE. Sin definir en ninguna parte, no se envía nada | La de Pydantic, EE. UU. o UE |
 | Voz a texto, generación de imágenes | La nota de voz; el prompt | Un perfil para `groq`, `mistral` u `openai`; un perfil para `google` u `openai` | La del provider |
 | Texto a voz | El texto que se va a decir | El `provider` de la capability `text_to_speech`: `openai`, `elevenlabs` o `google`, con la clave del binding | La del provider |
+| Generación de vídeo | El prompt y la imagen inicial, si la hay | El `provider` de la capability `video_generation`: `google`, `byteplus`, `xai` o `alibaba`, con la clave del binding | La del provider |
 | Slack, Telegram, Mattermost | Las respuestas del agent | Una fila `channel_bots` con su token en el vault | El proveedor de mensajería ya tiene el chat |
 | Inicio de sesión con Google | Nada hacia fuera; Google devuelve el correo, el nombre, la foto y el id de la cuenta | `GOOGLE_CLIENT_ID` | La de Google |
 | Tu relay SMTP | El correo de arriba | `SMTP_HOST`, `SMTP_TLS` | La tuya |

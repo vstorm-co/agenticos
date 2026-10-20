@@ -682,6 +682,7 @@ def load_builtins() -> None:
         thinking,
         tool_output_limits,
         tool_search,
+        video_generation,
         visuals,
         web_fetch,
         web_research,

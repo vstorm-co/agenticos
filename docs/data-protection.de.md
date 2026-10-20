@@ -1,5 +1,5 @@
 ---
-source_sha: "18c9648216d7"
+source_sha: "07a30e248ed1"
 ---
 
 # Datenschutz { #data-protection }
@@ -41,7 +41,7 @@ entsprechend, und die Software macht mit:
 | Traces | Lassen Sie `LOGFIRE_TOKEN` ungesetzt und binden Sie kein `observability`-Token an einen Spec oder ein Environment. Runs halten die Trace-Id weiterhin lokal fest |
 | Suche, Browsing, Memory, Tools | Binden Sie kein `search`-Secret, keine Capability `web_fetch`, `browser_use` oder `memory_mem0`, keine MCP-Verbindung. Der Webbrowser kann bleiben, wenn jede Seite, die er öffnen darf, auf `allowed_domains` steht und seine Schritte an ein Modell gehen, das Sie selbst betreiben |
 | E-Mail | Ihr eigenes SMTP-Relay |
-| Sprache und Bilder | Profile bei einem Provider, den Sie betreiben, oder gar kein solches Profil; keine Capability `text_to_speech` |
+| Sprache und Bilder | Profile bei einem Provider, den Sie betreiben, oder gar kein solches Profil; keine Capability `text_to_speech` oder `video_generation` |
 
 Embeddings eingeschlossen: Der Katalog nennt OpenRouter und OpenAI, die eine
 Collection mit einem Vault-Schlüssel erreicht, und `ollama`, das eine Collection
@@ -137,6 +137,7 @@ benennt. Dies ist die vollständige Liste der Ziele, mit der Konfiguration, die
 | Logfire | Spans für jede Anfrage und jeden Run | `LOGFIRE_TOKEN` deploymentweit; ein `observability`-Token auf einem Spec oder `logfire_token_secret_id` auf einem Environment lenkt diese Runs in ein anderes Projekt. `LOGFIRE_BASE_URL` wählt das US- oder EU-Deployment. Überall ungesetzt wird nichts gesendet | Die von Pydantic, US oder EU |
 | Speech-to-Text, Bildgenerierung | Die Sprachnachricht; der Prompt | Ein Profil für `groq`, `mistral` oder `openai`; ein Profil für `google` oder `openai` | Die des Providers |
 | Sprachausgabe | Der zu sprechende Text | Der `provider` der Capability `text_to_speech`: `openai`, `elevenlabs` oder `google`, mit dem Schlüssel des Bindings | Die des Providers |
+| Videoerzeugung | Der Prompt und ein etwaiges Startbild | Der `provider` der Capability `video_generation`: `google`, `byteplus`, `xai` oder `alibaba`, mit dem Schlüssel des Bindings | Die des Providers |
 | Slack, Telegram, Mattermost | Die Antworten des Agents | Eine `channel_bots`-Zeile mit ihrem Token im Vault | Der Messaging-Anbieter hält den Chat ohnehin schon |
 | Google-Anmeldung | Nichts ausgehend; Google liefert E-Mail, Name, Bild und Konto-Id zurück | `GOOGLE_CLIENT_ID` | Die von Google |
 | Ihr SMTP-Relay | Die oben genannte Post | `SMTP_HOST`, `SMTP_TLS` | Ihre |

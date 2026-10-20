@@ -1,5 +1,5 @@
 ---
-source_sha: "18c9648216d7"
+source_sha: "07a30e248ed1"
 ---
 
 # Ochrona danych { #data-protection }
@@ -38,7 +38,7 @@ tak i oprogramowanie współpracuje:
 | Trace'y | Zostaw `LOGFIRE_TOKEN` nieustawiony i nie wiąż żadnego tokenu `observability` ze specem ani ze środowiskiem. Runy dalej zapisują id trace'u lokalnie |
 | Wyszukiwanie, przeglądanie, pamięć, narzędzia | Nie wiąż sekretu `search`, żadnej capability `web_fetch`, `browser_use` ani `memory_mem0`, żadnego połączenia MCP. Przeglądarka może zostać, gdy każda strona, którą może otworzyć, jest na `allowed_domains`, a jej kroki idą do modelu, który sam hostujesz |
 | Poczta | Twój własny relay SMTP |
-| Mowa i obrazy | Profile u providera, którego hostujesz, albo brak takich profili; brak capability `text_to_speech` |
+| Mowa i obrazy | Profile u providera, którego hostujesz, albo brak takich profili; brak capability `text_to_speech` ani `video_generation` |
 
 Embeddingi w to wliczone: katalog wymienia OpenRouter i OpenAI, do których
 kolekcja sięga kluczem z vaultu, oraz `ollama`, do której kolekcja sięga przez
@@ -131,6 +131,7 @@ lista celów, wraz z konfiguracją, która o każdym decyduje.
 | Logfire | Spany każdego żądania i runu | `LOGFIRE_TOKEN` na poziomie wdrożenia; token `observability` w specu albo `logfire_token_secret_id` na środowisku przekierowuje te runy do innego projektu. `LOGFIRE_BASE_URL` wybiera wdrożenie w USA albo w UE. Nieustawione wszędzie — nic nie jest wysyłane | Pydantic, USA albo UE |
 | Mowa na tekst, generowanie obrazów | Notatka głosowa; prompt | Profil dla `groq`, `mistral` albo `openai`; profil dla `google` albo `openai` | Providera |
 | Zamiana tekstu na mowę | Tekst do wypowiedzenia | `provider` capability `text_to_speech`: `openai`, `elevenlabs` albo `google`, z kluczem bindingu | Providera |
+| Generowanie wideo | Prompt i ewentualny obraz początkowy | `provider` capability `video_generation`: `google`, `byteplus`, `xai` albo `alibaba`, z kluczem bindingu | Providera |
 | Slack, Telegram, Mattermost | Odpowiedzi agenta | Wiersz `channel_bots` z tokenem w vaulcie | Dostawca komunikatora i tak ma już ten czat |
 | Logowanie Google | Nic wychodzącego; Google zwraca e-mail, imię, zdjęcie i id konta | `GOOGLE_CLIENT_ID` | Google |
 | Twój relay SMTP | Poczta wymieniona wyżej | `SMTP_HOST`, `SMTP_TLS` | Twoja |

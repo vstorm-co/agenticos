@@ -1,5 +1,5 @@
 ---
-source_sha: "d284017f633a"
+source_sha: "3475a1ba2adf"
 ---
 
 # Glossar { #glossary }
@@ -89,6 +89,7 @@ Jede ist unter [Capabilities](capabilities.md) beschrieben.
 | Nachdenken | `thinking` |
 | Grenzen für Tool-Ergebnisse | `tool_output_limits` |
 | Tool-Suche | `tool_search` |
+| Videoerzeugung | `video_generation` |
 | Visuals | `visuals` |
 | Webseiten lesen | `web_fetch` |
 | Websuche | `web_research` |

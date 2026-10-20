@@ -19,6 +19,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Agents can make video.** The new `video_generation` capability gives an
+  agent a `generate_video` tool that makes a short clip through Google Gemini
+  Omni, ByteDance Seedance on BytePlus, xAI Grok Imagine or Alibaba Wan 3.0,
+  chosen per agent with a model, resolution and shape, and optionally starting
+  from an image the agent generated. The clip plays in the conversation and
+  opens in the file viewer, where a generated image would. Its per-second
+  price is checked against the budget before the job is submitted, and a job
+  past the agent's time limit is cancelled where the provider allows. BytePlus
+  keys are a new purpose in the vault (#2260).
 - **Agents can speak.** The new `text_to_speech` capability gives an agent a
   `generate_speech` tool that reads a text aloud through OpenAI, ElevenLabs or
   Gemini, chosen per agent with a model and a voice. The clip appears in the

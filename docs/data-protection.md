@@ -34,7 +34,7 @@ that way and the software cooperates:
 | Traces | Leave `LOGFIRE_TOKEN` unset and bind no `observability` token to a spec or an environment. Runs still record a trace id locally |
 | Search, browsing, memory, tools | Bind no `search` secret, no `web_fetch`, `browser_use` or `memory_mem0` capability, no MCP connection. The web browser can stay when every site it may open is on `allowed_domains` and its steps go to a model you host |
 | Mail | Your own SMTP relay |
-| Speech and images | Profiles on a provider you host, or no such profile; no `text_to_speech` capability |
+| Speech and images | Profiles on a provider you host, or no such profile; no `text_to_speech` or `video_generation` capability |
 
 Embeddings included: the catalog names OpenRouter and OpenAI, which a
 collection reaches with a vault key, and `ollama`, which a collection reaches
@@ -127,6 +127,7 @@ complete list of destinations, with the configuration that decides each.
 | Logfire | Spans for every request and run | `LOGFIRE_TOKEN` deployment-wide; an `observability` token on a spec, or `logfire_token_secret_id` on an environment, redirects those runs to another project. `LOGFIRE_BASE_URL` picks the US or EU deployment. Unset everywhere, nothing is sent | Pydantic's, US or EU |
 | Speech to text, image generation | The voice note; the prompt | A profile for `groq`, `mistral` or `openai`; a profile for `google` or `openai` | The provider's |
 | Text to speech | The text to be spoken | The `text_to_speech` capability's `provider`: `openai`, `elevenlabs` or `google`, with the binding's key | The provider's |
+| Video generation | The prompt, and any starting image | The `video_generation` capability's `provider`: `google`, `byteplus`, `xai` or `alibaba`, with the binding's key | The provider's |
 | Slack, Telegram, Mattermost | The agent's replies | A `channel_bots` row with its token in the vault | The messaging vendor already holds the chat |
 | Google sign-in | Nothing outbound; Google returns the email, name, picture and account id | `GOOGLE_CLIENT_ID` | Google's |
 | Your SMTP relay | The mail above | `SMTP_HOST`, `SMTP_TLS` | Yours |

@@ -56,6 +56,7 @@ export const KNOWLEDGE_ID = "knowledge";
  */
 export const IMAGE_GENERATION_ID = "image_generation";
 export const TEXT_TO_SPEECH_ID = "text_to_speech";
+export const VIDEO_GENERATION_ID = "video_generation";
 export const CODING_AGENT_ID = "coding_agent";
 
 /**

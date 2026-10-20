@@ -6,6 +6,7 @@ export const DRAWN_HUE: Readonly<Record<string, number>> = {
   visuals: 140,
   background_tools: 222,
   text_to_speech: 28,
+  video_generation: 300,
 };
 
 /** Visuals: a board standing on the base with a small diagram on it, and `draw()` above. */
@@ -100,8 +101,33 @@ const TEXT_TO_SPEECH =
   '<text x="0" y="2.4" class="tx mono s7 mid b" >speak()</text></g></g>' +
   "</svg>";
 
+/** Video generation: a screen standing on the base, a clip playing on it, and `action()` above. */
+const VIDEO_GENERATION =
+  '<svg viewBox="0 0 240 135" aria-hidden="true" preserveAspectRatio="xMidYMid meet">' +
+  '<polygon class="ishb" points="120,46.5 195.7,90.2 120,133.8 44.3,90.2"/>' +
+  '<g><polygon class="ict" points="120,33.1 195.7,76.8 120,120.5 44.3,76.8"/>' +
+  '<polygon class="icl" points="44.3,82 120,125.7 120,120.5 44.3,76.8"/>' +
+  '<polygon class="icr" points="195.7,82 120,125.7 120,120.5 195.7,76.8"/></g>' +
+  '<g><polygon class="int" points="120,30 195.7,73.7 120,117.4 44.3,73.7"/>' +
+  '<polygon class="inl" points="44.3,76.8 120,120.5 120,117.4 44.3,73.7"/>' +
+  '<polygon class="inr" points="195.7,76.8 120,120.5 120,117.4 195.7,73.7"/></g>' +
+  '<g transform="matrix(0.9 0.5 -0.9 0.5 120 30)"><path class="igrid2" d="M21 3V81M42 3V81M63 3V81M3 21H81M3 42H81M3 63H81"/></g>' +
+  '<polygon class="int" points="91.2,10 148.8,42 146.6,43 89.4,11"/>' +
+  '<polygon class="inr" points="148.8,42 148.8,92 146.6,93 146.6,43"/>' +
+  '<polygon class="inl" points="89.4,61 146.6,93 146.6,43 89.4,11"/>' +
+  '<g transform="matrix(0.9 0.5 0 1 89.4 11)">' +
+  '<rect class="dk" x="4" y="6" width="56" height="34" rx="3"/>' +
+  '<g class="breathe"><path class="ac" d="M27 15L39 23L27 31Z"/></g>' +
+  '<rect class="mu" x="4" y="44" width="56" height="3" rx="1.5"/>' +
+  '<g class="breathe" style="animation-delay:-0.8s"><rect class="ac" x="4" y="44" width="22" height="3" rx="1.5"/></g>' +
+  "</g>" +
+  '<g class="bob"><g transform="translate(176 30)"><rect x="-23" y="-9" width="46" height="16" rx="8" class="pp" />' +
+  '<text x="0" y="2.4" class="tx mono s7 mid b" >action()</text></g></g>' +
+  "</svg>";
+
 export const DRAWN_ART: Readonly<Record<string, string>> = {
   visuals: VISUALS,
   background_tools: BACKGROUND_TOOLS,
   text_to_speech: TEXT_TO_SPEECH,
+  video_generation: VIDEO_GENERATION,
 };

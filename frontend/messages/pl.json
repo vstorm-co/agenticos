@@ -840,7 +840,21 @@
     "speechVoiceIdPlaceholder": "Id głosu",
     "speechAccountVoiceDetail": "Głosy {provider} należą do Twojego konta. Wklej id jednego z nich ze swojej biblioteki głosów.",
     "speechProvidersLoading": "Sprawdzam, co oferuje każdy provider…",
-    "speechProvidersUnavailable": "Nie udało się odczytać listy providerów. Model powyżej nadal zostanie użyty."
+    "speechProvidersUnavailable": "Nie udało się odczytać listy providerów. Model powyżej nadal zostanie użyty.",
+    "videoProvider": "Provider",
+    "videoProviderPlaceholder": "Wybierz providera",
+    "videoProviderDetail": "Providerzy z katalogu wideo, których klucz może przechowywać vault.",
+    "videoModel": "Model",
+    "videoModelPlaceholder": "Wybierz model",
+    "videoModelDetail": "Wszystkie modele, którymi ten provider może tworzyć wideo.",
+    "videoModelUnknownProvider": "Ten binding wskazuje {provider}, który nie potrafi tworzyć wideo. Wybierz providera powyżej.",
+    "videoResolution": "Rozdzielczość",
+    "videoResolutionDetail": "Rozdzielczości, które renderuje ten model. Wyższa kosztuje więcej za sekundę.",
+    "videoAspectRatio": "Proporcje obrazu",
+    "videoLengthRange": "Ten model tworzy klipy od {min} do {max} sekund.",
+    "videoLengthDecided": "Ten model sam decyduje o długości, od {min} do {max} sekund.",
+    "videoProvidersLoading": "Sprawdzam, co oferuje każdy provider…",
+    "videoProvidersUnavailable": "Nie udało się odczytać listy providerów. Model powyżej nadal zostanie użyty."
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",
@@ -1491,7 +1505,10 @@
       "generateSpeech": "Mowa",
       "generatingSpeech": "Nagrywa mowę",
       "speechNotStored": "Mowę nagrano, ale jej nie zapisano.",
-      "spokenBy": "Głos: {voice}"
+      "spokenBy": "Głos: {voice}",
+      "generateVideo": "Wideo",
+      "generatingVideo": "Tworzy wideo",
+      "videoNotStored": "Wideo powstało, ale go nie zapisano."
     },
     "turnWasStopped": "zatrzymano",
     "unfavourite": "Usuń z ulubionych",
@@ -6623,6 +6640,14 @@
       "needs": "Klucz API dostawcy mowy w vault. Każde nagranie rozlicza ten dostawca, za znak.",
       "never": "Nigdy nigdzie nie wysyła nagrania; pojawia się ono w rozmowie."
     },
+    "video_generation": {
+      "name": "Generowanie wideo",
+      "does": "Tworzy krótkie wideo z opisu albo z obrazu, od którego zaczyna.",
+      "example1": "Dziesięciosekundowa zapowiedź premiery produktu",
+      "example2": "Animowana wersja wygenerowanego logo",
+      "needs": "Klucz API dostawcy wideo w vault. Każdy klip rozlicza ten dostawca, za sekundę.",
+      "never": "Nigdy nigdzie nie publikuje wideo; pojawia się ono w rozmowie."
+    },
     "knowledge": {
       "name": "Wyszukiwanie wiedzy",
       "does": "Agent odpowiada na podstawie twoich dokumentów i podaje, z którego pochodzi każda odpowiedź.",
@@ -7015,6 +7040,40 @@
       "max_characters": {
         "title": "Najdłuższy tekst",
         "description": "Najwięcej tekstu, jaki może wypowiedzieć jedno wywołanie, co ogranicza koszt pojedynczego wywołania."
+      }
+    },
+    "video_generation": {
+      "provider": {
+        "title": "Provider",
+        "description": "Czyj model tworzy wideo. Do wyboru są providerzy z `app/core/catalog/video_models.json`, których klucz może przechowywać vault."
+      },
+      "model": {
+        "title": "Model wideo",
+        "description": "Który z modeli wideo tego providera tworzy klip. Model spoza katalogu jest odrzucany tutaj, a nie w trakcie działania."
+      },
+      "resolution": {
+        "title": "Rozdzielczość",
+        "description": "Puste oznacza pierwszą rozdzielczość modelu. Wyższa kosztuje więcej za sekundę."
+      },
+      "aspect_ratio": {
+        "title": "Proporcje obrazu",
+        "description": "Kształt klipu, chyba że agent poprosi o inny; puste oznacza pierwszy kształt modelu."
+      },
+      "seconds": {
+        "title": "Długość",
+        "description": "Ile sekund trwa klip, chyba że agent poprosi o inną długość; puste oznacza pięć albo najbliższą wartość, jaką robi model. Pomijane przez model, który sam decyduje o długości."
+      },
+      "max_seconds": {
+        "title": "Najdłuższy klip",
+        "description": "Najdłuższy klip, o jaki może poprosić agent, co ogranicza koszt jednego wywołania; puste oznacza własny limit modelu."
+      },
+      "audio": {
+        "title": "Dźwięk",
+        "description": "Czy klipy mają dźwięk, tam gdzie model pozwala wybrać; puste oznacza domyślne ustawienie providera."
+      },
+      "timeout_seconds": {
+        "title": "Limit czasu",
+        "description": "Jak długo czekać na klip, w sekundach. Zadanie niezakończone do tego czasu jest anulowane, jeśli provider na to pozwala, a wywołanie kończy się błędem."
       }
     },
     "knowledge": {
