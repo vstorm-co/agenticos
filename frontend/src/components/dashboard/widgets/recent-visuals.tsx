@@ -73,6 +73,14 @@ function VisualTile({ visual }: { visual: VisualListItem }) {
       href={`${ROUTES.CHAT}?id=${visual.conversation_id}`}
       className="group hover:bg-accent/40 flex min-w-0 flex-col gap-1.5 rounded-xl p-1.5"
     >
+      {/* Named above the picture: under it, a picture taller than the card's row
+          took the name and the date past the card's edge. */}
+      <span className="flex min-w-0 items-baseline justify-between gap-2">
+        <span className="text-foreground truncate text-sm font-medium">{visual.title}</span>
+        <span className="text-muted-foreground shrink-0 text-xs">
+          {timeAgo(visual.created_at, tTime, locale)}
+        </span>
+      </span>
       <span className="bg-foreground/[0.04] relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg">
         {live && visual.artifact_id !== null ? (
           <ArtifactThumbnail artifactId={visual.artifact_id} title={visual.title} />
@@ -94,10 +102,6 @@ function VisualTile({ visual }: { visual: VisualListItem }) {
             {t("app")}
           </span>
         )}
-      </span>
-      <span className="text-foreground truncate text-sm font-medium">{visual.title}</span>
-      <span className="text-muted-foreground text-xs">
-        {timeAgo(visual.created_at, tTime, locale)}
       </span>
     </Link>
   );
