@@ -3383,6 +3383,42 @@ class TestTellingThePersonWhoLeft:
         assert left.told.await_args.kwargs["conversation_id"] == UUID(_CONVERSATION)
         assert left.told.await_args.kwargs["error"] is None
 
+    async def test_an_answer_that_lands_while_they_leave_the_room_is_announced(self):
+        """Leaving the room waits on Redis. A turn that ended meanwhile read as no
+        turn at all, and the person who had already gone was never told."""
+        session = _session()
+        with self._left(_finished_turn()) as left:
+            await session.handle_frame(_message())
+            await asyncio.sleep(0)
+            await asyncio.sleep(0)
+
+            async def the_answer_lands(*_args: Any) -> None:
+                left.gone.set()
+                await session._turn_task
+
+            session._room = _CONVERSATION
+            with patch.object(
+                agent_session_module.chat_room, "leave", AsyncMock(side_effect=the_answer_lands)
+            ):
+                await session.shutdown()
+
+        left.told.assert_awaited_once()
+        assert left.told.await_args.kwargs["error"] is None
+
+    async def test_a_turn_already_over_when_the_socket_closes_is_not_announced(self):
+        """Finished while they watched, its slot not yet cleared: nobody left early."""
+        session = _session()
+
+        async def done() -> None:
+            return None
+
+        finished = asyncio.create_task(done())
+        await finished
+        session._turn_task = finished
+        with patch.object(session, "_tell_the_absent", AsyncMock()) as told:
+            await session.shutdown()
+        told.assert_not_awaited()
+
     async def test_an_answer_whose_write_failed_is_not_announced_as_answered(self):
         """The run finished but the message did not save, so the link would open
         a conversation ending in the question."""

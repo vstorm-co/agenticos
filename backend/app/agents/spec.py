@@ -955,11 +955,12 @@ class ExternalAgentRef(BaseModel):
     """A remote agent this agent may delegate to over A2A (#2092).
 
     Another vendor's agent, registered in the organization by the URL of its agent
-    card. It is not versioned here - its owner changes it on their side - so what
-    a reference pins is the registration: its endpoint, its credential and the
-    card an author reviewed when they picked it. Called by the same delegation
-    tool as a published delegate, under the same budget, and addressed by its
-    registration's handle.
+    card. Nothing about it is versioned or pinned here: its owner changes it on
+    their side, and the reference names the registration, so each run reads that
+    registration's current endpoint and credential - a refreshed card that moves
+    the endpoint applies from the next run, and a removed registration refuses
+    the run. Called by the same delegation tool as a published delegate, under
+    the same budget, and addressed by its registration's handle.
     """
 
     model_config = ConfigDict(extra="forbid")
