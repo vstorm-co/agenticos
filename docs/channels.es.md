@@ -1,5 +1,5 @@
 ---
-source_sha: "380aaee8c6be"
+source_sha: "4b94f785d6b5"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -763,7 +763,12 @@ hasta que alguien que pueda publicarlo active **Agent2Agent (A2A)** en su pesta�
 
 Quien llama envía una clave API de la organización, o un token de acceso OAuth que
 emitió este despliegue, como bearer token, y debe tener permiso para ejecutar el
-agent. `message/send` ejecuta la versión publicada como un run normal marcado `a2a`,
+agent: uno que no lo tiene recibe un HTTP `403`, o un `404` cuando ni siquiera puede
+ver el agent, porque A2A deja la autorización al transporte. `message/send` solo
+acepta partes de texto, y rechaza con `-32005` un mensaje con una parte de datos o
+de archivo, en lugar de ejecutarlo solo con su texto.
+
+`message/send` ejecuta la versión publicada como un run normal marcado `a2a`,
 así que se aplican el budget, la aprobación, la auditoría y Activity. El id de la
 tarea es el del run y su `contextId` es la conversación en la que se archiva el run,
 así que volver a enviarlo continúa esa conversación. Un run que se detiene en una

@@ -1,5 +1,5 @@
 ---
-source_sha: "380aaee8c6be"
+source_sha: "4b94f785d6b5"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -805,7 +805,12 @@ für die andere Seite:
 - der **Endpunkt** für Aufgaben, `POST /api/v1/a2a/{agent_id}`, JSON-RPC 2.0.
 
 Der Aufrufer sendet einen API-Key der Organisation oder ein von diesem Deployment
-ausgestelltes OAuth-Zugriffstoken als Bearer-Token, das den Agent ausführen darf.
+ausgestelltes OAuth-Zugriffstoken als Bearer-Token, das den Agent ausführen darf:
+Eines, das es nicht darf, wird mit HTTP `403` abgewiesen, oder mit `404`, wenn es
+den Agent gar nicht sehen darf, denn A2A überlässt die Autorisierung dem Transport.
+`message/send` nimmt nur Textteile an und weist eine Nachricht mit einem Daten- oder
+Dateiteil mit `-32005` ab, statt sie nur mit ihrem Text auszuführen.
+
 `message/send` führt die veröffentlichte Version als gewöhnlichen Run aus, mit `a2a`
 gestempelt, sodass Budget, Freigabe, Audit-Trail und Activity gelten. Die ID der
 Aufgabe ist die des Runs, und ihre `contextId` ist das Gespräch, unter dem der Run

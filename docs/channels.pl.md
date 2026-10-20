@@ -1,5 +1,5 @@
 ---
-source_sha: "380aaee8c6be"
+source_sha: "4b94f785d6b5"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -756,7 +756,12 @@ zakładce **Availability**, która pokazuje dwa adresy do przekazania drugiej st
 - **endpoint** dla zadań, `POST /api/v1/a2a/{agent_id}`, JSON-RPC 2.0.
 
 Wywołujący wysyła jako bearer token klucz API organizacji albo token dostępu OAuth
-wydany przez ten deployment, który musi mieć prawo uruchamiać agenta.
+wydany przez ten deployment, który musi mieć prawo uruchamiać agenta: taki, który go
+nie ma, dostaje odmowę HTTP `403`, albo `404`, gdy w ogóle nie widzi agenta, bo A2A
+zostawia autoryzację warstwie transportu. `message/send` przyjmuje tylko części
+tekstowe i odrzuca wiadomość z częścią z danymi albo plikiem kodem `-32005`, zamiast
+uruchomić ją na samym tekście.
+
 `message/send` uruchamia opublikowaną wersję jako zwykły run oznaczony `a2a`, więc
 obowiązują budżet, bramka zatwierdzeń, audit trail i Activity. Id zadania to id
 runa, a jego `contextId` to rozmowa, do której run trafia, więc ponowne wysłanie go

@@ -1513,10 +1513,14 @@ carries a user name or password is refused outright: a credential goes in the va
 To the delegating model a remote agent is one more delegate, called by its handle
 with the same `task` tool. Each call is one A2A `message/send` carrying the latest
 request, and the remote agent's `contextId` is carried from one call to the next
-within the run. An answer that is `input-required` or `auth-required` comes back as
-text saying so, because a delegate waiting on its own user is an answer the model
-has to read. A remote agent that cannot be reached answers with that, and the run
-goes on.
+of the same delegation: a follow-up to a task continues its remote conversation,
+and two tasks sent at once each have their own.
+
+An answer that is
+`input-required` or `auth-required` comes back as text saying so, because a
+delegate waiting on its own user is an answer the model has to read. A data or
+file part of an answer is not read, and appears as a line saying one was sent. A
+remote agent that cannot be reached answers with that, and the run goes on.
 
 The budget is checked before every call. What a call costs is the remote vendor's
 to price and nothing publishes it, so each call is booked unpriced and the run's

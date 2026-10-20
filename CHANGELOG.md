@@ -286,6 +286,57 @@ Two things are versioned separately from this file and worth knowing about:
   its sandboxes were removed on the provider by hand. The console asks, where a
   refused delete used to vanish without a word.
 
+## [1.8.3] - 2026-10-20
+
+### Fixed
+
+- **A teammate following a turn whose writer died is told it is over.** A
+  turn's writer now renews a short-lived key while it runs, and a follower
+  that hears nothing for a few seconds checks it: once it has expired, as it
+  does when the API process writing the turn is killed, the follow ends and
+  the chat re-reads the transcript, instead of waiting until a reload. The
+  turn is also forgotten, so the next person to open the chat is not sent to
+  follow it.
+- **Redis trouble no longer stalls a chat or floods the log.** Every call the
+  live chat makes to Redis gives up after two seconds, and each kind of
+  failure is logged at most once a minute with a count of the ones left out,
+  rather than once per open socket per retry.
+- **A live turn's replay has a total size.** Past 16 MB a turn's frames are
+  still sent to whoever is following, and only the start and the end are kept
+  for somebody arriving later. Frames published at once by a turn and its
+  delegates keep their order in the replay.
+- **Leaving a chat, or stopping following a turn, finishes before anything
+  else starts.** The tasks behind them are now awaited, so a heartbeat can no
+  longer count a socket back into a room it has just left. A turn that ends
+  while its socket is closing is still announced to the person who left.
+- **Parallel delegations to one remote A2A agent no longer share a
+  conversation.** Each delegation keeps its own `contextId`, so two tasks sent
+  at once no longer race on one, and a follow-up continues the right one.
+- **A2A takes text and says so.** The server refuses a message with a data or
+  file part with `-32005` (content type not supported) rather than a generic
+  error, and refuses a key that may not run the agent with HTTP `403` (or `404`)
+  instead of the `-32600` that means a malformed request. A task id this
+  server never issued is an unknown task (`-32001`). The client shows a data
+  or file part in an answer as a line naming it rather than dropping it.
+- **Registering two remote agents under one name at once** is refused as a
+  taken handle, not an error.
+- **The project picker asks for projects only when it opens**, and the typing
+  indicator is a live region screen readers announce (#2210).
+
+## [1.8.2] - 2026-10-20
+
+### Fixed
+
+- **A publisher's personal-data export lists only the runs they started.**
+  A run made for somebody else under the publisher's identity - an unlinked
+  channel sender, a widget visitor - carries the publisher's id, and the
+  export listed it as theirs. It now leaves those runs out, as every other
+  reader of a person's runs already did, and a delegation made under such a
+  run now carries the same mark and the sender's chat account rather than
+  reading as the publisher's own. A person who links a chat account gets that
+  account's earlier runs in their export. Deleting the publisher still keeps
+  the runs, with the id cleared (#2235).
+
 ## [1.8.1] - 2026-10-19
 
 ### Fixed

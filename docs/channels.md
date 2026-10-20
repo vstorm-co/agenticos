@@ -732,8 +732,13 @@ tab, which shows the two addresses to give the other side:
 - the **endpoint** for tasks, `POST /api/v1/a2a/{agent_id}`, JSON-RPC 2.0.
 
 The caller sends an organization API key, or an OAuth access token this deployment
-issued, as a bearer token, and it must be allowed to run the agent. `message/send`
-runs the published version as an ordinary run stamped `a2a`, so the budget, the
+issued, as a bearer token, and it must be allowed to run the agent: one that is not
+is refused with HTTP `403`, or `404` when it may not see the agent at all, as A2A
+leaves authorization to the transport. `message/send` takes text parts only, and
+refuses a message with a data or file part with `-32005`, rather than run it on
+its text alone.
+
+`message/send` runs the published version as an ordinary run stamped `a2a`, so the budget, the
 approval gate, the audit trail and Activity all apply. The task's id is the run's
 id and its `contextId` is the conversation the run files under, so sending it again
 continues that conversation. A run that stops for an approval answers
