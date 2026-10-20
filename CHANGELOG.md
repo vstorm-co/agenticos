@@ -66,6 +66,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **An empty chat opens on the agent who will answer.** Its face, its name and
+  what it does, instead of a sparkle and a line about streaming and tool calls;
+  the suggestions are filled cards with their whole prompt, in the chat, the
+  Architect's window and the Builder's test panel alike.
 - **Stepped dialogs say where you are in words you can read.** The steps of a
   new schedule, a portal trigger or a sync source are a bar per step with its
   number and name at the form's own size, instead of small icon circles joined

@@ -1094,7 +1094,7 @@
       "docsTitle": "Summarize my docs",
       "greeting": "How can I help, {name}?",
       "greetingAnonymous": "How can I help today?",
-      "lead": "Ask anything - get streaming answers with tool calls and citations from your knowledge.",
+      "lead": "Ask anything, attach a file, or start from one of these.",
       "slashCommands": "slash commands",
       "emailTitle": "Draft an email",
       "emailPrompt": "Draft a short, friendly email asking a client to confirm next week's meeting.",
