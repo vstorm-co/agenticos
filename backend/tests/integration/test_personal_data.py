@@ -93,7 +93,13 @@ async def _org_and_agent(db) -> tuple[Organization, Agent]:
 
 
 async def _run_by(
-    db, user_id: UUID, *, organization_id: UUID, agent_id: UUID, publisher_fallback: bool
+    db,
+    user_id: UUID,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    publisher_fallback: bool,
+    channel_identity_id: UUID | None = None,
 ) -> UUID:
     run = await agent_run_repo.create_run(
         db,
@@ -105,6 +111,7 @@ async def _run_by(
         surface="channel" if publisher_fallback else "chat",
         model_label=None,
         started_at=datetime.now(UTC),
+        channel_identity_id=channel_identity_id,
         initiated_by_publisher_fallback=publisher_fallback,
     )
     return run.id
@@ -451,6 +458,33 @@ class TestTheExport:
         export = await PersonalDataService(db).export(publisher_id, actor_user_id=publisher_id)
 
         assert [row["id"] for row in export.runs] == [theirs]
+
+    @pytest.mark.security
+    async def test_a_chat_accounts_runs_are_theirs_once_they_link_it(self, db):
+        """Linking an account attributes its earlier runs to them, though each ran
+        as the publisher at the time - so those runs are in their export, and a
+        delegation made under such a run, which carries the same, with them."""
+        publisher = await _person(db, "export-linked-publisher@example.com")
+        sender = await _person(db, "export-linked-sender@example.com")
+        sender_id = sender.id
+        organization, agent = await _org_and_agent(db)
+        identity = await _identity_for(db, None, platform_user_id="U-LINKED")
+        before_linking = await _run_by(
+            db,
+            publisher.id,
+            organization_id=organization.id,
+            agent_id=agent.id,
+            publisher_fallback=True,
+            channel_identity_id=identity.id,
+        )
+        identity.user_id = sender_id
+        await db.flush()
+
+        export = await PersonalDataService(db).export(sender_id, actor_user_id=sender_id)
+        publishers = await PersonalDataService(db).export(publisher.id, actor_user_id=publisher.id)
+
+        assert [row["id"] for row in export.runs] == [before_linking]
+        assert publishers.runs == []
 
     @pytest.mark.security
     async def test_a_project_chat_carries_their_turns_and_the_answers_to_them_only(self, db):

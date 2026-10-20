@@ -2348,6 +2348,13 @@ class TestStoppingANonStreamingRun:
         assert written["run_id"] == delegation.id
         assert written["status"] == RunStatus.CANCELLED.value
         assert written["cost_usd"] == Decimal("2.00")
+        # Whose turn it was is the parent's: a delegation made for an unlinked
+        # sender must not read as the publisher's own run (#2235).
+        assert (
+            written["initiated_by_publisher_fallback"]
+            is prepared.run.initiated_by_publisher_fallback
+        )
+        assert written["channel_identity_id"] is prepared.run.channel_identity_id
 
 
 class TestMarkRunning:
