@@ -83,6 +83,7 @@ import { TestPanel } from "@/components/agents/test-panel/test-panel";
 import { useTestShortcut } from "@/components/agents/test-panel/use-test-shortcut";
 import { VersionHistory } from "@/components/agents/version-history";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { ErrorState } from "@/components/states";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
 import {
   Badge,
@@ -225,6 +226,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const {
     agent,
     isLoading,
+    error,
     fetchedAt,
     saveDraft,
     validate,
@@ -778,6 +780,19 @@ export default function AgentBuilderPage({ params }: PageProps) {
     () => capabilities.filter((entry) => entry.id !== THINKING_ID),
     [capabilities],
   );
+
+  // A failed read leaves `agent` undefined with `isLoading` false, which the skeleton
+  // guard below cannot tell from a slow first load - so without this a 404 (an agent of
+  // another organization, or a deleted one) sits on the skeleton forever.
+  if (error && !agent) {
+    return (
+      <ErrorState
+        title={t("agentUnavailable")}
+        description={getErrorMessage(error, tErrors)}
+        cta={{ label: t("backToAgents"), onClick: () => router.push(ROUTES.AGENTS) }}
+      />
+    );
+  }
 
   if (isLoading || !spec || !agent) return <BuilderSkeleton />;
 
