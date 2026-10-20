@@ -1,6 +1,6 @@
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { messageOf } from "./composer-editor";
@@ -238,7 +238,10 @@ describe("the chat container - where an empty conversation is scrolled", () => {
         .addMessage({ id: "m-1", role: "user", content: "Hi.", timestamp: new Date() }),
     );
 
-    expect(await screen.findByText("Hi.")).toBeInTheDocument();
+    // Queried again on every attempt rather than held: on CI the node found first
+    // was detached by the time it was asserted on (230 ms, well inside the
+    // timeout), so what is checked is the message on screen, not one node.
+    await waitFor(() => expect(screen.getByText("Hi.")).toBeInTheDocument());
     expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ behavior: "smooth" }));
     scrollTo.mockRestore();
   });

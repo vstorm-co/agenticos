@@ -131,6 +131,7 @@ WIDGET_IDS: frozenset[str] = frozenset(
         "my-top-agents",
         "my-quality",
         "shared-with-you",
+        "background-jobs",
         "sandbox-capacity",
         "sandbox-sessions",
         "sandbox-policy",
