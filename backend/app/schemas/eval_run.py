@@ -275,6 +275,14 @@ class EvalRunRead(BaseSchema):
             "person decided: what grading again can settle"
         ),
     )
+    excluded_case_ids: list[UUID] = Field(
+        default_factory=list,
+        description=(
+            "Cases of the dataset version the run does not answer, because they were "
+            "taken from the conversations a proposal it checks was derived from - a "
+            "change is never measured on the data it was fitted to"
+        ),
+    )
     draft_changed: bool | None = Field(
         default=None,
         description=(

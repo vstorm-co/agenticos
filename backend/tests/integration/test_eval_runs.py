@@ -44,6 +44,7 @@ from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName, Perm, Sco
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.case_score import CaseScore
+from app.db.models.conversation import Conversation
 from app.db.models.credential import ModelProfile
 from app.db.models.dataset import Dataset, DatasetCase
 from app.db.models.eval_run import EvalRun, EvalRunArm, EvalRunCase, EvalRunStatus
@@ -2117,3 +2118,67 @@ async def test_who_may_edit_an_agent_is_read_per_agent_not_off_the_role(db) -> N
         assert await registry.may_edit(ctx, agent) is editable
         rows, _ = await registry.list_agents(ctx)
         assert [(row.id, row.can_edit) for row in rows] == [(agent.id, editable)]
+
+
+async def test_cases_from_a_proposals_evidence_are_left_out_and_listed(db) -> None:
+    """A change is never measured on the conversations it was derived from, and the
+    run says which cases it left out so a smaller sample is not a mystery."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=3)
+    evidence = uuid.uuid4()
+    conversation = Conversation(id=evidence, organization_id=ctx.organization_id)
+    db.add(conversation)
+    await db.flush()
+    first = (
+        (
+            await db.execute(
+                select(DatasetCase)
+                .where(DatasetCase.dataset_id == dataset.id)
+                .order_by(DatasetCase.input)
+            )
+        )
+        .scalars()
+        .first()
+    )
+    assert first is not None
+    first.source_conversation_id = evidence
+    await db.flush()
+    service = EvalRunService(db)
+    projection = AgentSpec(name="Clerk", instructions="Proposed")
+
+    started = await service.start(
+        ctx,
+        agent.id,
+        EvalRunRequest(dataset_id=dataset.id, paired_baseline=True),
+        candidate_spec=projection,
+        exclude_conversations=[evidence],
+    )
+
+    assert started.excluded_case_ids == [first.case_id]
+    assert started.cases == 2
+    assert started.paired is True
+    assert all(arm.reused_from_arm_id is None for arm in started.arms)
+
+
+async def test_a_dataset_made_wholly_of_the_evidence_is_refused(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    evidence = uuid.uuid4()
+    db.add(Conversation(id=evidence, organization_id=ctx.organization_id))
+    await db.flush()
+    case = (
+        await db.execute(select(DatasetCase).where(DatasetCase.dataset_id == dataset.id))
+    ).scalar_one()
+    case.source_conversation_id = evidence
+    await db.flush()
+
+    with pytest.raises(BadRequestError, match="none can measure it"):
+        await EvalRunService(db).estimate(
+            ctx,
+            agent.id,
+            EvalRunRequest(dataset_id=dataset.id),
+            candidate_spec=AgentSpec(name="Clerk", instructions="Proposed"),
+            exclude_conversations=[evidence],
+        )

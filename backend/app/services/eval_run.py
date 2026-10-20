@@ -34,7 +34,7 @@ import json
 import logging
 from collections import defaultdict
 from collections.abc import Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
@@ -226,6 +226,7 @@ class RunPlan:
     from_recordings: bool
     live_reads: bool
     judged: bool
+    excluded_case_ids: list[UUID] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -299,6 +300,7 @@ class EvalRunService:
         purpose: EvalRunPurpose = EvalRunPurpose.MANUAL,
         scoring: DatasetScoring | None = None,
         candidate_spec: AgentSpec | None = None,
+        exclude_conversations: Sequence[UUID] = (),
     ) -> RunPlan:
         """Decide what a run is, refusing anything that could not or should not run.
 
@@ -306,6 +308,9 @@ class EvalRunService:
         runs a spec the caller built - the authoring assistant's projection -
         and the caller has already decided they may: it is validated against
         the caller's access like a draft, and attributed to no version.
+        `exclude_conversations` leaves out the cases taken from those
+        conversations - a proposal's own evidence - and the baseline then runs
+        fresh beside the candidate, so both sides answer the same cases.
 
         Raises:
             NotFoundError: The agent, dataset or environment cannot be reached.
@@ -324,6 +329,19 @@ class EvalRunService:
                 message=f"Version {dataset_version.number} of '{dataset.name}' holds no cases",
                 details={"dataset_id": dataset.id, "version": dataset_version.number},
             )
+        left_out = set(exclude_conversations)
+        excluded = [case.case_id for case in cases if case.source_conversation_id in left_out]
+        if excluded:
+            cases = [case for case in cases if case.source_conversation_id not in left_out]
+            if not cases:
+                raise BadRequestError(
+                    message=(
+                        f"Every case of '{dataset.name}' was taken from the conversations "
+                        "this change was derived from, so none can measure it. Add cases "
+                        "from other conversations, or pick another dataset."
+                    ),
+                    details={"dataset_id": dataset.id, "excluded": len(excluded)},
+                )
         config = scoring or DatasetScoring.model_validate(dataset.scoring)
         ai_enabled = await AiAssistanceService(self.db).is_enabled(
             organization_id=ctx.organization_id
@@ -372,15 +390,19 @@ class EvalRunService:
                 model_profile_id=profile_id,
                 environment_id=request.environment_id,
             )
-            cached = await self._cached(
-                ctx,
-                agent=agent,
-                dataset=dataset,
-                dataset_version=dataset_version,
-                arm=baseline,
-                scoring_hash=hashed,
-                judged=ai_enabled and (config.judge.enabled or config.reference.enabled),
-                judge_id=config.judge.agent_id,
+            cached = (
+                None
+                if excluded
+                else await self._cached(
+                    ctx,
+                    agent=agent,
+                    dataset=dataset,
+                    dataset_version=dataset_version,
+                    arm=baseline,
+                    scoring_hash=hashed,
+                    judged=ai_enabled and (config.judge.enabled or config.reference.enabled),
+                    judge_id=config.judge.agent_id,
+                )
             )
             arms.append(baseline if cached is None else replace(baseline, cached=cached))
         return RunPlan(
@@ -398,6 +420,7 @@ class EvalRunService:
             from_recordings=request.from_recordings,
             live_reads=request.live_reads,
             judged=ai_enabled and (config.judge.enabled or config.reference.enabled),
+            excluded_case_ids=excluded,
         )
 
     async def _dataset_version(
@@ -617,10 +640,17 @@ class EvalRunService:
         purpose: EvalRunPurpose = EvalRunPurpose.MANUAL,
         scoring: DatasetScoring | None = None,
         candidate_spec: AgentSpec | None = None,
+        exclude_conversations: Sequence[UUID] = (),
     ) -> EvalRunEstimate:
         """What a run would cost, against what the agent and organization have left."""
         plan = await self.plan(
-            ctx, agent_id, request, purpose=purpose, scoring=scoring, candidate_spec=candidate_spec
+            ctx,
+            agent_id,
+            request,
+            purpose=purpose,
+            scoring=scoring,
+            candidate_spec=candidate_spec,
+            exclude_conversations=exclude_conversations,
         )
         return await self._estimate(ctx, plan)
 
@@ -775,6 +805,7 @@ class EvalRunService:
         purpose: EvalRunPurpose = EvalRunPurpose.MANUAL,
         scoring: DatasetScoring | None = None,
         candidate_spec: AgentSpec | None = None,
+        exclude_conversations: Sequence[UUID] = (),
     ) -> EvalRunRead:
         """Write a run and hand it to the worker - or refuse it before anything is spent.
 
@@ -783,7 +814,13 @@ class EvalRunService:
                 organization has left this month. Nothing is written.
         """
         plan = await self.plan(
-            ctx, agent_id, request, purpose=purpose, scoring=scoring, candidate_spec=candidate_spec
+            ctx,
+            agent_id,
+            request,
+            purpose=purpose,
+            scoring=scoring,
+            candidate_spec=candidate_spec,
+            exclude_conversations=exclude_conversations,
         )
         estimate = await self._estimate(ctx, plan)
         if not estimate.affordable:
@@ -815,6 +852,7 @@ class EvalRunService:
             scoring_hash=plan.scoring_hash,
             estimate_usd=estimate.total_usd,
             rerun_ceiling_usd=estimate.rerun_ceiling_usd,
+            excluded_case_ids=plan.excluded_case_ids,
         )
         arms = [
             EvalRunArm(
@@ -1269,6 +1307,7 @@ class EvalRunService:
                         ),
                         None,
                     ),
+                    excluded_case_ids=list(run.excluded_case_ids or []),
                     ungraded_score_ids=sorted(
                         borrowed | {score.id for score in scores.values() if _not_graded(score)}
                     ),
