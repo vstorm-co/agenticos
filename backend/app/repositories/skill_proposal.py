@@ -30,19 +30,26 @@ async def get(
 
 
 async def get_pending_for_skill(
-    db: AsyncSession, *, organization_id: UUID, skill_id: UUID | None, name: str
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    skill_id: UUID | None,
+    name: str,
+    agent_id: UUID,
 ) -> SkillProposal | None:
-    """The proposal this run should overwrite instead of duplicating.
+    """The proposal this agent should overwrite instead of duplicating.
 
     A conversation that edits one skill over three turns should leave one
     proposal behind, not three: a reviewer asked the same question three times
     has been given more work, not more information. Keyed on the skill where
     there is one and on the name where there is not, because a new skill has no
-    id until somebody accepts it.
+    id until somebody accepts it - and on the agent that proposed it, so one
+    agent's newer proposal never replaces another's and takes its attribution.
     """
     statement = select(SkillProposal).where(
         SkillProposal.organization_id == organization_id,
         SkillProposal.status == ProposalStatus.PENDING.value,
+        SkillProposal.agent_id == agent_id,
     )
     if skill_id is None:
         statement = statement.where(SkillProposal.skill_id.is_(None), SkillProposal.name == name)

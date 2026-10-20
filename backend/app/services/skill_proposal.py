@@ -65,6 +65,7 @@ class SkillProposalService:
                 organization_id=ctx.organization_id,
                 skill_id=change.skill_id,
                 name=change.name,
+                agent_id=agent_id,
             )
             if existing is not None:
                 recorded.append(
