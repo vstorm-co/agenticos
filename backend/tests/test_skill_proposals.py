@@ -23,7 +23,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.core.exceptions import AlreadyExistsError, NotFoundError
+from app.core.exceptions import AlreadyExistsError, ConcurrentChangeError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.skill_proposal import ProposalStatus
 from app.repositories import skill_proposal_repo
@@ -45,6 +45,7 @@ def _proposal(**overrides: object) -> MagicMock:
         content="Ask for the receipt.",
         resources={},
         status=ProposalStatus.PENDING.value,
+        base_version=None,
     )
     row.name = "refunds"
     for key, value in overrides.items():
@@ -151,6 +152,29 @@ class TestApplying:
 
         service.skills.create.assert_awaited_once()
         service.skills.update.assert_not_called()
+
+    async def test_a_proposal_applies_while_the_skill_is_at_its_version(self, monkeypatch):
+        service = _service(monkeypatch)
+        proposal = _proposal(base_version=3)
+        monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
+        service.skills.get = AsyncMock(return_value=MagicMock(version=3))
+
+        decided = await service.apply(_ctx(), proposal.id)
+
+        assert decided.status == ProposalStatus.APPLIED.value
+
+    async def test_a_proposal_for_an_older_version_refuses_to_overwrite(self, monkeypatch):
+        """A body reviewed against v3 must not silently replace the v4 somebody wrote."""
+        service = _service(monkeypatch)
+        proposal = _proposal(base_version=3)
+        monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
+        service.skills.get = AsyncMock(return_value=MagicMock(version=4))
+
+        with pytest.raises(ConcurrentChangeError, match="changed since"):
+            await service.apply(_ctx(), proposal.id)
+
+        service.skills.update.assert_not_called()
+        assert proposal.status == ProposalStatus.PENDING.value
 
     async def test_the_resources_are_written_too(self, monkeypatch):
         """A skill whose script did not come with it is a skill that no longer

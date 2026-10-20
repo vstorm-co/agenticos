@@ -215,7 +215,7 @@ class BatchRead(BaseSchema):
     agent_id: UUID
     status: str
     expected_effect: str
-    request: AuthoringRequestRead | None
+    request_id: UUID | None = Field(description="The Improve or Verify that opened it")
     hunks: list[HunkRead]
     check_eval_run_ids: list[UUID]
     created_at: datetime
@@ -233,6 +233,13 @@ class AgentAuthoringRead(BaseSchema):
     batch: BatchRead | None
     latest: AuthoringRequestRead | None
     verify: AuthoringRequestRead | None
+
+
+class DecisionRead(BaseSchema):
+    """What a decision left: the strip as it now stands, and the draft it wrote."""
+
+    authoring: AgentAuthoringRead
+    draft_spec: dict[str, object]
 
 
 class HunkDecision(BaseSchema):

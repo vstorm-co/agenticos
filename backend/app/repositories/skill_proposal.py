@@ -125,3 +125,14 @@ async def decide(
     await db.flush()
     await db.refresh(proposal)
     return proposal
+
+
+async def annotate(
+    db: AsyncSession, *, proposal: SkillProposal, values: dict[str, Any]
+) -> SkillProposal:
+    """Attach what an evidence-backed proposal carries beyond its body."""
+    for field, value in values.items():
+        setattr(proposal, field, value)
+    await db.flush()
+    await db.refresh(proposal)
+    return proposal

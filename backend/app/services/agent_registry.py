@@ -72,6 +72,7 @@ from app.core.secret_kinds import SecretKind
 from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent, AgentKind, AgentStatus, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
+from app.db.models.authoring import BatchStatus
 from app.db.models.credential import ModelProfile
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill
@@ -80,6 +81,7 @@ from app.repositories import (
     agent_exposure_repo,
     agent_repo,
     agent_trigger_repo,
+    authoring_repo,
     context_repo,
     credential_repo,
     external_agent_repo,
@@ -2151,6 +2153,13 @@ class AgentRegistryService:
         # that moves environments is the step that moves it - see below.
         await self._move_environments_that_follow(ctx, agent=agent, version=version)
         await self.withdraw_creator_consent(ctx, agent)
+        # The authoring assistant's suggestions were for the draft just frozen:
+        # their decisions are final now, and Undo would edit a published version.
+        batch = await authoring_repo.get_open_batch(
+            self.db, organization_id=ctx.organization_id, agent_id=agent.id, lock=True
+        )
+        if batch is not None:
+            await authoring_repo.close_batch(self.db, batch=batch, status=BatchStatus.PUBLISHED)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,

@@ -1328,7 +1328,7 @@ class TestStatsScopeIsDecidedInTheService:
                     eval_cost_usd=Decimal(0),
                 ),
             ),
-            ("window_totals", (0, Decimal(0), Decimal(0))),
+            ("window_totals", (0, Decimal(0), Decimal(0), Decimal(0))),
             ("runs_by_bin", []),
             (
                 "window_breakdown",

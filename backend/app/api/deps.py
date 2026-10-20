@@ -808,6 +808,16 @@ def get_eval_run_service(db: DBSession) -> EvalRunService:
 
 EvalRunSvc = Annotated[EvalRunService, Depends(get_eval_run_service)]
 
+from app.services.authoring import AuthoringService
+
+
+def get_authoring_service(db: DBSession) -> AuthoringService:
+    """Create AuthoringService instance with database session."""
+    return AuthoringService(db)
+
+
+AuthoringSvc = Annotated[AuthoringService, Depends(get_authoring_service)]
+
 
 def get_mention_service(db: DBSession) -> MentionService:
     return MentionService(db)

@@ -244,3 +244,15 @@ class TestProjection:
         hunk = _anchored(BASE, _change("Answer refunds.", "x"), status="dismissed")
 
         assert hunks.applies(_spec(), hunk) is False
+
+
+def test_the_tool_catalog_skips_a_capability_the_registry_does_not_know():
+    from app.services.authoring_worker import tool_catalog
+
+    spec = AgentSpec(
+        name="Clerk",
+        instructions="",
+        capabilities=[CapabilityBindingSpec(id="retired"), CapabilityBindingSpec(id="charts")],
+    )
+
+    assert [row[:2] for row in tool_catalog(spec)] == [("charts", "create_chart")]
