@@ -15,6 +15,7 @@ SWEEPS = (
     "portal-poll",
     "notification-delivery-sweep",
     "rag-sync-check",
+    "sandbox-destroy-retry",
     "eval-suites-check",
 )
 """Every sweep `app/worker/prefect_app.py` runs, by name - each records on its own."""

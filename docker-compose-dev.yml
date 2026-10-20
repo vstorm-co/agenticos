@@ -90,7 +90,7 @@ services:
     # never answer; see docker-compose.yml for the whole reasoning, including why
     # `raise_for_status` and a 30s start_period are not what the image had.
     healthcheck:
-      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/api/v1/health').raise_for_status()"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -202,7 +202,7 @@ services:
     # 503 once the runner has missed two polls; the start_period covers the
     # application import and the first poll. See docker-compose.yml.
     healthcheck:
-      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://127.0.0.1:8080/health').raise_for_status()"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=5)"]
       interval: 15s
       timeout: 5s
       retries: 3

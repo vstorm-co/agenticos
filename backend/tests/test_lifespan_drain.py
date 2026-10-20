@@ -83,6 +83,7 @@ def _stub_startup(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "app.agents.capabilities.web_research._search.close_http_client", AsyncMock()
     )
+    monkeypatch.setattr("app.services.sandbox_workspace.close_sandboxd_client", AsyncMock())
     monkeypatch.setattr(main, "reset_retrieval_service", MagicMock())
     monkeypatch.setattr(main, "EventLoopWatchdog", lambda *a, **k: MagicMock())
     # Warmup raises, so the embedder is None and no PgVectorStore is built - the

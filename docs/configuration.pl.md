@@ -1,5 +1,5 @@
 ---
-source_sha: "22f516fde3cb"
+source_sha: "ef111b36345c"
 ---
 
 # Konfiguracja { #configuration }
@@ -545,6 +545,18 @@ w trakcie runu przez model — dziedziczy tryb. Jedno
 ograniczenie, zanim na tym polegasz: podpięcie tej instrumentacji jest
 best-effort, a błąd jest logowany, gdy run trwa dalej.
 
+Przy `ENVIRONMENT=production` żaden span nie trafia na konsolę. Eksporter
+konsolowy Logfire wypisuje jedną linię na każde wywołanie SQL i Redisa, około
+czterdziestu na zapytanie, do logu kontenera, którego nikt nie przeszuka. W
+produkcji span istnieje więc tylko tam, dokąd wysyła go token, a bez tokenu wolne
+zapytanie nie zostawia żadnego śladu. `agenticos cmd doctor` zgłasza to w linii
+`tracing`. W innych środowiskach konsola dalej wypisuje spany dla tego, kto patrzy
+na serwer.
+
+Daj każdemu wdrożeniu własne `LOGFIRE_ENVIRONMENT`, na przykład `local` na
+laptopie i `production` na serwerze. Jeden projekt może wtedy trzymać oba i nadal
+je rozróżniać.
+
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|
 | `LOGFIRE_TOKEN` | (none) | Token Pydantic Logfire. Zdobądź go na https://logfire.pydantic.dev |
@@ -729,7 +741,7 @@ poniżej dotyczą wyłącznie workspace'u opartego na kontenerze.
 
 | Zmienna | Domyślnie | Uwagi |
 |---|---|---|
-| `SANDBOX_STATE_MAX_BYTES` | 4 MiB | Na **przechowywany** workspace. Po jego przekroczeniu zapis zostaje odrzucony komunikatem, który czyta model |
+| `SANDBOX_STATE_MAX_BYTES` | 32 MiB | Na **przechowywany** workspace. Po jego przekroczeniu zapis zostaje odrzucony komunikatem, który czyta model |
 | `SANDBOX_INLINE_IMAGE_MAX_BYTES` | 5 MiB | Powyżej tej wartości załączony obraz jest zapisywany do workspace'u i nie jest dodatkowo wysyłany inline |
 
 **Procent w czacie to dwa różne sufity i mówi, który.** Przechowywany workspace
@@ -1245,6 +1257,7 @@ współdzielony.
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|
 | `EVENT_LOOP_WEDGED_AFTER` | `15` | Ile sekund pętla zdarzeń może się nie kręcić, zanim worker zostanie zabity i zastąpiony. `0` lub mniej wyłącza to sprawdzanie |
+| `UVICORN_WORKER_HEALTHCHECK_TIMEOUT` | `60` | Ile sekund supervisor uvicorna czeka, aż worker odpowie na jego ping, zanim go zastąpi — wszędzie, gdzie `--workers` jest większe od 1. Czytają ją pliki compose, nie aplikacja |
 
 Worker, który *żyje, ale nie odpowiada* — zakleszczony na blokadzie, kręcący się w
 synchronicznym wywołaniu, zablokowany na sockecie, który nigdy nie odpowie — nie ma
@@ -1290,6 +1303,18 @@ Nie widzi procesu, który w ogóle nie działa — `kill -STOP`, zamrożona cgro
 watchdog wewnątrz zatrzymanego procesu też jest zatrzymany. Ten przypadek pokrywają
 już supervisory: bicie supervisora przeładowania staje się nieaktualne, a ping po
 pipie w produkcji zostaje bez odpowiedzi.
+
+Ten ping czeka `UVICORN_WORKER_HEALTHCHECK_TIMEOUT` sekund, domyślnie 60.
+Domyślna wartość samego uvicorna to 5, a host, któremu brakuje CPU — steal na
+współdzielonym VPS-ie, budowanie obrazu, zaległe uruchomienia flow — nie mieści się
+w 5 sekundach z workerami, które żyją i obsługują ruch.
+
+Supervisor zabija je wtedy,
+a potem zabija ich następców, zanim skończą importować aplikację, i każdy restart
+dokłada import do presji, która go spowodowała. W logu widać to jako
+`Child process [N] died` bez wpisu watchdoga nad nim. Skoro zablokowaną pętlę
+ocenia watchdog, ping ma tylko zauważyć zatrzymany proces, a na to minuta
+wystarczy.
 
 ## Docker / produkcja { #docker-production }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "dcefccd16f75"
+source_sha: "380aaee8c6be"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1571,6 +1571,13 @@ Slack lo muestra.
   cae, en unos 40. Una edición que atiende otro worker abre la conexión nueva al
   momento, y la vieja se cierra en la siguiente renovación de quien la tenía. Con
   Redis inalcanzable, se conecta cada worker, como antes.
+- **Un segundo poller de Telegram se detecta, no se combate.** Cuando Telegram
+  corta el poll de un bot porque otro proceso consulta el mismo token, el worker
+  que no tiene el lease de ese bot cierra su copia en el acto. El que lo tiene
+  sigue consultando y marca el bot como caído en la página de canales: «otro
+  proceso está consultando el token de este bot». Ese proceso está fuera del
+  despliegue, normalmente otro despliegue o un script con el mismo token, y solo
+  su dueño puede pararlo.
 - **Las instrucciones de una vinculación pueden nombrar lo que solo sabe la
   plataforma.** `{channel_name}`, `{channel_purpose}`, `{channel_topic}`,
   `{member_count}`, `{member_list}` - rellenados cuando arranca un run, con las

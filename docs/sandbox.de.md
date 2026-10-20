@@ -1,5 +1,5 @@
 ---
-source_sha: "66a783c397fe"
+source_sha: "852d8bf0dfea"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -439,7 +439,21 @@ also etwas, wohin er blättern kann.
 geholt und gebaut, statt in der ersten Anfrage von jemandem — ein Build sind zehn
 Sekunden und mehr. Images werden zwischengespeichert, ein Host zahlt also einmal.
 
-Was zu warten bleibt: die erste Session, die *während* eines Prewarms geöffnet wird,
+Ein Deployment baut sie noch früher. `scripts/deploy.sh` führt das
+`python -m pydantic_ai_backends.remote.prepare` der Bibliothek in einem einmaligen
+Container des neuen sandboxd-Images aus, bevor der alte Dienst ersetzt wird. Ein
+Release, das eine Runtime ändert, bezahlt den Build also, während der alte Dienst
+noch bedient. Vorher wartete am 18.10.2026 der erste Chat mit Sandbox nach einem
+solchen Release minutenlang, und jede Session-Anfrage bekam 409, bis der Build
+fertig war. Ein fehlgeschlagener Build wird dort dreimal versucht und beim Start
+zweimal. Eine Runtime, die danach noch nicht gebaut ist, wird wie bisher bei
+Bedarf gebaut, und das Deploy-Log nennt sie.
+
+Solange eine Session auf einen solchen Build wartet, sagt der Chat das über dem
+Eingabefeld: „Die Sandbox wird vorbereitet“. Das Öffnen wartet bis zu zehn Minuten
+darauf, nicht die 30 Sekunden einer gewöhnlichen Anfrage.
+
+Was zu warten bleibt: eine Runtime, die das Deployment nicht vorbereiten konnte,
 und ein Host, dessen Image-Cache geleert wurde.
 `SANDBOXD_PERSIST_CONTAINERS: true` beseitigt dann den größten Teil des Rests — eine
 geschlossene Session behält ihren Container, die nächste Session auf diesem Workspace
@@ -543,16 +557,18 @@ ihn davon ab.
 
 ### Einen Container aufzulisten kostet Roundtrips, deshalb sind zwei Dinge begrenzt { #listing-a-container-costs-round-trips-so-two-things-are-bounded }
 
-Das `ls` des Archivs liest ein Verzeichnis, die Auflistung läuft also: in die Breite
-zuerst, höchstens sechs Ebenen tief, mit Halt bei 2.000 Einträgen — denn ein Host,
-der ein `node_modules` hält, darf aus einem Workspace nicht zehntausend Zeilen
-machen.
+Das `ls` des Archivs liest ein Verzeichnis, die Auflistung fragt den Host deshalb
+nach seinem `tree`: eine Anfrage, in die Breite zuerst auf der eigenen Platte des
+Hosts durchlaufen, höchstens sechs Ebenen tief, mit Halt bei 2.000 Einträgen — denn
+ein Host, der ein `node_modules` hält, darf aus einem Workspace nicht zehntausend
+Zeilen machen.
 
 **Beide Grenzen werden gemeldet.** Die Seite eines Workspace sagt klar, dass dies
 nicht jede Datei ist, denn ein Baum, der ohne Ankündigung aufhört, ist einer, den
 jemand als alles liest, was der Agent aufbewahrt.
 
-Ein Verzeichnis, das nicht antwortet, wird geloggt und übersprungen. Nur wenn die
+Ein Verzeichnis, das nicht antwortet, wird übersprungen, und die Auflistung meldet
+sich als unvollständig. Nur wenn die
 *Wurzel* sich weigert, wird der Workspace unlesbar, denn ein Ordner, den der Agent
 weg-chmodet hat, ist kein Host, den niemand lesen kann.
 
@@ -597,6 +613,19 @@ Woche.
 
 Eine Unterhaltung zu löschen räumt ihren Workspace über das Produkt ab, hier geht es
 also um das, was niemand löscht, und nicht darum, was sie tun.
+
+Dieses Aufräumen hängt nicht davon ab, ob der Anbieter gerade antwortet. Das
+Löschen schreibt in derselben Transaktion einen Grabstein für jede entfernte
+Sandbox, und ein Destroy entfernt ihn, sobald der Anbieter ihn bestätigt. Ist der
+Sandbox-Host down, wird ein Daytona-Schlüssel abgelehnt oder startet der Worker
+dazwischen neu, versucht es der Sweep `sandbox-destroy-retry` des Workers erneut.
+Die Pause verdoppelt sich jedes Mal, von 2 Minuten bis 6 Stunden, bis der Destroy
+gelingt. Hinter einer Daytona-Sandbox steht keine TTL, also beendet nur das sie.
+
+Auch eine abgeschaltete Verbindung bekommt ihre Sandboxes entfernt, denn
+Abschalten stoppt neue Arbeit, nicht die Rechnung. Eine Verbindung mit
+verbliebenen Tombstones lässt sich nicht löschen: Die Tombstones gingen mit ihr,
+und sie sind die einzige Aufzeichnung dessen, was beim Anbieter noch läuft.
 
 ## Zusammenfassung { #recap }
 

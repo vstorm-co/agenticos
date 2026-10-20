@@ -304,6 +304,11 @@ export function useChat(options: UseChatOptions = {}) {
   // it outlives a turn: it describes what is configured, and clearing it when the
   // turn ends would flash the one message that explains why nothing happened.
   const [compactionImpossible, setCompactionImpossible] = useState<Compaction | null>(null);
+  // Whether the run's sandbox is still being opened. The first session after an
+  // update builds the runtime's image on the host, which is minutes during which no
+  // token and no tool step arrives (#2222). Cleared by the next tool result and by
+  // the end of the turn, which is when the session is known to be open or gone.
+  const [sandboxPreparing, setSandboxPreparing] = useState(false);
   // The agent's personal MCP services this person cannot reach, for the turn on
   // screen. Cleared when the next question is sent: the card belongs beside the
   // answer that says the agent could not reach them.
@@ -850,6 +855,18 @@ export function useChat(options: UseChatOptions = {}) {
           break;
         }
 
+        case "sandbox_preparing": {
+          setSandboxPreparing(true);
+          break;
+        }
+
+        // Its own signal rather than the next tool result: a faster tool running
+        // beside the sandbox one would clear the notice mid-build.
+        case "sandbox_ready": {
+          setSandboxPreparing(false);
+          break;
+        }
+
         case "personal_services_unavailable": {
           // Before the model answers, so the button that connects the account is on
           // screen while the agent is still saying it cannot reach it.
@@ -859,6 +876,8 @@ export function useChat(options: UseChatOptions = {}) {
 
         case "error": {
           setPendingConnection(null);
+          // An open that failed ends the turn here, with no `complete` after it.
+          setSandboxPreparing(false);
           awaitingConnectionRef.current = false;
           // A refusal before the turn opened a message - an agent with no model,
           // nobody picked to answer - lands in a message of its own under the
@@ -992,6 +1011,7 @@ export function useChat(options: UseChatOptions = {}) {
             }
             // Whatever else this turn did, it is not summarising any more.
             setCompacting(null);
+            setSandboxPreparing(false);
             if (usage) {
               setLiveUsage({
                 // From the store rather than the render closure: a turn that created
@@ -1415,6 +1435,7 @@ export function useChat(options: UseChatOptions = {}) {
     }
     setCompacting(null);
     setCompactionImpossible(null);
+    setSandboxPreparing(false);
     setPersonalGaps([]);
     approvalOfferedForRef.current = new Set();
     // Both, or a question read for this conversation and dropped because the
@@ -2113,6 +2134,8 @@ export function useChat(options: UseChatOptions = {}) {
     isProcessing,
     compacting,
     compactionImpossible,
+    /** Whether the run's sandbox is still being opened - see `SandboxPreparingNotice`. */
+    sandboxPreparing,
     /** A turn whose socket went away. The answer is still being written; see `onTurnInterrupted`. */
     interrupted,
     /**

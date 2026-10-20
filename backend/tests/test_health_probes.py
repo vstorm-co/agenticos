@@ -434,7 +434,7 @@ class TestSchedulerProbe:
         check = await health.probe_scheduler(_Redis())  # type: ignore[arg-type]
 
         assert check.status == "healthy"
-        assert "all 5 sweeps ticked within 40s" in check.detail
+        assert f"all {len(health.worker_heartbeat.SWEEPS)} sweeps ticked within 40s" in check.detail
         assert "mcp-connection-sweep completed 9 min ago" in check.detail
         assert check.latency_ms is not None
 

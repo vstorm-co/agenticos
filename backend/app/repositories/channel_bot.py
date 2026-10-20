@@ -79,16 +79,18 @@ async def get_by_platform(
     return list(result.scalars().all())
 
 
-async def get_active_polling_bots(db: AsyncSession, platform: str) -> list[ChannelBot]:
-    """Get all active polling bots for a given platform, across every organization.
+async def get_active_polling_bots(db: AsyncSession, *platforms: str) -> list[ChannelBot]:
+    """Get all active polling bots on these platforms, across every organization.
 
     Deliberately unscoped: the poller is a background worker serving the whole
     deployment, not a request made by a member of one organization. Each bot it
-    returns still carries its own `organization_id`.
+    returns still carries its own `organization_id`. Several platforms in one
+    query, because the stream keeper asks about all of them every 10 seconds in
+    every worker (#2227).
     """
     result = await db.execute(
         select(ChannelBot).where(
-            ChannelBot.platform == platform,
+            ChannelBot.platform.in_(platforms),
             ChannelBot.is_active.is_(True),
             ChannelBot.webhook_mode.is_(False),
         )

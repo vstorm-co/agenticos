@@ -538,6 +538,17 @@ the model — inherits the mode. One limit
 before relying on it: attaching that instrumentation is best-effort, and a
 failure is logged while the run continues.
 
+With `ENVIRONMENT=production` no span is printed to the console. Logfire's console
+exporter writes one line per SQL and Redis call, about forty per request, into a
+container log nobody can query. So in production a span exists only where the
+token sends it, and with no token a slow request leaves no trace at all.
+`agenticos cmd doctor` reports that as its `tracing` line. Elsewhere the console
+keeps printing spans for whoever is watching the server.
+
+Give each deployment its own `LOGFIRE_ENVIRONMENT`, such as `local` on a laptop
+and `production` on the server. One project can then hold both and still keep
+them apart.
+
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `LOGFIRE_TOKEN` | (none) | Pydantic Logfire token. Get one at https://logfire.pydantic.dev |
@@ -721,7 +732,7 @@ are only for a container-backed one.
 
 | Variable | Default | Notes |
 |---|---|---|
-| `SANDBOX_STATE_MAX_BYTES` | 4 MiB | Per **stored** workspace. Past it a write is refused with a message the model reads |
+| `SANDBOX_STATE_MAX_BYTES` | 32 MiB | Per **stored** workspace. Past it a write is refused with a message the model reads |
 | `SANDBOX_INLINE_IMAGE_MAX_BYTES` | 5 MiB | Above this an attached image is written to the workspace and not also sent inline |
 
 **The percentage in the chat is two different ceilings, and it says which.** A
@@ -1218,6 +1229,7 @@ stays safe but shared.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `EVENT_LOOP_WEDGED_AFTER` | `15` | Seconds the event loop may stop turning before the worker is killed and replaced. `0` or below switches the check off |
+| `UVICORN_WORKER_HEALTHCHECK_TIMEOUT` | `60` | Seconds uvicorn's supervisor waits for a worker to answer its ping before replacing it, wherever `--workers` is above 1. Read by the compose files, not by the application |
 
 A worker that is *alive but not answering* — deadlocked on a lock, spinning in a
 synchronous call, blocked on a socket that never answers — has no exit code, so
@@ -1262,6 +1274,18 @@ It cannot see a process that is not running at all — `kill -STOP`, a frozen
 cgroup — because a watchdog inside a stopped process is stopped too. That case
 is the one the supervisors already cover: the reload supervisor's beat goes
 stale and production's pipe ping goes unanswered.
+
+That ping waits `UVICORN_WORKER_HEALTHCHECK_TIMEOUT` seconds, 60 by default.
+Uvicorn's own default is 5, and a host short of CPU — steal on a shared VPS, an
+image build, a backlog of flow runs — misses 5 seconds with workers that are
+alive and serving.
+
+The supervisor then kills them and kills their replacements
+before they finish importing the application, and every restart adds an import's
+worth of CPU to the pressure that caused it. The log shows it as
+`Child process [N] died` with no watchdog line above it. Since a blocked loop
+is the watchdog's to judge, the ping only has to notice a stopped process, and a
+minute is soon enough for that.
 
 ## Docker / production
 

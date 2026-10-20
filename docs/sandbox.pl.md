@@ -1,5 +1,5 @@
 ---
-source_sha: "66a783c397fe"
+source_sha: "852d8bf0dfea"
 ---
 
 # Sandbox { #the-sandbox }
@@ -414,8 +414,21 @@ nieudane” są żądaniami, więc pager nad trzystoma operacjami ma po czym str
 **w czasie startu usługi**, a nie w środku czyjegoś pierwszego żądania —
 budowanie to dziesięć sekund i więcej. Obrazy są cache'owane, więc host płaci raz.
 
-Co zostaje do czekania: pierwsza sesja otwarta *w trakcie* prewarmu oraz host,
-któremu wyczyszczono cache obrazów. `SANDBOXD_PERSIST_CONTAINERS: true` usuwa
+Deploy buduje je jeszcze wcześniej. `scripts/deploy.sh` uruchamia biblioteczne
+`python -m pydantic_ai_backends.remote.prepare` w jednorazowym kontenerze nowego
+obrazu sandboxd, zanim stara usługa zostanie zastąpiona. Wydanie, które zmienia
+runtime, płaci więc za build, gdy stara usługa wciąż obsługuje ruch. Wcześniej,
+18.10.2026, pierwszy czat z sandboxem po takim wydaniu czekał minuty, a każde
+żądanie sesji dostawało 409, dopóki build się nie skończył. Build, który się nie
+uda, jest tam ponawiany trzy razy, a przy starcie dwa. Runtime, który nadal nie
+jest zbudowany, buduje się na żądanie, jak wcześniej, a log deployu go wymienia.
+
+Gdy sesja czeka na taki build, czat mówi o tym nad polem wpisywania:
+„Przygotowuję sandbox”. Otwarcie czeka na niego do dziesięciu minut, a nie 30
+sekund zwykłego żądania.
+
+Co zostaje do czekania: runtime, którego deploy nie zdołał przygotować, oraz
+host, któremu wyczyszczono cache obrazów. `SANDBOXD_PERSIST_CONTAINERS: true` usuwa
 wtedy większość reszty — zamknięta sesja zachowuje swój kontener, więc następna
 sesja na tym workspasie startuje bez budowania i z tym, co agent zainstalował
 ostatnim razem, nadal zainstalowanym.
@@ -513,16 +526,17 @@ nie do odróżnienia od człowieka i nic go przed tym nie powstrzymuje.
 
 ### Wypisanie zawartości kontenera kosztuje obiegi, więc dwie rzeczy są ograniczone { #listing-a-container-costs-round-trips-so-two-things-are-bounded }
 
-`ls` z archiwum czyta jeden katalog, więc zestawienie chodzi po drzewie: wszerz,
-najwyżej na sześć poziomów w głąb, zatrzymując się na 2000 wpisach — bo host
-trzymający `node_modules` nie może zamienić jednego workspace'u w dziesięć tysięcy
-wierszy.
+`ls` z archiwum czyta jeden katalog, więc zestawienie prosi hosta o `tree`:
+jedno żądanie, drzewo przechodzone wszerz na dysku samego hosta, najwyżej na sześć
+poziomów w głąb, z zatrzymaniem na 2000 wpisach — bo host trzymający
+`node_modules` nie może zamienić jednego workspace'u w dziesięć tysięcy wierszy.
 
 **Oba ograniczenia są raportowane.** Strona workspace'u mówi wprost, że to nie są
 wszystkie pliki, bo drzewo, które zatrzymuje się bez uprzedzenia, ktoś przeczyta
 jako wszystko, co agent trzyma.
 
-Katalog, który nie chce odpowiedzieć, jest logowany i pomijany. Dopiero odmowa
+Katalog, który nie chce odpowiedzieć, jest pomijany, a zestawienie zgłasza, że jest
+niepełne. Dopiero odmowa
 *korzenia* czyni workspace nieczytelnym, bo jeden folder, któremu agent zabrał
 prawa, to nie jest host, którego nikt nie potrafi odczytać.
 
@@ -565,6 +579,19 @@ tą pracą, a użytkownik agenta oczekuje ich w przyszłym tygodniu.
 
 Usunięcie rozmowy czyści jej workspace poprzez produkt, więc rzecz dotyczy tego,
 czego nikt nie usuwa, a nie tego, co ludzie robią.
+
+To czyszczenie nie zależy od tego, czy dostawca akurat odpowiada. Usunięcie w tej
+samej transakcji zapisuje nagrobek dla każdego zdalnego sandboxa, a destroy usuwa
+nagrobek, gdy dostawca je potwierdzi. Gdy host sandboxa leży, klucz Daytony
+zostanie odrzucony albo worker zrestartuje się w międzyczasie, sweep workera
+`sandbox-destroy-retry` próbuje ponownie. Przerwa podwaja się za każdym razem, od
+2 minut do 6 godzin, aż destroy się uda. Sandbox Daytony nie ma za sobą TTL, więc
+tylko to go kończy.
+
+Połączenie wyłączone dalej ma swoje sandboxy usuwane, bo wyłączenie wstrzymuje
+nową pracę, a nie rachunek. Połączenia, na którym zostały tombstone'y, nie da się
+usunąć: zniknęłyby razem z nim, a to jedyny zapis tego, co nadal działa u
+dostawcy.
 
 ## Podsumowanie { #recap }
 

@@ -684,8 +684,9 @@ class Settings(BaseSettings):
     # How much of an agent's `state` workspace the platform will store, per
     # workspace. It lives in a JSONB column, so this is a real ceiling on a real
     # row rather than a policy: past it, writes are refused with a message the
-    # model reads.
-    SANDBOX_STATE_MAX_BYTES: int = 4 * 1024 * 1024
+    # model reads. A run holds the whole document in memory, so the ceiling is
+    # also what one open workspace may cost the API process.
+    SANDBOX_STATE_MAX_BYTES: int = 32 * 1024 * 1024
     # Above this, an attached image is written to the workspace and *not* also
     # sent inline. Below it the model gets both: it should see the picture, and
     # it should be able to run something over the file. The ceiling is where

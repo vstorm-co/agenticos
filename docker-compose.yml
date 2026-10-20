@@ -106,7 +106,9 @@ services:
     # chat is a WebSocket.
     command: >-
       uvicorn app.main:app --host 0.0.0.0 --port 8000
-      --workers ${UVICORN_WORKERS:-1} --ws websockets-sansio
+      --workers ${UVICORN_WORKERS:-1}
+      --timeout-worker-healthcheck ${UVICORN_WORKER_HEALTHCHECK_TIMEOUT:-60}
+      --ws websockets-sansio
     networks:
       - backend
       - browser
@@ -118,13 +120,18 @@ services:
     # This probe used to be a HEALTHCHECK in backend/Dockerfile, which the Prefect
     # runner inherited along with the image and could never answer. It lives with
     # the service that serves it now; see prefect-runner for the other half.
-    # Two things are not carried over verbatim. `raise_for_status`: `httpx.get` on
-    # its own returns a response object whatever the status, so the old probe
-    # passed on a 500 as happily as on a 200. And `start_period`, which was 5s -
-    # shorter than this application takes to import on any machine measured, so
-    # every start went through a spell of `unhealthy` before settling.
+    # Two things are not carried over verbatim. The status: `httpx.get` on its
+    # own returns a response object whatever the status, so the old probe passed
+    # on a 500 as happily as on a 200 - `urlopen` raises on anything >= 400. And
+    # `start_period`, which was 5s - shorter than this application takes to
+    # import on any machine measured, so every start went through a spell of
+    # `unhealthy` before settling.
+    #
+    # The standard library, not httpx: a probe is a fresh interpreter every 30s,
+    # and importing httpx doubled what each one cost (956 ms against 431 ms on
+    # the production host, #2228).
     healthcheck:
-      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/api/v1/health').raise_for_status()"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -255,7 +262,7 @@ services:
     # and registering the deployments: until the first poll `/health` has no
     # `last_polled` to compare against and errors.
     healthcheck:
-      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://127.0.0.1:8080/health').raise_for_status()"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=5)"]
       interval: 15s
       timeout: 5s
       retries: 3

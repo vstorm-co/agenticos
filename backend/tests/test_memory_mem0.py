@@ -197,7 +197,7 @@ class TestClientConstruction:
         unreachable host must be a refusal the model reads, not a crashed run."""
         monkeypatch.setattr(client_module, "_construct", _REAL_CONSTRUCT)
         with (
-            patch.object(client_module, "AsyncMemoryClient", side_effect=RuntimeError("nope")),
+            patch("mem0.AsyncMemoryClient", side_effect=RuntimeError("nope")),
             pytest.raises(ExternalServiceError),
         ):
             await client_module._client("k", None)

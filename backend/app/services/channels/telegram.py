@@ -4,13 +4,23 @@ import asyncio
 import contextlib
 import hmac
 import logging
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from typing import Any
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
+from aiogram.client.session.middlewares.base import (
+    BaseRequestMiddleware,
+    NextRequestMiddlewareType,
+)
 from aiogram.enums import ParseMode
-from aiogram.exceptions import TelegramBadRequest, TelegramUnauthorizedError
+from aiogram.exceptions import (
+    TelegramBadRequest,
+    TelegramConflictError,
+    TelegramUnauthorizedError,
+)
+from aiogram.methods import GetUpdates, TelegramMethod
+from aiogram.methods.base import Response, TelegramType
 from aiogram.types import (
     BotCommand,
     CallbackQuery,
@@ -23,7 +33,7 @@ from aiogram.types import Message as AiogramMessage
 from app.agents.capabilities.channel_tools import ChannelDetails, ChannelMember
 from app.core.security import encode_untrusted
 from app.db.session import get_db_context
-from app.services.channels import connection_state
+from app.services.channels import connection_state, stream_lease
 from app.services.channels.base import (
     CHANNEL_COMMANDS,
     ChannelAdapter,
@@ -70,6 +80,40 @@ _REACTIONS = {
 }
 """Telegram reacts with the emoji itself, and only from a fixed set; these are the
 names Slack and Mattermost use for ones that set holds. Another name is skipped."""
+
+
+ANOTHER_POLLER = (
+    "Another process is polling this bot's token, so Telegram ends one of the two "
+    "requests on every poll. Look for a second deployment, or a script, using the "
+    "same token."
+)
+
+
+class _ConflictWatch(BaseRequestMiddleware):
+    """Tells the adapter when Telegram ends this bot's poll for somebody else's (#2224).
+
+    aiogram catches every error a poll raises, logs it and polls again, so two
+    pollers on one token end each other's requests for as long as both run - on
+    prod that was fifteen minutes, about ten times a minute. Only a request made
+    with the bot can see the error, which is why this sits on the polling bot's
+    session rather than around `start_polling`.
+    """
+
+    def __init__(self, on_conflict: Callable[[], Awaitable[None]]) -> None:
+        self._on_conflict = on_conflict
+
+    async def __call__(
+        self,
+        make_request: NextRequestMiddlewareType[TelegramType],
+        bot: Bot,
+        method: TelegramMethod[TelegramType],
+    ) -> Response[TelegramType]:
+        try:
+            return await make_request(bot, method)
+        except TelegramConflictError:
+            if isinstance(method, GetUpdates):
+                await self._on_conflict()
+            raise
 
 
 def _where(platform_chat_id: str) -> dict[str, Any]:
@@ -302,6 +346,32 @@ class TelegramAdapter(ChannelAdapter):
                 await task
         logger.info("Stopped Telegram polling for bot %s", bot_id)
 
+    async def _another_poller(self, bot_id: str) -> None:
+        """Telegram ended this bot's poll because another process polls it.
+
+        A worker that no longer holds the bot's stream lease is the extra copy:
+        it closes, and the holder goes on alone. A worker that does hold it is
+        the rightful poller and has nothing to close - so it says what is in the
+        way, on the channels listing, because the other process is outside
+        anything this deployment can stop.
+        """
+        leases = stream_lease.leases()
+        if not await leases.holds(bot_id):
+            logger.warning(
+                "Telegram: bot %s is polled by the worker holding its lease; closing "
+                "the copy on worker %s",
+                bot_id,
+                leases.holder,
+            )
+            leases.drop(bot_id)
+            task = self._polling_tasks.pop(bot_id, None)
+            if task is not None:
+                # This runs inside that task. The cancellation lands at its next
+                # await, so the poll unwinds itself instead of being awaited here.
+                task.cancel()
+            return
+        await connection_state.record_down(bot_id, ANOTHER_POLLER)
+
     async def _polling_supervisor(self, bot_id: str, bot_token: str) -> None:
         """Polling sessions, reopened under the shared reconnect loop."""
         await supervise_stream(
@@ -330,6 +400,7 @@ class TelegramAdapter(ChannelAdapter):
         async with self._bot(
             bot_token, default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN)
         ) as bot:
+            bot.session.middleware(_ConflictWatch(lambda: self._another_poller(bot_id)))
             dp = Dispatcher()
 
             @dp.message()

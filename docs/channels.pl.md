@@ -1,5 +1,5 @@
 ---
-source_sha: "dcefccd16f75"
+source_sha: "380aaee8c6be"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1551,6 +1551,12 @@ agent, który dobrze radzi sobie w konsoli, a słabo w Slacku, to pokazuje.
   inny worker od razu otwiera nowe połączenie, a stare zamyka się przy
   najbliższym odnowieniu u jego właściciela. Gdy Redis jest nieosiągalny, łączy
   się każdy worker, jak wcześniej.
+- **Drugi poller Telegrama zostaje zauważony, a nie zwalczany.** Gdy Telegram
+  kończy poll bota, bo inny proces odpytuje ten sam token, worker, który nie
+  trzyma lease'a tego bota, od razu zamyka swoją kopię. Właściciel odpytuje dalej
+  i oznacza bota na stronie kanałów jako niedziałającego: „inny proces odpytuje
+  token tego bota”. Ten proces jest poza wdrożeniem, zwykle to drugie wdrożenie
+  albo skrypt z tym samym tokenem, i zatrzymać go może tylko jego właściciel.
 - **Instrukcje powiązania mogą wołać to, co wie tylko platforma.**
   `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{member_count}`,
   `{member_list}` — wypełniane przy starcie runa, z tych samych wywołań, których
