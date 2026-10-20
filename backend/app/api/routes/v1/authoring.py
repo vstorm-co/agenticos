@@ -9,14 +9,16 @@ access to the agent or the skill through its grants, and to the improver.
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Depends, status
 
-from app.api.deps import Auth, AuthoringSvc
+from app.api.deps import Auth, AuthoringSvc, require
+from app.core.permissions import Perm
 from app.schemas.authoring import (
     AgentAuthoringRead,
     AuthoringEstimate,
     AuthoringRequestRead,
     AuthoringStart,
+    AuthoringWaiting,
     DecisionRead,
     HunkDecision,
     ProposalCheck,
@@ -24,6 +26,16 @@ from app.schemas.authoring import (
 from app.schemas.eval_run import EvalRunEstimate, EvalRunRead
 
 router = APIRouter()
+
+
+@router.get(
+    "/authoring/waiting",
+    response_model=AuthoringWaiting,
+    dependencies=[Depends(require(Perm.AGENTS_EDIT))],
+)
+async def read_waiting_suggestions(service: AuthoringSvc, ctx: Auth) -> Any:
+    """Agents the caller may edit with suggestions waiting, and pending skill changes."""
+    return await service.waiting(ctx)
 
 
 @router.get("/agents/{agent_id}/authoring", response_model=AgentAuthoringRead)

@@ -266,3 +266,25 @@ class ProposalCheck(BaseSchema):
     proposal_id: UUID | None = Field(
         default=None, description="For a skill change: the pending change to check."
     )
+
+
+class AgentWaiting(BaseSchema):
+    """One agent with suggestions waiting, by kind."""
+
+    agent_id: UUID
+    name: str
+    instructions: int
+    tools: int
+
+
+class AuthoringWaiting(BaseSchema):
+    """What the assistant proposed that the caller may decide and nobody has.
+
+    Attributes:
+        agents: Agents the caller may edit whose open batch has pending suggestions.
+        skills: Pending skill changes the assistant proposed, for a caller holding
+            `skills:edit`; zero otherwise.
+    """
+
+    agents: list[AgentWaiting]
+    skills: int

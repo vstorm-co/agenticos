@@ -1125,3 +1125,33 @@ class TestSkillCheck:
         )
 
         assert started.excluded_case_ids == []
+
+
+@pytest.mark.security
+async def test_what_waits_is_listed_only_for_agents_the_caller_may_edit(db):
+    ctx, agent, _ = await _setup(db)
+    await _improve(db, ctx, agent, Improver(db))
+    db.add(
+        SkillProposal(
+            organization_id=ctx.organization_id,
+            name="refunds",
+            description="d",
+            content="c",
+            resources={},
+            authoring_request_id=(
+                await authoring_repo.list_requests(
+                    db, organization_id=ctx.organization_id, agent_id=agent.id
+                )
+            )[0].id,
+        )
+    )
+    await db.flush()
+    operator = await _member(db, ctx, OrgRoleName.OPERATOR)
+    service = AuthoringService(db)
+
+    mine = await service.waiting(ctx)
+    theirs = await service.waiting(operator)
+
+    assert [(row.name, row.instructions, row.tools) for row in mine.agents] == [("Clerk", 1, 1)]
+    assert mine.skills == 1
+    assert theirs.agents == [] and theirs.skills == 0

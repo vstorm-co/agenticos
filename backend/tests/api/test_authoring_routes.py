@@ -26,6 +26,7 @@ from app.schemas.authoring import (
     AgentAuthoringRead,
     AuthoringEstimate,
     AuthoringRequestRead,
+    AuthoringWaiting,
     DecisionRead,
 )
 from tests.api.test_eval_run_routes import _ESTIMATE, _RUN
@@ -72,6 +73,7 @@ def service() -> MagicMock:
     stub.estimate_skill = stub.estimate_agent
     stub.start_skill = AsyncMock(return_value=_REQUEST)
     stub.for_skill = AsyncMock(return_value=[_REQUEST])
+    stub.waiting = AsyncMock(return_value=AuthoringWaiting(agents=[], skills=0))
     stub.estimate_skill_check = AsyncMock(return_value=_ESTIMATE)
     stub.check_skill = AsyncMock(return_value=_RUN)
     return stub
@@ -135,6 +137,13 @@ async def test_each_skill_route_answers_with_its_status(client: OpenClient) -> N
         assert (await http.post(_url(f"{skill}/check"), json=check)).status_code == 201
 
     assert listed.status_code == 200 and len(listed.json()) == 1
+
+
+async def test_what_waits_is_answered(client: OpenClient) -> None:
+    async with client() as http:
+        response = await http.get(_url("/authoring/waiting"))
+
+    assert response.status_code == 200 and response.json() == {"agents": [], "skills": 0}
 
 
 async def test_a_decision_must_name_an_action(client: OpenClient) -> None:

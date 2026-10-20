@@ -12,6 +12,7 @@ from uuid import UUID
 from sqlalchemy import and_, case, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.authoring import (
     AuthoringRequest,
@@ -23,6 +24,7 @@ from app.db.models.authoring import (
 )
 from app.db.models.conversation import Message, ToolCall
 from app.db.models.message_rating import MessageRating
+from app.db.models.skill_proposal import ProposalStatus, SkillProposal
 
 
 async def create_request(
@@ -300,6 +302,42 @@ async def pending_counts(
     for agent_id, kind, count in result.all():
         counts.setdefault(agent_id, {})[kind] = int(count)
     return counts
+
+
+async def agents_with_pending(
+    db: AsyncSession, *, organization_id: UUID
+) -> list[tuple[Agent, dict[str, int]]]:
+    """Every agent whose open batch still has pending hunks, with the count by kind."""
+    result = await db.execute(
+        select(Agent, SpecProposalHunk.kind, func.count())
+        .join(SpecProposalBatch, SpecProposalBatch.agent_id == Agent.id)
+        .join(SpecProposalHunk, SpecProposalHunk.batch_id == SpecProposalBatch.id)
+        .where(
+            SpecProposalBatch.organization_id == organization_id,
+            SpecProposalBatch.status == BatchStatus.OPEN.value,
+            SpecProposalHunk.status == HunkStatus.PENDING.value,
+        )
+        .group_by(Agent.id, SpecProposalHunk.kind)
+        .order_by(Agent.name)
+    )
+    rows: dict[UUID, tuple[Agent, dict[str, int]]] = {}
+    for agent, kind, count in result.all():
+        rows.setdefault(agent.id, (agent, {}))[1][kind] = int(count)
+    return list(rows.values())
+
+
+async def count_pending_skill_proposals(db: AsyncSession, *, organization_id: UUID) -> int:
+    """Skill changes the assistant proposed that nobody has decided yet."""
+    result = await db.execute(
+        select(func.count())
+        .select_from(SkillProposal)
+        .where(
+            SkillProposal.organization_id == organization_id,
+            SkillProposal.status == ProposalStatus.PENDING.value,
+            SkillProposal.authoring_request_id.is_not(None),
+        )
+    )
+    return int(result.scalar_one())
 
 
 @dataclass(frozen=True)

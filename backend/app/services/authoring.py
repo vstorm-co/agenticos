@@ -67,9 +67,11 @@ from app.db.models.skill_proposal import ProposalStatus
 from app.repositories import agent_run_repo, authoring_repo, organization_repo, skill_proposal_repo
 from app.schemas.authoring import (
     AgentAuthoringRead,
+    AgentWaiting,
     AuthoringEstimate,
     AuthoringRequestRead,
     AuthoringStart,
+    AuthoringWaiting,
     BatchRead,
     DecisionRead,
     EvidenceItemRead,
@@ -79,6 +81,7 @@ from app.schemas.authoring import (
 )
 from app.schemas.eval_run import EvalRunEstimate, EvalRunRead, EvalRunRequest
 from app.services import authoring_hunks
+from app.services.access import AGENT, accessible_ids
 from app.services.agent_registry import AgentRegistryService
 from app.services.authoring_evidence import EvidencePack, EvidenceService
 from app.services.eval_run import EvalRunService
@@ -346,6 +349,35 @@ class AuthoringService:
         """The open batch - or the last one - and the newest requests, for the Builder."""
         agent = await self.registry.get(ctx, agent_id)
         return await self._read(ctx, agent)
+
+    async def waiting(self, ctx: AuthContext) -> AuthoringWaiting:
+        """The suggestions waiting on agents the caller may edit, for the dashboard."""
+        rows = await authoring_repo.agents_with_pending(
+            self.db, organization_id=ctx.organization_id
+        )
+        editable = await accessible_ids(
+            self.db, ctx, [agent for agent, _ in rows], Perm.AGENTS_EDIT, resource_type=AGENT
+        )
+        skills = (
+            await authoring_repo.count_pending_skill_proposals(
+                self.db, organization_id=ctx.organization_id
+            )
+            if ctx.has(Perm.SKILLS_EDIT)
+            else 0
+        )
+        return AuthoringWaiting(
+            agents=[
+                AgentWaiting(
+                    agent_id=agent.id,
+                    name=agent.name,
+                    instructions=counts.get(HunkKind.INSTRUCTIONS.value, 0),
+                    tools=counts.get(HunkKind.TOOL_OVERRIDE.value, 0),
+                )
+                for agent, counts in rows
+                if agent.id in editable
+            ],
+            skills=skills,
+        )
 
     async def for_skill(self, ctx: AuthContext, skill_id: UUID) -> list[AuthoringRequestRead]:
         """The newest requests on one skill, for its page."""
