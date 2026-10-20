@@ -50,4 +50,4 @@ def test_a_config_outside_the_limits_is_refused(config):
 async def test_the_acting_member_is_nobody_for_a_run_without_a_member_id():
     assert await acting_member(MagicMock(), None, "x") is None
     assert await acting_member(MagicMock(), uuid.uuid4(), None) is None
-    assert await acting_member(MagicMock(), uuid.uuid4(), "embed-visitor") is None
+    assert await acting_member(MagicMock(), uuid.uuid4(), "not-a-uuid") is None

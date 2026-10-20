@@ -122,6 +122,61 @@ class TestPublication:
         assert version is not None
         assert await storage.load(version.storage_path) == b"<h1>v1</h1>"
 
+    async def test_a_version_keeps_the_bindings_it_was_published_with(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        organization, user, agent = await _tenant(db)
+        published = await _publish(db, organization, user, agent, body="<h1>v1</h1>")
+        binding = {
+            "name": "tickets",
+            "view_id": str(uuid.uuid4()),
+            "table_id": str(uuid.uuid4()),
+            "fields": {"title": str(uuid.uuid4())},
+            "status": "ok",
+            "reason": None,
+        }
+
+        version = await artifact_repo.create_version(
+            db,
+            artifact_id=published.artifact_id,
+            number=2,
+            media_type=HTML.value,
+            size_bytes=1,
+            sha256="b" * 64,
+            storage_path="artifacts/x/b.html",
+            run_id=None,
+            bindings=[binding],
+        )
+        await db.refresh(version)
+
+        assert version.bindings[0]["name"] == "tickets"
+        assert version.bindings == [binding]
+
+    async def test_versions_published_before_bindings_read_as_empty(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        organization, user, agent = await _tenant(db)
+        published = await _publish(db, organization, user, agent, body="<h1>v1</h1>")
+        await db.execute(
+            text(
+                "INSERT INTO artifact_versions (id, artifact_id, number, media_type, "
+                "size_bytes, sha256, storage_path) "
+                "VALUES (:id, :artifact_id, 2, 'text/html', 1, :sha, 'artifacts/x/c.html')"
+            ),
+            {"id": uuid.uuid4(), "artifact_id": published.artifact_id, "sha": "c" * 64},
+        )
+
+        row = (
+            await db.execute(
+                select(ArtifactVersion).where(
+                    ArtifactVersion.artifact_id == published.artifact_id,
+                    ArtifactVersion.number == 2,
+                )
+            )
+        ).scalar_one()
+
+        assert row.bindings == []
+
     async def test_republishing_the_name_updates_the_same_artifact(
         self, db: AsyncSession, storage: LocalFileStorage
     ) -> None:

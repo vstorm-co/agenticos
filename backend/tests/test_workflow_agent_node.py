@@ -106,6 +106,21 @@ async def test_a_wake_continues_the_same_run_and_books_only_what_it_added(runner
     assert scope.cost == Decimal("0.04")
 
 
+@pytest.mark.security
+@pytest.mark.parametrize("public_origin", [True, False])
+async def test_the_agent_step_passes_the_public_origin_on(runner, public_origin):
+    """The step runs as the workflow's principal either way, so only the
+    dispatch knows whether an outsider supplied the input."""
+    runner.execute.return_value = ("ok", _run(RunStatus.COMPLETED))
+
+    with context.dispatching_as(dataclasses.replace(_dispatch(), public_origin=public_origin)):
+        await agent_node.handle(
+            AgentRunConfig.model_validate({"agent": _AGENT}), AgentRunInput(prompt="Score it")
+        )
+
+    assert runner.execute.await_args.kwargs["public_origin"] is public_origin
+
+
 @pytest.mark.parametrize(
     ("status", "code"),
     [

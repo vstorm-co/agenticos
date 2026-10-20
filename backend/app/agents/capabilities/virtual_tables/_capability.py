@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -13,6 +13,13 @@ from pydantic_ai.toolsets import AbstractToolset
 
 from app.agents.capabilities.virtual_tables._access import TableOperation
 from app.agents.capabilities.virtual_tables._toolset import Grants, build_tables_toolset
+
+if TYPE_CHECKING:
+    from app.agents.spec import AgentSpec
+
+# Where the factory hands a run's table grants to the capabilities that need them
+# (page publishing checks a binding against them), beside `table_grants_of`.
+TABLE_GRANTS_RESOURCE = "table_grants"
 
 
 class TableGrant(BaseModel):
@@ -49,6 +56,18 @@ class VirtualTablesConfig(BaseModel):
         if len(set(ids)) != len(ids):
             raise ValueError("Grant each table once")
         return tables
+
+
+def table_grants_of(spec: AgentSpec) -> dict[UUID, frozenset[str]]:
+    """What the spec's enabled `virtual_tables` binding lets the agent do in each table.
+
+    Empty when the capability is not bound or is switched off.
+    """
+    for binding in spec.capabilities:
+        if binding.id == "virtual_tables" and binding.enabled:
+            config = VirtualTablesConfig.model_validate(binding.config)
+            return {grant.table_id: frozenset(grant.operations) for grant in config.tables}
+    return {}
 
 
 @dataclass

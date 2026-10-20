@@ -32,6 +32,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from html import escape
 from pathlib import Path
+from typing import Any
 from uuid import UUID
 
 from markdown_it import MarkdownIt
@@ -572,6 +573,7 @@ async def publish_with(
         sha256=sha256,
         storage_path=path,
         run_id=run_id,
+        bindings=[],
     )
     await record_audit(
         db,
@@ -595,6 +597,7 @@ async def _append_version(
     sha256: str,
     storage_path: str,
     run_id: UUID | None,
+    bindings: list[dict[str, Any]],
 ) -> ArtifactVersion:
     """Add the next version, mark the publication, and prune past the kept window."""
     version = await artifact_repo.create_version(
@@ -606,6 +609,7 @@ async def _append_version(
         sha256=sha256,
         storage_path=storage_path,
         run_id=run_id,
+        bindings=bindings,
     )
     await artifact_repo.update(
         db, artifact=artifact, update_data={"published_at": datetime.now(UTC)}
@@ -1127,6 +1131,7 @@ class ArtifactService:
             sha256=source.sha256,
             storage_path=source.storage_path,
             run_id=None,
+            bindings=[],
         )
         await record_audit(
             self.db,

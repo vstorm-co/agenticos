@@ -69,6 +69,7 @@ def _version(artifact: Artifact, *, number: int = 1, sha: str = "0") -> Artifact
         sha256=sha * 64,
         storage_path=f"artifacts/{artifact.organization_id}/{artifact.id}/{sha * 64}.html",
         run_id=None,
+        bindings=[],
         created_at=datetime(2026, 9, 22, tzinfo=UTC),
     )
 
@@ -416,8 +417,10 @@ class TestAppendingAVersion:
                 sha256="a" * 64,
                 storage_path="p",
                 run_id=None,
+                bindings=[],
             )
         assert create.await_args.kwargs["number"] == 3
+        assert create.await_args.kwargs["bindings"] == []
         assert artifact.published_at > datetime(2026, 9, 22, tzinfo=UTC)
         prune.assert_awaited_once()
 
@@ -904,6 +907,6 @@ class TestTheBundledSkill:
     def test_the_tool_text_names_the_same_set(self) -> None:
         from app.agents.capabilities.artifacts._toolset import build_artifacts_toolset
 
-        tool = build_artifacts_toolset().tools["publish_artifact"]
+        tool = build_artifacts_toolset(table_grants={}).tools["publish_artifact"]
         for name in artifacts.ARTIFACT_LIBRARY:
             assert f"lib/{name}" in (tool.description or "")

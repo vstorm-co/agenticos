@@ -67,7 +67,11 @@ from app.services.workflow_execution.exceptions import (
     WorkflowBudgetReachedError,
     WorkflowRunInputTooLargeError,
 )
-from app.services.workflow_execution.facade import Causation, WorkflowExecutionService
+from app.services.workflow_execution.facade import (
+    Causation,
+    WorkflowExecutionService,
+    causes_public,
+)
 from app.workflows.nodes._triggers import (
     RecordEvent,
     TableRecordTriggerConfig,
@@ -596,6 +600,10 @@ class TableTriggerConsumer:
                 str(trigger.id),
             ],
             depth=causing.depth + 1 if causing is not None else 0,
+            # Public when the run whose step wrote the record is, or when nobody
+            # was behind the write - a widget's visitor, with no causing run.
+            public_origin=(causing is not None and causes_public(causing))
+            or event.payload.get("public_origin") is True,
         )
         try:
             # A savepoint of its own, so a refused admission leaves the

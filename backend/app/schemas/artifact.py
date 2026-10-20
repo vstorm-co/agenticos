@@ -4,11 +4,44 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import AwareDatetime, Field
+from pydantic import AwareDatetime, ConfigDict, Field
 
 from app.schemas.base import BaseSchema
 
 ArtifactMediaTypeLiteral = Literal["text/html", "text/markdown"]
+
+
+class BindingRequest(BaseSchema):
+    """A live-data binding as the model asks for it, before resolution."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    view: UUID
+    fields: dict[str, str] = Field(
+        description="Field name to the table column it reads, given as a column id or a label"
+    )
+
+
+class ArtifactBinding(BaseSchema):
+    """A binding as stored on a version, after its names were resolved to ids."""
+
+    name: str
+    view_id: UUID
+    table_id: UUID
+    fields: dict[str, UUID]
+    status: Literal["ok", "unavailable"] = "ok"
+    reason: str | None = None
+
+
+class ArtifactBindingRead(BaseSchema):
+    """A binding as an API client sees it: field names only, no column ids."""
+
+    name: str
+    view_id: UUID
+    table_id: UUID
+    fields: list[str]
+    status: Literal["ok", "unavailable"] = "ok"
+    reason: str | None = None
 
 
 class ArtifactVersionRead(BaseSchema):

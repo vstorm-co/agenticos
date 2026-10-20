@@ -85,6 +85,10 @@ class DispatchContext:
     """For a `control` node, the output of the one predecessor whose edge
     brought the run here - what `logic.merge` passes on, since it may bind to
     neither of its branches. `None` for every other node."""
+    public_origin: bool = False
+    """Whether an outsider supplied the run's input - it was admitted through an
+    external door (`dispatcher.PUBLIC_TRIGGERS`) and executes as the exposure's
+    principal. An agent step under it runs with no person behind it."""
 
 
 @dataclass(slots=True)

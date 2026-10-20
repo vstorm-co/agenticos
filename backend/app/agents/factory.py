@@ -185,6 +185,7 @@ def build_agent(
     user_id: str | None = None,
     user_name: str | None = None,
     audience: RunAudience | None = None,
+    run_person: UUID | None = None,
     granted_scopes: frozenset[str] | None = None,
     resources: dict[str, Any] | None = None,
     secrets: Mapping[UUID, StorableSecret] | None = None,
@@ -205,6 +206,10 @@ def build_agent(
     Args:
         spec: The published (or draft, when previewing) agent definition.
         model_spec: Already-resolved model and credentials.
+        run_person: The member who answers for this run, or `None` when nobody
+            does - derived by the runner, which alone knows the request. Handed
+            to `AgentDeps` unchanged and never dropped, unlike `audience`: a
+            tool that needs a person refuses on `None`.
         granted_scopes: Scopes the organization allows. Passing `None` skips
             the check and is for internal runs only.
         gate_every_tool: Ask about every tool the agent can reach, not only the
@@ -263,6 +268,10 @@ def build_agent(
             enforce because the model provider executes the tool.
     """
     refuse_ungateable_approvals(spec)
+    # Function-local: the virtual_tables package reaches `app.services` at import, which
+    # leads back to this module. Task 4a removes the cycle; this import then moves up.
+    from app.agents.capabilities.virtual_tables import TABLE_GRANTS_RESOURCE, table_grants_of
+
     bindings = spec.bindings()
     # Built before the capabilities, not after: compaction reads it to decide
     # whether this window has room for a summary at all, and the reading is
@@ -301,6 +310,7 @@ def build_agent(
             # delete the bytes is the conversation, not a setting.
             MEDIA_ORGANIZATION_RESOURCE: organization_id,
             MEDIA_CONVERSATION_RESOURCE: conversation_id,
+            TABLE_GRANTS_RESOURCE: table_grants_of(spec),
         },
         secrets=secrets,
     )
@@ -331,6 +341,7 @@ def build_agent(
         user_id=user_id,
         user_name=user_name,
         audience=bound_audience,
+        run_person=run_person,
         # Read from `resources` rather than a parameter of its own: two sources
         # for one list is how they drift apart.
         kb_collection_names=list((resources or {}).get("kb_collection_names") or []),

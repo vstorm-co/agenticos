@@ -183,6 +183,51 @@ class TestCallingAWorkflow:
             "structured": None,
         }
 
+    @pytest.mark.security
+    async def test_a_called_child_of_a_webhook_run_is_public(self, engine: AsyncEngine):
+        """An outsider started the caller, so the run it calls has no person
+        either, though `workflow_call` is no door of its own (D18a(5))."""
+        _ctx, callee, member = await _published_callee(engine, _callee())
+        graph, step = _caller(callee.id)
+        seeded = await seed_run(engine, graph, member=member, triggered_by="webhook")
+
+        await drive(seeded)
+
+        called = await _called_run(seeded, step)
+        assert (called.run.triggered_by, called.run.root_run_id) == (
+            "workflow_call",
+            seeded.run.id,
+        )
+        assert called.run.public_origin is True
+
+    @pytest.mark.security
+    async def test_a_called_child_of_a_webhook_run_stored_before_the_flag_is_public(
+        self, engine: AsyncEngine
+    ):
+        """A webhook run admitted by code older than the column reads false, and
+        the run it calls still fails closed on its trigger."""
+        _ctx, callee, member = await _published_callee(engine, _callee())
+        graph, step = _caller(callee.id)
+        seeded = await seed_run(engine, graph, member=member, triggered_by="webhook")
+        async with seeded.factory() as db:
+            await workflow_run_repo.update_run(
+                db, run=seeded.run, update_data={"public_origin": False}
+            )
+            await db.commit()
+
+        await drive(seeded)
+
+        assert (await _called_run(seeded, step)).run.public_origin is True
+
+    async def test_a_called_child_of_a_member_run_is_not_public(self, engine: AsyncEngine):
+        _ctx, callee, member = await _published_callee(engine, _callee())
+        graph, step = _caller(callee.id)
+        seeded = await seed_run(engine, graph, member=member)
+
+        await drive(seeded)
+
+        assert (await _called_run(seeded, step)).run.public_origin is False
+
     async def test_a_call_that_does_not_wait_goes_on_at_once(self, engine: AsyncEngine):
         _ctx, callee, member = await _published_callee(engine, _callee())
         graph, _step = _caller(callee.id, wait=False)

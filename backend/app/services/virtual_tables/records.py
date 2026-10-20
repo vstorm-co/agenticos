@@ -26,6 +26,7 @@ from uuid import UUID
 from pydantic import TypeAdapter
 from pydantic import ValidationError as PydanticValidationError
 
+from app.agents.audience import for_no_person
 from app.core.exceptions import (
     AlreadyExistsError,
     AppException,
@@ -203,11 +204,17 @@ def _changed_cells(
     }
 
 
-def _causation() -> dict[str, str]:
+def _causation() -> dict[str, str | bool]:
     """The workflow run whose step is writing, when one is - the chain a table
-    trigger's run joins, so a trigger that would start itself again is refused."""
+    trigger's run joins, so a trigger that would start itself again is refused -
+    and whether the run writing has no person, which the run it starts inherits."""
     dispatching = workflow_context.active()
-    return {} if dispatching is None else {"causation_run_id": str(dispatching.workflow_run_id)}
+    causation: dict[str, str | bool] = (
+        {} if dispatching is None else {"causation_run_id": str(dispatching.workflow_run_id)}
+    )
+    if for_no_person():
+        causation["public_origin"] = True
+    return causation
 
 
 def _filters(columns: list[ColumnDef], filters: list[RecordFilter]) -> list[FilterClause]:

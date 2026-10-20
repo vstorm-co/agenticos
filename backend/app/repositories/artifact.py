@@ -348,6 +348,7 @@ async def create_version(
     sha256: str,
     storage_path: str,
     run_id: UUID | None,
+    bindings: list[dict[str, Any]],
 ) -> ArtifactVersion:
     version = ArtifactVersion(
         artifact_id=artifact_id,
@@ -357,6 +358,7 @@ async def create_version(
         sha256=sha256,
         storage_path=storage_path,
         run_id=run_id,
+        bindings=bindings,
     )
     db.add(version)
     await db.flush()

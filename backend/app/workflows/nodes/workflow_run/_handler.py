@@ -179,7 +179,11 @@ async def _admit(
     visited: str,
 ) -> WorkflowRun | Failed:
     # The execution service imports the node packages through the registry.
-    from app.services.workflow_execution.facade import Causation, WorkflowExecutionService
+    from app.services.workflow_execution.facade import (
+        Causation,
+        WorkflowExecutionService,
+        causes_public,
+    )
 
     current = context.current()
     try:
@@ -197,6 +201,7 @@ async def _admit(
                     visited,
                 ],
                 depth=caller.depth + 1,
+                public_origin=causes_public(caller),
             ),
             parent_node_run_id=current.node_run_id,
         )

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
+from uuid import UUID
 
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.tools import AgentDepsT
@@ -20,11 +22,12 @@ class Artifacts(AbstractCapability[AgentDepsT]):
     identity, and why the page is served in a sandbox with no network.
     """
 
+    table_grants: Mapping[UUID, frozenset[str]]
     _toolset: AbstractToolset[Any] | None = field(
         default=None, init=False, repr=False, compare=False
     )
 
     def get_toolset(self) -> AbstractToolset[Any]:
         if self._toolset is None:
-            self._toolset = build_artifacts_toolset()
+            self._toolset = build_artifacts_toolset(table_grants=self.table_grants)
         return self._toolset

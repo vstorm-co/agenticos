@@ -30,7 +30,9 @@ from app.agents.capabilities.artifacts._toolset import (
     build_artifacts_toolset,
     parse_published_artifact,
 )
+from app.agents.capabilities.virtual_tables import TABLE_GRANTS_RESOURCE, table_grants_of
 from app.agents.deps import AgentDeps
+from app.agents.spec import AgentSpec
 from app.core.exceptions import AuthorizationError, ConcurrentChangeError, NotFoundError
 from app.db.models.artifact import ArtifactMediaType
 from app.services.artifact import ArtifactSource, PublishedArtifact
@@ -61,7 +63,7 @@ def _ctx(deps: AgentDeps, *, retry: int = 0, workspace: Any = None) -> RunContex
 
 
 def _tool() -> Any:
-    return build_artifacts_toolset().tools["publish_artifact"].function
+    return build_artifacts_toolset(table_grants={}).tools["publish_artifact"].function
 
 
 def _published(**overrides: Any) -> PublishedArtifact:
@@ -270,7 +272,7 @@ def _source(text: str = "<h1>Old</h1><p>body</p>", **overrides: Any) -> Artifact
 
 
 def _reader() -> Any:
-    return build_artifacts_toolset().tools["read_artifact"].function
+    return build_artifacts_toolset(table_grants={}).tools["read_artifact"].function
 
 
 class TestEditing:
@@ -430,3 +432,33 @@ class TestReadingBack:
     async def test_a_run_with_no_agent_has_nothing_to_read(self, missing: str) -> None:
         result = await _reader()(_ctx(_deps(**{missing: None})), name="r")
         assert "no saved agent" in result
+
+
+def _artifacts_built_for(spec: AgentSpec) -> Artifacts[Any]:
+    ctx = registry.CapabilityBuildContext(
+        binding=registry.CapabilityBinding(capability_id="artifacts"),
+        config=None,
+        resources={TABLE_GRANTS_RESOURCE: table_grants_of(spec)},
+    )
+    built = registry.get("artifacts").builder(ctx)
+    assert isinstance(built, Artifacts)
+    return built
+
+
+def test_an_agent_with_tables_hands_their_grants_to_publishing():
+    table_id = uuid.uuid4()
+    spec = AgentSpec(
+        name="Clerk",
+        capabilities=[
+            {
+                "id": "virtual_tables",
+                "config": {"tables": [{"table_id": str(table_id), "operations": ["read"]}]},
+            }
+        ],
+    )
+
+    assert _artifacts_built_for(spec).table_grants == {table_id: frozenset({"read"})}
+
+
+def test_an_agent_without_tables_hands_no_grants():
+    assert _artifacts_built_for(AgentSpec(name="Clerk")).table_grants == {}

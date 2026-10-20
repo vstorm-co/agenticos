@@ -17,6 +17,7 @@ or edit it (to publish).
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import PurePosixPath
 from typing import Literal
 from uuid import UUID
@@ -147,8 +148,14 @@ def apply_edits(source: str, edits: list[ArtifactEdit]) -> str:
     return text
 
 
-def build_artifacts_toolset() -> FunctionToolset[AgentDeps]:
-    """`publish_artifact` and `read_artifact`, reading from the run's workspace when it has one."""
+def build_artifacts_toolset(
+    *, table_grants: Mapping[UUID, frozenset[str]]
+) -> FunctionToolset[AgentDeps]:
+    """`publish_artifact` and `read_artifact`, reading from the run's workspace when it has one.
+
+    `table_grants` is what the agent's spec grants in each Virtual Table; a page binding
+    needs read on its table there.
+    """
 
     async def publish_artifact(
         ctx: RunContext[AgentDeps],

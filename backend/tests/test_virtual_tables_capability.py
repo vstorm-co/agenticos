@@ -15,7 +15,11 @@ from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RunUsage
 
 from app.agents.capabilities._registry import CapabilityBuildContext, get
-from app.agents.capabilities.virtual_tables import VirtualTables, VirtualTablesConfig
+from app.agents.capabilities.virtual_tables import (
+    VirtualTables,
+    VirtualTablesConfig,
+    table_grants_of,
+)
 from app.agents.capabilities.virtual_tables._access import (
     Refused,
     TableOperation,
@@ -25,7 +29,7 @@ from app.agents.capabilities.virtual_tables._access import (
 )
 from app.agents.capabilities.virtual_tables._toolset import _operation_key
 from app.agents.deps import AgentDeps
-from app.agents.spec import CapabilityBindingSpec
+from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.core.exceptions import NotFoundError
 
 pytestmark = pytest.mark.anyio
@@ -97,3 +101,17 @@ def test_a_call_outside_a_run_has_no_operation_key():
 def test_the_toolset_is_built_once_per_run():
     built = _build(VirtualTablesConfig(allow_create=True))
     assert built is not None and built.get_toolset() is built.get_toolset()
+
+
+def test_table_grants_of_reads_the_enabled_binding_only():
+    table_id = uuid.uuid4()
+    config = {"tables": [{"table_id": str(table_id), "operations": ["read", "update"]}]}
+
+    enabled = AgentSpec(name="Clerk", capabilities=[{"id": "virtual_tables", "config": config}])
+    disabled = AgentSpec(
+        name="Clerk", capabilities=[{"id": "virtual_tables", "enabled": False, "config": config}]
+    )
+
+    assert table_grants_of(enabled) == {table_id: frozenset({"read", "update"})}
+    assert table_grants_of(disabled) == {}
+    assert table_grants_of(AgentSpec(name="Clerk")) == {}

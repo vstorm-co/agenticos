@@ -6,12 +6,20 @@ from app.agents.capabilities._registry import (
     register,
 )
 from app.agents.capabilities.virtual_tables._capability import (
+    TABLE_GRANTS_RESOURCE,
     TableGrant,
     VirtualTables,
     VirtualTablesConfig,
+    table_grants_of,
 )
 
-__all__ = ["TableGrant", "VirtualTables", "VirtualTablesConfig"]
+__all__ = [
+    "TABLE_GRANTS_RESOURCE",
+    "TableGrant",
+    "VirtualTables",
+    "VirtualTablesConfig",
+    "table_grants_of",
+]
 
 
 def _reads(tool_id: str, description: str) -> CapabilityToolInfo:

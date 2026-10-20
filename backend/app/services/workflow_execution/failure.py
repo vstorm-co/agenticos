@@ -101,7 +101,11 @@ async def start_error_workflow(
     # import the table service, which imports the facade: imported here to keep
     # the modules' import order free of a cycle.
     from app.services.workflow_execution.dispatcher import resolve_graph
-    from app.services.workflow_execution.facade import Causation, WorkflowExecutionService
+    from app.services.workflow_execution.facade import (
+        Causation,
+        WorkflowExecutionService,
+        causes_public,
+    )
     from app.workflows.nodes._triggers import FailedRunError, WorkflowFailedTriggerOutput
 
     step = (await resolve_graph(db, run)).node_by_id[step_id]
@@ -128,6 +132,7 @@ async def start_error_workflow(
                     causation_run_id=run.id,
                     visited_trigger_ids=list(run.visited_trigger_ids),
                     depth=run.depth + 1,
+                    public_origin=causes_public(run),
                 ),
                 submitted=False,
             )
