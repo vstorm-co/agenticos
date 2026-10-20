@@ -17,6 +17,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **A publisher's personal-data export lists only the runs they started.**
+  A run made for somebody else under the publisher's identity - an unlinked
+  channel sender, a widget visitor - carries the publisher's id, and the
+  export listed it as theirs. It now leaves those runs out, as every other
+  reader of a person's runs already did; deleting the publisher still keeps
+  them, with the id cleared (#2235).
+
 ## [1.8.1] - 2026-10-19
 
 ### Fixed

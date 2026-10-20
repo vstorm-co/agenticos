@@ -162,9 +162,17 @@ async def sessions_of(db: AsyncSession, user_id: UUID) -> list[Session]:
 
 
 async def runs_started_by(db: AsyncSession, user_id: UUID) -> list[AgentRun]:
-    """Runs they started, for what each cost and which agent answered."""
+    """Runs they started, for what each cost and which agent answered.
+
+    Not the runs that carry their id only as the publisher standing in for
+    somebody else - a widget visitor, an unlinked channel sender: those were
+    started by another person, and listing them made the publisher's export
+    an account of strangers' activity (#2235).
+    """
     result = await db.execute(
-        select(AgentRun).where(AgentRun.user_id == user_id).order_by(AgentRun.created_at.desc())
+        select(AgentRun)
+        .where(AgentRun.user_id == user_id, AgentRun.initiated_by_publisher_fallback.is_(False))
+        .order_by(AgentRun.created_at.desc())
     )
     return list(result.scalars().all())
 
