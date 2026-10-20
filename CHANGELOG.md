@@ -285,6 +285,10 @@ Two things are versioned separately from this file and worth knowing about:
   foreign key now refuses the delete, and deleting a connection can confirm that
   its sandboxes were removed on the provider by hand. The console asks, where a
   refused delete used to vanish without a word.
+- **The sandbox service reaps the processes it leaves behind.** It ran as PID 1
+  without an init, so anything orphaned under it stayed a zombie until the
+  container restarted; production once showed more than 600. Both compose files
+  now start it with `init: true`, as every sandbox it starts already was.
 
 ## [1.8.3] - 2026-10-20
 

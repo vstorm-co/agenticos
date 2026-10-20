@@ -384,6 +384,11 @@ services:
   sandboxd:
     image: ghcr.io/vstorm-co/sandboxd:0.2
     profiles: [sandbox]
+    # Without an init the server is PID 1, and Python reaps only the children it
+    # waits on: anything orphaned under it stays a zombie for the container's
+    # lifetime, and production once showed more than 600. docker-init reaps
+    # them, as it already does in every sandbox this service starts.
+    init: true
     # The token comes from the same files every other secret in this stack comes
     # from, rather than through compose interpolation: interpolation reads the
     # project root's `.env` only, so a token generated into `backend/.env` -
