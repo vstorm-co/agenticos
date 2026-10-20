@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.8.2] - 2026-10-20
+
 ### Fixed
 
 - **A publisher's personal-data export lists only the runs they started.**
