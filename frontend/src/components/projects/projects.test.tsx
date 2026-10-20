@@ -41,6 +41,7 @@ const projects = {
   create: { mutateAsync: vi.fn(), isPending: false },
   list: vi.fn((): Project[] => []),
   loading: false,
+  query: vi.fn(),
 };
 const project = {
   update: { mutate: vi.fn(), isPending: false },
@@ -62,11 +63,10 @@ vi.mock("@/components/artifacts/artifact-card", () => ({
   ArtifactCard: ({ artifact }: { artifact: { title: string } }) => <p>{artifact.title}</p>,
 }));
 vi.mock("@/hooks/use-projects", () => ({
-  useProjects: () => ({
-    projects: projects.list(),
-    isLoading: projects.loading,
-    create: projects.create,
-  }),
+  useProjects: (query: unknown) => {
+    projects.query(query);
+    return { projects: projects.list(), isLoading: projects.loading, create: projects.create };
+  },
   useProject: () => project,
   useProjectFiles: () => ({
     files: files.listing(),
@@ -620,6 +620,25 @@ describe("ProjectPickerDialog", () => {
     expect(onPick).toHaveBeenLastCalledWith(null);
     expect(onOpenChange).toHaveBeenCalledWith(false);
     await userEvent.type(screen.getByPlaceholderText("Search projects"), "treasury");
+  });
+
+  it("asks for the projects only once it is open", () => {
+    const { rerender } = wrap(
+      <ProjectPickerDialog
+        open={false}
+        onOpenChange={vi.fn()}
+        selectedId={null}
+        onPick={vi.fn()}
+      />,
+    );
+    expect(projects.query).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: false }));
+
+    rerender(
+      <QueryClientProvider client={new QueryClient()}>
+        <ProjectPickerDialog open onOpenChange={vi.fn()} selectedId={null} onPick={vi.fn()} />
+      </QueryClientProvider>,
+    );
+    expect(projects.query).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: true }));
   });
 
   it("holds a row while the list loads", () => {

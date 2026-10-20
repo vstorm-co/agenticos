@@ -13,6 +13,7 @@ from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 from uuid import UUID
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
@@ -113,18 +114,33 @@ class ExternalAgentService:
                 ctx, data.secret_id, kind=SecretKind.API_KEY
             )
             _refuse_cleartext(card, field="card_url")
-        agent = await external_agent_repo.create(
-            self.db,
-            organization_id=ctx.organization_id,
-            slug=slug,
-            name=card.name[:128],
-            description=_described(card),
-            card_url=data.card_url.strip(),
-            endpoint_url=card.url,
-            card=_stored(card),
-            secret_id=data.secret_id,
-            created_by_user_id=ctx.subject_id,
-        )
+        try:
+            # A savepoint, so a registration that lost the race for the handle
+            # rolls back its own insert rather than the caller's whole session.
+            async with self.db.begin_nested():
+                agent = await external_agent_repo.create(
+                    self.db,
+                    organization_id=ctx.organization_id,
+                    slug=slug,
+                    name=card.name[:128],
+                    description=_described(card),
+                    card_url=data.card_url.strip(),
+                    endpoint_url=card.url,
+                    card=_stored(card),
+                    secret_id=data.secret_id,
+                    created_by_user_id=ctx.subject_id,
+                )
+        except IntegrityError as conflict:
+            # Registered by somebody else between the check above and this insert;
+            # any other conflict is not this one, and goes on as it was.
+            if not await external_agent_repo.get_by_slug(
+                self.db, slug, organization_id=ctx.organization_id
+            ):
+                raise
+            raise AlreadyExistsError(
+                message=f"A remote agent called {slug} is already registered",
+                details={"slug": slug},
+            ) from conflict
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,

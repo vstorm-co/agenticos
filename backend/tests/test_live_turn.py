@@ -39,22 +39,37 @@ CONVERSATION = "7d8a3b5e-1111-4c2a-9b1e-2f3a4b5c6d7e"
 class _PubSub:
     def __init__(self, store: _Store) -> None:
         self.store = store
-        self.start = 0
+        self.cursor = 0
+        self.listening = False
         self.closed = False
 
     async def subscribe(self, channel: str) -> None:
         self.channel = channel
-        self.start = len(self.store.published)
+        self.cursor = len(self.store.published)
         if self.store.on_subscribe is not None:
             await self.store.on_subscribe()
 
-    async def listen(self) -> AsyncIterator[dict[str, Any]]:
-        yield {"type": "subscribe", "data": 1}
-        if self.store.on_listen is not None:
-            await self.store.on_listen()
-        for channel, data in self.store.published[self.start :]:
+    async def get_message(self, *, timeout: float) -> dict[str, Any] | None:
+        """The next message on the channel; `None` for a quiet spell, once per `on_quiet`.
+
+        With nothing published and no quiet spell set, the channel closes, as a
+        connection that went away does.
+        """
+        assert timeout == live_turn.QUIET_SECONDS
+        if not self.listening:
+            self.listening = True
+            if self.store.on_listen is not None:
+                await self.store.on_listen()
+        while self.cursor < len(self.store.published):
+            channel, data = self.store.published[self.cursor]
+            self.cursor += 1
             if channel == self.channel:
-                yield {"type": "message", "data": data}
+                return {"type": "message", "data": data}
+        if self.store.on_quiet is not None:
+            quiet, self.store.on_quiet = self.store.on_quiet, None
+            await quiet()
+            return None
+        raise ConnectionError("the channel closed")
 
     async def aclose(self) -> None:
         self.closed = True
@@ -68,11 +83,12 @@ class _Pipe:
     def __getattr__(self, name: str) -> Any:
         return lambda *args, **kwargs: self.ops.append((name, args, kwargs))
 
-    async def execute(self) -> None:
+    async def execute(self) -> list[Any]:
         if self.store.fail:
             raise ConnectionError("redis went away")
-        for name, args, kwargs in self.ops:
-            await getattr(self.store, name)(*args, **kwargs)
+        if self.store.on_execute is not None:
+            await self.store.on_execute()
+        return [await getattr(self.store, name)(*args, **kwargs) for name, args, kwargs in self.ops]
 
 
 class _Store:
@@ -85,7 +101,10 @@ class _Store:
         self.published: list[tuple[str, str]] = []
         self.on_subscribe: Callable[[], Any] | None = None
         self.on_listen: Callable[[], Any] | None = None
+        self.on_quiet: Callable[[], Any] | None = None
+        self.on_execute: Callable[[], Any] | None = None
         self.fail = False
+        self.renewed = 0
 
     async def incr(self, key: str) -> int:
         if self.fail:
@@ -94,9 +113,17 @@ class _Store:
         self.values[key] = str(value)
         return value
 
+    async def incrby(self, key: str, amount: int) -> int:
+        value = int(self.values.get(key, "0")) + amount
+        self.values[key] = str(value)
+        return value
+
     async def set(self, key: str, value: str, ex: int | None = None) -> None:
         if self.fail:
             raise ConnectionError("redis went away")
+        if key.endswith(":alive"):
+            assert ex == live_turn.ALIVE_TTL_SECONDS
+            self.renewed += 1
         self.values[key] = value
 
     async def get(self, key: str) -> str | None:
@@ -349,6 +376,165 @@ class TestKeepingATurn:
         store.on_listen = gone
         assert [kind for kind, _ in await _followed()] == ["text_delta"]
 
+    async def test_a_follower_of_a_writer_that_died_is_told_the_turn_is_over(
+        self, store: _Store
+    ) -> None:
+        """The writing process killed mid-turn never ends its trace: the follower
+        hears nothing, finds the writer's `alive` key gone, and stops - and the
+        turn is forgotten, so nobody arriving later is sent to follow it."""
+        turn = await _begin()
+        await live_turn.publish(turn, "text_delta", {"content": "1"})
+        assert turn.beat is not None
+        turn.beat.cancel()
+
+        async def the_key_expires() -> None:
+            await store.delete(turn.key("alive"))
+
+        store.on_quiet = the_key_expires
+        token = await live_turn.live_token(CONVERSATION)
+        assert token == turn.token
+        frames = [frame["type"] async for frame in live_turn.follow(CONVERSATION, token)]
+
+        assert frames == ["text_delta"]
+        assert await live_turn.live_token(CONVERSATION) is None
+
+    async def test_a_turn_found_with_its_writer_gone_is_not_waited_on(self, store: _Store) -> None:
+        turn = await _begin()
+        await live_turn.publish(turn, "text_delta", {"content": "1"})
+        assert turn.beat is not None
+        turn.beat.cancel()
+        await store.delete(turn.key("alive"))
+
+        assert [kind for kind, _ in await _followed()] == ["text_delta"]
+        assert await live_turn.live_token(CONVERSATION) is None
+
+    async def test_an_ended_turn_left_listed_is_taken_off_by_whoever_reads_its_end(
+        self, store: _Store
+    ) -> None:
+        """`end` timing out on its removal but keeping its end left the turn listed,
+        and the newer ended turn hid an older one still being written."""
+        older = await _begin()
+        newer = await _begin()
+        with patch.object(store, "lrem", side_effect=ConnectionError("timed out")):
+            await live_turn.end(newer)
+        assert await live_turn.live_token(CONVERSATION) == newer.token
+
+        assert [kind for kind, _ in await _followed()] == [live_turn.END]
+
+        assert await live_turn.live_token(CONVERSATION) == older.token
+        await live_turn.end(older)
+
+    async def test_a_quiet_writer_still_there_is_waited_on(self, store: _Store) -> None:
+        """A long tool call sends nothing for minutes; its writer is alive, so the
+        follower keeps listening through the quiet and gets what comes after."""
+        turn = await _begin()
+
+        async def more_after_a_while() -> None:
+            await live_turn.publish(turn, "text_delta", {"content": "later"})
+
+        store.on_quiet = more_after_a_while
+        assert await _followed() == [("text_delta", {"content": "later"})]
+        await live_turn.end(turn)
+
+    async def test_a_writer_says_it_is_alive_until_its_turn_ends(
+        self, store: _Store, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(live_turn, "ALIVE_EVERY_SECONDS", 0)
+        turn = await _begin()
+        renewed = store.renewed
+        for _ in range(3):
+            await asyncio.sleep(0)
+        assert store.renewed > renewed
+
+        await live_turn.end(turn)
+
+        assert turn.beat is None
+        assert not await store.exists(turn.key("alive"))
+        settled = store.renewed
+        await asyncio.sleep(0)
+        assert store.renewed == settled
+
+    async def test_a_beat_redis_refused_is_tried_again_at_the_next(
+        self, store: _Store, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(live_turn, "ALIVE_EVERY_SECONDS", 0)
+        turn = await _begin()
+        store.fail = True
+        for _ in range(3):
+            await asyncio.sleep(0)
+        store.fail = False
+        for _ in range(3):
+            await asyncio.sleep(0)
+        assert store.renewed > 1
+        await live_turn.end(turn)
+
+    async def test_a_long_turn_keeps_its_start_and_its_end_within_the_ceiling(
+        self, store: _Store, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Each frame was bounded and the trace was not: one long turn grew a
+        Redis list until it expired. Past the ceiling the frames are still
+        announced; the trace keeps what it had, and the frame that ends it."""
+        monkeypatch.setattr(live_turn, "MAX_TRACE_BYTES", 300)
+        turn = await _begin()
+        for index in range(10):
+            await live_turn.publish(turn, "text_delta", {"content": f"{index}" * 20})
+        await live_turn.end(turn)
+
+        kept = [json.loads(raw) for raw in store.lists[turn.key("trace")]]
+        assert 0 < len(kept) < 11
+        assert kept[-1]["type"] == live_turn.END
+        assert [frame["seq"] for frame in kept[:-1]] == list(range(1, len(kept)))
+        announced = [json.loads(data)["type"] for _, data in store.published]
+        assert announced.count("text_delta") == 10
+
+    async def test_frames_published_at_once_are_kept_in_the_order_numbered(
+        self, store: _Store
+    ) -> None:
+        """A delegate's frames and the parent's arrive together; each frame is
+        numbered, then appended, and another publisher between the two put a
+        later number ahead of an earlier one in the trace."""
+        turn = await _begin()
+        held = asyncio.Event()
+        release = asyncio.Event()
+
+        async def hold_the_first_append() -> None:
+            if not held.is_set():
+                held.set()
+                await release.wait()
+
+        store.on_execute = hold_the_first_append
+        first = asyncio.create_task(live_turn.publish(turn, "text_delta", {"content": "a"}))
+        await held.wait()
+        second = asyncio.create_task(live_turn.publish(turn, "text_delta", {"content": "b"}))
+        await asyncio.sleep(0)
+        # The second waits for the first: nothing numbered yet beyond the first.
+        assert store.values.get(turn.key("seq")) is None
+        release.set()
+        await asyncio.gather(first, second)
+        store.on_execute = None
+        await live_turn.end(turn)
+
+        kept = [json.loads(raw) for raw in store.lists[turn.key("trace")]]
+        assert [(frame["seq"], frame["data"].get("content")) for frame in kept[:2]] == [
+            (1, "a"),
+            (2, "b"),
+        ]
+
+    async def test_a_redis_that_stops_answering_is_given_up_on(
+        self, store: _Store, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """No socket timeout of its own: a Redis that took the connection and never
+        answered held the turn's every frame until the kernel gave up on it."""
+        monkeypatch.setattr(live_turn.redis_view, "TIMEOUT_SECONDS", 0.01)
+        turn = await _begin()
+        store.on_execute = asyncio.Event().wait
+
+        await live_turn.publish(turn, "text_delta", {"content": "x"})
+
+        store.on_execute = None
+        assert store.lists.get(turn.key("trace"), []) == []
+        await live_turn.end(turn)
+
     async def test_without_redis_nothing_is_kept_or_followed(self) -> None:
         live_turn.configure(None)
         assert await live_turn.begin(CONVERSATION) is None
@@ -464,6 +650,38 @@ class TestFollowingFromAnotherSocket:
             await asyncio.sleep(0)
         assert follower.cancelled()
         assert session._follower is None
+
+    async def test_a_stopped_follower_has_wound_down_before_anything_else_happens(
+        self, store: _Store
+    ) -> None:
+        """Cancelled and not awaited, the follower's `finally` - closing its
+        subscription - ran after the next room was joined and its turn followed."""
+        await _begin()
+        session = _session()
+        started = asyncio.Event()
+        unwound: list[str] = []
+
+        async def waiting(_conversation: str, _token: str) -> AsyncIterator[dict[str, Any]]:
+            try:
+                started.set()
+                await asyncio.Event().wait()
+                yield {"seq": 1, "type": "text_delta", "data": {}}
+            finally:
+                unwound.append("subscription closed")
+
+        with (
+            patch.object(live_turn, "follow", side_effect=waiting),
+            self._readable(),
+            self._db() as db_context,
+        ):
+            db_context.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
+            db_context.return_value.__aexit__ = AsyncMock(return_value=False)
+            await session.handle_frame({"type": "attach", "conversation_id": CONVERSATION})
+            await started.wait()
+            await session.handle_frame({"type": "unfollow"})
+
+            assert unwound == ["subscription closed"]
+            await session.shutdown()
 
     async def test_a_reply_reaches_the_teammates_with_its_quote(self, store: _Store) -> None:
         """ "Yes, do that" means nothing without the message it answers, and a
@@ -734,6 +952,53 @@ class TestTheRoom:
         await self._enter(session, CONVERSATION, room)
         await self._enter(session, str(uuid4()), room, found=False)
         room["leave"].assert_awaited_once_with(CONVERSATION, session.user.id, session._socket)
+
+    async def test_a_room_is_left_only_once_its_listening_has_stopped(self) -> None:
+        """The room's task, cancelled and not awaited, could still be renewing this
+        socket's presence after the leave - counting it back in."""
+        session = _session()
+        order: list[str] = []
+        listening = asyncio.Event()
+
+        async def heard(_conversation: str) -> AsyncIterator[dict[str, Any]]:
+            try:
+                listening.set()
+                await asyncio.Event().wait()
+                yield {}
+            finally:
+                order.append("stopped listening")
+
+        async def left(*_args: Any) -> None:
+            order.append("left")
+
+        stop_following = session._stop_following
+
+        async def stopped_following() -> None:
+            order.append("stopped following")
+            await stop_following()
+
+        room = {
+            "join": AsyncMock(),
+            "leave": AsyncMock(side_effect=left),
+            "present": AsyncMock(return_value=[]),
+            "events": heard,
+        }
+        with (
+            patch.multiple("app.services.agent_session.chat_room", **room),
+            patch.object(session, "_still_reads", AsyncMock(return_value=True)),
+            TestFollowingFromAnotherSocket._readable(),
+            TestFollowingFromAnotherSocket._db() as db,
+        ):
+            db.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
+            db.return_value.__aexit__ = AsyncMock(return_value=False)
+            await session.handle_frame({"type": "attach", "conversation_id": CONVERSATION})
+            await listening.wait()
+            with patch.object(session, "_stop_following", side_effect=stopped_following):
+                await session.shutdown()
+
+        # Its listener stopped before its follower: still listening, it could
+        # start a new follower for this room while the old one unwound.
+        assert order[-3:] == ["stopped listening", "stopped following", "left"]
 
     async def test_a_socket_that_closes_leaves(self) -> None:
         session = _session()

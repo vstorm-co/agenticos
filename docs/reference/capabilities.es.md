@@ -1,5 +1,5 @@
 ---
-source_sha: "eeee8d7347a9"
+source_sha: "f543bfd2c9bb"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1619,10 +1619,15 @@ nombre de usuario o contraseña se rechaza de entrada: una credencial va al vaul
 Para el modelo que delega, un agent remoto es un delegado más, llamado por su nombre
 con la misma herramienta `task`. Cada llamada es un `message/send` de A2A con la
 última petición, y el `contextId` del agent remoto pasa de una llamada a la
-siguiente dentro del run. Una respuesta `input-required` o `auth-required` vuelve como
-texto que lo dice, porque un delegado que espera a su propio usuario es una respuesta
-que el modelo tiene que leer. Un agent remoto al que no se puede llegar responde
-precisamente eso, y el run sigue.
+siguiente dentro de la misma delegación: una pregunta de seguimiento sobre una tarea
+continúa su conversación remota, y dos tareas enviadas a la vez tienen cada una la
+suya.
+
+Una respuesta `input-required` o `auth-required` vuelve como texto que lo dice,
+porque un delegado que espera a su propio usuario es una respuesta que el modelo
+tiene que leer. Una parte de datos o de archivo de una respuesta no se lee, y aparece
+como una línea que dice que se envió. Un agent remoto al que no se puede llegar
+responde precisamente eso, y el run sigue.
 
 El budget se comprueba antes de cada llamada. Lo que cuesta una llamada lo fija el
 proveedor remoto y nadie lo publica, así que cada llamada se anota sin precio y el

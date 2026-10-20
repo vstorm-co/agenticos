@@ -25,12 +25,18 @@ from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.exceptions import AppException, AuthorizationError, NotFoundError
+from app.core.exceptions import (
+    AppException,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.repositories import agent_repo, conversation_repo
 from app.schemas.a2a import (
+    CONTENT_TYPE_NOT_SUPPORTED,
     INVALID_PARAMS,
     INVALID_REQUEST,
     METHOD_NOT_FOUND,
@@ -158,8 +164,11 @@ class A2AServerService:
 
         Raises:
             NotFoundError: For an agent this caller's organization does not serve -
-                another tenant's answers the same as an unknown one. Everything
-                past that is a JSON-RPC answer, success or error.
+                another tenant's answers the same as an unknown one - or one this
+                caller may not see.
+            AuthorizationError: For a caller who may see the agent and not run it.
+                A2A leaves who may call to the transport, so both are HTTP
+                answers; everything else is a JSON-RPC answer, success or error.
         """
         agent = await agent_repo.get_served_over_a2a(self.db, agent_id)
         if agent is None or agent.organization_id != ctx.organization_id:
@@ -198,6 +207,14 @@ class A2AServerService:
             message = Message.model_validate(params.get("message"))
         except ValidationError as invalid:
             raise _RpcError(INVALID_PARAMS, "params.message is not an A2A message") from invalid
+        # Refused rather than read past: a question that came with a file or data
+        # the run never sees is answered as though it had not.
+        unread = sorted({part.kind for part in message.parts if part.kind != "text"})
+        if unread:
+            raise _RpcError(
+                CONTENT_TYPE_NOT_SUPPORTED,
+                f"This agent reads only text parts, not {', '.join(unread)}",
+            )
         prompt = message.text().strip()
         if not prompt:
             raise _RpcError(INVALID_PARAMS, "The message has no text part")
@@ -212,15 +229,21 @@ class A2AServerService:
                 "without taskId to ask something new in the same contextId.",
             )
         conversation = _uuid(message.context_id, "contextId")
-        runner = AgentRunnerService(self.db)
-        conversation_id: UUID | None = conversation
+        # Before the conversation opens, not after: refused by the run, the
+        # request still committed, and each refusal left an empty thread.
+        await AgentRegistryService(self.db).get(ctx, agent.id, perm=Perm.AGENTS_RUN)
         try:
-            # Before the conversation opens, not after: refused by the run, the
-            # request still committed, and each refusal left an empty thread.
-            await AgentRegistryService(self.db).get(ctx, agent.id, perm=Perm.AGENTS_RUN)
             conversation_id, history = await ConversationService(self.db).for_api_run(
                 ctx, conversation, prompt=prompt
             )
+        except NotFoundError as unknown:
+            raise _RpcError(INVALID_PARAMS, "contextId names no conversation here") from unknown
+        except BadRequestError as refused:
+            # A conversation of theirs that is not an API one - begun in the
+            # console or a channel - is a bad parameter too, not a failed request.
+            raise _RpcError(INVALID_PARAMS, refused.message) from refused
+        runner = AgentRunnerService(self.db)
+        try:
             output, run = await runner.execute(
                 ctx,
                 agent.id,
@@ -230,21 +253,21 @@ class A2AServerService:
                 message_history=history,
                 reports_failure=True,
             )
-        except (NotFoundError, AuthorizationError) as refused:
-            if conversation is None and conversation_id is not None:
+        except AuthorizationError:
+            if conversation is None:
                 await self._discard(ctx, conversation_id)
-            raise _RpcError(INVALID_REQUEST, refused.message) from refused
+            raise
         except AppException as failed:
             run_id = (failed.details or {}).get("run_id")
             if run_id is None:
-                if conversation is None and conversation_id is not None:
+                if conversation is None:
                     await self._discard(ctx, conversation_id)
                 raise _RpcError(INVALID_REQUEST, failed.message) from failed
             # The run started and failed: A2A's answer is a task that failed,
             # not an error about the request.
             return _task(
                 task_id=str(run_id),
-                context_id=str(conversation_id or ""),
+                context_id=str(conversation_id),
                 state="failed",
                 note=failed.message,
             ).model_dump(by_alias=True, exclude_none=True)
@@ -263,9 +286,13 @@ class A2AServerService:
         )
 
     async def _get(self, ctx: AuthContext, agent: Agent, params: dict[str, Any]) -> dict[str, Any]:
-        run_id = _uuid(params.get("id"), "id")
-        if run_id is None:
+        if params.get("id") is None:
             raise _RpcError(INVALID_PARAMS, "params.id names the task")
+        try:
+            run_id = UUID(str(params["id"]))
+        except ValueError as unknown:
+            # No task of this server's has that id: an unknown task, as any other.
+            raise _RpcError(TASK_NOT_FOUND, "No such task") from unknown
         runner = AgentRunnerService(self.db)
         try:
             run = await runner.get_run(ctx, run_id)

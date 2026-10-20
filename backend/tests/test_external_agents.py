@@ -10,6 +10,7 @@ from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic import SecretStr, ValidationError
+from sqlalchemy.exc import IntegrityError
 
 from app.agents.spec import AgentSpec, ExternalAgentRef
 from app.core.exceptions import (
@@ -112,6 +113,37 @@ class TestRegistering:
             patch.object(module, "fetch_card", AsyncMock(return_value=CARD)),
             patch.object(module.external_agent_repo, "get_by_slug", AsyncMock(return_value=_row())),
             pytest.raises(AlreadyExistsError),
+        ):
+            await ExternalAgentService(MagicMock()).register(
+                CTX, ExternalAgentCreate(card_url="https://agents.example.com")
+            )
+
+    async def test_a_handle_taken_between_the_check_and_the_insert_is_refused_as_taken(
+        self,
+    ) -> None:
+        """Two registrations of one name at once: the loser's unique-key conflict
+        is the same refusal as a handle already taken, not a 500."""
+        conflict = IntegrityError("INSERT", {}, Exception("uq_external_agent_org_slug"))
+        with (
+            patch.object(module, "fetch_card", AsyncMock(return_value=CARD)),
+            patch.object(
+                module.external_agent_repo, "get_by_slug", AsyncMock(side_effect=[None, _row()])
+            ),
+            patch.object(module.external_agent_repo, "create", AsyncMock(side_effect=conflict)),
+            pytest.raises(AlreadyExistsError) as refused,
+        ):
+            await ExternalAgentService(MagicMock()).register(
+                CTX, ExternalAgentCreate(card_url="https://agents.example.com")
+            )
+        assert refused.value.details == {"slug": "contract-reviewer"}
+
+    async def test_a_conflict_that_is_not_the_handle_is_not_called_one(self) -> None:
+        conflict = IntegrityError("INSERT", {}, Exception("some other constraint"))
+        with (
+            patch.object(module, "fetch_card", AsyncMock(return_value=CARD)),
+            patch.object(module.external_agent_repo, "get_by_slug", AsyncMock(return_value=None)),
+            patch.object(module.external_agent_repo, "create", AsyncMock(side_effect=conflict)),
+            pytest.raises(IntegrityError),
         ):
             await ExternalAgentService(MagicMock()).register(
                 CTX, ExternalAgentCreate(card_url="https://agents.example.com")

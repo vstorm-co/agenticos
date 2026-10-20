@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.8.2"
+version = "1.8.3"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -953,6 +953,7 @@ include = [
     "app/services/live_browse.py",
     "app/services/live_turn.py",
     "app/services/chat_room.py",
+    "app/services/redis_view.py",
     "app/services/browse_plans.py",
     "app/api/routes/v1/browse_live.py",
     "app/db/models/browser_sign_in.py",
@@ -1417,6 +1418,7 @@ include = [
     "app/services/live_browse.py",
     "app/services/live_turn.py",
     "app/services/chat_room.py",
+    "app/services/redis_view.py",
     "app/services/browse_plans.py",
     "app/api/routes/v1/browse_live.py",
     "app/db/models/browser_sign_in.py",

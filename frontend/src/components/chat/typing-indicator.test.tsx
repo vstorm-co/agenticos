@@ -9,9 +9,22 @@ function person(id: string, name: string): ChatPerson {
 }
 
 describe("TypingIndicator", () => {
-  it("draws nothing while nobody else is writing", () => {
-    const { container } = render(<TypingIndicator people={[]} />);
-    expect(container).toBeEmptyDOMElement();
+  it("keeps an empty live region while nobody else is writing", () => {
+    // Mounted with nothing in it, so the first typist is announced as a change.
+    render(<TypingIndicator people={[]} />);
+    const region = screen.getByRole("status");
+    expect(region).toBeEmptyDOMElement();
+    expect(region).toHaveAttribute("aria-live", "polite");
+  });
+
+  it("announces the first typist inside the region that was already there", () => {
+    const { rerender } = render(<TypingIndicator people={[]} />);
+    const region = screen.getByRole("status");
+
+    rerender(<TypingIndicator people={[person("a", "Anna")]} />);
+
+    expect(screen.getByRole("status")).toBe(region);
+    expect(region).toHaveTextContent("Anna is typing");
   });
 
   it("says who is writing, one person or several", () => {
