@@ -61,24 +61,34 @@ const OK = {
   filters_dropped: false,
 };
 
-function start(config: Partial<BridgeConfig> = {}, options: { orphan?: boolean } = {}) {
+function start(
+  config: Partial<BridgeConfig> = {},
+  options: { orphan?: boolean; readyState?: DocumentReadyState } = {},
+) {
   const bridge = (0, eval)(`(${source})`) as Bridge;
   const parent: Parent = { postMessage: vi.fn() };
   const listeners: ((event: MessageEvent) => void)[] = [];
+  const loads: (() => void)[] = [];
   const stub: StubWindow = {
     parent,
     addEventListener: (type, listener) => {
       if (type === "message") listeners.push(listener);
+      if (type === "load") loads.push(() => listener(new Event("load") as MessageEvent));
     },
     setTimeout: (fn, ms) => setTimeout(fn, ms),
     clearTimeout: (id) => clearTimeout(id),
   };
   if (options.orphan) stub.parent = stub;
-  bridge(stub, document, { n: "nonce-1", live: true, names: ["deals", "owners"], ...config });
+  // A page whose platform script runs while it is still parsing, unless told otherwise.
+  const page = { readyState: options.readyState ?? "loading" } as Document;
+  bridge(stub, page, { n: "nonce-1", live: true, names: ["deals", "owners"], ...config });
+  const load = () => {
+    for (const listener of loads) listener();
+  };
   const dispatch = (data: unknown, source: unknown = parent) => {
     for (const listener of listeners) listener({ data, source } as MessageEvent);
   };
-  return { agenticos: stub.agenticos as Agenticos, parent, dispatch, listeners };
+  return { agenticos: stub.agenticos as Agenticos, parent, dispatch, listeners, load, loads };
 }
 
 function ready(subscribes: boolean) {
@@ -224,5 +234,39 @@ describe("the artifact data bridge", () => {
     // Once: a second listener changes nothing the console needs to know.
     agenticos.onData(vi.fn());
     expect(parent.postMessage.mock.calls.length).toBe(asked + 1);
+  });
+
+  it("says ready once more when the page has loaded, without asking again", () => {
+    // The console forgets the handshake when the frame loads, which comes after
+    // this page asked and was answered: one more ready tells it this page listens.
+    const { agenticos, parent, dispatch, load } = start();
+    agenticos.onData(vi.fn());
+    dispatch({ type: "agenticos:data", n: "nonce-1", bindings: { deals: OK, owners: OK } });
+    const asked = parent.postMessage.mock.calls.length;
+
+    load();
+    expect(parent.postMessage.mock.calls.length).toBe(asked + 1);
+    expect(parent.postMessage).toHaveBeenLastCalledWith(...ready(true));
+
+    load();
+    vi.advanceTimersByTime(20_000);
+    expect(parent.postMessage.mock.calls.length).toBe(asked + 1);
+  });
+
+  it("adds no ready for a page that had loaded before the bridge ran", () => {
+    const { parent, dispatch, load, loads } = start({}, { readyState: "complete" });
+    dispatch({ type: "agenticos:data", n: "nonce-1", bindings: { deals: OK, owners: OK } });
+    const asked = parent.postMessage.mock.calls.length;
+    load();
+    expect(loads).toHaveLength(0);
+    expect(parent.postMessage.mock.calls.length).toBe(asked);
+  });
+
+  it("listens for no load when it does not ask", () => {
+    for (const run of [start({ live: false }), start({}, { orphan: true })]) {
+      run.load();
+      expect(run.loads).toHaveLength(0);
+      expect(run.parent.postMessage).not.toHaveBeenCalled();
+    }
   });
 });

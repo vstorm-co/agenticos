@@ -25,6 +25,8 @@ interface VersionPickerProps {
   /** The version shown, or null for the current one. */
   value: string | null;
   onChange: (versionId: string | null) => void;
+  /** The current version reads live data, which only it does. */
+  live?: boolean;
 }
 
 /**
@@ -38,7 +40,7 @@ interface VersionPickerProps {
  * it was published, how large it is, and whether it is the newest - which a
  * select could only fit as one run-on line of text.
  */
-export function VersionPicker({ versions, value, onChange }: VersionPickerProps) {
+export function VersionPicker({ versions, value, onChange, live = false }: VersionPickerProps) {
   const t = useTranslations("artifacts");
   const tTime = useTranslations("time");
   const locale = useLocale();
@@ -102,7 +104,7 @@ export function VersionPicker({ versions, value, onChange }: VersionPickerProps)
                   </span>
                   {version.id === newest?.id ? (
                     <span className="bg-muted text-foreground shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium">
-                      {t("currentTag")}
+                      {live ? t("currentLiveTag") : t("currentTag")}
                     </span>
                   ) : (
                     <span className="text-muted-foreground shrink-0 text-xs tabular-nums">

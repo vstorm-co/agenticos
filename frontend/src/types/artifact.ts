@@ -8,6 +8,7 @@
  */
 
 import type { Visibility } from "./sharing";
+import type { ColumnTypeName } from "./tables";
 
 export type ArtifactMediaType = "text/html" | "text/markdown";
 
@@ -36,6 +37,8 @@ export interface Artifact {
   environment_name: string | null;
   /** The "anyone with the link" address, when one is on. */
   public_url: string | null;
+  /** Whether the current version is bound to saved views of Virtual Tables. */
+  live: boolean;
   published_at: string;
   current_version: ArtifactVersion | null;
   created_at: string;
@@ -56,9 +59,20 @@ export interface ArtifactPublicLink {
   embed_url: string | null;
 }
 
+/** A page's named link to a saved view, as an API client sees it: field names only. */
+export interface ArtifactBindingInfo {
+  name: string;
+  view_id: string;
+  table_id: string;
+  fields: string[];
+  status: "ok" | "unavailable";
+  reason: string | null;
+}
+
 /** One artifact as its own page reads it: with what the caller may do, decided by the server. */
 export interface ArtifactDetail extends Artifact {
   can_edit: boolean;
+  bindings: ArtifactBindingInfo[];
   public_link: ArtifactPublicLink;
 }
 
@@ -92,8 +106,44 @@ export interface ArtifactVersionList {
 /** Where a frame loads one version from, and until when that address holds. */
 export interface ArtifactView {
   url: string;
+  /** Names this load of the page, so its frame knows which messages are its own. */
+  nonce: string;
+  /** Whether the version is bound to live data. */
+  live: boolean;
   expires_at: string;
   version: ArtifactVersion;
+}
+
+/** What one field of a binding reads now: its column's current label and type. */
+export interface BoundField {
+  label: string;
+  type: ColumnTypeName;
+  /** A select column's live choices, by label. */
+  options: string[] | null;
+  /** `archived` or `missing` when the column no longer serves values. */
+  state: "ok" | "archived" | "missing";
+}
+
+/** One binding's records for a page load, read with the viewer's own access. */
+export interface BindingData {
+  status: "ok" | "unavailable";
+  /** Why it is unavailable; only sent to a viewer who may edit the page. */
+  reason: string | null;
+  truncated: boolean;
+  /** Which limit left records out. */
+  limit: "records" | "bytes" | null;
+  count: number;
+  /** A filter of the view named a column no longer live, so it matches more. */
+  filters_dropped: boolean;
+  fields: Record<string, BoundField>;
+  /** Each record as its `id` and every named field; `null` when empty. */
+  records: Record<string, unknown>[];
+}
+
+/** A page version's live data: every binding, each read as the viewer. */
+export interface ArtifactData {
+  bindings: Record<string, BindingData>;
+  read_at: string;
 }
 
 /**

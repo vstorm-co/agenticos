@@ -6,12 +6,13 @@ import { toast } from "sonner";
 
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { PAGE_SIZE } from "@/components/ui";
-import { apiClient } from "@/lib/api-client";
+import { ApiError, apiClient } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/api-error";
 import { unlockPublicArtifact } from "@/lib/public-artifact-api";
 import { qk } from "@/lib/query-keys";
 import type {
   ArtifactAgent,
+  ArtifactData,
   ArtifactDetail,
   ArtifactList,
   ArtifactPublicLinkUpdate,
@@ -104,16 +105,28 @@ export function useArtifact(artifactId: string) {
     enabled: detail.data !== undefined,
   });
 
-  const settle = (artifact: ArtifactDetail) => {
+  // A public-link change leaves the page the viewer has open as it is: reloading
+  // its signed address and data would blank a page nothing changed under. A
+  // restore makes a new current version, so that one reloads the page too.
+  const settle = (artifact: ArtifactDetail, { reloadPage }: { reloadPage: boolean }) => {
     queryClient.setQueryData(qk.artifacts.detail(artifactId), artifact);
-    void queryClient.invalidateQueries({ queryKey: qk.artifacts.all(), exact: false });
+    void queryClient.invalidateQueries({
+      queryKey: qk.artifacts.all(),
+      exact: false,
+      predicate: reloadPage
+        ? undefined
+        : (query) => {
+            const [, id, kind] = query.queryKey;
+            return !(id === artifactId && (kind === "view" || kind === "data"));
+          },
+    });
   };
   const fail = (error: unknown) => toast.error(getErrorMessage(error, tErrors));
 
   const enablePublicLink = useMutation({
     mutationFn: () => apiClient.put<ArtifactDetail>(`/artifacts/${artifactId}/public-link`),
     onSuccess: (artifact) => {
-      settle(artifact);
+      settle(artifact, { reloadPage: false });
       toast.success(t("publicLinkReady"));
     },
     onError: fail,
@@ -121,7 +134,7 @@ export function useArtifact(artifactId: string) {
   const disablePublicLink = useMutation({
     mutationFn: () => apiClient.delete<ArtifactDetail>(`/artifacts/${artifactId}/public-link`),
     onSuccess: (artifact) => {
-      settle(artifact);
+      settle(artifact, { reloadPage: false });
       toast.success(t("publicLinkOff"));
     },
     onError: fail,
@@ -132,7 +145,7 @@ export function useArtifact(artifactId: string) {
     mutationFn: (changes: ArtifactPublicLinkUpdate) =>
       apiClient.patch<ArtifactDetail>(`/artifacts/${artifactId}/public-link`, changes),
     onSuccess: (artifact) => {
-      settle(artifact);
+      settle(artifact, { reloadPage: false });
       toast.success(t("publicLinkSaved"));
     },
   });
@@ -140,8 +153,19 @@ export function useArtifact(artifactId: string) {
     mutationFn: (versionId: string) =>
       apiClient.post<ArtifactDetail>(`/artifacts/${artifactId}/versions/${versionId}/restore`),
     onSuccess: (artifact) => {
-      settle(artifact);
+      settle(artifact, { reloadPage: true });
       toast.success(t("versionRestored", { version: artifact.current_version?.number ?? 0 }));
+      // Restoring re-checks the version's bindings, and an editor - the only one
+      // who may restore - should hear at once which no longer read anything.
+      const unavailable = artifact.bindings.filter((binding) => binding.status === "unavailable");
+      if (unavailable.length > 0) {
+        toast.warning(
+          t("restoredUnavailable", {
+            count: unavailable.length,
+            names: unavailable.map((binding) => binding.name).join(", "),
+          }),
+        );
+      }
     },
     onError: fail,
   });
@@ -187,6 +211,35 @@ export function useArtifactView(artifactId: string, versionId: string | null, en
     staleTime: 0,
     gcTime: 0,
     retry: false,
+  });
+}
+
+/** How many times a busy answer is tried again, and how long to wait between. */
+const BUSY_RETRIES = 2;
+const BUSY_RETRY_DELAY_MS = 1000;
+
+/**
+ * The live records a page version is bound to, read as the viewer.
+ *
+ * Never cached: every open reads the tables as they are now. Only a 429 - the
+ * server's in-flight or rate gate - is tried again, twice, a second apart; any
+ * other failure is the answer.
+ */
+export function useArtifactData(
+  artifactId: string,
+  versionId: string | undefined,
+  enabled: boolean,
+) {
+  return useQuery({
+    queryKey: qk.artifacts.data(artifactId, versionId ?? ""),
+    queryFn: () =>
+      apiClient.get<ArtifactData>(`/artifacts/${artifactId}/versions/${versionId}/data`),
+    enabled: enabled && versionId !== undefined,
+    staleTime: 0,
+    gcTime: 0,
+    retry: (failures, error) =>
+      error instanceof ApiError && error.status === 429 && failures < BUSY_RETRIES,
+    retryDelay: BUSY_RETRY_DELAY_MS,
   });
 }
 

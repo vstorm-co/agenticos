@@ -326,6 +326,7 @@ export const qk = {
     versions: (id: string) => ["artifacts", id, "versions"] as const,
     view: (id: string, versionId: string | null) =>
       ["artifacts", id, "view", versionId ?? "current"] as const,
+    data: (id: string, versionId: string) => ["artifacts", id, "data", versionId] as const,
     public: (key: string) => ["artifacts", "public", key] as const,
   },
   context: {

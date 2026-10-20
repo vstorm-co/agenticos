@@ -43,6 +43,21 @@ describe("ArtifactsWidget", () => {
     expect(screen.getByRole("link", { name: /Churn dashboard/ })).toBeInTheDocument();
   });
 
+  it("marks a page with live data", () => {
+    useArtifactsMock.mockReturnValue({
+      artifacts: [
+        { id: "a1", title: "Weekly report", published_at: "2026-09-22T10:00:00Z", live: true },
+        { id: "a2", title: "Churn dashboard", published_at: "2026-09-20T10:00:00Z", live: false },
+      ],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    widget();
+    expect(screen.getAllByText("Live")).toHaveLength(1);
+    expect(screen.getByRole("link", { name: /Weekly report/ })).toHaveTextContent("Live");
+  });
+
   it("says where a page comes from when there is none", () => {
     useArtifactsMock.mockReturnValue({
       artifacts: [],

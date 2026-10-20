@@ -101,6 +101,21 @@ function (window, document, config) {
     deliver(shaped(message.bindings));
   });
 
+  // The console forgets the handshake each time the frame loads, and that load
+  // comes after this script asked - often after it was answered and stopped.
+  // One more ready once the page has loaded tells the console again whether it
+  // listens. Once, without restarting the backoff; and also after the give-up,
+  // since a late answer is still delivered. Not when the page had loaded before
+  // this ran: then no frame load follows this ready.
+  if (document.readyState !== "complete") {
+    var saidLoaded = false;
+    window.addEventListener("load", function () {
+      if (saidLoaded) return;
+      saidLoaded = true;
+      ready();
+    });
+  }
+
   giveUpTimer = window.setTimeout(function () {
     stopAsking();
     if (!answered) deliver(shaped({}));

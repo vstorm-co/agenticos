@@ -42,6 +42,8 @@ function AccessBadge({ artifact }: { artifact: ArtifactDetail }) {
 interface ArtifactViewerBarProps {
   /** Null while it loads, or once it turned out not to be available. */
   artifact: ArtifactDetail | null;
+  /** The version shown reads live data, so the strip says so beside the title. */
+  live?: boolean;
   /** The version picker, which only the loaded page has. */
   children?: React.ReactNode;
   onShare?: () => void;
@@ -55,6 +57,7 @@ interface ArtifactViewerBarProps {
  */
 export function ArtifactViewerBar({
   artifact,
+  live = false,
   children,
   onShare,
   onDelete,
@@ -79,6 +82,11 @@ export function ArtifactViewerBar({
                 title={t("environmentBadge")}
               >
                 {artifact.environment_name}
+              </Badge>
+            )}
+            {live && (
+              <Badge variant="secondary" className="shrink-0">
+                {t("liveBadge")}
               </Badge>
             )}
             <AccessBadge artifact={artifact} />
