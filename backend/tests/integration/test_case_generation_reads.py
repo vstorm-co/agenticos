@@ -89,6 +89,7 @@ async def test_questions_come_from_production_traffic_only(db) -> None:
     assert [q.content for q in questions] == ["Asked by a person"]
 
 
+@pytest.mark.security
 async def test_questions_never_cross_into_another_organization(db) -> None:
     person = await world.user(db)
     mine = await world.org(db, person)
@@ -176,6 +177,7 @@ async def test_a_proposal_is_taken_once_however_many_reviewers_decide_it(db, eng
     assert [p.input for p in winner] == ["question 1", "question 0"]
 
 
+@pytest.mark.security
 async def test_taking_and_counting_stay_inside_the_dataset_and_tenant(db) -> None:
     person = await world.user(db)
     org = await world.org(db, person)
