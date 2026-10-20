@@ -159,10 +159,8 @@ class EvalRun(Base):
     rerun_ceiling_usd: Mapped[Decimal] = mapped_column(
         Numeric(12, 6), nullable=False, default=Decimal(0)
     )
-    # Cases of the dataset version this run does not answer, because they were
-    # taken from the conversations a proposal it checks was derived from - a change
-    # is never measured on the data it was fitted to. Listed on the run, so a
-    # smaller sample says why.
+    # Cases taken from the evidence of the proposal being checked are left out; listed
+    # so a smaller sample says why.
     excluded_case_ids: Mapped[list[uuid.UUID]] = mapped_column(
         ARRAY(PG_UUID(as_uuid=True)), nullable=False, default=list, server_default="{}"
     )
@@ -247,9 +245,8 @@ class EvalRunArm(Base):
         ForeignKey("eval_run_arms.id", ondelete="SET NULL"),
         nullable=True,
     )
-    # Proposed skill bodies served in place of the stored ones, keyed by skill id:
-    # `{id: {description, content}}`. Set on the candidate of a run that checks a
-    # skill change, so the agent stays the same and only the skill differs.
+    # `{skill_id: {description, content}}` served instead of the stored bodies, so a
+    # skill change is measured with the agent unchanged.
     skill_bodies: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB(none_as_null=True), nullable=True
     )

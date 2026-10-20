@@ -128,15 +128,11 @@ class AuthoringRequest(Base):
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     estimate_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
     cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal(0))
-    # The improver runs this request took, in order: the digests, then the proposal.
     run_ids: Mapped[list[uuid.UUID]] = mapped_column(
         ARRAY(PG_UUID(as_uuid=True)), nullable=False, default=list, server_default="{}"
     )
     window_days: Mapped[int] = mapped_column(Integer, nullable=False)
-    # How many runs and ratings went in, and from which conversations - the
-    # strip's "from 6 rated down across 22 runs", and the cases a check leaves out.
     evidence: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
-    # Verify's findings, and Improve's summary and expected effect.
     report: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -189,14 +185,13 @@ class SpecProposalBatch(Base):
         ForeignKey("authoring_requests.id", ondelete="SET NULL"),
         nullable=True,
     )
-    # When the request that produced it started. Supersession compares this, not
-    # when a request finished: two overlapping requests can finish out of order,
-    # and an older one must never replace a newer batch by finishing last.
+    # Supersession compares start times: an older request finishing last must never
+    # replace a newer batch.
     source_started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default=BatchStatus.OPEN.value)
     expected_effect: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    # The conversations the hunks were derived from. A check leaves the cases taken
-    # from them out, so a change is never measured on the data it was fitted to.
+    # A check leaves out the cases taken from these, so a change is never measured on
+    # the data it was fitted to.
     evidence_conversation_ids: Mapped[list[uuid.UUID]] = mapped_column(
         ARRAY(PG_UUID(as_uuid=True)), nullable=False, default=list, server_default="{}"
     )
@@ -250,10 +245,8 @@ class SpecProposalHunk(Base):
     kind: Mapped[str] = mapped_column(String(24), nullable=False)
     origin: Mapped[str] = mapped_column(String(16), nullable=False)
 
-    # An instructions hunk is anchored by position, not by its text alone: the
-    # same line can appear twice, and an insertion has no text to find. The base
-    # range is where `old_text` sat in the instructions the request read, and the
-    # context lines are what surrounded it there.
+    # Anchored by position and surroundings, not text alone: a line can occur twice,
+    # and an insertion has no text to find.
     base_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
     base_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
     context_before: Mapped[str] = mapped_column(Text, nullable=False, default="")
@@ -272,14 +265,13 @@ class SpecProposalHunk(Base):
     base_description: Mapped[str | None] = mapped_column(Text, nullable=True)
     new_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
     new_description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # What the accepted override was, for Undo.
     accepted_override: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB(none_as_null=True), nullable=True
     )
 
     rationale: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    # Only items checked against the evidence the request read; `evidence_dropped`
-    # counts those that were not, so the reviewer knows something was removed.
+    # Only verified items; `evidence_dropped` counts the rest, so a reviewer knows
+    # something was removed.
     evidence: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, default=list)
     evidence_dropped: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 

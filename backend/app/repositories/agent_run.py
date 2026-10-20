@@ -1270,9 +1270,8 @@ class RunFilter:
 
 
 _EVAL = AgentRun.surface == RunSurface.EVAL.value
-# The authoring assistant runs on the eval surface, as every system agent does,
-# but what it costs is spent improving agents rather than measuring them, so the
-# bill names it apart from the evals.
+# The authoring assistant runs on the eval surface like every system agent, but it
+# improves agents rather than measuring them, so the bill names it apart.
 _AUTHORING = AgentRun.agent_id.in_(select(Agent.id).where(Agent.kind == AgentKind.IMPROVER.value))
 _MEASURING = and_(_EVAL, ~_AUTHORING)
 
