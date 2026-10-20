@@ -28,6 +28,7 @@
     "gen:brand-icons": "bun run scripts/gen-brand-icons.ts",
     "collect:licenses": "bun run scripts/collect-licenses.ts",
     "gen:mcp-logos": "bun run scripts/gen-mcp-logos.ts",
+    "gen:connector-logos": "bun run scripts/gen-connector-logos.ts",
     "gen:logo": "bun run scripts/gen-logo.ts",
     "check:i18n": "bun run scripts/check-i18n.ts"
   },

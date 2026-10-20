@@ -66,6 +66,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **Stepped dialogs say where you are in words you can read.** The steps of a
+  new schedule, a portal trigger or a sync source are a bar per step with its
+  number and name at the form's own size, instead of small icon circles joined
+  by hairlines and named in uppercase monospace. The sync-source steps lose
+  their faint uppercase field labels the same way.
+- **Knowledge-base connectors wear their own logos.** Google Drive, Git, S3 and
+  SharePoint are drawn in their colours on a white tile, as MCP servers are,
+  instead of grey glyphs in grey circles; a website is a globe rather than a
+  database.
 - **BREAKING: background work runs on a job queue in PostgreSQL instead of
   Prefect** (#2219). A worker, `python -m app.worker` from the backend image,
   replaces the `prefect-server` and `prefect-runner` services. A job's attempt

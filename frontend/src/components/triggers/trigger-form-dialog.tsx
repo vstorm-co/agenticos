@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarClock, Cog, MessageSquare, Zap } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -467,14 +466,14 @@ export function TriggerFormDialog({
   const steps: WizardStep[] =
     type === "schedule"
       ? [
-          { id: "configure", label: t("stepConfigure"), icon: Cog },
-          { id: "message", label: t("stepMessage"), icon: MessageSquare },
-          { id: "schedule", label: t("stepSchedule"), icon: CalendarClock },
+          { id: "configure", label: t("stepConfigure") },
+          { id: "message", label: t("stepMessage") },
+          { id: "schedule", label: t("stepSchedule") },
         ]
       : [
-          { id: "event", label: t("stepEvent"), icon: Zap },
-          { id: "configure", label: t("stepConfigure"), icon: Cog },
-          { id: "message", label: t("stepMessage"), icon: MessageSquare },
+          { id: "event", label: t("stepEvent") },
+          { id: "configure", label: t("stepConfigure") },
+          { id: "message", label: t("stepMessage") },
         ];
   const stepIdx = steps.findIndex((entry) => entry.id === step);
   const isLastStep = stepIdx === steps.length - 1;
@@ -1106,7 +1105,7 @@ function CronBuilder({
                       className={cn(
                         // The same pill the quick presets wear, so the two rows
                         // of toggles in this dialog read as one control family.
-                        "border-foreground/15 flex-1 rounded-full border px-2 py-1.5 font-mono text-xs tracking-wider uppercase transition-colors",
+                        "border-foreground/15 flex-1 rounded-full border px-2 py-1.5 text-sm font-medium transition-colors",
                         active
                           ? "bg-foreground text-background border-foreground"
                           : "text-foreground/65 hover:text-foreground hover:border-foreground/40",
