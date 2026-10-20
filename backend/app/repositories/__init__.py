@@ -36,6 +36,7 @@ from app.repositories import agent_trigger as agent_trigger_repo
 from app.repositories import intercepted_tool_call as intercepted_tool_call_repo
 from app.repositories import run_manifest as run_manifest_repo
 from app.repositories import agent_workspace as agent_workspace_repo
+from app.repositories import pending_sandbox_destroy as pending_sandbox_destroy_repo
 from app.repositories import sandbox_connection as sandbox_connection_repo
 from app.repositories import sandbox_operation as sandbox_operation_repo
 from app.repositories import skill_proposal as skill_proposal_repo
@@ -128,6 +129,7 @@ __all__ = [
     "intercepted_tool_call_repo",
     "run_manifest_repo",
     "agent_workspace_repo",
+    "pending_sandbox_destroy_repo",
     "sandbox_connection_repo",
     "sandbox_operation_repo",
     "skill_proposal_repo",

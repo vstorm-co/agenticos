@@ -7,9 +7,6 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
-import pymupdf
-from docx import Document as DOCXDocument
-
 from app.core.office_convert import (
     OfficeConversionError,
     OfficeConversionTimeout,
@@ -147,6 +144,10 @@ class DocxDocumentParser(BaseDocumentParser):
         Returns:
             Document object with the file content.
         """
+        # Imported where a .docx is parsed: every API worker and flow run loads
+        # this module, and most never parse a document (#2225).
+        from docx import Document as DOCXDocument
+
         file: Any = DOCXDocument(str(filepath))
         page = DocumentPage(page_num=1, content="\n".join([p.text for p in file.paragraphs]))
         return Document(pages=[page], metadata=self.get_document_metadata(filepath))
@@ -278,6 +279,9 @@ class PyMuPDFParser(BaseDocumentParser):
 
     async def _parse_pdf_file(self, filepath: Path) -> Document:
         """Parse PDF with smart extraction pipeline."""
+        # Imported where a PDF is parsed, for the reason `_parse_docx_file` gives.
+        import pymupdf
+
         doc: Any = pymupdf.open(filepath)  # type: ignore[no-untyped-call]
 
         meta = doc.metadata or {}

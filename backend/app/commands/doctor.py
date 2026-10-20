@@ -151,6 +151,32 @@ def _redis_tls() -> tuple[str, str]:
     )
 
 
+async def _query_statistics(db: AsyncSession) -> tuple[str, str]:
+    """Whether Postgres records which statements cost what (#2228).
+
+    Without `pg_stat_statements` a slow query is found by reading logs. Not a
+    failure when absent: it needs the library preloaded at server start, which a
+    managed database may not offer. Read under a savepoint, because the error a
+    missing extension raises would otherwise abort the session the checks after
+    this one share.
+    """
+    try:
+        async with db.begin_nested():
+            await db.execute(text("SELECT 1 FROM pg_stat_statements LIMIT 1"))
+    except Exception as exc:
+        reason = str(getattr(exc, "orig", exc)).splitlines()[0]
+        return "unconfigured", f"pg_stat_statements unavailable - {reason}"
+    return "healthy", "pg_stat_statements is recording"
+
+
+def _tracing() -> tuple[str, str]:
+    """Whether spans leave this process. Production prints none to the console,
+    so with no token a slow request leaves no trace anywhere (#2228)."""
+    if settings.LOGFIRE_TOKEN:
+        return "healthy", f"Logfire, environment {settings.LOGFIRE_ENVIRONMENT}"
+    return "unconfigured", "LOGFIRE_TOKEN is unset - no request, query or run is traced"
+
+
 def _vault_configured() -> tuple[str, str]:
     """A vault with no key cannot unseal a provider credential, so no agent runs."""
     if not settings.VAULT_MASTER_KEY and not settings.VAULT_MASTER_KEYS:
@@ -362,6 +388,9 @@ async def _run(profile: str | None = None) -> int:
         model = await probe_model_access(db)
         failures += _report("model access", model.status, model.detail)
 
+        status, detail = await _query_statistics(db)
+        failures += _report("query statistics", status, detail)
+
     status, detail = await _redis_reachable()
     failures += _report("redis", status, detail)
 
@@ -373,6 +402,9 @@ async def _run(profile: str | None = None) -> int:
 
     status, detail = _file_storage()
     failures += _report("file storage", status, detail)
+
+    status, detail = _tracing()
+    failures += _report("tracing", status, detail)
 
     scheduler = await _scheduler()
     failures += _report("scheduler", scheduler.status, scheduler.detail)

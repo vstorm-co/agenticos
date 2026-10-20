@@ -30,7 +30,9 @@ services:
     # says what the host is expected to give them.
     command: >-
       uvicorn app.main:app --host 0.0.0.0 --port 8000
-      --workers ${ML_UVICORN_WORKERS:-4} --ws websockets-sansio
+      --workers ${ML_UVICORN_WORKERS:-4}
+      --timeout-worker-healthcheck ${UVICORN_WORKER_HEALTHCHECK_TIMEOUT:-60}
+      --ws websockets-sansio
     deploy:
       resources:
         limits:

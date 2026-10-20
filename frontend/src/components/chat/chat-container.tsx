@@ -29,6 +29,7 @@ import { MessageList } from "./message-list";
 import { TurnRail } from "./turn-rail";
 import { DelegationPanels } from "./delegation-panel";
 import { CompactionNotice } from "./compaction-notice";
+import { SandboxPreparingNotice } from "./sandbox-preparing-notice";
 import { InterruptedNotice } from "./interrupted-notice";
 import { ConnectAccountPrompt } from "./connect-account-prompt";
 import { ConnectServicesCard } from "./connect-services-card";
@@ -244,6 +245,7 @@ export function ChatContainer({
     isProcessing,
     compacting,
     compactionImpossible,
+    sandboxPreparing,
     interrupted,
     detachedTurnPending,
     leftTurnPending,
@@ -523,6 +525,7 @@ export function ChatContainer({
       isProcessing={isProcessing}
       compacting={compacting}
       compactionImpossible={compactionImpossible}
+      sandboxPreparing={sandboxPreparing}
       interrupted={interrupted}
       detachedTurnPending={detachedTurnPending}
       leftTurnPending={leftTurnPending || answeringElsewhere}
@@ -603,6 +606,8 @@ interface ChatUIProps {
   compacting: Compaction | null;
   /** A window with no room for a summary, drawn in its place. Null when there is. */
   compactionImpossible: Compaction | null;
+  /** True while the run's sandbox is still being opened. See `SandboxPreparingNotice`. */
+  sandboxPreparing?: boolean;
   /** True while a turn whose socket went away is unresolved. See `InterruptedNotice`. */
   interrupted?: boolean;
   /** True while such a turn's answer is still coming and the reader has moved on. */
@@ -695,6 +700,7 @@ function ChatUI({
   isProcessing,
   compacting,
   compactionImpossible,
+  sandboxPreparing = false,
   interrupted = false,
   detachedTurnPending = false,
   leftTurnPending = false,
@@ -989,6 +995,7 @@ function ChatUI({
               onRecheck={onRecheck}
             />
             <CompactionNotice compacting={compacting} impossible={compactionImpossible} />
+            {sandboxPreparing && <SandboxPreparingNotice />}
             {onCancelQueued && (
               <PendingMessages
                 messages={queuedMessages ?? []}

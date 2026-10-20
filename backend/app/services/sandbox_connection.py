@@ -40,6 +40,7 @@ from app.repositories import (
     sandbox_operation_repo,
 )
 from app.repositories import conversation as conversation_repo
+from app.repositories import pending_sandbox_destroy as pending_destroy_repo
 from app.schemas.sandbox_connection import (
     SandboxConnectionCreate,
     SandboxConnectionRead,
@@ -253,6 +254,19 @@ class SandboxConnectionService:
                     "projects first, or keep the connection."
                 ),
                 details={"projects": projects},
+            )
+        pending = await pending_destroy_repo.count_on_connection(self.db, connection_id=row.id)
+        if pending:
+            # The tombstones go with the connection, and they are the only record
+            # of sandboxes still standing on the provider - a Daytona one billed
+            # until somebody deletes it by hand (#2209).
+            raise BadRequestError(
+                message=(
+                    f"{pending} sandboxes on this connection are still waiting to be "
+                    "removed from the provider. Switch the connection off and keep "
+                    "it until they are gone, or delete them on the provider first."
+                ),
+                details={"pending_destroys": pending},
             )
         await sandbox_connection_repo.delete(self.db, connection=row)
         notifications = NotificationService(self.db)
@@ -556,6 +570,26 @@ class SandboxConnectionService:
                 ),
                 details={"connection_id": str(row.id)},
             )
+        return await self._unsealed(ctx, row)
+
+    async def resolve_for_teardown(
+        self, ctx: AuthContext, connection_id: UUID
+    ) -> ResolvedConnection:
+        """A connection to destroy a sandbox on, whether or not it is switched off.
+
+        Switching a connection off stops new work reaching it. It does not make
+        the sandboxes already there stop existing - a Daytona one is still billed
+        - so removing them must not be refused for the reason `resolve` refuses a
+        run (#2209).
+
+        Raises:
+            BadRequestError: If the connection is gone, or its credential is gone
+                or is not an API key.
+        """
+        return await self._unsealed(ctx, await self._named(ctx, connection_id))
+
+    async def _unsealed(self, ctx: AuthContext, row: SandboxConnection) -> ResolvedConnection:
+        """The connection with its credential out of the vault."""
         if row.secret_id is None:
             raise BadRequestError(
                 message=(

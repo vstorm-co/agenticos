@@ -20,7 +20,7 @@ true, only the label is lost. A generator agent becomes a plain `agent`, kept
 with its runs rather than deleted.
 
 Revision ID: 0150_case_generation
-Revises: 0146_eval_runs
+Revises: 0148_eval_runs
 Create Date: 2026-10-13
 """
 
@@ -32,7 +32,7 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 revision: str = "0150_case_generation"
-down_revision: str | None = "0146_eval_runs"
+down_revision: str | None = "0148_eval_runs"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

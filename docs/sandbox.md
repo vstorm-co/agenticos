@@ -399,7 +399,20 @@ requests, so a pager over three hundred operations has something to page to.
 service starts** rather than inside somebody's first request — a build is ten
 seconds and upwards. Images are cached, so a host pays once.
 
-What is left to wait for: the first session opened *during* a prewarm, and a host
+A deploy builds them even earlier. `scripts/deploy.sh` runs the library's
+`python -m pydantic_ai_backends.remote.prepare` in a one-off container of the new
+sandboxd image, before the old service is replaced. A release that changes a
+runtime therefore pays for the build while the old service is still serving.
+Before this, on 2026-10-18 the first sandboxed chat after such a release waited
+minutes, and every session request answered 409 until the build was done. A
+build that fails is tried three times there and twice at start-up. A runtime
+still not built is built on demand, as before, and the deploy log names it.
+
+While a session waits on such a build, the chat says so above the composer:
+"Preparing the sandbox". Opening waits up to ten minutes for it, not the 30
+seconds of an ordinary request.
+
+What is left to wait for: a runtime the deploy could not prepare, and a host
 whose image cache was cleared. `SANDBOXD_PERSIST_CONTAINERS: true` then removes
 most of the rest — a closed session keeps its container, so the next session on
 that workspace starts without a build and with whatever the agent installed last
@@ -493,7 +506,8 @@ itself is indistinguishable from a person, and nothing stops it.
 
 ### Listing a container costs round trips, so two things are bounded
 
-The archive's `ls` reads one directory, so the listing walks: breadth-first, six
+The archive's `ls` reads one directory, so the listing asks the host for its
+`tree` instead: one request, walked breadth-first on the host's own disk, six
 levels deep at most, stopping at 2,000 entries — because a host holding a
 `node_modules` must not turn one workspace into ten thousand rows.
 
@@ -501,8 +515,8 @@ levels deep at most, stopping at 2,000 entries — because a host holding a
 every file, because a tree that stops without saying so is one somebody reads as
 everything the agent is keeping.
 
-A directory that will not answer is logged and skipped. Only the *root* refusing
-makes the workspace unreadable, because one folder the agent chmod'ed away is not a
+A directory that will not answer is skipped, and the listing reports itself
+incomplete. Only the *root* refusing makes the workspace unreadable, because one folder the agent chmod'ed away is not a
 host nobody can read.
 
 And an image's thumbnail is a `read_bytes` for that file: the suffix and the size
@@ -543,6 +557,19 @@ are the work, and an agent's user expects them next week.
 
 Deleting a conversation purges its workspace through the product, so this is about
 what nobody deletes rather than about what they do.
+
+That purge does not depend on the provider answering at that moment. The
+deletion writes a tombstone naming each remote sandbox in the same transaction,
+and a destroy removes the tombstone once the provider confirms it. When the
+sandbox host is down, a Daytona key is rejected, or the worker restarts in
+between, the worker's `sandbox-destroy-retry` sweep tries again. The pause
+doubles each time, from 2 minutes up to 6 hours, until the destroy succeeds. A
+Daytona sandbox has no TTL behind it, so this is the only thing that ends one.
+
+A connection that is switched off still has its sandboxes destroyed, because
+off stops new work and not the bill. A connection with tombstones left cannot
+be deleted: the tombstones would go with it, and they are the only record of
+what is still running on the provider.
 
 ## Recap
 

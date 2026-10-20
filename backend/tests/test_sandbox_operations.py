@@ -366,3 +366,43 @@ class TestRetention:
         cutoff = sweep.await_args.kwargs["cutoff"]
         expected = datetime.now(UTC) - timedelta(days=OPERATION_RETENTION_DAYS)
         assert abs((cutoff - expected).total_seconds()) < 60
+
+
+class TestSayingAnOperationIsOver:
+    """#2222: the first operation to finish after a slow open is the sandbox ready."""
+
+    async def test_a_finished_operation_and_a_failed_one_both_settle(self, tmp_path: Path):
+        settled = AsyncMock()
+        recorder = RecordingWorkspace(
+            Workspace(LocalWorkspaceBackend(tmp_path)),
+            db=_Recorded(),  # type: ignore[arg-type]  - only `add` is used
+            organization_id=uuid.uuid4(),
+            session_key="xc-1",
+            agent_id=None,
+            on_settled=settled,
+        )
+
+        # One public call can be several through the wrapper; each one settles.
+        await recorder.write_text("a.txt", "a")
+        assert settled.await_count >= 1
+        settled.reset_mock()
+        with pytest.raises(FileNotFoundError):
+            await recorder.read_bytes("missing.txt")
+        assert settled.await_count >= 1
+        settled.reset_mock()
+        await recorder.exists("a.txt")
+        assert settled.await_count >= 1
+
+    async def test_a_notice_that_fails_does_not_fail_the_operation(self, tmp_path: Path):
+        recorder = RecordingWorkspace(
+            Workspace(LocalWorkspaceBackend(tmp_path)),
+            db=_Recorded(),  # type: ignore[arg-type]  - only `add` is used
+            organization_id=uuid.uuid4(),
+            session_key="xc-1",
+            agent_id=None,
+            on_settled=AsyncMock(side_effect=RuntimeError("socket closed")),
+        )
+
+        await recorder.write_text("a.txt", "kept")
+
+        assert (tmp_path / "a.txt").read_text() == "kept"

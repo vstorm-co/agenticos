@@ -3194,6 +3194,17 @@ class TestASocketThatWentAway:
         assert task.cancelled()
 
 
+class TestTellingTheClientTheSandboxIsStillOpening:
+    async def test_the_frame_says_so_and_carries_nothing_else(self):
+        """#2222: minutes of an image build in which nothing else streams."""
+        session = _session()
+
+        await session._sandbox_wait_event(True)
+        await session._sandbox_wait_event(False)
+
+        assert _sent_events(session) == [("sandbox_preparing", {}), ("sandbox_ready", {})]
+
+
 class TestTellingTheClientWhatThePersonCannotReach:
     """The card with the button that connects an account is drawn from this frame."""
 

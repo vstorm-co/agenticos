@@ -37,6 +37,12 @@ def document_size(files: dict[str, FileData], directories: Iterable[str] = ()) -
     return len(stored.encode("utf-8"))
 
 
+def _entry_size(path: str, data: FileData) -> int:
+    """One `"path": {...}` member of the serialised files object, in bytes."""
+    member = f"{json.dumps(path, ensure_ascii=False)}: {json.dumps(data, ensure_ascii=False)}"
+    return len(member.encode("utf-8"))
+
+
 class CappedStateBackend(StateBackend):
     """A `StateBackend` document that refuses to exceed a byte ceiling.
 
@@ -55,6 +61,30 @@ class CappedStateBackend(StateBackend):
     ) -> None:
         super().__init__(files, directories)
         self._max_bytes = max_bytes
+        self._entry_sizes: dict[str, tuple[FileData, int]] = {}
+
+    def stored_size(self) -> int:
+        """:func:`document_size` of this document, without serialising all of it.
+
+        Measuring every write by dumping the whole document made a write cost
+        the document's size, on the event loop: tens of milliseconds a write once
+        a workspace holds tens of megabytes. Each file's serialised member is
+        remembered against the `FileData` it measured, and a write binds a new
+        one to its path rather than changing the stored one, so only what
+        changed since the last measure is serialised again.
+        """
+        sizes: dict[str, tuple[FileData, int]] = {}
+        members = 0
+        for path, data in self.files.items():
+            known = self._entry_sizes.get(path)
+            size = known[1] if known is not None and known[0] is data else _entry_size(path, data)
+            sizes[path] = (data, size)
+            members += size
+        self._entry_sizes = sizes
+        # `{` and `}`, and a `, ` between members - the rest of what `json.dumps` writes.
+        files = 2 + members + 2 * max(len(sizes) - 1, 0)
+        directories = json.dumps(sorted(self.directories), ensure_ascii=False)
+        return files + len(directories.encode("utf-8"))
 
     def write_bytes(self, path: str, data: bytes) -> None:
         """Store a file, unless that takes the document past the ceiling.
@@ -68,7 +98,7 @@ class CappedStateBackend(StateBackend):
         files_before = dict(self.files)
         directories_before = set(self.directories)
         super().write_bytes(path, data)
-        size = document_size(self.files, self.directories)
+        size = self.stored_size()
         if size <= self._max_bytes:
             return
         self.files.clear()

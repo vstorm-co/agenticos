@@ -87,8 +87,13 @@ class RecordingWorkspace(WrapperWorkspace):
         session_key: str,
         agent_id: UUID | None,
         run_id: UUID | None = None,
+        on_settled: Callable[[], Awaitable[None]] | None = None,
     ) -> None:
         super().__init__(wrapped)
+        # Awaited after every operation, whatever it ended in. The first one also
+        # opens the session, so this is how "the sandbox is ready" is heard
+        # without the client having to say so.
+        self._on_settled = on_settled
         self._db = db
         self._organization_id = organization_id
         self._session_key = session_key
@@ -164,6 +169,8 @@ class RecordingWorkspace(WrapperWorkspace):
         except WorkspaceUnavailableError:
             self.lost = True
             raise
+        finally:
+            await self._settled()
 
     async def _recorded(
         self,
@@ -182,9 +189,20 @@ class RecordingWorkspace(WrapperWorkspace):
             # own output and an HTTP client's carries the failing request (#423).
             self._record(op, target, ok=False, detail=exc.__class__.__name__, started=started)
             raise
+        finally:
+            await self._settled()
         ok, detail = outcome(result)
         self._record(op, target, ok=ok, detail=detail, started=started)
         return result
+
+    async def _settled(self) -> None:
+        """Tell `on_settled` an operation is over. Its failure is not the operation's."""
+        if self._on_settled is None:
+            return
+        try:
+            await self._on_settled()
+        except Exception:
+            logger.warning("sandbox_settled_notice_failed", exc_info=True)
 
     def _record(self, op: str, target: str, *, ok: bool, detail: str, started: float) -> None:
         """Add the row. A failure to record never fails the operation.
