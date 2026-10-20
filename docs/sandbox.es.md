@@ -1,5 +1,5 @@
 ---
-source_sha: "b05e4ec832fa"
+source_sha: "3a56d4c17513"
 ---
 
 # La sandbox { #the-sandbox }
@@ -358,13 +358,13 @@ un operador pulsa el botón.
 
 ## Cuándo aparece un contenedor { #when-a-container-appears }
 
-**En la primera operación sobre el workspace, que no es lo mismo que la primera
-llamada a una tool del agent.** Un run prepara lo que alguien adjuntó y
-materializa los skills del agent *antes* de llamar al modelo, y cualquiera de las
-dos cosas abre la sesión de forma perezosa, así que puede existir un contenedor
-para un turno en el que el agent nunca tocó la shell. Vale la pena saberlo al leer
-una lista de sesiones: una sandbox cuyo registro de actividad solo tiene
-escrituras es una que todavía nadie ha pedido.
+**En la primera operación sobre el workspace: una tool que el agent llama allí, o
+un archivo adjunto que se coloca en él.** Los skills del agent se escriben en el
+workspace en ese momento, justo antes de la operación, y no mientras se prepara el
+run, así que un turno que nunca usa la sandbox no abre sesión ni arranca un
+contenedor. Un turno que sí la usa encuentra los skills ya en disco. Una lista de
+sesiones aún puede mostrar una sandbox cuyo registro de actividad solo tiene
+escrituras: una a la que se adjuntó un archivo y que luego quedó sin usar.
 
 ## Qué se hizo en una, y dónde vive ese registro { #what-was-done-in-one-and-where-that-record-lives }
 

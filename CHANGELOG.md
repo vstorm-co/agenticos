@@ -175,6 +175,16 @@ Two things are versioned separately from this file and worth knowing about:
   every workspace a person can see are no longer read to list a page of 25, or
   to check access to one. Needs sandboxd 0.2.37 (`pydantic-ai-backend` 0.2.37):
   pull `ghcr.io/vstorm-co/sandboxd:0.2` again on a host that pinned it earlier.
+- **A turn that does not use its sandbox no longer starts one.** The agent's
+  skills were written into the sandbox, and its files listed, while the run was
+  prepared, so every turn opened the session before the model was asked: a
+  container start (about a second) on a conversation's first message, and a
+  round trip per skill file on every turn. They are now written just before the
+  first thing the turn does in the sandbox, and a turn that never touches it
+  neither opens nor lists it. The agent is still told where its skills are.
+- **The first chat turn after a restart no longer imports the MCP client.**
+  `pydantic_ai.mcp` and fastmcp's client load with the application instead of
+  inside the first turn each process served.
 - **A chat turn opens fewer database connections before its first token.**
   The history, the attachments and the run share the turn's session, the
   budget's spend reads take a pooled connection instead of a new one each (two

@@ -145,6 +145,7 @@ from app.agents.capabilities.sandbox import (
     WorkspaceIdentity,
 )
 from app.agents.capabilities.sandbox._identity import SessionScope
+from app.agents.capabilities.sandbox._recording import RecordingWorkspace
 from app.agents.capabilities.subagents import SubagentsConfig, acting_delegate
 from app.agents.capabilities.tool_output_limits import SPILL_LOG_RESOURCE
 from app.agents.connect_on_use import (
@@ -210,6 +211,7 @@ from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Message
 from app.db.models.project import Project
 from app.db.models.run_manifest import RunManifest
+from app.db.models.skill import Skill
 from app.db.session import get_db_context
 from app.repositories import (
     agent_environment_repo,
@@ -1576,6 +1578,34 @@ _SKILLS_BRIEFING = (
     "of the skill's resources beside it. Read and run them there. A skill whose own "
     "text names a different directory is out of date; this is where the files are."
 )
+
+
+def _start_turn_on_first_use(
+    workspace: RecordingWorkspace, prepared: PreparedRun, skills: list[Skill]
+) -> None:
+    """Write the run's skills and take its snapshot when the sandbox is first used.
+
+    The same two steps, in the same order, that a `state` workspace takes while the
+    run is prepared - deferred because on a sandbox they are what opens the
+    session. Both never raise, so the operation waiting behind them is never
+    failed by them; a snapshot that could not be taken stays `None`, which posts
+    nothing back.
+    """
+
+    async def start() -> None:
+        prepared.materialised_skills = await materialise_skills(workspace, skills)
+        prepared.workspace_at_start = await workspace_snapshot(workspace)
+
+    workspace.prepare_on_first_use(start)
+
+
+def _untouched(workspace: OpenWorkspace) -> bool:
+    """Whether the run never used its sandbox, so there is nothing in it to collect.
+
+    Listing it to find out would open the session the turn managed without.
+    """
+    recorder = workspace.workspace
+    return isinstance(recorder, RecordingWorkspace) and not recorder.touched
 
 
 def _with_skills_briefing(spec: AgentSpec) -> AgentSpec:
@@ -3054,12 +3084,24 @@ class AgentRunnerService:
             # agent and the proposal flow use them, and not in a browser about what
             # an agent is keeping *for a person*. `browsable` is where they are
             # dropped instead (#1064).
-            materialised = await materialise_skills(workspace.workspace, resources["skills"])
-            if materialised.written:
-                spec = _with_skills_briefing(spec)
-            # After the skills are written, so materialising them does not read as
-            # the turn's own output.
-            started_with = await workspace_snapshot(workspace.workspace)
+            #
+            # A sandbox's are written on its first use instead, by `_start_turn_on_first_use`
+            # once the prepared run exists: writing them here opened the session -
+            # a container start on a new conversation, a round trip per file on every
+            # turn - before the model saw a token, for a turn that may never touch
+            # the sandbox. The briefing cannot wait for the writes, so it is given
+            # whenever there are skills; the files are on disk before any operation
+            # the agent makes there can look for them.
+            if isinstance(workspace.workspace, RecordingWorkspace):
+                if resources["skills"]:
+                    spec = _with_skills_briefing(spec)
+            else:
+                materialised = await materialise_skills(workspace.workspace, resources["skills"])
+                if materialised.written:
+                    spec = _with_skills_briefing(spec)
+                # After the skills are written, so materialising them does not read as
+                # the turn's own output.
+                started_with = await workspace_snapshot(workspace.workspace)
 
         channel = ApprovalChannel(
             organization_id=ctx.organization_id,
@@ -3166,7 +3208,7 @@ class AgentRunnerService:
         for entry in runtimes:
             entry.ledger = built.ledger
 
-        return PreparedRun(
+        prepared = PreparedRun(
             run=run,
             agent=agent,
             spec=spec,
@@ -3202,6 +3244,9 @@ class AgentRunnerService:
                 subject_is_publisher_fallback=subject_is_publisher_fallback,
             ),
         )
+        if workspace is not None and isinstance(workspace.workspace, RecordingWorkspace):
+            _start_turn_on_first_use(workspace.workspace, prepared, resources["skills"])
+        return prepared
 
     async def _delegation_runtime(
         self,
@@ -4092,7 +4137,7 @@ class AgentRunnerService:
         already holding is cheaper than that plumbing. A surface with nowhere to
         put a file simply ignores the list.
         """
-        if prepared.workspace is None:
+        if prepared.workspace is None or _untouched(prepared.workspace):
             return
         delivered = await files_written(prepared.workspace.workspace, prepared.workspace_at_start)
         prepared.outbound.extend(delivered.attachments)
@@ -4113,7 +4158,7 @@ class AgentRunnerService:
         """
         workspace = prepared.workspace
         state = prepared.materialised_skills
-        if workspace is None or state is None or prepared.ctx is None:
+        if workspace is None or state is None or prepared.ctx is None or _untouched(workspace):
             return
         try:
             changes = await collect_changes(workspace.workspace, state)
