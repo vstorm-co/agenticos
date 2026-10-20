@@ -1,5 +1,5 @@
 ---
-source_sha: "380aaee8c6be"
+source_sha: "66c8dfdad597"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -2136,7 +2136,8 @@ a których stopka kanałowa nie:
   `agent` jeden workspace jest współdzielony, a znalezienie pliku, którego nigdy
   się nie utworzyło, czyta się jak wyciek, dopóki coś na ekranie tego nie wyjaśni.
   Plik jest kafelkiem, a otwarcie go otwiera tę samą przeglądarkę, której używa
-  ekran Workspaces — obraz, PDF, markdown jako podgląd albo źródło i zawsze
+  ekran Workspaces — obraz, PDF, odtwarzacz audio i wideo, markdown jako podgląd
+  albo źródło i zawsze
   pobranie — czytając `…/workspace/file` dla tekstu i `…/workspace/raw` dla bajtów.
   Przez *rozmowę*, a nie przez id workspace'u, i to celowo: to właśnie trzyma te
   pliki osiągalnymi dla kogoś, komu czat udostępniono.

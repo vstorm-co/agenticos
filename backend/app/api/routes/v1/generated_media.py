@@ -1,4 +1,4 @@
-"""Serving an image an agent generated back to the interface.
+"""Serving media an agent generated back to the interface.
 
 Scoped to the caller's organization and nothing finer: the directory the bytes
 are read from is built from `ctx.organization_id`, never from the path, so a
@@ -14,24 +14,24 @@ from fastapi import APIRouter, Query, Response
 
 from app.api.deps import Auth
 from app.api.routes.v1._workspace_bytes import file_response
-from app.services.generated_media import load_generated_image
+from app.services.generated_media import load_generated_media
 
 router = APIRouter()
 
 
 @router.get("/{filename}", response_model=None)
-async def get_generated_image(
+async def get_generated_media(
     filename: str,
     ctx: Auth,
     download: bool = Query(False, description="Force a download rather than a preview"),
 ) -> Response:
-    """One generated image, as bytes a browser can display or download.
+    """One generated file, as bytes a browser can display or download.
 
     Raises:
-        NotFoundError: If this organization has no image under `filename` - the
+        NotFoundError: If this organization has no file under `filename` - the
             same answer a wrong tenant's name gets, so a name is not a way to
             learn what another organization has generated.
     """
     organization_id: UUID = ctx.organization_id
-    data = await load_generated_image(organization_id, filename)
+    data = await load_generated_media(organization_id, filename)
     return file_response(data, path=filename, download=download)

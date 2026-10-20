@@ -43,7 +43,7 @@ from pydantic_ai.workspaces import WorkspaceError
 from app.agents.capabilities._failures import steer
 from app.agents.capabilities.budget import record_ambient_usage
 from app.agents.deps import AgentDeps
-from app.services.generated_media import generated_image_url, save_generated_image
+from app.services.generated_media import generated_media_url, save_generated_media
 
 logger = logging.getLogger(__name__)
 
@@ -188,10 +188,10 @@ def build_image_toolset(
         filename: str | None = None
         url: str | None = None
         if organization_id is not None:
-            filename = await save_generated_image(
-                organization_id, image.data, image_format=image_format
+            filename = await save_generated_media(
+                organization_id, image.data, filename=f"image.{image_format}"
             )
-            url = generated_image_url(filename)
+            url = generated_media_url(filename)
 
         # Into the run's workspace too, when it has one, for later steps to build
         # with. An agent without the sandbox capability generates images all the

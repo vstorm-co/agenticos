@@ -1,5 +1,5 @@
 ---
-source_sha: "380aaee8c6be"
+source_sha: "66c8dfdad597"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -2143,6 +2143,7 @@ que un pie de canal no:
   `agent` un workspace se comparte y encontrar un fichero que nunca creaste se lee
   como una fuga hasta que algo en pantalla lo explica. Un fichero es una baldosa, y
   abrir uno abre el mismo visor que usa la pantalla Workspaces — una imagen, un PDF,
+  un reproductor de audio y vídeo,
   markdown como vista previa o como fuente, y siempre una descarga — leyendo
   `…/workspace/file` para el texto y `…/workspace/raw` para los bytes. A través de la
   *conversación* y no del id del workspace, deliberadamente: eso es lo que mantiene

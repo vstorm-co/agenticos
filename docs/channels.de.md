@@ -1,5 +1,5 @@
 ---
-source_sha: "380aaee8c6be"
+source_sha: "66c8dfdad597"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -2280,7 +2280,8 @@ Dinge, die er zeigt und eine Kanal-Fußzeile nicht:
   denn unter dem Scope `agent` wird ein Workspace geteilt, und eine Datei zu finden,
   die man nie erstellt hat, liest sich wie ein Leck, bis etwas auf dem Bildschirm es
   erklärt. Eine Datei ist eine Kachel, und eine zu öffnen öffnet denselben Viewer,
-  den der Workspaces-Bildschirm benutzt — ein Bild, ein PDF, Markdown als Vorschau
+  den der Workspaces-Bildschirm benutzt — ein Bild, ein PDF, ein Player für Audio
+  und Video, Markdown als Vorschau
   oder Quelltext, und immer ein Download —, der `…/workspace/file` für Text und
   `…/workspace/raw` für Bytes liest. Bewusst über die *Unterhaltung* statt über die
   Workspace-ID: das ist es, was diese Dateien für jemanden erreichbar hält, mit dem

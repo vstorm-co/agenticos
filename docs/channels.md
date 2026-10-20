@@ -2043,7 +2043,8 @@ channel footer does not:
   which is most of them. It names whose files these are, because under `agent` scope
   one workspace is shared and finding a file you never created reads as a leak until
   something on screen explains it. A file is a tile, and opening one opens the same
-  viewer the Workspaces screen uses — a picture, a PDF, markdown as preview or
+  viewer the Workspaces screen uses — a picture, a PDF, a player for audio and
+  video, markdown as preview or
   source, and always a download — reading `…/workspace/file` for text and
   `…/workspace/raw` for bytes. Through the *conversation* rather than the
   workspace id, deliberately: that is what keeps these files reachable for

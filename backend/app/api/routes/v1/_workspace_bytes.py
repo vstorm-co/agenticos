@@ -20,10 +20,20 @@ INLINE_TYPES: dict[str, str] = {
     ".gif": "image/gif",
     ".webp": "image/webp",
     ".pdf": "application/pdf",
+    ".mp3": "audio/mpeg",
+    ".wav": "audio/wav",
+    ".ogg": "audio/ogg",
+    ".opus": "audio/ogg",
+    ".m4a": "audio/mp4",
+    ".mp4": "video/mp4",
+    ".webm": "video/webm",
 }
 """The only types served for display, and the list is short on purpose.
 
-A raster image cannot execute. A PDF is here because the browser renders it in its
+A raster image cannot execute, and neither can audio or video: the browser hands
+those to its media pipeline, which plays them and runs nothing in the page. They are
+here so a clip an agent generated (#2259, #2260) plays in the file viewer rather
+than arriving as a download. A PDF is here because the browser renders it in its
 own viewer, which shows the document without handing it the embedding page's DOM -
 so a report an agent wrote can be read where it was written rather than only
 downloaded, which is what people expect of the one format they already read in a
