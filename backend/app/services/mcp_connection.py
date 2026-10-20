@@ -2092,11 +2092,31 @@ class UnavailablePlatformServer:
     """
 
 
+@dataclass(frozen=True)
+class UnavailableUnreachableServer:
+    """A bound server that did not answer its probe, so the turn runs without it.
+
+    Skipped rather than attached because a dead server aborts the whole turn once
+    pydantic-ai enters its toolset - but skipped silently it is invisible to the
+    model, which then answers as though the agent never had the service ("no data
+    available") instead of saying the service is down. A slow server is the usual
+    case, not a dead one: a bridge whose `tools/list` takes longer than
+    :data:`~app.agents.mcp.CONNECT_TIMEOUT_SECS` is left out of one turn and
+    attached on the next, and the person asking should hear that a retry may help.
+    """
+
+    server: str
+    binding: str
+
+
 # A binding a turn could not honour: a personal one with nobody or nothing to
-# speak through, the platform's own with nobody to act as, or a server dropped
-# because its tool prefix collided.
+# speak through, the platform's own with nobody to act as, a server dropped
+# because its tool prefix collided, or one that did not answer its probe.
 UnavailableBinding = (
-    UnavailablePersonalService | UnavailablePlatformServer | UnavailablePrefixCollision
+    UnavailablePersonalService
+    | UnavailablePlatformServer
+    | UnavailablePrefixCollision
+    | UnavailableUnreachableServer
 )
 
 
@@ -2302,6 +2322,15 @@ async def build_toolsets_for_agent(
             )
     origins: dict[str, UUID] = {}
     attached = [(spec, toolset) for spec, toolset in reachable if id(spec) not in dropped]
+    # A server whose probe failed is briefed, not left to the warning in the log -
+    # unless an attached server answers under the same prefix: its tools are then
+    # present, and calling the service unavailable would be false (#1442 review).
+    held = {tool_prefix(spec.name) for spec, _ in attached}
+    unavailable.extend(
+        UnavailableUnreachableServer(server=spec.name, binding=bindings[id(spec)])
+        for spec, toolset in probed
+        if toolset is None and tool_prefix(spec.name) not in held
+    )
     return ResolvedMcpToolsets(
         toolsets=[
             toolset

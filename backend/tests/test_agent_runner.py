@@ -107,6 +107,7 @@ from app.services.mcp_connection import (
     UnavailablePersonalService,
     UnavailablePlatformServer,
     UnavailablePrefixCollision,
+    UnavailableUnreachableServer,
 )
 from app.services.sandbox_workspace import OpenWorkspace
 from app.services.skill_workspace import SKILLS_ROOT
@@ -5200,6 +5201,24 @@ class TestTellingTheAgentWhatItCannotReach:
             spec.instructions
         )
         assert "only GitHub is attached" in spec.instructions
+        assert "is bound to the account" not in spec.instructions
+
+    def test_a_server_that_did_not_answer_is_named_as_unreachable_not_empty(self):
+        """Told nothing, the model reads a missing server as an empty answer and
+        reports "no data"; told the server did not answer, it says so and that a
+        retry may work. Not a personal gap - nobody connects an account to fix
+        it - so it names no link."""
+        spec = _with_personal_service_gaps(
+            AgentSpec(name="Support", instructions="x"),
+            [UnavailableUnreachableServer(server="semrush", binding="the connection 'semrush'")],
+            RunSurface.WEB,
+        )
+
+        assert "semrush server (the connection 'semrush') is not available this turn" in (
+            spec.instructions
+        )
+        assert "none of its semrush_* tools are attached" in spec.instructions
+        assert "trying again may work" in spec.instructions
         assert "is bound to the account" not in spec.instructions
 
     def test_same_named_bindings_are_told_apart_by_binding_not_by_name(self):

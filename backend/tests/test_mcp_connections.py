@@ -77,6 +77,7 @@ from app.services.mcp_connection import (
     UnavailablePersonalService,
     UnavailablePlatformServer,
     UnavailablePrefixCollision,
+    UnavailableUnreachableServer,
     _apply_token,
     _resolve_auth_headers,
     connection_scope,
@@ -867,6 +868,47 @@ class TestToolsetsForAgent:
 
         assert not any(seen)
         assert resolved.unavailable == [UnavailablePlatformServer()]
+
+    @pytest.mark.anyio
+    async def test_a_server_that_did_not_answer_is_briefed_not_silent(self, monkeypatch):
+        """A bound server whose probe failed is left out of the turn, and reported.
+
+        Left out only in the log, it was invisible to the model: an agent whose
+        Semrush bridge missed the connect timeout answered "no keyword data is
+        available" as though the service had returned nothing. Reported, the run
+        can say the service did not answer and that a retry may work."""
+        live = _connection(name="notion", url="https://live.example/mcp")
+        slow = _connection(name="semrush", url="https://slow.example/mcp")
+
+        async def fake_probe(
+            specs: list[McpServerSpec],
+        ) -> list[tuple[McpServerSpec, str | None]]:
+            return [(spec, None if spec.url == slow.url else spec.name) for spec in specs]
+
+        monkeypatch.setattr(mcp_connection_service, "probe_toolsets", fake_probe)
+        # The silent server opens an outage after the run commits (#2100) - not this test's subject.
+        monkeypatch.setattr(
+            mcp_connection_service, "spawn_after_commit", lambda db, coro, *, name: coro.close()
+        )
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "get_org_scoped_by_ids",
+            AsyncMock(return_value={live.id: live, slow.id: slow}),
+        )
+
+        resolved = await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[
+                OrgMcpServerRef(connection_id=live.id),
+                OrgMcpServerRef(connection_id=slow.id),
+            ],
+        )
+
+        assert _attached(resolved) == ["notion"]
+        assert resolved.unavailable == [
+            UnavailableUnreachableServer(server="semrush", binding="the connection 'semrush'")
+        ]
 
     @pytest.mark.anyio
     async def test_an_unreachable_first_holder_neither_wins_nor_is_reported_as_attached(

@@ -159,7 +159,7 @@ from app.agents.factory import BuiltAgent, build_agent
 from app.agents.failures import run_failure_summary
 from app.agents.loop_guard import ToolLoopStopped
 from app.agents.manifest import RunRecorder, as_payload, carried_over, fit
-from app.agents.mcp import PLATFORM_MCP_PREFIX
+from app.agents.mcp import PLATFORM_MCP_PREFIX, tool_prefix
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.observability import current_trace_id
 from app.agents.spec import (
@@ -256,6 +256,7 @@ from app.services.mcp_connection import (
     UnavailablePersonalService,
     UnavailablePlatformServer,
     UnavailablePrefixCollision,
+    UnavailableUnreachableServer,
     build_toolsets_for_agent,
     connect_personal_toolset,
 )
@@ -1792,6 +1793,14 @@ def _binding_gap_briefing(
             f"two servers cannot share one - so only {gap.kept} is attached. If asked for anything "
             f"in {gap.server}, say it is not available because two of this agent's servers collide "
             "under one name, which the agent's author resolves by renaming one connection."
+        )
+    if isinstance(gap, UnavailableUnreachableServer):
+        return (
+            f"The {gap.server} server ({gap.binding}) is not available this turn: it did not "
+            f"answer when the turn started, so none of its {tool_prefix(gap.server)}_* tools are "
+            f"attached. If asked for anything that needs {gap.server}, say it could not be "
+            "reached just now and that trying again may work - do not answer as though it "
+            "returned nothing, and do not guess what it would have said."
         )
     return _personal_gap_briefing(personal_service_gap(gap), surface, sender_present=sender_present)
 
