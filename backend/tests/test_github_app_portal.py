@@ -111,6 +111,7 @@ def _trigger(
 ) -> SimpleNamespace:
     return SimpleNamespace(
         id=uuid.uuid4(),
+        organization_id=ORG,
         portal_key=portal_key,
         provider_target=target,
         event_config={"actions": list(actions)},
@@ -198,6 +199,9 @@ class TestWhoseDeliveryItIs:
             decisions = await _service().prepare_app_fires(body=body, headers=_headers(body))
 
         assert [decision.trigger_id for decision in decisions] == [trigger.id]
+        # Queued under the trigger's own organization, so a fire that kept killing
+        # its worker pauses that tenant's fires and not everyone's (Codex, #2248).
+        assert [decision.organization_id for decision in decisions] == [ORG]
 
     async def test_an_installation_nobody_holds_a_grant_for_is_refused(self) -> None:
         """No candidate can have signed it, so it did not verify - and a 403 is
