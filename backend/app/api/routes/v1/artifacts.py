@@ -25,6 +25,7 @@ from app.api.deps import (
     ArtifactSvc,
     Auth,
     limit_artifact_content,
+    limit_artifact_data,
     limit_public_artifact,
     require,
 )
@@ -36,6 +37,7 @@ from app.api.routes.v1._artifact_bytes import (
 from app.core.permissions import Perm
 from app.schemas.artifact import (
     ArtifactAgentList,
+    ArtifactData,
     ArtifactDetail,
     ArtifactList,
     ArtifactPublicLinkUpdate,
@@ -123,6 +125,24 @@ async def view_artifact(
 ) -> Any:
     """A short-lived signed address for the page, for a frame to load."""
     return await service.view(ctx, artifact_id, version_id=version_id)
+
+
+@router.get(
+    "/{artifact_id}/versions/{version_id}/data",
+    response_model=ArtifactData,
+    dependencies=[Depends(limit_artifact_data)],
+)
+async def read_artifact_data(
+    artifact_id: UUID, version_id: UUID, service: ArtifactSvc, ctx: Auth, response: Response
+) -> Any:
+    """The records a live page's bindings read, each read with the caller's own access.
+
+    A binding the caller may not read is `unavailable`; why is said only to a caller
+    who may edit the page. Only the current version is served data. Never cached:
+    what one viewer is served is not another's to see.
+    """
+    response.headers["Cache-Control"] = "private, no-store"
+    return await service.data(ctx, artifact_id, version_id)
 
 
 @router.put("/{artifact_id}/public-link", response_model=ArtifactDetail)

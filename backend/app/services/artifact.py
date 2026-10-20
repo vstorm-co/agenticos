@@ -24,9 +24,11 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import logging
 import re
 import secrets
+import weakref
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -36,7 +38,7 @@ from typing import Any
 from uuid import UUID
 
 from markdown_it import MarkdownIt
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.virtual_tables import table_grants_of
@@ -49,6 +51,7 @@ from app.core.exceptions import (
     BadRequestError,
     ConcurrentChangeError,
     NotFoundError,
+    RateLimitError,
 )
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
@@ -69,12 +72,14 @@ from app.repositories import (
     artifact_repo,
     member_repo,
     resource_grant_repo,
+    virtual_table_repo,
 )
 from app.schemas.artifact import (
     ArtifactAgent,
     ArtifactAgentList,
     ArtifactBinding,
     ArtifactBindingRead,
+    ArtifactData,
     ArtifactDetail,
     ArtifactList,
     ArtifactPublicLinkRead,
@@ -87,10 +92,22 @@ from app.schemas.artifact import (
     BindingRequest,
     PublicArtifactRead,
 )
+from app.services import rate_limit
 from app.services.access import ARTIFACT, member_context, resolve_access, visible_resource_ids
-from app.services.artifact_bindings import check_bindings
+from app.services.artifact_bindings import (
+    BindingRows,
+    Unavailable,
+    check_bindings,
+    page_data,
+    shape_for,
+)
 from app.services.file_storage import get_file_storage
-from app.services.virtual_tables import TableViewService
+from app.services.virtual_tables import ReadDeadline, TableViewService, VirtualTableService
+from app.services.virtual_tables.exceptions import (
+    DeadlineReached,
+    InvalidQueryError,
+    TableArchivedError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +129,30 @@ KEPT = "kept"
 Its column's label is not repeated: a binding carried forward is checked without
 the person behind the run, who may not see its view.
 """
+
+_IN_FLIGHT = "Your previous data load is still running. Try again in a moment."
+_BUSY = "Too many pages are loading data right now. Try again in a moment."
+_STATEMENT_TIMEOUT = "57014"
+"""Postgres's `query_canceled`: a statement stopped by its `statement_timeout`."""
+
+# One gate per event loop on how many page loads this process serves at once, for
+# `core/blocking.py`'s reason: an `asyncio.Semaphore` binds to the loop that made
+# it, and a finished loop's gate is collected with it. Each load holds a database
+# connection for up to the page's deadline, so a load past the gate is refused at
+# once rather than queued behind it.
+_load_gates: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore] = (
+    weakref.WeakKeyDictionary()
+)
+
+
+def _load_gate() -> asyncio.Semaphore:
+    loop = asyncio.get_running_loop()
+    gate = _load_gates.get(loop)
+    if gate is None:
+        gate = asyncio.Semaphore(settings.ARTIFACT_DATA_MAX_CONCURRENT_LOADS)
+        _load_gates[loop] = gate
+    return gate
+
 
 _PUBLIC_KEY_BYTES = 24
 """192 bits, the hosted page's rule: the key is the whole of what guards the link."""
@@ -170,6 +211,55 @@ its parent's; the message carries nothing but the address.
 Injected when served rather than when stored, so the stored bytes stay what the
 agent wrote - what `read_artifact` returns and what the digest is taken over.
 """
+
+_DATA_BRIDGE = (
+    (Path(__file__).resolve().parent.parent / "core" / "catalog" / "artifact_data_bridge.js")
+    .read_text("utf-8")
+    .strip()
+)
+"""The page side of a bound page's data, one function expression, read once at import.
+
+Kept as a file of its own so `frontend/src/lib/artifact-data-bridge.test.ts` can run
+it in jsdom; it is not in :data:`ARTIFACT_LIBRARY`, so it is never served by name.
+"""
+
+_SCRIPT_ESCAPES = {
+    "<": "\\u003c",
+    ">": "\\u003e",
+    "&": "\\u0026",
+    "\u2028": "\\u2028",
+    "\u2029": "\\u2029",
+}
+"""What JSON leaves raw that an inline script cannot hold.
+
+`<` and `>` could close the script or open a comment, `&` is escaped with them so
+no character reference survives, and the two separators end a line in older
+script parsers. Each becomes the JSON escape of itself, so the value reads back
+unchanged.
+"""
+
+
+def _script_json(value: object) -> str:
+    text = json.dumps(value)
+    for raw, escaped in _SCRIPT_ESCAPES.items():
+        text = text.replace(raw, escaped)
+    return text
+
+
+def platform_script(*, nonce: str, live: bool, names: Sequence[str]) -> str:
+    """What a served page gets before its own markup: the link bridge, then the data bridge.
+
+    The data bridge defines `window.agenticos` (`data`, `onData`) and learns only
+    the binding names, the nonce and whether to ask for data. The records come
+    later, posted by the console that fetched them as the viewer; nothing else
+    from the database is written into the page.
+    """
+    config = _script_json({"n": nonce, "live": live, "names": list(names)})
+    return (
+        f'{PLATFORM_SCRIPT}<script data-agenticos="data">({_DATA_BRIDGE})'
+        f"(window, document, {config});</script>"
+    )
+
 
 _MARKDOWN_PAGE = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
@@ -955,19 +1045,25 @@ def console_url_for(artifact_id: UUID, organization_id: UUID) -> str:
     return f"/artifacts/{artifact_id}?org={organization_id}"
 
 
-def _view(version: ArtifactVersion) -> ArtifactView:
-    """A signed address for one version's bytes, valid for `ARTIFACT_VIEW_TTL_SECONDS`."""
+def _view(version: ArtifactVersion, *, live: bool) -> ArtifactView:
+    """A signed address for one version's bytes, valid for `ARTIFACT_VIEW_TTL_SECONDS`.
+
+    A fresh nonce for every address, so each load of a frame has its own.
+    """
     lifetime = timedelta(seconds=settings.ARTIFACT_VIEW_TTL_SECONDS)
-    token = create_artifact_view_token(version.id, expires_in=lifetime)
+    nonce = secrets.token_urlsafe(16)
+    token = create_artifact_view_token(version.id, expires_in=lifetime, nonce=nonce, live=live)
     return ArtifactView(
         url=f"{_content_origin()}{settings.API_V1_STR}/artifact-content/{token}",
         expires_at=datetime.now(UTC) + lifetime,
         version=ArtifactVersionRead.model_validate(version),
+        nonce=nonce,
+        live=live,
     )
 
 
-def with_platform_script(document: bytes) -> bytes:
-    """The document with :data:`PLATFORM_SCRIPT` first in it, after the doctype.
+def with_platform_script(document: bytes, script: str) -> bytes:
+    """The document with the platform `script` first in it, after the doctype.
 
     First, because the script only listens on `document`, and a `<script>`
     before `<html>` is placed by the parser into the head it opens implicitly -
@@ -977,15 +1073,19 @@ def with_platform_script(document: bytes) -> bytes:
     a `<!-- <head> -->` comment or the text of a script put it where it never ran.
     """
     lead = next(_DOCUMENT_LEAD.finditer(document)).end()
-    return document[:lead] + PLATFORM_SCRIPT.encode("utf-8") + document[lead:]
+    return document[:lead] + script.encode("utf-8") + document[lead:]
 
 
-def render(version: ArtifactVersion, data: bytes, *, title: str) -> bytes:
-    """The document a frame shows: HTML as written, Markdown rendered into a page."""
+def render(version: ArtifactVersion, data: bytes, *, title: str, nonce: str, live: bool) -> bytes:
+    """The document a frame shows: HTML as written, Markdown rendered into a page.
+
+    Either way behind :func:`platform_script`, which names the version's bindings.
+    """
     if version.media_type == ArtifactMediaType.MARKDOWN:
         body = _MARKDOWN.render(data.decode("utf-8"))
         data = _MARKDOWN_PAGE.format(title=escape(title), body=body).encode("utf-8")
-    return with_platform_script(data)
+    names = [binding["name"] for binding in version.bindings]
+    return with_platform_script(data, platform_script(nonce=nonce, live=live, names=names))
 
 
 async def library_file(name: str) -> tuple[bytes, str]:
@@ -1504,7 +1604,128 @@ class ArtifactService:
                 message="This version of the artifact is no longer kept",
                 details={"artifact_id": str(artifact_id), "version_id": version_id},
             )
-        return _view(version)
+        live = bool(version.bindings)
+        if live and version_id is not None:
+            # An older version's bindings say what it read once; only the current
+            # version is served data, so only its page asks for it.
+            latest = await artifact_repo.latest_version(self.db, artifact.id)
+            live = latest is not None and latest.id == version.id
+        return _view(version, live=live)
+
+    async def data(self, ctx: AuthContext, artifact_id: UUID, version_id: UUID) -> ArtifactData:
+        """A page version's live data: every binding's records, each read as `ctx` alone.
+
+        A binding `ctx` may not read - its view gone, private to someone else or on a
+        table they cannot see, its table archived, its view no longer valid, or no
+        time left on the page's deadline - is `unavailable`, and only a caller who
+        may edit the page is told why. Only the current version is served; an older
+        one gets every binding `unavailable` with the reason `not_current`.
+
+        Each binding reads in a savepoint of its own, so a query stopped by its
+        `statement_timeout` costs that binding alone and the request still commits.
+        The page's deadline is a deadline, never a cancellation: it is checked before
+        every query and between bindings.
+
+        Raises:
+            RateLimitError: `ctx` already has a load in flight, or this process is
+                serving as many loads as it may. Refused at once, never queued.
+            NotFoundError: The artifact is not the caller's to open, or the version
+                is not one of its kept versions.
+        """
+        async with rate_limit.one_in_flight(
+            "artifact_data",
+            f"org:{ctx.organization_id}:user:{ctx.subject_id}",
+            ttl_seconds=settings.ARTIFACT_DATA_READ_TIMEOUT_SECONDS + 5,
+            message=_IN_FLIGHT,
+        ):
+            gate = _load_gate()
+            if gate.locked():
+                raise RateLimitError(message=_BUSY, details={"retry_after_seconds": 1})
+            async with gate:
+                return await self._data(ctx, artifact_id, version_id)
+
+    async def _data(self, ctx: AuthContext, artifact_id: UUID, version_id: UUID) -> ArtifactData:
+        artifact = await self.get(ctx, artifact_id)
+        version = await artifact_repo.get_version(self.db, version_id, artifact_id=artifact.id)
+        if version is None:
+            raise NotFoundError(
+                message="This version of the artifact is no longer kept",
+                details={"artifact_id": str(artifact_id), "version_id": str(version_id)},
+            )
+        can_edit = await resolve_access(
+            self.db, ctx, artifact, Perm.ARTIFACTS_EDIT, resource_type=ARTIFACT
+        )
+        latest = await artifact_repo.latest_version(self.db, artifact.id)
+        current = latest is not None and latest.id == version.id
+        deadline = ReadDeadline(
+            settings.ARTIFACT_DATA_READ_TIMEOUT_SECONDS,
+            settings.ARTIFACT_DATA_STATEMENT_TIMEOUT_MS,
+        )
+        reads: dict[str, BindingRows | Unavailable] = {}
+        for binding in sorted(_bindings_of(version), key=lambda item: item.name):
+            if not current:
+                reads[binding.name] = Unavailable("not_current")
+            elif binding.status == "unavailable":
+                reads[binding.name] = Unavailable(binding.reason)
+            else:
+                reads[binding.name] = await self._read_binding(ctx, binding, deadline)
+        return ArtifactData(
+            bindings=page_data(
+                reads, max_bytes=settings.ARTIFACT_DATA_MAX_BYTES, can_edit=can_edit
+            ),
+            read_at=datetime.now(UTC),
+        )
+
+    async def _read_binding(
+        self, ctx: AuthContext, binding: ArtifactBinding, deadline: ReadDeadline
+    ) -> BindingRows | Unavailable:
+        """One binding's records as `ctx` may read them, or why it reads nothing."""
+        if deadline.remaining_ms() <= 0:
+            return Unavailable("timeout")
+        try:
+            async with self.db.begin_nested():
+                prior = await virtual_table_repo.statement_timeout(self.db)
+                bound = await TableViewService(self.db).find_view(
+                    ctx, binding.view_id, deadline=deadline
+                )
+                live = {column.id for column in bound.columns if not column.archived}
+                rows = await VirtualTableService(self.db).read_bound(
+                    ctx,
+                    bound,
+                    column_ids=[
+                        column_id for column_id in binding.fields.values() if column_id in live
+                    ],
+                    shape=shape_for(bound.columns, binding.fields),
+                    max_records=settings.ARTIFACT_DATA_MAX_RECORDS,
+                    max_bytes=settings.ARTIFACT_DATA_MAX_BYTES,
+                    deadline=deadline,
+                )
+                # Only on success: a statement stopped by its timeout aborts the
+                # savepoint, and rolling that back restores the setting by itself.
+                await virtual_table_repo.restore_statement_timeout(self.db, setting=prior)
+        except (NotFoundError, AuthorizationError):
+            return self._unavailable(binding, "no_access")
+        except TableArchivedError:
+            return self._unavailable(binding, "table_archived")
+        except InvalidQueryError:
+            return self._unavailable(binding, "view_invalid")
+        except DeadlineReached:
+            return self._unavailable(binding, "timeout")
+        except DBAPIError as failed:
+            if getattr(failed.orig, "sqlstate", None) != _STATEMENT_TIMEOUT:
+                raise
+            return self._unavailable(binding, "timeout")
+        return BindingRows(fields=binding.fields, rows=rows, filters_dropped=bound.filters_dropped)
+
+    @staticmethod
+    def _unavailable(binding: ArtifactBinding, reason: str) -> Unavailable:
+        # Never the exception: a database error carries its bound parameters, which
+        # are the view's filter values.
+        logger.info(
+            "artifact_data_binding_unavailable",
+            extra={"binding": binding.name, "view_id": str(binding.view_id), "reason": reason},
+        )
+        return Unavailable(reason)
 
     async def _public(self, public_key: str) -> tuple[Artifact, ArtifactVersion]:
         """The artifact behind a public key and the version its link shows.
@@ -1557,7 +1778,10 @@ class ArtifactService:
                 )
         await artifact_repo.count_public_view(self.db, artifact.id, at=datetime.now(UTC))
         return PublicArtifactRead(
-            title=artifact.title, published_at=artifact.published_at, view=_view(version)
+            title=artifact.title,
+            published_at=artifact.published_at,
+            # A stranger is nobody the data could be read as.
+            view=_view(version, live=False),
         )
 
     async def embed(self, public_key: str) -> EmbedDocument:
@@ -1587,7 +1811,7 @@ class ArtifactService:
         document = _embed_document(
             nonce=nonce,
             title=artifact.title,
-            frame_url=None if protected else _view(version).url,
+            frame_url=None if protected else _view(version, live=False).url,
             public_url=public_url_for(artifact) or "",
         )
         return EmbedDocument(
@@ -1616,7 +1840,15 @@ class ArtifactService:
         version, artifact = found
         data = await _load_version(version, missing="Artifact not found")
         embeddable = artifact.public_key is not None and artifact.public_password_hash is None
+        # A token minted before the nonce existed has none to match replies on,
+        # so its page is served as not live.
+        claims = payload or {}
+        nonce = claims.get("n")
+        if not isinstance(nonce, str):
+            nonce, live = "", False
+        else:
+            live = claims.get("live") is True
         return ServedArtifact(
-            document=render(version, data, title=artifact.title),
+            document=render(version, data, title=artifact.title, nonce=nonce, live=live),
             embed_origins=list(artifact.embed_origins or []) if embeddable else [],
         )

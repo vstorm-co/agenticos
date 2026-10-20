@@ -157,3 +157,19 @@ class QuotaExceededError(AppException):
 
     def __init__(self, *, quota: Quota, limit: int, message: str) -> None:
         super().__init__(message=message, details={"quota": quota, "limit": limit})
+
+
+class DeadlineReached(AppException):
+    """A read ran out of the time its caller gave it before its next statement (503).
+
+    Raised instead of starting a statement, never by cancelling one: with under a
+    millisecond left there is no statement timeout worth setting, and `0` would mean
+    none at all. Nothing was read past that point.
+    """
+
+    message = "The read ran out of time"
+    code = "DEADLINE_REACHED"
+    status_code = 503
+
+    def __init__(self, *, remaining_ms: int) -> None:
+        super().__init__(details={"remaining_ms": remaining_ms})

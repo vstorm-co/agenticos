@@ -1,12 +1,13 @@
 """Schemas for published artifacts."""
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import AwareDatetime, ConfigDict, Field
 
 from app.schemas.base import BaseSchema
+from app.schemas.virtual_table import ColumnTypeName
 
 ArtifactMediaTypeLiteral = Literal["text/html", "text/markdown"]
 
@@ -42,6 +43,49 @@ class ArtifactBindingRead(BaseSchema):
     fields: list[str]
     status: Literal["ok", "unavailable"] = "ok"
     reason: str | None = None
+
+
+class BoundField(BaseSchema):
+    """What one field of a binding reads now: its column's current label and type."""
+
+    label: str = Field(description="The column's label now; the field name for a missing column")
+    type: ColumnTypeName = Field(description="The column's type now; `text` for a missing column")
+    options: list[str] | None = Field(
+        default=None, description="A select column's live choices, by label"
+    )
+    state: Literal["ok", "archived", "missing"] = Field(
+        description="`archived` or `missing` when the column no longer serves values"
+    )
+
+
+class BindingData(BaseSchema):
+    """One binding's records for a page load, read with the viewer's own access."""
+
+    status: Literal["ok", "unavailable"]
+    reason: str | None = Field(
+        default=None,
+        description="Why the binding is unavailable. Only for a viewer who may edit the page",
+    )
+    truncated: bool = Field(description="Whether a limit left records out")
+    limit: Literal["records", "bytes"] | None = Field(
+        default=None, description="Which limit left records out"
+    )
+    count: int = Field(description="How many records are served, not how many the view matches")
+    filters_dropped: bool = Field(
+        description="Whether a filter of the view named a column no longer live, so it matches more"
+    )
+    fields: dict[str, BoundField]
+    # Any: a cell is a string, number, boolean, list or link list, by its column's type.
+    records: list[dict[str, Any]] = Field(
+        description="Each record as its `id` and every named field, `null` when empty"
+    )
+
+
+class ArtifactData(BaseSchema):
+    """A page version's live data: every binding, each read as the viewer."""
+
+    bindings: dict[str, BindingData]
+    read_at: datetime
 
 
 class ArtifactVersionRead(BaseSchema):
@@ -191,6 +235,8 @@ class ArtifactView(BaseSchema):
     url: str = Field(description="Signed, short-lived; served under a sandbox policy")
     expires_at: datetime
     version: ArtifactVersionRead
+    nonce: str = Field(description="What the page and the console match their messages on")
+    live: bool = Field(description="Whether the page asks the console for its bindings' data")
 
 
 class PublicArtifactRead(BaseSchema):

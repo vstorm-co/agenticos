@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import event, func, select
 
 from app.core.exceptions import AlreadyExistsError, NotFoundError
 from app.db.models.resource_grant import GrantLevel
@@ -14,13 +14,16 @@ from app.db.models.virtual_table import (
     VirtualTableRecord,
     VirtualTableRecordHistory,
 )
-from app.repositories import resource_grant_repo
+from app.repositories import resource_grant_repo, virtual_table_repo
+from app.repositories.virtual_table import SortClause
+from app.schemas.table_view import TableViewConfig
 from app.schemas.virtual_table import (
     OptionInput,
     RecordCountQuery,
     RecordCreate,
     RecordFilter,
     RecordQuery,
+    RecordRead,
     RecordSort,
     RecordUpdate,
     RecordUpsert,
@@ -28,7 +31,7 @@ from app.schemas.virtual_table import (
     TableCreate,
 )
 from app.services.access import TABLE
-from app.services.virtual_tables import VirtualTableService
+from app.services.virtual_tables import ReadDeadline, VirtualTableService
 from app.services.virtual_tables import records as records_module
 from app.services.virtual_tables.exceptions import (
     InvalidQueryError,
@@ -38,12 +41,16 @@ from app.services.virtual_tables.exceptions import (
     RevisionRequiredError,
 )
 from tests.integration.virtual_table_support import (
+    bound_view,
     cid,
     column,
     ctx_for,
+    insert_rows,
     make_org,
     make_user,
     orders_table,
+    shaped_size,
+    shaper,
 )
 
 pytestmark = pytest.mark.anyio
@@ -786,3 +793,206 @@ async def test_a_surrogate_in_a_sort_or_a_select_value_is_a_typed_refusal(db):
         await service.create_record(ctx, table.id, RecordCreate(values={status: bad}))
     with pytest.raises(InvalidRecordError):
         await service.create_record(ctx, table.id, RecordCreate(values={cid(table, "Tags"): [bad]}))
+
+
+# -- reading a view for a page -------------------------------------------------
+
+
+def _deadline() -> ReadDeadline:
+    return ReadDeadline(60, 2_000)
+
+
+async def _read(service, ctx, bound, named, **limits):
+    return await service.read_bound(
+        ctx,
+        bound,
+        column_ids=named,
+        shape=shaper(bound.columns, named),
+        max_records=limits.get("max_records", 1_000),
+        max_bytes=limits.get("max_bytes", 4 * 1024 * 1024),
+        deadline=_deadline(),
+    )
+
+
+def _spy(monkeypatch, name):
+    """Wrap one repository read, recording each call's arguments and what it returned."""
+    real = getattr(virtual_table_repo, name)
+    calls: list[tuple[tuple, dict, object]] = []
+
+    async def spy(*args, **kwargs):
+        result = await real(*args, **kwargs)
+        calls.append((args, kwargs, result))
+        return result
+
+    monkeypatch.setattr(virtual_table_repo, name, spy)
+    return calls
+
+
+async def test_read_bound_stops_at_the_record_cap_and_says_so(db):
+    service, ctx, table, _org = await _setup(db)
+    customer = uuid.UUID(cid(table, "Customer"))
+    ids = await insert_rows(db, table, [{str(customer): f"C{n}"} for n in range(1_001)])
+    bound = await bound_view(db, ctx, table.id)
+
+    capped = await _read(service, ctx, bound, [customer], max_records=1_000)
+    whole = await _read(service, ctx, bound, [customer], max_records=1_001)
+
+    assert capped.stopped_by == "records"
+    assert [record["id"] for record in capped.records] == [str(i) for i in ids[:1_000]]
+    assert len(capped.sizes) == 1_000 and capped.bytes == sum(capped.sizes)
+    assert whole.stopped_by is None and len(whole.records) == 1_001
+
+
+async def test_read_bound_stops_at_the_byte_budget_measured_on_shaped_records(db):
+    service, ctx, _table, _org = await _setup(db)
+    label = "L" * 64
+    kinds = await service.create_table(
+        ctx,
+        TableCreate(
+            name="Kinds",
+            columns=[column("Kind", "single_select", options=[OptionInput(label=label)])],
+        ),
+    )
+    kind = kinds.columns[0]
+    option = str(kind.options[0].id)
+    await insert_rows(db, kinds, [{str(kind.id): option} for _ in range(10)])
+    bound = await bound_view(db, ctx, kinds.id)
+    one = shaped_size({"id": str(uuid.uuid4()), "Kind": label})
+    raw = await virtual_table_repo.list_record_sizes(
+        db,
+        table_id=kinds.id,
+        organization_id=ctx.organization_id,
+        filters=[],
+        search=None,
+        sort=SortClause(direction="asc"),
+        limit=10,
+        keys=[str(kind.id)],
+    )
+    max_bytes = 3 * one + one // 2
+    # Measured on the stored option ids, more than three would fit.
+    assert sum(size for _id, size in raw[:4]) <= max_bytes
+
+    read = await _read(service, ctx, bound, [kind.id], max_bytes=max_bytes)
+
+    assert read.stopped_by == "bytes"
+    assert [record["Kind"] for record in read.records] == [label] * 3
+    assert read.sizes == [shaped_size(record) for record in read.records] == [one] * 3
+    assert read.bytes == 3 * one <= max_bytes
+
+
+async def test_read_bound_never_loads_unnamed_cells(db, monkeypatch):
+    service, ctx, _table, _org = await _setup(db)
+    table = await service.create_table(
+        ctx,
+        TableCreate(
+            name="Notes",
+            columns=[
+                column("Name", "text"),
+                column("Quantity", "integer"),
+                column("Blob", "long_text"),
+                column("Double", "formula", formula="{Quantity} * 2"),
+            ],
+        ),
+    )
+    name, quantity, blob, double = (
+        uuid.UUID(cid(table, label)) for label in ("Name", "Quantity", "Blob", "Double")
+    )
+    await insert_rows(db, table, [{str(name): "Atlas", str(quantity): 4, str(blob): "x" * 900_000}])
+    bound = await bound_view(db, ctx, table.id)
+    calls = _spy(monkeypatch, "get_record_cells_by_ids")
+
+    read = await _read(service, ctx, bound, [name, double])
+
+    assert read.records[0]["Name"] == "Atlas" and read.records[0]["Double"] == 8
+    [(_args, _kwargs, cells)] = calls
+    assert [set(cell.values) for cell in cells] == [{str(name), str(quantity)}]
+
+
+async def test_read_bound_does_not_fetch_rows_past_the_budget(db, monkeypatch):
+    service, ctx, table, _org = await _setup(db)
+    customer = uuid.UUID(cid(table, "Customer"))
+    ids = await insert_rows(db, table, [{str(customer): "y" * 1_000} for _ in range(50)])
+    bound = await bound_view(db, ctx, table.id)
+    calls = _spy(monkeypatch, "get_record_cells_by_ids")
+
+    read = await _read(service, ctx, bound, [customer], max_bytes=5_000)
+
+    fetched = [record_id for args, _kwargs, _cells in calls for record_id in args[1]]
+    assert read.stopped_by == "bytes"
+    assert fetched == ids[: len(fetched)] and len(fetched) <= 4
+    assert [record["id"] for record in read.records] == [str(i) for i in fetched]
+    calls.clear()
+    none_fit = await _read(service, ctx, bound, [customer], max_bytes=500)
+    assert (none_fit.records, none_fit.stopped_by, calls) == ([], "bytes", [])
+
+
+async def test_read_bound_runs_the_view_query_once(db, monkeypatch):
+    service, ctx, table, _org = await _setup(db)
+    customer = uuid.UUID(cid(table, "Customer"))
+    await insert_rows(db, table, [{str(customer): f"C{n}"} for n in range(450)])
+    bound = await bound_view(db, ctx, table.id)
+    calls = _spy(monkeypatch, "list_record_sizes")
+    statements: list[str] = []
+
+    def capture(_conn, _cursor, statement, _parameters, _context, _executemany) -> None:
+        statements.append(statement)
+
+    sync_engine = db.get_bind()
+    event.listen(sync_engine, "before_cursor_execute", capture)
+    try:
+        read = await _read(service, ctx, bound, [customer], max_records=400)
+    finally:
+        event.remove(sync_engine, "before_cursor_execute", capture)
+
+    assert read.stopped_by == "records" and len(read.records) == 400
+    [(_args, kwargs, _sizes)] = calls
+    assert kwargs["limit"] == 401
+    assert not [statement for statement in statements if "OFFSET" in statement.upper()]
+
+
+async def test_read_bound_applies_the_view_filters_search_and_sort(db):
+    service, ctx, table, _org = await _setup(db)
+    customer, quantity = (uuid.UUID(cid(table, label)) for label in ("Customer", "Quantity"))
+    for name, count in (("Acme", 5), ("Beta", 9), ("Acorn", 3), ("Acme small", 1)):
+        await service.create_record(
+            ctx,
+            table.id,
+            RecordCreate(values={str(customer): name, str(quantity): count}),
+        )
+    config = TableViewConfig(
+        filters=[RecordFilter(column_id=quantity, op="gt", value=1)],
+        search="ac",
+        sort=RecordSort(by=str(quantity), direction="desc"),
+    )
+    bound = await bound_view(db, ctx, table.id, config)
+
+    read = await _read(service, ctx, bound, [customer, quantity])
+    listed = await service.list_records(
+        ctx, table.id, RecordQuery(filters=config.filters, search="ac", sort=config.sort)
+    )
+
+    assert [(record["Customer"], record["Quantity"]) for record in read.records] == [
+        ("Acme", 5),
+        ("Acorn", 3),
+    ]
+    assert [record["id"] for record in read.records] == [str(item.id) for item in listed.items]
+    nothing = await bound_view(db, ctx, table.id, config.model_copy(update={"search": "zz"}))
+    empty = await _read(service, ctx, nothing, [customer])
+    assert (empty.records, empty.bytes, empty.stopped_by) == ([], 0, None)
+
+
+async def test_projected_cells_arrive_as_a_mapping(db):
+    service, ctx, table, _org = await _setup(db)
+    customer, quantity = (cid(table, label) for label in ("Customer", "Quantity"))
+    [record_id] = await insert_rows(db, table, [{customer: "Acme", quantity: 2}])
+
+    [cells] = await virtual_table_repo.get_record_cells_by_ids(
+        db, [record_id], table_id=table.id, organization_id=ctx.organization_id, keys=[customer]
+    )
+    sizes = await virtual_table_repo.get_record_sizes_by_ids(
+        db, [record_id], table_id=table.id, organization_id=ctx.organization_id, keys=[customer]
+    )
+
+    assert cells.values == {customer: "Acme"}
+    assert RecordRead.model_validate(cells).values == {customer: "Acme"}
+    assert sizes == {record_id: len('{"' + customer + '": "Acme"}')}

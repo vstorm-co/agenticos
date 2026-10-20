@@ -44,6 +44,7 @@ from app.schemas.table_view import (
 from app.schemas.virtual_table import ColumnDef, RecordSort
 from app.services.access import TABLE, resolve_access
 from app.services.virtual_tables._base import Operations
+from app.services.virtual_tables.deadline import ReadDeadline, arm_if_set
 from app.services.virtual_tables.dependencies import Dependent, register_dependency_checker
 
 
@@ -335,7 +336,9 @@ class TableViewOperations(Operations):
         view = await self._manageable_view(ctx, table_id, view_id)
         await table_view_repo.delete(self.db, view=view)
 
-    async def find_view(self, ctx: AuthContext, view_id: UUID) -> BoundView:
+    async def find_view(
+        self, ctx: AuthContext, view_id: UUID, *, deadline: ReadDeadline | None = None
+    ) -> BoundView:
         """A view by id alone, if `ctx` may see its table and either owns it or it is shared.
 
         What a page binding and an agent tool name a view by: the table is the view's
@@ -344,18 +347,21 @@ class TableViewOperations(Operations):
         `NotFoundError("View not found")`, naming only the view id, so no refusal says
         a view or its table exists. Visibility is checked before archiving, so someone
         else's private view on an archived table is not found rather than archived.
+        With a `deadline`, each of its statements is armed with it first.
 
         Raises:
             NotFoundError: The view is not one `ctx` may see.
             TableArchivedError: The view is visible to `ctx`, and its table is archived.
+            DeadlineReached: Too little of `deadline` is left for the next statement.
         """
+        await arm_if_set(self.db, deadline)
         view = await table_view_repo.get(
             self.db, organization_id=ctx.organization_id, view_id=view_id
         )
         if view is None:
             raise _view_not_found(view_id)
         try:
-            table = await self._load_table(ctx, view.table_id, Perm.TABLES_VIEW)
+            table = await self._load_table(ctx, view.table_id, Perm.TABLES_VIEW, deadline=deadline)
         except NotFoundError:
             # `from None`: the table's own 404 names the table, and chained it would
             # travel with the view's wherever the error is logged or inspected.
@@ -363,7 +369,7 @@ class TableViewOperations(Operations):
         if not self._visible_to(ctx, view):
             raise _view_not_found(view_id)
         self._ensure_live(table)
-        return await self._bound(view, table)
+        return await self._bound(view, table, deadline=deadline)
 
     async def view_for_binding(self, organization_id: UUID, view_id: UUID) -> BoundView:
         """A view's definition and its table's columns, without a person and never its rows.
@@ -393,8 +399,10 @@ class TableViewOperations(Operations):
         self._ensure_live(table)
         return await self._bound(view, table)
 
-    async def _bound(self, view: TableView, table: VirtualTable) -> BoundView:
-        columns = await self._columns(table)
+    async def _bound(
+        self, view: TableView, table: VirtualTable, *, deadline: ReadDeadline | None = None
+    ) -> BoundView:
+        columns = await self._columns(table, deadline=deadline)
         config = _live_config(view, {column.id for column in columns if not column.archived})
         stored = TableViewConfig.model_validate(view.config)
         return BoundView(

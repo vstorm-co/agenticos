@@ -207,7 +207,9 @@ def create_magic_link_token(
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-def create_artifact_view_token(version_id: UUID, *, expires_in: timedelta) -> str:
+def create_artifact_view_token(
+    version_id: UUID, *, expires_in: timedelta, nonce: str, live: bool
+) -> str:
     """A short-lived address for one artifact version's bytes.
 
     The content route authenticates nothing else, which is the point: the page is
@@ -215,9 +217,21 @@ def create_artifact_view_token(version_id: UUID, *, expires_in: timedelta) -> st
     is minted - by a member's grant or by a public link - and the token carries
     only its outcome. It names a version rather than an artifact, so a frame that
     was drawn for version 3 still shows version 3 after version 4 lands.
+
+    `n` is the nonce the served page and the console match their messages on, so
+    a late reply meant for one load of the frame is dropped by the next. `live`
+    says whether the page asks the console for its bindings' data at all; no
+    viewer identity rides in the token, since the console fetches that data as
+    the viewer.
     """
     expire = datetime.now(UTC) + expires_in
-    to_encode = {"exp": expire, "sub": str(version_id), "type": "artifact_view"}
+    to_encode = {
+        "exp": expire,
+        "sub": str(version_id),
+        "type": "artifact_view",
+        "n": nonce,
+        "live": live,
+    }
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 

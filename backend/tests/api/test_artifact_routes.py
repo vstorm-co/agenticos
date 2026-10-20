@@ -15,6 +15,7 @@ import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -56,7 +57,9 @@ def _artifact(*, public_key: str | None = None) -> Artifact:
     )
 
 
-def _version(artifact: Artifact, *, number: int = 1) -> ArtifactVersion:
+def _version(
+    artifact: Artifact, *, number: int = 1, bindings: list[dict[str, Any]] | None = None
+) -> ArtifactVersion:
     return ArtifactVersion(
         id=uuid.uuid4(),
         artifact_id=artifact.id,
@@ -66,7 +69,7 @@ def _version(artifact: Artifact, *, number: int = 1) -> ArtifactVersion:
         sha256="0" * 64,
         storage_path="artifacts/x/y/z.html",
         run_id=None,
-        bindings=[],
+        bindings=bindings or [],
         created_at=datetime(2026, 9, 22, tzinfo=UTC),
     )
 
@@ -232,7 +235,9 @@ class TestTheContentRoute:
         app.dependency_overrides.pop(deps.get_auth_context)
         row = _artifact()
         version = _version(row)
-        token = create_artifact_view_token(version.id, expires_in=timedelta(minutes=5))
+        token = create_artifact_view_token(
+            version.id, expires_in=timedelta(minutes=5), nonce="n0", live=False
+        )
         storage = MagicMock()
         storage.load = AsyncMock(return_value=b"<script>document.title='x'</script>")
         with (
@@ -260,12 +265,52 @@ class TestTheContentRoute:
         assert "set-cookie" not in response.headers
 
     @pytest.mark.security
+    async def test_the_content_never_carries_records(self, client: OpenClient) -> None:
+        """The page learns its binding names and its nonce; what they read comes
+        later, by message, from a console that checked the viewer."""
+        app.dependency_overrides.pop(deps.get_auth_context)
+        row = _artifact()
+        view_id, table_id, column_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+        binding = {
+            "name": "open_deals",
+            "view_id": str(view_id),
+            "table_id": str(table_id),
+            "fields": {"stage": str(column_id)},
+            "status": "ok",
+            "reason": None,
+        }
+        version = _version(row, bindings=[binding])
+        token = create_artifact_view_token(
+            version.id, expires_in=timedelta(minutes=5), nonce="nonce-xyz", live=True
+        )
+        storage = MagicMock()
+        storage.load = AsyncMock(return_value=b"<p id=out></p>")
+        with (
+            patch(
+                f"{PATH}.artifact_repo.get_version_with_artifact",
+                new=AsyncMock(return_value=(version, row)),
+            ),
+            patch(f"{PATH}.get_file_storage", return_value=storage),
+        ):
+            async with client() as http:
+                response = await http.get(f"{settings.API_V1_STR}/artifact-content/{token}")
+        assert response.status_code == 200
+        body = response.text
+        assert '"names": ["open_deals"]' in body
+        assert '"n": "nonce-xyz"' in body
+        assert '"live": true' in body
+        for stored in (str(view_id), str(table_id), str(column_id), "stage"):
+            assert stored not in body
+
+    @pytest.mark.security
     async def test_an_address_loaded_on_a_loop_is_refused_before_anything_is_read(
         self, client: OpenClient
     ) -> None:
         app.dependency_overrides.pop(deps.get_auth_context)
         refused = rate_limit.Decision(allowed=False, retry_after_seconds=60)
-        token = create_artifact_view_token(uuid.uuid4(), expires_in=timedelta(minutes=5))
+        token = create_artifact_view_token(
+            uuid.uuid4(), expires_in=timedelta(minutes=5), nonce="n0", live=False
+        )
         read = AsyncMock()
         with (
             patch.object(
@@ -281,7 +326,9 @@ class TestTheContentRoute:
 
     @pytest.mark.security
     async def test_an_expired_address_is_not_found(self, client: OpenClient) -> None:
-        token = create_artifact_view_token(uuid.uuid4(), expires_in=timedelta(seconds=-1))
+        token = create_artifact_view_token(
+            uuid.uuid4(), expires_in=timedelta(seconds=-1), nonce="n0", live=False
+        )
         async with client() as http:
             response = await http.get(f"{settings.API_V1_STR}/artifact-content/{token}")
         assert response.status_code == 404
@@ -467,3 +514,70 @@ class TestTheEmbedRoute:
         assert response.status_code == 404
         assert "not available" in response.text
         assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
+
+
+class TestTheDataRoute:
+    def _url(self, artifact: Artifact, version: ArtifactVersion) -> str:
+        return _url(f"/{artifact.id}/versions/{version.id}/data")
+
+    async def test_the_data_route_is_not_cached(self, client: OpenClient) -> None:
+        row = _artifact()
+        version = _version(row)
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
+            patch(f"{PATH}.artifact_repo.get_version", new=AsyncMock(return_value=version)),
+            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=version)),
+        ):
+            async with client() as http:
+                response = await http.get(self._url(row, version))
+        assert response.status_code == 200
+        assert response.headers["cache-control"] == "private, no-store"
+        body = response.json()
+        assert body["bindings"] == {}
+        assert set(body) == {"bindings", "read_at"}
+
+    @pytest.mark.security
+    async def test_a_non_member_app_admin_gets_404(self, client: OpenClient) -> None:
+        """An app admin outside the organization is refused at its door, as on every route."""
+        app.dependency_overrides.pop(deps.get_auth_context)
+        app.dependency_overrides[deps.get_current_user] = lambda: MagicMock(
+            id=uuid.uuid4(), is_app_admin=True
+        )
+        app.dependency_overrides[deps.get_db_session] = lambda: MagicMock()
+        row = _artifact()
+        read = AsyncMock(return_value=row)
+        with (
+            patch("app.api.deps.member_repo.get", new=AsyncMock(return_value=None)),
+            patch(f"{PATH}.artifact_repo.get", new=read),
+        ):
+            async with client() as http:
+                response = await http.get(
+                    self._url(row, _version(row)),
+                    headers={"X-Organization-Id": str(_ORGANIZATION_ID)},
+                )
+        assert response.status_code == 404
+        assert response.json()["error"]["message"] == "Organization not found or access denied"
+        read.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_data_loads_are_rate_limited_per_viewer(self, client: OpenClient) -> None:
+        refused = rate_limit.Decision(allowed=False, retry_after_seconds=60)
+        read = AsyncMock()
+        row = _artifact()
+        with (
+            patch.object(
+                rate_limit, "consume_with_local_floor", new=AsyncMock(return_value=refused)
+            ) as counted,
+            patch(f"{PATH}.artifact_repo.get", new=read),
+        ):
+            async with client() as http:
+                response = await http.get(self._url(row, _version(row)))
+        assert response.status_code == 429
+        assert response.headers["retry-after"] == "60"
+        assert response.json()["error"]["message"] == (
+            "Too many data loads in the last minute. Wait and try again."
+        )
+        caller = counted.await_args.kwargs["caller"]
+        assert caller.startswith(f"org:{_ORGANIZATION_ID}:user:")
+        assert counted.await_args.kwargs["surface"] == "artifact_data"
+        read.assert_not_awaited()

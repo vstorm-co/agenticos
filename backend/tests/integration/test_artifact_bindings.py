@@ -235,6 +235,17 @@ class TestTheRequest:
         assert check.problem == "Binding name 'Tickets' must match `^[a-z_][a-z0-9_]{0,63}$`."
 
     @pytest.mark.security
+    @pytest.mark.parametrize("name", ["__proto__", "constructor", "prototype"])
+    async def test_a_reserved_binding_name_is_refused(self, db, name):
+        """A page script reads its bindings by name, and these would reach an object's prototype."""
+        world = await _world(db)
+
+        check = await world.one({name: _ask(world.view, status="Status")})
+
+        assert check.binding is None
+        assert check.problem == f"Binding name {name} is reserved; choose another."
+
+    @pytest.mark.security
     async def test_a_page_takes_at_most_five_bindings(self, db):
         world = await _world(db)
         requested = {f"b{index}": _ask(world.view, status="Status") for index in range(6)}

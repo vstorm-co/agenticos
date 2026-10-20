@@ -45,14 +45,17 @@ from __future__ import annotations
 import hashlib
 import hmac
 import logging
+import secrets
 import time
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
 from starlette.requests import HTTPConnection
 
 from app.clients.redis import RedisClient
 from app.core.config import settings
+from app.core.exceptions import RateLimitError
 
 logger = logging.getLogger(__name__)
 
@@ -262,6 +265,77 @@ def table_write_limit() -> Limit:
     are each tiny (#1823).
     """
     return Limit(attempts=settings.RATE_LIMIT_TABLE_WRITES_PER_MINUTE)
+
+
+def artifact_data_limit() -> Limit:
+    """How many times one member may load a live page's data in one organization, per minute.
+
+    Each load runs every binding's view as a query, so the thing rationed is what an
+    open page refreshing itself, or a loop calling the route, costs the database.
+    """
+    return Limit(attempts=settings.RATE_LIMIT_ARTIFACT_DATA_PER_MINUTE)
+
+
+_held_here: set[str] = set()
+"""The in-flight claims this process holds while the shared Redis cannot take them."""
+
+
+async def _claim(redis: RedisClient, key: str, token: str, ttl_seconds: int) -> bool | None:
+    """Take `key` for `token`: whether it was free, or `None` when Redis could not say."""
+    try:
+        return await redis.set(key, token, ttl=ttl_seconds, nx=True)
+    except Exception:
+        logger.warning("in_flight_limit_redis_unavailable", exc_info=True)
+        return None
+
+
+async def _release(redis: RedisClient, key: str, token: str) -> None:
+    try:
+        await redis.delete_if_equals(key, token)
+    except Exception:
+        # The claim's TTL frees it.
+        logger.warning("in_flight_limit_release_failed", exc_info=True)
+
+
+@asynccontextmanager
+async def one_in_flight(
+    surface: str, caller: str, *, ttl_seconds: int, message: str
+) -> AsyncIterator[None]:
+    """Hold the one claim `caller` has on `surface` for the body, or refuse at once.
+
+    The claim is a Redis key taken with `SET NX EX`, holding a token of this call's
+    own, and released by deleting it only while it still holds that token. A body
+    that outlives `ttl_seconds` loses its claim to the next caller, and its release
+    then leaves that caller's claim alone. While Redis is down or unconfigured the
+    claim is held in this process instead, which bounds a caller per worker only,
+    not across workers.
+
+    Raises:
+        RateLimitError: `caller` already holds the claim; `message` says so.
+    """
+    key = f"inflight:{surface}:{_bounded(caller)}"
+    token = secrets.token_urlsafe(16)
+    redis = _redis
+    claimed = None if redis is None else await _claim(redis, key, token, ttl_seconds)
+    if claimed is None:
+        logger.warning(
+            "In-flight limit held per process - %s reached by caller %s",
+            surface,
+            _log_digest(caller),
+        )
+        redis = None
+        claimed = key not in _held_here
+        if claimed:
+            _held_here.add(key)
+    if not claimed:
+        raise RateLimitError(message=message, details={"retry_after_seconds": 1})
+    try:
+        yield
+    finally:
+        if redis is None:
+            _held_here.discard(key)
+        else:
+            await _release(redis, key, token)
 
 
 def export_limit() -> Limit:

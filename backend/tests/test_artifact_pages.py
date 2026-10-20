@@ -8,6 +8,7 @@ at the repository edge; `tests/integration/test_artifacts.py` proves the rows.
 
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -863,7 +864,9 @@ class TestContentFraming:
         version = _version(artifact)
         storage = MagicMock()
         storage.load = AsyncMock(return_value=b"<p>x</p>")
-        token = create_artifact_view_token(version.id, expires_in=timedelta(minutes=5))
+        token = create_artifact_view_token(
+            version.id, expires_in=timedelta(minutes=5), nonce="n0", live=False
+        )
         with (
             patch(
                 f"{PATH}.artifact_repo.get_version_with_artifact",
@@ -912,22 +915,28 @@ class TestTheLibrarySet:
             await artifacts.library_file(name)
 
 
+_SCRIPT = artifacts.PLATFORM_SCRIPT
+"""What the placement tests put in: where it goes does not depend on what it is."""
+
+
 class TestThePlatformScript:
     def test_it_goes_right_after_the_doctype_before_the_html_tag(self) -> None:
         # Before <html>, the parser opens the head for it; the page's own <html>
         # attributes still land on that element.
-        document = artifacts.with_platform_script(b"<!doctype html><HTML lang=x><Head><title>")
+        document = artifacts.with_platform_script(
+            b"<!doctype html><HTML lang=x><Head><title>", _SCRIPT
+        )
         assert document.startswith(b"<!doctype html><script data-agenticos")
         assert document.endswith(b"</script><HTML lang=x><Head><title>")
 
     def test_without_a_doctype_it_goes_first(self) -> None:
-        document = artifacts.with_platform_script(b"<html lang=en><body>")
+        document = artifacts.with_platform_script(b"<html lang=en><body>", _SCRIPT)
         assert document.startswith(b"<script data-agenticos")
 
     def test_a_doctype_after_a_mark_whitespace_and_comments_is_kept_first(self) -> None:
         # A doctype that is not first is ignored, and the page renders in quirks mode.
         document = artifacts.with_platform_script(
-            b"\xef\xbb\xbf\n<!-- built by an agent --><!DOCTYPE html><p>x</p>"
+            b"\xef\xbb\xbf\n<!-- built by an agent --><!DOCTYPE html><p>x</p>", _SCRIPT
         )
         assert document.startswith(
             b"\xef\xbb\xbf\n<!-- built by an agent --><!DOCTYPE html><script data-agenticos"
@@ -939,16 +948,16 @@ class TestThePlatformScript:
         """Found by pattern, `<head>` inside a comment took the script into the
         comment, where it never ran and links bypassed the confirmation."""
         page = b"<!doctype html><!-- <head> --><script>var s = '<html>'</script><p>x</p>"
-        document = artifacts.with_platform_script(page)
+        document = artifacts.with_platform_script(page, _SCRIPT)
         assert document.startswith(b"<!doctype html><script data-agenticos")
         assert document.endswith(b"</script>" + page[len(b"<!doctype html>") :])
 
     def test_a_doctype_later_in_the_page_is_not_the_one_it_looks_for(self) -> None:
-        document = artifacts.with_platform_script(b"<p>x</p><pre><!doctype html></pre>")
+        document = artifacts.with_platform_script(b"<p>x</p><pre><!doctype html></pre>", _SCRIPT)
         assert document.startswith(b"<script data-agenticos")
 
     def test_a_fragment_gets_it_first(self) -> None:
-        assert artifacts.with_platform_script(b"<p>x</p>").endswith(b"</script><p>x</p>")
+        assert artifacts.with_platform_script(b"<p>x</p>", _SCRIPT).endswith(b"</script><p>x</p>")
 
     @pytest.mark.security
     def test_it_asks_the_parent_and_never_opens_anything_itself(self) -> None:
@@ -958,6 +967,22 @@ class TestThePlatformScript:
         assert "location.assign" not in script
         assert "window.open = function" in script
         assert 'url.protocol === "http:" || url.protocol === "https:"' in script
+
+    @pytest.mark.security
+    def test_the_bridge_writes_only_names_and_the_nonce_into_the_page(self) -> None:
+        # A stored name cannot carry these - the binding-name pattern refuses
+        # them - so this is the escaping alone, asked of the function directly.
+        names = ["</script><img src=x onerror=alert(1)>", "a&b", "x\u2028y\u2029z"]
+        script = artifacts.platform_script(nonce="n-0_Q", live=True, names=names)
+        assert script.startswith(artifacts.PLATFORM_SCRIPT + '<script data-agenticos="data">(')
+        call = ")(window, document, "
+        config = script[script.rindex(call) + len(call) : script.rindex(");</script>")]
+        for raw in ("<", ">", "&", "\u2028", "\u2029"):
+            assert raw not in config
+        assert "\\u003c/script\\u003e" in config
+        assert json.loads(config) == {"n": "n-0_Q", "live": True, "names": names}
+        # The link bridge's close and the data bridge's: none from the names.
+        assert script.lower().count("</script") == 2
 
 
 class TestAgentFilter:

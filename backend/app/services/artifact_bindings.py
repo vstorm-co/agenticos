@@ -12,6 +12,10 @@ columns are. A run with no person hears only that it cannot bind at all. A bindi
 carried forward unchanged is checked without a person, so its problems name the
 binding and its field names, never a column's label.
 
+This module also shapes what a page load is served (`page_data`): each record as its
+id and the binding's named fields, nothing else, and one byte budget for the page,
+shared fairly among its bindings.
+
 This module takes the spec's table grants as a plain mapping and never imports the
 agents package: the caller extracts them.
 """
@@ -19,9 +23,9 @@ agents package: the caller extracts them.
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,10 +33,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext
-from app.schemas.artifact import ArtifactBinding, BindingRequest
-from app.schemas.virtual_table import ColumnDef
-from app.services.virtual_tables import TableViewService, reach
+from app.schemas.artifact import ArtifactBinding, BindingData, BindingRequest, BoundField
+from app.schemas.virtual_table import ColumnDef, RecordRead
+from app.services.virtual_tables import BoundRows, TableViewService, reach
 from app.services.virtual_tables.exceptions import TableArchivedError
+from app.services.virtual_tables.presentation import readable
+from app.services.virtual_tables.types import OPTION_TYPES
 
 Reason = Literal[
     "no_person",
@@ -47,6 +53,8 @@ _NAME = re.compile(r"[a-z_][a-z0-9_]{0,63}")
 _PATTERN = "`^[a-z_][a-z0-9_]{0,63}$`"
 _RESERVED_FIELDS = frozenset({"id", "__proto__", "constructor", "prototype"})
 """Names a page script reads every record by, or that would reach an object's prototype."""
+_RESERVED_NAMES = frozenset({"__proto__", "constructor", "prototype"})
+"""Binding names a page script would reach an object's prototype by."""
 MAX_FIELDS = 50
 NO_PERSON = "Only a run acting for a member can bind a page to a view."
 _REPLACE = "; pass `bindings` to replace them."
@@ -155,6 +163,8 @@ async def _check_requested(
 ) -> BindingCheck:
     if not _NAME.fullmatch(name):
         return BindingCheck(name, None, f"Binding name {name[:64]!r} must match {_PATTERN}.", True)
+    if name in _RESERVED_NAMES:
+        return BindingCheck(name, None, f"Binding name {name} is reserved; choose another.", True)
     if prior is not None and _resends(request, prior):
         return await _carry(views, organization_id, prior, None, person, grants, recheck_person)
     resolution = await _resolve(views, organization_id, name, request.view, request.fields)
@@ -383,3 +393,141 @@ def _as_uuid(text: str) -> UUID | None:
         return UUID(text)
     except ValueError:
         return None
+
+
+@dataclass(frozen=True)
+class BindingRows:
+    """One binding as a page load read it: the fields it names, and what its view served."""
+
+    fields: Mapping[str, UUID]
+    rows: BoundRows
+    filters_dropped: bool
+
+
+@dataclass(frozen=True)
+class Unavailable:
+    """A binding a page load serves nothing for, and why, for an editor to hear."""
+
+    reason: str | None
+
+
+def shape_for(
+    columns: Sequence[ColumnDef], fields: Mapping[str, UUID]
+) -> Callable[[RecordRead], dict[str, Any]]:
+    """A record as a page reads it: its id and each named field, and nothing else.
+
+    A choice reads as its label and a link as `[{id, label}]` from the record's
+    resolved links, `[]` when the reader may not see the linked table. A field whose
+    column is archived or gone reads `None`, and so does an empty cell.
+    """
+    by_id = {column.id: column for column in columns}
+    named = [(field, by_id.get(column_id)) for field, column_id in fields.items()]
+
+    def shape(record: RecordRead) -> dict[str, Any]:
+        shaped: dict[str, Any] = {"id": str(record.id)}
+        for field, column in named:
+            if column is None or column.archived:
+                shaped[field] = None
+            elif column.type == "link":
+                shaped[field] = [
+                    {"id": str(linked.id), "label": linked.label}
+                    for linked in record.links.get(str(column.id), [])
+                ]
+            else:
+                shaped[field] = readable(column, record.values.get(str(column.id)))
+        return shaped
+
+    return shape
+
+
+def bound_fields(columns: Sequence[ColumnDef], fields: Mapping[str, UUID]) -> dict[str, BoundField]:
+    """What each field reads now: its column's current label, type and live choices."""
+    by_id = {column.id: column for column in columns}
+    described: dict[str, BoundField] = {}
+    for field, column_id in fields.items():
+        column = by_id.get(column_id)
+        if column is None:
+            described[field] = BoundField(label=field, type="text", state="missing")
+            continue
+        described[field] = BoundField(
+            label=column.label,
+            type=column.type,
+            options=(
+                [option.label for option in column.options if not option.archived]
+                if column.type in OPTION_TYPES
+                else None
+            ),
+            state="archived" if column.archived else "ok",
+        )
+    return described
+
+
+def fair_shares(totals: Mapping[str, int], cap: int) -> dict[str, int]:
+    """How many bytes each binding may serve so the page stays within `cap`, shared max-min fairly.
+
+    Within the cap every binding keeps all it read. Over it, the smallest go first
+    and keep all they read while that is no more than an even split of what is left;
+    the rest split it evenly. Ties go by name, so the shares never depend on the
+    order a page declared its bindings in.
+    """
+    if sum(totals.values()) <= cap:
+        return dict(totals)
+    shares: dict[str, int] = {}
+    left = cap
+    ordered = sorted(totals.items(), key=lambda item: (item[1], item[0]))
+    for index, (name, total) in enumerate(ordered):
+        shares[name] = min(total, left // (len(ordered) - index))
+        left -= shares[name]
+    return shares
+
+
+def unavailable(reason: str | None) -> BindingData:
+    return BindingData(
+        status="unavailable",
+        reason=reason,
+        truncated=False,
+        limit=None,
+        count=0,
+        filters_dropped=False,
+        fields={},
+        records=[],
+    )
+
+
+def page_data(
+    reads: Mapping[str, BindingRows | Unavailable], *, max_bytes: int, can_edit: bool
+) -> dict[str, BindingData]:
+    """Every binding's payload for one page load, the page within `max_bytes` of shaped data.
+
+    A binding over its fair share keeps the longest prefix of its records that fits,
+    and says `limit: "bytes"`, as it does when its read already stopped at the byte
+    budget. Only an editor (`can_edit`) is told why a binding is unavailable.
+    """
+    shares = fair_shares(
+        {name: read.rows.bytes for name, read in reads.items() if isinstance(read, BindingRows)},
+        max_bytes,
+    )
+    served: dict[str, BindingData] = {}
+    for name, read in reads.items():
+        if isinstance(read, Unavailable):
+            served[name] = unavailable(read.reason if can_edit else None)
+            continue
+        rows = read.rows
+        kept, used = 0, 0
+        for size in rows.sizes:
+            if used + size > shares[name]:
+                break
+            kept, used = kept + 1, used + size
+        limit: Literal["records", "bytes"] | None = (
+            "bytes" if rows.stopped_by == "bytes" or kept < len(rows.records) else rows.stopped_by
+        )
+        served[name] = BindingData(
+            status="ok",
+            truncated=limit is not None,
+            limit=limit,
+            count=kept,
+            filters_dropped=read.filters_dropped,
+            fields=bound_fields(rows.columns, read.fields),
+            records=rows.records[:kept],
+        )
+    return served

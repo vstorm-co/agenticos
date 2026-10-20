@@ -11,6 +11,7 @@ from app.repositories import virtual_table_repo
 from app.schemas.resource_grant import as_visibility
 from app.schemas.virtual_table import ColumnDef, TableRead
 from app.services.access import TABLE, resolve_access
+from app.services.virtual_tables.deadline import ReadDeadline, arm_if_set
 from app.services.virtual_tables.exceptions import TableArchivedError
 
 
@@ -28,6 +29,7 @@ class Operations:
         *,
         lock: bool = False,
         share: bool = False,
+        deadline: ReadDeadline | None = None,
     ) -> VirtualTable:
         """The table, if this caller may exercise `perm` on it.
 
@@ -36,8 +38,9 @@ class Operations:
         learn. `lock` takes the row lock that serializes schema changes; `share` is the lock a
         record write takes, which waits for a schema change or an archive in flight and holds
         them off until the write commits. Table locks come first and the audit chain lock last,
-        so the two never wait on each other.
+        so the two never wait on each other. With a `deadline`, each statement is armed first.
         """
+        await arm_if_set(self.db, deadline)
         table = await virtual_table_repo.get_table(
             self.db,
             table_id,
@@ -45,6 +48,7 @@ class Operations:
             for_update=lock,
             for_share=share,
         )
+        await arm_if_set(self.db, deadline)
         if table is None or not await resolve_access(
             self.db, ctx, table, perm, resource_type=TABLE
         ):
@@ -68,8 +72,11 @@ class Operations:
             return False
         return await resolve_access(self.db, ctx, table, Perm.TABLES_EDIT, resource_type=TABLE)
 
-    async def _columns(self, table: VirtualTable) -> list[ColumnDef]:
-        """The columns of the table's current schema version."""
+    async def _columns(
+        self, table: VirtualTable, *, deadline: ReadDeadline | None = None
+    ) -> list[ColumnDef]:
+        """The columns of the table's current schema version, armed with `deadline` first if given."""
+        await arm_if_set(self.db, deadline)
         version = await virtual_table_repo.get_schema_version(
             self.db, table_id=table.id, version=table.schema_version
         )
