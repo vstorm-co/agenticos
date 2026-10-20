@@ -235,7 +235,9 @@ Two things are versioned separately from this file and worth knowing about:
 - **Pillow 13.0.0 and certifi 2026.10.19.** Pillow 12.3.0 had eight published
   advisories (among them GHSA-p4wg-p73j-c528) and certifi 2026.7.22 one
   (GHSA-6q48-6c7w-9gw2), which failed `make audit`. Both are lockfile updates
-  only; the image code paths are unchanged under Pillow 13.
+  only; the image code paths are unchanged under Pillow 13. The frontend's
+  vite is pinned to 8.2.4 for GHSA-587h-7wmj-h5pm, which reaches only the test
+  and build tooling, not the console.
 - **The Codex review's third round on the job queue** (#2219):
   - a job whose outcome the worker could not write is no longer renewed by the
     heartbeat, so its lease runs out and the rescuer writes it off;
