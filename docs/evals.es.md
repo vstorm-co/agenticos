@@ -1,5 +1,5 @@
 ---
-source_sha: "4d6929b9cea5"
+source_sha: "9106112f767a"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -220,8 +220,11 @@ Un worker también puede morir sin avisar. El worker de un run en marcha avisa
 cada `EVAL_HEARTBEAT_SECONDS` de que sigue vivo; un run cuyo worker calla y cuyos
 casos no han avanzado durante `EVAL_ABANDONED_AFTER_MINUTES` se da por fallido en
 un barrido que el worker ejecuta cada minuto, que además libera sus plazas. Un
-run en cola aún no tiene worker - espera un runner libre - así que el barrido lo
-abandona solo tras `EVAL_QUEUED_ABANDONED_AFTER_HOURS`.
+worker cuyos heartbeats fallan durante ese tiempo - en una máquina demasiado
+cargada para llegar a su base de datos - se da por fallido igual aunque siga
+trabajando, y hay que lanzar su run de nuevo. Un run en cola aún no tiene worker -
+espera un runner libre - así que el barrido lo abandona solo tras
+`EVAL_QUEUED_ABANDONED_AFTER_HOURS`.
 
 Mientras un run está en cola o en marcha, no se pueden eliminar el entorno que
 nombra ni el perfil de modelo en que corre alguno de sus lados: sus casos

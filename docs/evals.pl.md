@@ -1,5 +1,5 @@
 ---
-source_sha: "4d6929b9cea5"
+source_sha: "9106112f767a"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -221,9 +221,11 @@ na błędzie i trzeba go uruchomić ponownie. Run nie jest wznawiany.
 Worker może też umrzeć bez słowa. Worker działającego runu co
 `EVAL_HEARTBEAT_SECONDS` daje znać, że żyje; run, którego worker milczy i którego
 przypadki nie ruszyły się przez `EVAL_ABANDONED_AFTER_MINUTES`, kończy się błędem
-w sweepie, który worker uruchamia co minutę i który zwalnia też jego miejsca. Run
-w kolejce nie ma jeszcze workera - czeka na wolny runner - więc sweep rezygnuje z
-niego dopiero po `EVAL_QUEUED_ABANDONED_AFTER_HOURS`.
+w sweepie, który worker uruchamia co minutę i który zwalnia też jego miejsca.
+Worker, któremu heartbeaty padają tak długo - na maszynie zbyt obciążonej, by
+sięgnąć bazy - kończy się tak samo, choć jeszcze pracuje, i run trzeba uruchomić
+ponownie. Run w kolejce nie ma jeszcze workera - czeka na wolny runner - więc
+sweep rezygnuje z niego dopiero po `EVAL_QUEUED_ABANDONED_AFTER_HOURS`.
 
 Dopóki run czeka w kolejce albo działa, nie da się usunąć środowiska, które
 wskazuje, ani profilu modelu, na którym działa któraś z jego stron: pozostałe

@@ -1,5 +1,5 @@
 ---
-source_sha: "4d6929b9cea5"
+source_sha: "9106112f767a"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -236,7 +236,10 @@ Ein Worker kann auch kommentarlos sterben. Der Worker eines laufenden Runs melde
 alle `EVAL_HEARTBEAT_SECONDS`, dass er lebt; ein Run, dessen Worker schweigt und
 dessen Fälle sich `EVAL_ABANDONED_AFTER_MINUTES` lang nicht bewegt haben, wird
 von einem Sweep, den der Worker jede Minute ausführt, als fehlgeschlagen beendet,
-der auch seine Plätze freigibt. Ein Run in der Warteschlange hat noch keinen
+der auch seine Plätze freigibt. Ein Worker, dessen Heartbeats so lange
+fehlschlagen - auf einem Host, der zu ausgelastet ist, um seine Datenbank zu
+erreichen -, wird ebenso beendet, obwohl er noch arbeitet, und sein Run muss neu
+gestartet werden. Ein Run in der Warteschlange hat noch keinen
 Worker - er wartet auf einen freien Runner - daher gibt der Sweep ihn erst nach
 `EVAL_QUEUED_ABANDONED_AFTER_HOURS` auf.
 
