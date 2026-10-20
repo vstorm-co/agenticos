@@ -188,6 +188,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Dropping files onto a knowledge base or a project uploads them in Firefox.**
+  Firefox delivers some drag events with no `dataTransfer`; the drop zone read
+  its types, threw, and never accepted the drop.
 - **`/onboarding` renders instead of failing.** The page called the client-side
   branding hook from a server component, a 500, and handed the empty state its
   icon across the server boundary, which ended in the error boundary.
