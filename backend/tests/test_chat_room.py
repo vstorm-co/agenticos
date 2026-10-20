@@ -196,10 +196,24 @@ class TestWhatTheRoomHears:
             {"type": chat_room.TURN_BEGUN, "by": str(anna)},
         ]
 
-    async def test_a_publish_that_fails_is_swallowed(self, store: _Store) -> None:
-        with patch.object(store, "publish", side_effect=ConnectionError("gone")):
+    async def test_a_publish_that_fails_is_swallowed_and_said(self, store: _Store) -> None:
+        """A `turn_begun` that never went out is teammates who never follow the
+        answer: not raised, but logged rather than lost without a trace."""
+        with (
+            patch.object(store, "publish", side_effect=ConnectionError("gone")),
+            patch.object(chat_room.redis_view, "failed") as failed,
+        ):
             await chat_room.turn_begun(ROOM, uuid4())
         assert store.published == []
+        assert failed.call_args.args[1] == "chat_room_announce_failed"
+
+    async def test_a_leave_that_fails_is_swallowed_and_said(self, store: _Store) -> None:
+        with (
+            patch.object(store, "hdel", side_effect=ConnectionError("gone")),
+            patch.object(chat_room.redis_view, "failed") as failed,
+        ):
+            await chat_room.leave(ROOM, uuid4(), "tab")
+        assert failed.call_args_list[0].args[1] == "chat_room_leave_failed"
 
     async def test_a_room_redis_will_not_subscribe_to_says_so(self, store: _Store) -> None:
         """Ended quietly, it read as a room with nothing more to say, and the socket

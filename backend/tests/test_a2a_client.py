@@ -12,9 +12,12 @@ import socket
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
+import anyio
+import anyio.lowlevel
 import httpx2
 import pytest
 from pydantic_ai.messages import (
+    ModelMessage,
     ModelRequest,
     ModelResponse,
     SystemPromptPart,
@@ -24,7 +27,7 @@ from pydantic_ai.messages import (
 )
 
 from app.agents import a2a_delegate as delegate_module
-from app.agents.a2a_delegate import a2a_delegate, latest_prompt
+from app.agents.a2a_delegate import a2a_delegate, latest_prompt, thread_of
 from app.services import a2a_client
 from app.services.a2a_client import A2AClientError, card_address, fetch_card, send_message
 
@@ -229,6 +232,28 @@ class TestSendingAMessage:
         )
         assert (reply.text, reply.context_id) == ("Done.", "ctx-9")
 
+    async def test_a_data_or_file_part_is_named_rather_than_dropped(self) -> None:
+        """An answer that was all data used to read as an agent that said nothing."""
+        task = _task("completed")
+        task["artifacts"] = [
+            {
+                "artifactId": "a",
+                "parts": [
+                    {"kind": "text", "text": "Here it is."},
+                    {"kind": "data", "data": {"total": 42}},
+                    {"kind": "file", "file": {"uri": "https://example.com/r.pdf"}},
+                ],
+            }
+        ]
+        reply = await send_message(
+            CARD["url"], "Hi", context_id=None, bearer=None, transport=_wire(_rpc(task))
+        )
+        assert reply.text == (
+            "Here it is.\n\n"
+            "[The agent sent a data part, which is not shown here.]\n\n"
+            "[The agent sent a file part, which is not shown here.]"
+        )
+
     @pytest.mark.parametrize(
         ("state", "says"),
         [
@@ -406,7 +431,7 @@ class TestDelegatingToARemoteAgent:
         ):
             agent = a2a_delegate(handle="reviewer", endpoint=CARD["url"], bearer="tok")()
             first = await agent.run("Review the contract")
-            second = await agent.run("And clause 9?")
+            second = await agent.run("And clause 9?", message_history=first.all_messages())
 
         assert first.output == "First answer"
         assert second.output == "(The remote agent sent no text.)"
@@ -437,10 +462,54 @@ class TestDelegatingToARemoteAgent:
             patch.object(delegate_module, "record_ambient_usage"),
         ):
             agent = a2a_delegate(handle="reviewer", endpoint=CARD["url"], bearer=None)()
+            history: list[ModelMessage] = []
             for prompt in ("Review it", "contract.pdf", "Now clause 9"):
-                await agent.run(prompt)
+                history = (await agent.run(prompt, message_history=history)).all_messages()
 
         assert [call.kwargs["task_id"] for call in sent.await_args_list] == [None, "t-1", None]
+
+    async def test_parallel_delegations_each_keep_their_own_remote_conversation(self) -> None:
+        """One delegate serves every call a run makes to it, so two `task` calls in
+        one model response ran on one shared context and raced on it."""
+
+        async def remote(endpoint: str, prompt: str, **kwargs: Any) -> a2a_client.A2AReply:
+            topic = prompt.split()[-1]
+            # Both first calls are in flight before either answers.
+            await anyio.lowlevel.checkpoint()
+            return a2a_client.A2AReply(
+                text=f"On {topic}",
+                context_id=kwargs["context_id"] or f"ctx-{topic}",
+                state="completed",
+            )
+
+        sent = AsyncMock(side_effect=remote)
+        with (
+            patch.object(delegate_module, "send_message", sent),
+            patch.object(delegate_module, "assert_ambient_budget", AsyncMock()),
+            patch.object(delegate_module, "record_ambient_usage"),
+        ):
+            agent = a2a_delegate(handle="reviewer", endpoint=CARD["url"], bearer=None)()
+            firsts: dict[str, list[ModelMessage]] = {}
+
+            async def delegate(topic: str) -> None:
+                firsts[topic] = (await agent.run(f"Review {topic}")).all_messages()
+
+            async with anyio.create_task_group() as group:
+                group.start_soon(delegate, "lease")
+                group.start_soon(delegate, "invoice")
+            await agent.run("More on lease", message_history=firsts["lease"])
+            await agent.run("More on invoice", message_history=firsts["invoice"])
+
+        contexts = {call.args[1]: call.kwargs["context_id"] for call in sent.await_args_list}
+        assert contexts == {
+            "Review lease": None,
+            "Review invoice": None,
+            "More on lease": "ctx-lease",
+            "More on invoice": "ctx-invoice",
+        }
+
+    def test_a_history_without_a_conversation_is_no_thread(self) -> None:
+        assert thread_of([ModelRequest(parts=[UserPromptPart("x")])]) is None
 
     async def test_a_remote_agent_that_fails_is_an_answer_and_still_booked(self) -> None:
         with (

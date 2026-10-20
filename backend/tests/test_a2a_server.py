@@ -147,11 +147,13 @@ class TestWhoMaySendATask:
         with pytest.raises(NotFoundError):
             await _ask(_Served(_agent(organization_id=uuid.uuid4())), _send())
 
-    async def test_a_caller_not_allowed_to_run_it_gets_an_error_not_a_run(self) -> None:
+    async def test_a_key_not_allowed_to_run_it_is_refused_by_http_not_json_rpc(self) -> None:
+        """A2A leaves who may call to the transport: a 403 a client reads as a
+        refused credential, not `-32600`, which says the request was malformed."""
         served = _Served(_agent())
         served.runner.execute.side_effect = AuthorizationError(message="No run permission")
-        answer = await _ask(served, _send())
-        assert answer["error"]["message"] == "No run permission"
+        with pytest.raises(AuthorizationError):
+            await _ask(served, _send())
 
 
 class TestSendingATask:
@@ -220,9 +222,52 @@ class TestSendingATask:
     async def test_a_run_refused_for_access_leaves_no_thread_either(self) -> None:
         served = _Served(_agent())
         served.runner.execute.side_effect = AuthorizationError(message="Not yours")
-        answer = await _ask(served, _send())
-        assert answer["error"]["message"] == "Not yours"
+        with pytest.raises(AuthorizationError):
+            await _ask(served, _send())
         served.conversations.delete_conversation.assert_awaited_once()
+
+    async def test_a_refusal_in_a_thread_already_going_is_raised_and_keeps_it(self) -> None:
+        served = _Served(_agent())
+        served.runner.execute.side_effect = AuthorizationError(message="Not yours")
+        with pytest.raises(AuthorizationError):
+            await _ask(served, _send(contextId=str(uuid.uuid4())))
+        served.conversations.delete_conversation.assert_not_awaited()
+
+    async def test_a_context_that_is_not_an_api_conversation_is_a_bad_parameter(self) -> None:
+        """Refused by `for_api_run` as begun in the console: still a JSON-RPC answer,
+        not an HTTP 400 a client reads as the agent being unreachable."""
+        served = _Served(_agent())
+        served.conversations.for_api_run.side_effect = BadRequestError(
+            message="That conversation was not started through the API"
+        )
+        answer = await _ask(served, _send(contextId=str(uuid.uuid4())))
+        assert answer["error"] == {
+            "code": -32602,
+            "message": "That conversation was not started through the API",
+        }
+
+    async def test_a_context_naming_no_conversation_is_a_bad_parameter(self) -> None:
+        served = _Served(_agent())
+        served.conversations.for_api_run.side_effect = NotFoundError(message="No conversation")
+        answer = await _ask(served, _send(contextId=str(uuid.uuid4())))
+        assert answer["error"]["code"] == -32602
+        served.runner.execute.assert_not_awaited()
+
+    @pytest.mark.parametrize("kind", ["data", "file"])
+    async def test_a_part_that_is_not_text_is_refused_as_content_it_cannot_read(
+        self, kind: str
+    ) -> None:
+        """Run on its text alone, the question would be answered without the
+        file or the data it came with."""
+        served = _Served(_agent())
+        body = _send()
+        body["params"]["message"]["parts"].append({"kind": kind, "data": {"x": 1}})
+
+        answer = await _ask(served, body)
+
+        assert answer["error"]["code"] == -32005
+        assert kind in answer["error"]["message"]
+        served.runner.execute.assert_not_awaited()
 
     async def test_a_refusal_in_a_thread_already_going_keeps_the_thread(self) -> None:
         served = _Served(_agent())
@@ -254,9 +299,9 @@ class TestWhoMayRunIt:
         served = _Served(_agent())
         served.registry.get.side_effect = NotFoundError(message="Agent not found")
 
-        answer = await _ask(served, _send())
+        with pytest.raises(NotFoundError):
+            await _ask(served, _send())
 
-        assert answer["error"]["code"] == -32600
         served.conversations.for_api_run.assert_not_awaited()
         served.runner.execute.assert_not_awaited()
 
@@ -338,6 +383,9 @@ class TestReadingATask:
 
     async def test_a_task_needs_an_id(self) -> None:
         assert (await _ask(_Served(_agent()), self._get(None)))["error"]["code"] == -32602
+
+    async def test_an_id_this_server_never_issued_is_an_unknown_task(self) -> None:
+        assert (await _ask(_Served(_agent()), self._get("t-1")))["error"]["code"] == -32001
 
 
 class TestWhatIsNotOffered:

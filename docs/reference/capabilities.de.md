@@ -1,5 +1,5 @@
 ---
-source_sha: "eeee8d7347a9"
+source_sha: "f543bfd2c9bb"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1708,11 +1708,16 @@ Credential gehört in den Vault.
 Für das delegierende Modell ist ein Remote Agent ein weiterer Delegierter, über
 seinen Namen mit demselben Tool `task` aufgerufen. Jeder Aufruf ist ein A2A
 `message/send` mit der jüngsten Anfrage, und die `contextId` des Remote Agent wird
-innerhalb des Runs von Aufruf zu Aufruf weitergegeben. Eine Antwort
-`input-required` oder `auth-required` kommt als Text zurück, der das sagt, denn ein
-Delegierter, der auf seinen eigenen Nutzer wartet, ist eine Antwort, die das Modell
-lesen muss. Ein unerreichbarer Remote Agent antwortet genau damit, und der Run geht
-weiter.
+innerhalb derselben Delegation von Aufruf zu Aufruf weitergegeben: Eine Rückfrage zu
+einer Aufgabe setzt deren entferntes Gespräch fort, und zwei gleichzeitig gesendete
+Aufgaben haben jeweils ein eigenes.
+
+Eine Antwort `input-required` oder
+`auth-required` kommt als Text zurück, der das sagt, denn ein Delegierter, der auf
+seinen eigenen Nutzer wartet, ist eine Antwort, die das Modell lesen muss. Ein
+Daten- oder Dateiteil einer Antwort wird nicht gelesen und erscheint als Zeile, die
+sagt, dass einer gesendet wurde. Ein unerreichbarer Remote Agent antwortet genau
+damit, und der Run geht weiter.
 
 Das Budget wird vor jedem Aufruf geprüft. Was ein Aufruf kostet, bepreist der
 entfernte Anbieter, und niemand veröffentlicht es, daher wird jeder Aufruf ohne

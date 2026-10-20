@@ -11,10 +11,13 @@ than finding it on their next reload.
 Redis rather than the process, for the reason `live_turn` gives: the people in one
 room are on whichever API instances the load balancer gave them. Presence expires
 on its own, so a socket that died without leaving drops out within `PRESENCE_TTL`.
+Each call is bounded and its failures logged once a while, as `redis_view` says;
+the subscription itself is open-ended, since a quiet room is not a failing one.
 """
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import json
 import logging
@@ -24,6 +27,7 @@ from typing import Any
 from uuid import UUID
 
 from app.clients.redis import RedisClient
+from app.services import redis_view
 
 logger = logging.getLogger(__name__)
 
@@ -63,12 +67,13 @@ async def join(conversation_id: str, user_id: UUID, socket: str) -> None:
     if _redis is None:
         return
     try:
-        pipe = _redis.raw.pipeline()
-        pipe.hset(_here(conversation_id), _entry(user_id, socket), str(time.time()))
-        pipe.expire(_here(conversation_id), PRESENCE_TTL * 4)
-        await pipe.execute()
-    except Exception:
-        logger.exception("chat_room_join_failed")
+        async with asyncio.timeout(redis_view.TIMEOUT_SECONDS):
+            pipe = _redis.raw.pipeline()
+            pipe.hset(_here(conversation_id), _entry(user_id, socket), str(time.time()))
+            pipe.expire(_here(conversation_id), PRESENCE_TTL * 4)
+            await pipe.execute()
+    except Exception as error:
+        redis_view.failed(logger, "chat_room_join_failed", error)
         return
     await _announce(conversation_id, PRESENCE)
 
@@ -80,8 +85,11 @@ async def leave(conversation_id: str, user_id: UUID, socket: str) -> None:
     """
     if _redis is None:
         return
-    with contextlib.suppress(Exception):
-        await _redis.raw.hdel(_here(conversation_id), _entry(user_id, socket))
+    try:
+        async with asyncio.timeout(redis_view.TIMEOUT_SECONDS):
+            await _redis.raw.hdel(_here(conversation_id), _entry(user_id, socket))
+    except Exception as error:
+        redis_view.failed(logger, "chat_room_leave_failed", error)
     await _announce(conversation_id, PRESENCE)
 
 
@@ -93,9 +101,10 @@ async def present(conversation_id: str) -> list[UUID]:
     if _redis is None:
         return []
     try:
-        seen = await _redis.hash_all(_here(conversation_id))
-    except Exception:
-        logger.exception("chat_room_presence_failed")
+        async with asyncio.timeout(redis_view.TIMEOUT_SECONDS):
+            seen = await _redis.hash_all(_here(conversation_id))
+    except Exception as error:
+        redis_view.failed(logger, "chat_room_presence_failed", error)
         return []
     return _people(seen)
 
@@ -109,12 +118,13 @@ async def present_in(conversation_ids: Sequence[str]) -> dict[str, list[UUID]]:
     if _redis is None or not conversation_ids:
         return {}
     try:
-        pipe = _redis.raw.pipeline()
-        for conversation_id in conversation_ids:
-            pipe.hgetall(_here(conversation_id))
-        rooms = await pipe.execute()
-    except Exception:
-        logger.exception("chat_room_presence_failed")
+        async with asyncio.timeout(redis_view.TIMEOUT_SECONDS):
+            pipe = _redis.raw.pipeline()
+            for conversation_id in conversation_ids:
+                pipe.hgetall(_here(conversation_id))
+            rooms = await pipe.execute()
+    except Exception as error:
+        redis_view.failed(logger, "chat_room_presence_failed", error)
         return {}
     return {
         conversation_id: _people(seen)
@@ -150,8 +160,15 @@ async def typing(conversation_id: str, user_id: UUID) -> None:
 async def _announce(conversation_id: str, kind: str, **fields: Any) -> None:
     if _redis is None:
         return
-    with contextlib.suppress(Exception):
-        await _redis.raw.publish(_channel(conversation_id), json.dumps({"type": kind, **fields}))
+    try:
+        async with asyncio.timeout(redis_view.TIMEOUT_SECONDS):
+            await _redis.raw.publish(
+                _channel(conversation_id), json.dumps({"type": kind, **fields})
+            )
+    except Exception as error:
+        # Lost, and said so: a `turn_begun` that never went out is teammates
+        # who never start following the answer.
+        redis_view.failed(logger, "chat_room_announce_failed", error)
 
 
 async def events(conversation_id: str) -> AsyncGenerator[dict[str, Any]]:
@@ -160,12 +177,12 @@ async def events(conversation_id: str) -> AsyncGenerator[dict[str, Any]]:
         return
     pubsub = _redis.raw.pubsub(ignore_subscribe_messages=True)
     try:
-        await pubsub.subscribe(_channel(conversation_id))
+        async with asyncio.timeout(redis_view.TIMEOUT_SECONDS):
+            await pubsub.subscribe(_channel(conversation_id))
     except Exception:
         # Raised, not swallowed: ending quietly read as the room having nothing
         # more to say, and the socket stopped listening for good. The listener
-        # retries a failure - see `AgentSession._in_room`.
-        logger.exception("chat_room_subscribe_failed")
+        # retries a failure, and logs it - see `AgentSession._in_room`.
         await pubsub.aclose()
         raise
     try:

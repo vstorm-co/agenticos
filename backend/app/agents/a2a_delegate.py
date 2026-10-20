@@ -4,7 +4,9 @@ The delegation library runs a delegate as a Pydantic AI agent, so a remote agent
 is given one: an agent whose "model" is the remote agent itself. Each request the
 library makes becomes one `message/send` - the latest thing it was asked - and the
 answer comes back as the model's text. The conversation is kept on the remote side
-by A2A's `contextId`, carried from one call to the next within the run.
+by A2A's `contextId`, carried from one call to the next of the same delegation
+thread - not of the run: one delegate serves every call the run makes to it, and
+two delegations in one model response sharing one context raced on it.
 
 What a call costs is the remote vendor's to price, and nothing publishes that
 price, so each call is booked to the run's ledger as unpriced: the run says its
@@ -15,6 +17,7 @@ is checked before every call, as before every model request.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Callable
+from dataclasses import dataclass
 from typing import Any
 
 from pydantic_ai import Agent as PydanticAgent
@@ -51,25 +54,48 @@ def latest_prompt(messages: list[ModelMessage]) -> str:
     return ""
 
 
+@dataclass
+class _Remote:
+    """One delegation thread's remote conversation, and its task still waiting on input."""
+
+    context: str | None = None
+    task: str | None = None
+
+
+def thread_of(messages: list[ModelMessage]) -> str | None:
+    """Which delegation thread these messages are, by Pydantic AI's conversation id.
+
+    Every run of the delegate gets one, and a thread continued from its history
+    keeps it - so a second `task` beside the first gets its own, and a follow-up
+    to the first finds the first's.
+    """
+    for message in reversed(messages):
+        if message.conversation_id is not None:
+            return message.conversation_id
+    return None
+
+
 def a2a_delegate(
     *, handle: str, endpoint: str, bearer: str | None
 ) -> Callable[[], PydanticAgent[Any, str]]:
     """A builder for one remote agent's delegate. See the module docstring."""
 
     def build() -> PydanticAgent[Any, str]:
-        # The remote conversation, and the task in it still waiting on input -
-        # continued by the next message rather than left behind a new one.
-        conversation: dict[str, str | None] = {"context": None, "task": None}
+        # Each thread's remote conversation, and the task in it still waiting on
+        # input - continued by the thread's next message rather than left behind
+        # a new one.
+        threads: dict[str | None, _Remote] = {}
 
         async def reply_text(messages: list[ModelMessage]) -> str:
             prompt = latest_prompt(messages)
+            remote = threads.setdefault(thread_of(messages), _Remote())
             await assert_ambient_budget()
             try:
                 reply = await send_message(
                     endpoint,
                     prompt,
-                    context_id=conversation["context"],
-                    task_id=conversation["task"],
+                    context_id=remote.context,
+                    task_id=remote.task,
                     bearer=bearer,
                 )
             except A2AClientError as failed:
@@ -81,8 +107,8 @@ def a2a_delegate(
                 # back malformed may still have been worked on, and the unpriced
                 # entry is what says the run's cost is a floor.
                 record_ambient_usage(f"{PROVIDER}:{handle}", RequestUsage(), provider=PROVIDER)
-            conversation["context"] = reply.context_id or conversation["context"]
-            conversation["task"] = reply.task_id if reply.state in _CONTINUED else None
+            remote.context = reply.context_id or remote.context
+            remote.task = reply.task_id if reply.state in _CONTINUED else None
             return reply.text or "(The remote agent sent no text.)"
 
         async def answer(messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
