@@ -286,6 +286,8 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
   list_tables: { kind: "list", render: "generic", captionKey: "tablesListing" },
   table_exists: { kind: "read", render: "generic", captionKey: "tablesChecking" },
   describe_table: { kind: "read", render: "generic", captionKey: "tablesDescribing" },
+  list_views: { kind: "list", render: "generic", captionKey: "viewsListing" },
+  share_view: { kind: "edit", render: "generic", captionKey: "viewsSharing" },
   create_table: { kind: "write", render: "generic", captionKey: "tablesCreating" },
   record_exists: { kind: "read", render: "generic", captionKey: "recordsChecking" },
   list_records: { kind: "list", render: "generic", captionKey: "recordsListing" },

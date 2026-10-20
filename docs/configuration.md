@@ -718,6 +718,12 @@ Set it in the backend's environment and in the frontend's; the compose files
 pass it to both. A value in only one of them shows an empty frame, because the
 browser refuses to load the page from an origin the console did not allow.
 
+**With `ARTIFACT_ORIGIN` empty, the frontend's `PUBLIC_API_URL` must equal the
+backend's `PUBLIC_BASE_URL` exactly, path included.** The backend then signs
+content addresses on `PUBLIC_BASE_URL`, and the console's `frame-src` names the
+content route under `PUBLIC_API_URL`, so `https://example.com/agenticos` on one
+side and `https://example.com` on the other is the same empty frame.
+
 ## Agent workspaces
 
 The `state` workspace needs nothing here. It is stored in this database, works on

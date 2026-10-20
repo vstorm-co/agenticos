@@ -17,15 +17,18 @@ Concurrency rests on three database facts rather than on checks made in Python:
 
 import csv
 import io
+import json
 import re
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import TypeAdapter
 from pydantic import ValidationError as PydanticValidationError
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.audience import for_no_person
 from app.core.exceptions import (
     AlreadyExistsError,
     AppException,
@@ -62,7 +65,14 @@ from app.schemas.virtual_table import (
 from app.services.access import TABLE, resolve_access
 from app.services.virtual_tables import quotas
 from app.services.virtual_tables._base import Operations
-from app.services.virtual_tables.computed import read_through
+from app.services.virtual_tables.computed import (
+    LinkedTable,
+    linked_cell_keys,
+    linked_table_access,
+    reach,
+    read_through,
+)
+from app.services.virtual_tables.deadline import ReadDeadline
 from app.services.virtual_tables.exceptions import (
     ArchivedColumnError,
     InvalidQueryError,
@@ -72,6 +82,7 @@ from app.services.virtual_tables.exceptions import (
     RevisionRequiredError,
 )
 from app.services.virtual_tables.receipts import DeleteOutcome, WriteOutcome, run_once
+from app.services.virtual_tables.table_views import BoundView
 from app.services.virtual_tables.types import (
     COLUMN_TYPES,
     OPTION_TYPES,
@@ -203,11 +214,17 @@ def _changed_cells(
     }
 
 
-def _causation() -> dict[str, str]:
+def _causation() -> dict[str, str | bool]:
     """The workflow run whose step is writing, when one is - the chain a table
-    trigger's run joins, so a trigger that would start itself again is refused."""
+    trigger's run joins, so a trigger that would start itself again is refused -
+    and whether the run writing has no person, which the run it starts inherits."""
     dispatching = workflow_context.active()
-    return {} if dispatching is None else {"causation_run_id": str(dispatching.workflow_run_id)}
+    causation: dict[str, str | bool] = (
+        {} if dispatching is None else {"causation_run_id": str(dispatching.workflow_run_id)}
+    )
+    if for_no_person():
+        causation["public_origin"] = True
+    return causation
 
 
 def _filters(columns: list[ColumnDef], filters: list[RecordFilter]) -> list[FilterClause]:
@@ -326,10 +343,177 @@ def _cell_text(column: ColumnDef, value: CellValue) -> str:
     return f"'{text}" if _FORMULA.match(text) else text
 
 
+BOUND_CHUNK = 200
+"""Records a page binding measures the links of, and loads, at a time."""
+
+
+@dataclass(frozen=True)
+class BoundRows:
+    """A view's records as a page binding reads them, within its record and byte limits."""
+
+    records: list[dict[str, Any]]
+    """Each record as the caller's `shape` made it, in the view's order."""
+    sizes: list[int]
+    """The bytes of each shaped record, as compact JSON."""
+    bytes: int
+    """`sum(sizes)`."""
+    columns: list[ColumnDef]
+    """The table's columns as read, archived ones included."""
+    stopped_by: Literal["records", "bytes"] | None
+    """Which limit left records out, or `None` when the view's every record is here."""
+
+
+def _referenced(values: Mapping[str, Any], links: Mapping[UUID, UUID]) -> dict[UUID, set[UUID]]:
+    """The linked records a record's link cells name, by linked table."""
+    referenced: dict[UUID, set[UUID]] = {}
+    for column_id, table_id in links.items():
+        named = referenced.setdefault(table_id, set())
+        named.update(UUID(record_id) for record_id in values.get(str(column_id)) or [])
+    return referenced
+
+
+def _shaped_size(shaped: dict[str, Any]) -> int:
+    return len(json.dumps(shaped, separators=(",", ":"), ensure_ascii=False).encode())
+
+
 def _failure(index: int, refused: AppException) -> RecordBatchFailure:
     return RecordBatchFailure(
         index=index, code=refused.code, message=refused.message, details=refused.details
     )
+
+
+class _BoundWalk:
+    """What `read_bound` knows of the linked records as it walks a view's records.
+
+    Holds the link cells of one chunk at a time and the measured size of every linked
+    record it has seen - ids and integers, never a linked record's cells.
+    """
+
+    def __init__(
+        self,
+        db: AsyncSession,
+        ctx: AuthContext,
+        bound: BoundView,
+        *,
+        tables: Mapping[UUID, LinkedTable],
+        targets: Mapping[UUID, frozenset[UUID]],
+        reached: frozenset[UUID],
+        deadline: ReadDeadline,
+    ) -> None:
+        self._db = db
+        self._ctx = ctx
+        self._table_id = bound.table_id
+        self._tables = tables
+        self._targets = targets
+        self._deadline = deadline
+        self._links: dict[UUID, UUID] = {
+            column.id: linked_table
+            for column in bound.columns
+            if (linked_table := column.link_table_id) is not None
+            and linked_table in tables
+            and column.id in reached
+            and column.type == "link"
+            and not column.archived
+        }
+        self._sizes: dict[UUID, dict[UUID, int]] = {table_id: {} for table_id in tables}
+        self._counted: dict[UUID, set[UUID]] = {table_id: set() for table_id in tables}
+        self._referenced: dict[UUID, dict[UUID, set[UUID]]] = {}
+
+    async def fitting(
+        self, chunk: Sequence[tuple[UUID, int]], *, room: int
+    ) -> tuple[list[UUID], int]:
+        """The longest prefix of `chunk` whose own sizes, and those of the linked records
+        it newly names, fit in `room` bytes, and what that prefix measures."""
+        await self._measure_links([record_id for record_id, _size in chunk])
+        fitting: list[UUID] = []
+        spent = 0
+        newly: dict[UUID, set[UUID]] = {table_id: set() for table_id in self._tables}
+        for record_id, own in chunk:
+            fresh = {
+                table_id: ids - self._counted[table_id] - newly[table_id]
+                for table_id, ids in self._referenced.get(record_id, {}).items()
+            }
+            cost = own + sum(
+                self._sizes[table_id].get(linked_id, 0)
+                for table_id, ids in fresh.items()
+                for linked_id in ids
+            )
+            if spent + cost > room:
+                break
+            spent += cost
+            fitting.append(record_id)
+            for table_id, ids in fresh.items():
+                newly[table_id] |= ids
+        return fitting, spent
+
+    async def load(self, record_ids: list[UUID], *, keys: Sequence[str]) -> list[RecordRead]:
+        """These records with only the cells under `keys`, in the order given."""
+        await self._deadline.arm(self._db)
+        cells = await virtual_table_repo.get_record_cells_by_ids(
+            self._db,
+            record_ids,
+            table_id=self._table_id,
+            organization_id=self._ctx.organization_id,
+            keys=keys,
+        )
+        by_id = {cell.id: cell for cell in cells}
+        # A record deleted since the sizes were read is left out.
+        return [
+            RecordRead.model_validate(by_id[record_id])
+            for record_id in record_ids
+            if record_id in by_id
+        ]
+
+    def linked_ids(self, record_ids: Sequence[UUID]) -> dict[UUID, frozenset[UUID]]:
+        """The measured linked records `record_ids` name, by visible linked table."""
+        return {
+            table_id: frozenset(
+                linked_id
+                for record_id in record_ids
+                for linked_id in self._referenced.get(record_id, {}).get(table_id, ())
+            )
+            for table_id in self._tables
+        }
+
+    def count(self, record_ids: Sequence[UUID]) -> None:
+        """Mark the linked records `record_ids` name as paid for."""
+        for table_id, ids in self.linked_ids(record_ids).items():
+            self._counted[table_id] |= ids
+
+    async def _measure_links(self, record_ids: list[UUID]) -> None:
+        """Read the chunk's link cells, then measure the linked records not yet measured."""
+        self._referenced = {}
+        if not self._links:
+            return
+        await self._deadline.arm(self._db)
+        cells = await virtual_table_repo.get_record_cells_by_ids(
+            self._db,
+            record_ids,
+            table_id=self._table_id,
+            organization_id=self._ctx.organization_id,
+            keys=sorted(str(column_id) for column_id in self._links),
+        )
+        self._referenced = {cell.id: _referenced(cell.values, self._links) for cell in cells}
+        for table_id, linked in self._tables.items():
+            unmeasured = {
+                linked_id
+                for referenced in self._referenced.values()
+                for linked_id in referenced.get(table_id, ())
+            } - self._sizes[table_id].keys()
+            if not unmeasured:
+                continue
+            await self._deadline.arm(self._db)
+            found = await virtual_table_repo.get_record_sizes_by_ids(
+                self._db,
+                unmeasured,
+                table_id=table_id,
+                organization_id=self._ctx.organization_id,
+                keys=linked_cell_keys(linked, self._targets[table_id]),
+            )
+            # One deleted since costs nothing: it is not there to load.
+            self._sizes[table_id].update(
+                {linked_id: found.get(linked_id, 0) for linked_id in unmeasured}
+            )
 
 
 class RecordOperations(Operations):
@@ -401,6 +585,119 @@ class RecordOperations(Operations):
             skip=query.skip,
             limit=query.limit,
             has_more=len(rows) > query.limit,
+        )
+
+    async def read_bound(
+        self,
+        ctx: AuthContext,
+        bound: BoundView,
+        *,
+        column_ids: Sequence[UUID],
+        shape: Callable[[RecordRead], dict[str, Any]],
+        max_records: int,
+        max_bytes: int,
+        deadline: ReadDeadline,
+    ) -> BoundRows:
+        """A view's records for a page: the cells `column_ids` take, shaped, within the limits.
+
+        `bound` must come from `TableViewService.find_view` for this same `ctx`, in this
+        transaction: that is where the view and its table are checked, so they are not
+        checked again here. Linked tables are checked as `ctx`, once each.
+
+        Nothing past a limit is loaded. The view's query runs once and returns only each
+        record's id and the size of the cells it takes. Records are then loaded
+        `BOUND_CHUNK` at a time, as many as those sizes, and the sizes of the linked
+        records they newly name, say fit what is left of `max_bytes`; a linked record
+        counted once is free for later records, and one in a table `ctx` may not see is
+        neither counted nor read. Whether a record is served is decided on its shaped
+        size. Every statement is armed with `deadline` first.
+
+        Raises:
+            InvalidQueryError: The view's filters or sort no longer fit the table.
+            DeadlineReached: The deadline left too little time for the next statement.
+        """
+        query = RecordQuery(
+            filters=bound.config.filters, sort=bound.config.sort, search=bound.config.search
+        )
+        filters, sort = _clauses(bound.columns, query)
+        reached = reach(bound.columns, column_ids)
+        keys = sorted(str(column_id) for column_id in reached.columns)
+        await deadline.arm(self.db)
+        measured = await virtual_table_repo.list_record_sizes(
+            self.db,
+            table_id=bound.table_id,
+            organization_id=ctx.organization_id,
+            filters=filters,
+            search=_search(bound.columns, query.search),
+            sort=sort,
+            limit=max_records + 1,
+            keys=keys,
+        )
+        tables: dict[UUID, LinkedTable | None] = {}
+        if measured:
+            for table_id in reached.linked:
+                tables[table_id] = await linked_table_access(
+                    self.db, ctx, table_id, deadline=deadline
+                )
+        walk = _BoundWalk(
+            self.db,
+            ctx,
+            bound,
+            tables={table_id: linked for table_id, linked in tables.items() if linked is not None},
+            targets=reached.linked,
+            reached=reached.columns,
+            deadline=deadline,
+        )
+        records: list[dict[str, Any]] = []
+        sizes: list[int] = []
+        used = 0
+        # What the records loaded so far measured, linked records included. A linked
+        # record shapes to a label or one rollup value, far smaller than what was read
+        # to make it, so the room left is charged by this as well as by the shaped bytes:
+        # the linked records counted so far are the only ones a later chunk reloads, so
+        # no one load holds more than `max_bytes`.
+        spent = 0
+        stopped_by: Literal["records", "bytes"] | None = None
+        serving = measured[:max_records]
+        for start in range(0, len(serving), BOUND_CHUNK):
+            chunk = serving[start : start + BOUND_CHUNK]
+            fitting, cost = await walk.fitting(chunk, room=max_bytes - max(used, spent))
+            spent += cost
+            if fitting:
+                cells = await walk.load(fitting, keys=keys)
+                read = await read_through(
+                    self.db,
+                    ctx,
+                    bound.columns,
+                    cells,
+                    linked_keys=reached.linked,
+                    linked_ids=walk.linked_ids(fitting),
+                    linked_tables=tables,
+                    deadline=deadline,
+                )
+                for record in read:
+                    shaped = shape(record)
+                    size = _shaped_size(shaped)
+                    if used + size > max_bytes:
+                        stopped_by = "bytes"
+                        break
+                    records.append(shaped)
+                    sizes.append(size)
+                    used += size
+                walk.count(fitting)
+            if len(fitting) < len(chunk):
+                # The rest did not fit by its measured size, so it is never loaded.
+                stopped_by = "bytes"
+            if stopped_by is not None:
+                break
+        if stopped_by is None and len(measured) > max_records:
+            stopped_by = "records"
+        return BoundRows(
+            records=records,
+            sizes=sizes,
+            bytes=used,
+            columns=bound.columns,
+            stopped_by=stopped_by,
         )
 
     async def count_records(

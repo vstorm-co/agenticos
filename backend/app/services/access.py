@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import AuthContext, OrgRoleName, Perm, Scope
 from app.db.models.resource_grant import GRANT_ORDER, GrantLevel, Visibility
-from app.repositories import member_repo, resource_grant_repo
+from app.repositories import member_repo, resource_grant_repo, user_repo
 
 
 class OwnedResource(Protocol):
@@ -244,6 +244,29 @@ async def visible_resource_ids(
         subject_user_id=subject,
         resource_type=resource_type.key,
         minimum_level=required,
+    )
+
+
+async def member_context(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID
+) -> AuthContext | None:
+    """`user_id` as the member they are now, or `None` when they are not an active one.
+
+    For a run acting for a member: what it does in the organization is done with the
+    role they hold at the moment of the call, not the one they held when the run
+    began, so someone removed or deactivated mid-conversation stops acting through it
+    at once. Read through `member_repo.get_active` for the reason `publisher_context`
+    gives. Unlike that function this never stands anyone in: no member, no context.
+    """
+    member = await member_repo.get_active(db, organization_id=organization_id, user_id=user_id)
+    user = await user_repo.get_by_id(db, user_id) if member is not None else None
+    if member is None or user is None:
+        return None
+    return AuthContext(
+        user_id=user_id,
+        organization_id=organization_id,
+        role=member.role,
+        is_app_admin=user.is_app_admin,
     )
 
 

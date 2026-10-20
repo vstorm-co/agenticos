@@ -1643,6 +1643,11 @@ class AgentTriggerService:
                 surface=RunSurface.SCHEDULE,
                 conversation_id=conversation_id,
                 environment_id=trigger.environment_id,
+                # A delivery was written by whoever opened the issue or sent the
+                # email, not by the creator the run executes as, so nobody is
+                # behind it. A schedule and "Run now" fire with no event context
+                # and stay the creator's own.
+                public_origin=event_context is not None,
             )
         except (NotFoundError, AuthorizationError):
             # Access was withdrawn between the pre-check and the run. Same verdict:

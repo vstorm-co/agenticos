@@ -19,6 +19,7 @@ dropped whenever the view is read.
 """
 
 from contextlib import suppress
+from dataclasses import dataclass
 from typing import cast
 from uuid import UUID
 
@@ -30,7 +31,7 @@ from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.table_view import TableView
 from app.db.models.virtual_table import VirtualTable
 from app.db.updates import writable
-from app.repositories import table_view_repo
+from app.repositories import table_view_repo, virtual_table_repo
 from app.schemas.table_view import (
     TableViewConfig,
     TableViewCreate,
@@ -40,9 +41,10 @@ from app.schemas.table_view import (
     ViewKind,
     ViewVisibility,
 )
-from app.schemas.virtual_table import RecordSort
+from app.schemas.virtual_table import ColumnDef, RecordSort
 from app.services.access import TABLE, resolve_access
 from app.services.virtual_tables._base import Operations
+from app.services.virtual_tables.deadline import ReadDeadline, arm_if_set
 from app.services.virtual_tables.dependencies import Dependent, register_dependency_checker
 
 
@@ -145,6 +147,24 @@ def _live_config(view: TableView, live: set[UUID]) -> TableViewConfig:
         visible_columns=visible,
         group_by=config.group_by if config.group_by in live else None,
     )
+
+
+@dataclass(frozen=True)
+class BoundView:
+    """A saved view as a page binding reads it: the view, its table's schema and its live config."""
+
+    view: TableView
+    table_id: UUID
+    columns: list[ColumnDef]
+    """The columns of the table's current schema version, archived ones included."""
+    config: TableViewConfig
+    """The view's config with every reference to a column that is no longer live dropped."""
+    filters_dropped: bool
+    """Whether a stored filter named a column that is no longer live, so the view now matches more."""
+
+
+def _view_not_found(view_id: UUID) -> NotFoundError:
+    return NotFoundError(message="View not found", details={"view_id": view_id})
 
 
 def _read(view: TableView, *, live: set[UUID], can_manage: bool, can_delete: bool) -> TableViewRead:
@@ -316,6 +336,83 @@ class TableViewOperations(Operations):
         view = await self._manageable_view(ctx, table_id, view_id)
         await table_view_repo.delete(self.db, view=view)
 
+    async def find_view(
+        self, ctx: AuthContext, view_id: UUID, *, deadline: ReadDeadline | None = None
+    ) -> BoundView:
+        """A view by id alone, if `ctx` may see its table and either owns it or it is shared.
+
+        What a page binding and an agent tool name a view by: the table is the view's
+        own, not the caller's to give. A missing view, another organization's, someone
+        else's private one and one on a table `ctx` may not reach all raise the same
+        `NotFoundError("View not found")`, naming only the view id, so no refusal says
+        a view or its table exists. Visibility is checked before archiving, so someone
+        else's private view on an archived table is not found rather than archived.
+        With a `deadline`, each of its statements is armed with it first.
+
+        Raises:
+            NotFoundError: The view is not one `ctx` may see.
+            TableArchivedError: The view is visible to `ctx`, and its table is archived.
+            DeadlineReached: Too little of `deadline` is left for the next statement.
+        """
+        await arm_if_set(self.db, deadline)
+        view = await table_view_repo.get(
+            self.db, organization_id=ctx.organization_id, view_id=view_id
+        )
+        if view is None:
+            raise _view_not_found(view_id)
+        try:
+            table = await self._load_table(ctx, view.table_id, Perm.TABLES_VIEW, deadline=deadline)
+        except NotFoundError:
+            # `from None`: the table's own 404 names the table, and chained it would
+            # travel with the view's wherever the error is logged or inspected.
+            raise _view_not_found(view_id) from None
+        if not self._visible_to(ctx, view):
+            raise _view_not_found(view_id)
+        self._ensure_live(table)
+        return await self._bound(view, table, deadline=deadline)
+
+    async def view_for_binding(self, organization_id: UUID, view_id: UUID) -> BoundView:
+        """A view's definition and its table's columns, without a person and never its rows.
+
+        The one method of this class with no `AuthContext`: it checks no visibility and
+        no table access, only that the view is in `organization_id` and its table is
+        not archived. Only the artifact bindings check calls it, to carry a stored
+        binding forward, to compare a requested binding with the stored one and to
+        re-check a stored binding's columns on restore - none of which reads a record.
+        Its caller must already hold `organization_id` from an authenticated context;
+        anything that serves a view's rows goes through `find_view` as the person.
+
+        Raises:
+            NotFoundError: No such view in `organization_id`.
+            TableArchivedError: Its table is archived.
+        """
+        view = await table_view_repo.get(self.db, organization_id=organization_id, view_id=view_id)
+        table = (
+            None
+            if view is None
+            else await virtual_table_repo.get_table(
+                self.db, view.table_id, organization_id=organization_id
+            )
+        )
+        if view is None or table is None:
+            raise _view_not_found(view_id)
+        self._ensure_live(table)
+        return await self._bound(view, table)
+
+    async def _bound(
+        self, view: TableView, table: VirtualTable, *, deadline: ReadDeadline | None = None
+    ) -> BoundView:
+        columns = await self._columns(table, deadline=deadline)
+        config = _live_config(view, {column.id for column in columns if not column.archived})
+        stored = TableViewConfig.model_validate(view.config)
+        return BoundView(
+            view=view,
+            table_id=table.id,
+            columns=columns,
+            config=config,
+            filters_dropped=len(stored.filters) > len(config.filters),
+        )
+
     async def _visible_view(self, ctx: AuthContext, table_id: UUID, view_id: UUID) -> TableView:
         view = await table_view_repo.get(
             self.db, organization_id=ctx.organization_id, view_id=view_id
@@ -323,7 +420,7 @@ class TableViewOperations(Operations):
         # A private view owned by someone else is not merely refused, it does not exist for this
         # caller: whether it exists is itself something only its owner or a shared view discloses.
         if view is None or view.table_id != table_id or not self._visible_to(ctx, view):
-            raise NotFoundError(message="View not found", details={"view_id": view_id})
+            raise _view_not_found(view_id)
         return view
 
     async def _manageable_view(self, ctx: AuthContext, table_id: UUID, view_id: UUID) -> TableView:
@@ -345,7 +442,7 @@ class TableViewOperations(Operations):
             self.db, organization_id=ctx.organization_id, view_id=view_id
         )
         if view is None or view.table_id != table_id or not _may_manage(ctx, view):
-            raise NotFoundError(message="View not found", details={"view_id": view_id})
+            raise _view_not_found(view_id)
         return view
 
     @staticmethod

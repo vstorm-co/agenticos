@@ -7,6 +7,13 @@ from redis import asyncio as aioredis
 
 from app.core.config import settings
 
+_DELETE_IF_EQUALS = """
+if redis.call("get", KEYS[1]) == ARGV[1] then
+  return redis.call("del", KEYS[1])
+end
+return 0
+"""
+
 
 class RedisClient:
     """Redis client wrapper for connection lifecycle management.
@@ -88,6 +95,18 @@ class RedisClient:
         if not self.client:
             raise RuntimeError("Redis client not connected")
         return await self.client.delete(key)  # type: ignore[no-any-return]
+
+    async def delete_if_equals(self, key: str, value: str) -> bool:
+        """Delete `key` only while it still holds `value`, in one atomic step.
+
+        How a claim taken with `set(..., nx=True)` is released by its own holder
+        alone: a holder that outlived the key's TTL finds another holder's value
+        there and leaves it. Returns whether this call deleted the key.
+        """
+        if not self.client:
+            raise RuntimeError("Redis client not connected")
+        deleted = await self.client.eval(_DELETE_IF_EQUALS, 1, key, value)
+        return bool(deleted)
 
     async def getdel(self, key: str) -> str | None:
         """Read a key and delete it in one atomic step (Redis GETDEL).

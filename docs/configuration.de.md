@@ -1,5 +1,5 @@
 ---
-source_sha: "72c9b49ab9c2"
+source_sha: "c7261314b422"
 ---
 
 # Konfiguration { #configuration }
@@ -765,6 +765,13 @@ Content-Route, `/api/v1/artifact-content/`, zum `frame-src` der Konsole hinzu. S
 der des Frontends; die Compose-Dateien reichen ihn an beide weiter. Ein Wert in
 nur einer von beiden zeigt einen leeren Frame, weil der Browser sich weigert, die
 Seite von einem Origin zu laden, den die Konsole nicht erlaubt hat.
+
+**Ist `ARTIFACT_ORIGIN` leer, muss `PUBLIC_API_URL` des Frontends exakt mit
+`PUBLIC_BASE_URL` des Backends übereinstimmen, einschließlich des Pfads.** Das
+Backend signiert Inhaltsadressen dann auf `PUBLIC_BASE_URL`, und der `frame-src`
+der Konsole nennt die Content-Route unter `PUBLIC_API_URL`; `https://example.com/agenticos`
+auf der einen und `https://example.com` auf der anderen Seite ergibt also
+denselben leeren Frame.
 
 ## Agent-Workspaces { #agent-workspaces }
 

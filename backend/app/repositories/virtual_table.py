@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import Any, Literal
+from typing import Any, Literal, NamedTuple
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
@@ -31,11 +31,15 @@ from sqlalchemy import (
     Date,
     DateTime,
     Numeric,
+    Text,
     and_,
+    any_,
     cast,
     delete,
     false,
     func,
+    literal,
+    literal_column,
     or_,
     select,
     text,
@@ -44,7 +48,7 @@ from sqlalchemy import (
 )
 from sqlalchemy import column as sa_column
 from sqlalchemy import values as sa_values
-from sqlalchemy.dialects.postgresql import JSONB, array
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, array
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -693,18 +697,8 @@ async def count_records(
     return (await db.execute(select(func.count()).select_from(matching))).scalar_one()
 
 
-async def list_records(
-    db: AsyncSession,
-    *,
-    table_id: UUID,
-    organization_id: UUID,
-    filters: list[FilterClause],
-    sort: SortClause,
-    skip: int,
-    limit: int,
-    search: SearchClause | None = None,
-) -> list[VirtualTableRecord]:
-    """A page of records. The order is total: the record id always breaks a tie.
+def _order(sort: SortClause) -> tuple[ColumnElement[Any], ...]:
+    """The total order of a listing: the sort, then the record id that breaks every tie.
 
     Records with no value in the sorted column come last in either direction. A
     `created_at` sort breaks its ties on the id in its own direction, and every
@@ -721,23 +715,184 @@ async def list_records(
         # scan of the index produces, so "latest first" sorted every matching
         # record to return one page.
         created = VirtualTableRecord.created_at
-        order = (created.desc(), record_id.desc()) if desc else (created.asc(), record_id.asc())
-    else:
-        key = (
-            VirtualTableRecord.updated_at
-            if sort.column_id is None
-            else _typed(sort.column_id, sort.kind)
-        )
-        order = (key.desc().nulls_last() if desc else key.asc().nulls_last(), record_id.asc())
+        return (created.desc(), record_id.desc()) if desc else (created.asc(), record_id.asc())
+    key = (
+        VirtualTableRecord.updated_at
+        if sort.column_id is None
+        else _typed(sort.column_id, sort.kind)
+    )
+    return (key.desc().nulls_last() if desc else key.asc().nulls_last(), record_id.asc())
+
+
+async def list_records(
+    db: AsyncSession,
+    *,
+    table_id: UUID,
+    organization_id: UUID,
+    filters: list[FilterClause],
+    sort: SortClause,
+    skip: int,
+    limit: int,
+    search: SearchClause | None = None,
+) -> list[VirtualTableRecord]:
+    """A page of records, in the total order of :func:`_order`."""
     query = (
         select(VirtualTableRecord)
         .where(_matching(table_id, organization_id, filters, search))
-        .order_by(*order)
+        .order_by(*_order(sort))
         .offset(skip)
         .limit(limit)
     )
     result = await db.execute(query)
     return list(result.scalars().all())
+
+
+class RecordCells(NamedTuple):
+    """A record with only some of its cells: a `RecordRead`'s fields, `values` projected.
+
+    `RecordRead.model_validate(cells)` reads it as it reads a row.
+    """
+
+    id: UUID
+    table_id: UUID
+    external_id: str | None
+    schema_version: int
+    revision: int
+    created_at: datetime
+    updated_at: datetime | None
+    created_by: UUID | None
+    updated_by: UUID | None
+    values: dict[str, Any]
+
+
+def _projected(keys: Sequence[str]) -> ColumnElement[dict[str, Any]]:
+    """A record's `values` with only the cells under `keys`, built in the database.
+
+    A scalar subquery over `jsonb_each` rather than `jsonb_build_object`, which
+    takes at most 100 arguments. Typed `JSONB` so the driver hands back a mapping.
+    """
+    cells = func.jsonb_each(VirtualTableRecord.values).table_valued("key", "value").alias("cells")
+    return (
+        select(
+            func.coalesce(
+                func.jsonb_object_agg(cells.c.key, cells.c.value),
+                literal_column("'{}'::jsonb"),
+                type_=JSONB,
+            )
+        )
+        .select_from(cells)
+        .where(cells.c.key == any_(literal(list(keys), type_=ARRAY(Text))))
+        .correlate(VirtualTableRecord)
+        .scalar_subquery()
+    )
+
+
+def _size(keys: Sequence[str]) -> ColumnElement[int]:
+    """How many bytes the projected cells take as JSON text."""
+    return func.octet_length(cast(_projected(keys), Text))
+
+
+def _among(
+    record_ids: Collection[UUID], table_id: UUID, organization_id: UUID
+) -> ColumnElement[bool]:
+    """The records of one table, in its tenant, among `record_ids`: one array parameter
+    however many ids there are, so the read is one statement."""
+    return and_(
+        VirtualTableRecord.id
+        == any_(literal(list(record_ids), type_=ARRAY(PG_UUID(as_uuid=True)))),
+        VirtualTableRecord.table_id == table_id,
+        VirtualTableRecord.organization_id == organization_id,
+    )
+
+
+async def list_record_sizes(
+    db: AsyncSession,
+    *,
+    table_id: UUID,
+    organization_id: UUID,
+    filters: list[FilterClause],
+    search: SearchClause | None,
+    sort: SortClause,
+    limit: int,
+    keys: Sequence[str],
+) -> list[tuple[UUID, int]]:
+    """The first `limit` matching records' ids, in :func:`list_records`' order, each with
+    the size of its cells under `keys`. No cell crosses the wire, only its size."""
+    result = await db.execute(
+        select(VirtualTableRecord.id, _size(keys))
+        .where(_matching(table_id, organization_id, filters, search))
+        .order_by(*_order(sort))
+        .limit(limit)
+    )
+    return [(row[0], row[1]) for row in result.all()]
+
+
+async def get_record_sizes_by_ids(
+    db: AsyncSession,
+    record_ids: Collection[UUID],
+    *,
+    table_id: UUID,
+    organization_id: UUID,
+    keys: Sequence[str],
+) -> dict[UUID, int]:
+    """The size of each record's cells under `keys`; an id the table does not hold is left out."""
+    result = await db.execute(
+        select(VirtualTableRecord.id, _size(keys)).where(
+            _among(record_ids, table_id, organization_id)
+        )
+    )
+    return {row[0]: row[1] for row in result.all()}
+
+
+async def get_record_cells_by_ids(
+    db: AsyncSession,
+    record_ids: Collection[UUID],
+    *,
+    table_id: UUID,
+    organization_id: UUID,
+    keys: Sequence[str],
+) -> list[RecordCells]:
+    """The records among `record_ids` with only their cells under `keys`, in no set order.
+
+    An id the table does not hold is left out.
+    """
+    record = VirtualTableRecord
+    result = await db.execute(
+        select(
+            record.id,
+            record.table_id,
+            record.external_id,
+            record.schema_version,
+            record.revision,
+            record.created_at,
+            record.updated_at,
+            record.created_by,
+            record.updated_by,
+            _projected(keys),
+        ).where(_among(record_ids, table_id, organization_id))
+    )
+    return [RecordCells(*row) for row in result.all()]
+
+
+async def set_statement_timeout(db: AsyncSession, *, ms: int) -> None:
+    """Limit each later statement of this transaction to `ms` milliseconds (`SET LOCAL`).
+
+    `ms` must be at least 1: Postgres reads `0` as no limit.
+    """
+    await db.execute(text("SELECT set_config('statement_timeout', :ms, true)"), {"ms": str(ms)})
+
+
+async def statement_timeout(db: AsyncSession) -> str:
+    """This transaction's `statement_timeout`, as Postgres reports it: `0`, `2s`, `150ms`."""
+    result = await db.execute(text("SELECT current_setting('statement_timeout')"))
+    return str(result.scalar_one())
+
+
+async def restore_statement_timeout(db: AsyncSession, *, setting: str) -> None:
+    """Put back a `statement_timeout` read by `statement_timeout`, for the rest of the transaction."""
+    await db.execute(
+        text("SELECT set_config('statement_timeout', :setting, true)"), {"setting": setting}
+    )
 
 
 # -- history, outbox, receipts -----------------------------------------------

@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import uuid
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 import pytest
 from pydantic_ai import ModelRetry, RunContext
@@ -21,12 +21,17 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.agents.capabilities.virtual_tables import VirtualTables
-from app.agents.capabilities.virtual_tables._access import TableOperation
+from app.agents.capabilities.virtual_tables._access import Mistake, TableOperation
+from app.agents.capabilities.virtual_tables._toolset import _call_as_person
 from app.agents.deps import AgentDeps
+from app.core.exceptions import ValidationError
 from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.table_view import TableView
 from app.db.models.user import User
 from app.db.models.virtual_table import VirtualTableRecord
+from app.schemas.table_view import TableViewConfig, TableViewCreate
 from app.schemas.virtual_table import RecordFilter, TableRead
+from app.services.virtual_tables import TableViewService
 from app.services.virtual_tables.facade import VirtualTableService
 from tests.integration.virtual_table_support import ctx_for, make_org, make_user, orders_table
 
@@ -479,3 +484,269 @@ async def test_an_upsert_creates_then_updates_the_record_its_key_names(world: _W
     assert created["created"] is True and updated["created"] is False
     assert updated["id"] == created["id"] and updated["values"]["Quantity"] == 5
     assert await _count(world) == 1
+
+
+async def _make_view(
+    world: _World,
+    *,
+    owner: User | None = None,
+    name: str = "Mine",
+    visibility: Literal["private", "shared"] = "private",
+    config: TableViewConfig | None = None,
+):
+    async with world.factory() as db:
+        maker = owner or world.owner
+        view = await TableViewService(db).create_view(
+            ctx_for(maker, world.org, "owner" if maker is world.owner else "admin"),
+            world.orders.id,
+            TableViewCreate(
+                name=name, kind="table", visibility=visibility, config=config or TableViewConfig()
+            ),
+        )
+        await db.commit()
+    return view
+
+
+async def _member(world: _World, role: str) -> User:
+    async with world.factory() as db:
+        user = await make_user(db)
+        db.add(
+            OrganizationMember(
+                id=uuid.uuid4(), organization_id=world.org.id, user_id=user.id, role=role
+            )
+        )
+        await db.commit()
+    return user
+
+
+def _person_deps(world: _World, user: User | None = None) -> AgentDeps:
+    person = (user or world.owner).id
+    return AgentDeps(
+        organization_id=world.org.id, user_id=str(person), run_id=uuid.uuid4(), run_person=person
+    )
+
+
+async def test_list_views_shows_shared_and_own_private_views_marked(world: _World):
+    call, _cap, _ts = _tools({world.orders.id: ALL})
+    colleague = await _member(world, "admin")
+    await _make_view(world, name="Mine")
+    await _make_view(world, owner=colleague, name="Theirs private")
+    await _make_view(world, owner=colleague, name="Theirs shared", visibility="shared")
+
+    answer = json.loads(
+        await call("list_views", _ctx(_person_deps(world)), table_id=world.orders.id)
+    )
+
+    assert answer["table"]["id"] == str(world.orders.id)
+    seen = {view["name"]: view for view in answer["views"]}
+    assert set(seen) == {"Mine", "Theirs shared"}
+    assert (seen["Mine"]["yours"], seen["Mine"]["visibility"]) == (True, "private")
+    assert (seen["Theirs shared"]["yours"], seen["Theirs shared"]["visibility"]) == (
+        False,
+        "shared",
+    )
+
+
+async def test_list_views_describes_filters_by_column_and_option_label(world: _World):
+    call, _cap, _ts = _tools({world.orders.id: ALL})
+    status = next(c for c in world.orders.columns if c.label == "Status")
+    shipped = next(o for o in status.options if o.label == "Shipped")
+    await _make_view(
+        world,
+        config=TableViewConfig(
+            filters=[RecordFilter(column_id=status.id, op="eq", value=str(shipped.id))],
+            search="acme",
+        ),
+    )
+
+    answer = json.loads(
+        await call("list_views", _ctx(_person_deps(world)), table_id=world.orders.id)
+    )
+
+    [view] = answer["views"]
+    assert view["filters"] == [{"column": "Status", "op": "eq", "value": "Shipped"}]
+    assert view["search"] == "acme"
+    assert view["sort"] == {"by": "created_at", "direction": "asc"}
+
+
+@pytest.mark.security
+async def test_list_views_on_an_ungranted_table_is_refused_before_anything_is_read(world: _World):
+    call, _cap, _ts = _tools({world.other.id: ALL})
+    await _make_view(world)
+
+    answer = await call("list_views", _ctx(_person_deps(world)), table_id=world.orders.id)
+
+    assert "no access to table" in answer and "Mine" not in answer
+
+
+@pytest.mark.security
+async def test_a_widget_run_cannot_list_views(world: _World):
+    call, _cap, _ts = _tools({world.orders.id: ALL})
+    await _make_view(world)
+
+    answer = await call("list_views", _ctx(world.deps()), table_id=world.orders.id)
+
+    assert answer == "Only a run acting for a member can use saved views."
+
+
+@pytest.mark.security
+async def test_a_public_webhook_run_cannot_list_views(world: _World):
+    call, _cap, _ts = _tools({world.orders.id: ALL})
+    await _make_view(world)
+    # A step in a public workflow chain runs as the workflow's owner, with no person.
+    deps = AgentDeps(
+        organization_id=world.org.id,
+        user_id=str(world.owner.id),
+        run_id=uuid.uuid4(),
+        run_person=None,
+    )
+
+    answer = await call("list_views", _ctx(deps), table_id=world.orders.id)
+
+    assert answer == "Only a run acting for a member can use saved views."
+
+
+async def test_share_view_shares_your_own_view(world: _World):
+    call, _cap, _ts = _tools({world.orders.id: ALL})
+    view = await _make_view(world)
+
+    answer = json.loads(
+        await call(
+            "share_view", _ctx(_person_deps(world)), view_id=view.id, reason="So the page reads it."
+        )
+    )
+
+    assert (answer["id"], answer["visibility"], answer["yours"]) == (str(view.id), "shared", True)
+    async with world.factory() as db:
+        stored = await TableViewService(db).get_view(
+            ctx_for(world.owner, world.org), world.orders.id, view.id
+        )
+    assert stored.visibility == "shared"
+
+
+@pytest.mark.security
+async def test_share_view_refuses_an_admin_sharing_someone_else_s_view(world: _World):
+    call, _cap, _ts = _tools({world.orders.id: ALL})
+    colleague = await _member(world, "admin")
+    admin = await _member(world, "admin")
+    # Shared, so the admin sees it, and the service would let an ALL-scope editor manage it.
+    view = await _make_view(world, owner=colleague, name="Theirs", visibility="shared")
+    answer = await call(
+        "share_view",
+        _ctx(_person_deps(world, admin)),
+        view_id=view.id,
+        reason="So the page reads it.",
+    )
+
+    assert answer == "Only the view's owner can share it."
+
+
+async def _visibility(world: _World, view_id: uuid.UUID) -> str:
+    async with world.factory() as db:
+        stored = await TableViewService(db).get_view(
+            ctx_for(world.owner, world.org), world.orders.id, view_id
+        )
+    return stored.visibility
+
+
+@pytest.mark.security
+async def test_share_view_answers_another_member_s_private_view_as_not_found(world: _World):
+    call, _cap, _ts = _tools({world.orders.id: ALL})
+    colleague = await _member(world, "admin")
+    view = await _make_view(world, owner=colleague, name="Theirs private")
+
+    answer = await call(
+        "share_view", _ctx(_person_deps(world)), view_id=view.id, reason="So the page reads it."
+    )
+    missing = await call(
+        "share_view",
+        _ctx(_person_deps(world)),
+        view_id=uuid.uuid4(),
+        reason="So the page reads it.",
+    )
+
+    # The same answer as a view that never existed, so nothing says one is there.
+    assert answer == missing
+    assert answer.startswith("Refused (NOT_FOUND): View not found")
+    async with world.factory() as db:
+        stored = await TableViewService(db).get_view(
+            ctx_for(colleague, world.org, "admin"), world.orders.id, view.id
+        )
+    assert stored.visibility == "private"
+
+
+@pytest.mark.security
+async def test_a_member_who_left_cannot_share_a_view(world: _World):
+    call, _cap, _ts = _tools({world.orders.id: ALL})
+    view = await _make_view(world)
+    deps = _person_deps(world)
+    async with world.factory() as db:
+        await db.execute(
+            delete(OrganizationMember).where(OrganizationMember.user_id == world.owner.id)
+        )
+        await db.commit()
+
+    answer = await call("share_view", _ctx(deps), view_id=view.id, reason="So the page reads it.")
+
+    assert answer == "The member this agent acts for is no longer in the organization."
+    async with world.factory() as db:
+        shared = await db.scalar(
+            select(func.count()).select_from(TableView).where(TableView.visibility == "shared")
+        )
+    assert shared == 0
+
+
+@pytest.mark.security
+async def test_share_view_on_an_ungranted_table_is_refused_before_sharing(world: _World):
+    call, _cap, _ts = _tools({world.other.id: ALL})
+    view = await _make_view(world)
+
+    answer = await call(
+        "share_view", _ctx(_person_deps(world)), view_id=view.id, reason="So the page reads it."
+    )
+
+    assert "no access to table" in answer and "Mine" not in answer
+    assert await _visibility(world, view.id) == "private"
+
+
+@pytest.mark.security
+async def test_a_member_who_left_mid_run_cannot_list_views(world: _World):
+    call, _cap, _ts = _tools({world.orders.id: ALL})
+    deps = _person_deps(world)
+    async with world.factory() as db:
+        await db.execute(
+            delete(OrganizationMember).where(OrganizationMember.user_id == world.owner.id)
+        )
+        await db.commit()
+
+    answer = await call("list_views", _ctx(deps), table_id=world.orders.id)
+
+    assert answer == "The member this agent acts for is no longer in the organization."
+
+
+async def test_sharing_a_view_that_does_not_exist_is_refused_with_its_code(world: _World):
+    call, _cap, _ts = _tools({world.orders.id: ALL})
+
+    answer = await call(
+        "share_view",
+        _ctx(_person_deps(world)),
+        view_id=uuid.uuid4(),
+        reason="So the page reads it.",
+    )
+
+    assert answer.startswith("Refused (NOT_FOUND): View not found")
+
+
+@pytest.mark.parametrize(
+    "raised",
+    [Mistake("Name the column by its label."), ValidationError("Name the column by its label")],
+    ids=["mistake", "validation-error"],
+)
+async def test_a_view_tool_steers_a_call_the_model_composed_wrongly(world: _World, raised):
+    # list_views and share_view raise neither today; the wrapper they share with
+    # every view tool still steers one rather than refusing it.
+    async def work(*_args: object) -> str:
+        raise raised
+
+    with pytest.raises(ModelRetry, match="Name the column by its label"):
+        await _call_as_person(_ctx(_person_deps(world)), work)

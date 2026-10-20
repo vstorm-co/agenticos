@@ -228,6 +228,8 @@ def build_workflows_toolset(
                         "An agent running as a workflow's step starts no workflow; "
                         "a workflow.run step calls one."
                     )
+            if ctx.deps.run_person is None:
+                raise _Refused("Workflows can only be started by a run acting for a member.")
             workflow = await reachable(db, auth, workflow_id)
             if _live_version(workflow) is None:
                 raise _Refused(

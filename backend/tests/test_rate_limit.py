@@ -14,11 +14,13 @@ rather than to no service.
 
 from __future__ import annotations
 
+from contextlib import AbstractAsyncContextManager, AsyncExitStack
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from app.core.config import settings
+from app.core.exceptions import RateLimitError
 from app.services import rate_limit
 from app.services.rate_limit import Limit
 
@@ -539,3 +541,119 @@ class TestAFormIsCountedPerForm:
         rate_limit.configure(_redis([4]))
 
         assert (await rate_limit.form_submission_allowed("tok")).allowed is False
+
+
+def _claims() -> tuple[MagicMock, dict[str, str]]:
+    """A client whose `SET NX` and compare-and-delete act on a dict, as Redis would."""
+    store: dict[str, str] = {}
+
+    async def claim(key: str, value: str, ttl: int | None = None, nx: bool = False) -> bool:
+        if nx and key in store:
+            return False
+        store[key] = value
+        return True
+
+    async def delete_if_equals(key: str, value: str) -> bool:
+        if store.get(key) != value:
+            return False
+        del store[key]
+        return True
+
+    client = MagicMock()
+    client.set = AsyncMock(side_effect=claim)
+    client.delete_if_equals = AsyncMock(side_effect=delete_if_equals)
+    return client, store
+
+
+def _in_flight(caller: str = "org:o:user:u") -> AbstractAsyncContextManager[None]:
+    return rate_limit.one_in_flight("artifact_data", caller, ttl_seconds=10, message="Busy.")
+
+
+class TestOneLoadInFlight:
+    """At most one data load per viewer at a time, refused at once rather than queued."""
+
+    async def test_artifact_data_limit_reads_the_setting(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_ARTIFACT_DATA_PER_MINUTE", 7)
+
+        assert rate_limit.artifact_data_limit() == Limit(attempts=7)
+
+    @pytest.mark.security
+    async def test_a_held_claim_refuses_the_same_caller_and_no_other(self):
+        client, store = _claims()
+        rate_limit.configure(client)
+
+        async with _in_flight():
+            assert list(store) == ["inflight:artifact_data:org:o:user:u"]
+            client.set.assert_awaited_once()
+            assert client.set.await_args.kwargs == {"ttl": 10, "nx": True}
+            with pytest.raises(RateLimitError) as refused:
+                async with _in_flight():
+                    pass
+            async with _in_flight("org:o:user:other"):
+                pass
+
+        assert refused.value.message == "Busy."
+        assert store == {}
+
+    @pytest.mark.security
+    async def test_one_in_flight_falls_back_to_the_process_when_redis_is_down(self):
+        client = MagicMock()
+        client.set = AsyncMock(side_effect=ConnectionError("redis is down"))
+        rate_limit.configure(client)
+
+        async with _in_flight():
+            with pytest.raises(RateLimitError):
+                async with _in_flight():
+                    pass
+            async with _in_flight("org:o:user:other"):
+                pass
+        async with _in_flight():
+            pass
+
+    @pytest.mark.security
+    async def test_one_in_flight_holds_per_process_when_unconfigured(self):
+        async with _in_flight():
+            with pytest.raises(RateLimitError):
+                async with _in_flight():
+                    pass
+
+    async def test_one_in_flight_releases_on_error(self):
+        client, store = _claims()
+        rate_limit.configure(client)
+
+        with pytest.raises(ValueError, match="boom"):
+            async with _in_flight():
+                raise ValueError("boom")
+        assert store == {}
+        rate_limit.configure(None)
+        with pytest.raises(ValueError, match="boom"):
+            async with _in_flight():
+                raise ValueError("boom")
+        async with _in_flight():
+            pass
+
+    @pytest.mark.security
+    async def test_one_in_flight_never_releases_a_key_it_no_longer_holds(self):
+        """A load that outlived its claim's TTL must not free the next load's claim."""
+        client, store = _claims()
+        rate_limit.configure(client)
+        key = "inflight:artifact_data:org:o:user:u"
+
+        async with AsyncExitStack() as later:
+            async with _in_flight():
+                first = store.pop(key)
+                await later.enter_async_context(_in_flight())
+                second = store[key]
+            assert first != second
+            assert store == {key: second}
+        assert store == {}
+
+    async def test_a_release_redis_refuses_is_left_to_the_ttl(self):
+        client, store = _claims()
+        client.delete_if_equals = AsyncMock(side_effect=ConnectionError("redis is down"))
+        rate_limit.configure(client)
+
+        async with _in_flight():
+            pass
+
+        assert list(store) == ["inflight:artifact_data:org:o:user:u"]

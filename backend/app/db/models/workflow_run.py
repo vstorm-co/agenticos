@@ -25,6 +25,7 @@ from typing import Any
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     ForeignKey,
     Index,
@@ -33,6 +34,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    false,
     text,
 )
 from sqlalchemy import (
@@ -232,6 +234,14 @@ class WorkflowRun(Base, TimestampMixin):
         String(20), nullable=False, default=WorkflowRunStatus.QUEUED.value, index=True
     )
     triggered_by: Mapped[str] = mapped_column(String(16), nullable=False)
+    # An outsider is behind this run's chain: it came through a door
+    # (`dispatcher.PUBLIC_TRIGGERS`), or a run that did caused it - a call, a
+    # failure, a record written with no person - or it retries one. Stored as
+    # the effective flag, because a table run and a retry are roots of their own
+    # whose `triggered_by` says nothing of where the chain began.
+    public_origin: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
     # Pinned once, at admission, by whichever adapter created the run - never
     # re-resolved from a request afterward. SET NULL rather than a hard block
     # on user deletion, matching `agent_runs.user_id`: the run itself is not

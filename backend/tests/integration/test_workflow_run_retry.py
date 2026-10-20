@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from pydantic import BaseModel
-from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.core.exceptions import AuthorizationError
 from app.db.models.workflow import Workflow, WorkflowStatus
@@ -27,9 +27,18 @@ from app.services.workflow_execution.exceptions import (
 )
 from app.workflows._registry import REGISTRY, register
 from app.workflows.contracts.definition import NodeDefinition, Port
+from app.workflows.contracts.io import Binding, LiteralValue
 from app.workflows.contracts.results import Completed, Failed, NodeResult, WorkflowError
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
-from tests.integration.workflow_run_support import SeededRun, drive, node_statuses, seed_run
+from tests.integration.workflow_run_support import (
+    SeededRun,
+    drive,
+    node_statuses,
+    run_people,
+    seed_agent,
+    seed_member,
+    seed_run,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -91,7 +100,10 @@ def kinds() -> Iterator[tuple[str, str]]:
         REGISTRY.pop(node_id, None)
 
 
-def _line(steady: str, flaky: str) -> tuple[WorkflowGraph, list[NodeInstance]]:
+def _line(
+    steady: str, flaky: str, *, agent: dict[str, str] | None = None
+) -> tuple[WorkflowGraph, list[NodeInstance]]:
+    """`steady`, `flaky`, then `steady` again - or, given `agent`, a step asking it."""
     nodes = [
         NodeInstance(
             id=uuid.uuid4(),
@@ -101,6 +113,20 @@ def _line(steady: str, flaky: str) -> tuple[WorkflowGraph, list[NodeInstance]]:
         )
         for definition_id in (steady, flaky, steady)
     ]
+    bindings: tuple[Binding, ...] = ()
+    if agent is not None:
+        nodes[2] = NodeInstance(
+            id=uuid.uuid4(),
+            definition_id="agent.run",
+            definition_version=1,
+            config={"agent": agent},
+            layout=NodePosition(x=0, y=0),
+        )
+        bindings = (
+            Binding(
+                target_node_id=nodes[2].id, target_field="prompt", source=LiteralValue(value="Hi")
+            ),
+        )
     edges = tuple(
         Edge(
             id=uuid.uuid4(),
@@ -111,12 +137,17 @@ def _line(steady: str, flaky: str) -> tuple[WorkflowGraph, list[NodeInstance]]:
         )
         for source, target in pairwise(nodes)
     )
-    return WorkflowGraph(entry_node_id=nodes[0].id, nodes=tuple(nodes), edges=edges), nodes
+    graph = WorkflowGraph(
+        entry_node_id=nodes[0].id, nodes=tuple(nodes), edges=edges, bindings=bindings
+    )
+    return graph, nodes
 
 
-async def _failed_run(engine: AsyncEngine, kinds: tuple[str, str]) -> tuple[SeededRun, list]:
+async def _failed_run(
+    engine: AsyncEngine, kinds: tuple[str, str], *, triggered_by: str = "api"
+) -> tuple[SeededRun, list]:
     graph, nodes = _line(*kinds)
-    seeded = await seed_run(engine, graph)
+    seeded = await seed_run(engine, graph, triggered_by=triggered_by)
     run = await drive(seeded)
     assert run.status == WorkflowRunStatus.FAILED.value
     return seeded, nodes
@@ -201,6 +232,78 @@ class TestRetryingARun:
                 pytest.raises(WorkflowNotRunnableError),
             ):
                 await WorkflowExecutionService(db).retry(seeded.ctx, seeded.run.id)
+
+
+class TestRetryingAPublicRun:
+    """A retry keeps its run's public origin: retried by a member from the
+    console, a run in a chain an outsider started still has no person
+    (D18a(5), owner decision 4). The retrier's role decides only whether they
+    may retry it."""
+
+    @pytest.mark.security
+    async def test_a_retry_of_a_public_child_stays_public(self, engine: AsyncEngine, kinds):
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as db:
+            member = await seed_member(db)
+            await db.commit()
+        steady, flaky = kinds
+        graph, _nodes = _line(steady, flaky, agent=await seed_agent(factory, *member))
+        root = await seed_run(
+            engine, _line(steady, steady)[0], triggered_by="webhook", member=member
+        )
+        child = await seed_run(engine, graph, triggered_by="workflow_call", member=member)
+        async with factory() as db:
+            # Where a `workflow.run` step under the webhook run leaves its call.
+            await workflow_run_repo.update_run(
+                db,
+                run=child.run,
+                update_data={
+                    "root_run_id": root.run.id,
+                    "causation_run_id": root.run.id,
+                    "depth": 1,
+                    "public_origin": True,
+                },
+            )
+            await db.commit()
+        assert (await drive(child)).status == WorkflowRunStatus.FAILED.value
+
+        async with factory() as db:
+            retried = await WorkflowExecutionService(db).retry(child.ctx, child.run.id)
+            await db.commit()
+            run = await workflow_run_repo.get_run(db, retried.id, organization_id=child.org.id)
+        assert run is not None
+        assert (run.triggered_by, run.public_origin) == ("workflow_call", True)
+        with run_people() as people:
+            finished = await drive(
+                SeededRun(
+                    run=run, graph=graph, principal=child.principal, org=child.org, factory=factory
+                )
+            )
+        assert finished.status == WorkflowRunStatus.SUCCEEDED.value, finished.error
+        assert people == [None]
+
+    @pytest.mark.security
+    async def test_a_retry_of_a_public_root_stays_public(self, engine: AsyncEngine, kinds):
+        seeded, _nodes = await _failed_run(engine, kinds, triggered_by="webhook")
+
+        async with seeded.factory() as db:
+            retried = await WorkflowExecutionService(db).retry(seeded.ctx, seeded.run.id)
+            await db.commit()
+            run = await workflow_run_repo.get_run(db, retried.id, organization_id=seeded.org.id)
+
+        assert run is not None
+        assert run.public_origin is True
+
+    async def test_a_retry_of_a_member_run_is_not_public(self, engine: AsyncEngine, kinds):
+        seeded, _nodes = await _failed_run(engine, kinds)
+
+        async with seeded.factory() as db:
+            retried = await WorkflowExecutionService(db).retry(seeded.ctx, seeded.run.id)
+            await db.commit()
+            run = await workflow_run_repo.get_run(db, retried.id, organization_id=seeded.org.id)
+
+        assert run is not None
+        assert run.public_origin is False
 
 
 class TestFilteringRuns:

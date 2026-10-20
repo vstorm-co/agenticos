@@ -231,7 +231,7 @@ class TestTheRunsTimezone:
         assert (stored[before.id], stored[after.id]) == ("Europe/Warsaw", "Asia/Tokyo")
 
 
-async def _failing_setup(engine: AsyncEngine) -> tuple[Any, Workflow]:
+async def _failing_setup(engine: AsyncEngine, *, triggered_by: str = "api") -> tuple[Any, Workflow]:
     """A real run that fails, of a workflow whose error workflow is published."""
     factory = async_sessionmaker(engine, expire_on_commit=False)
     async with factory() as db:
@@ -249,7 +249,10 @@ async def _failing_setup(engine: AsyncEngine) -> tuple[Any, Workflow]:
         label="Check the lead",
     )
     seeded = await seed_run(
-        engine, WorkflowGraph(entry_node_id=entry.id, nodes=(entry,)), member=(principal, org)
+        engine,
+        WorkflowGraph(entry_node_id=entry.id, nodes=(entry,)),
+        member=(principal, org),
+        triggered_by=triggered_by,
     )
     async with factory() as db:
         await WorkflowRegistryService(db).update_settings(
@@ -288,6 +291,44 @@ class TestTheErrorWorkflow:
             ).scalar_one()
         # Left to the poll: the settle that failed the run cannot submit it.
         assert outbox.submitted_at is None
+
+    @pytest.mark.security
+    async def test_a_failure_run_under_a_public_root_is_public(self, engine: AsyncEngine):
+        """The error workflow's run answers for the failed run's chain: an
+        outsider started that, so nobody is behind this one either (D18a(5))."""
+        seeded, handler = await _failing_setup(engine, triggered_by="webhook")
+
+        await drive(seeded)
+
+        [started] = await _runs_of(engine, handler.id)
+        assert (started.triggered_by, started.root_run_id) == ("workflow_failed", seeded.run.id)
+        assert started.public_origin is True
+
+    @pytest.mark.security
+    async def test_a_failure_run_under_a_door_root_stored_before_the_flag_is_public(
+        self, engine: AsyncEngine
+    ):
+        """A webhook run admitted by code older than the column reads false, and
+        its error workflow's run still fails closed on its trigger."""
+        seeded, handler = await _failing_setup(engine, triggered_by="webhook")
+        async with seeded.factory() as db:
+            await workflow_run_repo.update_run(
+                db, run=seeded.run, update_data={"public_origin": False}
+            )
+            await db.commit()
+
+        await drive(seeded)
+
+        [started] = await _runs_of(engine, handler.id)
+        assert started.public_origin is True
+
+    async def test_a_failure_run_under_a_member_root_is_not_public(self, engine: AsyncEngine):
+        seeded, handler = await _failing_setup(engine)
+
+        await drive(seeded)
+
+        [started] = await _runs_of(engine, handler.id)
+        assert started.public_origin is False
 
     async def test_a_test_run_or_an_error_workflows_own_run_starts_nothing(
         self, engine: AsyncEngine

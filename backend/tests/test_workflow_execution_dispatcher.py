@@ -29,6 +29,7 @@ from app.db.models.workflow_run import (
     WorkflowRun,
     WorkflowRunMode,
     WorkflowRunStatus,
+    WorkflowRunTrigger,
 )
 from app.repositories import workflow_run as workflow_run_repo_module
 from app.services.workflow_execution import context, dispatcher
@@ -143,6 +144,7 @@ def _run(**overrides: object) -> WorkflowRun:
         "mode": WorkflowRunMode.REAL.value,
         "status": WorkflowRunStatus.RUNNING.value,
         "triggered_by": "api",
+        "public_origin": False,
         "execution_principal_user_id": uuid.uuid4(),
         "budget_limit": None,
         "spent_cost": Decimal("0"),
@@ -972,6 +974,129 @@ class TestBeginAttemptHappyPath:
 
         assert begun is not None
         assert begun.handler_input.message == "carried-over"
+
+
+class TestThePublicOrigin:
+    """Whether nobody answers for the run's input (D18a(2)).
+
+    Every external door admits its run as the exposure's principal, so the
+    principal is not a person behind the input; the stored flag carries the same
+    answer down the chain - children, failure and table runs, retries, and a
+    table run started by a no-person write. The dispatch says so, and an agent
+    step under it then runs with no person.
+    """
+
+    @staticmethod
+    async def _dispatched(
+        repo,
+        test_node: str,
+        triggered_by: WorkflowRunTrigger,
+        run_input: dict | None = None,
+        *,
+        public_origin: bool = False,
+    ) -> context.DispatchContext:
+        run, node = _test_mode_run(
+            test_node,
+            triggered_by=triggered_by.value,
+            input=run_input or {},
+            public_origin=public_origin,
+        )
+        node_run = _node_run(workflow_run_id=run.id, node_instance_id=node.id)
+        outbox = _outbox(node_run_id=node_run.id)
+        repo.get_run_by_id_for_update.return_value = run
+        repo.get_node_run_by_id_for_update.return_value = node_run
+        repo.get_outbox_for_node_run_for_update.return_value = outbox
+        repo.get_latest_attempt.return_value = None
+        repo.create_attempt.return_value = _attempt(node_run_id=node_run.id, attempt_no=1)
+        repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
+            node_run, update_data
+        )
+
+        begun = await dispatcher.begin_attempt(
+            object(), workflow_run_id=run.id, node_run_id=node_run.id, token=outbox.claimed_by
+        )
+
+        assert begun is not None
+        return begun.dispatch_context
+
+    @pytest.mark.security
+    async def test_a_webhook_run_dispatches_with_a_public_origin(self, repo, event_log, test_node):
+        dispatched = await self._dispatched(repo, test_node, WorkflowRunTrigger.WEBHOOK)
+
+        assert dispatched.public_origin is True
+
+    @pytest.mark.security
+    async def test_a_form_run_dispatches_with_a_public_origin(self, repo, event_log, test_node):
+        dispatched = await self._dispatched(repo, test_node, WorkflowRunTrigger.FORM)
+
+        assert dispatched.public_origin is True
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "sender_user_id", [None, str(uuid.uuid4())], ids=["unlinked", "linked"]
+    )
+    async def test_a_channel_message_run_dispatches_with_a_public_origin(
+        self, repo, event_log, test_node, sender_user_id
+    ):
+        """A linked sender still runs as the exposure's principal, not as
+        themselves, so the link gives the run no person of its own."""
+        dispatched = await self._dispatched(
+            repo,
+            test_node,
+            WorkflowRunTrigger.CHANNEL_MESSAGE,
+            {"sender": {"platform_user_id": "U1", "user_id": sender_user_id}},
+        )
+
+        assert dispatched.public_origin is True
+
+    @pytest.mark.security
+    async def test_a_gmail_run_dispatches_with_a_public_origin(self, repo, event_log, test_node):
+        dispatched = await self._dispatched(repo, test_node, WorkflowRunTrigger.GMAIL)
+
+        assert dispatched.public_origin is True
+
+    @pytest.mark.security
+    async def test_a_github_run_dispatches_with_a_public_origin(self, repo, event_log, test_node):
+        dispatched = await self._dispatched(repo, test_node, WorkflowRunTrigger.GITHUB)
+
+        assert dispatched.public_origin is True
+
+    @pytest.mark.parametrize(
+        "triggered_by",
+        [
+            WorkflowRunTrigger.API,
+            WorkflowRunTrigger.SCHEDULE,
+            WorkflowRunTrigger.TABLE_CREATED,
+            WorkflowRunTrigger.CHAT,
+        ],
+    )
+    async def test_an_api_run_dispatches_without_a_public_origin(
+        self, repo, event_log, test_node, triggered_by
+    ):
+        dispatched = await self._dispatched(repo, test_node, triggered_by)
+
+        assert dispatched.public_origin is False
+
+    @pytest.mark.security
+    async def test_a_run_with_a_stored_public_origin_dispatches_public(
+        self, repo, event_log, test_node
+    ):
+        """A run anywhere under a public root - a called child, a failure's run, a
+        table run - is stored public, though its own trigger is no door."""
+        dispatched = await self._dispatched(
+            repo, test_node, WorkflowRunTrigger.WORKFLOW_CALL, public_origin=True
+        )
+
+        assert dispatched.public_origin is True
+
+    async def test_the_dispatcher_reads_no_root_run(self, repo, event_log, test_node):
+        """The flag is on the run's own row, so no dispatch, retry included, walks
+        the chain to its root to learn it."""
+        await self._dispatched(
+            repo, test_node, WorkflowRunTrigger.WORKFLOW_CALL, public_origin=True
+        )
+
+        repo.get_run.assert_not_called()
 
 
 def _begun(

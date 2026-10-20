@@ -1,5 +1,7 @@
 """Artifacts capability - publish a report or a small dashboard under a stable link."""
 
+from types import MappingProxyType
+
 from app.agents.capabilities._registry import (
     CapabilityBuildContext,
     CapabilityToolInfo,
@@ -41,4 +43,8 @@ ARTIFACTS_CAPABILITY_ID = "artifacts"
 )
 def _build(ctx: CapabilityBuildContext) -> Artifacts:
     """Never `None`: an agent without a workspace still publishes content it passes inline."""
-    return Artifacts()
+    # Function-local: `virtual_tables/_toolset.py` imports `app.services.virtual_tables` at
+    # module level, which loops back through the factory to this package.
+    from app.agents.capabilities.virtual_tables import TABLE_GRANTS_RESOURCE
+
+    return Artifacts(table_grants=ctx.resources.get(TABLE_GRANTS_RESOURCE, MappingProxyType({})))

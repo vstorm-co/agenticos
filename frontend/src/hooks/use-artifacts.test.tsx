@@ -6,14 +6,23 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   useArtifact,
   useArtifactAgents,
+  useArtifactData,
   useArtifacts,
   useArtifactView,
   usePublicArtifactUnlock,
 } from "./use-artifacts";
-import { apiClient } from "@/lib/api-client";
+import { ApiError, apiClient } from "@/lib/api-client";
 import type { ArtifactDetail } from "@/types/artifact";
 
 vi.mock("@/lib/api-client", () => ({
+  ApiError: class ApiError extends Error {
+    constructor(
+      public status: number,
+      message: string,
+    ) {
+      super(message);
+    }
+  },
   apiClient: { get: vi.fn(), put: vi.fn(), patch: vi.fn(), post: vi.fn(), delete: vi.fn() },
 }));
 const unlock = vi.fn();
@@ -25,10 +34,12 @@ vi.mock("@/components/public-config/public-config-provider", () => ({
 }));
 const toastSuccess = vi.fn();
 const toastError = vi.fn();
+const toastWarning = vi.fn();
 vi.mock("sonner", () => ({
   toast: {
     success: (...args: unknown[]) => toastSuccess(...args),
     error: (...args: unknown[]) => toastError(...args),
+    warning: (...args: unknown[]) => toastWarning(...args),
   },
 }));
 
@@ -52,6 +63,8 @@ const DETAIL: ArtifactDetail = {
   created_at: "2026-09-01T10:00:00Z",
   updated_at: null,
   can_edit: true,
+  live: false,
+  bindings: [],
   public_link: {
     expires_at: null,
     pinned_version_id: null,
@@ -213,6 +226,39 @@ describe("useArtifact", () => {
       await result.current.restoreVersion.mutateAsync("v0").catch(() => undefined);
     });
     expect(toastError).toHaveBeenCalled();
+    expect(toastWarning).not.toHaveBeenCalled();
+  });
+
+  it("warns after a restore that left a source unavailable", async () => {
+    const binding = (name: string, status: "ok" | "unavailable") => ({
+      name,
+      view_id: `vw-${name}`,
+      table_id: "t1",
+      fields: [],
+      status,
+      reason: status === "ok" ? null : "view_missing",
+    });
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      ...DETAIL,
+      live: true,
+      bindings: [binding("sales", "ok"), binding("stock", "unavailable")],
+    });
+    const { result } = renderHook(() => useArtifact("a1"), { wrapper });
+    await waitFor(() => expect(result.current.artifact).not.toBeNull());
+
+    await act(() => result.current.restoreVersion.mutateAsync("v2"));
+    expect(toastSuccess).toHaveBeenCalledWith("Restored as version 0");
+    expect(toastWarning).toHaveBeenCalledWith("Restored, but 1 live source is unavailable: stock");
+
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      ...DETAIL,
+      live: true,
+      bindings: [binding("sales", "unavailable"), binding("stock", "unavailable")],
+    });
+    await act(() => result.current.restoreVersion.mutateAsync("v1"));
+    expect(toastWarning).toHaveBeenLastCalledWith(
+      "Restored, but 2 live sources are unavailable: sales, stock",
+    );
   });
 });
 
@@ -252,5 +298,105 @@ describe("useArtifactView", () => {
   it("asks nothing until it is enabled", () => {
     renderHook(() => useArtifactView("a1", null, false), { wrapper });
     expect(apiClient.get).not.toHaveBeenCalled();
+  });
+});
+
+describe("useArtifactData", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("reads the data of the version it was given", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      bindings: {},
+      current: true,
+      read_at: "2026-10-20T10:00:00Z",
+    });
+    const { result } = renderHook(() => useArtifactData("a1", "v1", true), { wrapper });
+    await waitFor(() => expect(result.current.data?.bindings).toEqual({}));
+    expect(apiClient.get).toHaveBeenCalledWith("/artifacts/a1/versions/v1/data");
+  });
+
+  it("waits until it is enabled and has a version", () => {
+    renderHook(() => useArtifactData("a1", undefined, true), { wrapper });
+    renderHook(() => useArtifactData("a1", "v1", false), { wrapper });
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it("retries a busy answer and nothing else", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      vi.mocked(apiClient.get).mockRejectedValue(new ApiError(429, "busy"));
+      const busy = renderHook(() => useArtifactData("a1", "v1", true), { wrapper });
+      await vi.advanceTimersByTimeAsync(3000);
+      await waitFor(() => expect(busy.result.current.isError).toBe(true));
+      expect(apiClient.get).toHaveBeenCalledTimes(3);
+
+      vi.mocked(apiClient.get).mockClear();
+      vi.mocked(apiClient.get).mockRejectedValue(new ApiError(500, "boom"));
+      const broken = renderHook(() => useArtifactData("a2", "v1", true), { wrapper });
+      await vi.advanceTimersByTimeAsync(3000);
+      await waitFor(() => expect(broken.result.current.isError).toBe(true));
+      expect(apiClient.get).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("settle", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(apiClient.get).mockImplementation((path: string) =>
+      Promise.resolve(
+        path.endsWith("/versions")
+          ? { items: [], total: 0 }
+          : path.includes("/view")
+            ? { url: "u", expires_at: "", version: {} }
+            : path.endsWith("/data")
+              ? { bindings: {}, current: true, read_at: "" }
+              : DETAIL,
+      ),
+    );
+  });
+
+  function both(id: string) {
+    return renderHook(
+      () => ({
+        artifact: useArtifact(id),
+        view: useArtifactView(id, null, true),
+        data: useArtifactData(id, "v1", true),
+      }),
+      { wrapper },
+    );
+  }
+  const calls = (suffix: string) =>
+    vi.mocked(apiClient.get).mock.calls.filter(([p]) => String(p).includes(suffix)).length;
+
+  it("does not reload an open page when the public link changes", async () => {
+    vi.mocked(apiClient.put).mockResolvedValue({ ...DETAIL, public_url: "https://x/a/k" });
+    const { result } = both("a1");
+    await waitFor(() => expect(result.current.view.data).toBeDefined());
+    await waitFor(() => expect(result.current.data.data).toBeDefined());
+    const views = calls("/view");
+    const dataLoads = calls("/data");
+    const linked = { ...DETAIL, public_url: "https://x/a/k" };
+    vi.mocked(apiClient.get).mockImplementation((path: string) =>
+      Promise.resolve(path.endsWith("/versions") ? { items: [], total: 0 } : linked),
+    );
+    await act(() => result.current.artifact.enablePublicLink.mutateAsync());
+    await waitFor(() => expect(result.current.artifact.artifact?.public_url).toBe("https://x/a/k"));
+    expect(calls("/view")).toBe(views);
+    expect(calls("/data")).toBe(dataLoads);
+  });
+
+  it("reloads the current page after a restore", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue(DETAIL);
+    const { result } = both("a1");
+    await waitFor(() => expect(result.current.view.data).toBeDefined());
+    await waitFor(() => expect(result.current.data.data).toBeDefined());
+    const views = calls("/view");
+    const dataLoads = calls("/data");
+    await act(() => result.current.artifact.restoreVersion.mutateAsync("v2"));
+    await waitFor(() => expect(calls("/view")).toBeGreaterThan(views));
+    await waitFor(() => expect(calls("/data")).toBeGreaterThan(dataLoads));
   });
 });

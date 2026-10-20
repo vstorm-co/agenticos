@@ -9,20 +9,28 @@ document - HTML as written, Markdown rendered with its raw HTML escaped.
 
 from __future__ import annotations
 
+import re
 import uuid
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import anyio
+import jwt
 import pytest
+from sqlalchemy.exc import DBAPIError
 
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import NotFoundError, RateLimitError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
-from app.core.security import create_artifact_view_token
+from app.core.security import create_artifact_view_token, verify_special_token
 from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
 from app.db.models.resource_grant import Visibility
 from app.schemas.artifact import ArtifactUpdate
 from app.services import artifact as artifacts
+from app.services import rate_limit
 from app.services.artifact import ArtifactService
+from app.services.virtual_tables.exceptions import DeadlineReached
 
 pytestmark = pytest.mark.anyio
 
@@ -51,7 +59,11 @@ def _artifact(ctx: AuthContext, *, public_key: str | None = None) -> Artifact:
 
 
 def _version(
-    artifact: Artifact, *, number: int = 1, media_type: str = ArtifactMediaType.HTML.value
+    artifact: Artifact,
+    *,
+    number: int = 1,
+    media_type: str = ArtifactMediaType.HTML.value,
+    bindings: list[dict[str, Any]] | None = None,
 ) -> ArtifactVersion:
     return ArtifactVersion(
         id=uuid.uuid4(),
@@ -62,12 +74,30 @@ def _version(
         sha256="0" * 64,
         storage_path=f"artifacts/{artifact.organization_id}/{artifact.id}/x.html",
         run_id=None,
+        bindings=bindings or [],
         created_at=datetime(2026, 9, 22, tzinfo=UTC),
     )
 
 
 def _service() -> ArtifactService:
     return ArtifactService(MagicMock())
+
+
+def _binding(name: str = "deals") -> dict[str, Any]:
+    return {
+        "name": name,
+        "view_id": str(uuid.uuid4()),
+        "table_id": str(uuid.uuid4()),
+        "fields": {"stage": str(uuid.uuid4())},
+        "status": "ok",
+        "reason": None,
+    }
+
+
+def _claims(url: str) -> dict[str, Any]:
+    claims = verify_special_token(url.rsplit("/", 1)[1], "artifact_view")
+    assert claims is not None
+    return claims
 
 
 class TestPublishProblem:
@@ -258,6 +288,47 @@ class TestRead:
         assert read.current_version.number == 3
         assert read.public_url == f"{artifacts.settings.FRONTEND_URL.rstrip('/')}/a/{'k' * 32}"
 
+    async def test_a_bound_page_reads_as_live_and_shows_its_editor_the_field_names(
+        self,
+    ) -> None:
+        ctx = _ctx()
+        artifact = _artifact(ctx)
+        view_id, table_id = uuid.uuid4(), uuid.uuid4()
+        binding = {
+            "name": "tickets",
+            "view_id": str(view_id),
+            "table_id": str(table_id),
+            "fields": {"status": str(uuid.uuid4()), "title": str(uuid.uuid4())},
+            "status": "unavailable",
+            "reason": "field_missing",
+        }
+        version = _version(artifact, bindings=[binding])
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
+            patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=version)),
+        ):
+            read = await _service().read(ctx, artifact.id)
+        assert read.live is True
+        [shown] = read.bindings
+        assert (shown.name, shown.view_id, shown.table_id) == ("tickets", view_id, table_id)
+        assert (shown.fields, shown.status, shown.reason) == (
+            ["status", "title"],
+            "unavailable",
+            "field_missing",
+        )
+
+    async def test_a_page_with_no_version_is_not_live(self) -> None:
+        ctx = _ctx()
+        artifact = _artifact(ctx)
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
+            patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=None)),
+        ):
+            read = await _service().read(ctx, artifact.id)
+        assert (read.live, read.bindings) == (False, [])
+
     @pytest.mark.security
     async def test_a_reader_is_told_they_may_not_manage_it(self) -> None:
         """Decided with the grants, so the page hides what the server would refuse."""
@@ -444,6 +515,56 @@ class TestView:
         ):
             await _service().view(ctx, artifact.id, version_id=uuid.uuid4())
 
+    async def test_the_current_bound_version_mints_a_live_token_with_a_nonce(self) -> None:
+        ctx = _ctx()
+        artifact = _artifact(ctx)
+        version = _version(artifact, number=4, bindings=[_binding()])
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
+            patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=version)),
+            patch(f"{PATH}.artifact_repo.get_version", new=AsyncMock(return_value=version)),
+        ):
+            current = await _service().view(ctx, artifact.id)
+            named = await _service().view(ctx, artifact.id, version_id=version.id)
+        for view in (current, named):
+            claims = _claims(view.url)
+            assert view.live is True
+            assert claims["live"] is True
+            assert claims["n"] == view.nonce
+            assert len(view.nonce) >= 16
+        # A nonce per frame, so a late reply for one load cannot reach the next.
+        assert current.nonce != named.nonce
+
+    async def test_an_older_version_mints_a_token_that_is_not_live(self) -> None:
+        ctx = _ctx()
+        artifact = _artifact(ctx)
+        older = _version(artifact, number=3, bindings=[_binding()])
+        latest = _version(artifact, number=4, bindings=[_binding()])
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
+            patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=latest)),
+            patch(f"{PATH}.artifact_repo.get_version", new=AsyncMock(return_value=older)),
+        ):
+            view = await _service().view(ctx, artifact.id, version_id=older.id)
+        assert view.live is False
+        assert _claims(view.url)["live"] is False
+        assert _claims(view.url)["n"] == view.nonce
+
+    async def test_a_current_version_with_no_bindings_is_not_live(self) -> None:
+        ctx = _ctx()
+        artifact = _artifact(ctx)
+        version = _version(artifact)
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
+            patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=version)),
+        ):
+            view = await _service().view(ctx, artifact.id)
+        assert view.live is False
+        assert _claims(view.url)["live"] is False
+
 
 class TestPublicView:
     @pytest.mark.security
@@ -479,12 +600,33 @@ class TestPublicView:
         assert set(public.model_dump()) == {"password_required", "title", "published_at", "view"}
         assert counted.await_args.args[1] == artifact.id
 
+    @pytest.mark.security
+    async def test_a_public_link_and_an_embed_are_never_live(self) -> None:
+        artifact = _artifact(_ctx(), public_key="k")
+        artifact.embed_origins = ["https://a.example.com"]
+        version = _version(artifact, bindings=[_binding()])
+        with (
+            patch(f"{PATH}.artifact_repo.get_by_public_key", new=AsyncMock(return_value=artifact)),
+            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=version)),
+            patch(f"{PATH}.artifact_repo.count_public_view", new=AsyncMock()),
+        ):
+            public = await _service().public_view("k")
+            embed = await _service().embed("k")
+        assert public.view is not None
+        assert public.view.live is False
+        assert _claims(public.view.url)["live"] is False
+        frame = re.search(r'src="([^"]*/artifact-content/[^"]+)"', embed.document.decode())
+        assert frame is not None
+        assert _claims(frame.group(1))["live"] is False
+
 
 class TestContent:
     async def test_an_address_opens_its_own_version(self) -> None:
         artifact = _artifact(_ctx())
         version = _version(artifact)
-        token = create_artifact_view_token(version.id, expires_in=timedelta(minutes=5))
+        token = create_artifact_view_token(
+            version.id, expires_in=timedelta(minutes=5), nonce="n0", live=False
+        )
         storage = MagicMock()
         storage.load = AsyncMock(return_value=b"<h1>hi</h1>")
         with (
@@ -495,7 +637,9 @@ class TestContent:
             patch(f"{PATH}.get_file_storage", return_value=storage),
         ):
             served = await _service().content(token)
-        assert served.document == artifacts.PLATFORM_SCRIPT.encode() + b"<h1>hi</h1>"
+        assert served.document == (
+            artifacts.platform_script(nonce="n0", live=False, names=[]).encode() + b"<h1>hi</h1>"
+        )
         assert served.embed_origins == []
         assert lookup.await_args.args[1] == version.id
 
@@ -506,7 +650,9 @@ class TestContent:
 
         version_id = uuid.uuid4()
         token = {
-            "expired": create_artifact_view_token(version_id, expires_in=timedelta(seconds=-5)),
+            "expired": create_artifact_view_token(
+                version_id, expires_in=timedelta(seconds=-5), nonce="n0", live=False
+            ),
             "forged": "not-a-token",
             "wrong-type": create_password_reset_token(str(version_id)),
         }[kind]
@@ -522,7 +668,9 @@ class TestContent:
         older volume - answered 500, and a thumbnail showed a server error."""
         artifact = _artifact(_ctx())
         version = _version(artifact)
-        token = create_artifact_view_token(version.id, expires_in=timedelta(minutes=5))
+        token = create_artifact_view_token(
+            version.id, expires_in=timedelta(minutes=5), nonce="n0", live=False
+        )
         storage = MagicMock()
         storage.load = AsyncMock(side_effect=FileNotFoundError(version.storage_path))
         with (
@@ -538,8 +686,40 @@ class TestContent:
         # Said out loud, because it is storage and the database disagreeing.
         assert log.warning.call_args.args[0] == "artifact_bytes_missing"
 
+    @pytest.mark.security
+    async def test_a_token_without_a_nonce_serves_a_page_that_is_not_live(self) -> None:
+        """A token minted before the nonce existed opens its page, with no data."""
+        artifact = _artifact(_ctx())
+        version = _version(artifact, bindings=[_binding()])
+        token = jwt.encode(
+            {
+                "exp": datetime.now(UTC) + timedelta(minutes=5),
+                "sub": str(version.id),
+                "type": "artifact_view",
+                "live": True,
+            },
+            artifacts.settings.SECRET_KEY,
+            algorithm=artifacts.settings.ALGORITHM,
+        )
+        storage = MagicMock()
+        storage.load = AsyncMock(return_value=b"<h1>hi</h1>")
+        with (
+            patch(
+                f"{PATH}.artifact_repo.get_version_with_artifact",
+                new=AsyncMock(return_value=(version, artifact)),
+            ),
+            patch(f"{PATH}.get_file_storage", return_value=storage),
+        ):
+            served = await _service().content(token)
+        assert served.document == (
+            artifacts.platform_script(nonce="", live=False, names=["deals"]).encode()
+            + b"<h1>hi</h1>"
+        )
+
     async def test_an_address_to_a_pruned_version_is_not_found(self) -> None:
-        token = create_artifact_view_token(uuid.uuid4(), expires_in=timedelta(minutes=5))
+        token = create_artifact_view_token(
+            uuid.uuid4(), expires_in=timedelta(minutes=5), nonce="n0", live=False
+        )
         with (
             patch(
                 f"{PATH}.artifact_repo.get_version_with_artifact", new=AsyncMock(return_value=None)
@@ -554,8 +734,8 @@ class TestRender:
         artifact = _artifact(_ctx())
         page = b"<script>draw()</script>"
         assert (
-            artifacts.render(_version(artifact), page, title="t")
-            == artifacts.PLATFORM_SCRIPT.encode() + page
+            artifacts.render(_version(artifact), page, title="t", nonce="n0", live=False)
+            == artifacts.platform_script(nonce="n0", live=False, names=[]).encode() + page
         )
 
     def test_markdown_is_rendered_into_a_page_with_its_raw_html_escaped(self) -> None:
@@ -565,12 +745,15 @@ class TestRender:
             version,
             b"# Sales\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n<script>x()</script>",
             title="Q3 <sales>",
+            nonce="n0",
+            live=False,
         ).decode()
         assert "<h1>Sales</h1>" in document
         assert "<table>" in document
         assert "<script>x()</script>" not in document
-        assert document.count("<script") == 1
+        assert document.count("<script") == 2
         assert 'data-agenticos="platform"' in document
+        assert 'data-agenticos="data"' in document
         assert "<title>Q3 &lt;sales&gt;</title>" in document
 
 
@@ -645,3 +828,159 @@ def test_the_console_address_is_the_artifact_s_page_in_its_organization() -> Non
         artifacts.console_url_for(artifact_id, organization_id)
         == f"/artifacts/{artifact_id}?org={organization_id}"
     )
+
+
+class _Claims:
+    """`SET NX` and compare-and-delete on a dict, standing in for the shared Redis."""
+
+    def __init__(self) -> None:
+        self.store: dict[str, str] = {}
+
+    async def set(self, key: str, value: str, ttl: int | None = None, nx: bool = False) -> bool:
+        if nx and key in self.store:
+            return False
+        self.store[key] = value
+        return True
+
+    async def delete_if_equals(self, key: str, value: str) -> bool:
+        if self.store.get(key) != value:
+            return False
+        del self.store[key]
+        return True
+
+
+@pytest.fixture
+def claims() -> Iterator[_Claims]:
+    shared = _Claims()
+    client = MagicMock()
+    client.set = shared.set
+    client.delete_if_equals = shared.delete_if_equals
+    rate_limit.configure(client)
+    yield shared
+    rate_limit.configure(None)
+
+
+def _session() -> MagicMock:
+    """A session whose savepoint passes an exception on, as a real one does."""
+    db = MagicMock()
+    db.begin_nested.return_value.__aexit__ = AsyncMock(return_value=False)
+    return db
+
+
+class TestData:
+    @pytest.mark.security
+    async def test_a_second_load_in_flight_for_the_same_viewer_is_refused(
+        self, claims: _Claims
+    ) -> None:
+        viewer, other = _ctx(), _ctx()
+        reading = anyio.Event()
+        release = anyio.Event()
+
+        async def get(db: Any, artifact_id: uuid.UUID, *, organization_id: uuid.UUID) -> None:
+            if organization_id == viewer.organization_id:
+                reading.set()
+                await release.wait()
+
+        outcomes: list[BaseException] = []
+
+        async def first() -> None:
+            try:
+                await _service().data(viewer, uuid.uuid4(), uuid.uuid4())
+            except NotFoundError as missing:
+                outcomes.append(missing)
+
+        with patch(f"{PATH}.artifact_repo.get", new=AsyncMock(side_effect=get)):
+            async with anyio.create_task_group() as group:
+                group.start_soon(first)
+                await reading.wait()
+                with pytest.raises(RateLimitError) as refused:
+                    await _service().data(viewer, uuid.uuid4(), uuid.uuid4())
+                with pytest.raises(NotFoundError):
+                    await _service().data(other, uuid.uuid4(), uuid.uuid4())
+                release.set()
+
+        assert refused.value.message == (
+            "Your previous data load is still running. Try again in a moment."
+        )
+        assert refused.value.status_code == 429
+        assert len(outcomes) == 1
+        assert claims.store == {}
+
+    @pytest.mark.security
+    async def test_the_process_gate_refuses_at_once_when_full(self, monkeypatch) -> None:
+        monkeypatch.setattr(artifacts.settings, "ARTIFACT_DATA_MAX_CONCURRENT_LOADS", 2)
+        gate = artifacts._load_gate()
+        for _ in range(2):
+            await gate.acquire()
+        read = AsyncMock(return_value=None)
+        try:
+            with (
+                patch(f"{PATH}.artifact_repo.get", new=read),
+                pytest.raises(RateLimitError) as refused,
+            ):
+                await _service().data(_ctx(), uuid.uuid4(), uuid.uuid4())
+        finally:
+            gate.release()
+            gate.release()
+
+        assert refused.value.message == (
+            "Too many pages are loading data right now. Try again in a moment."
+        )
+        read.assert_not_awaited()
+        assert artifacts._load_gate() is gate
+        with patch(f"{PATH}.artifact_repo.get", new=read), pytest.raises(NotFoundError):
+            await _service().data(_ctx(), uuid.uuid4(), uuid.uuid4())
+
+    async def test_a_version_of_another_artifact_is_not_found(self) -> None:
+        ctx = _ctx()
+        artifact = _artifact(ctx)
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
+            patch(f"{PATH}.artifact_repo.get_version", new=AsyncMock(return_value=None)),
+            pytest.raises(NotFoundError) as missing,
+        ):
+            await _service().data(ctx, artifact.id, uuid.uuid4())
+        assert missing.value.message == "This version of the artifact is no longer kept"
+
+    @pytest.mark.parametrize(
+        "stopped",
+        [
+            DBAPIError("SELECT pg_sleep(1)", {"needle": "x"}, MagicMock(sqlstate="57014")),
+            DeadlineReached(remaining_ms=0),
+        ],
+        ids=["statement_timeout", "deadline"],
+    )
+    async def test_a_stopped_read_is_a_timeout_for_that_binding(self, stopped: Exception) -> None:
+        ctx = _ctx()
+        artifact = _artifact(ctx)
+        version = _version(artifact, bindings=[_binding()])
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
+            patch(f"{PATH}.artifact_repo.get_version", new=AsyncMock(return_value=version)),
+            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=version)),
+            patch(
+                f"{PATH}.virtual_table_repo.statement_timeout",
+                new=AsyncMock(side_effect=stopped),
+            ),
+        ):
+            data = await ArtifactService(_session()).data(ctx, artifact.id, version.id)
+        assert data.bindings["deals"].status == "unavailable"
+        assert data.bindings["deals"].reason == "timeout"
+
+    async def test_a_database_error_that_is_not_a_timeout_is_not_swallowed(self) -> None:
+        ctx = _ctx()
+        artifact = _artifact(ctx)
+        version = _version(artifact, bindings=[_binding()])
+        broken = DBAPIError("SELECT 1", {}, MagicMock(sqlstate="40001"))
+        service = ArtifactService(_session())
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
+            patch(f"{PATH}.artifact_repo.get_version", new=AsyncMock(return_value=version)),
+            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=version)),
+            patch(
+                f"{PATH}.virtual_table_repo.statement_timeout",
+                new=AsyncMock(side_effect=broken),
+            ),
+            pytest.raises(DBAPIError),
+        ):
+            await service.data(ctx, artifact.id, version.id)

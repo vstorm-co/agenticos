@@ -74,7 +74,12 @@ from pydantic_ai.toolsets import AbstractToolset
 from pydantic_ai.workspaces import Workspace
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.audience import RunAudience, derive_audience
+from app.agents.audience import (
+    RunAudience,
+    acting_for_no_person,
+    derive_audience,
+    run_person_for,
+)
 from app.agents.capabilities.approval import (
     ApprovalDecision,
     ApprovalGranted,
@@ -498,14 +503,17 @@ class DelegationFrame(BaseModel):
 class AdmittedAs(BaseModel):
     """The terms a run was admitted on, as the request stated them.
 
-    Three facts today, and what they have in common is the whole reason this is one
-    model rather than three fields: none is derivable from the run row, all are
-    decided by the request, and all are read again when a parked run resumes. A
-    fourth such fact belongs here rather than beside it.
+    Every field is such a fact, and what they have in common is the whole reason
+    this is one model rather than loose fields: none is derivable from the run row,
+    all are decided by the request, and all are read again when a parked run
+    resumes. Another such fact belongs here rather than beside it.
 
-    Every field defaults to the safe answer, because this is read back out of a
-    JSONB column: a run parked before this existed loads as one that asked for
-    nothing unusual, which is what it was.
+    Every field but one defaults to the safe answer, because this is read back out
+    of a JSONB column: a run parked before this existed loads as one that asked for
+    nothing unusual, which is what it was. `public_origin` is the exception - its
+    default `False` is not safe for a parked event-trigger run, whose input an
+    outsider wrote - so a resume reads a stored row without the key as public on
+    `RunSurface.SCHEDULE` (see `resume`).
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -577,6 +585,23 @@ class AdmittedAs(BaseModel):
             "approver's context cannot tell it (#1469): `agent_runs.user_id` is the "
             "publisher either way. Defaults false, so a run parked before this was "
             "recorded resumes as it always did."
+        ),
+    )
+    public_origin: bool = Field(
+        default=False,
+        description=(
+            "Whether an outsider supplied the input this run acts on - a webhook, a "
+            "form, a channel message, an email or a repository event reached it - "
+            "so that nobody answers for it even though it executes as a principal. "
+            "Unrecoverable from the row, which records the principal either way, so "
+            "a resume approved by a member would otherwise give the run a person. "
+            "Defaults false, which is not the safe answer for a row parked before "
+            "this existed: a resume treats a missing key on `RunSurface.SCHEDULE` as "
+            "true, so a legacy event-trigger run comes back with no person - and a "
+            "plain scheduled run parked across the deploy loses its creator as its "
+            "person too, until it is run again. A legacy workflow run is caught by "
+            "the dispatch it wakes inside, and a widget or embed run has no person "
+            "under its fallback rule either way."
         ),
     )
 
@@ -1210,7 +1235,11 @@ class PreparedRun:
         The non-streaming half of :meth:`iterate`, and it exists for the same
         reason.
         """
-        with guarded_by(self.built.budget), metered_by(self.built.ledger):
+        with (
+            guarded_by(self.built.budget),
+            metered_by(self.built.ledger),
+            acting_for_no_person(self.built.deps.run_person is None),
+        ):
             return await self.built.agent.run(
                 user_prompt,
                 deps=self.built.deps,
@@ -1246,11 +1275,19 @@ class PreparedRun:
         the guard set here. Miss it and such a call spends unrefused past a cap
         (agenticos#1808).
 
+        `acting_for_no_person` is opened with them so that a record a tool writes
+        knows whether the run behind it has a person, without being handed the
+        deps - the same reason the other two are ambient.
+
         Yields the library's run object, so the caller drives the graph and
         decides what to forward. It stays readable after the block closes; the
         outcome is taken from it there.
         """
-        with guarded_by(self.built.budget), metered_by(self.built.ledger):
+        with (
+            guarded_by(self.built.budget),
+            metered_by(self.built.ledger),
+            acting_for_no_person(self.built.deps.run_person is None),
+        ):
             async with self.built.agent.iter(
                 user_prompt,
                 deps=self.built.deps,
@@ -2018,6 +2055,7 @@ class AgentRunnerService:
         output_schema: dict[str, Any] | None = None,
         request_connection: ConnectionCallback | None = None,
         run_limit_usd: Decimal | None = None,
+        public_origin: bool = False,
     ) -> PreparedRun:
         """Assemble everything a run needs and open its row.
 
@@ -2068,6 +2106,10 @@ class AgentRunnerService:
                 binding they have not connected is offered to the model as
                 `connect_account` rather than briefed as unavailable - so nobody
                 is asked to connect a service the agent never reaches for.
+            public_origin: An outsider supplied this run's input - a delivery
+                fired an event trigger, or a workflow admitted by an external door
+                runs the agent - so nobody is behind it, whoever `ctx` names.
+                Stored on the run's admitted terms, so a resume keeps it.
 
         Raises:
             BadRequestError: If the agent is unpublished, archived, or its spec
@@ -2115,6 +2157,7 @@ class AgentRunnerService:
             # whether a gap is briefed or offered as a tool decides what is built.
             request_connection=request_connection,
             run_limit_usd=run_limit_usd,
+            public_origin=public_origin,
         )
         prepared.output_schema = output_schema
         prepared.run_limit_usd = run_limit_usd
@@ -2205,6 +2248,7 @@ class AgentRunnerService:
         plan_items: list[dict[str, Any]] | None = None,
         request_connection: ConnectionCallback | None = None,
         run_limit_usd: Decimal | None = None,
+        public_origin: bool = False,
     ) -> PreparedRun:
         """Build the agent for a run, opening its row unless one is being resumed.
 
@@ -2541,6 +2585,30 @@ class AgentRunnerService:
             subject_is_publisher_fallback=ctx.subject_is_publisher_fallback,
             room_key=memory_room_key,
         )
+        # A workflow step runs as the workflow's principal, so only the dispatch
+        # knows whether an outsider supplied the run's input. Read here rather
+        # than trusted to every caller: a step parked before the flag existed
+        # wakes with it unset, and a step that forgets to pass it must not lend
+        # the run the principal as its person. With no dispatch at all a workflow
+        # run counts as public - both callers run inside one.
+        #
+        # Imported here: `workflow_execution` reaches the `agent.run` node, which
+        # imports this module at load.
+        from app.services.workflow_execution import context as workflow_context
+
+        dispatching = workflow_context.active()
+        public_origin = public_origin or (
+            surface is RunSurface.WORKFLOW and (dispatching is None or dispatching.public_origin)
+        )
+        # The run's own person. On a resume that is `owner_user_id` alone, never
+        # the approver's `ctx.user_id`: a run whose member was deleted lost its
+        # owner to `SET NULL`, and the approver releasing it must not fill the gap.
+        run_person = run_person_for(
+            user_id=owner_user_id if existing_run is not None else audience_user_id,
+            subject_is_publisher_fallback=subject_is_publisher_fallback,
+            surface=surface,
+            public_origin=public_origin,
+        )
         built = build_agent(
             spec,
             model_spec,
@@ -2552,6 +2620,7 @@ class AgentRunnerService:
             user_id=None if audience_user_id is None else str(audience_user_id),
             user_name=user_name,
             audience=audience,
+            run_person=run_person,
             granted_scopes=DEFAULT_GRANTED_SCOPES,
             resources=resources,
             secrets=secrets,
@@ -2611,6 +2680,7 @@ class AgentRunnerService:
                 audience_user_id=audience.user_id,
                 audience_room_key=audience.room_key,
                 subject_is_publisher_fallback=subject_is_publisher_fallback,
+                public_origin=public_origin,
             ),
         )
 
@@ -3717,6 +3787,7 @@ class AgentRunnerService:
         output_schema: dict[str, Any] | None = None,
         structured: list[dict[str, Any]] | None = None,
         run_limit_usd: Decimal | None = None,
+        public_origin: bool = False,
     ) -> tuple[str, AgentRun]:
         """Run an agent to completion and return its answer.
 
@@ -3755,6 +3826,9 @@ class AgentRunnerService:
         `run_limit_usd` is a ceiling on this one run, beside the agent's and the
         organization's monthly ones - a workflow step's `max_cost_usd`.
 
+        `public_origin` says an outsider supplied the input, so no member is
+        behind the run - see :meth:`prepare`.
+
         `output_schema` asks for an answer of that shape in place of the
         version's own, and `structured` is filled with the answer as an object
         when it is one - a list for the reason `outbound` is. The returned text
@@ -3778,6 +3852,7 @@ class AgentRunnerService:
             on_compaction=on_compaction,
             output_schema=output_schema,
             run_limit_usd=run_limit_usd,
+            public_origin=public_origin,
         )
         # `str | list[Any]`, not `str`: an attached image is folded in as
         # `BinaryContent` beside the text, and narrowing that back to a string
@@ -3964,6 +4039,15 @@ class AgentRunnerService:
             # a publisher stand-in is gone with the request that carried it, so a
             # resume would otherwise lend the publisher's MCP to a guest (#1469).
             restored_publisher_fallback=state.admitted_as.subject_is_publisher_fallback,
+            # Who supplied the input is gone with the request too; without it a
+            # member approving an outsider's parked run would become its person.
+            # A schedule-surface row parked before the key existed cannot say
+            # whether a delivery fired it, so it fails closed: public, no person.
+            public_origin=state.admitted_as.public_origin
+            or (
+                "public_origin" not in state.admitted_as.model_fields_set
+                and RunSurface(run.surface) is RunSurface.SCHEDULE
+            ),
             extra_toolsets=None,
             # A resumed run reuses its row, and the binding is reloaded above to
             # re-enrich the spec, so there is nothing left for `_assemble` to

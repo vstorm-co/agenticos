@@ -66,7 +66,8 @@ async def acting_as(
     try:
         UUID(user_id)
     except ValueError:
-        # An embed visitor, say: somebody, but not a member the organization knows.
+        # Not a member id at all: a widget or embed run carries its publisher's id
+        # here and acts as the publisher.
         raise Refused("Tables can only be used by a run acting for a member.") from None
     auth = await acting_member(db, organization_id, user_id)
     if auth is None:

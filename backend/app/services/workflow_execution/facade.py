@@ -84,12 +84,25 @@ class Causation:
     nothing when a person did. `visited_trigger_ids` is every trigger the chain
     has passed through, this one included, which is what lets a trigger that
     would start itself again - directly or round a loop - be refused.
+    `public_origin` is the causing run's stored flag: a run an outsider's chain
+    causes has no person behind it either.
     """
 
     root_run_id: UUID | None
     causation_run_id: UUID | None
     visited_trigger_ids: list[str]
     depth: int
+    public_origin: bool = False
+
+
+def causes_public(run: WorkflowRun) -> bool:
+    """Whether a run `run` causes is stored public: its own stored flag, or a door
+    it came through.
+
+    The door half fails closed across a deploy: a door run admitted by code older
+    than the stored flag reads false, and without it its chain would not.
+    """
+    return run.public_origin or run.triggered_by in dispatcher.PUBLIC_TRIGGERS
 
 
 def _checked_input(run_input: dict[str, Any] | None) -> dict[str, Any]:
@@ -389,12 +402,16 @@ class WorkflowExecutionService:
         retry_of_run_id: UUID | None = None,
         submitted: bool = True,
         parent_node_run_id: UUID | None = None,
+        public_origin: bool = False,
     ) -> tuple[WorkflowRun, UUID]:
         """One admitted run: its row, its references, its entry node and first outbox row.
 
         Every surface ends here, so a run started from the console, the API, a
         webhook, a schedule or the chat is the same row with the same
         governance - the admission quota, the pinned principal, the frozen input.
+        The run is stored public when `public_origin` says so (a retry of a
+        public run), when it came through an external door, or when a public
+        run caused it.
         """
         # Charge this run's node work against the organization's and the caller's
         # outstanding-node-work ceilings before anything is written, so a caller
@@ -432,6 +449,11 @@ class WorkflowExecutionService:
             draft_graph_snapshot=draft_snapshot,
             mode=mode.value,
             triggered_by=triggered_by.value,
+            public_origin=(
+                public_origin
+                or triggered_by in dispatcher.PUBLIC_TRIGGERS
+                or (causation is not None and causation.public_origin)
+            ),
             execution_principal_user_id=ctx.subject_id,
             budget_limit=budget_limit,
             node_count=len(graph.nodes),
@@ -654,6 +676,10 @@ class WorkflowExecutionService:
             deadline_seconds=None,
             reply_conversation_id=None,
             retry_of_run_id=original.id,
+            # A retry is a root of its own, so it keeps the run's flag, not
+            # its chain's: a member retrying a public child from the console
+            # still runs it with no person.
+            public_origin=original.public_origin,
         )
         self._trigger_dispatch(workflow_run_id=run.id, node_run_id=entry_node_run_id)
         return _read(run)

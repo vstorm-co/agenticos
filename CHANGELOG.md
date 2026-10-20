@@ -38,6 +38,35 @@ Two things are versioned separately from this file and worth knowing about:
   now show every setting. `Delete` deletes the selection, and a dragged field
   scrolls the form at its edge.
 
+- **Archiving and restoring a table from the console.** A member who can edit
+  a Virtual Table archives it from **More actions** on its page, after a
+  dialog says that its records stay readable, nothing can change them and it
+  can be restored; what still uses the table is listed when that refuses the
+  archive. An archived table's page says so, with **Restore** for whoever may
+  edit it, through the new `POST /api/v1/tables/{id}/unarchive`.
+  `TableRead.can_restore` says who may. The catalog can list archived tables
+  too. A restore is refused while a live table holds the archived one's name.
+
+- **Binding a private view publishes the page.** Records are read with each
+  viewer's own access, so only the view's owner sees them until it is shared; a
+  line in the publish result's `warning` tells the agent to say so.
+
+- **Pages that stay current.** An agent can bind a published page to saved
+  Virtual Table views with `bindings`, and the page draws them from
+  `agenticos.onData`. Records are read when somebody views the page, with that
+  viewer's own access, and never stored in it. The viewer's strip has Refresh
+  and an auto-refresh each viewer chooses; cards, the dashboard and the viewer
+  mark live pages. Up to 5 bindings, 1,000 records each and 4 MiB per page, a
+  5 s deadline and 30 loads a minute per viewer. `list_views` finds a view and
+  `share_view` shares a private one; `share_view` waits for approval by
+  default, a capability-wide `approval` on `virtual_tables` decides it too, and
+  only `tool_approval.share_view` targets it alone. A page with bindings is
+  published only by a run acting for a member: the signed-in member (web chat,
+  HTTP API), a linked channel sender or a schedule's creator; a widget, embed
+  or hosted-page visitor, an unlinked channel sender, an agent event trigger's
+  delivery and a workflow run admitted by a public door, or anywhere in such a
+  run's chain, do not count.
+
 - **A Workflows card on the dashboard.** Real runs, failures and cost over the
   dashboard's period across every workflow the reader can see, the five
   busiest, and how many runs wait for a person now -
@@ -98,7 +127,9 @@ Two things are versioned separately from this file and worth knowing about:
   asks for, starts a run as the member it acts for and waits for the answer,
   up to a limit set in the Builder. Each start is the API's own, so access,
   input checks, budgets and quotas hold, and the runs page says **An agent**
-  started it. An agent running as a workflow's own step starts none.
+  started it. An agent running as a workflow's own step starts none. A run
+  with no member behind it (a widget, embed or hosted-page visitor, an unlinked
+  channel sender, an agent event trigger's delivery) starts none.
   Migration `0130_workflow_run_from_agent`.
 
 - **Import a CSV file again to update a table.** With an external id column mapped,

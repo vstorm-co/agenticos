@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { useDataBridge } from "@/components/artifacts/artifact-frame";
 import { useArtifactView } from "@/hooks/use-artifacts";
 import { cn } from "@/lib/utils";
+import type { BindingData } from "@/types/artifact";
 
 /**
  * Script, and nothing else: no dialogs, no forms, no popups, no same origin.
@@ -46,6 +48,14 @@ function useNearViewport(ref: React.RefObject<HTMLElement | null>): boolean {
   return near;
 }
 
+/**
+ * What a thumbnail answers a live page with: no bindings, so the page fills in
+ * every name it declares as unavailable at once. A listing reads no records -
+ * one read per card - and a page waiting on data it will never get would
+ * otherwise sit out its own deadline first.
+ */
+const NO_DATA: Record<string, BindingData> = {};
+
 /** How far a `VIEWPORT_WIDTH` page must shrink to fit the element's width. */
 function useFitScale(ref: React.RefObject<HTMLElement | null>): number {
   const [scale, setScale] = useState(0.25);
@@ -87,9 +97,11 @@ export function ArtifactThumbnail({
   versionId?: string | null;
 }) {
   const box = useRef<HTMLDivElement>(null);
+  const frame = useRef<HTMLIFrameElement>(null);
   const near = useNearViewport(box);
   const scale = useFitScale(box);
   const view = useArtifactView(artifactId, versionId, near);
+  const bridge = useDataBridge(frame, view.data?.nonce ?? "", NO_DATA, 0);
   const [loaded, setLoaded] = useState(false);
   // A frame unmounted off screen paints again when it comes back, so the lines
   // return with it rather than a blank card waiting for the load.
@@ -116,6 +128,7 @@ export function ArtifactThumbnail({
       )}
       {near && view.data !== undefined && (
         <iframe
+          ref={frame}
           src={view.data.url}
           title={title}
           sandbox={THUMBNAIL_SANDBOX}
@@ -123,7 +136,10 @@ export function ArtifactThumbnail({
           loading="lazy"
           tabIndex={-1}
           aria-hidden
-          onLoad={() => setLoaded(true)}
+          onLoad={() => {
+            setLoaded(true);
+            bridge.onLoad();
+          }}
           data-loaded={loaded}
           className="peek-frame pointer-events-none absolute top-0 left-0 origin-top-left border-0 bg-white"
           style={{

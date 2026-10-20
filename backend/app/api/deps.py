@@ -939,6 +939,27 @@ async def limit_table_write(ctx: Auth) -> None:
     _refuse_if_over(decision, "Too many table writes in the last minute. Wait and try again.")
 
 
+async def limit_artifact_data(ctx: Auth) -> None:
+    """Refuse a member loading live pages' data faster than the deployment allows.
+
+    Keyed on the member and the organization, as table writes are. Every load runs
+    each of the page's bindings as a query, so like table writes it keeps a
+    per-process floor while the shared limiter cannot count, rather than leaving
+    every page unmetered for the length of a cache outage.
+
+    Usage::
+
+        @router.get("/{artifact_id}/versions/{version_id}/data",
+                    dependencies=[Depends(limit_artifact_data)])
+    """
+    decision = await rate_limit.consume_with_local_floor(
+        surface="artifact_data",
+        caller=f"org:{ctx.organization_id}:user:{ctx.subject_id}",
+        limit=rate_limit.artifact_data_limit(),
+    )
+    _refuse_if_over(decision, "Too many data loads in the last minute. Wait and try again.")
+
+
 def _refuse_if_over(decision: rate_limit.Decision, message: str) -> None:
     """Turn a rate limiter's refusal into this API's own 429.
 

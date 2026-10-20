@@ -47,6 +47,7 @@ export function ArtifactCard({ artifact }: { artifact: Artifact }) {
               </Badge>
             )}
             {artifact.visibility === "org" && <Badge variant="secondary">{t("sharedOrg")}</Badge>}
+            {artifact.live && <Badge variant="secondary">{t("liveBadge")}</Badge>}
             {artifact.public_url !== null && (
               <Badge variant="outline" className="gap-1">
                 <Globe className="h-3 w-3" />

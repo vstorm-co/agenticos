@@ -12,15 +12,26 @@ themselves are tested one at a time.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
+from unittest.mock import patch
 
+from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
+from pydantic_ai.models.function import AgentInfo, FunctionModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from app.agents.factory import BuiltAgent, build_agent
+from app.agents.spec import AgentSpec
 from app.core.permissions import AuthContext
+from app.core.secret_kinds import ApiKeySecret, SecretKind, seal_secret
+from app.core.vault import VaultScope
+from app.db.models.credential import ModelProfile
 from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
 from app.db.models.workflow import Workflow, WorkflowStatus
@@ -33,6 +44,7 @@ from app.db.models.workflow_run import (
     WorkflowRunStatus,
 )
 from app.repositories import workflow_run as workflow_run_repo
+from app.services.agent_registry import AgentRegistryService
 from app.services.workflow_execution import dispatcher
 from app.workflows.graph.model import WorkflowGraph
 
@@ -112,6 +124,8 @@ async def seed_run(
             draft_graph_snapshot=graph.model_dump(mode="json"),
             mode=WorkflowRunMode.TEST.value,
             triggered_by=triggered_by,
+            # As `WorkflowExecutionService._admit` stores it for a root.
+            public_origin=triggered_by in dispatcher.PUBLIC_TRIGGERS,
             execution_principal_user_id=principal.id,
             budget_limit=None,
             node_count=len(graph.nodes),
@@ -207,3 +221,73 @@ async def node_statuses(seeded: SeededRun) -> dict[uuid.UUID, str]:
             )
         ).scalars()
         return {row.node_instance_id: row.status for row in rows}
+
+
+async def seed_agent(
+    factory: async_sessionmaker[AsyncSession], principal: User, org: Organization
+) -> dict[str, str]:
+    """A published agent of `org`, on a model profile with a stand-in key, as an
+    `agent.run` step's config pins it. Pair it with `run_people`, whose model
+    answers in-process."""
+    ctx = AuthContext(user_id=principal.id, organization_id=org.id, role="owner")
+    sealed = seal_secret(
+        ApiKeySecret(api_key="sk-test-key-0000"), scope=VaultScope.organization(org.id)
+    )
+    async with factory() as db:
+        secret = OrganizationSecret(
+            id=uuid.uuid4(),
+            organization_id=org.id,
+            name=f"Key {uuid.uuid4().hex[:6]}",
+            purpose="openai",
+            visibility="org",
+            kind=SecretKind.API_KEY.value,
+            sealed_secret=sealed.ciphertext,
+            hint=sealed.hint,
+        )
+        db.add(secret)
+        await db.flush()
+        profile = ModelProfile(
+            id=uuid.uuid4(),
+            organization_id=org.id,
+            label=f"Default {uuid.uuid4().hex[:6]}",
+            provider="openai",
+            model="gpt-4.1",
+            secret_id=secret.id,
+        )
+        db.add(profile)
+        await db.flush()
+        registry = AgentRegistryService(db)
+        agent = await registry.create(
+            ctx,
+            AgentSpec(
+                name=f"Agent {uuid.uuid4().hex[:6]}",
+                instructions="You answer briefly.",
+                model_profile_id=profile.id,
+            ),
+        )
+        version = await registry.publish(ctx, agent.id)
+        await db.commit()
+    return {"agent_id": str(agent.id), "version_id": str(version.id)}
+
+
+@contextmanager
+def run_people() -> Iterator[list[uuid.UUID | None]]:
+    """The run person of every agent an `agent.run` step builds, in order.
+
+    The model answers in-process, so a step runs to its end without a provider.
+    """
+
+    async def respond(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+        return ModelResponse(parts=[TextPart("Done.")])
+
+    seen: list[uuid.UUID | None] = []
+
+    def recording(*args: Any, **kwargs: Any) -> BuiltAgent:
+        seen.append(kwargs["run_person"])
+        return build_agent(*args, **kwargs)
+
+    with (
+        patch("app.agents.model_resolver.build_model", lambda *_args: FunctionModel(respond)),
+        patch("app.services.agent_runner.build_agent", recording),
+    ):
+        yield seen

@@ -31,6 +31,7 @@ a table every listing drags through the buffer cache.
 import uuid
 from datetime import datetime
 from enum import StrEnum
+from typing import Any
 
 from sqlalchemy import (
     CheckConstraint,
@@ -198,6 +199,12 @@ class ArtifactVersion(Base, TimestampMixin):
         ForeignKey("agent_runs.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
+    )
+    # The live data the page may load, as the publication resolved it: one
+    # entry per binding name (see `ArtifactBinding`). Versions written before
+    # bindings existed read as none.
+    bindings: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
     )
 
     __table_args__ = (

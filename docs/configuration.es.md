@@ -1,5 +1,5 @@
 ---
-source_sha: "72c9b49ab9c2"
+source_sha: "c7261314b422"
 ---
 
 # Configuración { #configuration }
@@ -743,6 +743,13 @@ las direcciones de contenido sobre él, y el frontend añade su ruta de contenid
 compose se lo pasan a ambos. Un valor en solo uno de ellos muestra un frame vacío,
 porque el navegador se niega a cargar la página desde un origen que la consola no
 ha permitido.
+
+**Con `ARTIFACT_ORIGIN` vacío, el `PUBLIC_API_URL` del frontend tiene que ser
+exactamente igual al `PUBLIC_BASE_URL` del backend, ruta incluida.** El backend
+firma entonces las direcciones de contenido sobre `PUBLIC_BASE_URL`, y el
+`frame-src` de la consola nombra la ruta de contenido bajo `PUBLIC_API_URL`, así que
+`https://example.com/agenticos` en un lado y `https://example.com` en el otro dan el
+mismo frame vacío.
 
 ## Workspaces de los agents { #agent-workspaces }
 

@@ -1,11 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { FileX, History } from "lucide-react";
+import { FileX, History, Info } from "lucide-react";
 import { useRouter } from "@/lib/locale-navigation";
 import { useTranslations } from "next-intl";
 
-import { ArtifactFrame } from "@/components/artifacts/artifact-frame";
+import { ArtifactFrame, type DataBridge } from "@/components/artifacts/artifact-frame";
+import {
+  LiveDataNotice,
+  LiveRefreshButton,
+  ViewerNotice,
+} from "@/components/artifacts/live-data-controls";
 import { OtherOrganizations } from "@/components/artifacts/other-organizations";
 import { ArtifactShareDialog } from "@/components/artifacts/artifact-share-dialog";
 import { ArtifactViewerBar } from "@/components/artifacts/artifact-viewer-bar";
@@ -45,6 +50,7 @@ export function ArtifactViewer({ artifactId, initialVersionId }: ArtifactViewerP
   const [versionId, setVersionId] = useState(initialVersionId);
   const [sharing, setSharing] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [bridge, setBridge] = useState<DataBridge | null>(null);
   const {
     artifact,
     versions,
@@ -86,34 +92,58 @@ export function ArtifactViewer({ artifactId, initialVersionId }: ArtifactViewerP
     );
   }
 
+  // Only the current version reads live data, so only it refreshes; an older
+  // one of a live page says so, and offers the current one back.
+  const current = versionId === null || versionId === artifact.current_version?.id;
+  const live = artifact.live && current;
+  const restore = artifact.can_edit && !current && (
+    <Button
+      size="sm"
+      variant="outline"
+      disabled={restoreVersion.isPending}
+      onClick={() => restoreVersion.mutate(versionId, { onSuccess: () => setVersionId(null) })}
+    >
+      <History className="h-3.5 w-3.5" />
+      <span className="sr-only sm:not-sr-only">{t("restoreVersion")}</span>
+    </Button>
+  );
+
   return (
     <div className={VIEWER}>
       <ArtifactViewerBar
         artifact={artifact}
+        live={live}
         onShare={() => setSharing(true)}
         onDelete={() => setConfirming(true)}
       >
-        <VersionPicker versions={versions} value={versionId} onChange={setVersionId} />
-        {artifact.can_edit && versionId !== null && versionId !== artifact.current_version?.id && (
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={restoreVersion.isPending}
-            onClick={() =>
-              restoreVersion.mutate(versionId, { onSuccess: () => setVersionId(null) })
-            }
-          >
-            <History className="h-3.5 w-3.5" />
-            <span className="sr-only sm:not-sr-only">{t("restoreVersion")}</span>
-          </Button>
+        {live && bridge !== null && (
+          <LiveRefreshButton key={artifact.id} artifactId={artifact.id} bridge={bridge} />
         )}
+        <VersionPicker
+          versions={versions}
+          value={versionId}
+          onChange={setVersionId}
+          live={artifact.live}
+        />
+        {!artifact.live && restore}
       </ArtifactViewerBar>
+      {live && bridge !== null && <LiveDataNotice artifact={artifact} status={bridge.status} />}
+      {artifact.live && !current && (
+        <ViewerNotice tone="info" icon={Info}>
+          <span>{t("liveOnlyCurrent")}</span>
+          <Button size="sm" variant="outline" onClick={() => setVersionId(null)}>
+            {t("openCurrent")}
+          </Button>
+          {restore}
+        </ViewerNotice>
+      )}
       <div className="flex min-h-0 flex-1 flex-col">
         <ArtifactFrame
           artifactId={artifact.id}
           versionId={versionId}
           title={artifact.title}
           className="min-h-0 rounded-none border-0"
+          onBridge={setBridge}
         />
       </div>
       <ArtifactShareDialog

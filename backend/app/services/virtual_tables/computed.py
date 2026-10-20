@@ -13,7 +13,7 @@ empty, rather than showing a private table's values to someone outside it.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
@@ -21,15 +21,78 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import AuthContext, Perm
+from app.db.models.virtual_table import VirtualTableRecord
 from app.repositories import virtual_table_repo
+from app.repositories.virtual_table import RecordCells
 from app.schemas.virtual_table import CellValue, ColumnDef, LinkedRecord, RecordRead
 from app.services.access import TABLE, resolve_access
-from app.services.virtual_tables.formula import work_out
+from app.services.virtual_tables.deadline import ReadDeadline, arm_if_set
+from app.services.virtual_tables.formula import references, work_out
 from app.services.virtual_tables.types import READ_THROUGH_LINK
 
 _NAMED_BY = ("text", "email", "url", "phone", "long_text")
 """The types a linked record is named by, its first live column of one of them."""
 MAX_LABEL = 200
+
+
+@dataclass(frozen=True)
+class Reach:
+    """What reading some columns of a table takes: the columns behind them and the linked tables."""
+
+    columns: frozenset[UUID]
+    """The columns named, and every column one of them is worked out from."""
+    linked: Mapping[UUID, frozenset[UUID]]
+    """Each linked table read, and the columns read there. A link alone reads none:
+    its records' names come from the linked table's naming column, chosen at read time."""
+
+
+def reach(columns: Sequence[ColumnDef], named: Iterable[UUID]) -> Reach:
+    """Every column and linked table that reading `named` from a table of `columns` takes.
+
+    Pure: nothing is read. A formula takes the live columns its labels name, matched
+    exactly as `check_formula` matches them; a lookup or rollup takes its link column
+    and, unless it counts the links, its target column in the linked table; a link
+    takes its linked table. A formula may not name a formula or a link, so the walk
+    goes no deeper than formula, then lookup or rollup, then link.
+    """
+    by_id = {column.id: column for column in columns}
+    live_labels = {column.label: column.id for column in columns if not column.archived}
+    reached: set[UUID] = set()
+    linked: dict[UUID, set[UUID]] = {}
+    pending = list(named)
+    while pending:
+        column_id = pending.pop()
+        if column_id in reached:
+            continue
+        reached.add(column_id)
+        column = by_id.get(column_id)
+        if column is None:
+            continue
+        if column.type == "formula":
+            labels = references(column.formula or "")
+            pending.extend(live_labels[label] for label in labels if label in live_labels)
+        elif column.type in READ_THROUGH_LINK and column.link_column_id is not None:
+            pending.append(column.link_column_id)
+            link = by_id.get(column.link_column_id)
+            if link is not None and link.link_table_id is not None:
+                targets = linked.setdefault(link.link_table_id, set())
+                if column.aggregate != "count" and column.target_column_id is not None:
+                    targets.add(column.target_column_id)
+        elif column.type == "link" and column.link_table_id is not None:
+            linked.setdefault(column.link_table_id, set())
+    return Reach(
+        columns=frozenset(reached),
+        linked={table_id: frozenset(targets) for table_id, targets in linked.items()},
+    )
+
+
+@dataclass(frozen=True)
+class LinkedTable:
+    """A linked table the reader may see: its current columns and the one its records are named by."""
+
+    table_id: UUID
+    columns: list[ColumnDef]
+    named_by: ColumnDef | None
 
 
 @dataclass(frozen=True)
@@ -41,33 +104,81 @@ class _Linked:
     names: dict[str, str]
 
 
-async def _linked_table(
-    db: AsyncSession, ctx: AuthContext, table_id: UUID, ids: set[str]
-) -> _Linked | None:
-    """The records of `table_id` among `ids`, or `None` when the reader may not see the table."""
+async def linked_table_access(
+    db: AsyncSession, ctx: AuthContext, table_id: UUID, *, deadline: ReadDeadline | None = None
+) -> LinkedTable | None:
+    """`table_id` as `ctx` may read through a link, or `None` when they may not see it.
+
+    With a `deadline`, each statement is armed with it first.
+    """
+    await arm_if_set(db, deadline)
     table = await virtual_table_repo.get_table(db, table_id, organization_id=ctx.organization_id)
+    await arm_if_set(db, deadline)
     if table is None or not await resolve_access(
         db, ctx, table, Perm.TABLES_VIEW, resource_type=TABLE
     ):
         return None
+    await arm_if_set(db, deadline)
     version = await virtual_table_repo.get_schema_version(
         db, table_id=table.id, version=table.schema_version
     )
     columns = [ColumnDef.model_validate(column) for column in version.columns]
-    rows = await virtual_table_repo.get_records_by_ids(
-        db,
-        [UUID(record_id) for record_id in ids],
-        table_id=table.id,
-        organization_id=ctx.organization_id,
-    )
     named_by = next((c for c in columns if not c.archived and c.type in _NAMED_BY), None)
+    return LinkedTable(table_id=table.id, columns=columns, named_by=named_by)
+
+
+def linked_cell_keys(linked: LinkedTable, targets: Iterable[UUID]) -> list[str]:
+    """The cells of `linked` a read through it takes: `targets` and the column naming its records."""
+    keys = {str(target) for target in targets}
+    if linked.named_by is not None:
+        keys.add(str(linked.named_by.id))
+    return sorted(keys)
+
+
+async def _linked_table(
+    db: AsyncSession,
+    ctx: AuthContext,
+    table_id: UUID,
+    ids: set[str],
+    *,
+    access: LinkedTable | None = None,
+    targets: frozenset[UUID] | None = None,
+    deadline: ReadDeadline | None = None,
+) -> _Linked | None:
+    """The records of `table_id` among `ids`, or `None` when the reader may not see the table.
+
+    `access` is the table already checked for this reader, so it is not checked again.
+    With `targets`, only those cells and the naming column's are read.
+    """
+    linked = access or await linked_table_access(db, ctx, table_id, deadline=deadline)
+    if linked is None:
+        return None
+    record_ids = [UUID(record_id) for record_id in ids]
+    rows: Sequence[VirtualTableRecord | RecordCells]
+    if targets is None:
+        rows = await virtual_table_repo.get_records_by_ids(
+            db, record_ids, table_id=linked.table_id, organization_id=ctx.organization_id
+        )
+    elif not record_ids:
+        rows = []
+    else:
+        await arm_if_set(db, deadline)
+        rows = await virtual_table_repo.get_record_cells_by_ids(
+            db,
+            record_ids,
+            table_id=linked.table_id,
+            organization_id=ctx.organization_id,
+            keys=linked_cell_keys(linked, targets),
+        )
     values: dict[str, dict[str, CellValue]] = {}
     names: dict[str, str] = {}
     for row in rows:
         record_id = str(row.id)
         values[record_id] = dict(row.values)
-        names[record_id] = _name(values[record_id], named_by) or row.external_id or record_id[:8]
-    return _Linked(columns=columns, values=values, names=names)
+        names[record_id] = (
+            _name(values[record_id], linked.named_by) or row.external_id or record_id[:8]
+        )
+    return _Linked(columns=linked.columns, values=values, names=names)
 
 
 def _name(values: dict[str, CellValue], column: ColumnDef | None) -> str | None:
@@ -122,11 +233,35 @@ def _work_out(
 
 
 async def read_through(
-    db: AsyncSession, ctx: AuthContext, columns: Sequence[ColumnDef], records: list[RecordRead]
+    db: AsyncSession,
+    ctx: AuthContext,
+    columns: Sequence[ColumnDef],
+    records: list[RecordRead],
+    *,
+    linked_keys: Mapping[UUID, frozenset[UUID]] | None = None,
+    linked_ids: Mapping[UUID, frozenset[UUID]] | None = None,
+    linked_tables: Mapping[UUID, LinkedTable | None] | None = None,
+    deadline: ReadDeadline | None = None,
 ) -> list[RecordRead]:
     """`records` with each link's records named, and every lookup, rollup and formula
-    worked out - formulas last, since one may read what a rollup worked out."""
-    records = await _with_links(db, ctx, columns, records)
+    worked out - formulas last, since one may read what a rollup worked out.
+
+    For a reader that has already measured what it reads (a page binding):
+    `linked_keys` resolves only those linked tables, reading only those cells of
+    them; `linked_ids` loads only those linked records rather than every one the
+    records' link cells name; `linked_tables` holds tables already checked for
+    `ctx`, a `None` entry one they may not see; `deadline` arms each statement.
+    """
+    records = await _with_links(
+        db,
+        ctx,
+        columns,
+        records,
+        linked_keys=linked_keys,
+        linked_ids=linked_ids,
+        linked_tables=linked_tables,
+        deadline=deadline,
+    )
     formulas = [
         column
         for column in columns
@@ -154,24 +289,50 @@ def _with_formulas(
 
 
 async def _with_links(
-    db: AsyncSession, ctx: AuthContext, columns: Sequence[ColumnDef], records: list[RecordRead]
+    db: AsyncSession,
+    ctx: AuthContext,
+    columns: Sequence[ColumnDef],
+    records: list[RecordRead],
+    *,
+    linked_keys: Mapping[UUID, frozenset[UUID]] | None,
+    linked_ids: Mapping[UUID, frozenset[UUID]] | None,
+    linked_tables: Mapping[UUID, LinkedTable | None] | None,
+    deadline: ReadDeadline | None,
 ) -> list[RecordRead]:
     """`records` with each link's records named and every lookup and rollup worked out."""
     link_tables = {
         column.id: column.link_table_id
         for column in columns
-        if column.type == "link" and not column.archived and column.link_table_id is not None
+        if column.type == "link"
+        and not column.archived
+        and column.link_table_id is not None
+        and (linked_keys is None or column.link_table_id in linked_keys)
     }
     if not link_tables or not records:
         return records
     wanted: dict[UUID, set[str]] = {}
     for column_id, table_id in link_tables.items():
         ids = wanted.setdefault(table_id, set())
+        if linked_ids is not None:
+            ids.update(str(record_id) for record_id in linked_ids.get(table_id, ()))
+            continue
         for record in records:
             ids.update(record.values.get(str(column_id)) or [])
-    tables = {
-        table_id: await _linked_table(db, ctx, table_id, ids) for table_id, ids in wanted.items()
-    }
+    checked = linked_tables or {}
+    tables: dict[UUID, _Linked | None] = {}
+    for table_id, ids in wanted.items():
+        if table_id in checked and checked[table_id] is None:
+            tables[table_id] = None
+            continue
+        tables[table_id] = await _linked_table(
+            db,
+            ctx,
+            table_id,
+            ids,
+            access=checked.get(table_id),
+            targets=None if linked_keys is None else linked_keys[table_id],
+            deadline=deadline,
+        )
     reading = [
         column
         for column in columns

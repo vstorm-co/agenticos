@@ -367,6 +367,21 @@ view is read: a filter on it goes, a sort by it falls back to `created_at`, a
 grouping by it is cleared, and it leaves `visible_columns` - a view left showing none
 of its chosen columns shows every live one. The stored config is not rewritten.
 
+### Views as a data contract for pages { #views-for-pages }
+
+A published [artifact](artifacts.md#live-data) binds to saved views, and the view
+is what it reads: the view's filters, sort and search decide the rows, and the
+binding's `fields` decide the columns, whether or not the view shows them. An
+agent with this capability finds views with `list_views`, which returns each
+view's id, its columns and whether it is shared, for tables it may read.
+
+A private view serves only its owner, so a page that others open needs a shared
+one. `share_view` makes a view visible to everyone who can see the table, and only
+the view's owner can share it. It waits for the approval prompt by default. A
+capability-wide `approval` on `virtual_tables` decides it too, and only
+`tool_approval.share_view` targets it alone. A viewer of the page still reads
+only what their own access to the table allows.
+
 ## Triggers { #triggers }
 
 A [workflow](workflows.md#when-a-table-record-is-added) whose trigger node is **Table

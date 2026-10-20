@@ -71,6 +71,7 @@ from app.db.models.workflow_run import (
     WorkflowRun,
     WorkflowRunMode,
     WorkflowRunStatus,
+    WorkflowRunTrigger,
 )
 from app.repositories import member as member_repo
 from app.repositories import user as user_repo
@@ -135,6 +136,21 @@ _DISPATCHABLE = frozenset(
 # skipped, or failed through its `error` port (or, in a loop, under `collect`).
 _SETTLED = frozenset(
     {NodeRunStatus.SUCCEEDED.value, NodeRunStatus.SKIPPED.value, NodeRunStatus.FAILED.value}
+)
+
+# The doors through which an outsider supplies a run's input while the run
+# executes as the exposure's principal: anyone may post to a webhook, submit a
+# form, write in a channel, email an inbox or comment on a watched repository. A
+# channel message counts even from a linked sender - the run is the exposure's
+# principal, not the sender - so the link gives it no person of its own.
+PUBLIC_TRIGGERS = frozenset(
+    {
+        WorkflowRunTrigger.WEBHOOK,
+        WorkflowRunTrigger.FORM,
+        WorkflowRunTrigger.CHANNEL_MESSAGE,
+        WorkflowRunTrigger.GMAIL,
+        WorkflowRunTrigger.GITHUB,
+    }
 )
 
 ScopePath = list[dict[str, Any]]
@@ -852,6 +868,9 @@ async def begin_attempt(
         timezone=run.timezone,
         arrived_output=call.arrived_output,
         idempotency_key=key,
+        # The stored flag covers the whole chain; the trigger covers a door run
+        # admitted by code older than the column.
+        public_origin=run.public_origin or run.triggered_by in PUBLIC_TRIGGERS,
     )
     return BegunAttempt(
         workflow_run_id=run.id,

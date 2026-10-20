@@ -21,7 +21,9 @@ Which is why the exemptions are only these, each true because it was checked:
     on every run and is not gated here, so a dead link still fails the build.
 
 `frontend/**` for the backend suite, `backend/**` for the frontend suite
-:   The two halves share no source. They do share the *pull request*, which is
+:   The two halves share no source but two files, which is why the frontend
+    exemption stops short of `FRONTEND_READS`: a frontend test reads each of
+    them from `backend/`. They do share the *pull request*, which is
     why `e2e` is exempted from neither - and they share one directory, which is
     why the backend exemption stops short of `frontend/src/app/api/**`. Those
     are the BFF proxies, and `tests/api/test_bff_forwarded_paths.py` checks the
@@ -78,6 +80,18 @@ JOBS = ("backend", "frontend", "e2e")
 VERSIONED = ("backend/pyproject.toml", "backend/uv.lock", "frontend/package.json")
 """The three files a release cut edits besides the CHANGELOG."""
 
+FRONTEND_READS = frozenset(
+    {
+        "backend/app/core/catalog/artifact_data_bridge.js",
+        "backend/app/core/catalog/mcp_servers.json",
+    }
+)
+"""The backend files a frontend test reads.
+
+`frontend/src/lib/artifact-data-bridge.test.ts` runs the page's data bridge, and
+`frontend/src/lib/mcp-catalog.test.ts` reads the MCP server catalog.
+"""
+
 _VERSION_LINE = re.compile(r'^\s*(?:version\s*=|"version":)\s*"\d+\.\d+\.\d+"\s*,?\s*$')
 """One version assignment, in either the TOML or the JSON spelling.
 
@@ -124,7 +138,7 @@ def _irrelevant_to(job: str, path: str, patches: Mapping[str, str]) -> bool:
         # The BFF proxies are the exception: the backend suite reads them.
         return path.startswith("frontend/") and not path.startswith("frontend/src/app/api/")
     if job == "frontend":
-        return path.startswith("backend/")
+        return path.startswith("backend/") and path not in FRONTEND_READS
     # `e2e` drives the frontend against the backend, so either half affects it.
     return False
 

@@ -62,7 +62,11 @@ describe("PublishedArtifactResult", () => {
         }}
       />,
     );
-    expect(screen.getByRole("link")).toHaveAttribute("href", "/artifacts/a1?version=v%203");
+    const link = screen.getByRole("link");
+    expect(link).toHaveAttribute("href", "/artifacts/a1?version=v%203");
+    // A new tab, so the conversation stays where it was.
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
     expect(screen.getByText("Version 3 · open the page")).toBeInTheDocument();
     // The preview is of that version too, not of whatever the link shows today.
     expect(screen.getByTestId("thumbnail")).toHaveTextContent("a1@v 3");

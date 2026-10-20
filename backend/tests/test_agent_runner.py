@@ -35,7 +35,7 @@ from pydantic_ai.workspaces import LocalWorkspaceBackend, Workspace, WorkspaceRe
 from pydantic_ai_backends import StateBackend
 from pydantic_ai_harness.planning import PlanItem
 
-from app.agents.audience import RunAudience
+from app.agents.audience import RunAudience, for_no_person
 from app.agents.capabilities.approval import ApprovalGranted, ApprovalRejected
 from app.agents.capabilities.budget import (
     BudgetExceeded,
@@ -51,6 +51,7 @@ from app.agents.capabilities.planning import PLANNING_STORE_RESOURCE
 from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE
 from app.agents.capabilities.sandbox._capability import build_workspace
 from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse
+from app.agents.deps import AgentDeps
 from app.agents.spec import (
     AgentSpec,
     CapabilityBindingSpec,
@@ -83,6 +84,7 @@ from app.services.mcp_connection import (
     UnavailablePrefixCollision,
 )
 from app.services.transcript import RecordedToolCall
+from app.services.workflow_execution import context as workflow_context
 from tests.workspaces import document_workspace
 
 _THE_ASKER = uuid.uuid4()
@@ -1178,7 +1180,7 @@ class TestTheRunWorksInTheWorkspaceItOpened:
     def _prepared_with(self, agent: Agent[None, str], document: StateBackend) -> PreparedRun:
         prepared = _prepared()
         prepared.built.agent = agent
-        prepared.built.deps = None
+        prepared.built.deps = AgentDeps()
         prepared.built.usage_limits = None
         prepared.workspace = MagicMock(workspace=document_workspace(document))
         return prepared
@@ -2217,6 +2219,7 @@ class TestParking:
                 "audience_user_id": None,
                 "audience_room_key": None,
                 "subject_is_publisher_fallback": False,
+                "public_origin": False,
             },
         }
 
@@ -2519,7 +2522,13 @@ class TestResume:
             tool_args={"to": "customer@example.com"}
         )
 
-    async def _resumed(self, *, paused_state: dict) -> MagicMock:
+    async def _resumed(
+        self,
+        *,
+        paused_state: dict,
+        orphaned: bool = False,
+        surface: RunSurface = RunSurface.API,
+    ) -> MagicMock:
         """Resume a parked run and hand back the `build_agent` mock.
 
         Everything the resume path reaches for is patched: what these tests ask
@@ -2528,7 +2537,12 @@ class TestResume:
         """
         service = AgentRunnerService(_db())
         approval = self._approval(status=ApprovalStatus.REJECTED.value, tool_args={}, note="no")
-        run = _parked_run(paused_state=paused_state, user_id=uuid.uuid4())
+        # `orphaned` is a run whose member was deleted: `SET NULL` cleared its owner.
+        run = _parked_run(
+            paused_state=paused_state,
+            user_id=None if orphaned else uuid.uuid4(),
+            surface=surface.value,
+        )
         run.paused_state["tool_call_ids"] = {str(approval.id): "call-1"}
 
         with (
@@ -2699,6 +2713,82 @@ class TestResume:
         assert self.resumer.user_id != self.resumed_run.user_id, "the fixture must differ"
         assert build.call_args.kwargs["user_id"] == str(self.resumed_run.user_id)
         assert build.call_args.kwargs["audience"] == RunAudience(user_id=_THE_ASKER, room_key=None)
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_a_resumed_run_keeps_its_own_person_not_the_approver_s(self):
+        """An approver releasing a member's parked run does not become the person
+        behind it: the person is the run's, as the audience is (#788)."""
+        build = await self._resumed(paused_state={"messages": [], "tool_call_ids": {}})
+
+        assert self.resumer.user_id != self.resumed_run.user_id, "the fixture must differ"
+        assert build.call_args.kwargs["run_person"] == self.resumed_run.user_id
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_a_resumed_run_whose_member_is_gone_has_no_person(self):
+        """A deleted member's run loses its `user_id` to `SET NULL`. The approver
+        releasing it does not step into the gap: the person is the run's or
+        nobody."""
+        build = await self._resumed(
+            paused_state={"messages": [], "tool_call_ids": {}}, orphaned=True
+        )
+
+        assert self.resumer.user_id is not None, "the approver is a real member"
+        assert build.call_args.kwargs["run_person"] is None
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_a_legacy_parked_event_run_resumes_with_no_person(self):
+        """Parked before `public_origin` was stored, a trigger run cannot say
+        whether a delivery fired it. It fails closed: an outsider's input must not
+        come back as the creator's own."""
+        build = await self._resumed(
+            paused_state={
+                "messages": [],
+                "tool_call_ids": {},
+                "admitted_as": {
+                    "approval_mode": "follow_agent",
+                    "subject_is_publisher_fallback": True,
+                },
+            },
+            surface=RunSurface.SCHEDULE,
+        )
+
+        assert build.call_args.kwargs["run_person"] is None
+
+    @pytest.mark.anyio
+    async def test_a_parked_run_with_a_stored_public_origin_false_keeps_its_creator(self):
+        build = await self._resumed(
+            paused_state={
+                "messages": [],
+                "tool_call_ids": {},
+                "admitted_as": {
+                    "approval_mode": "follow_agent",
+                    "subject_is_publisher_fallback": True,
+                    "public_origin": False,
+                },
+            },
+            surface=RunSurface.SCHEDULE,
+        )
+
+        assert build.call_args.kwargs["run_person"] == self.resumed_run.user_id
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_a_resumed_public_origin_run_still_has_no_person(self):
+        """An outsider's input parked for approval is still an outsider's input
+        when a member approves it - the approver lends the run no person."""
+        build = await self._resumed(
+            paused_state={
+                "messages": [],
+                "tool_call_ids": {},
+                "admitted_as": {"approval_mode": "follow_agent", "public_origin": True},
+            }
+        )
+
+        assert self.resumed_run.user_id is not None, "the run still records its principal"
+        assert build.call_args.kwargs["run_person"] is None
 
     @pytest.mark.anyio
     async def test_a_parked_publisher_fallback_run_resumes_keying_on_nobody(self):
@@ -4534,3 +4624,162 @@ class TestWhatAPreparedRunSaysThePersonCannotReach:
             prepared = await service.prepare(ctx, agent.id)
 
         assert prepared.personal_service_gaps == []
+
+
+class TestThePersonBehindTheRun:
+    """Whether a real member is behind a run, decided once in `_assemble`.
+
+    Later checks refuse what a run with nobody behind it may not do, so the
+    answer has to fail closed: an outsider's input is never a member's.
+    """
+
+    @staticmethod
+    async def _prepare(ctx: AuthContext, **kwargs: Any) -> tuple[PreparedRun, dict[str, Any]]:
+        """Prepare a run and hand back it and what the factory was called with."""
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(
+                    return_value=(agent, AgentSpec(name="Support"), agent.current_version_id)
+                ),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch("app.services.agent_runner.build_agent") as build,
+        ):
+            prepared = await service.prepare(ctx, agent.id, **kwargs)
+
+        return prepared, build.call_args.kwargs
+
+    @staticmethod
+    def _dispatch(ctx: AuthContext, *, public_origin: bool) -> workflow_context.DispatchContext:
+        return workflow_context.DispatchContext(
+            organization_id=ctx.organization_id,
+            workflow_run_id=uuid.uuid4(),
+            node_run_id=uuid.uuid4(),
+            node_instance_id=uuid.uuid4(),
+            attempt_no=1,
+            auth=ctx,
+            resumed_agent_run_id=None,
+            public_origin=public_origin,
+        )
+
+    @pytest.mark.anyio
+    async def test_the_run_person_reaches_the_built_agent(self):
+        ctx = _ctx()
+
+        _prepared_run, built_with = await self._prepare(ctx, surface=RunSurface.WEB)
+
+        assert built_with["run_person"] == ctx.user_id
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_the_admitted_terms_store_the_public_origin(self):
+        """Stored, because a resume cannot recover it from the run row - without
+        it an outsider's parked run would come back as its principal's own."""
+        prepared, built_with = await self._prepare(_ctx(), public_origin=True)
+
+        assert prepared.admitted_as.public_origin is True
+        assert built_with["run_person"] is None
+
+    @pytest.mark.anyio
+    async def test_execute_hands_the_public_origin_to_prepare(self):
+        service = AgentRunnerService(_db())
+        result = MagicMock(output="done")
+        result.all_messages = MagicMock(return_value=[])
+        result.new_messages = MagicMock(return_value=[])
+        prepared = _prepared()
+        prepared.built.agent.run = AsyncMock(return_value=result)
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)) as prepare,
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "triage it", public_origin=True)
+
+        assert prepare.await_args.kwargs["public_origin"] is True
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_a_workflow_surface_run_inside_a_public_dispatch_has_no_person(self):
+        """A step that forgot to pass the flag still reads it off the dispatch."""
+        ctx = _ctx()
+
+        with workflow_context.dispatching_as(self._dispatch(ctx, public_origin=True)):
+            _prepared_run, built_with = await self._prepare(
+                ctx, surface=RunSurface.WORKFLOW, public_origin=False
+            )
+
+        assert built_with["run_person"] is None
+
+    @pytest.mark.anyio
+    async def test_a_workflow_surface_run_inside_a_member_dispatch_keeps_its_person(self):
+        ctx = _ctx()
+
+        with workflow_context.dispatching_as(self._dispatch(ctx, public_origin=False)):
+            _prepared_run, built_with = await self._prepare(ctx, surface=RunSurface.WORKFLOW)
+
+        assert built_with["run_person"] == ctx.user_id
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_a_workflow_surface_run_outside_any_dispatch_has_no_person(self):
+        """Fails closed: a workflow run with no dispatch to say where it came
+        from is treated as an outsider's."""
+        _prepared_run, built_with = await self._prepare(_ctx(), surface=RunSurface.WORKFLOW)
+
+        assert built_with["run_person"] is None
+
+    @staticmethod
+    async def _flag_seen(run_person: uuid.UUID | None) -> dict[str, bool]:
+        """What `for_no_person` read inside both of the places an agent runs."""
+        seen: dict[str, bool] = {}
+        prepared = _prepared()
+        prepared.built.deps.run_person = run_person
+
+        async def run(*_args: Any, **_kwargs: Any) -> MagicMock:
+            seen["execute"] = for_no_person()
+            return MagicMock()
+
+        class _Iteration:
+            async def __aenter__(self) -> "_Iteration":
+                seen["iterate"] = for_no_person()
+                return self
+
+            async def __aexit__(self, *_exc: object) -> None:
+                return None
+
+        prepared.built.agent.run = run
+        prepared.built.agent.iter = MagicMock(return_value=_Iteration())
+        await prepared.execute("hi", message_history=None, deferred_tool_results=None)
+        async with prepared.iterate("hi", message_history=None):
+            pass
+        return seen
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_a_no_person_run_marks_its_writes(self):
+        assert await self._flag_seen(None) == {"execute": True, "iterate": True}
+        assert for_no_person() is False
+
+    @pytest.mark.anyio
+    async def test_a_member_run_marks_none(self):
+        assert await self._flag_seen(uuid.uuid4()) == {"execute": False, "iterate": False}
+
+    def test_a_delegate_keeps_the_run_person(self):
+        """A delegate acts for the same person as its parent, so it has the
+        same standing - and a parent with nobody behind it lends none."""
+        person = uuid.uuid4()
+
+        assert AgentDeps(run_person=person).clone_for_subagent().run_person == person
+        assert AgentDeps().clone_for_subagent().run_person is None

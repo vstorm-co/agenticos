@@ -56,6 +56,9 @@ def _graph(definition_id: str, config: dict[str, Any]) -> WorkflowGraph:
     return WorkflowGraph(entry_node_id=entry.id, nodes=(entry,))
 
 
+_UNSET = object()
+
+
 class _World:
     def __init__(self, factory: async_sessionmaker[AsyncSession]) -> None:
         self.factory = factory
@@ -99,13 +102,22 @@ class _World:
         return workflow
 
     def run_ctx(
-        self, *, user_id: str | None = None, run_id: uuid.UUID | None = None, retry: int = 0
+        self,
+        *,
+        user_id: str | None = None,
+        run_id: uuid.UUID | None = None,
+        retry: int = 0,
+        run_person: uuid.UUID | object | None = _UNSET,
     ):
+        acting = str(self.owner.id) if user_id is None else user_id
+        person = uuid.UUID(acting) if run_person is _UNSET else run_person
+        assert person is None or isinstance(person, uuid.UUID)
         return RunContext(
             deps=AgentDeps(
                 organization_id=self.org.id,
-                user_id=str(self.owner.id) if user_id is None else user_id,
+                user_id=acting,
                 run_id=run_id,
+                run_person=person,
             ),
             model=TestModel(),
             usage=RunUsage(),
@@ -303,10 +315,12 @@ async def test_a_member_who_may_not_run_it_or_is_gone_starts_nothing(world: _Wor
 
     stranger = await tools["run_workflow"](world.run_ctx(user_id=str(colleague.id)), private.id)
     outsider = await tools["run_workflow"](world.run_ctx(user_id=str(uuid.uuid4())), private.id)
-    visitor = await tools["run_workflow"](world.run_ctx(user_id="embed-visitor"), private.id)
+    visitor = await tools["run_workflow"](
+        world.run_ctx(user_id=str(world.owner.id), run_person=None), private.id
+    )
 
     assert "cannot run it" in stranger
-    assert "member of an organization" in visitor
+    assert visitor == "Workflows can only be started by a run acting for a member."
     assert "member of an organization" in outsider
     assert await _runs(world) == []
 
@@ -367,3 +381,68 @@ async def test_a_run_it_cannot_find_is_refused_by_its_code(world: _World):
     answer = await _tools(follow_up)["get_workflow_run"](world.run_ctx(), uuid.uuid4())
 
     assert answer.startswith("Refused (WORKFLOW_RUN_NOT_FOUND)")
+
+
+@pytest.mark.security
+async def test_a_widget_run_starts_no_workflow(world: _World):
+    follow_up = await world.workflow("Follow up", _graph("trigger.manual", {}))
+
+    answer = await _tools(follow_up)["run_workflow"](
+        world.run_ctx(user_id=str(world.owner.id), run_person=None), follow_up.id
+    )
+
+    assert answer == "Workflows can only be started by a run acting for a member."
+    assert await _runs(world) == []
+
+
+async def test_a_member_run_still_starts_a_workflow(world: _World):
+    follow_up = await world.workflow("Follow up", _graph("trigger.manual", {}))
+
+    await _tools(follow_up)["run_workflow"](world.run_ctx(), follow_up.id, wait=False)
+
+    assert len(await _runs(world)) == 1
+
+
+async def test_a_widget_run_can_still_list_workflows(world: _World):
+    import json
+
+    follow_up = await world.workflow("Follow up", _graph("trigger.manual", {}))
+
+    listed = json.loads(await _tools(follow_up)["list_workflows"](world.run_ctx(run_person=None)))
+
+    assert [entry["id"] for entry in listed] == [str(follow_up.id)]
+
+
+@pytest.mark.security
+async def test_a_workflow_step_in_a_public_run_still_hears_the_step_text(world: _World):
+    follow_up = await world.workflow("Follow up", _graph("trigger.manual", {}))
+    async with world.factory() as db:
+        agent = Agent(
+            id=uuid.uuid4(),
+            organization_id=world.org.id,
+            slug=f"step-{uuid.uuid4().hex[:8]}",
+            name="Step",
+            draft_spec={},
+        )
+        db.add(agent)
+        await db.flush()
+        run = AgentRun(
+            id=uuid.uuid4(),
+            organization_id=world.org.id,
+            agent_id=agent.id,
+            user_id=world.owner.id,
+            status=RunStatus.RUNNING.value,
+            surface=RunSurface.WORKFLOW.value,
+            started_at=datetime.now(UTC),
+        )
+        db.add(run)
+        await db.commit()
+
+    answer = await _tools(follow_up)["run_workflow"](
+        world.run_ctx(run_id=run.id, run_person=None), follow_up.id
+    )
+
+    assert answer == (
+        "An agent running as a workflow's step starts no workflow; a workflow.run step calls one."
+    )
+    assert await _runs(world) == []

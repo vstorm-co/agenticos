@@ -65,6 +65,7 @@ async def create_run(
     retry_of_run_id: UUID | None = None,
     parent_node_run_id: UUID | None = None,
     timezone: str = "UTC",
+    public_origin: bool = False,
 ) -> WorkflowRun:
     # `root_run_id` is NOT NULL, so it must be known before the first
     # `INSERT` - not filled in after a flush "mints" the id, which never gets
@@ -81,6 +82,7 @@ async def create_run(
         draft_graph_snapshot=draft_graph_snapshot,
         mode=mode,
         triggered_by=triggered_by,
+        public_origin=public_origin,
         execution_principal_user_id=execution_principal_user_id,
         budget_limit=budget_limit,
         node_count=node_count,

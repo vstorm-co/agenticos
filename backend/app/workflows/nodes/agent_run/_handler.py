@@ -345,6 +345,7 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                     run_limit_usd=(
                         None if config.max_cost_usd is None else Decimal(str(config.max_cost_usd))
                     ),
+                    public_origin=current.public_origin,
                 )
                 answer = answers[0] if answers else None
     except AppException as exc:

@@ -14,8 +14,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import AuthContext
-from app.repositories import member as member_repo
-from app.repositories import user as user_repo
+from app.services.access import member_context
 
 
 async def acting_member(
@@ -29,13 +28,4 @@ async def acting_member(
         member_id = UUID(user_id)
     except ValueError:
         return None
-    member = await member_repo.get_active(db, organization_id=organization_id, user_id=member_id)
-    user = await user_repo.get_by_id(db, member_id) if member is not None else None
-    if member is None or user is None:
-        return None
-    return AuthContext(
-        user_id=member_id,
-        organization_id=organization_id,
-        role=member.role,
-        is_app_admin=user.is_app_admin,
-    )
+    return await member_context(db, organization_id=organization_id, user_id=member_id)

@@ -28,6 +28,7 @@ from pydantic_ai.usage import RunUsage
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from app.agents.audience import acting_for_no_person
 from app.agents.capabilities.virtual_tables import VirtualTables
 from app.agents.capabilities.virtual_tables._access import TableOperation
 from app.agents.deps import AgentDeps
@@ -79,7 +80,14 @@ from app.services.workflow_registry import WorkflowRegistryService
 from app.workflows.contracts.io import Binding, LiteralValue, TableIORef
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
-from tests.integration.workflow_run_support import SeededRun, drive, seed_member
+from tests.integration.workflow_run_support import (
+    SeededRun,
+    drive,
+    run_people,
+    seed_agent,
+    seed_member,
+    seed_run,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -565,6 +573,133 @@ async def test_a_loop_through_two_tables_stops_at_the_trigger_it_already_passed(
     assert run.visited_trigger_ids == [str(a), str(b)]
     assert _statuses(await world.admissions(a)) == [("queued", None), ("blocked", "cycle")]
     assert _statuses(await world.admissions(b)) == [("queued", None)]
+
+
+def _then(entry: NodeInstance, step: NodeInstance, *bindings: Binding) -> WorkflowGraph:
+    return WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, step),
+        edges=(
+            Edge(
+                id=uuid.uuid4(),
+                source_node_id=entry.id,
+                source_port="out",
+                target_node_id=step.id,
+                target_port="in",
+            ),
+        ),
+        bindings=bindings,
+    )
+
+
+def _asking_on_new_record(table: TableRead, agent: dict[str, str]) -> WorkflowGraph:
+    """A workflow a record added to `table` starts, whose one step asks `agent`."""
+    entry = _on_new_record(table).nodes[0]
+    ask = _node("agent.run", {"agent": agent})
+    return _then(
+        entry,
+        ask,
+        Binding(target_node_id=ask.id, target_field="prompt", source=LiteralValue(value="Hi")),
+    )
+
+
+def _adding_a_lead(table: TableRead) -> WorkflowGraph:
+    entry, create = _node("core.input"), _node("table.record.create", {"table": _ref(table)})
+    return _then(
+        entry,
+        create,
+        Binding(
+            target_node_id=create.id,
+            target_field="values",
+            source=LiteralValue(value={"Email": "posted@example.com"}),
+        ),
+    )
+
+
+class TestThePublicOrigin:
+    """A run in a chain an outsider started has no person, however far down it is
+    and whatever its own trigger (D18a(5))."""
+
+    @pytest.mark.security
+    async def test_a_table_run_under_a_public_root_is_public(
+        self, world: _World, engine: AsyncEngine
+    ):
+        asks = _asking_on_new_record(
+            world.leads, await seed_agent(world.factory, world.owner, world.org)
+        )
+        await world.publish(await world.workflow(), asks)
+        root = await seed_run(
+            engine,
+            _adding_a_lead(world.leads),
+            triggered_by="webhook",
+            member=(world.owner, world.org),
+        )
+        assert (await drive(root)).status == WorkflowRunStatus.SUCCEEDED.value
+
+        ((run_id, _entry),) = await world.consume()
+
+        run = await world.run(run_id)
+        assert (run.triggered_by, run.root_run_id) == ("table_created", root.run.id)
+        assert run.public_origin is True
+        with run_people() as people:
+            ended = await world.drive(run_id, asks)
+        assert ended.status == WorkflowRunStatus.SUCCEEDED.value, ended.error
+        assert people == [None]
+
+    @pytest.mark.security
+    async def test_a_table_run_under_a_door_root_stored_before_the_flag_is_public(
+        self, world: _World, engine: AsyncEngine
+    ):
+        """A webhook run admitted by code older than the column reads false, and
+        its chain still fails closed on its trigger."""
+        await world.trigger()
+        root = await seed_run(
+            engine,
+            _adding_a_lead(world.leads),
+            triggered_by="webhook",
+            member=(world.owner, world.org),
+        )
+        async with world.factory() as db:
+            await db.execute(
+                update(WorkflowRun).where(WorkflowRun.id == root.run.id).values(public_origin=False)
+            )
+            await db.commit()
+        assert (await drive(root)).status == WorkflowRunStatus.SUCCEEDED.value
+
+        ((run_id, _entry),) = await world.consume()
+
+        run = await world.run(run_id)
+        assert (run.root_run_id, run.public_origin) == (root.run.id, True)
+
+    @pytest.mark.security
+    async def test_a_table_write_by_a_widget_run_starts_a_public_run(self, world: _World):
+        await world.trigger()
+
+        with acting_for_no_person(True):
+            await world.add({"Email": "visitor@example.com"})
+
+        async with world.factory() as db:
+            (payload,) = (await db.execute(select(VirtualTableOutbox.payload))).scalars()
+        assert payload["public_origin"] is True
+        assert "causation_run_id" not in payload
+        ((run_id, _entry),) = await world.consume()
+        run = await world.run(run_id)
+        assert (run.root_run_id, run.causation_run_id) == (run.id, None)
+        assert run.public_origin is True
+
+    async def test_a_table_write_by_a_member_run_starts_a_run_that_is_not_public(
+        self, world: _World
+    ):
+        await world.trigger()
+
+        with acting_for_no_person(False):
+            await world.add({"Email": "member@example.com"})
+
+        async with world.factory() as db:
+            (payload,) = (await db.execute(select(VirtualTableOutbox.payload))).scalars()
+        assert "public_origin" not in payload
+        ((run_id, _entry),) = await world.consume()
+        assert (await world.run(run_id)).public_origin is False
 
 
 async def test_a_chain_too_deep_or_too_long_is_blocked(world: _World):

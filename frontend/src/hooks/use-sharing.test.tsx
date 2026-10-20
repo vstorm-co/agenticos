@@ -146,6 +146,34 @@ describe("useSharing", () => {
     expect(client.getQueryState(["agents", "a1"])?.isInvalidated).toBe(false);
   });
 
+  it("leaves an open artifact's page and live data alone when its visibility changes", async () => {
+    // Who else may open it changes nothing the viewer is reading, so the page
+    // is not minted again - which would blank a live page while it reloads.
+    vi.mocked(apiClient.patch).mockResolvedValue({ ...SHARING, visibility: "org" });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    for (const key of [
+      ["artifacts", "r1", "view", "current"],
+      ["artifacts", "r1", "data", "v1"],
+      ["artifacts", "r1", "versions"],
+      ["artifacts", "r2", "view", "current"],
+    ]) {
+      client.setQueryData(key, {});
+    }
+    const own = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useSharing("artifact", "r1"), { wrapper: own });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.setVisibility.mutateAsync("org");
+
+    const stale = (key: string[]) => client.getQueryState(key)?.isInvalidated;
+    expect(stale(["artifacts", "r1", "view", "current"])).toBe(false);
+    expect(stale(["artifacts", "r1", "data", "v1"])).toBe(false);
+    expect(stale(["artifacts", "r1", "versions"])).toBe(true);
+    expect(stale(["artifacts", "r2", "view", "current"])).toBe(true);
+  });
+
   it("marks a table's own queries stale when its visibility changes", async () => {
     vi.mocked(apiClient.patch).mockResolvedValue({ ...SHARING, visibility: "org" });
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });

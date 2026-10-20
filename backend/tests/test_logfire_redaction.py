@@ -165,7 +165,9 @@ async def _request(*requests: tuple[str, str]) -> None:
 
 @pytest.mark.security
 async def test_no_span_carries_a_secret_from_the_path(configured: Captured) -> None:
-    token = create_artifact_view_token(uuid4(), expires_in=timedelta(minutes=5))
+    token = create_artifact_view_token(
+        uuid4(), expires_in=timedelta(minutes=5), nonce="n0", live=False
+    )
     key, form_token = secrets.token_urlsafe(24), secrets.token_urlsafe(24)
 
     await _request(
@@ -188,7 +190,9 @@ async def test_no_span_carries_a_secret_from_the_path(configured: Captured) -> N
 async def test_the_console_does_not_print_a_secret_from_the_path(configured: Captured) -> None:
     """The console exporter is on by default and prints the pending span to stdout,
     where no logging filter runs."""
-    token = create_artifact_view_token(uuid4(), expires_in=timedelta(minutes=5))
+    token = create_artifact_view_token(
+        uuid4(), expires_in=timedelta(minutes=5), nonce="n0", live=False
+    )
 
     await _request(("GET", f"/api/v1/artifact-content/{token}"))
 
@@ -273,7 +277,9 @@ async def test_the_widget_socket_s_query_credentials_reach_no_span(configured: C
     `http.target`, `http.url` and `url.query`, on the pending copy and the final
     span alike, and in the endpoint's arguments."""
     key, visitor = "pk_live_widget", secrets.token_hex(16)
-    token = create_artifact_view_token(uuid4(), expires_in=timedelta(minutes=5))
+    token = create_artifact_view_token(
+        uuid4(), expires_in=timedelta(minutes=5), nonce="n0", live=False
+    )
 
     with (
         TestClient(_instrumented_app()) as client,

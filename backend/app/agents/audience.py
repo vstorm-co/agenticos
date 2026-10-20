@@ -26,14 +26,34 @@ rather than of the prompt.
 What each capability *does* with the answer is its own: `app.agents.memory_scope`
 turns it into the one memory store a run may touch, and the conversation-search
 toolset turns it into a corpus or a refusal.
+
+Beside the audience sits a narrower fact: whether a real member is behind the run
+at all - :func:`run_person_for`. The audience answers "who will hear this"; the
+run person answers "who answers for what this run does", and a run with no person
+is refused the actions that need one. While such a run executes,
+:func:`for_no_person` says so to code that cannot be handed the deps - a record
+write marks what it wrote as written for nobody.
 """
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 from uuid import UUID
 
-__all__ = ["RunAudience", "derive_audience"]
+if TYPE_CHECKING:
+    from app.db.models.agent_run import RunSurface
+
+__all__ = [
+    "RunAudience",
+    "acting_for_no_person",
+    "derive_audience",
+    "for_no_person",
+    "run_person_for",
+]
 
 
 @dataclass(frozen=True)
@@ -105,3 +125,67 @@ def derive_audience(
         user_id=None if subject_is_publisher_fallback else user_id,
         room_key=room_key,
     )
+
+
+def run_person_for(
+    *,
+    user_id: UUID | None,
+    subject_is_publisher_fallback: bool,
+    surface: RunSurface,
+    public_origin: bool,
+) -> UUID | None:
+    """The member behind a run, or `None` when nobody answers for it.
+
+    Two ways a run has no person, and each is a fact about the request rather than
+    about anything stored:
+
+    - `public_origin` - an outsider supplied the input: a webhook, a form, a
+      channel message, an email or a repository comment reached a workflow, or a
+      delivery fired an event trigger. The run executes as a principal - the
+      exposure's or the trigger creator's - but that principal did not write what
+      the run acts on, so it is not the person behind it.
+    - a publisher standing in for a visitor nobody can name - a widget, an embed,
+      an unlinked channel sender. A schedule is the one exception: its fallback
+      subject is the creator who set it up, and they answer for it. That is the
+      same test as `AgentRun.initiated_by_publisher_fallback`.
+
+    Otherwise the person is `user_id` - the member at the keyboard, a linked
+    channel sender, or a workflow run's principal.
+    """
+    # Imported here: loading the models package reaches the channel layer, whose
+    # toolsets import `AgentDeps`, which imports this module.
+    from app.db.models.agent_run import RunSurface
+
+    if public_origin:
+        return None
+    if subject_is_publisher_fallback and surface is not RunSurface.SCHEDULE:
+        return None
+    return user_id
+
+
+_for_no_person: ContextVar[bool] = ContextVar("run_for_no_person", default=False)
+
+
+@contextmanager
+def acting_for_no_person(flag: bool) -> Iterator[None]:
+    """Say, for the block's duration, whether the run executing has no person.
+
+    Opened by the runner around the agent itself, beside the budget guard and the
+    meter, so that code a tool reaches without the deps - a record write - can tell
+    what it writes on nobody's behalf. Reset on the way out however the block
+    ends, so the flag never outlives the run that set it.
+    """
+    token = _for_no_person.set(flag)
+    try:
+        yield
+    finally:
+        _for_no_person.reset(token)
+
+
+def for_no_person() -> bool:
+    """Whether the run executing now has no person behind it.
+
+    False outside any run: a write made by the console or a workflow step is
+    attributed by its own caller, not by this flag.
+    """
+    return _for_no_person.get()

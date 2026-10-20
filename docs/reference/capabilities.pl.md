@@ -1,5 +1,5 @@
 ---
-source_sha: "e00bb9806c8f"
+source_sha: "d8a950528ed9"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -33,7 +33,7 @@ obejmują też rzeczy, które nie są narzędziami w ogóle — dlatego `thinkin
 | `memory_files` | Pliki pamięci | wiedza | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
 | `memory_mem0` | Pamięć (mem0) | wiedza | `remember`, `recall` | — | wymagany |
 | `conversation_search` | Wyszukiwanie w rozmowach | wiedza | `search_conversations`, `read_conversation` | `conversations:read` | — |
-| `virtual_tables` | Tabele | dane | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record` | `tables:read` | — |
+| `virtual_tables` | Tabele | dane | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record`, `list_views`, `share_view` | `tables:read` | — |
 | `workflows` | Workflowy | automatyzacja | `list_workflows`, `run_workflow`, `get_workflow_run` | `workflows:run` | — |
 | `web_research` | Wyszukiwanie w sieci | badania | `web_search` | `web:read` | dla usług płatnych |
 | `web_fetch` | Pobieranie stron | badania | `web_fetch` | `web:fetch` | — |
@@ -1046,6 +1046,27 @@ chce zatwierdzać każdą ponowną publikację udostępnionej strony, ustawia
 wstawiał inline, a wykresy ładował z [zestawu bibliotek](../artifacts.md#the-library-set)
 wdrożenia zamiast z CDN. Zobacz [jak strona jest izolowana](../artifacts.md#how-the-page-is-isolated).
 
+**Dane na żywo.** `bindings` w `publish_artifact` wiążą stronę HTML z zapisanymi
+[widokami tabel](../virtual-tables.md#saved-views) w postaci `{name: {view, fields}}`,
+gdzie `fields` przypisuje każdej nazwie, którą czyta strona, kolumnę po id albo
+etykiecie. Spec agenta musi przyznawać odczyt tabeli. Strona wywołuje
+`agenticos.onData(render)`, które działa z pierwszymi danymi i przy każdym
+odświeżeniu; `agenticos.data` to Promise pierwszych danych. Rekordy są czytane, gdy
+ktoś ogląda stronę, z własnym dostępem oglądającego, i nigdy nie są w niej
+przechowywane. Binding, którego oglądający nie może czytać, przychodzi jako
+`unavailable`. Nazwy pasują do `^[a-z_][a-z0-9_]{0,63}$`, najwyżej 5 bindingów i po 50
+pól w każdym. Wynik powtarza każde pole jako `Label (type)`, a binding przeniesiony
+bez zmian jako `kept`. Limity opisuje [Dane na żywo](../artifacts.md#live-data).
+
+**Run bez osoby.** Stronę z bindingami publikuje tylko run działający w imieniu
+członka: zalogowanego członka (czat webowy, HTTP API), powiązanego nadawcy z
+kanału albo twórcy harmonogramu. Odwiedzający widget, embed albo hostowaną stronę,
+niepowiązany nadawca z kanału, dostarczenie triggera zdarzeniowego agenta (GitHub,
+e-mail, przekaźnik webhooków) i run workflow przyjęty przez publiczne wejście — albo
+gdziekolwiek w łańcuchu takiego runa — nie publikują strony z bindingami. Autor, który
+chce zatwierdzać każdą ponowną publikację strony z bindingami, ustawia
+`tool_approval` na `publish_artifact`.
+
 ## Delegowanie { #delegation }
 
 `task` — *hand a self-contained piece of work to one of this agent's specialists.*
@@ -1501,6 +1522,14 @@ udostępniać, albo zawężona rola zatrzymuje więc następne wywołanie.
 `tables:create`. Narzędzia rekordów nigdy nie tworzą tabel. Tabela, którą agent
 utworzy, jest dostępna do końca tego runa.
 
+`list_views` zwraca zapisane widoki tabel, które agent może czytać, z id każdego
+widoku, jego kolumnami i informacją, czy jest współdzielony; strona wiąże się z
+widokiem po tym id. `share_view` udostępnia prywatny widok każdemu, kto widzi tabelę,
+czego potrzebuje strona dla innych osób. Udostępnić widok może tylko jego właściciel.
+Domyślnie czeka na prośbę o zatwierdzenie; decyduje o nim także `approval` ustawione
+dla całej capability `virtual_tables`, a tylko `tool_approval.share_view` dotyczy
+wyłącznie jego. Oba wymagają runa działającego w imieniu członka.
+
 Narzędzia zapisu są oznaczone jako mające skutki uboczne osobno dla każdego
 narzędzia, więc polityka zatwierdzeń obejmuje je, a nie odczyty. Klucz operacji
 zapisu pochodzi z runa i wywołania narzędzia, więc ponowione wywołanie odtwarza
@@ -1531,6 +1560,9 @@ ma skutki uboczne, więc polityka zatwierdzeń może go bramkować, a odczyty dz
 swobodnie. Agent działający jako krok workflow niczego w ten sposób nie uruchamia: inny
 workflow wywołuje krok **Run a workflow**, zachowując limity pętli i głębokości łańcucha.
 Dlatego okno agenta w samym kroku nie oferuje tej capability.
+Run, za którym nie stoi żaden członek (odwiedzający widget, embed albo hostowaną
+stronę, niepowiązany nadawca z kanału, dostarczenie triggera zdarzeniowego agenta),
+niczego nie uruchamia.
 
 ## Data i godzina { #date-and-time }
 

@@ -128,6 +128,31 @@ class Settings(BaseSettings):
     # a separate registrable domain that routes to this API, it also puts the
     # page on another site, which a security review may ask for.
     ARTIFACT_ORIGIN: str | None = None
+    # How many saved table views one page version may bind. Each binding is a
+    # query run as the viewer every time the page is shown or refreshed, so the
+    # cap bounds what one open page costs the database, not what a page may say.
+    ARTIFACT_DATA_MAX_BINDINGS: int = Field(default=5, ge=1)
+    # How many records one binding serves a page. Past it the binding is served
+    # truncated, with `limit: "records"`, and the view's own filters are how a
+    # page asks for fewer.
+    ARTIFACT_DATA_MAX_RECORDS: int = Field(default=1000, ge=1)
+    # How much data one page load is served, in bytes of the shaped payload as
+    # sent, across every binding of the page. Shared max-min fairly: a small
+    # binding is served whole, and the rest is split evenly among the others.
+    ARTIFACT_DATA_MAX_BYTES: int = Field(default=4 * 1024 * 1024, ge=1024)
+    # The longest any one query of a page load may run, in milliseconds - per
+    # query, not per binding. Each query is given the smaller of this and the
+    # time left on the page's deadline, and Postgres stops it there.
+    ARTIFACT_DATA_STATEMENT_TIMEOUT_MS: int = Field(default=2000, ge=1)
+    # The deadline of one page load, in seconds. It is checked before every query
+    # and between bindings, and never enforced by cancelling a query: a binding
+    # not reached in time is served `unavailable` with the reason `timeout`.
+    ARTIFACT_DATA_READ_TIMEOUT_SECONDS: int = Field(default=5, gt=0)
+    # How many page loads one API process serves at once. Each holds a database
+    # connection for up to the page's deadline, so this stays well below
+    # `DB_POOL_SIZE + DB_MAX_OVERFLOW`; a load past it is refused with a 429 at
+    # once rather than waiting for a connection. Per process, not per deployment.
+    ARTIFACT_DATA_MAX_CONCURRENT_LOADS: int = Field(default=4, ge=1)
 
     # What a *stranger* may upload to a hosted page, in megabytes. Its own
     # setting and much smaller, because the two callers are not comparable: a
@@ -587,6 +612,12 @@ class Settings(BaseSettings):
     # for an import script or a person editing by hand, narrow enough that a
     # loop is refused after a minute rather than after a night.
     RATE_LIMIT_TABLE_WRITES_PER_MINUTE: int = Field(default=300, gt=0)
+    # How many times one member may load a live page's data per minute, counted
+    # per member and organization. Every load runs each binding's view as a
+    # query, so this bounds what an open page with auto-refresh, or a loop
+    # calling the route, costs the database. Kept per process while the shared
+    # Redis cannot count.
+    RATE_LIMIT_ARTIFACT_DATA_PER_MINUTE: int = Field(default=30, gt=0)
     # Virtual Tables quotas, per organization. Every one is a ceiling on what one
     # tenant may store in the shared PostgreSQL, and a write over one is refused
     # with QUOTA_EXCEEDED and audited without its content (#1823). Tables count

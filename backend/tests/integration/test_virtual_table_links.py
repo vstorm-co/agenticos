@@ -5,9 +5,12 @@ from __future__ import annotations
 import uuid
 
 import pytest
+from sqlalchemy import delete, event
 
 from app.db.models.resource_grant import GrantLevel
-from app.repositories import resource_grant_repo
+from app.db.models.virtual_table import VirtualTableRecord
+from app.repositories import resource_grant_repo, virtual_table_repo
+from app.schemas.table_view import TableViewCreate
 from app.schemas.virtual_table import (
     ColumnInput,
     OptionInput,
@@ -21,13 +24,28 @@ from app.schemas.virtual_table import (
     TableRead,
 )
 from app.services.access import TABLE
-from app.services.virtual_tables import VirtualTableService
+from app.services.virtual_tables import (
+    ReadDeadline,
+    TableViewService,
+    VirtualTableService,
+    computed,
+)
 from app.services.virtual_tables.exceptions import (
     InvalidQueryError,
     InvalidRecordError,
     InvalidSchemaError,
 )
-from tests.integration.virtual_table_support import cid, column, ctx_for, make_org, make_user
+from tests.integration.virtual_table_support import (
+    bound_view,
+    cid,
+    column,
+    ctx_for,
+    insert_rows,
+    make_org,
+    make_user,
+    shaped_size,
+    shaper,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -555,3 +573,356 @@ async def test_a_record_with_no_text_is_named_by_its_external_id_and_reads_choic
 
     assert cid(orders, "Colours") not in read.values
     assert read.values[cid(orders, "Sizes")] == [2]
+
+
+# -- reading a view for a page -------------------------------------------------
+
+
+def _deadline() -> ReadDeadline:
+    return ReadDeadline(60, 2_000)
+
+
+async def _read(service, ctx, bound, named, *, max_bytes=4 * 1024 * 1024, deadline=None):
+    return await service.read_bound(
+        ctx,
+        bound,
+        column_ids=named,
+        shape=shaper(bound.columns, named),
+        max_records=1_000,
+        max_bytes=max_bytes,
+        deadline=deadline or _deadline(),
+    )
+
+
+def _spy(monkeypatch, target, name):
+    """Wrap one coroutine function, recording each call's arguments and what it returned."""
+    real = getattr(target, name)
+    calls: list[tuple[tuple, dict, object]] = []
+
+    async def spy(*args, **kwargs):
+        result = await real(*args, **kwargs)
+        calls.append((args, kwargs, result))
+        return result
+
+    monkeypatch.setattr(target, name, spy)
+    return calls
+
+
+def _on(calls, table_id) -> list:
+    return [call for call in calls if call[1].get("table_id") == table_id]
+
+
+async def _specs(service, ctx, *, visibility="org", count=4, size=900_000):
+    """A products table whose records each carry a large spec, and their ids."""
+    products = await service.create_table(
+        ctx,
+        TableCreate(
+            name=f"Specs {uuid.uuid4().hex[:6]}",
+            visibility=visibility,
+            columns=[column("Name", "text"), column("Spec", "long_text")],
+        ),
+    )
+    ids = await insert_rows(
+        service.db,
+        products,
+        [{cid(products, "Name"): f"P{n}", cid(products, "Spec"): "s" * size} for n in range(count)],
+    )
+    return products, ids
+
+
+async def _spec_orders(service, ctx, products, product_ids):
+    """Orders, each linking to one product and looking up its spec."""
+    orders = await _orders(
+        service,
+        ctx,
+        products,
+        column(
+            "Specs",
+            "lookup",
+            link_column_id=uuid.uuid4(),
+            target_column_id=uuid.UUID(cid(products, "Spec")),
+        ),
+    )
+    await insert_rows(
+        service.db,
+        orders,
+        [
+            {cid(orders, "Ref"): f"O{n}", cid(orders, "Items"): [str(product_id)]}
+            for n, product_id in enumerate(product_ids)
+        ],
+    )
+    return orders
+
+
+async def test_read_bound_never_loads_linked_cells_past_the_budget(db, monkeypatch):
+    service, ctx, _org = await _setup(db)
+    products, ids = await _specs(service, ctx)
+    orders = await _spec_orders(service, ctx, products, ids)
+    bound = await bound_view(db, ctx, orders.id)
+    named = [uuid.UUID(cid(orders, "Ref")), uuid.UUID(cid(orders, "Specs"))]
+    calls = _spy(monkeypatch, virtual_table_repo, "get_record_cells_by_ids")
+    max_bytes = 2_000_000
+
+    read = await _read(service, ctx, bound, named, max_bytes=max_bytes)
+
+    loaded = [cell for _args, _kwargs, cells in _on(calls, products.id) for cell in cells]
+    assert read.stopped_by == "bytes"
+    assert [record["Ref"] for record in read.records] == ["O0", "O1"]
+    assert sum(shaped_size(cell.values) for cell in loaded) <= max_bytes
+    assert read.bytes <= max_bytes
+
+
+@pytest.mark.security
+async def test_linked_rows_the_viewer_cannot_see_never_count_against_the_budget(db, monkeypatch):
+    service, ctx, org = await _setup(db)
+    products, ids = await _specs(service, ctx, visibility="private")
+    orders = await _spec_orders(service, ctx, products, ids)
+    bound = await bound_view(db, ctx, orders.id, visibility="shared")
+    colleague = await make_user(db)
+    member = ctx_for(colleague, org, "member")
+    await resource_grant_repo.upsert(
+        db,
+        organization_id=org.id,
+        subject_user_id=colleague.id,
+        resource_type=TABLE.key,
+        resource_id=orders.id,
+        level=GrantLevel.READ,
+    )
+    named = [
+        uuid.UUID(cid(orders, "Ref")),
+        uuid.UUID(cid(orders, "Items")),
+        uuid.UUID(cid(orders, "Specs")),
+    ]
+    cells = _spy(monkeypatch, virtual_table_repo, "get_record_cells_by_ids")
+    sizes = _spy(monkeypatch, virtual_table_repo, "get_record_sizes_by_ids")
+
+    read = await _read(service, member, bound, named, max_bytes=10_000)
+
+    assert read.stopped_by is None
+    assert [record["Ref"] for record in read.records] == ["O0", "O1", "O2", "O3"]
+    assert all(record["Items"] == [] for record in read.records)
+    assert not _on(cells, products.id) and not _on(sizes, products.id)
+    await db.execute(delete(VirtualTableRecord).where(VirtualTableRecord.table_id == products.id))
+    emptied = await _read(service, ctx, bound, named, max_bytes=10_000)
+    assert read.records == emptied.records
+
+
+async def test_a_linked_table_is_checked_once_per_binding(db, monkeypatch):
+    service, ctx, _org = await _setup(db)
+    products, ids = await _products(service, ctx)
+    orders = await _orders(service, ctx, products, *_reading(products)[:2])
+    await insert_rows(
+        db, orders, [{cid(orders, "Items"): [ids["Atlas"], ids["Quill"]]} for _ in range(250)]
+    )
+    bound = await bound_view(db, ctx, orders.id)
+    tables = _spy(monkeypatch, virtual_table_repo, "get_table")
+    access = _spy(monkeypatch, computed, "resolve_access")
+
+    read = await _read(
+        service, ctx, bound, [uuid.UUID(cid(orders, "Names")), uuid.UUID(cid(orders, "Kinds"))]
+    )
+
+    assert len(read.records) == 250
+    assert read.records[0]["Names"] == ["Atlas", "Quill"]
+    assert read.records[-1]["Kinds"] == ["Book", "Pen"]
+    assert [args[1] for args, _kwargs, _found in tables] == [products.id]
+    assert [args[2].id for args, _kwargs, _allowed in access] == [products.id]
+
+
+async def test_read_bound_reads_only_the_named_links(db, monkeypatch):
+    service, ctx, _org = await _setup(db)
+    products, ids = await _products(service, ctx)
+    other, _other_ids = await _products(service, ctx)
+    orders = await _orders(service, ctx, products)
+    orders = await service.update_schema(
+        ctx,
+        orders.id,
+        SchemaUpdate(
+            expected_version=orders.schema_version,
+            columns=[
+                *(
+                    ColumnInput(
+                        id=item.id,
+                        label=item.label,
+                        type=item.type,
+                        link_table_id=item.link_table_id,
+                    )
+                    for item in orders.columns
+                ),
+                column("Other", "link", link_table_id=other.id),
+            ],
+        ),
+    )
+    await insert_rows(
+        db,
+        orders,
+        [{cid(orders, "Items"): [ids["Atlas"]], cid(orders, "Other"): [_other_ids["Quill"]]}],
+    )
+    bound = await bound_view(db, ctx, orders.id)
+    linked = _spy(monkeypatch, computed, "_linked_table")
+
+    read = await _read(service, ctx, bound, [uuid.UUID(cid(orders, "Items"))])
+
+    assert read.records[0]["Items"] == [{"id": ids["Atlas"], "label": "Atlas"}]
+    assert [args[2] for args, _kwargs, _found in linked] == [products.id]
+
+
+async def test_read_bound_reads_only_the_targets_and_name_of_linked_rows(db, monkeypatch):
+    service, ctx, _org = await _setup(db)
+    products, ids = await _products(service, ctx)
+    orders = await _orders(service, ctx, products, *_reading(products)[3:4])
+    await insert_rows(db, orders, [{cid(orders, "Items"): [ids["Atlas"], ids["Quill"]]}])
+    tags = await service.create_table(
+        ctx, TableCreate(name="Tagged", columns=[column("Size", "integer")])
+    )
+    tag_ids = await insert_rows(
+        db, tags, [{cid(tags, "Size"): 1}, {cid(tags, "Size"): 2}], external_ids=["T-1", None]
+    )
+    tagged = await _orders(service, ctx, tags)
+    await insert_rows(db, tagged, [{cid(tagged, "Items"): [str(i) for i in tag_ids]}])
+    calls = _spy(monkeypatch, virtual_table_repo, "get_record_cells_by_ids")
+
+    read = await _read(
+        service, ctx, await bound_view(db, ctx, orders.id), [uuid.UUID(cid(orders, "Sum"))]
+    )
+    labelled = await _read(
+        service, ctx, await bound_view(db, ctx, tagged.id), [uuid.UUID(cid(tagged, "Items"))]
+    )
+
+    assert read.records[0]["Sum"] == 35.5
+    assert {
+        key
+        for _args, _kwargs, cells in _on(calls, products.id)
+        for cell in cells
+        for key in cell.values
+    } == {cid(products, "Price"), cid(products, "Name")}
+    assert [linked["label"] for linked in labelled.records[0]["Items"]] == [
+        "T-1",
+        str(tag_ids[1])[:8],
+    ]
+    assert not [cell for _a, _k, cells in _on(calls, tags.id) for cell in cells if cell.values]
+
+
+async def test_a_named_formula_over_a_rollup_is_worked_out(db):
+    service, ctx, _org = await _setup(db)
+    products, ids = await _products(service, ctx)
+    orders = await _orders(service, ctx, products, *_reading(products)[3:4])
+    orders = await service.update_schema(
+        ctx,
+        orders.id,
+        SchemaUpdate(
+            expected_version=orders.schema_version,
+            columns=[
+                *(ColumnInput.model_validate(item.model_dump()) for item in orders.columns),
+                column("Doubled", "formula", formula="{Sum} * 2"),
+            ],
+        ),
+    )
+    await insert_rows(db, orders, [{cid(orders, "Items"): [ids["Atlas"], ids["Quill"]]}])
+    bound = await bound_view(db, ctx, orders.id)
+
+    read = await _read(service, ctx, bound, [uuid.UUID(cid(orders, "Doubled"))])
+
+    assert read.records[0]["Doubled"] == 71
+
+
+async def test_every_statement_on_the_read_path_is_armed(db, monkeypatch):
+    service, ctx, _org = await _setup(db)
+    products, ids = await _products(service, ctx)
+    orders = await _orders(service, ctx, products, *_reading(products)[:2])
+    await insert_rows(db, orders, [{cid(orders, "Items"): [ids["Atlas"]]} for _ in range(3)])
+    view = await TableViewService(db).create_view(
+        ctx, orders.id, TableViewCreate(name="All", kind="table")
+    )
+    await db.flush()
+    events: list[str] = []
+    real_arm = ReadDeadline.arm
+
+    async def arm(self, session):
+        events.append("ARM")
+        await real_arm(self, session)
+
+    def capture(_conn, _cursor, statement, _parameters, _context, _executemany) -> None:
+        events.append(statement)
+
+    monkeypatch.setattr(ReadDeadline, "arm", arm)
+    sync_engine = db.get_bind()
+    event.listen(sync_engine, "before_cursor_execute", capture)
+    try:
+        deadline = _deadline()
+        bound = await TableViewService(db).find_view(ctx, view.id, deadline=deadline)
+        read = await _read(
+            service,
+            ctx,
+            bound,
+            [uuid.UUID(cid(orders, "Names")), uuid.UUID(cid(orders, "Kinds"))],
+            deadline=deadline,
+        )
+    finally:
+        event.remove(sync_engine, "before_cursor_execute", capture)
+
+    assert len(read.records) == 3 and read.records[0]["Names"] == ["Atlas"]
+    statements = [item for item in events if item != "ARM"]
+    assert len([item for item in statements if "set_config" not in item]) >= 8
+    for index, item in enumerate(events):
+        if item == "ARM" or "set_config" in item:
+            continue
+        assert events[index - 2 : index] == ["ARM", events[index - 1]], item
+        assert "set_config" in events[index - 1], item
+
+
+async def test_read_bound_reads_no_linked_rows_for_records_linking_to_none(db, monkeypatch):
+    service, ctx, _org = await _setup(db)
+    products, _ids = await _products(service, ctx)
+    orders = await _orders(service, ctx, products, *_reading(products)[:3])
+    await insert_rows(db, orders, [{cid(orders, "Ref"): "none"}])
+    bound = await bound_view(db, ctx, orders.id)
+    calls = _spy(monkeypatch, virtual_table_repo, "get_record_cells_by_ids")
+    named = [uuid.UUID(cid(orders, label)) for label in ("Items", "Names", "Count")]
+
+    read = await _read(service, ctx, bound, named)
+
+    assert read.records[0] | {"id": None} == {"id": None, "Items": [], "Names": None, "Count": 0}
+    assert not _on(calls, products.id)
+
+
+async def test_linked_rows_loaded_in_one_chunk_still_count_in_the_next(db, monkeypatch):
+    """A linked record shapes to a short label, so what loading it took must not be forgotten
+    when the next chunk's room is worked out: one load would otherwise hold the linked
+    records counted earlier (free to reference again) and as many new ones again."""
+    service, ctx, _org = await _setup(db)
+    products = await service.create_table(
+        ctx, TableCreate(name="Long names", visibility="org", columns=[column("Name", "long_text")])
+    )
+    product_ids = await insert_rows(
+        db, products, [{cid(products, "Name"): f"{n:04}" + "n" * 9_000} for n in range(400)]
+    )
+    orders = await _orders(service, ctx, products)
+    await insert_rows(
+        db,
+        orders,
+        [
+            {
+                cid(orders, "Items"): [
+                    str(product_id),
+                    *([str(product_ids[n - 200])] if n >= 200 else []),
+                ]
+            }
+            for n, product_id in enumerate(product_ids)
+        ],
+    )
+    bound = await bound_view(db, ctx, orders.id)
+    calls = _spy(monkeypatch, virtual_table_repo, "get_record_cells_by_ids")
+    max_bytes = 2_000_000
+
+    read = await _read(service, ctx, bound, [uuid.UUID(cid(orders, "Items"))], max_bytes=max_bytes)
+
+    loads = [
+        sum(shaped_size(cell.values) for cell in cells)
+        for _args, _kwargs, cells in _on(calls, products.id)
+    ]
+    assert read.stopped_by == "bytes"
+    assert 200 < len(read.records) < 400
+    assert len(loads) == 2
+    assert all(load <= max_bytes for load in loads), loads
+    assert sum(loads) <= 2 * max_bytes

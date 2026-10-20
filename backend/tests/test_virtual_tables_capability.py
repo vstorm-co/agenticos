@@ -15,7 +15,12 @@ from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RunUsage
 
 from app.agents.capabilities._registry import CapabilityBuildContext, get
-from app.agents.capabilities.virtual_tables import VirtualTables, VirtualTablesConfig
+from app.agents.capabilities.approval import tool_needs_approval
+from app.agents.capabilities.virtual_tables import (
+    VirtualTables,
+    VirtualTablesConfig,
+    table_grants_of,
+)
 from app.agents.capabilities.virtual_tables._access import (
     Refused,
     TableOperation,
@@ -25,7 +30,7 @@ from app.agents.capabilities.virtual_tables._access import (
 )
 from app.agents.capabilities.virtual_tables._toolset import _operation_key
 from app.agents.deps import AgentDeps
-from app.agents.spec import CapabilityBindingSpec
+from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.core.exceptions import NotFoundError
 
 pytestmark = pytest.mark.anyio
@@ -97,3 +102,43 @@ def test_a_call_outside_a_run_has_no_operation_key():
 def test_the_toolset_is_built_once_per_run():
     built = _build(VirtualTablesConfig(allow_create=True))
     assert built is not None and built.get_toolset() is built.get_toolset()
+
+
+def test_table_grants_of_reads_the_enabled_binding_only():
+    table_id = uuid.uuid4()
+    config = {"tables": [{"table_id": str(table_id), "operations": ["read", "update"]}]}
+
+    enabled = AgentSpec(name="Clerk", capabilities=[{"id": "virtual_tables", "config": config}])
+    disabled = AgentSpec(
+        name="Clerk", capabilities=[{"id": "virtual_tables", "enabled": False, "config": config}]
+    )
+
+    assert table_grants_of(enabled) == {table_id: frozenset({"read", "update"})}
+    assert table_grants_of(disabled) == {}
+    assert table_grants_of(AgentSpec(name="Clerk")) == {}
+
+
+def _tool_info(tool_id: str):
+    return next(tool for tool in get("virtual_tables").tools if tool.id == tool_id)
+
+
+@pytest.mark.security
+def test_share_view_is_gated_by_approval_by_default():
+    binding = CapabilityBindingSpec(id="virtual_tables")
+
+    assert tool_needs_approval(tool=_tool_info("share_view"), binding=binding, side_effecting=False)
+    assert not tool_needs_approval(
+        tool=_tool_info("list_views"), binding=binding, side_effecting=False
+    )
+
+
+@pytest.mark.security
+def test_share_view_follows_the_capability_wide_approval():
+    tool = _tool_info("share_view")
+    never = CapabilityBindingSpec(id="virtual_tables", approval="never")
+    pinned = CapabilityBindingSpec(
+        id="virtual_tables", approval="never", tool_approval={"share_view": "required"}
+    )
+
+    assert not tool_needs_approval(tool=tool, binding=never, side_effecting=False)
+    assert tool_needs_approval(tool=tool, binding=pinned, side_effecting=False)

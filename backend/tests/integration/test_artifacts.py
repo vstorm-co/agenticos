@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Iterator
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any, Literal
 from unittest.mock import patch
 
 import pytest
@@ -19,21 +21,32 @@ from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import AuthorizationError
-from app.db.models.agent import Agent
+from app.agents.spec import AgentSpec
+from app.core.exceptions import AuthorizationError, BadRequestError
+from app.core.permissions import AuthContext
+from app.db.models.agent import Agent, AgentVersion
 from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
+from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
 from app.db.models.user import User
-from app.repositories import artifact_repo, retention_repo
+from app.repositories import artifact_repo, resource_grant_repo, retention_repo
+from app.schemas.artifact import BindingRequest
+from app.schemas.table_view import TableViewCreate, TableViewRead
+from app.schemas.virtual_table import ColumnInput, OptionInput, SchemaUpdate, TableRead
 from app.services import artifact as artifacts
+from app.services.artifact import ArtifactService
+from app.services.artifact_bindings import check_bindings
 from app.services.file_storage import LocalFileStorage
 from app.services.retention import RetentionService
+from app.services.virtual_tables import TableViewService, VirtualTableService
+from tests.integration.virtual_table_support import ctx_for, make_org, make_user, orders_table
 
 pytestmark = pytest.mark.anyio
 
 NOW = datetime(2026, 9, 22, 12, 0, tzinfo=UTC)
 HTML = ArtifactMediaType.HTML
+MARKDOWN = ArtifactMediaType.MARKDOWN
 
 
 @pytest.fixture
@@ -121,6 +134,78 @@ class TestPublication:
         version = await artifact_repo.latest_version(db, artifact.id)
         assert version is not None
         assert await storage.load(version.storage_path) == b"<h1>v1</h1>"
+
+    async def test_a_version_keeps_the_bindings_it_was_published_with(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        organization, user, agent = await _tenant(db)
+        published = await _publish(db, organization, user, agent, body="<h1>v1</h1>")
+        binding = {
+            "name": "tickets",
+            "view_id": str(uuid.uuid4()),
+            "table_id": str(uuid.uuid4()),
+            "fields": {"title": str(uuid.uuid4())},
+            "status": "ok",
+            "reason": None,
+        }
+
+        version = await artifact_repo.create_version(
+            db,
+            artifact_id=published.artifact_id,
+            number=2,
+            media_type=HTML.value,
+            size_bytes=1,
+            sha256="b" * 64,
+            storage_path="artifacts/x/b.html",
+            run_id=None,
+            bindings=[binding],
+        )
+        await db.refresh(version)
+
+        assert version.bindings[0]["name"] == "tickets"
+        assert version.bindings == [binding]
+
+    async def test_versions_published_before_bindings_read_as_empty(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        organization, user, agent = await _tenant(db)
+        published = await _publish(db, organization, user, agent, body="<h1>v1</h1>")
+        await db.execute(
+            text(
+                "INSERT INTO artifact_versions (id, artifact_id, number, media_type, "
+                "size_bytes, sha256, storage_path) "
+                "VALUES (:id, :artifact_id, 2, 'text/html', 1, :sha, 'artifacts/x/c.html')"
+            ),
+            {"id": uuid.uuid4(), "artifact_id": published.artifact_id, "sha": "c" * 64},
+        )
+
+        row = (
+            await db.execute(
+                select(ArtifactVersion).where(
+                    ArtifactVersion.artifact_id == published.artifact_id,
+                    ArtifactVersion.number == 2,
+                )
+            )
+        ).scalar_one()
+
+        assert row.bindings == []
+
+    async def test_same_bytes_with_new_bindings_add_a_version(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        world = await _bound(db)
+        first = await world.publish("<p>same</p>", run_person=world.owner.id)
+
+        bound = await world.publish(
+            "<p>same</p>", run_person=world.owner.id, bindings=world.ask(status="Status")
+        )
+        again = await world.publish(
+            "<p>same</p>", run_person=world.owner.id, bindings=world.ask(status="Status")
+        )
+
+        assert (bound.unchanged, bound.version_number) == (False, 2)
+        assert (again.unchanged, again.version_number) == (True, 2)
+        assert await _versions(db, first.artifact_id) == [1, 2]
 
     async def test_republishing_the_name_updates_the_same_artifact(
         self, db: AsyncSession, storage: LocalFileStorage
@@ -627,3 +712,543 @@ class TestRetention:
         assert len(paths) == 1
         assert removed == 1
         assert await db.get(Artifact, old.artifact_id) is None
+
+
+LIVE_PAGE = "This page reads live data; only a run acting for a member can republish it."
+READ = frozenset({"read"})
+
+
+@dataclass
+class _Bound:
+    """An organization with a member, a table, a view of it and an agent to publish under."""
+
+    db: AsyncSession
+    organization: Organization
+    owner: User
+    ctx: AuthContext
+    agent: Agent
+    tables: VirtualTableService
+    table: TableRead
+    view: TableViewRead
+
+    @property
+    def grants(self) -> dict[uuid.UUID, frozenset[str]]:
+        return {self.table.id: READ}
+
+    def col(self, label: str) -> uuid.UUID:
+        return next(c.id for c in self.table.columns if c.label == label)
+
+    def ask(self, name: str = "tickets", **fields: str) -> dict[str, BindingRequest]:
+        return {name: BindingRequest(view=self.view.id, fields=fields)}
+
+    async def publish(
+        self,
+        body: str,
+        *,
+        run_person: uuid.UUID | None,
+        bindings: dict[str, BindingRequest] | None = None,
+        grants: dict[uuid.UUID, frozenset[str]] | None = None,
+        media_type: ArtifactMediaType = HTML,
+    ) -> artifacts.PublishedArtifact:
+        return await artifacts.publish_with(
+            self.db,
+            organization_id=self.organization.id,
+            agent_id=self.agent.id,
+            owner_user_id=self.owner.id,
+            run_id=None,
+            name="live-report",
+            title="Live report",
+            media_type=media_type,
+            data=body.encode(),
+            bindings=bindings,
+            run_person=run_person,
+            table_grants=self.grants if grants is None else grants,
+        )
+
+    async def stored(self, artifact_id: uuid.UUID) -> list[dict[str, Any]]:
+        latest = await artifact_repo.latest_version(self.db, artifact_id)
+        assert latest is not None
+        return latest.bindings
+
+    async def archive(self, label: str) -> None:
+        table = await self.tables.describe_table(self.ctx, self.table.id)
+        await self.tables.update_schema(
+            self.ctx,
+            table.id,
+            SchemaUpdate(
+                expected_version=table.schema_version,
+                columns=[
+                    ColumnInput(
+                        id=c.id,
+                        label=c.label,
+                        type=c.type,
+                        options=[OptionInput(id=o.id, label=o.label) for o in c.options],
+                    )
+                    for c in table.columns
+                    if c.label != label and not c.archived
+                ],
+            ),
+        )
+
+
+async def _bound(
+    db: AsyncSession, *, visibility: Literal["private", "shared"] = "shared"
+) -> _Bound:
+    owner = await make_user(db)
+    organization = await make_org(db, owner=owner)
+    ctx = ctx_for(owner, organization)
+    tables = VirtualTableService(db)
+    table = await orders_table(tables, ctx)
+    view = await TableViewService(db).create_view(
+        ctx, table.id, TableViewCreate(name="Open", kind="table", visibility=visibility)
+    )
+    agent = await _agent(db, organization, owner)
+    return _Bound(db, organization, owner, ctx, agent, tables, table, view)
+
+
+class TestPublishingBindings:
+    async def test_bindings_are_resolved_stored_and_echoed(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        world = await _bound(db)
+
+        published = await world.publish(
+            "<p>live</p>", run_person=world.owner.id, bindings=world.ask(status="status")
+        )
+
+        assert published.bindings == {"tickets": {"status": "Status (single_select)"}}
+        assert await world.stored(published.artifact_id) == [
+            {
+                "name": "tickets",
+                "view_id": str(world.view.id),
+                "table_id": str(world.table.id),
+                "fields": {"status": str(world.col("Status"))},
+                "status": "ok",
+                "reason": None,
+            }
+        ]
+
+    async def test_a_private_view_publishes_with_a_warning_to_tell_the_person(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        world = await _bound(db, visibility="private")
+
+        published = await world.publish(
+            "<p>live</p>", run_person=world.owner.id, bindings=world.ask(status="Status")
+        )
+
+        assert published.bindings == {"tickets": {"status": "Status (single_select)"}}
+        assert published.warnings == [
+            "Binding tickets reads your private view 'Open': only you see its records until "
+            "the view is shared. Tell the person; the page's Share dialog shows what anyone "
+            "they share it with still needs."
+        ]
+
+    async def test_a_shared_view_publishes_without_a_warning(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        world = await _bound(db)
+
+        published = await world.publish(
+            "<p>live</p>", run_person=world.owner.id, bindings=world.ask(status="Status")
+        )
+
+        assert published.warnings == []
+
+    async def test_a_private_binding_carried_forward_is_not_warned_about_again(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        world = await _bound(db, visibility="private")
+        await world.publish(
+            "<p>v1</p>", run_person=world.owner.id, bindings=world.ask(status="Status")
+        )
+
+        second = await world.publish("<p>v2</p>", run_person=world.owner.id)
+
+        assert second.warnings == []
+
+    async def test_omitted_bindings_carry_forward(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        world = await _bound(db)
+        first = await world.publish(
+            "<p>v1</p>", run_person=world.owner.id, bindings=world.ask(status="Status")
+        )
+
+        second = await world.publish("<p>v2</p>", run_person=world.owner.id)
+
+        assert second.version_number == 2
+        assert second.bindings == {"tickets": {"status": "kept"}}
+        assert await world.stored(second.artifact_id) == await _stored_at(db, first)
+
+    async def test_empty_bindings_clear_them(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        world = await _bound(db)
+        await world.publish(
+            "<p>same</p>", run_person=world.owner.id, bindings=world.ask(status="Status")
+        )
+
+        cleared = await world.publish("<p>same</p>", run_person=world.owner.id, bindings={})
+
+        assert (cleared.unchanged, cleared.version_number) == (False, 2)
+        assert cleared.bindings == {}
+        assert await world.stored(cleared.artifact_id) == []
+
+    async def test_a_markdown_republish_cannot_carry_html_bindings_forward(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        world = await _bound(db)
+        first = await world.publish(
+            "<p>v1</p>", run_person=world.owner.id, bindings=world.ask(status="Status")
+        )
+
+        with pytest.raises(BadRequestError) as refused:
+            await world.publish("# v2", run_person=world.owner.id, media_type=MARKDOWN)
+
+        assert refused.value.message.startswith(
+            "Bindings need an HTML page; a Markdown page runs no scripts."
+        )
+        assert "pass `bindings: {}` to drop them" in refused.value.message
+        assert await _versions(db, first.artifact_id) == [1]
+
+        # Doing what the refusal says publishes the Markdown page, unbound.
+        dropped = await world.publish(
+            "# v2", run_person=world.owner.id, media_type=MARKDOWN, bindings={}
+        )
+        assert dropped.bindings == {}
+        assert await _versions(db, first.artifact_id) == [1, 2]
+
+    async def test_a_markdown_page_with_new_bindings_is_refused(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        world = await _bound(db)
+
+        with pytest.raises(BadRequestError, match="Bindings need an HTML page"):
+            await world.publish(
+                "# v1",
+                run_person=world.owner.id,
+                bindings=world.ask(status="Status"),
+                media_type=MARKDOWN,
+            )
+
+    async def test_a_binding_problem_refuses_the_publish_and_is_said_once(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        """Over the cap every binding reports the same problem; the model reads it once."""
+        world = await _bound(db)
+        many = {
+            f"b{number}": BindingRequest(view=world.view.id, fields={"status": "Status"})
+            for number in range(6)
+        }
+
+        with pytest.raises(BadRequestError) as refused:
+            await world.publish("<p>v1</p>", run_person=world.owner.id, bindings=many)
+
+        assert refused.value.message == "A page takes at most 5 bindings; this one has 6."
+
+    @pytest.mark.security
+    async def test_new_bindings_on_a_widget_run_are_refused(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        world = await _bound(db)
+
+        with pytest.raises(BadRequestError) as refused:
+            await world.publish("<p>v1</p>", run_person=None, bindings=world.ask(status="Status"))
+
+        assert refused.value.message == "Only a run acting for a member can bind a page to a view."
+
+    @pytest.mark.security
+    async def test_a_widget_run_cannot_republish_a_bound_page_with_new_html(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        world = await _bound(db)
+        first = await world.publish(
+            "<p>v1</p>", run_person=world.owner.id, bindings=world.ask(status="Status")
+        )
+
+        with pytest.raises(AuthorizationError) as refused:
+            await world.publish("<script>steal()</script>", run_person=None)
+
+        assert refused.value.message == LIVE_PAGE
+        assert await _versions(db, first.artifact_id) == [1]
+
+    @pytest.mark.security
+    async def test_a_widget_run_cannot_clear_a_bound_page_s_bindings(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        world = await _bound(db)
+        first = await world.publish(
+            "<p>v1</p>", run_person=world.owner.id, bindings=world.ask(status="Status")
+        )
+
+        with pytest.raises(AuthorizationError) as refused:
+            await world.publish("<p>v1</p>", run_person=None, bindings={})
+
+        assert refused.value.message == LIVE_PAGE
+        assert await _versions(db, first.artifact_id) == [1]
+
+    async def test_a_widget_run_refreshing_a_bound_page_unchanged_is_allowed(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        world = await _bound(db)
+        first = await world.publish(
+            "<p>v1</p>", run_person=world.owner.id, bindings=world.ask(status="Status")
+        )
+
+        again = await world.publish("<p>v1</p>", run_person=None)
+
+        assert again.unchanged is True
+        assert again.bindings == {"tickets": {"status": "kept"}}
+        assert await _versions(db, first.artifact_id) == [1]
+
+    async def test_a_schedule_run_republishes_carried_bindings_as_its_creator(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        """Carried, and rechecked: the same republish without the grant is refused."""
+        world = await _bound(db)
+        first = await world.publish(
+            "<p>v1</p>", run_person=world.owner.id, bindings=world.ask(status="Status")
+        )
+
+        with pytest.raises(BadRequestError) as refused:
+            await world.publish("<p>v2</p>", run_person=world.owner.id, grants={})
+        second = await world.publish("<p>v2</p>", run_person=world.owner.id)
+
+        assert refused.value.message == (
+            "Binding tickets: this agent is not granted read on its view's table; "
+            "pass `bindings` to replace them."
+        )
+        assert second.version_number == 2
+        assert await world.stored(second.artifact_id) == await _stored_at(db, first)
+
+    @pytest.mark.security
+    async def test_a_run_person_who_left_counts_as_no_person(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        world = await _bound(db)
+        first = await world.publish(
+            "<p>v1</p>", run_person=world.owner.id, bindings=world.ask(status="Status")
+        )
+        world.owner.is_active = False
+        await db.flush()
+
+        with pytest.raises(AuthorizationError) as refused:
+            await world.publish("<p>v2</p>", run_person=world.owner.id)
+
+        assert refused.value.message == LIVE_PAGE
+        assert await _versions(db, first.artifact_id) == [1]
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "fields",
+        [{"state": "Status"}, {"status": "Not a column"}],
+        ids=["labels-that-resolve-under-a-new-name", "labels-that-do-not-resolve"],
+    )
+    async def test_a_no_person_run_gets_one_refusal_whatever_its_bindings_resolve_to(
+        self, db: AsyncSession, storage: LocalFileStorage, fields: dict[str, str]
+    ) -> None:
+        world = await _bound(db)
+        await world.publish(
+            "<p>v1</p>", run_person=world.owner.id, bindings=world.ask(status="Status")
+        )
+
+        with pytest.raises(AuthorizationError) as refused:
+            await world.publish("<p>v1</p>", run_person=None, bindings=world.ask(**fields))
+
+        assert refused.value.message == LIVE_PAGE
+
+    @pytest.mark.security
+    async def test_a_no_person_run_never_hears_carried_forward_problems(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        world = await _bound(db)
+        await world.publish(
+            "<p>v1</p>", run_person=world.owner.id, bindings=world.ask(status="Status")
+        )
+        await world.archive("Status")
+
+        with (
+            patch("app.services.artifact.check_bindings", wraps=check_bindings) as checked,
+            pytest.raises(AuthorizationError) as refused,
+        ):
+            await world.publish("<p>v2</p>", run_person=None)
+
+        assert refused.value.message == LIVE_PAGE
+        assert "tickets" not in refused.value.message
+        checked.assert_not_called()
+
+
+async def _stored_at(db: AsyncSession, published: artifacts.PublishedArtifact) -> list[Any]:
+    version = await db.get(ArtifactVersion, published.version_id)
+    assert version is not None
+    return version.bindings
+
+
+async def _publish_agent(world: _Bound, *, grants: bool = True) -> None:
+    """Give the world's agent a published version whose spec grants read on the table."""
+    capabilities = (
+        [
+            {
+                "id": "virtual_tables",
+                "config": {"tables": [{"table_id": str(world.table.id), "operations": ["read"]}]},
+            }
+        ]
+        if grants
+        else []
+    )
+    version = AgentVersion(
+        organization_id=world.organization.id,
+        agent_id=world.agent.id,
+        version=1,
+        spec=AgentSpec(name="Reporter", capabilities=capabilities).model_dump(mode="json"),
+    )
+    world.db.add(version)
+    await world.db.flush()
+    world.agent.current_version_id = version.id
+    await world.db.flush()
+
+
+async def _two_versions(
+    world: _Bound, bindings: dict[str, BindingRequest]
+) -> tuple[artifacts.PublishedArtifact, artifacts.PublishedArtifact]:
+    """A bound first version, then a second one with its bindings cleared."""
+    first = await world.publish("<p>v1</p>", run_person=world.owner.id, bindings=bindings)
+    second = await world.publish("<p>v2</p>", run_person=world.owner.id, bindings={})
+    return first, second
+
+
+class TestRestore:
+    async def test_restore_copies_bindings_and_marks_the_broken_one_unavailable(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        world = await _bound(db)
+        await _publish_agent(world)
+        first, _second = await _two_versions(
+            world, {**world.ask(status="Status"), **world.ask("totals", total="Total")}
+        )
+        await world.archive("Total")
+
+        detail = await ArtifactService(db).restore_version(
+            world.ctx, first.artifact_id, first.version_id
+        )
+
+        assert detail.live is True
+        assert [(b.name, b.fields, b.status, b.reason) for b in detail.bindings] == [
+            ("tickets", ["status"], "ok", None),
+            ("totals", ["total"], "unavailable", "field_missing"),
+        ]
+        stored = await world.stored(first.artifact_id)
+        assert stored[1]["fields"] == {"total": str(world.col("Total"))}
+        entry = (
+            await db.execute(
+                select(AppAdminAuditLog).where(
+                    AppAdminAuditLog.action == "artifact.version_restored",
+                    AppAdminAuditLog.target_id == str(first.artifact_id),
+                )
+            )
+        ).scalar_one()
+        assert entry.details == {
+            "version": 3,
+            "restored": 1,
+            "bindings": {"tickets": "ok", "totals": "unavailable"},
+        }
+
+    @pytest.mark.security
+    async def test_restore_checks_as_the_restorer(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        """An editor of the page who cannot see the table gets the binding back unavailable."""
+        world = await _bound(db)
+        await _publish_agent(world)
+        first, _second = await _two_versions(world, world.ask(status="Status"))
+        editor = await _member(db, world.organization, "member")
+        await resource_grant_repo.upsert(
+            db,
+            organization_id=world.organization.id,
+            subject_user_id=editor.id,
+            resource_type="artifact",
+            resource_id=first.artifact_id,
+            level=GrantLevel.EDIT,
+        )
+
+        detail = await ArtifactService(db).restore_version(
+            ctx_for(editor, world.organization, "member"), first.artifact_id, first.version_id
+        )
+
+        [binding] = detail.bindings
+        assert (binding.status, binding.reason) == ("unavailable", "view_missing")
+
+    async def test_restore_keeps_a_stored_unavailable_binding_unavailable(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        world = await _bound(db)
+        await _publish_agent(world)
+        first, _second = await _two_versions(world, world.ask(status="Status"))
+        version = await db.get(ArtifactVersion, first.version_id)
+        assert version is not None
+        version.bindings = [
+            {**version.bindings[0], "status": "unavailable", "reason": "table_not_granted"}
+        ]
+        await db.flush()
+
+        detail = await ArtifactService(db).restore_version(
+            world.ctx, first.artifact_id, first.version_id
+        )
+
+        [binding] = detail.bindings
+        assert (binding.status, binding.reason) == ("unavailable", "table_not_granted")
+
+    @pytest.mark.parametrize("how", ["agent-deleted", "never-published"])
+    async def test_restore_with_no_agent_marks_every_binding_unavailable(
+        self, db: AsyncSession, storage: LocalFileStorage, how: str
+    ) -> None:
+        world = await _bound(db)
+        first, _second = await _two_versions(
+            world, {**world.ask(status="Status"), **world.ask("totals", total="Total")}
+        )
+        if how == "agent-deleted":
+            await _publish_agent(world)
+            await db.execute(
+                text("UPDATE artifacts SET agent_id = NULL WHERE id = :id"),
+                {"id": first.artifact_id},
+            )
+            db.expire_all()
+
+        detail = await ArtifactService(db).restore_version(
+            world.ctx, first.artifact_id, first.version_id
+        )
+
+        assert [(b.status, b.reason) for b in detail.bindings] == [
+            ("unavailable", "no_agent"),
+            ("unavailable", "no_agent"),
+        ]
+
+    @pytest.mark.security
+    async def test_the_detail_shows_bindings_only_to_an_editor(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        world = await _bound(db)
+        published = await world.publish(
+            "<p>v1</p>", run_person=world.owner.id, bindings=world.ask(status="Status")
+        )
+        reader = await _member(db, world.organization, "member")
+        await resource_grant_repo.upsert(
+            db,
+            organization_id=world.organization.id,
+            subject_user_id=reader.id,
+            resource_type="artifact",
+            resource_id=published.artifact_id,
+            level=GrantLevel.READ,
+        )
+        service = ArtifactService(db)
+
+        as_reader = await service.read(
+            ctx_for(reader, world.organization, "member"), published.artifact_id
+        )
+        as_owner = await service.read(world.ctx, published.artifact_id)
+
+        assert (as_reader.can_edit, as_reader.live, as_reader.bindings) == (False, True, [])
+        assert [(b.name, b.view_id, b.fields) for b in as_owner.bindings] == [
+            ("tickets", world.view.id, ["status"])
+        ]

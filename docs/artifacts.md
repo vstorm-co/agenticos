@@ -47,6 +47,131 @@ same rule as opening the page in the console: the person the run acts for must
 be allowed to open it. A page over 100,000 characters is returned cut, and says
 so; an edit can still name text past the cut.
 
+## Live data
+
+A page can show records from [Virtual Tables](virtual-tables.md) that stay
+current, instead of the copy it was published with. The agent passes `bindings` to
+`publish_artifact`: each binding is a name, a [saved view](virtual-tables.md#saved-views)
+and the columns the page reads from it. `list_views` gives the agent each view's
+id and columns. The page calls `agenticos.onData(render)`, and `render(data)` runs
+with the first data and again on every refresh. `agenticos.data` is a Promise of
+the first data.
+
+```js
+agenticos.onData((data) => {
+  // data.tickets = { status, records, fields, count, truncated, limit, filters_dropped }
+});
+```
+
+Each binding arrives as `status` (`ok` or `unavailable`), `records`
+(`{id, <field>: value}`), `fields` (label, type, options and state for each),
+`count`, `truncated`, `limit` and `filters_dropped`, which is true when a filter of
+the view named a column that is gone, so the records match more than the view
+meant.
+
+A page that gets no reply within 10 seconds sees every binding
+`unavailable`; a listener added after that asks once more.
+
+A binding is `unavailable` when this viewer may not read its view or the view is
+gone. A field whose column was removed is served under its field name as a
+`text` field with value `null` and state `missing`; an archived column gives
+`null` with state `archived`.
+
+The records are read **when somebody views the page, with that viewer's own
+access**, and are never stored in it. Two people opening the same page can see
+different rows. The publish result lists each field as `Label (type)`, so the
+agent can check it bound the column it meant; a binding carried forward unchanged
+says `kept`.
+
+A private view serves only its owner. Binding one still publishes the page, and the
+result's `warning` gets a line saying that only the person sees its records until
+the view is shared, which the agent tells them. Whether a colleague will see them
+is answered where the page is shared: see
+[Who sees a live page's records](#who-sees-a-live-pages-records).
+
+A binding name is lower-case letters, digits and `_`. A field name may be written
+as its column is labelled: words of letters in any case, digits and `_`, with single
+spaces between them, such as `Status` or `Created At`. Both are at most 64
+characters, and `__proto__`, `constructor` and `prototype` are reserved for both
+(`id` too, for a field). A page has at most 5 bindings, and a binding at most 50
+fields.
+
+### What the viewer sees
+
+A page with bindings shows a **Live** badge on its card, in the dashboard's
+artifact widget and in the viewer. In the viewer its dot pulses while the data
+arrives and turns amber when some sources are unavailable to this viewer. A
+viewer who can read none of them sees no badge, and neither does an older version.
+
+The viewer has **Refresh**, which reads the data again and updates a page that
+uses `agenticos.onData` in place, with when it was last read in the button's
+tooltip. Beside it is a menu to refresh automatically: Off, every minute, every 5
+or 15 minutes, or every hour. Each viewer picks their own, and the choice is
+remembered per page in that browser.
+
+Auto-refresh does nothing while the tab is hidden, and reads once when the tab
+comes back if a tick was missed. It stops when the data is refused (the page is
+gone for this viewer) and when no source on the page can be read, until the
+viewer clicks Refresh and a read answers. A failure that says nothing about the
+page, such as a server error, keeps it polling. A busy answer (429) is tried
+again twice, a second apart, before the viewer is told "Busy, try again in a
+moment."
+
+A line under the strip appears only when something needs attention. A refused
+page says "This page's live data is not available to you." A reader whose sources
+cannot be read sees how many ("2 of 3 sources unavailable to you"). An editor,
+meaning anyone who can edit the page, also sees why for each source (for example
+its saved view is gone, its table is archived, the agent was not granted the
+table, or you cannot read its saved view) with an **Open the table** link to the
+bound view.
+
+When an agent publishes a new version while somebody has the current one open,
+the next read (a refresh, manual or automatic) moves the viewer to the new
+version: the page is loaded again from the new version, with its own data. A
+viewer who picked a version from the version menu stays on it.
+
+On an older version, live data is not read. The viewer says "Live data only on the
+current version." with **Open current**, and, for an editor, **Restore** for that
+version. Restoring a version whose live sources are unavailable says which.
+
+### Limits
+
+Every answer is bounded, so one page cannot take the deployment down:
+
+| Limit | Value |
+|---|---|
+| Bindings per page | 5 |
+| Records per binding | 1,000 |
+| Shaped data per page | 4 MiB, split fairly between the bindings |
+| One query | at most 2 s |
+| One page | 5 s deadline |
+| Data loads | 30 a minute per viewer, one in flight per viewer, and a cap per process |
+
+A cut binding says `truncated: true`, with `limit` set to `records` or `bytes`
+and `count` as the number of records served. `bytes` also covers a read whose
+measured cost ran out before the shaped data filled the page's share.
+
+The deadline is enforced without cancelling any query: each query runs at most the
+smaller of 2 s and the time left of the 5 s, and no query starts once the 5 s are
+spent, so a page answers in about 5 s. Past a rate limit the route answers 429;
+the console retries a busy answer twice. When Redis is down, the rate limit's
+floor and the in-flight limit count per API worker, and the per-process cap
+still bounds each worker.
+
+### Who may publish a bound page
+
+A page binds to a table only if the publishing agent's spec grants read on it,
+checked when the page is published or a version restored. Revoking the grant
+later does not stop pages already published, and each viewer still reads only
+what their own access allows.
+
+A bound page can be republished only by a run
+acting for a member: the signed-in member (web chat, HTTP API), a linked channel
+sender or a schedule's creator. A widget, embed or hosted-page visitor, an
+unlinked channel sender and an agent event trigger's delivery (GitHub, email,
+webhook relay) do not count, and neither does a workflow run admitted by a public
+door or anywhere in such a run's chain.
+
 ## One name, one link
 
 The identity of an artifact is its **name within the agent** - `weekly-report`,
@@ -100,10 +225,11 @@ styles and images (as `data:` URIs) into the one file.
 
     Scripts run, so a chart drawn by a library works. But the page cannot load
     anything from anywhere and cannot send anything anywhere - a CDN script, a
-    web font from a URL and an API call all fail. The one exception is the
-    library set below, which the deployment serves itself. The tool tells the
-    model this. It is deliberate, and [How the page is isolated](#how-the-page-is-isolated)
-    says why.
+    web font from a URL and an API call all fail. The exceptions are the
+    library set below, which the deployment serves itself, and the
+    [live data](#live-data) the console hands a page that declared bindings.
+    The tool tells the model this. It is deliberate, and
+    [How the page is isolated](#how-the-page-is-isolated) says why.
 
 ### The library set
 
@@ -136,10 +262,11 @@ agent follows it.
 ## Who can open it
 
 A new artifact is **private** to the person the publishing run acted for: the
-person in the chat, or the creator of a trigger.
+person in the chat, or the creator of a trigger. A private page is also visible
+to the Owner, Admin, Builder and Operator roles.
 
 Its link - the one the chat card and the agent's reply point at - opens the page
-itself, filling the window under one strip with its title, its version and
+itself (from the chat card, in a new tab), filling the window under one strip with its title, its version and
 **Share**. Nobody gets in through that link alone: it opens only for a signed-in
 member the rules below already let in. It names the organization the artifact is
 in (`?org=`), so a member of several lands in the right one.
@@ -160,8 +287,19 @@ Opening it needs `artifacts:view`.
 
 The agent cannot widen who reads a page. It publishes; a person decides who sees
 it. This is why the capability does not ask for approval by default: a first
-publication is private. An author who wants a person to approve each republish
-of an already shared page sets `tool_approval` on `publish_artifact` in the spec.
+publication is private, and what a bound page shows is decided at view time by
+each viewer's own access. An author who wants a person to approve each republish
+of an already shared page, or of a bound page, sets `tool_approval` on
+`publish_artifact` in the spec. A bound page can be republished only by a run
+acting for a member (see [Live data](#live-data)).
+
+### Who sees a live page's records
+
+Sharing a [live page](#live-data) lets a person open it, but each binding's records
+are read with their own access. To see them they also need read access to the
+binding's table, and a view that is shared or their own. A page bound to a private
+view therefore shows its records only to the view's owner; the publish result tells
+the agent so, for it to pass on.
 
 ### The public link
 
@@ -236,6 +374,11 @@ the person looking at it:
   under the page. The page could send that message itself, so it is a request and
   never a permission - the person reading the address is what stands between a
   prompt-injected page and the address it would send its numbers to.
+- Live data arrives by `postMessage` from the console, which fetches it as the
+  viewer. The content route never carries records. The page's request carries a
+  nonce that lets the console match each reply to the right page load; that is
+  **correlation, not access control**. Access is the viewer's own session on the
+  data route, so a page only ever receives what the viewer may read.
 - One signed address loads its page a few times a minute at most, counted per
   address before anything is read. The console and the public page mint a
   fresh address each time they draw the frame, and minting one through a public
@@ -279,9 +422,11 @@ under `artifacts/<organization>/<artifact>/`.
 ## Limitations
 
 - **One self-contained document per version.** No bundles, and no network from
-  inside the page beyond the served library set.
-- **No live data.** A dashboard shows the data it was published with. It
-  refreshes when the agent publishes again - a schedule is the usual way.
+  inside the page beyond the served library set and the [live data](#live-data)
+  the console hands it.
+- **Live data is bounded.** Five bindings, 1,000 records each and about 5 s a
+  load; see the [limits](#limits). Data that is not bound is the page as
+  published, and changes when the agent publishes again.
 - **Nothing on the page acts.** A form or a button has nowhere to send what it
   collects.
 - **An open page outlives a revocation by one signed-address lifetime**, five
@@ -302,6 +447,8 @@ under `artifacts/<organization>/<artifact>/`.
 - Private by default; shared with grants, the organization or a public link, by
   a person. The public link can expire, pin a version, ask for a password and be
   embedded on listed sites.
+- A page can bind to saved table views and show live data, read at view time with
+  the viewer's own access and never stored in the page.
 - Served from a cookieless route in an opaque origin with no network but the
   deployment's own library set, links that ask before they open, and optionally
   a domain of its own.

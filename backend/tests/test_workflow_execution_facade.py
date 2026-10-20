@@ -20,7 +20,13 @@ from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.resource_grant import Visibility
 from app.db.models.workflow import WorkflowStatus
-from app.db.models.workflow_run import NodeAttempt, NodeRun, WorkflowRunMode, WorkflowRunStatus
+from app.db.models.workflow_run import (
+    NodeAttempt,
+    NodeRun,
+    WorkflowRunMode,
+    WorkflowRunStatus,
+    WorkflowRunTrigger,
+)
 from app.services.workflow_execution.exceptions import (
     WorkflowAdmissionQuotaError,
     WorkflowArchivedError,
@@ -30,7 +36,11 @@ from app.services.workflow_execution.exceptions import (
     WorkflowRunInputTooLargeError,
     WorkflowRunNotFoundError,
 )
-from app.services.workflow_execution.facade import WorkflowExecutionService, node_run_read
+from app.services.workflow_execution.facade import (
+    Causation,
+    WorkflowExecutionService,
+    node_run_read,
+)
 from app.workflows.contracts.io import Binding, FileRef, LiteralValue, TableIORef
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import NodeInstance, NodePosition, WorkflowGraph
@@ -711,6 +721,86 @@ class TestEventsSince:
 
         assert result.items == []
         assert result.next_cursor == "7"
+
+
+@pytest.mark.usefixtures("_no_dispatch_trigger")
+class TestThePublicOrigin:
+    """Whether an outsider is behind a run's chain, stored on its row (D18a(5)).
+
+    Every surface ends in `_admit`, so the flag stored there is the one a run's
+    dispatch, its retries and the runs it causes all read.
+    """
+
+    @staticmethod
+    async def _stored(start) -> bool:
+        created = _run_row()
+        with (
+            patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=_workflow())),
+            patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(
+                f"{FACADE_PATH}.workflow_repo.get_version", new=AsyncMock(return_value=_version())
+            ),
+            patch(f"{FACADE_PATH}.workflow_run_repo.lock_admission", new=AsyncMock()),
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.sum_reserved_node_work",
+                new=AsyncMock(return_value=0),
+            ),
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.create_run", new=AsyncMock(return_value=created)
+            ) as create_run,
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.create_node_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(f"{FACADE_PATH}.workflow_run_repo.create_outbox", new=AsyncMock()),
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.update_run", new=AsyncMock(return_value=created)
+            ),
+            patch(f"{FACADE_PATH}.events.append", new=AsyncMock()),
+        ):
+            await start(WorkflowExecutionService(MagicMock()))
+        return create_run.await_args.kwargs["public_origin"]
+
+    @pytest.mark.security
+    async def test_a_door_run_is_stored_public(self):
+        stored = await self._stored(
+            lambda service: service.admit_pinned(
+                _ctx(),
+                _workflow(),
+                _version(),
+                triggered_by=WorkflowRunTrigger.WEBHOOK,
+                run_input={},
+            )
+        )
+
+        assert stored is True
+
+    @pytest.mark.security
+    async def test_a_run_caused_by_a_public_run_is_stored_public(self):
+        root = uuid.uuid4()
+        stored = await self._stored(
+            lambda service: service.admit_pinned(
+                _ctx(),
+                _workflow(),
+                _version(),
+                triggered_by=WorkflowRunTrigger.TABLE_CREATED,
+                run_input={},
+                causation=Causation(
+                    root_run_id=root,
+                    causation_run_id=root,
+                    visited_trigger_ids=[],
+                    depth=1,
+                    public_origin=True,
+                ),
+            )
+        )
+
+        assert stored is True
+
+    async def test_an_api_run_is_stored_not_public(self):
+        stored = await self._stored(lambda service: service.start(_ctx(), uuid.uuid4()))
+
+        assert stored is False
 
 
 class TestTriggerDispatch:

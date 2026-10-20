@@ -14,7 +14,12 @@ from app.schemas.virtual_table import (
     RecordRead,
     TableRead,
 )
-from app.services.virtual_tables.presentation import column_keyed, filters_by_label, labelled
+from app.services.virtual_tables.presentation import (
+    column_keyed,
+    describe_filters,
+    filters_by_label,
+    labelled,
+)
 from app.services.virtual_tables.types import COLUMN_TYPES, CellProblem
 
 WON = UUID("00000000-0000-4000-8000-000000000001")
@@ -98,4 +103,29 @@ def test_a_filter_names_a_choice_by_its_label():
         True,
         "Won",
         "Won",
+    ]
+
+
+def test_describe_filters_names_columns_and_options_by_label():
+    gone = ColumnDef(
+        id=UUID("00000000-0000-4000-8000-0000000000a4"), label="Gone", type="text", archived=True
+    )
+    unknown = UUID("00000000-0000-4000-8000-0000000000d1")
+    filters = [
+        RecordFilter(column_id=STAGE.id, op="eq", value=str(WON)),
+        RecordFilter(column_id=TAGS.id, op="in", value=[str(LOST), str(OLD), "stray"]),
+        RecordFilter(column_id=TAGS.id, op="contains", value=str(LOST)),
+        RecordFilter(column_id=STAGE.id, op="is_null", value=True),
+        RecordFilter(column_id=NAME.id, op="starts_with", value=str(WON)),
+        RecordFilter(column_id=gone.id, op="eq", value="x"),
+        RecordFilter(column_id=unknown, op="eq", value="x"),
+    ]
+
+    assert describe_filters([STAGE, TAGS, NAME, gone], filters) == [
+        {"column": "Stage", "op": "eq", "value": "Won"},
+        # An archived option still reads by its label; what names no option reads as it is.
+        {"column": "Tags", "op": "in", "value": ["Lost", "Old", "stray"]},
+        {"column": "Tags", "op": "contains", "value": "Lost"},
+        {"column": "Stage", "op": "is_null", "value": True},
+        {"column": "Name", "op": "starts_with", "value": str(WON)},
     ]
