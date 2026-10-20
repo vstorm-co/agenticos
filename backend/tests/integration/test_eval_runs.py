@@ -1345,6 +1345,84 @@ async def test_a_working_run_says_it_is_alive(db) -> None:
     assert beat.await_args.kwargs["organization_id"] == ctx.organization_id
 
 
+async def test_a_run_its_worker_cannot_finish_ends_failed_at_once(db) -> None:
+    """The database lost mid-run: the run is failed by its worker, not left live for the sweep."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=3)
+    service = EvalRunService(db)
+    started = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    attempts = list(
+        await db.scalars(select(EvalRunCase).where(EvalRunCase.eval_run_id == started.id))
+    )
+    attempts[0].status = "running"
+    await db.flush()
+    worker = EvalRunWorker(started.id, ctx.organization_id, sessions=_sessions(db))
+
+    with (
+        patch.object(EvalRunWorker, "_wave", new=AsyncMock(side_effect=TimeoutError())),
+        pytest.raises(TimeoutError),
+    ):
+        await worker.run()
+
+    run = await service.get(ctx, started.id)
+    assert run.status == EvalRunStatus.FAILED.value
+    assert run.error == "This eval stopped on an error before it finished. Run it again."
+    statuses = await db.scalars(
+        select(EvalRunCase.status).where(EvalRunCase.eval_run_id == started.id)
+    )
+    assert sorted(statuses) == ["failed", "skipped", "skipped"]
+
+
+async def test_a_run_the_worker_cannot_close_either_is_left_to_the_sweep(db, caplog) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    service = EvalRunService(db)
+    started = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    worker = EvalRunWorker(started.id, ctx.organization_id, sessions=_sessions(db))
+
+    with (
+        patch.object(EvalRunWorker, "_wave", new=AsyncMock(side_effect=TimeoutError())),
+        patch(
+            "app.services.eval_run_worker.eval_run_repo.fail_live",
+            new=AsyncMock(side_effect=ConnectionError()),
+        ),
+        caplog.at_level("ERROR", logger="app.services.eval_run_worker"),
+        pytest.raises(TimeoutError),
+    ):
+        await worker.run()
+
+    assert (await service.get(ctx, started.id)).status == EvalRunStatus.RUNNING.value
+    assert any(record.message == "eval_run_not_closed" for record in caplog.records)
+
+
+async def test_a_heartbeat_that_fails_is_not_the_last(db, caplog) -> None:
+    """A worker silent after one dropped connection would be reaped while it still works."""
+    ctx = await _owner(db)
+    worker = EvalRunWorker(uuid.uuid4(), ctx.organization_id, sessions=_sessions(db), heartbeat=0)
+    again = asyncio.Event()
+
+    async def beaten(*_args: object, **_kwargs: object) -> None:
+        if beat.await_count == 1:
+            raise TimeoutError
+        again.set()
+
+    beat = AsyncMock(side_effect=beaten)
+
+    with (
+        patch("app.services.eval_run_worker.eval_run_repo.heartbeat", new=beat),
+        caplog.at_level("WARNING", logger="app.services.eval_run_worker"),
+    ):
+        beating = asyncio.create_task(worker._beat())
+        await asyncio.wait_for(again.wait(), timeout=5)
+        beating.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await beating
+
+    assert any(record.message == "eval_heartbeat_failed" for record in caplog.records)
+
+
 async def test_an_attempt_gone_with_its_run_stops_the_drainer(db) -> None:
     ctx = await _owner(db)
     worker = EvalRunWorker(uuid.uuid4(), ctx.organization_id, sessions=_sessions(db))
