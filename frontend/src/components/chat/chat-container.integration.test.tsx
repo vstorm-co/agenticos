@@ -104,6 +104,50 @@ const SIGNED_IN = { id: "u-1", email: "kacper@example.test", full_name: "Kacper"
 const SETTLE = { timeout: 5000 };
 beforeAll(() => configure({ asyncUtilTimeout: SETTLE.timeout }));
 
+// TEMPORARY (flake hunt on #2248, removed before merge): a timeline of the
+// stores this file's flaky tests depend on, printed when one of them fails.
+const timeline: string[] = [];
+const started = { at: 0 };
+function note(what: string): void {
+  timeline.push(`${Math.round(performance.now() - started.at)}ms ${what}`);
+}
+let unsubscribe: (() => void)[] = [];
+beforeEach(() => {
+  timeline.length = 0;
+  started.at = performance.now();
+  unsubscribe.forEach((stop) => stop());
+  unsubscribe = [
+    useConversationStore.subscribe((state, prev) => {
+      if (state.currentConversationId !== prev.currentConversationId)
+        note(
+          `conversation ${prev.currentConversationId} -> ${state.currentConversationId} url=${window.location.search}`,
+        );
+    }),
+    useAgentSelectionStore.subscribe((state, prev) => {
+      if (state.selectedAgentId !== prev.selectedAgentId)
+        note(`agent ${prev.selectedAgentId} -> ${state.selectedAgentId}`);
+    }),
+    useChatStore.subscribe((state, prev) => {
+      if (state.messages.length !== prev.messages.length)
+        note(`messages ${prev.messages.length} -> ${state.messages.length}`);
+    }),
+  ];
+});
+async function explained(check: () => Promise<unknown>): Promise<void> {
+  try {
+    await check();
+  } catch (error) {
+    const calls = get.mock.calls
+      .map(([url]) => String(url))
+      .filter((url) => url.startsWith("/conversations"));
+    console.error(
+      `FLAKE-DIAG ${expect.getState().currentTestName}\n` +
+        [...timeline, `url=${window.location.href}`, `gets=${JSON.stringify(calls)}`].join("\n"),
+    );
+    throw error;
+  }
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   // Answered per endpoint, and `/auth/me` has to answer with the account already
@@ -250,7 +294,7 @@ describe("the chat container - where an empty conversation is scrolled", () => {
     // Queried again on every attempt rather than held: on CI the node found first
     // was detached by the time it was asserted on (230 ms, well inside the
     // timeout), so what is checked is the message on screen, not one node.
-    await waitFor(() => expect(screen.getByText("Hi.")).toBeInTheDocument());
+    await explained(() => waitFor(() => expect(screen.getByText("Hi.")).toBeInTheDocument()));
     expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ behavior: "smooth" }));
     scrollTo.mockRestore();
   });
@@ -281,9 +325,11 @@ describe("the chat container - who a reopened thread is addressed to", () => {
     useConversationStore.getState().setCurrentConversationId("c-fin");
     mount();
 
-    await vi.waitFor(
-      () => expect(useAgentSelectionStore.getState().selectedAgentId).toBe("a-fin"),
-      SETTLE,
+    await explained(() =>
+      vi.waitFor(
+        () => expect(useAgentSelectionStore.getState().selectedAgentId).toBe("a-fin"),
+        SETTLE,
+      ),
     );
 
     act(() => useConversationStore.getState().setCurrentConversationId("c-sup"));
