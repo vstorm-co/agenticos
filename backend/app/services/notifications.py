@@ -1228,17 +1228,27 @@ def _suite_summary(
 ) -> str:
     """One line saying which suite, on what, why - and, for a failure, which cases."""
     on = f"{agent.name} v{result.version_number}" if result.version_number else agent.name
-    if result.status != EvalSuiteResultStatus.FAILED.value:
+    deciding = result.status in (
+        EvalSuiteResultStatus.FAILED.value,
+        EvalSuiteResultStatus.INCONCLUSIVE.value,
+    )
+    if not deciding:
         why = (summary.message if summary and summary.message else None) or (result.reason or "")
         return f"{suite.name} did not run on {on}: {why.rstrip('.')}."
+    failed = result.status == EvalSuiteResultStatus.FAILED.value
     reasons = summary.reasons if summary else []
     said = "; ".join(_reason_text(reason) for reason in reasons) or "below its threshold"
-    line = f"{suite.name} failed on {on}: {said}."
-    cases = [case.input for case in summary.failing_cases] if summary else []
+    line = f"{suite.name} {'failed' if failed else 'could not decide'} on {on}: {said}."
+    cases = [
+        case.input
+        for case in (summary.failing_cases if summary else [])
+        if failed or case.kind == "ungraded"
+    ]
     if cases:
         named = ", ".join(f"'{text}'" for text in cases[:_SHOWN_CASES])
         more = len(cases) - _SHOWN_CASES
-        line += f" Failing: {named}" + (f" and {more} more." if more > 0 else ".")
+        label = "Failing" if failed else "Not graded"
+        line += f" {label}: {named}" + (f" and {more} more." if more > 0 else ".")
     return line
 
 
@@ -1256,5 +1266,7 @@ def _reason_text(reason: ThresholdReason) -> str:
             return f"cost per passed case rose {value:.0%}"
         case "p95_rise":
             return f"p95 latency rose {value:.0%}"
+        case "ungraded":
+            return f"{int(value)} case(s) could not be graded"
         case _:
             return "the comparison is invalid"

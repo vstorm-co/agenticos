@@ -64,8 +64,8 @@ class EvalSuiteResultStatus(StrEnum):
     or past an efficiency ceiling."""
 
     INCONCLUSIVE = "inconclusive"
-    """The comparison is invalid - the two sides were graded differently - so the
-    result can neither pass nor fail."""
+    """The result cannot be vouched for: a case could not be graded, or the two
+    sides were graded differently - and nothing failed outright."""
 
     SKIPPED = "skipped"
     """Never ran: the budget, the cost ceiling, AI assistance off, or nothing to run."""
@@ -79,9 +79,11 @@ class EvalSuiteResultStatus(StrEnum):
 
     @property
     def alerting(self) -> bool:
-        """Whether a result in this state tells the owner."""
+        """Whether a result in this state tells the owner: anything but a pass is
+        something the suite could not vouch for."""
         return self in (
             EvalSuiteResultStatus.FAILED,
+            EvalSuiteResultStatus.INCONCLUSIVE,
             EvalSuiteResultStatus.SKIPPED,
             EvalSuiteResultStatus.ERROR,
         )

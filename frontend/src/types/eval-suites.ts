@@ -16,7 +16,8 @@ export type ThresholdReasonCode =
   | "regressions"
   | "cost_per_pass_rise"
   | "p95_rise"
-  | "invalid_comparison";
+  | "invalid_comparison"
+  | "ungraded";
 
 /** What a result must meet. Fractions: 0.8 is eighty per cent. */
 export interface EvalSuiteThreshold {
@@ -42,7 +43,7 @@ export interface ThresholdReason {
 export interface FailingCase {
   case_id: string;
   input: string;
-  kind: "regression" | "failed";
+  kind: "regression" | "failed" | "ungraded";
 }
 
 export interface EvalSuiteSummary {

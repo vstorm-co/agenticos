@@ -1,5 +1,5 @@
 ---
-source_sha: "a7213b0ce36f"
+source_sha: "572fd6c1a063"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -424,8 +424,9 @@ sprawdzają.
 
 Wynik, którego porównanie jest
 [nieważne](#a-different-judge-invalidates-the-comparison) albo w którym nie
-udało się ocenić żadnego przypadku, jest **bez rozstrzygnięcia**, nigdy
-zaliczony. Wynik **nie został uruchomiony**, gdy
+udało się ocenić choćby jednego przypadku, jest **bez rozstrzygnięcia** -
+nigdy zaliczony - chyba że coś wprost nie przeszło, i podaje przypadki, których
+nikt nie ocenił. Wynik **nie został uruchomiony**, gdy
 kosztowałby więcej, niż zostało w budżecie albo niż własny limit suity, gdy
 ocenić go mógłby tylko sędzia, a wsparcie AI jest wyłączone, albo gdy nie ma
 opublikowanej wersji do sprawdzenia.
@@ -447,9 +448,10 @@ organizację albo nie może jej już uruchomić, zostaje wstrzymana z podanym
 powodem - tak samo jak suita, której środowisko usunięto, zamiast po cichu
 sprawdzać inną wersję.
 
-Właściciel dostaje wiadomość, gdy wynik nie przechodzi albo się nie
-uruchamia - raz na serię takich wyników na danej wersji, z nazwami
-przypadków, które się zepsuły - w centrum powiadomień i mailem, jeśli go
+Właściciel dostaje wiadomość, gdy wynik nie przechodzi, jest bez
+rozstrzygnięcia albo się nie uruchamia - raz na serię takich wyników na danej
+wersji, z nazwami przypadków, które się zepsuły albo zostały bez oceny - w
+centrum powiadomień i mailem, jeśli go
 włączył. Slack nie jest jeszcze kanałem powiadomień.
 
 ## Ustawienia { #settings }

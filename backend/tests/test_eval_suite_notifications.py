@@ -80,6 +80,25 @@ def test_each_reason_is_said_in_words(reason: ThresholdReason, said: str) -> Non
     assert f": {said}." in _suite_summary(suite, result, agent=agent, summary=summary)
 
 
+def test_an_undecided_result_names_the_cases_nobody_graded() -> None:
+    summary = EvalSuiteSummary(
+        pass_rate=1.0,
+        first_pass_rate=1.0,
+        cases=4,
+        reasons=[ThresholdReason(code="ungraded", value=1)],
+        failing_cases=[
+            FailingCase(case_id=uuid.uuid4(), input="Where is it?", kind="ungraded"),
+            FailingCase(case_id=uuid.uuid4(), input="Can I return it?", kind="failed"),
+        ],
+    )
+    suite, result, agent = _rows(status="inconclusive")
+
+    assert _suite_summary(suite, result, agent=agent, summary=summary) == (
+        "Refunds could not decide on Clerk v7: 1 case(s) could not be graded. "
+        "Not graded: 'Where is it?'."
+    )
+
+
 def test_a_failure_with_nothing_recorded_still_reads() -> None:
     suite, result, agent = _rows(status="failed", version_number=None)
     assert _suite_summary(suite, result, agent=agent, summary=None) == (

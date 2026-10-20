@@ -112,6 +112,8 @@ export function reasonText(reason: ThresholdReason, t: Translate, locale: string
       return t("reason.p95Rise", { value: share(reason.value), limit: share(reason.limit) });
     case "invalid_comparison":
       return t("reason.invalid");
+    case "ungraded":
+      return t("reason.ungraded", { count: reason.value ?? 0 });
   }
 }
 

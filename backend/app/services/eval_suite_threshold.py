@@ -10,8 +10,9 @@ regression somebody can reproduce is a regression whatever the test says.
 Efficiency is the second axis and is checked only where the owner set a
 ceiling: a rise in cost per passed case or in p95 latency against the baseline.
 A comparison the two sides of which were graded differently decides nothing,
-and neither does a run in which no case could be graded - the judge erred on
-every one - so each is inconclusive rather than passed.
+and neither does a run in which a case could not be graded - the judge erred
+on it - unless something failed outright: such a result is inconclusive,
+never passed, until every case has a verdict.
 """
 
 from __future__ import annotations
@@ -31,12 +32,17 @@ def rise(candidate: Decimal | float | None, baseline: Decimal | float | None) ->
 
 
 def judge(
-    threshold: EvalSuiteThreshold, summary: ArmSummaryRead, comparison: EvalComparisonRead
+    threshold: EvalSuiteThreshold,
+    summary: ArmSummaryRead,
+    comparison: EvalComparisonRead,
+    *,
+    ungraded: int,
 ) -> tuple[EvalSuiteResultStatus, list[ThresholdReason]]:
     """Whether a run meets the threshold, and every way it does not.
 
     `summary` is the candidate over every case it answered; `comparison` is the
-    candidate against its baseline, over the cases both answered.
+    candidate against its baseline, over the cases both answered; `ungraded`
+    is how many of the candidate's first answers no scorer reached a verdict on.
     """
     if comparison.verdict == "invalid":
         return EvalSuiteResultStatus.INCONCLUSIVE, [
@@ -80,4 +86,10 @@ def judge(
             grew = rise(candidate, baseline)
             if ceiling is not None and grew is not None and grew > ceiling:
                 reasons.append(ThresholdReason(code=code, value=round(grew, 4), limit=ceiling))
-    return (EvalSuiteResultStatus.FAILED if reasons else EvalSuiteResultStatus.PASSED), reasons
+    if reasons:
+        return EvalSuiteResultStatus.FAILED, reasons
+    if ungraded:
+        return EvalSuiteResultStatus.INCONCLUSIVE, [
+            ThresholdReason(code="ungraded", value=ungraded)
+        ]
+    return EvalSuiteResultStatus.PASSED, []

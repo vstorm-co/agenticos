@@ -7713,7 +7713,8 @@
       "enableAi": "Włącz wsparcie AI",
       "failing": {
         "regression": "Psuje się powtarzalnie: {input}",
-        "failed": "Niezaliczony: {input}"
+        "failed": "Niezaliczony: {input}",
+        "ungraded": "Nieoceniony: {input}"
       },
       "reason": {
         "passRateBelow": "Odsetek zaliczonych {value} jest poniżej minimum {limit}.",
@@ -7721,7 +7722,8 @@
         "regressions": "{count, plural, one {# przypadek psuje się} few {# przypadki psują się} many {# przypadków psuje się} other {# przypadku psuje się}} powtarzalnie; suita dopuszcza {limit}.",
         "costRise": "Koszt na zaliczony przypadek wzrósł o {value}, ponad limit {limit}.",
         "p95Rise": "Opóźnienie p95 wzrosło o {value}, ponad limit {limit}.",
-        "invalid": "Obie strony oceniono inaczej, więc nie da się ich porównać."
+        "invalid": "Obie strony oceniono inaczej, więc nie da się ich porównać.",
+        "ungraded": "{count, plural, one {# przypadku} few {# przypadków} many {# przypadków} other {# przypadku}} nie udało się ocenić, więc suita nie może ręczyć za ten wynik."
       },
       "skip": {
         "budget": "Kosztowałaby więcej, niż zostało w budżecie w tym miesiącu.",

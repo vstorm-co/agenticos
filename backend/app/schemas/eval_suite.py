@@ -22,8 +22,9 @@ ThresholdReasonCode = Literal[
     "cost_per_pass_rise",
     "p95_rise",
     "invalid_comparison",
+    "ungraded",
 ]
-FailingKind = Literal["regression", "failed"]
+FailingKind = Literal["regression", "failed", "ungraded"]
 DependencyKind = Literal["skill", "knowledge_base"]
 
 
@@ -158,7 +159,7 @@ class FailingCase(BaseSchema):
     input: str = Field(description="The question the case asks, cut to a line")
     kind: FailingKind = Field(
         description="`regression`: passed on the baseline and fails reproducibly now; "
-        "`failed`: the first answer failed"
+        "`failed`: the first answer failed; `ungraded`: no scorer reached a verdict on it"
     )
 
 

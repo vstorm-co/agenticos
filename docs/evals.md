@@ -394,7 +394,8 @@ efficiency: the rise in cost per passed case and in p95 latency against the
 baseline; left empty, they check nothing.
 
 A result whose comparison is [invalid](#a-different-judge-invalidates-the-comparison),
-or in which no case could be graded, is **inconclusive**, never passed. A result **did not run** when it would cost
+or in which any case could not be graded, is **inconclusive** - never passed -
+unless something failed outright, and it names the cases nobody graded. A result **did not run** when it would cost
 more than a budget has left or more than the suite's own ceiling, when only
 the judge could grade it and AI assistance is off, or when there is no
 published version to check.
@@ -414,8 +415,9 @@ over. A suite whose owner leaves the organization, or can no longer run it,
 pauses with the reason and says so - as does one whose environment is removed,
 rather than quietly checking another version.
 
-The owner is told when a result fails or does not run - once per run of such
-results on a version, naming the cases that broke - in the notification
+The owner is told when a result fails, is inconclusive or does not run - once
+per run of such results on a version, naming the cases that broke or went
+ungraded - in the notification
 center and by email where they have it on. Slack is not a notification
 channel yet.
 

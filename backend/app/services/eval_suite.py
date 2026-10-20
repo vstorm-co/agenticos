@@ -72,7 +72,12 @@ from app.repositories import (
     member_repo,
 )
 from app.schemas.change_event import ChangeEvent
-from app.schemas.eval_run import EvalComparisonRead, EvalRunRead, EvalRunRequest
+from app.schemas.eval_run import (
+    EvalComparisonRead,
+    EvalRunRead,
+    EvalRunRequest,
+    EvalUngradedCaseRead,
+)
 from app.schemas.eval_suite import (
     DependencyKind,
     EvalSuiteCreate,
@@ -1089,7 +1094,9 @@ class EvalSuiteService:
             return
         threshold = EvalSuiteThreshold.model_validate(result.threshold)
         candidate = next(arm for arm in read.arms if arm.role == "candidate")
-        status, reasons = judge(threshold, candidate.summary, comparison)
+        status, reasons = judge(
+            threshold, candidate.summary, comparison, ungraded=len(candidate.ungraded_cases)
+        )
         summary = EvalSuiteSummary(
             pass_rate=candidate.summary.pass_rate,
             first_pass_rate=candidate.summary.first_pass_rate,
@@ -1117,18 +1124,27 @@ class EvalSuiteService:
                 comparison.baseline_summary.p95_ms if comparison.baseline_summary else None
             ),
             reasons=reasons,
-            failing_cases=await self._failing(reader, read, comparison),
+            failing_cases=await self._failing(reader, read, comparison, candidate.ungraded_cases),
         )
         await self._finish(result, status, summary=summary, now=now)
 
     async def _failing(
-        self, reader: AuthContext, read: EvalRunRead, comparison: EvalComparisonRead
+        self,
+        reader: AuthContext,
+        read: EvalRunRead,
+        comparison: EvalComparisonRead,
+        ungraded: list[EvalUngradedCaseRead],
     ) -> list[FailingCase]:
-        """The cases to name: confirmed regressions first, then first answers that failed."""
+        """The cases to name: confirmed regressions first, then the ones no scorer
+        decided, then first answers that failed."""
         named = [
             FailingCase(case_id=case.case_id, input=_line(case.input), kind="regression")
             for case in comparison.cases
             if case.flip == "regression" and case.confirmed
+        ]
+        named += [
+            FailingCase(case_id=case.case_id, input=_line(case.input), kind="ungraded")
+            for case in ungraded
         ]
         seen = {case.case_id for case in named}
         failed = await self.evals.cases(reader, read.id, outcome="failed", limit=MAX_FAILING_CASES)

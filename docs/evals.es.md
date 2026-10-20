@@ -1,5 +1,5 @@
 ---
-source_sha: "a7213b0ce36f"
+source_sha: "572fd6c1a063"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -423,7 +423,8 @@ aprobado y de la latencia p95 frente al baseline; vacíos, no comprueban nada.
 
 Un resultado cuya comparación es
 [no válida](#a-different-judge-invalidates-the-comparison), o en el que no se
-pudo puntuar ningún caso, queda **sin conclusión**, nunca aprobado. Un resultado **no se ejecutó** cuando costaría
+pudo puntuar algún caso, queda **sin conclusión** - nunca aprobado - salvo que
+algo haya fallado claramente, y nombra los casos que nadie puntuó. Un resultado **no se ejecutó** cuando costaría
 más de lo que le queda a un presupuesto o más que el límite propio de la
 suite, cuando solo el juez podría puntuarlo y la asistencia de IA está
 desactivada, o cuando no hay una versión publicada que comprobar.
@@ -446,9 +447,9 @@ cuyo propietario deja la organización, o ya no puede ejecutarla, queda en pausa
 con el motivo, igual que una cuyo entorno se elimina, en lugar de comprobar en
 silencio otra versión.
 
-Al propietario se le avisa cuando un resultado no pasa o no se ejecuta - una
-vez por serie de esos resultados sobre una versión, con los casos que se
-rompieron - en el centro de notificaciones y por correo si lo tiene activado.
+Al propietario se le avisa cuando un resultado no pasa, queda sin conclusión o
+no se ejecuta - una vez por serie de esos resultados sobre una versión, con los
+casos que se rompieron o quedaron sin puntuar - en el centro de notificaciones y por correo si lo tiene activado.
 Slack todavía no es un canal de notificaciones.
 
 ## Ajustes { #settings }

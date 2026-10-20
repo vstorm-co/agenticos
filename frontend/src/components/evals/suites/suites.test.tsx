@@ -244,6 +244,7 @@ describe("SuiteResultsSheet", () => {
           failing_cases: [
             { case_id: "c1", input: "Can I return it?", kind: "regression" },
             { case_id: "c2", input: "Where is it?", kind: "failed" },
+            { case_id: "c3", input: "Who decides?", kind: "ungraded" },
           ],
         }),
       }),
@@ -267,6 +268,7 @@ describe("SuiteResultsSheet", () => {
     ).toBeInTheDocument();
     expect(within(sheet).getByText("Breaks reproducibly: Can I return it?")).toBeInTheDocument();
     expect(within(sheet).getByText("Failed: Where is it?")).toBeInTheDocument();
+    expect(within(sheet).getByText("Not graded: Who decides?")).toBeInTheDocument();
     expect(
       within(sheet).getByText(/Pass rate 50% over 4 cases · 1 confirmed regression/),
     ).toBeInTheDocument();

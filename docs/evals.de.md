@@ -1,5 +1,5 @@
 ---
-source_sha: "a7213b0ce36f"
+source_sha: "572fd6c1a063"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -443,8 +443,10 @@ bestandenem Fall und der p95-Latenz gegenüber der Baseline; leer prüfen sie
 nichts.
 
 Ein Ergebnis, dessen Vergleich
-[ungültig](#a-different-judge-invalidates-the-comparison) ist oder in dem kein
-Fall bewertet werden konnte, ist **ohne Ergebnis**, nie bestanden. Ein Ergebnis **ist nicht gelaufen**, wenn es mehr
+[ungültig](#a-different-judge-invalidates-the-comparison) ist oder in dem auch
+nur ein Fall nicht bewertet werden konnte, ist **ohne Ergebnis** - nie
+bestanden -, es sei denn, etwas ist klar durchgefallen, und es nennt die Fälle,
+die niemand bewertet hat. Ein Ergebnis **ist nicht gelaufen**, wenn es mehr
 kosten würde, als ein Budget oder die eigene Grenze der Suite hergibt, wenn nur
 der Judge es bewerten könnte und die KI-Unterstützung aus ist, oder wenn es
 keine veröffentlichte Version zum Prüfen gibt.
@@ -467,9 +469,9 @@ deren Eigentümer die Organisation verlässt oder sie nicht mehr ausführen kann
 pausiert mit dem Grund - ebenso eine, deren Umgebung entfernt wird, statt still
 eine andere Version zu prüfen.
 
-Der Eigentümer wird benachrichtigt, wenn ein Ergebnis nicht besteht oder nicht
-läuft - einmal pro Serie solcher Ergebnisse auf einer Version, mit den
-gebrochenen Fällen -, im Benachrichtigungscenter und per E-Mail, wenn er sie
+Der Eigentümer wird benachrichtigt, wenn ein Ergebnis nicht besteht, ohne
+Ergebnis bleibt oder nicht läuft - einmal pro Serie solcher Ergebnisse auf einer
+Version, mit den gebrochenen oder unbewerteten Fällen -, im Benachrichtigungscenter und per E-Mail, wenn er sie
 eingeschaltet hat. Slack ist noch kein Benachrichtigungskanal.
 
 ## Einstellungen { #settings }

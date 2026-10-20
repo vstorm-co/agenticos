@@ -8353,7 +8353,8 @@
       "enableAi": "KI-Unterstützung einschalten",
       "failing": {
         "regression": "Bricht reproduzierbar: {input}",
-        "failed": "Nicht bestanden: {input}"
+        "failed": "Nicht bestanden: {input}",
+        "ungraded": "Nicht bewertet: {input}"
       },
       "reason": {
         "passRateBelow": "Die Bestehensquote {value} liegt unter dem Minimum von {limit}.",
@@ -8361,7 +8362,8 @@
         "regressions": "{count, plural, =1 {1 Fall bricht} other {# Fälle brechen}} reproduzierbar; die Suite erlaubt {limit}.",
         "costRise": "Die Kosten pro bestandenem Fall stiegen um {value}, über die Grenze von {limit}.",
         "p95Rise": "Die p95-Latenz stieg um {value}, über die Grenze von {limit}.",
-        "invalid": "Beide Seiten wurden unterschiedlich bewertet und lassen sich nicht vergleichen."
+        "invalid": "Beide Seiten wurden unterschiedlich bewertet und lassen sich nicht vergleichen.",
+        "ungraded": "{count, plural, =1 {1 Fall konnte} other {# Fälle konnten}} nicht bewertet werden, daher kann die Suite für dieses Ergebnis nicht einstehen."
       },
       "skip": {
         "budget": "Er würde mehr kosten, als das Budget in diesem Monat noch hat.",

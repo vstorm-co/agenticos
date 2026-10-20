@@ -8470,7 +8470,8 @@
       "enableAi": "Turn on AI assistance",
       "failing": {
         "regression": "Breaks reproducibly: {input}",
-        "failed": "Failed: {input}"
+        "failed": "Failed: {input}",
+        "ungraded": "Not graded: {input}"
       },
       "reason": {
         "passRateBelow": "Pass rate {value} is below the {limit} minimum.",
@@ -8478,7 +8479,8 @@
         "regressions": "{count, plural, =1 {1 case breaks} other {# cases break}} reproducibly; the suite allows {limit}.",
         "costRise": "Cost per passed case rose {value}, past the {limit} ceiling.",
         "p95Rise": "p95 latency rose {value}, past the {limit} ceiling.",
-        "invalid": "The two sides were graded differently, so they cannot be compared."
+        "invalid": "The two sides were graded differently, so they cannot be compared.",
+        "ungraded": "{count, plural, =1 {1 case} other {# cases}} could not be graded, so the suite cannot vouch for this result."
       },
       "skip": {
         "budget": "It would cost more than the budget has left this month.",
