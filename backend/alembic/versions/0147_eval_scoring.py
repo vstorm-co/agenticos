@@ -27,8 +27,8 @@ Nothing existing changes meaning, so the downgrade drops what was added and lose
 which agents were seeded, whether an organization had switched AI assistance
 off, every dataset's scoring configuration and every score.
 
-Revision ID: 0145_eval_scoring
-Revises: 0144_environment_connections
+Revision ID: 0147_eval_scoring
+Revises: 0146_environment_connections
 Create Date: 2026-10-13
 """
 
@@ -39,8 +39,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0145_eval_scoring"
-down_revision: str | None = "0144_environment_connections"
+revision: str = "0147_eval_scoring"
+down_revision: str | None = "0146_environment_connections"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -1507,6 +1507,12 @@ agent that does well in the console and badly in Slack shows it.
   and one that dies within about 40. An edit served by another worker opens the
   new connection at once, and the old one closes at its holder's next renewal.
   With Redis unreachable, every worker connects, as before.
+- **A second Telegram poller is noticed, not fought.** When Telegram ends a
+  bot's poll because another process polls the same token, a worker that does
+  not hold the bot's lease closes its copy at once. The holder keeps polling and
+  marks the bot down on the channels page: "another process is polling this
+  bot's token". That process is outside the deployment, usually a second
+  deployment or a script with the same token, and only its owner can stop it.
 - **A binding's instructions may name what only the platform knows.**
   `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{member_count}`,
   `{member_list}` - filled in when a run starts, from the same calls the channel

@@ -15,12 +15,20 @@ def setup_logfire(*, service_name: str | None = None) -> None:
 
     `service_name` overrides the deployment's own for a process that is not the
     API, so one project can tell them apart.
+
+    Production prints no spans. The console exporter writes one line per SQL and
+    Redis call - about forty per request - into a container log that is read by
+    `docker compose logs`, where nobody can query them and every real error is
+    buried (#2228). Spans belong in Logfire; `doctor` says when no token sends
+    them anywhere. Elsewhere the console stays on, because a developer watching
+    the server is exactly who those lines are for.
     """
     logfire.configure(
         token=settings.LOGFIRE_TOKEN,
         service_name=service_name or settings.LOGFIRE_SERVICE_NAME,
         environment=settings.LOGFIRE_ENVIRONMENT,
         send_to_logfire="if-token-present",
+        console=False if settings.ENVIRONMENT == "production" else None,
     )
 
 

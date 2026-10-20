@@ -1,5 +1,5 @@
 ---
-source_sha: "22f516fde3cb"
+source_sha: "ef111b36345c"
 ---
 
 # Konfiguration { #configuration }
@@ -574,6 +574,18 @@ bevor man sich darauf verlässt: das
 Anheften dieser Instrumentierung ist Best Effort, ein Fehlschlag wird
 protokolliert und der Run läuft weiter.
 
+Mit `ENVIRONMENT=production` wird kein Span auf die Konsole geschrieben. Der
+Konsolen-Exporter von Logfire schreibt eine Zeile pro SQL- und Redis-Aufruf, etwa
+vierzig pro Anfrage, in ein Container-Log, das niemand abfragen kann. In der
+Produktion existiert ein Span also nur dort, wohin das Token ihn schickt, und ohne
+Token hinterlässt eine langsame Anfrage gar keine Spur. `agenticos cmd doctor`
+meldet das in seiner Zeile `tracing`. Anderswo schreibt die Konsole weiter Spans
+für den, der den Server beobachtet.
+
+Gib jedem Deployment sein eigenes `LOGFIRE_ENVIRONMENT`, etwa `local` auf dem
+Laptop und `production` auf dem Server. Ein Projekt kann dann beide aufnehmen und
+sie trotzdem auseinanderhalten.
+
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|
 | `LOGFIRE_TOKEN` | (none) | Token für Pydantic Logfire. Erhältlich unter https://logfire.pydantic.dev |
@@ -769,7 +781,7 @@ bekommt — die Einstellungen unten gelten also nur für einen containergestütz
 
 | Variable | Standard | Hinweise |
 |---|---|---|
-| `SANDBOX_STATE_MAX_BYTES` | 4 MiB | Pro **gespeichertem** Workspace. Darüber hinaus wird ein Schreibvorgang mit einer Nachricht abgelehnt, die das Modell liest |
+| `SANDBOX_STATE_MAX_BYTES` | 32 MiB | Pro **gespeichertem** Workspace. Darüber hinaus wird ein Schreibvorgang mit einer Nachricht abgelehnt, die das Modell liest |
 | `SANDBOX_INLINE_IMAGE_MAX_BYTES` | 5 MiB | Darüber wird ein angehängtes Bild in den Workspace geschrieben und nicht zusätzlich inline gesendet |
 
 **Der Prozentsatz im Chat sind zwei verschiedene Obergrenzen, und er sagt,
@@ -1326,6 +1338,7 @@ Grenze sicher, aber geteilt.
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|
 | `EVENT_LOOP_WEDGED_AFTER` | `15` | Sekunden, die der Event Loop stillstehen darf, bevor der Worker getötet und ersetzt wird. `0` oder darunter schaltet die Prüfung ab |
+| `UVICORN_WORKER_HEALTHCHECK_TIMEOUT` | `60` | Sekunden, die uvicorns Supervisor auf die Antwort eines Workers auf seinen Ping wartet, bevor er ihn ersetzt — überall, wo `--workers` größer als 1 ist. Gelesen von den Compose-Dateien, nicht von der Anwendung |
 
 Ein Worker, der *lebt, aber nicht antwortet* — verklemmt auf einem Lock, drehend
 in einem synchronen Aufruf, blockiert auf einem Socket, der nie antwortet —, hat
@@ -1374,6 +1387,18 @@ Sie kann einen Prozess nicht sehen, der überhaupt nicht läuft — `kill -STOP`
 eingefrorene cgroup —, weil ein Watchdog in einem angehaltenen Prozess ebenfalls
 angehalten ist. Diesen Fall decken die Supervisoren bereits ab: Der Takt des
 Reload-Supervisors wird schal und der Pipe-Ping der Produktion bleibt unbeantwortet.
+
+Dieser Ping wartet `UVICORN_WORKER_HEALTHCHECK_TIMEOUT` Sekunden, standardmäßig
+60. Uvicorns eigener Standard ist 5, und ein Host, dem CPU fehlt — Steal auf einem
+geteilten VPS, ein Image-Build, ein Rückstau an Flow-Läufen —, verpasst 5 Sekunden
+mit Workern, die leben und bedienen.
+
+Der Supervisor tötet sie dann und tötet ihre
+Nachfolger, bevor sie die Anwendung fertig importiert haben, und jeder Neustart
+legt einen Import auf den Druck, der ihn verursacht hat. Im Log erscheint das als
+`Child process [N] died` ohne Watchdog-Zeile darüber. Da ein blockierter Loop
+Sache des Watchdogs ist, muss der Ping nur einen angehaltenen Prozess bemerken,
+und dafür reicht eine Minute.
 
 ## Docker / Produktion { #docker-production }
 

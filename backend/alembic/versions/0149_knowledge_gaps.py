@@ -14,7 +14,7 @@ column made a judge one, then drops the new tables and loses only what was
 written into them.
 
 Revision ID: 0149_knowledge_gaps
-Revises: 0146_eval_runs
+Revises: 0148_eval_runs
 Create Date: 2026-10-13
 """
 
@@ -26,7 +26,7 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 revision: str = "0149_knowledge_gaps"
-down_revision: str | None = "0146_eval_runs"
+down_revision: str | None = "0148_eval_runs"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

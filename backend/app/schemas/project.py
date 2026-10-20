@@ -18,8 +18,10 @@ class ProjectCreate(AudienceChoice):
     """A new project. Private to its creator unless an audience is named."""
 
     # Not `team`: no role reaches a project at team scope, so a team project was
-    # one only its creator could see, whatever the request said.
-    visibility: Literal[Visibility.PRIVATE, Visibility.ORG] = Field(
+    # one only its creator could see, whatever the request said. Narrowed here
+    # rather than by a validator, so the API schema lists the two values; the
+    # only write the base class makes is `PRIVATE`, which this type admits.
+    visibility: Literal[Visibility.PRIVATE, Visibility.ORG] = Field(  # ty: ignore[invalid-mutable-override]
         default=Visibility.PRIVATE,
         description=(
             "`private` - the default - is the creator and whoever they share it with; "

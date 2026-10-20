@@ -25,8 +25,19 @@
 # when the container starts (#1544), so the image is the published one and a
 # change is a restart rather than a rebuild.
 
+# Every service's log, capped. Docker's `json-file` driver keeps a container's
+# output until the container is removed, and nothing else on the host rotates it:
+# prod held 570 MB of logs and growing when this was added (#2228). Five files of
+# 20 MB is about a day of a busy API and every line `docker compose logs` needs.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 20m
+    max-file: "5"
+
 services:
   frontend:
+    logging: *logging
     image: ghcr.io/vstorm-co/agenticos-frontend:${AGENTICOS_VERSION:-latest}
     environment:
       - NODE_ENV=production

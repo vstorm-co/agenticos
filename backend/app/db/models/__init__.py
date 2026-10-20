@@ -63,6 +63,7 @@ from app.db.models.eval_run import (
 )
 from app.db.models.ingestion_spend import IngestionSpend
 from app.db.models.ml_service_call import MLCallStatus, MLServiceCall
+from app.db.models.pending_sandbox_destroy import PendingSandboxDestroy
 from app.db.models.purged_run_spend import PurgedRunSpend
 from app.db.models.credential import ModelProfile
 from app.db.models.organization_secret import OrganizationSecret
@@ -196,6 +197,7 @@ __all__ = [
     "ApprovalStatus",
     "ModelProfile",
     "OrganizationSecret",
+    "PendingSandboxDestroy",
     "Project",
     "ContextFile",
     "ContextMode",

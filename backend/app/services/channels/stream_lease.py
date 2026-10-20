@@ -151,7 +151,12 @@ class StreamLeases:
                 continue
             del self.held[bot_id]
             lost.append(bot_id)
-            logger.info("%s: bot %s is served by another worker now", platform.capitalize(), bot_id)
+            logger.info(
+                "%s: bot %s is served by another worker now; closing it on worker %s",
+                platform.capitalize(),
+                bot_id,
+                self.holder,
+            )
             await get_adapter(platform).stop_polling(bot_id)
         return lost
 
