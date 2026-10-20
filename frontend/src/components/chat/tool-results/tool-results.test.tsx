@@ -14,6 +14,7 @@ import {
 import { RAGSearchResults, parseRAGResults } from "./rag";
 import { WebSearchResults, parseWebSearch } from "./web-search";
 import { GeneratedImageResult, parseGeneratedImage } from "./generated-image";
+import { GeneratedSpeechResult, parseGeneratedSpeech } from "./generated-speech";
 import { ContextListResult, SkillListResult, parseContextList, parseSkillList } from "./catalogs";
 import { PlanToolResult } from "./plan";
 import type { ToolCall } from "@/types";
@@ -864,5 +865,61 @@ describe("what a planning call shows", () => {
 
     expect(screen.getByText(said)).toBeInTheDocument();
     expect(screen.queryByText("Running…")).toBeNull();
+  });
+});
+
+describe("the generated speech", () => {
+  const PAYLOAD = JSON.stringify({
+    kind: "generated_speech",
+    filename: "abc123_speech.mp3",
+    url: "/api/v1/generated/abc123_speech.mp3",
+    media_type: "audio/mpeg",
+    voice: "marin",
+    characters: 12,
+  });
+
+  it("addresses the clip through the same-origin proxy, not the backend URL", () => {
+    expect(parseGeneratedSpeech(PAYLOAD)).toEqual({
+      voice: "marin",
+      url: "/api/generated/abc123_speech.mp3",
+    });
+  });
+
+  it("has no URL when the clip was made but not stored", () => {
+    const parsed = parseGeneratedSpeech(
+      JSON.stringify({ kind: "generated_speech", filename: null }),
+    );
+
+    expect(parsed).toEqual({ voice: "", url: null });
+  });
+
+  it("refuses anything that is not that payload", () => {
+    expect(parseGeneratedSpeech("Not spoken: no key")).toBeNull();
+    expect(parseGeneratedSpeech(JSON.stringify({ kind: "generated_image" }))).toBeNull();
+    expect(parseGeneratedSpeech("null")).toBeNull();
+  });
+
+  it("plays the clip where an image would be shown, naming the voice", () => {
+    const { container } = render(<GeneratedSpeechResult data={parseGeneratedSpeech(PAYLOAD)!} />);
+
+    expect(container.querySelector("audio")).toHaveAttribute(
+      "src",
+      "/api/generated/abc123_speech.mp3",
+    );
+    expect(screen.getByText("Voice: marin")).toBeInTheDocument();
+  });
+
+  it("names no voice when none was recorded", () => {
+    const { container } = render(
+      <GeneratedSpeechResult data={{ voice: "", url: "/api/generated/x_speech.mp3" }} />,
+    );
+
+    expect(container.querySelector("figcaption")).toBeNull();
+  });
+
+  it("says the clip was not kept when there is nothing to play", () => {
+    render(<GeneratedSpeechResult data={{ voice: "marin", url: null }} />);
+
+    expect(screen.getByText("The speech was recorded but not saved.")).toBeInTheDocument();
   });
 });

@@ -826,7 +826,21 @@
     "platformAllHint": "Każde wywołanie czeka na zgodę, także odczyt.",
     "platformTools": "Narzędzia, które agent może wywołać",
     "platformWritesBadge": "zmienia coś",
-    "platformRemove": "Usuń z tego agenta"
+    "platformRemove": "Usuń z tego agenta",
+    "speechProvider": "Provider",
+    "speechProviderPlaceholder": "Wybierz providera",
+    "speechProviderDetail": "Providerzy z katalogu mowy, których klucz może przechowywać vault.",
+    "speechModel": "Model",
+    "speechModelPlaceholder": "Wybierz model",
+    "speechModelDetail": "Wszystkie modele, którymi ten provider może mówić.",
+    "speechModelUnknownProvider": "Ten binding wskazuje {provider}, który nie potrafi mówić. Wybierz providera powyżej.",
+    "speechVoice": "Głos",
+    "speechVoicePlaceholder": "Wybierz głos",
+    "speechVoiceDetail": "Głosy, którymi może mówić ten model.",
+    "speechVoiceIdPlaceholder": "Id głosu",
+    "speechAccountVoiceDetail": "Głosy {provider} należą do Twojego konta. Wklej id jednego z nich ze swojej biblioteki głosów.",
+    "speechProvidersLoading": "Sprawdzam, co oferuje każdy provider…",
+    "speechProvidersUnavailable": "Nie udało się odczytać listy providerów. Model powyżej nadal zostanie użyty."
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",
@@ -1473,7 +1487,11 @@
       "revisingVisual": "Poprawia wizual",
       "reviseVisual": "Poprawił wizual",
       "readingVisual": "Czyta wizual",
-      "readVisual": "Przeczytał wizual"
+      "readVisual": "Przeczytał wizual",
+      "generateSpeech": "Mowa",
+      "generatingSpeech": "Nagrywa mowę",
+      "speechNotStored": "Mowę nagrano, ale jej nie zapisano.",
+      "spokenBy": "Głos: {voice}"
     },
     "turnWasStopped": "zatrzymano",
     "unfavourite": "Usuń z ulubionych",
@@ -6597,6 +6615,14 @@
       "needs": "Klucz API dostawcy obrazów w vault. Każdy obraz rozlicza ten dostawca.",
       "never": "Nigdy nigdzie nie publikuje obrazu; pojawia się on w rozmowie."
     },
+    "text_to_speech": {
+      "name": "Zamiana tekstu na mowę",
+      "does": "Odczytuje tekst na głos jako nagranie audio.",
+      "example1": "Lektor do filmu o produkcie",
+      "example2": "Wersja dźwiękowa cotygodniowego podsumowania",
+      "needs": "Klucz API dostawcy mowy w vault. Każde nagranie rozlicza ten dostawca, za znak.",
+      "never": "Nigdy nigdzie nie wysyła nagrania; pojawia się ono w rozmowie."
+    },
     "knowledge": {
       "name": "Wyszukiwanie wiedzy",
       "does": "Agent odpowiada na podstawie twoich dokumentów i podaje, z którego pochodzi każda odpowiedź.",
@@ -6967,6 +6993,28 @@
       "aspect_ratio": {
         "title": "Proporcje",
         "description": "Proporcje obrazu, np. 16:9 lub 1:1."
+      }
+    },
+    "text_to_speech": {
+      "provider": {
+        "title": "Provider",
+        "description": "Czyje głosy mówią. Do wyboru są providerzy z `app/core/catalog/text_to_speech_models.json`, których klucz może przechowywać vault."
+      },
+      "model": {
+        "title": "Model mowy",
+        "description": "Który z modeli mowy tego providera mówi. Model spoza katalogu jest odrzucany tutaj, a nie w trakcie działania."
+      },
+      "voice": {
+        "title": "Głos",
+        "description": "Który głos mówi; puste oznacza pierwszy głos modelu. Głosy ElevenLabs należą do Twojego konta, więc dla ElevenLabs wklej id głosu ze swojej biblioteki głosów."
+      },
+      "output_format": {
+        "title": "Format pliku",
+        "description": "mp3 jest mniejszy, wav nieskompresowany. Puste oznacza pierwszy format providera - Gemini zwraca tylko wav."
+      },
+      "max_characters": {
+        "title": "Najdłuższy tekst",
+        "description": "Najwięcej tekstu, jaki może wypowiedzieć jedno wywołanie, co ogranicza koszt pojedynczego wywołania."
       }
     },
     "knowledge": {

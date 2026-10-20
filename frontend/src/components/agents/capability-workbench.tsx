@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 
 import { CapabilityDetail } from "@/components/agents/capability-settings";
 import { ImageGenerationSection } from "@/components/agents/image-generation-section";
+import { TextToSpeechSection } from "@/components/agents/text-to-speech-section";
 import {
   CapabilityResources,
   resourceTabKey,
@@ -21,6 +22,7 @@ import {
   MEMORY_MEM0_ID,
   SANDBOX_ID,
   SUBAGENTS_ID,
+  TEXT_TO_SPEECH_ID,
   unboundBinding,
 } from "@/lib/agent-spec";
 import type { FieldProblem } from "@/lib/api-error";
@@ -207,6 +209,16 @@ export function CapabilityWorkbench({
                and the server says which. */
           focused.id === IMAGE_GENERATION_ID ? (
             <ImageGenerationSection
+              definition={focused}
+              binding={bound ?? unboundBinding(focused.id)}
+              onToggleEnabled={() => onToggle(focused.id)}
+              onChange={onChange}
+              configProblems={configProblems}
+              disabled={disabled || !isOn}
+              readOnly={disabled}
+            />
+          ) : focused.id === TEXT_TO_SPEECH_ID ? (
+            <TextToSpeechSection
               definition={focused}
               binding={bound ?? unboundBinding(focused.id)}
               onToggleEnabled={() => onToggle(focused.id)}

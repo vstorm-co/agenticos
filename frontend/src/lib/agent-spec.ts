@@ -55,6 +55,7 @@ export const KNOWLEDGE_ID = "knowledge";
  * served by the API, so the panel asks rather than lists.
  */
 export const IMAGE_GENERATION_ID = "image_generation";
+export const TEXT_TO_SPEECH_ID = "text_to_speech";
 export const CODING_AGENT_ID = "coding_agent";
 
 /**

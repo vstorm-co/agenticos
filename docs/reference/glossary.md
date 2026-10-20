@@ -81,6 +81,7 @@ in [Capabilities](capabilities.md).
 | Skills | `skills` |
 | Subagents | `subagents` |
 | Instruction reminders | `system_reminders` |
+| Text to speech | `text_to_speech` |
 | Thinking | `thinking` |
 | Tool output limits | `tool_output_limits` |
 | Tool search | `tool_search` |

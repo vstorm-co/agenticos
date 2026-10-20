@@ -1,4 +1,5 @@
 import {
+  AudioLines,
   BarChart3,
   BookOpen,
   Code2,
@@ -35,6 +36,7 @@ export const STEP_ICONS: Record<StepKind, LucideIcon> = {
   shell: TerminalSquare,
   chart: BarChart3,
   image: ImageIcon,
+  audio: AudioLines,
   knowledge: BookOpen,
   web: Globe,
   skill: BookOpen,

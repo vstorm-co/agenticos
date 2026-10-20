@@ -11,6 +11,10 @@ import { RAGSearchResults } from "./tool-results/rag";
 import { WebSearchResults, parseWebSearch } from "./tool-results/web-search";
 import { parsePublishedArtifact, PublishedArtifactResult } from "./tool-results/artifact";
 import { GeneratedImageResult, parseGeneratedImage } from "./tool-results/generated-image";
+import {
+  GeneratedSpeechResult,
+  parseGeneratedSpeech,
+} from "@/components/chat/tool-results/generated-speech";
 import { LoadSkillResult, LoadedSkillResult } from "./tool-results/skills";
 import { ContextListResult, SkillListResult } from "./tool-results/catalogs";
 import { PlanToolResult } from "./tool-results/plan";
@@ -156,6 +160,13 @@ export function ToolCallCard({
       ? parseGeneratedImage(toolCall.result)
       : null;
 
+  const generatedSpeech =
+    renderer === "generated-speech" &&
+    toolCall.status === "completed" &&
+    typeof toolCall.result === "string"
+      ? parseGeneratedSpeech(toolCall.result)
+      : null;
+
   const publishedArtifact =
     renderer === "artifact" &&
     toolCall.status === "completed" &&
@@ -261,6 +272,8 @@ export function ToolCallCard({
         <WebSearchResults data={webResults} />
       ) : generatedImage !== null ? (
         <GeneratedImageResult data={generatedImage} />
+      ) : generatedSpeech !== null ? (
+        <GeneratedSpeechResult data={generatedSpeech} />
       ) : publishedArtifact !== null ? (
         <PublishedArtifactResult data={publishedArtifact} />
       ) : chartSpec !== null ? (

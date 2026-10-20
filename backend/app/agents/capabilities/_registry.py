@@ -678,6 +678,7 @@ def load_builtins() -> None:
         skills,
         subagents,
         system_reminders,
+        text_to_speech,
         thinking,
         tool_output_limits,
         tool_search,

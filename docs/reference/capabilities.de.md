@@ -1,5 +1,5 @@
 ---
-source_sha: "f543bfd2c9bb"
+source_sha: "5d2c68b0fb1b"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -65,6 +65,7 @@ hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installati
 | `charts` | Diagramme | analysis | `create_chart` | — | — |
 | `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — |
 | `image_generation` | Bilderzeugung | analysis | `generate_image` | — | erforderlich |
+| `text_to_speech` | Sprachausgabe | analysis | `generate_speech` | — | erforderlich |
 | `coding_agent` | Coding Agent | analysis | `run_coding_agent` | `sandbox:execute` | erforderlich |
 | `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
 | `planning` | Planung | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
@@ -1152,6 +1153,63 @@ Workspace hat (die `sandbox`-Capability), wird dasselbe Bild dort unter `/output
 abgelegt, sodass ein späterer `execute`-Schritt damit bauen kann — ein PDF, eine
 Folie, eine Seite zusammensetzen. Ein Agent ohne Workspace erzeugt und zeigt
 Bilder trotzdem; er hat nur nichts, womit er damit bauen könnte.
+
+## Sprachausgabe { #text-to-speech }
+
+`generate_speech` — *Liest einen Text als Audioclip vor.*
+
+Liest einen Text über einen Sprach-Provider vor, den der Autor wählt, und verhält
+sich wie die Bilderzeugung: Der Clip wird gespeichert, im Gespräch als Player
+gezeigt und unter `output/` abgelegt, wenn ein Workspace offen ist (#2259).
+
+| Konfiguration | Standard | Werte |
+|---|---|---|
+| `provider` | `openai` | `openai`, `elevenlabs`, `google` |
+| `model` | `gpt-4o-mini-tts` | Die Modelle dieses Providers aus `app/core/catalog/text_to_speech_models.json` |
+| `voice` | die erste des Modells | Eine Katalogstimme für OpenAI und Gemini; eine ID aus Ihrer eigenen Stimmenbibliothek für ElevenLabs |
+| `output_format` | das erste des Providers | `mp3`, `wav` (Gemini liefert nur `wav`) |
+| `max_characters` | `5000` | 1–100 000; der meiste Text, den ein Aufruf sprechen darf |
+
+**Provider, Modelle, Stimmen und Preise sind Daten** in der Katalogdatei. Ein
+Provider ist ein [Secret-Zweck](../secrets.md) mit einem einfachen API-Schlüssel -
+ElevenLabs betreibt kein Chatmodell und ist deshalb ein Dienst im Vault statt ein
+Modell-Provider -, und ein Eintrag ohne Zweck oder mit einer API-Form ohne Client
+wird verworfen. OpenAIs ältere `tts-1` und `tts-1-hd` sprechen mit neun der
+dreizehn Stimmen, deshalb werden Stimmen pro Modell aufgeführt.
+
+**ElevenLabs-Stimmen gehören zum Konto.** Die gemeinsamen Standardstimmen laufen am
+31.12.2026 ab, also führt der Katalog keine auf, und ein Binding nennt eine der
+eigenen Stimmen des Kontos per ID; Veröffentlichen ohne sie wird abgelehnt.
+
+**Die Schlüsselauswahl zeigt die Schlüssel des gewählten Providers.** Das Secret
+ist für jeden Provider erforderlich und als erforderlich deklariert, *wenn*
+`provider` einer von ihnen ist - das sagt dem Builder, dass der Provider der Zweck
+des Schlüssels ist.
+
+**Ein langer Text ist ein Clip.** Ein Text über dem Limit des Modells pro Anfrage
+wird an einem Absatz, einem Satz oder einem Wort geschnitten und der Reihe nach
+gesprochen. MP3-Stücke werden aneinandergehängt; WAV wird von jedem Provider als
+PCM mit 24 kHz angefordert und in einen Header gepackt. `instructions` - Ton,
+Tempo, Akzent - erreichen die Modelle, die sie lesen (OpenAIs `gpt-4o-mini-tts`,
+Gemini), und entfallen bei den übrigen.
+
+**Das Budget wird mit dem Preis des Clips gefragt.** Sprache wird pro Zeichen
+verkauft, also hält der Katalog einen datierten Preis pro Million Zeichen, und die
+Kosten sind vor dem Aufruf bekannt. Ein Run, den der Clip über eine Grenze tragen
+würde, wird abgelehnt; danach werden die Kosten gebucht, und bei einem Fehler
+mittendrin auch die bereits gesprochenen Stücke. Token-abgerechnete Modelle haben
+einen Preis pro Zeichen typischer Sprache. Ein datierter Preis gilt ab seinem Tag
+- so ist die Verdopplung der Gemini-Preise am 01.01.2027 erfasst.
+
+**Sie hat Nebenwirkungen**, aus denselben Gründen wie die Bilderzeugung: Sie gibt
+Geld aus und erzeugt eine Aufnahme, die jemand veröffentlichen kann.
+
+**Fehler gehen an den, der sie beheben kann.** Leerer Text, Text über
+`max_characters` oder vom Provider abgelehnter Text geht an das Modell zurück,
+ebenso ein Provider, der drosselt oder ausgefallen ist. Ein abgelehnter
+Schlüssel, eine unbekannte Stimme und ein ausgeschöpftes Budget werden als
+Ergebnis beantwortet, weil nur der Autor oder der Betreiber sie beheben kann. Der
+Fehlertext des Providers wird protokolliert und erreicht das Modell nie.
 
 ## Coding Agent { #coding-agent }
 

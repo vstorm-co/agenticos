@@ -40,6 +40,7 @@ describe("the tool catalog", () => {
       "create_chart",
       "edit_file",
       "generate_image",
+      "generate_speech",
       "run_coding_agent",
       "run_python",
       "write_file",

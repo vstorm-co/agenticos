@@ -1,0 +1,166 @@
+"""Text to speech capability - speak a text aloud as an audio clip."""
+
+from typing import Literal
+
+from pydantic import BaseModel, Field, model_validator
+
+from app.agents.capabilities._registry import (
+    CapabilityBuildContext,
+    CapabilityToolInfo,
+    register,
+)
+from app.agents.capabilities.text_to_speech._capability import TextToSpeech
+from app.core.secret_kinds import ApiKeySecret, SecretCondition, SecretKind, SecretRequirement
+from app.services.text_to_speech_models import (
+    TextToSpeechProvider,
+    by_provider,
+    default_choice,
+    providers,
+)
+
+__all__ = ["TextToSpeech", "TextToSpeechConfig"]
+
+
+class TextToSpeechConfig(BaseModel):
+    """How this agent speaks.
+
+    `provider` and `model` are the decision; the rest default to what the catalog
+    lists first, so turning the capability on is enough to speak - except on a
+    provider whose voices belong to the account, where only the author knows
+    which of theirs to use.
+    """
+
+    provider: str = Field(
+        title="Provider",
+        default_factory=lambda: default_choice()[0],
+        description=(
+            "Whose voices speak. Offered: the providers in "
+            "`app/core/catalog/text_to_speech_models.json` whose key the vault can hold."
+        ),
+    )
+    model: str = Field(
+        title="Speech model",
+        default_factory=lambda: default_choice()[1],
+        description=(
+            "Which of that provider's speech models speaks. A model outside the catalog is "
+            "refused here rather than mid-run."
+        ),
+    )
+    voice: str | None = Field(
+        title="Voice",
+        default=None,
+        description=(
+            "Which voice speaks; left empty, the model's first. ElevenLabs voices belong to "
+            "your account, so for ElevenLabs paste the voice id from your voice library."
+        ),
+    )
+    output_format: Literal["mp3", "wav"] | None = Field(
+        title="File format",
+        default=None,
+        description=(
+            "mp3 is smaller, wav is uncompressed. Left empty, the provider's first format - "
+            "Gemini returns wav only."
+        ),
+    )
+    max_characters: int = Field(
+        title="Longest text",
+        default=5000,
+        ge=1,
+        le=100_000,
+        description="The most text one call may speak, which caps what a single call can cost.",
+    )
+
+    @model_validator(mode="after")
+    def _must_be_offered(self) -> "TextToSpeechConfig":
+        """Refuse a choice the provider would refuse on the first call.
+
+        The pair, the voice and the format are each checked against the catalog,
+        because each fails differently mid-run: an unknown model is a bad request,
+        a voice the model lacks is a not-found, and a format the provider does not
+        return would be bytes stored under the wrong extension.
+        """
+        entry = by_provider(self.provider)
+        model = entry.model(self.model) if entry is not None else None
+        if entry is None or model is None:
+            offered = "; ".join(
+                f"{candidate.provider}: {', '.join(item.id for item in candidate.models)}"
+                for candidate in providers()
+            )
+            raise ValueError(f"{self.provider}/{self.model} cannot speak. Offered: {offered}.")
+        if entry.account_voices:
+            if not (self.voice or "").strip():
+                raise ValueError(
+                    f"{entry.name} voices belong to your account: name one by its voice id."
+                )
+        elif self.voice is not None and self.voice not in {v.id for v in entry.voices_for(model)}:
+            voices = ", ".join(voice.id for voice in entry.voices_for(model))
+            raise ValueError(f"{self.model} has no voice {self.voice!r}. Offered: {voices}.")
+        if self.output_format is not None and self.output_format not in entry.formats:
+            raise ValueError(
+                f"{entry.name} returns {', '.join(entry.formats)}, not {self.output_format}."
+            )
+        return self
+
+    def offering(self) -> TextToSpeechProvider:
+        """The catalog entry this configuration was validated against."""
+        entry = by_provider(self.provider)
+        if entry is None:
+            raise ValueError(f"{self.provider} is no longer offered for speech")
+        return entry
+
+    def resolved_voice(self) -> str:
+        """The voice to speak in: the one chosen, or the model's first."""
+        if self.voice:
+            return self.voice.strip()
+        entry = self.offering()
+        model = entry.model(self.model)
+        if model is None:
+            raise ValueError(f"{self.model} is no longer offered for speech")
+        return entry.voices_for(model)[0].id
+
+    def resolved_format(self) -> str:
+        """The format to return: the one chosen, or the provider's first."""
+        return self.output_format or self.offering().formats[0]
+
+
+@register(
+    id="text_to_speech",
+    name="Text to speech",
+    category="analysis",
+    description="Speak a text aloud as an audio clip.",
+    tools=(
+        CapabilityToolInfo(
+            id="generate_speech",
+            description="Speak a text aloud as an audio clip.",
+        ),
+    ),
+    config_schema=TextToSpeechConfig,
+    # Speaking spends money on a provider key and produces a recording a person
+    # may publish - in somebody's voice, where it is a cloned one - so every call
+    # is a candidate for the approval gate, as an image is.
+    side_effecting=True,
+    secret=SecretRequirement(
+        kind=SecretKind.API_KEY,
+        description="The API key for the chosen speech provider",
+        # Every provider needs a key, so this never makes one optional. It is
+        # what tells the Builder the chosen provider *is* the key's purpose, so
+        # the picker offers ElevenLabs keys for ElevenLabs rather than every
+        # API key in the vault (#2258).
+        required_when=SecretCondition(
+            field="provider", equals=tuple(entry.provider for entry in providers())
+        ),
+    ),
+)
+def _build(ctx: CapabilityBuildContext) -> TextToSpeech:
+    config = ctx.config if isinstance(ctx.config, TextToSpeechConfig) else TextToSpeechConfig()
+    api_key = (
+        ctx.secret.api_key.get_secret_value() if isinstance(ctx.secret, ApiKeySecret) else None
+    )
+    return TextToSpeech(
+        provider=config.provider,
+        model=config.model,
+        voice=config.resolved_voice(),
+        audio_format=config.resolved_format(),
+        max_characters=config.max_characters,
+        api_key=api_key,
+    )

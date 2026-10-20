@@ -13,14 +13,11 @@ run's ledger through :func:`record_ambient_usage` - the runner holds a
 `metered_by` block open around the whole run, so a tool call inside it reaches the
 same ledger the main model requests do.
 
-Where the image goes is two answers at once. It is always persisted
-organization-scoped (:mod:`app.services.generated_media`) and returned as a
-reference the interface renders. When the run also has a workspace open - an agent
-with the sandbox capability - the same bytes are written into it under
-`/output`, so a later `execute` step can use the image it just made: assemble it
-into a PDF, a slide, a page. An agent without a workspace still generates and
-shows images; it simply has nowhere to build with them, which is the honest
-difference between the two.
+Where the image goes is two answers at once - stored organization-scoped and,
+when a workspace is open, written under `output/` as well - and it is the same
+answer for speech and video, so it lives in :mod:`app.agents.capabilities._generated`.
+A later `execute` step can then use the image it just made: assemble it into a
+PDF, a slide, a page.
 """
 
 from __future__ import annotations
@@ -38,26 +35,13 @@ from pydantic_ai.native_tools import ImageGenerationTool
 from pydantic_ai.providers import infer_provider_class
 from pydantic_ai.tools import RunContext
 from pydantic_ai.toolsets import FunctionToolset
-from pydantic_ai.workspaces import WorkspaceError
 
 from app.agents.capabilities._failures import steer
+from app.agents.capabilities._generated import store_generated
 from app.agents.capabilities.budget import record_ambient_usage
 from app.agents.deps import AgentDeps
-from app.services.generated_media import generated_media_url, save_generated_media
 
 logger = logging.getLogger(__name__)
-
-WORKSPACE_OUTPUT_DIR = "output"
-"""Where a generated image lands in the run's workspace, when there is one.
-
-A single well-known directory so the model can be told where to look for what it
-made without the path being an argument it has to remember and repeat.
-
-Relative to the working directory, for the reason `UPLOAD_DIR` is: an absolute
-path is resolved as absolute, which put a generated image outside the workspace -
-unreachable by the agent's own shell, absent from the browser, and not in the
-snapshot a channel diffs to decide what to post back (#1039).
-"""
 
 _SUBAGENT_INSTRUCTIONS = (
     "Generate an image based on the user prompt. Do not ask clarifying questions."
@@ -184,37 +168,14 @@ def build_image_toolset(
         record_ambient_usage(model.model_name, result.usage, provider=model.system)
 
         image_format = image.format or "png"
-        organization_id = ctx.deps.organization_id
-        filename: str | None = None
-        url: str | None = None
-        if organization_id is not None:
-            filename = await save_generated_media(
-                organization_id, image.data, filename=f"image.{image_format}"
-            )
-            url = generated_media_url(filename)
-
-        # Into the run's workspace too, when it has one, for later steps to build
-        # with. An agent without the sandbox capability generates images all the
-        # same - it simply has nowhere to build with them.
-        workspace_path: str | None = None
-        if ctx.workspace.attached:
-            leaf = filename or f"image.{image_format}"
-            try:
-                await ctx.workspace.write_bytes(f"{WORKSPACE_OUTPUT_DIR}/{leaf}", image.data)
-                workspace_path = f"{WORKSPACE_OUTPUT_DIR}/{leaf}"
-            except (OSError, WorkspaceError):
-                # A full workspace - a `state` document past its ceiling raises
-                # `OSError`, a container's shell `WorkspaceError` - the image is
-                # still stored and linked above, and naming a path that holds
-                # nothing would send the model to it.
-                logger.info("generated_image_not_written", extra={"leaf": leaf})
+        stored = await store_generated(ctx, image.data, filename=f"image.{image_format}")
 
         return GeneratedImage(
-            filename=filename,
-            url=url,
+            filename=stored.filename,
+            url=stored.url,
             media_type=image.media_type,
             prompt=prompt,
-            workspace_path=workspace_path,
+            workspace_path=stored.workspace_path,
         ).model_dump_json()
 
     toolset: FunctionToolset[Any] = FunctionToolset()

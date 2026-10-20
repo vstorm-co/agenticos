@@ -1,5 +1,5 @@
 ---
-source_sha: "f543bfd2c9bb"
+source_sha: "5d2c68b0fb1b"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -65,6 +65,7 @@ guarda archivos. El navegador web apunta al servicio de navegador del despliegue
 | `charts` | Gráficos | analysis | `create_chart` | — | — |
 | `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — |
 | `image_generation` | Generación de imágenes | analysis | `generate_image` | — | obligatoria |
+| `text_to_speech` | Texto a voz | analysis | `generate_speech` | — | obligatoria |
 | `coding_agent` | Coding agent | analysis | `run_coding_agent` | `sandbox:execute` | obligatoria |
 | `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
 | `planning` | Planificación | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
@@ -1100,6 +1101,64 @@ constancia de quién produjo una imagen. Cuando el agent tiene además un worksp
 un paso `execute` posterior pueda construir con ella: montar un PDF, una diapositiva,
 una página. Un agent sin workspace sigue generando y mostrando imágenes; simplemente
 no tiene dónde construir con ellas.
+
+## Texto a voz { #text-to-speech }
+
+`generate_speech` — *Lee un texto en voz alta como clip de audio.*
+
+Lee un texto en voz alta con el provider de voz que elige el autor y se comporta
+como la generación de imágenes: el clip se guarda, aparece en la conversación como
+reproductor y se escribe en `output/` cuando hay un workspace abierto (#2259).
+
+| Configuración | Por defecto | Valores |
+|---|---|---|
+| `provider` | `openai` | `openai`, `elevenlabs`, `google` |
+| `model` | `gpt-4o-mini-tts` | Los modelos de ese provider, de `app/core/catalog/text_to_speech_models.json` |
+| `voice` | la primera del modelo | Una voz del catálogo para OpenAI y Gemini; un id de tu propia biblioteca de voces para ElevenLabs |
+| `output_format` | el primero del provider | `mp3`, `wav` (Gemini solo devuelve `wav`) |
+| `max_characters` | `5000` | 1–100 000; el máximo de texto que puede decir una llamada |
+
+**Providers, modelos, voces y precios son datos**, en el fichero del catálogo. Un
+provider es un [propósito de secreto](../secrets.md) con una clave de API simple -
+ElevenLabs no ejecuta modelos de chat, así que es un servicio en el vault y no un
+provider de modelos - y una entrada sin propósito, o cuya forma de API no tiene
+cliente, se descarta. Los antiguos `tts-1` y `tts-1-hd` de OpenAI hablan con nueve
+de sus trece voces, por eso las voces se listan por modelo.
+
+**Las voces de ElevenLabs pertenecen a la cuenta.** Sus voces por defecto
+compartidas caducan el 31-12-2026, así que el catálogo no lista ninguna y un
+binding nombra una de las voces propias de la cuenta por su id; publicar sin ella
+se rechaza.
+
+**El selector de claves muestra las claves del provider elegido.** El secreto es
+obligatorio para todos los providers y se declara obligatorio *cuando* `provider`
+es uno de ellos, lo que le dice al Builder que el provider es el propósito de la
+clave.
+
+**Un texto largo es un solo clip.** Un texto que supera el límite por petición del
+modelo se corta en un párrafo, una frase o una palabra y se dice en orden. Los
+trozos MP3 se unen uno tras otro; el WAV se pide a cada provider como PCM de
+24 kHz y se envuelve en una sola cabecera. `instructions` - tono, ritmo, acento -
+llegan a los modelos que las leen (`gpt-4o-mini-tts` de OpenAI, Gemini) y se
+omiten en los demás.
+
+**Al budget se le pregunta con el precio del clip.** La voz se vende por carácter,
+así que el catálogo guarda un precio fechado por millón de caracteres y el coste
+se conoce antes de la llamada. Se rechaza un clip que llevaría el run más allá de
+un límite; después se registra el coste y, si falla a medias, también los trozos
+ya dichos. Los modelos que facturan por tokens tienen un precio por carácter de
+habla típica. Un precio fechado entra en vigor ese día: así queda registrada la
+duplicación de precios de Gemini el 01-01-2027.
+
+**Tiene efectos secundarios**, por las mismas razones que la generación de
+imágenes: gasta dinero y produce una grabación que alguien puede publicar.
+
+**Los fallos van a quien puede arreglarlos.** El texto vacío, el que supera
+`max_characters` o el que rechaza el provider vuelve al modelo, igual que un
+provider que limita el tráfico o no responde. Una clave rechazada, una voz
+desconocida y un budget agotado se responden como resultado, porque solo el autor
+o el operador pueden arreglarlos. El texto de error del provider se registra y
+nunca llega al modelo.
 
 ## Coding agent { #coding-agent }
 

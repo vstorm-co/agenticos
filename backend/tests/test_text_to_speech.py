@@ -295,9 +295,11 @@ class TestAFailedCall:
         assert KEY not in caught.value.message
         assert KEY not in json.dumps(caught.value.details)
 
-    async def test_a_failure_halfway_through_discards_what_was_spoken(self):
+    async def test_a_failure_halfway_through_counts_what_was_already_spoken(self):
+        """The clip is discarded; what the first piece cost is not, so it is
+        reported for the caller to book."""
         answers = iter([httpx.Response(200, content=b"\x01\x00"), httpx.Response(500)])
-        with _answering(lambda _: next(answers)), pytest.raises(SpeechProviderError):
+        with _answering(lambda _: next(answers)), pytest.raises(SpeechProviderError) as caught:
             await synthesize(
                 _provider("openai"),
                 model="gpt-4o-mini-tts",
@@ -306,6 +308,9 @@ class TestAFailedCall:
                 audio_format="wav",
                 api_key=KEY,
             )
+
+        first_piece = split_text(("word " * 1000).strip(), 4096)[0]
+        assert caught.value.spoken_characters == len(first_piece)
 
     async def test_a_timeout_is_unavailable(self):
         def time_out(request: httpx.Request) -> httpx.Response:

@@ -10,9 +10,13 @@ import type { CapabilityBindingSpec, CapabilityCatalogEntry } from "@/types/agen
 
 import type { ContextFileSummary } from "@/types/providers";
 
-const { imageProviders } = vi.hoisted(() => ({ imageProviders: vi.fn() }));
+const { imageProviders, speechProviders } = vi.hoisted(() => ({
+  imageProviders: vi.fn(),
+  speechProviders: vi.fn(),
+}));
 vi.mock("@/hooks/use-model-providers", () => ({
   useImageProviders: () => imageProviders(),
+  useTextToSpeechProviders: () => speechProviders(),
 }));
 
 // The memory panel's one action, which needs a query client this file does not
@@ -711,6 +715,64 @@ describe("image generation, whose model is a provider and a model", () => {
     await userEvent.click(screen.getByRole("switch", { name: "Image generation enabled" }));
 
     expect(onToggle).toHaveBeenCalledWith("image_generation");
+  });
+});
+
+/** Text to speech has a panel of its own too: a provider, a model and a voice. */
+describe("text to speech, whose voice is a provider, a model and a voice", () => {
+  beforeAll(() => {
+    speechProviders.mockReturnValue({
+      providers: [
+        {
+          provider: "openai",
+          name: "OpenAI",
+          formats: ["mp3"],
+          account_voices: false,
+          models: [
+            {
+              id: "gpt-4o-mini-tts",
+              name: "GPT-4o mini TTS",
+              description: "The default.",
+              max_characters: 4096,
+              takes_instructions: true,
+              voices: [{ id: "marin", name: "Marin", description: "" }],
+            },
+          ],
+        },
+      ],
+      isLoading: false,
+      isError: false,
+    });
+  });
+
+  const SPEECH: CapabilityCatalogEntry = {
+    ...CHARTS,
+    id: "text_to_speech",
+    name: "Text to speech",
+    category: "analysis",
+    description: "Speak a text aloud as an audio clip.",
+    tools: [{ id: "generate_speech", name: "generate_speech", description: "Speak." }],
+    contracts: [],
+    config_schema: null,
+  };
+
+  it("opens its own panel rather than the generated form", async () => {
+    renderWorkbench({ catalog: [SPEECH, CHARTS], selected: [binding("text_to_speech")] });
+
+    await openCapability("Text to speech");
+
+    expect(screen.getByLabelText("Provider")).toBeVisible();
+    expect(screen.getByLabelText("Voice")).toHaveTextContent("Marin");
+  });
+
+  it("grants it from the panel's own switch", async () => {
+    const onToggle = vi.fn();
+    renderWorkbench({ catalog: [SPEECH, CHARTS], onToggle });
+
+    await openCapability("Text to speech");
+    await userEvent.click(screen.getByRole("switch", { name: "Text to speech enabled" }));
+
+    expect(onToggle).toHaveBeenCalledWith("text_to_speech");
   });
 });
 

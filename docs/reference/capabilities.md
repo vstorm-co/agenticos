@@ -58,6 +58,7 @@ browser is pointed at the deployment's browser service
 | `charts` | Charts | analysis | `create_chart` | — | — |
 | `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — |
 | `image_generation` | Image generation | analysis | `generate_image` | — | required |
+| `text_to_speech` | Text to speech | analysis | `generate_speech` | — | required |
 | `coding_agent` | Coding agent | analysis | `run_coding_agent` | `sandbox:execute` | required |
 | `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
 | `planning` | Planning | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
@@ -1030,6 +1031,59 @@ also has a workspace (the `sandbox` capability), the same image is written into 
 under `/output`, so a later `execute` step can build with it — assemble a PDF, a
 slide, a page. An agent without a workspace still generates and shows images; it
 simply has nowhere to build with them.
+
+## Text to speech
+
+`generate_speech` — *Speak a text aloud as an audio clip.*
+
+Reads a text aloud through a speech provider the author picks, and behaves as
+image generation does: the clip is stored, shown in the conversation as a player,
+and written under `output/` when a workspace is open (#2259).
+
+| Config | Default | Values |
+|---|---|---|
+| `provider` | `openai` | `openai`, `elevenlabs`, `google` |
+| `model` | `gpt-4o-mini-tts` | That provider's models, from `app/core/catalog/text_to_speech_models.json` |
+| `voice` | the model's first | A catalog voice for OpenAI and Gemini; an id from your own voice library for ElevenLabs |
+| `output_format` | the provider's first | `mp3`, `wav` (Gemini returns `wav` only) |
+| `max_characters` | `5000` | 1–100 000; the most text one call may speak |
+
+**Providers, models, voices and prices are data**, in the catalog file. A provider
+is a [secret purpose](../secrets.md) taking a plain API key - ElevenLabs runs no
+chat model, so it is a service in the vault rather than a model provider - and an
+entry whose purpose is missing, or whose API shape has no client, is dropped.
+OpenAI's older `tts-1` and `tts-1-hd` speak in nine of its thirteen voices, so
+voices are listed per model.
+
+**ElevenLabs voices belong to the account.** Its shared default voices expire on
+2026-12-31, so the catalog lists none and a binding names one of the account's own
+voices by id; publishing without one is refused.
+
+**The key picker shows the chosen provider's keys.** The secret is required for
+every provider, and declared as required *when* `provider` is one of them, which
+is what tells the Builder that the provider is the key's purpose.
+
+**A long text is one clip.** A text over the model's per-request limit is cut at a
+paragraph, a sentence or a word and spoken in order. MP3 pieces are joined end to
+end; WAV is requested as 24 kHz PCM from every provider and wrapped in one header.
+`instructions` - tone, pace, accent - reach the models that read them (OpenAI's
+`gpt-4o-mini-tts`, Gemini) and are dropped for the rest.
+
+**The budget is asked with the clip's price.** Speech is sold per character, so the
+catalog holds a dated price per million characters and the cost is known before
+the call. A run is refused a clip that would carry it past a cap, then the cost is
+booked; on a failure partway through, the pieces already spoken are booked too.
+Token-billed models are priced per character of typical speech. A dated price
+takes effect on its day, which is how Gemini's doubling on 2027-01-01 is recorded.
+
+**It is side-effecting**, for the reasons image generation is: it spends money and
+produces a recording a person may publish.
+
+**Failures go to whoever can fix them.** Empty text, text over `max_characters` or
+text the provider refuses is steered back to the model, as is a provider that is
+rate limiting or down. A refused key, an unknown voice and a spent budget are
+answered as the result, because only the author or the operator can fix them. The
+provider's own error text is logged and never reaches the model.
 
 ## Coding agent { #coding-agent }
 

@@ -262,3 +262,56 @@ export function useImageProviders() {
 
   return { providers: data?.items ?? [], isLoading, isError };
 }
+
+/** One voice a provider offers to every account. */
+export interface TextToSpeechVoice {
+  id: string;
+  name: string;
+  description: string;
+}
+
+/** One model that speaks, with the voices it can speak in. */
+export interface TextToSpeechModel {
+  id: string;
+  name: string;
+  description: string;
+  max_characters: number;
+  takes_instructions: boolean;
+  /** Empty where the provider's voices belong to the account. */
+  voices: TextToSpeechVoice[];
+}
+
+/** One provider that can speak, and what may be chosen on it. */
+export interface TextToSpeechProvider {
+  provider: string;
+  name: string;
+  formats: string[];
+  /** Whether a binding names one of the account's own voices by id. */
+  account_voices: boolean;
+  models: TextToSpeechModel[];
+}
+
+interface TextToSpeechProviderList {
+  items: TextToSpeechProvider[];
+  total: number;
+}
+
+/**
+ * The providers that can speak a text aloud, with their models and voices.
+ *
+ * The catalog is `app/core/catalog/text_to_speech_models.json`, served whole: a
+ * model or a voice released this morning is a catalog entry rather than a frontend
+ * release. ElevenLabs lists no voices because its voices belong to the account,
+ * and `account_voices` says so. No credential is read.
+ */
+export function useTextToSpeechProviders() {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: qk.providers.textToSpeechModels(),
+    queryFn: () => apiClient.get<TextToSpeechProviderList>("/providers/text-to-speech-models"),
+    // Fixed until the platform is redeployed, like the provider catalog.
+    staleTime: Infinity,
+    retry: false,
+  });
+
+  return { providers: data?.items ?? [], isLoading, isError };
+}

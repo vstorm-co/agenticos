@@ -1,5 +1,5 @@
 ---
-source_sha: "c1a088854770"
+source_sha: "d284017f633a"
 ---
 
 # Glossar { #glossary }
@@ -85,6 +85,7 @@ Jede ist unter [Capabilities](capabilities.md) beschrieben.
 | Skills | `skills` |
 | Subagents | `subagents` |
 | Erinnerung an Anweisungen | `system_reminders` |
+| Sprachausgabe | `text_to_speech` |
 | Nachdenken | `thinking` |
 | Grenzen für Tool-Ergebnisse | `tool_output_limits` |
 | Tool-Suche | `tool_search` |

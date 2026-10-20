@@ -17,6 +17,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Agents can speak.** The new `text_to_speech` capability gives an agent a
+  `generate_speech` tool that reads a text aloud through OpenAI, ElevenLabs or
+  Gemini, chosen per agent with a model and a voice. The clip appears in the
+  conversation as a player and opens in the file viewer, exactly where a
+  generated image would. Its cost is checked against the budget before the call,
+  from a dated per-character price, and booked after it. ElevenLabs keys are a
+  new purpose in the vault; its voices are named by id, because they belong to
+  the account (#2259).
+
 ### Changed
 
 - **Audio and video play in the file viewer.** An MP3, WAV, Ogg, Opus, M4A,

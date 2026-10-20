@@ -826,7 +826,21 @@
     "platformAllHint": "Every call waits for approval, reading included.",
     "platformTools": "Tools this agent may call",
     "platformWritesBadge": "changes something",
-    "platformRemove": "Remove from this agent"
+    "platformRemove": "Remove from this agent",
+    "speechProvider": "Provider",
+    "speechProviderPlaceholder": "Choose a provider",
+    "speechProviderDetail": "The providers in the speech catalog whose key the vault can hold.",
+    "speechModel": "Model",
+    "speechModelPlaceholder": "Choose a model",
+    "speechModelDetail": "Every model this provider can be asked to speak with.",
+    "speechModelUnknownProvider": "This binding names {provider}, which cannot speak. Pick a provider above.",
+    "speechVoice": "Voice",
+    "speechVoicePlaceholder": "Choose a voice",
+    "speechVoiceDetail": "The voices this model can speak in.",
+    "speechVoiceIdPlaceholder": "Voice id",
+    "speechAccountVoiceDetail": "{provider} voices belong to your account. Paste the id of one from your voice library.",
+    "speechProvidersLoading": "Reading what each provider offers…",
+    "speechProvidersUnavailable": "The list of providers could not be read. The model above is still what will be used."
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -1473,7 +1487,11 @@
       "revisingVisual": "Revising a visual",
       "reviseVisual": "Revised a visual",
       "readingVisual": "Reading a visual",
-      "readVisual": "Read a visual"
+      "readVisual": "Read a visual",
+      "generateSpeech": "Speech",
+      "generatingSpeech": "Recording speech",
+      "speechNotStored": "The speech was recorded but not saved.",
+      "spokenBy": "Voice: {voice}"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -6823,6 +6841,14 @@
       "needs": "An API key for the image provider in the vault. Each image is billed by that provider.",
       "never": "Never posts an image anywhere; it appears in the conversation."
     },
+    "text_to_speech": {
+      "name": "Text to speech",
+      "does": "Reads a text aloud as an audio clip.",
+      "example1": "A voice-over for a product video",
+      "example2": "A spoken version of a weekly summary",
+      "needs": "An API key for the speech provider in the vault. Each clip is billed by that provider, per character.",
+      "never": "Never sends audio anywhere; the clip appears in the conversation."
+    },
     "knowledge": {
       "name": "Knowledge search",
       "does": "Lets the agent answer from your documents and say which one each answer came from.",
@@ -7183,6 +7209,28 @@
       "aspect_ratio": {
         "title": "Aspect ratio",
         "description": "Aspect ratio, e.g. 16:9 or 1:1."
+      }
+    },
+    "text_to_speech": {
+      "provider": {
+        "title": "Provider",
+        "description": "Whose voices speak. Offered: the providers in `app/core/catalog/text_to_speech_models.json` whose key the vault can hold."
+      },
+      "model": {
+        "title": "Speech model",
+        "description": "Which of that provider's speech models speaks. A model outside the catalog is refused here rather than mid-run."
+      },
+      "voice": {
+        "title": "Voice",
+        "description": "Which voice speaks; left empty, the model's first. ElevenLabs voices belong to your account, so for ElevenLabs paste the voice id from your voice library."
+      },
+      "output_format": {
+        "title": "File format",
+        "description": "mp3 is smaller, wav is uncompressed. Left empty, the provider's first format - Gemini returns wav only."
+      },
+      "max_characters": {
+        "title": "Longest text",
+        "description": "The most text one call may speak, which caps what a single call can cost."
       }
     },
     "knowledge": {

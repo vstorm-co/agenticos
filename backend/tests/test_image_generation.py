@@ -15,12 +15,12 @@ from pydantic_ai.workspaces import Workspace
 from pydantic_ai_backends import StateBackend
 
 from app.agents.capabilities import get
+from app.agents.capabilities._generated import WORKSPACE_OUTPUT_DIR
 from app.agents.capabilities._registry import CapabilityBinding
 from app.agents.capabilities.budget import SpendLedger, metered_by
 from app.agents.capabilities.image_generation import ImageGeneration, ImageGenerationConfig
 from app.agents.capabilities.image_generation import _toolset as toolset_module
 from app.agents.capabilities.image_generation._toolset import (
-    WORKSPACE_OUTPUT_DIR,
     build_image_toolset,
     parse_generated_image,
 )

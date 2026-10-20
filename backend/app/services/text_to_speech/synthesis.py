@@ -121,7 +121,8 @@ async def synthesize(
 
     Raises:
         SpeechProviderError: A request failed, timed out, or returned no audio.
-            Pieces already spoken are discarded: half a clip is not an answer.
+            Pieces already spoken are discarded - half a clip is not an answer -
+            and counted in its `spoken_characters`, since they were billed.
         ValueError: The model or format is not one the entry offers - a
             configuration the binding's validation should have refused - or
             the text is blank, which the caller should have refused first.
@@ -134,6 +135,7 @@ async def synthesize(
         raise ValueError("There is no text to speak")
     speak = CLIENTS[provider.api]
     audio: list[bytes] = []
+    spoken = 0
     try:
         async with httpx.AsyncClient(timeout=TIMEOUT_SECONDS) as client:
             for piece in pieces:
@@ -148,9 +150,15 @@ async def synthesize(
                     instructions=instructions if chosen.takes_instructions else None,
                 )
                 audio.append(await speak(client, call))
+                spoken += len(piece)
+    except SpeechProviderError as exc:
+        exc.spoken_characters = spoken
+        raise
     except httpx.HTTPError:
         logger.warning("Speech request to %s failed in transit", provider.provider, exc_info=True)
-        raise SpeechProviderError(SpeechFailure.UNAVAILABLE, provider=provider.provider) from None
+        failed = SpeechProviderError(SpeechFailure.UNAVAILABLE, provider=provider.provider)
+        failed.spoken_characters = spoken
+        raise failed from None
     joined = b"".join(audio)
     return Speech(
         data=joined if audio_format == "mp3" else wav(joined),

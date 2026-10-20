@@ -1,5 +1,5 @@
 ---
-source_sha: "f543bfd2c9bb"
+source_sha: "5d2c68b0fb1b"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -65,6 +65,7 @@ Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
 | `charts` | Wykresy | analiza | `create_chart` | — | — |
 | `visuals` | Wizualizacje | analiza | `draw`, `revise_visual`, `read_visual` | — | — |
 | `image_generation` | Generowanie obrazów | analiza | `generate_image` | — | wymagany |
+| `text_to_speech` | Zamiana tekstu na mowę | analiza | `generate_speech` | — | wymagany |
 | `coding_agent` | Coding agent | analiza | `run_coding_agent` | `sandbox:execute` | wymagany |
 | `subagents` | Subagenci | rozumowanie | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
 | `planning` | Planowanie | rozumowanie | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
@@ -1088,6 +1089,61 @@ też workspace (capability `sandbox`), ten sam obraz jest zapisywany w nim pod
 `/output`, żeby późniejszy krok `execute` mógł coś z niego zbudować — złożyć PDF,
 slajd, stronę. Agent bez workspace'u nadal generuje i pokazuje obrazy; po prostu
 nie ma gdzie niczego z nich zbudować.
+
+## Zamiana tekstu na mowę { #text-to-speech }
+
+`generate_speech` — *Speak a text aloud as an audio clip.*
+
+Odczytuje tekst na głos przez providera mowy wybranego przez autora i zachowuje
+się jak generowanie obrazów: nagranie jest zapisywane, pokazywane w rozmowie jako
+odtwarzacz i zapisywane w `output/`, gdy workspace jest otwarty (#2259).
+
+| Konfiguracja | Domyślnie | Wartości |
+|---|---|---|
+| `provider` | `openai` | `openai`, `elevenlabs`, `google` |
+| `model` | `gpt-4o-mini-tts` | Modele tego providera z `app/core/catalog/text_to_speech_models.json` |
+| `voice` | pierwszy głos modelu | Głos z katalogu dla OpenAI i Gemini; id z własnej biblioteki głosów dla ElevenLabs |
+| `output_format` | pierwszy format providera | `mp3`, `wav` (Gemini zwraca tylko `wav`) |
+| `max_characters` | `5000` | 1–100 000; najwięcej tekstu, jaki może wypowiedzieć jedno wywołanie |
+
+**Providerzy, modele, głosy i ceny to dane** w pliku katalogu. Provider jest
+[celem sekretu](../secrets.md) przyjmującym zwykły klucz API - ElevenLabs nie
+uruchamia modeli czatu, więc jest usługą w vault, a nie providerem modeli - a
+wpis, którego celu brakuje albo którego kształt API nie ma klienta, jest
+pomijany. Starsze `tts-1` i `tts-1-hd` od OpenAI mówią dziewięcioma z trzynastu
+głosów, więc głosy są wypisane per model.
+
+**Głosy ElevenLabs należą do konta.** Wspólne domyślne głosy wygasają
+31.12.2026, więc katalog nie wypisuje żadnego, a binding wskazuje jeden z głosów
+konta po id; publikacja bez niego jest odrzucana.
+
+**Picker kluczy pokazuje klucze wybranego providera.** Sekret jest wymagany dla
+każdego providera i zadeklarowany jako wymagany *gdy* `provider` jest jednym z
+nich, co mówi Builderowi, że provider jest celem klucza.
+
+**Długi tekst to jedno nagranie.** Tekst ponad limit modelu na żądanie jest
+cięty na akapicie, zdaniu albo słowie i wypowiadany po kolei. Kawałki MP3 są
+łączone jeden za drugim; WAV jest pobierany od każdego providera jako PCM 24 kHz
+i opakowany jednym nagłówkiem. `instructions` - ton, tempo, akcent - trafiają do
+modeli, które je czytają (`gpt-4o-mini-tts` od OpenAI, Gemini), a dla reszty są
+pomijane.
+
+**Budget jest pytany z ceną nagrania.** Mowa jest sprzedawana za znak, więc
+katalog trzyma datowaną cenę za milion znaków i koszt jest znany przed
+wywołaniem. Run dostaje odmowę nagrania, które przekroczyłoby limit, a potem koszt
+jest księgowany; przy błędzie w połowie księgowane są też kawałki już
+wypowiedziane. Modele rozliczane w tokenach mają cenę za znak typowej mowy.
+Datowana cena działa od swojego dnia - tak zapisane jest podwojenie cen Gemini
+1.01.2027.
+
+**Ma skutki uboczne**, z tych samych powodów co generowanie obrazów: wydaje
+pieniądze i tworzy nagranie, które ktoś może opublikować.
+
+**Błędy trafiają do tego, kto może je naprawić.** Pusty tekst, tekst ponad
+`max_characters` albo tekst odrzucony przez providera wraca do modelu, podobnie
+provider, który ogranicza ruch albo nie działa. Odrzucony klucz, nieznany głos i
+wyczerpany budget są zwracane jako wynik, bo naprawić je może tylko autor albo
+operator. Własny tekst błędu providera jest logowany i nigdy nie trafia do modelu.
 
 ## Coding agent { #coding-agent }
 

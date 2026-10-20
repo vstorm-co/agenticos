@@ -1,5 +1,5 @@
 ---
-source_sha: "c1a088854770"
+source_sha: "d284017f633a"
 ---
 
 # Glosario { #glossary }
@@ -86,6 +86,7 @@ se describe en [Capabilities](capabilities.md).
 | Skills | `skills` |
 | Subagents | `subagents` |
 | Instruction reminders | `system_reminders` |
+| Text to speech | `text_to_speech` |
 | Thinking | `thinking` |
 | Tool output limits | `tool_output_limits` |
 | Tool search | `tool_search` |

@@ -826,7 +826,21 @@
     "platformAllHint": "Jeder Aufruf wartet auf Freigabe, auch Lesen.",
     "platformTools": "Werkzeuge, die dieser Agent aufrufen darf",
     "platformWritesBadge": "ändert etwas",
-    "platformRemove": "Aus diesem Agent entfernen"
+    "platformRemove": "Aus diesem Agent entfernen",
+    "speechProvider": "Provider",
+    "speechProviderPlaceholder": "Provider wählen",
+    "speechProviderDetail": "Die Provider aus dem Sprachkatalog, deren Schlüssel der Vault speichern kann.",
+    "speechModel": "Modell",
+    "speechModelPlaceholder": "Modell wählen",
+    "speechModelDetail": "Jedes Modell, mit dem dieser Provider sprechen kann.",
+    "speechModelUnknownProvider": "Dieses Binding nennt {provider}, der nicht sprechen kann. Wählen Sie oben einen Provider.",
+    "speechVoice": "Stimme",
+    "speechVoicePlaceholder": "Stimme wählen",
+    "speechVoiceDetail": "Die Stimmen, in denen dieses Modell sprechen kann.",
+    "speechVoiceIdPlaceholder": "Stimmen-ID",
+    "speechAccountVoiceDetail": "{provider}-Stimmen gehören zu Ihrem Konto. Fügen Sie die ID einer Stimme aus Ihrer Stimmenbibliothek ein.",
+    "speechProvidersLoading": "Lese, was jeder Provider anbietet…",
+    "speechProvidersUnavailable": "Die Liste der Provider konnte nicht gelesen werden. Das Modell oben wird trotzdem verwendet."
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -1473,7 +1487,11 @@
       "revisingVisual": "Überarbeitet ein Visual",
       "reviseVisual": "Hat ein Visual überarbeitet",
       "readingVisual": "Liest ein Visual",
-      "readVisual": "Hat ein Visual gelesen"
+      "readVisual": "Hat ein Visual gelesen",
+      "generateSpeech": "Sprache",
+      "generatingSpeech": "Nimmt Sprache auf",
+      "speechNotStored": "Die Sprache wurde aufgenommen, aber nicht gespeichert.",
+      "spokenBy": "Stimme: {voice}"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -6706,6 +6724,14 @@
       "needs": "Ein API-Schlüssel des Bildanbieters im Vault. Jedes Bild rechnet dieser Anbieter ab.",
       "never": "Veröffentlicht nie ein Bild; es erscheint im Gespräch."
     },
+    "text_to_speech": {
+      "name": "Sprachausgabe",
+      "does": "Liest einen Text als Audioclip vor.",
+      "example1": "Ein Voice-over für ein Produktvideo",
+      "example2": "Eine gesprochene Fassung der Wochenzusammenfassung",
+      "needs": "Ein API-Schlüssel des Sprachanbieters im Vault. Jeden Clip rechnet dieser Anbieter ab, pro Zeichen.",
+      "never": "Verschickt nie Audio; der Clip erscheint im Gespräch."
+    },
     "knowledge": {
       "name": "Wissenssuche",
       "does": "Der Agent antwortet aus Ihren Dokumenten und sagt, aus welchem jede Antwort stammt.",
@@ -7066,6 +7092,28 @@
       "aspect_ratio": {
         "title": "Seitenverhältnis",
         "description": "Seitenverhältnis, z. B. 16:9 oder 1:1."
+      }
+    },
+    "text_to_speech": {
+      "provider": {
+        "title": "Provider",
+        "description": "Wessen Stimmen sprechen. Zur Auswahl stehen die Provider aus `app/core/catalog/text_to_speech_models.json`, deren Schlüssel der Vault speichern kann."
+      },
+      "model": {
+        "title": "Sprachmodell",
+        "description": "Welches Sprachmodell dieses Anbieters spricht. Ein Modell außerhalb des Katalogs wird hier abgelehnt statt mitten im Lauf."
+      },
+      "voice": {
+        "title": "Stimme",
+        "description": "Welche Stimme spricht; leer bedeutet die erste Stimme des Modells. ElevenLabs-Stimmen gehören zu Ihrem Konto, also fügen Sie für ElevenLabs die Stimmen-ID aus Ihrer Stimmenbibliothek ein."
+      },
+      "output_format": {
+        "title": "Dateiformat",
+        "description": "mp3 ist kleiner, wav unkomprimiert. Leer bedeutet das erste Format des Anbieters - Gemini liefert nur wav."
+      },
+      "max_characters": {
+        "title": "Längster Text",
+        "description": "Der meiste Text, den ein Aufruf sprechen darf, was die Kosten eines einzelnen Aufrufs begrenzt."
       }
     },
     "knowledge": {
