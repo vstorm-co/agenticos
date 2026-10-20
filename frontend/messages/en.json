@@ -6232,10 +6232,10 @@
     "reauthorizeAction": "Re-authorize",
     "redirecting": "Redirecting…",
     "advancedWebhook": "API trigger",
-    "ambiguousOAuthApp": "Two org-visible GitHub OAuth App secrets are stored, so connecting cannot tell which one you meant. Remove one in the vault.",
+    "ambiguousOAuthApp": "Two org-visible {credential} secrets are stored, so connecting cannot tell which one you meant. Remove one in the vault.",
     "apiCategory": "Your own code",
     "addCredentials": "Add credentials",
-    "needsOAuthApp": "Connecting needs your organization's GitHub OAuth App credentials. Add them here, or in the vault.",
+    "needsOAuthApp": "Connecting needs your organization's {credential} credentials. Add them here, or in the vault.",
     "oauthUnavailable": "Connecting a mailbox needs this deployment's own Google client, and none is configured. An operator sets GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET; nothing in the vault fixes it.",
     "openVault": "Open the vault",
     "apiDescription": "Trigger an agent with a signed POST from anything that can send JSON.",
@@ -6268,7 +6268,8 @@
     "authorFilterLabel": "Author contains",
     "authorFilterPlaceholder": "e.g. Jane Doe",
     "textFilterLabel": "Text contains",
-    "textFilterPlaceholder": "e.g. hiring"
+    "textFilterPlaceholder": "e.g. hiring",
+    "oauthAppFallback": "OAuth app"
   },
   "agentTemplates": {
     "browse": "Agent templates",

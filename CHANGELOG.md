@@ -210,6 +210,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **A trigger card names the credential its own connection needs.** Every card
+  said it needed the organization's GitHub OAuth App, Gmail's included; each now
+  names the vault's client for its provider, such as the Google OAuth client.
 - **A chat shows the reader's face when their picture fails to load.** The
   "You" beside a message was a bare image, an empty circle whenever the stored
   file was missing; it now falls back to the generated face, as the sidebar does.

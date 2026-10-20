@@ -6006,10 +6006,10 @@
     "reauthorizeAction": "Autoryzuj ponownie",
     "redirecting": "Przekierowanie…",
     "advancedWebhook": "Zaawansowane: wyzwalacz API",
-    "ambiguousOAuthApp": "Zapisane są dwa widoczne dla organizacji sekrety GitHub OAuth App, więc łączenie nie wie, o który chodzi. Usuń jeden w vault.",
+    "ambiguousOAuthApp": "Zapisane są dwa widoczne dla organizacji sekrety {credential}, więc łączenie nie wie, o który chodzi. Usuń jeden w vault.",
     "apiCategory": "Twój własny kod",
     "addCredentials": "Dodaj dane uwierzytelniające",
-    "needsOAuthApp": "Łączenie wymaga danych GitHub OAuth App Twojej organizacji. Dodaj je tutaj albo w vault.",
+    "needsOAuthApp": "Łączenie wymaga danych {credential} Twojej organizacji. Dodaj je tutaj albo w vault.",
     "oauthUnavailable": "Podłączenie skrzynki wymaga własnego klienta Google tego wdrożenia, a żaden nie jest skonfigurowany. Operator ustawia GOOGLE_CLIENT_ID i GOOGLE_CLIENT_SECRET; nic w vault tego nie naprawi.",
     "openVault": "Otwórz vault",
     "apiDescription": "Uruchom agenta podpisanym POST-em z czegokolwiek, co potrafi wysłać JSON.",
@@ -6042,7 +6042,8 @@
     "authorFilterLabel": "Autor zawiera",
     "authorFilterPlaceholder": "np. Jan Kowalski",
     "textFilterLabel": "Treść zawiera",
-    "textFilterPlaceholder": "np. rekrutacja"
+    "textFilterPlaceholder": "np. rekrutacja",
+    "oauthAppFallback": "aplikacji OAuth"
   },
   "agentTemplates": {
     "browse": "Szablony agentów",
