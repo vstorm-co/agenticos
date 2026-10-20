@@ -41,7 +41,8 @@ export function ProjectPickerDialog({
   const t = useTranslations("projects");
   const [query, setQuery] = useState("");
   const search = useDebounced(query);
-  const { projects, isLoading } = useProjects({ search, limit: 50 });
+  // Asked when the dialog opens, not whenever a chat composer with a `+` renders.
+  const { projects, isLoading } = useProjects({ search, limit: 50, enabled: open });
   const usable = projects.filter((project) => project.can_use);
 
   const choose = (project: Project | null) => {

@@ -41,16 +41,21 @@ class _Wire(BaseModel):
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
 
-class TextPart(_Wire):
-    kind: Literal["text"] = "text"
-    text: str
-
-
 class Part(_Wire):
     """Any part. Only text is read; a file or data part arrives and is described."""
 
     kind: str
     text: str | None = None
+
+    def shown(self) -> str | None:
+        """The part as a reader sees it: its text, or a line saying what it was.
+
+        A data or file part is not read, but dropping it made an answer that was
+        all data read as an agent that said nothing.
+        """
+        if self.kind == "text":
+            return self.text
+        return f"[The agent sent a {self.kind} part, which is not shown here.]"
 
 
 class Message(_Wire):
@@ -62,8 +67,8 @@ class Message(_Wire):
     kind: Literal["message"] = "message"
 
     def text(self) -> str:
-        """Every text part, joined - what a run is asked or what an agent answered."""
-        return "\n\n".join(part.text for part in self.parts if part.text)
+        """Every part, joined - what a run is asked or what an agent answered."""
+        return "\n\n".join(shown for part in self.parts if (shown := part.shown()))
 
 
 class TaskStatus(_Wire):
@@ -88,7 +93,10 @@ class Task(_Wire):
     def text(self) -> str:
         """The answer: the artifacts' text, or the status message's where there is none."""
         found = "\n\n".join(
-            part.text for artifact in self.artifacts for part in artifact.parts if part.text
+            shown
+            for artifact in self.artifacts
+            for part in artifact.parts
+            if (shown := part.shown())
         )
         if found:
             return found
@@ -164,7 +172,7 @@ PARSE_ERROR = -32700
 INVALID_REQUEST = -32600
 METHOD_NOT_FOUND = -32601
 INVALID_PARAMS = -32602
-INTERNAL_ERROR = -32603
 TASK_NOT_FOUND = -32001
 TASK_NOT_CANCELABLE = -32002
 UNSUPPORTED_OPERATION = -32004
+CONTENT_TYPE_NOT_SUPPORTED = -32005

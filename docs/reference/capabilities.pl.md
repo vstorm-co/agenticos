@@ -1,5 +1,5 @@
 ---
-source_sha: "eeee8d7347a9"
+source_sha: "f543bfd2c9bb"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1589,10 +1589,15 @@ hasłem jest odrzucany od razu: poświadczenie trafia do vault.
 Dla delegującego modelu zdalny agent to po prostu kolejny delegat, wywoływany po
 nazwie tym samym narzędziem `task`. Każde wywołanie to jedno A2A `message/send` z
 najnowszą prośbą, a `contextId` zdalnego agenta przechodzi z jednego wywołania do
-następnego w obrębie runa. Odpowiedź `input-required` albo `auth-required` wraca jako
-tekst, który to mówi, bo delegat czekający na własnego użytkownika to odpowiedź,
-którą model musi przeczytać. Zdalny agent, do którego nie da się dotrzeć, odpowiada
-właśnie tym, a run toczy się dalej.
+następnego w obrębie tej samej delegacji: dopytanie o zadanie kontynuuje jego zdalną
+rozmowę, a dwa zadania wysłane naraz mają każde własną.
+
+Odpowiedź `input-required`
+albo `auth-required` wraca jako tekst, który to mówi, bo delegat czekający na
+własnego użytkownika to odpowiedź, którą model musi przeczytać. Część odpowiedzi z
+danymi albo plikiem nie jest czytana i pojawia się jako linijka mówiąca, że ją
+wysłano. Zdalny agent, do którego nie da się dotrzeć, odpowiada właśnie tym, a run
+toczy się dalej.
 
 Budżet jest sprawdzany przed każdym wywołaniem. Wycena wywołania należy do zdalnego
 dostawcy i nikt jej nie publikuje, więc każde wywołanie jest księgowane bez ceny, a

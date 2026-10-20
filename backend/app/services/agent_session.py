@@ -38,7 +38,7 @@ from app.db.models.user import User
 from app.db.session import get_db_context
 from app.repositories import agent_repo, agent_run_repo, conversation_repo, member_repo
 from app.schemas.conversation import ChatPerson, MessagePart
-from app.services import chat_room, live_turn
+from app.services import chat_room, live_turn, redis_view
 from app.services.agent import (
     persist_assistant_turn,
     persist_user_turn,
@@ -359,7 +359,7 @@ class AgentSession:
         if msg_type == "unfollow":
             # Stop on a turn this socket only follows: it is somebody else's to
             # stop, so this tab stops drawing it and stays in the room.
-            self._stop_following()
+            await self._stop_following()
             return
 
         if msg_type == "typing":
@@ -384,7 +384,7 @@ class AgentSession:
         if not await self._reauthorize():
             return
         # Asking something here is watching this socket's own turn, not another's.
-        self._stop_following()
+        await self._stop_following()
         task = asyncio.create_task(self._run_turn(data))
         self._turn_task = task
         task.add_done_callback(self._on_turn_done)
@@ -458,12 +458,7 @@ class AgentSession:
 
     async def _cancel_turn(self) -> None:
         """Cancel the in-flight turn task and wait for it to unwind."""
-        task = self._turn_task
-        if task is None or task.done():
-            return
-        task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await task
+        await _cancelled(self._turn_task)
 
     async def shutdown(self) -> None:
         """Let the in-flight turn finish without its socket, then stop it.
@@ -479,10 +474,14 @@ class AgentSession:
         because somebody asked.
         """
         self._closed = True
-        self._stop_following()
-        await self._leave_room()
+        # Read before leaving the room, which waits on its tasks and on Redis: a
+        # turn that ends meanwhile still ended with nobody watching it.
         task = self._turn_task
-        if task is None or task.done():
+        if task is not None and task.done():
+            task = None
+        await self._stop_following()
+        await self._leave_room()
+        if task is None:
             return
         # Released before the wait. A run paused on `ask_user` is waiting for an
         # answer from somebody who is no longer there and cannot reach its own
@@ -1264,7 +1263,7 @@ class AgentSession:
         read - which is answered as nothing rather than as a refusal, so it says
         nothing about a conversation they cannot see.
         """
-        self._stop_following()
+        await self._stop_following()
         conversation_id = _conversation_id(raw)
         if conversation_id is None:
             await self._leave_room()
@@ -1322,12 +1321,15 @@ class AgentSession:
         self._room_task = asyncio.create_task(self._in_room(conversation_id))
 
     async def _leave_room(self) -> None:
-        # A turn followed in the room is the room's: leaving stops drawing it.
-        self._stop_following()
         room, task = self._room, self._room_task
         self._room, self._room_task = None, None
-        if task is not None and not task.done():
-            task.cancel()
+        # Wound down before anything else: its heartbeat, cancelled and not
+        # awaited, could count this socket back in after the leave below, and its
+        # listener, still running, could start a new follower for this room
+        # while the old one unwinds.
+        await _cancelled(task)
+        # A turn followed in the room is the room's: leaving stops drawing it.
+        await self._stop_following()
         if room is not None:
             await chat_room.leave(room, self.user.id, self._socket)
 
@@ -1348,16 +1350,16 @@ class AgentSession:
             while True:
                 try:
                     await self._hear_room(conversation_id)
-                except Exception:
+                except Exception as error:
                     # Redis went away under the subscription. The socket stays
                     # open and still in this room, so it listens again rather
                     # than stay deaf - and uncounted - until a reload.
-                    logger.warning("chat_room_listen_failed", exc_info=True)
+                    redis_view.failed(logger, "chat_room_listen_failed", error)
                     await asyncio.sleep(ROOM_RETRY_SECONDS)
                     # Asked again before going back in: access may have gone while
                     # Redis was away, and rejoining shows who is here at once.
                     if not await self._still_reads(conversation_id):
-                        self._stop_following()
+                        await self._stop_following()
                         self._room = self._room_task = None
                         with contextlib.suppress(Exception):
                             await chat_room.leave(conversation_id, self.user.id, self._socket)
@@ -1367,14 +1369,14 @@ class AgentSession:
                 else:
                     return
         finally:
-            heartbeat.cancel()
+            await _cancelled(heartbeat)
 
     async def _hear_room(self, conversation_id: str) -> None:
         """Pass on the room's news until it ends or this person may no longer read it."""
         await self._send_presence(conversation_id)
         async for event in chat_room.events(conversation_id):
             if not await self._reads_lately(conversation_id):
-                self._stop_following()
+                await self._stop_following()
                 self._room = self._room_task = None
                 await chat_room.leave(conversation_id, self.user.id, self._socket)
                 return
@@ -1519,11 +1521,16 @@ class AgentSession:
             )
         return True
 
-    def _stop_following(self) -> None:
+    async def _stop_following(self) -> None:
+        """Stop drawing the followed turn, once its task has wound down.
+
+        Awaited rather than only cancelled: the follower's own `finally` closes
+        its subscription, and left to run later it did so after the next room
+        was joined and the next turn followed.
+        """
         follower = self._follower
         self._follower = None
-        if follower is not None and not follower.done():
-            follower.cancel()
+        await _cancelled(follower)
 
     async def _frame(self, kind: str, payload: dict[str, Any]) -> None:
         """Where this surface's frames go: to the member who is watching.
@@ -1533,6 +1540,15 @@ class AgentSession:
         exactly the decision a public surface makes differently.
         """
         await self._emit(kind, payload)
+
+
+async def _cancelled(task: asyncio.Task[None] | None) -> None:
+    """Cancel a task and wait for it to unwind, so its cleanup runs before what follows."""
+    if task is None or task.done():
+        return
+    task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await task
 
 
 def _conversation_id(raw: object) -> str | None:
