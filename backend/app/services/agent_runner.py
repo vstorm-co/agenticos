@@ -3987,6 +3987,11 @@ class AgentRunnerService:
                         # record: they describe the run, not the delegation, and two
                         # copies of one fact drift.
                         user_id=parent.user_id,
+                        # Whose turn it was: a delegation made for an unlinked
+                        # sender is theirs as much as the run that made it, and
+                        # without these it read as the publisher's own.
+                        initiated_by_publisher_fallback=parent.initiated_by_publisher_fallback,
+                        channel_identity_id=parent.channel_identity_id,
                         conversation_id=parent.conversation_id,
                         # The binding that admitted the run admitted this too, so "what
                         # has this Slack app spent" keeps a delegated turn.

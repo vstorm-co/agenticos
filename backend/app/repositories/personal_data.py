@@ -162,9 +162,28 @@ async def sessions_of(db: AsyncSession, user_id: UUID) -> list[Session]:
 
 
 async def runs_started_by(db: AsyncSession, user_id: UUID) -> list[AgentRun]:
-    """Runs they started, for what each cost and which agent answered."""
+    """Runs they started, for what each cost and which agent answered.
+
+    Not the runs that carry their id only as the publisher standing in for
+    somebody else - a widget visitor, an unlinked channel sender: those were
+    started by another person, and listing them made the publisher's export
+    an account of strangers' activity (#2235). And the runs a chat account of
+    theirs started before they linked it: linking is what attributes those
+    runs to them, after the fact, whoever they ran as at the time.
+    """
+    linked = select(ChannelIdentity.id).where(ChannelIdentity.user_id == user_id)
     result = await db.execute(
-        select(AgentRun).where(AgentRun.user_id == user_id).order_by(AgentRun.created_at.desc())
+        select(AgentRun)
+        .where(
+            or_(
+                and_(
+                    AgentRun.user_id == user_id,
+                    AgentRun.initiated_by_publisher_fallback.is_(False),
+                ),
+                AgentRun.channel_identity_id.in_(linked),
+            )
+        )
+        .order_by(AgentRun.created_at.desc())
     )
     return list(result.scalars().all())
 

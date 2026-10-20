@@ -25,6 +25,7 @@ from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.memory_keys import person_owner_key
 from app.db.models.agent import Agent
+from app.db.models.agent_run import AgentRun
 from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.api_key import ApiKey
 from app.db.models.audit_log import AppAdminAuditLog
@@ -43,6 +44,7 @@ from app.db.models.notification_preference import NotificationChannelPreference
 from app.db.models.oauth import OAuthClient, OAuthGrant
 from app.db.models.organization import Organization, OrganizationMember
 from app.repositories import (
+    agent_run_repo,
     conversation_repo,
     personal_data_repo,
     project_repo,
@@ -88,6 +90,31 @@ async def _org_and_agent(db) -> tuple[Organization, Agent]:
     db.add(agent)
     await db.flush()
     return organization, agent
+
+
+async def _run_by(
+    db,
+    user_id: UUID,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    publisher_fallback: bool,
+    channel_identity_id: UUID | None = None,
+) -> UUID:
+    run = await agent_run_repo.create_run(
+        db,
+        organization_id=organization_id,
+        agent_id=agent_id,
+        agent_version_id=None,
+        user_id=user_id,
+        conversation_id=None,
+        surface="channel" if publisher_fallback else "chat",
+        model_label=None,
+        started_at=datetime.now(UTC),
+        channel_identity_id=channel_identity_id,
+        initiated_by_publisher_fallback=publisher_fallback,
+    )
+    return run.id
 
 
 async def _note_about(db, user_id: UUID, *, organization_id: UUID, agent_id: UUID) -> None:
@@ -406,6 +433,60 @@ class TestTheExport:
         assert export.conversations == []
 
     @pytest.mark.security
+    async def test_runs_made_for_somebody_else_under_their_name_are_not_theirs(self, db):
+        """An unlinked channel sender runs as the publisher, with the publisher's
+        id on the run and `initiated_by_publisher_fallback` set. Those runs were
+        started by other people and are no part of the publisher's export."""
+        publisher = await _person(db, "export-publisher@example.com")
+        publisher_id = publisher.id
+        organization, agent = await _org_and_agent(db)
+        theirs = await _run_by(
+            db,
+            publisher_id,
+            organization_id=organization.id,
+            agent_id=agent.id,
+            publisher_fallback=False,
+        )
+        await _run_by(
+            db,
+            publisher_id,
+            organization_id=organization.id,
+            agent_id=agent.id,
+            publisher_fallback=True,
+        )
+
+        export = await PersonalDataService(db).export(publisher_id, actor_user_id=publisher_id)
+
+        assert [row["id"] for row in export.runs] == [theirs]
+
+    @pytest.mark.security
+    async def test_a_chat_accounts_runs_are_theirs_once_they_link_it(self, db):
+        """Linking an account attributes its earlier runs to them, though each ran
+        as the publisher at the time - so those runs are in their export, and a
+        delegation made under such a run, which carries the same, with them."""
+        publisher = await _person(db, "export-linked-publisher@example.com")
+        sender = await _person(db, "export-linked-sender@example.com")
+        sender_id = sender.id
+        organization, agent = await _org_and_agent(db)
+        identity = await _identity_for(db, None, platform_user_id="U-LINKED")
+        before_linking = await _run_by(
+            db,
+            publisher.id,
+            organization_id=organization.id,
+            agent_id=agent.id,
+            publisher_fallback=True,
+            channel_identity_id=identity.id,
+        )
+        identity.user_id = sender_id
+        await db.flush()
+
+        export = await PersonalDataService(db).export(sender_id, actor_user_id=sender_id)
+        publishers = await PersonalDataService(db).export(publisher.id, actor_user_id=publisher.id)
+
+        assert [row["id"] for row in export.runs] == [before_linking]
+        assert publishers.runs == []
+
+    @pytest.mark.security
     async def test_a_project_chat_carries_their_turns_and_the_answers_to_them_only(self, db):
         """A project's chat is several people's. Its starter's export must not hand
         over a teammate's questions, and a teammate who typed there is owed theirs."""
@@ -572,6 +653,28 @@ class TestWhatDeletionRemoves:
             )
         ).scalar_one()
         assert left == 0
+
+    async def test_runs_made_for_somebody_else_outlive_the_publisher(self, db):
+        """Deleting the publisher clears their id from a stand-in run, as the
+        foreign key does for every run, and leaves the run itself: it is the
+        record of somebody else's turn, not the publisher's personal data."""
+        publisher = await _person(db, "purge-publisher@example.com")
+        publisher_id = publisher.id
+        organization, agent = await _org_and_agent(db)
+        stand_in = await _run_by(
+            db,
+            publisher_id,
+            organization_id=organization.id,
+            agent_id=agent.id,
+            publisher_fallback=True,
+        )
+
+        await UserService(db).delete(publisher_id)
+
+        run = await db.get(AgentRun, stand_in, populate_existing=True)
+        assert run is not None
+        assert run.user_id is None
+        assert run.initiated_by_publisher_fallback is True
 
     async def test_a_note_cannot_be_written_about_an_account_that_is_gone(self, db):
         """`owner_key` has no foreign key, so nothing in the database stopped a

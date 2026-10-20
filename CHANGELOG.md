@@ -52,6 +52,20 @@ Two things are versioned separately from this file and worth knowing about:
 - **The project picker asks for projects only when it opens**, and the typing
   indicator is a live region screen readers announce (#2210).
 
+## [1.8.2] - 2026-10-20
+
+### Fixed
+
+- **A publisher's personal-data export lists only the runs they started.**
+  A run made for somebody else under the publisher's identity - an unlinked
+  channel sender, a widget visitor - carries the publisher's id, and the
+  export listed it as theirs. It now leaves those runs out, as every other
+  reader of a person's runs already did, and a delegation made under such a
+  run now carries the same mark and the sender's chat account rather than
+  reading as the publisher's own. A person who links a chat account gets that
+  account's earlier runs in their export. Deleting the publisher still keeps
+  the runs, with the id cleared (#2235).
+
 ## [1.8.1] - 2026-10-19
 
 ### Fixed
