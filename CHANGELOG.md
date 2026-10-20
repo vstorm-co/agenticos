@@ -201,6 +201,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **A chat shows the reader's face when their picture fails to load.** The
+  "You" beside a message was a bare image, an empty circle whenever the stored
+  file was missing; it now falls back to the generated face, as the sidebar does.
 - **Dropping files onto a knowledge base or a project uploads them in Firefox.**
   Firefox delivers some drag events with no `dataTransfer`; the drop zone read
   its types, threw, and never accepted the drop.
