@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.8.3] - 2026-10-20
+
 ### Fixed
 
 - **A teammate following a turn whose writer died is told it is over.** A
