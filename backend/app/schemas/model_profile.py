@@ -229,6 +229,40 @@ class TextToSpeechProviderList(BaseSchema):
     total: int
 
 
+class VideoModelRead(BaseSchema):
+    """One model that makes video, and what it can make."""
+
+    id: str = Field(description="The id stored on the binding")
+    name: str = Field(description="What to show")
+    description: str = Field(description="When to reach for this one rather than another")
+    min_seconds: int = Field(description="The shortest clip it makes")
+    max_seconds: int = Field(description="The longest clip it makes")
+    duration_choosable: bool = Field(
+        description="Whether a call may ask for a length; where not, the model decides"
+    )
+    aspect_ratios: list[str] = Field(
+        description="Aspect ratios it renders; the first is the default"
+    )
+    resolutions: list[str] = Field(description="Resolutions it renders; the first is the default")
+    audio: Literal["always", "optional", "never"] = Field(
+        description="Whether a clip carries sound: always, on request, or never"
+    )
+    first_frame: bool = Field(description="Whether it can start from an image")
+
+
+class VideoProviderRead(BaseSchema):
+    """One provider that can make video, and what may be chosen on it."""
+
+    provider: str = Field(description="The catalog id, e.g. `byteplus`")
+    name: str = Field(description="What to show")
+    models: list[VideoModelRead]
+
+
+class VideoProviderList(BaseSchema):
+    items: list[VideoProviderRead]
+    total: int
+
+
 class ProviderModelList(BaseSchema):
     items: list[ProviderModelRead]
     total: int

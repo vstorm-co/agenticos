@@ -351,6 +351,7 @@ CALLS: tuple[Call, ...] = (
     Call("GET", "/providers/image-models", Perm.AGENTS_VIEW),
     Call("GET", "/providers/speech-to-text-models", Perm.AGENTS_VIEW),
     Call("GET", "/providers/text-to-speech-models", Perm.AGENTS_VIEW),
+    Call("GET", "/providers/video-models", Perm.AGENTS_VIEW),
     Call("GET", "/providers/model-profiles", Perm.AGENTS_VIEW),
     Call(
         "POST",

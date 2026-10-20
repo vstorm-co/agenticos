@@ -34,12 +34,16 @@ from app.schemas.model_profile import (
     TextToSpeechProviderList,
     TextToSpeechProviderRead,
     TextToSpeechVoiceRead,
+    VideoModelRead,
+    VideoProviderList,
+    VideoProviderRead,
 )
 from app.services.image_models import image_providers
 from app.services.model_catalog import models_for
 from app.services.model_profile import provider_catalog
 from app.services.speech_to_text import providers as speech_to_text_providers
 from app.services.text_to_speech_models import providers as text_to_speech_providers
+from app.services.video_models import providers as video_providers
 
 router = APIRouter()
 
@@ -236,6 +240,50 @@ async def list_text_to_speech_models() -> Any:
                             )
                             for voice in entry.voices_for(model)
                         ],
+                    )
+                    for model in entry.models
+                ],
+            )
+            for entry in offered
+        ],
+        total=len(offered),
+    )
+
+
+@router.get(
+    "/video-models",
+    response_model=VideoProviderList,
+    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+)
+async def list_video_models() -> Any:
+    """Which providers can make a video, and what each of their models can make.
+
+    The same shape and the same reasoning as `/image-models`. Each model states the
+    lengths, aspect ratios and resolutions it takes and whether its clips carry
+    sound, because the providers differ on every one and the Builder offers only
+    what the chosen model can make. No credential is read.
+
+    Declared before `/{provider}/models`, which would otherwise match
+    "video-models" as a provider.
+    """
+    offered = video_providers()
+    return VideoProviderList(
+        items=[
+            VideoProviderRead(
+                provider=entry.provider,
+                name=entry.name,
+                models=[
+                    VideoModelRead(
+                        id=model.id,
+                        name=model.name,
+                        description=model.description,
+                        min_seconds=model.min_seconds,
+                        max_seconds=model.max_seconds,
+                        duration_choosable=model.duration_choosable,
+                        aspect_ratios=list(model.aspect_ratios),
+                        resolutions=list(model.resolutions),
+                        audio=model.audio,
+                        first_frame=model.first_frame,
                     )
                     for model in entry.models
                 ],
