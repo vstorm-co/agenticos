@@ -245,6 +245,35 @@ Two things are versioned separately from this file and worth knowing about:
   its sandboxes were removed on the provider by hand. The console asks, where a
   refused delete used to vanish without a word.
 
+## [1.8.1] - 2026-10-19
+
+### Fixed
+
+- **A public app link fills the window.** The page behind `/a/…` was framed
+  in a box about 500 pixels tall and scrolled inside it, because the frame's
+  height resolved against a container with no definite height. It now takes
+  the window below its title, as the console's viewer does.
+- **App thumbnails load once.** A card's preview was unmounted whenever it
+  scrolled out of view, so scrolling back asked the server for a new signed
+  address and loaded the whole page again, on every card, every time. A
+  thumbnail now loads when its card first comes near the viewport and keeps
+  the page; the listing is paged, and the browser throttles frames off screen.
+
+## [1.8.0] - 2026-10-19
+
+### Added
+
+- **A sync source can be edited from its knowledge base.** The pencil on a
+  row of the **Sync** tab opens the connect wizard filled in from the source,
+  with its connector fixed, and saves only the fields that changed: renaming
+  a source, moving it to another folder or changing its schedule no longer
+  means deleting it and losing its sync history. It saves through a new
+  `PATCH /kb/{kb_id}/sync-sources/{source_id}`, which an `edit` grant on the
+  base is enough for, and which refuses a source of another base or of another
+  organization (404) and a move out of the base. A config key patched to
+  `null` is now removed rather than kept by the merge, so a field cleared in
+  the form is cleared on the source. Contributed by @henfircreo in #2199.
+
 ## [1.7.1] - 2026-10-19
 
 ### Fixed
