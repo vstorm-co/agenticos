@@ -19,6 +19,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **How to run past one host is written down.** [Scale beyond one
+  host](docs/scaling.md) covers an external Postgres, counting connections for
+  `max_connections`, PgBouncer, more API hosts and workers, and several
+  deployments side by side - and what the platform does not do yet: read
+  replicas, a vector database of its own, sharding, Redis Cluster.
 - **The Background jobs page charts what the queue did.** What finished over
   the last 24 hours or 7 days, stacked by how it ended; the longest wait of a
   job that is due now; and, per kind, its volume, deaths, run time at the median

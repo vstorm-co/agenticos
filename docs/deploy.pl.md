@@ -1,5 +1,5 @@
 ---
-source_sha: "3e72c1a525be"
+source_sha: "ecc5b8b8c62c"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -13,6 +13,9 @@ kontenerów, z których dwa trzymają stan, jeden potrafi uruchamiać własne ko
 a jeden jest Postgresem, który musi mieć pgvector - co już przekracza to, co
 modeluje cel wdrożeniowy typu `git push`, a przewodnik udający inaczej opisywałby
 wdrożenie, którego nikt nie uruchomił.
+
+Poza jeden host - zarządzany Postgres, kilka hostów API, kilka wdrożeń - prowadzi
+[Skalowanie poza jeden host](scaling.md).
 
 !!! tip "Przeczytaj najpierw [listę kontrolną produkcji](configuration.md#production-checklist)"
 

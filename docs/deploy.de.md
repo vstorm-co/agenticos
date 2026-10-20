@@ -1,5 +1,5 @@
 ---
-source_sha: "3e72c1a525be"
+source_sha: "ecc5b8b8c62c"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
@@ -15,6 +15,9 @@ einer kann eigene Container starten, und einer ist ein Postgres, das pgvector
 haben muss - was bereits mehr ist, als ein `git push`-Deploy-Ziel abbildet, und
 eine Anleitung, die etwas anderes vorgäbe, würde ein Deployment beschreiben, das
 niemand betrieben hat.
+
+Über einen Host hinaus - ein verwaltetes Postgres, mehrere API-Hosts, mehrere
+Deployments - führt [Über einen Host hinaus skalieren](scaling.md).
 
 !!! tip "Lesen Sie zuerst die [Produktions-Checkliste](configuration.md#production-checklist)"
 

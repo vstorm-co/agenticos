@@ -1,5 +1,5 @@
 ---
-source_sha: "3e72c1a525be"
+source_sha: "ecc5b8b8c62c"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -15,6 +15,9 @@ contenedores propios, y uno de los cuales es un Postgres que debe ser pgvector -
 que ya es más de lo que modela un destino de despliegue a base de `git push`, y
 una guía que fingiera lo contrario estaría describiendo un despliegue que nadie
 ha ejecutado.
+
+Más allá de un host - un Postgres gestionado, varios hosts de API, varios
+despliegues - está [Escalar más allá de un host](scaling.md).
 
 !!! tip "Lee antes la [lista de comprobación para producción](configuration.md#production-checklist)"
 

@@ -10,6 +10,9 @@ its own, and one of which is a Postgres that must have pgvector - which is
 already more than a `git push` deploy target models, and a guide that pretended
 otherwise would be describing a deployment nobody has run.
 
+Past one host - a managed Postgres, several API hosts, several deployments - is
+[Scale beyond one host](scaling.md).
+
 !!! tip "Read the [production checklist](configuration.md#production-checklist) first"
 
     Nine settings ship with defaults that are fine on a laptop and wrong on a host

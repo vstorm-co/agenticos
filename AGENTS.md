@@ -252,6 +252,7 @@ retranslated is how a stale translation stops being visible.
 | Recurring patterns | `docs/patterns.md` |
 | Translating a page, and the terminology that has to be exact | `docs/howto/translate.md` |
 | Getting it onto a host: sizing, TLS, the approved deploy | `docs/deploy.md` |
+| Past one host: an external Postgres, connection counts, more API hosts and workers, several deployments | `docs/scaling.md` |
 | The deployment's identity, sign-up policy, notices | `docs/deployment.md` |
 | Settings and the production checklist | `docs/configuration.md` |
 | What the platform does, on one page | `docs/features.md` |
