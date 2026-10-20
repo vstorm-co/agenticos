@@ -214,6 +214,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **A theme change in a background tab no longer raises an error.** The system
+  turning dark, or another tab changing the theme, while a tab was hidden made
+  the browser skip the sweep and reject it unhandled ("Skipped ViewTransition due
+  to document being hidden"). A hidden tab now changes without the sweep.
 - **A trigger card names the credential its own connection needs.** Every card
   said it needed the organization's GitHub OAuth App, Gmail's included; each now
   names the vault's client for its provider, such as the Google OAuth client.
