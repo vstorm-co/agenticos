@@ -19,13 +19,14 @@ a reviewer one decision, not three copies of it.
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from app.core.exceptions import AlreadyExistsError, ConcurrentChangeError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
-from app.db.models.skill_proposal import ProposalStatus
+from app.db.models.skill_proposal import ProposalStatus, SkillProposal
 from app.repositories import skill_proposal_repo
 from app.services.skill_proposal import SkillProposalService
 from app.services.skill_workspace import SkillChange
@@ -275,3 +276,38 @@ class TestListing:
 
         assert await service.get(ctx, proposal.id) is proposal
         assert got.await_args.kwargs["organization_id"] == ctx.organization_id
+
+
+class TestReading:
+    def _proposal(self) -> SkillProposal:
+        return SkillProposal(
+            id=uuid.uuid4(),
+            name="refunds",
+            description="d",
+            content="c",
+            resources={},
+            status="pending",
+            evidence=[{"run_id": "run-1", "quote": "Thirty days"}],
+            evidence_dropped=0,
+            rationale="",
+            expected_effect="",
+            created_at=datetime.now(UTC),
+        )
+
+    @pytest.mark.security
+    async def test_a_reviewer_without_runs_view_gets_the_runs_but_not_the_words(self, monkeypatch):
+        service = _service(monkeypatch)
+        proposal = self._proposal()
+        monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
+        monkeypatch.setattr(
+            skill_proposal_repo, "list_for_organization", AsyncMock(return_value=[proposal])
+        )
+        member = AuthContext(
+            user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.MEMBER.value
+        )
+
+        hidden = await service.read(member, proposal.id)
+        shown = await service.list_read(_ctx())
+
+        assert hidden.evidence == [{"run_id": "run-1", "quote": None}]
+        assert shown[0].evidence == [{"run_id": "run-1", "quote": "Thirty days"}]

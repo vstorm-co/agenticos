@@ -43,9 +43,12 @@ class SkillProposalRead(BaseSchema, TimestampSchema):
         ),
     )
     rationale: str = ""
-    evidence: list[dict[str, str]] = Field(
+    evidence: list[dict[str, str | None]] = Field(
         default_factory=list,
-        description="Run ids and quotes, each checked against the run it names",
+        description=(
+            "Run ids and quotes, each checked against the run it names; the quote is "
+            "null for a reader without runs:view"
+        ),
     )
     evidence_dropped: int = Field(
         default=0, description="Evidence the assistant cited that could not be found"
