@@ -600,8 +600,10 @@ class TableTriggerConsumer:
                 str(trigger.id),
             ],
             depth=causing.depth + 1 if causing is not None else 0,
-            # Public when the run whose step wrote the record is, or when nobody
-            # was behind the write - a widget's visitor, with no causing run.
+            # Public when the run whose step wrote the record is - by its stored
+            # flag, which a whole chain carries, or the door it came through - or
+            # when the write had no person behind it (`for_no_person`): an agent
+            # run nobody answers for, such as a widget visitor's, causing run or not.
             public_origin=(causing is not None and causes_public(causing))
             or event.payload.get("public_origin") is True,
         )

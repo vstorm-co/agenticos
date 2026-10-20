@@ -191,10 +191,12 @@ def build_artifacts_toolset(
         table views with `bindings` instead of copying the records in: an HTML page then
         calls `agenticos.onData(render)`, and `render(data)` runs with
         `data.<binding>` = `{status: "ok" | "unavailable", records: [{id, <field>: value}],
-        fields: {<field>: {label, type, options, state}}, count, truncated, limit}`
-        each time the person viewing it loads or refreshes it. Draw an `unavailable`
-        binding as "no data" - that viewer may not see the view, or it is gone; when
-        `truncated` is true, say the list is cut (`limit` is `records` or `bytes`). Write
+        fields: {<field>: {label, type, options, state}}, count, truncated, limit,
+        filters_dropped}` each time the person viewing it loads or refreshes it. Draw an
+        `unavailable` binding as "no data" - that viewer may not see the view, or it is
+        gone; when `truncated` is true, say the list is cut (`limit` is `records` or
+        `bytes`); when `filters_dropped` is true, a filter of the view named a column
+        that is gone, so the records match more than the view meant - say so. Write
         record text with `textContent`, never `innerHTML`. Find a view's id and columns
         with `list_views`; a private view serves only its owner, so share it first for
         anyone else. Data you only need once still goes inline. The deployment serves a

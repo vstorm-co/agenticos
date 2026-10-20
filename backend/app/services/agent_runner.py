@@ -503,10 +503,10 @@ class DelegationFrame(BaseModel):
 class AdmittedAs(BaseModel):
     """The terms a run was admitted on, as the request stated them.
 
-    Three facts today, and what they have in common is the whole reason this is one
-    model rather than three fields: none is derivable from the run row, all are
-    decided by the request, and all are read again when a parked run resumes. A
-    fourth such fact belongs here rather than beside it.
+    Every field is such a fact, and what they have in common is the whole reason
+    this is one model rather than loose fields: none is derivable from the run row,
+    all are decided by the request, and all are read again when a parked run
+    resumes. Another such fact belongs here rather than beside it.
 
     Every field but one defaults to the safe answer, because this is read back out
     of a JSONB column: a run parked before this existed loads as one that asked for

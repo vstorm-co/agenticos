@@ -534,7 +534,8 @@ class TestTheDataRoute:
         assert response.headers["cache-control"] == "private, no-store"
         body = response.json()
         assert body["bindings"] == {}
-        assert set(body) == {"bindings", "read_at"}
+        assert set(body) == {"bindings", "current", "read_at"}
+        assert body["current"] is True
 
     @pytest.mark.security
     async def test_a_non_member_app_admin_gets_404(self, client: OpenClient) -> None:

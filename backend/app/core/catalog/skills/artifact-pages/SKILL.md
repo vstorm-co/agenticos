@@ -159,7 +159,7 @@ instead of copying the records in: pass `bindings` to `publish_artifact`
 
 ```js
 agenticos.onData(function (data) {
-  // data.tickets = {status, records, fields, count, truncated, limit}
+  // data.tickets = {status, records, fields, count, truncated, limit, filters_dropped}
   render(data);
 });
 ```
@@ -173,6 +173,9 @@ agenticos.onData(function (data) {
   viewer cannot read it. Show "No data", not an empty chart.
 - **Show a cut list.** When `truncated` is true, say the list is cut and why:
   `limit` is `records` or `bytes`. `count` is how many records you got.
+- **Say when a filter was dropped.** When `filters_dropped` is true, a filter of
+  the view named a column that is gone, so the records match more than the view
+  meant. Say the list is unfiltered there rather than presenting it as filtered.
 - **Never `innerHTML` with record text.** Use `textContent`; a record is
   whatever somebody typed.
 - Each record is `{id, <field>: value}`. A field whose column was removed has a

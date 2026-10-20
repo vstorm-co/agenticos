@@ -143,6 +143,12 @@ export interface BindingData {
 /** A page version's live data: every binding, each read as the viewer. */
 export interface ArtifactData {
   bindings: Record<string, BindingData>;
+  /**
+   * The version asked about is still the current one. False once a newer one
+   * was published: every binding is then unavailable, and the console moves to
+   * the current version.
+   */
+  current: boolean;
   read_at: string;
 }
 

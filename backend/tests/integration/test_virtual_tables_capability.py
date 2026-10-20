@@ -26,6 +26,7 @@ from app.agents.capabilities.virtual_tables._toolset import _call_as_person
 from app.agents.deps import AgentDeps
 from app.core.exceptions import ValidationError
 from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.table_view import TableView
 from app.db.models.user import User
 from app.db.models.virtual_table import VirtualTableRecord
 from app.schemas.table_view import TableViewConfig, TableViewCreate
@@ -629,6 +630,65 @@ async def test_share_view_refuses_an_admin_sharing_someone_else_s_view(world: _W
     answer = await call("share_view", _ctx(_person_deps(world, admin)), view_id=view.id)
 
     assert answer == "Only the view's owner can share it."
+
+
+async def _visibility(world: _World, view_id: uuid.UUID) -> str:
+    async with world.factory() as db:
+        stored = await TableViewService(db).get_view(
+            ctx_for(world.owner, world.org), world.orders.id, view_id
+        )
+    return stored.visibility
+
+
+@pytest.mark.security
+async def test_share_view_answers_another_member_s_private_view_as_not_found(world: _World):
+    call, _cap, _ts = _tools({world.orders.id: ALL})
+    colleague = await _member(world, "admin")
+    view = await _make_view(world, owner=colleague, name="Theirs private")
+
+    answer = await call("share_view", _ctx(_person_deps(world)), view_id=view.id)
+    missing = await call("share_view", _ctx(_person_deps(world)), view_id=uuid.uuid4())
+
+    # The same answer as a view that never existed, so nothing says one is there.
+    assert answer == missing
+    assert answer.startswith("Refused (NOT_FOUND): View not found")
+    async with world.factory() as db:
+        stored = await TableViewService(db).get_view(
+            ctx_for(colleague, world.org, "admin"), world.orders.id, view.id
+        )
+    assert stored.visibility == "private"
+
+
+@pytest.mark.security
+async def test_a_member_who_left_cannot_share_a_view(world: _World):
+    call, _cap, _ts = _tools({world.orders.id: ALL})
+    view = await _make_view(world)
+    deps = _person_deps(world)
+    async with world.factory() as db:
+        await db.execute(
+            delete(OrganizationMember).where(OrganizationMember.user_id == world.owner.id)
+        )
+        await db.commit()
+
+    answer = await call("share_view", _ctx(deps), view_id=view.id)
+
+    assert answer == "The member this agent acts for is no longer in the organization."
+    async with world.factory() as db:
+        shared = await db.scalar(
+            select(func.count()).select_from(TableView).where(TableView.visibility == "shared")
+        )
+    assert shared == 0
+
+
+@pytest.mark.security
+async def test_share_view_on_an_ungranted_table_is_refused_before_sharing(world: _World):
+    call, _cap, _ts = _tools({world.other.id: ALL})
+    view = await _make_view(world)
+
+    answer = await call("share_view", _ctx(_person_deps(world)), view_id=view.id)
+
+    assert "no access to table" in answer and "Mine" not in answer
+    assert await _visibility(world, view.id) == "private"
 
 
 @pytest.mark.security

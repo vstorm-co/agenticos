@@ -9,7 +9,7 @@ import { PAGE_SIZE } from "@/components/ui";
 import { ApiError, apiClient } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/api-error";
 import { unlockPublicArtifact } from "@/lib/public-artifact-api";
-import { qk } from "@/lib/query-keys";
+import { exceptOpenPage, qk } from "@/lib/query-keys";
 import type {
   ArtifactAgent,
   ArtifactData,
@@ -113,12 +113,7 @@ export function useArtifact(artifactId: string) {
     void queryClient.invalidateQueries({
       queryKey: qk.artifacts.all(),
       exact: false,
-      predicate: reloadPage
-        ? undefined
-        : (query) => {
-            const [, id, kind] = query.queryKey;
-            return !(id === artifactId && (kind === "view" || kind === "data"));
-          },
+      predicate: reloadPage ? undefined : exceptOpenPage(artifactId),
     });
   };
   const fail = (error: unknown) => toast.error(getErrorMessage(error, tErrors));
@@ -224,16 +219,37 @@ const BUSY_RETRY_DELAY_MS = 1000;
  * Never cached: every open reads the tables as they are now. Only a 429 - the
  * server's in-flight or rate gate - is tried again, twice, a second apart; any
  * other failure is the answer.
+ *
+ * An answer saying the version is no longer current - an agent published a
+ * newer one while the page was open - marks the artifact's detail, its versions
+ * and its current-version address stale, once per such answer. A frame showing
+ * the current version is minted again onto the newer one, whose data is read
+ * under its own key; a frame showing a picked version keeps it, since its
+ * address is under that version's key.
  */
 export function useArtifactData(
   artifactId: string,
   versionId: string | undefined,
   enabled: boolean,
 ) {
+  const queryClient = useQueryClient();
   return useQuery({
     queryKey: qk.artifacts.data(artifactId, versionId ?? ""),
-    queryFn: () =>
-      apiClient.get<ArtifactData>(`/artifacts/${artifactId}/versions/${versionId}/data`),
+    queryFn: async () => {
+      const data = await apiClient.get<ArtifactData>(
+        `/artifacts/${artifactId}/versions/${versionId}/data`,
+      );
+      if (!data.current) {
+        for (const queryKey of [
+          qk.artifacts.detail(artifactId),
+          qk.artifacts.versions(artifactId),
+          qk.artifacts.view(artifactId, null),
+        ]) {
+          void queryClient.invalidateQueries({ queryKey, exact: true });
+        }
+      }
+      return data;
+    },
     enabled: enabled && versionId !== undefined,
     staleTime: 0,
     gcTime: 0,

@@ -86,9 +86,14 @@ class DispatchContext:
     brought the run here - what `logic.merge` passes on, since it may bind to
     neither of its branches. `None` for every other node."""
     public_origin: bool = False
-    """Whether an outsider supplied the run's input - it was admitted through an
-    external door (`dispatcher.PUBLIC_TRIGGERS`) and executes as the exposure's
-    principal. An agent step under it runs with no person behind it."""
+    """Whether nobody answers for the run's input, though it executes as a principal.
+
+    True for a run admitted through an external door (`dispatcher.PUBLIC_TRIGGERS`),
+    and for every run in the chain such a run starts: a child run, a failure run, a
+    table trigger's run caused by its write, and a retry of any of them - all read
+    the causing run's stored flag. Also true for a table trigger's run started by a
+    write that had no person behind it, a widget visitor's agent run among them. An
+    agent step under it runs with no person behind it."""
 
 
 @dataclass(slots=True)

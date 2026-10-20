@@ -370,10 +370,10 @@ of its chosen columns shows every live one. The stored config is not rewritten.
 ### Views as a data contract for pages { #views-for-pages }
 
 A published [artifact](artifacts.md#live-data) binds to saved views, and the view
-is what it reads: the filters, sort and visible columns define the records and
-fields the page receives. An agent with this capability finds views with
-`list_views`, which returns each view's id, its columns and whether it is
-shared, for tables it may read.
+is what it reads: the view's filters, sort and search decide the rows, and the
+binding's `fields` decide the columns, whether or not the view shows them. An
+agent with this capability finds views with `list_views`, which returns each
+view's id, its columns and whether it is shared, for tables it may read.
 
 A private view serves only its owner, so a page that others open needs a shared
 one. `share_view` makes a view visible to everyone who can see the table, and only

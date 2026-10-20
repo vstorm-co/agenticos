@@ -1,5 +1,5 @@
 ---
-source_sha: "4f828eda9f79"
+source_sha: "2ccf44e4440c"
 ---
 
 # Artefakty { #artifacts }
@@ -65,15 +65,20 @@ pierwszych danych.
 
 ```js
 agenticos.onData((data) => {
-  // data.tickets = { status, records, fields, count, truncated, limit }
+  // data.tickets = { status, records, fields, count, truncated, limit, filters_dropped }
 });
 ```
 
 Każdy binding przychodzi jako `status` (`ok` albo `unavailable`), `records`
 (`{id, <field>: value}`), `fields` (etykieta, typ, opcje i stan każdego pola),
-`count`, `truncated` i `limit`. Strona, która nie dostanie odpowiedzi w ciągu 10
-sekund, widzi każdy binding jako `unavailable`; listener dodany później pyta jeszcze
-raz. Binding jest `unavailable`, gdy ten oglądający nie może czytać jego widoku albo
+`count`, `truncated`, `limit` i `filters_dropped`, ustawione na true, gdy filtr
+widoku wskazuje kolumnę, której już nie ma — wtedy rekordy obejmują więcej, niż
+widok zakładał.
+
+Strona, która nie dostanie odpowiedzi w ciągu 10 sekund, widzi każdy
+binding jako `unavailable`; listener dodany później pyta jeszcze raz.
+
+Binding jest `unavailable`, gdy ten oglądający nie może czytać jego widoku albo
 widok zniknął. Pole, którego kolumnę usunięto, jest serwowane pod swoją nazwą pola
 jako pole `text` o wartości `null` i stanie `missing`; zarchiwizowana kolumna daje
 `null` ze stanem `archived`.
@@ -99,7 +104,7 @@ plakietki.
 Podgląd ma przycisk **Refresh**, który czyta dane ponownie i aktualizuje w miejscu
 stronę korzystającą z `agenticos.onData`; w podpowiedzi przycisku widać, kiedy dane
 odczytano ostatnio. Obok jest menu automatycznego odświeżania: wyłączone, co minutę,
-co 5, 15 albo 60 minut. Każdy oglądający wybiera własne ustawienie, a wybór jest
+co 5 albo 15 minut albo co godzinę. Każdy oglądający wybiera własne ustawienie, a wybór jest
 zapamiętywany per strona w tej przeglądarce.
 
 Automatyczne odświeżanie nic nie robi, gdy karta jest ukryta, i czyta raz, gdy karta
@@ -115,9 +120,14 @@ Wiersz pod paskiem pojawia się tylko wtedy, gdy coś wymaga uwagi. Strona, do k
 dostępu odmówiono, mówi „This page's live data is not available to you.” Czytelnik,
 którego źródeł nie da się odczytać, widzi, ilu („2 of 3 sources unavailable to
 you”). Edytor, czyli każdy, kto może edytować stronę, widzi też dla każdego źródła
-powód (na przykład usunięto jego zapisany widok, jego tabela jest zarchiwizowana,
+powód (na przykład jego zapisanego widoku już nie ma, jego tabela jest zarchiwizowana,
 agent nie dostał grantu na tabelę albo nie możesz czytać jego zapisanego widoku) z
 linkiem **Open the table** do związanego widoku.
+
+Gdy agent opublikuje nową wersję, a ktoś ma otwartą bieżącą, najbliższy odczyt
+(odświeżenie, ręczne albo automatyczne) przenosi podgląd na nową wersję: strona
+ładuje się ponownie z nowej wersji, z jej własnymi danymi. Oglądający, który wybrał
+wersję z menu wersji, zostaje przy niej.
 
 Na starszej wersji dane na żywo nie są czytane. Podgląd mówi „Live data only on the
 current version.” z przyciskiem **Open current**, a edytorowi pokazuje też

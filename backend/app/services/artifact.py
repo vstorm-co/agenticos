@@ -121,7 +121,10 @@ One text whatever it sent, so such a run cannot tell from the refusal whether a
 binding it guessed at resolves to the stored one.
 """
 
-_MARKDOWN_BINDINGS = "Bindings need an HTML page; a Markdown page runs no scripts."
+_MARKDOWN_BINDINGS = (
+    "Bindings need an HTML page; a Markdown page runs no scripts. A republish keeps the "
+    "current version's bindings unless it passes others: pass `bindings: {}` to drop them."
+)
 
 KEPT = "kept"
 """What the publish result says of a field kept from the previous version.
@@ -457,7 +460,8 @@ class PublishedArtifact:
     created: bool
     """True when this publication made the artifact, not a version of an existing one."""
     unchanged: bool
-    """True when the bytes matched the current version and no version was added."""
+    """True when the bytes and the bindings matched the current version's, so no version
+    was added."""
     visibility: str
     public: bool
     bindings: dict[str, dict[str, str]] = field(default_factory=dict)
@@ -624,9 +628,9 @@ async def publish_with(
 
     Creates the artifact on the first publication, private to `owner_user_id`,
     titled with its name when no `title` is given; a republish without one keeps
-    the title it had. Idempotent on the bytes: publishing exactly what the current version holds
-    adds no version, so a schedule that found nothing new leaves the history as
-    it was. A new title is taken either way, and so is the publication time -
+    the title it had. Idempotent on the bytes and the bindings: publishing exactly the
+    page and bindings the current version holds adds no version, so a schedule that
+    found nothing new leaves the history as it was. A new title is taken either way, and so is the publication time -
     retention measures age from `published_at`, and a page a schedule still
     republishes every day is alive whether or not its numbers moved.
 
@@ -1619,7 +1623,9 @@ class ArtifactService:
         table they cannot see, its table archived, its view no longer valid, or no
         time left on the page's deadline - is `unavailable`, and only a caller who
         may edit the page is told why. Only the current version is served; an older
-        one gets every binding `unavailable` with the reason `not_current`.
+        one gets every binding `unavailable` with the reason `not_current`, and
+        `current` false - unlike `reason`, told to every viewer, so a console
+        showing the current version moves to the newer one.
 
         Each binding reads in a savepoint of its own, so a query stopped by its
         `statement_timeout` costs that binding alone and the request still commits.
@@ -1673,6 +1679,7 @@ class ArtifactService:
             bindings=page_data(
                 reads, max_bytes=settings.ARTIFACT_DATA_MAX_BYTES, can_edit=can_edit
             ),
+            current=current,
             read_at=datetime.now(UTC),
         )
 

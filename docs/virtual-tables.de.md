@@ -1,5 +1,5 @@
 ---
-source_sha: "1498bf3bb484"
+source_sha: "782fad931256"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -425,8 +425,9 @@ alle lebenden. Die gespeicherte Konfiguration wird nicht umgeschrieben.
 ### Ansichten als Datenvertrag für Seiten { #views-for-pages }
 
 Ein veröffentlichtes [Artefakt](artifacts.md#live-data) bindet sich an gespeicherte
-Ansichten, und die Ansicht ist das, was es liest: Filter, Sortierung und sichtbare
-Spalten legen fest, welche Datensätze und Felder die Seite bekommt. Ein Agent mit
+Ansichten, und die Ansicht ist das, was es liest: Filter, Sortierung und Suche der
+Ansicht bestimmen die Zeilen, und die `fields` des Bindings bestimmen die Spalten,
+ob die Ansicht sie zeigt oder nicht. Ein Agent mit
 dieser Capability findet Ansichten mit `list_views`, das für die Tabellen, die er
 lesen darf, die ID jeder Ansicht, ihre Spalten und ob sie geteilt ist liefert.
 

@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
-import { qk } from "@/lib/query-keys";
+import { exceptOpenPage, qk } from "@/lib/query-keys";
 import type {
   GrantSubject,
   ResourceGrant,
@@ -112,7 +112,12 @@ export function useSharing(resourceType: SharingResourceType, resourceId: string
       apiClient.patch<ResourceSharing>(`${base}/visibility`, { visibility }),
     onSuccess: async () => {
       await invalidate();
-      await queryClient.invalidateQueries({ queryKey: RESOURCE_KEYS[resourceType]() });
+      // An artifact open beside the panel keeps its page: who else may open it
+      // changes nothing the viewer is reading.
+      await queryClient.invalidateQueries({
+        queryKey: RESOURCE_KEYS[resourceType](),
+        predicate: resourceType === "artifact" ? exceptOpenPage(resourceId) : undefined,
+      });
       toast.success(t("visibilityUpdated"));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),

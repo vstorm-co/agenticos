@@ -269,7 +269,7 @@ function bound(overrides: Partial<BindingData> = {}): BindingData {
 }
 
 function answer(bindings: Record<string, BindingData>): ArtifactData {
-  return { bindings, read_at: "2026-10-20T10:00:00Z" };
+  return { bindings, current: true, read_at: "2026-10-20T10:00:00Z" };
 }
 
 /** What the page receives for a binding: everything but the editor's reason. */
@@ -618,7 +618,7 @@ describe("the page's live data", () => {
   it("keeps a binding named like a prototype key as the page's own", async () => {
     // As the server's JSON parses: an own key, never the object's prototype.
     const parsed = JSON.parse(
-      `{"bindings": {"__proto__": ${JSON.stringify(bound())}}, "read_at": ""}`,
+      `{"bindings": {"__proto__": ${JSON.stringify(bound())}}, "current": true, "read_at": ""}`,
     ) as ArtifactData;
     serve((path) => (path === DATA_PATH ? parsed : liveView("n1")));
     renderLive(<ArtifactFrame artifactId="a1" versionId={null} title="Report" />);
@@ -629,6 +629,69 @@ describe("the page's live data", () => {
     const [message] = post.mock.calls[0] as [{ bindings: object }];
     expect(Object.hasOwn(message.bindings, "__proto__")).toBe(true);
     expect(Object.getPrototypeOf(message.bindings)).toBe(Object.prototype);
+  });
+
+  it("moves a page on the current version onto a newer one an agent published", async () => {
+    // v3 is open and listening; a run publishes v4, so v3's next read answers
+    // not current. The frame mints the current version again, once, and the
+    // reloaded page is answered with v4's data - never with v3's stale one.
+    const NEWER = "/artifacts/a1/versions/v4/data";
+    let mints = 0;
+    let reads = 0;
+    serve((path) => {
+      if (path === DATA_PATH) {
+        reads += 1;
+        return { ...answer({ sales: bound() }), current: reads === 1 };
+      }
+      if (path === NEWER) return answer({ sales: bound({ count: 4 }) });
+      mints += 1;
+      return mints === 1 ? liveView("n1") : liveView("n2", 4);
+    });
+    const onBridge = vi.fn<(bridge: Bridge) => void>();
+    const { client } = renderLive(
+      <ArtifactFrame artifactId="a1" versionId={null} title="Report" onBridge={onBridge} />,
+    );
+    client.setQueryData(qk.artifacts.detail("a1"), artifact());
+    client.setQueryData(qk.artifacts.versions("a1"), { items: [], total: 0 });
+    const first = await loadedFrame("https://c/n1");
+    await dataArrived();
+    postFromFrame(first.frame, ready("n1", true));
+    expect(first.post).toHaveBeenCalledTimes(1);
+
+    await act(() => onBridge.mock.lastCall![0].refresh());
+    const second = await loadedFrame("https://c/n2");
+    await waitFor(() => expect(paths()).toContain(NEWER));
+
+    expect(first.post).toHaveBeenCalledTimes(1);
+    expect(paths().filter((path) => path === "/artifacts/a1/view")).toHaveLength(2);
+    expect(client.getQueryState(qk.artifacts.detail("a1"))?.isInvalidated).toBe(true);
+    expect(client.getQueryState(qk.artifacts.versions("a1"))?.isInvalidated).toBe(true);
+    postFromFrame(second.frame, ready("n2", true));
+    await waitFor(() =>
+      expect(second.post).toHaveBeenCalledWith(
+        { type: "agenticos:data", n: "n2", bindings: { sales: forPage(bound({ count: 4 })) } },
+        "*",
+      ),
+    );
+    await act(async () => {});
+    expect(paths().filter((path) => path === "/artifacts/a1/view")).toHaveLength(2);
+  });
+
+  it("keeps a picked version where it is when a newer one is published", async () => {
+    const stale = bound({ status: "unavailable", count: 0, records: [] });
+    serve((path) =>
+      path === DATA_PATH ? { ...answer({ sales: stale }), current: false } : liveView("n1"),
+    );
+    renderLive(<ArtifactFrame artifactId="a1" versionId="v3" title="Report" />);
+    const { frame, post } = await loadedFrame("https://c/n1");
+    await dataArrived();
+    postFromFrame(frame, ready("n1"));
+
+    expect(post).toHaveBeenCalledWith(
+      { type: "agenticos:data", n: "n1", bindings: { sales: forPage(stale) } },
+      "*",
+    );
+    expect(paths().filter((path) => path.includes("/view"))).toHaveLength(1);
   });
 
   it.each([403, 404])("answers with no data when the data answers %i", async (status) => {

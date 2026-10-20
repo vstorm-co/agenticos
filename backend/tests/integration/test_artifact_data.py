@@ -350,8 +350,12 @@ class TestWhoReads:
         first = await page.publish(binding)
         second = await page.publish(binding)
 
-        assert (await page.data(version=first)).bindings == {"tickets": _unavailable("not_current")}
-        assert (await page.data(version=second)).bindings["tickets"].count == 2
+        older, newest = await page.data(version=first), await page.data(version=second)
+
+        assert older.bindings == {"tickets": _unavailable("not_current")}
+        assert older.current is False
+        assert newest.bindings["tickets"].count == 2
+        assert newest.current is True
 
     async def test_a_binding_restored_unavailable_keeps_its_stored_reason(self, db):
         page = await _page(db)
@@ -663,8 +667,9 @@ class TestTheDeadline:
             "b_second": _unavailable("timeout"),
             "c_third": _unavailable("timeout"),
         }
-        assert second not in viewed
-        assert third not in viewed
+        # Only the first binding's view was looked up: the deadline ran out in it,
+        # and the other two were answered without a query.
+        assert viewed == [first]
         assert elapsed < settings.ARTIFACT_DATA_READ_TIMEOUT_SECONDS + 0.5
         assert await _statement_timeout(db) == prior
         await db.commit()

@@ -1,5 +1,5 @@
 ---
-source_sha: "4f828eda9f79"
+source_sha: "2ccf44e4440c"
 ---
 
 # Artefactos { #artifacts }
@@ -66,15 +66,21 @@ columnas de cada vista. La página llama a `agenticos.onData(render)`, y
 
 ```js
 agenticos.onData((data) => {
-  // data.tickets = { status, records, fields, count, truncated, limit }
+  // data.tickets = { status, records, fields, count, truncated, limit, filters_dropped }
 });
 ```
 
 Cada binding llega como `status` (`ok` o `unavailable`), `records`
 (`{id, <field>: value}`), `fields` (etiqueta, tipo, opciones y estado de cada uno),
-`count`, `truncated` y `limit`. Una página que no recibe respuesta en 10 segundos
-ve todos sus bindings `unavailable`; un listener añadido después de eso pregunta
-una vez más. Un binding es `unavailable` cuando este lector no puede leer su vista
+`count`, `truncated`, `limit` y `filters_dropped`, que vale true cuando un filtro
+de la vista apuntaba a una columna que ya no existe, de modo que los registros
+abarcan más de lo que la vista pretendía.
+
+Una página que no recibe respuesta en 10
+segundos ve todos sus bindings `unavailable`; un listener añadido después de eso
+pregunta una vez más.
+
+Un binding es `unavailable` cuando este lector no puede leer su vista
 o la vista ya no existe. Un campo cuya columna se eliminó se sirve con su nombre de
 campo como campo `text` con valor `null` y estado `missing`; una columna archivada
 da `null` con estado `archived`.
@@ -100,9 +106,9 @@ muestra ninguna insignia.
 
 El visor tiene **Refresh**, que vuelve a leer los datos y actualiza en el sitio una
 página que usa `agenticos.onData`, con la hora de la última lectura en el tooltip
-del botón. Junto a él hay un menú para refrescar automáticamente: Off, o cada 1, 5,
-15 o 60 minutos. Cada lector elige el suyo, y la elección se recuerda por página en
-ese navegador.
+del botón. Junto a él hay un menú para refrescar automáticamente: Off, cada minuto, cada 5 o
+15 minutos, o cada hora. Cada lector elige el suyo, y la elección se recuerda por
+página en ese navegador.
 
 El refresco automático no hace nada mientras la pestaña está oculta, y lee una vez
 cuando la pestaña vuelve si se perdió un ciclo. Se detiene cuando los datos se
@@ -116,9 +122,14 @@ Bajo la barra aparece una línea solo cuando algo requiere atención. Una págin
 rechazada dice "This page's live data is not available to you." Un lector cuyas
 fuentes no se pueden leer ve cuántas ("2 of 3 sources unavailable to you"). Un
 editor, es decir, cualquiera que pueda editar la página, ve además el motivo de
-cada fuente (por ejemplo, que se borró su vista guardada, que su tabla está
+cada fuente (por ejemplo, que su vista guardada ya no existe, que su tabla está
 archivada, que al agent no se le concedió la tabla o que no puedes leer su vista
 guardada) con un enlace **Open the table** a la vista vinculada.
+
+Cuando un agent publica una versión nueva mientras alguien tiene abierta la actual,
+la siguiente lectura (un refresco, manual o automático) lleva al lector a la versión
+nueva: la página se vuelve a cargar desde esa versión, con sus propios datos. Un
+lector que eligió una versión en el menú de versiones se queda en ella.
 
 En una versión anterior no se leen datos en vivo. El visor dice "Live data only on
 the current version." con **Open current** y, para un editor, **Restore** para esa

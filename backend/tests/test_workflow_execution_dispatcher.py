@@ -977,11 +977,13 @@ class TestBeginAttemptHappyPath:
 
 
 class TestThePublicOrigin:
-    """Whether an outsider supplied the run's input (D18a(2)).
+    """Whether nobody answers for the run's input (D18a(2)).
 
     Every external door admits its run as the exposure's principal, so the
-    principal is not a person behind the input. The dispatch says so, and an
-    agent step under it then runs with no person.
+    principal is not a person behind the input; the stored flag carries the same
+    answer down the chain - children, failure and table runs, retries, and a
+    table run started by a no-person write. The dispatch says so, and an agent
+    step under it then runs with no person.
     """
 
     @staticmethod

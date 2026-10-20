@@ -299,7 +299,9 @@ interface ArtifactFrameProps {
  * A live version's records are read here, as the viewer, and posted to the page
  * when it asks (`useDataBridge`). `refresh` reads them again: a page that listens
  * gets them in place, and one that does not is minted and loaded again once the
- * read is in, so the `ready` of the new load is answered with it.
+ * read is in, so the `ready` of the new load is answered with it. A read that
+ * says a newer version was published moves a frame showing the current version
+ * onto it (`useArtifactData`).
  */
 export function ArtifactFrame({
   artifactId,
@@ -313,10 +315,14 @@ export function ArtifactFrame({
   const view = useArtifactView(artifactId, versionId, true);
   const live = view.data?.live === true;
   const data = useArtifactData(artifactId, view.data?.version.id, live);
+  // A read of a version no longer current, while the frame follows the current
+  // one, is never posted: `useArtifactData` has the frame minted onto the newer
+  // version, and its page is answered with that version's data.
+  const moving = versionId === null && data.data?.current === false;
   const { subscribes, onLoad } = useDataBridge(
     frame,
     view.data?.nonce ?? "",
-    data.isError ? NO_DATA : data.data?.bindings,
+    data.isError ? NO_DATA : moving ? undefined : data.data?.bindings,
     data.dataUpdatedAt,
   );
 

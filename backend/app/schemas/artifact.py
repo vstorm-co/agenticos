@@ -85,6 +85,13 @@ class ArtifactData(BaseSchema):
     """A page version's live data: every binding, each read as the viewer."""
 
     bindings: dict[str, BindingData]
+    current: bool = Field(
+        description=(
+            "Whether the version asked about is still the artifact's current one. "
+            "False once a newer version was published: every binding is then unavailable, "
+            "and the viewer moves to the current version"
+        )
+    )
     read_at: datetime
 
 

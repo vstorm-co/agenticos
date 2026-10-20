@@ -305,7 +305,11 @@ describe("useArtifactData", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("reads the data of the version it was given", async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({ bindings: {}, read_at: "2026-10-20T10:00:00Z" });
+    vi.mocked(apiClient.get).mockResolvedValue({
+      bindings: {},
+      current: true,
+      read_at: "2026-10-20T10:00:00Z",
+    });
     const { result } = renderHook(() => useArtifactData("a1", "v1", true), { wrapper });
     await waitFor(() => expect(result.current.data?.bindings).toEqual({}));
     expect(apiClient.get).toHaveBeenCalledWith("/artifacts/a1/versions/v1/data");
@@ -348,7 +352,7 @@ describe("settle", () => {
           : path.includes("/view")
             ? { url: "u", expires_at: "", version: {} }
             : path.endsWith("/data")
-              ? { bindings: {}, read_at: "" }
+              ? { bindings: {}, current: true, read_at: "" }
               : DETAIL,
       ),
     );

@@ -59,14 +59,19 @@ the first data.
 
 ```js
 agenticos.onData((data) => {
-  // data.tickets = { status, records, fields, count, truncated, limit }
+  // data.tickets = { status, records, fields, count, truncated, limit, filters_dropped }
 });
 ```
 
 Each binding arrives as `status` (`ok` or `unavailable`), `records`
 (`{id, <field>: value}`), `fields` (label, type, options and state for each),
-`count`, `truncated` and `limit`. A page that gets no reply within 10 seconds
-sees every binding `unavailable`; a listener added after that asks once more.
+`count`, `truncated`, `limit` and `filters_dropped`, which is true when a filter of
+the view named a column that is gone, so the records match more than the view
+meant.
+
+A page that gets no reply within 10 seconds sees every binding
+`unavailable`; a listener added after that asks once more.
+
 A binding is `unavailable` when this viewer may not read its view or the view is
 gone. A field whose column was removed is served under its field name as a
 `text` field with value `null` and state `missing`; an archived column gives
@@ -91,9 +96,9 @@ artifact widget and in the viewer. On an older version the viewer shows no badge
 
 The viewer has **Refresh**, which reads the data again and updates a page that
 uses `agenticos.onData` in place, with when it was last read in the button's
-tooltip. Beside it is a menu to refresh automatically: Off, every minute, every 5,
-15 or 60 minutes. Each viewer picks their own, and the choice is remembered per
-page in that browser.
+tooltip. Beside it is a menu to refresh automatically: Off, every minute, every 5
+or 15 minutes, or every hour. Each viewer picks their own, and the choice is
+remembered per page in that browser.
 
 Auto-refresh does nothing while the tab is hidden, and reads once when the tab
 comes back if a tick was missed. It stops when the data is refused (the page is
@@ -107,9 +112,14 @@ A line under the strip appears only when something needs attention. A refused
 page says "This page's live data is not available to you." A reader whose sources
 cannot be read sees how many ("2 of 3 sources unavailable to you"). An editor,
 meaning anyone who can edit the page, also sees why for each source (for example
-its saved view was deleted, its table is archived, the agent was not granted the
+its saved view is gone, its table is archived, the agent was not granted the
 table, or you cannot read its saved view) with an **Open the table** link to the
 bound view.
+
+When an agent publishes a new version while somebody has the current one open,
+the next read (a refresh, manual or automatic) moves the viewer to the new
+version: the page is loaded again from the new version, with its own data. A
+viewer who picked a version from the version menu stays on it.
 
 On an older version, live data is not read. The viewer says "Live data only on the
 current version." with **Open current**, and, for an editor, **Restore** for that

@@ -1,5 +1,5 @@
 ---
-source_sha: "1498bf3bb484"
+source_sha: "782fad931256"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -395,8 +395,9 @@ konfiguracja nie jest przepisywana.
 ### Widoki jako kontrakt danych dla stron { #views-for-pages }
 
 Opublikowany [artefakt](artifacts.md#live-data) wiąże się z zapisanymi widokami, a
-widok jest tym, co strona czyta: jego filtry, sortowanie i widoczne kolumny
-wyznaczają rekordy i pola, które strona dostaje. Agent z tą capability znajduje
+widok jest tym, co strona czyta: filtry, sortowanie i wyszukiwanie widoku decydują
+o wierszach, a `fields` bindingu o kolumnach, niezależnie od tego, czy widok je
+pokazuje. Agent z tą capability znajduje
 widoki przez `list_views`, które dla tabel, które agent może czytać, zwraca id
 każdego widoku, jego kolumny i to, czy jest współdzielony.
 

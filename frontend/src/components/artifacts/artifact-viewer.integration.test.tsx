@@ -146,7 +146,7 @@ const MISSING = bound({ status: "unavailable", count: 0 });
 
 /** A data query that answered, as the frame reads it. */
 function dataQuery(bindings: Record<string, BindingData>) {
-  const data: ArtifactData = { bindings, read_at: "2026-10-20T10:04:00Z" };
+  const data: ArtifactData = { bindings, current: true, read_at: "2026-10-20T10:04:00Z" };
   return { ...NO_DATA, data, dataUpdatedAt: 1 };
 }
 
@@ -544,6 +544,27 @@ describe("a live page in the viewer", () => {
     expect(screen.getByRole("status")).toHaveTextContent("2 of 2 sources unavailable to you.");
   });
 
+  it("keeps auto-refresh on, and says nothing, while it moves to a newer version", () => {
+    // Every source of a version no longer current answers unavailable; that is
+    // the console catching up with a republish, not a page that cannot load.
+    everyMinute();
+    useArtifactDataMock.mockReturnValue({
+      ...dataQuery({ sales: MISSING, stock: MISSING }),
+      data: { bindings: { sales: MISSING, stock: MISSING }, current: false, read_at: "" },
+    });
+    open(livePage({ can_edit: false }));
+
+    expect(screen.queryByRole("status")).toBeNull();
+    minutesPass(2);
+    expect(refetchData).toHaveBeenCalledTimes(2);
+  });
+
+  it("names one source in the singular", () => {
+    useArtifactDataMock.mockReturnValue(dataQuery({ sales: MISSING }));
+    open(livePage({ can_edit: false }));
+    expect(screen.getByRole("status")).toHaveTextContent("1 of 1 source unavailable to you.");
+  });
+
   it("keeps auto-refresh on while any source is ok", () => {
     everyMinute();
     useArtifactDataMock.mockReturnValue(dataQuery({ sales: bound(), stock: MISSING }));
@@ -588,6 +609,7 @@ describe("a live page in the viewer", () => {
         escalations: bound({ status: "unavailable", count: 0, reason: "view_missing" }),
         stock: bound({ status: "unavailable", count: 0, reason: "timeout" }),
         orders: MISSING,
+        returns: bound({ status: "unavailable", count: 0, reason: "no_agent" }),
       }),
     );
     open(
@@ -606,10 +628,15 @@ describe("a live page in the viewer", () => {
       }),
     );
     const line = screen.getByRole("status");
-    expect(line).toHaveTextContent("3 of 4 sources unavailable to you.");
-    expect(line).toHaveTextContent("escalations: its saved view was deleted");
+    expect(line).toHaveTextContent("4 of 5 sources unavailable to you.");
+    expect(line).toHaveTextContent(
+      "escalations: its saved view is gone, or was not visible when this version was restored",
+    );
     expect(line).toHaveTextContent("stock: it took too long to read");
     expect(line).toHaveTextContent("orders: it could not be read");
+    expect(line).toHaveTextContent(
+      "returns: the agent that publishes it is gone or has no published version",
+    );
     // Only a binding the page's detail names can be opened from here.
     const links = within(line).getAllByRole("link", { name: "Open the table" });
     expect(links).toHaveLength(1);

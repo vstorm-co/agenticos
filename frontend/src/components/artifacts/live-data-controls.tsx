@@ -31,16 +31,26 @@ function busy(status: BridgeStatus): boolean {
 }
 
 /**
+ * The last read was of a version no longer current: the console is moving to
+ * the newer one, so its unavailable sources say nothing about the page.
+ */
+function superseded(status: BridgeStatus): boolean {
+  return status.error === null && status.data?.current === false;
+}
+
+/**
  * Whether polling this page can bring anything: not after a refusal, and not
  * when the last read answered with no source available.
  *
  * Read from `status` alone, never `reason`, which only an editor is sent - a
  * reader who lost the table has to stop too. Any other failure - a 429 after
- * its retries, a 5xx - is not an answer about the page, so it keeps polling.
+ * its retries, a 5xx - is not an answer about the page, so it keeps polling;
+ * nor is a read of a version since replaced, whose sources all answer
+ * unavailable while the console moves to the newer one.
  */
 function stopsAutoRefresh(status: BridgeStatus): boolean {
   if (refused(status)) return true;
-  if (status.error !== null) return false;
+  if (status.error !== null || superseded(status)) return false;
   const bindings = Object.values(status.data?.bindings ?? {});
   return bindings.length > 0 && bindings.every((binding) => binding.status === "unavailable");
 }
@@ -178,7 +188,7 @@ export function LiveDataNotice({ artifact, status }: LiveDataNoticeProps) {
       </ViewerNotice>
     );
   }
-  if (status.error !== null) return null;
+  if (status.error !== null || superseded(status)) return null;
   const bindings = Object.entries(status.data?.bindings ?? {});
   const unavailable = bindings.filter(([, binding]) => binding.status === "unavailable");
   if (unavailable.length === 0) return null;

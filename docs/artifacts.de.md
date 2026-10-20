@@ -1,5 +1,5 @@
 ---
-source_sha: "4f828eda9f79"
+source_sha: "2ccf44e4440c"
 ---
 
 # Artefakte { #artifacts }
@@ -73,15 +73,21 @@ Spalten jeder Ansicht. Die Seite ruft `agenticos.onData(render)` auf, und
 
 ```js
 agenticos.onData((data) => {
-  // data.tickets = { status, records, fields, count, truncated, limit }
+  // data.tickets = { status, records, fields, count, truncated, limit, filters_dropped }
 });
 ```
 
 Jedes Binding kommt als `status` (`ok` oder `unavailable`), `records`
 (`{id, <field>: value}`), `fields` (Label, Typ, Optionen und Zustand jedes Felds),
-`count`, `truncated` und `limit` an. Eine Seite, die innerhalb von 10 Sekunden
-keine Antwort bekommt, sieht jedes Binding als `unavailable`; ein danach
-hinzugefügter Listener fragt noch einmal. Ein Binding ist `unavailable`, wenn
+`count`, `truncated`, `limit` und `filters_dropped` an. `filters_dropped` ist true,
+wenn ein Filter der Ansicht eine Spalte nennt, die es nicht mehr gibt; die
+Datensätze treffen dann auf mehr zu, als die Ansicht gemeint hat.
+
+Eine Seite, die
+innerhalb von 10 Sekunden keine Antwort bekommt, sieht jedes Binding als `unavailable`; ein danach
+hinzugefügter Listener fragt noch einmal.
+
+Ein Binding ist `unavailable`, wenn
 dieser Betrachter seine Ansicht nicht lesen darf oder die Ansicht nicht mehr
 existiert. Ein Feld, dessen Spalte entfernt wurde, wird unter seinem Feldnamen als
 `text`-Feld mit dem Wert `null` und dem Zustand `missing` ausgeliefert; eine
@@ -109,7 +115,8 @@ zeigt die Seitenanzeige kein Badge.
 Die Seitenanzeige hat **Refresh**, das die Daten erneut liest und eine Seite, die
 `agenticos.onData` verwendet, an Ort und Stelle aktualisiert; der Tooltip der
 Schaltfläche sagt, wann zuletzt gelesen wurde. Daneben liegt ein Menü für die
-automatische Aktualisierung: aus, jede Minute oder alle 5, 15 oder 60 Minuten.
+automatische Aktualisierung: aus, jede Minute, alle 5 oder 15 Minuten oder jede
+Stunde.
 Jeder Betrachter wählt selbst, und die Wahl wird pro Seite in diesem Browser
 gespeichert.
 
@@ -126,10 +133,16 @@ Eine Zeile unter der Leiste erscheint nur, wenn etwas Aufmerksamkeit braucht. Ei
 abgelehnte Seite sagt „This page's live data is not available to you.“ Ein Leser,
 dessen Quellen nicht gelesen werden können, sieht, wie viele („2 of 3 sources
 unavailable to you“). Wer die Seite bearbeiten darf, sieht außerdem für jede
-Quelle den Grund (zum Beispiel wurde ihre gespeicherte Ansicht gelöscht, ihre
+Quelle den Grund (zum Beispiel gibt es ihre gespeicherte Ansicht nicht mehr, ihre
 Tabelle ist archiviert, die Tabelle ist dem Agent nicht freigegeben, oder Sie
 können ihre gespeicherte Ansicht nicht lesen), mit einem Link **Open the table**
 zur gebundenen Ansicht.
+
+Veröffentlicht ein Agent eine neue Version, während jemand die aktuelle offen hat,
+wechselt die Seitenanzeige beim nächsten Lesen (einer manuellen oder automatischen
+Aktualisierung) auf die neue Version: Die Seite wird aus der neuen Version neu
+geladen, mit deren eigenen Daten. Wer im Versionsmenü eine Version gewählt hat,
+bleibt bei ihr.
 
 Auf einer älteren Version werden keine Live-Daten gelesen. Die Seitenanzeige sagt
 „Live data only on the current version.“ mit **Open current** und, für jemanden,

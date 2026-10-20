@@ -1,5 +1,5 @@
 ---
-source_sha: "1498bf3bb484"
+source_sha: "782fad931256"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -398,8 +398,9 @@ guardada no se reescribe.
 ### Las vistas como contrato de datos para páginas { #views-for-pages }
 
 Un [artefacto](artifacts.md#live-data) publicado se vincula a vistas guardadas, y la
-vista es lo que lee: los filtros, el orden y las columnas visibles definen los
-registros y los campos que recibe la página. Un agent con esta capability encuentra
+vista es lo que lee: los filtros, el orden y la búsqueda de la vista deciden las
+filas, y los `fields` del binding deciden las columnas, las muestre o no la vista.
+Un agent con esta capability encuentra
 vistas con `list_views`, que devuelve el id de cada vista, sus columnas y si está
 compartida, para las tablas que puede leer.
 

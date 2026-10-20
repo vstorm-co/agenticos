@@ -867,10 +867,18 @@ class TestPublishingBindings:
         with pytest.raises(BadRequestError) as refused:
             await world.publish("# v2", run_person=world.owner.id, media_type=MARKDOWN)
 
-        assert (
-            refused.value.message == "Bindings need an HTML page; a Markdown page runs no scripts."
+        assert refused.value.message.startswith(
+            "Bindings need an HTML page; a Markdown page runs no scripts."
         )
+        assert "pass `bindings: {}` to drop them" in refused.value.message
         assert await _versions(db, first.artifact_id) == [1]
+
+        # Doing what the refusal says publishes the Markdown page, unbound.
+        dropped = await world.publish(
+            "# v2", run_person=world.owner.id, media_type=MARKDOWN, bindings={}
+        )
+        assert dropped.bindings == {}
+        assert await _versions(db, first.artifact_id) == [1, 2]
 
     async def test_a_markdown_page_with_new_bindings_is_refused(
         self, db: AsyncSession, storage: LocalFileStorage

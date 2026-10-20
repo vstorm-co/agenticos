@@ -1,5 +1,5 @@
 ---
-source_sha: "72c9b49ab9c2"
+source_sha: "c7261314b422"
 ---
 
 # Konfiguracja { #configuration }
@@ -726,6 +726,12 @@ podpisuje na nim adresy treści, a frontend dodaje jego ścieżkę treści,
 Ustaw je w środowisku backendu i w środowisku frontendu; pliki compose przekazują
 je obu. Wartość tylko w jednym z nich daje pustą ramkę, bo przeglądarka odmawia
 załadowania strony z originu, na który konsola nie pozwoliła.
+
+**Gdy `ARTIFACT_ORIGIN` jest puste, `PUBLIC_API_URL` frontendu musi być dokładnie
+równe `PUBLIC_BASE_URL` backendu, łącznie ze ścieżką.** Backend podpisuje wtedy
+adresy treści na `PUBLIC_BASE_URL`, a `frame-src` konsoli wskazuje trasę treści pod
+`PUBLIC_API_URL`, więc `https://example.com/agenticos` po jednej stronie i
+`https://example.com` po drugiej to ta sama pusta ramka.
 
 ## Workspace'y agentów { #agent-workspaces }
 

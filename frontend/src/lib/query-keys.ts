@@ -601,3 +601,16 @@ export const qk = {
       ["tables", tableId, "views", kind ?? "all"] as const,
   },
 } as const;
+
+/**
+ * For invalidating `qk.artifacts.all()`: every artifact query except one
+ * artifact's open page - its signed address and its live data. A change that
+ * leaves the page as it is (a public link, its visibility) would otherwise mint
+ * the page again and blank it while it reloads.
+ */
+export function exceptOpenPage(artifactId: string | null) {
+  return ({ queryKey }: { queryKey: readonly unknown[] }): boolean => {
+    const [, id, kind] = queryKey;
+    return !(id === artifactId && (kind === "view" || kind === "data"));
+  };
+}
