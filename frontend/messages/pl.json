@@ -2310,6 +2310,14 @@
           "title": "Nic jeszcze nie narysowano",
           "description": "Poproś agenta z Wizualizacjami, żeby coś narysował - diagram, explainer, scenę 3D - a pojawi się tutaj."
         }
+      },
+      "background-jobs": {
+        "title": "Zadania w tle",
+        "description": "Co kolejka zadań zakończyła w ostatnich 24 godzinach i ile z tego zginęło.",
+        "empty": {
+          "title": "Jeszcze nic się nie zakończyło",
+          "description": "W ostatnich 24 godzinach nie zakończyło się żadne zadanie w tle."
+        }
       }
     },
     "edit": {
@@ -5018,7 +5026,33 @@
       "resumed": "Zadania tego rodzaju znów są pobierane.",
       "actionFailed": "Nie udało się.",
       "couldNotRead": "Nie udało się odczytać kolejki",
-      "couldNotReadBody": "Nie udało się pobrać zadań w tle. Baza danych może być niedostępna."
+      "couldNotReadBody": "Nie udało się pobrać zadań w tle. Baza danych może być niedostępna.",
+      "activity": "Aktywność",
+      "windowLabel": "Okres",
+      "window": {
+        "day": "24 godziny",
+        "week": "7 dni"
+      },
+      "finishedFigure": "Zakończone",
+      "finishedCaption": "{window, select, day {w ostatnich 24 godzinach} other {w ostatnich 7 dniach}}",
+      "deadFigure": "Martwe",
+      "deadShare": "{share} zakończonych",
+      "noneDead": "żadne",
+      "waitFigure": "Najdłużej czeka",
+      "waitCaption": "zadanie do wykonania, teraz",
+      "waitNone": "nic nie czeka",
+      "slowestFigure": "Najwolniejszy odbiór (p95)",
+      "byKind": "Według rodzaju",
+      "kindsCount": "{count, plural, =0 {brak rodzajów} one {1 rodzaj} few {# rodzaje} many {# rodzajów} other {# rodzaju}}",
+      "columns": {
+        "finished": "Zakończone",
+        "dead": "Martwe",
+        "run": "Czas p50 / p95",
+        "wait": "Czekanie p95"
+      },
+      "noActivity": "W tym okresie nic się nie zakończyło.",
+      "activityCouldNotBeRead": "Nie udało się odczytać aktywności.",
+      "perSlice": "{window, select, day {ok. {count} na godzinę} other {ok. {count} na sześć godzin}}"
     }
   },
   "profile": {

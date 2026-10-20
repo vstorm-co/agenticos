@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { ActivityCards } from "@/components/admin/background-jobs/activity-cards";
 import { JobCounts } from "@/components/admin/background-jobs/job-counts";
 import { JobsTable } from "@/components/admin/background-jobs/jobs-table";
 import { PausedKinds } from "@/components/admin/background-jobs/paused-kinds";
@@ -42,6 +43,7 @@ export default function BackgroundJobsPage() {
         resuming={resume.isPending ? (resume.variables ?? null) : null}
       />
       <JobCounts counts={counts} selected={status} onSelect={setStatus} />
+      <ActivityCards />
       <JobsTable status={status} pool={pool} onPool={setPool} />
       <WorkersAndSchedules workers={workers} schedules={schedules} />
     </div>

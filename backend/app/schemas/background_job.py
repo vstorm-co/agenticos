@@ -10,6 +10,7 @@ from app.db.models.background_job import JobStatus
 from app.schemas.base import BaseSchema
 
 JobPool = Literal["agent", "ingest", "system"]
+ActivityWindow = Literal["day", "week"]
 
 
 class BackgroundJobRead(BaseSchema):
@@ -78,6 +79,39 @@ class BackgroundJobsOverview(BaseSchema):
     kinds: list[BackgroundKindRead]
     workers: list[BackgroundWorkerRead]
     schedules: list[BackgroundScheduleRead]
+
+
+class FinishedBucketRead(BaseSchema):
+    start: datetime = Field(description="The start of the slice")
+    succeeded: int
+    dead: int
+    cancelled: int
+
+
+class KindActivityRead(BaseSchema):
+    kind: str
+    pool: str
+    finished: int = Field(description="Jobs of this kind that finished in the window")
+    dead: int
+    run_p50_seconds: float | None = Field(description="Median time from start to finish")
+    run_p95_seconds: float | None
+    wait_p95_seconds: float | None = Field(
+        description="How long a due job waited for a worker, at the 95th percentile"
+    )
+
+
+class BackgroundJobsActivity(BaseSchema):
+    """What the queue did over a day or a week: the page's charts."""
+
+    window: ActivityWindow
+    bucket_seconds: int = Field(description="The length of one slice: an hour, or six")
+    buckets: list[FinishedBucketRead] = Field(
+        description="Every slice of the window, oldest first, a quiet one at zero"
+    )
+    kinds: list[KindActivityRead] = Field(description="Busiest first")
+    oldest_wait_seconds: float | None = Field(
+        description="How long the longest-waiting due job has waited; null when none is"
+    )
 
 
 class PauseKind(BaseSchema):

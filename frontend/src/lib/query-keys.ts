@@ -584,6 +584,8 @@ export const qk = {
     // The deployment's job queue (#2219). One root, so a retry or a resume
     // refreshes the header's counts and every filtered page under it at once.
     backgroundJobs: () => ["admin", "background-jobs"] as const,
+    backgroundJobActivity: (window: string) =>
+      ["admin", "background-jobs", "activity", window] as const,
     backgroundJobList: (filters: { status?: string; pool?: string }) =>
       ["admin", "background-jobs", "list", filters] as const,
   },

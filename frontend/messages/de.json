@@ -2310,6 +2310,14 @@
           "title": "Noch nichts gezeichnet",
           "description": "Bitten Sie einen Agent mit Visuals, etwas zu zeichnen - ein Diagramm, eine Erklärung, eine 3D-Szene - und es erscheint hier."
         }
+      },
+      "background-jobs": {
+        "title": "Hintergrundjobs",
+        "description": "Was die Job-Warteschlange in den letzten 24 Stunden beendet hat und wie viel davon gestorben ist.",
+        "empty": {
+          "title": "Noch nichts beendet",
+          "description": "In den letzten 24 Stunden wurde kein Hintergrundjob beendet."
+        }
       }
     },
     "edit": {
@@ -5130,7 +5138,33 @@
       "resumed": "Jobs dieser Art werden wieder abgeholt.",
       "actionFailed": "Das hat nicht geklappt.",
       "couldNotRead": "Die Warteschlange konnte nicht gelesen werden",
-      "couldNotReadBody": "Die Hintergrund-Jobs konnten nicht abgerufen werden. Die Datenbank ist möglicherweise nicht erreichbar."
+      "couldNotReadBody": "Die Hintergrund-Jobs konnten nicht abgerufen werden. Die Datenbank ist möglicherweise nicht erreichbar.",
+      "activity": "Aktivität",
+      "windowLabel": "Zeitraum",
+      "window": {
+        "day": "24 Stunden",
+        "week": "7 Tage"
+      },
+      "finishedFigure": "Beendet",
+      "finishedCaption": "{window, select, day {in den letzten 24 Stunden} other {in den letzten 7 Tagen}}",
+      "deadFigure": "Tot",
+      "deadShare": "{share} der beendeten",
+      "noneDead": "keine",
+      "waitFigure": "Wartet am längsten",
+      "waitCaption": "ein fälliger Job, jetzt",
+      "waitNone": "nichts Fälliges wartet",
+      "slowestFigure": "Langsamste Abholung (p95)",
+      "byKind": "Nach Art",
+      "kindsCount": "{count, plural, =0 {keine Arten} =1 {1 Art} other {# Arten}}",
+      "columns": {
+        "finished": "Beendet",
+        "dead": "Tot",
+        "run": "Laufzeit p50 / p95",
+        "wait": "Wartezeit p95"
+      },
+      "noActivity": "In diesem Zeitraum wurde nichts beendet.",
+      "activityCouldNotBeRead": "Die Aktivität konnte nicht gelesen werden.",
+      "perSlice": "{window, select, day {etwa {count} pro Stunde} other {etwa {count} alle sechs Stunden}}"
     }
   },
   "profile": {

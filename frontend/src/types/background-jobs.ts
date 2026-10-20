@@ -73,6 +73,34 @@ export interface BackgroundJobsOverview {
   schedules: BackgroundSchedule[];
 }
 
+/** The span the page charts: a day in hourly slices, or a week in six-hour ones. */
+export type ActivityWindow = "day" | "week";
+
+export interface FinishedBucket {
+  start: string;
+  succeeded: number;
+  dead: number;
+  cancelled: number;
+}
+
+export interface KindActivity {
+  kind: string;
+  pool: JobPool;
+  finished: number;
+  dead: number;
+  run_p50_seconds: number | null;
+  run_p95_seconds: number | null;
+  wait_p95_seconds: number | null;
+}
+
+export interface BackgroundJobsActivity {
+  window: ActivityWindow;
+  bucket_seconds: number;
+  buckets: FinishedBucket[];
+  kinds: KindActivity[];
+  oldest_wait_seconds: number | null;
+}
+
 export interface BackgroundJobFilters {
   status?: JobStatus;
   pool?: JobPool;

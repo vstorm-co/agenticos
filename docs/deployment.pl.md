@@ -1,5 +1,5 @@
 ---
-source_sha: "cbe651025f7e"
+source_sha: "89b7d96c3c15"
 ---
 
 # Samo wdrożenie { #the-deployment-itself }
@@ -565,6 +565,14 @@ każdym stanie, wskazuje każdy wstrzymany rodzaj i powód, wymienia żyjące wo
 i najbliższy termin każdego harmonogramu. Pod nim są zadania, od najnowszych,
 filtrowane po stanie i puli, każde z liczbą prób i błędem, na którym ostatnio się
 skończyło.
+
+Pod licznikami **Activity** pokazuje na wykresie, co zakończyło się w
+ostatnich 24 godzinach albo 7 dniach, z podziałem na to, jak się skończyło, a
+obok najdłuższe czekanie zadania, które jest już do wykonania. **By kind**
+podaje dla każdego rodzaju liczbę zadań, liczbę martwych, czas wykonania w
+medianie i 95. percentylu oraz to, jak długo jego zadania czekały na workera:
+rosnące czekanie mówi, że pula potrzebuje więcej workerów. Dashboard wdrożenia
+pokazuje ten sam dzień jako kartę.
 
 Trzy akcje, każda zapisywana w audycie z tym, kto ją wykonał:
 

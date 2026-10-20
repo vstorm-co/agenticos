@@ -384,6 +384,7 @@ const DEPLOYMENT_SECTIONS: SectionDef[] = [
     entries: [
       { widget: "platform", span: "s6", rows: "r2" },
       { widget: "health", span: "s6", rows: "r2" },
+      { widget: "background-jobs", span: "s12", rows: "r3" },
       { widget: "top-orgs", span: "s6", rows: "r3" },
       { widget: "platform-ratings", span: "s6", rows: "r3" },
     ],

@@ -1,5 +1,5 @@
 ---
-source_sha: "cbe651025f7e"
+source_sha: "89b7d96c3c15"
 ---
 
 # Das Deployment selbst { #the-deployment-itself }
@@ -604,6 +604,14 @@ abgewiesen. Der Kopf zählt die Jobs in jedem Zustand, nennt jede pausierte Art
 und den Grund, listet die lebenden Worker und den nächsten Termin jedes
 Zeitplans. Darunter stehen die Jobs, neueste zuerst, gefiltert nach Zustand und
 Pool, jeder mit seinen Versuchen und dem Fehler, mit dem er zuletzt endete.
+
+Unter den Zählern zeigt **Activity** als Diagramm, was in den letzten 24
+Stunden oder 7 Tagen beendet wurde, gestapelt danach, wie es endete, daneben
+die längste Wartezeit eines jetzt fälligen Jobs. **By kind** nennt für jede
+Art die Menge, die Toten, die Laufzeit im Median und im 95. Perzentil und wie
+lange ihre Jobs auf einen Worker warteten: Eine wachsende Wartezeit sagt, dass
+einem Pool Worker fehlen. Das Dashboard des Deployments zeigt denselben Tag als
+Karte.
 
 Drei Aktionen, jede mit dem Handelnden auditiert:
 

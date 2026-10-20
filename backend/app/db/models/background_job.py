@@ -130,6 +130,12 @@ class BackgroundJob(Base, TimestampMixin):
             "schedule_name",
             postgresql_where=sa_text("status IN ('queued', 'running')"),
         ),
+        # What finished in a window: the page's charts and the retention sweep.
+        Index(
+            "background_jobs_finished_idx",
+            "finished_at",
+            postgresql_where=sa_text("finished_at IS NOT NULL"),
+        ),
     )
 
     def __repr__(self) -> str:

@@ -532,6 +532,13 @@ alive and the next time each schedule fires. Below it the jobs, newest first,
 filtered by state and pool, each with its attempts and the error it last ended
 on.
 
+Under the counts, **Activity** charts what finished over the last 24 hours
+or 7 days, stacked by how it ended, beside the longest wait of a job that is
+due now. **By kind** gives each kind's volume, its deaths, its run time at the
+median and 95th percentile, and how long its jobs waited for a worker: a wait
+that grows says a pool needs more workers. The deployment's dashboard carries
+the same day as a card.
+
 Three actions, each audited with who took it:
 
 - **Retry** gives a dead job a fresh set of attempts.

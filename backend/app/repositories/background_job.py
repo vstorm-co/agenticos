@@ -530,6 +530,100 @@ async def count_by_status(db: AsyncSession) -> dict[JobStatus, int]:
     return {status: found.get(status, 0) for status in JOB_STATUSES}
 
 
+@dataclass(frozen=True)
+class FinishedBucket:
+    """How many jobs finished each way in one slice of time."""
+
+    start: datetime
+    succeeded: int
+    dead: int
+    cancelled: int
+
+
+@dataclass(frozen=True)
+class KindActivity:
+    """One kind's finished jobs in a window, and how long they ran and waited."""
+
+    kind: str
+    pool: str
+    finished: int
+    dead: int
+    run_p50_seconds: float | None
+    run_p95_seconds: float | None
+    wait_p95_seconds: float | None
+
+
+async def finished_by_bucket(
+    db: AsyncSession, *, since: datetime, bucket: timedelta
+) -> list[FinishedBucket]:
+    """Jobs finished since `since`, counted per `bucket` from it; slices with none are absent."""
+    start = func.date_bin(bucket, BackgroundJob.finished_at, since).label("start")
+    result = await db.execute(
+        select(
+            start,
+            func.count().filter(BackgroundJob.status == "succeeded"),
+            func.count().filter(BackgroundJob.status == "dead"),
+            func.count().filter(BackgroundJob.status == "cancelled"),
+        )
+        .where(BackgroundJob.finished_at >= since)
+        .group_by(start)
+        .order_by(start)
+    )
+    return [
+        FinishedBucket(start=at, succeeded=succeeded, dead=dead, cancelled=cancelled)
+        for at, succeeded, dead, cancelled in result.tuples().all()
+    ]
+
+
+async def activity_by_kind(db: AsyncSession, *, since: datetime) -> list[KindActivity]:
+    """Each kind that finished a job since `since`, busiest first.
+
+    Run time is `started_at` to `finished_at`, and wait is `run_after` to
+    `started_at` - how long a due job sat before a worker took it, which is the
+    figure that says the pool is short of workers. A cancelled job that never
+    started has neither, and the percentiles leave it out.
+    """
+    run = func.extract("epoch", BackgroundJob.finished_at - BackgroundJob.started_at)
+    wait = func.extract("epoch", BackgroundJob.started_at - BackgroundJob.run_after)
+    finished = func.count().label("finished")
+    result = await db.execute(
+        select(
+            BackgroundJob.kind,
+            func.min(BackgroundJob.pool),
+            finished,
+            func.count().filter(BackgroundJob.status == "dead"),
+            func.percentile_cont(0.5).within_group(run),
+            func.percentile_cont(0.95).within_group(run),
+            func.percentile_cont(0.95).within_group(wait),
+        )
+        .where(BackgroundJob.finished_at >= since)
+        .group_by(BackgroundJob.kind)
+        .order_by(finished.desc(), BackgroundJob.kind)
+    )
+    return [
+        KindActivity(
+            kind=kind,
+            pool=pool,
+            finished=count,
+            dead=dead,
+            run_p50_seconds=p50,
+            run_p95_seconds=p95,
+            wait_p95_seconds=waited,
+        )
+        for kind, pool, count, dead, p50, p95, waited in result.tuples().all()
+    ]
+
+
+async def oldest_due_since(db: AsyncSession, *, now: datetime) -> datetime | None:
+    """When the longest-waiting due job became due, or `None` when nothing is waiting."""
+    result = await db.execute(
+        select(func.min(BackgroundJob.run_after)).where(
+            BackgroundJob.status == "queued", BackgroundJob.run_after <= now
+        )
+    )
+    return result.scalar_one()
+
+
 async def queued_with_key(db: AsyncSession, dedupe_key: str) -> bool:
     """Whether a queued job holds `dedupe_key` - which a requeued copy would collide with."""
     result = await db.execute(

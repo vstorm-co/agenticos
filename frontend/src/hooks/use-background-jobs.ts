@@ -8,9 +8,11 @@ import { apiClient } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 import type {
+  ActivityWindow,
   BackgroundJob,
   BackgroundJobFilters,
   BackgroundJobPage,
+  BackgroundJobsActivity,
   BackgroundJobsOverview,
   BackgroundKind,
 } from "@/types/background-jobs";
@@ -31,6 +33,19 @@ export function useBackgroundJobsOverview() {
     queryKey: qk.admin.backgroundJobs(),
     queryFn: () => apiClient.get<BackgroundJobsOverview>(BASE),
     refetchInterval: OVERVIEW_REFRESH_MS,
+  });
+}
+
+/**
+ * What finished over a day or a week, by kind, and the longest wait now. A minute
+ * between reads: the slices are an hour wide at the finest.
+ */
+export function useBackgroundJobsActivity(window: ActivityWindow) {
+  return useQuery({
+    queryKey: qk.admin.backgroundJobActivity(window),
+    queryFn: () =>
+      apiClient.get<BackgroundJobsActivity>(`${BASE}/activity`, { params: { window } }),
+    refetchInterval: 60_000,
   });
 }
 

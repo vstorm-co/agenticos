@@ -14,8 +14,10 @@ from fastapi import APIRouter, Query
 from app.api.deps import BackgroundJobSvc, CurrentAppAdmin
 from app.db.models.background_job import JobStatus
 from app.schemas.background_job import (
+    ActivityWindow,
     BackgroundJobList,
     BackgroundJobRead,
+    BackgroundJobsActivity,
     BackgroundJobsOverview,
     BackgroundKindRead,
     JobPool,
@@ -29,6 +31,14 @@ router = APIRouter()
 async def background_jobs_overview(service: BackgroundJobSvc, _: CurrentAppAdmin) -> Any:
     """How many jobs are in each state, which kinds are paused, who is alive, what is scheduled."""
     return await service.overview()
+
+
+@router.get("/activity", response_model=BackgroundJobsActivity)
+async def background_jobs_activity(
+    service: BackgroundJobSvc, _: CurrentAppAdmin, window: ActivityWindow = "day"
+) -> Any:
+    """What finished over the last day (hourly) or week (six-hourly), by kind, and the wait now."""
+    return await service.activity(window)
 
 
 @router.get("/jobs", response_model=BackgroundJobList)

@@ -25,14 +25,18 @@ from app.repositories import background_schedule as background_schedule_repo
 from app.repositories import background_task_kind as background_task_kind_repo
 from app.repositories import background_worker as background_worker_repo
 from app.schemas.background_job import (
+    ActivityWindow,
     BackgroundJobList,
     BackgroundJobRead,
+    BackgroundJobsActivity,
     BackgroundJobsOverview,
     BackgroundKindRead,
     BackgroundScheduleRead,
     BackgroundWorkerRead,
+    FinishedBucketRead,
     JobPool,
     JobStatus,
+    KindActivityRead,
 )
 from app.worker.jobs import TASKS, Payload, Priority, Task
 
@@ -91,6 +95,11 @@ async def tell_owners_paused(db: AsyncSession, kind: str, reason: str) -> None:
 
 _PAGE_LIMIT = 200
 _WORKER_SILENT_AFTER = timedelta(minutes=2)
+# A window and the slice it is charted in: 24 hours, or 28 six-hour slices.
+_WINDOWS: dict[ActivityWindow, tuple[timedelta, int]] = {
+    "day": (timedelta(hours=1), 24),
+    "week": (timedelta(hours=6), 28),
+}
 
 
 class BackgroundJobService:
@@ -120,6 +129,45 @@ class BackgroundJobService:
                 BackgroundScheduleRead.model_validate(schedule)
                 for schedule in await background_schedule_repo.list_all(self.db)
             ],
+        )
+
+    async def activity(self, window: ActivityWindow) -> BackgroundJobsActivity:
+        """What finished in the last day or week, sliced, by kind, and what waits now."""
+        bucket, slices = _WINDOWS[window]
+        now = datetime.now(UTC)
+        # Slices start on the hour, so the chart's columns do not shift with every
+        # read; the last one is the slice now is in.
+        epoch = datetime(2000, 1, 1, tzinfo=UTC)
+        current = epoch + (now - epoch) // bucket * bucket
+        since = current - (slices - 1) * bucket
+        found = {
+            row.start: row
+            for row in await background_job_repo.finished_by_bucket(
+                self.db, since=since, bucket=bucket
+            )
+        }
+        buckets = []
+        for index in range(slices):
+            start = since + index * bucket
+            row = found.get(start)
+            buckets.append(
+                FinishedBucketRead(
+                    start=start,
+                    succeeded=row.succeeded if row else 0,
+                    dead=row.dead if row else 0,
+                    cancelled=row.cancelled if row else 0,
+                )
+            )
+        oldest = await background_job_repo.oldest_due_since(self.db, now=now)
+        return BackgroundJobsActivity(
+            window=window,
+            bucket_seconds=int(bucket.total_seconds()),
+            buckets=buckets,
+            kinds=[
+                KindActivityRead.model_validate(row, from_attributes=True)
+                for row in await background_job_repo.activity_by_kind(self.db, since=since)
+            ],
+            oldest_wait_seconds=None if oldest is None else (now - oldest).total_seconds(),
         )
 
     async def list_jobs(

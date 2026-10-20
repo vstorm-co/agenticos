@@ -19,6 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **The Background jobs page charts what the queue did.** What finished over
+  the last 24 hours or 7 days, stacked by how it ended; the longest wait of a
+  job that is due now; and, per kind, its volume, deaths, run time at the median
+  and 95th percentile, and how long its jobs waited for a worker
+  (`GET /admin/background-jobs/activity`). The deployment's dashboard has the
+  same day as a card. Migration `0148_job_finished_idx` indexes when a job
+  finished, which the charts and the retention sweep both read.
 - **A sync source can be edited from its knowledge base.** The pencil on a
   row of the **Sync** tab opens the connect wizard filled in from the source,
   with its connector fixed, and saves only the fields that changed: renaming

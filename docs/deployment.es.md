@@ -1,5 +1,5 @@
 ---
-source_sha: "cbe651025f7e"
+source_sha: "89b7d96c3c15"
 ---
 
 # El despliegue en sí { #the-deployment-itself }
@@ -573,6 +573,13 @@ cabecera cuenta los jobs en cada estado, nombra cada tipo pausado y el motivo,
 lista los workers vivos y la próxima vez que se dispara cada programación.
 Debajo están los jobs, del más reciente al más antiguo, filtrados por estado y
 pool, cada uno con sus intentos y el error con el que terminó por última vez.
+
+Bajo los contadores, **Activity** representa lo que terminó en las últimas
+24 horas o los últimos 7 días, apilado según cómo acabó, junto a la espera más
+larga de un job que ya toca ejecutar. **By kind** da para cada tipo su volumen,
+sus muertes, su tiempo de ejecución en la mediana y el percentil 95, y cuánto
+esperaron sus jobs a un worker: una espera que crece dice que a un pool le
+faltan workers. El panel del despliegue muestra el mismo día como tarjeta.
 
 Tres acciones, cada una auditada con quién la hizo:
 

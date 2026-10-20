@@ -2310,6 +2310,14 @@
           "title": "Nothing drawn yet",
           "description": "Ask an agent with Visuals to draw something - a diagram, an explainer, a 3D scene - and it appears here."
         }
+      },
+      "background-jobs": {
+        "title": "Background jobs",
+        "description": "What the job queue finished in the last 24 hours, and how much of it died.",
+        "empty": {
+          "title": "Nothing finished yet",
+          "description": "No background job has finished in the last 24 hours."
+        }
       }
     },
     "edit": {
@@ -5248,7 +5256,33 @@
       "resumed": "Jobs of this kind are claimed again.",
       "actionFailed": "That did not go through.",
       "couldNotRead": "Couldn't read the queue",
-      "couldNotReadBody": "The background jobs could not be fetched. The database may be unreachable."
+      "couldNotReadBody": "The background jobs could not be fetched. The database may be unreachable.",
+      "activity": "Activity",
+      "windowLabel": "Window",
+      "window": {
+        "day": "24 hours",
+        "week": "7 days"
+      },
+      "finishedFigure": "Finished",
+      "finishedCaption": "{window, select, day {in the last 24 hours} other {in the last 7 days}}",
+      "deadFigure": "Dead",
+      "deadShare": "{share} of finished",
+      "noneDead": "none",
+      "waitFigure": "Waiting longest",
+      "waitCaption": "a due job, now",
+      "waitNone": "nothing due is waiting",
+      "slowestFigure": "Slowest pickup (p95)",
+      "byKind": "By kind",
+      "kindsCount": "{count, plural, =0 {no kinds} =1 {1 kind} other {# kinds}}",
+      "columns": {
+        "finished": "Finished",
+        "dead": "Dead",
+        "run": "Run p50 / p95",
+        "wait": "Wait p95"
+      },
+      "noActivity": "Nothing finished in this window.",
+      "activityCouldNotBeRead": "The activity could not be read.",
+      "perSlice": "{window, select, day {about {count} an hour} other {about {count} every six hours}}"
     }
   },
   "profile": {
