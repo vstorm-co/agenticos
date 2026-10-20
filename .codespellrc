@@ -29,13 +29,15 @@
 #              Starlette's own spelling: `Convertor`, `register_url_convertor`
 #              and the `convertors` module are the API a custom path segment
 #              (`_path_convertors.py`) has to subclass and call.
+#   afterall   Playwright's `test.afterAll` hook, which the e2e specs that
+#              create their own rows tear them down in.
 #   ist, sie, unter, referenz, plattform
 #              German, for the same reason as the Polish entries above. The
 #              site's navigation is translated in `mkdocs.yml` and the notice a
 #              reader gets on an untranslated page is written out in
 #              `scripts/mkdocs_hooks.py`; both files are otherwise English prose
 #              worth checking, so the words are ignored rather than the files.
-ignore-words-list = dependant,nam,adres,ue,couldn,re-use,re-declaring,selectin,ans,oraz,jest,informacji,falied,instrucitons,convertor,convertors,ist,sie,unter,referenz,plattform
+ignore-words-list = dependant,nam,adres,ue,couldn,re-use,re-declaring,selectin,ans,oraz,jest,informacji,falied,instrucitons,convertor,convertors,afterall,ist,sie,unter,referenz,plattform
 
 # Lockfiles, generated code, uploaded media, the third-party licence texts and
 # the translated message catalogs and documentation pages are not English prose.
