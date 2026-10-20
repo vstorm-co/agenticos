@@ -2140,7 +2140,7 @@
         "title": "Spend",
         "unit": "in this period",
         "description": "What the period cost, and this calendar month to date. The month figure reconciles with the invoice, so it deliberately ignores the period filter.",
-        "split": "{models} on models{evals, select, none {} other { · {evals} on evals}}{ingestion, select, none {} other { · {ingestion} on indexing}}",
+        "split": "{models} on models{evals, select, none {} other { · {evals} on evals}}{improving, select, none {} other { · {improving} on improvements}}{ingestion, select, none {} other { · {ingestion} on indexing}}",
         "spentLabel": "{amount} spent"
       },
       "surfaces": {
@@ -2391,6 +2391,16 @@
           "title": "Nothing drawn yet",
           "description": "Ask an agent with Visuals to draw something - a diagram, an explainer, a 3D scene - and it appears here."
         }
+      },
+      "suggestions": {
+        "title": "Suggestions waiting",
+        "description": "What the authoring assistant suggested for your agents and skills, waiting on your decision.",
+        "empty": {
+          "title": "Nothing waiting",
+          "description": "Ask the assistant to improve an agent from its Build tab."
+        },
+        "counts": "{instructions, plural, =0 {} =1 {1 instruction change} other {# instruction changes}}{tools, plural, =0 {} other { · {tools, plural, =1 {1 tool change} other {# tool changes}}}}",
+        "skills": "{count, plural, =1 {1 skill change} other {# skill changes}} to review"
       }
     },
     "edit": {
@@ -4206,6 +4216,10 @@
       "chat-visual": {
         "title": "Drawings",
         "body": "An agent with Visuals draws diagrams, explainers and 3D scenes here, live while it writes them. Open one full screen, download it, ask about it, or save it as an app with a link you can share."
+      },
+      "agent-assistant-strip": {
+        "title": "The authoring assistant",
+        "body": "Ask it to improve the agent from rated-down answers, or to check your own edits. Each suggestion waits for you to accept it into the draft."
       }
     },
     "chooseLanguage": "Language"
@@ -5890,7 +5904,8 @@
     },
     "moreFiles": "{count, plural, =1 {+1 file} other {+# files}}",
     "bodyPlaceholder": "# Refunds\n\nUse this when a customer asks for their money back.\n\n## Steps\n\n1. Check the order date.\n2. Within 14 days, refund without asking.\n3. After that, ask a person to approve it.",
-    "whoCanUseIt": "Who can use it"
+    "whoCanUseIt": "Who can use it",
+    "expectedEffect": "Expected effect:"
   },
   "states": {
     "loading": "Loading"
@@ -8386,7 +8401,9 @@
     "noAccess": {
       "title": "You can't open this eval run",
       "body": "Reading eval runs needs permission to view runs, and access to the agent and the dataset. Ask an admin of the organization."
-    }
+    },
+    "excludedEvidence": "{count, plural, =1 {1 case was} other {# cases were}} left out: taken from the conversations the checked change was derived from.",
+    "backToSuggestions": "Back to the suggestions"
   },
   "remoteAgents": {
     "title": "Remote agents",
@@ -8500,5 +8517,102 @@
     "noFilesYet": "Nothing in this project yet",
     "noFilesHint": "Drop files or a whole folder here, or upload them. Every chat in the project reads and works in them.",
     "noFilesViewer": "Files added to the project will appear here."
+  },
+  "authoring": {
+    "strip": {
+      "title": "Authoring assistant",
+      "chip": "{count, plural, =1 {1 suggestion} other {# suggestions}} · from {ratedDown, plural, =1 {1 rated-down answer} other {# rated-down answers}} across {runs, plural, =1 {1 run} other {# runs}}",
+      "working": "Reading the runs…",
+      "improve": "Improve",
+      "verify": "Verify my edits",
+      "check": "Check with evals",
+      "dismissAll": "Dismiss all",
+      "empty": "The assistant reads what people rated down and how runs ended, and suggests changes to the instructions and tool descriptions. Nothing changes until you accept it, and nothing goes live until you publish.",
+      "verifyReport": "What the assistant made of your edits"
+    },
+    "suggestion": {
+      "tool": "Tool {tool}",
+      "instructions": "Instructions",
+      "fromVerify": "From verifying your edits",
+      "status": {
+        "accepted": "Accepted into the draft",
+        "dismissed": "Dismissed"
+      },
+      "stale": "No longer fits the draft",
+      "editLabel": "Your wording of the suggestion",
+      "saveAndAccept": "Save and accept",
+      "cancel": "Cancel",
+      "accept": "Accept",
+      "edit": "Edit",
+      "dismiss": "Dismiss",
+      "undo": "Undo"
+    },
+    "evidence": {
+      "none": "No evidence that could be checked.",
+      "run": "run {id}",
+      "dropped": "{count, plural, =1 {1 cited item} other {# cited items}} could not be found in the runs and {count, plural, =1 {was} other {were}} left out."
+    },
+    "batch": {
+      "closed": {
+        "superseded": "A newer request replaced these suggestions. They are kept as a record.",
+        "published": "These suggestions were decided into a version that is now published."
+      },
+      "expected": "Expected effect:",
+      "checks": "Checked with evals:",
+      "checkRun": "run {index}"
+    },
+    "verify": {
+      "nothing": "The assistant found nothing to say about your edits.",
+      "verdict": {
+        "supports": "Supported by the evidence",
+        "risk": "A risk",
+        "removed": "Removed something the evidence relied on"
+      }
+    },
+    "improve": {
+      "improve": {
+        "title": "Improve this agent",
+        "body": "The assistant reads the last 30 days of rated and failed runs - never eval runs - and suggests changes. You decide each one."
+      },
+      "verify": {
+        "title": "Verify your edits",
+        "body": "The assistant compares your draft with the published version against the same evidence: what the edits improve, risk or remove."
+      },
+      "quote": "It will read {runs, plural, =1 {1 run} other {# runs}}, {ratedDown} rated down, in {calls, plural, =1 {1 call} other {# calls}}, for about {cost}.",
+      "reason": {
+        "no_evidence": "Nothing to learn from yet: no run in the last 30 days was rated or failed.",
+        "no_draft_change": "The draft is the same as the published version, so there is nothing to verify."
+      },
+      "overBudget": "That is more than the assistant's monthly budget or the organization's has left.",
+      "cancel": "Cancel",
+      "start": "Start"
+    },
+    "check": {
+      "title": "Check with evals",
+      "body": "Runs a dataset against the draft as it would be with every waiting suggestion, beside the published version. Cases taken from the conversations behind the suggestions are left out. Nothing is accepted by checking.",
+      "agent": "Agent that uses the skill",
+      "agentPlaceholder": "Pick an agent",
+      "dataset": "Dataset",
+      "datasetPlaceholder": "Pick a dataset",
+      "cancel": "Cancel",
+      "start": "Start the check"
+    },
+    "aiOff": {
+      "body": "AI assistance is off for this organization, so the assistant cannot run.",
+      "enable": "Turn it on",
+      "askAdmin": "Ask an admin to turn it on."
+    },
+    "skill": {
+      "improve": "Improve with the assistant",
+      "working": "Reading the runs…",
+      "aiOff": "AI assistance is off for this organization",
+      "check": "Check with evals"
+    },
+    "describe": {
+      "label": "Or describe it, and {name} drafts it with you",
+      "placeholder": "A support agent that answers refund questions from our policy and hands angry customers to a person.",
+      "send": "Describe it to the Architect",
+      "prompt": "Draft an agent for me: {description}"
+    }
   }
 }

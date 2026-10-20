@@ -57,6 +57,7 @@ export default defineConfig({
         "src/stores/**",
         "src/hooks/**",
         "src/components/agents/**/*.{ts,tsx}",
+        "src/components/authoring/**/*.tsx",
         // The sandbox cards only, not the whole widget directory: the twenty-seven
         // cards #149 added are outside the gate, and pulling them in with a
         // directory glob would make this branch responsible for covering them.
@@ -77,6 +78,7 @@ export default defineConfig({
         "src/components/dashboard/widgets/datasets.tsx",
         "src/components/dashboard/widgets/review-queue.tsx",
         "src/components/dashboard/widgets/eval-runs.tsx",
+        "src/components/dashboard/widgets/suggestions.tsx",
         "src/components/evals/**/*.{ts,tsx}",
         "src/components/datasets/**/*.{ts,tsx}",
         "src/components/dashboard/widgets/projects.tsx",

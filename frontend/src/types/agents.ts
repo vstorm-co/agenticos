@@ -410,7 +410,7 @@ export interface Agent {
    * `judge` for an agent grading evals: only the platform runs it, so it has no
    * chat, channels or delegation, and the console lists it apart.
    */
-  kind?: "agent" | "judge";
+  kind?: "agent" | "judge" | "improver";
   /** Whether `/api/agents/{id}/avatar` will answer with an image. */
   has_avatar?: boolean;
   /** Chosen default-avatar colour slot (1..10); null/absent is auto from the id. */

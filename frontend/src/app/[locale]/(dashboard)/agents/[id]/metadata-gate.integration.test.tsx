@@ -119,6 +119,7 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 // The heavy children the build view mounts, each reaching for its own data.
 // Stubbed to nothing: this test is about the page's gate, not their internals.
 vi.mock("@/components/agents/publish-state", () => ({ PublishState: () => null }));
+vi.mock("@/components/authoring/assistant-strip", () => ({ AssistantStrip: () => null }));
 vi.mock("@/components/agents/stale-references", () => ({ StaleReferences: () => null }));
 vi.mock("@/components/agents/model-profile-picker", () => ({ ModelProfilePicker: () => null }));
 vi.mock("@/components/agents/model-settings-form", () => ({ ModelSettingsForm: () => null }));

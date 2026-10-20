@@ -136,6 +136,7 @@ vi.mock("@/stores", () => ({
 // lives; mounted here they only make the page slower and this spec's failures
 // harder to read.
 vi.mock("@/components/agents/agent-avatar", () => ({ AgentAvatar: () => null }));
+vi.mock("@/components/authoring/assistant-strip", () => ({ AssistantStrip: () => null }));
 vi.mock("@/components/agents/model-settings-form", () => ({ ModelSettingsForm: () => null }));
 vi.mock("@/components/agents/thinking-setting", () => ({ ThinkingSetting: () => null }));
 vi.mock("@/components/ui/markdown-editor", () => ({

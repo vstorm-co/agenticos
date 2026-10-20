@@ -44,6 +44,7 @@ import { InstructionsEditor } from "@/components/agents/instructions-editor";
 import { PromptVariablesPanel } from "@/components/agents/prompt-variables-panel";
 import { insertVariable } from "@/lib/variable-completion";
 import { useRemoteDraft } from "@/hooks/use-remote-draft";
+import { AssistantStrip } from "@/components/authoring/assistant-strip";
 import { AlertsPanel } from "@/components/agents/alerts-panel";
 import { LoopGuardFields } from "@/components/agents/loop-guard-fields";
 import { ReviewersCard } from "@/components/agents/reviewers-card";
@@ -1382,6 +1383,15 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </TabsList>
 
           <TabsContent value="build" className="mt-6 space-y-6">
+            {canEdit && (agent.kind ?? "agent") === "agent" && (
+              <AssistantStrip
+                agentId={id}
+                currentVersionId={agent.current_version_id}
+                storedDraft={agent.draft_spec}
+                persist={persist}
+                onDraft={setSpec}
+              />
+            )}
             <Card data-tour="agent-instructions">
               <CardHeader
                 data-tour="agent-instructions-header"

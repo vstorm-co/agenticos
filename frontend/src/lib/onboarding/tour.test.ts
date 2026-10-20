@@ -37,6 +37,7 @@ const UNGATED_LAUNCH = [
 // Every builder stop, in the order the "?" walks them. The launch pass takes a
 // subset of these (instructions, tools, publish).
 const BUILDER_STEPS = [
+  "agent-assistant-strip",
   "agent-instructions",
   "agent-model",
   "agent-identity",
@@ -258,7 +259,14 @@ describe("stepsForPage", () => {
       stepsForPage(ROUTES.AGENTS, (permission) => permission === Perm.agentsEdit).map(
         (step) => step.id,
       ),
-    ).toEqual(["agents-templates", "agents-new", "agents-filters", "agents-judges", "agent-test"]);
+    ).toEqual([
+      "agents-templates",
+      "agents-new",
+      "agents-filters",
+      "agents-judges",
+      "agent-assistant-strip",
+      "agent-test",
+    ]);
   });
 
   it("hands the builder walk to anyone who may view an agent", () => {
@@ -268,10 +276,11 @@ describe("stepsForPage", () => {
       ),
     ).toEqual(
       // agents:publish publishes and manages an environment's test connections;
-      // trying the agent beside the Builder takes agents:edit; the Evals tab and
-      // testing the draft are runs:view.
+      // trying the agent beside the Builder and asking the assistant take
+      // agents:edit; the Evals tab and testing the draft are runs:view.
       BUILDER_STEPS.filter(
         (id) =>
+          id !== "agent-assistant-strip" &&
           id !== "agent-publish" &&
           id !== "agent-test-connections" &&
           id !== "agent-test" &&

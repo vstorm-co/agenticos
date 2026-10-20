@@ -67,10 +67,16 @@ export function SpendWidget({ title, hint, period, seeAll, options }: DashboardW
                 // headline rather than joining them - two denominators in one
                 // list read as one.
                 caption={
-                  Number(cost?.ingestion_usd ?? 0) > 0 || Number(cost?.eval_usd ?? 0) > 0
+                  Number(cost?.ingestion_usd ?? 0) > 0 ||
+                  Number(cost?.eval_usd ?? 0) > 0 ||
+                  Number(cost?.authoring_usd ?? 0) > 0
                     ? t("split", {
                         models: formatUsd(cost?.model_usd),
                         evals: Number(cost?.eval_usd ?? 0) > 0 ? formatUsd(cost?.eval_usd) : "none",
+                        improving:
+                          Number(cost?.authoring_usd ?? 0) > 0
+                            ? formatUsd(cost?.authoring_usd)
+                            : "none",
                         ingestion:
                           Number(cost?.ingestion_usd ?? 0) > 0
                             ? formatUsd(cost?.ingestion_usd)

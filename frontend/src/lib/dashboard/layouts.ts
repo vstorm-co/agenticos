@@ -339,6 +339,8 @@ const ME_SECTIONS: SectionDef[] = [
       { widget: "review-queue", span: "s6", rows: "r3" },
       // How the agents fared on those datasets: the latest eval runs and their verdicts.
       { widget: "eval-runs", span: "s12", rows: "r3" },
+      // What the authoring assistant suggested for the reader's agents, waiting on a decision.
+      { widget: "suggestions", span: "s12", rows: "r2" },
       // What agents drew for them lately, as pictures: the one card here that is
       // something to look at rather than a list to read.
       { widget: "recent-visuals", span: "s12", rows: "r3" },

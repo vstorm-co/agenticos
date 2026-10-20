@@ -259,6 +259,26 @@ describe("EvalRunView", () => {
     expect(screen.getByRole("link", { name: "Publish" }).className).not.toContain("bg-primary");
   });
 
+  it("says which cases a check left out, and leads back to the suggestions it checked", () => {
+    state.run = {
+      ...(state.run as object),
+      run: evalRun({
+        excluded_case_ids: ["case-7", "case-8"],
+        arms: [arm({ source: "explicit" })],
+      }),
+    };
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(
+      screen.getByText(
+        "2 cases were left out: taken from the conversations the checked change was derived from.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Back to the suggestions" })).toHaveAttribute(
+      "href",
+      "/agents/agent-1?tab=build",
+    );
+  });
+
   it("says when the verdict could not be read, and reads it again", async () => {
     const refetch = vi.fn();
     state.refetchComparison = refetch;

@@ -31,6 +31,7 @@ import { useTranslations } from "next-intl";
 import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { MAX_AGENT_CATEGORIES, MAX_AGENT_TAGS } from "@/lib/agent-labels";
+import { DescribeWithArchitect } from "@/components/authoring/describe-with-architect";
 
 /** What the backend will accept, so a longer name is refused before it is sent. */
 const MAX_NAME = 128;
@@ -163,6 +164,7 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
             inside it. The side padding keeps a focus ring off the scroller's
             edge, where it would be sliced. */}
         <div className={cn(DIALOG_BODY, "space-y-4")}>
+          <DescribeWithArchitect onAsked={() => onOpenChange(false)} />
           <FormField
             label={t("name4")}
             htmlFor="agent-name"

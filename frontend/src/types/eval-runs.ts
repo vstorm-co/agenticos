@@ -159,6 +159,8 @@ export interface EvalRun {
   routing_error: { code: string; message: string } | null;
   /** This run's scores no scorer reached a verdict on and no person decided. */
   ungraded_score_ids: string[];
+  /** Cases left out because they come from the evidence of the proposal being checked. */
+  excluded_case_ids?: string[];
   /** On the single-run read of a run of the draft: whether the draft changed since. */
   draft_changed?: boolean | null;
   error: string | null;

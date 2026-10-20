@@ -138,6 +138,7 @@ vi.mock("@/hooks", async () => {
 vi.mock("@/hooks/use-eval-runs", () => ({ useEvalArmSpec: () => ({ spec: undefined }) }));
 vi.mock("@/components/evals/draft-eval-note", () => ({ DraftEvalNote: () => null }));
 vi.mock("@/components/evals/evals-panel", () => ({ EvalsPanel: () => null }));
+vi.mock("@/components/authoring/assistant-strip", () => ({ AssistantStrip: () => null }));
 vi.mock("@/components/evals/start-eval-dialog", () => ({ StartEvalDialog: () => null }));
 vi.mock("@/hooks/use-context", () => ({
   useContextFiles: () => ({ files: [], total: 0 }),

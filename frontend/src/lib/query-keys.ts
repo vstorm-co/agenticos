@@ -375,6 +375,12 @@ export const qk = {
     reviewQueue: (query: { skip: number; limit: number }) =>
       ["datasets", "review-queue", query] as const,
   },
+  authoring: {
+    all: () => ["authoring"] as const,
+    agent: (agentId: string) => ["authoring", "agent", agentId] as const,
+    skill: (skillId: string) => ["authoring", "skill", skillId] as const,
+    waiting: () => ["authoring", "waiting"] as const,
+  },
   evalRuns: {
     all: () => ["eval-runs"] as const,
     forAgent: (agentId: string, query: { skip: number; limit: number }) =>

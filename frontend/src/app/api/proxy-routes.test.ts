@@ -27,6 +27,7 @@ import * as channels from "./channels/[[...path]]/route";
 import * as context from "./context/[[...path]]/route";
 import * as conversations from "./conversations/[[...path]]/route";
 import * as datasets from "./datasets/[[...path]]/route";
+import * as authoring from "./authoring/[[...path]]/route";
 import * as evalRuns from "./eval-runs/[[...path]]/route";
 import * as externalAgents from "./external-agents/[[...path]]/route";
 import * as visuals from "./visuals/[[...path]]/route";
@@ -118,6 +119,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["conversations", conversations],
   ["datasets", datasets],
   ["eval-runs", evalRuns],
+  ["authoring", authoring],
   ["external-agents", externalAgents],
   ["visuals", visuals],
   ["kb", kb],

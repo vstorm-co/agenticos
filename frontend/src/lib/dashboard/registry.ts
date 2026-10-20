@@ -64,6 +64,7 @@ export type WidgetId =
   | "datasets"
   | "review-queue"
   | "eval-runs"
+  | "suggestions"
   | "projects"
   | "recent-visuals";
 
@@ -585,6 +586,15 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     gate: holds(Perm.runsView),
     defaultSpan: "s6",
     defaultRows: "r4",
+    category: "workspace",
+  },
+  // What the authoring assistant suggested and nobody decided, gated on what
+  // `GET /authoring/waiting` asks; it lists only agents the reader may edit.
+  suggestions: {
+    id: "suggestions",
+    gate: holds(Perm.agentsEdit),
+    defaultSpan: "s6",
+    defaultRows: "r3",
     category: "workspace",
   },
   // The reader's projects, most recently changed first - what `GET /projects`
