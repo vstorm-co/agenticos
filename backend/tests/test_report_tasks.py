@@ -216,3 +216,17 @@ class TestWindowStartIsIdempotentAcrossRetries:
         first = await self._captured_window_starts(occurrence)
         second = await self._captured_window_starts(occurrence)
         assert first == second == [datetime(2026, 3, 4, tzinfo=UTC)]
+
+
+def test_a_report_occurrence_is_retried_where_a_sweep_is_not() -> None:
+    """A sweep's next tick is the same work; the next report covers another window,
+    so a report lost to a deploy or an outage would never be sent (Codex, #2248)."""
+    from app.worker.jobs import (
+        CHECK_AGENT_TRIGGERS,
+        MONTHLY_USAGE_REPORT,
+        WEEKLY_USAGE_REPORT,
+    )
+
+    assert WEEKLY_USAGE_REPORT.max_attempts == 3
+    assert MONTHLY_USAGE_REPORT.max_attempts == 3
+    assert CHECK_AGENT_TRIGGERS.max_attempts == 1

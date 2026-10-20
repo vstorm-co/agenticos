@@ -104,25 +104,31 @@ class ApiRunService:
         await AgentRegistryService(self.db).get_runnable_spec(
             ctx, agent_id, environment_id=request.environment_id
         )
-        conversation_id, _history = await ConversationService(self.db).for_api_run(
-            ctx, request.conversation_id, prompt=request.prompt
-        )
-        attached = await load_attached_files(
-            self.db, [str(file_id) for file_id in request.file_ids], user_id=ctx.subject_id
-        )
-        payload = RunAgent(
-            agent_id=agent_id,
-            organization_id=ctx.organization_id,
-            user_id=ctx.subject_id,
-            api_key_id=ctx.api_key_id,
-            prompt=request.prompt,
-            conversation_id=conversation_id,
-            environment_id=request.environment_id,
-            file_ids=[file.id for file in attached],
-            digest=fingerprint,
-        )
         try:
+            # The conversation in the same savepoint as the job: a request that
+            # loses the race for its key below rolls back the conversation it
+            # opened too, rather than leaving an empty chat in the caller's
+            # sidebar (Codex, #2248).
             async with self.db.begin_nested():
+                conversation_id, _history = await ConversationService(self.db).for_api_run(
+                    ctx, request.conversation_id, prompt=request.prompt
+                )
+                attached = await load_attached_files(
+                    self.db,
+                    [str(file_id) for file_id in request.file_ids],
+                    user_id=ctx.subject_id,
+                )
+                payload = RunAgent(
+                    agent_id=agent_id,
+                    organization_id=ctx.organization_id,
+                    user_id=ctx.subject_id,
+                    api_key_id=ctx.api_key_id,
+                    prompt=request.prompt,
+                    conversation_id=conversation_id,
+                    environment_id=request.environment_id,
+                    file_ids=[file.id for file in attached],
+                    digest=fingerprint,
+                )
                 job_id = await enqueue(
                     self.db,
                     RUN_AGENT,

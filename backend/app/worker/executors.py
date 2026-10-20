@@ -328,7 +328,11 @@ class ChildPool:
         while not self._closed:
             try:
                 child = await self._spawn()
-            except ChildStartFailed:
+            except ChildStartFailed, OSError:
+                # `OSError` too: under resource pressure `create_subprocess_exec`
+                # raises EMFILE or EAGAIN, and a replacement that gave up there
+                # left the pool a slot short for good while the worker stayed
+                # healthy (Codex, #2248).
                 logger.exception("background_child_start_failed")
                 await asyncio.sleep(self.respawn_backoff)
             else:

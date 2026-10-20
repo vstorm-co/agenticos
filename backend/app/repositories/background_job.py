@@ -210,15 +210,24 @@ async def claim(
     )
 
 
-async def extend_leases(db: AsyncSession, *, worker_id: str, lease: timedelta) -> int:
-    """Push out the lease of every job `worker_id` still runs. Answers how many.
+async def extend_leases(
+    db: AsyncSession, *, worker_id: str, job_ids: Sequence[UUID], lease: timedelta
+) -> int:
+    """Push out the lease of the jobs `worker_id` still owes an outcome for. Answers how many.
 
-    Keyed on the worker, not on a list of jobs: a job the rescuer has given to
-    someone else no longer names this worker, so it is not extended.
+    The jobs the worker names, and only while they still name it: one the
+    rescuer has given to someone else no longer does, and one whose settlement
+    the worker abandoned is not named, so its lease runs out.
     """
+    if not job_ids:
+        return 0
     rows = await db.execute(
         update(BackgroundJob)
-        .where(BackgroundJob.worker_id == worker_id, BackgroundJob.status == "running")
+        .where(
+            BackgroundJob.id.in_(job_ids),
+            BackgroundJob.worker_id == worker_id,
+            BackgroundJob.status == "running",
+        )
         .values(lease_until=func.now() + lease)
         .returning(BackgroundJob.id)
     )

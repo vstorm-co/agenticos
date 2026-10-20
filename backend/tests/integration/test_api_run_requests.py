@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import AlreadyExistsError, AuthenticationError, NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.background_job import BackgroundJob
+from app.db.models.conversation import Conversation
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.repositories import background_job as job_repo
@@ -183,6 +184,56 @@ async def test_a_lost_race_on_the_key_answers_as_the_winners_replay(
         loser = await service.queue(ctx, agent_id, _ask(), idempotency_key="order-7")
 
     assert loser.id == winner.id
+
+
+async def test_a_lost_race_takes_back_the_conversation_it_opened(db: AsyncSession) -> None:
+    """Both racers open a conversation before the insert; the loser's must not stay
+    behind as an empty chat in the caller's sidebar."""
+    ctx = await _person(db)
+    agent_id = uuid.uuid4()
+    opened: list[uuid.UUID] = []
+
+    async def opens(_self, ctx, _conversation_id, *, prompt):
+        conversation = Conversation(
+            id=uuid.uuid4(),
+            user_id=ctx.user_id,
+            organization_id=ctx.organization_id,
+            title=prompt[:40],
+        )
+        db.add(conversation)
+        await db.flush()
+        opened.append(conversation.id)
+        return conversation.id, None
+
+    real_lookup = job_repo.get_by_idempotency_key
+    calls = 0
+
+    async def misses_once(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return None if calls == 2 else await real_lookup(*args, **kwargs)
+
+    with (
+        patch("app.services.api_runs.ConversationService.for_api_run", new=opens),
+        patch("app.services.api_runs.load_attached_files", new=AsyncMock(return_value=[])),
+        patch(
+            "app.services.api_runs.AgentRegistryService.get_runnable_spec",
+            new=AsyncMock(return_value=None),
+        ),
+        patch("app.services.api_runs.background_job_repo.get_by_idempotency_key", new=misses_once),
+    ):
+        service = ApiRunService(db)
+        winner = await service.queue(ctx, agent_id, _ask(), idempotency_key="order-8")
+        loser = await service.queue(ctx, agent_id, _ask(), idempotency_key="order-8")
+
+    assert loser.id == winner.id
+    assert len(opened) == 2
+    kept = (
+        (await db.execute(select(Conversation.id).where(Conversation.id.in_(opened))))
+        .scalars()
+        .all()
+    )
+    assert kept == [opened[0]]
 
 
 async def test_only_the_asker_reads_the_request(db: AsyncSession, stubbed) -> None:

@@ -13,6 +13,7 @@ from app.core.office_convert import (
     convert_to_pdf,
     soffice_command,
 )
+from app.services.office_archive import safe_unzip
 from app.services.rag._splitters import (
     MarkdownHeaderSplitter,
     RecursiveCharacterSplitter,
@@ -148,7 +149,11 @@ class DocxDocumentParser(BaseDocumentParser):
         # this module, and most never parse a document (#2225).
         from docx import Document as DOCXDocument
 
-        file: Any = DOCXDocument(str(filepath))
+        # Through the bounded unzip the chat's office files take: a DOCX is a ZIP,
+        # and a few megabytes of upload can inflate to gigabytes in python-docx -
+        # a child the memory watchdog kills, over and over (Codex, #2248). Over a
+        # bound is a `ValueError`, the document's own failure, not a death.
+        file: Any = DOCXDocument(safe_unzip(filepath.read_bytes()))
         page = DocumentPage(page_num=1, content="\n".join([p.text for p in file.paragraphs]))
         return Document(pages=[page], metadata=self.get_document_metadata(filepath))
 

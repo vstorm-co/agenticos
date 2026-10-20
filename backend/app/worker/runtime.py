@@ -97,6 +97,12 @@ class Worker:
     listen: Listen | None = None
     _wake: dict[Pool, asyncio.Event] = field(default_factory=dict, init=False)
     _running: set[asyncio.Task[None]] = field(default_factory=set, init=False)
+    # The jobs whose outcome this worker still owes, and the only ones the
+    # heartbeat extends. Keyed apart from `_running`: a job whose settlement was
+    # abandoned leaves this set, so its lease runs out and the rescuer writes it
+    # off, rather than being renewed for as long as the process lives (Codex,
+    # #2248).
+    _held: set[UUID] = field(default_factory=set, init=False)
 
     def __post_init__(self) -> None:
         self._wake = {pool: asyncio.Event() for pool in self.executors}
@@ -177,6 +183,7 @@ class Worker:
                 executor.release(slot)
                 await self._unclaim(job)
                 return
+            self._held.add(job.id)
             task = asyncio.create_task(self._execute(executor, slot, job), name=f"job:{job.kind}")
             self._running.add(task)
             task.add_done_callback(self._finished)
@@ -208,6 +215,7 @@ class Worker:
             await asyncio.shield(self._give_back(job))
             raise
         finally:
+            self._held.discard(job.id)
             executor.release(slot)
 
     def _finished(self, task: asyncio.Task[None]) -> None:
@@ -218,8 +226,9 @@ class Worker:
     async def _settle(self, job: ClaimedJob, outcome: Outcome) -> None:
         """Write how `job` ended, retrying while the database is unreachable.
 
-        A settle that never lands is not lost: the lease runs out and the rescuer
-        writes the job off as a worker death, with the attempt already counted.
+        A settle that never lands is not lost: the job leaves `_held`, so the
+        heartbeat stops renewing it, its lease runs out and the rescuer writes it
+        off as a worker death, with the attempt already counted.
         """
         for attempt in range(1, self.settings.settle_attempts + 1):
             try:
@@ -340,7 +349,10 @@ class Worker:
     async def _beat(self) -> None:
         async with self.sessions() as db:
             await job_repo.extend_leases(
-                db, worker_id=self.settings.worker_id, lease=self.settings.lease
+                db,
+                worker_id=self.settings.worker_id,
+                job_ids=list(self._held),
+                lease=self.settings.lease,
             )
             await worker_repo.beat(
                 db,

@@ -219,6 +219,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **The Codex review's third round on the job queue** (#2219):
+  - a job whose outcome the worker could not write is no longer renewed by the
+    heartbeat, so its lease runs out and the rescuer writes it off;
+  - an ingest child that cannot be replaced because the system refused a
+    process for a moment (EMFILE, EAGAIN) is tried again rather than leaving the
+    pool a slot short for good;
+  - an asynchronous run that loses the race for its `Idempotency-Key` takes back
+    the conversation it opened;
+  - weekly and monthly usage reports get three attempts, since the next one
+    covers another window;
+  - a DOCX in a knowledge base is unzipped under the same bounds as a chat
+    attachment, so a small upload cannot inflate to gigabytes in the parser.
 - **The composer's @-menu draws MCP servers as the MCP page does.** The
   platform's own server wore a letter "A"; it now wears the deployment's mark,
   and every other server its brand logo in colour, from the host it is reached

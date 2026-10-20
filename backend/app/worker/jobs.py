@@ -148,12 +148,14 @@ class Task[P: Payload](TaskKind):
         return self.payload_type.model_validate(raw)
 
 
-def _sweep(kind: str, *, timeout: timedelta = timedelta(minutes=15)) -> Task[Tick]:
+def _sweep(
+    kind: str, *, timeout: timedelta = timedelta(minutes=15), max_attempts: int = 1
+) -> Task[Tick]:
     return Task(
         kind=kind,
         payload_type=Tick,
         pool=Pool.SYSTEM,
-        max_attempts=1,
+        max_attempts=max_attempts,
         timeout=timeout,
         priority=Priority.SCHEDULED,
     )
@@ -232,8 +234,12 @@ SWEEP_TEARDOWN_RESERVATIONS = _sweep("sweep-teardown-reservations")
 APPLY_RETENTION = _sweep("apply-retention", timeout=timedelta(hours=2))
 SWEEP_NOTIFICATIONS = _sweep("sweep-notifications")
 SWEEP_BACKGROUND_JOBS = _sweep("sweep-background-jobs")
-WEEKLY_USAGE_REPORT = _sweep("weekly-usage-report", timeout=timedelta(hours=1))
-MONTHLY_USAGE_REPORT = _sweep("monthly-usage-report", timeout=timedelta(hours=1))
+# Three attempts, unlike the sweeps above: a sweep's next tick is the same work
+# again, but the next report is a week or a month away and covers another window,
+# so an occurrence lost to a deploy or an outage was never sent. Each occurrence
+# is idempotent across attempts (Codex, #2248).
+WEEKLY_USAGE_REPORT = _sweep("weekly-usage-report", timeout=timedelta(hours=1), max_attempts=3)
+MONTHLY_USAGE_REPORT = _sweep("monthly-usage-report", timeout=timedelta(hours=1), max_attempts=3)
 
 TASKS: dict[str, TaskKind] = {
     task.kind: task

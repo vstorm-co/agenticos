@@ -160,6 +160,22 @@ async def test_a_settle_the_database_never_takes_is_given_up_after_its_attempts(
     ]
 
 
+async def test_the_heartbeat_renews_only_the_jobs_still_owed(repos: MagicMock) -> None:
+    """A job whose settlement was abandoned is no longer renewed, so its lease runs
+    out and the rescuer writes it off - renewed for the life of the process, it
+    stayed `running` until a restart (Codex, #2248)."""
+    held, abandoned = _job(), _job()
+    worker = _worker(_sessions(failures=2)[0])
+    executor = worker.executors[Pool.SYSTEM]
+    worker._held.update({held.id, abandoned.id})
+
+    await worker._execute(executor, await executor.acquire(), abandoned)
+    worker.sessions = _sessions()[0]
+    await worker._beat()
+
+    assert repos.extend_leases.await_args.kwargs["job_ids"] == [held.id]
+
+
 async def test_a_settle_lands_once_the_database_is_back(repos: MagicMock) -> None:
     sessions, opened = _sessions(failures=1)
 

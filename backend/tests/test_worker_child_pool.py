@@ -191,6 +191,21 @@ async def test_a_replacement_that_fails_to_start_is_tried_again(
     assert "background_child_start_failed" in [record.message for record in caplog.records]
 
 
+async def test_a_replacement_the_system_refuses_for_a_moment_is_tried_again(
+    pool: ChildPool, caplog: pytest.LogCaptureFixture
+) -> None:
+    """EMFILE under resource pressure: the slot came back only by retrying, and a
+    replacement that gave up left the pool a slot short for good."""
+    spawn = pool._spawn
+    pool._spawn = AsyncMock(side_effect=[OSError(24, "Too many open files"), await spawn()])  # type: ignore[method-assign]  - one refused fork, then the real one
+
+    with caplog.at_level(logging.ERROR, logger="app.worker.executors"):
+        assert isinstance(await _run(pool, "test-suicide"), Died)
+        assert await _run(pool, "test-ok") == Succeeded()
+
+    assert "background_child_start_failed" in [record.message for record in caplog.records]
+
+
 async def test_a_replacement_that_crashes_is_logged(
     pool: ChildPool, caplog: pytest.LogCaptureFixture
 ) -> None:
