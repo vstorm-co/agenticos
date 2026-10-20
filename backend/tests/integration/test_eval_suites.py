@@ -793,6 +793,7 @@ async def test_a_suite_name_is_one_per_agent_and_an_environment_must_be_the_agen
         await service.create(ctx, agent.id, _suite_data(dataset, environment_id=foreign.id))
 
 
+@pytest.mark.security
 async def test_a_run_past_the_budget_is_skipped_and_said(db) -> None:
     ctx = await _owner(db)
     agent, _ = await _agent(db, ctx)
