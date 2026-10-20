@@ -20,6 +20,7 @@ from app.main import app
 from app.schemas.background_job import (
     BackgroundJobList,
     BackgroundJobRead,
+    BackgroundJobsActivity,
     BackgroundJobsOverview,
     BackgroundKindRead,
 )
@@ -57,6 +58,7 @@ async def _client(user: MagicMock, service: MagicMock) -> AsyncGenerator[AsyncCl
     ("method", "path", "body"),
     [
         ("GET", "", None),
+        ("GET", "/activity", None),
         ("GET", "/jobs", None),
         ("POST", f"/jobs/{_SOME_JOB}/retry", None),
         ("POST", f"/jobs/{_SOME_JOB}/cancel", None),
@@ -93,6 +95,22 @@ async def test_half_a_cursor_starts_from_the_newest(service: MagicMock) -> None:
     async for client in _client(_user(app_admin=True), service):
         await client.get(f"{BASE}/jobs", params={"before": datetime.now(UTC).isoformat()})
     assert service.list_jobs.await_args.kwargs["before"] is None
+
+
+async def test_the_owner_reads_the_activity_of_the_window_asked_for(service: MagicMock) -> None:
+    week = BackgroundJobsActivity(
+        window="week", bucket_seconds=21600, buckets=[], kinds=[], oldest_wait_seconds=None
+    )
+    service.activity = AsyncMock(return_value=week)
+
+    async for client in _client(_user(app_admin=True), service):
+        response = await client.get(f"{BASE}/activity", params={"window": "week"})
+        unknown = await client.get(f"{BASE}/activity", params={"window": "year"})
+
+    assert response.status_code == 200
+    assert response.json()["window"] == "week"
+    service.activity.assert_awaited_once_with("week")
+    assert unknown.status_code == 422
 
 
 async def test_a_status_the_queue_does_not_have_is_a_422(service: MagicMock) -> None:
