@@ -395,8 +395,11 @@ baseline; left empty, they check nothing.
 
 A result whose comparison is [invalid](#a-different-judge-invalidates-the-comparison),
 or in which any case could not be graded, is **inconclusive** - never passed -
-unless something failed outright, and it names the cases nobody graded. A result **did not run** when it would cost
-more than a budget has left or more than the suite's own ceiling, when only
+unless something failed outright, and it names the cases nobody graded.
+Republishing the judge changes how answers are graded, so the next result of
+every suite it grades for is inconclusive once, and its owner is told.
+
+A result **did not run** when it would cost more than a budget has left or more than the suite's own ceiling, when only
 the judge could grade it and AI assistance is off, or when there is no
 published version to check.
 

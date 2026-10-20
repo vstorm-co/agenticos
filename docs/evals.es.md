@@ -1,5 +1,5 @@
 ---
-source_sha: "572fd6c1a063"
+source_sha: "0492e120d8bd"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -424,7 +424,12 @@ aprobado y de la latencia p95 frente al baseline; vacíos, no comprueban nada.
 Un resultado cuya comparación es
 [no válida](#a-different-judge-invalidates-the-comparison), o en el que no se
 pudo puntuar algún caso, queda **sin conclusión** - nunca aprobado - salvo que
-algo haya fallado claramente, y nombra los casos que nadie puntuó. Un resultado **no se ejecutó** cuando costaría
+algo haya fallado claramente, y nombra los casos que nadie puntuó. Volver a
+publicar el juez cambia cómo se puntúan las respuestas, así que el siguiente
+resultado de cada suite que puntúa queda una vez sin conclusión, y se avisa a su
+propietario.
+
+Un resultado **no se ejecutó** cuando costaría
 más de lo que le queda a un presupuesto o más que el límite propio de la
 suite, cuando solo el juez podría puntuarlo y la asistencia de IA está
 desactivada, o cuando no hay una versión publicada que comprobar.

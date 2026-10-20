@@ -1,5 +1,5 @@
 ---
-source_sha: "572fd6c1a063"
+source_sha: "0492e120d8bd"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -426,7 +426,11 @@ Wynik, którego porównanie jest
 [nieważne](#a-different-judge-invalidates-the-comparison) albo w którym nie
 udało się ocenić choćby jednego przypadku, jest **bez rozstrzygnięcia** -
 nigdy zaliczony - chyba że coś wprost nie przeszło, i podaje przypadki, których
-nikt nie ocenił. Wynik **nie został uruchomiony**, gdy
+nikt nie ocenił. Ponowna publikacja sędziego zmienia sposób oceniania, więc
+następny wynik każdej suity, którą ocenia, będzie raz bez rozstrzygnięcia, a jej
+właściciel dostanie wiadomość.
+
+Wynik **nie został uruchomiony**, gdy
 kosztowałby więcej, niż zostało w budżecie albo niż własny limit suity, gdy
 ocenić go mógłby tylko sędzia, a wsparcie AI jest wyłączone, albo gdy nie ma
 opublikowanej wersji do sprawdzenia.

@@ -1,5 +1,5 @@
 ---
-source_sha: "572fd6c1a063"
+source_sha: "0492e120d8bd"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -446,7 +446,11 @@ Ein Ergebnis, dessen Vergleich
 [ungültig](#a-different-judge-invalidates-the-comparison) ist oder in dem auch
 nur ein Fall nicht bewertet werden konnte, ist **ohne Ergebnis** - nie
 bestanden -, es sei denn, etwas ist klar durchgefallen, und es nennt die Fälle,
-die niemand bewertet hat. Ein Ergebnis **ist nicht gelaufen**, wenn es mehr
+die niemand bewertet hat. Den Judge neu zu veröffentlichen ändert, wie Antworten
+bewertet werden, daher ist das nächste Ergebnis jeder Suite, die er bewertet,
+einmal ohne Ergebnis, und ihr Eigentümer wird benachrichtigt.
+
+Ein Ergebnis **ist nicht gelaufen**, wenn es mehr
 kosten würde, als ein Budget oder die eigene Grenze der Suite hergibt, wenn nur
 der Judge es bewerten könnte und die KI-Unterstützung aus ist, oder wenn es
 keine veröffentlichte Version zum Prüfen gibt.
