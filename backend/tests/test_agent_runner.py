@@ -1774,9 +1774,13 @@ class TestASandboxIsSetUpOnFirstUse:
         # Told where its skills are before they are written: they will be there by
         # the time anything it does in the sandbox can look. And not told of any
         # when it has none.
-        assert (SKILLS_ROOT in build.call_args.args[0].instructions) is has_skills
+        instructions = build.call_args.args[0].instructions
+        assert (SKILLS_ROOT in instructions) is has_skills
         if not has_skills:
             return
+        # Said before the writes, so not as though they had landed (Codex, #2248).
+        assert "the first time you use the workspace" in instructions
+        assert "refused by the workspace" in instructions
 
         await recorder.exists("anything")
 

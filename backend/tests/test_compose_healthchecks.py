@@ -307,3 +307,55 @@ class TestTheSandboxRuntimesArePreparedBeforeTheSwitch:
         start = script.index('compose_up "${BACKEND[@]}"')
 
         assert pull < prepare < start
+
+
+_RETIRE_HARNESS = """
+set -euo pipefail
+APP_DIR=/opt/agenticos
+say() {{ echo "say: $*"; }}
+{retired}
+{function}
+docker() {{
+  echo "docker $*" >&2
+  case "$*" in
+    *"service=prefect-runner"*) [ "{mode}" = present ] && echo abc123 ;;
+  esac
+  return 0
+}}
+retire_services
+"""
+
+
+class TestTheRetiredServicesAreRemovedBeforeTheWorkerStarts:
+    """Codex on #2248: compose leaves a service that left the file running, and an
+    upgraded host kept Prefect's scheduler dispatching the old work beside the
+    worker that replaced it."""
+
+    def _run(self, mode: str) -> str:
+        script = DEPLOY_SCRIPT.read_text()
+        retired = next(line for line in script.splitlines() if line.startswith("RETIRED_SERVICES="))
+        done = _run(
+            _RETIRE_HARNESS.format(
+                retired=retired, function=_function("retire_services"), mode=mode
+            )
+        )
+        # The stub logs on stderr: its stdout is the ids `$(...)` reads back.
+        return done.stdout + done.stderr
+
+    def test_a_retired_container_of_this_project_is_removed(self) -> None:
+        out = self._run("present")
+
+        assert (
+            "docker ps -aq --filter label=com.docker.compose.project.working_dir=/opt/agenticos "
+            "--filter label=com.docker.compose.service=prefect-runner"
+        ) in out
+        assert "say: Removing the retired prefect-runner" in out
+        assert "docker rm -f abc123" in out
+        assert "prefect-server" in out and "Removing the retired prefect-server" not in out
+
+    def test_a_host_that_never_ran_them_removes_nothing(self) -> None:
+        assert "docker rm" not in self._run("absent")
+
+    def test_they_are_removed_before_the_api_and_worker_start(self) -> None:
+        script = DEPLOY_SCRIPT.read_text()
+        assert script.index("\nretire_services\n") < script.index('compose_up "${BACKEND[@]}"')

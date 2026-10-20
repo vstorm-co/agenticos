@@ -12,7 +12,7 @@ from uuid import UUID, uuid4
 
 import asyncpg
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.db.models.background_job import BackgroundJob
@@ -538,6 +538,31 @@ async def test_a_kind_paused_for_the_whole_deployment_is_claimed_for_nobody(
         assert await kind_repo.record_death(db, "hog", None) == 1
 
     assert await _claim(sessions) is None
+
+
+async def test_a_deleted_organizations_job_is_not_counted_and_does_not_break_its_rescue(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    """A job keeps its organization's id after the organization is gone - the purge
+    queues clean-up under it - and the breaker's row has a foreign key to it. An
+    insert the key refused rolled back the rescue it was part of, leaving the job
+    `running` on every pass (Codex, #2248). Nothing is counted for it instead."""
+    gone = await _organization(sessions)
+    async with sessions() as db, db.begin():
+        await db.execute(delete(Organization).where(Organization.id == gone))
+
+    async with sessions() as db, db.begin():
+        assert await kind_repo.record_death(db, "hog", gone) == 0
+        await kind_repo.record_lease_lost(db, "hog", gone)
+        assert await kind_repo.pause(db, "hog", gone, reason="five deaths in a row") is False
+        # The same transaction still commits a deployment-wide count beside them.
+        assert await kind_repo.record_death(db, "hog", None) == 1
+
+    async with sessions() as db:
+        kinds = await kind_repo.list_all(db)
+    assert [(kind.kind, kind.organization_id) for kind, _name in kinds if kind.kind == "hog"] == [
+        ("hog", None)
+    ]
 
 
 async def test_an_end_is_owed_its_settlement_until_it_is_marked_and_owed_again_after_a_retry(

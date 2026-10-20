@@ -750,6 +750,10 @@ class TestManagingAnotherMembersTrigger:
         resolve.assert_not_awaited()
 
 
+queued_scopes: list[uuid.UUID | None] = []
+"""The organization each fire `queued_fires` recorded was queued under, in order."""
+
+
 @pytest.fixture(autouse=True)
 def queued_fires(monkeypatch: pytest.MonkeyPatch) -> list[FireTrigger]:
     """Every fire the service queued, as the job's payload, in order.
@@ -758,10 +762,12 @@ def queued_fires(monkeypatch: pytest.MonkeyPatch) -> list[FireTrigger]:
     here use a mocked session, so what would have been written is recorded.
     """
     fires: list[FireTrigger] = []
+    queued_scopes.clear()
 
-    async def enqueue(_db, task, payload, **_options):
+    async def enqueue(_db, task, payload, **options):
         assert task is FIRE_TRIGGER
         fires.append(payload)
+        queued_scopes.append(options.get("organization_id"))
         return uuid.uuid4()
 
     monkeypatch.setattr("app.services.agent_trigger.enqueue", enqueue)
@@ -977,13 +983,18 @@ class TestQueueingDeliveredFires:
         self, queued_fires: list[FireTrigger]
     ):
         service = _service()
-        decision = EventFireDecision(trigger_id=uuid.uuid4(), event_context="ISSUE #7")
+        decision = EventFireDecision(
+            trigger_id=uuid.uuid4(), event_context="ISSUE #7", organization_id=uuid.uuid4()
+        )
         service.prepare_event_fire = AsyncMock(return_value=decision)
 
         assert await service.queue_event_fire("github", decision.trigger_id, body=b"{}", headers={})
         assert queued_fires == [
             FireTrigger(trigger_id=decision.trigger_id, event_context="ISSUE #7")
         ]
+        # Under the trigger's organization: a deployment-wide job that kept killing
+        # its worker would pause every tenant's fires.
+        assert queued_scopes == [decision.organization_id]
 
     async def test_a_delivery_with_nothing_to_do_queues_nothing(
         self, queued_fires: list[FireTrigger]
@@ -1001,7 +1012,10 @@ class TestQueueingDeliveredFires:
         taken for every decision, so they are queued together or not at all."""
         service = _service()
         decisions = [
-            EventFireDecision(trigger_id=uuid.uuid4(), event_context=f"e{n}") for n in range(3)
+            EventFireDecision(
+                trigger_id=uuid.uuid4(), event_context=f"e{n}", organization_id=uuid.uuid4()
+            )
+            for n in range(3)
         ]
         service.prepare_app_fires = AsyncMock(return_value=decisions)
 
@@ -1009,6 +1023,7 @@ class TestQueueingDeliveredFires:
         assert [(f.trigger_id, f.event_context) for f in queued_fires] == [
             (d.trigger_id, d.event_context) for d in decisions
         ]
+        assert queued_scopes == [d.organization_id for d in decisions]
 
 
 class TestFiring:
@@ -1804,7 +1819,11 @@ class TestPreparingAnEventFire:
             decision = await service.prepare_event_fire(
                 "github", trigger.id, body=b'{"action": "opened"}', headers={}
             )
-        assert decision == EventFireDecision(trigger_id=trigger.id, event_context="ISSUE #7 opened")
+        assert decision == EventFireDecision(
+            trigger_id=trigger.id,
+            event_context="ISSUE #7 opened",
+            organization_id=trigger.organization_id,
+        )
 
     async def test_a_first_delivery_is_claimed_and_fires(self):
         service = _service()
@@ -1828,7 +1847,9 @@ class TestPreparingAnEventFire:
                 body=b'{"action": "opened"}',
                 headers={"x-github-delivery": "delivery-1"},
             )
-        assert decision == EventFireDecision(trigger_id=trigger.id, event_context="ISSUE #7")
+        assert decision == EventFireDecision(
+            trigger_id=trigger.id, event_context="ISSUE #7", organization_id=trigger.organization_id
+        )
         dedupe.claim_event_delivery.assert_awaited_once()
         # The fire is a job row in this transaction; rolled back, the claim goes with it.
         dedupe.release_event_delivery.assert_called_once_with(

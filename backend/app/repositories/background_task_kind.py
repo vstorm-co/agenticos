@@ -3,19 +3,46 @@
 A breaker's scope is a kind in one organization, or the whole kind when
 `organization_id` is `None` (#2248). The upserts arbitrate on the scope's unique
 constraint, which treats two `NULL` organizations as the same scope.
+
+A job keeps its organization's id after the organization is deleted - the purge
+itself queues clean-up under it - so a scope can name an organization the foreign
+key no longer admits. The upserts then write nothing rather than fail: a refused
+insert would roll back the rescue it is part of and leave the job `running` on
+every pass. The job's own attempts still bound it; only the breaker, which exists
+to protect that organization's other work, has nothing left to protect.
 """
 
 from collections.abc import Sequence
+from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, func, select, update
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import ColumnElement, exists, func, literal, select, update
+from sqlalchemy.dialects.postgresql import Insert, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.background_task_kind import BackgroundTaskKind
 from app.db.models.organization import Organization
 
 _SCOPE = "background_task_kinds_scope_key"
+
+
+def _scoped_insert(
+    kind: str, organization_id: UUID | None, **values: int | str | ColumnElement[datetime]
+) -> Insert:
+    """An insert of the scope's row that writes nothing for an organization since deleted."""
+    columns = {"kind": kind, "organization_id": organization_id, **values}
+    table = BackgroundTaskKind.__table__
+    row = select(
+        *(
+            (
+                value if isinstance(value, ColumnElement) else literal(value, table.c[name].type)
+            ).label(name)
+            for name, value in columns.items()
+        )
+    )
+    if organization_id is not None:
+        row = row.where(exists().where(Organization.id == organization_id))
+    return insert(BackgroundTaskKind).from_select(list(columns), row)
 
 
 def _in_scope(kind: str, organization_id: UUID | None) -> ColumnElement[bool]:
@@ -25,17 +52,18 @@ def _in_scope(kind: str, organization_id: UUID | None) -> ColumnElement[bool]:
 
 
 async def record_death(db: AsyncSession, kind: str, organization_id: UUID | None) -> int:
-    """Count one more worker death in this scope. Answers the run of deaths it is now on."""
-    statement = insert(BackgroundTaskKind).values(
-        kind=kind, organization_id=organization_id, consecutive_deaths=1
-    )
+    """Count one more worker death in this scope. Answers the run of deaths it is now on.
+
+    0 for an organization deleted since the job was queued: nothing was counted.
+    """
+    statement = _scoped_insert(kind, organization_id, consecutive_deaths=1)
     result = await db.execute(
         statement.on_conflict_do_update(
             constraint=_SCOPE,
             set_={"consecutive_deaths": BackgroundTaskKind.consecutive_deaths + 1},
         ).returning(BackgroundTaskKind.consecutive_deaths)
     )
-    return result.scalar_one()
+    return result.scalar_one_or_none() or 0
 
 
 async def record_survival(db: AsyncSession, kind: str, organization_id: UUID | None) -> None:
@@ -53,9 +81,7 @@ async def record_survival(db: AsyncSession, kind: str, organization_id: UUID | N
 
 async def record_lease_lost(db: AsyncSession, kind: str, organization_id: UUID | None) -> None:
     """Count a job in this scope that finished after another worker had taken it over."""
-    statement = insert(BackgroundTaskKind).values(
-        kind=kind, organization_id=organization_id, lease_lost=1
-    )
+    statement = _scoped_insert(kind, organization_id, lease_lost=1)
     await db.execute(
         statement.on_conflict_do_update(
             constraint=_SCOPE,
@@ -65,10 +91,11 @@ async def record_lease_lost(db: AsyncSession, kind: str, organization_id: UUID |
 
 
 async def pause(db: AsyncSession, kind: str, organization_id: UUID | None, *, reason: str) -> bool:
-    """Stop workers claiming `kind` in this scope. `False` when it was paused already."""
-    statement = insert(BackgroundTaskKind).values(
-        kind=kind, organization_id=organization_id, paused_at=func.now(), paused_reason=reason
-    )
+    """Stop workers claiming `kind` in this scope. `False` when it was paused already.
+
+    `False` too for an organization deleted since: there is nothing of it left to pause.
+    """
+    statement = _scoped_insert(kind, organization_id, paused_at=func.now(), paused_reason=reason)
     result = await db.execute(
         statement.on_conflict_do_update(
             constraint=_SCOPE,

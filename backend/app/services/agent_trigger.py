@@ -169,6 +169,10 @@ class EventFireDecision:
 
     trigger_id: UUID
     event_context: str
+    organization_id: UUID
+    """The trigger's own organization, which the queued job carries: a job without
+    one is deployment-wide, so a fire that kept killing its worker would pause
+    `fire-trigger` for every tenant rather than for this one."""
 
 
 def _cron_next(expression: str, *, now: datetime) -> datetime:
@@ -1263,7 +1267,9 @@ class AgentTriggerService:
         if delivery is not None and not await self._claim(trigger.id, delivery):
             return None
         context = trigger_events.render_context(source, payload=payload)
-        return EventFireDecision(trigger_id=trigger.id, event_context=context)
+        return EventFireDecision(
+            trigger_id=trigger.id, event_context=context, organization_id=trigger.organization_id
+        )
 
     async def prepare_app_fires(
         self, *, body: bytes, headers: Mapping[str, str]
@@ -1351,6 +1357,7 @@ class AgentTriggerService:
                     event_context=trigger_events.render_context(
                         EventSource.GITHUB.value, payload=payload
                     ),
+                    organization_id=trigger.organization_id,
                 )
             )
         return decisions
@@ -1447,6 +1454,7 @@ class AgentTriggerService:
                         event_context=trigger_events.render_context(
                             event_source, payload=event.payload
                         ),
+                        organization_id=trigger.organization_id,
                     )
                 )
         return decisions
@@ -1515,7 +1523,9 @@ class AgentTriggerService:
         if decision is None:
             return False
         await self.queue_fire(
-            decision.trigger_id, organization_id=None, event_context=decision.event_context
+            decision.trigger_id,
+            organization_id=decision.organization_id,
+            event_context=decision.event_context,
         )
         return True
 
@@ -1524,7 +1534,9 @@ class AgentTriggerService:
         decisions = await self.prepare_app_fires(body=body, headers=headers)
         for decision in decisions:
             await self.queue_fire(
-                decision.trigger_id, organization_id=None, event_context=decision.event_context
+                decision.trigger_id,
+                organization_id=decision.organization_id,
+                event_context=decision.event_context,
             )
         return len(decisions)
 

@@ -93,7 +93,10 @@ Two things are versioned separately from this file and worth knowing about:
   with it. Uploads, syncs, trigger fires and a delete's cleanup are queued in
   the request's own transaction. A deployment upgrading from 1.7 has to:
   - replace its compose files, so the `worker` service exists and the two
-    Prefect services do not;
+    Prefect services do not. Compose leaves a removed service's container
+    running, so `scripts/deploy.sh` removes `prefect-server` and
+    `prefect-runner` before the worker starts; a host upgraded by hand removes
+    them with `docker rm -f`, or Prefect keeps dispatching the old work;
   - drop the `PREFECT_*` variables and `WORKER_MIN_INTERVAL_SECONDS`, and
     size the worker with the `WORKER_*` settings in
     [Configuration](docs/configuration.md#background-work);

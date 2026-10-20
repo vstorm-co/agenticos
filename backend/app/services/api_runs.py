@@ -129,12 +129,16 @@ class ApiRunService:
                     file_ids=[file.id for file in attached],
                     digest=fingerprint,
                 )
+                # One run of a conversation at a time: a follow-up sent before the
+                # previous answer was written would read the history without it,
+                # and both would write into the same thread and workspace at once.
                 job_id = await enqueue(
                     self.db,
                     RUN_AGENT,
                     payload,
                     organization_id=ctx.organization_id,
                     idempotency_key=stored_key,
+                    concurrency_key=f"conversation:{conversation_id}",
                 )
         except IntegrityError:
             # Another request with the same key won the race between the lookup

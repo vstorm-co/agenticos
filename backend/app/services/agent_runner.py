@@ -1579,6 +1579,17 @@ _SKILLS_BRIEFING = (
     "text names a different directory is out of date; this is where the files are."
 )
 
+_DEFERRED_SKILLS_BRIEFING = (
+    f"Your skills are also written as files, under `{SKILLS_ROOT}/<name>/` - `SKILL.md` "
+    "and each of the skill's resources beside it - the first time you use the "
+    "workspace. Read and run them there. A skill whose own text names a different "
+    "directory is out of date. A file that is not there was refused by the workspace, "
+    "usually because it is full; the skill's own text is still yours to load."
+)
+"""What a sandbox's run is told, whose skills are written on its first use there.
+
+Said before the writes can have succeeded, so it does not claim they did."""
+
 
 def _start_turn_on_first_use(
     workspace: RecordingWorkspace, prepared: PreparedRun, skills: list[Skill]
@@ -1608,7 +1619,7 @@ def _untouched(workspace: OpenWorkspace) -> bool:
     return isinstance(recorder, RecordingWorkspace) and not recorder.touched
 
 
-def _with_skills_briefing(spec: AgentSpec) -> AgentSpec:
+def _with_skills_briefing(spec: AgentSpec, *, deferred: bool = False) -> AgentSpec:
     """The spec told where this run's skills were written.
 
     Nothing else tells it. The path was only ever discoverable from a skill's own
@@ -1619,8 +1630,11 @@ def _with_skills_briefing(spec: AgentSpec) -> AgentSpec:
 
     Appended like the workspace briefing, and only when something was actually
     materialised: a run whose every write was refused has no files to point at.
+    A sandbox's skills are written later, on its first use, so `deferred` says
+    where they will be without claiming they are there.
     """
-    return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{_SKILLS_BRIEFING}"})
+    briefing = _DEFERRED_SKILLS_BRIEFING if deferred else _SKILLS_BRIEFING
+    return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{briefing}"})
 
 
 class PersonalServiceGap(BaseModel):
@@ -3090,11 +3104,10 @@ class AgentRunnerService:
             # a container start on a new conversation, a round trip per file on every
             # turn - before the model saw a token, for a turn that may never touch
             # the sandbox. The briefing cannot wait for the writes, so it is given
-            # whenever there are skills; the files are on disk before any operation
-            # the agent makes there can look for them.
+            # whenever there are skills, worded so it does not claim they landed.
             if isinstance(workspace.workspace, RecordingWorkspace):
                 if resources["skills"]:
-                    spec = _with_skills_briefing(spec)
+                    spec = _with_skills_briefing(spec, deferred=True)
             else:
                 materialised = await materialise_skills(workspace.workspace, resources["skills"])
                 if materialised.written:

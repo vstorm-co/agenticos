@@ -37,7 +37,9 @@ async def _client() -> AsyncIterator[AsyncClient]:
 
 
 def _decision() -> EventFireDecision:
-    return EventFireDecision(trigger_id=uuid4(), event_context="an issue was opened")
+    return EventFireDecision(
+        trigger_id=uuid4(), event_context="an issue was opened", organization_id=uuid4()
+    )
 
 
 async def test_every_matched_trigger_is_queued_as_its_own_job() -> None:

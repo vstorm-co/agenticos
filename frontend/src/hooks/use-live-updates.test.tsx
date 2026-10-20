@@ -155,6 +155,25 @@ describe("coming back after a drop", () => {
     unmount();
   });
 
+  it("marks the cache stale on returning to an organization the tab visited before", () => {
+    // Codex on #2248: A, then B, then A again - A's feed was closed while B's was
+    // open, and its half-hour answers would have been shown as they were.
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    const { rerender, unmount } = renderHook(() => useLiveUpdates(), { wrapper });
+    socket.options?.onOpen();
+    useOrgStore.setState({ activeOrgId: "org-2" });
+    rerender();
+    socket.options?.onOpen();
+    expect(invalidate).not.toHaveBeenCalled();
+
+    useOrgStore.setState({ activeOrgId: "org-1" });
+    rerender();
+    socket.options?.onOpen();
+
+    expect(invalidate).toHaveBeenCalledWith();
+    unmount();
+  });
+
   it("leaves another organization's first open alone - its queries are new keys", () => {
     const invalidate = vi.spyOn(client, "invalidateQueries");
     const { rerender, unmount } = renderHook(() => useLiveUpdates(), { wrapper });

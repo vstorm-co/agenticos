@@ -52,16 +52,17 @@ export function useLiveUpdates(): void {
     [queryClient],
   );
   const setConnected = useLiveFeedStore((state) => state.setConnected);
-  // The address this tab's feed was last open on. A socket that comes back to
-  // it after a drop missed whatever changed meanwhile, and the queries that
+  // Every address this tab's feed has been open on. A socket that comes back to
+  // one - after a drop, or after a visit to another organization, whose feed was
+  // the one open meanwhile - missed whatever changed there, and the queries that
   // lean on the feed - a dashboard holds its answers for half an hour - would
-  // show the old rows until then, so every cached answer is marked stale. A
-  // different address is another organization, whose queries are new keys
-  // already being fetched.
-  const openedOn = useRef<string | null>(null);
+  // show the old rows until then, so every cached answer is marked stale. An
+  // address opened for the first time is an organization whose queries are new
+  // keys, already being fetched.
+  const openedOn = useRef<Set<string>>(new Set());
   const onOpen = useCallback(() => {
-    if (openedOn.current === url) void queryClient.invalidateQueries();
-    openedOn.current = url;
+    if (openedOn.current.has(url)) void queryClient.invalidateQueries();
+    openedOn.current.add(url);
     setConnected(true);
   }, [queryClient, setConnected, url]);
   const onClose = useCallback(() => setConnected(false), [setConnected]);
