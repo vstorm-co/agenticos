@@ -12,6 +12,8 @@ vi.mock("@/hooks/use-background-jobs", () => ({
   useBackgroundJobsOverview: () => overview,
   useBackgroundJobActions: () => ({ resume: resumeState }),
   useBackgroundJobs: () => ({ data: undefined, isPending: false, error: null }),
+  // The charts have their own tests (`job-activity.test.tsx`); here they are loading.
+  useBackgroundJobsActivity: () => ({ data: undefined, error: null }),
 }));
 
 const DATA = {
