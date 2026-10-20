@@ -73,6 +73,8 @@ describe("the counts", () => {
 describe("the paused kinds", () => {
   const paused = {
     kind: "ingest-document",
+    organization_id: null,
+    organization_name: null,
     consecutive_deaths: 5,
     lease_lost: 0,
     paused_at: "2026-10-19T10:00:00Z",
@@ -93,7 +95,22 @@ describe("the paused kinds", () => {
     expect(screen.getByText("A kind of job is paused")).toBeInTheDocument();
     expect(screen.getByText(paused.paused_reason)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Resume" }));
-    expect(onResume).toHaveBeenCalledWith("ingest-document");
+    expect(onResume).toHaveBeenCalledWith(paused);
+    expect(screen.getByText("Paused for every organization")).toBeInTheDocument();
+  });
+
+  it("say which organization a kind is paused for, and resume that pause alone", () => {
+    const onResume = vi.fn();
+    const forAcme = { ...paused, organization_id: "o-1", organization_name: "Acme" };
+    render(<PausedKinds kinds={[paused, forAcme]} onResume={onResume} resuming={forAcme} />);
+
+    expect(screen.getByText("Paused for Acme")).toBeInTheDocument();
+    const [everywhere, acme] = screen.getAllByRole("button", { name: "Resume" });
+    // Resuming Acme's pause holds its button, not the deployment-wide one.
+    expect(acme).toBeDisabled();
+    expect(everywhere).toBeEnabled();
+    fireEvent.click(everywhere!);
+    expect(onResume).toHaveBeenCalledWith(paused);
   });
 
   it("hold the button while that kind is resuming", () => {
@@ -101,7 +118,7 @@ describe("the paused kinds", () => {
       <PausedKinds
         kinds={[{ ...paused, paused_reason: null }]}
         onResume={vi.fn()}
-        resuming="ingest-document"
+        resuming={{ kind: "ingest-document", organization_id: null }}
       />,
     );
     expect(screen.getByRole("button", { name: "Resume" })).toBeDisabled();

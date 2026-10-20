@@ -549,7 +549,8 @@ A kind is paused by the worker's circuit breaker: its jobs killed their worker
 `WORKER_BREAKER_DEATHS` times in a row, most often a document that runs a parse
 out of memory. Every owner is told in the app and by email, and the
 notification cannot be switched off - work of that kind piles up until one of
-them resumes it. Retry the dead jobs only once the cause is fixed, or they die
+them resumes it. A pause names the organization whose jobs caused it, and the
+kind keeps running for every other. Retry the dead jobs only once the cause is fixed, or they die
 the same way. The settings are in
 [Configuration](configuration.md#background-work).
 

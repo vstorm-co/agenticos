@@ -42,6 +42,9 @@ export interface BackgroundJobPage {
 
 export interface BackgroundKind {
   kind: string;
+  /** The organization this breaker is for; null for the whole kind (#2248). */
+  organization_id: string | null;
+  organization_name: string | null;
   consecutive_deaths: number;
   lease_lost: number;
   paused_at: string | null;

@@ -123,6 +123,7 @@ async def test_the_owner_reaches_every_action_as_themselves(service: MagicMock) 
     )
     kind = BackgroundKindRead(
         kind="ingest-document",
+        organization_id=None,
         consecutive_deaths=0,
         lease_lost=0,
         paused_at=None,
@@ -143,12 +144,19 @@ async def test_the_owner_reaches_every_action_as_themselves(service: MagicMock) 
             await client.post(f"{BASE}/jobs/{job.id}/cancel"),
             await client.post(f"{BASE}/kinds/ingest-document/pause", json={"reason": "a bad PDF"}),
             await client.post(f"{BASE}/kinds/ingest-document/resume"),
+            await client.post(
+                f"{BASE}/kinds/ingest-document/resume", params={"organization_id": str(owner.id)}
+            ),
         ]
 
-    assert [answer.status_code for answer in answers] == [200] * 5
+    assert [answer.status_code for answer in answers] == [200] * 6
     service.retry.assert_awaited_once_with(job.id, actor_user_id=owner.id)
     service.cancel.assert_awaited_once_with(job.id, actor_user_id=owner.id)
     service.pause_kind.assert_awaited_once_with(
         "ingest-document", reason="a bad PDF", actor_user_id=owner.id
     )
-    service.resume_kind.assert_awaited_once_with("ingest-document", actor_user_id=owner.id)
+    # The whole kind, then one organization's pause of it.
+    assert [call.kwargs["organization_id"] for call in service.resume_kind.await_args_list] == [
+        None,
+        owner.id,
+    ]

@@ -21,6 +21,8 @@ const DATA = {
   kinds: [
     {
       kind: "ingest-document",
+      organization_id: null,
+      organization_name: null,
       consecutive_deaths: 5,
       lease_lost: 0,
       paused_at: "2026-10-19T10:00:00Z",
@@ -59,12 +61,18 @@ describe("the Background jobs page", () => {
     expect(screen.getByText("A kind of job is paused")).toBeInTheDocument();
     expect(screen.getByText("Jobs")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Resume" }));
-    expect(resumeMutate).toHaveBeenCalledWith("ingest-document");
+    expect(resumeMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "ingest-document", organization_id: null }),
+    );
   });
 
   it("holds the button of the kind that is resuming", () => {
     overview = { isPending: false, error: null, data: DATA };
-    resumeState = { mutate: resumeMutate, isPending: true, variables: "ingest-document" };
+    resumeState = {
+      mutate: resumeMutate,
+      isPending: true,
+      variables: { kind: "ingest-document", organization_id: null },
+    };
     render(<BackgroundJobsPage />);
 
     expect(screen.getByRole("button", { name: "Resume" })).toBeDisabled();

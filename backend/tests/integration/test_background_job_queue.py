@@ -16,6 +16,8 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.db.models.background_job import BackgroundJob
+from app.db.models.organization import Organization
+from app.db.models.user import User
 from app.repositories import background_job as job_repo
 from app.repositories import background_task_kind as kind_repo
 from app.repositories.background_job import FailOutcome
@@ -42,6 +44,7 @@ async def _queue(
     max_attempts: int = 3,
     dedupe_key: str | None = None,
     concurrency_key: str | None = None,
+    organization_id: UUID | None = None,
 ) -> UUID:
     async with sessions() as db, db.begin():
         job_id = await job_repo.add(
@@ -51,6 +54,7 @@ async def _queue(
             payload={},
             max_attempts=max_attempts,
             priority=1,
+            organization_id=organization_id,
             dedupe_key=dedupe_key,
             concurrency_key=concurrency_key,
         )
@@ -354,7 +358,7 @@ async def test_a_lapsed_lease_with_a_newer_copy_queued_is_withdrawn_and_says_wha
         rescued = await job_repo.rescue_expired(db, retry_in=timedelta(0))
 
     (job,) = [r for r in rescued if r.id == first]
-    assert (job.status, job.ended, job.dead, job.payload) == ("cancelled", True, False, {})
+    assert (job.status, job.dead, job.organization_id) == ("cancelled", False, None)
 
 
 async def test_a_second_enqueue_with_a_queued_dedupe_key_is_dropped(
@@ -477,13 +481,82 @@ async def test_a_paused_kind_is_not_claimed_until_resumed(
 ) -> None:
     await _queue(sessions, kind="hog")
     async with sessions() as db, db.begin():
-        assert await kind_repo.pause(db, "hog", reason="five deaths in a row") is True
-        assert await kind_repo.pause(db, "hog", reason="again") is False
+        assert await kind_repo.pause(db, "hog", None, reason="five deaths in a row") is True
+        assert await kind_repo.pause(db, "hog", None, reason="again") is False
     assert await _claim(sessions) is None
 
     async with sessions() as db, db.begin():
-        assert await kind_repo.resume(db, "hog") is True
+        assert await kind_repo.resume(db, "hog", None) is True
     assert await _claim(sessions) is not None
+
+
+async def _organization(sessions: async_sessionmaker[AsyncSession]) -> UUID:
+    async with sessions() as db, db.begin():
+        founder = User(
+            id=uuid4(), email=f"{uuid4().hex}@example.com", hashed_password="x", is_active=True
+        )
+        db.add(founder)
+        await db.flush()
+        organization = Organization(
+            id=uuid4(), name="Acme", slug=f"acme-{uuid4().hex[:8]}", created_by_user_id=founder.id
+        )
+        db.add(organization)
+    return organization.id
+
+
+async def test_a_kind_paused_for_one_organization_is_still_claimed_for_another(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    """One tenant whose jobs keep killing their worker pauses the kind for itself,
+    not for every organization on the deployment (Codex, #2248)."""
+    noisy, quiet = await _organization(sessions), await _organization(sessions)
+    held = await _queue(sessions, kind="hog", organization_id=noisy)
+    served = await _queue(sessions, kind="hog", organization_id=quiet)
+    async with sessions() as db, db.begin():
+        assert await kind_repo.pause(db, "hog", noisy, reason="five deaths in a row") is True
+
+    claimed = await _claim(sessions)
+    assert claimed is not None and claimed.id == served
+    assert await _claim(sessions) is None
+
+    async with sessions() as db, db.begin():
+        assert await kind_repo.resume(db, "hog", noisy) is True
+    claimed = await _claim(sessions)
+    assert claimed is not None and claimed.id == held
+
+
+async def test_a_kind_paused_for_the_whole_deployment_is_claimed_for_nobody(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    organization = await _organization(sessions)
+    await _queue(sessions, kind="hog", organization_id=organization)
+    await _queue(sessions, kind="hog")
+    async with sessions() as db, db.begin():
+        assert await kind_repo.pause(db, "hog", None, reason="by hand") is True
+        # Two scopes of one kind, each its own row.
+        assert await kind_repo.record_death(db, "hog", organization) == 1
+        assert await kind_repo.record_death(db, "hog", None) == 1
+
+    assert await _claim(sessions) is None
+
+
+async def test_an_end_is_owed_its_settlement_until_it_is_marked_and_owed_again_after_a_retry(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    job_id = await _queue(sessions, max_attempts=1)
+    claimed = await _claim(sessions)
+    assert claimed is not None
+    async with sessions() as db, db.begin():
+        assert await job_repo.bury(db, job_id, fence=claimed.attempts, error="no such kind")
+
+    async with sessions() as db, db.begin():
+        owed = [end for end in await job_repo.unsettled_ends(db) if end.id == job_id]
+        assert [(end.kind, end.why) for end in owed] == [("probe", "no such kind")]
+        await job_repo.mark_settled(db, job_id)
+        assert job_id not in [end.id for end in await job_repo.unsettled_ends(db)]
+        assert await job_repo.requeue_dead(db, job_id) is True
+
+    assert (await _status(sessions, job_id)).settled_at is None
 
 
 async def test_the_claim_takes_the_lowest_priority_first_then_the_oldest(

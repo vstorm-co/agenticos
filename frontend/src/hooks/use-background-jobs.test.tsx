@@ -120,16 +120,28 @@ describe("the actions", () => {
 
     await act(() => result.current.retry.mutateAsync(JOB));
     await act(() => result.current.cancel.mutateAsync(JOB));
-    await act(() => result.current.resume.mutateAsync("ingest-document"));
+    await act(() =>
+      result.current.resume.mutateAsync({ kind: "ingest-document", organization_id: null }),
+    );
+    await act(() =>
+      result.current.resume.mutateAsync({ kind: "ingest-document", organization_id: "o-1" }),
+    );
 
     expect(vi.mocked(apiClient.post).mock.calls.map((call) => call[0])).toEqual([
       "/admin/background-jobs/jobs/j-1/retry",
       "/admin/background-jobs/jobs/j-1/cancel",
       "/admin/background-jobs/kinds/ingest-document/resume",
+      "/admin/background-jobs/kinds/ingest-document/resume",
     ]);
+    // The whole kind names no organization; one organization's pause names it.
+    expect(vi.mocked(apiClient.post).mock.calls[2]?.[2]).toBeUndefined();
+    expect(vi.mocked(apiClient.post).mock.calls[3]?.[2]).toEqual({
+      params: { organization_id: "o-1" },
+    });
     expect(toastSuccess.mock.calls.map((call) => call[0])).toEqual([
       "The job is queued again.",
       "The job is cancelled.",
+      "Jobs of this kind are claimed again.",
       "Jobs of this kind are claimed again.",
     ]);
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.admin.backgroundJobs() });

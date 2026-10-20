@@ -25,6 +25,7 @@ from app.db.models.background_job import BackgroundJob
 from app.db.models.background_task_kind import BackgroundTaskKind
 from app.db.models.background_worker import BackgroundWorker
 from app.repositories import background_job as job_repo
+from app.repositories import background_task_kind as kind_repo
 from app.worker.executors import ChildPool, Executor, InProcessExecutor
 from app.worker.jobs import Pool, Task
 from app.worker.listener import asyncpg_dsn, listener
@@ -112,7 +113,9 @@ async def running(
         )
         tasks.update({task.kind: task for task in INGEST_TASKS.values()})
 
-    async def on_pause(_db: AsyncSession, kind: str, reason: str) -> None:
+    async def on_pause(
+        _db: AsyncSession, kind: str, _organization_id: UUID | None, reason: str
+    ) -> None:
         pauses.append((kind, reason))
 
     async def on_ended(kind: str, _payload: object, why: str) -> None:
@@ -272,7 +275,7 @@ async def test_a_kind_that_keeps_killing_its_workers_is_paused_and_the_owner_tol
 
     assert [kind for kind, _ in pauses] == ["test-suicide"]
     async with sessions() as db:
-        state = await db.get(BackgroundTaskKind, "test-suicide")
+        state = await _breaker(db, "test-suicide")
     assert state is not None
     assert state.paused_at is not None
     assert state.consecutive_deaths == 3
@@ -287,7 +290,7 @@ async def test_a_job_that_finishes_ends_its_kinds_run_of_deaths(
             job_id = await _enqueue(sessions, INGEST_TASKS["flaky"], Note(text=text_))
             await _until_status(sessions, job_id, "dead", "succeeded")
     async with sessions() as db:
-        state = await db.get(BackgroundTaskKind, "test-flaky")
+        state = await _breaker(db, "test-flaky")
     assert pauses == []
     assert state is not None
     assert (state.paused_at, state.consecutive_deaths) == (None, 1)
@@ -405,13 +408,19 @@ async def test_a_worker_that_lost_its_lease_counts_the_possible_duplicate(
     assert (job.status, job.worker_id, job.attempts) == ("running", "other", 2)
 
 
+async def _breaker(db: AsyncSession, kind: str) -> BackgroundTaskKind | None:
+    """The deployment-wide breaker of `kind`: these jobs belong to no organization."""
+    found = await kind_repo.get(db, kind, None)
+    return None if found is None else found[0]
+
+
 async def _until_lease_lost(
     sessions: Callable[[], contextlib.AbstractAsyncContextManager[AsyncSession]],
 ) -> None:
     deadline = asyncio.get_running_loop().time() + PATIENCE
     while True:
         async with sessions() as db:
-            state = await db.get(BackgroundTaskKind, "test-ok")
+            state = await _breaker(db, "test-ok")
         if state is not None and state.lease_lost == 1:
             return
         assert asyncio.get_running_loop().time() < deadline

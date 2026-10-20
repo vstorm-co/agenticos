@@ -329,18 +329,34 @@ async def dispatch_due_syncs() -> int:
     async with get_worker_db_context() as db:
         if not await sync_source_repo.any_due_for_sync(db):
             return 0
+        sources = SyncSourceService(db)
         for source in await sync_source_repo.get_due_for_sync(db):
             key = sync_source_key(source.id)
+            # The log and its job in one savepoint, as a manual trigger queues them:
+            # the job then names its own log, and a job that dies leaves that log
+            # to close rather than whichever of the source's logs is newest - a
+            # manual sync queued behind it, which was then failed in its place
+            # (Codex, #2248). A sync already queued or running keeps the source,
+            # and the log opened for nothing goes with the savepoint.
+            savepoint = await db.begin_nested()
+            log_id = None
+            if source.collection_name:
+                log = await sources.open_sync_log(source, collection_name=source.collection_name)
+                log_id = log.id
             job_id = await enqueue(
                 db,
                 SYNC_SOURCE,
-                SyncConnectorSource(source_id=source.id, sync_log_id=None),
+                SyncConnectorSource(source_id=source.id, sync_log_id=log_id),
                 organization_id=source.organization_id,
                 dedupe_key=key,
                 dedupe_active=True,
                 concurrency_key=key,
             )
-            queued += job_id is not None
+            if job_id is None:
+                await savepoint.rollback()
+            else:
+                await savepoint.commit()
+                queued += 1
     if queued:
         logger.info("Scheduled sync check: queued %d source(s)", queued)
     return queued
@@ -1205,8 +1221,9 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
         # for a deployment-wide fallback, because there is not one.
         credential = await _connector_credential(db, source.secret_id, organization_id)
 
-        # The log a manual trigger made and handed us, or - for a scheduled run,
-        # which is queued with none - one opened now. Opened, not triggered:
+        # The log the job was queued with - a manual trigger and the schedule both
+        # open one - or, for a source that had no collection when it was
+        # queued and has one now, one opened here. Opened, not triggered:
         # `trigger_sync` queues a job too, and this one is already running, so it
         # queued a second sync of the same source behind this one (Codex, #2248).
         if sync_log_id:
@@ -1697,18 +1714,14 @@ async def settle_lost_collection_sync(job: SyncCollection, reason: str) -> None:
 async def settle_lost_source_sync(job: SyncConnectorSource, reason: str) -> None:
     """A source sync that ended for good with its log still running.
 
-    A scheduled run is queued with no log id and opens its log once it starts,
-    so the source's newest running log is the one, if it got that far.
+    Its own log, by the id it was queued with: a scheduled run opens its log
+    when it is queued, as a manual one does. Never the source's newest running
+    log, which can be a later sync's (Codex, #2248).
     """
     async with get_worker_db_context() as db:
-        if job.sync_log_id is not None:
-            log_id: str | None = str(job.sync_log_id)
-        else:
-            log = await sync_log_repo.latest_running_for_source(db, job.source_id)
-            log_id = None if log is None else str(log.id)
         await SyncSourceService(db).update_after_sync(str(job.source_id), "error", _stopped(reason))
-    if log_id is not None:
-        await _close_running_log(log_id, reason)
+    if job.sync_log_id is not None:
+        await _close_running_log(str(job.sync_log_id), reason)
 
 
 async def _close_running_log(sync_log_id: str, reason: str) -> None:

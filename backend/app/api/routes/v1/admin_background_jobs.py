@@ -90,7 +90,12 @@ async def pause_background_kind(
 
 @router.post("/kinds/{kind}/resume", response_model=BackgroundKindRead)
 async def resume_background_kind(
-    kind: str, service: BackgroundJobSvc, admin: CurrentAppAdmin
+    kind: str,
+    service: BackgroundJobSvc,
+    admin: CurrentAppAdmin,
+    organization_id: UUID | None = Query(
+        None, description="The organization it was paused for; leave out for the whole kind"
+    ),
 ) -> Any:
-    """Let workers claim a paused kind again."""
-    return await service.resume_kind(kind, actor_user_id=admin.id)
+    """Let workers claim a paused kind again, in one organization or everywhere."""
+    return await service.resume_kind(kind, organization_id=organization_id, actor_user_id=admin.id)

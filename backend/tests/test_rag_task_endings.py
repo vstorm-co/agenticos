@@ -104,21 +104,15 @@ async def test_a_lost_collection_sync_whose_log_is_gone_closes_nothing() -> None
     close.assert_not_awaited()
 
 
-@pytest.mark.parametrize("named", [True, False], ids=["manual", "scheduled"])
-async def test_a_lost_source_sync_marks_the_source_and_closes_the_log_it_opened(
-    named: bool,
-) -> None:
-    """A scheduled run is queued with no log id: its newest running log is the one."""
+async def test_a_lost_source_sync_marks_the_source_and_closes_the_log_it_was_queued_with() -> None:
+    """Its own log, by id - never the source's newest running one, which can be a
+    manual sync queued behind it (Codex, #2248)."""
     log_id = uuid.uuid4()
-    job = SyncConnectorSource(source_id=uuid.uuid4(), sync_log_id=log_id if named else None)
+    job = SyncConnectorSource(source_id=uuid.uuid4(), sync_log_id=log_id)
     sources = MagicMock(update_after_sync=AsyncMock())
     with (
         patch(f"{MODULE}.get_worker_db_context", _db),
         patch(f"{MODULE}.SyncSourceService", return_value=sources),
-        patch(
-            f"{MODULE}.sync_log_repo.latest_running_for_source",
-            new=AsyncMock(return_value=MagicMock(id=log_id)),
-        ) as latest,
         patch(f"{MODULE}._close_running_log", new=AsyncMock()) as close,
     ):
         await handlers.settle_ended(SYNC_SOURCE.kind, SYNC_SOURCE.dump(job), "killed")
@@ -127,17 +121,14 @@ async def test_a_lost_source_sync_marks_the_source_and_closes_the_log_it_opened(
         str(job.source_id), "error", "Stopped before it finished: killed"
     )
     close.assert_awaited_once_with(str(log_id), "killed")
-    assert latest.await_count == int(not named)
 
 
-async def test_a_scheduled_sync_that_died_before_opening_a_log_closes_none() -> None:
+async def test_a_sync_queued_without_a_log_marks_the_source_and_closes_none() -> None:
+    """A source with no collection when it came due is queued without a log."""
     job = SyncConnectorSource(source_id=uuid.uuid4(), sync_log_id=None)
     with (
         patch(f"{MODULE}.get_worker_db_context", _db),
         patch(f"{MODULE}.SyncSourceService", return_value=MagicMock(update_after_sync=AsyncMock())),
-        patch(
-            f"{MODULE}.sync_log_repo.latest_running_for_source", new=AsyncMock(return_value=None)
-        ),
         patch(f"{MODULE}._close_running_log", new=AsyncMock()) as close,
     ):
         await rag_tasks.settle_lost_source_sync(job, "killed")

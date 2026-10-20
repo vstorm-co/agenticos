@@ -79,16 +79,21 @@ class RescuedJob:
     id: UUID
     kind: str
     status: JobStatus
-    payload: dict[str, JsonValue]
+    organization_id: UUID | None
 
     @property
     def dead(self) -> bool:
         return self.status == "dead"
 
-    @property
-    def ended(self) -> bool:
-        """Dead, or withdrawn for a newer copy: no attempt of it is coming."""
-        return self.status in ("dead", "cancelled")
+
+@dataclass(frozen=True)
+class UnsettledEnd:
+    """A dead or cancelled job whose settler has not run to the end yet."""
+
+    id: UUID
+    kind: str
+    payload: dict[str, JsonValue]
+    why: str
 
 
 async def add(
@@ -149,7 +154,8 @@ async def add(
 # The subquery locks one claimable row and skips any another worker holds, and
 # `FOR UPDATE` rechecks its own `WHERE` against the row's latest version once
 # the lock is taken - so a job another claim moved on between the snapshot and
-# the lock is not handed out twice. A kind that is paused is not claimed; nor is
+# the lock is not handed out twice. A kind paused for the whole deployment, or
+# for the job's own organization, is not claimed; nor is
 # a job whose `concurrency_key` is already running somewhere, and the partial
 # unique index on running keys turns the one race left there - two claims of two
 # such jobs at once - into a unique violation for the second, not a duplicate.
@@ -170,6 +176,7 @@ _CLAIM = text(
           AND NOT EXISTS (
               SELECT 1 FROM background_task_kinds k
               WHERE k.kind = j.kind AND k.paused_at IS NOT NULL
+                AND (k.organization_id IS NULL OR k.organization_id = j.organization_id)
           )
           AND (
               j.concurrency_key IS NULL
@@ -407,7 +414,7 @@ _RESCUE = text(
         FOR UPDATE SKIP LOCKED
         LIMIT :limit
     )
-    RETURNING id, kind, status, payload
+    RETURNING id, kind, status, organization_id
     """
 )
 
@@ -420,8 +427,50 @@ async def rescue_expired(
         await db.execute(_RESCUE, {"retry_seconds": retry_in.total_seconds(), "limit": limit})
     ).all()
     return [
-        RescuedJob(id=row.id, kind=row.kind, status=row.status, payload=row.payload) for row in rows
+        RescuedJob(id=row.id, kind=row.kind, status=row.status, organization_id=row.organization_id)
+        for row in rows
     ]
+
+
+async def unsettled_ends(
+    db: AsyncSession, *, within: timedelta = timedelta(days=1), limit: int = 50
+) -> list[UnsettledEnd]:
+    """The dead and cancelled jobs of the last `within` whose settlement is still owed.
+
+    Newest first, and only that far back: a settler that fails every time - a bug
+    rather than an outage - is retried for a day and then left, instead of every
+    pass for good, and it never stands in front of an end that happened since.
+    `why` is what the job ended on, or its status where nothing was written - a
+    queued job an owner cancelled.
+    """
+    rows = await db.execute(
+        select(
+            BackgroundJob.id,
+            BackgroundJob.kind,
+            BackgroundJob.payload,
+            func.coalesce(BackgroundJob.last_error, BackgroundJob.status),
+        )
+        .where(
+            BackgroundJob.status.in_(("dead", "cancelled")),
+            BackgroundJob.settled_at.is_(None),
+            BackgroundJob.finished_at > func.now() - within,
+        )
+        .order_by(BackgroundJob.finished_at.desc())
+        .limit(limit)
+    )
+    return [
+        UnsettledEnd(id=job_id, kind=kind, payload=payload, why=why)
+        for job_id, kind, payload, why in rows.tuples().all()
+    ]
+
+
+async def mark_settled(db: AsyncSession, job_id: UUID) -> None:
+    """Record that what `job_id` left outside the queue is closed."""
+    await db.execute(
+        update(BackgroundJob)
+        .where(BackgroundJob.id == job_id, BackgroundJob.settled_at.is_(None))
+        .values(settled_at=func.now())
+    )
 
 
 async def _active_with_key(db: AsyncSession, dedupe_key: str) -> bool:
@@ -649,7 +698,10 @@ async def requeue_dead(db: AsyncSession, job_id: UUID) -> bool:
         await db.execute(
             update(BackgroundJob)
             .where(BackgroundJob.id == job_id, BackgroundJob.status == "dead")
-            .values(status="queued", attempts=0, run_after=func.now(), finished_at=None)
+            # Unsettled again: an end this retry reaches is a new one to settle.
+            .values(
+                status="queued", attempts=0, run_after=func.now(), finished_at=None, settled_at=None
+            )
             .returning(BackgroundJob.pool)
         )
     ).scalar_one_or_none()

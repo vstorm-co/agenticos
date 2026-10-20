@@ -131,8 +131,15 @@ def _heartbeat(
             SimpleNamespace(name="apply-retention", interval_seconds=86400, last_fired_at=None),
         ]
 
-    async def kinds(*_: object) -> list[SimpleNamespace]:
-        return [SimpleNamespace(kind=kind, paused_at=datetime.now(UTC)) for kind in paused]
+    async def kinds(*_: object) -> list[tuple[SimpleNamespace, str | None]]:
+        # "kind@organization" is a pause for that organization alone.
+        return [
+            (
+                SimpleNamespace(kind=kind.split("@")[0], paused_at=datetime.now(UTC)),
+                kind.split("@")[1] if "@" in kind else None,
+            )
+            for kind in paused
+        ]
 
     monkeypatch.setattr(background_worker, "list_seen_since", seen)
     monkeypatch.setattr(background_schedule, "list_all", schedules)
@@ -509,6 +516,15 @@ class TestSchedulerProbe:
         assert check.status == "unhealthy"
         assert "paused after repeated worker deaths: ingest-document" in check.detail
         assert "Background jobs page" in check.detail
+
+    async def test_a_kind_paused_for_one_organization_names_it(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _heartbeat(monkeypatch, fired=datetime.now(UTC), paused=("ingest-document@Acme",))
+
+        check = await health.probe_scheduler(_Session())  # type: ignore[arg-type]
+
+        assert "paused after repeated worker deaths: ingest-document (Acme)" in check.detail
 
     async def test_an_unreadable_queue_is_unhealthy_and_says_why(
         self, monkeypatch: pytest.MonkeyPatch

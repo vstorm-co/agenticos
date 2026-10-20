@@ -451,7 +451,14 @@ claimed, so a child the kernel kills mid-parse has spent one, and after
 `max_attempts` the job is dead. A kind whose jobs kill their worker
 `WORKER_BREAKER_DEATHS` times in a row is paused, and every owner of the
 deployment is told; nothing claims it until one of them resumes it on the
-Background jobs page.
+Background jobs page. The count is kept per organization: one tenant whose jobs
+keep killing their worker pauses the kind for itself alone, and jobs that belong
+to no organization share one count for the whole deployment.
+
+**What a job leaves behind is closed even when that fails once.** A job that
+ends for good can leave a document `processing` or a sync log `running`. The
+worker closes them as the job ends, and the rescuer retries a close that failed -
+the database down at the time - for a day.
 
 A worker that dies gives its jobs back within `WORKER_LEASE_SECONDS`: another
 worker's rescue takes the expired lease and writes the job down as a worker

@@ -1,5 +1,5 @@
 ---
-source_sha: "89b7d96c3c15"
+source_sha: "62f20297dde0"
 ---
 
 # El despliegue en sí { #the-deployment-itself }
@@ -591,7 +591,8 @@ Un tipo lo pausa el cortacircuitos del worker: sus jobs mataron a su worker
 `WORKER_BREAKER_DEATHS` veces seguidas, casi siempre un documento cuyo parseo se
 queda sin memoria. Cada propietario recibe un aviso en la aplicación y por
 correo, y la notificación no se puede desactivar: el trabajo de ese tipo se
-acumula hasta que uno de ellos lo reanuda. Reintenta los jobs muertos solo
+acumula hasta que uno de ellos lo reanuda. Una pausa nombra la organización
+cuyos jobs la provocaron, y para todas las demás el tipo sigue funcionando. Reintenta los jobs muertos solo
 cuando la causa esté resuelta, o morirán igual. Los ajustes están en
 [Configuración](configuration.md#background-work).
 

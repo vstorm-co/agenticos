@@ -1,5 +1,5 @@
 ---
-source_sha: "e439e97ab671"
+source_sha: "c10fd9c1aa83"
 ---
 
 # Konfiguracja { #configuration }
@@ -459,7 +459,16 @@ liczona w chwili pobrania, więc proces potomny zabity przez jądro w trakcie
 parsowania zużył jedną, a po `max_attempts` zadanie jest martwe. Rodzaj, którego
 zadania zabijają swojego workera `WORKER_BREAKER_DEATHS` razy z rzędu, zostaje
 wstrzymany, a każdy właściciel wdrożenia dostaje powiadomienie; nic go nie
-pobiera, dopóki któryś z nich nie wznowi go na stronie Background jobs.
+pobiera, dopóki któryś z nich nie wznowi go na stronie Background jobs. Licznik
+jest prowadzony osobno dla każdej organizacji: tenant, którego zadania wciąż
+zabijają workera, wstrzymuje rodzaj tylko dla siebie, a zadania bez organizacji
+dzielą jeden licznik dla całego wdrożenia.
+
+**To, co zadanie zostawia, zostaje domknięte, nawet gdy raz się nie uda.**
+Zadanie, które kończy się na dobre, może zostawić dokument w stanie `processing`
+albo log synchronizacji w stanie `running`. Worker domyka je, gdy zadanie się
+kończy, a rescuer ponawia nieudane domknięcie - np. gdy baza była niedostępna -
+przez dobę.
 
 Worker, który umrze, oddaje swoje zadania w ciągu `WORKER_LEASE_SECONDS`:
 ratowanie u innego workera przejmuje wygasłą dzierżawę i zapisuje zadanie jako

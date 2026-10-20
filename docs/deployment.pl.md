@@ -1,5 +1,5 @@
 ---
-source_sha: "89b7d96c3c15"
+source_sha: "62f20297dde0"
 ---
 
 # Samo wdrożenie { #the-deployment-itself }
@@ -584,7 +584,8 @@ Rodzaj wstrzymuje bezpiecznik workera: jego zadania zabiły swojego workera
 `WORKER_BREAKER_DEATHS` razy z rzędu, najczęściej dokument, przy którym
 parsowanie kończy się brakiem pamięci. Każdy właściciel dostaje powiadomienie w
 aplikacji i e-mailem, którego nie da się wyłączyć - praca tego rodzaju gromadzi
-się, dopóki któryś z nich jej nie wznowi. Martwe zadania ponawiaj dopiero po
+się, dopóki któryś z nich jej nie wznowi. Pauza podaje organizację, której
+zadania ją wywołały, a dla pozostałych ten rodzaj działa dalej. Martwe zadania ponawiaj dopiero po
 usunięciu przyczyny, inaczej zginą tak samo. Ustawienia są w
 [Konfiguracji](configuration.md#background-work).
 

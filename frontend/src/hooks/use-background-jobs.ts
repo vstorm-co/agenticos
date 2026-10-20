@@ -100,8 +100,16 @@ export function useBackgroundJobActions() {
       apiClient.post<BackgroundJob>(`${BASE}/jobs/${job.id}/cancel`),
     ...settle(t("cancelled")),
   });
+  // A breaker is a kind in one organization, or the whole kind: the resume names which.
   const resume = useMutation({
-    mutationFn: (kind: string) => apiClient.post<BackgroundKind>(`${BASE}/kinds/${kind}/resume`),
+    mutationFn: (scope: Pick<BackgroundKind, "kind" | "organization_id">) =>
+      apiClient.post<BackgroundKind>(
+        `${BASE}/kinds/${scope.kind}/resume`,
+        undefined,
+        scope.organization_id === null
+          ? undefined
+          : { params: { organization_id: scope.organization_id } },
+      ),
     ...settle(t("resumed")),
   });
 

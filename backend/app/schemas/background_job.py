@@ -48,6 +48,10 @@ class BackgroundKindRead(BaseSchema):
     """A kind of job the circuit breaker has an opinion about."""
 
     kind: str
+    organization_id: UUID | None = Field(
+        description="The organization this breaker is for; null for the whole kind"
+    )
+    organization_name: str | None = None
     consecutive_deaths: int
     lease_lost: int
     paused_at: datetime | None

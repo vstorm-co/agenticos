@@ -5052,7 +5052,9 @@
       },
       "noActivity": "W tym okresie nic się nie zakończyło.",
       "activityCouldNotBeRead": "Nie udało się odczytać aktywności.",
-      "perSlice": "{window, select, day {ok. {count} na godzinę} other {ok. {count} na sześć godzin}}"
+      "perSlice": "{window, select, day {ok. {count} na godzinę} other {ok. {count} na sześć godzin}}",
+      "pausedEverywhere": "Wstrzymane dla wszystkich organizacji",
+      "pausedFor": "Wstrzymane dla {organization}"
     }
   },
   "profile": {

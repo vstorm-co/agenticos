@@ -5164,7 +5164,9 @@
       },
       "noActivity": "In diesem Zeitraum wurde nichts beendet.",
       "activityCouldNotBeRead": "Die Aktivität konnte nicht gelesen werden.",
-      "perSlice": "{window, select, day {etwa {count} pro Stunde} other {etwa {count} alle sechs Stunden}}"
+      "perSlice": "{window, select, day {etwa {count} pro Stunde} other {etwa {count} alle sechs Stunden}}",
+      "pausedEverywhere": "Für alle Organisationen pausiert",
+      "pausedFor": "Für {organization} pausiert"
     }
   },
   "profile": {

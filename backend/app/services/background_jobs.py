@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.db.models.background_task_kind import BackgroundTaskKind
 from app.repositories import background_job as background_job_repo
 from app.repositories import background_schedule as background_schedule_repo
 from app.repositories import background_task_kind as background_task_kind_repo
@@ -80,16 +81,25 @@ async def enqueue[P: Payload](
     )
 
 
-async def tell_owners_paused(db: AsyncSession, kind: str, reason: str) -> None:
+async def tell_owners_paused(
+    db: AsyncSession, kind: str, organization_id: UUID | None, reason: str
+) -> None:
     """Tell the deployment's owners a kind of job is paused, in the pausing transaction.
 
     The worker's circuit breaker calls this once per pause; the notification is
     written with the pause, so it is never sent for a pause that rolled back.
     """
+    from app.repositories import organization_repo
     from app.services.notifications import NotificationService
 
+    organization = (
+        None if organization_id is None else await organization_repo.get_by_id(db, organization_id)
+    )
     await NotificationService(db).background_task_paused(
-        kind, reason=reason, paused_at=datetime.now(UTC)
+        kind,
+        organization_name=None if organization is None else organization.name,
+        reason=reason,
+        paused_at=datetime.now(UTC),
     )
 
 
@@ -118,8 +128,8 @@ class BackgroundJobService:
         return BackgroundJobsOverview(
             counts=await background_job_repo.count_by_status(self.db),
             kinds=[
-                BackgroundKindRead.model_validate(kind)
-                for kind in await background_task_kind_repo.list_all(self.db)
+                _kind_read(kind, name)
+                for kind, name in await background_task_kind_repo.list_all(self.db)
             ],
             workers=[
                 BackgroundWorkerRead.model_validate(worker)
@@ -263,9 +273,12 @@ class BackgroundJobService:
     async def pause_kind(
         self, kind: str, *, reason: str, actor_user_id: UUID
     ) -> BackgroundKindRead:
-        """Stop workers claiming a kind until it is resumed. Pausing a paused kind changes nothing."""
+        """Stop workers claiming a kind until it is resumed, in every organization.
+
+        Pausing a paused kind changes nothing.
+        """
         self._known(kind)
-        if await background_task_kind_repo.pause(self.db, kind, reason=reason):
+        if await background_task_kind_repo.pause(self.db, kind, None, reason=reason):
             await record_audit(
                 self.db,
                 actor_user_id=actor_user_id,
@@ -274,21 +287,30 @@ class BackgroundJobService:
                 target_id=kind,
                 details={"reason": reason},
             )
-        return await self._kind(kind)
+        return await self._kind(kind, None)
 
-    async def resume_kind(self, kind: str, *, actor_user_id: UUID) -> BackgroundKindRead:
-        """Let workers claim a kind again, starting its run of deaths afresh."""
+    async def resume_kind(
+        self, kind: str, *, organization_id: UUID | None, actor_user_id: UUID
+    ) -> BackgroundKindRead:
+        """Let workers claim a kind again, in one organization or everywhere, its deaths counted afresh."""
         self._known(kind)
-        if not await background_task_kind_repo.resume(self.db, kind):
-            raise BadRequestError(message="This kind of job is not paused.", details={"kind": kind})
+        if not await background_task_kind_repo.resume(self.db, kind, organization_id):
+            raise BadRequestError(
+                message="This kind of job is not paused here.",
+                details={
+                    "kind": kind,
+                    "organization_id": None if organization_id is None else str(organization_id),
+                },
+            )
         await record_audit(
             self.db,
             actor_user_id=actor_user_id,
             action="background_kind.resumed",
             target_type="background_kind",
             target_id=kind,
+            details=None if organization_id is None else {"organization_id": str(organization_id)},
         )
-        return await self._kind(kind)
+        return await self._kind(kind, organization_id)
 
     async def _read(self, job_id: UUID) -> BackgroundJobRead:
         job = await background_job_repo.get(self.db, job_id)
@@ -314,15 +336,22 @@ class BackgroundJobService:
             details={"job_id": str(job_id), "status": job.status},
         )
 
-    async def _kind(self, kind: str) -> BackgroundKindRead:
-        row = await background_task_kind_repo.get(self.db, kind)
-        assert row is not None, "pausing writes the row, and only a paused kind is resumed"
+    async def _kind(self, kind: str, organization_id: UUID | None) -> BackgroundKindRead:
+        found = await background_task_kind_repo.get(self.db, kind, organization_id)
+        assert found is not None, "pausing writes the row, and only a paused kind is resumed"
+        row, name = found
         # The pause and the resume are statements, not ORM writes: refresh so
         # the row read back is the one they left.
         await self.db.refresh(row)
-        return BackgroundKindRead.model_validate(row)
+        return _kind_read(row, name)
 
     @staticmethod
     def _known(kind: str) -> None:
         if kind not in TASKS:
             raise NotFoundError(message="No such kind of background job.", details={"kind": kind})
+
+
+def _kind_read(row: BackgroundTaskKind, organization_name: str | None) -> BackgroundKindRead:
+    return BackgroundKindRead.model_validate(row).model_copy(
+        update={"organization_name": organization_name}
+    )

@@ -1,5 +1,5 @@
 ---
-source_sha: "e439e97ab671"
+source_sha: "c10fd9c1aa83"
 ---
 
 # Konfiguration { #configuration }
@@ -479,7 +479,15 @@ Parsen tötet, hat also einen verbraucht, und nach `max_attempts` ist der Job
 tot. Eine Art, deren Jobs ihren Worker `WORKER_BREAKER_DEATHS`-mal in Folge
 umbringen, wird pausiert, und jeder Eigentümer des Deployments erfährt es;
 nichts holt sie ab, bis einer von ihnen sie auf der Seite Background jobs
-fortsetzt.
+fortsetzt. Gezählt wird je Organisation: Ein Mandant, dessen Jobs ihren Worker
+immer wieder umbringen, pausiert die Art nur für sich, und Jobs ohne Organisation
+teilen sich einen Zähler für das ganze Deployment.
+
+**Was ein Job hinterlässt, wird geschlossen, auch wenn das einmal scheitert.**
+Ein Job, der endgültig endet, kann ein Dokument in `processing` oder ein
+Sync-Protokoll in `running` hinterlassen. Der Worker schließt sie, wenn der Job
+endet, und der Rescuer wiederholt ein gescheitertes Schließen - etwa bei
+unerreichbarer Datenbank - einen Tag lang.
 
 Ein Worker, der stirbt, gibt seine Jobs innerhalb von `WORKER_LEASE_SECONDS`
 zurück: Die Rettung eines anderen Workers übernimmt den abgelaufenen Lease und

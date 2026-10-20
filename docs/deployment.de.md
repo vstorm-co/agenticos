@@ -1,5 +1,5 @@
 ---
-source_sha: "89b7d96c3c15"
+source_sha: "62f20297dde0"
 ---
 
 # Das Deployment selbst { #the-deployment-itself }
@@ -623,7 +623,9 @@ Eine Art pausiert der Schutzschalter des Workers: Ihre Jobs haben ihren Worker
 `WORKER_BREAKER_DEATHS`-mal in Folge umgebracht, meist ein Dokument, dessen
 Parsen den Speicher sprengt. Jeder Eigentümer erfährt es in der App und per
 E-Mail, und die Benachrichtigung lässt sich nicht abschalten - Arbeit dieser Art
-staut sich, bis einer von ihnen sie fortsetzt. Versuchen Sie die toten Jobs erst
+staut sich, bis einer von ihnen sie fortsetzt. Eine Pause nennt die
+Organisation, deren Jobs sie ausgelöst haben, und für alle anderen läuft die Art
+weiter. Versuchen Sie die toten Jobs erst
 erneut, wenn die Ursache behoben ist, sonst sterben sie auf dieselbe Weise. Die
 Einstellungen stehen unter [Konfiguration](configuration.md#background-work).
 

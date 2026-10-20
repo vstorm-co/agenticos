@@ -15,8 +15,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.db.models.audit_log import AppAdminAuditLog
+from app.db.models.organization import Organization
+from app.db.models.user import User
 from app.repositories import background_job as job_repo
 from app.repositories import background_schedule as schedule_repo
+from app.repositories import background_task_kind as kind_repo
 from app.repositories import background_worker as worker_repo
 from app.services.background_jobs import BackgroundJobService
 
@@ -206,7 +209,9 @@ async def test_a_kind_paused_by_hand_stops_being_claimed_until_resumed(db: Async
         await job_repo.claim(db, pool="system", worker_id="w", lease=timedelta(minutes=1)) is None
     )
 
-    resumed = await service.resume_kind("expire-approvals", actor_user_id=ADMIN)
+    resumed = await service.resume_kind(
+        "expire-approvals", organization_id=None, actor_user_id=ADMIN
+    )
     assert resumed.paused_at is None
     assert await job_repo.claim(db, pool="system", worker_id="w", lease=timedelta(minutes=1))
     assert [action for action, _ in await _audited(db)] == [
@@ -215,9 +220,42 @@ async def test_a_kind_paused_by_hand_stops_being_claimed_until_resumed(db: Async
     ]
 
 
+async def test_an_organizations_pause_is_listed_by_name_and_resumed_alone(
+    db: AsyncSession,
+) -> None:
+    founder = User(id=uuid4(), email=f"{uuid4().hex}@x.test", hashed_password="x")
+    db.add(founder)
+    await db.flush()
+    acme = Organization(
+        id=uuid4(), name="Acme", slug=f"acme-{uuid4().hex[:8]}", created_by_user_id=founder.id
+    )
+    db.add(acme)
+    await db.flush()
+    assert await kind_repo.pause(db, "ingest-document", acme.id, reason="five deaths in a row")
+    service = BackgroundJobService(db)
+
+    (listed,) = [
+        kind for kind in (await service.overview()).kinds if kind.organization_id == acme.id
+    ]
+    assert (listed.kind, listed.organization_name) == ("ingest-document", "Acme")
+
+    resumed = await service.resume_kind(
+        "ingest-document", organization_id=acme.id, actor_user_id=ADMIN
+    )
+    assert (resumed.paused_at, resumed.organization_name) == (None, "Acme")
+    (audit,) = (await db.execute(select(AppAdminAuditLog))).scalars().all()
+    assert (audit.action, audit.target_id, audit.details) == (
+        "background_kind.resumed",
+        "ingest-document",
+        {"organization_id": str(acme.id)},
+    )
+
+
 async def test_resuming_a_kind_that_is_not_paused_is_refused(db: AsyncSession) -> None:
     with pytest.raises(BadRequestError, match="not paused"):
-        await BackgroundJobService(db).resume_kind("expire-approvals", actor_user_id=ADMIN)
+        await BackgroundJobService(db).resume_kind(
+            "expire-approvals", organization_id=None, actor_user_id=ADMIN
+        )
 
 
 async def test_an_unknown_kind_cannot_be_paused_or_resumed(db: AsyncSession) -> None:
@@ -225,10 +263,12 @@ async def test_an_unknown_kind_cannot_be_paused_or_resumed(db: AsyncSession) -> 
     with pytest.raises(NotFoundError):
         await service.pause_kind("no-such-kind", reason="x", actor_user_id=ADMIN)
     with pytest.raises(NotFoundError):
-        await service.resume_kind("no-such-kind", actor_user_id=ADMIN)
+        await service.resume_kind("no-such-kind", organization_id=None, actor_user_id=ADMIN)
 
 
 async def test_a_kind_that_never_died_reads_as_untouched(db: AsyncSession) -> None:
     await BackgroundJobService(db).pause_kind("reap-stale-runs", reason="x", actor_user_id=ADMIN)
-    resumed = await BackgroundJobService(db).resume_kind("reap-stale-runs", actor_user_id=ADMIN)
+    resumed = await BackgroundJobService(db).resume_kind(
+        "reap-stale-runs", organization_id=None, actor_user_id=ADMIN
+    )
     assert (resumed.consecutive_deaths, resumed.lease_lost) == (0, 0)

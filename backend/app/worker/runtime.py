@@ -48,8 +48,9 @@ logger = logging.getLogger(__name__)
 SessionFactory = Callable[[], AbstractAsyncContextManager[AsyncSession]]
 """A session that commits when its block exits cleanly and rolls back otherwise."""
 
-PauseHook = Callable[[AsyncSession, str, str], Awaitable[None]]
-"""Called, in the pausing transaction, with the kind and the reason, when a kind is paused."""
+PauseHook = Callable[[AsyncSession, str, UUID | None, str], Awaitable[None]]
+"""Called, in the pausing transaction, with the kind, the organization it is paused
+for (`None` for the whole kind) and the reason."""
 
 ScheduleTick = Callable[[AsyncSession], Awaitable[object]]
 EndedHook = Callable[[str, dict[str, JsonValue], str], Awaitable[None]]
@@ -252,10 +253,17 @@ class Worker:
     async def _ended(
         self, job_id: UUID, kind: str, payload: dict[str, JsonValue], why: str
     ) -> None:
+        """Run the job's settler, and record it run.
+
+        A settler that fails leaves `settled_at` empty, and the rescuer's next
+        pass runs it again: the queue's word is final, so nothing else would ever
+        close the document or the sync log it left (Codex, #2248).
+        """
         try:
             await self.on_ended(kind, payload, why)
+            async with self.sessions() as db:
+                await job_repo.mark_settled(db, job_id)
         except Exception:
-            # The job is settled; the row it left is not, and the log says so.
             logger.exception("background_job_end_unsettled", extra={"job_id": str(job_id)})
 
     async def _record(self, db: AsyncSession, job: ClaimedJob, outcome: Outcome) -> str | None:
@@ -266,13 +274,13 @@ class Worker:
                 if not await job_repo.complete(db, job.id, fence=fence, result=result):
                     await self._lost(db, job)
                     return None
-                await kind_repo.record_survival(db, job.kind)
+                await kind_repo.record_survival(db, job.kind, job.organization_id)
                 return None
             case Failed(error=error, permanent=True):
                 if not await job_repo.bury(db, job.id, fence=fence, error=error):
                     await self._lost(db, job)
                     return None
-                await kind_repo.record_survival(db, job.kind)
+                await kind_repo.record_survival(db, job.kind, job.organization_id)
                 return error
             case Failed(error=error):
                 result = await job_repo.fail(
@@ -281,7 +289,7 @@ class Worker:
                 if result is FailOutcome.LOST:
                     await self._lost(db, job)
                     return None
-                await kind_repo.record_survival(db, job.kind)
+                await kind_repo.record_survival(db, job.kind, job.organization_id)
                 return None if result is FailOutcome.RETRYING else error
             case Died(reason=reason):  # pragma: no branch - `Outcome` has no fourth shape
                 error = f"{reason} (attempt {fence} of {job.max_attempts})"
@@ -295,25 +303,29 @@ class Worker:
                     "background_job_died",
                     extra={"job_id": str(job.id), "kind": job.kind, "reason": reason},
                 )
-                await self._count_death(db, job.kind)
+                await self._count_death(db, job.kind, job.organization_id)
                 return None if result is FailOutcome.RETRYING else reason
 
     async def _lost(self, db: AsyncSession, job: ClaimedJob) -> None:
         """The job was taken over while this worker still ran it: what it did may have happened twice."""
         logger.warning("background_lease_lost", extra={"job_id": str(job.id), "kind": job.kind})
-        await kind_repo.record_lease_lost(db, job.kind)
+        await kind_repo.record_lease_lost(db, job.kind, job.organization_id)
 
-    async def _count_death(self, db: AsyncSession, kind: str) -> None:
-        deaths = await kind_repo.record_death(db, kind)
+    async def _count_death(self, db: AsyncSession, kind: str, organization_id: UUID | None) -> None:
+        """Count a death in the job's own scope: its organization's, or the kind's if it has none."""
+        deaths = await kind_repo.record_death(db, kind, organization_id)
         if deaths < self.settings.breaker_deaths:
             return
         reason = (
             f"{deaths} jobs of this kind in a row ended with their worker process dead; "
             "it stays paused until it is resumed"
         )
-        if await kind_repo.pause(db, kind, reason=reason):
-            logger.error("background_kind_paused", extra={"kind": kind, "deaths": deaths})
-            await self.on_pause(db, kind, reason)
+        if await kind_repo.pause(db, kind, organization_id, reason=reason):
+            logger.error(
+                "background_kind_paused",
+                extra={"kind": kind, "organization_id": str(organization_id), "deaths": deaths},
+            )
+            await self.on_pause(db, kind, organization_id, reason)
 
     async def _unclaim(self, job: ClaimedJob) -> None:
         try:
@@ -371,13 +383,15 @@ class Worker:
                     "background_job_rescued",
                     extra={"job_id": str(job.id), "kind": job.kind, "dead": job.dead},
                 )
-                await self._count_death(db, job.kind)
+                await self._count_death(db, job.kind, job.organization_id)
             await worker_repo.forget_silent_since(
                 db, before=datetime.now(UTC) - self.settings.forget_workers_after
             )
-        for job in rescued:
-            if job.ended:
-                await self._ended(job.id, job.kind, job.payload, "its worker stopped answering")
+            # Every end still owed a settlement: the ones just rescued, and any
+            # whose settler failed before - a database that was down, a bug.
+            owed = await job_repo.unsettled_ends(db)
+        for end in owed:
+            await self._ended(end.id, end.kind, end.payload, end.why)
 
     async def _fire_schedules(self) -> None:
         assert self.schedule is not None

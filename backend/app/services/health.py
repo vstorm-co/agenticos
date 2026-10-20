@@ -382,7 +382,11 @@ async def probe_scheduler(db: AsyncSession) -> SystemCheck:
         async with asyncio.timeout(PROBE_TIMEOUT_SECONDS):
             workers = await worker_repo.list_seen_since(db, since=now - _WORKER_SILENT_AFTER)
             schedules = await schedule_repo.list_all(db)
-            paused = [kind.kind for kind in await kind_repo.list_all(db) if kind.paused_at]
+            paused = [
+                kind.kind if name is None else f"{kind.kind} ({name})"
+                for kind, name in await kind_repo.list_all(db)
+                if kind.paused_at
+            ]
     except TimeoutError:
         await _abandon_the_transaction(db)
         return _timed_out("scheduler", "the background job tables")

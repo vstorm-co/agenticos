@@ -1,5 +1,5 @@
 ---
-source_sha: "e439e97ab671"
+source_sha: "c10fd9c1aa83"
 ---
 
 # Configuración { #configuration }
@@ -473,7 +473,14 @@ al recogerlo, así que un hijo al que el kernel mata a mitad de un parseo ha
 gastado uno, y tras `max_attempts` el job está muerto. Un tipo cuyos jobs matan
 a su worker `WORKER_BREAKER_DEATHS` veces seguidas se pausa, y cada propietario
 del despliegue recibe un aviso; nada lo recoge hasta que uno de ellos lo
-reanuda en la página Background jobs.
+reanuda en la página Background jobs. La cuenta se lleva por organización: un
+tenant cuyos jobs siguen matando a su worker pausa el tipo solo para sí mismo, y
+los jobs sin organización comparten una cuenta para todo el despliegue.
+
+**Lo que deja un job se cierra aunque falle una vez.** Un job que termina para
+siempre puede dejar un documento en `processing` o un registro de sincronización
+en `running`. El worker los cierra cuando el job termina, y el rescate reintenta
+un cierre que falló - con la base de datos caída, por ejemplo - durante un día.
 
 Un worker que muere devuelve sus jobs en `WORKER_LEASE_SECONDS`: el rescate de
 otro worker toma el lease caducado y anota el job como una muerte del worker.

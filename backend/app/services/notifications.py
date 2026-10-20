@@ -834,13 +834,16 @@ class NotificationService:
             use_savepoint=True,
         )
 
-    async def background_task_paused(self, kind: str, *, reason: str, paused_at: datetime) -> None:
+    async def background_task_paused(
+        self, kind: str, *, organization_name: str | None, reason: str, paused_at: datetime
+    ) -> None:
         """A kind of background job kept killing its workers and is paused (#2219).
 
         To the deployment's owners - the app admins - in the app and by email,
         whatever their preferences: work of that kind is piling up from now on
         and nothing restarts it but one of them, from the Background jobs page.
         Once per pause: the occurrence is the kind and the moment it paused.
+        Paused for one organization, it says which - the rest still run (#2248).
         """
         recipients = sorted(await member_repo.list_app_admin_ids(self.db))
         if not recipients:
@@ -849,14 +852,16 @@ class NotificationService:
         await self._center.write(
             recipients=recipients,
             event_type=NotificationEventType.BACKGROUND_TASK_PAUSED,
-            occurrence_id=f"{kind}:{paused_at.isoformat()}",
+            occurrence_id=f"{kind}:{organization_name or ''}:{paused_at.isoformat()}",
             summary=(
-                f"Background jobs of the kind {kind} are paused: {reason}. "
-                "Resume them on the Background jobs page once the cause is fixed."
+                f"Background jobs of the kind {kind} are paused"
+                + ("" if organization_name is None else f" for {organization_name}")
+                + f": {reason}. Resume them on the Background jobs page once the cause is fixed."
             ),
             context_url=link_path,
             render_context={
                 "kind": kind,
+                "organization_name": organization_name,
                 "reason": reason,
                 "app_name": settings.PROJECT_NAME,
                 "url": absolute_context_url(link_path),

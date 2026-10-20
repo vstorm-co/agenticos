@@ -79,6 +79,13 @@ class BackgroundJob(Base, TimestampMixin):
     """What a job that answers someone - an asynchronous run - finished with."""
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    """When what a dead or cancelled job left outside the queue was closed.
+
+    Null on such a job until its settler has run - a document left `processing`,
+    a sync log left `running` - so a settler that failed, the database down at
+    the time, is run again by the rescuer rather than forgotten (Codex, #2248).
+    """
 
     __table_args__ = (
         CheckConstraint("pool IN ('agent', 'ingest', 'system')", name="pool"),
@@ -129,6 +136,12 @@ class BackgroundJob(Base, TimestampMixin):
             "background_jobs_schedule_idx",
             "schedule_name",
             postgresql_where=sa_text("status IN ('queued', 'running')"),
+        ),
+        # The ends whose settlement is still owed, which the rescuer works through.
+        Index(
+            "background_jobs_unsettled_idx",
+            "finished_at",
+            postgresql_where=sa_text("status IN ('dead', 'cancelled') AND settled_at IS NULL"),
         ),
         # What finished in a window: the page's charts and the retention sweep.
         Index(

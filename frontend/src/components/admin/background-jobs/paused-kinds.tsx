@@ -12,7 +12,8 @@ import type { BackgroundKind } from "@/types/background-jobs";
  *
  * Nothing restarts a paused kind on its own - the decision for #2219 - so this is
  * where the deployment's owner finds out what is piling up and resumes it once
- * the cause is fixed. Absent when nothing is paused.
+ * the cause is fixed. A pause is a kind in one organization, or the whole kind,
+ * and each says which. Absent when nothing is paused.
  */
 export function PausedKinds({
   kinds,
@@ -20,8 +21,9 @@ export function PausedKinds({
   resuming,
 }: {
   kinds: BackgroundKind[];
-  onResume: (kind: string) => void;
-  resuming: string | null;
+  onResume: (kind: BackgroundKind) => void;
+  /** The breaker being resumed, if one is. */
+  resuming: Pick<BackgroundKind, "kind" | "organization_id"> | null;
 }) {
   const t = useTranslations("pages.backgroundJobs");
   const locale = useLocale();
@@ -34,9 +36,18 @@ export function PausedKinds({
       <AlertDescription>
         <ul className="mt-2 space-y-3">
           {paused.map((kind) => (
-            <li key={kind.kind} className="flex flex-wrap items-start justify-between gap-3">
+            <li
+              key={`${kind.kind}:${kind.organization_id ?? ""}`}
+              className="flex flex-wrap items-start justify-between gap-3"
+            >
               <div className="min-w-0">
                 <p className="font-mono text-xs font-medium">{kind.kind}</p>
+                {/* Paused for one organization, the rest still run (#2248). */}
+                <p className="text-xs font-medium">
+                  {kind.organization_name === null
+                    ? t("pausedEverywhere")
+                    : t("pausedFor", { organization: kind.organization_name })}
+                </p>
                 <p className="text-xs">
                   {t("pausedSince", { time: formatDateTime(kind.paused_at!, locale) })}
                 </p>
@@ -45,8 +56,10 @@ export function PausedKinds({
               <Button
                 size="sm"
                 variant="outline"
-                disabled={resuming === kind.kind}
-                onClick={() => onResume(kind.kind)}
+                disabled={
+                  resuming?.kind === kind.kind && resuming.organization_id === kind.organization_id
+                }
+                onClick={() => onResume(kind)}
               >
                 {t("resume")}
               </Button>

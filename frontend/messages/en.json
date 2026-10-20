@@ -5282,7 +5282,9 @@
       },
       "noActivity": "Nothing finished in this window.",
       "activityCouldNotBeRead": "The activity could not be read.",
-      "perSlice": "{window, select, day {about {count} an hour} other {about {count} every six hours}}"
+      "perSlice": "{window, select, day {about {count} an hour} other {about {count} every six hours}}",
+      "pausedEverywhere": "Paused for every organization",
+      "pausedFor": "Paused for {organization}"
     }
   },
   "profile": {

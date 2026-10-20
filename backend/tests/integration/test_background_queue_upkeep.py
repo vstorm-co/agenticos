@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import NotFoundError
 from app.db.models.background_job import BackgroundJob
 from app.db.models.notification import Notification
+from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.repositories import background_job as job_repo
 from app.repositories import background_schedule as schedule_repo
@@ -105,7 +106,7 @@ async def test_a_pause_is_announced_to_every_active_owner_and_nobody_else(
     db.add_all([owner, retired, member])
     await db.flush()
 
-    await tell_owners_paused(db, "ingest-document", "5 deaths in a row")
+    await tell_owners_paused(db, "ingest-document", None, "5 deaths in a row")
 
     sent = (await db.execute(select(Notification))).scalars().all()
     assert [(row.recipient_user_id, row.event_type) for row in sent] == [
@@ -114,8 +115,25 @@ async def test_a_pause_is_announced_to_every_active_owner_and_nobody_else(
     assert "ingest-document" in sent[0].summary
 
 
+async def test_a_pause_for_one_organization_names_it(db: AsyncSession) -> None:
+    """The others still run, so the owner is told whose jobs stopped (#2248)."""
+    owner = User(id=uuid4(), email=f"{uuid4().hex}@x.test", hashed_password="x", is_app_admin=True)
+    db.add(owner)
+    await db.flush()
+    acme = Organization(
+        id=uuid4(), name="Acme", slug=f"acme-{uuid4().hex[:8]}", created_by_user_id=owner.id
+    )
+    db.add(acme)
+    await db.flush()
+
+    await tell_owners_paused(db, "ingest-document", acme.id, "5 deaths in a row")
+
+    (sent,) = (await db.execute(select(Notification))).scalars().all()
+    assert "ingest-document are paused for Acme: 5 deaths in a row" in sent.summary
+
+
 async def test_with_no_owner_a_pause_is_announced_to_nobody(db: AsyncSession) -> None:
-    await tell_owners_paused(db, "ingest-document", "5 deaths in a row")
+    await tell_owners_paused(db, "ingest-document", None, "5 deaths in a row")
 
     assert (await db.execute(select(Notification))).scalars().all() == []
 

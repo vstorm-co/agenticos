@@ -89,6 +89,8 @@ _ANSWERS: dict[object, dict[str, object]] = {
         "claim": None,
         "extend_leases": None,
         "rescue_expired": [],
+        "unsettled_ends": [],
+        "mark_settled": None,
     },
     runtime.kind_repo: {
         "record_survival": None,
@@ -207,7 +209,7 @@ async def test_a_kind_already_paused_is_not_announced_again(repos: MagicMock) ->
     sessions, _opened = _sessions()
     worker = _worker(sessions)
 
-    await worker._count_death(MagicMock(), "test-ok")
+    await worker._count_death(MagicMock(), "test-ok", None)
 
     worker.on_pause.assert_not_awaited()  # type: ignore[attr-defined]  - an AsyncMock here
 
@@ -366,17 +368,45 @@ async def test_a_job_released_at_shutdown_hands_its_ending_on_only_when_it_ended
     assert worker.on_ended.await_count == int(ended)  # ty: ignore[unresolved-attribute]
 
 
-async def test_a_rescued_job_that_ended_hands_its_ending_on(repos: MagicMock) -> None:
-    from app.repositories.background_job import RescuedJob
+async def test_the_rescuer_settles_every_end_still_owed_and_records_it(
+    repos: MagicMock,
+) -> None:
+    """Rescued or not: an end whose settler never ran to the end - the database was
+    down, say - is run again, and stamped settled once it does (Codex, #2248)."""
+    from app.repositories.background_job import UnsettledEnd
 
-    ended = RescuedJob(id=uuid4(), kind="ingest-document", status="dead", payload={"a": 1})
-    retried = RescuedJob(id=uuid4(), kind="ingest-document", status="queued", payload={})
-    repos.rescue_expired.return_value = [ended, retried]
+    owed = UnsettledEnd(id=uuid4(), kind="ingest-document", payload={"a": 1}, why="worker lost")
+    repos.unsettled_ends.return_value = [owed]
     sessions, _opened = _sessions()
     worker = _worker(sessions)
 
     await worker._rescue()
 
     worker.on_ended.assert_awaited_once_with(  # ty: ignore[unresolved-attribute]
-        "ingest-document", {"a": 1}, "its worker stopped answering"
+        "ingest-document", {"a": 1}, "worker lost"
     )
+    repos.mark_settled.assert_awaited_once()
+    assert repos.mark_settled.await_args.args[1] == owed.id
+
+
+async def test_a_settler_that_fails_leaves_the_end_owed(repos: MagicMock) -> None:
+    sessions, _opened = _sessions()
+    worker = _worker(sessions, on_ended=AsyncMock(side_effect=RuntimeError("down")))
+
+    await worker._ended(uuid4(), "ingest-document", {}, "dead")
+
+    repos.mark_settled.assert_not_awaited()
+
+
+async def test_a_rescued_death_counts_in_its_organizations_scope(repos: MagicMock) -> None:
+    from app.repositories.background_job import RescuedJob
+
+    organization = uuid4()
+    repos.rescue_expired.return_value = [
+        RescuedJob(id=uuid4(), kind="ingest-document", status="dead", organization_id=organization)
+    ]
+    sessions, _opened = _sessions()
+
+    await _worker(sessions)._rescue()
+
+    assert repos.record_death.await_args.args[1:] == ("ingest-document", organization)

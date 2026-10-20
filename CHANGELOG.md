@@ -230,7 +230,16 @@ Two things are versioned separately from this file and worth knowing about:
   - weekly and monthly usage reports get three attempts, since the next one
     covers another window;
   - a DOCX in a knowledge base is unzipped under the same bounds as a chat
-    attachment, so a small upload cannot inflate to gigabytes in the parser.
+    attachment, so a small upload cannot inflate to gigabytes in the parser;
+  - the circuit breaker counts deaths per organization: one tenant whose jobs
+    keep killing their worker pauses that kind for itself, not for every
+    organization (migration `0149_settled_at_org_breaker`). Background jobs
+    names the organization a pause is for, and resumes it alone;
+  - what a dead or cancelled job left - a document `processing`, a sync log
+    `running` - is closed again by the rescuer when the first close failed,
+    for a day (`background_jobs.settled_at`);
+  - a scheduled sync opens its log when it is queued, so a sync that dies
+    closes its own log and not a manual sync queued behind it.
 - **The composer's @-menu draws MCP servers as the MCP page does.** The
   platform's own server wore a letter "A"; it now wears the deployment's mark,
   and every other server its brand logo in colour, from the host it is reached
