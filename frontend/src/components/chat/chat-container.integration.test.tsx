@@ -1,7 +1,7 @@
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, configure, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { messageOf } from "./composer-editor";
 import { ChatContainer } from "./chat-container";
@@ -94,6 +94,15 @@ function runDelegatedTurn(): void {
 }
 
 const SIGNED_IN = { id: "u-1", email: "kacper@example.test", full_name: "Kacper" };
+
+// How long a wait in this file gives the container to settle. The whole container
+// mounts here - queries, stores, the socket - and on the CI runner, which runs every
+// suite with coverage at once, a step that takes 76 ms locally has taken over a
+// second: three different tests here failed only there, each inside the 1 s default.
+// It lengthens only the wait before a real failure is reported; nothing asserted
+// changes. Set once for the file, which vitest runs in modules of its own.
+const SETTLE = { timeout: 5000 };
+beforeAll(() => configure({ asyncUtilTimeout: SETTLE.timeout }));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -272,10 +281,16 @@ describe("the chat container - who a reopened thread is addressed to", () => {
     useConversationStore.getState().setCurrentConversationId("c-fin");
     mount();
 
-    await vi.waitFor(() => expect(useAgentSelectionStore.getState().selectedAgentId).toBe("a-fin"));
+    await vi.waitFor(
+      () => expect(useAgentSelectionStore.getState().selectedAgentId).toBe("a-fin"),
+      SETTLE,
+    );
 
     act(() => useConversationStore.getState().setCurrentConversationId("c-sup"));
-    await vi.waitFor(() => expect(useAgentSelectionStore.getState().selectedAgentId).toBe("a-sup"));
+    await vi.waitFor(
+      () => expect(useAgentSelectionStore.getState().selectedAgentId).toBe("a-sup"),
+      SETTLE,
+    );
   });
 
   it("addresses a thread several agents answered to the one that answered last", async () => {
@@ -320,14 +335,20 @@ describe("the chat container - who a reopened thread is addressed to", () => {
     ] as never);
     mount();
 
-    await vi.waitFor(() => expect(useAgentSelectionStore.getState().selectedAgentId).toBe("a-sup"));
+    await vi.waitFor(
+      () => expect(useAgentSelectionStore.getState().selectedAgentId).toBe("a-sup"),
+      SETTLE,
+    );
   });
 
   it("leaves a deliberate switch inside the thread alone", async () => {
     listThreads();
     useConversationStore.getState().setCurrentConversationId("c-fin");
     mount();
-    await vi.waitFor(() => expect(useAgentSelectionStore.getState().selectedAgentId).toBe("a-fin"));
+    await vi.waitFor(
+      () => expect(useAgentSelectionStore.getState().selectedAgentId).toBe("a-fin"),
+      SETTLE,
+    );
 
     act(() => useAgentSelectionStore.getState().select("a-sup"));
     // A later listing of the same thread - a turn saved, a refetch - must not
@@ -428,7 +449,7 @@ describe("the chat container - an answer still being written after its person le
       await client.invalidateQueries();
     });
 
-    await vi.waitFor(() => expect(reads().length).toBeGreaterThan(before));
+    await vi.waitFor(() => expect(reads().length).toBeGreaterThan(before), SETTLE);
   });
 
   it("says the opened chat was seen, though nothing in it was unread", async () => {
@@ -441,8 +462,9 @@ describe("the chat container - an answer still being written after its person le
       </QueryClientProvider>,
     );
 
-    await vi.waitFor(() =>
-      expect(apiClient.post).toHaveBeenCalledWith(`/conversations/${LEFT}/read`, {}),
+    await vi.waitFor(
+      () => expect(apiClient.post).toHaveBeenCalledWith(`/conversations/${LEFT}/read`, {}),
+      SETTLE,
     );
   });
 
@@ -473,9 +495,7 @@ describe("the chat container - an answer still being written after its person le
       await client.invalidateQueries();
     });
 
-    expect(
-      await screen.findByText("Here is the rollout plan", {}, { timeout: 4000 }),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Here is the rollout plan", {}, SETTLE)).toBeInTheDocument();
   });
 });
 
