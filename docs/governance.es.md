@@ -1,5 +1,5 @@
 ---
-source_sha: "fc3416380853"
+source_sha: "0684ff5eaa67"
 ---
 
 # Governance { #governance }
@@ -1559,6 +1559,10 @@ es un run normal: se comprueba contra el budget mensual propio del juez y el de
 la organización antes de cada llamada al modelo, su coste se registra y aparece
 en Activity bajo la superficie `eval`. Un juez empieza con un budget propio
 ($5 al mes), que se puede cambiar como el de cualquier agent.
+
+El [asistente de autoría](authoring.md) es un agent de sistema de la misma
+manera, con su propio budget de $5. En el dashboard, lo que cuesta aparece
+aparte de los evals, como gastado en mejoras.
 
 Un juez nunca se expone: no se le puede conectar un canal, un
 embed, una página pública ni una programación, ningún agent puede delegar en

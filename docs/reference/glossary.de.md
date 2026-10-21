@@ -1,5 +1,5 @@
 ---
-source_sha: "c1a088854770"
+source_sha: "d6d426e89602"
 ---
 
 # Glossar { #glossary }
@@ -27,6 +27,8 @@ nicht bricht.
 | Wissensdatenbank | Dokumente, die ein Agent durchsucht und zitiert | `collection` |
 | App | Eine Seite, die ein Agent veröffentlicht, etwa ein Bericht oder ein kleines Dashboard | `artifact` |
 | Architekt | Der Assistent in der Ecke jeder Seite, der mit dir Agents bauen kann | `platform-assistant` |
+| Authoring-Assistent | Schlägt Änderungen an einem Agent oder Skill aus negativ bewerteten Antworten vor; über jede entscheidet ein Mensch | `authoring` |
+| Vorschlag | Eine vorgeschlagene Änderung am Draft, einzeln angenommen, bearbeitet oder verworfen | `spec_proposal_hunk` |
 
 ## Wo es läuft { #where-it-runs }
 

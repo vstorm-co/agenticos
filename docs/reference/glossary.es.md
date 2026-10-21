@@ -1,5 +1,5 @@
 ---
-source_sha: "c1a088854770"
+source_sha: "d6d426e89602"
 ---
 
 # Glosario { #glossary }
@@ -28,6 +28,8 @@ tal como se ven en pantalla.
 | Knowledge base | Documentos que un agent busca y cita | `collection` |
 | App | Una página que publica un agent, como un informe o un pequeño panel | `artifact` |
 | Architect | El asistente en la esquina de cada página, que puede construir agents contigo | `platform-assistant` |
+| Asistente de autoría | Sugiere cambios a un agent o un skill a partir de respuestas valoradas negativamente; una persona decide cada uno | `authoring` |
+| Sugerencia | Un cambio propuesto al draft, que se acepta, edita o descarta por separado | `spec_proposal_hunk` |
 
 ## Dónde se ejecuta { #where-it-runs }
 

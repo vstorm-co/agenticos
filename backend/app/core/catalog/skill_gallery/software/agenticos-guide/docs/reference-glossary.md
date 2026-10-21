@@ -23,6 +23,8 @@ rename.
 | Knowledge base | Documents an agent searches and cites | `collection` |
 | App | A page an agent publishes, such as a report or a small dashboard | `artifact` |
 | Architect | The assistant in the corner of every page, which can build agents with you | `platform-assistant` |
+| Authoring assistant | Suggests changes to an agent or a skill from rated-down answers; a person decides each | `authoring` |
+| Suggestion | One proposed change to a draft, accepted, edited or dismissed on its own | `spec_proposal_hunk` |
 
 ## Where it runs
 

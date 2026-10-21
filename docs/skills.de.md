@@ -1,5 +1,5 @@
 ---
-source_sha: "bb644bc0a7d4"
+source_sha: "b07994466fc2"
 ---
 
 # Skills { #skills }
@@ -200,6 +200,11 @@ Abwesenheit.
 Drei Runden einer Unterhaltung, die denselben Skill verfeinern, hinterlassen
 **einen** Vorschlag, nicht drei. Wer dreimal dieselbe Frage gestellt bekommt, hat
 mehr Arbeit bekommen statt mehr Information.
+
+Der [Authoring-Assistent](authoring.md#skills) schlägt Skill-Änderungen auf
+dieselbe Weise vor, mit seiner Begründung und den Runs, auf die sie sich stützt.
+Seine Änderung hält fest, für welche Version des Skills sie geschrieben wurde,
+und Apply lehnt sie ab, sobald jemand den Skill seitdem geändert hat.
 
 ## Skills in eine Organisation bekommen { #getting-skills-into-an-organization }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "4950f10e6c98"
+source_sha: "fbe519b20326"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -165,6 +165,14 @@ oszacowany:
 - agent, który nigdy nie został opublikowany, a poproszono o wersję - uruchom
   zamiast tego jego draft;
 - baseline dla pierwszej wersji, przed którą nic nie ma.
+
+### Sprawdzanie sugestii { #checking-suggestions }
+
+[Asystent tworzenia](authoring.md#check-with-evals) uruchamia eval runy, żeby
+sprawdzić to, co sugeruje: draft z naniesionymi oczekującymi sugestiami, obok
+opublikowanej wersji. Taki run pomija przypadki wzięte z rozmów, z których
+wzięły się sugestie, i podaje ich liczbę, więc próba mniejsza od datasetu sama
+wyjaśnia, skąd się wzięła.
 
 ## Jako co działa każdy przypadek { #what-each-case-runs-as }
 

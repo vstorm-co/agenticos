@@ -1,5 +1,5 @@
 ---
-source_sha: "fc3416380853"
+source_sha: "0684ff5eaa67"
 ---
 
 # Governance { #governance }
@@ -1583,6 +1583,10 @@ miesięcznego budżetu sędziego i budżetu organizacji, jego koszt jest zapisyw
 a on sam jest widoczny w Activity pod powierzchnią `eval`. Sędzia startuje z
 własnym budżetem - $5 miesięcznie - który można zmienić jak budżet każdego
 agenta.
+
+[Asystent tworzenia](authoring.md) jest agentem systemowym w ten sam sposób, z
+własnym budżetem $5. Na dashboardzie jego koszt jest podawany osobno od evali,
+jako wydany na ulepszenia.
 
 Sędzia nigdy nie jest wystawiany: nie da się podpiąć do niego kanału,
 embedu, publicznej strony ani harmonogramu, żaden agent nie może do niego

@@ -1,5 +1,5 @@
 ---
-source_sha: "c1a088854770"
+source_sha: "d6d426e89602"
 ---
 
 # Słownik { #glossary }
@@ -26,6 +26,8 @@ skrypt napisany pod nie nie przestał działać po zmianie nazwy.
 | Baza wiedzy | Dokumenty, które agent przeszukuje i cytuje | `collection` |
 | Aplikacja | Strona, którą publikuje agent, np. raport albo mały dashboard | `artifact` |
 | Architekt | Asystent w rogu każdej strony, który może budować z tobą agentów | `platform-assistant` |
+| Asystent tworzenia | Sugeruje zmiany w agencie albo skillu na podstawie negatywnie ocenionych odpowiedzi; o każdej decyduje człowiek | `authoring` |
+| Sugestia | Jedna proponowana zmiana w drafcie, przyjmowana, edytowana albo odrzucana osobno | `spec_proposal_hunk` |
 
 ## Gdzie to działa { #where-it-runs }
 

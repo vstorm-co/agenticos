@@ -1,5 +1,5 @@
 ---
-source_sha: "bb644bc0a7d4"
+source_sha: "b07994466fc2"
 ---
 
 # Skille { #skills }
@@ -189,6 +189,11 @@ dotknął, i taki, który zamierzał usunąć, zostawiają po sobie ten sam brak
 Trzy tury jednej rozmowy dopracowujące ten sam skill zostawiają **jedną**
 propozycję, nie trzy. Recenzent zapytany trzy razy o to samo dostał więcej pracy,
 a nie więcej informacji.
+
+[Asystent tworzenia](authoring.md#skills) proponuje zmiany skilli w ten sam
+sposób, razem z uzasadnieniem i runami, na których się opiera. Jego zmiana
+zapisuje wersję skilla, dla której powstała, a Apply ją odrzuca, jeśli ktoś w
+międzyczasie zmienił skill.
 
 ## Jak skille trafiają do organizacji { #getting-skills-into-an-organization }
 

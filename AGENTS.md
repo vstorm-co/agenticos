@@ -230,6 +230,7 @@ retranslated is how a stale translation stops being visible.
 | Context files — standing knowledge bound to agents | `docs/context.md` |
 | Datasets — versioned eval cases, import/export, Add to dataset | `docs/datasets.md` |
 | Eval runs — estimate, isolation, baselines, confirmed regressions, model comparison | `docs/evals.md` |
+| Authoring assistant — suggestions from evidence, decisions, checking with evals | `docs/authoring.md` |
 | Projects: shared files, instructions and chats | `docs/projects.md` |
 | Named environments, promotion, per-environment tracing, test connections, isolated (eval) runs | `docs/environments.md` |
 | Surfaces: widget, WebSocket, Slack, Telegram | `docs/channels.md` |

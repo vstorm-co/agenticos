@@ -1469,6 +1469,10 @@ the organization's before every model call, its cost is recorded, and it is
 listed in Activity under the `eval` surface. A judge starts with a budget of its
 own - $5 a month - which can be changed like any agent's.
 
+The [authoring assistant](authoring.md) is a system agent in the same way, with
+its own $5 budget. On the dashboard, what it costs is named apart from evals, as
+spent on improvements.
+
 A judge is never exposed: no channel, embed, public page or schedule can be
 attached to it, no agent can delegate to it, and a run of it on any surface but
 `eval` is refused. Its spend therefore stays the platform's own, started only by
