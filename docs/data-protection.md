@@ -127,7 +127,7 @@ complete list of destinations, with the configuration that decides each.
 | Logfire | Spans for every request and run | `LOGFIRE_TOKEN` deployment-wide; an `observability` token on a spec, or `logfire_token_secret_id` on an environment, redirects those runs to another project. `LOGFIRE_BASE_URL` picks the US or EU deployment. Unset everywhere, nothing is sent | Pydantic's, US or EU |
 | Speech to text, image generation | The voice note; the prompt | A profile for `groq`, `mistral` or `openai`; a profile for `google` or `openai` | The provider's |
 | Text to speech | The text to be spoken, and any direction on how to speak it | The `text_to_speech` capability's `provider`: `openai`, `elevenlabs` or `google`, with the binding's key | The provider's |
-| Video generation | The prompt, and any starting image | The `video_generation` capability's `provider`: `google`, `byteplus`, `xai` or `alibaba`, with the binding's key | The provider's |
+| Video generation | The prompt, and any starting image | The `video_generation` capability's `provider`: `google`, `byteplus`, `xai` or `alibaba`, with the binding's key | The provider's. Google keeps the request as a stored interaction (`store: true`), because it delivers a clip by address only from a stored one |
 | Slack, Telegram, Mattermost | The agent's replies | A `channel_bots` row with its token in the vault | The messaging vendor already holds the chat |
 | Google sign-in | Nothing outbound; Google returns the email, name, picture and account id | `GOOGLE_CLIENT_ID` | Google's |
 | Your SMTP relay | The mail above | `SMTP_HOST`, `SMTP_TLS` | Yours |

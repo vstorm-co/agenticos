@@ -399,6 +399,10 @@ async def gemini_interactions(client: httpx.AsyncClient, call: VideoCall, deadli
     file is polled until it is ready, then downloaded with the key, which the
     Files API - unlike a storage host - needs. Omni decides the length itself, so
     none is sent; its sound is always on.
+
+    Delivery by address requires a stored interaction - `store: false` with it is
+    refused with a 400 - so Google is asked to keep the request, which
+    `docs/data-protection.md` states.
     """
     headers = {"x-goog-api-key": call.api_key}
     prompt: object = call.prompt
@@ -424,7 +428,7 @@ async def gemini_interactions(client: httpx.AsyncClient, call: VideoCall, deadli
                 "delivery": "uri",
             },
             "background": False,
-            "store": False,
+            "store": True,
             "stream": False,
         },
         timeout=max(deadline - asyncio.get_running_loop().time(), 1.0),

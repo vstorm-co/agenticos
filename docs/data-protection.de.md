@@ -1,5 +1,5 @@
 ---
-source_sha: "dbc7d7997534"
+source_sha: "359605d97413"
 ---
 
 # Datenschutz { #data-protection }
@@ -137,7 +137,7 @@ benennt. Dies ist die vollständige Liste der Ziele, mit der Konfiguration, die
 | Logfire | Spans für jede Anfrage und jeden Run | `LOGFIRE_TOKEN` deploymentweit; ein `observability`-Token auf einem Spec oder `logfire_token_secret_id` auf einem Environment lenkt diese Runs in ein anderes Projekt. `LOGFIRE_BASE_URL` wählt das US- oder EU-Deployment. Überall ungesetzt wird nichts gesendet | Die von Pydantic, US oder EU |
 | Speech-to-Text, Bildgenerierung | Die Sprachnachricht; der Prompt | Ein Profil für `groq`, `mistral` oder `openai`; ein Profil für `google` oder `openai` | Die des Providers |
 | Sprachausgabe | Der zu sprechende Text und eine etwaige Anweisung, wie er gesprochen wird | Der `provider` der Capability `text_to_speech`: `openai`, `elevenlabs` oder `google`, mit dem Schlüssel des Bindings | Die des Providers |
-| Videoerzeugung | Der Prompt und ein etwaiges Startbild | Der `provider` der Capability `video_generation`: `google`, `byteplus`, `xai` oder `alibaba`, mit dem Schlüssel des Bindings | Die des Providers |
+| Videoerzeugung | Der Prompt und ein etwaiges Startbild | Der `provider` der Capability `video_generation`: `google`, `byteplus`, `xai` oder `alibaba`, mit dem Schlüssel des Bindings | Die des Providers. Google bewahrt die Anfrage als gespeicherte Interaktion auf (`store: true`), weil es einen Clip nur aus einer gespeicherten per Adresse ausliefert |
 | Slack, Telegram, Mattermost | Die Antworten des Agents | Eine `channel_bots`-Zeile mit ihrem Token im Vault | Der Messaging-Anbieter hält den Chat ohnehin schon |
 | Google-Anmeldung | Nichts ausgehend; Google liefert E-Mail, Name, Bild und Konto-Id zurück | `GOOGLE_CLIENT_ID` | Die von Google |
 | Ihr SMTP-Relay | Die oben genannte Post | `SMTP_HOST`, `SMTP_TLS` | Ihre |
