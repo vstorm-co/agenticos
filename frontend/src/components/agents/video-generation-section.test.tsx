@@ -15,6 +15,14 @@ vi.mock("@/hooks/use-model-providers", () => ({
   useVideoProviders: () => providers(),
 }));
 
+/** The vault, as the key picker reads it. */
+const secrets = vi.fn();
+vi.mock("@/hooks", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks")>()),
+  useSecrets: () => secrets(),
+  usePermissions: () => ({ can: () => false }),
+}));
+
 const XAI = {
   provider: "xai",
   name: "xAI (Grok)",
@@ -80,11 +88,12 @@ const DEFINITION: CapabilityCatalogEntry = {
 
 function mount(
   config: Record<string, unknown> = { provider: "xai", model: "grok-imagine-video-1.5" },
+  definition: CapabilityCatalogEntry = DEFINITION,
 ) {
   const onChange = vi.fn();
   render(
     <VideoGenerationSection
-      definition={DEFINITION}
+      definition={definition}
       binding={
         {
           id: "video_generation",
@@ -127,6 +136,7 @@ beforeEach(() => {
     isLoading: false,
     isError: false,
   });
+  secrets.mockReturnValue({ secrets: [], isLoading: false, listError: null, create: vi.fn() });
 });
 
 describe("choosing what makes the clip", () => {
@@ -296,5 +306,56 @@ describe("what a model leaves to the author", () => {
 
     expect(screen.getByLabelText("Length")).toBeInTheDocument();
     expect(screen.getByLabelText("Longest clip")).toBeInTheDocument();
+  });
+});
+
+describe("the key it renders with", () => {
+  it("asks for the default provider's key before any provider is picked", async () => {
+    // `config: {}` runs on the catalog's first provider, which needs a key: the
+    // picker read the condition against the stored config and stayed hidden
+    // while publish refused the spec for the key it gave no way to choose.
+    secrets.mockReturnValue({
+      secrets: [
+        {
+          id: "sec-xai",
+          name: "xai key",
+          description: null,
+          kind: "api_key",
+          hint: "abcd",
+          purpose: "xai",
+        },
+        {
+          id: "sec-goog",
+          name: "google key",
+          description: null,
+          kind: "api_key",
+          hint: "abcd",
+          purpose: "google",
+        },
+      ],
+      isLoading: false,
+      listError: null,
+      create: vi.fn(),
+    });
+    const onChange = mount(
+      {},
+      {
+        ...DEFINITION,
+        requires_secret: {
+          kind: "api_key",
+          description: "The API key for the chosen video provider",
+          required_when: { field: "provider", equals: ["xai", "google", "alibaba"] },
+          purpose: null,
+        },
+      },
+    );
+
+    await userEvent.click(screen.getByLabelText("Secret"));
+
+    expect(screen.queryByRole("option", { name: /google key/ })).toBeNull();
+    await userEvent.click(screen.getByRole("option", { name: /xai key/ }));
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ secret_id: "sec-xai", config: { provider: "xai" } }),
+    );
   });
 });
