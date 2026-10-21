@@ -781,9 +781,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
     [capabilities],
   );
 
-  // A failed read leaves `agent` undefined with `isLoading` false, which the skeleton
-  // guard below cannot tell from a slow first load - so without this a 404 (an agent of
-  // another organization, or a deleted one) sits on the skeleton forever.
+  // A failed read leaves `agent` undefined with `isLoading` false - the skeleton guard
+  // below cannot tell it from a slow load.
   if (error && !agent) {
     return (
       <ErrorState
