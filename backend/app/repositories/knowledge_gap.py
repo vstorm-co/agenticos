@@ -629,12 +629,11 @@ def _candidates(
 
     An answer is a candidate when its run is a person's - never an eval's,
     whose questions were replayed or generated, nor a builder's test of a
-    draft, nor a delegate's - has a kept
-    conversation, and either searched the knowledge base without missing or
-    was rated down with a comment by an agent version that binds it. A run that
-    already missed on the base is counted, so it is left out. An answer read
-    before is read again only if it read as `none` and a newer thumbs-down with
-    a comment has arrived since.
+    draft, nor a delegate's - has a kept conversation, and either searched the
+    knowledge base without missing or was rated down with a comment by an agent
+    version that binds it. A run that already missed on the base is counted, so
+    it is left out. An answer read before is read again only if it read as
+    `none` and a newer thumbs-down with a comment has arrived since.
     """
     answer = aliased(Message)
     searched = exists().where(
