@@ -243,6 +243,11 @@ class TableSummary(_Schema):
 
 class TableRead(TableSummary):
     columns: list[ColumnDef]
+    can_restore: bool = Field(
+        default=False,
+        description="Whether the table is archived and this caller may restore it with "
+        "`POST /tables/{table_id}/unarchive`. `can_edit` is false on an archived table.",
+    )
 
 
 class TableListItem(TableSummary):

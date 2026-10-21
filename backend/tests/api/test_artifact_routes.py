@@ -582,3 +582,149 @@ class TestTheDataRoute:
         assert caller.startswith(f"org:{_ORGANIZATION_ID}:user:")
         assert counted.await_args.kwargs["surface"] == "artifact_data"
         read.assert_not_awaited()
+
+
+def _member_context() -> AuthContext:
+    """A Member: they edit only their own pages, unless a grant says otherwise."""
+    return AuthContext(
+        user_id=uuid.uuid4(), organization_id=_ORGANIZATION_ID, role=OrgRoleName.MEMBER
+    )
+
+
+async def _set(_db: object, *, artifact: Artifact, update_data: dict) -> Artifact:
+    for key, value in update_data.items():
+        setattr(artifact, key, value)
+    return artifact
+
+
+class TestArchive:
+    async def test_archiving_turns_the_public_link_off_and_is_audited(
+        self, client: OpenClient
+    ) -> None:
+        row = _artifact(public_key="k" * 32)
+        audit = AsyncMock()
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
+            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=None)),
+            patch(f"{PATH}.artifact_repo.update", new=_set),
+            patch(f"{PATH}.record_audit", new=audit),
+        ):
+            async with client() as http:
+                response = await http.post(_url(f"/{row.id}/archive"))
+        assert response.status_code == 200
+        body = response.json()
+        assert body["archived_at"] is not None
+        assert body["public_url"] is None
+        assert row.public_key is None
+        assert [call.kwargs["action"] for call in audit.await_args_list] == [
+            "artifact.public_link_disabled",
+            "artifact.archived",
+        ]
+
+    async def test_restoring_a_page_that_is_not_archived_is_a_bad_request(
+        self, client: OpenClient
+    ) -> None:
+        row = _artifact()
+        with patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)):
+            async with client() as http:
+                response = await http.post(_url(f"/{row.id}/unarchive"))
+        assert response.status_code == 400
+        assert response.json()["error"]["code"] == "BAD_REQUEST"
+
+    async def test_restoring_brings_it_back_with_the_link_still_off(
+        self, client: OpenClient
+    ) -> None:
+        row = _artifact()
+        row.archived_at = datetime(2026, 10, 1, tzinfo=UTC)
+        audit = AsyncMock()
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
+            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=None)),
+            patch(f"{PATH}.artifact_repo.update", new=_set),
+            patch(f"{PATH}.record_audit", new=audit),
+        ):
+            async with client() as http:
+                response = await http.post(_url(f"/{row.id}/unarchive"))
+        assert response.status_code == 200
+        assert response.json()["archived_at"] is None
+        assert response.json()["public_url"] is None
+        assert audit.await_args.kwargs["action"] == "artifact.unarchived"
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("action", ["archive", "unarchive"])
+    async def test_a_member_with_only_a_view_grant_is_told_it_is_not_found(
+        self, client: OpenClient, action: str
+    ) -> None:
+        """No route gate: the service decides, so a view grant reads and never archives."""
+        app.dependency_overrides[deps.get_auth_context] = _member_context
+        row = _artifact()
+        row.archived_at = datetime(2026, 10, 1, tzinfo=UTC) if action == "unarchive" else None
+        update = AsyncMock()
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
+            patch(f"{PATH}.resource_grant_repo.get_level", new=AsyncMock(return_value="read")),
+            patch(f"{PATH}.artifact_repo.update", new=update),
+        ):
+            async with client() as http:
+                response = await http.post(_url(f"/{row.id}/{action}"))
+        assert response.status_code == 404
+        update.assert_not_awaited()
+
+    async def test_an_edit_grant_lets_a_member_archive_it(self, client: OpenClient) -> None:
+        app.dependency_overrides[deps.get_auth_context] = _member_context
+        row = _artifact()
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
+            patch(f"{PATH}.resource_grant_repo.get_level", new=AsyncMock(return_value="edit")),
+            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=None)),
+            patch(f"{PATH}.artifact_repo.update", new=_set),
+            patch(f"{PATH}.record_audit", new=AsyncMock()),
+        ):
+            async with client() as http:
+                response = await http.post(_url(f"/{row.id}/archive"))
+        assert response.status_code == 200
+        assert row.archived_at is not None
+
+    @pytest.mark.security
+    async def test_a_page_in_another_organization_is_not_found(self, client: OpenClient) -> None:
+        with patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=None)) as get:
+            async with client() as http:
+                response = await http.post(_url(f"/{uuid.uuid4()}/archive"))
+        assert response.status_code == 404
+        assert get.await_args.kwargs["organization_id"] == _ORGANIZATION_ID
+
+    @pytest.mark.security
+    async def test_an_archived_page_is_not_viewed_and_its_old_address_serves_nothing(
+        self, client: OpenClient
+    ) -> None:
+        row = _artifact()
+        row.archived_at = datetime(2026, 10, 1, tzinfo=UTC)
+        version = _version(row)
+        token = create_artifact_view_token(
+            version.id, expires_in=timedelta(minutes=5), nonce="n0", live=False
+        )
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
+            patch(
+                f"{PATH}.artifact_repo.get_version_with_artifact",
+                new=AsyncMock(return_value=(version, row)),
+            ),
+        ):
+            async with client() as http:
+                view = await http.get(_url(f"/{row.id}/view"))
+                content = await http.get(f"{settings.API_V1_STR}/artifact-content/{token}")
+        assert view.status_code == 404
+        assert content.status_code == 404
+
+    async def test_the_listing_asks_for_archived_pages_only_when_told_to(
+        self, client: OpenClient
+    ) -> None:
+        listed = AsyncMock(return_value=([], 0))
+        with (
+            patch(f"{PATH}.artifact_repo.list_visible", new=listed),
+            patch(f"{PATH}.artifact_repo.latest_versions", new=AsyncMock(return_value={})),
+        ):
+            async with client() as http:
+                await http.get(_url())
+                await http.get(_url("?include_archived=true"))
+        assert [call.kwargs["include_archived"] for call in listed.await_args_list] == [False, True]

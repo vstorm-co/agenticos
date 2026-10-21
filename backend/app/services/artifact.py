@@ -666,8 +666,9 @@ async def publish_with(
 
     Raises:
         AuthorizationError: The name belongs to an artifact this run's person
-            may not edit, or the page reads live data and no member is behind
-            the run (:data:`LIVE_PAGE`). The message is written for the model.
+            may not edit, the page is archived, or the page reads live data and
+            no member is behind the run (:data:`LIVE_PAGE`). The message is
+            written for the model.
         BadRequestError: A binding cannot stand, or a Markdown page would have
             bindings. The message is written for the model.
         ConcurrentChangeError: `expected_version` is no longer the current one.
@@ -695,6 +696,8 @@ async def publish_with(
             ),
             details={"name": name},
         )
+    if artifact.archived_at is not None:
+        raise AuthorizationError(message=_archived_page(name), details={"name": name})
     latest = await artifact_repo.latest_version(db, artifact.id)
     if expected_version is not None and (latest is None or latest.number != expected_version):
         raise ConcurrentChangeError(
@@ -799,6 +802,19 @@ def _live_page(name: str) -> AuthorizationError:
     return AuthorizationError(message=LIVE_PAGE, details={"name": name})
 
 
+def _archived_page(name: str) -> str:
+    """The refusal a run gets for publishing over an archived page, written for the model.
+
+    Said only to a run that may edit the page; any other run hears that the name is
+    not its to change, before the archive is looked at.
+    """
+    return (
+        f"The artifact {name!r} is archived, so it cannot be published again. Tell the "
+        "person: someone who may edit it can restore it from its page in the console. "
+        "Or publish under a different name."
+    )
+
+
 def _bindings_of(version: ArtifactVersion | None) -> list[ArtifactBinding]:
     return [] if version is None else [ArtifactBinding.model_validate(b) for b in version.bindings]
 
@@ -854,8 +870,13 @@ async def _append_version(
     storage_path: str,
     run_id: UUID | None,
     bindings: list[dict[str, Any]],
+    restored_from: int | None = None,
 ) -> ArtifactVersion:
-    """Add the next version, mark the publication, and prune past the kept window."""
+    """Add the next version, mark the publication, and prune past the kept window.
+
+    `restored_from` is the number of the version a restore copied; a publish
+    leaves it unset.
+    """
     version = await artifact_repo.create_version(
         db,
         artifact_id=artifact.id,
@@ -866,6 +887,7 @@ async def _append_version(
         storage_path=storage_path,
         run_id=run_id,
         bindings=bindings,
+        restored_from=restored_from,
     )
     await artifact_repo.update(
         db, artifact=artifact, update_data={"published_at": datetime.now(UTC)}
@@ -1206,15 +1228,33 @@ class ArtifactService:
         self.db = db
 
     async def get(
-        self, ctx: AuthContext, artifact_id: UUID, *, perm: Perm = Perm.ARTIFACTS_VIEW
+        self,
+        ctx: AuthContext,
+        artifact_id: UUID,
+        *,
+        perm: Perm = Perm.ARTIFACTS_VIEW,
+        archived: bool = False,
     ) -> Artifact:
+        """The artifact, when the caller may do `perm` to it.
+
+        Args:
+            archived: Whether an archived artifact is found too. Only reading it,
+                archiving, restoring and deleting it ask for one; to every other
+                path an archived page is a missing one.
+
+        Raises:
+            NotFoundError: No such artifact in the caller's organization, one the
+                caller may not do `perm` to, or an archived one not asked for.
+        """
         artifact = await artifact_repo.get(
             self.db, artifact_id, organization_id=ctx.organization_id
         )
-        # 404 for both: whether a private artifact exists is itself something the
-        # caller may not learn, and a revoked member is told the same thing.
-        if artifact is None or not await resolve_access(
-            self.db, ctx, artifact, perm, resource_type=ARTIFACT
+        # 404 for all three: whether a private artifact exists is itself something
+        # the caller may not learn, and a revoked member is told the same thing.
+        if (
+            artifact is None
+            or (artifact.archived_at is not None and not archived)
+            or not await resolve_access(self.db, ctx, artifact, perm, resource_type=ARTIFACT)
         ):
             raise NotFoundError(
                 message="Artifact not found", details={"artifact_id": str(artifact_id)}
@@ -1222,11 +1262,19 @@ class ArtifactService:
         return artifact
 
     async def read(self, ctx: AuthContext, artifact_id: UUID) -> ArtifactDetail:
-        """One artifact, and whether the caller may manage it - decided here, grants included."""
-        artifact = await self.get(ctx, artifact_id)
+        """One artifact, and whether the caller may manage it - decided here, grants included.
+
+        An archived artifact is read only by a caller who may edit it, the one who
+        can restore it; anybody else is told it is not found.
+        """
+        artifact = await self.get(ctx, artifact_id, archived=True)
         can_edit = await resolve_access(
             self.db, ctx, artifact, Perm.ARTIFACTS_EDIT, resource_type=ARTIFACT
         )
+        if artifact.archived_at is not None and not can_edit:
+            raise NotFoundError(
+                message="Artifact not found", details={"artifact_id": str(artifact_id)}
+            )
         return await self._detail(artifact, can_edit=can_edit)
 
     async def _detail(self, artifact: Artifact, *, can_edit: bool) -> ArtifactDetail:
@@ -1280,6 +1328,7 @@ class ArtifactService:
                 ArtifactVersionRead.model_validate(current) if current is not None else None
             ),
             live=current is not None and bool(current.bindings),
+            archived_at=artifact.archived_at,
             created_at=artifact.created_at,
             updated_at=artifact.updated_at,
         )
@@ -1296,12 +1345,16 @@ class ArtifactService:
         ctx: AuthContext,
         *,
         shared_with_me: bool = False,
+        include_archived: bool = False,
         search: str | None = None,
         agent_id: UUID | None = None,
         skip: int = 0,
         limit: int = 50,
     ) -> ArtifactList:
-        """A page of the artifacts this caller may open, newest publication first."""
+        """A page of the artifacts this caller may open, newest publication first.
+
+        Archived ones only with `include_archived`, by the same visibility rules.
+        """
         see_all, grant_ids = await self._visibility(ctx)
         if shared_with_me and see_all:
             grant_ids = await resource_grant_repo.list_shared_ids(
@@ -1317,6 +1370,7 @@ class ArtifactService:
             see_all=see_all,
             shared_ids=grant_ids,
             shared_with_me=shared_with_me,
+            include_archived=include_archived,
             search=search,
             agent_id=agent_id,
             skip=skip,
@@ -1371,7 +1425,9 @@ class ArtifactService:
         History is never rewritten: the restore is itself a version, so it can be
         undone the same way, and the conversation that published the version it
         replaced still opens that one. The bytes are content-addressed, so nothing
-        new is stored. Restoring the current version changes nothing.
+        new is stored. The new version records the number it was restored from,
+        so the history says which versions a person put back rather than a run
+        wrote. Restoring the current version changes nothing.
 
         Raises:
             NotFoundError: The artifact is not the caller's to change, the version
@@ -1409,6 +1465,7 @@ class ArtifactService:
             storage_path=source.storage_path,
             run_id=None,
             bindings=[binding.model_dump(mode="json") for binding in bindings],
+            restored_from=source.number,
         )
         await record_audit(
             self.db,
@@ -1573,27 +1630,92 @@ class ArtifactService:
         """Turn the public address off. A frame already open keeps its page until its
         signed address expires, `ARTIFACT_VIEW_TTL_SECONDS` at most."""
         artifact = await self.get(ctx, artifact_id, perm=Perm.ARTIFACTS_EDIT)
-        if artifact.public_key is not None:
-            artifact = await artifact_repo.update(
-                self.db, artifact=artifact, update_data={"public_key": None}
+        artifact = await self._turn_off_public_link(ctx, artifact)
+        return await self._detail(artifact, can_edit=True)
+
+    async def _turn_off_public_link(self, ctx: AuthContext, artifact: Artifact) -> Artifact:
+        """Clear the public key, audited, when one is on. Its settings stay for next time."""
+        if artifact.public_key is None:
+            return artifact
+        artifact = await artifact_repo.update(
+            self.db, artifact=artifact, update_data={"public_key": None}
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="artifact.public_link_disabled",
+            target_type="artifact",
+            target_id=str(artifact.id),
+        )
+        return artifact
+
+    async def archive(self, ctx: AuthContext, artifact_id: UUID) -> ArtifactDetail:
+        """Archive a page: it keeps its versions, grants and name, and serves nothing.
+
+        Its public link is turned off, as `clear_public_link` turns it off, and a
+        restore does not turn it back on - an address that was sent out before the
+        archive stays dead until someone makes a new one. A signed address minted
+        before the archive serves nothing more either, so a frame already open
+        keeps only what it had loaded. Archiving twice is not an error.
+
+        Raises:
+            NotFoundError: The artifact is not the caller's to change.
+        """
+        artifact = await self.get(ctx, artifact_id, perm=Perm.ARTIFACTS_EDIT, archived=True)
+        if artifact.archived_at is not None:
+            return await self._detail(artifact, can_edit=True)
+        artifact = await self._turn_off_public_link(ctx, artifact)
+        artifact = await artifact_repo.update(
+            self.db, artifact=artifact, update_data={"archived_at": datetime.now(UTC)}
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="artifact.archived",
+            target_type="artifact",
+            target_id=str(artifact.id),
+            details={"name": artifact.name},
+        )
+        return await self._detail(artifact, can_edit=True)
+
+    async def unarchive(self, ctx: AuthContext, artifact_id: UUID) -> ArtifactDetail:
+        """Restore an archived page, so it is served again, as archiving left it.
+
+        Asks for the same edit right archiving does. The public link stays off.
+
+        Raises:
+            NotFoundError: The artifact is not the caller's to change.
+            BadRequestError: The artifact is not archived.
+        """
+        artifact = await self.get(ctx, artifact_id, perm=Perm.ARTIFACTS_EDIT, archived=True)
+        if artifact.archived_at is None:
+            raise BadRequestError(
+                message=f"Artifact '{artifact.title}' is not archived",
+                details={"artifact_id": artifact.id},
             )
-            await record_audit(
-                self.db,
-                actor_user_id=ctx.subject_id,
-                organization_id=ctx.organization_id,
-                action="artifact.public_link_disabled",
-                target_type="artifact",
-                target_id=str(artifact.id),
-            )
+        artifact = await artifact_repo.update(
+            self.db, artifact=artifact, update_data={"archived_at": None}
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="artifact.unarchived",
+            target_type="artifact",
+            target_id=str(artifact.id),
+            details={"name": artifact.name},
+        )
         return await self._detail(artifact, can_edit=True)
 
     async def delete(self, ctx: AuthContext, artifact_id: UUID) -> None:
-        """Delete an artifact, every version, its grants and its link.
+        """Delete an artifact, every version, its grants and its link - archived or not.
 
         The bytes go after the commit, so a rollback leaves rows that still point
         at what is stored.
         """
-        artifact = await self.get(ctx, artifact_id, perm=Perm.ARTIFACTS_EDIT)
+        artifact = await self.get(ctx, artifact_id, perm=Perm.ARTIFACTS_EDIT, archived=True)
         await resource_grant_repo.delete_for_resource(
             self.db,
             organization_id=ctx.organization_id,
@@ -1763,13 +1885,18 @@ class ArtifactService:
         """The artifact behind a public key and the version its link shows.
 
         Raises:
-            NotFoundError: No artifact has this key - never made, revoked, rotated
-                or expired, which the caller cannot tell apart.
+            NotFoundError: No artifact has this key - never made, revoked, rotated,
+                expired or archived, which the caller cannot tell apart.
         """
         artifact = await artifact_repo.get_by_public_key(self.db, public_key)
+        # Archiving clears the key; checked here as well, so an archived page with a
+        # key - written by hand, or by a path that forgot - still opens nothing.
         if artifact is not None and (
-            artifact.public_expires_at is not None
-            and artifact.public_expires_at <= datetime.now(UTC)
+            artifact.archived_at is not None
+            or (
+                artifact.public_expires_at is not None
+                and artifact.public_expires_at <= datetime.now(UTC)
+            )
         ):
             artifact = None
         version = None
@@ -1857,8 +1984,9 @@ class ArtifactService:
 
         Raises:
             NotFoundError: The token is invalid or expired, its version is gone,
-                or storage no longer has the version's bytes. One answer for all
-                four, so the route gives an attacker nothing to distinguish.
+                its artifact was archived since it was minted, or storage no
+                longer has the version's bytes. One answer for all five, so the
+                route gives an attacker nothing to distinguish.
         """
         payload = verify_special_token(token, "artifact_view")
         version_id = read_uuid_claim(payload, "sub") if payload is not None else None
@@ -1867,7 +1995,7 @@ class ArtifactService:
             if version_id is not None
             else None
         )
-        if found is None:
+        if found is None or found[1].archived_at is not None:
             raise NotFoundError(message="Artifact not found")
         version, artifact = found
         data = await _load_version(version, missing="Artifact not found")

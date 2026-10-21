@@ -63,30 +63,6 @@ describe("useTables", () => {
     // Create sets no onError - a taken name is shown in the dialog itself.
     expect(toastError).not.toHaveBeenCalled();
   });
-
-  it("archives a table and toasts on success", async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
-    vi.mocked(apiClient.post).mockResolvedValue({ id: "t1", archived_at: "2026-09-23" });
-    const { result } = renderHook(() => useTables(), { wrapper });
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-    result.current.archive.mutate("t1");
-
-    await waitFor(() => expect(result.current.archive.isSuccess).toBe(true));
-    expect(toastSuccess).toHaveBeenCalled();
-  });
-
-  it("toasts a localized message when archiving fails", async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
-    vi.mocked(apiClient.post).mockRejectedValue(new ApiError(404, "Table not found"));
-    const { result } = renderHook(() => useTables(), { wrapper });
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-    result.current.archive.mutate("missing");
-
-    await waitFor(() => expect(result.current.archive.isError).toBe(true));
-    expect(toastError).toHaveBeenCalled();
-  });
 });
 
 describe("useTable", () => {
@@ -179,6 +155,50 @@ describe("useTable", () => {
   });
 });
 
+describe("archiving and restoring a table", () => {
+  it("archives the table and toasts on success", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "t1", archived_at: "2026-09-23" });
+    const { result } = renderHook(() => useTable("t1"), { wrapper });
+
+    await result.current.archive.mutateAsync();
+
+    expect(apiClient.post).toHaveBeenCalledWith("/tables/t1/archive");
+    expect(toastSuccess).toHaveBeenCalledWith("Table archived");
+  });
+
+  it("leaves a refused archive to the dialog rather than a toast", async () => {
+    vi.mocked(apiClient.post).mockRejectedValue(new ApiError(409, "In use"));
+    const { result } = renderHook(() => useTable("t1"), { wrapper });
+
+    result.current.archive.mutate();
+
+    await waitFor(() => expect(result.current.archive.isError).toBe(true));
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it("restores the table and toasts on success", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "t1", archived_at: null });
+    const { result } = renderHook(() => useTable("t1"), { wrapper });
+
+    await result.current.unarchive.mutateAsync();
+
+    expect(apiClient.post).toHaveBeenCalledWith("/tables/t1/unarchive");
+    expect(toastSuccess).toHaveBeenCalledWith("Table restored");
+  });
+
+  it("toasts a refused restore, such as a name taken since", async () => {
+    vi.mocked(apiClient.post).mockRejectedValue(
+      new ApiError(409, "Another table is now named 'Orders'"),
+    );
+    const { result } = renderHook(() => useTable("t1"), { wrapper });
+
+    result.current.unarchive.mutate();
+
+    await waitFor(() => expect(result.current.unarchive.isError).toBe(true));
+    expect(toastError).toHaveBeenCalledWith("Another table is now named 'Orders'");
+  });
+});
+
 describe("what a table write refreshes", () => {
   const LIST = qk.tables.list({
     search: "",
@@ -235,15 +255,22 @@ describe("what a table write refreshes", () => {
     expect(invalidated(OTHER_TABLE)).toBe(false);
   });
 
-  it("archiving refreshes the catalog and that table, not every table's records", async () => {
-    vi.mocked(apiClient.post).mockResolvedValue({ id: "t1", archived_at: "2026-09-23" });
-    const { withClient, invalidated } = seeded();
-    const { result } = renderHook(() => useTables(), { wrapper: withClient });
+  it.each(["archive", "unarchive"] as const)(
+    "an %s refreshes the catalog and that table, not every table's records",
+    async (action) => {
+      vi.mocked(apiClient.get).mockResolvedValue({ id: "t1", columns: [] });
+      vi.mocked(apiClient.post).mockResolvedValue({ id: "t1" });
+      const { withClient, invalidated } = seeded();
+      const { result } = renderHook(() => useTable("t1"), { wrapper: withClient });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      vi.mocked(apiClient.get).mockClear();
 
-    await result.current.archive.mutateAsync("t1");
+      await result.current[action].mutateAsync();
 
-    expect(invalidated(LIST)).toBe(true);
-    expect(invalidated(qk.tables.detail("t1"))).toBe(true);
-    for (const key of [...UNDER_T1, OTHER_TABLE]) expect(invalidated(key)).toBe(false);
-  });
+      // The table is on screen, so invalidating it refetches it at once.
+      await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/tables/t1"));
+      expect(invalidated(LIST)).toBe(true);
+      for (const key of [...UNDER_T1, OTHER_TABLE]) expect(invalidated(key)).toBe(false);
+    },
+  );
 });

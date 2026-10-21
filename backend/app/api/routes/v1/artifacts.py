@@ -64,12 +64,21 @@ async def list_artifacts(
         False, description="Only what was shared with the caller - never their own rows"
     ),
     agent_id: UUID | None = Query(None, description="Only the pages this agent published"),
+    include_archived: bool = Query(
+        False, description="List archived pages too; they are left out otherwise"
+    ),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
     """The artifacts the caller may open, most recently published first."""
     return await service.list_readable(
-        ctx, shared_with_me=shared_with_me, search=q, agent_id=agent_id, skip=skip, limit=limit
+        ctx,
+        shared_with_me=shared_with_me,
+        include_archived=include_archived,
+        search=q,
+        agent_id=agent_id,
+        skip=skip,
+        limit=limit,
     )
 
 
@@ -85,6 +94,7 @@ async def list_artifact_agents(service: ArtifactSvc, ctx: Auth) -> Any:
 
 @router.get("/{artifact_id}", response_model=ArtifactDetail)
 async def get_artifact(artifact_id: UUID, service: ArtifactSvc, ctx: Auth) -> Any:
+    """One artifact. An archived one is found only by a caller who may edit it."""
     return await service.read(ctx, artifact_id)
 
 
@@ -100,6 +110,30 @@ async def update_artifact(
 async def delete_artifact(artifact_id: UUID, service: ArtifactSvc, ctx: Auth) -> None:
     """Delete it with every version, its grants and its public link."""
     await service.delete(ctx, artifact_id)
+
+
+@router.post("/{artifact_id}/archive", response_model=ArtifactDetail)
+async def archive_artifact(artifact_id: UUID, service: ArtifactSvc, ctx: Auth) -> Any:
+    """Archive a page. It keeps its versions, grants and name, and serves nothing.
+
+    Its public link is turned off. Until it is restored, every other route here -
+    and its public link, its embed and the agent's tools - answers as though it
+    were not there. Archiving an archived page changes nothing.
+    """
+    return await service.archive(ctx, artifact_id)
+
+
+@router.post(
+    "/{artifact_id}/unarchive",
+    response_model=ArtifactDetail,
+    responses={400: {"description": "`BAD_REQUEST`: the artifact is not archived"}},
+)
+async def unarchive_artifact(artifact_id: UUID, service: ArtifactSvc, ctx: Auth) -> Any:
+    """Restore an archived page, so it is served again. Its public link stays off.
+
+    Needs the same edit right as archiving.
+    """
+    return await service.unarchive(ctx, artifact_id)
 
 
 @router.get("/{artifact_id}/versions", response_model=ArtifactVersionList)

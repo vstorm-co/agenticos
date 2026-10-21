@@ -1,5 +1,5 @@
 ---
-source_sha: "782fad931256"
+source_sha: "35553e722018"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -166,6 +166,38 @@ dependiente en `SCHEMA_DEPENDENCY` con su `kind`, `id` y `name`, y `name` es nul
 un disparador de un workflow que el llamante no puede abrir. La consola los muestra en
 el diálogo que preguntó, un workflow como enlace a él. Cualquier otro dependiente nunca
 se nombra y nunca bloquea al llamante: su función se adapta al cambio por sí misma.
+
+## Archivar y restaurar una tabla { #archiving-a-table }
+
+Una tabla nunca se borra; se archiva. Una tabla archivada conserva sus registros,
+columnas, vistas e historial, y toda lectura sigue respondiendo. Toda escritura se rechaza
+con `TABLE_ARCHIVED`, la pida quien la pida: no se crea, cambia ni borra ningún registro,
+y no cambian ni su nombre ni sus columnas. Su nombre queda libre para una tabla nueva, y
+sigue contando para el [límite de tablas](#limits-and-retention) de la organización.
+
+En la consola, un miembro que puede editar la tabla encuentra **Archive table** en el
+menú **More actions** de su página. El diálogo explica qué hace archivar antes de que
+cambie nada. Un workflow publicado que aún lee o escribe la tabla, y que el llamante
+puede editar, rechaza el archivado con `SCHEMA_DEPENDENCY`, y el diálogo lo muestra como
+enlace. Las vistas guardadas y los triggers solo bloquean el archivado de una columna.
+
+La página de una tabla archivada indica cuándo se archivó. Para un miembro que puede
+editar la tabla, el aviso incluye **Restore**, que la devuelve con su nombre; cualquier
+otro lee sus registros y se le dice quién puede restaurarla. El catálogo muestra las
+tablas activas hasta que se elige **Archived included** encima de él, y la tarjeta de una
+tabla archivada indica que está archivada.
+
+| Acción | Ruta | Se rechaza con |
+|---|---|---|
+| Archivar | `POST /tables/{id}/archive` | `SCHEMA_DEPENDENCY` (409) mientras algo use la tabla. Archivar dos veces no es un error |
+| Restaurar | `POST /tables/{id}/unarchive` | `BAD_REQUEST` (400) si la tabla no está archivada; `ALREADY_EXISTS` (409) si entretanto una tabla activa tomó su nombre |
+
+Ambas necesitan el derecho a editar esa tabla, por rol o por un grant sobre ella, y
+cualquier otro recibe un 404. `can_edit` es false en una tabla archivada, así que
+`TableRead.can_restore` dice si este llamante puede restaurarla. Cada una se audita, como
+`table.archived` y `table.unarchived`, y cuenta para el límite de escrituras de tablas.
+Si entretanto el nombre se tomó, se cambia primero en la tabla activa, porque una
+archivada no se puede renombrar.
 
 ## Registros y revisions { #records-and-revisions }
 
@@ -350,6 +382,10 @@ qué columna de selección única forma sus carriles y se dibuja al momento; gua
 vista, conserva esa agrupación. Una tarjeta muestra bajo su título hasta cuatro
 columnas de la pantalla, sin las vacías. Una tabla sin columna de selección única ofrece en su
 lugar **Add a column**.
+
+El propietario de una vista la cambia entre **Private** y **Shared** con el botón
+junto a **Rename**. Quien gestiona la vista de otro miembro, como un administrador, no
+recibe ese interruptor: compartir los filtros de una persona es decisión suya.
 
 `GET/POST /tables/{id}/views` y `GET/PATCH/DELETE /tables/{id}/views/{view_id}` las
 listan, crean, leen, actualizan y borran. La lista se pagina con `skip` y `limit`
@@ -573,6 +609,7 @@ un cliente usa para bifurcar.
 | `SCHEMA_VERSION_CONFLICT` | 409 | El esquema cambió desde que se leyó |
 | `SCHEMA_DEPENDENCY` | 409 | Algo depende de lo que el cambio elimina |
 | `TABLE_ARCHIVED` | 409 | La tabla rechaza escrituras |
+| `BAD_REQUEST` | 400 | Una restauración nombró una tabla que no está archivada |
 | `ALREADY_EXISTS` | 409 | El nombre de la tabla, el de una vista o el external id ya está en uso |
 | `INVALID_RECORD` | 422 | Un valor no encaja con su columna; `details.fields` nombra cada uno |
 | `ARCHIVED_COLUMN` | 422 | Un valor nombra una columna archivada |

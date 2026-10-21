@@ -16,13 +16,22 @@ import {
   PAGE_SIZE,
   PaginationBar,
   SearchInput,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Skeleton,
   useDebounced,
 } from "@/components/ui";
 import { useTables, usePermissions } from "@/hooks";
+import { useUrlState } from "@/hooks/use-url-state";
 import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
 import type { TableRead } from "@/types/tables";
+
+type Shown = "live" | "all";
+const SHOWN: readonly Shown[] = ["live", "all"];
 
 /** The file a table was started from, mapped onto the columns it was created with. */
 function presetFor(table: TableRead, csv: CsvStart): CsvPreset {
@@ -41,8 +50,12 @@ export default function TablesPage() {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(0);
   const search = useDebounced(query);
+  // Kept in the URL like the workflows list's status, so a link can open the archive.
+  const [shownParam, setShownParam] = useUrlState("show");
+  const shown: Shown = shownParam === "all" ? "all" : "live";
   const { tables, total, isLoading, create } = useTables({
     search,
+    includeArchived: shown === "all",
     skip: page * PAGE_SIZE,
     limit: PAGE_SIZE,
   });
@@ -70,14 +83,34 @@ export default function TablesPage() {
         title={t("catalog")}
         counted={isLoading ? null : t("shownCount", { count: total })}
         controls={
-          <SearchInput
-            value={query}
-            onChange={(next) => {
-              setQuery(next);
-              setPage(0);
-            }}
-            placeholder={t("searchPlaceholder")}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <SearchInput
+              value={query}
+              onChange={(next) => {
+                setQuery(next);
+                setPage(0);
+              }}
+              placeholder={t("searchPlaceholder")}
+            />
+            <Select
+              value={shown}
+              onValueChange={(value) => {
+                setShownParam(value === "all" ? "all" : null);
+                setPage(0);
+              }}
+            >
+              <SelectTrigger className="w-44" aria-label={t("shownFilter")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SHOWN.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {t(`shown.${value}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         }
         data-tour="tables-catalog"
       >

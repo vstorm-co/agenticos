@@ -26,6 +26,7 @@ const useArtifactViewMock = vi.fn();
 const useArtifactDataMock = vi.fn();
 const orgs = vi.fn(() => [{ id: "o1", name: "Acme" }]);
 const push = vi.fn();
+const replace = vi.fn();
 const sharingPanel = vi.fn();
 
 vi.mock("@/hooks/use-artifacts", () => ({
@@ -33,7 +34,10 @@ vi.mock("@/hooks/use-artifacts", () => ({
   useArtifactView: (...args: unknown[]) => useArtifactViewMock(...args),
   useArtifactData: (...args: unknown[]) => useArtifactDataMock(...args),
 }));
-vi.mock("@/lib/locale-navigation", () => ({ useRouter: () => ({ push }) }));
+vi.mock("@/lib/locale-navigation", () => ({
+  useRouter: () => ({ push, replace }),
+  usePathname: () => "/artifacts/a1",
+}));
 vi.mock("@/hooks", () => ({ useOrganizations: () => ({ orgs: orgs() }) }));
 vi.mock("@/components/teams", () => ({
   OrganizationMenuItems: () => <div role="menuitem">Globex</div>,
@@ -61,6 +65,7 @@ function detail(overrides: Partial<ArtifactDetailData> = {}): ArtifactDetailData
     environment_name: null,
     public_url: null,
     published_at: "2026-09-22T10:00:00Z",
+    archived_at: null,
     current_version: null,
     created_at: "2026-09-01T10:00:00Z",
     updated_at: null,
@@ -92,6 +97,8 @@ function state(artifact: ArtifactDetailData | null, overrides: Record<string, un
     disablePublicLink: mutation(),
     updatePublicLink: mutation(),
     restoreVersion: mutation(),
+    archive: mutation(),
+    unarchive: mutation(),
     remove: mutation(),
     ...overrides,
   };
@@ -161,6 +168,7 @@ const V2: ArtifactVersion = {
   media_type: "text/html",
   size_bytes: 1,
   run_id: null,
+  restored_from: null,
   created_at: "2026-09-22T10:00:00Z",
 };
 const V1: ArtifactVersion = { ...V2, id: "v1", number: 1, created_at: "2026-09-21T10:00:00Z" };
@@ -288,6 +296,66 @@ describe("ArtifactViewer", () => {
     expect(hooks.remove.mutateAsync).toHaveBeenCalled();
   });
 
+  it("archives from the menu after a confirmation that says what is kept and what stops", async () => {
+    const hooks = state(detail({ can_edit: true, public_url: "https://c/a/k" }));
+    hooks.archive.mutate.mockImplementation(
+      (_variables: unknown, options?: { onSuccess?: () => void }) => options?.onSuccess?.(),
+    );
+    useArtifactMock.mockReturnValue(hooks);
+    render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Archive" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Archive Weekly report?")).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(/its versions and its link are kept, but nobody can open it/),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByText(/public link is turned off/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/restore it/)).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Archive" }));
+
+    expect(hooks.archive.mutate).toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(hooks.remove.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("offers a reader no Archive, and nothing else that changes the page", () => {
+    useArtifactMock.mockReturnValue(state(detail({ can_edit: false })));
+    render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
+    expect(screen.queryByRole("button", { name: "More actions" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Archive" })).toBeNull();
+  });
+
+  it("shows an editor an archived page as when it was archived, with Restore", async () => {
+    const hooks = state(detail({ can_edit: true, archived_at: "2026-10-01T09:00:00Z" }));
+    useArtifactMock.mockReturnValue(hooks);
+    render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
+
+    expect(screen.getByText("Archived on Oct 1, 2026")).toBeInTheDocument();
+    // An archived page serves nothing: no frame to load, nothing to share.
+    expect(screen.queryByTitle("Weekly report")).toBeNull();
+    expect(useArtifactViewMock).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Share" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Restore" }));
+    expect(hooks.unarchive.mutate).toHaveBeenCalled();
+
+    // Delete is still there; Archive is not.
+    await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+    expect(screen.queryByRole("menuitem", { name: "Archive" })).toBeNull();
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Delete" }));
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Delete Weekly report?");
+  });
+
+  it("holds Restore while the restore is in flight", () => {
+    const hooks = state(detail({ can_edit: true, archived_at: "2026-10-01T09:00:00Z" }), {
+      unarchive: { ...mutation(), isPending: true },
+    });
+    useArtifactMock.mockReturnValue(hooks);
+    render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
+    expect(screen.getByRole("button", { name: "Restore" })).toBeDisabled();
+  });
+
   it("says an artifact that is gone or no longer shared is not available", () => {
     useArtifactMock.mockReturnValue(
       state(null, { error: new ApiError(404, "Artifact not found") }),
@@ -341,6 +409,7 @@ describe("ArtifactViewer", () => {
         media_type: "text/html",
         size_bytes: 1,
         run_id: null,
+        restored_from: null,
         created_at: "2026-09-22T10:00:00Z",
       },
       {
@@ -349,6 +418,7 @@ describe("ArtifactViewer", () => {
         media_type: "text/html",
         size_bytes: 1,
         run_id: null,
+        restored_from: null,
         created_at: "2026-09-21T10:00:00Z",
       },
     ];
@@ -371,6 +441,7 @@ describe("ArtifactViewer", () => {
       media_type: "text/html" as const,
       size_bytes: 1,
       run_id: null,
+      restored_from: null,
       created_at: "2026-09-22T10:00:00Z",
     };
     const { rerender } = render(<></>);
@@ -468,6 +539,35 @@ describe("a live page in the viewer", () => {
     ).toEqual(["Off", "Every minute", "Every 5 minutes", "Every 15 minutes", "Every hour"]);
     await userEvent.click(within(menu).getByRole("menuitemradio", { name: "Every 5 minutes" }));
     expect(localStorage.getItem(AUTO)).toBe("5");
+  });
+
+  it.each([
+    ["every source answers", dataQuery({ sales: bound() }), "flowing"],
+    [
+      "some sources are unavailable",
+      dataQuery({ sales: bound(), costs: bound({ status: "unavailable" }) }),
+      "partial",
+    ],
+    ["the first read is still to come", NO_DATA, "steady"],
+    ["a read failed for now", failedQuery(500), "steady"],
+  ])("draws the Live badge's dot by its data when %s", (_, query, health) => {
+    useArtifactDataMock.mockReturnValue(query);
+    open(livePage());
+    expect(screen.getByText("Live").closest("[data-health]")).toHaveAttribute(
+      "data-health",
+      health,
+    );
+  });
+
+  it.each([
+    ["no source is available", dataQuery({ sales: bound({ status: "unavailable" }) })],
+    ["the data was refused", failedQuery(403)],
+  ])("shows no Live badge to a viewer when %s", (_, query) => {
+    useArtifactDataMock.mockReturnValue(query);
+    open(livePage());
+    expect(screen.queryByText("Live")).toBeNull();
+    // The line under the strip is what says why.
+    expect(screen.getByRole("status")).toBeInTheDocument();
   });
 
   it("says nothing about live data on a page without any", () => {
@@ -660,6 +760,48 @@ describe("a live page in the viewer", () => {
     await userEvent.click(within(notice).getByRole("button", { name: "Open current" }));
     expect(screen.queryByText("Live data only on the current version.")).toBeNull();
     expect(screen.getByRole("button", { name: "Refresh" })).toBeInTheDocument();
+  });
+
+  describe("the address", () => {
+    beforeEach(() => {
+      replace.mockClear();
+    });
+    afterEach(() => {
+      window.history.replaceState(null, "", "/");
+    });
+
+    it("drops the version once Open current is pressed, so a reload opens the current one", async () => {
+      window.history.replaceState(null, "", "/artifacts/a1?version=v1&org=o1");
+      useArtifactMock.mockReturnValue(state(livePage({ can_edit: true }), { versions: [V2, V1] }));
+      render(<ArtifactViewer artifactId="a1" initialVersionId="v1" />);
+      expect(replace).not.toHaveBeenCalled();
+
+      await userEvent.click(
+        within(screen.getByRole("status")).getByRole("button", { name: "Open current" }),
+      );
+      expect(replace).toHaveBeenLastCalledWith("/artifacts/a1?org=o1", { scroll: false });
+    });
+
+    it("names the version picked, so a reload opens it again", async () => {
+      window.history.replaceState(null, "", "/artifacts/a1");
+      useArtifactMock.mockReturnValue(state(livePage(), { versions: [V2, V1] }));
+      render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
+      expect(replace).not.toHaveBeenCalled();
+
+      await userEvent.click(screen.getByRole("button", { name: "Version" }));
+      await userEvent.click(screen.getByRole("menuitemradio", { name: /^v1/ }));
+      expect(replace).toHaveBeenLastCalledWith("/artifacts/a1?version=v1", { scroll: false });
+    });
+
+    it("opens a link to the current version as the current one, which follows a republish", () => {
+      window.history.replaceState(null, "", "/artifacts/a1?version=v2");
+      render(<ArtifactViewer artifactId="a1" initialVersionId="v2" />);
+
+      // V2 is current: no older-version notice, live data is read, the pin is dropped.
+      expect(screen.queryByText("Live data only on the current version.")).toBeNull();
+      expect(screen.getByRole("button", { name: "Refresh" })).toBeInTheDocument();
+      expect(replace).toHaveBeenLastCalledWith("/artifacts/a1", { scroll: false });
+    });
   });
 
   it("offers a reader on an older version only the current one", () => {

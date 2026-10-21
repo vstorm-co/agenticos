@@ -1,7 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Building2, Globe, Lock, MoreHorizontal, Trash2, UserPlus } from "lucide-react";
+import {
+  Archive,
+  ArrowLeft,
+  Building2,
+  Globe,
+  Lock,
+  MoreHorizontal,
+  Trash2,
+  UserPlus,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -13,6 +22,7 @@ import {
   DropdownMenuTrigger,
   IconButton,
 } from "@/components/ui";
+import { LiveBadge, type LiveHealth } from "@/components/artifacts/live-badge";
 import { ROUTES } from "@/lib/constants";
 import type { ArtifactDetail } from "@/types/artifact";
 
@@ -42,24 +52,28 @@ function AccessBadge({ artifact }: { artifact: ArtifactDetail }) {
 interface ArtifactViewerBarProps {
   /** Null while it loads, or once it turned out not to be available. */
   artifact: ArtifactDetail | null;
-  /** The version shown reads live data, so the strip says so beside the title. */
-  live?: boolean;
+  /** How the shown version's live data stands; absent when it reads none. */
+  live?: LiveHealth;
   /** The version picker, which only the loaded page has. */
   children?: React.ReactNode;
   onShare?: () => void;
+  onArchive?: () => void;
   onDelete?: () => void;
 }
 
 /**
  * The one strip of console above an artifact: the way back, what it is and who
- * reaches it, and the controls. Delete sits behind a menu, not beside Share,
- * because it is the one button here that cannot be taken back.
+ * reaches it, and the controls. Archive and Delete sit behind a menu, not beside
+ * Share: each takes the page away from everyone who reads it. An archived page
+ * has nothing to share - it serves nobody - so only the menu is left, without
+ * Archive.
  */
 export function ArtifactViewerBar({
   artifact,
-  live = false,
+  live,
   children,
   onShare,
+  onArchive,
   onDelete,
 }: ArtifactViewerBarProps) {
   const t = useTranslations("artifacts");
@@ -84,11 +98,7 @@ export function ArtifactViewerBar({
                 {artifact.environment_name}
               </Badge>
             )}
-            {live && (
-              <Badge variant="secondary" className="shrink-0">
-                {t("liveBadge")}
-              </Badge>
-            )}
+            {live !== undefined && <LiveBadge health={live} className="shrink-0" />}
             <AccessBadge artifact={artifact} />
           </>
         )}
@@ -96,11 +106,13 @@ export function ArtifactViewerBar({
       {artifact !== null && (
         <div className="flex shrink-0 items-center gap-2">
           {children}
-          <Button size="sm" onClick={onShare}>
-            <UserPlus className="h-3.5 w-3.5" />
-            {/* The word goes on a phone, where the version it shares would not fit beside it. */}
-            <span className="sr-only sm:not-sr-only">{t("share")}</span>
-          </Button>
+          {artifact.archived_at === null && (
+            <Button size="sm" onClick={onShare}>
+              <UserPlus className="h-3.5 w-3.5" />
+              {/* The word goes on a phone, where the version it shares would not fit beside it. */}
+              <span className="sr-only sm:not-sr-only">{t("share")}</span>
+            </Button>
+          )}
           {artifact.can_edit && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -109,6 +121,12 @@ export function ArtifactViewerBar({
                 </IconButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                {artifact.archived_at === null && (
+                  <DropdownMenuItem onSelect={onArchive}>
+                    <Archive className="h-4 w-4" />
+                    {t("archive")}
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem
                   className="text-destructive focus:text-destructive"
                   onSelect={onDelete}

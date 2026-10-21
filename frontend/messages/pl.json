@@ -622,6 +622,11 @@
       "catalog": "Tabele",
       "shownCount": "{count, plural, one {1 tabela} few {# tabele} many {# tabel} other {# tabeli}}",
       "searchPlaceholder": "Szukaj tabel…",
+      "shownFilter": "Które tabele",
+      "shown": {
+        "live": "Aktywne tabele",
+        "all": "Także zarchiwizowane"
+      },
       "empty": {
         "title": "Brak tabel",
         "description": "Tabela to typowany zbiór rekordów, które mogą odczytywać i zapisywać Twoi agenci, workflow i integracje.",
@@ -629,6 +634,7 @@
       },
       "created": "Utworzono {name}",
       "archived": "Tabela zarchiwizowana",
+      "restored": "Tabela przywrócona",
       "saved": "Zapisano",
       "schemaSaved": "Zapisano kolumny",
       "visibility": {
@@ -639,6 +645,7 @@
       "detail": {
         "columns": "Kolumny",
         "share": "Udostępnij",
+        "formatLabel": "Układ",
         "tabs": {
           "table": "Tabela",
           "kanban": "Kanban",
@@ -674,6 +681,7 @@
         "kanbanAddColumn": "Dodaj kolumnę"
       },
       "views": {
+        "label": "Widoki",
         "created": "Zapisano widok",
         "deleted": "Usunięto widok",
         "selectViewFor": "{kind, select, table {Wybierz widok tabeli} kanban {Wybierz widok kanban} list {Wybierz widok listy} other {Wybierz widok}}",
@@ -688,10 +696,15 @@
         "cancel": "Anuluj",
         "save": "Zapisz",
         "deleteTitle": "Usuń widok",
-        "deleteDescription": "Usunąć widok „{name}”? Tej operacji nie można cofnąć."
+        "deleteDescription": "Usunąć widok „{name}”? Tej operacji nie można cofnąć.",
+        "makeShared": "Udostępnij wszystkim, którzy mogą czytać tabelę",
+        "makePrivate": "Ustaw jako prywatny: widzisz go tylko ty",
+        "nowShared": "Udostępniono widok",
+        "nowPrivate": "Widok jest teraz prywatny"
       },
       "noDescription": "Brak opisu.",
       "readOnly": "Tylko odczyt",
+      "archivedBadge": "Zarchiwizowana",
       "editedWhen": "edytowano {when}",
       "triggers": {
         "button": "Wyzwalacze",
@@ -742,7 +755,16 @@
         "create": "Dodaj rekord",
         "created": "Dodano rekord."
       },
-      "cardSize": "{records, plural, one {# rekord} few {# rekordy} many {# rekordów} other {# rekordu}} · {columns, plural, one {# kolumna} few {# kolumny} many {# kolumn} other {# kolumny}}"
+      "cardSize": "{records, plural, one {# rekord} few {# rekordy} many {# rekordów} other {# rekordu}} · {columns, plural, one {# kolumna} few {# kolumny} many {# kolumn} other {# kolumny}}",
+      "archive": {
+        "action": "Zarchiwizuj tabelę",
+        "title": "Zarchiwizować {name}?",
+        "description": "Jej rekordy nadal będzie można odczytać, ale nic ich nie zmieni: nie da się dodać ani edytować rekordu, ani zmienić kolumn, czy to tutaj, czy przez agenta, workflow lub API. Można ją przywrócić z tej strony. Opublikowany workflow, który nadal używa tej tabeli, zatrzyma archiwizację i pojawi się tutaj.",
+        "noticeTitle": "Zarchiwizowano {when}",
+        "noticeRestorable": "Jej rekordy można odczytać, ale nie zmienić. Przywróć tabelę, aby znów je zmieniać.",
+        "noticeReadOnly": "Jej rekordy można odczytać, ale nie zmienić. Przywrócić ją może ktoś z uprawnieniem do edycji tej tabeli.",
+        "restore": "Przywróć"
+      }
     },
     "workflows": {
       "templatesHeading": "Szablony",
@@ -4438,6 +4460,7 @@
     "latestVersion": "Najnowsza wersja",
     "versions": "Wersje",
     "versionNumber": "v{version}",
+    "versionRestoredFrom": "v{version} · przywrócona z v{source}",
     "latestShort": "Najnowsza",
     "latestVersionHint": "Podąża za kolejną publikacją",
     "currentTag": "Bieżąca",
@@ -4497,7 +4520,21 @@
     "wrongPassword": "To hasło jest nieprawidłowe.",
     "passwordTitle": "Ta strona jest chroniona",
     "passwordWhy": "Wpisz otrzymane hasło, żeby ją otworzyć.",
-    "openPage": "Otwórz stronę"
+    "openPage": "Otwórz stronę",
+    "archive": "Archiwizuj",
+    "archiveTitle": "Zarchiwizować {title}?",
+    "archiveWhy": "Strona, jej wersje i link zostają, ale nikt jej nie otworzy, a agent nie opublikuje jej ponownie. Jej link publiczny zostanie wyłączony. Możesz ją przywrócić z jej strony.",
+    "archived": "Artefakt zarchiwizowany",
+    "unarchived": "Artefakt przywrócony",
+    "archivedOn": "Zarchiwizowano {when}",
+    "archivedWhy": "Nikt nie może otworzyć tej strony, a agent nie opublikuje jej ponownie. Przywróć ją, żeby znów była serwowana; jej link publiczny pozostanie wyłączony, dopóki go nie włączysz.",
+    "unarchive": "Przywróć",
+    "archivedBadge": "Zarchiwizowany",
+    "shownFilter": "Które artefakty",
+    "shown": {
+      "live": "Aktywne artefakty",
+      "all": "Także zarchiwizowane"
+    }
   },
   "tables": {
     "cells": {

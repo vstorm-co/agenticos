@@ -1,5 +1,5 @@
 ---
-source_sha: "782fad931256"
+source_sha: "35553e722018"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -180,6 +180,41 @@ für einen Trigger in einem Workflow, den der Aufrufer nicht öffnen kann. Die K
 zeigt sie im Dialog, der gefragt hat, einen Workflow als Link darauf. Jeder andere
 Abhängige wird nie genannt und blockiert den Aufrufer nie: sein Feature kommt
 stattdessen selbst mit der Änderung zurecht.
+
+## Eine Tabelle archivieren und wiederherstellen { #archiving-a-table }
+
+Eine Tabelle wird nie gelöscht, sondern archiviert. Eine archivierte Tabelle behält
+ihre Datensätze, Spalten, Ansichten und ihren Verlauf, und jedes Lesen antwortet
+weiterhin. Jeder Schreibzugriff wird mit `TABLE_ARCHIVED` abgelehnt, egal wer fragt:
+Kein Datensatz wird angelegt, geändert oder gelöscht, und weder ihr Name noch ihre
+Spalten ändern sich. Ihr Name ist für eine neue Tabelle frei, und sie zählt weiterhin
+zum [Tabellenlimit](#limits-and-retention) der Organisation.
+
+In der Konsole findet ein Mitglied, das die Tabelle bearbeiten darf, **Archive table**
+im Menü **More actions** auf ihrer Seite. Der Dialog sagt, was das Archivieren
+bewirkt, bevor sich etwas ändert. Ein veröffentlichter Workflow, der die Tabelle noch
+liest oder schreibt und den der Aufrufer bearbeiten darf, lehnt die Archivierung mit
+`SCHEMA_DEPENDENCY` ab, und der Dialog führt ihn als Link auf. Gespeicherte Ansichten
+und Trigger blockieren nur das Archivieren einer Spalte.
+
+Die Seite einer archivierten Tabelle sagt, wann sie archiviert wurde. Für ein
+Mitglied, das die Tabelle bearbeiten darf, trägt der Hinweis **Restore**, das sie
+unter ihrem Namen zurückholt; alle anderen lesen ihre Datensätze und erfahren, wer
+sie wiederherstellen kann. Der Katalog listet aktive Tabellen, bis darüber
+**Archived included** gewählt wird, und die Karte einer archivierten Tabelle sagt,
+dass sie archiviert ist.
+
+| Aktion | Route | Abgelehnt mit |
+|---|---|---|
+| Archivieren | `POST /tables/{id}/archive` | `SCHEMA_DEPENDENCY` (409), solange etwas die Tabelle verwendet. Zweimal archivieren ist kein Fehler |
+| Wiederherstellen | `POST /tables/{id}/unarchive` | `BAD_REQUEST` (400), wenn die Tabelle nicht archiviert ist; `ALREADY_EXISTS` (409), wenn eine aktive Tabelle inzwischen ihren Namen übernommen hat |
+
+Beide brauchen das Recht, diese Tabelle zu bearbeiten, per Rolle oder per Grant auf
+ihr, und alle anderen erhalten ein 404. `can_edit` ist auf einer archivierten Tabelle
+false, daher sagt `TableRead.can_restore`, ob dieser Aufrufer sie wiederherstellen
+darf. Beides wird auditiert, als `table.archived` und `table.unarchived`, und zählt
+zum Schreib-Rate-Limit für Tabellen. Ein inzwischen vergebener Name wird zuerst an der
+aktiven Tabelle geändert, weil eine archivierte nicht umbenannt werden kann.
 
 ## Datensätze und Revisions { #records-and-revisions }
 
@@ -375,6 +410,11 @@ welche Einfachauswahl-Spalte seine Bahnen bildet, und zeichnet sich sofort; als 
 gespeichert, behält es diese Gruppierung. Eine Karte zeigt unter ihrem Titel bis zu
 vier Spalten des Bildschirms und lässt leere weg. Eine Tabelle ohne Einfachauswahl-Spalte bietet
 stattdessen **Add a column** an.
+
+Der Eigentümer einer Ansicht schaltet sie mit der Schaltfläche neben **Rename**
+zwischen **Private** und **Shared** um. Wer die Ansicht eines anderen Mitglieds
+verwaltet, etwa ein Admin, bekommt diesen Schalter nicht: Ob jemandes eigene Filter
+geteilt werden, entscheidet diese Person selbst.
 
 `GET/POST /tables/{id}/views` und `GET/PATCH/DELETE /tables/{id}/views/{view_id}`
 listen, erstellen, lesen, aktualisieren und löschen sie. Die Liste ist mit `skip`
@@ -606,6 +646,7 @@ Jede Ablehnung antwortet mit `{"error": {"code", "message", "details"}}`, und de
 | `SCHEMA_VERSION_CONFLICT` | 409 | Das Schema hat sich seit dem Lesen geändert |
 | `SCHEMA_DEPENDENCY` | 409 | Etwas hängt von dem ab, was die Änderung entfernt |
 | `TABLE_ARCHIVED` | 409 | Die Tabelle lehnt Schreibzugriffe ab |
+| `BAD_REQUEST` | 400 | Eine Wiederherstellung nannte eine Tabelle, die nicht archiviert ist |
 | `ALREADY_EXISTS` | 409 | Der Tabellenname, ein Ansichtsname oder die external id ist vergeben |
 | `INVALID_RECORD` | 422 | Ein Wert passt nicht zu seiner Spalte; `details.fields` nennt jeden |
 | `ARCHIVED_COLUMN` | 422 | Ein Wert nennt eine archivierte Spalte |

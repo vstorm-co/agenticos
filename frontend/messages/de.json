@@ -4429,6 +4429,11 @@
       "catalog": "Tabellen",
       "shownCount": "{count, plural, one {1 Tabelle} other {# Tabellen}}",
       "searchPlaceholder": "Tabellen durchsuchen…",
+      "shownFilter": "Welche Tabellen",
+      "shown": {
+        "live": "Aktive Tabellen",
+        "all": "Auch archivierte"
+      },
       "empty": {
         "title": "Noch keine Tabellen",
         "description": "Eine Tabelle ist eine typisierte Menge von Datensätzen, die Ihre Agents, Workflows und Integrationen lesen und schreiben können.",
@@ -4436,6 +4441,7 @@
       },
       "created": "{name} erstellt",
       "archived": "Tabelle archiviert",
+      "restored": "Tabelle wiederhergestellt",
       "saved": "Gespeichert",
       "schemaSaved": "Spalten gespeichert",
       "visibility": {
@@ -4446,6 +4452,7 @@
       "detail": {
         "columns": "Spalten",
         "share": "Teilen",
+        "formatLabel": "Darstellung",
         "tabs": {
           "table": "Tabelle",
           "kanban": "Kanban",
@@ -4481,6 +4488,7 @@
         "kanbanAddColumn": "Spalte hinzufügen"
       },
       "views": {
+        "label": "Ansichten",
         "created": "Ansicht gespeichert",
         "deleted": "Ansicht gelöscht",
         "selectViewFor": "{kind, select, table {Tabellenansicht wählen} kanban {Kanban-Ansicht wählen} list {Listenansicht wählen} other {Ansicht wählen}}",
@@ -4495,10 +4503,15 @@
         "cancel": "Abbrechen",
         "save": "Speichern",
         "deleteTitle": "Ansicht löschen",
-        "deleteDescription": "„{name}“ löschen? Dies kann nicht rückgängig gemacht werden."
+        "deleteDescription": "„{name}“ löschen? Dies kann nicht rückgängig gemacht werden.",
+        "makeShared": "Mit allen teilen, die die Tabelle lesen dürfen",
+        "makePrivate": "Privat machen: nur Sie sehen sie",
+        "nowShared": "Ansicht geteilt",
+        "nowPrivate": "Ansicht ist jetzt privat"
       },
       "noDescription": "Noch keine Beschreibung.",
       "readOnly": "Nur lesen",
+      "archivedBadge": "Archiviert",
       "editedWhen": "bearbeitet {when}",
       "triggers": {
         "button": "Trigger",
@@ -4549,7 +4562,16 @@
         "create": "Datensatz hinzufügen",
         "created": "Datensatz hinzugefügt."
       },
-      "cardSize": "{records, plural, one {# Datensatz} other {# Datensätze}} · {columns, plural, one {# Spalte} other {# Spalten}}"
+      "cardSize": "{records, plural, one {# Datensatz} other {# Datensätze}} · {columns, plural, one {# Spalte} other {# Spalten}}",
+      "archive": {
+        "action": "Tabelle archivieren",
+        "title": "{name} archivieren?",
+        "description": "Ihre Datensätze bleiben lesbar, aber nichts kann sie mehr ändern: keine neuen oder bearbeiteten Datensätze und keine Spaltenänderungen – weder hier noch durch einen Agent, einen Workflow oder die API. Sie lässt sich auf dieser Seite wiederherstellen. Ein veröffentlichter Workflow, der die Tabelle noch verwendet, stoppt die Archivierung und wird hier aufgeführt.",
+        "noticeTitle": "Archiviert am {when}",
+        "noticeRestorable": "Ihre Datensätze lassen sich lesen, aber nicht ändern. Stellen Sie die Tabelle wieder her, um sie wieder ändern zu können.",
+        "noticeReadOnly": "Ihre Datensätze lassen sich lesen, aber nicht ändern. Wer die Tabelle bearbeiten darf, kann sie wiederherstellen.",
+        "restore": "Wiederherstellen"
+      }
     },
     "workflows": {
       "templatesHeading": "Vorlagen",
@@ -6668,6 +6690,7 @@
     "latestVersion": "Neueste Version",
     "versions": "Versionen",
     "versionNumber": "v{version}",
+    "versionRestoredFrom": "v{version} · wiederhergestellt aus v{source}",
     "latestShort": "Neueste",
     "latestVersionHint": "Folgt der nächsten Veröffentlichung",
     "currentTag": "Aktuell",
@@ -6727,7 +6750,21 @@
     "wrongPassword": "Dieses Passwort ist nicht richtig.",
     "passwordTitle": "Diese Seite ist geschützt",
     "passwordWhy": "Geben Sie das Passwort ein, das Sie erhalten haben, um sie zu öffnen.",
-    "openPage": "Seite öffnen"
+    "openPage": "Seite öffnen",
+    "archive": "Archivieren",
+    "archiveTitle": "{title} archivieren?",
+    "archiveWhy": "Die Seite, ihre Versionen und ihr Link bleiben erhalten, aber niemand kann sie öffnen, und der Agent kann sie nicht erneut veröffentlichen. Ihr öffentlicher Link wird ausgeschaltet. Sie können sie auf ihrer Seite wiederherstellen.",
+    "archived": "Artefakt archiviert",
+    "unarchived": "Artefakt wiederhergestellt",
+    "archivedOn": "Archiviert am {when}",
+    "archivedWhy": "Niemand kann diese Seite öffnen, und der Agent kann sie nicht erneut veröffentlichen. Stellen Sie sie wieder her, um sie wieder auszuliefern; ihr öffentlicher Link bleibt aus, bis Sie ihn einschalten.",
+    "unarchive": "Wiederherstellen",
+    "archivedBadge": "Archiviert",
+    "shownFilter": "Welche Artefakte",
+    "shown": {
+      "live": "Aktive Artefakte",
+      "all": "Auch archivierte"
+    }
   },
   "tables": {
     "cells": {

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Lock, Pencil, Plus, Trash2, Users } from "lucide-react";
 import {
   Button,
   ConfirmDialog,
@@ -145,6 +145,8 @@ export function ViewSelect({
   onCreate,
   onRename,
   onDelete,
+  onSetVisibility,
+  meId,
   canCreate,
 }: {
   kind: ViewKind;
@@ -154,6 +156,10 @@ export function ViewSelect({
   onCreate: (name: string, visibility: ViewVisibility) => Promise<unknown>;
   onRename: (viewId: string, name: string) => Promise<unknown>;
   onDelete: (viewId: string) => void;
+  /** Share a view or make it private again; only its owner is offered it. */
+  onSetVisibility: (viewId: string, visibility: ViewVisibility) => Promise<unknown>;
+  /** The signed-in member, to tell their own views from the rest. */
+  meId: string | null;
   canCreate: boolean;
 }) {
   const t = useTranslations("pages.tables.views");
@@ -165,70 +171,100 @@ export function ViewSelect({
   const active = views.find((view) => view.id === activeViewId) ?? null;
 
   return (
-    <div className="flex items-center gap-1">
-      {/* The view and saving the screen as a new one read as one control. */}
-      <div className="border-border bg-background flex h-8 items-stretch rounded-lg border">
-        <Select
-          value={activeViewId ?? "__default__"}
-          onValueChange={(id) => onSelect(id === "__default__" ? null : id)}
-        >
-          <SelectTrigger
-            className="h-full w-40 rounded-r-none border-0 bg-transparent text-sm shadow-none"
-            aria-label={t("selectViewFor", { kind })}
+    <div className="flex flex-col gap-1">
+      {/* Said in words: a dropdown reading "All records" did not say it holds views. */}
+      <span aria-hidden className="text-muted-foreground text-xs font-medium">
+        {t("label")}
+      </span>
+      <div className="flex items-center gap-1">
+        {/* The view and saving the screen as a new one read as one control. */}
+        <div className="border-border bg-background flex h-8 items-stretch rounded-lg border">
+          <Select
+            value={activeViewId ?? "__default__"}
+            onValueChange={(id) => onSelect(id === "__default__" ? null : id)}
           >
-            <SelectValue placeholder={t("unsavedView")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__default__">{t("unsavedView")}</SelectItem>
-            {views.map((view) => (
-              <SelectItem key={view.id} value={view.id}>
-                {view.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {canCreate && (
-          <button
+            <SelectTrigger
+              className="h-full w-40 rounded-r-none border-0 bg-transparent text-sm shadow-none"
+              aria-label={t("selectViewFor", { kind })}
+            >
+              <SelectValue placeholder={t("unsavedView")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__default__">{t("unsavedView")}</SelectItem>
+              {views.map((view) => (
+                <SelectItem key={view.id} value={view.id}>
+                  {view.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {canCreate && (
+            <button
+              type="button"
+              data-tour="table-view-new"
+              onClick={() => {
+                setDraftVisibility("private");
+                setCreateOpen(true);
+              }}
+              aria-label={t("newView")}
+              title={t("newView")}
+              className="border-border text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring flex w-8 items-center justify-center rounded-r-lg border-l outline-none focus-visible:ring-2"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        {/* The owner's alone, as `share_view` decides it: an admin may manage anyone's
+            view, but sharing a person's own filters is theirs to choose. */}
+        {active?.can_manage && active.owner_user_id === meId && (
+          <Button
             type="button"
-            data-tour="table-view-new"
-            onClick={() => {
-              setDraftVisibility("private");
-              setCreateOpen(true);
-            }}
-            aria-label={t("newView")}
-            title={t("newView")}
-            className="border-border text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring flex w-8 items-center justify-center rounded-r-lg border-l outline-none focus-visible:ring-2"
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground h-8 gap-1.5 px-2 text-xs"
+            title={active.visibility === "private" ? t("makeShared") : t("makePrivate")}
+            onClick={() =>
+              void onSetVisibility(
+                active.id,
+                active.visibility === "private" ? "shared" : "private",
+              )
+            }
           >
-            <Plus className="h-4 w-4" />
-          </button>
+            {active.visibility === "private" ? (
+              <Lock className="h-3.5 w-3.5" aria-hidden />
+            ) : (
+              <Users className="h-3.5 w-3.5" aria-hidden />
+            )}
+            {active.visibility === "private" ? t("private") : t("shared")}
+          </Button>
+        )}
+        {active?.can_manage && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground size-8"
+            aria-label={t("rename")}
+            title={t("rename")}
+            onClick={() => setRenaming(active)}
+          >
+            <Pencil className="h-4 w-4" />
+          </Button>
+        )}
+        {active?.can_delete && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground size-8"
+            aria-label={t("delete")}
+            title={t("delete")}
+            onClick={() => setDeleting(active)}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
         )}
       </div>
-      {active?.can_manage && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="text-muted-foreground size-8"
-          aria-label={t("rename")}
-          title={t("rename")}
-          onClick={() => setRenaming(active)}
-        >
-          <Pencil className="h-4 w-4" />
-        </Button>
-      )}
-      {active?.can_delete && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="text-muted-foreground size-8"
-          aria-label={t("delete")}
-          title={t("delete")}
-          onClick={() => setDeleting(active)}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      )}
 
       <ViewNameDialog
         open={createOpen}

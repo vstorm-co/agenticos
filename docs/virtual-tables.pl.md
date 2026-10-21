@@ -1,5 +1,5 @@
 ---
-source_sha: "782fad931256"
+source_sha: "35553e722018"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -166,6 +166,39 @@ Odmowa wymienia każdą zależność w `SCHEMA_DEPENDENCY` z jej `kind`,
 może otworzyć. Konsola pokazuje je w dialogu, który pytał, workflow jako link do
 niego. Każda inna zależność nigdy nie jest wymieniana i nigdy nie blokuje
 wywołującego: jej funkcja sama radzi sobie ze zmianą.
+
+## Archiwizacja i przywracanie tabeli { #archiving-a-table }
+
+Tabela nigdy nie jest usuwana; jest archiwizowana. Zarchiwizowana tabela zachowuje
+rekordy, kolumny, widoki i historię, a każdy odczyt nadal działa. Każdy zapis jest
+odrzucany kodem `TABLE_ARCHIVED`, niezależnie od tego, kto pyta: żaden rekord nie
+powstaje, nie zmienia się ani nie znika, a jej nazwa i kolumny też się nie zmieniają.
+Jej nazwa jest wolna dla nowej tabeli, a ona sama nadal wlicza się do
+[limitu tabel](#limits-and-retention) organizacji.
+
+W konsoli członek, który może edytować tabelę, znajdzie **Archive table** w menu
+**More actions** na jej stronie. Dialog mówi, co robi archiwizacja, zanim cokolwiek
+się zmieni. Opublikowany workflow, który nadal czyta lub zapisuje tabelę i który
+wywołujący może edytować, odrzuca archiwizację kodem `SCHEMA_DEPENDENCY`, a dialog
+pokazuje go jako link. Zapisane widoki i wyzwalacze blokują tylko archiwizację kolumny.
+
+Strona zarchiwizowanej tabeli mówi, kiedy ją zarchiwizowano. Dla członka, który może
+edytować tabelę, komunikat zawiera **Restore**, które przywraca ją pod jej nazwą;
+każdy inny czyta jej rekordy i dowiaduje się, kto może ją przywrócić. Katalog pokazuje
+aktywne tabele, dopóki nad nim nie wybierze się **Archived included**, a karta
+zarchiwizowanej tabeli mówi, że jest zarchiwizowana.
+
+| Akcja | Trasa | Kod odmowy |
+|---|---|---|
+| Archiwizacja | `POST /tables/{id}/archive` | `SCHEMA_DEPENDENCY` (409), gdy coś używa tabeli. Ponowna archiwizacja nie jest błędem |
+| Przywrócenie | `POST /tables/{id}/unarchive` | `BAD_REQUEST` (400), gdy tabela nie jest zarchiwizowana; `ALREADY_EXISTS` (409), gdy w międzyczasie aktywna tabela zajęła jej nazwę |
+
+Obie wymagają prawa do edycji tej tabeli, z roli lub z grantu na nią, a każdy inny
+dostaje 404. `can_edit` jest false dla zarchiwizowanej tabeli, więc to
+`TableRead.can_restore` mówi, czy ten wywołujący może ją przywrócić. Każda trafia do
+audytu, jako `table.archived` i `table.unarchived`, i liczy się do limitu
+częstotliwości zapisów tabel. Nazwę zajętą w międzyczasie zmienia się
+najpierw w aktywnej tabeli, bo zarchiwizowanej nie można przemianować.
 
 ## Rekordy i revisions { #records-and-revisions }
 
@@ -347,6 +380,10 @@ to, co pokazuje ekran, jako nowy widok. Tablica kanban bez widoku pyta, która k
 jednokrotnego wyboru tworzy tory, i od razu się rysuje; zapisana jako widok zachowuje
 to grupowanie. Karta pokazuje pod tytułem do czterech kolumn ekranu, pomijając puste. Tabela bez kolumny jednokrotnego wyboru proponuje zamiast tego **Add a
 column**.
+
+Właściciel widoku przełącza go między **Private** a **Shared** przyciskiem obok
+**Rename**. Ktoś, kto zarządza widokiem innego członka, na przykład administrator, nie
+dostaje tego przełącznika: o udostępnieniu czyichś filtrów decyduje ich autor.
 
 `GET/POST /tables/{id}/views` oraz `GET/PATCH/DELETE /tables/{id}/views/{view_id}`
 listują, tworzą, czytają, aktualizują i usuwają je. Lista jest stronicowana przez
@@ -568,6 +605,7 @@ według czego klient się rozgałęzia.
 | `SCHEMA_VERSION_CONFLICT` | 409 | Schemat zmienił się od odczytu |
 | `SCHEMA_DEPENDENCY` | 409 | Coś zależy od tego, co zmiana usuwa |
 | `TABLE_ARCHIVED` | 409 | Tabela odrzuca zapisy |
+| `BAD_REQUEST` | 400 | Przywrócenie wskazało tabelę, która nie jest zarchiwizowana |
 | `ALREADY_EXISTS` | 409 | Nazwa tabeli, nazwa widoku lub external id jest zajęte |
 | `INVALID_RECORD` | 422 | Wartość nie pasuje do kolumny; `details.fields` wskazuje każdą |
 | `ARCHIVED_COLUMN` | 422 | Wartość wskazuje zarchiwizowaną kolumnę |

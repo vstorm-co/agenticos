@@ -148,6 +148,10 @@ class Artifact(Base, TimestampMixin):
     published_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+    # When a person archived it, or null. An archived page keeps its versions, its
+    # grants and its name - so the agent's next publish is refused rather than
+    # starting a second page - but nothing serves it until it is restored.
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         Index(
@@ -200,6 +204,10 @@ class ArtifactVersion(Base, TimestampMixin):
         nullable=True,
         index=True,
     )
+    # The number of the version a person restored to make this one; null for
+    # every version a run published. A number, not a key: the restored version
+    # may be pruned later, and the note still says where these bytes came from.
+    restored_from: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # The live data the page may load, as the publication resolved it: one
     # entry per binding name (see `ArtifactBinding`). Versions written before
     # bindings existed read as none.

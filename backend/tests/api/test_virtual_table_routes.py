@@ -21,6 +21,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.api import deps
 from app.core.config import settings
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
 from app.schemas.virtual_table import (
@@ -94,6 +95,7 @@ def service() -> MagicMock:
         describe_table=AsyncMock(return_value=_table()),
         update_table=AsyncMock(return_value=_table()),
         archive_table=AsyncMock(return_value=_table()),
+        unarchive_table=AsyncMock(return_value=_table()),
         update_schema=AsyncMock(return_value=_table()),
         list_schema_versions=AsyncMock(return_value={"items": []}),
         list_records=AsyncMock(return_value=RecordList(items=[], skip=0, limit=50, has_more=False)),
@@ -170,11 +172,12 @@ async def test_the_per_table_routes_answer_with_the_table(client):
             await http.get(_url(f"/{_TABLE}")),
             await http.patch(_url(f"/{_TABLE}"), json={"name": "Renamed"}),
             await http.post(_url(f"/{_TABLE}/archive")),
+            await http.post(_url(f"/{_TABLE}/unarchive")),
             await http.put(_url(f"/{_TABLE}/schema"), json={"expected_version": 1, "columns": []}),
         ]
         versions = await http.get(_url(f"/{_TABLE}/schema-versions"))
 
-    assert [r.status_code for r in responses] == [200, 200, 200, 200]
+    assert [r.status_code for r in responses] == [200, 200, 200, 200, 200]
     assert versions.json() == {"items": []}
 
 
@@ -355,6 +358,31 @@ async def test_every_refusal_answers_in_the_one_envelope_with_its_own_code(clien
             assert list(body) == ["error"]
             assert body["error"]["code"] == code
             assert details.items() <= (body["error"]["details"] or {}).items()
+
+
+async def test_restoring_a_table_answers_with_it_or_the_refusal_a_console_branches_on(
+    client, service
+):
+    restored = _table().model_copy(update={"can_edit": True})
+    service.unarchive_table.return_value = restored
+    async with client() as http:
+        answered = await http.post(_url(f"/{_TABLE}/unarchive"))
+        service.unarchive_table.side_effect = BadRequestError(
+            message="Table 'Orders' is not archived", details={"table_id": _TABLE}
+        )
+        live = await http.post(_url(f"/{_TABLE}/unarchive"))
+        service.unarchive_table.side_effect = NotFoundError(
+            message="Table not found", details={"table_id": _TABLE}
+        )
+        unreachable = await http.post(_url(f"/{_TABLE}/unarchive"))
+
+    assert answered.status_code == 200
+    assert (answered.json()["can_edit"], answered.json()["can_restore"]) == (True, False)
+    assert service.unarchive_table.await_args.args[1] == _TABLE
+    assert (live.status_code, live.json()["error"]["code"]) == (400, "BAD_REQUEST")
+    assert (unreachable.status_code, unreachable.json()["error"]["code"]) == (404, "NOT_FOUND")
+    operation = app.openapi()["paths"][f"{settings.API_V1_STR}/tables/{{table_id}}/unarchive"]
+    assert {"400", "404", "409", "429"} <= set(operation["post"]["responses"])
 
 
 def test_the_openapi_document_types_the_write_contract():
@@ -586,6 +614,7 @@ _MUTATIONS = [
     ("post", _url(), {"name": "Orders"}),
     ("patch", _url(f"/{_TABLE}"), {"name": "Renamed"}),
     ("post", _url(f"/{_TABLE}/archive"), None),
+    ("post", _url(f"/{_TABLE}/unarchive"), None),
     ("put", _url(f"/{_TABLE}/schema"), {"expected_version": 1, "columns": []}),
     ("post", _records(), {"values": {}}),
     ("patch", _records(f"/{_RECORD}"), {"expected_revision": 1, "values": {}}),
@@ -604,6 +633,7 @@ _MUTATIONS = [
         "create-table",
         "rename-table",
         "archive-table",
+        "unarchive-table",
         "change-schema",
         "create-record",
         "update-record",

@@ -31,6 +31,7 @@ from fastapi import APIRouter, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import Auth, DBSession, SharingSvc
+from app.core.permissions import AuthContext
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.schemas.resource_grant import (
     ResourceGrantRead,
@@ -41,8 +42,8 @@ from app.schemas.resource_grant import (
 from app.services.access import ResourceType
 from app.services.sharing import SharingService
 
-# Loads one row of this resource type inside an organization, or raises 404.
-ResourceLoader = Callable[[AsyncSession, UUID, UUID], Awaitable[Any]]
+# Loads one row of this resource type inside the caller's organization, or raises 404.
+ResourceLoader = Callable[[AsyncSession, UUID, AuthContext], Awaitable[Any]]
 
 
 def build_sharing_router(
@@ -59,12 +60,12 @@ def build_sharing_router(
 
     Args:
         resource_type: Which permissions govern it, and the key stored on grants.
-        load: How to fetch one row of it inside an organization.
+        load: How to fetch one row of it for the caller, inside their organization.
     """
     router = APIRouter()
 
-    async def _resolve(db: AsyncSession, resource_id: UUID, ctx: Any) -> Any:
-        return await load(db, resource_id, ctx.organization_id)
+    async def _resolve(db: AsyncSession, resource_id: UUID, ctx: AuthContext) -> Any:
+        return await load(db, resource_id, ctx)
 
     async def _sharing_of(service: SharingService, ctx: Any, resource: Any) -> ResourceSharing:
         state = await service.get_sharing(ctx, resource, resource_type=resource_type)

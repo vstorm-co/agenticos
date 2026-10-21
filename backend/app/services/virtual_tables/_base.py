@@ -72,6 +72,16 @@ class Operations:
             return False
         return await resolve_access(self.db, ctx, table, Perm.TABLES_EDIT, resource_type=TABLE)
 
+    async def _can_restore(self, ctx: AuthContext, table: VirtualTable) -> bool:
+        """Whether this table is archived and this caller may restore it.
+
+        The edit right `unarchive_table` asks for, which `_can_edit` answers `False`
+        for on an archived table because no write would succeed.
+        """
+        if table.archived_at is None:
+            return False
+        return await resolve_access(self.db, ctx, table, Perm.TABLES_EDIT, resource_type=TABLE)
+
     async def _columns(
         self, table: VirtualTable, *, deadline: ReadDeadline | None = None
     ) -> list[ColumnDef]:
@@ -88,7 +98,13 @@ class Operations:
             raise TableArchivedError(table_id=table.id)
 
     @staticmethod
-    def _read(table: VirtualTable, columns: list[ColumnDef], *, can_edit: bool) -> TableRead:
+    def _read(
+        table: VirtualTable,
+        columns: list[ColumnDef],
+        *,
+        can_edit: bool,
+        can_restore: bool = False,
+    ) -> TableRead:
         return TableRead(
             id=table.id,
             name=table.name,
@@ -100,5 +116,6 @@ class Operations:
             created_at=table.created_at,
             updated_at=table.updated_at,
             can_edit=can_edit,
+            can_restore=can_restore,
             columns=columns,
         )

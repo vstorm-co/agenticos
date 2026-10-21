@@ -548,7 +548,8 @@ test.describe("artifact live data", () => {
     // Searched to this one artifact, so the canary check reads only its thumbnail.
     await page.getByPlaceholder("Search artifacts…").fill(fixture.title);
 
-    const card = page.locator(`a[href$="/artifacts/${fixture.artifactId}"]`);
+    // The card's link covers it and holds no text, so the card is the link's parent.
+    const card = page.locator(`a[href$="/artifacts/${fixture.artifactId}"]`).locator("..");
     await expect(card).toContainText(fixture.title);
     await expect(card.getByText("Live", { exact: true })).toBeVisible();
     const thumbnail = card.locator(`iframe[title="${fixture.title}"]`).contentFrame();

@@ -13,7 +13,12 @@ import pytest
 from sqlalchemy import event, func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
-from app.core.exceptions import AlreadyExistsError, AuthorizationError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.resource_grant import GrantLevel
@@ -672,6 +677,100 @@ async def test_an_archived_table_reports_can_edit_false_even_with_an_edit_grant(
 
 
 @pytest.mark.security
+async def test_a_restored_table_takes_writes_again_and_its_records_are_as_they_were(db):
+    service, ctx, _owner, org = await _setup(db)
+    table = await service.create_table(
+        ctx, TableCreate(name="People", columns=[column("Name", "text")])
+    )
+    name_id = str(table.columns[0].id)
+    written = await service.create_record(ctx, table.id, RecordCreate(values={name_id: "Ada"}))
+    assert (await service.describe_table(ctx, table.id)).can_restore is False
+
+    archived = await service.archive_table(ctx, table.id)
+    assert (archived.can_edit, archived.can_restore) == (False, True)
+    assert (await service.archive_table(ctx, table.id)).can_restore is True
+    assert (await service.describe_table(ctx, table.id)).can_restore is True
+    with pytest.raises(TableArchivedError):
+        await service.create_record(ctx, table.id, RecordCreate(values={name_id: "Grace"}))
+
+    restored = await service.unarchive_table(ctx, table.id)
+
+    assert restored.archived_at is None
+    assert (restored.can_edit, restored.can_restore) == (True, False)
+    assert (await service.get_record(ctx, table.id, written.record.id)).values == {name_id: "Ada"}
+    added = await service.create_record(ctx, table.id, RecordCreate(values={name_id: "Grace"}))
+    assert added.created is True
+    renamed = await service.update_table(ctx, table.id, TableUpdate(name="Staff"))
+    assert renamed.name == "Staff"
+    audited = await db.scalars(
+        select(AppAdminAuditLog.action).where(AppAdminAuditLog.organization_id == org.id)
+    )
+    assert {"table.archived", "table.unarchived"} <= set(audited)
+
+
+async def test_restoring_a_table_that_is_not_archived_is_refused(db):
+    service, ctx, _owner, _org = await _setup(db)
+    table = await service.create_table(ctx, TableCreate(name="People"))
+
+    with pytest.raises(BadRequestError) as raised:
+        await service.unarchive_table(ctx, table.id)
+
+    assert raised.value.details == {"table_id": table.id}
+
+
+async def test_a_table_whose_name_was_taken_while_archived_is_restored_only_after_a_rename(db):
+    """The live-name index allows one live table per name, so restoring would collide
+    with a table created under the archived one's name since. The refusal names the
+    live table to rename, because an archived one cannot be renamed."""
+    service, ctx, _owner, _org = await _setup(db)
+    first = await service.create_table(ctx, TableCreate(name="Orders"))
+    await service.archive_table(ctx, first.id)
+    second = await service.create_table(ctx, TableCreate(name="Orders"))
+
+    with pytest.raises(AlreadyExistsError) as raised:
+        await service.unarchive_table(ctx, first.id)
+    assert "must be renamed" in raised.value.message
+    assert raised.value.details == {"name": "Orders"}
+
+    await service.update_table(ctx, second.id, TableUpdate(name="Orders 2026"))
+    assert (await service.unarchive_table(ctx, first.id)).name == "Orders"
+
+
+@pytest.mark.security
+async def test_restoring_a_table_needs_the_right_to_edit_it(db):
+    """A member who may only read the table is told it does not exist, as archiving
+    it would; an edit grant on that one table is enough, whatever the role."""
+    service, ctx, _owner, org = await _setup(db)
+    table = await service.create_table(ctx, TableCreate(name="People"))
+    await service.archive_table(ctx, table.id)
+    colleague = await make_user(db)
+    member = ctx_for(colleague, org, "member")
+    await resource_grant_repo.upsert(
+        db,
+        organization_id=org.id,
+        subject_user_id=colleague.id,
+        resource_type=TABLE.key,
+        resource_id=table.id,
+        level=GrantLevel.READ,
+    )
+
+    assert (await service.describe_table(member, table.id)).can_restore is False
+    with pytest.raises(NotFoundError):
+        await service.unarchive_table(member, table.id)
+
+    await resource_grant_repo.upsert(
+        db,
+        organization_id=org.id,
+        subject_user_id=colleague.id,
+        resource_type=TABLE.key,
+        resource_id=table.id,
+        level=GrantLevel.EDIT,
+    )
+    assert (await service.describe_table(member, table.id)).can_restore is True
+    assert (await service.unarchive_table(member, table.id)).archived_at is None
+
+
+@pytest.mark.security
 async def test_a_registered_dependency_blocks_archiving_and_dropping_a_column(db, monkeypatch):
     service, ctx, _owner, _org = await _setup(db)
     table = await service.create_table(
@@ -740,6 +839,7 @@ async def test_another_organizations_table_does_not_exist(db):
     for call in (
         service.describe_table(intruder, table.id),
         service.archive_table(intruder, table.id),
+        service.unarchive_table(intruder, table.id),
         service.list_schema_versions(intruder, table.id),
         service.update_schema(intruder, table.id, SchemaUpdate(expected_version=1, columns=[])),
     ):

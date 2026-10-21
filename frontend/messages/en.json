@@ -5007,6 +5007,11 @@
       "catalog": "Tables",
       "shownCount": "{count, plural, =1 {1 table} other {# tables}}",
       "searchPlaceholder": "Search tables…",
+      "shownFilter": "Which tables",
+      "shown": {
+        "live": "Live tables",
+        "all": "Archived included"
+      },
       "empty": {
         "title": "No tables yet",
         "description": "A table is a typed set of records your agents, workflows and integrations can read and write.",
@@ -5014,6 +5019,7 @@
       },
       "created": "Created {name}",
       "archived": "Table archived",
+      "restored": "Table restored",
       "saved": "Saved",
       "schemaSaved": "Columns saved",
       "visibility": {
@@ -5024,6 +5030,7 @@
       "detail": {
         "columns": "Columns",
         "share": "Share",
+        "formatLabel": "Format",
         "tabs": {
           "table": "Table",
           "kanban": "Kanban",
@@ -5059,6 +5066,7 @@
         "kanbanAddColumn": "Add a column"
       },
       "views": {
+        "label": "Views",
         "created": "View saved",
         "deleted": "View deleted",
         "selectViewFor": "{kind, select, table {Select a table view} kanban {Select a kanban view} list {Select a list view} other {Select a view}}",
@@ -5073,10 +5081,15 @@
         "cancel": "Cancel",
         "save": "Save",
         "deleteTitle": "Delete view",
-        "deleteDescription": "Delete “{name}”? This cannot be undone."
+        "deleteDescription": "Delete “{name}”? This cannot be undone.",
+        "makeShared": "Share it with everyone who may read the table",
+        "makePrivate": "Make it private: only you see it",
+        "nowShared": "View shared",
+        "nowPrivate": "View made private"
       },
       "noDescription": "No description yet.",
       "readOnly": "Read only",
+      "archivedBadge": "Archived",
       "editedWhen": "edited {when}",
       "triggers": {
         "button": "Triggers",
@@ -5127,7 +5140,16 @@
         "create": "Add record",
         "created": "Record added."
       },
-      "cardSize": "{records, plural, one {# record} other {# records}} · {columns, plural, one {# column} other {# columns}}"
+      "cardSize": "{records, plural, one {# record} other {# records}} · {columns, plural, one {# column} other {# columns}}",
+      "archive": {
+        "action": "Archive table",
+        "title": "Archive {name}?",
+        "description": "Its records stay readable, but nothing can change them: no new or edited records and no column changes, from here, an agent, a workflow or the API. It can be restored from this page. A published workflow that still uses the table stops the archive and is listed here.",
+        "noticeTitle": "Archived on {when}",
+        "noticeRestorable": "Its records can be read but not changed. Restore the table to change them again.",
+        "noticeReadOnly": "Its records can be read but not changed. Someone who may edit the table can restore it.",
+        "restore": "Restore"
+      }
     }
   },
   "profile": {
@@ -6810,6 +6832,7 @@
     "latestVersion": "Latest version",
     "versions": "Versions",
     "versionNumber": "v{version}",
+    "versionRestoredFrom": "v{version} · restored from v{source}",
     "latestShort": "Latest",
     "latestVersionHint": "Follows the next publication",
     "currentTag": "Current",
@@ -6869,7 +6892,21 @@
     "wrongPassword": "That password is not right.",
     "passwordTitle": "This page is protected",
     "passwordWhy": "Type the password you were given to open it.",
-    "openPage": "Open the page"
+    "openPage": "Open the page",
+    "archive": "Archive",
+    "archiveTitle": "Archive {title}?",
+    "archiveWhy": "The page, its versions and its link are kept, but nobody can open it and the agent cannot publish it again. Its public link is turned off. You can restore it from its page.",
+    "archived": "Artifact archived",
+    "unarchived": "Artifact restored",
+    "archivedOn": "Archived on {when}",
+    "archivedWhy": "Nobody can open this page and the agent cannot publish it again. Restore it to serve it again; its public link stays off until you turn it on.",
+    "unarchive": "Restore",
+    "archivedBadge": "Archived",
+    "shownFilter": "Which artifacts",
+    "shown": {
+      "live": "Active artifacts",
+      "all": "Archived included"
+    }
   },
   "tables": {
     "cells": {

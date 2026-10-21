@@ -19,6 +19,7 @@ is stable: a client branches on it, not on the message.
 - `SCHEMA_VERSION_CONFLICT` (409): the schema changed since it was read.
 - `SCHEMA_DEPENDENCY` (409): something depends on what a schema change removes.
 - `TABLE_ARCHIVED` (409): the table refuses writes.
+- `BAD_REQUEST` (400): the table is not archived, so there is nothing to restore.
 - `ALREADY_EXISTS` (409): a table name or a record's external id is taken.
 - `VALIDATION_ERROR` (422): the request itself is malformed, refused before the service runs.
 - `AUTHORIZATION_ERROR` (403): the caller lacks the permission a collection route requires.
@@ -213,6 +214,25 @@ async def update_table(
 async def archive_table(table_id: UUID, service: VirtualTableSvc, ctx: Auth) -> Any:
     """Archive a table. Records stay readable; every write is refused."""
     return await service.archive_table(ctx, table_id)
+
+
+@router.post(
+    "/{table_id}/unarchive",
+    response_model=TableRead,
+    responses={
+        400: {"model": ErrorEnvelope, "description": "`BAD_REQUEST`: the table is not archived"},
+        **_WRITE_REFUSALS,
+    },
+    dependencies=[Depends(limit_table_write)],
+)
+async def unarchive_table(table_id: UUID, service: VirtualTableSvc, ctx: Auth) -> Any:
+    """Restore an archived table, so it takes writes again.
+
+    Needs the same edit right as archiving. Refused with `BAD_REQUEST` (400) when the
+    table is not archived, and with `ALREADY_EXISTS` (409) when a live table has
+    taken its name since; rename that one first.
+    """
+    return await service.unarchive_table(ctx, table_id)
 
 
 @router.put(

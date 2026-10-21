@@ -3,7 +3,9 @@
 import { use, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
+import { useAuthStore } from "@/stores/auth-store";
 import {
+  Archive,
   Building2,
   Download,
   List,
@@ -40,6 +42,7 @@ import { filterable, isComplete } from "@/components/tables/record-filters";
 import { RecordFiltersPopover } from "@/components/tables/record-filters-popover";
 import { SchemaDependents } from "@/components/tables/schema-dependents";
 import { SchemaEditorDialog } from "@/components/tables/schema-editor-dialog";
+import { ArchiveTableDialog, ArchivedTableNotice } from "@/components/tables/table-archive";
 import { TableGridView } from "@/components/tables/table-grid-view";
 import { TableKanbanView } from "@/components/tables/table-kanban-view";
 import { TableListView } from "@/components/tables/table-list-view";
@@ -51,6 +54,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
   Select,
   SelectContent,
@@ -110,6 +114,8 @@ function parseTab(value: string | null): ViewKind {
 export default function TableDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const t = useTranslations("pages.tables.detail");
+  const tViews = useTranslations("pages.tables.views");
+  const meId = useAuthStore((state) => state.user?.id ?? null);
   const tp = useTranslations("pages.tables");
   const tTriggers = useTranslations("pages.tables.triggers");
   const tErrors = useTranslations("errors");
@@ -120,7 +126,15 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   const setTab = (next: ViewKind) => setTabParam(next === "table" ? null : next);
   const [viewIdParam, setViewIdParam] = useUrlState("viewId");
 
-  const { table, isLoading, error, changeSchema, invalidate: refreshTable } = useTable(id);
+  const {
+    table,
+    isLoading,
+    error,
+    changeSchema,
+    archive,
+    unarchive,
+    invalidate: refreshTable,
+  } = useTable(id);
   const {
     views,
     create: createView,
@@ -131,6 +145,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   const [schemaOpen, setSchemaOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [triggersOpen, setTriggersOpen] = useState(false);
+  const [archivingTable, setArchivingTable] = useState(false);
   // What the Add record form opens with - null while it is closed. Each opening
   // mounts the form afresh, so what it starts from is read then.
   const [addingRecord, setAddingRecord] = useState<Record<string, CellValue> | null>(null);
@@ -349,6 +364,20 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
                 <DropdownMenuItem disabled={exporting} onSelect={exportShown}>
                   <Download className="h-4 w-4" /> {t("export")}
                 </DropdownMenuItem>
+                {canEdit && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        // The last attempt's refusal is not about this one.
+                        archive.reset();
+                        setArchivingTable(true);
+                      }}
+                    >
+                      <Archive className="h-4 w-4" /> {tp("archive.action")}
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
             {canEdit && (
@@ -360,26 +389,41 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
         }
       />
 
+      {table.archived_at && (
+        <ArchivedTableNotice
+          archivedAt={table.archived_at}
+          canRestore={table.can_restore}
+          restoring={unarchive.isPending}
+          onRestore={() => unarchive.mutate()}
+        />
+      )}
+
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         {/* What the records are laid out as, and which saved view of them - one group. */}
-        <div className="flex flex-wrap items-center gap-2">
-          <Tabs value={tab} onValueChange={(next) => setTab(next as ViewKind)}>
-            <TabsList
-              data-tour="table-view-tabs"
-              className="bg-muted h-8 gap-0 rounded-lg border-0 p-0.5"
-            >
-              {VIEW_TABS.map(({ kind, icon: Icon }) => (
-                <TabsTrigger
-                  key={kind}
-                  value={kind}
-                  className="data-[state=active]:bg-background mb-0 h-full gap-1.5 rounded-md border-0 px-2.5 pb-0 text-xs data-[state=active]:shadow-sm"
-                >
-                  <Icon aria-hidden="true" className="size-3.5" />
-                  {t(`tabs.${kind}`)}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1">
+            <span id="table-format-label" className="text-muted-foreground text-xs font-medium">
+              {t("formatLabel")}
+            </span>
+            <Tabs value={tab} onValueChange={(next) => setTab(next as ViewKind)}>
+              <TabsList
+                data-tour="table-view-tabs"
+                aria-labelledby="table-format-label"
+                className="bg-muted h-8 gap-0 rounded-lg border-0 p-0.5"
+              >
+                {VIEW_TABS.map(({ kind, icon: Icon }) => (
+                  <TabsTrigger
+                    key={kind}
+                    value={kind}
+                    className="data-[state=active]:bg-background mb-0 h-full gap-1.5 rounded-md border-0 px-2.5 pb-0 text-xs data-[state=active]:shadow-sm"
+                  >
+                    <Icon aria-hidden="true" className="size-3.5" />
+                    {t(`tabs.${kind}`)}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          </div>
           <ViewSelect
             kind={tab}
             views={views}
@@ -402,6 +446,14 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
               setViewIdParam(created.id);
             }}
             onRename={(viewId, name) => updateView.mutateAsync({ viewId, data: { name } })}
+            meId={meId}
+            onSetVisibility={(viewId, visibility) =>
+              updateView
+                .mutateAsync({ viewId, data: { visibility } })
+                .then(() =>
+                  toast.success(tViews(visibility === "shared" ? "nowShared" : "nowPrivate")),
+                )
+            }
             onDelete={(viewId) =>
               // Deselected only once it is gone: a refused delete (toasted by the
               // hook) leaves the view in place and still selected.
@@ -633,6 +685,17 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
             <SchemaDependents error={changeSchema.error} />
           </ConfirmDialog>
         </>
+      )}
+
+      {canEdit && (
+        <ArchiveTableDialog
+          open={archivingTable}
+          onOpenChange={setArchivingTable}
+          name={table.name}
+          loading={archive.isPending}
+          error={archive.error}
+          onConfirm={() => archive.mutate(undefined, { onSuccess: () => setArchivingTable(false) })}
+        />
       )}
 
       {canEdit && (

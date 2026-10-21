@@ -1119,6 +1119,27 @@ async def _two_versions(
 
 
 class TestRestore:
+    async def test_a_restored_version_names_the_one_it_came_from_and_a_publish_does_not(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        world = await _bound(db)
+        first, _second = await _two_versions(world, {})
+
+        detail = await ArtifactService(db).restore_version(
+            world.ctx, first.artifact_id, first.version_id
+        )
+        await world.publish("<p>v4</p>", run_person=world.owner.id)
+
+        assert detail.current_version is not None
+        assert detail.current_version.restored_from == 1
+        listed = await ArtifactService(db).versions(world.ctx, first.artifact_id)
+        assert [(v.number, v.restored_from) for v in listed.items] == [
+            (4, None),
+            (3, 1),
+            (2, None),
+            (1, None),
+        ]
+
     async def test_restore_copies_bindings_and_marks_the_broken_one_unavailable(
         self, db: AsyncSession, storage: LocalFileStorage
     ) -> None:

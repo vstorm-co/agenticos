@@ -12,6 +12,7 @@ import {
   getTable,
   listTables,
   queryRecords,
+  unarchiveTable,
   updateRecord,
   updateSchema,
   updateTable,
@@ -81,6 +82,12 @@ it("archiveTable posts to the archive action", async () => {
   vi.mocked(apiClient.post).mockResolvedValue({ id: "t1" });
   await archiveTable("t1");
   expect(apiClient.post).toHaveBeenCalledWith("/tables/t1/archive");
+});
+
+it("unarchiveTable posts to the unarchive action", async () => {
+  vi.mocked(apiClient.post).mockResolvedValue({ id: "t1" });
+  await unarchiveTable("t1");
+  expect(apiClient.post).toHaveBeenCalledWith("/tables/t1/unarchive");
 });
 
 it("updateSchema puts the full column list", async () => {
