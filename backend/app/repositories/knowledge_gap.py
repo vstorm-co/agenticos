@@ -28,11 +28,21 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import ARRAY, aggregate_order_by
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
+from app.db.models.agent import AgentVersion
+from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.conversation import Message, ToolCall
 from app.db.models.knowledge_base import KnowledgeBase
-from app.db.models.knowledge_gap import KnowledgeGapMember, KnowledgeGapTopic, KnowledgeSearch
+from app.db.models.knowledge_gap import (
+    GapSignal,
+    KnowledgeGapClassification,
+    KnowledgeGapMember,
+    KnowledgeGapTopic,
+    KnowledgeSearch,
+)
 from app.db.models.message_rating import MessageRating
 from app.db.models.rag_document import RAGDocument
 from app.schemas.knowledge_gap import KnowledgeSearchRecord
@@ -68,8 +78,12 @@ async def record_searches(
 
 
 def is_miss(threshold: float) -> ColumnElement[bool]:
-    """The searches that found nothing close enough to the query."""
-    return or_(KnowledgeSearch.result_count == 0, KnowledgeSearch.top_similarity < threshold)
+    """The searches that found nothing close enough to the query, and the answers read as misses."""
+    return or_(
+        KnowledgeSearch.signal != GapSignal.RETRIEVAL.value,
+        KnowledgeSearch.result_count == 0,
+        KnowledgeSearch.top_similarity < threshold,
+    )
 
 
 def _ungrouped_in(knowledge_base_id: UUID | SQLColumnExpression[UUID]) -> ColumnElement[bool]:
@@ -573,3 +587,317 @@ async def documents_in(
         )
     )
     return {document.id: document for document in result.scalars().all()}
+
+
+def _closer(search: KnowledgeSearch, best: tuple[int, float | None] | None) -> bool:
+    if best is None:
+        return True
+    return search.top_similarity is not None and (
+        best[1] is None or search.top_similarity > best[1]
+    )
+
+
+CANDIDATE_COMMENTS = 5
+"""How many of an answer's thumbs-down comments a classifying model is shown."""
+
+
+class CandidateRow(NamedTuple):
+    """An answer a model has still to read for a knowledge gap, with what it is shown."""
+
+    message_id: UUID
+    run_id: UUID
+    agent_id: UUID
+    conversation_id: UUID
+    asker_id: UUID | None
+    """Who started the run, whose question a miss read from it keeps."""
+    question: str | None
+    answer: str
+    comments: list[str]
+    """The newest thumbs-down comments, at most :data:`CANDIDATE_COMMENTS`."""
+    result_count: int
+    top_similarity: float | None
+    """What the run's best search found, or nothing for a run that searched none."""
+
+
+def _down_rated_with_comment(message_id: SQLColumnExpression[UUID]) -> ColumnElement[bool]:
+    return and_(
+        MessageRating.message_id == message_id,
+        MessageRating.rating == -1,
+        func.length(func.trim(func.coalesce(MessageRating.comment, ""))) > 0,
+    )
+
+
+def _candidates(
+    knowledge_base_id: UUID, *, organization_id: UUID, threshold: float, since: datetime
+) -> tuple[Any, Any]:
+    """The runs and their last answers that are candidates for one knowledge base.
+
+    An answer is a candidate when its run is a person's - never an eval's,
+    whose questions were replayed or generated, nor a builder's test of a
+    draft, nor a delegate's - finished, still has its starter and a kept
+    conversation, and either
+    searched the knowledge base without missing or was rated down with a
+    comment by an agent version that binds it. A run that already missed on the
+    base is counted, so it is left out. An answer is read once for each
+    knowledge base, and again only if it read as `none` there and a newer
+    thumbs-down with a comment has arrived since.
+    """
+    answer = aliased(Message)
+    searched = exists().where(
+        KnowledgeSearch.run_id == AgentRun.id,
+        KnowledgeSearch.signal == GapSignal.RETRIEVAL.value,
+        any_(KnowledgeSearch.knowledge_base_ids) == knowledge_base_id,
+    )
+    missed = exists().where(
+        KnowledgeSearch.run_id == AgentRun.id,
+        any_(KnowledgeSearch.knowledge_base_ids) == knowledge_base_id,
+        is_miss(threshold),
+    )
+    binds = exists().where(
+        AgentVersion.id == AgentRun.agent_version_id,
+        AgentVersion.spec["collection_ids"].contains([str(knowledge_base_id)]),
+    )
+    rated = exists().where(_down_rated_with_comment(answer.id))
+    read = exists().where(
+        KnowledgeGapClassification.message_id == answer.id,
+        KnowledgeGapClassification.knowledge_base_id == knowledge_base_id,
+    )
+    reread = exists().where(
+        KnowledgeGapClassification.message_id == answer.id,
+        KnowledgeGapClassification.knowledge_base_id == knowledge_base_id,
+        KnowledgeGapClassification.signal == "none",
+        exists().where(
+            _down_rated_with_comment(answer.id),
+            func.coalesce(MessageRating.updated_at, MessageRating.created_at)
+            > KnowledgeGapClassification.classified_at,
+        ),
+    )
+    conditions = (
+        AgentRun.organization_id == organization_id,
+        AgentRun.surface != RunSurface.EVAL.value,
+        AgentRun.status == RunStatus.COMPLETED.value,
+        AgentRun.is_test.is_(False),
+        AgentRun.parent_run_id.is_(None),
+        AgentRun.user_id.is_not(None),
+        AgentRun.conversation_id.is_not(None),
+        AgentRun.started_at >= since,
+        answer.id == _answer_of(AgentRun.id),
+        ~missed,
+        or_(searched, and_(rated, binds)),
+        or_(~read, reread),
+    )
+    return answer, conditions
+
+
+async def classification_candidates(
+    db: AsyncSession,
+    knowledge_base_id: UUID,
+    *,
+    organization_id: UUID,
+    threshold: float,
+    since: datetime,
+    limit: int,
+) -> list[CandidateRow]:
+    """The newest answers in one knowledge base's runs that a model has still to read."""
+    answer, conditions = _candidates(
+        knowledge_base_id, organization_id=organization_id, threshold=threshold, since=since
+    )
+    question = (
+        select(Message.content)
+        .where(Message.run_id == AgentRun.id, Message.role == "user")
+        .order_by(Message.ordinal)
+        .limit(1)
+        .scalar_subquery()
+    )
+    result = await db.execute(
+        select(
+            answer.id,
+            AgentRun.id,
+            AgentRun.agent_id,
+            answer.conversation_id,
+            AgentRun.user_id,
+            question,
+            answer.content,
+        )
+        .select_from(AgentRun)
+        .join(answer, answer.run_id == AgentRun.id)
+        .where(*conditions)
+        .order_by(AgentRun.started_at.desc(), AgentRun.id)
+        .limit(limit)
+    )
+    rows = result.all()
+    run_ids = [row[1] for row in rows]
+    message_ids = [row[0] for row in rows]
+    comments: dict[UUID, list[str]] = {}
+    best: dict[UUID, tuple[int, float | None]] = {}
+    if rows:
+        rated = await db.execute(
+            select(MessageRating.message_id, func.trim(MessageRating.comment, type_=Text))
+            .where(_down_rated_with_comment(MessageRating.message_id))
+            .where(MessageRating.message_id.in_(message_ids))
+            .order_by(func.coalesce(MessageRating.updated_at, MessageRating.created_at).desc())
+        )
+        for message_id, comment in rated.all():
+            kept = comments.setdefault(message_id, [])
+            if len(kept) < CANDIDATE_COMMENTS:
+                kept.append(comment)
+        searches = await db.execute(
+            select(KnowledgeSearch).where(
+                KnowledgeSearch.organization_id == organization_id,
+                KnowledgeSearch.run_id.in_(run_ids),
+                KnowledgeSearch.signal == GapSignal.RETRIEVAL.value,
+                any_(KnowledgeSearch.knowledge_base_ids) == knowledge_base_id,
+            )
+        )
+        for search in searches.scalars().all():
+            if _closer(search, best.get(search.run_id)):
+                best[search.run_id] = (search.result_count, search.top_similarity)
+    return [
+        CandidateRow(
+            message_id=row[0],
+            run_id=row[1],
+            agent_id=row[2],
+            conversation_id=row[3],
+            asker_id=row[4],
+            question=row[5],
+            answer=row[6],
+            comments=comments.get(row[0], []),
+            result_count=best.get(row[1], (0, None))[0],
+            top_similarity=best.get(row[1], (0, None))[1],
+        )
+        for row in rows
+    ]
+
+
+async def count_unchecked(
+    db: AsyncSession,
+    knowledge_base_id: UUID,
+    *,
+    organization_id: UUID,
+    threshold: float,
+    since: datetime,
+) -> int:
+    """How many answers in one knowledge base's runs a model has still to read."""
+    answer, conditions = _candidates(
+        knowledge_base_id, organization_id=organization_id, threshold=threshold, since=since
+    )
+    result = await db.execute(
+        select(func.count(answer.id))
+        .select_from(AgentRun)
+        .join(answer, answer.run_id == AgentRun.id)
+        .where(*conditions)
+    )
+    return result.scalar_one()
+
+
+class Verdict(NamedTuple):
+    """What a model decided about one candidate."""
+
+    candidate: CandidateRow
+    signal: GapSignal | None
+    """`ANSWER` or `RATING` for a miss, None for an answer that missed nothing."""
+    query: str
+    """What a miss is grouped by: the person's question, bounded as a search's query is."""
+
+
+async def still_asked(
+    db: AsyncSession, candidates: Sequence[CandidateRow], *, organization_id: UUID
+) -> set[UUID]:
+    """The candidates' answers that still exist, in runs still started by the same person.
+
+    An answer whose conversation went, or whose run lost its starter to an
+    erasure, has nobody's question left to record.
+    """
+    if not candidates:
+        return set()
+    result = await db.execute(
+        select(Message.id, AgentRun.user_id)
+        .join(AgentRun, AgentRun.id == Message.run_id)
+        .where(
+            AgentRun.organization_id == organization_id,
+            Message.id.in_([candidate.message_id for candidate in candidates]),
+        )
+    )
+    starters = {row[0]: row[1] for row in result.all()}
+    return {
+        candidate.message_id
+        for candidate in candidates
+        if candidate.message_id in starters and starters[candidate.message_id] == candidate.asker_id
+    }
+
+
+async def record_classifications(
+    db: AsyncSession,
+    verdicts: Sequence[Verdict],
+    knowledge_base_id: UUID,
+    *,
+    organization_id: UUID,
+    run_id: UUID,
+) -> int:
+    """Remember each answer as read for one knowledge base, and record its misses there.
+
+    A miss belongs to the knowledge base that was checked alone: the caller's
+    access to it is what the check rested on.
+
+    Returns:
+        How many misses were recorded.
+    """
+    if not verdicts:
+        return 0
+    statement = pg_insert(KnowledgeGapClassification).values(
+        [
+            {
+                "message_id": verdict.candidate.message_id,
+                "knowledge_base_id": knowledge_base_id,
+                "organization_id": organization_id,
+                "signal": "none" if verdict.signal is None else verdict.signal.value,
+                "run_id": run_id,
+            }
+            for verdict in verdicts
+        ]
+    )
+    await db.execute(
+        statement.on_conflict_do_update(
+            index_elements=[
+                KnowledgeGapClassification.message_id,
+                KnowledgeGapClassification.knowledge_base_id,
+            ],
+            set_={
+                "signal": statement.excluded.signal,
+                "run_id": statement.excluded.run_id,
+                "classified_at": func.now(),
+            },
+        )
+    )
+    misses = [verdict for verdict in verdicts if verdict.signal is not None]
+    if not misses:
+        return 0
+    result = await db.execute(
+        pg_insert(KnowledgeSearch)
+        .values(
+            [
+                {
+                    "organization_id": organization_id,
+                    "run_id": verdict.candidate.run_id,
+                    "agent_id": verdict.candidate.agent_id,
+                    "conversation_id": verdict.candidate.conversation_id,
+                    "knowledge_base_ids": [knowledge_base_id],
+                    "query": verdict.query,
+                    "result_count": verdict.candidate.result_count,
+                    "top_similarity": verdict.candidate.top_similarity,
+                    "signal": verdict.signal.value,
+                    "message_id": verdict.candidate.message_id,
+                }
+                for verdict in misses
+                if verdict.signal is not None
+            ]
+        )
+        .on_conflict_do_nothing(
+            index_elements=[KnowledgeSearch.message_id, KnowledgeSearch.knowledge_base_ids],
+            index_where=KnowledgeSearch.message_id.is_not(None),
+        )
+    )
+    await db.flush()
+    # `execute` is typed to return `Result`, which has no `rowcount`; a DML
+    # statement actually returns a `CursorResult`, which does (see `resource_grant`).
+    return result.rowcount or 0  # ty: ignore[unresolved-attribute]

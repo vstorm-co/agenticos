@@ -1,7 +1,7 @@
 ---
-source_sha: "0ba5c5cdec1b"
+source_sha: "e3d2d8bbc68f"
 title: "Luki w wiedzy"
-description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
+description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego albo odpowiedział, że nie wie, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
 
 # Luki w wiedzy { #knowledge-gaps }
@@ -9,8 +9,8 @@ description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w
 Wiele złych odpowiedzi nie wynika z instrukcji agenta. Baza wiedzy po prostu
 nie zawiera odpowiedzi i żadna zmiana promptu tego nie naprawi. **Luki w
 wiedzy** pokazują takie pytania: te, dla których agent przeszukał swoją
-[bazę wiedzy](file-processing.md) i nie znalazł nic trafnego. Są pogrupowane
-w tematy, z liczbą zadań każdego pytania i agentami, którzy je zadali.
+[bazę wiedzy](file-processing.md) i nie znalazł nic trafnego albo odpowiedział,
+że nie wie. Są pogrupowane w tematy, z liczbą zadań każdego pytania i agentami, którzy je zadali.
 
 Luka mówi, czego brakuje. Sama nigdy niczego nie dodaje do bazy wiedzy. Człowiek
 pisze albo znajduje brakujący dokument - może go naszkicować model - i go
@@ -42,8 +42,57 @@ wyszukiwania poniżej bieżącego ustawienia.
 
 Zapisywane są tylko wyszukiwania, które agent wykonuje w trakcie runa, i tylko
 dla pytań zadanych przez ludzi: wyszukiwanie przez `/rag/search` w HTTP API,
-podgląd na stronie bazy wiedzy ani wyszukiwanie wykonane przez run evala nie są
-zapisywane. Z zapytania zachowywane jest pierwsze 1000 znaków.
+podgląd na stronie bazy wiedzy, wyszukiwanie wykonane przez run evala ani
+wyszukiwanie z testu draftu w builderze nie są zapisywane. Z zapytania zachowywane jest pierwsze 1000 znaków.
+
+## Odpowiedzi i komentarze { #answers-and-comments }
+
+Wyszukiwanie może znaleźć fragment, a agent i tak nie znać odpowiedzi, a
+czytelnik może ocenić odpowiedź łapką w dół, bo czegoś zabrakło. Samo
+wyszukiwanie nie widzi żadnego z tych przypadków. **Sprawdź N odpowiedzi** na
+zakładce Luki w wiedzy bazy wiedzy prosi model, żeby przeczytał pod tym kątem
+jej ostatnie odpowiedzi. Przycisk jest dostępny, gdy
+[asystent AI](governance.md#ai-assistance) jest włączony, i liczy odpowiedzi
+jeszcze nieprzeczytane. Gdy przełącznik jest wyłączony, zakładka mówi, ile
+odpowiedzi czeka, z linkiem do przełącznika dla tego, kto może go zmienić.
+
+Model to **Knowledge gap classifier**, [agent systemowy](concepts.md#system-agents),
+którego ma każda organizacja. Czyta każdą odpowiedź razem z pytaniem i
+komentarzami osób, które oceniły ją łapką w dół, i wybiera jedną z trzech
+możliwości:
+
+| Werdykt | Kiedy |
+|---|---|
+| Agent nie wiedział | Odpowiedź mówi, dowolnymi słowami i w dowolnym języku, że agent nie wie albo nie znalazł informacji |
+| Brakowało informacji | Komentarz do oceny łapką w dół mówi, że informacji brakowało, była nieaktualna albo niepełna |
+| Brak luki | Wszystko inne: poprawna odpowiedź, odmowa pytania, do którego agent nie służy, komentarz o tonie, długości albo błędzie |
+
+Odpowiedź z jednym z dwóch pierwszych werdyktów staje się pytaniem w tematach
+bazy wiedzy, grupowanym tak jak chybione wyszukiwanie. W temacie mówi, który
+to z dwóch przypadków, zamiast podawać wyszukiwanie.
+
+Odpowiedź jest czytana, gdy jej run z ostatnich 30 dni zakończył się i przeszukał
+bazę wiedzy i coś znalazł albo został oceniony łapką w dół z komentarzem i działa
+na wersji agenta powiązanej z bazą wiedzy. Run, którego wyszukiwanie już było
+chybione, liczy się raz, jako to chybienie. Runy przez HTTP API nie zachowują
+odpowiedzi, a runy ewaluacji, których pytania są odtwarzane albo generowane, nie
+są nigdy czytane. Testy draftu w builderze, runy delegowane i runy, których
+autor nie ma już konta, też nie.
+
+Sprawdzenie dotyczy jednej bazy wiedzy: to, co znajdzie, jest luką tylko tej
+bazy. Odpowiedź, której run przeszukał dwie bazy wiedzy, jest czytana ponownie,
+gdy sprawdza się tę drugą.
+
+Sprawdzenie czyta do 100 odpowiedzi, po 20 na run klasyfikatora. Każdy run jest
+sprawdzany względem budżetu klasyfikatora i organizacji, zanim zostanie
+wywołany model, i jest widoczny w Aktywności pod osobą, która poprosiła:
+wybierz **Każde źródło, z evalami**, żeby go zobaczyć. Każda
+przeczytana odpowiedź jest zapamiętywana, niezależnie od werdyktu, więc za żadną
+nie płaci się dwa razy. Odpowiedź z werdyktem „brak luki” jest czytana ponownie
+dopiero po nowej ocenie łapką w dół z komentarzem. Sprawdzenie zatrzymuje się na
+runie, który kończy się bez odpowiedzi, na przykład odrzuconym przez
+wyczerpany budżet, i zachowuje to, co przeczytało. Jedna baza wiedzy ma naraz
+tylko jedno sprawdzenie.
 
 ## Tematy { #topics }
 
@@ -82,7 +131,8 @@ baz wiedzy, które mu udostępniono.
 Temat pokazuje, ile razy go zadano, kiedy ostatnio, którzy agenci go zadali, i
 do trzech jego pytań. Otwórz go, żeby zobaczyć najnowsze pytania: o co zapytała
 osoba, czego szukał agent, jak blisko był najbliższy fragment i komentarz
-każdego, kto ocenił odpowiedź łapką w dół.
+każdego, kto ocenił odpowiedź łapką w dół. Pytanie odczytane z odpowiedzi mówi,
+czy agent nie wiedział, czy czytelnik napisał, że brakowało informacji.
 
 ## Co zrobić z luką { #acting-on-a-gap }
 
@@ -143,6 +193,11 @@ bez niego nie widzi karty ani widżetu, a API mu odmawia.
 | Odrzucić, otworzyć ponownie albo pogrupować | `runs:view` i `collections:edit` na bazie wiedzy, z twojej roli albo z grantu edycji na niej |
 | Dodać temat do datasetu | `runs:view` i `datasets:edit` na datasecie |
 | Napisać szkic brakującej treści | `runs:view`, `collections:edit` na bazie wiedzy i `agents:run` na Knowledge gap drafter |
+| Sprawdzić odpowiedzi | `runs:view`, `collections:edit` na bazie wiedzy i `agents:run` na Knowledge gap classifier |
+
+Sprawdzenie odpowiedzi działa później na twojej roli, więc uruchamia się je tylko
+osobiście: nie przez klucz API i nie wtedy, gdy administrator się pod ciebie
+podszywa.
 
 Baza wiedzy, agent, temat albo dataset, do którego nie masz dostępu, odpowiada „nie
 znaleziono”; tak samo ten z innej organizacji. Zobacz
@@ -168,11 +223,16 @@ powtarza, są redagowane przed zapisaniem. Pisanie szkicu wysyła pytania,
 odpowiedzi i komentarze do dostawcy modelu agenta. Zobacz
 [Ochrona danych](data-protection.md#where-personal-data-lives).
 
+Pytanie odczytane z odpowiedzi jest przechowywane tak samo jak wyszukiwanie:
+zawiera pytanie osoby i znika razem ze swoim runem i rozmową. Sprawdzanie
+odpowiedzi wysyła pytania, odpowiedzi i komentarze do ocen łapką w dół do
+dostawcy modelu klasyfikatora. Z każdej przeczytanej odpowiedzi zapamiętywany
+jest tylko werdykt i run klasyfikatora, bez tekstu.
+
 ## Czego luki jeszcze nie wykrywają { #limits }
 
-Luki pochodzą tylko z wyszukiwania. Odpowiedź, w której agent powiedział, że nie
-wie, albo odpowiedź ocenioną łapką w dół z komentarzem o brakującej informacji,
-nie jest wykrywana sama z siebie. Wykrywanie takich odpowiedzi wymaga modelu i
-jest śledzone w [#2135](https://github.com/vstorm-co/agenticos/issues/2135). Gdy
-odpowiedź oceniona łapką w dół należy do runa, w którym wyszukiwanie było
-chybione, jej komentarz jest pokazywany przy pytaniu.
+Odpowiedzi są czytane tylko wtedy, gdy ktoś je sprawdzi, i tylko z ostatnich 30
+dni. Runy przez HTTP API nie zachowują odpowiedzi, więc zadane tam pytanie staje
+się luką tylko wtedy, gdy jego wyszukiwanie było chybione. Odpowiedź oceniona
+łapką w dół bez komentarza jest czytana pod kątem tego, co powiedział agent, a
+nie samej oceny.

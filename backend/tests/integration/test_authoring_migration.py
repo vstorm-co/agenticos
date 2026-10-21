@@ -25,7 +25,7 @@ pytestmark = pytest.mark.anyio
 
 MIGRATION_DATABASE = f"agenticos_authoring_mig_test_p{os.getpid()}"
 _MAINTENANCE_DATABASE = "postgres"
-_BASE_REVISION = "0151_eval_suites"
+_BASE_REVISION = "0153_knowledge_gap_signals"
 _TARGET_REVISION = "0152_authoring_proposals"
 
 

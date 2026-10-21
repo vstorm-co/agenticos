@@ -40,6 +40,23 @@ MAX_DRAFT_SOURCES = 12
 """The most sources a draft keeps, once verified."""
 
 
+class ClassifiedAnswer(BaseSchema):
+    """What a classifying model decided about one answer, cited by its number."""
+
+    number: int
+    signal: Literal["answer", "rating", "none"]
+
+
+class KnowledgeGapClassification(BaseSchema):
+    """A classifying model's verdicts on the answers it was given, as it answers.
+
+    Answers are cited by the number they were given in the prompt, for the
+    reason :class:`KnowledgeGapDraft` cites by number.
+    """
+
+    answers: list[ClassifiedAnswer] = Field(max_length=200)
+
+
 class KnowledgeGapDraft(BaseSchema):
     """The passage a drafting model proposes for a topic, as it answers.
 
@@ -154,6 +171,13 @@ class KnowledgeGapTopicList(BaseSchema):
             "false for a list of the organization's or an agent's gaps"
         ),
     )
+    unchecked: int = Field(
+        default=0,
+        description=(
+            "Recent answers in this knowledge base's runs that no model has read for "
+            "knowledge gaps yet; 0 for a list of the organization's or an agent's gaps"
+        ),
+    )
 
 
 class KnowledgeGapQuestion(BaseSchema):
@@ -161,6 +185,14 @@ class KnowledgeGapQuestion(BaseSchema):
 
     search_id: UUID
     query: str = Field(description="What the agent searched for")
+    signal: Literal["retrieval", "answer", "rating"] = Field(
+        default="retrieval",
+        description=(
+            "What makes it a miss: `retrieval` when the search found nothing close "
+            "enough, `answer` when the agent said it did not know, `rating` when a "
+            "reader's thumbs-down comment said what was missing"
+        ),
+    )
     question: str | None = Field(
         default=None, description="What the person asked, when the conversation is kept"
     )

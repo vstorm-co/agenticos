@@ -166,8 +166,10 @@ class CostBlock(BaseSchema):
     `eval_usd` is what eval runs and their judge cost - inside `period_usd`,
     because it is money spent, but outside `model_usd`, which is production
     traffic as every other figure on the dashboard is. `authoring_usd` is what
-    the authoring assistant cost proposing improvements: it runs on the eval
-    surface too, but is not measurement, so it is named apart from `eval_usd`.
+    the platform's improvers cost - the authoring assistant proposing changes to
+    agents, and the knowledge-gap classifier and drafter finding and filling what
+    a knowledge base lacks: they run on the eval surface too, but are not
+    measurement, so they are named apart from `eval_usd`.
 
     The calendar month-to-date figure still lives on `GET /spend`: it
     reconciles against an invoice and must not move with a period filter.

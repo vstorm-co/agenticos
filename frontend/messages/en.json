@@ -692,6 +692,8 @@
     "judgeKindHint": "They grade eval answers: the default one, and each dataset's own.",
     "drafterKind": "{count, plural, =1 {Gap drafter (1)} other {Gap drafters (#)}}",
     "drafterKindHint": "It drafts the content a knowledge gap is missing, when somebody asks for a draft.",
+    "classifierKind": "{count, plural, =1 {Gap classifier (1)} other {Gap classifiers (#)}}",
+    "classifierKindHint": "It reads answers and thumbs-down comments for knowledge gaps, when somebody asks for a check.",
     "generatorKind": "{count, plural, =1 {Case generator (1)} other {Case generators (#)}}",
     "generatorKindHint": "It drafts test cases for a dataset from an agent, its knowledge base, real chats and red teaming; a person accepts or dismisses every draft.",
     "improverKind": "{count, plural, =1 {Authoring assistant (1)} other {Authoring assistants (#)}}",
@@ -4090,6 +4092,10 @@
         "title": "What it could not answer",
         "body": "Questions agents searched this collection for and found nothing relevant to, grouped by topic. Add the missing document, or dismiss a topic that needs none."
       },
+      "kb-gaps-check": {
+        "title": "Check the answers too",
+        "body": "A search can find something and the agent still not know. With AI assistance on, a model reads recent answers and thumbs-down comments for questions this knowledge base could not answer."
+      },
       "agent-gaps": {
         "title": "What it went looking for",
         "body": "The questions this agent searched a knowledge base for and found nothing. Each one links to the run it came from."
@@ -7229,8 +7235,8 @@
     "tab": "Knowledge gaps",
     "title": "Knowledge gaps",
     "topicCount": "{count, plural, =0 {No topics} =1 {1 topic} other {# topics}}",
-    "descriptionCollection": "Questions agents searched this knowledge base for and found nothing relevant to, grouped by topic.",
-    "descriptionAgent": "Questions this agent searched its knowledge bases for and found nothing relevant to, grouped by topic.",
+    "descriptionCollection": "Questions agents searched this knowledge base for and found nothing relevant to, or answered without knowing, grouped by topic.",
+    "descriptionAgent": "Questions this agent searched its knowledge bases for and found nothing relevant to, or answered without knowing, grouped by topic.",
     "nothingAutomatic": "Nothing is added to a knowledge base automatically. When a topic needs a document, a person adds it.",
     "statusFilter": "Show topics",
     "statusOpen": "Open",
@@ -7238,6 +7244,10 @@
     "moreActions": "More actions for this topic",
     "regroup": "Group now",
     "regroupStarted": "Grouping started. New topics appear in a minute or two.",
+    "checkAnswers": "{count, plural, =1 {Check 1 answer} other {Check # answers}}",
+    "checkAnswersHint": "A model reads recent answers, and the comments on thumbs-down ratings, for questions this knowledge base could not answer.",
+    "checkStarted": "Checking answers. New topics appear when it finishes. Its runs are in Activity, with evals included.",
+    "uncheckedAiOff": "{count, plural, =1 {1 recent answer} other {# recent answers}} could also be read for knowledge gaps with AI assistance on.",
     "ungrouped": "{count, plural, =1 {1 question is} other {# questions are}} waiting to be grouped. Grouping runs every 15 minutes.",
     "questionCount": "{count, plural, =1 {Asked once} other {Asked # times}}",
     "lastAsked": "Last asked {ago}",
@@ -7254,6 +7264,8 @@
     "questions": "Questions",
     "noConversation": "No conversation is kept for this run, so only the search is known.",
     "searchedFor": "Searched for: {query}",
+    "signalAnswer": "The agent said it did not know",
+    "signalRating": "A reader said information was missing",
     "noResults": "No results",
     "closestMatch": "{count, plural, =1 {1 result} other {# results}}, closest match {similarity}",
     "openRun": "Open the run",

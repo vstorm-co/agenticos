@@ -4192,8 +4192,9 @@ class AgentRunnerService:
         records = list(log.records)
         log.records.clear()
         run = prepared.run
-        if run.surface == RunSurface.EVAL.value or prepared.isolation is not None:
-            # A gap is a question a person asked; an eval replays or generates them.
+        if run.surface == RunSurface.EVAL.value or run.is_test or prepared.isolation is not None:
+            # A gap is a question a person asked; an eval replays or generates them,
+            # and a builder testing a draft is not asking.
             return
         try:
             async with self.db.begin_nested():

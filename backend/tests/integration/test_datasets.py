@@ -180,6 +180,21 @@ async def test_a_question_already_asked_is_found_whatever_its_case_and_spacing(d
     assert (twins.total, none.total) == (1, 0)
 
 
+async def test_a_question_holding_a_credential_finds_the_case_stored_redacted(db) -> None:
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="keys"))
+    question = f"My key is sk-ant-api03-{'a' * 40}, why is it refused?"
+    asked = await service.add_case(
+        ctx, dataset.id, DatasetCaseCreate(input=question, reference_answer="Rotate it.")
+    )
+    assert "[redacted:" in asked.input
+
+    twins = await service.list_cases(ctx, dataset.id, same_input=question)
+
+    assert [case.case_id for case in twins.items] == [asked.case_id]
+
+
 async def test_the_datasets_asking_a_runs_question_are_found_by_their_newest_version(db) -> None:
     """What Score against a case opens on: a dataset holding the run's own question."""
     ctx = await _owner(db)
@@ -1142,6 +1157,38 @@ async def test_the_editable_listing_reaches_a_granted_dataset_however_old(db) ->
     admin_editable = await service.list_readable(admin, editable=True, search="the member")
     assert names(admin_editable) == ["the member's own"]
     assert (await service.list_readable(admin, editable=True, limit=1)).total == 105
+
+
+@pytest.mark.security
+async def test_the_runnable_datasets_are_the_ones_the_caller_may_run_with_a_case(db) -> None:
+    """What decides Test draft, Start and Score against a case: one row, not every dataset."""
+    owner = await _owner(db)
+    service = DatasetService(db)
+    case = DatasetCaseCreate(input="q", reference_answer="a")
+    granted = await service.create(owner, DatasetCreate(name="granted", visibility="private"))
+    await service.add_case(owner, granted.id, case)
+    kept = await service.create(owner, DatasetCreate(name="not granted", visibility="private"))
+    await service.add_case(owner, kept.id, case)
+    await service.create(owner, DatasetCreate(name="empty"))
+    viewer = await _member(db, Organization(id=owner.organization_id), OrgRoleName.VIEWER)
+    db.add(
+        ResourceGrant(
+            organization_id=owner.organization_id,
+            subject_user_id=viewer.user_id,
+            resource_type="dataset",
+            resource_id=granted.id,
+            level=GrantLevel.USE.value,
+        )
+    )
+    await db.flush()
+
+    for_viewer = await service.list_readable(viewer, runnable=True, limit=1)
+    for_owner = await service.list_readable(owner, runnable=True, sort="name")
+
+    # A Viewer's role runs nothing; the grant on one dataset is the whole answer.
+    assert ([item.name for item in for_viewer.items], for_viewer.total) == (["granted"], 1)
+    # The owner runs every dataset - except one with no case to run.
+    assert [item.name for item in for_owner.items] == ["granted", "not granted"]
 
 
 @pytest.mark.parametrize("scope", list(Scope))

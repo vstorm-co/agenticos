@@ -341,6 +341,8 @@ export const qk = {
     all: () => ["datasets"] as const,
     /** Every dataset the caller sees, all pages read - the eval start dialog's picker. */
     every: () => ["datasets", "every"] as const,
+    /** Whether the caller may run any dataset with a case - one row, read for its total. */
+    runnable: () => ["datasets", "runnable"] as const,
     lists: () => ["datasets", "list"] as const,
     list: (query: {
       search: string;

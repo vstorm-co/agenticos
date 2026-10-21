@@ -9,6 +9,7 @@ export const SYSTEM_AGENT_KINDS: readonly SystemAgentKind[] = [
   "judge",
   "drafter",
   "generator",
+  "classifier",
   "improver",
 ];
 
