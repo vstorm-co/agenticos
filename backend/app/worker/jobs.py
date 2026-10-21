@@ -265,6 +265,7 @@ TASKS: dict[str, TaskKind] = {
         APPLY_RETENTION,
         SWEEP_NOTIFICATIONS,
         SWEEP_BACKGROUND_JOBS,
+        REAP_VOICE_CALLS,
         WEEKLY_USAGE_REPORT,
         MONTHLY_USAGE_REPORT,
     )
