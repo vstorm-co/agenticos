@@ -2159,6 +2159,9 @@ class AgentRegistryService:
         # that moves environments is the step that moves it - see below.
         await self._move_environments_that_follow(ctx, agent=agent, version=version)
         await self.withdraw_creator_consent(ctx, agent)
+        from app.services.eval_suite import EvalSuiteService
+
+        await EvalSuiteService(self.db).version_published(ctx, agent=agent, version=version)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,

@@ -128,6 +128,11 @@ export function VerdictHeader({
               Number(run.rerun_ceiling_usd) > 0 ? usd(run.rerun_ceiling_usd, locale) : "none",
           })}
         </p>
+        {run.suite && (
+          <p className="text-muted-foreground text-xs">
+            {t("startedBySuite", { name: run.suite.name, trigger: run.suite.trigger })}
+          </p>
+        )}
         {run.error && <p className="text-destructive text-sm">{run.error}</p>}
         {!live && <UngradedNote run={run} />}
         {!live && <JudgeNotes run={run} />}

@@ -1,5 +1,5 @@
 ---
-source_sha: "d57c8926acbb"
+source_sha: "101671079304"
 ---
 
 # Środowiska { #environments }
@@ -53,6 +53,11 @@ flowchart LR
 
 Rollback to ten sam ruch wstecz: przekieruj `production` na wersję, która
 działała. Stara wersja wciąż tam jest, wciąż da się ją odczytać i uruchomić.
+
+[Suita evali](evals.md#suites) ustawiona na promocję sprawdza każdą wersję
+wypromowaną na jej środowisko względem wersji, którą zastąpiła, i daje znać
+właścicielowi, gdy wynik nie przechodzi. Informuje, ale nie zatrzymuje
+promocji.
 
 ## `tracks_latest` i dlaczego jest wyłączone { #tracks_latest-and-why-it-is-off }
 

@@ -23,16 +23,17 @@ ChangeResource = Literal[
     "secret",
     "mcp_connection",
     "run",
+    "eval_suite",
     "dataset",
     "knowledge_gap",
 ]
-"""What changed. A `trigger` event names the agent whose routines changed, since
-that is what a subscriber's access to them is decided by; a `run` event is a run
-moving through its states (started, parked, finished), which no request made; a
-`dataset` event is any write to a dataset, its cases, its grading, its scores or
-its drafts - one a request made, or a generation finishing on its own; a
-`knowledge_gap` event is a topic dismissed, reopened or drafted, or - naming no
-topic - a grouping pass that placed new questions."""
+"""What changed. A `trigger` or `eval_suite` event names the agent whose routines
+or suites changed, since that is what a subscriber's access to them is decided by;
+a `run` event is a run moving through its states (started, parked, finished),
+which no request made; a `dataset` event is any write to a dataset, its cases, its
+grading, its scores or its drafts - one a request made, or a generation finishing
+on its own; a `knowledge_gap` event is a topic dismissed, reopened or drafted, or -
+naming no topic - a grouping pass that placed new questions."""
 ChangeAction = Literal["created", "updated", "deleted"]
 ChangeSurface = Literal["console", "api_key", "mcp", "assistant", "run", "system"]
 """Where a change came from: a console session, an organization API key, an MCP

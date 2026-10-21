@@ -77,6 +77,7 @@ export default defineConfig({
         "src/components/dashboard/widgets/datasets.tsx",
         "src/components/dashboard/widgets/review-queue.tsx",
         "src/components/dashboard/widgets/eval-runs.tsx",
+        "src/components/dashboard/widgets/eval-suites.tsx",
         "src/components/evals/**/*.{ts,tsx}",
         "src/components/datasets/**/*.{ts,tsx}",
         "src/components/dashboard/widgets/knowledge-gaps.tsx",

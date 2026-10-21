@@ -1,5 +1,5 @@
 ---
-source_sha: "d57c8926acbb"
+source_sha: "101671079304"
 ---
 
 # Umgebungen { #environments }
@@ -56,6 +56,11 @@ flowchart LR
 Ein Rollback ist derselbe Zug rückwärts: `production` wieder auf die Version
 zeigen lassen, die funktioniert hat. Die alte Version ist noch da, noch lesbar,
 noch ausführbar.
+
+Eine [Eval-Suite](evals.md#suites), die bei Promotion läuft, prüft jede auf ihre
+Umgebung promotete Version gegen die Version, die sie ersetzt, und benachrichtigt
+ihren Eigentümer, wenn das Ergebnis nicht besteht. Sie meldet; sie hält die
+Promotion nicht auf.
 
 ## `tracks_latest`, und warum es aus ist { #tracks_latest-and-why-it-is-off }
 

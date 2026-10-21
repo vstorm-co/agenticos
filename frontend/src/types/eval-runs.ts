@@ -6,6 +6,7 @@
  */
 
 import type { DatasetCaseContent } from "./datasets";
+import type { EvalSuiteTrigger } from "./eval-suites";
 import type { CaseScore } from "./scoring";
 
 export type EvalRunStatus =
@@ -159,6 +160,8 @@ export interface EvalRun {
   routing_error: { code: string; message: string } | null;
   /** This run's scores no scorer reached a verdict on and no person decided. */
   ungraded_score_ids: string[];
+  /** The eval suite that started this run; null for one started by hand. */
+  suite?: { id: string; name: string; trigger: EvalSuiteTrigger } | null;
   /** On the single-run read of a run of the draft: whether the draft changed since. */
   draft_changed?: boolean | null;
   error: string | null;

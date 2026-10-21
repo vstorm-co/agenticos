@@ -410,6 +410,13 @@ export const qk = {
     comparison: (id: string, query: { arm: string | null; baseline: string | null }) =>
       ["eval-runs", id, "comparison", query] as const,
   },
+  evalSuites: {
+    all: () => ["eval-suites"] as const,
+    forAgent: (agentId: string) => ["eval-suites", "agent", agentId] as const,
+    visible: () => ["eval-suites", "visible"] as const,
+    results: (agentId: string, suiteId: string, query: { skip: number; limit: number }) =>
+      ["eval-suites", "agent", agentId, suiteId, "results", query] as const,
+  },
   context: {
     all: () => ["context"] as const,
     list: (query: { search: string; sort: string; skip: number; limit: number; groupId: string }) =>
