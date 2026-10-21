@@ -326,6 +326,7 @@ class DatasetService:
         *,
         shared_with_me: bool = False,
         editable: bool = False,
+        runnable: bool = False,
         search: str | None = None,
         judge_id: UUID | None = None,
         asked_by_run: UUID | None = None,
@@ -336,7 +337,9 @@ class DatasetService:
         """A page of the datasets this caller may see, each saying whether they may edit it.
 
         `judge_id` narrows to the datasets that judge grades: those that picked
-        it, and for the seeded default judge those that picked none.
+        it, and for the seeded default judge those that picked none. `runnable`
+        narrows to those the caller may run that hold a case to run - what an
+        eval or a score needs - so "may I run any" is the `total` of one row.
         `asked_by_run` narrows to those whose newest version holds a case asking
         that run's question - read from the run, so the question itself never
         travels in a URL. A run the caller may not read narrows to nothing.
@@ -369,6 +372,11 @@ class DatasetService:
             if editable
             else None
         ) or []
+        run_ids = (
+            await visible_resource_ids(self.db, ctx, resource_type=DATASET, perm=Perm.DATASETS_RUN)
+            if runnable
+            else None
+        ) or []
         items, total = await dataset_repo.list_visible(
             self.db,
             organization_id=ctx.organization_id,
@@ -378,6 +386,8 @@ class DatasetService:
             shared_with_me=shared_with_me,
             edit_scope=ctx.scope_for(Perm.DATASETS_EDIT) if editable else None,
             edit_ids=edit_ids,
+            run_scope=ctx.scope_for(Perm.DATASETS_RUN) if runnable else None,
+            run_ids=run_ids,
             search=search,
             judge_id=judge_id,
             judge_is_default=judge_id is not None and await self._is_default_judge(ctx, judge_id),

@@ -122,7 +122,7 @@ vi.mock("@/hooks", async () => {
 
 vi.mock("@/hooks/use-eval-runs", () => ({
   useEvalArmSpec: () => ({ spec: undefined }),
-  useEveryDataset: () => ({ datasets: [] }),
+  useRunsADataset: () => false,
 }));
 vi.mock("@/hooks/use-context", () => ({
   useContextFiles: () => ({ files: [], total: 0 }),
