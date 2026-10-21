@@ -23,10 +23,14 @@ web page. #2094 is the issue.
 
 ## Decisions
 
-**Look and act are separate tools.** `computer_screenshot` changes nothing and
-is never held. `computer_act` clicks and types on a real machine, so it is
-side-effecting and held for approval by default. Whoever approves a batch of actions approves it
-against a screenshot the model has already shown.
+**Look and act are separate tools.** `computer_screenshot` changes nothing.
+`computer_act` clicks and types on a real machine, so it is side-effecting.
+Approval is opt-in, as for every tool: `tool_approval: {computer_act: required}`
+holds the actions alone, so whoever approves a batch approves it against a
+screenshot the model has already shown. The approved batch runs in a resumed
+run, which is a new one with nothing looked at yet, so `computer_act` measures
+the screen first rather than refuse the batch. The gate stores the batch as JSON
+and runs it from there, so `computer_act` validates its actions again.
 
 **Coordinates are scaled in one place.** The model sees at most
 `screen_width`x`screen_height`. `_actions.Screen.to_native` maps every point
@@ -39,11 +43,13 @@ is steered back before anything runs.
 see the screen after its actions to choose its next ones. Returning the screenshot
 here saves one round trip per step.
 
-**The live view reuses the browser panel.** Frames are sent as `BrowserEvent`s
-on the `/ws/agent` socket under one `call_id` per run (`computer-<run>`). The
-chat shows one card for the whole session, not one per call, and needs no
-frontend change. A card is `finished` after every call, because nothing here
-knows which call is the last.
+**The live view reuses the browser window.** Frames are sent as `BrowserEvent`s
+on the `/ws/agent` socket under one `call_id` per run: the tool-call id of the
+first `computer_screenshot`, because the chat draws a window under the call it
+names (`browseCalls` in `frontend/src/components/chat/turn-parts.tsx`). Every
+later call draws there, so a session is one window rather than one per call.
+`ComputerToolset` counts the run's entries, as `BrowserToolset` does, and sends
+`browser_finished` once, on the last exit.
 
 **Limits:** `max_actions_per_call` bounds one batch. `max_actions` bounds a run;
 past it the tool tells the model to stop and report what is left. A `type`
@@ -53,5 +59,8 @@ action carries at most 2000 characters.
 
 - A shareable live link for Slack and Mattermost, and a continuous stream
   (noVNC) between steps.
+- A live window for a run resumed after approval. The continuation runs over
+  HTTP, not the conversation's socket, so it has no `browser_events` sink and
+  the chat records it as a line, as it does a resumed `browser_use` run.
 - Per-organization daemons in the vault, as `sandbox_connections` does for the
   sandbox. For now the daemon token belongs to the deployment.

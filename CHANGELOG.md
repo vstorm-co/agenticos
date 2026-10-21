@@ -23,12 +23,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 - **An agent can use a computer.** The `computer_use` capability gives an
   agent a whole desktop rather than a web page: `computer_screenshot` looks
-  and `computer_act` clicks, types, scrolls and drags, held for approval by
-  default. The desktop is either a `computerd` daemon the operator runs, as a
-  Linux container (`deploy/computer/`) or on a Mac's own screen, on a host
-  that `COMPUTER_DAEMON_ALLOWED_HOSTS` allows; or an E2B cloud desktop,
-  one per conversation, using the organization's own key from the vault.
-  The chat streams it in the browse panel (#2094).
+  and `computer_act` clicks, types, scrolls and drags; an agent's owner can
+  hold the actions alone for approval with `tool_approval`. The desktop is
+  either a `computerd` daemon the operator runs, as a Linux container
+  (`deploy/computer/`) or on a Mac's own screen, on a host that
+  `COMPUTER_DAEMON_ALLOWED_HOSTS` allows; or an E2B cloud desktop, one per
+  conversation, using the organization's own key from the vault. The chat
+  draws it live in a window under the message (#2094).
+
+### Fixed
+
+- **A tool whose arguments are models can be held for approval.** The gate
+  stored the validated arguments as they were, so a call carrying a Pydantic
+  model failed to park with a serialization error instead of asking. They
+  are stored as JSON now.
 
 ## [1.9.0] - 2026-10-21
 

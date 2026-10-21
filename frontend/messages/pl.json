@@ -1587,6 +1587,7 @@
     "browserHolding": "Sterujesz - klikaj, pisz i przewijaj stronę",
     "browserLineBrowsed": "Przeglądał {host}",
     "browserLineBrowsedWeb": "Przeglądał internet",
+    "computerLineUsed": "Korzystał z komputera",
     "browserVisitSite": "Otwórz stronę",
     "approvalAsk": "Zezwolić: {action}?",
     "passageCount": "{count, plural, =1 {1 fragment} few {# fragmenty} many {# fragmentów} other {# fragmentu}}",

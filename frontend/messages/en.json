@@ -1587,6 +1587,7 @@
     "browserHolding": "You're driving - click, type and scroll the page",
     "browserLineBrowsed": "Browsed {host}",
     "browserLineBrowsedWeb": "Browsed the web",
+    "computerLineUsed": "Used a computer",
     "browserVisitSite": "Visit site",
     "approvalAsk": "Allow {action}?",
     "passageCount": "{count, plural, =1 {1 passage} other {# passages}}",

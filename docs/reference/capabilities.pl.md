@@ -1,5 +1,5 @@
 ---
-source_sha: "63f4eeac85b8"
+source_sha: "f5fecbf47228"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -829,11 +829,14 @@ ekranu. Większe ekrany są pomniejszane do `screen_width`x`screen_height`, zani
 zobaczy je model, a każdy punkt jest przeliczany z powrotem na współrzędne
 samego pulpitu, także na punkty Maca z ekranem Retina.
 
-**Patrzenie nigdy nie czeka, działanie tak.** `computer_screenshot` niczego nie
-zmienia. `computer_act` dziedziczy flagę side-effecting tej capability, więc
-domyślnie każda paczka akcji czeka na akceptację względem zrzutu ekranu, który
-widział i model, i akceptujący. Punkt spoza tego zrzutu jest odrzucany, zanim
-cokolwiek się wykona. Akcja przed pierwszym zrzutem ekranu też jest odrzucana.
+**Akceptacja dotyczy działania i trzeba ją włączyć.** Jak każde narzędzie, żadne
+z nich nie czeka na akceptację, dopóki właściciel agenta o nią nie poprosi.
+`computer_screenshot` niczego nie zmienia. Po ustawieniu `tool_approval:
+{computer_act: required}` każda paczka akcji czeka na akceptację względem zrzutu
+ekranu, który widział i model, i akceptujący. Punkt spoza tego zrzutu jest
+odrzucany, zanim cokolwiek się wykona. Zaakceptowana paczka wykonuje się w
+osobnym runie, który przed działaniem ponownie mierzy ekran, zamiast ją
+odrzucić.
 
 | `backend` | Pulpit | Wymaga |
 |---|---|---|
@@ -857,16 +860,18 @@ bezczynności ustawionym w samym E2B.
 | `max_actions` | 200 | 1–2000 na run |
 | `preview` | włączone | |
 
-Czat pokazuje pulpit w panelu przeglądania, gdy agent pracuje: jedna karta na
-run, klatka po każdym wywołaniu i linia na akcję. Tekst wpisywany przez model
+Czat rysuje pulpit w oknie pod wiadomością, gdy agent pracuje: jedno okno na
+run, otwarte przez pierwszy zrzut ekranu, z klatką po każdym wywołaniu i linią
+na akcję. Tekst wpisywany przez model
 jest tam widoczny tak, jak został wpisany.
 
 !!! warning "Tekst na ekranie jest niezaufany"
 
     Instrukcje mówią modelowi, że to, co jest na ekranie, to dane, nigdy
     polecenia, i że ma się zatrzymać przed hasłami, płatnościami i decyzjami
-    należącymi do użytkownika. Egzekwuje to akceptacja; wyłączenie akceptacji dla
-    `computer_act` pozwala agentowi działać według tego, co powie mu dowolne okno.
+    należącymi do użytkownika. Egzekwuje to akceptacja, a jest wyłączona, dopóki
+    nie ustawi jej właściciel agenta: bez niej `computer_act` pozwala agentowi
+    działać według tego, co powie mu dowolne okno.
 
 ## Obliczenia { #run-python }
 

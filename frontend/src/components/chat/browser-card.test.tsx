@@ -154,4 +154,32 @@ describe("TurnBrowses - a browse as a browser under its message", () => {
     expect(screen.getByText("Browsed the web")).toBeVisible();
     expect(screen.queryByRole("link")).toBeNull();
   });
+
+  it("says once that the agent used a computer, however many runs did", () => {
+    const desktop = (id: string, name: string): ToolCall => ({
+      id,
+      name,
+      args: {},
+      status: "completed",
+    });
+    render(
+      <BrowserCards
+        browses={[]}
+        calls={[desktop("look", "computer_screenshot"), desktop("act", "computer_act")]}
+      />,
+    );
+
+    expect(screen.getAllByText("Used a computer")).toHaveLength(1);
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  it("draws a desktop's window and no line beside it", () => {
+    const calls: ToolCall[] = [
+      { id: "look", name: "computer_screenshot", args: {}, status: "completed" },
+      { id: "act", name: "computer_act", args: {}, status: "completed" },
+    ];
+    render(<BrowserCards browses={[browse({ callId: "act", url: null })]} calls={calls} />);
+
+    expect(screen.queryByText("Used a computer")).toBeNull();
+  });
 });

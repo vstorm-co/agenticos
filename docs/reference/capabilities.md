@@ -786,11 +786,13 @@ screenshot. Larger screens are scaled down to `screen_width`x`screen_height`
 before the model sees them, and every point is mapped back to the desktop's own
 coordinates, including a Retina Mac's points.
 
-**Looking is never held, acting is.** `computer_screenshot` changes nothing.
-`computer_act` takes the capability's side-effecting flag, so by default every
-batch of actions waits for approval against a screenshot both the model and the
-approver have seen. A point outside that screenshot is refused before anything
-runs. An action before the first screenshot is refused too.
+**Approval is for acting, and it is opt-in.** Like every tool, neither waits for
+approval until the agent's owner asks for it. `computer_screenshot` changes
+nothing. Set `tool_approval: {computer_act: required}` and every batch of
+actions waits for approval against a screenshot both the model and the approver
+have seen. A point outside that screenshot is refused before anything runs. An
+approved batch runs in a run of its own, which measures the screen before acting
+rather than refuse it.
 
 | `backend` | The desktop | Needs |
 |---|---|---|
@@ -814,16 +816,17 @@ expires on E2B's own idle timeout.
 | `max_actions` | 200 | 1–2000 per run |
 | `preview` | on | |
 
-The chat shows the desktop in the browse panel while the agent works: one card
-per run, a frame after every call and a line per action. Text the model types is
-shown there as typed.
+The chat draws the desktop in a window under the message while the agent
+works: one window per run, opened by its first screenshot, with a frame after
+every call and a line per action. Text the model types is shown there as typed.
 
 !!! warning "Screen text is untrusted"
 
     The instructions tell the model that what is on the screen is data, never
     instructions, and to stop for passwords, payments and decisions that belong
-    to the user. Approval is what enforces it; switching approval off for
-    `computer_act` lets the agent act on whatever a window tells it.
+    to the user. Approval is what enforces it, and it is off until the agent's
+    owner sets it: without it, `computer_act` lets the agent act on whatever a
+    window tells it.
 
 ## Calculations { #run-python }
 

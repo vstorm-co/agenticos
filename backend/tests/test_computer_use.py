@@ -10,6 +10,7 @@ import io
 import sys
 import types
 from collections.abc import MutableSequence, Sequence
+from dataclasses import replace
 from typing import Any, Literal
 from uuid import uuid4
 
@@ -24,6 +25,7 @@ from pydantic_ai.usage import RunUsage
 
 from app.agents.browser_events import BrowserEvent
 from app.agents.capabilities import CapabilityBinding, CapabilityBuildContext, get
+from app.agents.capabilities.approval import tool_needs_approval
 from app.agents.capabilities.computer_use import (
     ComputerUse,
     ComputerUseConfig,
@@ -56,9 +58,15 @@ from app.agents.capabilities.computer_use._backends import (
     x11_keys,
     xdotool,
 )
-from app.agents.capabilities.computer_use._toolset import ToolPolicy, build_toolset, fit
+from app.agents.capabilities.computer_use._toolset import (
+    ComputerToolset,
+    ToolPolicy,
+    build_toolset,
+    fit,
+)
 from app.agents.capabilities.media import CONVERSATION_RESOURCE, ORGANIZATION_RESOURCE
 from app.agents.deps import AgentDeps
+from app.agents.spec import CapabilityBindingSpec
 from app.core.config import settings
 from app.core.sanitize import UrlRefusedError
 from app.core.secret_kinds import ApiKeySecret
@@ -127,14 +135,17 @@ def _ctx(frames: _Frames | None = None, *, retries: int = 0) -> RunContext[Agent
     return ctx
 
 
-def _tools(desktop: Any, policy: ToolPolicy | None = None) -> dict[str, Any]:
+def _toolset(desktop: Any, policy: ToolPolicy | None = None) -> ComputerToolset:
     async def factory() -> Any:
         if isinstance(desktop, Exception):
             raise desktop
         return desktop
 
-    toolset = build_toolset(factory, policy or ToolPolicy())
-    return {name: tool.function for name, tool in toolset.tools.items()}
+    return build_toolset(factory, policy or ToolPolicy())
+
+
+def _tools(desktop: Any, policy: ToolPolicy | None = None) -> dict[str, Any]:
+    return {name: tool.function for name, tool in _toolset(desktop, policy).tools.items()}
 
 
 class TestCoordinates:
@@ -487,17 +498,37 @@ class TestTheTools:
         assert frames.events[0].title == "Test desktop"
         assert (frames.events[1].image or "").startswith("data:image/jpeg;base64,")
 
-    async def test_the_panel_is_opened_once_and_keyed_on_the_run(self):
+    async def test_one_window_is_named_after_the_first_look_and_closed_with_the_run(self):
+        """The chat draws a window under the tool call whose id it carries.
+
+        So every frame of the run goes to the first screenshot's window, and it is
+        finished once, when the run leaves the toolset - not after each call, which
+        would end the window while the agent is still working.
+        """
         frames = _Frames()
-        tools = _tools(_Desktop())
-        ctx = _ctx(frames)
-        await tools["computer_screenshot"](ctx)
-        await tools["computer_act"](ctx, [Click(x=10, y=10)])
+        toolset = _toolset(_Desktop())
+        tools = {name: tool.function for name, tool in toolset.tools.items()}
+        async with toolset:
+            async with toolset:
+                await tools["computer_screenshot"](_ctx(frames))
+                await tools["computer_act"](
+                    replace(_ctx(frames), tool_call_id="call-2"), [Click(x=10, y=10)]
+                )
+            assert "browser_finished" not in frames.kinds()
 
         assert frames.kinds().count("browser_opened") == 1
-        assert {event.call_id for event in frames.events} == {f"computer-{ctx.deps.run_id}"}
+        assert {event.call_id for event in frames.events} == {"call-1"}
         assert frames.kinds()[-1] == "browser_finished"
+        assert frames.kinds().count("browser_finished") == 1
         assert frames.events[-1].outcome == "done"
+
+        await toolset.session.close_view()
+        assert frames.kinds().count("browser_finished") == 1
+
+    async def test_a_call_without_an_id_still_gets_one_window(self):
+        frames = _Frames()
+        await _tools(_Desktop())["computer_screenshot"](replace(_ctx(frames), tool_call_id=None))
+        assert frames.events[0].call_id.startswith("computer-")
 
     async def test_actions_land_where_the_model_pointed_on_the_real_screen(self):
         desktop = _Desktop(size=(2560, 1600), native=(1440, 900))
@@ -513,12 +544,45 @@ class TestTheTools:
         assert answer[0].startswith("Ran 3 of 3 action(s).")
         assert isinstance(answer[1], BinaryContent)
 
-    async def test_acting_before_looking_is_refused(self):
+    async def test_an_approved_batch_runs_from_the_json_it_was_approved_as(self):
         desktop = _Desktop()
-        answer = await _tools(desktop)["computer_act"](_ctx(), [Click(x=1, y=1)])
+        tools = _tools(desktop)
+        ctx = _ctx()
+        await tools["computer_screenshot"](ctx)
+        answer = await tools["computer_act"](
+            ctx, [{"action": "click", "x": 640, "y": 400}, {"action": "type", "text": "hi"}]
+        )
 
-        assert "Call `computer_screenshot` first" in answer
+        assert [a.action for a in desktop.performed] == ["click", "type"]
+        assert answer[0].startswith("Ran 2 of 2 action(s).")
+
+    async def test_a_run_resumed_after_approval_measures_the_screen_before_acting(self):
+        """Approval resumes the run as a new one, which has not looked yet.
+
+        Refusing there sent the model back to look and ask again, so no approved
+        batch ever ran. The screen is measured, the window opens under the act,
+        and the points are mapped as they were on the screenshot before.
+        """
+        frames = _Frames()
+        desktop = _Desktop(size=(2560, 1600), native=(1440, 900))
+        answer = await _tools(desktop)["computer_act"](_ctx(frames), [Click(x=640, y=400)])
+
+        assert [(a.x, a.y) for a in desktop.performed] == [(720, 450)]
+        assert answer[0].startswith("Ran 1 of 1 action(s).")
+        assert frames.kinds()[:2] == ["browser_opened", "browser_frame"]
+        assert {event.call_id for event in frames.events} == {"call-1"}
+
+    @pytest.mark.security
+    async def test_a_resumed_batch_off_the_screen_is_still_refused(self):
+        desktop = _Desktop()
+        answer = await _tools(desktop)["computer_act"](_ctx(), [Click(x=1280, y=1)])
+
+        assert "names (1280, 1), which is off the 1280x800 screenshot" in answer
         assert desktop.performed == []
+
+    async def test_a_desktop_that_cannot_be_measured_is_a_sentence(self):
+        answer = await _tools(ComputerError("no desktop"))["computer_act"](_ctx(), [Wait()])
+        assert answer == "no desktop"
 
     @pytest.mark.security
     async def test_a_point_off_the_screenshot_is_refused_before_anything_runs(self):
@@ -557,34 +621,42 @@ class TestTheTools:
     async def test_the_first_failing_action_stops_the_rest(self):
         frames = _Frames()
         desktop = _Desktop(refuses="type")
-        tools = _tools(desktop)
+        toolset = _toolset(desktop)
+        tools = {name: tool.function for name, tool in toolset.tools.items()}
         ctx = _ctx(frames)
         await tools["computer_screenshot"](ctx)
         answer = await tools["computer_act"](
             ctx, [Click(x=1, y=1), TypeText(text="x"), Key(keys="enter")]
         )
+        await toolset.session.close_view()
 
         assert "Ran 1 of 3 action(s). Action 2 (type) failed: no such window" in answer[0]
         assert len(desktop.performed) == 1
         assert frames.events[-1].outcome == "failed"
+        assert frames.events[-1].detail == "Action 2 (type) failed: no such window"
         assert [e.operation for e in frames.events if e.kind == "browser_step"] == ["CLICK", "TYPE"]
 
     async def test_a_desktop_that_cannot_be_opened_is_a_sentence(self):
         frames = _Frames()
-        answer = await _tools(ComputerError("no desktop"))["computer_screenshot"](_ctx(frames))
+        toolset = _toolset(ComputerError("no desktop"))
+        answer = await toolset.tools["computer_screenshot"].function(_ctx(frames))
+        await toolset.session.close_view()
 
         assert answer == "no desktop"
-        assert frames.kinds() == ["browser_finished"]
+        assert frames.events == []
 
     async def test_a_screenshot_lost_after_acting_still_reports_the_actions(self):
+        frames = _Frames()
         desktop = _Desktop()
-        tools = _tools(desktop)
-        ctx = _ctx()
-        await tools["computer_screenshot"](ctx)
+        toolset = _toolset(desktop)
+        ctx = _ctx(frames)
+        await toolset.tools["computer_screenshot"].function(ctx)
         desktop.blind = True
-        answer = await tools["computer_act"](ctx, [Wait(seconds=0.01)])
+        answer = await toolset.tools["computer_act"].function(ctx, [Wait(seconds=0.01)])
+        await toolset.session.close_view()
 
         assert answer == "Ran 1 of 1 action(s).\nThe desktop did not return a screenshot."
+        assert frames.events[-1].outcome == "failed"
 
     async def test_without_preview_nothing_is_sent_to_the_chat(self):
         frames = _Frames()
@@ -655,7 +727,12 @@ def _build(
 
 class TestRegistration:
     @pytest.mark.security
-    def test_acting_is_held_for_approval_and_looking_is_not(self):
+    def test_acting_can_be_held_for_approval_without_holding_looking(self):
+        """Approval is the agent owner's choice, and it can stop at the clicks.
+
+        Gating `computer_act` alone keeps the model able to look before it asks,
+        which is what makes an approval request something a person can judge.
+        """
         definition = get("computer_use")
         flags = {tool.id: tool.side_effecting for tool in definition.tools}
 
@@ -663,6 +740,17 @@ class TestRegistration:
         assert flags == {"computer_screenshot": False, "computer_act": None}
         assert definition.side_effecting
         assert definition.scopes <= DEFAULT_GRANTED_SCOPES
+
+        def held(binding: CapabilityBindingSpec) -> set[str]:
+            return {
+                tool.id
+                for tool in definition.tools
+                if tool_needs_approval(tool=tool, binding=binding)
+            }
+
+        assert held(CapabilityBindingSpec(id="computer_use")) == set()
+        gated = CapabilityBindingSpec(id="computer_use", tool_approval={"computer_act": "required"})
+        assert held(gated) == {"computer_act"}
 
     def test_an_e2b_key_is_asked_for_only_by_the_e2b_backend(self):
         requirement = get("computer_use").secret

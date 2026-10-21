@@ -1,5 +1,5 @@
 ---
-source_sha: "63f4eeac85b8"
+source_sha: "f5fecbf47228"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -879,12 +879,14 @@ Tastaturaktionen in den Pixeln dieses Screenshots. Jede Antwort von
 Punkt wird in die Koordinaten des Desktops zurückgerechnet, auch in die Punkte
 eines Retina-Macs.
 
-**Hinsehen wartet nie, Handeln schon.** `computer_screenshot` ändert nichts.
-`computer_act` übernimmt das Side-Effecting-Flag der Capability, daher wartet
-standardmäßig jeder Stapel von Aktionen auf eine Freigabe, gegen einen
-Screenshot, den Modell und Freigebender beide gesehen haben. Ein Punkt außerhalb
-dieses Screenshots wird verweigert, bevor irgendetwas läuft. Eine Aktion vor dem
-ersten Screenshot wird ebenfalls verweigert.
+**Freigabe gilt dem Handeln und muss eingeschaltet werden.** Wie bei jedem Tool
+wartet keines der beiden auf eine Freigabe, bis der Besitzer des Agenten sie
+verlangt. `computer_screenshot` ändert nichts. Mit `tool_approval:
+{computer_act: required}` wartet jeder Stapel von Aktionen auf eine Freigabe,
+gegen einen Screenshot, den Modell und Freigebender beide gesehen haben. Ein
+Punkt außerhalb dieses Screenshots wird verweigert, bevor irgendetwas läuft. Ein
+freigegebener Stapel läuft in einem eigenen Run, der den Bildschirm vor dem
+Handeln neu vermisst, statt ihn zu verweigern.
 
 | `backend` | Der Desktop | Braucht |
 |---|---|---|
@@ -909,17 +911,18 @@ nach dem Leerlauf-Timeout von E2B selbst ab.
 | `max_actions` | 200 | 1–2000 pro Run |
 | `preview` | an | |
 
-Der Chat zeigt den Desktop im Browse-Panel, während der Agent arbeitet: eine
-Karte pro Run, ein Bild nach jedem Aufruf und eine Zeile pro Aktion. Text, den
+Der Chat zeichnet den Desktop in einem Fenster unter der Nachricht, während der
+Agent arbeitet: ein Fenster pro Run, geöffnet vom ersten Screenshot, mit einem
+Bild nach jedem Aufruf und einer Zeile pro Aktion. Text, den
 das Modell tippt, ist dort so zu sehen, wie er getippt wurde.
 
 !!! warning "Text auf dem Bildschirm ist nicht vertrauenswürdig"
 
     Die Anweisungen sagen dem Modell, dass der Bildschirminhalt Daten sind, nie
     Anweisungen, und dass es vor Passwörtern, Zahlungen und Entscheidungen des
-    Nutzers anhalten soll. Durchgesetzt wird das durch die Freigabe; wer sie für
-    `computer_act` abschaltet, lässt den Agenten nach dem handeln, was ihm ein
-    beliebiges Fenster sagt.
+    Nutzers anhalten soll. Durchgesetzt wird das durch die Freigabe, und die ist
+    aus, bis der Besitzer des Agenten sie setzt: ohne sie lässt `computer_act` den
+    Agenten nach dem handeln, was ihm ein beliebiges Fenster sagt.
 
 ## Berechnungen { #run-python }
 

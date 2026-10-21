@@ -1,5 +1,5 @@
 ---
-source_sha: "63f4eeac85b8"
+source_sha: "f5fecbf47228"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -839,11 +839,13 @@ de ratón y teclado en los píxeles de esa captura. Cada respuesta de
 traduce de vuelta a las coordenadas del propio escritorio, incluidos los puntos
 de un Mac con pantalla Retina.
 
-**Mirar nunca espera; actuar, sí.** `computer_screenshot` no cambia nada.
-`computer_act` toma el flag side-effecting de la capability, así que por defecto
-cada lote de acciones espera aprobación frente a una captura que han visto tanto
-el modelo como quien aprueba. Un punto fuera de esa captura se rechaza antes de
-que se ejecute nada. Una acción antes de la primera captura también se rechaza.
+**La aprobación es para actuar, y hay que activarla.** Como cualquier tool,
+ninguna de las dos espera aprobación hasta que el dueño del agent la pide.
+`computer_screenshot` no cambia nada. Con `tool_approval: {computer_act:
+required}`, cada lote de acciones espera aprobación frente a una captura que han
+visto tanto el modelo como quien aprueba. Un punto fuera de esa captura se
+rechaza antes de que se ejecute nada. Un lote aprobado se ejecuta en un run
+propio, que vuelve a medir la pantalla antes de actuar en lugar de rechazarlo.
 
 | `backend` | El escritorio | Necesita |
 |---|---|---|
@@ -868,17 +870,17 @@ propio E2B.
 | `max_actions` | 200 | 1–2000 por run |
 | `preview` | activado | |
 
-El chat muestra el escritorio en el panel de navegación mientras el agent
-trabaja: una tarjeta por run, un fotograma tras cada llamada y una línea por
-acción. El texto que escribe el modelo se muestra ahí tal como se escribió.
+El chat dibuja el escritorio en una ventana bajo el mensaje mientras el agent
+trabaja: una ventana por run, abierta por la primera captura, con un fotograma
+tras cada llamada y una línea por acción. El texto que escribe el modelo se muestra ahí tal como se escribió.
 
 !!! warning "El texto de la pantalla no es de fiar"
 
     Las instrucciones dicen al modelo que lo que hay en pantalla son datos, nunca
     instrucciones, y que se detenga ante contraseñas, pagos y decisiones que
-    corresponden al usuario. Lo que lo hace cumplir es la aprobación; desactivarla
-    para `computer_act` deja que el agent actúe según lo que le diga cualquier
-    ventana.
+    corresponden al usuario. Lo que lo hace cumplir es la aprobación, y está
+    desactivada hasta que el dueño del agent la activa: sin ella, `computer_act`
+    deja que el agent actúe según lo que le diga cualquier ventana.
 
 ## Cálculos { #run-python }
 
