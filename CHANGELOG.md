@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.10.2] - 2026-10-21
+
 ### Added
 
 - **The background-job benchmark, as a docs page.** Why the job queue is rows
