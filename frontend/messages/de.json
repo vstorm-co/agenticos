@@ -5358,6 +5358,7 @@
     "accessRemoved": "Zugriff entfernt",
     "addSubject": "Person oder Gruppe hinzufügen",
     "chooseSubject": "Mitglied oder Gruppe auswählen",
+    "searchSubjects": "Nach Name oder E-Mail suchen …",
     "collectionRuntimeNote": "Die Freigabe steuert, wer diese Collection im Builder auswählen und wer sie ändern darf. Ein daran angebundener Agent durchsucht sie für alle, die diesen Agent ausführen dürfen – auch für Personen, die die Collection selbst nicht öffnen können.",
     "everyoneAlreadyHasAccess": "Alle haben bereits Zugriff",
     "failedLoadShares": "Freigaben konnten nicht geladen werden",

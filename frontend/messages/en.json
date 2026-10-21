@@ -5499,6 +5499,7 @@
     "accessRemoved": "Access removed",
     "addSubject": "Add a person or group",
     "chooseSubject": "Choose a member or group",
+    "searchSubjects": "Search by name or email…",
     "collectionRuntimeNote": "Sharing controls who can pick this collection in the Builder and who can change it. An agent connected to it searches it for everyone who can run that agent, including people who cannot open the collection themselves.",
     "everyoneAlreadyHasAccess": "Everyone already has access",
     "failedLoadShares": "Failed to load shares",
