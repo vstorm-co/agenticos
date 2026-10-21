@@ -1,6 +1,6 @@
 [package]
 name = "agenticos-desktop"
-version = "0.1.0"
+version = "0.2.0"
 description = "The AgenticOS console in a window of its own"
 license = "Apache-2.0"
 repository = "https://github.com/vstorm-co/agenticos"
@@ -18,10 +18,13 @@ tauri-build = { version = "2", features = [] }
 base64 = "0.22"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tauri = { version = "2", features = ["macos-private-api", "tray-icon"] }
+tauri = { version = "2", features = ["macos-private-api", "tray-icon", "image-png"] }
+tauri-plugin-autostart = "2"
 tauri-plugin-deep-link = "2"
 tauri-plugin-global-shortcut = "2"
+tauri-plugin-notification = "2"
 tauri-plugin-opener = "2"
+tauri-plugin-window-state = "2"
 # The per-attempt nonce that binds a deep-linked sign-in to the window that
 # started it. Already in the tree through Tauri; declared because this code
 # calls it.

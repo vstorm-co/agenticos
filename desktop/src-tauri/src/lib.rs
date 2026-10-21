@@ -1,4 +1,4 @@
-//! A window around a deployment's console, and a pet that keeps it company.
+//! A window around a deployment's console, and the native parts around it.
 //!
 //! The console itself stays on the server: this shell holds one setting, the
 //! address of that server, and points its webview at it. The first launch, and
@@ -6,75 +6,76 @@
 //! everything after that is the same Next.js application a browser would load,
 //! with the same cookies, the same permissions and the same tenant checks.
 //!
-//! The pet is a second, transparent, always-on-top window drawing a pixel-art
-//! sprite. It can be dragged anywhere, clicked, and tucked away from the menu;
-//! where it was left and which look it wears are remembered beside the server.
+//! Around it the shell adds what a browser tab cannot have: a window that looks
+//! like the platform's own (an inset title bar, a translucent material when the
+//! console wears glass, a native menu), blobby on the desktop, a quick ask panel
+//! on a global shortcut, notifications that can be answered, and a badge. Each of
+//! those that draws anything draws a page of the console, in a window of the
+//! shell's; `console.rs` is what those pages may ask of the shell, and from where.
+
+mod appearance;
+mod blobby;
+mod console;
+mod notify;
+mod quick_ask;
+mod settings;
+mod shortcuts;
 
 use std::fs;
 use std::io::ErrorKind;
 use std::net::{TcpStream, ToSocketAddrs};
-use std::path::PathBuf;
-use std::str::FromStr;
 use std::sync::{mpsc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use base64::Engine;
 
-use serde::{Deserialize, Serialize};
-use tauri::menu::{CheckMenuItem, ContextMenu, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
-use tauri::tray::TrayIconBuilder;
+use tauri::menu::{ContextMenu, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
+use tauri::tray::{TrayIcon, TrayIconBuilder};
 use tauri::webview::PageLoadEvent;
-use tauri::{AppHandle, Emitter, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Wry};
+use tauri::window::Color;
+use tauri::{AppHandle, Manager, Theme, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent, Wry};
 use tauri_plugin_deep_link::DeepLinkExt;
-use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
+use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_opener::OpenerExt;
 
-const WINDOW: &str = "main";
-const PET: &str = "pet";
+#[cfg(target_os = "macos")]
+use tauri::RunEvent;
+
+use appearance::{Appearance, Look, Surface};
+use settings::Settings;
+
+pub const WINDOW: &str = "main";
+const TRAY: &str = "tray";
 const CHANGE_SERVER: &str = "change-server";
 const RELOAD: &str = "reload";
 const SETTINGS: &str = "settings";
 const SCREENSHOT_CHAT: &str = "screenshot-chat";
-const DEFAULT_SCREENSHOT_SHORTCUT: &str = "CmdOrCtrl+Shift+A";
-const SHOW_PET: &str = "show-pet";
+const QUICK_ASK: &str = "quick-ask";
 const NEW_CHAT: &str = "new-chat";
 const OPEN_CONSOLE: &str = "open-console";
-const PET_KIND_EVENT: &str = "pet-kind";
-const PET_SAY_EVENT: &str = "pet-say";
-const PET_SIZE: (f64, f64) = (144.0, 200.0);
+const BACK: &str = "back";
+const FORWARD: &str = "forward";
+const DOCUMENTATION: &str = "documentation";
+const DOCUMENTATION_URL: &str = "https://vstorm-co.github.io/agenticos/desktop/";
 const PROBE_TIMEOUT: Duration = Duration::from_secs(1);
 const PROBE_DEADLINE: Duration = Duration::from_secs(2);
 const PENDING_SCREENSHOT_TTL: Duration = Duration::from_secs(120);
+/// Where the traffic lights sit on macOS: inset into the console's own sidebar
+/// header, vertically centred on its 56px row, the way Finder and Notes put them.
+const TRAFFIC_LIGHTS: (f64, f64) = (18.0, 22.0);
+/// The console's background in each mode, painted behind the page while it loads.
+/// A transparent window with nothing painted yet shows the desktop through it.
+const LOADING_LIGHT: Color = Color(247, 247, 248, 255);
+const LOADING_DARK: Color = Color(30, 31, 33, 255);
 
-#[derive(Serialize, Deserialize, Default)]
-struct Settings {
-    #[serde(default)]
-    server_url: Option<Url>,
-    #[serde(default)]
-    pet: PetSettings,
-    #[serde(default)]
-    shortcuts: Shortcuts,
-}
-
-/// Global shortcuts, as accelerators the shortcut plugin parses (`CmdOrCtrl+Shift+A`).
-/// `None` is a shortcut somebody switched off.
-#[derive(Serialize, Deserialize, Clone)]
-struct Shortcuts {
-    #[serde(default = "default_screenshot_shortcut")]
-    screenshot_chat: Option<String>,
-}
-
-fn default_screenshot_shortcut() -> Option<String> {
-    Some(DEFAULT_SCREENSHOT_SHORTCUT.to_owned())
-}
-
-impl Default for Shortcuts {
-    fn default() -> Self {
-        Self {
-            screenshot_chat: default_screenshot_shortcut(),
-        }
-    }
-}
+/// The destinations under Go, with their shortcut, in the sidebar's own order.
+const GO: [(&str, &str, &str, &str); 5] = [
+    ("go-dashboard", "Dashboard", "/dashboard", "CmdOrCtrl+1"),
+    ("go-chat", "Chat", "/chat", "CmdOrCtrl+2"),
+    ("go-agents", "Agents", "/agents", "CmdOrCtrl+3"),
+    ("go-runs", "Activity", "/runs", "CmdOrCtrl+4"),
+    ("go-knowledge", "Knowledge", "/rag", "CmdOrCtrl+5"),
+];
 
 /// A screenshot taken for a chat that is still loading; the console's page-load
 /// hook takes it once `/chat` has finished loading.
@@ -103,218 +104,11 @@ impl Pending {
     }
 }
 
-/// The accelerator actually registered with the system, if any - which is not the
-/// one in the settings when another application held it at start-up.
-struct ShortcutBinding(Mutex<Option<String>>);
-
-#[derive(Serialize, Deserialize, Clone)]
-struct PetSettings {
-    #[serde(default = "shown_by_default")]
-    enabled: bool,
-    #[serde(default)]
-    kind: Kind,
-    #[serde(default)]
-    position: Option<Position>,
-}
-
-fn shown_by_default() -> bool {
-    true
-}
-
-impl Default for PetSettings {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            kind: Kind::default(),
-            position: None,
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, Copy)]
-struct Position {
-    x: f64,
-    y: f64,
-}
-
-/// Which pet it is. Each is an entry in `PETS` in `ui/pet-sprites.js` under the same name.
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default, Debug)]
-#[serde(rename_all = "lowercase")]
-enum Kind {
-    #[default]
-    Orbit,
-    Boxy,
-    Ghost,
-    Sprout,
-    Amigo,
-}
-
-impl Kind {
-    const ALL: [Kind; 5] = [Kind::Orbit, Kind::Boxy, Kind::Ghost, Kind::Sprout, Kind::Amigo];
-
-    fn label(self) -> &'static str {
-        match self {
-            Kind::Orbit => "Orbit",
-            Kind::Boxy => "Boxy",
-            Kind::Ghost => "Ghost",
-            Kind::Sprout => "Sprout",
-            Kind::Amigo => "Amigo",
-        }
-    }
-
-    fn menu_id(self) -> &'static str {
-        match self {
-            Kind::Orbit => "pet-orbit",
-            Kind::Boxy => "pet-boxy",
-            Kind::Ghost => "pet-ghost",
-            Kind::Sprout => "pet-sprout",
-            Kind::Amigo => "pet-amigo",
-        }
-    }
-
-    fn from_menu_id(id: &str) -> Option<Kind> {
-        Kind::ALL.into_iter().find(|kind| kind.menu_id() == id)
-    }
-}
-
 /// Why the console opened on the connect page although a server was stored.
 ///
 /// Read once by that page, which shows it above the form; a blank webview is what
 /// an unreachable server looks like otherwise, and it says nothing.
 struct StartupNotice(Mutex<Option<String>>);
-
-/// The pet's menu items, shared by the menu bar, the tray icon and the pet's own
-/// right-click menu, so one `set_checked` reaches all three.
-struct PetMenu {
-    show: CheckMenuItem<Wry>,
-    kinds: Vec<(Kind, CheckMenuItem<Wry>)>,
-    new_chat: MenuItem<Wry>,
-    screenshot: MenuItem<Wry>,
-    open_console: MenuItem<Wry>,
-    settings: MenuItem<Wry>,
-}
-
-impl PetMenu {
-    fn build(app: &AppHandle, pet: &PetSettings) -> tauri::Result<Self> {
-        let show = CheckMenuItem::with_id(app, SHOW_PET, "Show pet", true, pet.enabled, Some("CmdOrCtrl+Shift+P"))?;
-        let kinds = Kind::ALL
-            .into_iter()
-            .map(|kind| {
-                let item =
-                    CheckMenuItem::with_id(app, kind.menu_id(), kind.label(), true, kind == pet.kind, None::<&str>)?;
-                Ok((kind, item))
-            })
-            .collect::<tauri::Result<Vec<_>>>()?;
-        let new_chat = MenuItem::with_id(app, NEW_CHAT, "New chat", true, None::<&str>)?;
-        let screenshot = MenuItem::with_id(app, SCREENSHOT_CHAT, "Screenshot to new chat", true, None::<&str>)?;
-        let open_console = MenuItem::with_id(app, OPEN_CONSOLE, "Open console", true, None::<&str>)?;
-        let settings = MenuItem::with_id(app, SETTINGS, "Settings…", true, Some("CmdOrCtrl+,"))?;
-        Ok(Self {
-            show,
-            kinds,
-            new_chat,
-            screenshot,
-            open_console,
-            settings,
-        })
-    }
-
-    /// The items in menu order; a fresh `Menu` or `Submenu` is built from them each time.
-    fn items(&self, app: &AppHandle) -> tauri::Result<Vec<Box<dyn IsMenuItem<Wry>>>> {
-        let mut items: Vec<Box<dyn IsMenuItem<Wry>>> = vec![
-            Box::new(self.new_chat.clone()),
-            Box::new(self.screenshot.clone()),
-            Box::new(self.open_console.clone()),
-        ];
-        items.push(Box::new(PredefinedMenuItem::separator(app)?));
-        for (_, item) in &self.kinds {
-            items.push(Box::new(item.clone()));
-        }
-        items.push(Box::new(PredefinedMenuItem::separator(app)?));
-        items.push(Box::new(self.show.clone()));
-        items.push(Box::new(self.settings.clone()));
-        Ok(items)
-    }
-
-    fn menu(&self, app: &AppHandle) -> tauri::Result<Menu<Wry>> {
-        let items = self.items(app)?;
-        Menu::with_items(app, &items.iter().map(|item| item.as_ref()).collect::<Vec<_>>())
-    }
-
-    fn submenu(&self, app: &AppHandle) -> tauri::Result<Submenu<Wry>> {
-        let items = self.items(app)?;
-        Submenu::with_items(
-            app,
-            "Pet",
-            true,
-            &items.iter().map(|item| item.as_ref()).collect::<Vec<_>>(),
-        )
-    }
-
-    fn reflect(&self, pet: &PetSettings) -> tauri::Result<()> {
-        self.show.set_checked(pet.enabled)?;
-        for (kind, item) in &self.kinds {
-            item.set_checked(*kind == pet.kind)?;
-        }
-        Ok(())
-    }
-}
-
-fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app
-        .path()
-        .app_config_dir()
-        .map_err(|e| format!("No configuration directory for this account: {e}"))?;
-    Ok(dir.join("server.json"))
-}
-
-fn load_settings(app: &AppHandle) -> Result<Settings, String> {
-    let path = settings_path(app)?;
-    let raw = match fs::read_to_string(&path) {
-        Ok(raw) => raw,
-        Err(e) if e.kind() == ErrorKind::NotFound => return Ok(Settings::default()),
-        Err(e) => return Err(format!("Cannot read {}: {e}", path.display())),
-    };
-    serde_json::from_str(&raw).map_err(|e| format!("{} is not a saved shell configuration: {e}", path.display()))
-}
-
-/// The stored settings, or the defaults when the file cannot be read as settings.
-///
-/// A file that does not parse - a typo while hand-editing it, a partial write - is
-/// set aside as `server.json.invalid` so that the connect form can save over it,
-/// rather than fail on every submission with the very problem it is showing. The
-/// second value says so, for the form.
-fn load_or_quarantine(app: &AppHandle) -> (Settings, Option<String>) {
-    let problem = match load_settings(app) {
-        Ok(settings) => return (settings, None),
-        Err(problem) => problem,
-    };
-    eprintln!("{problem}");
-    let notice = match settings_path(app) {
-        Ok(path) => {
-            let aside = path.with_extension("json.invalid");
-            match fs::rename(&path, &aside) {
-                Ok(()) => format!("{problem} It was set aside as {}.", aside.display()),
-                Err(e) => format!("{problem} It could not be set aside: {e}"),
-            }
-        }
-        Err(e) => format!("{problem} {e}"),
-    };
-    (Settings::default(), Some(notice))
-}
-
-fn settings(app: &AppHandle) -> Settings {
-    load_or_quarantine(app).0
-}
-
-fn save_settings(app: &AppHandle, settings: &Settings) -> Result<(), String> {
-    let path = settings_path(app)?;
-    if let Some(dir) = path.parent() {
-        fs::create_dir_all(dir).map_err(|e| format!("Cannot create {}: {e}", dir.display()))?;
-    }
-    let raw = serde_json::to_string_pretty(settings).map_err(|e| e.to_string())?;
-    fs::write(&path, raw).map_err(|e| format!("Cannot write {}: {e}", path.display()))
-}
 
 /// The address a person typed, as the URL the webview will be pointed at.
 ///
@@ -543,19 +337,6 @@ fn connect_page() -> Url {
     local_page("index.html")
 }
 
-/// Show one of the shell's pages in the console window, opening the window if it is closed.
-fn show_local_page(app: &AppHandle, name: &str) -> Result<(), String> {
-    match app.get_webview_window(WINDOW) {
-        Some(console) => {
-            console.navigate(local_page(name)).map_err(|e| e.to_string())?;
-            raise(&console)
-        }
-        None => open_window(app, WebviewUrl::App(name.into()))
-            .map(|_| ())
-            .map_err(|e| e.to_string()),
-    }
-}
-
 /// Whether something is listening where the address points.
 ///
 /// A TCP connect, not an HTTP request: the question is "is the stack up", and the
@@ -604,100 +385,6 @@ fn console_start(server: Option<Url>) -> (WebviewUrl, Option<String>) {
     }
 }
 
-#[tauri::command]
-fn server_url(app: AppHandle) -> Result<Option<Url>, String> {
-    Ok(settings(&app).server_url)
-}
-
-#[tauri::command]
-fn startup_notice(notice: tauri::State<'_, StartupNotice>) -> Option<String> {
-    notice.0.lock().map(|mut slot| slot.take()).unwrap_or(None)
-}
-
-#[tauri::command]
-async fn connect(app: AppHandle, window: WebviewWindow, url: String) -> Result<(), String> {
-    let server = parse_server_url(&url)?;
-    let probed = server.clone();
-    tauri::async_runtime::spawn_blocking(move || reachable(&probed))
-        .await
-        .map_err(|e| e.to_string())??;
-    let mut settings = settings(&app);
-    settings.server_url = Some(server.clone());
-    save_settings(&app, &settings)?;
-    window.navigate(server).map_err(|e| e.to_string())
-}
-
-/// The shortcuts as configured, and what is wrong with them if anything is.
-#[derive(Serialize)]
-struct ShortcutsView {
-    screenshot_chat: Option<String>,
-    problem: Option<String>,
-}
-
-#[tauri::command]
-fn shortcuts(app: AppHandle) -> ShortcutsView {
-    let configured = settings(&app).shortcuts.screenshot_chat;
-    let bound = app
-        .state::<ShortcutBinding>()
-        .0
-        .lock()
-        .map(|b| b.clone())
-        .unwrap_or(None);
-    let problem = match (&configured, &bound) {
-        (Some(wanted), Some(held)) if wanted == held => None,
-        (Some(wanted), _) => Some(format!(
-            "{wanted} could not be bound - another application holds it. Pick another combination."
-        )),
-        (None, _) => None,
-    };
-    ShortcutsView {
-        screenshot_chat: configured,
-        problem,
-    }
-}
-
-/// Rebind, or switch off, the screenshot shortcut. Answers with what is now bound.
-///
-/// The old binding is released first and put back if the new one cannot be taken,
-/// so a combination another application holds leaves the shell where it was.
-#[tauri::command]
-fn set_screenshot_shortcut(app: AppHandle, accelerator: Option<String>) -> Result<Option<String>, String> {
-    let mut settings = settings(&app);
-    let wanted = accelerator.map(|a| a.trim().to_owned()).filter(|a| !a.is_empty());
-    let current = settings.shortcuts.screenshot_chat.clone();
-    if let Some(old) = &current {
-        unregister_shortcut(&app, old);
-    }
-    if let Some(new) = &wanted {
-        if let Err(refusal) = register_screenshot_shortcut(&app, new) {
-            if let Some(old) = &current {
-                if let Err(e) = register_screenshot_shortcut(&app, old) {
-                    eprintln!("could not put {old} back: {e}");
-                }
-            }
-            return Err(refusal);
-        }
-    }
-    settings.shortcuts.screenshot_chat = wanted.clone();
-    save_settings(&app, &settings)?;
-    Ok(wanted)
-}
-
-/// Leave a shell page for the console - the stored server, or the connect form.
-#[tauri::command]
-fn back_to_console(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
-    let settings = settings(&app);
-    let (start, notice) = console_start(settings.server_url);
-    if let Ok(mut slot) = app.state::<StartupNotice>().0.lock() {
-        *slot = notice;
-    }
-    let url = match start {
-        WebviewUrl::External(url) => url,
-        _ => connect_page(),
-    };
-    window.navigate(url).map_err(|e| e.to_string())
-}
-
 /// A failure inside one of the shell's own pages, reported where somebody can read it.
 ///
 /// Neither page has a devtools pane a user would open, and the pet's window has no
@@ -708,86 +395,12 @@ fn page_error(window: WebviewWindow, message: String) {
     eprintln!("{}: {message}", window.label());
 }
 
-#[tauri::command]
-fn pet_settings(app: AppHandle) -> Result<PetSettings, String> {
-    Ok(settings(&app).pet)
-}
-
-#[tauri::command]
-fn save_pet_position(app: AppHandle, x: f64, y: f64) -> Result<(), String> {
-    let mut settings = settings(&app);
-    settings.pet.position = Some(Position { x, y });
-    save_settings(&app, &settings)
-}
-
-/// The pet's own menu, under the right mouse button - the menu bar is far from a
-/// pet in the corner of the screen, and on Windows and Linux there is no app menu
-/// while the console window is closed.
-#[tauri::command]
-fn pet_menu(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
-    let menu = app.state::<PetMenu>().menu(&app).map_err(|e| e.to_string())?;
-    menu.popup(window.as_ref().window()).map_err(|e| e.to_string())
-}
-
-/// Bring the console forward, opening it again if it was closed while the pet stayed.
-#[tauri::command]
-fn show_console(app: AppHandle) -> Result<(), String> {
-    bring_console(&app)
-}
-
 /// Put a window in front of the person - out of the Dock or taskbar if it was
 /// minimised, which a focus request alone does not do.
 fn raise(window: &WebviewWindow) -> Result<(), String> {
     window.unminimize().map_err(|e| e.to_string())?;
     window.show().map_err(|e| e.to_string())?;
     window.set_focus().map_err(|e| e.to_string())
-}
-
-fn bring_console(app: &AppHandle) -> Result<(), String> {
-    if let Some(console) = app.get_webview_window(WINDOW) {
-        return raise(&console);
-    }
-    let settings = settings(app);
-    let (start, notice) = console_start(settings.server_url);
-    if let Ok(mut slot) = app.state::<StartupNotice>().0.lock() {
-        *slot = notice;
-    }
-    open_window(app, start).map(|_| ()).map_err(|e| e.to_string())
-}
-
-/// Put the console on a fresh chat, opening it if it was closed.
-///
-/// `/chat` with no conversation id is how the console starts a new one, so the
-/// pet's button is a navigation, not a request: whether the person may chat, and
-/// with which agent, is the console's to decide once it is there.
-#[tauri::command]
-fn open_chat(app: AppHandle) -> Result<(), String> {
-    start_chat(&app)
-}
-
-/// The address of a fresh chat on the configured server, once it answers.
-fn chat_url(app: &AppHandle) -> Result<Url, String> {
-    let server = settings(app)
-        .server_url
-        .ok_or("No server yet - connect the console to one first.")?;
-    reachable(&server)?;
-    server.join("chat").map_err(|e| e.to_string())
-}
-
-fn start_chat(app: &AppHandle) -> Result<(), String> {
-    open_console_at(app, chat_url(app)?)
-}
-
-fn open_console_at(app: &AppHandle, url: Url) -> Result<(), String> {
-    match app.get_webview_window(WINDOW) {
-        Some(console) => {
-            console.navigate(url).map_err(|e| e.to_string())?;
-            raise(&console)
-        }
-        None => open_window(app, WebviewUrl::External(url))
-            .map(|_| ())
-            .map_err(|e| e.to_string()),
-    }
 }
 
 #[cfg(target_os = "macos")]
@@ -940,38 +553,6 @@ fn screenshot_to_chat(app: &AppHandle) {
     });
 }
 
-/// A screenshot that went nowhere, said on stderr and by the pet.
-fn complain(app: &AppHandle, problem: &str) {
-    eprintln!("screenshot: {problem}");
-    if let Err(e) = app.emit_to(PET, PET_SAY_EVENT, problem) {
-        eprintln!("screenshot: {e}");
-    }
-}
-
-fn register_screenshot_shortcut(app: &AppHandle, accelerator: &str) -> Result<(), String> {
-    let shortcut = Shortcut::from_str(accelerator).map_err(|e| format!("{accelerator} is not a shortcut: {e}"))?;
-    app.global_shortcut()
-        .on_shortcut(shortcut, |app, _shortcut, event| {
-            if event.state == ShortcutState::Pressed {
-                screenshot_to_chat(app);
-            }
-        })
-        .map_err(|e| format!("Cannot bind {accelerator}: {e}"))?;
-    if let Ok(mut bound) = app.state::<ShortcutBinding>().0.lock() {
-        *bound = Some(accelerator.to_owned());
-    }
-    Ok(())
-}
-
-fn unregister_shortcut(app: &AppHandle, accelerator: &str) {
-    if let Err(e) = app.global_shortcut().unregister(accelerator) {
-        eprintln!("could not release {accelerator}: {e}");
-    }
-    if let Ok(mut bound) = app.state::<ShortcutBinding>().0.lock() {
-        *bound = None;
-    }
-}
-
 /// The console window's title: the product's name on its own pages and the
 /// configured server, and the host it is showing anywhere else.
 ///
@@ -990,16 +571,161 @@ fn window_title(loaded: &Url, server: Option<&Url>) -> String {
     }
 }
 
+#[tauri::command]
+fn server_url(app: AppHandle) -> Result<Option<Url>, String> {
+    Ok(settings::current(&app).server_url)
+}
+
+#[tauri::command]
+fn startup_notice(notice: tauri::State<'_, StartupNotice>) -> Option<String> {
+    notice.0.lock().map(|mut slot| slot.take()).unwrap_or(None)
+}
+
+#[tauri::command]
+async fn connect(app: AppHandle, window: WebviewWindow, url: String) -> Result<(), String> {
+    let server = parse_server_url(&url)?;
+    let probed = server.clone();
+    tauri::async_runtime::spawn_blocking(move || reachable(&probed))
+        .await
+        .map_err(|e| e.to_string())??;
+    let (settings, ()) = settings::update(&app, |settings| settings.server_url = Some(server.clone()))?;
+    window.navigate(server.clone()).map_err(|e| e.to_string())?;
+    // Blobby and quick ask were pages of the previous server, or of none.
+    for label in [blobby::WINDOW, quick_ask::WINDOW] {
+        if let Some(stale) = app.get_webview_window(label) {
+            stale.destroy().map_err(|e| e.to_string())?;
+        }
+    }
+    start_companions(&app, &server, &settings);
+    Ok(())
+}
+
+/// Bring the console forward, opening it again if it was closed while blobby stayed.
+#[tauri::command]
+fn show_console(app: AppHandle) -> Result<(), String> {
+    bring_console(&app)
+}
+
+/// Put the console on a fresh chat, opening it if it was closed.
+///
+/// `/chat` with no conversation id is how the console starts a new one, so this
+/// is a navigation, not a request: whether the person may chat, and with which
+/// agent, is the console's to decide once it is there.
+#[tauri::command]
+fn open_chat(app: AppHandle) -> Result<(), String> {
+    open_in_console_at(&app, "/chat")
+}
+
+fn bring_console(app: &AppHandle) -> Result<(), String> {
+    if let Some(console) = app.get_webview_window(WINDOW) {
+        return raise(&console);
+    }
+    let settings = settings::current(app);
+    let (start, notice) = console_start(settings.server_url);
+    if let Ok(mut slot) = app.state::<StartupNotice>().0.lock() {
+        *slot = notice;
+    }
+    open_window(app, start).map(|_| ()).map_err(|e| e.to_string())
+}
+
+/// Show the console on one of its own pages: in place when it is already showing
+/// the console, so the page swaps the way a click in the sidebar does, and by
+/// loading the address otherwise.
+///
+/// The page is asked through a function it defines (`__agenticosNavigate`)
+/// rather than through an event, so a console from before the desktop bridge -
+/// an older server the shell was pointed at - still gets there, by a full load.
+pub fn open_in_console_at(app: &AppHandle, path: &str) -> Result<(), String> {
+    if !notify::is_console_path(path) {
+        return Err(format!("{path} is not a page of the console."));
+    }
+    let server = settings::current(app)
+        .server_url
+        .ok_or("No server yet - connect the console to one first.")?;
+    let url = server.join(path).map_err(|e| e.to_string())?;
+    let Some(console) = app.get_webview_window(WINDOW) else {
+        reachable(&server)?;
+        return open_window(app, WebviewUrl::External(url))
+            .map(|_| ())
+            .map_err(|e| e.to_string());
+    };
+    let on_console = console.url().is_ok_and(|shown| shown.origin() == server.origin());
+    if on_console {
+        let literal = serde_json::to_string(path).map_err(|e| e.to_string())?;
+        console
+            .eval(format!(
+                "window.__agenticosNavigate ? window.__agenticosNavigate({literal}) : location.assign({literal})"
+            ))
+            .map_err(|e| e.to_string())?;
+    } else {
+        console.navigate(url).map_err(|e| e.to_string())?;
+    }
+    raise(&console)
+}
+
+/// The address of a fresh chat on the configured server, once it answers.
+fn chat_url(app: &AppHandle) -> Result<Url, String> {
+    let server = settings::current(app)
+        .server_url
+        .ok_or("No server yet - connect the console to one first.")?;
+    reachable(&server)?;
+    server.join("chat").map_err(|e| e.to_string())
+}
+
+fn open_console_at(app: &AppHandle, url: Url) -> Result<(), String> {
+    match app.get_webview_window(WINDOW) {
+        Some(console) => {
+            console.navigate(url).map_err(|e| e.to_string())?;
+            raise(&console)
+        }
+        None => open_window(app, WebviewUrl::External(url))
+            .map(|_| ())
+            .map_err(|e| e.to_string()),
+    }
+}
+
+/// A screenshot that went nowhere, said on stderr and by blobby.
+fn complain(app: &AppHandle, problem: &str) {
+    eprintln!("screenshot: {problem}");
+    blobby::say(app, problem);
+}
+
+/// What the console paints behind itself while it loads, in the window's own mode.
+fn loading_color(appearance: Appearance, system: Theme) -> Color {
+    if appearance.look == Look::Glass && appearance::VIBRANCY {
+        return Color(0, 0, 0, 0);
+    }
+    let dark = match appearance.mode {
+        appearance::Mode::Dark => true,
+        appearance::Mode::Light => false,
+        appearance::Mode::System => system == Theme::Dark,
+    };
+    if dark {
+        LOADING_DARK
+    } else {
+        LOADING_LIGHT
+    }
+}
+
 fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow> {
     let handle = app.clone();
-    let builder = WebviewWindowBuilder::new(app, WINDOW, url)
+    let appearance = settings::current(app).appearance;
+    let version = app.package_info().version.to_string();
+    let mut builder = WebviewWindowBuilder::new(app, WINDOW, url)
         .title("AgenticOS")
+        .initialization_script(appearance::shell_script(&version, WINDOW))
         .inner_size(1280.0, 800.0)
         .min_inner_size(900.0, 600.0)
+        .theme(appearance::theme(appearance.mode))
+        // Transparent wherever a material can be drawn behind it, so glass can
+        // be switched on without rebuilding the window; the loading colour is
+        // what keeps the desktop from showing through before the page paints.
+        .transparent(appearance::VIBRANCY)
+        .background_color(loading_color(appearance, Theme::Light))
         // The one navigation this window refuses. Everything else - including
         // the provider's *return* to the console - loads here as it always did.
         .on_navigation(move |url| {
-            let server = settings(&handle).server_url;
+            let server = settings::current(&handle).server_url;
             if !is_oauth_start(server.as_ref(), url) {
                 return true;
             }
@@ -1013,9 +739,19 @@ fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow>
             }
             false
         });
-    builder
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder
+            .title_bar_style(tauri::TitleBarStyle::Overlay)
+            .hidden_title(true)
+            .traffic_light_position(tauri::LogicalPosition::new(TRAFFIC_LIGHTS.0, TRAFFIC_LIGHTS.1));
+    }
+    if let Some(effects) = appearance::effects(Surface::Console, appearance.look) {
+        builder = builder.effects(effects);
+    }
+    let window = builder
         .on_page_load(|window, payload| {
-            let server = settings(window.app_handle()).server_url;
+            let server = settings::current(window.app_handle()).server_url;
             if let Err(e) = window.set_title(&window_title(payload.url(), server.as_ref())) {
                 eprintln!("title: {e}");
             }
@@ -1042,115 +778,312 @@ fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow>
                 }
             }
         })
-        .build()
-}
-
-/// Bottom-right of the primary monitor, clear of a dock or taskbar, for a pet never placed yet.
-fn default_pet_position(app: &AppHandle) -> Option<(f64, f64)> {
-    let monitor = app.primary_monitor().ok()??;
-    let scale = monitor.scale_factor();
-    let size = monitor.size().to_logical::<f64>(scale);
-    let origin = monitor.position().to_logical::<f64>(scale);
-    Some((
-        origin.x + size.width - PET_SIZE.0 - 48.0,
-        origin.y + size.height - PET_SIZE.1 - 96.0,
-    ))
-}
-
-fn open_pet(app: &AppHandle, pet: &PetSettings) -> tauri::Result<WebviewWindow> {
-    let mut builder = WebviewWindowBuilder::new(app, PET, WebviewUrl::App("pet.html".into()))
-        .title("AgenticOS pet")
-        .inner_size(PET_SIZE.0, PET_SIZE.1)
-        .transparent(true)
-        .decorations(false)
-        .shadow(false)
-        .always_on_top(true)
-        .visible_on_all_workspaces(true)
-        .skip_taskbar(true)
-        .resizable(false)
-        .maximizable(false)
-        .minimizable(false)
-        .accept_first_mouse(true);
-    if let Some((x, y)) = pet.position.map(|p| (p.x, p.y)).or_else(|| default_pet_position(app)) {
-        builder = builder.position(x, y);
+        .build()?;
+    // Now that the window exists its theme is known, and a light system with a
+    // dark console - or the other way round - gets the right colour behind it.
+    if let Ok(system) = window.theme() {
+        window.set_background_color(Some(loading_color(appearance, system)))?;
     }
-    builder.build()
+    let keeper = window.clone();
+    window.on_window_event(move |event| {
+        if let WindowEvent::CloseRequested { api, .. } = event {
+            if settings::current(keeper.app_handle()).window.keep_running {
+                api.prevent_close();
+                if let Err(e) = keeper.hide() {
+                    eprintln!("close: {e}");
+                }
+            } else {
+                keeper.app_handle().exit(0);
+            }
+        }
+    });
+    Ok(window)
 }
 
-fn toggle_pet(app: &AppHandle) -> Result<(), String> {
-    let mut settings = settings(app);
-    match app.get_webview_window(PET) {
-        Some(pet) => {
-            pet.close().map_err(|e| e.to_string())?;
-            settings.pet.enabled = false;
-        }
-        None => {
-            open_pet(app, &settings.pet).map_err(|e| e.to_string())?;
-            settings.pet.enabled = true;
+/// Open the windows that live beside the console: blobby, when it is shown, and
+/// quick ask, built hidden so the shortcut opens it at once. Both are pages of
+/// the server, so they wait until there is one that answers, and the server's
+/// origin is granted the commands those pages use before either loads.
+fn start_companions(app: &AppHandle, server: &Url, settings: &Settings) {
+    if let Err(e) = console::grant(app, server) {
+        eprintln!("console: {e}");
+        return;
+    }
+    if let Err(e) = blobby::sync(app, Some(server), &settings.blobby) {
+        eprintln!("blobby: {e}");
+    }
+    if app.get_webview_window(quick_ask::WINDOW).is_none() {
+        if let Err(e) = quick_ask::prepare(app, server, settings.appearance) {
+            eprintln!("quick ask: {e}");
         }
     }
-    save_settings(app, &settings)?;
-    app.state::<PetMenu>().reflect(&settings.pet).map_err(|e| e.to_string())
 }
 
-fn set_pet_kind(app: &AppHandle, kind: Kind) -> Result<(), String> {
-    let mut settings = settings(app);
-    settings.pet.kind = kind;
-    save_settings(app, &settings)?;
-    app.state::<PetMenu>()
-        .reflect(&settings.pet)
+/// The menu items shared by the menu bar, the tray icon and blobby's right-click
+/// menu, so a checkmark changed in one is changed in all three.
+pub struct ShellMenu {
+    blobby: blobby::BlobbyMenu,
+    open_console: MenuItem<Wry>,
+    new_chat: MenuItem<Wry>,
+    quick_ask: MenuItem<Wry>,
+    screenshot: MenuItem<Wry>,
+    settings: MenuItem<Wry>,
+    change_server: MenuItem<Wry>,
+}
+
+impl ShellMenu {
+    fn build(app: &AppHandle, settings: &Settings) -> tauri::Result<Self> {
+        Ok(Self {
+            blobby: blobby::BlobbyMenu::build(app, &settings.blobby)?,
+            open_console: MenuItem::with_id(app, OPEN_CONSOLE, "Open AgenticOS", true, None::<&str>)?,
+            new_chat: MenuItem::with_id(app, NEW_CHAT, "New Chat", true, Some("CmdOrCtrl+N"))?,
+            quick_ask: MenuItem::with_id(app, QUICK_ASK, "Quick Ask", true, None::<&str>)?,
+            screenshot: MenuItem::with_id(app, SCREENSHOT_CHAT, "Screenshot to New Chat", true, None::<&str>)?,
+            settings: MenuItem::with_id(app, SETTINGS, "Settings…", true, Some("CmdOrCtrl+,"))?,
+            change_server: MenuItem::with_id(app, CHANGE_SERVER, "Change Server…", true, None::<&str>)?,
+        })
+    }
+
+    /// The tray's menu, which is also blobby's: everything the shell does, with no window open.
+    fn tray(&self, app: &AppHandle) -> tauri::Result<Menu<Wry>> {
+        let separator = || PredefinedMenuItem::separator(app);
+        let blobby = self.blobby.submenu(app)?;
+        let quit = PredefinedMenuItem::quit(app, Some("Quit AgenticOS"))?;
+        Menu::with_items(
+            app,
+            &[
+                &self.open_console,
+                &self.new_chat,
+                &self.quick_ask,
+                &self.screenshot,
+                &separator()?,
+                &blobby,
+                &separator()?,
+                &self.settings,
+                &self.change_server,
+                &separator()?,
+                &quit,
+            ],
+        )
+    }
+
+    /// The macOS menu bar. Windows and Linux get none: a menu bar inside the
+    /// console's window is the one thing that would make it look like a
+    /// browser, and everything in it is in the tray.
+    fn menu_bar(&self, app: &AppHandle) -> tauri::Result<Menu<Wry>> {
+        let separator = || PredefinedMenuItem::separator(app);
+        let app_menu = Submenu::with_items(
+            app,
+            "AgenticOS",
+            true,
+            &[
+                &PredefinedMenuItem::about(app, Some("About AgenticOS"), None)?,
+                &separator()?,
+                &self.settings,
+                &self.change_server,
+                &separator()?,
+                &PredefinedMenuItem::services(app, None)?,
+                &separator()?,
+                &PredefinedMenuItem::hide(app, None)?,
+                &PredefinedMenuItem::hide_others(app, None)?,
+                &PredefinedMenuItem::show_all(app, None)?,
+                &separator()?,
+                &PredefinedMenuItem::quit(app, None)?,
+            ],
+        )?;
+        let file = Submenu::with_items(
+            app,
+            "File",
+            true,
+            &[
+                &self.new_chat,
+                &self.quick_ask,
+                &self.screenshot,
+                &separator()?,
+                &PredefinedMenuItem::close_window(app, None)?,
+            ],
+        )?;
+        let edit = Submenu::with_items(
+            app,
+            "Edit",
+            true,
+            &[
+                &PredefinedMenuItem::undo(app, None)?,
+                &PredefinedMenuItem::redo(app, None)?,
+                &separator()?,
+                &PredefinedMenuItem::cut(app, None)?,
+                &PredefinedMenuItem::copy(app, None)?,
+                &PredefinedMenuItem::paste(app, None)?,
+                &PredefinedMenuItem::select_all(app, None)?,
+            ],
+        )?;
+        let view = Submenu::with_items(
+            app,
+            "View",
+            true,
+            &[
+                &MenuItem::with_id(app, RELOAD, "Reload", true, Some("CmdOrCtrl+R"))?,
+                &separator()?,
+                &PredefinedMenuItem::fullscreen(app, None)?,
+            ],
+        )?;
+        let destinations = GO
+            .iter()
+            .map(|(id, label, _, accelerator)| MenuItem::with_id(app, *id, *label, true, Some(*accelerator)))
+            .collect::<tauri::Result<Vec<_>>>()?;
+        let back = MenuItem::with_id(app, BACK, "Back", true, Some("CmdOrCtrl+["))?;
+        let forward = MenuItem::with_id(app, FORWARD, "Forward", true, Some("CmdOrCtrl+]"))?;
+        let go_separator = separator()?;
+        let mut go_items: Vec<&dyn IsMenuItem<Wry>> = destinations.iter().map(|i| i as &dyn IsMenuItem<Wry>).collect();
+        go_items.extend([&go_separator as &dyn IsMenuItem<Wry>, &back, &forward]);
+        let go = Submenu::with_items(app, "Go", true, &go_items)?;
+        let window = Submenu::with_items(
+            app,
+            "Window",
+            true,
+            &[
+                &PredefinedMenuItem::minimize(app, None)?,
+                &PredefinedMenuItem::maximize(app, Some("Zoom"))?,
+                &separator()?,
+                &self.open_console,
+            ],
+        )?;
+        let help = Submenu::with_items(
+            app,
+            "Help",
+            true,
+            &[&MenuItem::with_id(
+                app,
+                DOCUMENTATION,
+                "AgenticOS Documentation",
+                true,
+                None::<&str>,
+            )?],
+        )?;
+        Menu::with_items(
+            app,
+            &[
+                &app_menu,
+                &file,
+                &edit,
+                &view,
+                &go,
+                &self.blobby.submenu(app)?,
+                &window,
+                &help,
+            ],
+        )
+    }
+}
+
+/// The tray icon's menu, under blobby's right mouse button.
+pub fn popup_tray_menu(app: &AppHandle, window: &WebviewWindow) -> Result<(), String> {
+    let menu = app.state::<ShellMenu>().tray(app).map_err(|e| e.to_string())?;
+    menu.popup(window.as_ref().window()).map_err(|e| e.to_string())
+}
+
+/// Blobby's settings changed: the checkmarks, then the window.
+pub fn reflect_blobby(app: &AppHandle, settings: &Settings) -> Result<(), String> {
+    app.state::<ShellMenu>()
+        .blobby
+        .reflect(&settings.blobby)
         .map_err(|e| e.to_string())?;
-    app.emit_to(PET, PET_KIND_EVENT, kind).map_err(|e| e.to_string())
+    blobby::sync(app, settings.server_url.as_ref(), &settings.blobby)
 }
 
-fn install_menu(app: &AppHandle, pet: &PetSettings) -> tauri::Result<()> {
-    let change_server = MenuItem::with_id(app, CHANGE_SERVER, "Change server…", true, None::<&str>)?;
-    let reload = MenuItem::with_id(app, RELOAD, "Reload", true, Some("CmdOrCtrl+R"))?;
-    let pet_menu = PetMenu::build(app, pet)?;
-    let server = Submenu::with_items(app, "Shell", true, &[&pet_menu.settings, &change_server, &reload])?;
+/// The count of what is waiting, beside the tray icon - the menu bar's title on
+/// macOS, the tooltip elsewhere, where a tray icon has no text of its own.
+pub fn tray_badge(app: &AppHandle, count: Option<u32>) -> Result<(), String> {
+    let Some(tray) = app.tray_by_id(TRAY) else {
+        return Ok(());
+    };
+    let label = count.map(|n| n.to_string());
+    if cfg!(target_os = "macos") {
+        tray.set_title(label.as_deref()).map_err(|e| e.to_string())
+    } else {
+        let tooltip = label.map_or_else(|| "AgenticOS".to_owned(), |n| format!("AgenticOS ({n})"));
+        tray.set_tooltip(Some(tooltip)).map_err(|e| e.to_string())
+    }
+}
 
-    let menu = Menu::default(app)?;
-    menu.insert(&server, 1)?;
-    menu.insert(&pet_menu.submenu(app)?, 2)?;
-    app.set_menu(menu)?;
+fn update_blobby(app: &AppHandle, change: impl FnOnce(&mut blobby::BlobbySettings)) -> Result<(), String> {
+    let (settings, ()) = settings::update(app, |settings| change(&mut settings.blobby))?;
+    reflect_blobby(app, &settings)
+}
 
-    let tray_menu = pet_menu.menu(app)?;
-    let mut tray = TrayIconBuilder::new()
-        .menu(&tray_menu)
+fn install_menu(app: &AppHandle, settings: &Settings) -> tauri::Result<TrayIcon> {
+    let shell_menu = ShellMenu::build(app, settings)?;
+    if cfg!(target_os = "macos") {
+        app.set_menu(shell_menu.menu_bar(app)?)?;
+    }
+    let mut tray = TrayIconBuilder::with_id(TRAY)
+        .menu(&shell_menu.tray(app)?)
         .show_menu_on_left_click(true)
         .tooltip("AgenticOS");
-    if let Some(icon) = app.default_window_icon() {
-        tray = tray.icon(icon.clone());
+    match tauri::image::Image::from_bytes(include_bytes!("../icons/tray-template.png")) {
+        Ok(icon) => tray = tray.icon(icon).icon_as_template(true),
+        Err(e) => {
+            eprintln!("tray icon: {e}");
+            if let Some(icon) = app.default_window_icon() {
+                tray = tray.icon(icon.clone());
+            }
+        }
     }
-    tray.build(app)?;
-    app.manage(pet_menu);
+    let tray = tray.build(app)?;
+    app.manage(shell_menu);
 
     app.on_menu_event(|app, event| {
         let id = event.id().as_ref();
         let outcome = match id {
-            SHOW_PET => toggle_pet(app),
-            NEW_CHAT => start_chat(app),
+            NEW_CHAT => open_in_console_at(app, "/chat"),
             OPEN_CONSOLE => bring_console(app),
-            SETTINGS => show_local_page(app, "settings.html"),
+            SETTINGS => open_in_console_at(app, "/settings/profile"),
+            blobby::CUSTOMIZE_MENU_ID => open_in_console_at(app, "/settings/desktop/blobby"),
+            QUICK_ASK => {
+                let settings = settings::current(app);
+                quick_ask::toggle(app, settings.server_url.as_ref(), settings.appearance)
+            }
             SCREENSHOT_CHAT => {
                 screenshot_to_chat(app);
                 Ok(())
             }
-            CHANGE_SERVER | RELOAD => match app.get_webview_window(WINDOW) {
-                Some(console) if id == RELOAD => console.eval("location.reload()").map_err(|e| e.to_string()),
-                Some(console) => console.navigate(connect_page()).map_err(|e| e.to_string()),
-                None => Ok(()),
+            DOCUMENTATION => app
+                .opener()
+                .open_url(DOCUMENTATION_URL, None::<&str>)
+                .map_err(|e| e.to_string()),
+            blobby::SHOW_MENU_ID => update_blobby(app, |blobby| blobby.enabled = !blobby.enabled),
+            CHANGE_SERVER | RELOAD | BACK | FORWARD => match app.get_webview_window(WINDOW) {
+                Some(console) if id == CHANGE_SERVER => console
+                    .navigate(connect_page())
+                    .map_err(|e| e.to_string())
+                    .and_then(|()| raise(&console)),
+                Some(console) => {
+                    let script = match id {
+                        BACK => "history.back()",
+                        FORWARD => "history.forward()",
+                        _ => "location.reload()",
+                    };
+                    console.eval(script).map_err(|e| e.to_string())
+                }
+                None => bring_console(app),
             },
-            other => match Kind::from_menu_id(other) {
-                Some(kind) => set_pet_kind(app, kind),
-                None => Ok(()),
+            other => match (
+                GO.iter().find(|(go, ..)| *go == other),
+                blobby::cast_from_menu_id(other),
+            ) {
+                (Some((_, _, path, _)), _) => open_in_console_at(app, path),
+                (None, Some(cast)) => update_blobby(app, |blobby| {
+                    blobby.character = blobby::Character::Cast { id: cast };
+                    blobby.enabled = true;
+                }),
+                (None, None) => Ok(()),
             },
         };
         if let Err(e) = outcome {
             eprintln!("menu action {id} failed: {e}");
         }
     });
-    Ok(())
+    Ok(tray)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -1159,68 +1092,93 @@ pub fn run() {
         // First, and it has to be: on Windows and Linux opening a registered
         // scheme *starts the executable again*, and a desktop sign-in always
         // begins with an instance already running. Without this the callback
-        // would build a second console, tray icon and pet, consume the code
+        // would build a second console, tray icon and blobby, consume the code
         // there, and leave the original window signed out - with two processes
         // competing for one global shortcut. The second instance hands its
         // argv over and exits.
-        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
-            if let Some(console) = app.get_webview_window(WINDOW) {
-                let _ = console.set_focus();
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            if let Err(e) = bring_console(app) {
+                eprintln!("{e}");
             }
-            let _ = app.emit("single-instance", argv);
         }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
+        // The console's size and place, and only the console's: blobby keeps
+        // its own position in the settings, and quick ask is placed where the
+        // cursor is every time it opens.
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_denylist(&[blobby::WINDOW, quick_ask::WINDOW])
+                .with_state_flags(
+                    tauri_plugin_window_state::StateFlags::all() & !tauri_plugin_window_state::StateFlags::VISIBLE,
+                )
+                .build(),
+        )
         .invoke_handler(tauri::generate_handler![
             server_url,
             startup_notice,
             connect,
             page_error,
-            pet_settings,
-            save_pet_position,
             show_console,
             open_chat,
-            pet_menu,
-            shortcuts,
-            set_screenshot_shortcut,
-            back_to_console
+            console::desktop_state,
+            console::set_appearance,
+            console::set_blobby,
+            console::save_blobby_position,
+            console::blobby_menu,
+            console::set_window_preferences,
+            console::notify,
+            console::set_badge,
+            console::open_in_console,
+            shortcuts::set_shortcut,
+            quick_ask::resize_quick_ask,
+            quick_ask::hide_quick_ask
         ])
         .manage(PendingSignIn::default())
+        .manage(console::Granted::default())
+        .manage(notify::Delivered::default())
+        .manage(shortcuts::Bindings::default())
         .setup(|app| {
             let handle = app.handle();
-            let (mut settings, unreadable) = load_or_quarantine(handle);
+            let (mut settings, unreadable) = settings::load_or_quarantine(handle);
             if let Some(typed) = server_argument(std::env::args().skip(1)) {
                 match parse_server_url(&typed) {
                     Ok(server) => {
                         settings.server_url = Some(server);
-                        if let Err(e) = save_settings(handle, &settings) {
+                        if let Err(e) = settings::save(handle, &settings) {
                             eprintln!("{e}");
                         }
                     }
                     Err(e) => eprintln!("--server: {e}"),
                 }
             }
-            install_menu(handle, &settings.pet)?;
-            let (start, notice) = console_start(settings.server_url);
+            install_menu(handle, &settings)?;
+            let (start, notice) = console_start(settings.server_url.clone());
             app.manage(StartupNotice(Mutex::new(notice.or(unreadable))));
             app.manage(PendingScreenshot(Mutex::new(None)));
-            app.manage(ShortcutBinding(Mutex::new(None)));
+            let reached = matches!(start, WebviewUrl::External(_));
+            if let (true, Some(server)) = (reached, settings.server_url.as_ref()) {
+                // Before the window loads the console: a page that asks the
+                // shell for its state as it mounts must find the grant there.
+                start_companions(handle, server, &settings);
+            }
             open_window(handle, start)?;
-            if let Some(accelerator) = &settings.shortcuts.screenshot_chat {
-                if let Err(e) = register_screenshot_shortcut(handle, accelerator) {
-                    eprintln!("{e}");
-                }
-            }
-            if settings.pet.enabled {
-                open_pet(handle, &settings.pet)?;
-            }
+            shortcuts::register_all(handle, &settings.shortcuts);
+            let actions = handle.clone();
+            app.notification()
+                .on_action(move |performed| notify::on_action(&actions, performed))?;
             // The return leg. A deep link is something any process on this
             // machine can fire, so all it is allowed to do is send the console
             // to one path on the server the user already chose.
             let deep_link_handle = handle.clone();
             app.deep_link().on_open_url(move |event| {
-                let chosen = load_settings(&deep_link_handle).ok().and_then(|s| s.server_url);
+                let chosen = settings::load(&deep_link_handle).ok().and_then(|s| s.server_url);
                 // The nonce this shell minted when it opened the browser. Taken
                 // out of the slot whether the link matches or not: a sign-in is
                 // answered once, so a second link carrying the same nonce is a
@@ -1246,19 +1204,30 @@ pub fn run() {
             });
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app, _event| {
+            // A click on the Dock icon with the console hidden is a request to see it.
+            #[cfg(target_os = "macos")]
+            if let RunEvent::Reopen { .. } = _event {
+                if let Err(e) = bring_console(_app) {
+                    eprintln!("{e}");
+                }
+            }
+        });
 }
 
 #[cfg(test)]
 mod tests {
     use std::net::TcpListener;
-    use std::str::FromStr;
     use std::time::{Duration, Instant};
 
+    use tauri::Theme;
+
     use super::{
-        attach_script, constant_time_eq, deep_link_return, external_sign_in_url, is_oauth_start, mint_nonce,
-        parse_server_url, reachable, Kind, PetSettings, Settings, Shortcuts, Url, DEFAULT_SCREENSHOT_SHORTCUT,
+        appearance, attach_script, constant_time_eq, deep_link_return, external_sign_in_url, is_oauth_start,
+        loading_color, mint_nonce, notify, parse_server_url, reachable, Appearance, Look, Url, GO, LOADING_DARK,
+        LOADING_LIGHT,
     };
 
     fn url(spelled: &str) -> Url {
@@ -1592,27 +1561,6 @@ mod tests {
     }
 
     #[test]
-    fn a_configuration_saved_before_shortcuts_existed_gets_the_default_binding() {
-        let settings: Settings = serde_json::from_str(r#"{"server_url":"https://agenticos.acme.com/"}"#).unwrap();
-        assert_eq!(
-            settings.shortcuts.screenshot_chat.as_deref(),
-            Some(DEFAULT_SCREENSHOT_SHORTCUT)
-        );
-    }
-
-    #[test]
-    fn a_shortcut_switched_off_stays_off() {
-        let raw = serde_json::to_string(&Shortcuts { screenshot_chat: None }).unwrap();
-        let back: Shortcuts = serde_json::from_str(&raw).unwrap();
-        assert!(back.screenshot_chat.is_none());
-    }
-
-    #[test]
-    fn the_default_binding_parses_as_a_shortcut() {
-        assert!(super::Shortcut::from_str(DEFAULT_SCREENSHOT_SHORTCUT).is_ok());
-    }
-
-    #[test]
     fn the_attach_script_carries_the_png_and_targets_the_composers_input() {
         let script = attach_script(&[0x89, b'P', b'N', b'G']);
         assert!(script.contains("iVBORw=="));
@@ -1621,39 +1569,29 @@ mod tests {
     }
 
     #[test]
-    fn a_configuration_saved_before_the_pet_existed_still_loads_with_the_pet_shown() {
-        let settings: Settings = serde_json::from_str(r#"{"server_url":"https://agenticos.acme.com/"}"#).unwrap();
-        assert_eq!(settings.server_url.unwrap().as_str(), "https://agenticos.acme.com/");
-        assert!(settings.pet.enabled);
-        assert_eq!(settings.pet.kind, Kind::Orbit);
-        assert!(settings.pet.position.is_none());
-    }
-
-    #[test]
-    fn a_tucked_away_pet_with_a_look_and_a_place_round_trips() {
-        let pet = PetSettings {
-            enabled: false,
-            kind: Kind::Ghost,
-            position: Some(super::Position { x: 12.5, y: 700.0 }),
-        };
-        let raw = serde_json::to_string(&Settings {
-            server_url: None,
-            pet,
-            shortcuts: Shortcuts::default(),
-        })
-        .unwrap();
-        let back: Settings = serde_json::from_str(&raw).unwrap();
-        assert!(!back.pet.enabled);
-        assert_eq!(back.pet.kind, Kind::Ghost);
-        assert_eq!(back.pet.position.unwrap().y, 700.0);
-        assert!(raw.contains(r#""kind":"ghost""#));
-    }
-
-    #[test]
-    fn every_pet_has_a_menu_entry_that_resolves_back_to_it() {
-        for kind in Kind::ALL {
-            assert_eq!(Kind::from_menu_id(kind.menu_id()), Some(kind));
+    fn every_destination_under_go_is_a_page_of_the_console() {
+        for (id, _, path, _) in GO {
+            assert!(notify::is_console_path(path), "{id}");
         }
-        assert_eq!(Kind::from_menu_id("show-pet"), None);
+    }
+
+    #[test]
+    fn the_loading_colour_follows_the_chosen_mode_and_then_the_systems() {
+        let mode = |mode| Appearance {
+            look: Look::Standard,
+            mode,
+        };
+        assert_eq!(loading_color(mode(appearance::Mode::Dark), Theme::Light), LOADING_DARK);
+        assert_eq!(loading_color(mode(appearance::Mode::Light), Theme::Dark), LOADING_LIGHT);
+        assert_eq!(loading_color(mode(appearance::Mode::System), Theme::Dark), LOADING_DARK);
+    }
+
+    #[test]
+    fn a_glass_console_paints_nothing_over_its_material() {
+        let glass = Appearance {
+            look: Look::Glass,
+            mode: appearance::Mode::Dark,
+        };
+        assert_eq!(loading_color(glass, Theme::Dark).3 == 0, appearance::VIBRANCY);
     }
 }

@@ -1,13 +1,16 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The connect page: the IPC it needs is the commands the shell defines, plus opening a sign-in in the system browser and being sent back to it.",
-  "windows": [
-    "main"
-  ],
+  "description": "The connect page, the one page the shell carries itself: asking for the server's address, and the title bar it is dragged by. The console's own pages are granted at runtime, for the configured server's origin only (console.rs).",
+  "windows": ["main"],
   "permissions": [
     "core:default",
+    "core:window:allow-start-dragging",
     "opener:allow-open-url",
-    "deep-link:default"
+    "deep-link:default",
+    "allow-server-url",
+    "allow-startup-notice",
+    "allow-connect",
+    "allow-page-error"
   ]
 }

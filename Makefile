@@ -488,8 +488,8 @@ build-frontend:
 	cd frontend && bun run build
 
 # The desktop shell is a window around a deployment's console, not a build of
-# the frontend: `desktop/ui` is the one page it carries itself, so none of these
-# needs `frontend/`. Rust comes from rustup; the Tauri CLI is pinned in
+# the frontend: `desktop/ui` is the one page it carries itself, and the only file
+# it reads from `frontend/` is blobby's cast. Rust comes from rustup; the Tauri CLI is pinned in
 # `desktop/package.json`. `desktop-check` is not in `lint` or `check`, because CI
 # has no Rust toolchain yet and `tests/test_ci_parity.py` would refuse the
 # difference (docs/desktop.md).
@@ -500,7 +500,6 @@ desktop-build:
 	cd desktop && bun run build
 
 desktop-check:
-	cd desktop && bun test
 	cd desktop/src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test -q
 
 # CI's `security` job. Audits what the lockfile resolves to - which is what a
@@ -960,7 +959,7 @@ help:
 	@echo "  make lint          Every static check: ruff, ty, eslint, prettier, tsc, the guards, codespell"
 	@echo "  make desktop-dev   Open the desktop shell against a console you name"
 	@echo "  make desktop-build Package the desktop shell for this machine"
-	@echo "  make desktop-check bun test, rustfmt, clippy and the shell's Rust tests"
+	@echo "  make desktop-check rustfmt, clippy and the shell's Rust tests"
 	@echo "  make lint-backend  Just the Python half"
 	@echo "  make lint-frontend Just the TypeScript half"
 	@echo "  make lint-spelling Just codespell, over every tracked file"
