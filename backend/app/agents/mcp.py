@@ -140,6 +140,9 @@ class McpServerSpec:
     # The organization's connection row this server is, so a call can be
     # recorded against it. None for a member's own connection and for `/mcp`.
     connection_id: UUID | None = None
+    # Tools, by the name the server gives them, that never wait for approval
+    # whatever `approval` says. Only this deployment's own server names any.
+    ungated: frozenset[str] = frozenset()
 
 
 @asynccontextmanager
@@ -288,10 +291,12 @@ def _make_toolset(spec: McpServerSpec) -> Any:
     if spec.allowed_tools is not None:
         allowed = set(spec.allowed_tools)
         server = server.filtered(lambda _ctx, tool: tool.name in allowed)
+    prefix = tool_prefix(spec.name)
     return ApprovalMarked(
-        FittedNames(server.prefixed(tool_prefix(spec.name))),
+        FittedNames(server.prefixed(prefix)),
         policy=spec.approval,
         account=spec.account,
+        ungated=frozenset(f"{prefix}_{name}" for name in spec.ungated),
     )
 
 
@@ -383,6 +388,7 @@ class ApprovalMarked(WrapperToolset[Any]):
 
     policy: McpApproval = "none"
     account: str | None = None
+    ungated: frozenset[str] = frozenset()
 
     async def get_tools(self, ctx: RunContext[Any]) -> dict[str, ToolsetTool[Any]]:
         tools = await super().get_tools(ctx)
@@ -394,7 +400,8 @@ class ApprovalMarked(WrapperToolset[Any]):
                     tool.tool_def,
                     metadata={
                         **(tool.tool_def.metadata or {}),
-                        NEEDS_APPROVAL: needs_approval(tool.tool_def, self.policy),
+                        NEEDS_APPROVAL: name not in self.ungated
+                        and needs_approval(tool.tool_def, self.policy),
                         **named,
                     },
                 ),
@@ -500,6 +507,13 @@ PLATFORM_MCP_NAME = "agenticos"
 
 PLATFORM_MCP_PREFIX = tool_prefix(PLATFORM_MCP_NAME)
 
+PLATFORM_UNGATED_TOOLS = frozenset({"set_my_language"})
+"""The platform's writes that never wait for approval - `platform_mcp._tools.UNGATED`.
+
+Named again rather than imported: the platform's server imports the application,
+which imports this layer.
+"""
+
 PLATFORM_MCP_URL = "http://agenticos/mcp"
 """Where the in-process client addresses `/mcp`. The host is never resolved."""
 
@@ -515,6 +529,7 @@ def platform_spec(
         allowed_tools=allowed_tools,
         approval=approval,
         in_process=True,
+        ungated=PLATFORM_UNGATED_TOOLS,
     )
 
 

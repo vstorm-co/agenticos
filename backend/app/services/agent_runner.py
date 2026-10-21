@@ -4781,6 +4781,7 @@ class AgentRunnerService:
         steering: SteeringInbox | None = None,
         aside: bool = False,
         reports_failure: bool = False,
+        draft: bool = False,
     ) -> tuple[str, AgentRun]:
         """Run an agent to completion and return its answer.
 
@@ -4821,6 +4822,9 @@ class AgentRunnerService:
         `steering` is the inbox of a surface whose person may add to the task
         while it runs, and `aside` answers a question on the side of one (#2087).
 
+        `draft` runs the unpublished draft as a test, as `prepare` documents - the
+        HTTP API's way of trying an agent before it is published (#2301).
+
         `reports_failure` is for the HTTP API: a run that fails once started raises
         :class:`RunFailedError` naming it - :class:`ModelCallFailedError` when the
         model provider was what failed - instead of the bare exception, so the
@@ -4844,6 +4848,7 @@ class AgentRunnerService:
             environment_id=environment_id,
             on_compaction=on_compaction,
             aside=aside,
+            draft=draft,
         )
         prepared.built.deps.steering = steering
         if steering is not None:

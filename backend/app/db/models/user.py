@@ -82,6 +82,10 @@ class User(Base, TimestampMixin):
     notify_usage_reports: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default=text("true"), nullable=False
     )
+    # The console language this person chose, from any device or through an
+    # agent asked to switch it. Null until they choose: the console then keeps
+    # whatever the browser's cookie or the URL says, as it always did.
+    locale: Mapped[str | None] = mapped_column(String(8), nullable=True)
 
     sessions: Mapped[list[Session]] = relationship(
         "Session",

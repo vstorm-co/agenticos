@@ -251,15 +251,57 @@ class TestMcpBindings:
         assert agent_templates.catalog() == ()
 
 
-class TestTheShippedClaudeCodeLikeAgent:
+class TestStartersAndAvatars:
+    def test_starters_and_an_avatar_beside_the_manifest_are_carried(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(agent_templates, "TEMPLATES_ROOT", tmp_path)
+        _write(
+            tmp_path,
+            "general",
+            "helper",
+            "---\nname: H\ndescription: d\nstarters:\n- What can you do?\n---\n\nYou help.\n",
+        )
+        (tmp_path / "general" / "helper" / agent_templates.AVATAR).write_bytes(b"\x89PNG")
+
+        [template] = agent_templates.catalog()[0].templates
+
+        assert template.starters == ("What can you do?",)
+        assert template.avatar == tmp_path / "general" / "helper" / "avatar.png"
+
+    def test_a_template_with_neither_has_none(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(agent_templates, "TEMPLATES_ROOT", tmp_path)
+        _write(tmp_path, "general", "helper", "---\nname: H\ndescription: d\n---\n\nYou help.\n")
+
+        [template] = agent_templates.catalog()[0].templates
+
+        assert template.starters == ()
+        assert template.avatar is None
+
+
+class TestTheShippedAgenticOSAgent:
     @pytest.mark.security
     def test_it_reaches_the_platform_with_writes_held_for_approval(self):
         """A fresh agent from it answers questions about the platform out of the
         box, and asks before changing anything there (#2190)."""
-        template = agent_templates.get("general/claude-code-like")
+        template = agent_templates.get("general/agenticos")
 
         assert template is not None
         assert {"account": "platform", "approval": "writes"} in template.mcp_servers
+
+    def test_it_is_called_after_the_product_and_wears_its_mark(self):
+        """The agent most people talk to first is the product's own (#2301)."""
+        template = agent_templates.get(agent_templates.STARTER_TEMPLATE)
+
+        assert template is not None
+        assert template.name == "AgenticOS"
+        assert template.avatar is not None
+        assert template.avatar.read_bytes().startswith(b"\x89PNG")
+
+    def test_its_instructions_name_whichever_agent_they_are_copied_into(self):
+        """A new agent starts from these instructions, so they say its own name."""
+        template = agent_templates.get(agent_templates.STARTER_TEMPLATE)
+
+        assert template is not None
+        assert template.instructions.startswith("You are {{agent_name}}")
 
 
 def _instruction_texts(value: object) -> list[str]:

@@ -22,7 +22,6 @@ import pytest
 from pydantic import BaseModel
 
 from app.agents.capabilities import REGISTRY, CapabilityToolInfo, load_builtins, register
-from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
 from app.agents.spec import (
     SPEC_VERSION,
     AgentSpec,
@@ -44,6 +43,7 @@ from app.db.models.agent import AgentStatus
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.schemas.agent import AgentCreate
 from app.schemas.deployment_settings import DeploymentLimits
+from app.services import agent_templates
 from app.services.agent_registry import AgentRegistryService, slugify
 
 REGISTRY_PATH = "app.services.agent_registry"
@@ -455,6 +455,58 @@ class TestMetadata:
 
 
 class TestList:
+    @pytest.fixture(autouse=True)
+    def _no_published_starters(self):
+        """The listing reads each version's starters; these tests are about the rest."""
+        with patch(
+            f"{REGISTRY_PATH}.agent_repo.published_starters", new=AsyncMock(return_value={})
+        ):
+            yield
+
+    @pytest.mark.anyio
+    async def test_a_published_agents_starters_ride_the_listing_and_a_drafts_do_not(self):
+        """What an empty chat offers - the published version's, never the draft's."""
+        ctx = _ctx(OrgRoleName.OWNER)
+        version_id = uuid.uuid4()
+        published = _agent(ctx, current_version_id=version_id)
+        draft = _agent(ctx)
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([published, draft], 2)),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.resource_grant_repo.count_for_resources",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_exposure_repo.active_surfaces_for_agents",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_budget_caps",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_compaction_windows",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_model_profiles",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_starters",
+                new=AsyncMock(return_value={version_id: ["What can you do?"]}),
+            ) as starters,
+        ):
+            rows, _total = await AgentRegistryService(_db()).list_agents(ctx)
+
+        assert starters.call_args.kwargs["version_ids"] == [version_id]
+        assert rows[0].starters == ["What can you do?"]
+        assert rows[1].starters == []
+
     @pytest.mark.anyio
     async def test_a_role_that_sees_everything_never_looks_up_grants(self):
         """A query per listing, on every page, for a set that cannot narrow anything."""
@@ -1120,10 +1172,18 @@ class TestMayRun:
 
 
 class TestCreate:
+    @pytest.fixture(autouse=True)
+    def _starter_skills_installed(self):
+        """A spec with no instructions is made the starter; its skills are not the point here."""
+        with patch.object(AgentRegistryService, "template_skills", new=AsyncMock(return_value=[])):
+            yield
+
     @pytest.mark.anyio
     async def test_a_new_agent_starts_as_a_draft_holding_the_submitted_spec(self):
         ctx = _ctx()
-        spec = _spec("Support Bot", description="Answers customers")
+        spec = _spec(
+            "Support Bot", description="Answers customers", instructions="Answer customers."
+        )
 
         with (
             patch(f"{REGISTRY_PATH}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)),
@@ -1138,13 +1198,9 @@ class TestCreate:
         assert written["slug"] == "support-bot"
         assert written["name"] == "Support Bot"
         assert written["description"] == "Answers customers"
-        # The submitted spec, with one substitution: a new agent opens with a
-        # starting prompt rather than an empty box. `TestWhatANewAgentOpensWith`
-        # below is where that behaviour is pinned.
-        assert written["draft_spec"] == {
-            **spec.model_dump(mode="json"),
-            "instructions": DEFAULT_INSTRUCTIONS,
-        }
+        # The submitted spec as it was: one with no instructions is made the
+        # starter agent, which `TestWhatANewAgentOpensWith` pins.
+        assert written["draft_spec"] == spec.model_dump(mode="json")
         assert written["owner_user_id"] == ctx.user_id
         assert audit.call_args.kwargs["action"] == "agent.created"
 
@@ -3068,6 +3124,12 @@ def _uncapped():
 
 
 class TestClone:
+    @pytest.fixture(autouse=True)
+    def _starter_skills_installed(self):
+        """A spec with no instructions is made the starter; its skills are not the point here."""
+        with patch.object(AgentRegistryService, "template_skills", new=AsyncMock(return_value=[])):
+            yield
+
     @pytest.mark.anyio
     async def test_a_clone_copies_the_draft_and_starts_over(self):
         """The spec is what carries over. Everything else is a statement about
@@ -3475,51 +3537,85 @@ class TestAvatar:
 
 
 class TestWhatANewAgentOpensWith:
-    """A prompt, not an empty box.
+    """The starter agent, not an empty box (#2301).
 
     An agent with no instructions still answers - as whatever the underlying model
     is by default, which is a different product on every provider and changes when
-    the model is upgraded.
+    the model is upgraded. So a new one starts as AgenticOS does, and its author
+    edits from there.
     """
 
-    @pytest.mark.anyio
-    async def test_a_new_agent_is_given_a_starting_prompt(self):
-        created = MagicMock()
+    @staticmethod
+    async def _created(spec: AgentSpec, *, skill_id: uuid.UUID | None = None) -> dict:
+        skills = [] if skill_id is None else [MagicMock(id=skill_id)]
         with (
             patch(f"{REGISTRY_PATH}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)),
             patch(
-                f"{REGISTRY_PATH}.agent_repo.create", new=AsyncMock(return_value=created)
+                f"{REGISTRY_PATH}.agent_repo.create", new=AsyncMock(return_value=MagicMock())
             ) as create,
+            patch.object(
+                AgentRegistryService, "template_skills", new=AsyncMock(return_value=skills)
+            ),
         ):
-            await AgentRegistryService(_db()).create(_ctx(), _spec("Support"))
+            await AgentRegistryService(_db()).create(_ctx(), spec)
+        return create.call_args.kwargs["draft_spec"]
 
-        assert create.call_args.kwargs["draft_spec"]["instructions"] == DEFAULT_INSTRUCTIONS
+    @pytest.mark.anyio
+    async def test_a_new_agent_is_made_the_starter_agent(self):
+        starter = agent_templates.get(agent_templates.STARTER_TEMPLATE)
+        assert starter is not None
+        skill_id = uuid.uuid4()
+
+        written = await self._created(_spec("Support"), skill_id=skill_id)
+
+        assert written["name"] == "Support"
+        assert written["instructions"] == starter.instructions
+        assert [binding["id"] for binding in written["capabilities"]] == [
+            binding["id"] for binding in agent_templates.for_this_deployment(starter.capabilities)
+        ]
+        assert written["mcp_servers"] == [
+            {"account": "platform", "allowed_tools": None, "approval": "writes"}
+        ]
+        assert written["skill_ids"] == [str(skill_id)]
+        assert written["budget"]["monthly_usd"] == starter.budget_usd
+        assert written["starters"] == list(starter.starters)
+
+    @pytest.mark.anyio
+    async def test_what_the_author_chose_is_kept(self):
+        """The create dialog sends the capabilities it showed; they are the ones bound."""
+        skill_id = uuid.uuid4()
+        written = await self._created(
+            _spec(
+                "Support",
+                capabilities=[{"id": "clock"}],
+                budget={"monthly_usd": 5},
+                mcp_servers=[{"account": "platform", "approval": "all"}],
+                skill_ids=[skill_id],
+                starters=["Where is my order?"],
+            )
+        )
+
+        assert [binding["id"] for binding in written["capabilities"]] == ["clock"]
+        assert written["budget"]["monthly_usd"] == 5
+        assert written["mcp_servers"][0]["approval"] == "all"
+        assert written["skill_ids"] == [str(skill_id)]
+        assert written["starters"] == ["Where is my order?"]
 
     @pytest.mark.anyio
     async def test_a_prompt_somebody_wrote_is_left_alone(self):
-        with (
-            patch(f"{REGISTRY_PATH}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)),
-            patch(
-                f"{REGISTRY_PATH}.agent_repo.create", new=AsyncMock(return_value=MagicMock())
-            ) as create,
-        ):
-            await AgentRegistryService(_db()).create(
-                _ctx(), _spec("Support", instructions="Answer only in Polish.")
-            )
+        written = await self._created(_spec("Support", instructions="Answer only in Polish."))
 
-        assert create.call_args.kwargs["draft_spec"]["instructions"] == "Answer only in Polish."
+        assert written["instructions"] == "Answer only in Polish."
+        assert written["mcp_servers"] == []
 
     @pytest.mark.anyio
     async def test_a_prompt_of_only_whitespace_is_not_a_prompt(self):
-        with (
-            patch(f"{REGISTRY_PATH}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)),
-            patch(
-                f"{REGISTRY_PATH}.agent_repo.create", new=AsyncMock(return_value=MagicMock())
-            ) as create,
-        ):
-            await AgentRegistryService(_db()).create(_ctx(), _spec("Support", instructions="   \n"))
+        starter = agent_templates.get(agent_templates.STARTER_TEMPLATE)
+        assert starter is not None
 
-        assert create.call_args.kwargs["draft_spec"]["instructions"] == DEFAULT_INSTRUCTIONS
+        written = await self._created(_spec("Support", instructions="   \n"))
+
+        assert written["instructions"] == starter.instructions
 
 
 class TestWorkspaceConfigurationsRefusedAtPublish:
@@ -3937,6 +4033,12 @@ class TestASharedWorkspaceIsAnswerableAfterwards:
 
 
 class TestACapabilityAgentsMayNotBind:
+    @pytest.fixture(autouse=True)
+    def _starter_skills_installed(self):
+        """A spec with no instructions is made the starter; its skills are not the point here."""
+        with patch.object(AgentRegistryService, "template_skills", new=AsyncMock(return_value=[])):
+            yield
+
     """`channel_tools` is granted per bound bot, and the Toolbox does not offer it.
 
     What the product *can* still do is send it back: a browser holding a draft
@@ -4066,6 +4168,7 @@ class TestAgentTemplates:
         template.capabilities = ({"id": "knowledge"}, {"id": "clock"})
         template.skills = ("healthcare/clinical-procedure-lookup",)
         template.mcp, template.attach, template.budget_usd = ("github",), ("collection",), 50.0
+        template.starters, template.avatar = (), None
 
         entry = MagicMock()
         entry.name = "Clinical procedure lookup"
@@ -4112,16 +4215,17 @@ class TestAgentTemplates:
         pages without the skill written to style them.
         """
         template = MagicMock()
-        template.key, template.name = "general/claude-code-like", "Claude Code like"
+        template.key, template.name = "general/agenticos", "AgenticOS"
         template.description, template.instructions = "d", "You work..."
         template.capabilities = ({"id": "artifacts"},)
         template.skills = ("artifact-pages",)
         template.mcp, template.attach, template.budget_usd = (), (), None
+        template.starters, template.avatar = (), None
 
         row = MagicMock()
         row.id, row.name = uuid4(), "artifact-pages"
         created = MagicMock()
-        created.id, created.slug, created.name = uuid4(), "claude-code-like", template.name
+        created.id, created.slug, created.name = uuid4(), "agenticos", template.name
 
         with (
             patch(f"{REGISTRY_PATH}.agent_templates.get", return_value=template),
@@ -4134,9 +4238,7 @@ class TestAgentTemplates:
                 AgentRegistryService, "create", new=AsyncMock(return_value=created)
             ) as create,
         ):
-            result = await AgentRegistryService(_db()).install_template(
-                _ctx(), "general/claude-code-like"
-            )
+            result = await AgentRegistryService(_db()).install_template(_ctx(), "general/agenticos")
 
         skills.return_value.install_gallery.assert_not_called()
         assert by_name.await_args.args[1] == "artifact-pages"
@@ -4149,15 +4251,16 @@ class TestAgentTemplates:
         """A bundled copy its owner made private would otherwise be bound, reported
         as installed, and refused at publish as a skill that does not exist."""
         template = MagicMock()
-        template.key, template.name = "general/claude-code-like", "Claude Code like"
+        template.key, template.name = "general/agenticos", "AgenticOS"
         template.description, template.instructions = "d", "You work..."
         template.capabilities = ({"id": "artifacts"},)
         template.skills = ("artifact-pages",)
         template.mcp, template.attach, template.budget_usd = (), (), None
+        template.starters, template.avatar = (), None
         row = MagicMock()
         row.id, row.name = uuid4(), "artifact-pages"
         created = MagicMock()
-        created.id, created.slug, created.name = uuid4(), "claude-code-like", template.name
+        created.id, created.slug, created.name = uuid4(), "agenticos", template.name
 
         with (
             patch(f"{REGISTRY_PATH}.agent_templates.get", return_value=template),
@@ -4168,13 +4271,43 @@ class TestAgentTemplates:
                 AgentRegistryService, "create", new=AsyncMock(return_value=created)
             ) as create,
         ):
-            result = await AgentRegistryService(_db()).install_template(
-                _ctx(), "general/claude-code-like"
-            )
+            result = await AgentRegistryService(_db()).install_template(_ctx(), "general/agenticos")
 
         assert access.await_args.args[3] is Perm.SKILLS_VIEW
         assert create.await_args.args[1].skill_ids == []
         assert result.skills_installed == []
+
+    @pytest.mark.anyio
+    async def test_an_agent_installed_from_a_template_wears_its_mark_and_starters(self, tmp_path):
+        """AgenticOS installs with the product's logo, as the Architect does (#2301)."""
+        avatar = tmp_path / "avatar.png"
+        avatar.write_bytes(b"\x89PNG mark")
+        template = MagicMock()
+        template.key, template.name = "general/agenticos", "AgenticOS"
+        template.description, template.instructions = "d", "You work..."
+        template.capabilities, template.skills = (), ()
+        template.mcp, template.attach, template.budget_usd = (), (), None
+        template.starters, template.avatar = ("What can you do?",), avatar
+        created = MagicMock()
+        created.id, created.slug, created.name = uuid4(), "agenticos", template.name
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_templates.get", return_value=template),
+            patch.object(
+                AgentRegistryService, "create", new=AsyncMock(return_value=created)
+            ) as create,
+            patch.object(
+                AgentRegistryService, "set_avatar", new=AsyncMock(return_value=created)
+            ) as set_avatar,
+        ):
+            await AgentRegistryService(_db()).install_template(_ctx(), "general/agenticos")
+
+        assert create.await_args.args[1].starters == ["What can you do?"]
+        assert set_avatar.await_args.args[1] == created.id
+        assert set_avatar.await_args.kwargs == {
+            "file_data": b"\x89PNG mark",
+            "content_type": "image/png",
+        }
 
     @pytest.mark.anyio
     async def test_a_template_with_no_skills_installs_nothing(self):
@@ -4185,6 +4318,7 @@ class TestAgentTemplates:
         template.capabilities = ()
         template.skills, template.mcp, template.attach = (), (), ()
         template.budget_usd = None
+        template.starters, template.avatar = (), None
         created = MagicMock()
         created.id, created.slug, created.name = uuid4(), "release-notes-writer", template.name
 
@@ -4307,13 +4441,13 @@ class TestTheShippedTemplatesOnDisk:
                     await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
 
     def test_the_general_purpose_template_delegates_and_works_in_a_workspace(self):
-        """`general/claude-code-like` is the one template meant to be useful for
+        """`general/agenticos` is the one template meant to be useful for
         anything, so what it switches on is the point of it: files and a shell,
         planning, delegation to specialists sharing that workspace, and the web.
         """
         from app.services import agent_templates
 
-        template = agent_templates.get("general/claude-code-like")
+        template = agent_templates.get("general/agenticos")
         assert template is not None
         bound = {binding["id"]: binding.get("config") or {} for binding in template.capabilities}
         assert {

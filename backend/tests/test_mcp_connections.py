@@ -490,6 +490,48 @@ class TestApprovalMarks:
         assert named["send"].tool_def.metadata[ACCOUNT] == "Work"
         assert ACCOUNT not in unnamed["send"].tool_def.metadata
 
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_an_ungated_write_runs_unasked_under_every_policy_and_only_it(self):
+        """The platform's language switch (#2301): its own server names it, and no
+        other tool - the publish beside it above all - slips through with it."""
+        from pydantic_ai.toolsets.abstract import ToolsetTool
+
+        from app.agents.mcp import NEEDS_APPROVAL, ApprovalMarked
+
+        inner = MagicMock()
+        inner.get_tools = AsyncMock(
+            return_value={
+                name: ToolsetTool(
+                    toolset=inner,
+                    tool_def=_mcp_tool(name, False),
+                    max_retries=1,
+                    args_validator=MagicMock(),
+                )
+                for name in ("agenticos_set_my_language", "agenticos_publish_agent")
+            }
+        )
+
+        marked = await ApprovalMarked(
+            inner, policy="all", ungated=frozenset({"agenticos_set_my_language"})
+        ).get_tools(MagicMock())
+
+        assert marked["agenticos_set_my_language"].tool_def.metadata[NEEDS_APPROVAL] is False
+        assert marked["agenticos_publish_agent"].tool_def.metadata[NEEDS_APPROVAL] is True
+
+    def test_only_the_platform_s_own_server_names_ungated_tools(self):
+        from app.agents.mcp import (
+            PLATFORM_UNGATED_TOOLS,
+            McpServerSpec,
+            _make_toolset,
+            platform_spec,
+        )
+
+        platform = platform_spec("aos_key", allowed_tools=None, approval="writes")
+        assert platform.ungated == PLATFORM_UNGATED_TOOLS
+        assert McpServerSpec(name="notion", url="https://mcp.notion.com/mcp").ungated == frozenset()
+        assert _make_toolset(platform).ungated == frozenset({"agenticos_set_my_language"})
+
 
 class TestToolOrigins:
     @pytest.mark.anyio

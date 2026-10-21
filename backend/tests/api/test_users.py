@@ -145,6 +145,35 @@ async def test_update_current_user(auth_client: AsyncClient, mock_user_service: 
 
 
 @pytest.mark.anyio
+async def test_the_console_language_is_kept_on_the_account(
+    auth_client: AsyncClient, mock_user: MockUser, mock_user_service: MagicMock
+):
+    """What an agent asked to "switch to English" changes, through the platform's
+    MCP server (#2301): the one preference, and nothing else on the account."""
+    response = await auth_client.put(
+        f"{settings.API_V1_STR}/users/me/locale", json={"locale": "en"}
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"locale": "en"}
+    user_id, update = mock_user_service.update.await_args.args
+    assert user_id == mock_user.id
+    assert update.model_dump(exclude_unset=True) == {"locale": "en"}
+
+
+@pytest.mark.anyio
+async def test_a_language_the_console_is_not_translated_into_is_refused(
+    auth_client: AsyncClient, mock_user_service: MagicMock
+):
+    response = await auth_client.put(
+        f"{settings.API_V1_STR}/users/me/locale", json={"locale": "es"}
+    )
+
+    assert response.status_code == 422
+    mock_user_service.update.assert_not_awaited()
+
+
+@pytest.mark.anyio
 async def test_a_staged_email_change_mails_the_new_address_and_the_old_one(
     auth_client: AsyncClient, mock_user: MockUser, mock_user_service: MagicMock
 ):

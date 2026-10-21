@@ -46,6 +46,7 @@ from app.api.public_api import PUBLIC
 from app.api.routes.v1._stored_bytes import stored_image_response
 from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.field_errors import refused_field
 from app.core.permissions import Perm
 from app.db.models.agent_run import RunSurface
 from app.schemas.agent import (
@@ -215,7 +216,12 @@ async def list_platform_mcp_tools() -> Any:
     by who reads this list.
     """
     items = [
-        PlatformMcpTool(name=tool.name, description=tool.summary, writes=tool.writes)
+        PlatformMcpTool(
+            name=tool.name,
+            description=tool.summary,
+            writes=tool.writes,
+            ungated=tool.ungated,
+        )
         for tool in platform_tool_catalog()
     ]
     return PlatformMcpToolList(items=items, total=len(items))
@@ -798,6 +804,10 @@ async def run_agent(
     then is `Idempotency-Key` honoured; a synchronous call carrying one is refused
     rather than letting the caller believe a retry is safe when it is not.
     """
+    if respond_async and data.draft:
+        raise refused_field(
+            "draft", "A draft is tried synchronously - leave out Prefer: respond-async"
+        )
     if respond_async:
         queued = await api_runs.queue(ctx, agent_id, data, idempotency_key=idempotency_key)
         return JSONResponse(
@@ -837,6 +847,7 @@ async def run_agent(
         environment_id=data.environment_id,
         attachments=attachments,
         reports_failure=True,
+        draft=data.draft,
     )
     return AgentRunResult(
         run_id=run.id,

@@ -1,11 +1,15 @@
 """User schemas."""
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import EmailStr, Field, field_validator
 
 from app.schemas.base import BaseSchema, TimestampSchema
+
+ConsoleLocale = Literal["en", "pl", "de"]
+"""The languages the console is translated into - `frontend/src/lib/locales.ts`."""
 
 
 class UserBase(BaseSchema):
@@ -71,6 +75,10 @@ class UserUpdate(BaseSchema):
         default=None,
         description="Email me the weekly and monthly usage reports.",
     )
+    locale: ConsoleLocale | None = Field(
+        default=None,
+        description="The console's language for me, on every device.",
+    )
 
     @field_validator("email")
     @classmethod
@@ -98,6 +106,13 @@ class UserRead(UserBase, TimestampSchema):
     notify_budget_alerts: bool = True
     notify_approval_requests: bool = True
     notify_usage_reports: bool = True
+    locale: ConsoleLocale | None = None
+
+
+class UserLocale(BaseSchema):
+    """The console language a person chose, on its own."""
+
+    locale: ConsoleLocale
 
 
 class UserInDB(UserRead):

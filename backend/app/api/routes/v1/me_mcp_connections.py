@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException, status
 
 from app.agents.mcp_oauth import OAuthError
 from app.api.deps import CurrentUser, McpConnectionSvc
+from app.api.public_api import PUBLIC
 from app.core.exceptions import NotFoundError
 from app.schemas.mcp_connection import (
     McpConnectionCreate,
@@ -31,9 +32,14 @@ from app.schemas.mcp_connection import (
 router = APIRouter()
 
 
-@router.get("", response_model=McpConnectionList)
+@router.get("", response_model=McpConnectionList, dependencies=[PUBLIC])
 async def list_mcp_connections(service: McpConnectionSvc, user: CurrentUser) -> Any:
-    """List the current user's MCP server connections."""
+    """List the current user's MCP server connections.
+
+    Public, the one route here that is: an agent suggesting what to connect
+    reads what its person already has through the platform's MCP server (#2301).
+    The tokens are never in it.
+    """
     items, total = await service.list_for_user(user_id=user.id)
     return McpConnectionList(
         items=[McpConnectionRead.from_model(c) for c in items],

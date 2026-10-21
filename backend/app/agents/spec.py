@@ -32,6 +32,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    StringConstraints,
     field_validator,
     model_serializer,
     model_validator,
@@ -80,6 +81,14 @@ logger = logging.getLogger(__name__)
 # `use_vision` as `vision`. A spec that bound both keeps the step-by-step one,
 # which was the one that could run.
 SPEC_VERSION = 13
+
+MAX_STARTERS = 4
+"""How many first messages an agent offers - what an empty chat shows at once."""
+
+Starter = Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)]
+"""One first message: a line somebody sends with a click, so short. A blank one
+is dropped by `AgentSpec` rather than refused - the Builder saves as it is typed,
+and a starter cleared to retype it is not an invalid draft."""
 
 ApprovalMode = Literal["default", "required", "never"]
 
@@ -1372,6 +1381,14 @@ class AgentSpec(BaseModel):
         default_factory=list,
         description="Custom variables the instructions may use as `{{name}}`",
     )
+    starters: list[Starter] = Field(
+        default_factory=list,
+        max_length=MAX_STARTERS,
+        description=(
+            "First messages the chat offers whoever opens this agent with nothing "
+            "said yet - one click sends one. Up to four; none shows the chat's own"
+        ),
+    )
     time_zone: str = Field(
         default="system",
         max_length=64,
@@ -1641,6 +1658,12 @@ class AgentSpec(BaseModel):
             },
         }
         return _with_thinking_binding(migrated, settings.get(_THINKING_SETTING))
+
+    @field_validator("starters")
+    @classmethod
+    def _blank_starters_are_none(cls, starters: list[str]) -> list[str]:
+        """A starter cleared to nothing is dropped, not refused - see `Starter`."""
+        return [starter for starter in starters if starter]
 
     @field_validator("capabilities")
     @classmethod

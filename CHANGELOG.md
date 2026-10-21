@@ -19,6 +19,56 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **The agents people meet first guide them (#2301).** The general-purpose
+  starter agent is now called **AgenticOS** and wears the product's logo. It leads
+  with the answer, asks one question with proposed answers when a request is
+  ambiguous, uses what it has without being asked, and after a task offers the one
+  next step that fits - often something the person has not used yet: a routine for
+  a request that will come back, an app to share, a service to connect. It
+  remembers preferences and what was declined, and switches the console's
+  language when asked. The **Architect** builds an agent with you from "what
+  should it do" to a tested, published agent, one decision at a time: it proposes
+  the capabilities, knowledge and model, explains each choice in a line, tries the
+  draft on your own questions and publishes it when you approve.
+- **A new agent starts as AgenticOS.** An agent created from scratch gets the
+  starter's instructions - opening with its own `{{agent_name}}` - and whatever of
+  its capabilities, skills, platform tools, first messages and budget the creator
+  left empty. `backend/app/agents/default_instructions.py` is gone; the template is
+  the one source.
+- **Every agent knows its own setup.** Each text run's instructions carry a
+  **Your setup** section assembled from the spec: the capabilities the agent has,
+  in the Toolbox's words, and the ones it has not, so "what can you do?" is
+  answered from what is switched on and a request needing something missing is
+  told what to switch on and where.
+- **The platform's MCP server builds and schedules.** New tools: `update_agent_draft`,
+  `test_agent_draft`, `publish_agent` (needs `agents:publish`, always waits for
+  approval, runs the Publish checks), `list_models`, `list_routines`,
+  `create_routine`, `update_routine`, `run_routine_now`, `delete_routine`,
+  `search_mcp_servers`, `list_my_connections` and `set_my_language`. The last is
+  the one write no binding holds for approval, and the Builder's platform card
+  says so.
+- **The console's language is kept on the account.** Chosen in the account menu or
+  through an agent, it holds on every device, and the open console switches the
+  moment an agent's `set_my_language` call answers. Migration `0159_user_locale`
+  adds a nullable `users.locale`; nobody's language changes until they choose one.
+- **First messages.** `AgentSpec.starters`, up to four, set under the instructions
+  in the Builder, are the cards an empty chat offers; an agent with none shows the
+  chat's own, now including "What can you do?" and "Set up a routine". The
+  Architect ships with four. The spec stays at version 13: the field is optional.
+- **Public API.** `POST /agents/{id}/run` takes `"draft": true` to run the
+  unpublished draft as a test (not with `Prefer: respond-async`); the trigger
+  routes under `/agents/{id}/triggers` and `GET /triggers`,
+  `GET /providers/model-profiles`, `GET /me/mcp-connections` and the new
+  `PUT /users/me/locale` are reachable with an organization key.
+
+### Changed
+
+- A fresh organization's starter agent is installed as **AgenticOS**
+  (`@agenticos`). An organization bootstrapped earlier keeps its
+  `@claude-code-like` agent as it is - an agent's handle never changes.
+
 ## [1.10.0] - 2026-10-21
 
 ### Added

@@ -225,6 +225,14 @@ class AgentRead(BaseSchema):
             "shared_user_count."
         ),
     )
+    starters: list[str] = Field(
+        default_factory=list,
+        description=(
+            "The published version's first messages, which an empty chat offers - read "
+            "off the frozen spec, not the draft. Empty for a draft agent and for one "
+            "with none. Filled by the listing, same bargain as shared_user_count."
+        ),
+    )
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -543,7 +551,7 @@ class CapabilityCatalogEntry(BaseSchema):
     recommended: CapabilityBindingSpec | None = Field(
         default=None,
         description=(
-            "How the starter agent (the Claude Code like template) binds this "
+            "How the starter agent (the AgenticOS template) binds this "
             "capability, or null where it does not. The console marks these "
             "Recommended and switches them on for a new agent."
         ),
@@ -631,6 +639,13 @@ class PlatformMcpTool(BaseSchema):
     writes: bool = Field(
         description="Whether it changes something - held for approval under `approval: writes`"
     )
+    ungated: bool = Field(
+        default=False,
+        description=(
+            "Whether it runs without approval under every policy - a write that changes "
+            "only the caller's own preference, such as the console's language"
+        ),
+    )
 
 
 class PlatformMcpToolList(BaseSchema):
@@ -682,6 +697,15 @@ class AgentRunRequest(BaseSchema):
             "workspace when it has one, read into the prompt when it does not - which "
             "is the same routing the chat and the widget get. They must be the "
             "caller's own uploads"
+        ),
+    )
+    draft: bool = Field(
+        default=False,
+        description=(
+            "Run the unpublished draft instead of a version, as the Builder's test "
+            "panel does: a test run, budgeted and recorded. Needs `agents:edit` on the "
+            "agent, and the draft must pass the checks a publish makes. Not with "
+            "`environment_id`, nor with `Prefer: respond-async`"
         ),
     )
 

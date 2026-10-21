@@ -6,8 +6,10 @@ is one name, one description and one call for every caller.
 
 Every description names the permission the call needs, because the caller's key
 or token decides what succeeds and a model told up front stops asking for what
-it will be refused. Nothing here publishes or touches a credential, and the one
-thing that deletes is undoing an agent draft its caller owns and never published.
+it will be refused. Nothing here touches a credential. What deletes is undoing an
+agent draft its caller owns and never published, and removing a routine; what
+publishes is `publish_agent`, held for the person's approval like every write
+here but `UNGATED` (#2301).
 """
 
 from collections.abc import Awaitable, Callable
@@ -15,9 +17,19 @@ from dataclasses import dataclass
 from typing import Any, Literal
 from uuid import UUID
 
+from app.schemas.user import ConsoleLocale
 from app.services.platform_mcp._api import PlatformApi
 
 InviteRole = Literal["admin", "builder", "operator", "member", "viewer"]
+
+UNGATED = frozenset({"set_my_language"})
+"""Writes no binding holds for a person's approval, whatever its policy.
+
+Changing the console's language changes one preference of the person asking, on
+their own word, and one click undoes it - an approval card for "switch to
+English" would be the whole conversation. `app.agents.mcp` names the same set as
+`PLATFORM_UNGATED_TOOLS`, and a test holds the two equal.
+"""
 
 
 @dataclass(frozen=True)
@@ -28,6 +40,11 @@ class PlatformTool:
     """Whether it changes something. An MCP client is told so through the tool's
     read-only hint, which is also what holds the call for a person's approval
     under a binding's default `writes` policy."""
+
+    @property
+    def ungated(self) -> bool:
+        """Whether no binding holds a call to it for approval - see `UNGATED`."""
+        return self.name in UNGATED
 
     @property
     def summary(self) -> str:
@@ -55,13 +72,18 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         instructions: str,
         description: str | None = None,
         capabilities: list[str] | None = None,
+        model_profile_id: UUID | None = None,
+        starters: list[str] | None = None,
     ) -> dict[str, Any]:
         """Create an agent draft from a name and instructions. Needs `agents:edit`.
 
         `capabilities` are ids from `list_capabilities` - web search, files and
-        code, charts - each switched on with its defaults. The draft is not
-        published: a person reviews and publishes it in the console, where
-        knowledge, model and limits are added.
+        code, charts - each switched on with its defaults. `model_profile_id` is
+        one of `list_models`; a draft needs one before it can be tested or
+        published. `starters` are up to four first messages the chat offers
+        whoever opens the agent. Nothing goes live: try it with
+        `test_agent_draft`, then `publish_agent` - or the person does both in the
+        console.
         """
         # Able to ask the person questions, like every agent the console creates.
         wanted = ["ask_user", *(capabilities or [])]
@@ -72,7 +94,85 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         }
         if description:
             spec["description"] = description
+        if model_profile_id is not None:
+            spec["model_profile_id"] = str(model_profile_id)
+        if starters:
+            spec["starters"] = starters
         return await api.request("POST", "/agents", json={"spec": spec})
+
+    async def update_agent_draft(
+        agent_id: UUID,
+        instructions: str | None = None,
+        description: str | None = None,
+        add_capabilities: list[str] | None = None,
+        remove_capabilities: list[str] | None = None,
+        model_profile_id: UUID | None = None,
+        skill_ids: list[UUID] | None = None,
+        collection_ids: list[UUID] | None = None,
+        starters: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Change an agent's draft - what its next publish makes live. Needs `agents:edit` on it.
+
+        Only what you pass changes. `instructions` replaces the whole prompt, so
+        read the current one with `get_agent` and send the edited text.
+        `add_capabilities` switches capabilities on with their defaults (ids from
+        `list_capabilities`); `remove_capabilities` switches them off. `skill_ids`,
+        `collection_ids` (knowledge bases) and `starters` each replace their whole
+        list. The published version keeps answering until `publish_agent`.
+        """
+        agent = await api.request("GET", f"/agents/{agent_id}")
+        if "draft_spec" not in agent:
+            return agent
+        spec: dict[str, Any] = dict(agent["draft_spec"])
+        if instructions is not None:
+            spec["instructions"] = instructions
+        if description is not None:
+            spec["description"] = description
+        if model_profile_id is not None:
+            spec["model_profile_id"] = str(model_profile_id)
+        removed = set(remove_capabilities or ())
+        bindings = [binding for binding in spec["capabilities"] if binding["id"] not in removed]
+        bound = {binding["id"] for binding in bindings}
+        bindings += [
+            {"id": capability}
+            for capability in dict.fromkeys(add_capabilities or ())
+            if capability not in bound
+        ]
+        spec["capabilities"] = bindings
+        if skill_ids is not None:
+            spec["skill_ids"] = [str(skill_id) for skill_id in skill_ids]
+        if collection_ids is not None:
+            spec["collection_ids"] = [str(collection_id) for collection_id in collection_ids]
+        if starters is not None:
+            spec["starters"] = starters
+        return await api.request("PUT", f"/agents/{agent_id}/draft", json={"spec": spec})
+
+    async def test_agent_draft(
+        agent_id: UUID, prompt: str, conversation_id: UUID | None = None
+    ) -> dict[str, Any]:
+        """Try an agent's unpublished draft with one message and read its answer.
+
+        A test run, as the Builder's test panel makes: budgeted, recorded and
+        marked as a test. Refused with the reason when the draft would not publish -
+        no model, a capability missing its key - so it is also the check before
+        `publish_agent`. Pass the answer's `conversation_id` to ask a follow-up.
+        Needs `agents:edit` on it.
+        """
+        body: dict[str, Any] = {"prompt": prompt, "draft": True}
+        if conversation_id is not None:
+            body["conversation_id"] = str(conversation_id)
+        return await api.request("POST", f"/agents/{agent_id}/run", json=body)
+
+    async def publish_agent(agent_id: UUID, note: str | None = None) -> dict[str, Any]:
+        """Make an agent's draft the version that runs. Needs `agents:publish` on it.
+
+        Runs the checks the console's Publish button runs, and a refusal says what
+        to fix. Every place the agent answers - chat, a website widget, Slack -
+        answers with the new version at once. `note` says why this version exists.
+        Always waits for the person's approval.
+        """
+        body = {"note": note} if note else {}
+        return await api.request("POST", f"/agents/{agent_id}/publish", json=body)
 
     async def run_agent(
         agent_id: UUID, prompt: str, conversation_id: UUID | None = None
@@ -195,6 +295,128 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         """
         return await api.request("GET", "/agents/capabilities")
 
+    async def list_models() -> dict[str, Any]:
+        """The models this organization runs agents on: each one's id, label and provider.
+
+        An agent names one as its `model_profile_id`. Needs `agents:view`.
+        """
+        return await api.request("GET", "/model-profiles")
+
+    async def list_routines(agent_id: UUID | None = None, limit: int = 50) -> dict[str, Any]:
+        """Routines: agents that run themselves on a schedule or when something happens.
+
+        Each has its prompt, cadence (a cron in UTC, or an interval in seconds),
+        whether it is active, when it fires next and its last run. Pass `agent_id`
+        for one agent's. Needs `agents:view`.
+        """
+        if agent_id is not None:
+            return await api.request("GET", f"/agents/{agent_id}/triggers")
+        return await api.request("GET", "/triggers", params={"limit": limit})
+
+    async def create_routine(
+        agent_id: UUID,
+        prompt: str,
+        cron_expression: str | None = None,
+        every_minutes: int | None = None,
+        name: str | None = None,
+        runs_as_me: bool = True,
+    ) -> dict[str, Any]:
+        """Make an agent run itself on a schedule - a Routine. Needs `agents:run` on it.
+
+        Give one cadence. `cron_expression` is a five-field crontab **in UTC**, so
+        convert the person's local time first: 9:00 on weekdays in Warsaw is
+        `0 8 * * 1-5` in winter and `0 7 * * 1-5` in summer. `every_minutes` is a
+        plain interval. `prompt` is what the agent is asked each time, and that run
+        starts with none of this conversation - write it as a complete request:
+        what to do, from which sources, in which language, and what to produce.
+        `runs_as_me` fires as the person creating it, with their memory and their
+        own connected accounts, as in their chat. Every run lands in the routine's
+        own log, which the person reads under Routines (`/routines`).
+        """
+        body: dict[str, Any] = {"prompt": prompt, "runs_as_creator": runs_as_me}
+        if name:
+            body["name"] = name
+        if cron_expression is not None:
+            body["schedule_kind"] = "cron"
+            body["cron_expression"] = cron_expression
+        if every_minutes is not None:
+            body["interval_seconds"] = every_minutes * 60
+        return await api.request("POST", f"/agents/{agent_id}/triggers", json=body)
+
+    async def update_routine(
+        agent_id: UUID,
+        routine_id: UUID,
+        active: bool | None = None,
+        prompt: str | None = None,
+        cron_expression: str | None = None,
+        every_minutes: int | None = None,
+        name: str | None = None,
+    ) -> dict[str, Any]:
+        """Pause or resume a routine, or change its prompt, cadence or name.
+
+        Only what you pass changes; a cron is in UTC, as for `create_routine`.
+        Needs to be the routine's creator, or `agents:edit` on its agent.
+        """
+        body: dict[str, Any] = {}
+        if active is not None:
+            body["is_active"] = active
+        if prompt is not None:
+            body["prompt"] = prompt
+        if name is not None:
+            body["name"] = name
+        if cron_expression is not None:
+            body["schedule_kind"] = "cron"
+            body["cron_expression"] = cron_expression
+        if every_minutes is not None:
+            body["schedule_kind"] = "interval"
+            body["interval_seconds"] = every_minutes * 60
+        return await api.request("PATCH", f"/agents/{agent_id}/triggers/{routine_id}", json=body)
+
+    async def run_routine_now(agent_id: UUID, routine_id: UUID) -> dict[str, Any]:
+        """Fire a routine once now, its schedule untouched - to show what it will do.
+
+        The run is queued and lands in the routine's log. Needs `agents:run` on its agent.
+        """
+        return await api.request("POST", f"/agents/{agent_id}/triggers/{routine_id}/run")
+
+    async def delete_routine(agent_id: UUID, routine_id: UUID) -> dict[str, Any]:
+        """Remove a routine for good: the agent stops running itself on it.
+
+        To stop it for a while, `update_routine` with `active` false instead. Needs
+        to be the routine's creator, or `agents:edit` on its agent.
+        """
+        deleted = await api.request("DELETE", f"/agents/{agent_id}/triggers/{routine_id}")
+        if deleted is not None:
+            return deleted
+        return {"deleted": str(routine_id)}
+
+    async def search_mcp_servers(query: str, limit: int = 10) -> dict[str, Any]:
+        """Search the services an agent can be connected to - GitHub, Notion, Gmail, a CRM.
+
+        Matches name, description and category, the reviewed catalog first. Each
+        result has its `key`, what it does and how it signs in (`oauth`, `token` or
+        `none`). A person connects one from its card on the MCP servers page,
+        `/mcp-servers`. Needs `agents:view`.
+        """
+        return await api.request("GET", "/agents/mcp-servers", params={"q": query, "limit": limit})
+
+    async def list_my_connections() -> dict[str, Any]:
+        """The services the person asking has connected with their own account.
+
+        Read it before suggesting a connection, so you never offer what they
+        already have. Tokens are never in it.
+        """
+        return await api.request("GET", "/me/mcp-connections")
+
+    async def set_my_language(locale: ConsoleLocale) -> dict[str, Any]:
+        """Switch the console's language for the person asking: `en`, `pl` or `de`.
+
+        Use it when they ask for the interface - or you - in another language. It
+        holds on every device they sign in on, and the console they are looking at
+        switches as soon as this answers. Answer in that language from then on.
+        """
+        return await api.request("PUT", "/users/me/locale", json={"locale": locale})
+
     async def list_skills(limit: int = 50, skip: int = 0) -> dict[str, Any]:
         """The skills this caller can see. Needs `skills:view`."""
         return await api.request("GET", "/skills", params={"limit": limit, "skip": skip})
@@ -229,8 +451,17 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (list_agents, False),
         (get_agent, False),
         (create_agent_draft, True),
+        (update_agent_draft, True),
+        (test_agent_draft, True),
+        (publish_agent, True),
         (discard_agent_draft, True),
         (run_agent, True),
+        (list_models, False),
+        (list_routines, False),
+        (create_routine, True),
+        (update_routine, True),
+        (run_routine_now, True),
+        (delete_routine, True),
         (list_runs, False),
         (get_run, False),
         (get_spend, False),
@@ -243,6 +474,9 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (list_skills, False),
         (list_members, False),
         (invite_member, True),
+        (search_mcp_servers, False),
+        (list_my_connections, False),
+        (set_my_language, True),
     )
     return tuple(
         PlatformTool(name=function.__name__, function=function, writes=writes)

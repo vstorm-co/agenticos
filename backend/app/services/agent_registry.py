@@ -43,7 +43,6 @@ from app.agents.capabilities.browser_use import (
 from app.agents.capabilities.browser_use._route import check_address
 from app.agents.capabilities.coding_agent import CODING_AGENT_ID, CodingAgentConfig
 from app.agents.capabilities.subagents import SubagentsConfig
-from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
 from app.agents.mcp import PLATFORM_MCP_PREFIX, prefix_collisions
 from app.agents.spec import (
     SPEC_VERSION,
@@ -948,6 +947,7 @@ class AgentRegistryService:
         )
         version_ids = [agent.current_version_id for agent in agents if agent.current_version_id]
         budget_caps = await agent_repo.published_budget_caps(self.db, version_ids=version_ids)
+        starters = await agent_repo.published_starters(self.db, version_ids=version_ids)
         profile_ids = await agent_repo.published_model_profiles(self.db, version_ids=version_ids)
         profiles = (
             await credential_repo.get_profiles_by_ids(
@@ -993,6 +993,9 @@ class AgentRegistryService:
                     published_models.get(agent.current_version_id)
                     if agent.current_version_id
                     else None
+                ),
+                starters=(
+                    starters.get(agent.current_version_id, []) if agent.current_version_id else []
                 ),
                 created_at=agent.created_at,
                 updated_at=agent.updated_at,
@@ -1118,6 +1121,35 @@ class AgentRegistryService:
             and await resolve_access(self.db, ctx, row, Perm.SKILLS_VIEW, resource_type=SKILL)
         ]
 
+    async def _from_the_starter(self, ctx: AuthContext, spec: AgentSpec) -> AgentSpec:
+        """A new agent with no instructions, made what the starter agent is (#2301).
+
+        An agent with no instructions still answers - as whatever the underlying
+        model is by default, which is a different product on every provider and
+        changes when the model is upgraded. So a new agent starts as the
+        organization's own AgenticOS agent does: its instructions, which lead with
+        the agent's own `{{agent_name}}`, and whatever of its capabilities, skills,
+        platform tools, starters and budget the caller left empty. The author
+        then edits the first paragraph and switches off what this agent should
+        not do. Applied at creation rather than as field defaults, because a spec
+        imported with an empty prompt means an empty prompt.
+        """
+        template = agent_templates.get(agent_templates.STARTER_TEMPLATE)
+        if template is None:  # pragma: no cover - the template ships with the image
+            return spec
+        update: dict[str, Any] = {"instructions": template.instructions}
+        if not spec.capabilities:
+            update["capabilities"] = agent_templates.for_this_deployment(template.capabilities)
+        if not spec.mcp_servers:
+            update["mcp_servers"] = list(template.mcp_servers)
+        if not spec.skill_ids:
+            update["skill_ids"] = [row.id for row in await self.template_skills(ctx, template)]
+        if not spec.starters:
+            update["starters"] = list(template.starters)
+        if spec.budget is None and template.budget_usd is not None:
+            update["budget"] = {"monthly_usd": template.budget_usd}
+        return AgentSpec.model_validate({**spec.model_dump(), **update})
+
     async def install_template(
         self, ctx: AuthContext, key: str, *, visibility: Visibility = Visibility.ORG
     ) -> TemplateInstallResult:
@@ -1164,8 +1196,13 @@ class AgentRegistryService:
                 if template.budget_usd is not None
                 else None
             ),
+            starters=list(template.starters),
         )
         agent = await self.create(ctx, spec, visibility=visibility)
+        if template.avatar is not None:
+            agent = await self.set_avatar(
+                ctx, agent.id, file_data=template.avatar.read_bytes(), content_type="image/png"
+            )
         return TemplateInstallResult(
             agent_id=agent.id,
             slug=agent.slug,
@@ -1213,13 +1250,8 @@ class AgentRegistryService:
                 `DeploymentSettings.max_agents_per_organization`.
         """
         await self._refuse_past_the_ceiling(ctx)
-        # A new agent opens with a prompt rather than an empty box. An agent with
-        # no instructions still answers - as whatever the underlying model is by
-        # default, which is a different product on every provider and changes when
-        # the model is upgraded. Applied here rather than as a field default,
-        # because a spec imported with an empty prompt means an empty prompt.
         if not spec.instructions.strip():
-            spec = spec.model_copy(update={"instructions": DEFAULT_INSTRUCTIONS})
+            spec = await self._from_the_starter(ctx, spec)
         spec = _without_unselectable(spec)
 
         slug = slugify(spec.name)

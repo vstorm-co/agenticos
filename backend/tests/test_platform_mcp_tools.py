@@ -194,6 +194,148 @@ def server(api: MagicMock) -> FastMCP:
                 {"json": {"email": "ada@example.com", "role": "member"}},
             ),
         ),
+        (
+            "create_agent_draft",
+            {
+                "name": "Bot",
+                "instructions": "Hi",
+                "model_profile_id": str(KB),
+                "starters": ["What can you do?"],
+            },
+            (
+                "POST",
+                "/agents",
+                {
+                    "json": {
+                        "spec": {
+                            "name": "Bot",
+                            "instructions": "Hi",
+                            "capabilities": [{"id": "ask_user"}],
+                            "model_profile_id": str(KB),
+                            "starters": ["What can you do?"],
+                        }
+                    }
+                },
+            ),
+        ),
+        (
+            "test_agent_draft",
+            {"agent_id": str(AGENT), "prompt": "hi"},
+            ("POST", f"/agents/{AGENT}/run", {"json": {"prompt": "hi", "draft": True}}),
+        ),
+        (
+            "test_agent_draft",
+            {"agent_id": str(AGENT), "prompt": "and?", "conversation_id": str(RUN)},
+            (
+                "POST",
+                f"/agents/{AGENT}/run",
+                {"json": {"prompt": "and?", "draft": True, "conversation_id": str(RUN)}},
+            ),
+        ),
+        (
+            "publish_agent",
+            {"agent_id": str(AGENT), "note": "First version"},
+            ("POST", f"/agents/{AGENT}/publish", {"json": {"note": "First version"}}),
+        ),
+        (
+            "publish_agent",
+            {"agent_id": str(AGENT)},
+            ("POST", f"/agents/{AGENT}/publish", {"json": {}}),
+        ),
+        ("list_models", {}, ("GET", "/model-profiles", {})),
+        ("list_routines", {}, ("GET", "/triggers", {"params": {"limit": 50}})),
+        ("list_routines", {"agent_id": str(AGENT)}, ("GET", f"/agents/{AGENT}/triggers", {})),
+        (
+            "create_routine",
+            {
+                "agent_id": str(AGENT),
+                "prompt": "Summarise the week's AI news in English.",
+                "cron_expression": "0 7 * * 1",
+                "name": "Weekly AI news",
+            },
+            (
+                "POST",
+                f"/agents/{AGENT}/triggers",
+                {
+                    "json": {
+                        "prompt": "Summarise the week's AI news in English.",
+                        "runs_as_creator": True,
+                        "name": "Weekly AI news",
+                        "schedule_kind": "cron",
+                        "cron_expression": "0 7 * * 1",
+                    }
+                },
+            ),
+        ),
+        (
+            "create_routine",
+            {
+                "agent_id": str(AGENT),
+                "prompt": "Check the site.",
+                "every_minutes": 60,
+                "runs_as_me": False,
+            },
+            (
+                "POST",
+                f"/agents/{AGENT}/triggers",
+                {
+                    "json": {
+                        "prompt": "Check the site.",
+                        "runs_as_creator": False,
+                        "interval_seconds": 3600,
+                    }
+                },
+            ),
+        ),
+        (
+            "update_routine",
+            {
+                "agent_id": str(AGENT),
+                "routine_id": str(RUN),
+                "active": False,
+                "prompt": "New",
+                "name": "Renamed",
+                "cron_expression": "0 8 * * *",
+            },
+            (
+                "PATCH",
+                f"/agents/{AGENT}/triggers/{RUN}",
+                {
+                    "json": {
+                        "is_active": False,
+                        "prompt": "New",
+                        "name": "Renamed",
+                        "schedule_kind": "cron",
+                        "cron_expression": "0 8 * * *",
+                    }
+                },
+            ),
+        ),
+        (
+            "update_routine",
+            {"agent_id": str(AGENT), "routine_id": str(RUN), "every_minutes": 30},
+            (
+                "PATCH",
+                f"/agents/{AGENT}/triggers/{RUN}",
+                {"json": {"schedule_kind": "interval", "interval_seconds": 1800}},
+            ),
+        ),
+        (
+            "run_routine_now",
+            {"agent_id": str(AGENT), "routine_id": str(RUN)},
+            ("POST", f"/agents/{AGENT}/triggers/{RUN}/run", {}),
+        ),
+        (
+            "search_mcp_servers",
+            {"query": "notion"},
+            ("GET", "/agents/mcp-servers", {"params": {"q": "notion", "limit": 10}}),
+        ),
+        ("list_my_connections", {}, ("GET", "/me/mcp-connections", {})),
+        (
+            "set_my_language",
+            {"locale": "en"},
+            ("PUT", "/users/me/locale", {"json": {"locale": "en"}}),
+        ),
     ],
 )
 async def test_each_tool_is_one_public_api_call(
@@ -226,6 +368,104 @@ class TestUndoingADraft:
         tool = {t.name: t for t in platform_tools(api)}["discard_agent_draft"]
 
         assert await tool.function(agent_id=AGENT) == refused
+
+
+class TestEditingADraft:
+    """`update_agent_draft` reads the draft and writes it back with only what was asked."""
+
+    async def test_only_what_was_passed_changes(self, server: FastMCP, api: MagicMock) -> None:
+        skill = uuid.uuid4()
+        draft = {
+            "name": "Bot",
+            "instructions": "Old",
+            "capabilities": [{"id": "ask_user"}, {"id": "clock", "config": {"timezone": "UTC"}}],
+            "skill_ids": [],
+        }
+        api.request.side_effect = [{"id": str(AGENT), "draft_spec": draft}, {"id": str(AGENT)}]
+
+        await server.call_tool(
+            "update_agent_draft",
+            {
+                "agent_id": str(AGENT),
+                "instructions": "New",
+                "description": "Answers refunds",
+                "add_capabilities": ["knowledge", "clock", "knowledge"],
+                "remove_capabilities": ["ask_user"],
+                "model_profile_id": str(KB),
+                "skill_ids": [str(skill)],
+                "collection_ids": [str(KB)],
+                "starters": ["How do refunds work?"],
+            },
+        )
+
+        read, write = api.request.await_args_list
+        assert read.args == ("GET", f"/agents/{AGENT}")
+        assert write.args == ("PUT", f"/agents/{AGENT}/draft")
+        assert write.kwargs["json"]["spec"] == {
+            "name": "Bot",
+            "instructions": "New",
+            "description": "Answers refunds",
+            "model_profile_id": str(KB),
+            # A binding already there keeps its config; a new one takes defaults.
+            "capabilities": [{"id": "clock", "config": {"timezone": "UTC"}}, {"id": "knowledge"}],
+            "skill_ids": [str(skill)],
+            "collection_ids": [str(KB)],
+            "starters": ["How do refunds work?"],
+        }
+
+    async def test_a_draft_left_alone_is_written_back_as_it_was(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        draft = {"name": "Bot", "instructions": "Old", "capabilities": [{"id": "ask_user"}]}
+        api.request.side_effect = [{"draft_spec": draft}, {}]
+
+        await server.call_tool("update_agent_draft", {"agent_id": str(AGENT)})
+
+        assert api.request.await_args.kwargs["json"]["spec"] == draft
+
+    async def test_a_refused_read_is_the_answer(self, api: MagicMock) -> None:
+        refused = {"refused": "404 NOT_FOUND: Agent not found"}
+        api.request.side_effect = [refused]
+        tool = {t.name: t for t in platform_tools(api)}["update_agent_draft"]
+
+        assert await tool.function(agent_id=AGENT, instructions="x") == refused
+        assert api.request.await_count == 1
+
+
+class TestRemovingARoutine:
+    async def test_a_removal_says_which_routine_went(self, server: FastMCP, api: MagicMock) -> None:
+        api.request.side_effect = [None]
+
+        result = await server.call_tool(
+            "delete_routine", {"agent_id": str(AGENT), "routine_id": str(RUN)}
+        )
+
+        assert api.request.await_args.args == ("DELETE", f"/agents/{AGENT}/triggers/{RUN}")
+        assert result.structured_content == {"deleted": str(RUN)}
+
+    async def test_a_refusal_is_passed_back_untouched(self, api: MagicMock) -> None:
+        refused = {"refused": "Only its creator may remove it"}
+        api.request.side_effect = [refused]
+        tool = {t.name: t for t in platform_tools(api)}["delete_routine"]
+
+        assert await tool.function(agent_id=AGENT, routine_id=RUN) == refused
+
+
+class TestWhatNeverWaitsForApproval:
+    def test_only_the_language_switch_is_ungated(self) -> None:
+        """Switching the console's language changes the asker's own preference,
+        on their word; every other write - publishing above all - is held."""
+        tools = {tool.name: tool for tool in platform_tool_catalog()}
+
+        assert {name for name, tool in tools.items() if tool.ungated} == {"set_my_language"}
+        assert tools["set_my_language"].writes
+        assert tools["publish_agent"].writes and not tools["publish_agent"].ungated
+
+    def test_the_agent_layer_names_the_same_set(self) -> None:
+        from app.agents.mcp import PLATFORM_UNGATED_TOOLS
+        from app.services.platform_mcp._tools import UNGATED
+
+        assert PLATFORM_UNGATED_TOOLS == UNGATED
 
 
 def _token() -> AccessToken:
