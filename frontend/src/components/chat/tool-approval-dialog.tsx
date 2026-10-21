@@ -2,10 +2,11 @@
 
 import { Button } from "@/components/ui";
 import { usePermissions } from "@/hooks";
-import { toolEntry } from "@/lib/tool-catalog";
+import { approvalSummary, toolDisplayName } from "@/lib/agent-step-captions";
+import { cn } from "@/lib/utils";
 import type { ActionRequest, ReviewConfig, Decision } from "@/types";
 import { Perm } from "@/types/permissions";
-import { ShieldAlert } from "lucide-react";
+import { Check, ShieldAlert, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 interface ToolApprovalDialogProps {
@@ -54,62 +55,109 @@ export function ToolApprovalDialog({
     onDecisions(actionRequests.map(() => ({ type })));
 
   return (
-    <div className="border-border bg-card space-y-3 rounded-xl border p-3 shadow-sm">
-      <div className="flex items-center gap-2">
-        <ShieldAlert className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
-        <span className="text-sm font-medium">{t("toolApprovalRequired")}</span>
+    // The voice call's approval card, in the chat: the warning tone and ring of
+    // anything waiting on a person, the step's name, why it is asked, and its
+    // arguments one row each - a JSON object read as a stray code block.
+    <section
+      role="group"
+      aria-label={t("toolApprovalRequired")}
+      className="bg-card border-warning/60 flex w-full max-w-[560px] flex-col gap-3 rounded-[14px] border p-3.5 shadow-[0_0_0_3px_color-mix(in_oklch,var(--color-warning)_16%,transparent),0_8px_30px_-12px_rgb(0_0_0/0.25)]"
+    >
+      <div className="flex items-center gap-2 text-[13px] font-semibold">
+        <ShieldAlert className="text-warning h-4 w-4 shrink-0" aria-hidden />
+        <span>{t("toolApprovalRequired")}</span>
       </div>
 
-      <ul className="space-y-2">
-        {actionRequests.map((action) => {
-          const entry = toolEntry(action.tool_name);
-          return (
-            <li key={action.id} className="border-border space-y-1.5 rounded-lg border p-2.5">
-              {/* The catalog's name where it has one - "Run Python" rather than
-                  `run_python`, the same words the step above it uses. */}
-              <span className="text-xs font-medium">
-                {entry?.displayNameKey === undefined
-                  ? action.tool_name
-                  : tTools(entry.displayNameKey)}
-              </span>
-              {/* Read-only, and scrolling rather than wrapping: a shell command is
-                  read by its structure, and a 300-character one reflowed to the left
-                  margin is unreadable in exactly the moment somebody has to judge it. */}
-              <pre className="bg-muted text-foreground/90 max-h-48 overflow-auto rounded-md p-2 font-mono text-xs leading-relaxed whitespace-pre">
-                {argumentLines(action)}
+      {actionRequests.map((action) => {
+        const { reason, ...rest } = action.args ?? {};
+        const summary = approvalSummary(action.capability_tool_id, action.context, tTools);
+        return (
+          <div key={action.id} className="flex flex-col gap-2">
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+              <b className="text-base font-semibold tracking-tight">
+                {toolDisplayName(action.tool_name, tTools)}
+              </b>
+              <code className="bg-muted rounded px-1.5 font-mono text-xs">{action.tool_name}</code>
+            </div>
+            {/* Why the agent asks, in its own words, first: a request to share a
+                view mid-way through "publish a page" reads as unrelated without it. */}
+            {typeof reason === "string" && reason !== "" && (
+              <p className="text-sm leading-relaxed">{reason}</p>
+            )}
+            {/* What will happen, in names rather than the ids below - resolved when
+                the call was parked, as the person the run acts for. */}
+            {summary !== null && <p className="text-sm leading-relaxed font-medium">{summary}</p>}
+            {Object.keys(rest).length > 0 && <Arguments args={rest} />}
+            <details>
+              <summary className="text-muted-foreground w-fit cursor-pointer text-xs">
+                {t("approvalExactJson")}
+              </summary>
+              <pre className="bg-muted mt-1.5 max-h-48 overflow-auto rounded-lg px-2.5 py-2 font-mono text-xs">
+                {JSON.stringify(action.args ?? {}, null, 2)}
               </pre>
-            </li>
-          );
-        })}
-      </ul>
+            </details>
+          </div>
+        );
+      })}
 
       {mayDecide ? (
-        <div className="flex justify-end gap-2">
-          <Button size="sm" variant="ghost" onClick={() => decideAll("reject")} disabled={disabled}>
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button
+            variant="outline"
+            className="min-w-[104px]"
+            onClick={() => decideAll("reject")}
+            disabled={disabled}
+          >
+            <X aria-hidden />
             {t("reject")}
           </Button>
-          <Button size="sm" onClick={() => decideAll("approve")} disabled={disabled}>
+          <Button
+            className="min-w-[104px]"
+            onClick={() => decideAll("approve")}
+            disabled={disabled}
+          >
+            <Check aria-hidden />
             {t("approve")}
           </Button>
         </div>
       ) : (
         <p className="text-muted-foreground text-xs">{t("decidingNeedsPermission")}</p>
       )}
-    </div>
+    </section>
   );
 }
 
+/** A value as the tool will receive it: a scalar as written, anything else as JSON. */
+function shown(value: unknown): string {
+  return typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+    ? String(value)
+    : JSON.stringify(value, null, 2);
+}
+
 /**
- * The arguments as something a person judges, not as a JSON object.
- *
- * A gated call is nearly always one string that matters - the command, the path,
- * the address - and `{"command": "python - <<'PY'\nimport …"}` hides it behind
- * escaping: the newlines that make a script readable arrive as `\n`. So a single
- * string argument is shown as itself, and anything else is indented JSON.
+ * The arguments as something a person judges, one row each, as the voice card
+ * draws them: a single command or path is read as itself, with no escaping in
+ * the way, and the exact JSON stays one click away.
  */
-function argumentLines(action: ActionRequest): string {
-  const values = Object.values(action.args ?? {});
-  const only = values.length === 1 ? values[0] : undefined;
-  if (typeof only === "string") return only;
-  return JSON.stringify(action.args ?? {}, null, 2);
+function Arguments({ args }: { args: Record<string, unknown> }) {
+  return (
+    <dl className="divide-border divide-y overflow-hidden rounded-[10px] border">
+      {Object.entries(args).map(([key, value]) => (
+        <div
+          key={key}
+          className="grid grid-cols-[minmax(92px,auto)_minmax(0,1fr)] items-baseline gap-3 px-3 py-2"
+        >
+          <dt className="text-muted-foreground font-mono text-xs">{key}</dt>
+          <dd
+            className={cn(
+              "max-h-48 min-w-0 overflow-auto text-sm font-medium [overflow-wrap:anywhere] whitespace-pre-wrap",
+              typeof value === "number" && "font-mono",
+            )}
+          >
+            {shown(value)}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
 }

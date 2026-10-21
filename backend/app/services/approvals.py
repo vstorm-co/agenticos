@@ -63,6 +63,8 @@ class ApprovalService:
         agent_id: UUID,
         tool_id: str,
         tool_args: dict[str, Any],
+        capability_tool_id: str | None = None,
+        context: dict[str, str] | None = None,
         subagent_name: str | None = None,
         subagent_agent_id: UUID | None = None,
         standing_consent_by: UUID | None = None,
@@ -80,6 +82,12 @@ class ApprovalService:
             approval_id: The row's id, already handed to the surface and stored in
                 the run's `paused_state`, so the write cannot mint a second one.
             agent_id: The agent whose run this is, which is what scopes the row.
+            capability_tool_id: The stable id of the tool `tool_id` names, which a
+                binding may have renamed, so a surface words the call by the tool
+                and not by its name. `None` for a tool no capability owns.
+            context: The arguments' ids as names, from the tool's describer, for
+                the card and the queue to read. `None` when the tool has none or
+                describing it failed - the call is asked about either way.
             subagent_name: Which delegate is acting, when the call came from inside
                 a delegation. A delegate's gated tool reaches the run's own approval
                 channel, so without this the queue says `send_email` without saying
@@ -102,6 +110,8 @@ class ApprovalService:
             agent_id=agent_id,
             tool_id=tool_id,
             tool_args=tool_args,
+            capability_tool_id=capability_tool_id,
+            context=context,
             subagent_name=subagent_name,
             subagent_agent_id=subagent_agent_id,
             standing_consent_by=standing_consent_by,

@@ -59,6 +59,17 @@ Two things are versioned separately from this file and worth knowing about:
   `restored_from` on the version read and `artifact_versions.restored_from`
   (migration `0139_artifact_restored_from`).
 
+- **Tool-call approvals say what they will do in names.** A gated `share_view`
+  or table write is parked with its ids resolved, as the run's person, to the
+  view, table and record names that person may see, and the chat's approval
+  card and the Approvals page lead with a sentence such as "Share the view
+  Closed tickets of Support with everyone who may read the table" above the
+  arguments. A capability declares the describers with `describers=` on
+  `register(...)`; one that fails or is slow parks the call without a sentence.
+  New `context` on `GET /approvals` rows, `GET /runs/{id}/parked` and the
+  `tool_approval_required` frame, and `tool_approvals.context` (migration
+  `0140_tool_approval_context`).
+
 - **Archiving and restoring a table from the console.** A member who can edit
   a Virtual Table archives it from **More actions** on its page, after a
   dialog says that its records stay readable, nothing can change them and it

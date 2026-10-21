@@ -1,5 +1,5 @@
 ---
-source_sha: "b16c932217ac"
+source_sha: "11c9ebdbd803"
 ---
 
 # Governance { #governance }
@@ -993,6 +993,20 @@ Cuatro propiedades que conviene conocer:
   deliberado: un agent que llevaba tiempo funcionando así se detiene, con un mensaje
   que dice qué cambiar. Lo que se detiene es un agent cuyo operador pidió una
   aprobación que nunca se le estaba pidiendo a nadie.
+- **Una llamada aparcada puede nombrar lo que representan sus ids.** Una
+  herramienta puede describir su propia llamada: `share_view` da los nombres de la
+  vista y de la tabla, y las escrituras en tablas dan el nombre de la tabla. Nunca
+  se nombra un registro, porque la etiqueta de un registro es el texto de una de
+  sus celdas, y la aprobación la conservaría. Los nombres se resuelven como la
+  persona del run cuando la llamada se aparca, así que no se nombra nada que esa
+  persona no pueda ver, y se guardan en la aprobación como `context`. La tarjeta
+  del chat y la página Approvals empiezan con una frase construida a partir
+  de ellos, como "Share the view Closed tickets of Support with everyone who may
+  read the table", encima de los argumentos, que siguen siendo lo que se ejecuta.
+  La frase se encuentra por el id estable de la herramienta, así que una
+  herramienta que un binding renombró la conserva. Una descripción que falla o
+  tarda aparca la llamada sin ella, y una llamada que un run reanudado ya decidió
+  no se vuelve a describir.
 - **Un solo paso de modelo puede aparcar varias llamadas.** Un modelo que responde con
   dos llamadas con efectos externos a la vez — "escribe al cliente y al gestor de
   cuenta" — aparca ambas, cada una con su propia fila de aprobación decidida por

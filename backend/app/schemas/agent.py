@@ -616,6 +616,14 @@ class ParkedCall(BaseSchema):
     )
     tool_name: str
     tool_args: dict[str, Any] = Field(default_factory=dict)
+    capability_tool_id: str | None = Field(
+        default=None,
+        description="The tool's stable id, as `ApprovalRead.capability_tool_id` carries it.",
+    )
+    context: dict[str, str] | None = Field(
+        default=None,
+        description="The arguments' ids as names, as `ApprovalRead.context` carries them.",
+    )
 
 
 class RunStep(BaseSchema):

@@ -942,6 +942,17 @@ Four properties worth knowing:
   deliberate: an agent that has been running like this stops, with a message
   saying what to change. What stops is an agent whose operator asked for an
   approval nobody was ever being asked for.
+- **A parked call can name what its ids stand for.** A tool may describe its own
+  call: `share_view` gives the view and table names, and the table writes give the
+  table's name. A record is never named, because a record's label is the text of
+  one of its cells, and the approval keeps it. The names are resolved as the run's
+  person when the call parks, so nothing that person may not see is named, and
+  are stored on the approval as `context`. The chat card and the Approvals page
+  lead with a sentence built from them, such as "Share the view Closed tickets of
+  Support with everyone who may read the table", above the arguments, which stay
+  what runs. The sentence is found by the tool's stable id, so a tool that a
+  binding renamed keeps it. A failed or slow description parks the call without
+  one, and a call that a resumed run already decided is not described again.
 - **One model step can park several calls.** A model that answers with two
   side-effecting calls at once - "email the customer and the account manager" -
   parks both, each its own approval row decided on its own. The rows are written

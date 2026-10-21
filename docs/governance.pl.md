@@ -1,5 +1,5 @@
 ---
-source_sha: "b16c932217ac"
+source_sha: "11c9ebdbd803"
 ---
 
 # Governance { #governance }
@@ -1015,6 +1015,19 @@ Cztery właściwości, które warto znać:
   Koszt jest realny i zamierzony: agent, który dotąd tak działał, zatrzymuje się,
   z komunikatem mówiącym, co zmienić. Zatrzymuje się agent, którego operator
   poprosił o zatwierdzenie, o które nigdy nikogo nie proszono.
+- **Zaparkowane wywołanie może nazwać to, co oznaczają jego id.** Narzędzie może
+  opisać własne wywołanie: `share_view` podaje nazwy widoku i tabeli, a zapisy do
+  tabel podają nazwę tabeli. Rekord nigdy nie jest nazywany, bo etykieta rekordu
+  to tekst jednej z jego komórek, a zatwierdzenie by go przechowało. Nazwy są
+  ustalane jako osoba runa w chwili parkowania wywołania, więc nie pojawia się nic,
+  czego ta osoba nie może zobaczyć, i są zapisywane w zatwierdzeniu jako
+  `context`. Karta w czacie i strona Approvals zaczynają od zbudowanego z nich
+  zdania, na przykład „Share the view Closed tickets of Support with everyone who
+  may read the table”, nad argumentami, które pozostają tym, co się wykona.
+  Zdanie jest odnajdywane po stałym id narzędzia, więc narzędzie przemianowane
+  przez binding je zachowuje. Nieudany albo zbyt wolny opis parkuje wywołanie bez
+  niego, a wywołanie już rozstrzygnięte przez wznowiony run nie jest opisywane
+  ponownie.
 - **Jeden krok modelu może zaparkować kilka wywołań.** Model, który odpowiada
   dwoma wywołaniami ze skutkami ubocznymi naraz — „wyślij e-mail do klienta i do
   opiekuna konta” — parkuje oba, każde jako własny wiersz zatwierdzenia

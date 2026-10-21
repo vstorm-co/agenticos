@@ -38,7 +38,7 @@ from app.core.exceptions import NotFoundError, RunExecutionError
 from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName, Perm, Scope
 from app.db.models.resource_grant import Visibility
 from app.main import app
-from app.repositories.agent_run import WindowAggregates, WindowBreakdown
+from app.repositories.agent_run import ApprovalRow, WindowAggregates, WindowBreakdown
 from app.schemas.agent import ParkedCall
 from app.services.agent_runner import RunSegment
 from app.services.sharing import SharingService
@@ -1138,21 +1138,43 @@ class TestReadingWhatARunIsParkedOn:
                         tool_call_id="call-1",
                         tool_name="send_email",
                         tool_args={"to": "ada@example.com"},
-                    )
+                    ),
+                    ParkedCall(
+                        id=shared_id,
+                        tool_call_id="call-2",
+                        tool_name="share_saved_view",
+                        tool_args={"view_id": "6f1c"},
+                        capability_tool_id="share_view",
+                        context={"view": "Closed tickets", "table": "Support"},
+                    ),
                 ]
 
+        shared_id = uuid4()
         overrides = {deps.get_agent_runner_service: lambda: _Parked()}
         async with as_role(only(Perm.APPROVALS_DECIDE), overrides) as client:
             response = await client.get(_url(f"/runs/{run.id}/parked"))
 
         assert response.status_code == 200
+        # The names a reloaded card puts into its sentence travel with the arguments,
+        # and a call nobody described says so with a null rather than an empty object.
         assert response.json() == [
             {
                 "id": str(approval_id),
                 "tool_call_id": "call-1",
                 "tool_name": "send_email",
                 "tool_args": {"to": "ada@example.com"},
-            }
+                "capability_tool_id": None,
+                "context": None,
+            },
+            {
+                "id": str(shared_id),
+                "tool_call_id": "call-2",
+                # Renamed by its binding: the stable id is what the card words it by.
+                "tool_name": "share_saved_view",
+                "tool_args": {"view_id": "6f1c"},
+                "capability_tool_id": "share_view",
+                "context": {"view": "Closed tickets", "table": "Support"},
+            },
         ]
 
     async def test_a_run_in_another_organization_reads_as_absent(
@@ -1171,6 +1193,49 @@ class TestReadingWhatARunIsParkedOn:
             response = await client.get(_url(f"/runs/{uuid4()}/parked"))
 
         assert response.status_code == 404
+
+
+class TestTheQueueNamesWhatItAsks:
+    """`GET /approvals` carries each row's `context`, the names its ids stand for."""
+
+    async def test_a_described_row_comes_back_with_its_names(
+        self, as_role: ClientFactory, synthetic_roles: None
+    ) -> None:
+        row = ApprovalRow(
+            id=uuid4(),
+            run_id=uuid4(),
+            agent_id=uuid4(),
+            agent_name="Support",
+            tool_id="share_saved_view",
+            tool_args={"view_id": "6f1c"},
+            capability_tool_id="share_view",
+            context={"view": "Closed tickets", "table": "Support"},
+            subagent_name=None,
+            subagent_agent_id=None,
+            status="pending",
+            triggered_by_user_id=None,
+            triggered_by_email=None,
+            decided_by_user_id=None,
+            decided_by_email=None,
+            decided_at=None,
+            decided_via="click",
+            note=None,
+            created_at=None,
+        )
+
+        class _Queue:
+            async def list_approvals(self, *args: Any, **kwargs: Any) -> Any:
+                return [row], 1
+
+        overrides = {deps.get_approval_service: lambda: _Queue()}
+        async with as_role(only(Perm.APPROVALS_DECIDE), overrides) as client:
+            response = await client.get(_url("/approvals"))
+
+        assert response.status_code == 200
+        [item] = response.json()["items"]
+        assert item["context"] == {"view": "Closed tickets", "table": "Support"}
+        assert item["tool_args"] == {"view_id": "6f1c"}
+        assert (item["tool_id"], item["capability_tool_id"]) == ("share_saved_view", "share_view")
 
 
 class TestResumeConveysAFailedContinuation:

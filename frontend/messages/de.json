@@ -1244,6 +1244,11 @@
       "recordsUpserting": "Speichert einen Datensatz",
       "recordsUpdating": "Aktualisiert einen Datensatz",
       "recordsDeleting": "Löscht einen Datensatz",
+      "approveShareView": "Die Ansicht {view} von {table} mit allen teilen, die die Tabelle lesen dürfen",
+      "approveCreateRecord": "Einen Datensatz zu {table} hinzufügen",
+      "approveUpsertRecord": "Einen Datensatz in {table} anlegen oder aktualisieren",
+      "approveUpdateRecord": "Einen Datensatz in {table} ändern",
+      "approveDeleteRecord": "Einen Datensatz aus {table} löschen",
       "workflowsListing": "Prüft, welche Workflows er starten kann",
       "workflowRunning": "Startet einen Workflow",
       "workflowRunReading": "Prüft einen Workflow-Lauf"
@@ -1303,7 +1308,8 @@
     "workflowRun": {
       "unnamed": "Workflow",
       "viewSteps": "Schritte ansehen"
-    }
+    },
+    "approvalExactJson": "Genaues JSON, das an das Tool gesendet wird"
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",

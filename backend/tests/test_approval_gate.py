@@ -610,6 +610,9 @@ class TestApprovalQueue:
             "agent_id": agent_id,
             "tool_id": "send_email",
             "tool_args": {"to": "customer@example.com"},
+            "capability_tool_id": None,
+            # Nothing described it: the arguments alone are what the approver reads.
+            "context": None,
             # Nobody delegated: the agent whose run this is asked directly. Pinned
             # rather than left out of the comparison, because "null" is what tells
             # a reviewer the run's own agent is acting - and the caller that does

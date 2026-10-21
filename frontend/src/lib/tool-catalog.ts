@@ -87,6 +87,19 @@ export interface ToolVerbs {
   done: string;
 }
 
+/**
+ * Which `chat.tools` sentence names a parked call, and the `context` names it needs.
+ *
+ * `needs` is checked before the sentence is drawn, so a context missing one of them -
+ * a describer that could name the table and not the view - falls back to the plain
+ * card rather than to a sentence with a hole in it. A table write names its table and
+ * never its record: a record's label is a cell's text, stored on the approval row.
+ */
+export interface ApprovalSummary {
+  key: string;
+  needs: readonly string[];
+}
+
 export interface ToolEntry {
   kind: StepKind;
   render: ToolRenderer;
@@ -105,6 +118,13 @@ export interface ToolEntry {
   displayNameKey?: string;
   /** Set instead of `captionKey` when the label is a verb plus the call's subject. */
   verbs?: ToolVerbs;
+  /**
+   * The sentence an approval card leads with when the call was parked with a
+   * `context` - the ids in its arguments as names, resolved by the tool's describer
+   * on the backend (`ApprovalDescriber`). Absent for a tool nobody describes, and
+   * never shown instead of the arguments: those are what runs.
+   */
+  approvalSummary?: ApprovalSummary;
   /**
    * Open this step when it finishes in front of somebody.
    *
@@ -287,15 +307,40 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
   table_exists: { kind: "read", render: "generic", captionKey: "tablesChecking" },
   describe_table: { kind: "read", render: "generic", captionKey: "tablesDescribing" },
   list_views: { kind: "list", render: "generic", captionKey: "viewsListing" },
-  share_view: { kind: "edit", render: "generic", captionKey: "viewsSharing" },
+  share_view: {
+    kind: "edit",
+    render: "generic",
+    captionKey: "viewsSharing",
+    approvalSummary: { key: "approveShareView", needs: ["view", "table"] },
+  },
   create_table: { kind: "write", render: "generic", captionKey: "tablesCreating" },
   record_exists: { kind: "read", render: "generic", captionKey: "recordsChecking" },
   list_records: { kind: "list", render: "generic", captionKey: "recordsListing" },
   get_record: { kind: "read", render: "generic", captionKey: "recordsReading" },
-  create_record: { kind: "write", render: "generic", captionKey: "recordsCreating" },
-  upsert_record: { kind: "write", render: "generic", captionKey: "recordsUpserting" },
-  update_record: { kind: "edit", render: "generic", captionKey: "recordsUpdating" },
-  delete_record: { kind: "edit", render: "generic", captionKey: "recordsDeleting" },
+  create_record: {
+    kind: "write",
+    render: "generic",
+    captionKey: "recordsCreating",
+    approvalSummary: { key: "approveCreateRecord", needs: ["table"] },
+  },
+  upsert_record: {
+    kind: "write",
+    render: "generic",
+    captionKey: "recordsUpserting",
+    approvalSummary: { key: "approveUpsertRecord", needs: ["table"] },
+  },
+  update_record: {
+    kind: "edit",
+    render: "generic",
+    captionKey: "recordsUpdating",
+    approvalSummary: { key: "approveUpdateRecord", needs: ["table"] },
+  },
+  delete_record: {
+    kind: "edit",
+    render: "generic",
+    captionKey: "recordsDeleting",
+    approvalSummary: { key: "approveDeleteRecord", needs: ["table"] },
+  },
 
   // workflows - starting one is a write: it sets a process going.
   list_workflows: { kind: "list", render: "generic", captionKey: "workflowsListing" },
