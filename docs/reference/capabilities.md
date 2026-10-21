@@ -48,7 +48,7 @@ tools listed.
 | `compaction` | Context management | utility | none, by design | — | — |
 | `media` | Media offload | utility | none, by design | — | — |
 | `tool_output_limits` | Tool output limits | utility | `read_tool_result` | — | — |
-| `artifacts` | Artifacts | utility | `publish_artifact`, `read_artifact` | — | — |
+| `artifacts` | Artifacts | utility | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact` | — | — |
 | `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 
 Seven of those have no tools on purpose. `thinking` changes how the model runs
@@ -608,7 +608,10 @@ could not be reached.
 mode and no Chromium in the API image: `cdp_url` points at a browser service an
 operator runs and isolates. The host must be on
 [`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md), and an empty allowlist — the
-default — refuses browser automation outright. Checked **at publish**, when the
+default — refuses browser automation outright. The host of
+[`ARTIFACT_RENDER_CDP_URL`](../configuration.md#published-artifacts) is refused
+even when the allowlist names it: that browser draws people's pages for
+`preview_artifact` and is never an author's. Checked **at publish**, when the
 spec is saved, rather than on every run.
 
 That is an allowlist rather than the SSRF check every other tenant-supplied URL
@@ -960,10 +963,16 @@ simply has nowhere to build with them.
 summary - under a stable link.*
 `read_artifact` — *Read the current version of a page this agent published, as it
 was written.*
+`list_artifacts` — *List the pages this agent published that this run may open,
+newest first.*
+`preview_artifact` — *See a page you published as somebody opening it would: a
+picture, and what went wrong.*
 
 Publishes one self-contained HTML or Markdown document as an
 [artifact](../artifacts.md): a shared resource with an owner, a visibility and
-grants, opened in a browser under a link that stays put. No configuration.
+grants, opened in a browser under a link that stays put. One setting:
+`preview_screenshot` (default on) hands the model the picture a preview draws;
+turn it off for a model that cannot read images.
 
 **The name is the identity.** `(organization, agent, environment, name)` picks the
 artifact, so the next run of the same agent that publishes `weekly-report` - from
@@ -987,6 +996,25 @@ only what the run's person may open in the console, and nothing on a public
 widget, an embed, a schedule or an event trigger, where no identified person is
 listening.
 
+**Listing.** `list_artifacts` returns JSON: this agent's pages in the run's
+environment, newest first and at most 50, with `total`, each with its name, title,
+version, format, bindings, visibility, public link, publication time, console
+`url` and `may_edit` (whether a publish under that name from this run updates
+it). It is read as the person listening, by the console's listing rule; in a
+group chat only organization-wide pages are listed, never one that person reaches
+alone. Nothing is listed where no identified person is listening.
+
+**Preview.** `preview_artifact` draws the current version 1280 pixels wide, at
+most 2400 tall, in a browser the operator runs
+([`ARTIFACT_RENDER_CDP_URL`](../configuration.md#published-artifacts)), with its data
+read as the person listening. In a group chat it opens only an
+organization-wide page, and draws it without data. It returns a text report
+(data per binding, uncaught errors, console errors, policy refusals, refused
+requests, dialogs, the publish warnings) and the picture as an image part. Every
+request of the render is answered by the API or refused. Without a renderer or
+the `browser` extra, or past a 15-second deadline, the report comes alone and
+says why. [Seeing the page](../artifacts.md#seeing-the-page-preview) has the rest.
+
 **Not side-effecting.** A first publication is private to the person the run was
 for, and only a person widens who reads it, so the approval gate would only
 park the scheduled report this exists for. An author who wants each republish of
@@ -996,6 +1024,16 @@ a shared page approved sets `tool_approval` on `publish_artifact`.
 policy with `connect-src 'none'`, and the tool text tells the model to inline its
 own data and load charts from the deployment's [library set](../artifacts.md#the-library-set)
 rather than a CDN. See [how the page is isolated](../artifacts.md#how-the-page-is-isolated).
+
+**What a page looks like.** The capability adds a short, static page contract to
+the agent's instructions: the skeleton, the kit's most-used classes, Lucide icons
+rather than emoji, and `AO.records` for bound data. When the run offers the
+`artifact-pages` skill unloaded, the first whole HTML page of the run is a retry
+asking the model to load it and rebuild; once a run, and on the last attempt the
+page publishes with that advice instead. Every published HTML page is checked,
+and the result's `warning` lists what looks wrong, one problem a line - see
+[the page contract and the publish warnings](../artifacts.md#the-page-contract-and-the-publish-warnings).
+A warning never stops a publish.
 
 **Live data.** `bindings` on `publish_artifact` bind an HTML page to saved
 [table views](../virtual-tables.md#saved-views) as `{name: {view, fields}}`, where

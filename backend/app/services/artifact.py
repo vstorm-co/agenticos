@@ -63,6 +63,7 @@ from app.core.security import (
     verify_special_token,
 )
 from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
+from app.db.models.resource_grant import Visibility
 from app.db.session import get_db_context
 from app.db.updates import writable
 from app.repositories import (
@@ -89,11 +90,18 @@ from app.schemas.artifact import (
     ArtifactVersionList,
     ArtifactVersionRead,
     ArtifactView,
+    BindingData,
     BindingRequest,
     PublicArtifactRead,
 )
 from app.services import rate_limit
-from app.services.access import ARTIFACT, member_context, resolve_access, visible_resource_ids
+from app.services.access import (
+    ARTIFACT,
+    accessible_ids,
+    member_context,
+    resolve_access,
+    visible_resource_ids,
+)
 from app.services.artifact_bindings import (
     BindingRows,
     Unavailable,
@@ -300,6 +308,8 @@ ARTIFACT_LIBRARY: dict[str, str] = {
     "agenticos-1.css": "text/css; charset=utf-8",
     "agenticos-2.css": "text/css; charset=utf-8",
     "agenticos-2.js": "text/javascript; charset=utf-8",
+    "agenticos-3.css": "text/css; charset=utf-8",
+    "agenticos-3.js": "text/javascript; charset=utf-8",
 }
 """The files a page may load, by the name it loads them as, and their media type.
 
@@ -324,7 +334,12 @@ def _content_origin() -> str:
 
 def _library_source() -> str:
     """Where the library set is served, as a source expression: a path, not the origin."""
-    return f"{_content_origin()}{settings.API_V1_STR}/artifact-content/lib/"
+    return content_address("lib/")
+
+
+def content_address(rest: str) -> str:
+    """An address under the content route, on the content origin - where a frame loads from."""
+    return f"{_content_origin()}{settings.API_V1_STR}/artifact-content/{rest}"
 
 
 def content_security_policy(*, embed_origins: Sequence[str] = ()) -> str:
@@ -896,6 +911,68 @@ async def _append_version(
     return version
 
 
+def room_may_see(artifact: Artifact) -> bool:
+    """Whether a page may be opened for a group chat, whoever in it is speaking.
+
+    Only an organization-wide page: everyone in the channel reads the answer, and
+    a private or team page - or one shared with the speaker alone - is reachable
+    only through the speaker's own role, ownership or grant. The same rule
+    `list_for_agent` applies to a room's listing.
+    """
+    return artifact.visibility == Visibility.ORG.value
+
+
+async def _open_current(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    reader_user_id: UUID | None,
+    run_id: UUID | None,
+    name: str,
+    room: bool = False,
+) -> tuple[Artifact, ArtifactVersion, bytes]:
+    """This agent's artifact of this name, its current version and that version's bytes.
+
+    Found by the same identity a publish uses - the agent, the run's environment,
+    the name - and opened only when the run's person may open it in the console,
+    and, for a `room`, only when :func:`room_may_see` it as well. An archived page
+    is not opened at all.
+
+    Raises:
+        NotFoundError: No such artifact, an archived one, or one this person (or
+            this room) may not open - one answer for all three, as everywhere
+            else an artifact is refused - or its bytes are gone from storage.
+    """
+    environment_id = await _environment_of_run(
+        db, run_id=run_id, organization_id=organization_id, agent_id=agent_id
+    )
+    artifact = await artifact_repo.get_by_identity(
+        db,
+        organization_id=organization_id,
+        agent_id=agent_id,
+        environment_id=environment_id,
+        name=name,
+    )
+    version = (
+        await artifact_repo.latest_version(db, artifact.id)
+        if artifact is not None
+        and artifact.archived_at is None
+        and (not room or room_may_see(artifact))
+        and await _may(db, artifact, reader_user_id, Perm.ARTIFACTS_VIEW)
+        else None
+    )
+    if artifact is None or version is None:
+        raise NotFoundError(
+            message=f"There is no artifact named {name!r} that this run may open.",
+            details={"name": name},
+        )
+    data = await _load_version(
+        version, missing=f"The artifact {name!r} has lost its content; publish it again."
+    )
+    return artifact, version, data
+
+
 async def read_source(
     *,
     organization_id: UUID,
@@ -903,40 +980,25 @@ async def read_source(
     reader_user_id: UUID | None,
     run_id: UUID | None,
     name: str,
+    room: bool = False,
 ) -> ArtifactSource:
     """The current version of this agent's artifact of this name, as it was written.
 
-    Found by the same identity a publish uses - the agent, the run's environment,
-    the name - and opened only when the run's person may open it in the console.
+    In a `room` only a page :func:`room_may_see` opens: its source - a static page's
+    records among it - would otherwise be read out to everyone in the chat.
 
     Raises:
-        NotFoundError: No such artifact, or one this person may not open - one
-            answer for both, as everywhere else an artifact is refused.
+        NotFoundError: See :func:`_open_current`.
     """
     async with get_db_context() as db:
-        environment_id = await _environment_of_run(
-            db, run_id=run_id, organization_id=organization_id, agent_id=agent_id
-        )
-        artifact = await artifact_repo.get_by_identity(
+        artifact, version, data = await _open_current(
             db,
             organization_id=organization_id,
             agent_id=agent_id,
-            environment_id=environment_id,
+            reader_user_id=reader_user_id,
+            run_id=run_id,
             name=name,
-        )
-        version = (
-            await artifact_repo.latest_version(db, artifact.id)
-            if artifact is not None
-            and await _may(db, artifact, reader_user_id, Perm.ARTIFACTS_VIEW)
-            else None
-        )
-        if artifact is None or version is None:
-            raise NotFoundError(
-                message=f"There is no artifact named {name!r} that this run may open.",
-                details={"name": name},
-            )
-        data = await _load_version(
-            version, missing=f"The artifact {name!r} has lost its content; publish it again."
+            room=room,
         )
     return ArtifactSource(
         name=artifact.name,
@@ -945,6 +1007,253 @@ async def read_source(
         media_type=ArtifactMediaType(version.media_type),
         text=data.decode("utf-8"),
     )
+
+
+@dataclass(frozen=True)
+class ArtifactPreview:
+    """A page's current version as a frame is served it, and the data it would be posted."""
+
+    name: str
+    title: str
+    version_number: int
+    media_type: ArtifactMediaType
+    source: bytes
+    """The page as the agent wrote it - what the lint reads."""
+    document: bytes
+    """The page as served: rendered, behind the platform script for `nonce`."""
+    nonce: str
+    injected_lines: int
+    """How many lines the platform script adds before the page's own: a line number
+    the browser reports in the page is this many past the line the agent wrote."""
+    binding_names: list[str]
+    bindings: dict[str, BindingData] | None
+    """Each binding read as the run's person, `{}` when no data could be read for
+    them, `None` for a page with no bindings - one that never asks."""
+    data_note: str | None
+    """Why the bindings are `{}`, in a sentence for the model."""
+
+
+_PREVIEW_IN_A_ROOM = (
+    "This conversation is a group chat, so the page was drawn without its data: every "
+    "binding shows as unavailable."
+)
+_PREVIEW_NOBODY = (
+    "Nobody this run is for may read the page's data, so every binding shows as unavailable."
+)
+
+
+async def preview_source(
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    reader_user_id: UUID,
+    run_id: UUID | None,
+    name: str,
+    room: bool,
+) -> ArtifactPreview:
+    """The current version of this agent's page as a viewer's frame would be served it.
+
+    Opened as :func:`read_source` opens it. The data is what the console would
+    post a viewer who is the run's person: each binding read by
+    :meth:`ArtifactService.data` as `reader_user_id`'s membership now. In a room
+    only a page :func:`room_may_see` opens at all, and it gets no data, since a
+    picture of one member's records would be read by the whole channel; nor does
+    a reader who is no longer an active member, or one whose data load is
+    refused for being busy.
+
+    Raises:
+        NotFoundError: See :func:`_open_current`.
+    """
+    async with get_db_context() as db:
+        artifact, version, data = await _open_current(
+            db,
+            organization_id=organization_id,
+            agent_id=agent_id,
+            reader_user_id=reader_user_id,
+            run_id=run_id,
+            name=name,
+            room=room,
+        )
+        bindings, note = await _preview_data(
+            db, artifact, version, reader_user_id=reader_user_id, room=room
+        )
+    nonce = secrets.token_urlsafe(16)
+    live = bool(version.bindings)
+    names = [binding["name"] for binding in version.bindings]
+    return ArtifactPreview(
+        name=artifact.name,
+        title=artifact.title,
+        version_number=version.number,
+        media_type=ArtifactMediaType(version.media_type),
+        source=data,
+        document=render(version, data, title=artifact.title, nonce=nonce, live=live),
+        nonce=nonce,
+        injected_lines=platform_script(nonce=nonce, live=live, names=names).count("\n"),
+        binding_names=names,
+        bindings=bindings,
+        data_note=note,
+    )
+
+
+async def _preview_data(
+    db: AsyncSession,
+    artifact: Artifact,
+    version: ArtifactVersion,
+    *,
+    reader_user_id: UUID,
+    room: bool,
+) -> tuple[dict[str, BindingData] | None, str | None]:
+    """The bindings a preview posts the page, and why they are empty when they are."""
+    if not version.bindings:
+        return None, None
+    if room:
+        return {}, _PREVIEW_IN_A_ROOM
+    person = await member_context(
+        db, organization_id=artifact.organization_id, user_id=reader_user_id
+    )
+    if person is None:
+        return {}, _PREVIEW_NOBODY
+    try:
+        read = await ArtifactService(db).data(person, artifact.id, version.id)
+    except (RateLimitError, NotFoundError) as refused:
+        # Busy - the person's own console may be loading this page right now - or
+        # pruned between opening it and reading it. The picture is still worth
+        # drawing; it says the data was not there and why.
+        return (
+            {},
+            f"The page's data was not read ({refused.message}), so every binding shows as unavailable.",
+        )
+    return read.bindings, None
+
+
+LIST_LIMIT = 50
+"""How many pages `list_artifacts` shows, newest publication first."""
+
+
+@dataclass(frozen=True)
+class ListedArtifact:
+    """One page in a run's listing of its agent's pages."""
+
+    name: str
+    title: str
+    version_number: int
+    media_type: ArtifactMediaType
+    bindings: list[str]
+    """The names of the current version's bindings; empty for a page with no live data."""
+    visibility: str
+    public: bool
+    published_at: datetime
+    console_path: str
+    may_edit: bool
+    """Whether a publish from this run may write a new version of it."""
+
+
+@dataclass(frozen=True)
+class ArtifactListing:
+    items: list[ListedArtifact]
+    total: int
+
+
+async def list_for_run(
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    reader_user_id: UUID,
+    editor_user_id: UUID | None,
+    run_id: UUID | None,
+    room: bool,
+    limit: int = LIST_LIMIT,
+) -> ArtifactListing:
+    """List from a run, on a short-lived session of its own. See :func:`list_for_run_with`."""
+    async with get_db_context() as db:
+        return await list_for_run_with(
+            db,
+            organization_id=organization_id,
+            agent_id=agent_id,
+            reader_user_id=reader_user_id,
+            editor_user_id=editor_user_id,
+            run_id=run_id,
+            room=room,
+            limit=limit,
+        )
+
+
+async def list_for_run_with(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    reader_user_id: UUID,
+    editor_user_id: UUID | None,
+    run_id: UUID | None,
+    room: bool,
+    limit: int = LIST_LIMIT,
+) -> ArtifactListing:
+    """This agent's pages in the run's environment that `reader_user_id` may open.
+
+    The console's listing rule, read with the reader's membership now: their own
+    pages, organization-wide ones and those shared with them, or all of them for a
+    role that reaches every page. A reader who is no longer an active member keeps
+    only their own, as :func:`_may` lets them open. In a `room` only
+    organization-wide pages are listed - a list read into a group chat never
+    holds a page the reader reaches through their role, their ownership or a
+    grant made to them alone; see :func:`room_may_see`.
+
+    `may_edit` is answered for `editor_user_id`, the identity a publish is checked
+    as, which on a public surface is the publisher rather than the reader.
+    """
+    environment_id = await _environment_of_run(
+        db, run_id=run_id, organization_id=organization_id, agent_id=agent_id
+    )
+    reader = await _member_auth(db, organization_id=organization_id, user_id=reader_user_id)
+    see_all, shared_ids = False, []
+    if reader is not None and not room:
+        shared = await visible_resource_ids(
+            db, reader, resource_type=ARTIFACT, perm=Perm.ARTIFACTS_VIEW
+        )
+        see_all, shared_ids = shared is None, shared or []
+    items, total = await artifact_repo.list_for_agent(
+        db,
+        organization_id=organization_id,
+        agent_id=agent_id,
+        environment_id=environment_id,
+        reader_id=reader_user_id,
+        member=reader is not None,
+        room=room,
+        see_all=see_all,
+        shared_ids=shared_ids,
+        limit=limit,
+    )
+    current = await artifact_repo.latest_versions(db, [item.id for item in items])
+    editor = (
+        await _member_auth(db, organization_id=organization_id, user_id=editor_user_id)
+        if editor_user_id is not None
+        else None
+    )
+    editable = (
+        await accessible_ids(db, editor, items, Perm.ARTIFACTS_EDIT, resource_type=ARTIFACT)
+        if editor is not None
+        else set()
+    )
+    listed = [
+        ListedArtifact(
+            name=item.name,
+            title=item.title,
+            version_number=version.number,
+            media_type=ArtifactMediaType(version.media_type),
+            bindings=[binding["name"] for binding in version.bindings],
+            visibility=item.visibility,
+            public=item.public_key is not None,
+            published_at=item.published_at,
+            console_path=console_url_for(item.id, item.organization_id),
+            # The owner shortcut `_may` takes, before any role: a run for nobody
+            # still writes over a page nobody owns.
+            may_edit=item.owner_user_id == editor_user_id or item.id in editable,
+        )
+        for item in items
+        if (version := current.get(item.id)) is not None
+    ]
+    return ArtifactListing(items=listed, total=total)
 
 
 async def _locked_artifact(
@@ -1009,17 +1318,20 @@ async def _may(db: AsyncSession, artifact: Artifact, user_id: UUID | None, perm:
         return True
     if user_id is None:
         return False
-    membership = await member_repo.get_active(
-        db, organization_id=artifact.organization_id, user_id=user_id
-    )
-    if membership is None:
+    ctx = await _member_auth(db, organization_id=artifact.organization_id, user_id=user_id)
+    if ctx is None:
         return False
-    ctx = AuthContext(
-        user_id=user_id,
-        organization_id=artifact.organization_id,
-        role=membership.role,
-    )
     return await resolve_access(db, ctx, artifact, perm, resource_type=ARTIFACT)
+
+
+async def _member_auth(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID
+) -> AuthContext | None:
+    """`user_id` as the member a run acts for now, or `None` when they are not an active one."""
+    membership = await member_repo.get_active(db, organization_id=organization_id, user_id=user_id)
+    if membership is None:
+        return None
+    return AuthContext(user_id=user_id, organization_id=organization_id, role=membership.role)
 
 
 async def _prune(db: AsyncSession, artifact: Artifact) -> None:

@@ -76,6 +76,8 @@ services:
         # template resolve without the operator having to rename anything.
         aliases:
           - backend
+      # Where `artifact-render` is, when its profile is up. Empty otherwise.
+      render: {}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -182,6 +184,7 @@ services:
       # this service: the Docker socket.
     networks:
       - backend
+      - render
     depends_on:
       prefect-server:
         condition: service_healthy
@@ -307,6 +310,36 @@ services:
   #   OIDC_REDIRECT_URI=http://localhost:8000/api/v1/oauth/oidc/callback
   # and the frontend with OAUTH_PROVIDERS=google,oidc. Then `E2E_OIDC=1 make
   # test-e2e`; without that variable the SSO spec skips itself.
+  artifact-render:
+    # The browser `preview_artifact` draws a page in. Opt-in, and the same service
+    # as in docker-compose.yml, which says why each line is there: set
+    # ARTIFACT_RENDER_CDP_URL=http://artifact-render:9222 (never on
+    # BROWSER_CDP_ALLOWED_HOSTS) and pull an image built with the `browser`
+    # extra. `render` has no route off the host.
+    image: chromedp/headless-shell:155.0.8059.40
+    profiles: [artifact-render]
+    command:
+      - --disable-dev-shm-usage
+      - --no-first-run
+      - --disable-background-networking
+      - --disable-component-update
+      - --disable-default-apps
+      - --disable-sync
+      - --mute-audio
+      - --hide-scrollbars
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    cpus: 1.0
+    pids_limit: 256
+    networks:
+      - render
+    restart: unless-stopped
+
   keycloak:
     image: quay.io/keycloak/keycloak:26.0
     profiles: [sso]
@@ -335,6 +368,9 @@ networks:
     # stacks share a host - both files read it, so they still meet.
     name: ${AGENTICOS_NETWORK:-agenticos_backend}
     driver: bridge
+  render:
+    # The page renderer's network: the API, the runner and the browser, no way out.
+    internal: true
 
 volumes:
   media_data:

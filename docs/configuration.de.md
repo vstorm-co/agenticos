@@ -1,5 +1,5 @@
 ---
-source_sha: "c7261314b422"
+source_sha: "a4ed874220d1"
 ---
 
 # Konfiguration { #configuration }
@@ -758,6 +758,7 @@ sie ausgeliefert werden. Siehe [Artefakte](artifacts.md).
 | `ARTIFACT_MAX_VERSIONS` | `20` | Pro Artefakt behaltene Versionen. Die älteste wird entfernt, wenn eine neuere hinzukommt, außer der öffentliche Link ist an sie angeheftet |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Wie lange sich eine signierte Inhaltsadresse öffnen lässt, höchstens 3600. Auch, wie lange eine offene Seite einen entzogenen Grant oder Link überdauert |
 | `ARTIFACT_ORIGIN` | (empty) | Von wo Inhalte ausgeliefert werden - die Seiten, ihr [Bibliothekssatz](artifacts.md#the-library-set) und das Einbettungsdokument. Leer liefert sie von `PUBLIC_BASE_URL` aus, isoliert durch ihre `sandbox`-Policy. Setzen Sie ihn auf einen Host auf einer separaten registrierbaren Domain, auf diese API geroutet, um die Seite zusätzlich auf eine andere Site zu legen |
+| `ARTIFACT_RENDER_CDP_URL` | (empty) | Der Chromium-DevTools-Endpunkt, in dem [`preview_artifact`](artifacts.md#seeing-the-page-preview) Seiten zeichnet, etwa `http://artifact-render:9222`. Allein Deployment-Konfiguration: Er wird nicht gegen `BROWSER_CDP_ALLOWED_HOSTS` geprüft, das aufführt, was Autoren von Agents steuern dürfen, und einem browsenden Agent wird sein Host verweigert, selbst wenn diese Liste ihn nennt. Das Backend braucht das Extra `browser`. Leer liefert eine Vorschau ihren Bericht ohne Bild |
 
 **`ARTIFACT_ORIGIN` wird zweimal gelesen, und beide Stellen müssen ihn sehen.**
 Das Backend signiert Inhaltsadressen darauf, und das Frontend fügt seine
@@ -772,6 +773,20 @@ Backend signiert Inhaltsadressen dann auf `PUBLIC_BASE_URL`, und der `frame-src`
 der Konsole nennt die Content-Route unter `PUBLIC_API_URL`; `https://example.com/agenticos`
 auf der einen und `https://example.com` auf der anderen Seite ergibt also
 denselben leeren Frame.
+
+**Der Renderer ist ein eigener Browser, ohne Netzwerk.** Compose liefert ihn als
+optionales Profil `artifact-render` aus: ein fest versioniertes Headless-Chromium
+in einem internen Netz, dem nur die API und der Prefect-Runner beitreten. Jede
+Anfrage eines Renderings beantwortet die API - mit der Seite, ihren
+Bibliotheksdateien und einem Host-Dokument - oder lehnt sie ab, der Browser
+braucht also keinen Weg nach draußen. Und weil er die Datensätze von Personen
+rendert, darf er nicht der Browser sein, den ein
+[browsender Agent](reference/capabilities.md#browser-automation-choose) steuert.
+Starten Sie ihn mit `docker compose --profile artifact-render up -d` und setzen
+Sie dann `ARTIFACT_RENDER_CDP_URL=http://artifact-render:9222`. Nehmen Sie
+`artifact-render` nicht in `BROWSER_CDP_ALLOWED_HOSTS` auf: Diese Liste ist für
+browsende Agents, und der Renderer braucht dort keinen Eintrag. Ein Prozess
+zeichnet zwei Seiten gleichzeitig, jede innerhalb von 15 Sekunden.
 
 ## Agent-Workspaces { #agent-workspaces }
 

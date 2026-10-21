@@ -1,5 +1,5 @@
 ---
-source_sha: "c7261314b422"
+source_sha: "a4ed874220d1"
 ---
 
 # Configuración { #configuration }
@@ -736,6 +736,7 @@ dónde se sirven. Consulta [Artefactos](artifacts.md).
 | `ARTIFACT_MAX_VERSIONS` | `20` | Versiones conservadas por artefacto. La más antigua se elimina cuando llega una más nueva, salvo que el enlace público esté fijado a ella |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Cuánto tiempo abre una dirección de contenido firmada, como máximo 3600. También cuánto sobrevive una página abierta a un grant o un enlace revocado |
 | `ARTIFACT_ORIGIN` | (vacío) | Desde dónde se sirve el contenido: las páginas, su [conjunto de bibliotecas](artifacts.md#the-library-set) y el documento para incrustar. Vacío lo sirve desde `PUBLIC_BASE_URL`, aislado por su política `sandbox`. Fíjalo en un host de un dominio registrable aparte, enrutado a esta API, para poner además la página en otro sitio |
+| `ARTIFACT_RENDER_CDP_URL` | (vacío) | El endpoint de Chromium DevTools en el que [`preview_artifact`](artifacts.md#seeing-the-page-preview) dibuja las páginas, por ejemplo `http://artifact-render:9222`. Es configuración exclusiva del despliegue: no se comprueba contra `BROWSER_CDP_ALLOWED_HOSTS`, que enumera lo que pueden manejar los autores de agents, y a un agent que navega se le rechaza su host aunque esa lista lo nombre. El backend necesita el extra `browser`. Vacío, una vista previa devuelve su informe sin imagen |
 
 **`ARTIFACT_ORIGIN` se lee dos veces, y ambas tienen que verlo.** El backend firma
 las direcciones de contenido sobre él, y el frontend añade su ruta de contenido,
@@ -750,6 +751,19 @@ firma entonces las direcciones de contenido sobre `PUBLIC_BASE_URL`, y el
 `frame-src` de la consola nombra la ruta de contenido bajo `PUBLIC_API_URL`, así que
 `https://example.com/agenticos` en un lado y `https://example.com` en el otro dan el
 mismo frame vacío.
+
+**El renderizador es un navegador propio, sin red.** Compose lo incluye como el
+perfil opcional `artifact-render`: un Chromium headless de versión fijada en una
+red interna a la que solo se unen la API y el runner de Prefect. Cada petición
+que hace un renderizado la responde la API (la página, sus archivos de
+biblioteca y un documento anfitrión) o se rechaza, así que el navegador no
+necesita salida a ninguna parte; y como dibuja los registros de las personas, no
+debe ser el navegador que maneja un [agent que navega](reference/capabilities.md#browser-automation-choose).
+Arráncalo con `docker compose --profile artifact-render up -d` y después fija
+`ARTIFACT_RENDER_CDP_URL=http://artifact-render:9222`. No añadas
+`artifact-render` a `BROWSER_CDP_ALLOWED_HOSTS`: esa lista es para los agents que
+navegan, y el renderizador no necesita ninguna entrada en ella. Un proceso dibuja
+dos páginas a la vez, cada una en 15 segundos como máximo.
 
 ## Workspaces de los agents { #agent-workspaces }
 

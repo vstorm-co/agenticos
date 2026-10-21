@@ -179,6 +179,19 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     captionKey: "readingArtifact",
     displayNameKey: "readArtifact",
   },
+  list_artifacts: {
+    kind: "list",
+    render: "generic",
+    captionKey: "listingArtifacts",
+    displayNameKey: "listArtifacts",
+  },
+  // The picture goes to the model; the step shows the written report beside it.
+  preview_artifact: {
+    kind: "read",
+    render: "generic",
+    captionKey: "previewingArtifact",
+    displayNameKey: "previewArtifact",
+  },
 
   // browser_choice - a whole browse. The step card stays generic because the live
   // view is its own panel beside the transcript: a frame per step folded into the

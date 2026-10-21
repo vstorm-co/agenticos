@@ -153,6 +153,14 @@ class Settings(BaseSettings):
     # `DB_POOL_SIZE + DB_MAX_OVERFLOW`; a load past it is refused with a 429 at
     # once rather than waiting for a connection. Per process, not per deployment.
     ARTIFACT_DATA_MAX_CONCURRENT_LOADS: int = Field(default=4, ge=1)
+    # The Chromium DevTools endpoint `preview_artifact` renders a page in, as
+    # `http://artifact-render:9222` - an operator's setting, never an agent's, so it
+    # is checked on its own and not against `BROWSER_CDP_ALLOWED_HOSTS` (what
+    # authors may drive); `browser_choice` refuses its host. Unset, the tool answers
+    # with its text report and no screenshot. Run it as its own browser on a
+    # network with no egress (the compose `artifact-render` profile), not the one
+    # browsing agents drive: every byte a render needs comes from this API.
+    ARTIFACT_RENDER_CDP_URL: str | None = None
 
     # What a *stranger* may upload to a hosted page, in megabytes. Its own
     # setting and much smaller, because the two callers are not comparable: a

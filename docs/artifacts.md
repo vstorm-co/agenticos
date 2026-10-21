@@ -12,10 +12,11 @@ or a skill, and it can be given a public link for somebody with no account.
 
 ## Publishing one
 
-Turn on the **Artifacts** capability for the agent. It adds two tools:
+Turn on the **Artifacts** capability for the agent. It adds four tools:
 `publish_artifact`, which the model calls when the result is something a person
-should open rather than read once in the chat, and `read_artifact`, which reads a
-published page back.
+should open rather than read once in the chat; `read_artifact`, which reads a
+published page back; `list_artifacts`, which names the pages a run may open; and
+`preview_artifact`, which draws a page and says what went wrong in it.
 
 The page comes from one of three places:
 
@@ -46,6 +47,23 @@ edited copy of an older page never replaces a newer one. Reading follows the
 same rule as opening the page in the console: the person the run acts for must
 be allowed to open it. A page over 100,000 characters is returned cut, and says
 so; an edit can still name text past the cut.
+
+### Finding a page again
+
+Each message is a new run, and a run sees the earlier turns as text only, so the
+model does not keep the names it published under. `list_artifacts` lists the
+agent's pages in the run's environment, newest first and at most 50: each with
+its name, title, current version, format, live bindings, visibility, whether a
+public link is on, when it was published, its console link, and `may_edit` -
+whether publishing under that name from this run updates the page rather than
+being refused. The model checks it before choosing a new name.
+
+The list is read as the person the run is for, by the console's rule: their own
+pages, the organization's and those shared with them, or every page for a role
+that sees every page. In a group chat the channel sees only organization-wide
+pages: never the speaker's private or team pages, nor a page shared with the
+speaker alone. A surface with nobody signed in, such as a public widget, lists
+nothing.
 
 ## Live data
 
@@ -88,6 +106,15 @@ result's `warning` gets a line saying that only the person sees its records unti
 the view is shared, which the agent tells them. Whether a colleague will see them
 is answered where the page is shared: see
 [Who sees a live page's records](#who-sees-a-live-pages-records).
+
+Version 3 of the [page kit](#the-library-set) draws a binding for the agent:
+`AO.records("#tickets", data.tickets)` inside `agenticos.onData` renders the
+records as a table with a head from the fields' labels, numbers and dates
+right-aligned, choices as badges and every value written as text. Before the
+data it shows a loading line, and an `unavailable` or empty binding, a cut list
+and a dropped filter each get their own message. `AO.onData` in version 3 is
+the same call as `agenticos.onData`. A bound page whose script never asks for
+its data still publishes, with a [warning](#the-page-contract-and-the-publish-warnings).
 
 A binding name is lower-case letters, digits and `_`. A field name may be written
 as its column is labelled: words of letters in any case, digits and `_`, with single
@@ -244,22 +271,87 @@ keeps working if the deployment later moves its content to another origin:
 | `lib/chart-4.5.1.umd.min.js` | Chart.js 4.5.1, as `window.Chart` |
 | `lib/d3-7.9.0.min.js` | d3 7.9.0, as `window.d3` |
 | `lib/lucide-1.46.0.min.js` | Lucide 1.46.0 icons, as `window.lucide` - the console's own icon set |
-| `lib/agenticos-2.css` | The console's look for pages, light and dark, and the `ao-` components a page is built from |
-| `lib/agenticos-2.js` | `window.AO`: Chart.js in the console's style, number formatting in the page's language, icons, tabs |
+| `lib/agenticos-3.css` | The page kit: the console's look for pages, light and dark, and the `ao-` components a page is built from |
+| `lib/agenticos-3.js` | `window.AO`: Chart.js in the console's style, number formatting in the page's language, icons, tabs, `AO.onData` and `AO.records` |
+| `lib/agenticos-2.css`, `lib/agenticos-2.js` | The previous version of the kit, kept for the pages published against it |
 | `lib/agenticos-1.css` | The first version of the look, kept for the pages published against it |
 
 Every name carries its version and is cached for a year. An upgrade adds a new
-file beside the old one, so a page published against a version keeps getting it.
-Nothing is fetched from outside the deployment, so an air-gapped one works the
-same way. The files are listed in `backend/app/core/catalog/artifact_lib/`.
+file beside the old one, so a page published against a version keeps getting it,
+and a shipped file is never edited. Nothing is fetched from outside the
+deployment, so an air-gapped one works the same way. The files are listed in
+`backend/app/core/catalog/artifact_lib/`.
 
-The bundled **`artifact-pages`** [skill](skills.md) teaches an agent to use them: two
-templates (a dashboard and a report), the house style and its components, icons
-instead of emoji, and how to change a page
-with `read_artifact`. A new organization gets it with the other bundled skills, an
-existing one through `seed-skills`, and the Artifacts capability's **Page style**
-tab in the Builder offers it. Edit the skill to describe your own brand, and the
-agent follows it.
+Version 3 keeps every class and call of version 2. It also forgives markup a
+model writes loosely: a title, subtitle and meta line placed straight in the
+header stack rather than spreading across it, a table built without `<thead>`
+still gets its header row, and a message written into a table's wrap is padded.
+It adds loading and note lines, a caption line, a live dot, lists, a toolbar
+with inputs, and the header's icon and actions. Icons a script adds after the
+page loaded, as a live page's records do, are drawn too.
+
+The bundled **`artifact-pages`** [skill](skills.md) teaches an agent to use them:
+the mandatory skeleton, every class of the kit, three templates (a dashboard, a
+report and a live table drawn with `AO.records`), the house style, icons instead
+of emoji, and how to change a page with `read_artifact`. A new organization gets
+it with the other bundled skills, an existing one through `seed-skills`, and the
+Artifacts capability's **Page style** tab in the Builder offers it. Edit the
+skill to describe your own brand, and the agent follows it.
+
+### The page contract and the publish warnings
+
+The agent cannot see the page it publishes, so the platform tells it what a page
+must look like and what looks wrong in the one it sent.
+
+The Artifacts capability gives every agent that has it a short **page contract**
+in its instructions, whether or not the skill is bound: the skeleton (doctype,
+viewport, `lang`, the kit's stylesheet and script in order, `main.ao-page` and
+the header), a closed list of the kit's most-used classes, Lucide icons rather
+than emoji, and `AO.records` for bound data.
+
+When the agent's run offers the `artifact-pages` skill and has not loaded it,
+its first whole HTML page is sent back once with a request to load the skill
+and rebuild. That happens once per run; each new message is a new run, so it
+can happen again on a later turn. An edit is never sent back.
+
+A published HTML page is then checked, and the result carries a `warning` with
+one line for each problem found. The page is published either way. The checks:
+
+- no `<!doctype html>` as the first line, or no viewport meta;
+- an `ao-` class, in the markup or named in a script, that the kit version the
+  page loads does not define and its own `<style>` does not either;
+- a table without `<thead>`, or without the `ao-table` class;
+- `data-lucide` icons without `lib/lucide-1.46.0.min.js`;
+- `AO.onData` or `AO.records` on a page that does not load `lib/agenticos-3.js`;
+- a bound page whose script never calls `agenticos.onData` or reads
+  `agenticos.data`, so it shows no records.
+
+### Seeing the page: preview
+
+`preview_artifact` draws the current version of a page as somebody opening it
+would see it, 1280 pixels wide, and hands the model a picture and a written
+report. The report gives each binding's data (records, cut, or unavailable and
+why), whether the page asked for its data, uncaught errors with their line,
+console errors and warnings, what the page's security policy refused, requests
+refused, dialogs, and the publish warnings above. The picture is at most 2400
+pixels tall; a longer page says how tall it is. A page still running after 15
+seconds is reported as such, without a picture.
+
+The data is read as the person the run is for, exactly as the console would
+read it for them. In a group chat only an organization-wide page can be
+previewed, the same pages the list shows there, and it is drawn without data. A
+surface with nobody signed in previews nothing. Nothing the page asks for reaches the
+network: the API answers every request with the page, the
+[library set](#the-library-set) or a refusal.
+
+The picture needs a browser the operator runs, named by
+[`ARTIFACT_RENDER_CDP_URL`](configuration.md#published-artifacts), and the backend's
+`browser` extra. That setting is the operator's alone: it is separate from the
+hosts a browsing agent may drive, and no agent can point a browser at it. Without either, the tool still returns the report, without the
+picture, and says the deployment has no renderer. Turn **Preview screenshot**
+off in the capability's settings for a model that cannot read images; the
+report still comes back. `agenticos cmd doctor` says whether the renderer
+answers.
 
 ## Who can open it
 
@@ -476,11 +568,16 @@ under `artifacts/<organization>/<artifact>/`.
   inside another site's frame.
 - **Removed versions are gone.** A conversation that links to a version older
   than the kept window can only offer the latest one.
+- **Without a renderer the agent does not see its page.** The publish warnings
+  read the markup and cannot tell how it looks. With one, the picture is a
+  headless Chromium's: fonts and sizes can differ slightly from a reader's
+  browser.
 
 ## Recap
 
-- One capability, two tools: `publish_artifact`, from a workspace file, inline
-  or as edits, and `read_artifact` to read a page back.
+- One capability, four tools: `publish_artifact`, from a workspace file, inline
+  or as edits; `read_artifact` to read a page back; `list_artifacts` to find
+  one; and `preview_artifact` to see it drawn, with its errors.
 - The agent, the environment and the name are the identity; publishing again
   keeps the link and adds a version, and any kept version can be restored.
 - Private by default; shared with grants, the organization or a public link, by
@@ -488,7 +585,11 @@ under `artifacts/<organization>/<artifact>/`.
   embedded on listed sites.
 - A page can bind to saved table views and show live data, read at view time with
   the viewer's own access and never stored in the page.
+- A short page contract in every Artifacts agent's instructions, and warnings in
+  the publish result for what looks wrong in the markup.
 - Served from a cookieless route in an opaque origin with no network but the
   deployment's own library set, links that ask before they open, and optionally
   a domain of its own.
+- Archiving keeps a page and serves nothing of it, the public link off, until
+  someone who may edit it restores it.
 - A retention class of its own, measured from the last publication.
