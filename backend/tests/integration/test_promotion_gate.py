@@ -39,6 +39,7 @@ from app.db.models.dataset import Dataset
 from app.db.models.eval_suite import EvalSuite, EvalSuiteResult
 from app.db.models.notification import Notification
 from app.db.models.promotion_gate import EnvironmentGuard, PromotionOverride
+from app.repositories import promotion_gate_repo
 from app.schemas.agent_environment import EnvironmentCreate, EnvironmentUpdate
 from app.schemas.dataset import DatasetCaseCreate
 from app.schemas.eval_suite import EvalSuiteThreshold, EvalSuiteUpdate
@@ -701,6 +702,8 @@ async def test_a_promotion_that_fails_after_a_pass_leaves_the_pass_and_tries_aga
 
     assert (result.status, held) == ("passed", 1)
     assert (moved, await _serving(db, ctx, agent, env_id)) == (1, 2)
+    # Caught up, it is no longer among the followers the sweep reads.
+    assert await promotion_gate_repo.guarded_followers(db, limit=10) == []
     assert await EvalSuiteService(db).reconcile_followers() == 0
 
 

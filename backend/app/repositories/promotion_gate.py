@@ -6,9 +6,11 @@ from collections.abc import Sequence
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
+from app.db.models.agent import AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.eval_suite import EvalSuite
 from app.db.models.promotion_gate import EnvironmentGuard, PromotionOverride
@@ -120,15 +122,27 @@ async def guarded_following_latest(
 
 
 async def guarded_followers(db: AsyncSession, *, limit: int) -> list[AgentEnvironment]:
-    """Environments of every organization that follow publishes and name a guard.
+    """Environments of every organization that follow publishes, name a guard and
+    serve an older version than their agent's newest.
 
     Unscoped, for the deployment's sweep; each row carries its organization.
+    Only the ones behind are read, so a deployment with more followers than one
+    tick reads still reaches every one that is waiting.
     """
+    serving = aliased(AgentVersion)
+    newest = (
+        select(func.max(AgentVersion.version))
+        .where(AgentVersion.agent_id == AgentEnvironment.agent_id)
+        .correlate(AgentEnvironment)
+        .scalar_subquery()
+    )
     result = await db.execute(
         select(AgentEnvironment)
+        .join(serving, serving.id == AgentEnvironment.version_id)
         .where(
             AgentEnvironment.tracks_latest.is_(True),
             AgentEnvironment.id.in_(select(EnvironmentGuard.environment_id)),
+            serving.version < newest,
         )
         .order_by(AgentEnvironment.id)
         .limit(limit)
