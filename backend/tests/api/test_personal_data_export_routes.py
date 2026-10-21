@@ -80,6 +80,7 @@ def _export() -> PersonalDataExport:
         browser_sign_ins=[],
         api_keys=[],
         oauth_grants=[],
+        case_proposals=[],
     )
 
 

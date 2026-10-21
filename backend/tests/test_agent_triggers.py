@@ -250,7 +250,7 @@ class TestCreate:
 
     def test_a_syntactically_valid_cron_that_never_fires_is_a_422(self):
         """`0 0 31 2 *` - the 31st of February - passes croniter's syntax check
-        and then makes `_cron_next` exhaust its search and raise. The schema
+        and then makes `cron_next` exhaust its search and raise. The schema
         resolves one occurrence, so it is a 422 here rather than a 500 at create."""
         with pytest.raises(PydanticValidationError, match="ever fires"):
             TriggerCreate(prompt="run", schedule_kind="cron", cron_expression="0 0 31 2 *")

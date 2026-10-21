@@ -41,6 +41,7 @@ pytestmark = pytest.mark.anyio
 OpenClient = Callable[[], AbstractAsyncContextManager[AsyncClient]]
 
 _NOW = datetime(2026, 10, 13, tzinfo=UTC)
+_RUN_ID = uuid.uuid4()
 _DATASET = DatasetRead(
     id=uuid.uuid4(),
     name="refunds",
@@ -107,12 +108,15 @@ async def test_each_route_answers_with_its_status(client: OpenClient, service: M
     case = f"{dataset}/cases/{_CASE.case_id}"
     async with client() as http:
         listed = await http.get(_url())
+        asking = await http.get(_url(f"?asks_run={_RUN_ID}"))
         created = await http.post(_url(), json={"name": "refunds"})
         read = await http.get(_url(dataset))
         renamed = await http.patch(_url(dataset), json={"description": "x"})
         versions = await http.get(_url(f"{dataset}/versions"))
         cases = await http.get(_url(f"{dataset}/cases?version=1"))
-        twins = await http.get(_url(f"{dataset}/cases?same_input=Refund%20window%3F"))
+        twins = await http.post(
+            _url(f"{dataset}/cases/twins?limit=1"), json={"input": "Refund window?"}
+        )
         added = await http.post(
             _url(f"{dataset}/cases"), json={"input": "q", "reference_answer": "a"}
         )
@@ -124,6 +128,8 @@ async def test_each_route_answers_with_its_status(client: OpenClient, service: M
         deleted = await http.delete(_url(dataset))
 
     assert listed.json()["total"] == 1
+    assert asking.status_code == 200
+    assert service.list_readable.call_args.kwargs["asked_by_run"] == _RUN_ID
     assert created.status_code == 201
     assert read.json()["can_edit"] is True
     assert renamed.status_code == 200
@@ -131,6 +137,7 @@ async def test_each_route_answers_with_its_status(client: OpenClient, service: M
     assert cases.json()["version"] == 1
     assert twins.status_code == 200
     assert service.list_cases.call_args.kwargs["same_input"] == "Refund window?"
+    assert twins.request.url.query == b"limit=1"
     assert added.status_code == 201
     assert from_message.status_code == 201
     assert edited.status_code == 200

@@ -28,6 +28,7 @@ describe("staleQueries", () => {
     expect(staleQueries(change("trigger"))).toEqual([qk.triggers.all()]);
     expect(staleQueries(change("notification"))).toEqual([qk.notifications.all()]);
     expect(staleQueries(change("run"))).toEqual([qk.runs.all(), qk.conversations.list()]);
+    expect(staleQueries(change("eval_suite"))).toEqual([qk.evalSuites.all(), qk.evalRuns.all()]);
     expect(staleQueries(change("knowledge_gap"))).toEqual([qk.knowledgeGaps.all()]);
   });
 
@@ -42,6 +43,7 @@ describe("staleQueries", () => {
       qk.mcpConnections.all(),
       qk.sharing.all(),
     ]);
+    expect(staleQueries(change("dataset"))).toEqual([qk.datasets.all(), qk.sharing.all()]);
   });
 
   it("refreshes the surfaces an agent is exposed on with the channel bots", () => {

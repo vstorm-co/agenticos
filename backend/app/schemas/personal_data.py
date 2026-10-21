@@ -90,6 +90,12 @@ class PersonalDataExport(BaseModel):
             "Never a code or token the consent was exchanged for."
         )
     )
+    case_proposals: list[dict[str, Any]] = Field(
+        description=(
+            "Test cases drafted from their conversations and still waiting for a "
+            "decision - a paraphrase of what they asked is still about them."
+        )
+    )
 
 
 class PersonalDataPurge(BaseModel):
@@ -110,4 +116,7 @@ class PersonalDataPurge(BaseModel):
     )
     scored_answers: int = Field(
         description="Eval scores of their runs, kept but without the answer they scored."
+    )
+    case_proposals: int = Field(
+        description="Proposed dataset cases drafted from their conversations, deleted undecided.",
     )

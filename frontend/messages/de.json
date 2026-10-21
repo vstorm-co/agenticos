@@ -809,6 +809,8 @@
     "judgeKindHint": "Sie bewerten Eval-Antworten: der Standard-Bewerter und der eigene jedes Datasets.",
     "drafterKind": "{count, plural, =1 {Lücken-Entwerfer (1)} other {Lücken-Entwerfer (#)}}",
     "drafterKindHint": "Er entwirft den Inhalt, der einer Wissenslücke fehlt, wenn jemand um einen Entwurf bittet.",
+    "generatorKind": "{count, plural, =1 {Fallgenerator (1)} other {Fallgeneratoren (#)}}",
+    "generatorKindHint": "Er entwirft Testfälle für ein Dataset aus einem Agent, seiner Wissensbasis, echten Chats und Red Teaming; jeden Entwurf nimmt ein Mensch an oder verwirft ihn.",
     "defaultJudge": "Standard-Bewerter",
     "defaultJudgeHint": "Bewertet jedes Dataset ohne eigenen Bewerter.",
     "judgeUsedBy": "{more, plural, =0 {Genutzt von {names}} other {Genutzt von {names} und # weiteren}}",
@@ -2322,6 +2324,7 @@
           "title": "Noch keine Datasets",
           "description": "Testfälle, die Sie für Evals sammeln, erscheinen hier."
         },
+        "waiting": "{count, plural, =1 {1 zu prüfen} other {# zu prüfen}}",
         "stat": {
           "reference": "{count, plural, =1 {1 Referenz} other {# Referenzen}}",
           "counter": "{count, plural, =1 {1 Gegenbeispiel} other {# Gegenbeispiele}}",
@@ -2405,6 +2408,20 @@
         "empty": {
           "title": "Noch nichts gezeichnet",
           "description": "Bitten Sie einen Agent mit Visuals, etwas zu zeichnen - ein Diagramm, eine Erklärung, eine 3D-Szene - und es erscheint hier."
+        }
+      },
+      "eval-suites": {
+        "title": "Eval-Suites",
+        "description": "Datasets, an denen Agents gemessen werden, und wie jede zuletzt abschnitt.",
+        "empty": "Noch keine Suites. Lege eine im Evals-Tab eines Agents an.",
+        "never": "Noch kein Ergebnis",
+        "row": "{suite} · {agent}",
+        "count": {
+          "failing": "{count} nicht bestanden",
+          "inconclusive": "{count} ohne Ergebnis",
+          "passing": "{count} bestanden",
+          "waiting": "{count} warten auf den ersten Lauf",
+          "paused": "{count} pausiert"
         }
       }
     },
@@ -3915,6 +3932,18 @@
         "title": "Ihre Datasets",
         "body": "Jede Änderung an den Fällen erzeugt eine neue Version, sodass ein Eval-Run immer auf Fragen zeigt, die sich nicht ändern."
       },
+      "datasets-add-case": {
+        "title": "Einen Fall schreiben",
+        "body": "Ein Fall ist eine Frage, die der Agent beantwortet, und wie eine gute Antwort aussieht. Jeder hinzugefügte Fall erzeugt eine neue Version des Datasets."
+      },
+      "datasets-generate": {
+        "title": "Fälle entwerfen lassen",
+        "body": "Der Generator entwirft Fälle aus vier Quellen: den Anweisungen und Tools des Agents, seiner Wissensbasis, echten Chats (nur aus dem Betrieb, nie aus Eval-Runs) und Red Teaming. Die geschätzten Kosten sehen Sie, bevor etwas ausgegeben wird."
+      },
+      "datasets-proposals": {
+        "title": "Über die Entwürfe entscheiden",
+        "body": "Entworfene Fälle warten hier. Nehmen Sie sie unverändert an, bearbeiten Sie sie vorher oder verwerfen Sie sie. Ein Annehmen ist eine neue Version."
+      },
       "flow-dataset-create": {
         "title": "Dataset anlegen",
         "body": "Wählen Sie „Neues Dataset“ - das Formular öffnet sich und wir füllen es gemeinsam aus."
@@ -3970,6 +3999,10 @@
       "flow-dataset-sources": {
         "title": "Woher die nächsten Fälle kommen",
         "body": "Schreiben Sie sie hier, oder importieren Sie über dieses Menü eine CSV- oder JSONL-Datei. Bewerten Sie im Chat eine Antwort positiv oder negativ und fügen Sie sie hinzu - ein Daumen nach oben behält sie als Referenz, einer nach unten als Gegenbeispiel. In der Aktivität fügen Sie einen beliebigen Agent-Zug eines Runs hinzu."
+      },
+      "flow-dataset-generate": {
+        "title": "Oder lassen Sie sie entwerfen",
+        "body": "Wählen Sie einen Agent und die Quellen - den Agent selbst, seine Wissensbasis, echte Chats oder Red Teaming - und der Generator entwirft Fälle zur Prüfung. Nichts gelangt in das Dataset, bevor Sie es annehmen."
       },
       "agent-evals": {
         "title": "Evals",
@@ -4111,6 +4144,10 @@
       "chat-visual": {
         "title": "Zeichnungen",
         "body": "Ein Agent mit Visuals zeichnet hier Diagramme, Erklärungen und 3D-Szenen, live während er sie schreibt. Öffnen Sie eine im Vollbild, laden Sie sie herunter, fragen Sie danach oder speichern Sie sie als App mit einem Link zum Teilen."
+      },
+      "agent-eval-suites": {
+        "title": "Suites",
+        "body": "Miss den Agent an einem Dataset, ohne daran denken zu müssen: jede Nacht, bei jeder Veröffentlichung oder Promotion, oder wenn sich ein Skill oder eine Wissensbasis ändert, die er liest. Du wirst benachrichtigt, wenn ein Fall bricht."
       }
     },
     "chooseLanguage": "Sprache"
@@ -5226,7 +5263,9 @@
       "prefMcpServerDown": "MCP-Server antwortet nicht",
       "prefMcpServerDownTrigger": "Ein MCP-Server der Organisation hat auf eine Prüfung oder in einem Run nicht mehr geantwortet. Einmal pro Ausfall an Administratoren und an die Eigentümer der daran gebundenen Agents.",
       "prefMcpServerRecovered": "MCP-Server antwortet wieder",
-      "prefMcpServerRecoveredTrigger": "Ein Server, der nicht mehr antwortete, ist zurück, und die daran gebundenen Agents haben seine Tools wieder."
+      "prefMcpServerRecoveredTrigger": "Ein Server, der nicht mehr antwortete, ist zurück, und die daran gebundenen Agents haben seine Tools wieder.",
+      "prefEvalSuiteFailed": "Eine Eval-Suite hat nicht bestanden",
+      "prefEvalSuiteFailedTrigger": "Eine Suite, die dir gehört, fiel unter ihre Schwelle oder konnte nicht laufen. Einmal pro Serie von Fehlschlägen auf einer Version, mit den gebrochenen Fällen."
     },
     "skills": {
       "agentsBoundSkillWill": "An diesen Skill gebundene Agents laufen ab ihrem nächsten Run ohne ihn. Das lässt sich nicht rückgängig machen.",
@@ -6762,6 +6801,7 @@
       "unverified": "Zitiert, aber nicht in der Antwort: {quotes}",
       "decision": "Prüfentscheidung",
       "noCaseAsks": "Kein Fall dieses Datasets stellt die Frage dieses Runs.",
+      "askedInSeveral": "{count, plural, one {# Dataset hat einen Fall mit der Frage dieses Runs; es steht oben in der Liste.} other {# Datasets haben einen Fall mit der Frage dieses Runs; sie stehen oben in der Liste.}}",
       "addAsCase": "Als Fall hinzufügen",
       "pickCase": "Fall zum Bewerten wählen",
       "filterOutcome": "Ergebnis",
@@ -6845,7 +6885,7 @@
     "caseCount": "{count, plural, =1 {1 Fall} other {# Fälle}}",
     "version": "Version",
     "newestVersion": "Neueste Version",
-    "versionChange": "v{number} · {count, plural, =1 {1 Fall} other {# Fälle}} {change, select, add {hinzugefügt} edit {bearbeitet} remove {entfernt} import {importiert} other {geändert}}",
+    "versionChange": "v{number} · {count, plural, =1 {1 Fall} other {# Fälle}} {change, select, add {hinzugefügt} edit {bearbeitet} remove {entfernt} import {importiert} generate {aus Entwürfen angenommen} other {geändert}}",
     "importFile": "CSV- oder JSONL-Datei zum Importieren wählen",
     "import": "Importieren",
     "exportCsv": "CSV exportieren",
@@ -6912,6 +6952,56 @@
       "exact": "Genau diese, in dieser Reihenfolge",
       "exactHint": "Der Agent muss genau die erwarteten Aufrufe machen, in der angegebenen Reihenfolge, und keine anderen."
     },
+    "origin": {
+      "agent": "Vom Agent",
+      "knowledge": "Aus dem Wissen",
+      "conversation": "Aus Chats",
+      "red_team": "Red Team"
+    },
+    "sourceHint": {
+      "agent": "Typische Anfragen und Grenzfälle, aus seinen Anweisungen, Skills und Tools",
+      "knowledge": "Fragen, die seine Wissensbasis beantwortet, jede mit dem Dokument, aus dem sie stammt",
+      "conversation": "Schwierigere Varianten dessen, was Menschen ihn gefragt haben, negativ bewertete Antworten zuerst",
+      "red_team": "Anfragen, die er ablehnen muss, jede mit der erwarteten Ablehnung"
+    },
+    "plan": {
+      "agent": "{count, plural, =1 {1 Fall} other {# Fälle}} vom Agent und {material, plural, =1 {1 Tool} other {# Tools}}",
+      "knowledge": "{count, plural, =1 {1 Fall} other {# Fälle}} aus {material, plural, =1 {1 Abschnitt} other {# Abschnitten}} seiner Wissensbasis",
+      "conversation": "{count, plural, =1 {1 Fall} other {# Fälle}} aus {material, plural, =1 {1 gestellten Frage} other {# gestellten Fragen}}",
+      "red_team": "{count, plural, =1 {1 Red-Team-Fall} other {# Red-Team-Fälle}}"
+    },
+    "dismissProposal": "Diesen vorgeschlagenen Fall verwerfen",
+    "editProposal": "Vorgeschlagenen Fall bearbeiten",
+    "acceptProposal": "Diesen vorgeschlagenen Fall annehmen",
+    "dismiss": "Verwerfen",
+    "edit": "Bearbeiten",
+    "accept": "Annehmen",
+    "generatorRun": "Run des Generators öffnen",
+    "generating": "{count, plural, =1 {1 Fall wird} other {# Fälle werden}} entworfen…",
+    "generationFailed": "Die Generierung ist fehlgeschlagen.",
+    "proposedCases": "Vorgeschlagene Fälle",
+    "proposalCount": "{count, plural, =0 {Nichts wartet} =1 {1 Fall wartet auf eine Entscheidung} other {# Fälle warten auf eine Entscheidung}}",
+    "dismissAll": "Alle verwerfen",
+    "acceptAll": "Alle annehmen",
+    "proposalsBody": "Vom Fallgenerator entworfen. Nichts gelangt in das Dataset, bevor Sie es annehmen, und ein Annehmen ist eine neue Version.",
+    "proposalsHidden": "{count, plural, =1 {1 Entwurf aus Chats braucht die Berechtigung, Runs anzusehen} other {# Entwürfe aus Chats brauchen die Berechtigung, Runs anzusehen}}",
+    "editProposalBody": "Beim Annehmen wird der Fall so übernommen, wie Sie ihn hier lassen, als neue Version des Datasets.",
+    "proposalsAccepted": "{count, plural, =1 {1 Fall} other {# Fälle}} als Version {version} hinzugefügt",
+    "proposalsDismissed": "{count, plural, =1 {1 vorgeschlagener Fall} other {# vorgeschlagene Fälle}} verworfen",
+    "estimate": "{count, plural, =1 {1 Fall} other {# Fälle}}, geschätzt {cost, number, ::currency/USD}",
+    "estimateUnpriced": "{count, plural, =1 {1 Fall} other {# Fälle}}. Für das Modell des Generators lassen sich die Kosten nicht schätzen.",
+    "excludedCollections": "{count, plural, =1 {1 Wissensbasis} other {# Wissensbasen}} dieses Agents ausgelassen: Sie haben keinen Lesezugriff.",
+    "generationStarted": "{count, plural, =1 {1 Fall wird} other {# Fälle werden}} entworfen. Sie warten hier auf Ihre Entscheidung.",
+    "generateCases": "Fälle generieren",
+    "generateCasesBody": "Der Fallgenerator entwirft Fälle, die Sie prüfen. Die geschätzten Kosten sehen Sie, bevor etwas ausgegeben wird.",
+    "agent": "Agent",
+    "chooseAgent": "Zu testenden Agent wählen",
+    "sources": "Entwerfen aus",
+    "sourceNeedsRunsView": "Erfordert die Berechtigung, Runs anzusehen",
+    "caseNumber": "Anzahl der Fälle",
+    "caseNumberHint": "Auf die Quellen verteilt, höchstens {max}.",
+    "estimateCost": "Kosten schätzen",
+    "generate": "Generieren",
     "importRowProblem": "Zeile {row}: {message}",
     "importRowFieldProblem": "Zeile {row}, {field}: {message}",
     "checkCount": "{count, plural, =1 {1 Prüfung} other {# Prüfungen}}",
@@ -6922,6 +7012,12 @@
     "detailsSaved": "Gespeichert",
     "olderVersion": "Ältere Version Nr.",
     "findDataset": "Dataset suchen",
+    "generatedTab": "{count, plural, =0 {Generiert} other {Generiert · #}}",
+    "generateIntro": "Der Fallgenerator entwirft Fälle für dieses Dataset aus den gewählten Quellen. Zuerst sehen Sie die geschätzten Kosten, und jeder Entwurf wartet hier, bis Sie ihn annehmen, bearbeiten oder verwerfen.",
+    "generateAiOff": "Fälle zu generieren braucht die KI-Unterstützung, die in dieser Organisation ausgeschaltet ist.",
+    "editGenerator": "Anweisungen des Generators bearbeiten",
+    "generatorNotRunnable": "Sie dürfen den Fallgenerator nicht ausführen. Bitten Sie einen Admin, ihn mit Ihnen zu teilen.",
+    "generateMore": "{count, plural, =1 {Weitere Optionen · 1 Fall} other {Weitere Optionen · # Fälle}}",
     "moreActions": "Weitere Aktionen",
     "share": "Teilen",
     "delete": "Löschen",
@@ -8354,6 +8450,157 @@
     "noAccess": {
       "title": "Diesen Eval-Run kannst du nicht öffnen",
       "body": "Eval-Runs zu lesen braucht die Berechtigung, Runs anzusehen, und Zugriff auf den Agent und das Dataset. Frag eine Admin-Person der Organisation."
+    },
+    "startedBySuite": "Gestartet von der Suite {name} {trigger, select, schedule {nach ihrem Zeitplan} publish {nach der Veröffentlichung einer Version} promotion {nach der Promotion einer Version} dependency {nach einer Änderung an einem Skill oder einer Wissensbasis} other {von Hand}}.",
+    "suites": {
+      "title": "Suites",
+      "description": "Datasets, an denen dieser Agent gemessen wird, selbstständig ausgeführt: nach Zeitplan, wenn eine Version veröffentlicht oder promotet wird, oder wenn sich ein Skill oder eine Wissensbasis ändert, die er liest.",
+      "new": "Neue Suite",
+      "empty": {
+        "title": "Noch keine Suites",
+        "body": "Eine Suite lässt ein Dataset gegen den Agent laufen, ohne dass jemand daran denken muss - jede Nacht, bei jeder Veröffentlichung oder wenn sich ein Skill ändert, den er liest - und sagt dir, wenn ein Fall bricht."
+      },
+      "created": "Suite angelegt",
+      "saved": "Suite gespeichert",
+      "resumedToast": "Suite fortgesetzt",
+      "pausedToast": "Suite pausiert",
+      "runningToast": "Suite gestartet",
+      "removed": "Suite entfernt",
+      "viewResults": "Ergebnisse von {name}",
+      "holds": "{dataset} · {environment, select, none {aktuell veröffentlichte Version} other {{environment}}}",
+      "hiddenDataset": "ein Dataset, das du nicht sehen kannst",
+      "when": {
+        "publish": "Bei Veröffentlichung",
+        "promotion": "Bei Promotion",
+        "dependency": "Wenn sich ein Skill oder eine Wissensbasis ändert",
+        "manualOnly": "Nur von Hand"
+      },
+      "schedule": {
+        "daily": "Täglich um {time} ({zone})",
+        "weekdays": "Werktags um {time} ({zone})",
+        "weekly": "Jeden {day} um {time} ({zone})",
+        "custom": "Cron {expression} ({zone})"
+      },
+      "status": {
+        "pending": "Wartet",
+        "running": "Läuft",
+        "passed": "Bestanden",
+        "failed": "Nicht bestanden",
+        "inconclusive": "Ohne Ergebnis",
+        "skipped": "Nicht gelaufen",
+        "error": "Fehler"
+      },
+      "lastResult": "{status} · {rate}",
+      "paused": {
+        "byPerson": "Pausiert",
+        "owner_inactive": "Pausiert: Eigentümer ausgeschieden",
+        "owner_lacks_access": "Pausiert: Eigentümer hat keinen Zugriff mehr",
+        "environment_gone": "Pausiert: ihre Umgebung wurde entfernt"
+      },
+      "next": "Nächster Lauf {date}",
+      "runNow": "Jetzt ausführen",
+      "edit": "Bearbeiten",
+      "pause": "Pausieren",
+      "resume": "Fortsetzen",
+      "delete": "Löschen",
+      "deleteTitle": "Diese Suite löschen?",
+      "deleteConfirm": "{name} und ihre Ergebnisse werden entfernt. Die Eval-Runs, die sie gestartet hat, bleiben.",
+      "resultsCouldNotBeRead": "Die Ergebnisse konnten nicht gelesen werden.",
+      "noResults": "Noch keine Ergebnisse. Ein Ergebnis erscheint beim nächsten Lauf der Suite.",
+      "resultCount": "{count, plural, =1 {1 Ergebnis} other {# Ergebnisse}}",
+      "resultMeta": "{trigger, select, schedule {Geplant} publish {Bei Veröffentlichung} promotion {Bei Promotion} dependency {Nach einer Änderung} other {Von Hand}}{version, select, none {} other { · v{version}}} · {date}",
+      "openRun": "Run öffnen",
+      "passRate": "Bestehensquote {rate} über {cases, plural, =1 {1 Fall} other {# Fälle}} · {regressions, plural, =0 {keine bestätigten Regressionen} =1 {1 bestätigte Regression} other {# bestätigte Regressionen}}",
+      "enableAi": "KI-Unterstützung einschalten",
+      "failing": {
+        "regression": "Bricht reproduzierbar: {input}",
+        "failed": "Nicht bestanden: {input}",
+        "ungraded": "Nicht bewertet: {input}"
+      },
+      "reason": {
+        "passRateBelow": "Die Bestehensquote {value} liegt unter dem Minimum von {limit}.",
+        "nothingGraded": "Kein Fall konnte bewertet werden.",
+        "regressions": "{count, plural, =1 {1 Fall bricht} other {# Fälle brechen}} reproduzierbar; die Suite erlaubt {limit}.",
+        "costRise": "Die Kosten pro bestandenem Fall stiegen um {value}, über die Grenze von {limit}.",
+        "p95Rise": "Die p95-Latenz stieg um {value}, über die Grenze von {limit}.",
+        "invalid": "Beide Seiten wurden unterschiedlich bewertet und lassen sich nicht vergleichen.",
+        "ungraded": "{count, plural, =1 {1 Fall konnte} other {# Fälle konnten}} nicht bewertet werden, daher kann die Suite für dieses Ergebnis nicht einstehen."
+      },
+      "skip": {
+        "budget": "Er würde mehr kosten, als das Budget in diesem Monat noch hat.",
+        "over_cost_cap": "Die Schätzung lag über der Grenze der Suite.",
+        "ai_assistance_off": "Nur der Judge könnte diese Fälle bewerten, und die KI-Unterstützung ist aus.",
+        "no_scorer": "Nichts in der Bewertung des Datasets kann einen Fall entscheiden.",
+        "not_published": "Der Agent hat keine veröffentlichte Version zum Prüfen.",
+        "version_gone": "Die zu prüfende Version gibt es nicht mehr.",
+        "owner_inactive": "Ihr Eigentümer ist kein Mitglied mehr.",
+        "owner_lacks_access": "Ihr Eigentümer kann sie nicht mehr ausführen.",
+        "not_runnable": "Der Eval-Run wurde abgelehnt.",
+        "run_gone": "Ihr Eval-Run existiert nicht mehr.",
+        "cancelled": "Ihr Eval-Run wurde gestoppt.",
+        "failed": "Ihr Eval-Run ist fehlgeschlagen.",
+        "budget_exceeded": "Ihrem Eval-Run ist das Budget ausgegangen.",
+        "start_failed": "Die Suite konnte ihren Eval-Run nicht starten.",
+        "settle_failed": "Die Suite konnte das Ergebnis ihres Eval-Runs nicht lesen."
+      },
+      "form": {
+        "newTitle": "Neue Suite",
+        "editTitle": "Suite bearbeiten",
+        "intro": "Eine Suite lässt ein Dataset selbstständig gegen diesen Agent laufen und misst jedes Ergebnis an einer Schwelle. Sie läuft als du: Mit dem Speichern stimmst du den unten gezeigten Kosten zu.",
+        "name": "Name",
+        "namePlaceholder": "Nächtliche Regression",
+        "dataset": "Dataset",
+        "datasetPlaceholder": "Dataset wählen",
+        "datasetOption": "{name} · {count, plural, =1 {1 Fall} other {# Fälle}}",
+        "datasetHint": "Bei jedem Lauf wird seine neueste Version beantwortet und so bewertet, wie das Dataset es vorgibt.",
+        "environment": "Geprüfte Version",
+        "currentVersion": "Aktuell veröffentlichte Version",
+        "environmentHint": "Ein geplanter Lauf prüft die Version, die diese Umgebung ausliefert, über ihre Testverbindungen. Promotion heißt Promotion auf diese Umgebung.",
+        "when": "Wann sie läuft",
+        "onPublish": "Bei jeder Veröffentlichung",
+        "onPublishHint": "Jede neue Version läuft neben der vorherigen, damit eine Regression auffällt, bevor jemand sie promotet.",
+        "onPromotion": "Bei Promotion",
+        "onPromotionHint": "Wenn eine Version auf die Umgebung oben promotet wird, gemessen an der Version, die sie ersetzt.",
+        "onDependency": "Wenn sich ein Skill oder eine Wissensbasis ändert",
+        "onDependencyHint": "Skills und Dokumente ändern sich ohne Veröffentlichung. Eine Reihe von Änderungen ist ein Lauf, zehn Minuten nach der ersten.",
+        "onSchedule": "Nach Zeitplan",
+        "onScheduleHint": "Täglich auf der Produktionsversion, um zu bemerken, wenn sich das Modell beim Provider oder eine Wissensbasis darunter ändert.",
+        "frequency": "Wiederholung",
+        "frequencies": {
+          "daily": "Täglich",
+          "weekdays": "Werktags",
+          "weekly": "Einmal pro Woche",
+          "custom": "Eigener (Cron)"
+        },
+        "time": "Um",
+        "weekday": "Am",
+        "cron": "Cron-Ausdruck",
+        "cronHint": "Fünf Felder: Minute, Stunde, Tag des Monats, Monat, Wochentag.",
+        "timezone": "Zeitzone",
+        "timezoneHint": "Eine IANA-Zone, etwa Europe/Berlin.",
+        "threshold": "Schwelle",
+        "thresholdHint": "Ein Ergebnis besteht nicht, wenn mehr Fälle als erlaubt reproduzierbar gegenüber der Baseline brechen oder die Bestehensquote - jeder Fall nach der Mehrheit seiner Versuche - unter das Minimum fällt.",
+        "maxRegressions": "Erlaubte bestätigte Regressionen",
+        "maxRegressionsHint": "Standardmäßig keine: Ein Fall, der bei jeder Frage bricht, lässt die Suite durchfallen.",
+        "minPassRate": "Mindest-Bestehensquote (%)",
+        "minPassRateHint": "Leer lassen, um nur Regressionen zu prüfen.",
+        "none": "Keine",
+        "advanced": "Effizienz und Kosten",
+        "efficiencyHint": "Optionale Grenzen gegenüber der Baseline. Leer wird nichts geprüft.",
+        "costRise": "Kosten pro bestandenem Fall dürfen steigen um (%)",
+        "p95Rise": "p95-Latenz darf steigen um (%)",
+        "maxRunUsd": "Lauf überspringen, wenn geschätzt über ($)",
+        "maxRunUsdHint": "Geplante Läufe starten, ohne dass jemand zusieht. Ein höher geschätzter Lauf wird übersprungen, und du wirst benachrichtigt.",
+        "description": "Notiz",
+        "estimateRun": "Ein Lauf: etwa {amount} für {count, plural, =1 {1 Fall} other {# Fälle}}.",
+        "estimatePaired": "Bei Veröffentlichung oder Promotion läuft die vorherige Version daneben: etwa {amount}.",
+        "estimateMonth": "Der Zeitplan: {count, plural, =1 {1 Lauf} other {# Läufe}} in 30 Tagen, etwa {amount}.",
+        "runsAsYou": "Die Suite läuft als du. Wer sie sonst speichert, übernimmt sie.",
+        "enableAi": "KI-Unterstützung einschalten",
+        "cancel": "Abbrechen",
+        "save": "Speichern",
+        "create": "Suite anlegen"
+      }
     }
   },
   "remoteAgents": {

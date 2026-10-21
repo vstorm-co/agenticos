@@ -1,5 +1,5 @@
 ---
-source_sha: "81e0dc8654df"
+source_sha: "cfb1c420009c"
 ---
 
 # Słownik { #glossary }
@@ -36,6 +36,7 @@ skrypt napisany pod nie nie przestał działać po zmianie nazwy.
 | Czat | Rozmowa z agentem w przeglądarce | `conversation` |
 | Kanał | Slack, Telegram albo Mattermost, gdzie ludzie piszą do agenta | `channel_bot` |
 | Rutyna | Agent działający sam, według harmonogramu albo zdarzenia | `trigger` |
+| Suita evali | Dataset, na którym sprawdzany jest agent, uruchamiany według harmonogramu, po publikacji albo promocji, albo po zmianie | `eval_suite` |
 | Run | Jedna odpowiedź agenta, z jej kosztem i krokami | `agent_run` |
 | Środowisko | Nazwany etap, np. produkcja, wskazujący jedną wersję | `environment` |
 | Serwer MCP | Zewnętrzny serwer narzędzi, z którego korzystają agenci, podłączony raz | `mcp_connection` |
@@ -55,6 +56,20 @@ skrypt napisany pod nie nie przestał działać po zmianie nazwy.
 | Budget | Limit wydatków, który zatrzymuje runy po osiągnięciu | `budget` |
 | Zabezpieczenia | Kontrole, które redagują albo blokują to, co przepływa przez run | `guardrails` |
 | Vault | Miejsce na klucze i tokeny, zapieczętowane i nigdy więcej niepokazywane | `secret` |
+
+## Jak to jest testowane { #how-it-is-tested }
+
+| W konsoli | Co to jest | W API i spec |
+|---|---|---|
+| Dataset | Wersjonowane przypadki testowe, z którymi porównuje się odpowiedzi agenta | `dataset` |
+| Przypadek | Jedno pytanie i to, z czym porównuje się dobrą odpowiedź | `dataset_case` |
+| Ocenianie | Jak oceniane są odpowiedzi w datasecie: sprawdzenia, odpowiedź wzorcowa i sędzia | `scoring` |
+| Sędzia | Agent oceniający odpowiedzi w evalach; uruchamia go tylko platforma | `kind: judge` |
+| Eval | Agent odpowiadający na każdy przypadek datasetu, oceniony i porównany z wcześniejszą wersją | `eval_run` |
+| Przegląd | Wyniki czekające, aż człowiek je potwierdzi albo zmieni | `review_state` |
+| Generator przypadków | Agent systemowy, który przygotowuje przypadki z agenta, jego wiedzy, prawdziwych czatów i red teamingu | `kind: generator` |
+| Proponowany przypadek | Przygotowany przypadek czekający w **Wygenerowane**, aż człowiek go zaakceptuje albo odrzuci | `case_proposal` |
+| Red teaming | Przypadki sprawdzające, czy agent odmawia tego, czego musi odmówić | tag `red-team` |
 
 ## Capabilities { #capabilities }
 

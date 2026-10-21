@@ -34,6 +34,7 @@ import {
   useResumeRun,
   useRun,
 } from "@/hooks";
+import { useEveryDataset } from "@/hooks/use-eval-runs";
 import { useAuthStore } from "@/stores";
 import { ApiError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
@@ -95,6 +96,10 @@ export function FocusedRun({
   const { can } = usePermissions();
   const meId = useAuthStore((state) => state.user?.id ?? null);
   const { run, isLoading, error } = useRun(runId);
+  // Scoring a run takes `datasets:run` on the dataset scored against, which a grant on
+  // one widens past the role - so the menu is for who may run any dataset at all.
+  const { datasets } = useEveryDataset({ enabled: run?.conversation_id != null });
+  const scoresRuns = datasets.some((dataset) => dataset.can_run);
   // `?view=input` opens on what went in - how an eval case links to what its model saw.
   const view = useSearchParams().get("view");
   const { runs: delegated } = useDelegatedRuns(runId);
@@ -227,9 +232,7 @@ export function FocusedRun({
                 {t("resumeRun")}
               </Button>
             )}
-            {run.conversation_id !== null && can(Perm.datasetsRun) && (
-              <RunMoreMenu runId={run.id} />
-            )}
+            {run.conversation_id !== null && scoresRuns && <RunMoreMenu runId={run.id} />}
             <Button
               variant="ghost"
               size="icon-sm"

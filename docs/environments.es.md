@@ -1,5 +1,5 @@
 ---
-source_sha: "d57c8926acbb"
+source_sha: "101671079304"
 ---
 
 # Entornos { #environments }
@@ -54,6 +54,11 @@ flowchart LR
 Volver atrás es el mismo movimiento en sentido contrario: reapuntar `production` a
 la versión que funcionaba. La versión antigua sigue ahí, sigue siendo legible y
 sigue siendo ejecutable.
+
+Una [suite de evals](evals.md#suites) configurada para ejecutarse en cada
+promoción comprueba cada versión promocionada a su entorno frente a la que
+sustituyó, y avisa a su propietario cuando el resultado no pasa. Informa; no
+detiene la promoción.
 
 ## `tracks_latest`, y por qué está desactivado { #tracks_latest-and-why-it-is-off }
 

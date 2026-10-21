@@ -683,6 +683,8 @@
     "judgeKindHint": "Oceniają odpowiedzi w ewaluacjach: domyślny sędzia i każdy własny sędzia datasetu.",
     "drafterKind": "{count, plural, one {Autor szkiców luk (#)} few {Autorzy szkiców luk (#)} many {Autorzy szkiców luk (#)} other {Autorzy szkiców luk (#)}}",
     "drafterKindHint": "Pisze szkic treści, której brakuje przy luce w wiedzy, gdy ktoś o niego poprosi.",
+    "generatorKind": "{count, plural, one {Generator przypadków (#)} few {Generatory przypadków (#)} many {Generatorów przypadków (#)} other {Generatory przypadków (#)}}",
+    "generatorKindHint": "Przygotowuje przypadki testowe do datasetu z agenta, jego bazy wiedzy, prawdziwych czatów i red teamingu; każdą propozycję człowiek akceptuje albo odrzuca.",
     "defaultJudge": "Domyślny sędzia",
     "defaultJudgeHint": "Ocenia każdy dataset, który nie ma własnego sędziego.",
     "judgeUsedBy": "{more, plural, =0 {Używają go: {names}} one {Używają go: {names} i # inny} few {Używają go: {names} i # inne} many {Używają go: {names} i # innych} other {Używają go: {names} i # innych}}",
@@ -2321,6 +2323,7 @@
           "title": "Brak datasetów",
           "description": "Tu pojawią się przypadki testowe zbierane do evali."
         },
+        "waiting": "{count, plural, one {1 do przejrzenia} other {# do przejrzenia}}",
         "stat": {
           "reference": "{count} z odpowiedzią wzorcową",
           "counter": "{count} z kontrprzykładem",
@@ -2404,6 +2407,20 @@
         "empty": {
           "title": "Nic jeszcze nie narysowano",
           "description": "Poproś agenta z Wizualizacjami, żeby coś narysował - diagram, explainer, scenę 3D - a pojawi się tutaj."
+        }
+      },
+      "eval-suites": {
+        "title": "Suity evali",
+        "description": "Datasety, na których sprawdzane są agenty, i jak każdy wypadł ostatnio.",
+        "empty": "Brak suit. Utwórz ją w zakładce Evale agenta.",
+        "never": "Brak wyniku",
+        "row": "{suite} · {agent}",
+        "count": {
+          "failing": "{count} nie przechodzi",
+          "inconclusive": "{count} bez rozstrzygnięcia",
+          "passing": "{count} przechodzi",
+          "waiting": "{count} czeka na pierwszy run",
+          "paused": "{count} wstrzymanych"
         }
       }
     },
@@ -3802,6 +3819,18 @@
         "title": "Twoje datasety",
         "body": "Każda zmiana przypadków tworzy nową wersję, więc run eval zawsze wskazuje pytania, które się nie zmieniają."
       },
+      "datasets-add-case": {
+        "title": "Napisz przypadek",
+        "body": "Przypadek to pytanie, na które odpowiada agent, i opis dobrej odpowiedzi. Każdy dodany przypadek tworzy nową wersję datasetu."
+      },
+      "datasets-generate": {
+        "title": "Wygeneruj przypadki",
+        "body": "Generator przygotowuje przypadki z czterech źródeł: instrukcji i narzędzi agenta, jego bazy wiedzy, prawdziwych czatów (tylko produkcyjnych, nigdy z runów eval) i red teamingu. Szacowany koszt widzisz, zanim cokolwiek zostanie wydane."
+      },
+      "datasets-proposals": {
+        "title": "Zdecyduj o propozycjach",
+        "body": "Tu czekają przygotowane przypadki. Zaakceptuj je bez zmian, najpierw edytuj albo odrzuć. Jedno Zaakceptuj to jedna nowa wersja."
+      },
       "flow-dataset-create": {
         "title": "Utwórz dataset",
         "body": "Wybierz „Nowy dataset” - otworzy się formularz, który wypełnimy razem."
@@ -3857,6 +3886,10 @@
       "flow-dataset-sources": {
         "title": "Skąd biorą się kolejne przypadki",
         "body": "Pisz je tutaj albo importuj plik CSV lub JSONL z tego menu. W czacie oceń odpowiedź łapką w górę albo w dół i dodaj ją - łapka w górę zachowuje ją jako wzorcową, łapka w dół jako kontrprzykład. W Aktywności dodaj dowolną turę agenta z runa."
+      },
+      "flow-dataset-generate": {
+        "title": "Albo zleć je generatorowi",
+        "body": "Wybierz agenta i źródła - samego agenta, jego bazę wiedzy, prawdziwe czaty albo red teaming - a generator przygotuje przypadki do przeglądu. Nic nie trafia do datasetu, dopóki tego nie zaakceptujesz."
       },
       "agent-evals": {
         "title": "Evale",
@@ -3998,6 +4031,10 @@
       "chat-visual": {
         "title": "Rysunki",
         "body": "Agent z Visuals rysuje tu diagramy, explainery i sceny 3D, na żywo, w trakcie pisania. Otwórz rysunek na pełnym ekranie, pobierz go, zapytaj o niego albo zapisz jako aplikację z linkiem do udostępnienia."
+      },
+      "agent-eval-suites": {
+        "title": "Suity",
+        "body": "Sprawdzaj agenta na datasecie bez pamiętania o tym: co noc, przy każdej publikacji albo promocji, albo po zmianie skilla lub bazy wiedzy, z których korzysta. Dostaniesz wiadomość, gdy jakiś przypadek przestanie przechodzić."
       }
     },
     "chooseLanguage": "Język"
@@ -5112,7 +5149,9 @@
       "prefMcpServerDown": "Serwer MCP nie odpowiada",
       "prefMcpServerDownTrigger": "Serwer MCP organizacji przestał odpowiadać na sprawdzenie lub w trakcie runu. Wysyłane raz na awarię administratorom i właścicielom agentów, którzy z niego korzystają.",
       "prefMcpServerRecovered": "Serwer MCP znów odpowiada",
-      "prefMcpServerRecoveredTrigger": "Serwer, który przestał odpowiadać, wrócił, a agenci, którzy z niego korzystają, znów mają jego narzędzia."
+      "prefMcpServerRecoveredTrigger": "Serwer, który przestał odpowiadać, wrócił, a agenci, którzy z niego korzystają, znów mają jego narzędzia.",
+      "prefEvalSuiteFailed": "Suita evali nie przeszła",
+      "prefEvalSuiteFailedTrigger": "Twoja suita spadła poniżej progu albo nie mogła się uruchomić. Wysyłane raz na serię niepowodzeń na danej wersji, z nazwami przypadków, które się zepsuły."
     },
     "skills": {
       "agentsBoundSkillWill": "Agenci związani z tym skillem będą od następnego runu działać bez niego. Tego nie da się cofnąć.",
@@ -6645,6 +6684,7 @@
       "unverified": "Zacytowane, ale nie ma tego w odpowiedzi: {quotes}",
       "decision": "Decyzja przeglądu",
       "noCaseAsks": "Żaden przypadek tego datasetu nie zadaje pytania z tego runa.",
+      "askedInSeveral": "{count, plural, one {# dataset ma przypadek z pytaniem tego runa; jest na początku listy.} few {# datasety mają przypadek z pytaniem tego runa; są na początku listy.} many {# datasetów ma przypadek z pytaniem tego runa; są na początku listy.} other {# datasetu ma przypadek z pytaniem tego runa; są na początku listy.}}",
       "addAsCase": "Dodaj go jako przypadek",
       "pickCase": "Wybierz przypadek do oceny",
       "filterOutcome": "Wynik",
@@ -6728,7 +6768,7 @@
     "caseCount": "{count, plural, one {1 przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}",
     "version": "Wersja",
     "newestVersion": "Najnowsza wersja",
-    "versionChange": "v{number} · {change, select, add {dodano} edit {zmieniono} remove {usunięto} import {zaimportowano} other {zmieniono}} {count, plural, one {1 przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}",
+    "versionChange": "v{number} · {change, select, add {dodano} edit {zmieniono} remove {usunięto} import {zaimportowano} generate {zaakceptowano z propozycji} other {zmieniono}} {count, plural, one {1 przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}",
     "importFile": "Wybierz plik CSV lub JSONL do importu",
     "import": "Importuj",
     "exportCsv": "Eksportuj CSV",
@@ -6795,6 +6835,56 @@
       "exact": "Dokładnie te, w tej kolejności",
       "exactHint": "Agent musi wykonać dokładnie oczekiwane wywołania, w podanej kolejności, i żadnych innych."
     },
+    "origin": {
+      "agent": "Z agenta",
+      "knowledge": "Z wiedzy",
+      "conversation": "Z czatów",
+      "red_team": "Red team"
+    },
+    "sourceHint": {
+      "agent": "Typowe prośby i przypadki brzegowe na podstawie instrukcji, skilli i narzędzi",
+      "knowledge": "Pytania, na które odpowiada baza wiedzy, każde ze wskazaniem dokumentu źródłowego",
+      "conversation": "Trudniejsze warianty tego, o co pytali ludzie, najpierw odpowiedzi ocenione negatywnie",
+      "red_team": "Prośby, którym agent musi odmówić, każda z oczekiwaną odmową"
+    },
+    "plan": {
+      "agent": "{count, plural, one {1 przypadek} few {# przypadki} many {# przypadków} other {# przypadku}} z agenta i {material, plural, one {1 jego narzędzia} other {# jego narzędzi}}",
+      "knowledge": "{count, plural, one {1 przypadek} few {# przypadki} many {# przypadków} other {# przypadku}} z {material, plural, one {1 fragmentu} other {# fragmentów}} bazy wiedzy",
+      "conversation": "{count, plural, one {1 przypadek} few {# przypadki} many {# przypadków} other {# przypadku}} z {material, plural, one {1 pytania} other {# pytań}} zadanych przez ludzi",
+      "red_team": "{count, plural, one {1 przypadek red team} few {# przypadki red team} many {# przypadków red team} other {# przypadku red team}}"
+    },
+    "dismissProposal": "Odrzuć ten proponowany przypadek",
+    "editProposal": "Edytuj proponowany przypadek",
+    "acceptProposal": "Zaakceptuj ten proponowany przypadek",
+    "dismiss": "Odrzuć",
+    "edit": "Edytuj",
+    "accept": "Zaakceptuj",
+    "generatorRun": "Otwórz run generatora",
+    "generating": "Generowanie: {count, plural, one {1 przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}…",
+    "generationFailed": "Generowanie się nie powiodło.",
+    "proposedCases": "Proponowane przypadki",
+    "proposalCount": "{count, plural, =0 {Nic nie czeka} one {1 przypadek czeka na decyzję} few {# przypadki czekają na decyzję} many {# przypadków czeka na decyzję} other {# przypadku czeka na decyzję}}",
+    "dismissAll": "Odrzuć wszystkie",
+    "acceptAll": "Zaakceptuj wszystkie",
+    "proposalsBody": "Przygotowane przez generator przypadków. Nic nie trafia do datasetu, dopóki tego nie zaakceptujesz, a jedno Zaakceptuj to jedna nowa wersja.",
+    "proposalsHidden": "{count, plural, one {# propozycja z czatów wymaga uprawnienia do przeglądania runów} few {# propozycje z czatów wymagają uprawnienia do przeglądania runów} many {# propozycji z czatów wymaga uprawnienia do przeglądania runów} other {# propozycji z czatów wymaga uprawnienia do przeglądania runów}}",
+    "editProposalBody": "Akceptacja dodaje przypadek w takiej postaci, w jakiej go tu zostawisz, jako nową wersję datasetu.",
+    "proposalsAccepted": "Dodano {count, plural, one {1 przypadek} few {# przypadki} many {# przypadków} other {# przypadku}} jako wersję {version}",
+    "proposalsDismissed": "Odrzucono {count, plural, one {1 proponowany przypadek} few {# proponowane przypadki} many {# proponowanych przypadków} other {# proponowanego przypadku}}",
+    "estimate": "{count, plural, one {1 przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}, szacunkowo {cost, number, ::currency/USD}",
+    "estimateUnpriced": "{count, plural, one {1 przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}. Nie da się oszacować kosztu dla modelu generatora.",
+    "excludedCollections": "Pominięto {count, plural, one {1 bazę wiedzy} few {# bazy wiedzy} many {# baz wiedzy} other {# bazy wiedzy}} tego agenta: nie masz do nich dostępu.",
+    "generationStarted": "Generowanie: {count, plural, one {1 przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}. Poczekają tu na Twoją decyzję.",
+    "generateCases": "Generuj przypadki",
+    "generateCasesBody": "Generator przygotowuje przypadki do Twojego przeglądu. Szacowany koszt widzisz, zanim cokolwiek zostanie wydane.",
+    "agent": "Agent",
+    "chooseAgent": "Wybierz agenta do przetestowania",
+    "sources": "Źródła",
+    "sourceNeedsRunsView": "Wymaga uprawnienia do przeglądania runów",
+    "caseNumber": "Liczba przypadków",
+    "caseNumberHint": "Dzielona między źródła, najwyżej {max}.",
+    "estimateCost": "Oszacuj koszt",
+    "generate": "Generuj",
     "importRowProblem": "Wiersz {row}: {message}",
     "importRowFieldProblem": "Wiersz {row}, {field}: {message}",
     "checkCount": "{count, plural, one {1 sprawdzenie} few {# sprawdzenia} many {# sprawdzeń} other {# sprawdzenia}}",
@@ -6805,6 +6895,12 @@
     "detailsSaved": "Zapisano",
     "olderVersion": "Starsza wersja nr",
     "findDataset": "Znajdź dataset",
+    "generatedTab": "{count, plural, =0 {Wygenerowane} other {Wygenerowane · #}}",
+    "generateIntro": "Generator przygotowuje przypadki do tego datasetu z wybranych źródeł. Najpierw widzisz szacowany koszt, a każda propozycja czeka tu, aż ją zaakceptujesz, edytujesz albo odrzucisz.",
+    "generateAiOff": "Generowanie przypadków wymaga wsparcia AI, które jest wyłączone w tej organizacji.",
+    "editGenerator": "Edytuj instrukcje generatora",
+    "generatorNotRunnable": "Nie możesz uruchamiać generatora przypadków. Poproś administratora o udostępnienie go.",
+    "generateMore": "{count, plural, one {Więcej opcji · 1 przypadek} few {Więcej opcji · # przypadki} many {Więcej opcji · # przypadków} other {Więcej opcji · # przypadku}}",
     "moreActions": "Więcej akcji",
     "share": "Udostępnij",
     "delete": "Usuń",
@@ -7714,6 +7810,157 @@
     "noAccess": {
       "title": "Nie możesz otworzyć tego eval runa",
       "body": "Czytanie eval runów wymaga uprawnienia do podglądu runów oraz dostępu do agenta i datasetu. Poproś administratora organizacji."
+    },
+    "startedBySuite": "Uruchomione przez suitę {name} {trigger, select, schedule {według harmonogramu} publish {po publikacji wersji} promotion {po promocji wersji} dependency {po zmianie skilla albo bazy wiedzy} other {ręcznie}}.",
+    "suites": {
+      "title": "Suity",
+      "description": "Datasety, na których sprawdzany jest ten agent, uruchamiane same: według harmonogramu, po publikacji albo promocji wersji, albo po zmianie skilla lub bazy wiedzy, z których korzysta.",
+      "new": "Nowa suita",
+      "empty": {
+        "title": "Brak suit",
+        "body": "Suita uruchamia dataset na agencie bez pamiętania o tym - co noc, przy każdej publikacji albo po zmianie skilla, z którego korzysta - i daje znać, gdy jakiś przypadek przestanie przechodzić."
+      },
+      "created": "Suita utworzona",
+      "saved": "Suita zapisana",
+      "resumedToast": "Suita wznowiona",
+      "pausedToast": "Suita wstrzymana",
+      "runningToast": "Suita uruchomiona",
+      "removed": "Suita usunięta",
+      "viewResults": "Wyniki suity {name}",
+      "holds": "{dataset} · {environment, select, none {bieżąca opublikowana wersja} other {{environment}}}",
+      "hiddenDataset": "dataset, którego nie widzisz",
+      "when": {
+        "publish": "Po publikacji",
+        "promotion": "Po promocji",
+        "dependency": "Po zmianie skilla albo bazy wiedzy",
+        "manualOnly": "Tylko ręcznie"
+      },
+      "schedule": {
+        "daily": "Codziennie o {time} ({zone})",
+        "weekdays": "W dni robocze o {time} ({zone})",
+        "weekly": "Co {day} o {time} ({zone})",
+        "custom": "Cron {expression} ({zone})"
+      },
+      "status": {
+        "pending": "Czeka",
+        "running": "W toku",
+        "passed": "Zaliczona",
+        "failed": "Niezaliczona",
+        "inconclusive": "Bez rozstrzygnięcia",
+        "skipped": "Nie uruchomiona",
+        "error": "Błąd"
+      },
+      "lastResult": "{status} · {rate}",
+      "paused": {
+        "byPerson": "Wstrzymana",
+        "owner_inactive": "Wstrzymana: właściciel odszedł",
+        "owner_lacks_access": "Wstrzymana: właściciel stracił dostęp",
+        "environment_gone": "Wstrzymana: jej środowisko usunięto"
+      },
+      "next": "Następnie {date}",
+      "runNow": "Uruchom teraz",
+      "edit": "Edytuj",
+      "pause": "Wstrzymaj",
+      "resume": "Wznów",
+      "delete": "Usuń",
+      "deleteTitle": "Usunąć tę suitę?",
+      "deleteConfirm": "{name} i jej wyniki zostaną usunięte. Runy evali, które uruchomiła, zostają.",
+      "resultsCouldNotBeRead": "Nie udało się odczytać wyników.",
+      "noResults": "Brak wyników. Wynik pojawi się przy następnym uruchomieniu suity.",
+      "resultCount": "{count, plural, one {# wynik} few {# wyniki} many {# wyników} other {# wyniku}}",
+      "resultMeta": "{trigger, select, schedule {Z harmonogramu} publish {Po publikacji} promotion {Po promocji} dependency {Po zmianie} other {Ręcznie}}{version, select, none {} other { · v{version}}} · {date}",
+      "openRun": "Otwórz run",
+      "passRate": "Odsetek zaliczonych {rate} na {cases, plural, one {# przypadku} other {# przypadkach}} · {regressions, plural, =0 {brak potwierdzonych regresji} one {# potwierdzona regresja} few {# potwierdzone regresje} many {# potwierdzonych regresji} other {# potwierdzonej regresji}}",
+      "enableAi": "Włącz wsparcie AI",
+      "failing": {
+        "regression": "Psuje się powtarzalnie: {input}",
+        "failed": "Niezaliczony: {input}",
+        "ungraded": "Nieoceniony: {input}"
+      },
+      "reason": {
+        "passRateBelow": "Odsetek zaliczonych {value} jest poniżej minimum {limit}.",
+        "nothingGraded": "Żadnego przypadku nie udało się ocenić.",
+        "regressions": "{count, plural, one {# przypadek psuje się} few {# przypadki psują się} many {# przypadków psuje się} other {# przypadku psuje się}} powtarzalnie; suita dopuszcza {limit}.",
+        "costRise": "Koszt na zaliczony przypadek wzrósł o {value}, ponad limit {limit}.",
+        "p95Rise": "Opóźnienie p95 wzrosło o {value}, ponad limit {limit}.",
+        "invalid": "Obie strony oceniono inaczej, więc nie da się ich porównać.",
+        "ungraded": "{count, plural, one {# przypadku} few {# przypadków} many {# przypadków} other {# przypadku}} nie udało się ocenić, więc suita nie może ręczyć za ten wynik."
+      },
+      "skip": {
+        "budget": "Kosztowałaby więcej, niż zostało w budżecie w tym miesiącu.",
+        "over_cost_cap": "Jej szacunek przekroczył limit suity.",
+        "ai_assistance_off": "Te przypadki może ocenić tylko sędzia, a wsparcie AI jest wyłączone.",
+        "no_scorer": "Nic w ocenianiu datasetu nie rozstrzyga przypadku.",
+        "not_published": "Agent nie ma opublikowanej wersji do sprawdzenia.",
+        "version_gone": "Wersja, którą miała sprawdzić, już nie istnieje.",
+        "owner_inactive": "Jej właściciel nie jest już członkiem organizacji.",
+        "owner_lacks_access": "Jej właściciel nie może jej już uruchomić.",
+        "not_runnable": "Run evala został odrzucony.",
+        "run_gone": "Jej run evala już nie istnieje.",
+        "cancelled": "Jej run evala zatrzymano.",
+        "failed": "Jej run evala się nie powiódł.",
+        "budget_exceeded": "Jej run evala wyczerpał budżet.",
+        "start_failed": "Suita nie mogła uruchomić swojego runa evala.",
+        "settle_failed": "Suita nie mogła odczytać wyniku swojego runa evala."
+      },
+      "form": {
+        "newTitle": "Nowa suita",
+        "editTitle": "Edytuj suitę",
+        "intro": "Suita sama uruchamia dataset na tym agencie i porównuje każdy wynik z progiem. Działa jako Ty: zapisując ją, zgadzasz się na koszt pokazany niżej.",
+        "name": "Nazwa",
+        "namePlaceholder": "Nocna regresja",
+        "dataset": "Dataset",
+        "datasetPlaceholder": "Wybierz dataset",
+        "datasetOption": "{name} · {count, plural, one {# przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}",
+        "datasetHint": "Przy każdym uruchomieniu odpowiada jego najnowsza wersja, oceniana tak, jak mówi dataset.",
+        "environment": "Sprawdzana wersja",
+        "currentVersion": "Bieżąca opublikowana wersja",
+        "environmentHint": "Run z harmonogramu sprawdza wersję serwowaną przez to środowisko, na jego połączeniach testowych. Promocja oznacza promocję na to środowisko.",
+        "when": "Kiedy się uruchamia",
+        "onPublish": "Przy każdej publikacji",
+        "onPublishHint": "Każda nowa wersja działa obok poprzedniej, więc regresja wychodzi, zanim ktoś ją wypromuje.",
+        "onPromotion": "Po promocji",
+        "onPromotionHint": "Gdy wersja trafia na środowisko wyżej, w porównaniu z wersją, którą zastąpiła.",
+        "onDependency": "Po zmianie skilla albo bazy wiedzy",
+        "onDependencyHint": "Skille i dokumenty zmieniają się bez publikacji. Seria zmian to jeden run, dziesięć minut po pierwszej.",
+        "onSchedule": "Według harmonogramu",
+        "onScheduleHint": "Uruchamiaj codziennie na wersji produkcyjnej, żeby wyłapać zmiany modelu u providera i zmiany w bazie wiedzy.",
+        "frequency": "Powtarza się",
+        "frequencies": {
+          "daily": "Codziennie",
+          "weekdays": "W dni robocze",
+          "weekly": "Raz w tygodniu",
+          "custom": "Własny (cron)"
+        },
+        "time": "O godzinie",
+        "weekday": "W dzień",
+        "cron": "Wyrażenie cron",
+        "cronHint": "Pięć pól: minuta, godzina, dzień miesiąca, miesiąc, dzień tygodnia.",
+        "timezone": "Strefa czasowa",
+        "timezoneHint": "Strefa IANA, np. Europe/Warsaw.",
+        "threshold": "Próg",
+        "thresholdHint": "Wynik nie przechodzi, gdy więcej przypadków niż dozwolone psuje się powtarzalnie względem baseline'u albo gdy odsetek zaliczonych - każdy przypadek liczony według większości prób - spada poniżej minimum.",
+        "maxRegressions": "Dozwolone potwierdzone regresje",
+        "maxRegressionsHint": "Domyślnie zero: jeden przypadek, który psuje się przy każdym pytaniu, oblewa suitę.",
+        "minPassRate": "Minimalny odsetek zaliczonych (%)",
+        "minPassRateHint": "Zostaw puste, żeby pilnować tylko regresji.",
+        "none": "Brak",
+        "advanced": "Wydajność i koszt",
+        "efficiencyHint": "Opcjonalne limity względem baseline'u. Puste pola niczego nie sprawdzają.",
+        "costRise": "Koszt na zaliczony przypadek może wzrosnąć o (%)",
+        "p95Rise": "Opóźnienie p95 może wzrosnąć o (%)",
+        "maxRunUsd": "Pomiń run szacowany powyżej ($)",
+        "maxRunUsdHint": "Runy z harmonogramu startują bez nikogo przy ekranie. Run o wyższym szacunku zostanie pominięty, a Ty dostaniesz wiadomość.",
+        "description": "Notatka",
+        "estimateRun": "Jeden run: około {amount} za {count, plural, one {# przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}.",
+        "estimatePaired": "Przy publikacji albo promocji obok działa poprzednia wersja: około {amount}.",
+        "estimateMonth": "Harmonogram: {count, plural, one {# run} few {# runy} many {# runów} other {# runu}} w 30 dni, około {amount}.",
+        "runsAsYou": "Suita działa jako Ty. Ktoś, kto ją zapisze, przejmuje ją.",
+        "enableAi": "Włącz wsparcie AI",
+        "cancel": "Anuluj",
+        "save": "Zapisz",
+        "create": "Utwórz suitę"
+      }
     }
   },
   "steps": {

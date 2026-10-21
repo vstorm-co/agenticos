@@ -47,6 +47,7 @@ const BUILDER_STEPS = [
   "agent-limits",
   "agent-availability",
   "agent-evals",
+  "agent-eval-suites",
   "agent-history",
   "agent-test-connections",
   "agent-test-draft",
@@ -80,6 +81,7 @@ describe("pageKey", () => {
   it("collapses every concrete dataset route onto the one dataset identity", () => {
     expect(pageKey("/datasets/abc-123")).toBe(DATASET_DETAIL);
     expect(pageKey("/datasets")).toBe("/datasets");
+    expect(pageHasSteps("/datasets/abc-123")).toBe(true);
   });
 
   it("splits the three organization detail routes onto their own identities", () => {
@@ -277,6 +279,7 @@ describe("stepsForPage", () => {
           id !== "agent-test-connections" &&
           id !== "agent-test" &&
           id !== "agent-evals" &&
+          id !== "agent-eval-suites" &&
           id !== "agent-test-draft" &&
           id !== "agent-gaps",
       ),

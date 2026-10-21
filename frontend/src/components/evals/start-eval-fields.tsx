@@ -67,7 +67,7 @@ export function TargetChoice({
   );
 }
 
-function Toggle({
+export function Toggle({
   checked,
   onChange,
   label,
