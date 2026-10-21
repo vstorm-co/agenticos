@@ -1,5 +1,5 @@
 ---
-source_sha: "cb36b7fb6577"
+source_sha: "44c70173aa8d"
 ---
 
 # Konsola { #the-console }
@@ -213,6 +213,10 @@ Ogłaszane są też runy: gdy startują, zatrzymują się na zatwierdzeniu lub p
 i gdy się kończą. Run uruchomiony przez harmonogram pojawia się na otwartej
 stronie Activity i zmienia tam status, choć nie stoi za nim żadne twoje żądanie.
 
+Tak samo ogłaszane są luki w wiedzy: temat odrzucony albo z nowym szkicem w
+jednej karcie i pytania, które co 15 minut umieszcza przejście grupujące,
+pojawiają się na otwartej karcie Luki w wiedzy bez przeładowania.
+
 Wyjątkiem jest Builder, bo zapisuje draft w trakcie pisania. Gdy edytowany agent
 zmieni się gdzie indziej, Builder przestaje zapisywać i pobiera nową wersję. Bez
 niezapisanych zmian po prostu ją przyjmuje; z niezapisanymi zmianami mówi, kto i
@@ -223,7 +227,8 @@ Słyszysz tylko o tym, co możesz odczytać: zmiana agenta, skilla, bazy wiedzy,
 pliku kontekstu, strony, klucza albo serwera MCP, których nie widzisz, nigdy nie
 trafia do twojej konsoli, a usunięcie trafia tylko do ról, które widzą każdy
 wiersz danego rodzaju. Runy trafiają do ról, które czytają historię runów albo
-decydują o zatwierdzeniach, boty kanałów do ról, które nimi zarządzają, a twoje
+decydują o zatwierdzeniach, luki w wiedzy do ról, które czytają każdy run, boty
+kanałów do ról, które nimi zarządzają, a twoje
 powiadomienia tylko do ciebie.
 Gdy połączenie zostanie zerwane, konsola działa jak dotąd i sama się ponownie łączy.
 

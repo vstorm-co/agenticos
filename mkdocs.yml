@@ -327,6 +327,7 @@ nav:
           - context.md
           - datasets.md
           - evals.md
+          - knowledge-gaps.md
           - file-processing.md
           - mcp.md
           - sandbox.md

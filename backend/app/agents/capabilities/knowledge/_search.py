@@ -2,6 +2,7 @@
 
 import contextvars
 import logging
+from collections.abc import Callable
 from typing import Any
 from uuid import UUID
 
@@ -152,6 +153,7 @@ async def search_knowledge_base(
     analysis_max_variants: int = 3,
     generate: GenerateText | None = None,
     parent_context: ParentContextMode = ParentContextMode.OFF,
+    on_results: Callable[[list[str], list[SearchResult]], None] | None = None,
 ) -> str:
     """Search the knowledge base and return formatted results.
 
@@ -181,6 +183,8 @@ async def search_knowledge_base(
             (the default) returns the matched chunks unchanged. With several
             queries it runs once, after fusion, so the passage budget is spent
             on the fused list rather than on each variant's.
+        on_results: Called with the collections searched and what came back,
+            once retrieval has succeeded; never for a refused or failed search.
     """
     resolved = kb_collection_names if kb_collection_names else (_active_kb_collections.get() or [])
     if not resolved:
@@ -269,6 +273,8 @@ async def search_knowledge_base(
             },
         ) from e
 
+    if on_results is not None:
+        on_results(resolved, results)
     return _format_results(results)
 
 

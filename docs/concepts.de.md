@@ -1,5 +1,5 @@
 ---
-source_sha: "8d67cd77507c"
+source_sha: "8a6ce582650b"
 ---
 
 # Begriffe { #concepts }
@@ -625,46 +625,53 @@ wer an was delegieren darf.
 
 ---
 
-## Bewerter { #system-agents }
+## System-Agents { #system-agents }
 
 Manche Agents werden von der Plattform gestartet und nicht von einem Menschen:
 **Bewerter**, die Antworten für die [Bewertung von Datasets](datasets.md#judge)
-benoten. Die Art eines Agents sagt, welcher er ist - `agent` für die, die
-Menschen benutzen, `judge` für diese. Jede Organisation erhält bei ihrer
-Erstellung den Standard-Bewerter **Eval judge**, eine früher erstellte
-Organisation erhält ihn, sobald etwas ihn zum ersten Mal braucht, und ein
-Dataset kann einen eigenen Bewerter bekommen.
+benoten, und der **Knowledge gap drafter**, der die Passage entwirft, die einer
+[Wissenslücke](knowledge-gaps.md#drafting-the-missing-content) fehlt. Das sind
+**System-Agents**. Die Art eines Agents sagt, welcher er ist - `agent` für die,
+die Menschen benutzen, `judge` und `drafter` für diese. Jede Organisation erhält
+bei ihrer Erstellung den Standard-Bewerter **Eval judge** und den Drafter, eine
+früher erstellte Organisation erhält jeden davon, sobald etwas ihn zum ersten
+Mal braucht, und ein Dataset kann einen eigenen Bewerter bekommen.
 
-Ein Bewerter wird von der Plattform ausgeführt und ist kein Agent, den Menschen
-benutzen. Agents führt Bewerter getrennt, in einem eingeklappten Band
-**Bewerter** unter **Agents**: Jede Karte sagt, welche Datasets er bewertet, und
-der von der Plattform angelegte ist als **Standard-Bewerter** markiert;
-Agent-Auswahlen lassen sie weg. Wer `agents:edit` hat, öffnet einen, um
-Instruktionen, Modell und Budget zu ändern - seine Seite enthält diese, seine
+Ein System-Agent wird von der Plattform ausgeführt und ist kein Agent, den
+Menschen benutzen. Agents führt sie getrennt, in einem eingeklappten Band
+**System-Agents** unter **Agents**, nach Art gruppiert: zuerst die **Bewerter**
+- jede Karte sagt, welche Datasets er bewertet, und der von der Plattform
+angelegte ist als **Standard-Bewerter** markiert -, dann der
+**Lücken-Entwerfer**. Agent-Auswahlen lassen sie weg.
+
+Wer `agents:edit` hat, öffnet einen, um Instruktionen, Modell und Budget zu
+ändern, aus dem Band oder, beim Drafter, über **Anweisungen des Drafters
+bearbeiten** an einem Entwurf. Die Seite eines Bewerters enthält diese, seine
 Limits, seinen Verlauf und die Datasets, die ihn gewählt haben, mit Bewertung
 oder ohne - jedes klappt seine letzten Bewertungen dort und die Eval-Runs auf,
 aus denen sie stammen - samt der Angabe, wie oft Menschen ihm bei den von ihm
 bewerteten und von ihnen entschiedenen Ergebnissen zustimmten, und sonst nichts.
+Die des Drafters enthält dasselbe ohne die Datasets.
 
 Seine Runs werden wie alle anderen gegen das Budget geprüft und aufgezeichnet
-und senden keine Run-Benachrichtigung. Ein Bewerter startet mit einem eigenen
-kleinen Monatsbudget, damit eine neue Organisation nicht versehentlich ihr
-ganzes Budget für Evaluierung ausgibt.
+und senden keine Run-Benachrichtigung. Ein System-Agent startet mit einem
+eigenen kleinen Monatsbudget, damit eine neue Organisation nicht versehentlich
+ihr ganzes Budget für Evaluierung oder Entwürfe ausgibt.
 
 Nur die Plattform führt ihn aus. Chat, API, ein Embed oder eine öffentliche
 Seite, ein Kanal, ein Zeitplan und die Delegation durch einen anderen Agent
 lehnen ihn ab, im Service, der den Run starten würde, nicht nur in der Konsole.
 
-Hat die Organisation bereits ein Model-Profil, wird ein Bewerter auf dem
+Hat die Organisation bereits ein Model-Profil, wird ein System-Agent auf dem
 ältesten veröffentlicht oder auf dem, das bei seiner Erstellung gewählt wurde.
-Ohne eines wird er als Draft angelegt. Der mitgelieferte Eval judge wird auf
-dem ersten Modell der Organisation veröffentlicht, sobald eines hinzugefügt
-wird; der eigene Bewerter eines Datasets wartet, bis ein Mensch sein Modell
-wählt und ihn veröffentlicht, und bis dahin sagen das die Funktionen, die ihn
-verwenden.
+Ohne eines wird er als Draft angelegt. Der mitgelieferte Eval judge und der
+Drafter werden auf dem ersten Modell der Organisation veröffentlicht, sobald
+eines hinzugefügt wird; der eigene Bewerter eines Datasets wartet, bis ein
+Mensch sein Modell wählt und ihn veröffentlicht, und bis dahin sagen das die
+Funktionen, die ihn verwenden.
 
 Der [Schalter für KI-Unterstützung](governance.md#ai-assistance) der
-Organisation entscheidet, ob Bewerter überhaupt laufen.
+Organisation entscheidet, ob System-Agents überhaupt laufen.
 
 ## Model-Profile { #model-profiles }
 
