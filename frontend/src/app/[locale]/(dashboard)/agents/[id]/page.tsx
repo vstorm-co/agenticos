@@ -77,13 +77,15 @@ import { ThinkingSetting } from "@/components/agents/thinking-setting";
 import { EnvironmentsPanel } from "@/components/agents/environments-panel";
 import { DraftEvalNote } from "@/components/evals/draft-eval-note";
 import { EvalsPanel } from "@/components/evals/evals-panel";
-import { useEvalArmSpec } from "@/hooks/use-eval-runs";
+import { useEvalArmSpec, useEveryDataset } from "@/hooks/use-eval-runs";
+import { isRunnable } from "@/lib/datasets";
 import { StartEvalDialog } from "@/components/evals/start-eval-dialog";
 import { TestPanel } from "@/components/agents/test-panel/test-panel";
 import { useTestShortcut } from "@/components/agents/test-panel/use-test-shortcut";
 import { VersionHistory } from "@/components/agents/version-history";
 import { KnowledgeGapsPanel } from "@/components/knowledge-gaps/knowledge-gaps-panel";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { ErrorState } from "@/components/states";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
 import {
   Badge,
@@ -151,7 +153,7 @@ import {
   VISUALS_ID,
 } from "@/lib/agent-spec";
 import { useContextFiles } from "@/hooks/use-context";
-import { getErrorMessage, type FieldProblem } from "@/lib/api-error";
+import { ApiError, getErrorMessage, type FieldProblem } from "@/lib/api-error";
 import { toolsForBinding } from "@/lib/binding-tools";
 import { ROUTES } from "@/lib/constants";
 import { useAgentSelectionStore, useConversationStore } from "@/stores";
@@ -228,6 +230,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const {
     agent,
     isLoading,
+    error,
     fetchedAt,
     saveDraft,
     validate,
@@ -350,8 +353,15 @@ export default function AgentBuilderPage({ params }: PageProps) {
     setSpec(agent.draft_spec);
   }
 
-  const canEdit = can(Perm.agentsEdit);
-  const canPublish = can(Perm.agentsPublish);
+  // This caller on this agent, not their role: a grant widens what the role
+  // allows, and a role that may edit agents may still not reach this one.
+  const canEdit = agent?.can_edit === true;
+  const canPublish = agent?.can_publish === true;
+  // Duplicating creates an agent, which only the role allows - a grant on this
+  // one never does.
+  const canDuplicate = can(Perm.agentsEdit);
+  const duplicate = () =>
+    clone.mutate(id, { onSuccess: (created) => router.push(ROUTES.AGENT_DETAIL(created.id)) });
   // Only the platform runs a system agent - nobody chats with it, gives it tools
   // or exposes it - so its page holds what changes how it works, and nothing else.
   const isSystem = isSystemAgent(agent?.kind);
@@ -370,13 +380,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
     ...(canViewRuns && !isSystem ? ["gaps"] : []),
   ];
   const tab = tabParam !== null && tabs.includes(tabParam) ? tabParam : "build";
+  // An eval needs a dataset this caller may run - a grant on one is enough - so
+  // the datasets are read for who may start one, and only for them.
+  const mayStartEvals = canViewRuns && !isSystem && agent?.can_run === true;
+  const { datasets: evalDatasets } = useEveryDataset({ enabled: mayStartEvals });
+  const canStartEvals = mayStartEvals && evalDatasets.some(isRunnable);
   // Testing the draft runs it - the editors' work in progress - on a dataset.
-  const canTestDraft =
-    !isSystem &&
-    canViewRuns &&
-    agent?.can_edit === true &&
-    !!agent.can_run &&
-    can(Perm.datasetsRun);
+  const canTestDraft = canStartEvals && canEdit;
   const [testingDraft, setTestingDraft] = useState(false);
   useTestShortcut(canEdit && !isSystem, () => toggleTesting(!testing));
 
@@ -789,6 +799,20 @@ export default function AgentBuilderPage({ params }: PageProps) {
     [capabilities],
   );
 
+  // A failed read leaves `agent` undefined with `isLoading` false - the skeleton guard
+  // below cannot tell it from a slow load. A 404 is the agent gone even while the cache
+  // still holds it (deleted from another tab); any other failure keeps the Builder open.
+  const gone = error instanceof ApiError && error.status === 404;
+  if (error && (!agent || gone)) {
+    return (
+      <ErrorState
+        title={t("agentUnavailable")}
+        description={getErrorMessage(error, tErrors)}
+        cta={{ label: t("backToAgents"), onClick: () => router.push(ROUTES.AGENTS) }}
+      />
+    );
+  }
+
   if (isLoading || !spec || !agent) return <BuilderSkeleton />;
 
   const isPublished = agent.status === "published";
@@ -1015,6 +1039,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   </a>
                 </Button>
               )}
+              {!canEdit && canDuplicate && !isSystem && (
+                <Button variant="outline" onClick={duplicate} disabled={clone.isPending}>
+                  <Copy className="h-4 w-4" />
+                  {t("duplicate")}
+                </Button>
+              )}
               {/* Who reaches this agent, the way a document is shared: one
                   button, one dialog, instead of two cards at the foot of a tab. */}
               <Button variant="outline" onClick={() => setShareOpen(true)} data-tour="agent-share">
@@ -1050,15 +1080,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
                         />
                       </a>
                     </DropdownMenuItem>
-                    {!isSystem && (
-                      <DropdownMenuItem
-                        className={DESCRIBED_ITEM}
-                        onSelect={() =>
-                          clone.mutate(id, {
-                            onSuccess: (created) => router.push(ROUTES.AGENT_DETAIL(created.id)),
-                          })
-                        }
-                      >
+                    {canDuplicate && !isSystem && (
+                      <DropdownMenuItem className={DESCRIBED_ITEM} onSelect={duplicate}>
                         <Copy className="h-4 w-4" />
                         <DropdownMenuItemText
                           label={t("duplicate")}
@@ -1489,8 +1512,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </Card>
 
             {/* Discovery metadata, not the spec: it autosaves at once like the
-              avatar, so it hangs off the same role-level `canEdit` every other
-              editing control on this page does. */}
+              avatar, so it hangs off the same `canEdit` every other editing
+              control on this page does. */}
             {canEdit && !isSystem && (
               <Card>
                 <CardHeader>
@@ -1875,7 +1898,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
           {canViewRuns && !isSystem && (
             <TabsContent value="evals" className="mt-6 space-y-6">
-              <EvalsPanel agentId={id} canStart={agent.can_run && can(Perm.datasetsRun)} />
+              <EvalsPanel agentId={id} canStart={canStartEvals} />
             </TabsContent>
           )}
           {isJudge && (

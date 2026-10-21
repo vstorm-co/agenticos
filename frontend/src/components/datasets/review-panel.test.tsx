@@ -190,6 +190,22 @@ describe("ReviewPanel", () => {
     expect(screen.queryByRole("button", { name: /from the queue/ })).toBeNull();
   });
 
+  it("links no eval run or Activity run to a reader without runs:view", () => {
+    state.canViewRuns = false;
+    state.answer = {
+      scores: [
+        caseScore({ id: "a", eval_run_id: "e1", agent_id: "x", agent_name: "Support" }),
+        caseScore({ id: "b", eval_run_id: null, run_id: "run-1" }),
+      ],
+      total: 2,
+    };
+    render(<ReviewPanel dataset={dataset()} />);
+
+    expect(screen.getAllByRole("heading", { level: 3 })).toHaveLength(2);
+    expect(screen.queryByRole("link", { name: "Eval run ↗" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Scored run" })).toBeNull();
+  });
+
   it("takes a group out of the queue undecided, and says so", async () => {
     state.answer = {
       scores: [caseScore({ id: "a" }), caseScore({ id: "b" })],
@@ -349,9 +365,13 @@ describe("ReviewPanel", () => {
   });
 
   it.each([
-    ["run the dataset", { canRun: false, canViewRuns: true }],
-    ["read the runs it would read the answers back from", { canRun: true, canViewRuns: false }],
-  ])("offers no scoring again to somebody who may not %s", (_who, perms) => {
+    ["run this dataset, whatever the role says", { canRun: true, canViewRuns: true }, false],
+    [
+      "read the runs it would read the answers back from",
+      { canRun: true, canViewRuns: false },
+      true,
+    ],
+  ])("offers no scoring again to somebody who may not %s", (_who, perms, canRunIt) => {
     Object.assign(state, perms);
     state.answer = {
       scores: [
@@ -360,11 +380,22 @@ describe("ReviewPanel", () => {
       ],
       total: 2,
     };
-    render(<ReviewPanel dataset={dataset()} />);
+    render(<ReviewPanel dataset={dataset({ can_run: canRunIt })} />);
 
     expect(screen.getAllByText(/budget is spent/)).toHaveLength(2);
     expect(screen.queryByRole("button", { name: /again/ })).toBeNull();
     expect(screen.queryByText(/Fix the cause/)).toBeNull();
+  });
+
+  it("offers scoring again to who may run this dataset by a grant alone", () => {
+    Object.assign(state, { canRun: false, canViewRuns: true });
+    state.answer = {
+      scores: [caseScore({ id: "a", unscored_reason: "judge_budget" })],
+      total: 1,
+    };
+    render(<ReviewPanel dataset={dataset({ can_run: true })} />);
+
+    expect(screen.getByRole("button", { name: "Score again" })).toBeInTheDocument();
   });
 
   it("makes a decided score's note a criterion of its case or of every case", async () => {

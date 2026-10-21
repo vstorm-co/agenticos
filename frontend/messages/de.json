@@ -4411,6 +4411,8 @@
       "moreActions": "Weitere Aktionen",
       "n100Default": "100 (Standard)",
       "namedMissing": "{name} (fehlt)",
+      "agentUnavailable": "Agent nicht verfügbar",
+      "backToAgents": "Zurück zu den Agents",
       "eachPersonsOwnNamed": "{name} (eigenes Konto jeder Person)",
       "namedPointersAtPublished": "Eine Veröffentlichung prägt eine Version; sie irgendwohin zu stellen ist eine eigene Entscheidung. Ein Environment wartet entweder darauf, dass etwas darauf heraufgestuft wird, oder es folgt jeder Veröffentlichung. Production folgt, solange es das einzige Environment ist; heften Sie es an, sobald ein Dev- oder Staging-Environment daneben steht. Ein an ein Environment gebundener Bot liefert dessen Version.",
       "newAgent": "Neuer Agent",
