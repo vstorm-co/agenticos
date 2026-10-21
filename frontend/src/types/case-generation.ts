@@ -47,6 +47,8 @@ export interface CaseProposal extends DatasetCaseContent {
 export interface CaseProposalList {
   items: CaseProposal[];
   total: number;
+  /** Drafts from chats waiting here that the reader may not see without `runs:view`. */
+  hidden: number;
 }
 
 /** What a person asks to have drafted. */

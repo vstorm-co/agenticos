@@ -101,6 +101,7 @@ export function useCaseProposals(
   return {
     proposals: data?.items ?? [],
     total: data?.total ?? 0,
+    hidden: data?.hidden ?? 0,
     isLoading,
     error,
     refetch,

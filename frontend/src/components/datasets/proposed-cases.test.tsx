@@ -11,6 +11,7 @@ const { generations, proposals } = vi.hoisted(() => ({
     current: {
       proposals: [] as CaseProposal[],
       total: 0,
+      hidden: 0,
       error: null as Error | null,
       isDeciding: false,
       refetch: vi.fn(),
@@ -73,6 +74,7 @@ beforeEach(() => {
     ...proposals.current,
     proposals: [],
     total: 0,
+    hidden: 0,
     error: null,
   };
 });
@@ -89,6 +91,16 @@ describe("ProposedCases", () => {
     generations.current = [{ ...RUNNING, status: "ready" }];
     const { container } = render(<ProposedCases datasetId="d1" canEdit />);
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("counts the drafts from chats a reader may not see, and shows none of them", () => {
+    generations.current = [{ ...RUNNING, status: "ready" }];
+    proposals.current.hidden = 2;
+    render(<ProposedCases datasetId="d1" canEdit />);
+    expect(
+      screen.getByText("2 drafts from chats need permission to view runs"),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Accept all" })).toBeNull();
   });
 
   it("says a generation is running before any draft has arrived", () => {

@@ -6939,6 +6939,7 @@
     "dismissAll": "Alle verwerfen",
     "acceptAll": "Alle annehmen",
     "proposalsBody": "Vom Fallgenerator entworfen. Nichts gelangt in das Dataset, bevor Sie es annehmen, und ein Annehmen ist eine neue Version.",
+    "proposalsHidden": "{count, plural, =1 {1 Entwurf aus Chats braucht die Berechtigung, Runs anzusehen} other {# Entwürfe aus Chats brauchen die Berechtigung, Runs anzusehen}}",
     "editProposalBody": "Beim Annehmen wird der Fall so übernommen, wie Sie ihn hier lassen, als neue Version des Datasets.",
     "proposalsAccepted": "{count, plural, =1 {1 Fall} other {# Fälle}} als Version {version} hinzugefügt",
     "proposalsDismissed": "{count, plural, =1 {1 vorgeschlagener Fall} other {# vorgeschlagene Fälle}} verworfen",

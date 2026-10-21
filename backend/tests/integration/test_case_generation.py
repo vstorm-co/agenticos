@@ -9,7 +9,8 @@ The claims a mocked session cannot make:
 - a reviewer's edit is what lands, redacted like any other way in;
 - a draft decided twice is decided once;
 - only a member who may edit the dataset sees or decides its drafts, and a grant
-  is what lets a Viewer do it.
+  is what lets a Viewer do it;
+- a draft from chats is read and decided only by a member who may view runs.
 """
 
 from __future__ import annotations
@@ -207,7 +208,7 @@ async def test_an_edit_keeps_the_document_a_generated_case_came_from(db) -> None
 
 async def test_only_an_editor_of_the_dataset_sees_or_decides_its_drafts(db) -> None:
     owner, org, agent, dataset = await _setup(db)
-    _, drafted = await world.proposals(db, org, dataset, agent, 1)
+    _, drafted = await world.proposals(db, org, dataset, agent, 1, origin=CaseOrigin.AGENT)
     viewer = await world.member(db, org, OrgRoleName.VIEWER)
     service = CaseGenerationService(db, vector_store=MagicMock())
     shared = ResourceGrant(
@@ -235,6 +236,43 @@ async def test_only_an_editor_of_the_dataset_sees_or_decides_its_drafts(db) -> N
     listing = await DatasetService(db).list_readable(viewer)
     assert [item.pending_proposals for item in listing.items] == [1]
     version = await service.accept(viewer, dataset.id, _accept(drafted[0].id))
+    assert version.number == 1
+
+
+@pytest.mark.security
+async def test_a_draft_from_chats_is_only_read_or_decided_by_who_may_view_runs(db) -> None:
+    """A Member editing their own dataset hears how many such drafts wait, nothing more."""
+    _, org, agent, _ = await _setup(db)
+    member = await world.member(db, org, OrgRoleName.MEMBER)
+    builder = await world.member(db, org, OrgRoleName.BUILDER)
+    dataset = await DatasetService(db).create(member, DatasetCreate(name="mine"))
+    db.add(
+        ResourceGrant(
+            organization_id=org.id,
+            subject_user_id=builder.user_id,
+            resource_type="dataset",
+            resource_id=dataset.id,
+            level=GrantLevel.EDIT.value,
+        )
+    )
+    await db.flush()
+    _, [chat] = await world.proposals(db, org, dataset, agent, 1, source_message_id=None)
+    _, [typical] = await world.proposals(db, org, dataset, agent, 1, origin=CaseOrigin.AGENT)
+    service = CaseGenerationService(db, vector_store=MagicMock())
+
+    seen = await service.list_proposals(member, dataset.id)
+    assert ([p.id for p in seen.items], seen.total, seen.hidden) == ([typical.id], 1, 1)
+    assert (await DatasetService(db).read(member, dataset.id)).pending_proposals == 1
+    with pytest.raises(NotFoundError):
+        await service.accept(member, dataset.id, _accept(chat.id))
+    with pytest.raises(NotFoundError):
+        await service.dismiss(member, dataset.id, CaseProposalDismiss(ids=[chat.id]))
+    assert await db.scalar(select(func.count(CaseProposal.id))) == 2
+
+    read = await service.list_proposals(builder, dataset.id)
+    assert ({p.id for p in read.items}, read.total, read.hidden) == ({chat.id, typical.id}, 2, 0)
+    assert (await DatasetService(db).read(builder, dataset.id)).pending_proposals == 2
+    version = await service.accept(builder, dataset.id, _accept(chat.id))
     assert version.number == 1
 
 

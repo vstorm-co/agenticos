@@ -196,7 +196,9 @@ count throws the estimate away.
 dismiss it, one at a time or a page at a time. One Accept is one new version,
 whatever it carried, and its cases have the source `synthetic`. A dismissed
 draft is deleted and leaves nothing in the dataset. An accepted one is deleted
-from the drafts too: the version is the record of it.
+from the drafts too: the version is the record of it. A draft from chats
+paraphrases what somebody asked, so only a member who may view runs reads or
+decides it; anyone else editing the dataset sees how many wait.
 
 **The generator is an agent.** It is a system agent seeded in every
 organization, so its runs are metered against its own budget and the

@@ -1,5 +1,5 @@
 ---
-source_sha: "2a0610b8c226"
+source_sha: "a99231554545"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -204,7 +204,9 @@ najpierw edytuj albo odrzuć, pojedynczo albo całą stronę naraz. Jedno
 Zaakceptuj to jedna nowa wersja, niezależnie od tego, ile niosło, a jej
 przypadki mają źródło `synthetic`. Odrzucona propozycja jest usuwana i nie
 zostawia niczego w datasecie. Zaakceptowana też znika z propozycji: jej zapisem
-jest wersja.
+jest wersja. Propozycja z czatów parafrazuje to, o co ktoś zapytał, więc czyta ją
+i o niej decyduje tylko ktoś, kto może przeglądać runy; inni edytujący dataset
+widzą tylko, ile takich czeka.
 
 **Generator jest agentem.** To agent systemowy tworzony w każdej organizacji,
 więc jego runy są liczone do jego własnego budżetu i budżetu organizacji, a

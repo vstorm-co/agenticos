@@ -38,6 +38,10 @@ class CaseProposalRead(StoredCaseContent):
 class CaseProposalList(BaseSchema):
     items: list[CaseProposalRead]
     total: int
+    hidden: int = Field(
+        default=0,
+        description="Drafts from chats waiting here that the caller may not read without runs:view",
+    )
 
 
 class CaseProposalDecision(BaseSchema):

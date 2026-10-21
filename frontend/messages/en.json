@@ -7056,6 +7056,7 @@
     "dismissAll": "Dismiss all",
     "acceptAll": "Accept all",
     "proposalsBody": "Drafted by the case generator. Nothing reaches the dataset until you accept it, and one Accept is one new version.",
+    "proposalsHidden": "{count, plural, =1 {1 draft from chats needs permission to view runs} other {# drafts from chats need permission to view runs}}",
     "editProposalBody": "Accepting adds the case as you leave it here, in a new version of the dataset.",
     "proposalsAccepted": "{count, plural, =1 {1 case} other {# cases}} added as version {version}",
     "proposalsDismissed": "{count, plural, =1 {1 proposed case} other {# proposed cases}} dismissed",

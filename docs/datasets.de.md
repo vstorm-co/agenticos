@@ -1,5 +1,5 @@
 ---
-source_sha: "2a0610b8c226"
+source_sha: "a99231554545"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -218,7 +218,10 @@ unverändert an, bearbeiten Sie ihn vorher oder verwerfen Sie ihn, einzeln oder
 eine Seite auf einmal. Ein Annehmen ist eine neue Version, egal wie viel es
 enthielt, und ihre Fälle haben die Quelle `synthetic`. Ein verworfener Entwurf
 wird gelöscht und hinterlässt nichts im Dataset. Ein angenommener verschwindet
-ebenfalls aus den Entwürfen: Die Version ist sein Nachweis.
+ebenfalls aus den Entwürfen: Die Version ist sein Nachweis. Ein Entwurf aus Chats
+formuliert um, was jemand gefragt hat, deshalb liest und entscheidet ihn nur, wer
+Runs ansehen darf; alle anderen, die das Dataset bearbeiten, sehen, wie viele
+warten.
 
 **Der Generator ist ein Agent.** Er ist ein Systemagent, der in jeder
 Organisation angelegt wird, daher werden seine Runs gegen sein eigenes Budget

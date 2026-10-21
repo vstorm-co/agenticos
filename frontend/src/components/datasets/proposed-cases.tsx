@@ -24,7 +24,8 @@ interface ProposedCasesProps {
  * Drafted cases waiting outside the dataset for a person's decision.
  *
  * Absent when nothing waits and nothing is being drafted, which is the normal
- * state. "Accept all" and "Dismiss all" act on the page on screen: a decision is
+ * state. Drafts from chats are counted, not shown, to a reader who may not view
+ * runs. "Accept all" and "Dismiss all" act on the page on screen: a decision is
  * made about cases somebody could read, never about ones beyond the pager.
  */
 export function ProposedCases({ datasetId, canEdit }: ProposedCasesProps) {
@@ -42,7 +43,12 @@ export function ProposedCases({ datasetId, canEdit }: ProposedCasesProps) {
   const latest = generations[0];
 
   if (!canEdit) return null;
-  if (proposals.total === 0 && (latest === undefined || latest.status === "ready")) return null;
+  if (
+    proposals.total === 0 &&
+    proposals.hidden === 0 &&
+    (latest === undefined || latest.status === "ready")
+  )
+    return null;
 
   const onPage = proposals.proposals.map((proposal) => proposal.id);
   const pageCount = Math.max(1, Math.ceil(proposals.total / PAGE_SIZE));
@@ -76,6 +82,11 @@ export function ProposedCases({ datasetId, canEdit }: ProposedCasesProps) {
     >
       <div className="space-y-4">
         <GenerationStatus generation={latest} />
+        {proposals.hidden > 0 && (
+          <p role="status" className="text-muted-foreground text-sm">
+            {t("proposalsHidden", { count: proposals.hidden })}
+          </p>
+        )}
         {proposals.error ? (
           <ErrorState
             description={getErrorMessage(proposals.error, tErrors)}

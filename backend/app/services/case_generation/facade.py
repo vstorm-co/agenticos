@@ -47,7 +47,7 @@ from app.services.case_generation.estimate import estimate_cost
 from app.services.case_generation.generation import run_generation
 from app.services.case_generation.prompt import build_prompt
 from app.services.case_generation.sources import Material, SourceGatherer
-from app.services.dataset import DatasetService, GeneratedCase
+from app.services.dataset import DatasetService, GeneratedCase, proposals_hidden_from
 from app.services.rag.vectorstore import BaseVectorStore
 from app.services.system_agent_runner import SystemAgentRunner
 
@@ -234,18 +234,38 @@ class CaseGenerationService:
         skip: int = 0,
         limit: int = 50,
     ) -> CaseProposalList:
-        """A page of the drafted cases waiting on this dataset."""
+        """A page of the drafted cases waiting on this dataset that the caller may read.
+
+        Drafts from chats are left out for a caller who may not view runs, and
+        only counted in `hidden`.
+        """
         dataset = await self.datasets.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+        hidden_origin = proposals_hidden_from(ctx)
         items, total = await case_generation_repo.list_proposals(
             self.db,
             dataset.id,
             organization_id=ctx.organization_id,
             generation_id=generation_id,
+            without_origin=hidden_origin,
             skip=skip,
             limit=limit,
         )
+        hidden = (
+            0
+            if hidden_origin is None
+            else (
+                await case_generation_repo.count_pending(
+                    self.db,
+                    [dataset.id],
+                    organization_id=ctx.organization_id,
+                    only_origin=hidden_origin,
+                )
+            ).get(dataset.id, 0)
+        )
         return CaseProposalList(
-            items=[CaseProposalRead.model_validate(item) for item in items], total=total
+            items=[CaseProposalRead.model_validate(item) for item in items],
+            total=total,
+            hidden=hidden,
         )
 
     async def _take(
@@ -253,12 +273,19 @@ class CaseGenerationService:
     ) -> list[CaseProposal]:
         """Take proposals out of the queue under the dataset's lock.
 
+        A draft the caller may not read - one from chats, without `runs:view` -
+        is not theirs to decide, and stays waiting.
+
         Raises:
             NotFoundError: When none of them is waiting any more - somebody else
                 decided them first, or they never were this dataset's.
         """
         taken = await case_generation_repo.take_proposals(
-            self.db, dataset_id, ids, organization_id=ctx.organization_id
+            self.db,
+            dataset_id,
+            ids,
+            organization_id=ctx.organization_id,
+            without_origin=proposals_hidden_from(ctx),
         )
         if not taken:
             raise NotFoundError(

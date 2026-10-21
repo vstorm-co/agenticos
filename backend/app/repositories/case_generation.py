@@ -99,17 +99,21 @@ async def list_proposals(
     *,
     organization_id: UUID,
     generation_id: UUID | None = None,
+    without_origin: str | None = None,
     skip: int = 0,
     limit: int = 50,
 ) -> tuple[list[CaseProposal], int]:
     """A page of the proposals waiting on one dataset, with the total.
 
     Oldest generation first, and within one in the order the generator drafted them.
+    `without_origin` leaves out the proposals drafted from that source.
     """
     where = [
         CaseProposal.dataset_id == dataset_id,
         CaseProposal.organization_id == organization_id,
     ]
+    if without_origin is not None:
+        where.append(CaseProposal.origin != without_origin)
     if generation_id is not None:
         where.append(CaseProposal.generation_id == generation_id)
     total = await db.scalar(select(func.count(CaseProposal.id)).where(*where))
@@ -129,43 +133,62 @@ async def list_proposals(
 
 
 async def count_pending(
-    db: AsyncSession, dataset_ids: Sequence[UUID], *, organization_id: UUID
+    db: AsyncSession,
+    dataset_ids: Sequence[UUID],
+    *,
+    organization_id: UUID,
+    without_origin: str | None = None,
+    only_origin: str | None = None,
 ) -> dict[UUID, int]:
-    """How many proposals wait on each dataset; a dataset with none is absent."""
+    """How many proposals wait on each dataset; a dataset with none is absent.
+
+    `without_origin` leaves out the proposals drafted from that source, and
+    `only_origin` counts only those.
+    """
     if not dataset_ids:
         return {}
+    where = [
+        CaseProposal.dataset_id.in_(dataset_ids),
+        CaseProposal.organization_id == organization_id,
+    ]
+    if without_origin is not None:
+        where.append(CaseProposal.origin != without_origin)
+    if only_origin is not None:
+        where.append(CaseProposal.origin == only_origin)
     result = await db.execute(
         select(CaseProposal.dataset_id, func.count(CaseProposal.id))
-        .where(
-            CaseProposal.dataset_id.in_(dataset_ids),
-            CaseProposal.organization_id == organization_id,
-        )
+        .where(*where)
         .group_by(CaseProposal.dataset_id)
     )
     return dict(result.all())
 
 
 async def take_proposals(
-    db: AsyncSession, dataset_id: UUID, ids: Sequence[UUID], *, organization_id: UUID
+    db: AsyncSession,
+    dataset_id: UUID,
+    ids: Sequence[UUID],
+    *,
+    organization_id: UUID,
+    without_origin: str | None = None,
 ) -> list[CaseProposal]:
     """Remove these proposals from the queue and return what they held.
 
     A `DELETE ... RETURNING`, so of two reviewers deciding the same proposal at
     once exactly one gets it back: the other's delete finds the row gone and
     returns nothing for it. Returned in the order the ids were given; an id that
-    is not waiting on this dataset is simply absent.
+    is not waiting on this dataset, or was drafted from `without_origin`, is
+    simply absent and stays waiting.
     """
     if not ids:
         return []
-    result = await db.execute(
-        delete(CaseProposal)
-        .where(
-            CaseProposal.id.in_(ids),
-            CaseProposal.dataset_id == dataset_id,
-            CaseProposal.organization_id == organization_id,
-        )
-        .returning(CaseProposal)
-    )
+    where = [
+        CaseProposal.id.in_(ids),
+        CaseProposal.dataset_id == dataset_id,
+        CaseProposal.organization_id == organization_id,
+    ]
+    if without_origin is not None:
+        where.append(CaseProposal.origin != without_origin)
+    result = await db.execute(delete(CaseProposal).where(*where).returning(CaseProposal))
     taken = {proposal.id: proposal for proposal in result.scalars().all()}
     await db.flush()
     return [taken[proposal_id] for proposal_id in ids if proposal_id in taken]

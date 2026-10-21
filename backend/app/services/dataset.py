@@ -34,6 +34,7 @@ from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundErr
 from app.core.exceptions import ValidationError as InvalidCaseError
 from app.core.field_errors import field_problems, refused_field
 from app.core.permissions import AuthContext, Perm, Scope
+from app.db.models.case_generation import CaseOrigin
 from app.db.models.conversation import Message
 from app.db.models.dataset import CaseSource, Dataset, DatasetCase, DatasetChange, DatasetVersion
 from app.db.updates import writable
@@ -132,6 +133,15 @@ def _refuse_past_storage(used: int, adding: int) -> None:
             ),
             details={"version_rows": used, "adding": adding, "max_version_rows": ceiling},
         )
+
+
+def proposals_hidden_from(ctx: AuthContext) -> str | None:
+    """The origin of the proposed cases this caller may not read, if any.
+
+    A draft from chats paraphrases what somebody else asked an agent, which only
+    a reader of runs may see - the same gate drafting from chats takes.
+    """
+    return None if ctx.has(Perm.RUNS_VIEW) else CaseOrigin.CONVERSATION.value
 
 
 def redact_credentials(text: str | None) -> tuple[str | None, int]:
@@ -254,7 +264,10 @@ class DatasetService:
 
     async def _pending(self, ctx: AuthContext, dataset_ids: list[UUID]) -> dict[UUID, int]:
         return await case_generation_repo.count_pending(
-            self.db, dataset_ids, organization_id=ctx.organization_id
+            self.db,
+            dataset_ids,
+            organization_id=ctx.organization_id,
+            without_origin=proposals_hidden_from(ctx),
         )
 
     async def _stats(self, ctx: AuthContext, datasets: list[Dataset]) -> dict[UUID, DatasetStats]:

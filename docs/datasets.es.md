@@ -1,5 +1,5 @@
 ---
-source_sha: "2a0610b8c226"
+source_sha: "a99231554545"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -209,7 +209,9 @@ fuentes o el número descarta la estimación.
 antes o descártalo, de uno en uno o una página entera. Un Aceptar es una versión
 nueva, lleve lo que lleve, y sus casos tienen la fuente `synthetic`. Un borrador
 descartado se elimina y no deja nada en el dataset. Uno aceptado también
-desaparece de los borradores: la versión es su registro.
+desaparece de los borradores: la versión es su registro. Un borrador de chats
+parafrasea lo que alguien preguntó, así que solo lo lee y decide quien puede ver
+runs; el resto de quienes editan el dataset ve cuántos esperan.
 
 **El generador es un agent.** Es un agent de sistema creado en cada
 organización, así que sus runs cuentan contra su propio presupuesto y el de la

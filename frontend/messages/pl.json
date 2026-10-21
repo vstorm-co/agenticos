@@ -6822,6 +6822,7 @@
     "dismissAll": "Odrzuć wszystkie",
     "acceptAll": "Zaakceptuj wszystkie",
     "proposalsBody": "Przygotowane przez generator przypadków. Nic nie trafia do datasetu, dopóki tego nie zaakceptujesz, a jedno Zaakceptuj to jedna nowa wersja.",
+    "proposalsHidden": "{count, plural, one {# propozycja z czatów wymaga uprawnienia do przeglądania runów} few {# propozycje z czatów wymagają uprawnienia do przeglądania runów} many {# propozycji z czatów wymaga uprawnienia do przeglądania runów} other {# propozycji z czatów wymaga uprawnienia do przeglądania runów}}",
     "editProposalBody": "Akceptacja dodaje przypadek w takiej postaci, w jakiej go tu zostawisz, jako nową wersję datasetu.",
     "proposalsAccepted": "Dodano {count, plural, one {1 przypadek} few {# przypadki} many {# przypadków} other {# przypadku}} jako wersję {version}",
     "proposalsDismissed": "Odrzucono {count, plural, one {1 proponowany przypadek} few {# proponowane przypadki} many {# proponowanych przypadków} other {# proponowanego przypadku}}",
