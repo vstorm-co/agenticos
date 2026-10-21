@@ -1,5 +1,5 @@
 ---
-source_sha: "5a0847ae121e"
+source_sha: "256647295ebc"
 title: "AgenticOS vs Gemini Enterprise"
 seo_title: "AgenticOS vs Gemini Enterprise: alternativa autoalojada"
 description: "Compara Google Gemini Enterprise con AgenticOS: cualquier modelo en cada agent, sin cuota por puesto ni cuotas de creación, ocho superficies, en tus servidores."
@@ -9,7 +9,7 @@ description: "Compara Google Gemini Enterprise con AgenticOS: cualquier modelo e
 
 Google Gemini Enterprise, antes Agentspace, da a los empleados un asistente, búsqueda empresarial en Google Workspace, Microsoft 365 y muchas herramientas SaaS, agents creados por Google como Deep Research y un Workflow Builder sin código, todo en Google Cloud. AgenticOS da a tu organización agents que son suyos. Se ejecutan en tu infraestructura con cualquier modelo, y responden a clientes y sistemas además de a empleados.
 
-Mantenido por el equipo de AgenticOS. Fuentes revisadas el 25 de septiembre de 2026. Versión de referencia de AgenticOS: v0.0.504. Alcance de Gemini Enterprise: la página de producto, la documentación y las notas de versión de Google, no un proyecto probado.
+Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026. Versión de referencia de AgenticOS: v1.9.1. Alcance de Gemini Enterprise: la página de producto, la documentación y las notas de versión de Google, no un proyecto probado.
 
 ## De un vistazo { #at-a-glance }
 
@@ -23,7 +23,7 @@ Mantenido por el equipo de AgenticOS. Fuentes revisadas el 25 de septiembre de 2
 | Construcción | Workflow Builder; agents personalizados y de partners en Standard y Plus | El Builder, para todos los agents |
 | Límites | Cuotas diarias compartidas, como un agent nuevo al día en Standard | Un budget por agent y por organización, comprobado antes de cada petición al modelo |
 | Control del gasto | Límites de gasto mensuales en la cuenta de facturación | Budgets por agent, con alertas a las personas que elijas |
-| Precio | Business desde $21, Standard y Plus desde $30 por puesto al mes | Sin cuota de licencia; uso del modelo e infraestructura |
+| Precio | Por puesto, según la edición (Business, Standard, Plus, Frontline) o de pago por uso; las páginas de Google ya no publican precios, y Plus tiene una prueba de 30 días | Sin cuota de licencia; uso del modelo e infraestructura |
 
 ## Dónde AgenticOS va más allá { #where-agenticos-goes-further }
 
@@ -81,8 +81,8 @@ En almacenes que operas tú, allí donde lo despliegues: las conversaciones, los
 
 ## Fuentes { #sources }
 
-- [Gemini Enterprise](https://cloud.google.com/gemini-enterprise): ediciones, precios y el reparto de funciones.
-- [Ediciones](https://docs.cloud.google.com/gemini/enterprise/docs/editions) y [cuotas](https://docs.cloud.google.com/gemini/enterprise/docs/quotas-and-overages): puestos, almacenamiento y cuotas diarias.
+- [Gemini Enterprise](https://cloud.google.com/gemini-enterprise): el producto y la prueba de 30 días de Plus; sin precios.
+- [Ediciones](https://docs.cloud.google.com/gemini/enterprise/docs/editions) y [cuotas](https://docs.cloud.google.com/gemini/enterprise/docs/quotas-and-overages): ediciones, puestos, almacenamiento y cuotas diarias.
 - [Visión general de los agents](https://docs.cloud.google.com/gemini/enterprise/docs/agents-overview): tipos de agents y ediciones.
 - [Workflow Builder](https://docs.cloud.google.com/gemini/enterprise/docs/agent-designer): el constructor sin código y los pasos con intervención humana.
 - [Conectores](https://cloud.google.com/gemini-enterprise/connectors): conectores por edición.

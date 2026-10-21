@@ -2,7 +2,7 @@
 title: "AgenticOS vs OpenAI dots"
 seo_title: "AgenticOS vs OpenAI dots: eine selbst gehostete Alternative"
 description: "OpenAI dots sind dauerhaft laufende Agents in ChatGPT, jeder mit einem Cloud-Computer. Vergleichen Sie AgenticOS: Ihre Server, jedes Modell, Regeln im Code."
-source_sha: "34248b446a49"
+source_sha: "aa0cfd61c582"
 ---
 
 # AgenticOS vs OpenAI dots { #agenticos-vs-openai-dots }
@@ -11,7 +11,7 @@ OpenAI dots sind dauerhaft laufende Agents in ChatGPT. Jeder dot hat einen eigen
 
 Wenn Ihr Unternehmen bereits in ChatGPT arbeitet und Ihr Tarif und Ihre Region dots enthalten, sind sie der schnellste Weg, ein KI-Teammitglied auszuprobieren. Wenn die Agents, die Daten und die Regeln Ihnen gehören sollen, ist AgenticOS genau dafür gebaut.
 
-Gepflegt vom AgenticOS-Team. Quellen geprüft am 14. Oktober 2026. AgenticOS-Basisversion: v0.0.535. Umfang dots: die Ankündigung von OpenAI vom 29. September 2026, das FAQ im Hilfecenter und Presseberichte, kein getestetes Konto.
+Gepflegt vom AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Basisversion: v1.9.1. Umfang dots: die Ankündigung von OpenAI vom 29. September 2026, das FAQ im Hilfecenter und Presseberichte, kein getestetes Konto.
 
 ## Auf einen Blick { #at-a-glance }
 

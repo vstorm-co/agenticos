@@ -1,5 +1,5 @@
 ---
-source_sha: "91d430ebf0bb"
+source_sha: "fb8ad2ea1b90"
 title: "AgenticOS vergleichen"
 seo_title: "AgenticOS im Vergleich: souveräne Schicht für KI-Agents"
 description: "Die souveräne, selbst gehostete Open-Source-Schicht AgenticOS im Vergleich mit Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n und Coding-Agents."
@@ -9,7 +9,7 @@ description: "Die souveräne, selbst gehostete Open-Source-Schicht AgenticOS im 
 
 Die meisten Produkte in diesem Bereich sind eines von fünf Dingen: eine Assistenten-App, ein Agent-Builder, ein Teammate-Dienst, eine gelieferte Enterprise-Plattform oder ein Coding-Agent. AgenticOS ist eine souveräne Schicht für die Agents eines Unternehmens, die Sie selbst betreiben. Diese Leitfäden zeigen, wo jede Option passt und was AgenticOS ergänzt.
 
-Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. AgenticOS-Basis: v0.0.504. Nächste Prüfung bis 25. Oktober 2026 oder früher, wenn ein Anbieter das in einem Leitfaden beschriebene Angebot ändert. Jeder Leitfaden nennt seine Quellen. Für diese Leitfäden wurde kein Konto eines Mitbewerbers genutzt.
+Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Basis: v1.9.1. Nächste Prüfung bis 21. November 2026 oder früher, wenn ein Anbieter das in einem Leitfaden beschriebene Angebot ändert. Jeder Leitfaden nennt seine Quellen. Für diese Leitfäden wurde kein Konto eines Mitbewerbers genutzt.
 
 ## Den Leitfaden für Ihre Entscheidung wählen { #pick-the-guide-for-your-decision }
 
@@ -36,7 +36,7 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. Agen
 | Gemini Enterprise | Die Agent-Plattform und Suche von Google für Mitarbeiter | Google Cloud | Proprietär | Gemini in der App |
 | Dify | Ein visueller Builder für LLM-Apps und Workflows | Selbst gehostet oder Dify Cloud | Modifizierte Apache 2.0 mit Bedingungen | Viele, darunter Ollama |
 | n8n | Workflow-Automatisierung mit KI-Agent-Knoten | Selbst gehostet oder n8n Cloud | Sustainable Use License | Viele, darunter Ollama |
-| Viktor | Ein KI-Teammate pro Slack- oder Teams-Workspace | Die Cloud von Viktor | Proprietär | OpenAI, Anthropic, Google, Kimi |
+| Viktor | Ein KI-Teammate pro Slack- oder Teams-Workspace | Die Cloud von Viktor | Proprietär | OpenAI, Anthropic, Google, xAI |
 | OpenAI dots | Dauerhaft laufende Agents in ChatGPT, jeder mit einem Cloud-Computer | Die Cloud von OpenAI | Proprietär | Nur OpenAI |
 | Grok Bot | Benannte Teammates auf einem gemeinsamen Cloud-Computer | Die Cloud von xAI | Proprietär | Nur Grok |
 | OpenAI Frontier | Eine Plattform zur Verwaltung von KI-Kollegen im Unternehmen | Lokal, Ihre Cloud oder OpenAI | Proprietär | OpenAI |
@@ -57,13 +57,13 @@ Souveränität bedeutet hier vier Dinge, die Sie entscheiden: wo das Produkt lä
 | Produkt | Wo es läuft | Welche Modelle Sie nutzen dürfen | Was die Lizenz erlaubt | Anmeldung, Audit und Kostenkontrolle |
 | --- | --- | --- | --- | --- |
 | **AgenticOS** | Ihre Infrastruktur; eine frische Installation sendet nichts nach außen | Jeder der 28 Provider oder ausschließlich lokale Modelle | Apache-2.0: lesen, ändern, unter eigener Marke anbieten und für andere betreiben; der Standard-PDF-Parser steht unter AGPL-3.0, sodass ein verändertes Image, das Sie anderen bereitstellen, ihnen seinen Quellcode schuldet ([Details](../licenses.md#the-agpl-component)) | Anmeldung: OIDC-SSO, LDAP und Kerberos · Audit: Log mit Manipulationsnachweis · Ausgaben: Budgets pro Agent und pro Organisation · alles in jedem Deployment |
-| Claude Team / Enterprise | Cloud von Anthropic | Nur Claude | Proprietär | Anmeldung: SSO in Team und Enterprise · Audit: Enterprise, 180 Tage Ereignisse · Ausgaben: Limits pro Organisation, Gruppe und Nutzer |
-| ChatGPT Business / Enterprise | Cloud von OpenAI; in Enterprise Speicherort in zehn Regionen wählbar | Nur OpenAI | Proprietär | Anmeldung: SSO in Business; SCIM und eigene Rollen in Enterprise · Audit: Compliance API in Enterprise und Edu · Ausgaben: Credit-Pools und Überziehungslimits |
+| Claude Team / Enterprise | Cloud von Anthropic | Nur Claude | Proprietär | Anmeldung: SSO in Team und Enterprise · Audit: Enterprise, 180 Tage Ereignisse · Ausgaben: Limits pro Organisation und Nutzer |
+| ChatGPT Business / Enterprise | Cloud von OpenAI; in Enterprise Speicherort in zehn Regionen wählbar | Nur OpenAI | Proprietär | Anmeldung: SAML-SSO in Business; SCIM und rollenbasierte Zugriffskontrollen in Enterprise · Audit: Compliance API in Enterprise und Edu · Ausgaben: Credit-Pools und Überziehungslimits |
 | Copilot Studio | Cloud von Microsoft, in Power-Platform-Umgebungen | Standardmäßig GPT-Modelle, Claude-Modelle, Azure-Foundry-Modelle separat abgerechnet | Proprietär | Anmeldung: Entra ID · Audit: Purview · Ausgaben: monatliche Limits pro Agent |
 | Gemini Enterprise | Google Cloud, in den Regionen global, US, EU und einigen nationalen | Gemini; andere Modelle nur in Custom Agents auf der Agent Platform | Proprietär | Anmeldung: Google Cloud IAM · Audit: Audit-Logs von Google Cloud · Ausgaben: monatliche Limits auf dem Rechnungskonto |
 | Dify | Selbst gehostet oder Dify Cloud | Viele, darunter Ollama | Apache 2.0 mit Bedingungen: ein mandantenfähiger Dienst braucht eine schriftliche Erlaubnis, und das Logo darf nicht geändert werden | Anmeldung: E-Mail; SSO in Enterprise · Audit: Enterprise · Ausgaben: Abrechnung beim Provider oder Nachrichten-Credits in der Cloud |
 | n8n | Selbst gehostet oder n8n Cloud in Frankfurt | Viele, darunter Ollama | Sustainable Use License: interne Geschäftszwecke, nicht kommerzielle oder private Nutzung; kostenpflichtige Funktionen brauchen einen Lizenzschlüssel, der täglich den Lizenzserver von n8n kontaktiert | Anmeldung: SSO in kostenpflichtigen Plänen · Audit: Log-Streaming in Enterprise · Ausgaben: Ausführungskontingente pro Plan |
-| Viktor | Cloud von Viktor, auf AWS us-east-1 | Voreinstellungen für OpenAI, Anthropic, Google und Kimi oder ein eigener OpenRouter-Schlüssel | Proprietär | Anmeldung: SAML-SSO in Enterprise · Audit: Audit-Logs in Enterprise · Ausgaben: Credit-Pool, Limits nach Absprache in Enterprise |
+| Viktor | Cloud von Viktor, standardmäßig in den USA gehostet | Modelle von OpenAI, Anthropic, Google und xAI oder ein eigener OpenRouter-Schlüssel | Proprietär | Anmeldung: SAML-SSO · Audit: Audit-Logs in Enterprise · Ausgaben: Credit-Pool mit monatlicher Obergrenze für Aufladungen, Limits pro Nutzer in Enterprise |
 | OpenAI dots | Cloud von OpenAI; der Pro-Tarif war zum Start nicht im EWR, in der Schweiz und im Vereinigten Königreich verfügbar | Nur OpenAI | Proprietär | Anmeldung: ChatGPT-Konten · Audit: für dots nicht angegeben · Ausgaben: im Tarif enthalten |
 | Grok Bot | Cloud von xAI | Nur Grok | Proprietär | Anmeldung: xAI- oder Cursor-Konten · Audit: angekündigt · Ausgaben: Tarifpreis, kein genanntes Limit |
 | OpenAI Frontier | Lokal, Ihre Cloud oder OpenAI | OpenAI | Proprietär | Anmeldung, Audit und Ausgaben: nicht öffentlich angegeben; Berechtigungen pro Agent und Dashboards angekündigt |
@@ -85,7 +85,8 @@ Diese Punkte ziehen sich durch jeden Leitfaden und stehen deshalb einmal hier.
 - **Ein Agent ist ein versioniertes Dokument.** Die Veröffentlichung friert eine [Version](../concepts.md#version) ein, [Umgebungen](../environments.md#what-an-environment-is) verweisen auf Versionen, und der Spec [wird als YAML exportiert](../features.md#exportable-into-your-own-repository), in Ihr eigenes Git-Repository.
 - **Governance steckt im Open-Source-Produkt.** [Budgets](../governance.md#enforcement-is-before-the-request) werden vor jeder Modellanfrage geprüft. [Freigaben](../governance.md#approvals) halten einen Run an, bis jemand entscheidet. Das [Audit-Log](../governance.md#audit) macht Manipulationen nachweisbar. Nichts davon wartet auf eine Enterprise-Stufe.
 - **Viele Teams, eine Bereitstellung.** Organisationen sind Mandanten, im Schema isoliert. Das [Berechtigungsmodell](../permissions.md#the-built-in-roles) hat sechs Rollen und Grants pro Ressource. [OIDC Single Sign-on, LDAP und Kerberos](../directory.md#signing-in-with-a-directory-account) ordnen Verzeichnisgruppen Rollen zu.
-- **Ein Agent, jede Oberfläche.** Derselbe veröffentlichte Agent antwortet im Web-Chat, in einem Widget, auf einer gehosteten Seite, über die HTTP-API, einen WebSocket, Slack, Telegram und Mattermost. Siehe [Oberflächen](../channels.md).
+- **Ein Agent, jede Oberfläche.** Derselbe veröffentlichte Agent antwortet im Web-Chat, in einem Widget, auf einer gehosteten Seite, über die HTTP-API, einen WebSocket, Slack, Telegram und Mattermost, und andere Agents erreichen ihn über [A2A](../channels.md#a2a). Siehe [Oberflächen](../channels.md).
+- **Menschen und Agents an einem Ort.** Ein [Projekt](../projects.md) gibt einem Team und seinen Agents gemeinsame Dateien, Instruktionen und Chats, und der [Coding Agent](../reference/capabilities.md#coding-agent) übergibt Softwarearbeit an Claude Code oder Codex in einer Sandbox. [AgenticOS ist auch ein MCP-Server](../mcp.md#agenticos-as-an-mcp-server), sodass diese Werkzeuge die Agents des Unternehmens auflisten und ausführen können.
 - **Im Code erweiterbar.** Eine [Capability](../howto/add-capability.md) ist typisiertes Python, und [jeder MCP-Server](../mcp.md) wird per URL verbunden. Konfiguration erreicht nur, was der Code registriert hat.
 - **Keine Gebühr pro Nutzer.** Sie bezahlen Ihre Modell-Provider direkt und betreiben die Infrastruktur. Vstorm bietet Implementierungshilfe als separate Vereinbarung an; siehe [Betrieb und Implementierung](../rollout.md).
 
@@ -98,8 +99,8 @@ Ein Vergleich, der die eigenen Lücken verschweigt, ist Werbung. Prüfen Sie die
 - Es gibt keine Evaluierungsumgebung und kein Trace-Dashboard. Bewertungen und Run-Verlauf gibt es. Siehe [wo es noch nicht fertig ist](index.md#where-this-one-is-not-finished).
 - Es gibt keinen Konversationskanal für Microsoft Teams, WhatsApp, Sprache oder E-Mail.
 - Es gibt keine visuelle Workflow-Arbeitsfläche. Mehrstufige Arbeit nutzt Delegation, Planung und Trigger.
-- Die Werkzeuge eines MCP-Servers warten nach den Nur-Lesen-Markierungen des Servers selbst auf Freigabe, also läuft ein Werkzeug, das er fälschlich als nur lesend markiert, ungefragt. Siehe [was MCP Ihnen nicht bietet](../mcp.md#what-mcp-does-not-get-you).
-- Die Bereitstellung erfolgt mit Docker Compose auf einem Host. Es gibt keine Kubernetes-Manifeste.
+- Eine MCP-Bindung mit `writes` vertraut den Nur-Lesen-Markierungen des Servers selbst, also läuft ein Werkzeug, das er fälschlich als nur lesend markiert, ungefragt; `all` hält jeden Aufruf an. Siehe [was MCP Ihnen nicht bietet](../mcp.md#what-mcp-does-not-get-you).
+- Die Bereitstellung erfolgt mit Docker Compose, und ein Host ist der ausgelieferte Weg. Ein externes Postgres sowie weitere API-Hosts und Worker sind [dokumentiert](../scaling.md), aber es gibt keine Kubernetes-Manifeste.
 - Sie betreiben es selbst, oder Sie vereinbaren den Betrieb mit Vstorm oder einem anderen Partner.
 
 ## Ein gemeinsamer Versuch { #a-shared-trial }

@@ -1,5 +1,5 @@
 ---
-source_sha: "745a8ba47ecc"
+source_sha: "1b451180d2aa"
 title: "AgenticOS vs Wonderful"
 seo_title: "AgenticOS vs Wonderful: platforma AI dla firm na własność"
 description: "Porównaj dostarczany enterprise AI OS Wonderful z AgenticOS, platformą agentów open source na własność, którą sam uruchamiasz, z pomocą we wdrożeniu od Vstorm."
@@ -11,7 +11,7 @@ Wonderful sprzedaje zamkniętą platformę AI enterprise razem z zespołami forw
 
 Pytanie dotyczy nie tyle tego, które oprogramowanie jest lepsze, ile tego, co chcesz mieć na własność, gdy projekt się skończy: umowę z producentem platformy czy samą platformę.
 
-Utrzymuje zespół AgenticOS w Vstorm. Źródła sprawdzono 25 września 2026. Wersja bazowa AgenticOS: v0.0.504. Zakres Wonderful: jego publiczne strony o AI OS, wdrożeniu, agentach, gatewayu i bezpieczeństwie oraz ogłoszenie o finansowaniu, a nie negocjowana umowa ani przetestowane konto.
+Utrzymuje zespół AgenticOS w Vstorm. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.9.1. Zakres Wonderful: jego publiczne strony o AI OS, wdrożeniu, agentach, gatewayu i bezpieczeństwie oraz ogłoszenie o finansowaniu, a nie negocjowana umowa ani przetestowane konto.
 
 ## W skrócie { #at-a-glance }
 
@@ -21,10 +21,10 @@ Utrzymuje zespół AgenticOS w Vstorm. Źródła sprawdzono 25 września 2026. W
 | Źródła | Własnościowe; eksport agentów i konfiguracji przez UI lub API | Apache-2.0; całą platformę można czytać i forkować |
 | Gdzie działa | Wielotenantowy SaaS, single-tenant, twoja chmura albo odizolowane od sieci on-premises | Twoja infrastruktura, z Docker Compose |
 | Ceny | Nieopublikowane; sprzedaż przez handlowców | Bez opłaty licencyjnej; modele, infrastruktura i ewentualne uzgodnione usługi |
-| Kanały | Głos, czat, e-mail, WhatsApp i SMS | Czat webowy, widget, hostowana strona, HTTP API, WebSocket, Slack, Telegram, Mattermost |
+| Kanały | Głos, czat, e-mail, dokumenty i inne kanały | Czat webowy, widget, hostowana strona, HTTP API, WebSocket, Slack, Telegram, Mattermost |
 | Modele | Routing per zadanie przez platformę | Twój wybór spośród 28 providerów, ustawiany per profil modelu |
 | Nadzór | AI Gateway z limitami budżetu per zespół i logami audytowymi | Budżety per agent i per organizacja, zatwierdzenia i log audytowy wykrywający manipulacje |
-| Deklaracje zgodności | SOC 2 Type II, ISO 27001:2022, PCI DSS, RODO | Twoje kontrole na twojej infrastrukturze; zobacz [bezpieczeństwo](../security.md) |
+| Deklaracje zgodności | SOC 2 Type II, ISO 27001:2022, PCI DSS, RODO, zgodność z EU AI Act | Twoje kontrole na twojej infrastrukturze; zobacz [bezpieczeństwo](../security.md) |
 
 ## Gdzie AgenticOS idzie dalej { #where-agenticos-goes-further }
 
@@ -49,7 +49,7 @@ Certyfikaty Wonderful obejmują jego własną usługę. W AgenticOS sprawdzasz s
 ## Kiedy Wonderful pasuje lepiej { #when-wonderful-is-the-better-fit }
 
 - Chcesz, żeby producent odpowiadał za dostawę od początku do końca, na wielu rynkach i w wielu językach.
-- Głównym zastosowaniem są agenci głosowi, WhatsApp albo SMS obsługujący klientów. AgenticOS nie ma żadnego z tych kanałów.
+- Głównym zastosowaniem są agenci głosowi obsługujący klientów. AgenticOS nie ma kanału głosowego, WhatsApp ani SMS.
 - Potrzebujesz własnych certyfikatów producenta, takich jak SOC 2 Type II i PCI DSS, a nie własnych kontroli.
 
 ## Pytania do umowy o dostawę { #questions-for-the-delivery-agreement }

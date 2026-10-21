@@ -1,5 +1,5 @@
 ---
-source_sha: "3689d8258a77"
+source_sha: "92e969c9bc2d"
 title: "AgenticOS vs Dify"
 seo_title: "AgenticOS vs Dify: mandantenfähige Apache-2.0-Alternative"
 description: "Dify und AgenticOS, selbst gehostete KI-Agent-Plattformen, im Vergleich: Lizenzbedingungen, Mandantenfähigkeit, SSO, Budgets, Freigaben, Audit-Logs, Preise."
@@ -9,7 +9,7 @@ description: "Dify und AgenticOS, selbst gehostete KI-Agent-Plattformen, im Verg
 
 Beide Produkte lassen sich selbst hosten und beide beherrschen Dokumenten-Retrieval, der Unterschied liegt also woanders. Dify ist eine visuelle Arbeitsfläche für LLM-Apps und Workflows, mit mehreren Workspaces, SSO und Audit-Logs in seiner Enterprise-Edition. AgenticOS steht unter Apache-2.0 und ist bereits im Open-Source-Produkt mandantenfähig; Budgets, Freigaben, Verzeichnisanmeldung und ein Audit-Log mit Manipulationsnachweis sind enthalten.
 
-Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. AgenticOS-Basis: v0.0.504. Umfang bei Dify: das öffentliche Repository in Version 1.17.1, seine Lizenz, Dokumentation und Preisseite, kein getesteter Cloud-Tarif und keine fest versionierte Bereitstellung.
+Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Basis: v1.9.1. Umfang bei Dify: das öffentliche Repository in Version 1.17.1, seine Lizenz, Dokumentation und Preisseite, kein getesteter Cloud-Tarif und keine fest versionierte Bereitstellung.
 
 ## Auf einen Blick { #at-a-glance }
 
@@ -18,13 +18,13 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. Agen
 | Wie Sie bauen | Eine visuelle Arbeitsfläche aus Workflow-, Chatflow- und Agent-Knoten | Instruktionen, ein Modellprofil, Capabilities, Sammlungen und ein Budget, als Version veröffentlicht |
 | Lizenz | Dify Open Source License: Apache 2.0 mit zusätzlichen Bedingungen | Apache-2.0; siehe [Lizenzen der mitgelieferten Komponenten](../licenses.md) |
 | Mandantenfähigkeit | Ein Workspace; mehrere Workspaces sind Enterprise | Viele Organisationen in einer Bereitstellung |
-| Rollen | Vier eingebaute Rollen; eigene Rollen sind Enterprise | Sechs Rollen, 27 Berechtigungen und Grants pro Ressource für Personen und Gruppen |
+| Rollen | Vier eingebaute Rollen; eigene Rollen sind Enterprise | Sechs Rollen, 33 Berechtigungen und Grants pro Ressource für Personen und Gruppen |
 | Anmeldung | E-Mail; SSO ist Enterprise | E-Mail, Google, OIDC SSO, LDAP und Kerberos, mit Zuordnung von Verzeichnisgruppen |
 | Audit | Enterprise | Audit-Log mit Manipulationsnachweis mit Export als CSV und JSONL |
 | Ausgabenkontrolle | Abrechnung beim Provider oder Nachrichten-Credits in der Cloud | Ein monatliches Budget pro Agent und pro Organisation, vor jeder Modellanfrage geprüft |
-| Menschliche Freigabe | Ein Human-Input-Knoten in einem Workflow | Freigabe pro Capability und pro Werkzeug für Capability-Werkzeuge; der Run wartet, bis jemand entscheidet. MCP-Werkzeuge werden nicht pro Werkzeug freigegeben |
+| Menschliche Freigabe | Ein Human-Input-Knoten in einem Workflow | Freigabe pro Capability und pro Werkzeug sowie eine Freigaberichtlinie pro MCP-Verbindung (none, writes oder all); der Run wartet, bis jemand entscheidet |
 | Oberflächen | Web-App, Embed, API, MCP-Server; Slack über ein Plugin | Web-Chat, Widget, gehostete Seite, HTTP-API, WebSocket, Slack, Telegram, Mattermost |
-| Kubernetes | Helm-Charts aus der Community; offizielle Hochverfügbarkeit ist Enterprise | Docker Compose auf einem Host |
+| Kubernetes | Helm-Charts aus der Community; offizielle Hochverfügbarkeit ist Enterprise | Docker Compose auf einem Host; ein externes Postgres sowie weitere API-Hosts und Worker sind [dokumentiert](../scaling.md), ohne Kubernetes-Manifeste |
 
 ## Wo AgenticOS weiter geht { #where-agenticos-goes-further }
 

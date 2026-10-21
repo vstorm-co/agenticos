@@ -1,5 +1,5 @@
 ---
-source_sha: "6a4832545d9e"
+source_sha: "d61260abb5b1"
 title: "AgenticOS vs n8n"
 seo_title: "AgenticOS vs n8n: Apache-2.0-Alternative für KI-Agents"
 description: "n8n und AgenticOS für KI-Agents: Lizenz, SSO und Rollen ohne kostenpflichtige Tarife, Budgets pro Agent statt Ausführungskontingenten, und Freigaben."
@@ -11,7 +11,7 @@ n8n ist ein Werkzeug zur Workflow-Automatisierung. Sie verbinden Trigger, Integr
 
 Beide passen gut zusammen. n8n bewegt Daten nach Zeitplan zwischen Systemen. AgenticOS betreibt die Agents, die einen Verantwortlichen, einen Genehmiger und ein Ausgabenlimit brauchen.
 
-Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. AgenticOS-Stand: v0.0.504. n8n-Umfang: Preisseite, Dokumentation und Lizenz in n8n@2.40.7, kein getesteter Cloud-Tarif und keine selbst betriebene Enterprise-Lizenz.
+Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Stand: v1.9.1. n8n-Umfang: Preisseite, Dokumentation und Lizenz in n8n@2.44.5, kein getesteter Cloud-Tarif und keine selbst betriebene Enterprise-Lizenz.
 
 ## Auf einen Blick { #at-a-glance }
 
@@ -25,7 +25,7 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. Agen
 | Umgebungen und Versionskontrolle | Ab Business | Umgebungen und YAML-Export in jedem Deployment |
 | Ausgabenkontrolle | Ausführungskontingente pro Tarif | Ein Budget pro Agent und pro Organisation, geprüft vor jeder Modellanfrage |
 | Audit | Log-Streaming bei Enterprise | Audit-Log mit Manipulationsnachweis in jedem Deployment |
-| Menschliche Freigabe | Pro Werkzeug, über neun Review-Kanäle | Pro Capability und pro Werkzeug für Capability-Werkzeuge, über eine gemeinsame Warteschlange; MCP-Werkzeuge werden nicht pro Werkzeug freigegeben |
+| Menschliche Freigabe | Pro Werkzeug, über neun Review-Kanäle | Pro Capability und pro Werkzeug sowie eine Freigaberichtlinie pro MCP-Verbindung (none, writes oder all), über eine gemeinsame Warteschlange |
 | Preise | Community kostenlos; Cloud ab 20 € im Monat für 2.500 Ausführungen bei jährlicher Abrechnung; Business 667 € im Monat, selbst betrieben | Keine Lizenzgebühr; Modellnutzung und Infrastruktur |
 
 ## Wo AgenticOS weiter geht { #where-agenticos-goes-further }

@@ -2,7 +2,7 @@
 title: "AgenticOS vs Grok Bot"
 seo_title: "AgenticOS vs Grok Bot: un compañero de IA autoalojado"
 description: "Grok Bot da a cada compañero con nombre un ordenador en la nube con Grok. Compáralo con AgenticOS: cualquier modelo, registro de auditoría, sesiones separadas, tus servidores."
-source_sha: "718df56557d9"
+source_sha: "757e8074f61b"
 ---
 
 # AgenticOS vs Grok Bot { #agenticos-vs-grok-bot }
@@ -11,7 +11,7 @@ Grok Bot, de xAI con Cursor, te permite crear compañeros de IA con nombre. Cada
 
 Si quieres probar esta semana un equipo de compañeros de IA con los modelos de xAI, Grok Bot arranca rápido. Si necesitas demostrar quién hizo qué, mantener separados los accesos de cada persona y elegir el modelo, AgenticOS está hecho para eso.
 
-Mantenido por el equipo de AgenticOS. Fuentes revisadas el 14 de octubre de 2026. Versión de referencia de AgenticOS: v0.0.535. Alcance de Grok Bot: la beta pública anunciada el 11 de agosto de 2026, según la prensa y análisis independientes; no una cuenta probada. Uno de los análisis es de un proveedor competidor y se indica abajo.
+Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026. Versión de referencia de AgenticOS: v1.9.1. Alcance de Grok Bot: la beta pública anunciada el 11 de agosto de 2026, según la prensa y análisis independientes; no una cuenta probada. Uno de los análisis es de un proveedor competidor y se indica abajo.
 
 ## De un vistazo { #at-a-glance }
 
@@ -21,9 +21,9 @@ Mantenido por el equipo de AgenticOS. Fuentes revisadas el 14 de octubre de 2026
 | Dónde se ejecuta | La nube de xAI | Tu infraestructura, con Docker Compose |
 | Código | Propietario | Apache-2.0 |
 | Modelos | Solo Grok, sin elección | 28 providers, incluidos modelos locales |
-| Ordenador | Una VM persistente compartida por todos los bots de una cuenta | Una sandbox por conversación; un navegador cuyas sesiones se guardan por persona |
+| Ordenador | Una VM persistente compartida por todos los bots de una cuenta | Una sandbox por conversación, o una que comparten los chats de un [proyecto](../projects.md); un navegador cuyas sesiones se guardan por persona |
 | Aprender una tarea | Grabas tu pantalla hasta diez minutos; vuelve un borrador de skill | Skills escritos o instalados desde una galería, vinculados a cada agent |
-| Trabajo en equipo | Chats de grupo de dos a seis bots que se pasan el trabajo | [Delegación](../reference/capabilities.md#delegation) a otros agents publicados, fijados a una versión |
+| Trabajo en equipo | Chats de grupo de dos a seis bots que se pasan el trabajo | [Subagents](../reference/capabilities.md#delegation): otros agents publicados, fijados a una versión; chats de proyecto donde varias personas y agents trabajan juntos |
 | Aprobaciones | Descritas en texto; revisión opcional por un modelo | Comprobadas por la plataforma antes de que se ejecute una herramienta |
 | Auditoría | Anunciada | Un registro de auditoría a prueba de manipulaciones y un registro de cada run |
 | Precio | Planes de pago de 120 $ por puesto a 200 $ al mes | Sin coste de licencia; pagas a los providers de modelos y la infraestructura |

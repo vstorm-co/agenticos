@@ -8,7 +8,7 @@ description: "Compare Google Gemini Enterprise with AgenticOS: any model in ever
 
 Google Gemini Enterprise, formerly Agentspace, gives employees an assistant, enterprise search across Google Workspace, Microsoft 365 and many SaaS tools, Google-made agents such as Deep Research, and a no-code Workflow Builder, all in Google Cloud. AgenticOS gives your organization agents it owns. They run on your infrastructure with any model, and they answer customers and systems as well as employees.
 
-Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS baseline: v0.0.504. Gemini Enterprise scope: Google's product page, documentation and release notes, not a tested project.
+Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.9.1. Gemini Enterprise scope: Google's product page, documentation and release notes, not a tested project.
 
 ## At a glance
 
@@ -22,7 +22,7 @@ Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS b
 | Building | Workflow Builder; custom and partner agents on Standard and Plus | The Builder, for every agent |
 | Limits | Daily pooled quotas, such as one new agent a day on Standard | A budget per agent and per organization, checked before each model request |
 | Spend control | Monthly spend limits on the billing account | Budgets per agent, alerts to the people you choose |
-| Pricing | Business from $21, Standard and Plus from $30 per seat per month | No licence fee; model usage and infrastructure |
+| Pricing | Per seat, by edition (Business, Standard, Plus, Frontline) or pay-as-you-go; Google's pages no longer list prices, and Plus has a 30-day trial | No licence fee; model usage and infrastructure |
 
 ## Where AgenticOS goes further
 
@@ -80,8 +80,8 @@ In stores you run, wherever you deploy it: conversations, documents and vectors 
 
 ## Sources
 
-- [Gemini Enterprise](https://cloud.google.com/gemini-enterprise): editions, prices and the feature split.
-- [Editions](https://docs.cloud.google.com/gemini/enterprise/docs/editions) and [quotas](https://docs.cloud.google.com/gemini/enterprise/docs/quotas-and-overages): seats, storage and daily quotas.
+- [Gemini Enterprise](https://cloud.google.com/gemini-enterprise): the product and the 30-day Plus trial; no prices are listed.
+- [Editions](https://docs.cloud.google.com/gemini/enterprise/docs/editions) and [quotas](https://docs.cloud.google.com/gemini/enterprise/docs/quotas-and-overages): editions, seats, storage and daily quotas.
 - [Agents overview](https://docs.cloud.google.com/gemini/enterprise/docs/agents-overview): agent types and editions.
 - [Workflow Builder](https://docs.cloud.google.com/gemini/enterprise/docs/agent-designer): the no-code builder and human-in-the-loop steps.
 - [Connectors](https://cloud.google.com/gemini-enterprise/connectors): connectors per edition.

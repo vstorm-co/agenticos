@@ -10,7 +10,7 @@ Claude Managed Agents is Anthropic's hosted runtime for developers: it runs an a
 
 If you are a developer building one product on Claude and want Anthropic to host the runtime, Managed Agents is the shortest path. If you want a company's agents built by the people who need them, governed in one place and kept on your infrastructure, AgenticOS is built for that.
 
-Maintained by the AgenticOS team. Sources checked 14 October 2026. AgenticOS baseline: v0.0.535. Managed Agents scope: the public beta announced 8-9 April 2026 and its published pricing, not a tested account.
+Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.9.1. Managed Agents scope: the public beta announced 8-9 April 2026 and its published pricing, not a tested account.
 
 ## At a glance
 

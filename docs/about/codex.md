@@ -10,7 +10,7 @@ OpenAI Codex is a software engineering agent. It spans an open-source CLI, an ID
 
 The two share some ground: an Apache-2.0 licence for the open parts, MCP, sandboxed execution and approval before risky actions. They apply it to different users.
 
-Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS baseline: v0.0.504. Codex scope: OpenAI's Codex documentation at learn.chatgpt.com, its pricing page and the `openai/codex` repository, not a tested enterprise rollout.
+Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.9.1. Codex scope: OpenAI's Codex documentation at learn.chatgpt.com, its pricing page and the `openai/codex` repository, not a tested enterprise rollout.
 
 ## At a glance
 
@@ -23,8 +23,8 @@ Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS b
 | Models | OpenAI with a ChatGPT sign-in; the CLI also takes Ollama, LM Studio, Bedrock and custom providers | 28 providers, set per model profile |
 | End users | The developer | Employees, customers and systems, on eight surfaces |
 | Approvals | Sandbox modes and approval policies at the developer's desk | A person with `approvals:decide`, from a shared queue |
-| Spend control | Plan limits per five-hour window and credits shared with ChatGPT Work | A monthly budget per agent and per organization |
-| Pricing | Included in ChatGPT plans; OpenAI estimates $100–$200 per developer per month on credits | No licence fee; model usage and infrastructure |
+| Spend control | Limits per five-hour window on Plus and Standard Business seats, and credits shared with ChatGPT Work | A monthly budget per agent and per organization |
+| Pricing | Included in every ChatGPT plan, Free to Enterprise; OpenAI estimates $100–$200 per developer per month on credits | No licence fee; model usage and infrastructure |
 
 ## Where AgenticOS goes further
 
@@ -54,6 +54,8 @@ Codex runs commands in an OS sandbox on the developer's machine or in a cloud co
 
 An engineer can use Codex to write, test and review a new [capability](../howto/add-capability.md): typed Python with tests, in a repository whose contributor rules are written down. Once merged, it is available to every agent builder in the organization. An agent spec [exports as YAML](../features.md#exportable-into-your-own-repository), so Codex can review an agent change in a pull request too.
 
+The two also meet at run time. An agent with the [coding agent](../reference/capabilities.md#coding-agent) capability hands software work to Codex in its own sandbox, signed in with an OpenAI API key or a ChatGPT sign-in, and each step shows up in the chat as it happens. In the other direction, [AgenticOS is an MCP server](../mcp.md#agenticos-as-an-mcp-server), so Codex can list and run the company's agents, read their runs and search their knowledge bases.
+
 ## Try it on one task
 
 Give both the [shared handbook](../howto/first-document-agent.md) question. Then give the answer to a colleague who does not code, and check what each needs before they can ask their own question. Record the result with the [comparison method](comparison.md#a-shared-trial).
@@ -62,7 +64,7 @@ Give both the [shared handbook](../howto/first-document-agent.md) question. Then
 
 ### Is AgenticOS an alternative to OpenAI Codex?
 
-No, they solve different problems. Codex is a coding agent for developers. AgenticOS is a platform for governed agents that business teams build and everyone uses.
+No, they solve different problems. Codex is a coding agent for developers. AgenticOS is a platform for governed agents that business teams build and everyone uses, and an AgenticOS agent can hand coding work to Codex.
 
 ### Is OpenAI Codex open source?
 
@@ -83,8 +85,8 @@ Yes. Calculations runs Python with no network or filesystem, and the Sandbox giv
 ## Sources
 
 - [Codex repository](https://github.com/openai/codex): the Apache-2.0 CLI.
-- [Codex pricing](https://learn.chatgpt.com/docs/pricing): plans, usage windows, credits and features by plan.
+- [Codex pricing](https://learn.chatgpt.com/docs/pricing): plans from Free to Enterprise, five-hour windows, credits shared with ChatGPT Work.
 - [Approvals and security](https://learn.chatgpt.com/docs/agent-approvals-security): sandbox modes and approval policies.
 - [Advanced configuration](https://learn.chatgpt.com/docs/config-file/config-advanced): custom and local model providers.
-- [Enterprise managed configuration](https://learn.chatgpt.com/codex/enterprise/managed-configuration): `requirements.toml`.
+- [Enterprise managed configuration](https://learn.chatgpt.com/docs/enterprise/managed-configuration): `requirements.toml`.
 - [ChatGPT rate card](https://help.openai.com/en/articles/11481834-chatgpt-rate-card-business-enterpriseedu-credit-based-pricing): the per-developer estimate.

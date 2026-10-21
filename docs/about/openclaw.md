@@ -10,7 +10,7 @@ OpenClaw is an open-source personal AI agent, among the most-starred projects on
 
 If you want one personal assistant you run yourself, OpenClaw is the obvious open-source choice. If a company needs agents for its teams, governed and shared, AgenticOS is built for that, and is open source too.
 
-Maintained by the AgenticOS team. Sources checked 14 October 2026. AgenticOS baseline: v0.0.535. OpenClaw and NemoClaw scope: public reporting on the projects, including NVIDIA's announcement of 16 March 2026, not a tested deployment.
+Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.9.1. OpenClaw and NemoClaw scope: public reporting on the projects, including NVIDIA's announcement of 16 March 2026, not a tested deployment.
 
 ## At a glance
 

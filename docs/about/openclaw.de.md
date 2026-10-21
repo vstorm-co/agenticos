@@ -2,7 +2,7 @@
 title: "AgenticOS vs OpenClaw"
 seo_title: "AgenticOS vs OpenClaw und NemoClaw: Agents für ein Unternehmen"
 description: "OpenClaw ist ein persönlicher Open-Source-Agent; NVIDIA NemoClaw härtet ihn für Unternehmen. Vergleichen Sie AgenticOS: viele gesteuerte Agents, im Browser gebaut."
-source_sha: "90ac0ddc6545"
+source_sha: "05b17e05fe1b"
 ---
 
 # AgenticOS vs OpenClaw { #agenticos-vs-openclaw }
@@ -11,7 +11,7 @@ OpenClaw ist ein persönlicher Open-Source-KI-Agent und eines der Projekte mit d
 
 Wenn Sie einen persönlichen Assistenten möchten, den Sie selbst betreiben, ist OpenClaw die naheliegende Open-Source-Wahl. Wenn ein Unternehmen Agents für seine Teams braucht, gesteuert und geteilt, ist AgenticOS genau dafür gebaut, und ebenfalls Open Source.
 
-Gepflegt vom AgenticOS-Team. Quellen geprüft am 14. Oktober 2026. AgenticOS-Basisversion: v0.0.535. Umfang OpenClaw und NemoClaw: öffentliche Berichte über die Projekte, einschließlich der Ankündigung von NVIDIA vom 16. März 2026, keine getestete Installation.
+Gepflegt vom AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Basisversion: v1.9.1. Umfang OpenClaw und NemoClaw: öffentliche Berichte über die Projekte, einschließlich der Ankündigung von NVIDIA vom 16. März 2026, keine getestete Installation.
 
 ## Auf einen Blick { #at-a-glance }
 

@@ -19,6 +19,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- **The comparison guides are checked again, on 21 October 2026, against
+  1.9.1.** Every vendor source was reread. ChatGPT's workspace-agent trigger
+  now returns a conversation link and polls run status in beta, though the
+  answer still cannot be read back; ChatGPT Business and Claude Team sell
+  Premium seats; Copilot Studio's credit pack gave way to commit units; Google
+  no longer lists Gemini Enterprise prices; Viktor and OpenCode changed plans.
+  The guides also say what AgenticOS gained since 0.0.504: the coding agent
+  that hands work to Claude Code or Codex, the MCP server, A2A, projects, an
+  approval policy per MCP connection, 33 permissions and the scaling guide.
+
 ## [1.9.1] - 2026-10-21
 
 ### Fixed

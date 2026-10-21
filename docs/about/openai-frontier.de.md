@@ -2,7 +2,7 @@
 title: "AgenticOS vs OpenAI Frontier"
 seo_title: "AgenticOS vs OpenAI Frontier: eine Open-Source-Alternative"
 description: "OpenAI Frontier verwaltet KI-Kollegen im Unternehmen auf Modellen von OpenAI. Vergleichen Sie AgenticOS: Open Source, jedes Modell, betrieben auf Ihren Servern."
-source_sha: "604c3b920001"
+source_sha: "e2b2bc50a447"
 ---
 
 # AgenticOS vs OpenAI Frontier { #agenticos-vs-openai-frontier }
@@ -11,7 +11,7 @@ OpenAI Frontier ist eine Enterprise-Plattform zum Bauen und Verwalten von "KI-Ko
 
 Wenn Sie auf OpenAI setzen und die Plattform vom Anbieter haben möchten, ist Frontier dessen eigene Antwort. Wenn Ihnen die Plattform gehören soll, Sie ihren Code lesen und die Modelle wählen möchten, ist AgenticOS genau dafür gebaut.
 
-Gepflegt vom AgenticOS-Team. Quellen geprüft am 14. Oktober 2026. AgenticOS-Basisversion: v0.0.535. Umfang Frontier: die Ankündigung von OpenAI vom 5. Februar 2026 laut Presseberichten; Preise wurden nicht veröffentlicht, und kein Konto wurde getestet.
+Gepflegt vom AgenticOS-Team. Quellen geprüft am 14. Oktober 2026. AgenticOS-Basisversion: v1.9.1. Umfang Frontier: die Ankündigung von OpenAI vom 5. Februar 2026 laut Presseberichten; Preise wurden nicht veröffentlicht, und kein Konto wurde getestet.
 
 ## Auf einen Blick { #at-a-glance }
 

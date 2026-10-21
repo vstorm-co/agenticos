@@ -1,5 +1,5 @@
 ---
-source_sha: "3689d8258a77"
+source_sha: "92e969c9bc2d"
 title: "AgenticOS vs Dify"
 seo_title: "AgenticOS vs Dify: wielotenantowa alternatywa na Apache-2.0"
 description: "Porównaj Dify i AgenticOS, dwie platformy agentów AI self-hosted: warunki licencji, wielotenantowość, SSO, budżety, zatwierdzenia, logi audytowe i ceny."
@@ -9,7 +9,7 @@ description: "Porównaj Dify i AgenticOS, dwie platformy agentów AI self-hosted
 
 Oba produkty da się hostować samodzielnie i oba wyszukują w dokumentach, więc różnica leży gdzie indziej. Dify to wizualny canvas do aplikacji LLM i workflow, z wieloma workspace'ami, SSO i logami audytowymi w edycji Enterprise. AgenticOS jest na licencji Apache-2.0 i wielotenantowy w produkcie open source, z budżetami, zatwierdzeniami, logowaniem przez katalog i logiem audytowym wykrywającym manipulacje w zestawie.
 
-Utrzymuje zespół AgenticOS. Źródła sprawdzono 25 września 2026. Wersja bazowa AgenticOS: v0.0.504. Zakres Dify: publiczne repozytorium w wersji 1.17.1, jego licencja, dokumentacja i strona cennika, a nie przetestowany plan chmurowy ani przypięte wdrożenie.
+Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.9.1. Zakres Dify: publiczne repozytorium w wersji 1.17.1, jego licencja, dokumentacja i strona cennika, a nie przetestowany plan chmurowy ani przypięte wdrożenie.
 
 ## W skrócie { #at-a-glance }
 
@@ -18,13 +18,13 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 25 września 2026. Wersja baz
 | Jak budujesz | Wizualny canvas z węzłami workflow, chatflow i agentów | Instrukcje, profil modelu, capabilities, kolekcje i budżet, opublikowane jako wersja |
 | Licencja | Dify Open Source License: Apache 2.0 z dodatkowymi warunkami | Apache-2.0; zobacz [licencje dołączonych komponentów](../licenses.md) |
 | Wielotenantowość | Jeden workspace; kilka workspace'ów to Enterprise | Wiele organizacji w jednym wdrożeniu |
-| Role | Cztery wbudowane role; role niestandardowe to Enterprise | Sześć ról, 27 uprawnień i granty per zasób dla osób i grup |
+| Role | Cztery wbudowane role; role niestandardowe to Enterprise | Sześć ról, 33 uprawnienia i granty per zasób dla osób i grup |
 | Logowanie | E-mail; SSO to Enterprise | E-mail, Google, OIDC SSO, LDAP i Kerberos, z mapowaniem grup z katalogu |
 | Audyt | Enterprise | Log audytowy wykrywający manipulacje, z eksportem do CSV i JSONL |
 | Kontrola wydatków | Rozliczenia u providera albo kredyty wiadomości w Cloud | Miesięczny budżet per agent i per organizacja, sprawdzany przed każdym żądaniem do modelu |
-| Zatwierdzenie przez człowieka | Węzeł Human Input w workflow | Zatwierdzenie per capability i per narzędzie dla narzędzi capabilities; run czeka, dopóki ktoś nie zdecyduje. Narzędzia MCP nie są bramkowane per narzędzie |
+| Zatwierdzenie przez człowieka | Węzeł Human Input w workflow | Zatwierdzenie per capability i per narzędzie oraz polityka zatwierdzeń per połączenie MCP (none, writes albo all); run czeka, dopóki ktoś nie zdecyduje |
 | Powierzchnie | Aplikacja web, embed, API, serwer MCP; Slack przez plugin | Czat webowy, widget, hostowana strona, HTTP API, WebSocket, Slack, Telegram, Mattermost |
-| Kubernetes | Społecznościowe charty Helm; oficjalna wysoka dostępność to Enterprise | Docker Compose na jednym hoście |
+| Kubernetes | Społecznościowe charty Helm; oficjalna wysoka dostępność to Enterprise | Docker Compose na jednym hoście; zewnętrzny Postgres oraz kolejne hosty API i workery są [opisane](../scaling.md), bez manifestów Kubernetes |
 
 ## Gdzie AgenticOS idzie dalej { #where-agenticos-goes-further }
 

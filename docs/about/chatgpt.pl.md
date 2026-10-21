@@ -1,5 +1,5 @@
 ---
-source_sha: "84981176907c"
+source_sha: "a583c9c22db0"
 title: "AgenticOS vs ChatGPT"
 seo_title: "AgenticOS vs ChatGPT Enterprise: alternatywa self-hosted"
 description: "Porównaj ChatGPT Business, Enterprise i workspace agents z AgenticOS: self-hosted, dowolny model, osiem powierzchni, budżety per agent i logi audytowe."
@@ -11,7 +11,7 @@ ChatGPT Business i Enterprise dają pracownikom asystenta OpenAI, a w 2026 roku 
 
 AgenticOS działa na twojej infrastrukturze, używa wybranego przez ciebie modelu i publikuje jednego agenta na osiem powierzchni. Wśród nich są widget na stronę internetową i API, które zwraca odpowiedź.
 
-Utrzymuje zespół AgenticOS. Źródła sprawdzono 25 września 2026. Wersja bazowa AgenticOS: v0.0.504. Zakres ChatGPT: strony OpenAI z cennikiem, opisem danych firmowych, Help Center i dokumentacją dla deweloperów, bez testowanego workspace'u. Workspace agents są w fazie research preview, więc przed decyzją sprawdź ich aktualny stan.
+Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.9.1. Zakres ChatGPT: strony OpenAI z cennikiem, opisem danych firmowych, Help Center i dokumentacją dla deweloperów, bez testowanego workspace'u. Workspace agents są w fazie research preview, więc przed decyzją sprawdź ich aktualny stan.
 
 ## W skrócie { #at-a-glance }
 
@@ -22,17 +22,17 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 25 września 2026. Wersja baz
 | Modele | Tylko OpenAI | 28 providerów, w tym OpenAI, oraz modele lokalne |
 | Budowanie agentów | Workspace agents, w research preview, z wersjami i udostępnianiem | Publikowani agenci z wersjami, środowiskami i eksportem do YAML |
 | Powierzchnie agenta | ChatGPT, Slack, harmonogramy, wyzwalacz API | Czat webowy, widget, hostowana strona, HTTP API, WebSocket, Slack, Telegram, Mattermost, harmonogramy i wyzwalacze zdarzeń |
-| API | Wyzwalacz zwraca `202 Accepted`, bez identyfikatora runa i bez odpowiedzi | `POST /agents/{id}/run` zwraca run i jego odpowiedź |
+| API | Wyzwalacz zwraca `202 Accepted` i link do rozmowy; sprawdzanie statusu runa jest w becie, a odpowiedzi nie da się pobrać | `POST /agents/{id}/run` zwraca run i jego odpowiedź |
 | Kontrola wydatków | Pule kredytów i limity nadwyżek na workspace lub grupę | Budżet na agenta i na organizację, sprawdzany przed każdym zapytaniem do modelu |
-| Tożsamość | SSO w Business; SCIM i role niestandardowe w Enterprise | OIDC SSO, LDAP i Kerberos z mapowaniem grup oraz uprawnienia per zasób, w każdym wdrożeniu |
+| Tożsamość | SAML SSO w Business; SCIM, kontrola dostępu oparta na rolach i zarządzanie kluczami w Enterprise | OIDC SSO, LDAP i Kerberos z mapowaniem grup oraz uprawnienia per zasób, w każdym wdrożeniu |
 | Audyt | Compliance API w Enterprise i Edu, 30-dniowe okno logów | Odporny na manipulacje dziennik audytu, eksportowany jako CSV lub JSONL, z ustalanym przez ciebie okresem przechowywania |
-| Cennik | Business 20 USD za stanowisko miesięcznie przy płatności rocznej, 25 USD przy miesięcznej; Enterprise wycena indywidualna; praca agentów opłacana kredytami | Brak opłaty licencyjnej; użycie modeli według stawek twojego providera |
+| Cennik | Business: stanowisko Standard za 20 USD miesięcznie przy płatności rocznej (25 USD przy miesięcznej), stanowisko Premium za 100 USD (125 USD); Enterprise wycena indywidualna; praca agentów opłacana kredytami | Brak opłaty licencyjnej; użycie modeli według stawek twojego providera |
 
 ## Gdzie AgenticOS idzie dalej { #where-agenticos-goes-further }
 
 ### Agent dostępny dla każdego, z odpowiedzią, która wraca { #an-agent-anyone-can-reach-with-an-answer-that-comes-back }
 
-Strona pomocy OpenAI mówi, że wyzwalacz API workspace agenta „nie zwraca identyfikatora runa, a odpowiedzi agenta nie można obecnie pobrać przez API”. Strony OpenAI nie wymieniają dla agenta powierzchni w postaci widgetu, Telegramu ani Mattermost.
+Strona dla deweloperów OpenAI mówi, że wyzwalacz API workspace agenta „zwraca 202 Accepted z linkiem do rozmowy w ChatGPT” i że „odpowiedzi agenta nie można obecnie pobrać przez API”. Sprawdzanie statusu runa jest w becie. Strony OpenAI nie wymieniają dla agenta powierzchni w postaci widgetu, Telegramu ani Mattermost.
 
 Agent AgenticOS odpowiada przez [HTTP API](../channels.md#the-public-api) z wynikiem, streamuje przez [WebSocket](../channels.md#the-raw-websocket) i osadza się na twojej stronie jako [widget](../channels.md#the-website-widget). [Hostowana strona](../channels.md#a-hosted-page) to link dla każdego. Boty [Slack, Telegram i Mattermost](../channels.md#slack) działają z tożsamością powiązanej osoby, która zadała pytanie.
 
@@ -46,7 +46,7 @@ Limity OpenAI dotyczą workspace'ów, grup i użytkowników, a OpenAI zaznacza, 
 
 ### Kontrole klasy enterprise w każdym wdrożeniu { #enterprise-controls-in-every-deployment }
 
-W ChatGPT SCIM, role niestandardowe, Compliance API i rezydencja danych są dostępne tylko w Enterprise. AgenticOS dostarcza [mapowanie grup katalogowych](../directory.md#directory-group-mappings), sześć wbudowanych [ról z uprawnieniami per zasób](../permissions.md#layer-3-visibility-and-grants), [log audytowy wykrywający manipulacje](../governance.md#audit) i [okres przechowywania dla każdej klasy danych](../governance.md#retention) w produkcie na licencji Apache-2.0. Ról niestandardowych i SCIM jeszcze nie ma. Twoje dane zostają tam, gdzie wdrożysz produkt.
+W ChatGPT SCIM, kontrola dostępu oparta na rolach, Compliance API i rezydencja danych są dostępne tylko w Enterprise. AgenticOS dostarcza [mapowanie grup katalogowych](../directory.md#directory-group-mappings), sześć wbudowanych [ról z uprawnieniami per zasób](../permissions.md#layer-3-visibility-and-grants), [log audytowy wykrywający manipulacje](../governance.md#audit) i [okres przechowywania dla każdej klasy danych](../governance.md#retention) w produkcie na licencji Apache-2.0. Ról niestandardowych i SCIM jeszcze nie ma. Twoje dane zostają tam, gdzie wdrożysz produkt.
 
 ### Platforma, która nie zmienia się bez twojej wiedzy { #a-platform-that-does-not-move-under-you }
 
@@ -55,13 +55,13 @@ W czerwcu 2026 OpenAI ogłosiło, że Agent Builder, część AgentKit, zostanie
 ## Kiedy ChatGPT wystarczy { #when-chatgpt-is-enough }
 
 - Chcesz mieć asystenta, deep research, agent mode i Codex w jednym stanowisku, bez niczego do utrzymywania.
-- Jego katalog wtyczek z ponad 1400 aplikacjami obejmuje systemy, których potrzebujesz.
+- Jego katalog wtyczek obejmuje systemy, których potrzebujesz.
 - Potrzebujesz certyfikacji OpenAI, zarządzania kluczami albo partnerów Compliance API.
 - Potrzebujesz SAML lub SCIM już teraz, a AgenticOS jeszcze ich nie ma.
 
 ## Używaj obu razem { #use-them-together }
 
-Zostaw ChatGPT do własnej pracy pracowników. Używaj AgenticOS do agentów, którzy obsługują klientów, działają za twoim API albo potrzebują budżetu i osoby zatwierdzającej. Dodaj profil modelu OpenAI, a ci agenci będą działać na tych samych modelach pod twoimi własnymi kontrolami.
+Zostaw ChatGPT do własnej pracy pracowników. Używaj AgenticOS do agentów, którzy obsługują klientów, działają za twoim API albo potrzebują budżetu i osoby zatwierdzającej. Dodaj profil modelu OpenAI, a ci agenci będą działać na tych samych modelach pod twoimi własnymi kontrolami. Twoi własni agenci mogą też [działać na twojej subskrypcji ChatGPT](../models.md#running-on-a-chatgpt-subscription) zamiast na kluczu API, a [coding agent](../reference/capabilities.md#coding-agent) przekazuje pracę programistyczną Codexowi w sandboksie.
 
 ## Wypróbuj jedno pytanie o dokument { #try-one-handbook-question }
 
@@ -79,7 +79,7 @@ Tak. Dodaj profil modelu dla OpenAI lub Azure OpenAI. Później możesz przenie�
 
 ### Czym workspace agents w ChatGPT różnią się od agentów AgenticOS? { #how-are-chatgpt-workspace-agents-different-from-agenticos-agents }
 
-Workspace agents działają w chmurze OpenAI na modelach OpenAI: w ChatGPT, w Slacku, według harmonogramu i z wyzwalacza API, który nie zwraca odpowiedzi. Agenci AgenticOS działają na twojej infrastrukturze, na dowolnym modelu, i odpowiadają przez API zwracające wynik, widget, hostowaną stronę i boty czatowe.
+Workspace agents działają w chmurze OpenAI na modelach OpenAI: w ChatGPT, w Slacku, według harmonogramu i z wyzwalacza API, którego odpowiedzi nie da się pobrać przez API. Agenci AgenticOS działają na twojej infrastrukturze, na dowolnym modelu, i odpowiadają przez API zwracające wynik, widget, hostowaną stronę i boty czatowe.
 
 ### Co zastąpi Agent Builder od OpenAI po jego wyłączeniu? { #what-replaces-openais-agent-builder-after-it-shuts-down }
 
@@ -91,10 +91,11 @@ OpenAI kieruje użytkowników do Agents SDK albo do workspace agents w ChatGPT. 
 
 ## Źródła { #sources }
 
-- [Cennik ChatGPT Business](https://openai.com/business/chatgpt-pricing/): ceny stanowisk i tabela funkcji Business w porównaniu z Enterprise.
-- [Workspace agents](https://help.openai.com/en/articles/20001143-chatgpt-workspace-agents-for-enterprise-and-business): kreator, powierzchnie, zatwierdzenia i ograniczenie wyzwalacza API.
+- [Cennik ChatGPT Business](https://openai.com/business/pricing/): ceny stanowisk i tabela funkcji Business w porównaniu z Enterprise.
+- [Workspace agents](https://help.openai.com/en/articles/20001143-chatgpt-workspace-agents-for-enterprise-and-business): kreator, powierzchnie, zatwierdzenia i wersje.
+- [Trigger workspace agent runs](https://developers.openai.com/workspace-agents/trigger-runs): odpowiedź `202 Accepted`, sprawdzanie statusu runa w becie i brak odpowiedzi agenta przez API.
 - [Introducing workspace agents](https://openai.com/index/introducing-workspace-agents-in-chatgpt/): research preview i cennik w kredytach.
 - [Elastyczny cennik](https://help.openai.com/en/articles/11487671-flexible-pricing-for-the-enterprise-edu-and-business-plans): pule kredytów i limity nadwyżek.
 - [Rezydencja danych](https://help.openai.com/en/articles/9903489-data-residency-and-inference-residency-for-chatgpt): regiony i wyłączenia.
-- [Compliance APIs](https://help.openai.com/en/articles/9261474-compliance-apis-for-enterprise-customers): zakres Enterprise i 30-dniowe okno.
+- [Compliance Platform](https://help.openai.com/en/articles/9261474-openai-compliance-platform-for-enterprise-and-edu-customers): zakres Enterprise i Edu oraz 30-dniowe przechowywanie.
 - [Agent Builder](https://developers.openai.com/api/docs/guides/agent-builder) i [wycofania](https://developers.openai.com/api/docs/deprecations): wyłączenie 30 listopada 2026.

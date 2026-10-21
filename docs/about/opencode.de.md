@@ -1,5 +1,5 @@
 ---
-source_sha: "a91191c7e4f7"
+source_sha: "076496d995f1"
 title: "AgenticOS vs OpenCode"
 seo_title: "AgenticOS vs OpenCode: Open-Source-Agent-Tools im Vergleich"
 description: "OpenCode ist ein MIT-Coding-Agent für einen Entwickler, AgenticOS eine Apache-2.0-Plattform für KI-Agents im Unternehmen, mit Rollen, Budgets und Audit-Logs."
@@ -9,7 +9,7 @@ description: "OpenCode ist ein MIT-Coding-Agent für einen Entwickler, AgenticOS
 
 OpenCode ist ein Open-Source-Coding-Agent unter der MIT-Lizenz. Er läuft in einem Terminal, einer Desktop-App oder einer IDE und verbindet sich mit mehr als 75 Modell-Providern. Er ist eine starke Wahl für einen Entwickler, der seinen eigenen Agent in seinem eigenen Repository möchte. AgenticOS ist ebenfalls Open Source und für eine andere Aufgabe gebaut: viele Agents, viele Benutzer, ein kontrolliertes Deployment.
 
-Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. AgenticOS-Stand: v0.0.504. OpenCode-Umfang: die Dokumentation auf opencode.ai und das Repository `anomalyco/opencode` in v1.18.32, kein getesteter Enterprise-Rollout.
+Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Stand: v1.9.1. OpenCode-Umfang: die Dokumentation auf opencode.ai und das Repository `anomalyco/opencode` in v1.18.32, kein getesteter Enterprise-Rollout.
 
 ## Auf einen Blick { #at-a-glance }
 
@@ -19,12 +19,11 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. Agen
 | Wo es läuft | Der Rechner des Entwicklers; `opencode serve` für einen lokalen HTTP-Server | Ein gemeinsamer Dienst auf Ihrer Infrastruktur |
 | Quellcode | MIT | Apache-2.0 |
 | Modelle | 75+ Provider über Models.dev, einschließlich lokaler | 28 Provider, einschließlich lokaler |
-| Benutzer und Zugriff | Ein Benutzer; Zen-Teams haben Admin und Member | Organisationen, sechs Rollen, 27 Berechtigungen, Grants pro Ressource |
+| Benutzer und Zugriff | Ein Benutzer; Console-Workspaces haben Owner, Admins und Mitglieder | Organisationen, sechs Rollen, 33 Berechtigungen, Grants pro Ressource |
 | Freigaben | `allow`, `ask` oder `deny` pro Werkzeug, an der Tastatur beantwortet | Eine Person mit `approvals:decide`, aus einer gemeinsamen Warteschlange |
-| Ausgabenkontrolle | Monatliche Limits auf dem Zen-Gateway | Ein Budget pro Agent und pro Organisation, geprüft vor jeder Modellanfrage |
+| Ausgabenkontrolle | Monatliche Budgets für einen Console-Workspace und jedes Mitglied | Ein Budget pro Agent und pro Organisation, geprüft vor jeder Modellanfrage |
 | Audit | Nicht dokumentiert | Audit-Log mit Manipulationsnachweis |
-| Teilen | Öffentliche Freigabelinks auf `opncd.ai`, bis die Freigabe aufgehoben wird | Grants, gehostete Seiten und Apps mit Besitzer und Sichtbarkeit |
-| Preise | Kostenlos; optional Zen mit nutzungsbasierter Abrechnung und Go für 10 $ im Monat; Enterprise pro Platz | Keine Lizenzgebühr; Modellnutzung und Infrastruktur |
+| Preise | Kostenlos; optional Console-Credits mit nutzungsbasierter Abrechnung, Go für 10 $ oder Go Plus für 40 $ im Monat; Enterprise pro Platz | Keine Lizenzgebühr; Modellnutzung und Infrastruktur |
 
 ## Wo AgenticOS weiter geht { #where-agenticos-goes-further }
 
@@ -86,5 +85,4 @@ Ja. Eine Capability ist typisiertes Python im Repository, und OpenCode kann mit 
 - [Repository](https://github.com/anomalyco/opencode): die MIT-Lizenz und Releases.
 - [Provider](https://opencode.ai/docs/providers/): 75+ Provider und lokale Modelle.
 - [Berechtigungen](https://opencode.ai/docs/permissions/): `allow`, `ask` und `deny`.
-- [Teilen](https://opencode.ai/docs/share/): öffentliche Freigabelinks.
-- [Zen](https://opencode.ai/docs/zen/), [Go](https://opencode.ai/docs/go/) und [Enterprise](https://opencode.ai/docs/enterprise/): kostenpflichtige Optionen und Limits.
+- [Console models](https://opencode.ai/v2/docs/console/models/), [Go](https://opencode.ai/v2/docs/console/go/) und [Enterprise](https://opencode.ai/docs/enterprise/): Workspaces, Budgets, kostenpflichtige Tarife und Enterprise pro Platz.
