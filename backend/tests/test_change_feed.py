@@ -17,6 +17,7 @@ from app.api.public_api import PUBLIC
 from app.api.routes.v1.change_events import change_events
 from app.clients.redis import RedisClient
 from app.core.config import settings
+from app.core.permissions import AuthContext, OrgRoleName
 from app.schemas.change_event import ChangeEvent
 from app.services import change_feed
 from app.services.change_feed import ChangeFeedMiddleware, ChangeOrigin, change_for
@@ -204,6 +205,66 @@ class TestConsoleOnlyRoutes:
                 None,
                 "updated",
             )
+
+
+class TestKnowledgeGaps:
+    def test_a_topic_changed_in_the_console_names_the_topic(self) -> None:
+        topic = uuid.uuid4()
+
+        for verb in ("dismiss", "reopen", "draft", "dataset"):
+            changed = _change("POST", f"/knowledge-gaps/{topic}/{verb}", {"topic_id": str(topic)})
+            assert changed is not None
+            assert (changed.resource, changed.id, changed.action) == (
+                "knowledge_gap",
+                topic,
+                "updated",
+            )
+
+    def test_grouping_now_is_announced_by_the_pass_rather_than_the_request(self) -> None:
+        kb = str(uuid.uuid4())
+
+        assert (
+            _change(
+                "POST",
+                f"/knowledge-gaps/collections/{kb}/regroup",
+                {"knowledge_base_id": kb},
+            )
+            is None
+        )
+
+    async def test_a_pass_that_placed_questions_is_the_platform_s_own_change(
+        self, redis: Any
+    ) -> None:
+        organization = uuid.uuid4()
+
+        await change_feed.publish_knowledge_gaps_grouped(organization)
+
+        [call] = redis.raw.publish.await_args_list
+        event = ChangeEvent.model_validate_json(call.args[1])
+        assert call.args[0] == f"changes:{organization}"
+        assert (event.resource, event.id, event.surface) == ("knowledge_gap", None, "system")
+        assert (event.actor_user_id, event.actor_name) == (None, None)
+
+    @pytest.mark.parametrize(
+        ("role", "hears"),
+        [(OrgRoleName.OPERATOR, True), (OrgRoleName.MEMBER, False)],
+    )
+    async def test_only_a_reader_of_every_run_hears_about_gaps(
+        self, role: OrgRoleName, hears: bool
+    ) -> None:
+        organization = uuid.uuid4()
+        event = ChangeEvent(
+            organization_id=organization,
+            resource="knowledge_gap",
+            id=None,
+            action="updated",
+            surface="system",
+            actor_user_id=None,
+            actor_name=None,
+        )
+        ctx = AuthContext(user_id=uuid.uuid4(), organization_id=organization, role=role.value)
+
+        assert await change_feed.visible(MagicMock(), ctx, event) is hears
 
 
 class TestRuns:

@@ -47,6 +47,7 @@ from app.api.routes.v1 import visuals
 from app.api.routes.v1 import context as context_files
 from app.api.routes.v1 import datasets
 from app.api.routes.v1 import eval_runs
+from app.api.routes.v1 import knowledge_gaps
 from app.api.routes.v1 import authoring
 from app.api.routes.v1 import memory as memory_files
 from app.api.routes.v1 import browser_sign_ins
@@ -108,6 +109,7 @@ v1_router.include_router(agent_skills.router, prefix="/skills", tags=["skills"])
 v1_router.include_router(context_files.router, prefix="/context", tags=["context"])
 v1_router.include_router(datasets.router, prefix="/datasets", tags=["datasets"])
 v1_router.include_router(eval_runs.router, tags=["evals"])
+v1_router.include_router(knowledge_gaps.router, prefix="/knowledge-gaps", tags=["knowledge-gaps"])
 v1_router.include_router(authoring.router, tags=["authoring"])
 # Apps were called artifacts until #2071. The old paths stay as deprecated
 # aliases for the v1 policy's 90 days (docs/api.md), so a script written against

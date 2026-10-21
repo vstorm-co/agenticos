@@ -803,8 +803,12 @@
     "testConnectionsSaved": "Testverbindungen gespeichert",
     "failedTestConnections": "Die Testverbindungen konnten nicht gespeichert werden",
     "testDraft": "Entwurf testen",
-    "judgesCount": "{count, plural, =1 {Bewerter (1)} other {Bewerter (#)}}",
-    "judgesHint": "Bewerter bewerten Eval-Antworten: der Standard-Bewerter und der eigene jedes Datasets. Die Plattform führt sie aus, also lässt sich mit ihnen nicht chatten, sie lassen sich keinem Kanal zuweisen, nicht planen und nicht als Delegate nutzen; öffnen Sie einen, um Anweisungen, Modell oder Budget zu ändern.",
+    "systemAgentsCount": "{count, plural, =1 {System-Agents (1)} other {System-Agents (#)}}",
+    "systemAgentsHint": "Diese Agents führt die Plattform selbst aus, also lässt sich mit ihnen nicht chatten, sie lassen sich keinem Kanal zuweisen, nicht planen und nicht als Delegate nutzen. Öffnen Sie einen, um Anweisungen, Modell oder Budget zu ändern.",
+    "judgeKind": "{count, plural, =1 {Bewerter (1)} other {Bewerter (#)}}",
+    "judgeKindHint": "Sie bewerten Eval-Antworten: der Standard-Bewerter und der eigene jedes Datasets.",
+    "drafterKind": "{count, plural, =1 {Lücken-Entwerfer (1)} other {Lücken-Entwerfer (#)}}",
+    "drafterKindHint": "Er entwirft den Inhalt, der einer Wissenslücke fehlt, wenn jemand um einen Entwurf bittet.",
     "defaultJudge": "Standard-Bewerter",
     "defaultJudgeHint": "Bewertet jedes Dataset ohne eigenen Bewerter.",
     "judgeUsedBy": "{more, plural, =0 {Genutzt von {names}} other {Genutzt von {names} und # weiteren}}",
@@ -2330,6 +2334,17 @@
           "manual": "{count} von Hand",
           "synthetic": "{count} generiert"
         }
+      },
+      "knowledge-gaps": {
+        "title": "Wissenslücken",
+        "description": "Die Fragen, zu denen Agents in ihren Wissensbasen am häufigsten nichts gefunden haben.",
+        "asked": "{count, plural, =1 {einmal gefragt} other {# Mal gefragt}}",
+        "empty": {
+          "title": "Noch keine Wissenslücken",
+          "description": "Wenn ein Agent eine Wissensbasis durchsucht und nichts findet, was der Frage nahekommt, landet die Frage hier, gruppiert mit ähnlichen. Lücken werden alle 15 Minuten gruppiert."
+        },
+        "breakdown": "Themen je Wissensbasis",
+        "perCollection": "{name} · {count}"
       },
       "department-spend": {
         "title": "Ausgaben nach Abteilung",
@@ -3912,6 +3927,14 @@
         "title": "Anlegen",
         "body": "Wählen Sie Erstellen. Wir machen weiter, sobald es gespeichert ist."
       },
+      "kb-gaps": {
+        "title": "Was sie nicht beantworten konnte",
+        "body": "Fragen, zu denen Agents diese Collection durchsucht und nichts Passendes gefunden haben, nach Themen gruppiert. Fügen Sie das fehlende Dokument hinzu oder verwerfen Sie ein Thema, das keines braucht."
+      },
+      "agent-gaps": {
+        "title": "Wonach er gesucht hat",
+        "body": "Die Fragen, zu denen dieser Agent eine Wissensbasis durchsucht und nichts gefunden hat. Jede führt zum Run, aus dem sie stammt."
+      },
       "flow-dataset-open": {
         "title": "Öffnen Sie Ihr Dataset",
         "body": "Es ist die erste Karte - die zuletzt geänderte. Öffnen Sie sie, um den ersten Fall hinzuzufügen."
@@ -3989,9 +4012,9 @@
         "title": "Prüfung",
         "body": "Die benoteten Antworten, die auf die Entscheidung einer Person warten. Entscheiden Sie die, bei denen der Bewerter unsicher war; seine Meinung bleibt festgehalten."
       },
-      "agents-judges": {
-        "title": "Bewerter",
-        "body": "Die Agents, die Eval-Antworten bewerten: der Standard-Bewerter und jeder, den ein Dataset für sich angelegt hat. Öffnen Sie einen, um zu ändern, wie streng er bewertet, sein Modell oder sein Budget; ein Dataset wählt seinen Bewerter im Tab Bewertung."
+      "agents-system": {
+        "title": "System-Agents",
+        "body": "Die Agents, die die Plattform selbst ausführt, nach ihrer Aufgabe gruppiert: die Bewerter, die Eval-Antworten benoten, und der Entwerfer, der schreibt, was einer Wissenslücke fehlt. Öffnen Sie einen, um Anweisungen, Modell oder Budget zu ändern; ein Dataset wählt seinen Bewerter im Tab Bewertung."
       },
       "dataset-judge": {
         "title": "Der Bewerter",
@@ -6969,6 +6992,66 @@
     "newDatasetHere": "Sie haben noch kein Dataset, dem Sie etwas hinzufügen können, daher legt diese Antwort eines an, sichtbar für die ganze Organisation.",
     "newDatasetFromActivity": "Antworten aus Aktivität",
     "backToDataset": "Zurück zu {name}"
+  },
+  "knowledgeGaps": {
+    "tab": "Wissenslücken",
+    "title": "Wissenslücken",
+    "topicCount": "{count, plural, =0 {Keine Themen} =1 {1 Thema} other {# Themen}}",
+    "descriptionCollection": "Fragen, zu denen Agents diese Wissensbasis durchsucht und nichts Passendes gefunden haben, nach Themen gruppiert.",
+    "descriptionAgent": "Fragen, zu denen dieser Agent seine Wissensbasen durchsucht und nichts Passendes gefunden hat, nach Themen gruppiert.",
+    "nothingAutomatic": "Nichts wird automatisch zu einer Wissensbasis hinzugefügt. Braucht ein Thema ein Dokument, fügt ein Mensch es hinzu.",
+    "statusFilter": "Themen anzeigen",
+    "statusOpen": "Offen",
+    "statusDismissed": "Verworfen",
+    "moreActions": "Weitere Aktionen für dieses Thema",
+    "regroup": "Jetzt gruppieren",
+    "regroupStarted": "Gruppierung gestartet. Neue Themen erscheinen in ein bis zwei Minuten.",
+    "ungrouped": "{count, plural, =1 {1 Frage wartet} other {# Fragen warten}} auf die Gruppierung. Sie läuft alle 15 Minuten.",
+    "questionCount": "{count, plural, =1 {Einmal gefragt} other {# Mal gefragt}}",
+    "lastAsked": "Zuletzt {ago}",
+    "emptyOpen": "Keine offenen Wissenslücken",
+    "emptyOpenBody": "Wenn ein Agent sucht und nichts Passendes findet, erscheint die Frage hier, zusammen mit ähnlichen.",
+    "emptyDismissed": "Keine verworfenen Themen",
+    "emptyDismissedBody": "Themen, die als ohne Dokumentbedarf markiert wurden, erscheinen hier.",
+    "loadFailed": "Wissenslücken konnten nicht geladen werden",
+    "loadTopicFailed": "Dieses Thema konnte nicht geladen werden",
+    "loadFailedBody": "Das ist keine leere Liste: Die Anfrage ist fehlgeschlagen. Versuchen Sie es erneut.",
+    "retry": "Erneut versuchen",
+    "topic": "Thema",
+    "topicSummary": "{count, plural, =1 {Einmal gefragt} other {# Mal gefragt}} in {knowledgeBase}",
+    "questions": "Fragen",
+    "noConversation": "Zu diesem Run ist kein Gespräch gespeichert, daher ist nur die Suche bekannt.",
+    "searchedFor": "Gesucht nach: {query}",
+    "noResults": "Keine Ergebnisse",
+    "closestMatch": "{count, plural, =1 {1 Ergebnis} other {# Ergebnisse}}, nächster Treffer {similarity}",
+    "openRun": "Run öffnen",
+    "ratedDown": "Negativ bewertet: {comment}",
+    "dismiss": "Verwerfen",
+    "reopen": "Wieder öffnen",
+    "dismissedToast": "Thema verworfen",
+    "reopenedToast": "Thema wieder geöffnet",
+    "addToDataset": "Zum Dataset hinzufügen",
+    "addToDatasetBody": "Jede Frage wird zu einem Fall, mit der Antwort, die der Agent gegeben hat. Fragen ohne eine Antwort, die Sie lesen dürfen, werden übersprungen.",
+    "noDatasetToAddTo": "Es gibt kein Dataset, zu dem Sie hinzufügen dürfen. <link>Legen Sie zuerst eines an</link>.",
+    "dataset": "Dataset",
+    "cancel": "Abbrechen",
+    "add": "Hinzufügen",
+    "casesAdded": "{added, plural, =0 {Kein Fall hinzugefügt} =1 {1 Fall hinzugefügt} other {# Fälle hinzugefügt}} zu {name}{skipped, plural, =0 {} =1 {, 1 Frage übersprungen} other {, # Fragen übersprungen}}",
+    "draftContent": "Fehlenden Inhalt entwerfen",
+    "draftAgain": "Neu entwerfen",
+    "drafting": "Wird entworfen…",
+    "draftReady": "Entwurf fertig - prüfen Sie ihn, bevor Sie ihn hinzufügen",
+    "draftNotice": "Von einem Modell aus den Fragen oben geschrieben. Prüfen Sie jede Angabe und füllen Sie die Platzhalter aus, bevor Sie ihn der Wissensdatenbank hinzufügen - nichts wird für Sie hinzugefügt.",
+    "draftSources": "Worauf er sich stützt",
+    "openDraftRun": "Run öffnen",
+    "editDrafter": "Anweisungen des Drafters bearbeiten",
+    "downloadDraft": ".md herunterladen",
+    "hasDraft": "Entwurf",
+    "draftLabel": "Entwurf — vor dem Hinzufügen prüfen",
+    "draftUnverified": "{count, plural, =1 {Eine genannte Quelle ließ sich nicht prüfen und wurde weggelassen.} other {# genannte Quellen ließen sich nicht prüfen und wurden weggelassen.}}",
+    "aiOff": "Die KI-Unterstützung ist in dieser Organisation ausgeschaltet, daher kann kein Entwurf geschrieben werden. Lücken werden weiterhin gefunden und gruppiert.",
+    "enableAi": "KI-Unterstützung einschalten",
+    "askAdmin": "Bitten Sie einen Administrator, sie einzuschalten."
   },
   "apiKeys": {
     "title": "API-Schlüssel",

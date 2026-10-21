@@ -56,12 +56,15 @@ class AgentKind(enum.StrEnum):
     `AGENT` is one people use: chat, the API, channels, embeds, schedules,
     delegation. `JUDGE` grades answers for evals; only the platform runs it, and
     it is listed apart. An organization may hold many judges - the default one
-    the platform seeds, and one per dataset that wants its own. `IMPROVER` is the
-    authoring assistant, which reads an agent's evidence and proposes changes.
+    the platform seeds, and one per dataset that wants its own. `DRAFTER` writes
+    the passage a knowledge gap is missing; only the platform runs it too.
+    `IMPROVER` is the authoring assistant, which reads an agent's evidence and
+    proposes changes.
     """
 
     AGENT = "agent"
     JUDGE = "judge"
+    DRAFTER = "drafter"
     IMPROVER = "improver"
 
 

@@ -65,8 +65,10 @@ export function useRemoteDraft<T>({
   useEffect(
     () =>
       onRemoteChange((event) => {
-        // A run is nobody's edit, so there is no one to name in a conflict.
-        if (event.surface === "run" || event.resource !== resource || event.id !== id) return;
+        // A run or the platform's own work is nobody's edit, so there is no one
+        // to name in a conflict.
+        if (event.surface === "run" || event.surface === "system") return;
+        if (event.resource !== resource || event.id !== id) return;
         // This tab's own saves - it already has them. The same person's edit in
         // another tab is a change elsewhere like any other.
         if (event.origin_tab === CONSOLE_TAB) return;

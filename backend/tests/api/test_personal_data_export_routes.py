@@ -70,6 +70,7 @@ def _export() -> PersonalDataExport:
         scored_answers=[],
         sessions=[],
         runs=[],
+        knowledge_searches=[],
         memory=[],
         channel_identities=[],
         slash_commands=[],
