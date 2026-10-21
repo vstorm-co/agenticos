@@ -30,7 +30,7 @@ from app.db.models.agent import Agent
 from app.db.models.case_generation import CaseOrigin
 from app.db.models.knowledge_base import KnowledgeBase
 from app.repositories import agent_repo, agent_run_repo, knowledge_base_repo, rag_document_repo
-from app.services.access import COLLECTION, resolve_access
+from app.services.access import COLLECTION, SKILL, resolve_access
 from app.services.agent_registry import AgentRegistryService
 from app.services.dataset import redact_credentials
 from app.services.rag.vectorstore import BaseVectorStore
@@ -172,7 +172,13 @@ class SourceGatherer:
             ) from None
 
     async def _agent(self, ctx: AuthContext, agent: Agent, spec: AgentSpec) -> AgentMaterial:
-        skills = await SkillService(self.db).resolve_for_agent(ctx, list(spec.skill_ids))
+        # A run reads its agent's skills whoever runs it; this prompt quotes their
+        # bodies to the caller, so only the skills the caller may view go in.
+        skills = [
+            skill
+            for skill in await SkillService(self.db).resolve_for_agent(ctx, list(spec.skill_ids))
+            if await resolve_access(self.db, ctx, skill, Perm.SKILLS_VIEW, resource_type=SKILL)
+        ]
         tools: list[Tool] = []
         for binding in spec.capabilities:
             if not binding.enabled:

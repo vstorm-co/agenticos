@@ -3,7 +3,8 @@
 The claims a mocked session cannot make:
 
 - the agent is described by its published spec, with each tool under the name
-  this agent's binding gives it - the name a case's expected call must match;
+  this agent's binding gives it - the name a case's expected call must match -
+  and only the skills the caller may view;
 - knowledge passages come only from the collections the caller may read, spread
   across documents and read under the collection's own tenant, with the
   collections the caller could not read counted rather than hidden;
@@ -111,6 +112,42 @@ async def test_the_agent_is_described_by_its_published_spec_and_its_own_tool_nam
     assert skill.name == "refunds"
     assert skill.body.endswith("[...]")
     assert len(skill.body) < 2100
+
+
+@pytest.mark.security
+async def test_only_the_skills_the_caller_may_view_are_quoted(db) -> None:
+    """Viewing an agent is not reading the private skills it was published with."""
+    owner, org = await _owner(db)
+    member = await world.member(db, org, OrgRoleName.MEMBER)
+    skills = [
+        Skill(
+            organization_id=org.id,
+            owner_user_id=owner.user_id,
+            name=name,
+            description=name,
+            content=f"{name} body",
+            visibility=visibility,
+        )
+        for name, visibility in (("private-playbook", "private"), ("refunds", "org"))
+    ]
+    db.add_all(skills)
+    await db.flush()
+    agent = await world.agent(
+        db,
+        org,
+        visibility="org",
+        draft_spec={
+            "name": "Clerk",
+            "instructions": "Answer.",
+            "skill_ids": [str(skill.id) for skill in skills],
+        },
+    )
+
+    seen = await _gatherer(db).gather(member, agent.id, [CaseOrigin.AGENT])
+    everything = await _gatherer(db).gather(owner, agent.id, [CaseOrigin.AGENT])
+
+    assert [skill.name for skill in seen.agent.skills] == ["refunds"]
+    assert [skill.name for skill in everything.agent.skills] == ["private-playbook", "refunds"]
 
 
 async def test_an_unpublished_agent_is_described_by_its_draft_or_refused(db) -> None:
