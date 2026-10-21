@@ -14,6 +14,13 @@ const state = vi.hoisted(() => ({
 vi.mock("@/lib/file-access", () => ({
   saveBlob: (blob: Blob, name: string) => state.saved.push({ blob, name }),
 }));
+vi.mock("@/components/chat/markdown-content", () => ({
+  MarkdownContent: ({ content, inertImages }: { content: string; inertImages?: boolean }) => (
+    <div data-testid="markdown" data-inert-images={String(inertImages)}>
+      {content}
+    </div>
+  ),
+}));
 vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({ can: (perm: string) => state.perms.has(perm) }),
 }));
@@ -42,6 +49,13 @@ describe("KnowledgeGapDraftCard", () => {
     state.perms = new Set(["agents:view"]);
     state.drafters = [];
     state.enabled = [];
+  });
+
+  it("renders the draft as Markdown without fetching the images in it", () => {
+    render(<KnowledgeGapDraftCard draft={DRAFT} />);
+    const body = screen.getByTestId("markdown");
+    expect(body).toHaveTextContent("Parents may take [weeks] weeks.");
+    expect(body).toHaveAttribute("data-inert-images", "true");
   });
 
   it("points somebody who may edit the drafter at its instructions", () => {

@@ -5,6 +5,7 @@ import { Download, FileText, MessageSquare } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { CopyButton } from "@/components/chat/copy-button";
+import { MarkdownContent } from "@/components/chat/markdown-content";
 import { useAgentsOfKind } from "@/hooks/use-agents";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Alert, AlertDescription, AlertTitle, Badge, Button } from "@/components/ui";
@@ -27,6 +28,8 @@ function asMarkdown(title: string, content: string): string {
  * Offered only to copy or download: nothing here adds it to the knowledge base,
  * because a person checks the facts and adds the document. Somebody who may edit
  * the drafter is pointed at its instructions, which decide how the next draft reads.
+ * The model wrote it from other people's questions, so an image in it is drawn as a
+ * link rather than fetched.
  */
 export function KnowledgeGapDraftCard({ draft }: { draft: KnowledgeGapDraft }) {
   const t = useTranslations("knowledgeGaps");
@@ -45,7 +48,9 @@ export function KnowledgeGapDraftCard({ draft }: { draft: KnowledgeGapDraft }) {
       </AlertTitle>
       <AlertDescription className="space-y-2">
         <p className="text-xs">{t("draftNotice")}</p>
-        <p className="text-foreground text-sm whitespace-pre-wrap">{draft.content}</p>
+        <div className="text-foreground text-sm">
+          <MarkdownContent content={draft.content} inertImages />
+        </div>
         {draft.sources.length > 0 && (
           <ul className="flex flex-wrap gap-1.5" aria-label={t("draftSources")}>
             {draft.sources.map((source) => (
