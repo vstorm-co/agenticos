@@ -6854,6 +6854,7 @@
     "generateIntro": "Generator przygotowuje przypadki do tego datasetu z wybranych źródeł. Najpierw widzisz szacowany koszt, a każda propozycja czeka tu, aż ją zaakceptujesz, edytujesz albo odrzucisz.",
     "generateAiOff": "Generowanie przypadków wymaga wsparcia AI, które jest wyłączone w tej organizacji.",
     "editGenerator": "Edytuj instrukcje generatora",
+    "generatorNotRunnable": "Nie możesz uruchamiać generatora przypadków. Poproś administratora o udostępnienie go.",
     "generateMore": "{count, plural, one {Więcej opcji · 1 przypadek} few {Więcej opcji · # przypadki} many {Więcej opcji · # przypadków} other {Więcej opcji · # przypadku}}",
     "moreActions": "Więcej akcji",
     "share": "Udostępnij",

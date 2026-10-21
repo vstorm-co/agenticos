@@ -23,13 +23,16 @@ import { ProposedCases } from "./proposed-cases";
  * off the generator cannot run, so the panel says why and who can change it; the
  * drafts already waiting can still be decided, which calls no model. The
  * generator is an agent the organization edits like any other, so whoever may
- * edit it is pointed at its instructions.
+ * edit it is pointed at its instructions, and whoever may not run it is told so
+ * before they fill in a request it would refuse.
  */
 export function GeneratePanel({ datasetId }: { datasetId: string }) {
   const t = useTranslations("datasets");
   const [generating, setGenerating] = useState(false);
   const aiOn = useAiAssistance().enabled === true;
   const generator = useCaseGenerator();
+  // Unknown until the first generation seeds it; the start is then refused up front.
+  const mayRun = generator?.can_run !== false;
 
   return (
     <div className="space-y-4">
@@ -39,7 +42,7 @@ export function GeneratePanel({ datasetId }: { datasetId: string }) {
             <CardTitle className="text-base">{t("generateCases")}</CardTitle>
             <CardDescription>{t("generateIntro")}</CardDescription>
           </div>
-          <Button disabled={!aiOn} onClick={() => setGenerating(true)}>
+          <Button disabled={!aiOn || !mayRun} onClick={() => setGenerating(true)}>
             <Sparkles className="h-4 w-4" aria-hidden />
             {t("generateCases")}
           </Button>
@@ -56,6 +59,11 @@ export function GeneratePanel({ datasetId }: { datasetId: string }) {
             ))}
           </ul>
           <AiAssistanceNotice body={t("generateAiOff")} />
+          {!mayRun && (
+            <p role="status" className="text-muted-foreground text-sm">
+              {t("generatorNotRunnable")}
+            </p>
+          )}
           {generator?.can_edit === true && (
             <Link
               href={ROUTES.AGENT_DETAIL(generator.id)}

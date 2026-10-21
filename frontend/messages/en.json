@@ -7088,6 +7088,7 @@
     "generateIntro": "The case generator drafts cases for this dataset from the sources you pick. You see the estimated cost first, and every draft waits here until you accept, edit or dismiss it.",
     "generateAiOff": "Generating cases needs AI assistance, which is off for this organization.",
     "editGenerator": "Edit the generator's instructions",
+    "generatorNotRunnable": "You may not run the case generator. Ask an admin to share it with you.",
     "generateMore": "{count, plural, =1 {More options · 1 case} other {More options · # cases}}",
     "moreActions": "More actions",
     "share": "Share",

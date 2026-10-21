@@ -6971,6 +6971,7 @@
     "generateIntro": "Der Fallgenerator entwirft Fälle für dieses Dataset aus den gewählten Quellen. Zuerst sehen Sie die geschätzten Kosten, und jeder Entwurf wartet hier, bis Sie ihn annehmen, bearbeiten oder verwerfen.",
     "generateAiOff": "Fälle zu generieren braucht die KI-Unterstützung, die in dieser Organisation ausgeschaltet ist.",
     "editGenerator": "Anweisungen des Generators bearbeiten",
+    "generatorNotRunnable": "Sie dürfen den Fallgenerator nicht ausführen. Bitten Sie einen Admin, ihn mit Ihnen zu teilen.",
     "generateMore": "{count, plural, =1 {Weitere Optionen · 1 Fall} other {Weitere Optionen · # Fälle}}",
     "moreActions": "Weitere Aktionen",
     "share": "Teilen",

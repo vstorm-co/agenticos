@@ -41,9 +41,13 @@ export function ProposedCases({ datasetId, canEdit }: ProposedCasesProps) {
     limit: PAGE_SIZE,
   });
   const latest = generations[0];
+  const pageCount = Math.max(1, Math.ceil(proposals.total / PAGE_SIZE));
+  // Deciding the last drafts of the last page leaves it empty; step back to one that is not.
+  if (!proposals.isLoading && page >= pageCount) setPage(pageCount - 1);
 
   if (!canEdit) return null;
   if (
+    !proposals.error &&
     proposals.total === 0 &&
     proposals.hidden === 0 &&
     (latest === undefined || latest.status === "ready")
@@ -51,7 +55,6 @@ export function ProposedCases({ datasetId, canEdit }: ProposedCasesProps) {
     return null;
 
   const onPage = proposals.proposals.map((proposal) => proposal.id);
-  const pageCount = Math.max(1, Math.ceil(proposals.total / PAGE_SIZE));
   return (
     <ListCard
       title={t("proposedCases")}

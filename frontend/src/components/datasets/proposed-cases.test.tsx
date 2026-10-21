@@ -13,6 +13,7 @@ const { generations, proposals } = vi.hoisted(() => ({
       total: 0,
       hidden: 0,
       error: null as Error | null,
+      isLoading: false,
       isDeciding: false,
       refetch: vi.fn(),
       accept: { mutate: vi.fn(), mutateAsync: vi.fn() },
@@ -162,8 +163,20 @@ describe("ProposedCases", () => {
     expect(asked).toHaveBeenLastCalledWith(expect.objectContaining({ skip: 50 }));
   });
 
+  it("steps back a page when deciding empties the last one", async () => {
+    proposals.current.proposals = [proposal("p1", "First?")];
+    proposals.current.total = 120;
+    const { rerender } = render(<ProposedCases datasetId="d1" canEdit />);
+    await userEvent.click(screen.getByRole("button", { name: /next/i }));
+    await userEvent.click(screen.getByRole("button", { name: /next/i }));
+    expect(asked).toHaveBeenLastCalledWith(expect.objectContaining({ skip: 100 }));
+
+    proposals.current.total = 60;
+    rerender(<ProposedCases datasetId="d1" canEdit />);
+    expect(asked).toHaveBeenLastCalledWith(expect.objectContaining({ skip: 50 }));
+  });
+
   it("says a failed read out loud and retries it", async () => {
-    proposals.current.total = 1;
     proposals.current.error = new Error("boom");
     render(<ProposedCases datasetId="d1" canEdit />);
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));

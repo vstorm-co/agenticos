@@ -124,8 +124,12 @@ export function useGenerateCases(datasetId: string) {
   const start = useMutation({
     mutationFn: (request: CaseGenerationRequest) =>
       apiClient.post<CaseGeneration>(`/datasets/${datasetId}/generations`, request),
+    // The first generation seeds the generator, which the panel then links to.
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: qk.datasets.generations(datasetId) }),
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: qk.datasets.generations(datasetId) }),
+        queryClient.invalidateQueries({ queryKey: qk.agents.generators() }),
+      ]),
   });
   return { estimate, start };
 }

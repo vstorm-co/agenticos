@@ -129,4 +129,19 @@ describe("useGenerateCases", () => {
     expect(apiClient.post).toHaveBeenNthCalledWith(1, "/datasets/d1/generations/estimate", REQUEST);
     expect(apiClient.post).toHaveBeenNthCalledWith(2, "/datasets/d1/generations", REQUEST);
   });
+
+  it("refreshes the generator once a start may have seeded it", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "g1" });
+    const client = new QueryClient();
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    const { result } = renderHook(() => useGenerateCases("d1"), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+
+    await act(() => result.current.start.mutateAsync(REQUEST));
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["agents", "generators"] });
+  });
 });

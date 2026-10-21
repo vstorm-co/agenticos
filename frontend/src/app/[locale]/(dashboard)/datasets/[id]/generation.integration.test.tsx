@@ -193,4 +193,17 @@ describe("generated cases on the dataset page", () => {
     );
     expect(screen.queryByRole("link", { name: "Edit the generator's instructions" })).toBeNull();
   });
+
+  it("tells whoever may not run the generator so, before they fill in a request", async () => {
+    generators.current = [{ id: "g9", system_key: "case_generator", can_run: false }];
+    answer({ ...DATASET, can_edit: true });
+    await mount();
+    await userEvent.click(await screen.findByRole("tab", { name: "Generated" }));
+    expect(
+      await screen.findByText(
+        "You may not run the case generator. Ask an admin to share it with you.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Generate cases" })).toBeDisabled();
+  });
 });
