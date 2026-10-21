@@ -284,7 +284,6 @@ describe("SuiteResultsSheet", () => {
       "/agents/agent-1/evals/run-1",
     );
 
-    // A result that checked no version names none, rather than a v0 that never existed.
     expect(within(sheet).getAllByText(/ · v3 · /).length).toBeGreaterThan(0);
     expect(within(sheet).queryByText(/v0/)).toBeNull();
 

@@ -961,7 +961,7 @@ class EvalSuiteService:
             await eval_suite_repo.discard_pending(self.db, suite.id, organization_id=org)
             return False
         if await eval_suite_repo.running_for(self.db, suite.id, organization_id=org):
-            # One eval run at a time: this one waits for the next sweep after that settles.
+            # Started by hand after this result was claimed: it waits for that run.
             return False
         owner = await self._person(org, suite.owner_user_id)
         if owner is None:

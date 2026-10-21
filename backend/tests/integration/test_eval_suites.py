@@ -1130,7 +1130,6 @@ async def test_a_run_whose_runner_left_or_lost_access_ends_in_error(db) -> None:
     [refused] = await _results(db, second.id)
     assert (left.status, left.reason) == ("error", "owner_inactive")
     assert (refused.status, refused.reason) == ("error", "owner_lacks_access")
-    # Both ran as their suite's owner, so neither can run again until somebody takes it over.
     for suite_id, reason in ((first.id, "owner_inactive"), (second.id, "owner_lacks_access")):
         row = await db.get(EvalSuite, suite_id)
         assert row is not None
