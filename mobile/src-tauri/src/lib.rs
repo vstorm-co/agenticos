@@ -15,6 +15,7 @@
 //! only once the person is through the lock.
 
 mod live;
+mod share;
 
 use std::fs;
 use std::io::ErrorKind;
@@ -239,6 +240,7 @@ fn grant_console(app: &AppHandle, server: &Url) -> Result<(), String> {
             .permission("allow-show-activity")
             .permission("allow-end-activity")
             .permission("allow-take-activity-action")
+            .permission("allow-take-shared")
             .permission("core:event:allow-listen")
             .permission("core:event:allow-unlisten"),
     )
@@ -382,6 +384,22 @@ fn take_activity_action(app: AppHandle) -> Option<Asked> {
         .and_then(|mut state| take_asked(&mut state))
 }
 
+/// What another app shared, for the console to put in a new message - but not
+/// while it is locked: the composer uploads what it is given, at once.
+#[tauri::command]
+fn take_shared(app: AppHandle) -> Result<Option<share::Shared>, String> {
+    let locked = app
+        .state::<Lock>()
+        .0
+        .lock()
+        .map(|state| state.locked)
+        .unwrap_or(true);
+    if locked {
+        return Ok(None);
+    }
+    share::take(&app)
+}
+
 /// A live activity's button or a shortcut: kept for the console, which is told
 /// to come and take it. A decision, a call or dictation first puts the console
 /// behind the lock, if it has one, so what is done from the lock screen is done
@@ -442,7 +460,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_biometric::init())
-        .plugin(live::init());
+        .plugin(live::init())
+        .plugin(share::init());
     // The camera scanner is a phone's; the same app on a laptop types the address.
     #[cfg(mobile)]
     let builder = builder.plugin(tauri_plugin_barcode_scanner::init());
@@ -453,6 +472,7 @@ pub fn run() {
             connect,
             unlock,
             take_activity_action,
+            take_shared,
             live::show_activity,
             live::end_activity
         ])

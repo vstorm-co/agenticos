@@ -63,6 +63,10 @@ Two things are versioned separately from this file and worth knowing about:
   Voice call, Dictate, Chat and Approvals, or add the "Ask AgenticOS" tile to
   Quick Settings. A call or dictation starts once the agent's readiness is
   known, and only after the app's lock.
+- **Share to AgenticOS** (#2097): on Android, any app's Share sheet offers
+  AgenticOS. Text, links, photos and files (up to 20 MB each) land in a new
+  message in the chat; what cannot be read is named in a notice. Nothing is
+  attached while the app is locked.
 - **Quick ask** (`⌥Space`, rebindable): a floating panel to ask any agent from
   anywhere, with the answer streamed under the question and ⌘↩ to carry the
   conversation into the console.

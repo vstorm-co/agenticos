@@ -2,6 +2,7 @@
 
 import { useEffect, useEffectEvent, useMemo, useRef } from "react";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 
 import { useShellEvent } from "@/hooks/use-desktop";
 import { useAgents } from "@/hooks/use-agents";
@@ -18,6 +19,7 @@ import {
   takeActivityAction,
   type LiveActivity,
 } from "@/lib/mobile/live-activities";
+import { takeShared } from "@/lib/mobile/shared";
 import { useAuthStore, useComposerIntentStore } from "@/stores";
 import { Perm } from "@/types/permissions";
 
@@ -61,6 +63,8 @@ function Bridge() {
   });
   const { agents } = useAgents({ enabled: can(Perm.agentsView) });
   const requestIntent = useComposerIntentStore((state) => state.request);
+  const share = useComposerIntentStore((state) => state.share);
+  const tShare = useTranslations("mobile.share");
 
   const live = useMemo<LiveActivity[]>(() => {
     const names = new Map(agents.map((agent) => [agent.id, agent.name]));
@@ -132,10 +136,30 @@ function Bridge() {
         }
       })
       .catch((error: unknown) => reportShellFailure("could not read an activity's action", error));
+    takeShared()
+      .then((shared) => {
+        if (shared === null) return;
+        if (shared.refused.length > 0) {
+          toast.warning(tShare("notAttached", { names: shared.refused.join(", ") }));
+        }
+        if (shared.files.length === 0 && !shared.text) return;
+        share({ id: Date.now(), files: shared.files, text: shared.text || undefined });
+        router.push("/chat");
+      })
+      .catch((error: unknown) => reportShellFailure("could not read what was shared", error));
   };
-  // A button pressed while the app was closed waits for this page to arrive.
+  // A button pressed, or something shared, while the app was closed waits for
+  // this page to arrive; one shared while it was open arrives as the app comes
+  // back to the front, and one held by the lock when the lock lets go.
   const actOnArrival = useEffectEvent(act);
-  useEffect(() => actOnArrival(), []);
+  useEffect(() => {
+    actOnArrival();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") actOnArrival();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
   useShellEvent(SHELL_EVENTS.activity, act);
 
   return null;

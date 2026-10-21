@@ -8440,6 +8440,9 @@
       "reject": "Reject",
       "runTitle": "{agent} is working",
       "runBody": "Tap to follow it in AgenticOS."
+    },
+    "share": {
+      "notAttached": "Could not attach: {names}"
     }
   }
 }

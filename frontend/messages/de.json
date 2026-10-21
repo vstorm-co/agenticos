@@ -8117,6 +8117,9 @@
       "reject": "Ablehnen",
       "runTitle": "{agent} arbeitet",
       "runBody": "Tippen, um in AgenticOS mitzuverfolgen."
+    },
+    "share": {
+      "notAttached": "Konnte nicht angehängt werden: {names}"
     }
   }
 }

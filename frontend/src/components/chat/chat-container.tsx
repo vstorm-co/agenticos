@@ -194,6 +194,16 @@ export function ChatContainer({
   pins,
   holdSending = false,
 }: ChatContainerProps = {}) {
+  // What another app shared with the phone app (#2097): held here once the
+  // store hands it over, so leaving the chat and coming back does not attach
+  // it twice. A caller's own files win.
+  const shared = useComposerIntentStore((state) => state.shared);
+  const clearShared = useComposerIntentStore((state) => state.clearShared);
+  const [sharedHere, setSharedHere] = useState<IncomingFiles | null>(null);
+  if (shared !== null && shared !== sharedHere) setSharedHere(shared);
+  useEffect(() => {
+    if (shared !== null) clearShared();
+  }, [shared, clearShared]);
   const {
     currentConversationId,
     currentMessages,
@@ -716,7 +726,7 @@ export function ChatContainer({
       emptyState={emptyState}
       agentFixed={agentFixed}
       testingDraft={testing?.draft ?? false}
-      incomingFiles={incomingFiles}
+      incomingFiles={incomingFiles ?? sharedHere}
       onVisualReport={reportVisual}
     />
   );

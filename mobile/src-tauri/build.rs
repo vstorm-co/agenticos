@@ -9,6 +9,7 @@ fn main() {
             "connect",
             "unlock",
             "take_activity_action",
+            "take_shared",
             "show_activity",
             "end_activity",
         ]),

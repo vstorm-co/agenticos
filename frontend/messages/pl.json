@@ -8225,6 +8225,9 @@
       "reject": "Odrzuć",
       "runTitle": "{agent} pracuje",
       "runBody": "Stuknij, żeby śledzić to w AgenticOS."
+    },
+    "share": {
+      "notAttached": "Nie udało się dołączyć: {names}"
     }
   }
 }

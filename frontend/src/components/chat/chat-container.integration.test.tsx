@@ -277,7 +277,7 @@ beforeEach(() => {
   });
   useOrgStore.setState({ activeOrgId: "org-1" });
   useAgentSelectionStore.setState({ selectedAgentId: null });
-  useComposerIntentStore.setState({ intent: null });
+  useComposerIntentStore.setState({ intent: null, shared: null });
   useConversationStore.getState().reset();
   useChatStore.getState().clearMessages();
   voiceCall.call = initialCall;
@@ -580,6 +580,18 @@ describe("the chat container - server dictation", () => {
 
     const mic = await screen.findByRole("button", { name: "Voice input" });
     await waitFor(() => expect(mic).not.toHaveAttribute("aria-disabled"));
+  });
+
+  it("takes what another app shared into the message, once", async () => {
+    useComposerIntentStore.setState({ shared: { id: 7, files: [], text: "from the browser" } });
+    const view = mount();
+
+    await waitFor(() => expect(screen.getByText("from the browser")).toBeInTheDocument());
+    expect(useComposerIntentStore.getState().shared).toBeNull();
+    view.unmount();
+    mount();
+    await screen.findByRole("button", { name: "Voice input" });
+    expect(screen.queryByText("from the browser")).toBeNull();
   });
 
   it("starts dictating once when a phone shortcut asked, as soon as the engine is known", async () => {

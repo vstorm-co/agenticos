@@ -14,3 +14,13 @@ describe("useComposerIntentStore", () => {
     expect(useComposerIntentStore.getState().intent).toBeNull();
   });
 });
+
+describe("what another app shared", () => {
+  it("is held for the chat's next message until it takes it", () => {
+    const shared = { id: 1, files: [], text: "look" };
+    useComposerIntentStore.getState().share(shared);
+    expect(useComposerIntentStore.getState().shared).toBe(shared);
+    useComposerIntentStore.getState().clearShared();
+    expect(useComposerIntentStore.getState().shared).toBeNull();
+  });
+});

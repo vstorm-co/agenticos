@@ -23,6 +23,9 @@ const env = vi.hoisted(() => ({
   take: vi.fn(async (): Promise<unknown> => null),
   report: vi.fn(),
   request: vi.fn(),
+  share: vi.fn(),
+  takeShared: vi.fn(async (): Promise<unknown> => null),
+  warning: vi.fn(),
 }));
 vi.mock("@/hooks/use-shell", () => ({ useShell: () => env.shell }));
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => env.can }) }));
@@ -36,7 +39,8 @@ vi.mock("@/hooks/use-runs", () => ({
 vi.mock("@/hooks/use-agents", () => ({ useAgents: () => ({ agents: env.agents }) }));
 vi.mock("@/stores", () => ({
   useAuthStore: (pick: (state: unknown) => unknown) => pick({ user: { id: "u1" } }),
-  useComposerIntentStore: (pick: (state: unknown) => unknown) => pick({ request: env.request }),
+  useComposerIntentStore: (pick: (state: unknown) => unknown) =>
+    pick({ request: env.request, share: env.share }),
 }));
 vi.mock("@/hooks/use-desktop", () => ({
   useShellEvent: (event: string, handler: (payload: unknown) => void) =>
@@ -49,6 +53,8 @@ vi.mock("@/lib/mobile/live-activities", async (original) => ({
   endActivity: env.end,
   takeActivityAction: env.take,
 }));
+vi.mock("@/lib/mobile/shared", () => ({ takeShared: env.takeShared }));
+vi.mock("sonner", () => ({ toast: { warning: env.warning } }));
 vi.mock("@/lib/desktop/shell", async (original) => ({
   ...(await original<typeof import("@/lib/desktop/shell")>()),
   reportShellFailure: env.report,
@@ -81,6 +87,7 @@ beforeEach(() => {
   env.listeners.clear();
   vi.clearAllMocks();
   env.take.mockImplementation(async () => null);
+  env.takeShared.mockImplementation(async () => null);
 });
 
 function mount() {
@@ -185,6 +192,52 @@ describe("MobileBridge", () => {
     expect(env.request).toHaveBeenCalledWith("call");
   });
 
+  it("puts what another app shared into a new message, and names what could not be attached", async () => {
+    const file = new File(["hi"], "a.txt");
+    env.takeShared.mockImplementation(async () => ({
+      text: "look",
+      files: [file],
+      refused: ["big.mov"],
+    }));
+    mount();
+    await waitFor(() => expect(env.push).toHaveBeenCalledWith("/chat"));
+    expect(env.share).toHaveBeenCalledWith({ id: expect.any(Number), files: [file], text: "look" });
+    expect(env.warning).toHaveBeenCalledWith("Could not attach: big.mov");
+  });
+
+  it("opens no chat when nothing shared could be attached", async () => {
+    env.takeShared.mockImplementation(async () => ({ text: "", files: [], refused: ["big.mov"] }));
+    mount();
+    await waitFor(() => expect(env.warning).toHaveBeenCalled());
+    expect(env.share).not.toHaveBeenCalled();
+    expect(env.push).not.toHaveBeenCalled();
+  });
+
+  it("looks again whenever the app comes back to the front, and stops when it goes", async () => {
+    const { unmount } = mount();
+    await waitFor(() => expect(env.takeShared).toHaveBeenCalledOnce());
+    env.takeShared.mockImplementation(async () => ({
+      text: "",
+      files: [new File([], "b")],
+      refused: [],
+    }));
+    Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(env.takeShared).toHaveBeenCalledOnce();
+    Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+    await waitFor(() =>
+      expect(env.share).toHaveBeenCalledWith({
+        id: expect.any(Number),
+        files: [expect.any(File)],
+        text: undefined,
+      }),
+    );
+    unmount();
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(env.takeShared).toHaveBeenCalledTimes(2);
+  });
+
   it("reads nothing a person may not, and leaves refusing a decision to the server", async () => {
     env.can = false;
     env.take.mockImplementation(async () => ({
@@ -204,17 +257,19 @@ describe("MobileBridge", () => {
     env.runs = [run("r1")];
     env.show.mockRejectedValueOnce(new Error("no"));
     env.take.mockRejectedValueOnce(new Error("no"));
+    env.takeShared.mockRejectedValueOnce(new Error("no"));
     const view = mount();
     env.approvals = [];
     env.end.mockRejectedValue(new Error("no"));
     view.again();
     view.unmount();
-    await waitFor(() => expect(env.report).toHaveBeenCalledTimes(4));
+    await waitFor(() => expect(env.report).toHaveBeenCalledTimes(5));
     expect(env.report.mock.calls.map(([what]) => what)).toEqual([
       "could not show a live activity",
       "could not end a live activity",
       "could not end a live activity",
       "could not read an activity's action",
+      "could not read what was shared",
     ]);
     env.end.mockReset();
   });
