@@ -3746,7 +3746,8 @@
     "signIns": "Sign-ins",
     "projects": "Projects",
     "allProjects": "All projects",
-    "backgroundJobs": "Background jobs"
+    "backgroundJobs": "Background jobs",
+    "loadingPage": "Opening the page"
   },
   "navigation": {
     "dashboard": "Dashboard",

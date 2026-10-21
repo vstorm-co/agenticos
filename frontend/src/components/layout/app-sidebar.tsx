@@ -21,10 +21,10 @@
  * reveals entries rather than briefly offering ones about to disappear.
  */
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { ChevronRight, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ChevronRight, Loader2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 import { ProjectRows } from "@/components/layout/project-rows";
 
@@ -77,9 +77,22 @@ function NavLink({
           : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
       )}
     >
-      <item.icon className="h-4 w-4 shrink-0" aria-hidden />
+      <NavIcon icon={item.icon} />
       {collapsed ? null : <span className="truncate">{label}</span>}
     </Link>
+  );
+}
+
+/**
+ * The entry's icon, turning while the page it opens is on its way: the click
+ * answers where it was made, beside the bar along the top edge.
+ */
+function NavIcon({ icon: Icon }: { icon: NavItem["icon"] }) {
+  const { pending } = useLinkStatus();
+  return pending ? (
+    <Loader2 className="h-4 w-4 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden />
+  ) : (
+    <Icon className="h-4 w-4 shrink-0" aria-hidden />
   );
 }
 

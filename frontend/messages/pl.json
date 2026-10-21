@@ -3516,7 +3516,8 @@
     "signIns": "Logowania",
     "projects": "Projekty",
     "allProjects": "Wszystkie projekty",
-    "backgroundJobs": "Zadania w tle"
+    "backgroundJobs": "Zadania w tle",
+    "loadingPage": "Otwieranie strony"
   },
   "navigation": {
     "dashboard": "Panel",

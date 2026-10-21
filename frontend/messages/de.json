@@ -3628,7 +3628,8 @@
     "signIns": "Anmeldungen",
     "projects": "Projekte",
     "allProjects": "Alle Projekte",
-    "backgroundJobs": "Hintergrund-Jobs"
+    "backgroundJobs": "Hintergrund-Jobs",
+    "loadingPage": "Seite wird geöffnet"
   },
   "navigation": {
     "dashboard": "Dashboard",

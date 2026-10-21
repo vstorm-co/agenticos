@@ -536,6 +536,18 @@
     }
   }
 
+  /* The bar along the top edge while a navigation is on its way
+     (components/layout/navigation-progress.tsx): most of the way quickly, then
+     slower and slower, never to the end - arriving is what finishes it. */
+  @keyframes nav-progress {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(0.9);
+    }
+  }
+
   /* Skip link - hidden until focused. Used in [locale]/layout.tsx. */
   .skip-link {
     position: fixed;
