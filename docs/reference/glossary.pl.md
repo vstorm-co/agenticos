@@ -1,5 +1,5 @@
 ---
-source_sha: "c1a088854770"
+source_sha: "47da793a1c7f"
 ---
 
 # Słownik { #glossary }
@@ -70,6 +70,7 @@ w [Capabilities](capabilities.md).
 | Obliczenia | `code_execution` |
 | Coding agent | `coding_agent` |
 | Długie rozmowy | `compaction` |
+| Obsługa komputera | `computer_use` |
 | Kontekst | `context` |
 | Poprzednie rozmowy | `conversation_search` |
 | Zabezpieczenia | `guardrails` |

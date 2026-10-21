@@ -776,6 +776,16 @@ class Settings(BaseSettings):
     # and is not on a hosted browser; empty sends the browser straight out.
     BROWSER_EGRESS_PROXY: str = ""
 
+    # Hosts a computer-use agent may drive a desktop at - a `computerd` daemon on
+    # a Linux container or a Mac. `daemon_url` is in the agent spec, like
+    # `cdp_url`, and this deployment sends COMPUTER_DAEMON_TOKEN to whatever it
+    # names, so the operator lists the hosts. Empty refuses the daemon backend.
+    COMPUTER_DAEMON_ALLOWED_HOSTS: list[str] = []
+    # The bearer every computerd this deployment drives was started with. A
+    # deployment setting rather than a vault secret for now: the daemons are the
+    # operator's machines, not a tenant's, as with SANDBOXD_TOKEN.
+    COMPUTER_DAEMON_TOKEN: str = ""
+
     @field_validator("CORS_ORIGINS")
     @classmethod
     def validate_cors_origins(cls, v: list[str], info: ValidationInfo) -> list[str]:

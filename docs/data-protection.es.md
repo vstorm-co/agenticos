@@ -1,5 +1,5 @@
 ---
-source_sha: "a7c05651de21"
+source_sha: "fc42fad95a59"
 ---
 
 # Protección de datos { #data-protection }
@@ -128,6 +128,7 @@ lista completa de destinos, con la configuración que decide cada uno.
 | Web fetch y el navegador web | La URL; para el navegador, lo que escribe en los sitios que abre | La capability en el spec; el navegador necesita además un endpoint CDP en `BROWSER_CDP_ALLOWED_HOSTS`, vacía por defecto | El sitio consultado; el host del navegador y los sitios que abre |
 | Proxy del navegador o navegador alojado de un agent | Todo lo que el navegador carga y envía, como lo haría el navegador del despliegue - páginas, contenido de formularios, cookies, inicios de sesión - más el registro propio del proxy o del servicio | `browser_use.connection` en el spec (#2130); `built_in` por defecto | El proxy o el servicio de navegador alojado (Browserbase, Steel u otro), bajo el contrato propio de la organización |
 | Los pasos del navegador web | Cada paso de un recorrido va al propio modelo del agente: la URL de la página, su título, las etiquetas de los elementos visibles y hasta 4.000 caracteres de su texto visible, más una captura con `vision` activado — que puede ser el contenido de un sistema interno. Lo que contiene un campo no se repite: la tabla de elementos solo dice que el campo está relleno | La capability `browser_use` en el spec | El proveedor del modelo del agente, como en la conversación |
+| Computer use | Cada captura del escritorio va al propio modelo del agente y puede mostrar cualquier cosa abierta en él. Las acciones, incluido el texto que escribe el modelo, van al escritorio | La capability `computer_use` en el spec; un escritorio daemon necesita además su host en `COMPUTER_DAEMON_ALLOWED_HOSTS`, vacía por defecto | El proveedor del modelo del agente; el host `computerd` que ejecuta el operador, o E2B para un escritorio en la nube, con la clave de E2B propia de la organización |
 | La sandbox, hacia fuera | **Cualquier cosa del workspace, a cualquier host** — la runtime `workbench` tiene red, shell y `curl` | La capability `sandbox` y una runtime con `needs_network`; la aprobación de comandos controla qué se ejecuta, no adónde se conecta | Adonde fuera el comando. El control de salida es el firewall del host de la sandbox, no un ajuste de aquí |
 | Un servidor MCP | Argumentos y resultados de herramientas | `mcp_connections.url`, por organización o por persona | La del operador del servidor |
 | mem0 | Los recuerdos escritos para una persona o un chat | La `base_url` de la capability `memory_mem0`, que tiene que estar en `MEM0_ALLOWED_HOSTS` | La del host de mem0 que permitas |

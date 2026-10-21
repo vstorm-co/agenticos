@@ -1,5 +1,5 @@
 ---
-source_sha: "8854a5e745f3"
+source_sha: "63f4eeac85b8"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -60,6 +60,7 @@ Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
 | `web_research` | Wyszukiwanie w internecie | badania | `web_search` | `web:read` | dla usług płatnych |
 | `web_fetch` | Czytanie stron | badania | `web_fetch` | `web:fetch` | — |
 | `browser_use` | Przeglądarka | badania | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | przez dodatek `browser` |
+| `computer_use` | Obsługa komputera | badania | `computer_screenshot`, `computer_act` | `computer:use` | dla E2B, przez dodatek `computer` |
 | `code_execution` | Obliczenia | analiza | `run_python` | `code:execute` | — |
 | `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | dla Daytony |
 | `charts` | Wykresy | analiza | `create_chart` | — | — |
@@ -814,6 +815,58 @@ Spece zapisane przed wersją 13, które wiązały przeglądarkę krok po kroku
 (`browser_choice`), ładują się jako ta capability, a zatwierdzenie i zmiana nazwy
 `browse_page` przechodzą na `browse_web`; ustawienia modelu decyzyjnego i klucz TypeSafe
 są usuwane.
+
+## Obsługa komputera { #computer-use }
+
+`computer_screenshot` — *Take a screenshot of the desktop.*
+
+`computer_act` — *Act on the desktop: click, type, press keys, scroll, drag or wait.*
+
+Agent obsługuje cały pulpit, więc może używać dowolnej aplikacji, nie tylko
+strony WWW. Patrzy na zrzut ekranu i wysyła kilka akcji myszy i klawiatury w
+pikselach tego zrzutu. Każda odpowiedź `computer_act` zawiera świeży zrzut
+ekranu. Większe ekrany są pomniejszane do `screen_width`x`screen_height`, zanim
+zobaczy je model, a każdy punkt jest przeliczany z powrotem na współrzędne
+samego pulpitu, także na punkty Maca z ekranem Retina.
+
+**Patrzenie nigdy nie czeka, działanie tak.** `computer_screenshot` niczego nie
+zmienia. `computer_act` dziedziczy flagę side-effecting tej capability, więc
+domyślnie każda paczka akcji czeka na akceptację względem zrzutu ekranu, który
+widział i model, i akceptujący. Punkt spoza tego zrzutu jest odrzucany, zanim
+cokolwiek się wykona. Akcja przed pierwszym zrzutem ekranu też jest odrzucana.
+
+| `backend` | Pulpit | Wymaga |
+|---|---|---|
+| `daemon` | `computerd` uruchomiony przez operatora: pulpit Linux w kontenerze (`deploy/computer/Dockerfile`) albo własny ekran Maca (`uv run deploy/computer/computerd.py`) | `daemon_url` na liście `COMPUTER_DAEMON_ALLOWED_HOSTS` oraz `COMPUTER_DAEMON_TOKEN` |
+| `e2b` | Pulpit w sandboksie [E2B](https://e2b.dev), jeden na rozmowę, odnajdywany ponownie w następnej turze | Klucza E2B z vaulta oraz dodatku `computer` |
+
+Jeden daemon to jeden pulpit: każdy run skierowany na niego dzieli tę maszynę i
+wszystko, na co jest na niej zalogowany. Daj mu osobną maszynę albo konto, nie
+czyjąś sesję roboczą. Pulpit E2B jest kluczowany organizacją i rozmową, więc dwie
+organizacje dzielące jeden klucz E2B nigdy nie dzielą pulpitu. Wygasa po czasie
+bezczynności ustawionym w samym E2B.
+
+| Ustawienie | Domyślnie | Zakres |
+|---|---|---|
+| `backend` | `daemon` | `daemon`, `e2b` |
+| `daemon_url` | puste, odrzucane przy publikacji dla `daemon` | dozwolony host |
+| `e2b_template` | `desktop` | 1–100 znaków |
+| `e2b_timeout_seconds` | 900 | 60–86400; plan Hobby w E2B ogranicza do 3600 |
+| `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |
+| `max_actions_per_call` | 20 | 1–50, nie więcej niż `max_actions` |
+| `max_actions` | 200 | 1–2000 na run |
+| `preview` | włączone | |
+
+Czat pokazuje pulpit w panelu przeglądania, gdy agent pracuje: jedna karta na
+run, klatka po każdym wywołaniu i linia na akcję. Tekst wpisywany przez model
+jest tam widoczny tak, jak został wpisany.
+
+!!! warning "Tekst na ekranie jest niezaufany"
+
+    Instrukcje mówią modelowi, że to, co jest na ekranie, to dane, nigdy
+    polecenia, i że ma się zatrzymać przed hasłami, płatnościami i decyzjami
+    należącymi do użytkownika. Egzekwuje to akceptacja; wyłączenie akceptacji dla
+    `computer_act` pozwala agentowi działać według tego, co powie mu dowolne okno.
 
 ## Obliczenia { #run-python }
 
@@ -2271,8 +2324,9 @@ sprawdzane w chwili składania agenta:
 | `code:execute` | `code_execution` |
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |
+| `computer:use` | `computer_use` |
 
-!!! note "Wszystkie osiem jest dziś przyznanych domyślnie"
+!!! note "Wszystkie dziewięć jest dziś przyznanych domyślnie"
 
     `DEFAULT_GRANTED_SCOPES` w `app/services/agent_registry.py`. Zarządzanie
     zakresami per organizacja jest pracą z

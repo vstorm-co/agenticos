@@ -1,5 +1,5 @@
 ---
-source_sha: "8854a5e745f3"
+source_sha: "63f4eeac85b8"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -60,6 +60,7 @@ guarda archivos. El navegador web apunta al servicio de navegador del despliegue
 | `web_research` | Búsqueda web | research | `web_search` | `web:read` | para servicios de pago |
 | `web_fetch` | Leer páginas web | research | `web_fetch` | `web:fetch` | — |
 | `browser_use` | Navegador web | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | mediante el extra `browser` |
+| `computer_use` | Computer use | research | `computer_screenshot`, `computer_act` | `computer:use` | para E2B, mediante el extra `computer` |
 | `code_execution` | Cálculos | analysis | `run_python` | `code:execute` | — |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | para Daytona |
 | `charts` | Gráficos | analysis | `create_chart` | — | — |
@@ -823,6 +824,61 @@ Los specs anteriores a la versión 13 que vinculaban el navegador paso a paso
 (`browser_choice`) se cargan como esta capability; la aprobación y el cambio de nombre de
 `browse_page` pasan a `browse_web`, y se descartan los ajustes del modelo de decisión y
 la clave de TypeSafe.
+
+## Computer use { #computer-use }
+
+`computer_screenshot` — *Take a screenshot of the desktop.*
+
+`computer_act` — *Act on the desktop: click, type, press keys, scroll, drag or wait.*
+
+El agent maneja un escritorio entero, así que puede usar cualquier aplicación,
+no solo una página web. Mira una captura de pantalla y envía unas pocas acciones
+de ratón y teclado en los píxeles de esa captura. Cada respuesta de
+`computer_act` incluye una captura nueva. Las pantallas más grandes se reducen a
+`screen_width`x`screen_height` antes de que las vea el modelo, y cada punto se
+traduce de vuelta a las coordenadas del propio escritorio, incluidos los puntos
+de un Mac con pantalla Retina.
+
+**Mirar nunca espera; actuar, sí.** `computer_screenshot` no cambia nada.
+`computer_act` toma el flag side-effecting de la capability, así que por defecto
+cada lote de acciones espera aprobación frente a una captura que han visto tanto
+el modelo como quien aprueba. Un punto fuera de esa captura se rechaza antes de
+que se ejecute nada. Una acción antes de la primera captura también se rechaza.
+
+| `backend` | El escritorio | Necesita |
+|---|---|---|
+| `daemon` | Un `computerd` que ejecuta el operador: un escritorio Linux en un contenedor (`deploy/computer/Dockerfile`) o la propia pantalla de un Mac (`uv run deploy/computer/computerd.py`) | `daemon_url` en `COMPUTER_DAEMON_ALLOWED_HOSTS`, y `COMPUTER_DAEMON_TOKEN` |
+| `e2b` | Una sandbox de escritorio de [E2B](https://e2b.dev) por conversación, que se vuelve a encontrar en el siguiente turno | Una clave de E2B del vault, y el extra `computer` |
+
+Un daemon es un escritorio: cada run que apunta a él comparte la máquina y todo
+lo que tenga la sesión iniciada en ella. Dale una máquina o una cuenta propias,
+no la sesión de trabajo de alguien. Un escritorio de E2B se identifica por la
+organización y la conversación, así que dos organizaciones que comparten una
+clave de E2B nunca comparten escritorio. Caduca con el tiempo de inactividad del
+propio E2B.
+
+| Ajuste | Por defecto | Rango |
+|---|---|---|
+| `backend` | `daemon` | `daemon`, `e2b` |
+| `daemon_url` | vacío, rechazado al publicar con `daemon` | un host permitido |
+| `e2b_template` | `desktop` | 1–100 caracteres |
+| `e2b_timeout_seconds` | 900 | 60–86400; el plan Hobby de E2B lo limita a 3600 |
+| `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |
+| `max_actions_per_call` | 20 | 1–50, no más que `max_actions` |
+| `max_actions` | 200 | 1–2000 por run |
+| `preview` | activado | |
+
+El chat muestra el escritorio en el panel de navegación mientras el agent
+trabaja: una tarjeta por run, un fotograma tras cada llamada y una línea por
+acción. El texto que escribe el modelo se muestra ahí tal como se escribió.
+
+!!! warning "El texto de la pantalla no es de fiar"
+
+    Las instrucciones dicen al modelo que lo que hay en pantalla son datos, nunca
+    instrucciones, y que se detenga ante contraseñas, pagos y decisiones que
+    corresponden al usuario. Lo que lo hace cumplir es la aprobación; desactivarla
+    para `computer_act` deja que el agent actúe según lo que le diga cualquier
+    ventana.
 
 ## Cálculos { #run-python }
 
@@ -2317,8 +2373,9 @@ comprobados cuando se ensambla el agent:
 | `code:execute` | `code_execution` |
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |
+| `computer:use` | `computer_use` |
 
-!!! note "Los ocho se conceden hoy por defecto"
+!!! note "Los nueve se conceden hoy por defecto"
 
     `DEFAULT_GRANTED_SCOPES` en `app/services/agent_registry.py`. La gestión de
     scopes por organización es trabajo de la

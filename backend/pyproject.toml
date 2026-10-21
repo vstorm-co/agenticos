@@ -239,6 +239,9 @@ browser = [
 kerberos = [
     "gssapi>=1.9.0",
 ]
+computer = [
+    "e2b>=2.58.0",
+]
 
 # PEP 735 dependency group — installed by `uv sync` / `uv sync --dev` and
 # excluded by `--no-dev`. (A `dev` extra under [project.optional-dependencies]
@@ -327,7 +330,9 @@ ignore_decorators = [
     "@*.delete",
     "@*.websocket",
 ]
-ignore_names = []
+ignore_names = [
+    "envs",  # computer_use/_backends.py: the E2B SDK's keyword, named by the Protocol that mirrors it
+]
 
 # The other half of vulture: vulture finds code nothing calls, deptry finds a
 # distribution nothing imports. DEP002 is the gate this was added for - that is

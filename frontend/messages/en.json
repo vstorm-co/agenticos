@@ -1314,6 +1314,10 @@
       "availableContext": "Available Context",
       "availableSteps": "Available Steps",
       "browseWeb": "Browse the Web",
+      "lookingAtScreen": "Looking at the screen",
+      "takeScreenshot": "Take a Screenshot",
+      "usingComputer": "Using the computer",
+      "useComputer": "Use the Computer",
       "browsingWeb": "Browsing the web",
       "cancelTask": "Cancel Task",
       "cancellingDelegate": "Cancelling a delegate",
@@ -6891,6 +6895,14 @@
       "needs": "Nothing extra.",
       "never": "Never deletes the conversation: people still see all of it."
     },
+    "computer_use": {
+      "name": "Computer use",
+      "does": "Lets the agent operate a whole desktop - any application, not only web pages - by looking at screenshots and using the mouse and keyboard. You watch it live in the chat.",
+      "example1": "Fill in a form in a desktop application",
+      "example2": "Export a report from a legacy tool with no API",
+      "needs": "A desktop set up by an administrator (a Linux container or a Mac running computerd) or an E2B key. Each step is one model request with a screenshot.",
+      "never": "Never acts without approval unless that is switched off, never follows instructions shown on the screen, and stops to ask before passwords or payments."
+    },
     "context": {
       "name": "Context",
       "does": "Gives the agent your company's standing information - a glossary, a policy, a brand voice - every time it answers.",
@@ -7507,6 +7519,44 @@
       "timeout_minutes": {
         "title": "Time limit (minutes)",
         "description": "How long one task may run before it is stopped."
+      }
+    },
+    "computer_use": {
+      "backend": {
+        "title": "Desktop",
+        "description": "Where the desktop is."
+      },
+      "daemon_url": {
+        "title": "Daemon URL",
+        "description": "The computerd endpoint, for the daemon backend. Its host must be on COMPUTER_DAEMON_ALLOWED_HOSTS."
+      },
+      "e2b_template": {
+        "title": "E2B template",
+        "description": "The E2B template to start, for the e2b backend."
+      },
+      "e2b_timeout_seconds": {
+        "title": "E2B idle timeout (seconds)",
+        "description": "How long an idle E2B desktop lives after its last use. E2B's Hobby plan caps this at an hour."
+      },
+      "screen_width": {
+        "title": "Screenshot width",
+        "description": "The widest screenshot the model is shown; larger screens are scaled down to fit."
+      },
+      "screen_height": {
+        "title": "Screenshot height",
+        "description": "The tallest screenshot the model is shown."
+      },
+      "max_actions_per_call": {
+        "title": "Actions per call",
+        "description": "How many actions one call may send."
+      },
+      "max_actions": {
+        "title": "Actions per run",
+        "description": "How many actions one run may take in total."
+      },
+      "preview": {
+        "title": "Live preview",
+        "description": "Show the desktop live in the chat while the agent works it."
       }
     }
   },

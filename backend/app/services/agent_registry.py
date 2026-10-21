@@ -42,6 +42,7 @@ from app.agents.capabilities.browser_use import (
 )
 from app.agents.capabilities.browser_use._route import check_address
 from app.agents.capabilities.coding_agent import CODING_AGENT_ID, CodingAgentConfig
+from app.agents.capabilities.computer_use import ComputerUseConfig, validate_daemon_url
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
 from app.agents.mcp import PLATFORM_MCP_PREFIX, prefix_collisions
@@ -160,6 +161,7 @@ DEFAULT_GRANTED_SCOPES = frozenset(
         "code:execute",
         "sandbox:execute",
         "agents:delegate",
+        "computer:use",
     }
 )
 
@@ -300,6 +302,21 @@ async def _browser_problems(config: BaseModel | None, *, has_secret: bool) -> li
             await check_address(config.hosted_url, kind="hosted")
     except ValueError as exc:
         return [f"The browser's {config.connection} address cannot be used: {exc}"]
+    return []
+
+
+def _computer_use_problems(config: BaseModel | None) -> list[str]:
+    """A daemon desktop this deployment's operator has not vetted, or none at all.
+
+    The same exact-match allowlist as the browser's `cdp_url`, against
+    `COMPUTER_DAEMON_ALLOWED_HOSTS`; the E2B backend has no URL to check.
+    """
+    if not isinstance(config, ComputerUseConfig):
+        return []
+    try:
+        validate_daemon_url(config)
+    except ValueError as exc:
+        return [f"Computer use's desktop cannot be used: {exc}."]
     return []
 
 
@@ -1500,6 +1517,7 @@ class AgentRegistryService:
             problems.merge(_config_problems(binding.id, exc))
         else:
             problems.add(await _browser_problems(config, has_secret=binding.secret_id is not None))
+            problems.add(_computer_use_problems(config))
             if isinstance(config, WebBrowserConfig) and config.step_model_profile_id is not None:
                 problems.add(await self._model_profile_problems(ctx, config.step_model_profile_id))
             problems.add(ungateable_tool_problems(binding, definition, config))

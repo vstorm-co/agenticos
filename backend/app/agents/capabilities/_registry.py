@@ -663,6 +663,7 @@ def load_builtins() -> None:
         code_execution,
         coding_agent,
         compaction,
+        computer_use,
         context,
         conversation_search,
         guardrails,

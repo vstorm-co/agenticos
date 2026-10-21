@@ -1,5 +1,5 @@
 ---
-source_sha: "a7c05651de21"
+source_sha: "fc42fad95a59"
 ---
 
 # Ochrona danych { #data-protection }
@@ -125,6 +125,7 @@ lista celów, wraz z konfiguracją, która o każdym decyduje.
 | Pobieranie stron i przeglądarka | URL; dla przeglądarki to, co wpisuje na otwieranych stronach | Capability w specu; przeglądarka potrzebuje też endpointu CDP na `BROWSER_CDP_ALLOWED_HOSTS`, domyślnie pustej | Pobieranej strony; hosta przeglądarki i stron, które otwiera |
 | Proxy przeglądarki agenta albo przeglądarka hostowana | Wszystko, co przeglądarka ładuje i wysyła, tak jak inaczej robiłaby to przeglądarka we wdrożeniu - strony, treść formularzy, ciasteczka, logowania - oraz własny zapis proxy albo usługi | `browser_use.connection` w spec (#2130); domyślnie `built_in` | Proxy albo usługa przeglądarki hostowanej (Browserbase, Steel lub inna), na umowie organizacji z nią |
 | Kroki przeglądarki | Każdy krok przeglądania idzie do modelu tego agenta: adres strony, jej tytuł, etykiety widocznych elementów i do 4000 znaków jej widocznego tekstu, plus zrzut ekranu przy włączonym `vision` — co może być zawartością systemu wewnętrznego. To, co zawiera pole, nie jest powtarzane: tabela elementów podaje tylko, że pole jest wypełnione | Capability `browser_use` w specu | Dostawcy modelu agenta, tak jak przy rozmowie |
+| Obsługa komputera | Każdy zrzut ekranu pulpitu idzie do modelu tego agenta i może pokazywać wszystko, co jest na nim otwarte. Akcje, łącznie z tekstem wpisywanym przez model, idą do pulpitu | Capability `computer_use` w specu; pulpit daemona wymaga też swojego hosta na `COMPUTER_DAEMON_ALLOWED_HOSTS`, domyślnie pustej | Dostawcy modelu agenta; host `computerd`, który uruchamia operator, albo E2B dla pulpitu w chmurze, na własnym kluczu E2B organizacji |
 | Sandbox, ruch wychodzący | **Cokolwiek z workspace'u, do dowolnego hosta** — runtime `workbench` ma sieć, powłokę i `curl` | Capability `sandbox` i runtime z `needs_network`; zatwierdzanie komend bramkuje to, co się uruchamia, a nie to, dokąd się łączy | Dokądkolwiek poszła komenda. Kontrola ruchu wychodzącego to firewall hosta sandboksa, a nie ustawienie tutaj |
 | Serwer MCP | Argumenty i wyniki narzędzi | `mcp_connections.url`, per organizacja albo per osoba | Operatora serwera |
 | mem0 | Wspomnienia zapisane dla osoby albo czatu | `base_url` capability `memory_mem0`, który musi być w `MEM0_ALLOWED_HOSTS` | Hosta mem0, na który pozwalasz |

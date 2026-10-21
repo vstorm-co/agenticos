@@ -1,5 +1,5 @@
 ---
-source_sha: "8854a5e745f3"
+source_sha: "63f4eeac85b8"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -60,6 +60,7 @@ hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installati
 | `web_research` | Websuche | research | `web_search` | `web:read` | für kostenpflichtige Dienste |
 | `web_fetch` | Webseiten lesen | research | `web_fetch` | `web:fetch` | — |
 | `browser_use` | Webbrowser | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | über das Extra `browser` |
+| `computer_use` | Computer-Bedienung | research | `computer_screenshot`, `computer_act` | `computer:use` | für E2B, über das Extra `computer` |
 | `code_execution` | Berechnungen | analysis | `run_python` | `code:execute` | — |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | für Daytona |
 | `charts` | Diagramme | analysis | `create_chart` | — | — |
@@ -863,6 +864,62 @@ Specs vor Version 13, die den Browser Schritt für Schritt (`browser_choice`) ge
 haben, laden als diese Capability; Freigabe und Umbenennung von `browse_page` gehen auf
 `browse_web` über, die Einstellungen des Entscheidungsmodells und der TypeSafe-Schlüssel
 entfallen.
+
+## Computer-Bedienung { #computer-use }
+
+`computer_screenshot` — *Take a screenshot of the desktop.*
+
+`computer_act` — *Act on the desktop: click, type, press keys, scroll, drag or wait.*
+
+Der Agent bedient einen ganzen Desktop und kann so jede Anwendung nutzen, nicht
+nur eine Webseite. Er sieht sich einen Screenshot an und sendet einige Maus- und
+Tastaturaktionen in den Pixeln dieses Screenshots. Jede Antwort von
+`computer_act` enthält einen frischen Screenshot. Größere Bildschirme werden auf
+`screen_width`x`screen_height` verkleinert, bevor das Modell sie sieht, und jeder
+Punkt wird in die Koordinaten des Desktops zurückgerechnet, auch in die Punkte
+eines Retina-Macs.
+
+**Hinsehen wartet nie, Handeln schon.** `computer_screenshot` ändert nichts.
+`computer_act` übernimmt das Side-Effecting-Flag der Capability, daher wartet
+standardmäßig jeder Stapel von Aktionen auf eine Freigabe, gegen einen
+Screenshot, den Modell und Freigebender beide gesehen haben. Ein Punkt außerhalb
+dieses Screenshots wird verweigert, bevor irgendetwas läuft. Eine Aktion vor dem
+ersten Screenshot wird ebenfalls verweigert.
+
+| `backend` | Der Desktop | Braucht |
+|---|---|---|
+| `daemon` | Ein `computerd`, den der Betreiber betreibt: ein Linux-Desktop in einem Container (`deploy/computer/Dockerfile`) oder der Bildschirm eines Macs (`uv run deploy/computer/computerd.py`) | `daemon_url` auf `COMPUTER_DAEMON_ALLOWED_HOSTS` und `COMPUTER_DAEMON_TOKEN` |
+| `e2b` | Eine [E2B](https://e2b.dev)-Desktop-Sandbox pro Gespräch, im nächsten Zug wiedergefunden | Einen E2B-Schlüssel aus dem Vault und das Extra `computer` |
+
+Ein Daemon ist ein Desktop: Jeder Run, der auf ihn zeigt, teilt sich die
+Maschine und alles, was darauf angemeldet ist. Geben Sie ihm eine eigene
+Maschine oder ein eigenes Konto, nicht die Arbeitssitzung eines Menschen. Ein
+E2B-Desktop ist an Organisation und Gespräch gebunden, daher teilen zwei
+Organisationen mit einem gemeinsamen E2B-Schlüssel nie einen Desktop. Er läuft
+nach dem Leerlauf-Timeout von E2B selbst ab.
+
+| Einstellung | Standard | Bereich |
+|---|---|---|
+| `backend` | `daemon` | `daemon`, `e2b` |
+| `daemon_url` | leer, bei `daemon` beim Veröffentlichen verweigert | ein erlaubter Host |
+| `e2b_template` | `desktop` | 1–100 Zeichen |
+| `e2b_timeout_seconds` | 900 | 60–86400; der Hobby-Plan von E2B begrenzt auf 3600 |
+| `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |
+| `max_actions_per_call` | 20 | 1–50, nicht über `max_actions` |
+| `max_actions` | 200 | 1–2000 pro Run |
+| `preview` | an | |
+
+Der Chat zeigt den Desktop im Browse-Panel, während der Agent arbeitet: eine
+Karte pro Run, ein Bild nach jedem Aufruf und eine Zeile pro Aktion. Text, den
+das Modell tippt, ist dort so zu sehen, wie er getippt wurde.
+
+!!! warning "Text auf dem Bildschirm ist nicht vertrauenswürdig"
+
+    Die Anweisungen sagen dem Modell, dass der Bildschirminhalt Daten sind, nie
+    Anweisungen, und dass es vor Passwörtern, Zahlungen und Entscheidungen des
+    Nutzers anhalten soll. Durchgesetzt wird das durch die Freigabe; wer sie für
+    `computer_act` abschaltet, lässt den Agenten nach dem handeln, was ihm ein
+    beliebiges Fenster sagt.
 
 ## Berechnungen { #run-python }
 
@@ -2441,8 +2498,9 @@ geprüft wird, wenn der Agent zusammengebaut wird:
 | `code:execute` | `code_execution` |
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |
+| `computer:use` | `computer_use` |
 
-!!! note "Alle acht werden heute standardmäßig gewährt"
+!!! note "Alle neun werden heute standardmäßig gewährt"
 
     `DEFAULT_GRANTED_SCOPES` in `app/services/agent_registry.py`. Die Verwaltung
     von Scopes pro Organisation ist [Roadmap](https://github.com/vstorm-co/agenticos/blob/main/docs/ROADMAP.md)-Arbeit;

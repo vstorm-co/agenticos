@@ -53,6 +53,7 @@ browser is pointed at the deployment's browser service
 | `web_research` | Web search | research | `web_search` | `web:read` | for paid services |
 | `web_fetch` | Read web pages | research | `web_fetch` | `web:fetch` | — |
 | `browser_use` | Web browser | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | via the `browser` extra |
+| `computer_use` | Computer use | research | `computer_screenshot`, `computer_act` | `computer:use` | for E2B, via the `computer` extra |
 | `code_execution` | Calculations | analysis | `run_python` | `code:execute` | — |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona |
 | `charts` | Charts | analysis | `create_chart` | — | — |
@@ -771,6 +772,58 @@ whose deployment lacks it fails the one tool loudly, with the install line.
 Specs written before version 13 that bound the step-by-step browser
 (`browser_choice`) load as this one, its `browse_page` approval and rename moved to
 `browse_web`; the decision-model settings and the TypeSafe key are dropped.
+
+## Computer use { #computer-use }
+
+`computer_screenshot` — *Take a screenshot of the desktop.*
+
+`computer_act` — *Act on the desktop: click, type, press keys, scroll, drag or wait.*
+
+The agent operates a whole desktop, so it can use any application, not only a
+web page. It looks at a screenshot and sends a few mouse and keyboard actions in
+that screenshot's pixels. Each `computer_act` answer includes a fresh
+screenshot. Larger screens are scaled down to `screen_width`x`screen_height`
+before the model sees them, and every point is mapped back to the desktop's own
+coordinates, including a Retina Mac's points.
+
+**Looking is never held, acting is.** `computer_screenshot` changes nothing.
+`computer_act` takes the capability's side-effecting flag, so by default every
+batch of actions waits for approval against a screenshot both the model and the
+approver have seen. A point outside that screenshot is refused before anything
+runs. An action before the first screenshot is refused too.
+
+| `backend` | The desktop | Needs |
+|---|---|---|
+| `daemon` | A `computerd` the operator runs: a Linux desktop in a container (`deploy/computer/Dockerfile`) or a Mac's own screen (`uv run deploy/computer/computerd.py`) | `daemon_url` on `COMPUTER_DAEMON_ALLOWED_HOSTS`, and `COMPUTER_DAEMON_TOKEN` |
+| `e2b` | An [E2B](https://e2b.dev) desktop sandbox per conversation, found again on the next turn | An E2B key from the vault, and the `computer` extra |
+
+One daemon is one desktop: every run pointed at it shares the machine and
+whatever is signed in on it. Give it a dedicated machine or account, not
+somebody's working session. An E2B desktop is keyed on the organization and the
+conversation, so two tenants sharing one E2B key never share a desktop. It
+expires on E2B's own idle timeout.
+
+| Config | Default | Range |
+|---|---|---|
+| `backend` | `daemon` | `daemon`, `e2b` |
+| `daemon_url` | empty, refused at publish for `daemon` | an allowed host |
+| `e2b_template` | `desktop` | 1–100 characters |
+| `e2b_timeout_seconds` | 900 | 60–86400; E2B's Hobby plan caps it at 3600 |
+| `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |
+| `max_actions_per_call` | 20 | 1–50, not above `max_actions` |
+| `max_actions` | 200 | 1–2000 per run |
+| `preview` | on | |
+
+The chat shows the desktop in the browse panel while the agent works: one card
+per run, a frame after every call and a line per action. Text the model types is
+shown there as typed.
+
+!!! warning "Screen text is untrusted"
+
+    The instructions tell the model that what is on the screen is data, never
+    instructions, and to stop for passwords, payments and decisions that belong
+    to the user. Approval is what enforces it; switching approval off for
+    `computer_act` lets the agent act on whatever a window tells it.
 
 ## Calculations { #run-python }
 
@@ -2167,8 +2220,9 @@ the agent is assembled:
 | `code:execute` | `code_execution` |
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |
+| `computer:use` | `computer_use` |
 
-!!! note "All eight are granted by default today"
+!!! note "All nine are granted by default today"
 
     `DEFAULT_GRANTED_SCOPES` in `app/services/agent_registry.py`.
     Per-organization scope management is [roadmap](https://github.com/vstorm-co/agenticos/blob/main/docs/ROADMAP.md) work; the check

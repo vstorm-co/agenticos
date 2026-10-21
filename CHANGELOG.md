@@ -19,6 +19,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **An agent can use a computer.** The `computer_use` capability gives an
+  agent a whole desktop rather than a web page: `computer_screenshot` looks
+  and `computer_act` clicks, types, scrolls and drags, held for approval by
+  default. The desktop is either a `computerd` daemon the operator runs, as a
+  Linux container (`deploy/computer/`) or on a Mac's own screen, on a host
+  that `COMPUTER_DAEMON_ALLOWED_HOSTS` allows; or an E2B cloud desktop,
+  one per conversation, using the organization's own key from the vault.
+  The chat streams it in the browse panel (#2094).
+
 ## [1.9.0] - 2026-10-21
 
 ### Added
