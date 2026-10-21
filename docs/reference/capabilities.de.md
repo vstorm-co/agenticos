@@ -1,5 +1,5 @@
 ---
-source_sha: "5d2c68b0fb1b"
+source_sha: "9c92ca7dedbe"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1200,6 +1200,13 @@ würde, wird abgelehnt; danach werden die Kosten gebucht, und bei einem Fehler
 mittendrin auch die bereits gesprochenen Stücke. Token-abgerechnete Modelle haben
 einen Preis pro Zeichen typischer Sprache. Ein datierter Preis gilt ab seinem Tag
 - so ist die Verdopplung der Gemini-Preise am 01.01.2027 erfasst.
+
+**Gebucht beim Sprechen, ein Clip nach dem anderen.** Jedes Stück eines langen
+Textes wird gebucht, sobald sein Audio ankommt, sodass ein Fehler oder ein
+abgebrochener Run mittendrin die zurückgekommenen Stücke trotzdem bucht. Die
+Budget-Prüfung reserviert nichts, also führt das Tool einen Aufruf nach dem
+anderen aus. `instructions` ist auf 1.000 Zeichen begrenzt, geht mit jedem Stück
+an den Provider und wird nicht bepreist.
 
 **Sie hat Nebenwirkungen**, aus denselben Gründen wie die Bilderzeugung: Sie gibt
 Geld aus und erzeugt eine Aufnahme, die jemand veröffentlichen kann.

@@ -52,7 +52,7 @@ _BOUNDARIES = (
 """Where a text is best cut, most natural first. Chinese and Japanese end a
 sentence with no space after it, so their marks are listed without one."""
 
-_ACCOUNT_VOICE = re.compile(r"[A-Za-z0-9_-]+")
+ACCOUNT_VOICE_ID = re.compile(r"[A-Za-z0-9_-]+")
 """What an account's own voice id may be. It goes into a URL path, and `.` or `..`
 there would be resolved away and send the key to another endpoint."""
 
@@ -155,10 +155,11 @@ async def synthesize(
         audio_format: `mp3` or `wav`; one the entry lists.
         api_key: The binding's key, sent in a header and nowhere else.
         instructions: A direction on how to speak, for models that read one.
-        on_spoken: Told the characters of each piece as soon as it is spoken,
-            which is when the provider has billed it - so a caller books the
-            cost of a long text as it goes, and a failure or a cancelled run
-            partway through leaves nothing spoken unbooked.
+        on_spoken: Told the characters of each piece as soon as its audio is
+            in hand - so a caller books the cost of a long text as it goes, and
+            a failure or a cancelled run partway through still books every
+            piece that came back. A piece in flight when the run is cancelled,
+            or answered with something that is not audio, is not booked.
 
     Raises:
         SpeechProviderError: A request failed, timed out, or returned no audio.
@@ -172,7 +173,7 @@ async def synthesize(
     if chosen is None or audio_format not in provider.formats:
         raise ValueError(f"{provider.provider} does not offer {model} as {audio_format}")
     if provider.account_voices:
-        if _ACCOUNT_VOICE.fullmatch(voice) is None:
+        if ACCOUNT_VOICE_ID.fullmatch(voice) is None:
             raise ValueError(f"{voice!r} is not a voice id")
     elif voice not in {offered.id for offered in provider.voices_for(chosen)}:
         raise ValueError(f"{model} has no voice {voice!r}")

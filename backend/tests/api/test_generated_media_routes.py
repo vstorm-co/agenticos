@@ -144,3 +144,20 @@ async def test_a_range_it_does_not_serve_gets_the_whole_file_or_a_refusal(
         assert response.status_code == 200
         assert response.content == b"0123"
         assert response.headers["accept-ranges"] == "bytes"
+
+
+@pytest.mark.parametrize(
+    "asked", ["bytes=0-" + "9" * 5000, "bytes=" + "9" * 5000 + "-", "bytes=-" + "9" * 5000]
+)
+async def test_a_range_with_a_huge_number_gets_the_whole_file_rather_than_an_error(
+    client: AsyncClient, asked: str
+):
+    """`int()` refuses a number past 4,300 digits; such a header is no range to honour."""
+    organization_id = uuid.uuid4()
+    filename = await save_generated_media(organization_id, b"0123", filename="video.mp4")
+    _as_org(organization_id)
+
+    response = await client.get(f"/api/v1/generated/{filename}", headers={"Range": asked})
+
+    assert response.status_code == 200
+    assert response.content == b"0123"
