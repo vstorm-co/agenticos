@@ -46,6 +46,7 @@ const STATE: DesktopState = {
     chatter: "normal",
     activity: true,
     roams: true,
+    size: 1,
     position: null,
   },
   shortcuts: [

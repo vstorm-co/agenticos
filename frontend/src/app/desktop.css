@@ -26,35 +26,30 @@
   background: var(--color-background);
 }
 
-/* --- Glass in a browser: a backdrop, and the blur the window would do ----- */
+/* --- Glass in a browser: a backdrop, and the blur the window would do -----
+   Neutral light falling across a grey desk, not a colour of its own: the glass
+   is the layers, and a tinted backdrop made the console read as a poster. */
 :root[data-look="glass"]:not([data-vibrancy]) body {
   background:
-    radial-gradient(60rem 40rem at 10% 0%, oklch(86% 0.06 var(--brand-h) / 0.55), transparent 70%),
-    radial-gradient(50rem 36rem at 95% 15%, oklch(88% 0.05 200 / 0.5), transparent 70%),
-    radial-gradient(56rem 40rem at 60% 100%, oklch(90% 0.05 320 / 0.45), transparent 70%),
-    oklch(96% 0.004 265);
+    radial-gradient(70rem 45rem at 0% 0%, oklch(100% 0 0 / 0.9), transparent 65%),
+    radial-gradient(60rem 40rem at 100% 100%, oklch(86% 0.006 265 / 0.9), transparent 70%),
+    oklch(93% 0.004 265);
   background-attachment: fixed;
 }
 
 :root.dark[data-look="glass"]:not([data-vibrancy]) body {
   background:
-    radial-gradient(60rem 40rem at 10% 0%, oklch(36% 0.08 var(--brand-h) / 0.55), transparent 70%),
-    radial-gradient(50rem 36rem at 95% 15%, oklch(34% 0.06 200 / 0.5), transparent 70%),
-    radial-gradient(56rem 40rem at 60% 100%, oklch(32% 0.07 320 / 0.45), transparent 70%),
-    oklch(17% 0.006 265);
+    radial-gradient(70rem 45rem at 0% 0%, oklch(34% 0.006 265 / 0.9), transparent 65%),
+    radial-gradient(60rem 40rem at 100% 100%, oklch(12% 0.004 265 / 0.9), transparent 70%),
+    oklch(19% 0.004 265);
   background-attachment: fixed;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not(.light)[data-look="glass"]:not([data-vibrancy]) body {
     background:
-      radial-gradient(
-        60rem 40rem at 10% 0%,
-        oklch(36% 0.08 var(--brand-h) / 0.55),
-        transparent 70%
-      ),
-      radial-gradient(50rem 36rem at 95% 15%, oklch(34% 0.06 200 / 0.5), transparent 70%),
-      oklch(17% 0.006 265);
+      radial-gradient(70rem 45rem at 0% 0%, oklch(34% 0.006 265 / 0.9), transparent 65%),
+      oklch(19% 0.004 265);
     background-attachment: fixed;
   }
 }
@@ -151,20 +146,42 @@
   overflow: hidden;
 }
 
-/* Blobby's bubble and button: drawn in the console's ink and paper whatever the
-   look, with a soft shadow, since they float over anybody's wallpaper. */
+/* Blobby's bubble and button, drawn like the system's own popovers: a hairline
+   edge, a soft shadow, the system's type - they float over anybody's wallpaper
+   and have to read as part of the desktop, not of a web page. */
 .blobby-bubble,
 .blobby-new-chat {
-  background: var(--color-popover);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.blobby-bubble {
+  background: color-mix(in oklab, var(--color-popover) 94%, transparent);
   color: var(--color-popover-foreground);
+  border: 0.5px solid color-mix(in oklab, var(--color-foreground) 14%, transparent);
+  border-radius: 11px;
+  font-size: 12px;
+  font-weight: 500;
   box-shadow:
-    0 1px 2px oklch(0% 0 0 / 0.18),
-    0 4px 14px oklch(0% 0 0 / 0.14);
+    0 0.5px 1px oklch(0% 0 0 / 0.12),
+    0 6px 18px oklch(0% 0 0 / 0.16);
+  animation: blobby-say 260ms var(--ease-spring);
 }
 
 .blobby-new-chat {
   background: var(--color-primary);
   color: var(--color-primary-foreground);
+  font-size: 11.5px;
+  font-weight: 600;
+  box-shadow: 0 4px 12px oklch(0% 0 0 / 0.2);
+}
+
+@keyframes blobby-say {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.96);
+  }
 }
 
 /* The bubble's tail, pointing at the creature below it. */
@@ -175,13 +192,29 @@
   inset-inline-start: 50%;
   translate: -50% 0;
   border: 5px solid transparent;
-  border-block-start-color: var(--color-popover);
+  border-block-start-color: color-mix(in oklab, var(--color-popover) 94%, transparent);
   border-block-end: 0;
+}
+
+/* A creature with weight: a shadow that follows its shape, and a lift under
+   the cursor, the way a Dock icon answers the pointer. */
+.blobby-body svg {
+  filter: drop-shadow(0 7px 9px oklch(0% 0 0 / 0.24)) drop-shadow(0 1px 2px oklch(0% 0 0 / 0.18));
+  transition: transform 220ms var(--ease-spring);
+}
+
+.blobby-body:hover svg {
+  transform: scale(1.04);
+}
+
+.blobby-body:active svg {
+  transform: scale(0.97);
 }
 
 /* The body's reactions; the face's expressions are blobatar's own. */
 .blobby-body {
   transform-origin: 50% 100%;
+  cursor: default;
 }
 
 .blobby-body[data-state="hop"] {

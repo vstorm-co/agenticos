@@ -48,6 +48,8 @@ pub struct Appearance {
 pub enum Surface {
     Console,
     Panel,
+    /// The shell's own pages - onboarding - which always sit on the window's material.
+    Setup,
 }
 
 /// Whether this platform draws a real material behind a transparent window.
@@ -78,7 +80,8 @@ pub fn effects(surface: Surface, look: Look) -> Option<WindowEffectsConfig> {
     let effect = match (surface, cfg!(target_os = "macos")) {
         (Surface::Console, true) => Effect::Sidebar,
         (Surface::Panel, true) => Effect::HudWindow,
-        (Surface::Console, false) => Effect::Mica,
+        (Surface::Setup, true) => Effect::UnderWindowBackground,
+        (Surface::Console | Surface::Setup, false) => Effect::Mica,
         (Surface::Panel, false) => Effect::Acrylic,
     };
     // An inactive window keeps its material: macOS greys an inactive sidebar
@@ -87,7 +90,7 @@ pub fn effects(surface: Surface, look: Look) -> Option<WindowEffectsConfig> {
     let builder = EffectsBuilder::new().effect(effect).state(EffectState::Active);
     Some(match surface {
         Surface::Panel => builder.radius(PANEL_RADIUS).build(),
-        Surface::Console => builder.build(),
+        Surface::Console | Surface::Setup => builder.build(),
     })
 }
 
@@ -149,8 +152,9 @@ mod tests {
     }
 
     #[test]
-    fn a_panel_is_glass_whatever_the_console_wears() {
+    fn a_panel_and_onboarding_are_glass_whatever_the_console_wears() {
         assert_eq!(effects(Surface::Panel, Look::Standard).is_some(), VIBRANCY);
+        assert_eq!(effects(Surface::Setup, Look::Paper).is_some(), VIBRANCY);
     }
 
     #[test]

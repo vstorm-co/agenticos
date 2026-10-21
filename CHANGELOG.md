@@ -36,6 +36,14 @@ Two things are versioned separately from this file and worth knowing about:
   runs are in progress, and opens it on a click. Configured on a new Blobby tab
   in Settings, shown only in the desktop app beside Desktop app (open at login,
   keep running, the badge) and Shortcuts.
+- **A first-run onboarding for the desktop app**: AgenticOS on this computer or
+  on your organization's server. On this computer the app checks for Docker,
+  sets up the published images with the console and the API on loopback only,
+  creates your organization and owner, and then starts, stops and updates the
+  stack from the menu bar. On a server it signs you in through the browser. A
+  short welcome in the console follows: blobby, the shortcuts, notifications.
+- **Blobby can be resized**: pinch it, scroll over it with ⌘ held, pick a size
+  from its menu, or use the slider in Settings.
 - **Quick ask** (`⌥Space`, rebindable): a floating panel to ask any agent from
   anywhere, with the answer streamed under the question and ⌘↩ to carry the
   conversation into the console.

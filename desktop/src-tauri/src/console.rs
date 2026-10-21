@@ -41,6 +41,7 @@ pub const GRANTS: &[(&str, &[&str])] = &[
             "allow-set-window-preferences",
             "allow-notify",
             "allow-set-badge",
+            "allow-finish-onboarding",
             "allow-page-error",
             "core:event:allow-listen",
             "core:event:allow-unlisten",
@@ -53,6 +54,7 @@ pub const GRANTS: &[(&str, &[&str])] = &[
         &[
             "allow-desktop-state",
             "allow-save-blobby-position",
+            "allow-resize-blobby",
             "allow-blobby-menu",
             "allow-open-in-console",
             "allow-open-chat",
@@ -166,12 +168,24 @@ pub fn set_appearance(app: AppHandle, appearance: Appearance) -> Result<(), Stri
 #[tauri::command]
 pub fn set_blobby(app: AppHandle, blobby: BlobbySettings) -> Result<(), String> {
     blobby::validate(&blobby.character)?;
+    let blobby = BlobbySettings {
+        size: blobby::clamp_scale(blobby.size),
+        ..blobby
+    };
     let (settings, ()) = settings::update(&app, |settings| {
         settings.blobby = BlobbySettings {
             position: settings.blobby.position,
             ..blobby
         };
     })?;
+    crate::reflect_blobby(&app, &settings)
+}
+
+/// Blobby made bigger or smaller on the desktop - a pinch, or the scroll wheel with ⌘.
+#[tauri::command]
+pub fn resize_blobby(app: AppHandle, size: f64) -> Result<(), String> {
+    let size = blobby::clamp_scale(size);
+    let (settings, ()) = settings::update(&app, |settings| settings.blobby.size = size)?;
     crate::reflect_blobby(&app, &settings)
 }
 

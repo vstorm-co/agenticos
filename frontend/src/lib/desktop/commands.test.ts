@@ -21,6 +21,7 @@ const BLOBBY: BlobbySettings = {
   chatter: "normal",
   activity: true,
   roams: false,
+  size: 1.2,
   position: { x: 10, y: 20 },
 };
 
@@ -68,6 +69,11 @@ describe("parseDesktopState", () => {
 });
 
 describe("parseBlobbySettings", () => {
+  it("takes a shell from before blobby could be resized as its natural size", () => {
+    const { size: _omitted, ...older } = BLOBBY;
+    expect(parseBlobbySettings(older).size).toBe(1);
+  });
+
   it("reads every kind of character and a position that is not there yet", () => {
     const agent = {
       kind: "agent",
@@ -128,8 +134,10 @@ describe("the commands", () => {
     await commands.showConsole();
     await commands.saveBlobbyPosition(1, 2);
     await commands.showBlobbyMenu();
+    await commands.resizeBlobby(9);
     await commands.resizeQuickAsk(300);
     await commands.hideQuickAsk();
+    await commands.finishOnboarding();
 
     expect(invoke.mock.calls).toEqual([
       ["desktop_state"],
@@ -144,8 +152,10 @@ describe("the commands", () => {
       ["show_console"],
       ["save_blobby_position", { x: 1, y: 2 }],
       ["blobby_menu"],
+      ["resize_blobby", { size: 1.6 }],
       ["resize_quick_ask", { height: 300 }],
       ["hide_quick_ask"],
+      ["finish_onboarding"],
     ]);
   });
 

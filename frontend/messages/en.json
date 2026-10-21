@@ -8317,7 +8317,9 @@
         "activity": "Tells you what your agents are doing",
         "activityHint": "An approval waiting, something new in your inbox, your runs in progress. A click on the bubble opens it.",
         "roams": "Strolls",
-        "roamsHint": "Walks along the bottom of the screen when idle. Off, it stays where you put it."
+        "roamsHint": "Walks along the bottom of the screen when idle. Off, it stays where you put it.",
+        "size": "Size",
+        "sizeHint": "Or pinch it on the desktop, or scroll over it with ⌘ held."
       },
       "window": {
         "heading": "Desktop app",
@@ -8371,6 +8373,40 @@
       "approve": "Approve",
       "reject": "Reject",
       "inboxTitle": "AgenticOS"
+    },
+    "welcome": {
+      "onlyInApp": "This welcome belongs to the AgenticOS desktop app.",
+      "skip": "Skip for now",
+      "next": "Continue",
+      "open": "Open AgenticOS",
+      "blobby": {
+        "title": "Meet blobby",
+        "body": "It sits on your desktop and tells you when an agent needs you. Pick who it is; you can make it one of your agents later."
+      },
+      "shortcuts": {
+        "title": "Two shortcuts, anywhere",
+        "body": "They work whichever application is in front.",
+        "quick_ask": "Ask any agent",
+        "screenshot_chat": "Screenshot to a new chat",
+        "off": "Off",
+        "change": "Change them under Settings, Shortcuts."
+      },
+      "loop": {
+        "title": "Stay in the loop",
+        "body": "Approvals arrive as notifications you can answer without opening anything.",
+        "login": "Open AgenticOS at login",
+        "keepRunning": "Keep running when the window is closed",
+        "test": "Notifications",
+        "testHint": "Your computer asks once whether AgenticOS may notify you.",
+        "send": "Send a test",
+        "sent": "Sent",
+        "testTitle": "AgenticOS",
+        "testBody": "This is where your agents will reach you."
+      },
+      "done": {
+        "title": "You're all set",
+        "body": "Everything here is in Settings when you want to change it."
+      }
     }
   }
 }

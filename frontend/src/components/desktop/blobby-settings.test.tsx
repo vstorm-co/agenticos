@@ -143,4 +143,15 @@ describe("BlobbySettingsPanel", () => {
     await userEvent.click(screen.getByRole("switch", { name: "Strolls" }));
     expect(env.mutate).toHaveBeenLastCalledWith({ ...blobby, roams: false });
   });
+
+  it("sets its size when the slider is let go", () => {
+    render(<BlobbySettingsPanel />);
+    const slider = screen.getByRole("slider", { name: "Size" });
+    fireEvent.change(slider, { target: { value: "1.3" } });
+    fireEvent.pointerUp(slider);
+    expect(env.mutate).toHaveBeenLastCalledWith({ ...blobby, size: 1.3 });
+    fireEvent.change(slider, { target: { value: "0.8" } });
+    fireEvent.keyUp(slider, { key: "ArrowLeft" });
+    expect(env.mutate).toHaveBeenLastCalledWith({ ...blobby, size: 0.8 });
+  });
 });

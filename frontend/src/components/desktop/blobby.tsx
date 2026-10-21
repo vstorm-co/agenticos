@@ -6,6 +6,7 @@ import { Plus } from "lucide-react";
 
 import { BlobbyFace } from "@/components/desktop/blobby-face";
 import { useBlobbyMotion } from "@/hooks/use-blobby-motion";
+import { useBlobbyResize } from "@/hooks/use-blobby-resize";
 import { faceOf, pickLine, voiceOf } from "@/lib/desktop/blobby-cast";
 import {
   ACTIVITY_SAY_MS,
@@ -29,8 +30,10 @@ import {
 import { reportShellFailure } from "@/lib/desktop/shell";
 import { cn } from "@/lib/utils";
 
-const DRAG_THRESHOLD = 4;
+/** A press that moves this far is a drag, not a click - small, so the window follows at once. */
+const DRAG_THRESHOLD = 2;
 const DOUBLE_CLICK_MS = 350;
+/** The face at blobby's natural size; the window grows and shrinks with it. */
 const FACE_SIZE = 112;
 
 interface Bubble {
@@ -89,6 +92,7 @@ export function Blobby({ settings, activity, signedIn, heard, reducedMotion }: B
   const quipTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const lastLine = useRef<number | null>(null);
   const voice = voiceOf(settings.character);
+  const { ref: resizeRef, size: shownSize } = useBlobbyResize(settings.size);
 
   const say = useCallback((text: string) => {
     setQuip({ text, path: null });
@@ -183,7 +187,10 @@ export function Blobby({ settings, activity, signedIn, heard, reducedMotion }: B
   const expression = signedIn ? expressionFor(motion.state, activity) : "sleepy";
 
   return (
-    <div className="blobby group flex h-full flex-col items-center justify-end pb-2 select-none">
+    <div
+      ref={resizeRef}
+      className="blobby group flex h-full flex-col items-center justify-end pb-2 select-none"
+    >
       <div role="status" className="relative h-16 w-full">
         {bubble ? (
           <button
@@ -238,7 +245,7 @@ export function Blobby({ settings, activity, signedIn, heard, reducedMotion }: B
           face={faceOf(settings.character)}
           expression={expression}
           gaze={motion.gaze}
-          size={FACE_SIZE}
+          size={Math.round(FACE_SIZE * shownSize)}
         />
       </button>
     </div>

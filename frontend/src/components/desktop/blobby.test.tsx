@@ -31,6 +31,9 @@ vi.mock("@/hooks/use-blobby-motion", () => ({
   },
 }));
 vi.mock("@/lib/desktop/commands", () => env.commands);
+vi.mock("@/hooks/use-blobby-resize", () => ({
+  useBlobbyResize: (size: number) => ({ ref: { current: null }, size }),
+}));
 vi.mock("@/lib/desktop/shell", () => ({ reportShellFailure: env.report }));
 vi.mock("@/components/desktop/blobby-face", () => ({
   BlobbyFace: (props: { expression: string }) => {

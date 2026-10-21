@@ -43,7 +43,7 @@ const PREVIEW: Record<Look, { light: [string, string, string]; dark: [string, st
 
 /** The soft backdrop a glass thumbnail sits on, as the glass console does in a browser. */
 const GLASS_BACKDROP =
-  "radial-gradient(circle at 15% 10%, oklch(78% 0.1 277 / 0.8), transparent 60%), radial-gradient(circle at 90% 30%, oklch(82% 0.08 200 / 0.8), transparent 60%), radial-gradient(circle at 60% 100%, oklch(84% 0.08 320 / 0.8), transparent 60%)";
+  "radial-gradient(circle at 0% 0%, oklch(100% 0 0 / 0.9), transparent 60%), radial-gradient(circle at 100% 100%, oklch(80% 0.006 265 / 0.9), transparent 70%), oklch(90% 0.004 265)";
 
 function Thumbnail({ look, dark }: { look: Look; dark: boolean }) {
   const [column, page, ink] = PREVIEW[look][dark ? "dark" : "light"];

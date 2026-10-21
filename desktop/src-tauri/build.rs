@@ -14,6 +14,7 @@ const COMMANDS: &[&str] = &[
     "set_appearance",
     "set_blobby",
     "save_blobby_position",
+    "resize_blobby",
     "blobby_menu",
     "set_window_preferences",
     "notify",
@@ -22,6 +23,12 @@ const COMMANDS: &[&str] = &[
     "set_shortcut",
     "resize_quick_ask",
     "hide_quick_ask",
+    "onboarding_state",
+    "local_status",
+    "set_up_local",
+    "use_local",
+    "open_docker_download",
+    "finish_onboarding",
 ];
 
 fn main() {

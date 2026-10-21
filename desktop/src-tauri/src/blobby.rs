@@ -24,8 +24,30 @@ pub const SAY_EVENT: &str = "desktop:say";
 pub const SHOW_MENU_ID: &str = "show-blobby";
 pub const CUSTOMIZE_MENU_ID: &str = "customize-blobby";
 const CAST_MENU_PREFIX: &str = "blobby-cast-";
-/// Room for the creature and, above it, a speech bubble of two short lines.
+/// The sizes the menu offers; anything between them is a pinch away.
+pub const SIZES: [(&str, &str, f64); 3] = [
+    ("blobby-size-small", "Small", 0.75),
+    ("blobby-size-medium", "Medium", 1.0),
+    ("blobby-size-large", "Large", 1.35),
+];
+/// Room for the creature at its natural size and, above it, a speech bubble of two short lines.
 const SIZE: (f64, f64) = (200.0, 232.0);
+/// How small and how large it may be made, as a multiple of its natural size.
+pub const SCALE_RANGE: (f64, f64) = (0.6, 1.6);
+
+/// The window for blobby at a scale, kept inside the range.
+pub fn window_size(scale: f64) -> (f64, f64) {
+    let scale = clamp_scale(scale);
+    (SIZE.0 * scale, SIZE.1 * scale)
+}
+
+pub fn clamp_scale(scale: f64) -> f64 {
+    if scale.is_finite() {
+        scale.clamp(SCALE_RANGE.0, SCALE_RANGE.1)
+    } else {
+        1.0
+    }
+}
 
 /// The cast, read from the file the console renders it from, so the menu and the
 /// settings page cannot offer different creatures under one name.
@@ -100,12 +122,19 @@ pub struct BlobbySettings {
     /// Whether it strolls along the bottom of the screen when idle.
     #[serde(default = "shown_by_default")]
     pub roams: bool,
+    /// How big it is, as a multiple of its natural size (`SCALE_RANGE`).
+    #[serde(default = "natural_size")]
+    pub size: f64,
     #[serde(default)]
     pub position: Option<Position>,
 }
 
 fn shown_by_default() -> bool {
     true
+}
+
+fn natural_size() -> f64 {
+    1.0
 }
 
 impl Default for BlobbySettings {
@@ -116,6 +145,7 @@ impl Default for BlobbySettings {
             chatter: Chatter::default(),
             activity: true,
             roams: true,
+            size: 1.0,
             position: None,
         }
     }
@@ -153,7 +183,25 @@ pub fn validate(character: &Character) -> Result<(), String> {
 pub struct BlobbyMenu {
     show: CheckMenuItem<Wry>,
     cast: Vec<(String, CheckMenuItem<Wry>)>,
+    sizes: Vec<(f64, CheckMenuItem<Wry>)>,
     customize: MenuItem<Wry>,
+}
+
+/// The menu's size closest to a scale - a pinch lands between them.
+fn nearest_size(scale: f64) -> f64 {
+    SIZES
+        .iter()
+        .map(|(_, _, size)| *size)
+        .min_by(|a, b| (a - scale).abs().total_cmp(&(b - scale).abs()))
+        .unwrap_or(1.0)
+}
+
+/// The size a menu id names, if it names one.
+pub fn size_from_menu_id(id: &str) -> Option<f64> {
+    SIZES
+        .iter()
+        .find(|(menu_id, ..)| *menu_id == id)
+        .map(|(_, _, size)| *size)
 }
 
 impl BlobbyMenu {
@@ -180,14 +228,33 @@ impl BlobbyMenu {
                 Ok((member.id.clone(), item))
             })
             .collect::<tauri::Result<Vec<_>>>()?;
+        let nearest = nearest_size(blobby.size);
+        let sizes = SIZES
+            .iter()
+            .map(|(id, label, size)| {
+                let item = CheckMenuItem::with_id(app, *id, *label, true, *size == nearest, None::<&str>)?;
+                Ok((*size, item))
+            })
+            .collect::<tauri::Result<Vec<_>>>()?;
         let customize = MenuItem::with_id(app, CUSTOMIZE_MENU_ID, "Customize blobby…", true, None::<&str>)?;
-        Ok(Self { show, cast, customize })
+        Ok(Self {
+            show,
+            cast,
+            sizes,
+            customize,
+        })
     }
 
     pub fn submenu(&self, app: &AppHandle) -> tauri::Result<Submenu<Wry>> {
         let separator = tauri::menu::PredefinedMenuItem::separator(app)?;
         let separator_two = tauri::menu::PredefinedMenuItem::separator(app)?;
-        let mut items: Vec<&dyn IsMenuItem<Wry>> = vec![&self.show, &separator];
+        let size_items: Vec<&dyn IsMenuItem<Wry>> = self
+            .sizes
+            .iter()
+            .map(|(_, item)| item as &dyn IsMenuItem<Wry>)
+            .collect();
+        let size = Submenu::with_items(app, "Size", true, &size_items)?;
+        let mut items: Vec<&dyn IsMenuItem<Wry>> = vec![&self.show, &size, &separator];
         for (_, item) in &self.cast {
             items.push(item);
         }
@@ -200,6 +267,10 @@ impl BlobbyMenu {
         self.show.set_checked(blobby.enabled)?;
         for (id, item) in &self.cast {
             item.set_checked(is_cast(&blobby.character, id))?;
+        }
+        let nearest = nearest_size(blobby.size);
+        for (size, item) in &self.sizes {
+            item.set_checked(*size == nearest)?;
         }
         Ok(())
     }
@@ -219,14 +290,14 @@ pub fn cast_from_menu_id(id: &str) -> Option<String> {
 }
 
 /// Bottom-right of the primary monitor, clear of a dock or taskbar, for a blobby never placed yet.
-fn default_position(app: &AppHandle) -> Option<(f64, f64)> {
+fn default_position(app: &AppHandle, size: (f64, f64)) -> Option<(f64, f64)> {
     let monitor = app.primary_monitor().ok()??;
     let scale = monitor.scale_factor();
-    let size = monitor.size().to_logical::<f64>(scale);
+    let monitor_size = monitor.size().to_logical::<f64>(scale);
     let origin = monitor.position().to_logical::<f64>(scale);
     Some((
-        origin.x + size.width - SIZE.0 - 48.0,
-        origin.y + size.height - SIZE.1 - 96.0,
+        origin.x + monitor_size.width - size.0 - 48.0,
+        origin.y + monitor_size.height - size.1 - 96.0,
     ))
 }
 
@@ -237,7 +308,7 @@ pub fn open(app: &AppHandle, server: &Url, blobby: &BlobbySettings) -> tauri::Re
     let mut builder = WebviewWindowBuilder::new(app, WINDOW, WebviewUrl::External(page))
         .title("Blobby")
         .initialization_script(appearance::shell_script(&version, WINDOW))
-        .inner_size(SIZE.0, SIZE.1)
+        .inner_size(window_size(blobby.size).0, window_size(blobby.size).1)
         .transparent(true)
         .decorations(false)
         .shadow(false)
@@ -249,7 +320,11 @@ pub fn open(app: &AppHandle, server: &Url, blobby: &BlobbySettings) -> tauri::Re
         .minimizable(false)
         .focused(false)
         .accept_first_mouse(true);
-    if let Some((x, y)) = blobby.position.map(|p| (p.x, p.y)).or_else(|| default_position(app)) {
+    if let Some((x, y)) = blobby
+        .position
+        .map(|p| (p.x, p.y))
+        .or_else(|| default_position(app, window_size(blobby.size)))
+    {
         builder = builder.position(x, y);
     }
     builder.build()
@@ -259,10 +334,40 @@ pub fn open(app: &AppHandle, server: &Url, blobby: &BlobbySettings) -> tauri::Re
 pub fn sync(app: &AppHandle, server: Option<&Url>, blobby: &BlobbySettings) -> Result<(), String> {
     match (app.get_webview_window(WINDOW), blobby.enabled, server) {
         (Some(window), false, _) => window.close().map_err(|e| e.to_string()),
-        (Some(_), true, _) => app.emit_to(WINDOW, SETTINGS_EVENT, blobby).map_err(|e| e.to_string()),
+        (Some(window), true, _) => {
+            resize(&window, blobby.size)?;
+            app.emit_to(WINDOW, SETTINGS_EVENT, blobby).map_err(|e| e.to_string())
+        }
         (None, true, Some(server)) => open(app, server, blobby).map(|_| ()).map_err(|e| e.to_string()),
         (None, _, _) => Ok(()),
     }
+}
+
+/// Grow or shrink blobby's window to a scale, keeping its feet where they were:
+/// a creature standing on the dock should not float up off it when it shrinks.
+pub fn resize(window: &WebviewWindow, scale: f64) -> Result<(), String> {
+    let factor = window.scale_factor().map_err(|e| e.to_string())?;
+    let old = window
+        .outer_size()
+        .map_err(|e| e.to_string())?
+        .to_logical::<f64>(factor);
+    let (width, height) = window_size(scale);
+    if (old.width - width).abs() < 0.5 && (old.height - height).abs() < 0.5 {
+        return Ok(());
+    }
+    let at = window
+        .outer_position()
+        .map_err(|e| e.to_string())?
+        .to_logical::<f64>(factor);
+    window
+        .set_size(tauri::LogicalSize::new(width, height))
+        .map_err(|e| e.to_string())?;
+    window
+        .set_position(tauri::LogicalPosition::new(
+            at.x + (old.width - width) / 2.0,
+            at.y + old.height - height,
+        ))
+        .map_err(|e| e.to_string())
 }
 
 /// Something blobby should say, from the shell rather than from its page.
@@ -306,6 +411,27 @@ mod tests {
                 id: cast()[0].id.clone()
             }
         );
+    }
+
+    #[test]
+    fn the_menu_ticks_the_size_nearest_a_pinch_and_names_each_one() {
+        assert_eq!(super::nearest_size(0.8), 0.75);
+        assert_eq!(super::nearest_size(1.1), 1.0);
+        assert_eq!(super::nearest_size(1.6), 1.35);
+        for (id, _, size) in super::SIZES {
+            assert_eq!(super::size_from_menu_id(id), Some(size));
+        }
+        assert_eq!(super::size_from_menu_id("show-blobby"), None);
+    }
+
+    #[test]
+    fn its_size_stays_in_range_and_a_nonsense_one_is_the_natural_one() {
+        assert_eq!(super::clamp_scale(0.1), super::SCALE_RANGE.0);
+        assert_eq!(super::clamp_scale(9.0), super::SCALE_RANGE.1);
+        assert_eq!(super::clamp_scale(f64::NAN), 1.0);
+        assert_eq!(super::window_size(1.0), super::SIZE);
+        let blobby: BlobbySettings = serde_json::from_str("{}").unwrap();
+        assert_eq!(blobby.size, 1.0);
     }
 
     #[test]

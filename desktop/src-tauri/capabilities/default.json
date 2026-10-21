@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The connect page, the one page the shell carries itself: asking for the server's address, and the title bar it is dragged by. The console's own pages are granted at runtime, for the configured server's origin only (console.rs).",
+  "description": "Onboarding, the one page the shell carries itself: where AgenticOS lives - a stack it sets up on this computer, or an organization's server - and the title bar it is dragged by. The console's own pages are granted at runtime, for the configured server's origin only (console.rs).",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -11,6 +11,11 @@
     "allow-server-url",
     "allow-startup-notice",
     "allow-connect",
-    "allow-page-error"
+    "allow-page-error",
+    "allow-onboarding-state",
+    "allow-local-status",
+    "allow-set-up-local",
+    "allow-use-local",
+    "allow-open-docker-download"
   ]
 }

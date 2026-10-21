@@ -23,6 +23,20 @@ pub struct Settings {
     pub shortcuts: Shortcuts,
     #[serde(default)]
     pub window: WindowPreferences,
+    /// Where AgenticOS lives for this person, chosen in onboarding; `None` before it.
+    #[serde(default)]
+    pub deployment: Option<Deployment>,
+    /// Whether the console's welcome - blobby, shortcuts, notifications - has been through.
+    #[serde(default)]
+    pub onboarded: bool,
+}
+
+/// A stack the app set up on this machine, or an organization's server.
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum Deployment {
+    Local,
+    Server,
 }
 
 /// What a global shortcut does.
@@ -224,5 +238,7 @@ mod tests {
         assert!(settings.shortcuts.screenshot_chat.is_none());
         assert!(settings.blobby.enabled);
         assert_eq!(settings.window, WindowPreferences::default());
+        assert_eq!(settings.deployment, None);
+        assert!(!settings.onboarded);
     }
 }

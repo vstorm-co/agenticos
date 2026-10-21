@@ -8102,7 +8102,9 @@
         "activity": "Mówi, co robią twoi agenci",
         "activityHint": "Czekająca akceptacja, coś nowego w skrzynce, twoje runy w toku. Kliknięcie dymka to otwiera.",
         "roams": "Spaceruje",
-        "roamsHint": "Chodzi wzdłuż dołu ekranu, kiedy nic się nie dzieje. Wyłączony zostaje tam, gdzie go postawisz."
+        "roamsHint": "Chodzi wzdłuż dołu ekranu, kiedy nic się nie dzieje. Wyłączony zostaje tam, gdzie go postawisz.",
+        "size": "Rozmiar",
+        "sizeHint": "Albo uszczypnij go na pulpicie, albo przewiń nad nim z wciśniętym ⌘."
       },
       "window": {
         "heading": "Aplikacja desktopowa",
@@ -8156,6 +8158,40 @@
       "approve": "Zatwierdź",
       "reject": "Odrzuć",
       "inboxTitle": "AgenticOS"
+    },
+    "welcome": {
+      "onlyInApp": "To powitanie należy do aplikacji desktopowej AgenticOS.",
+      "skip": "Pomiń na razie",
+      "next": "Dalej",
+      "open": "Otwórz AgenticOS",
+      "blobby": {
+        "title": "Poznaj blobby",
+        "body": "Siedzi na pulpicie i daje znać, kiedy agent cię potrzebuje. Wybierz, kim jest; później możesz dać mu twarz jednego ze swoich agentów."
+      },
+      "shortcuts": {
+        "title": "Dwa skróty, wszędzie",
+        "body": "Działają niezależnie od tego, która aplikacja jest z przodu.",
+        "quick_ask": "Zapytaj dowolnego agenta",
+        "screenshot_chat": "Zrzut ekranu do nowego czatu",
+        "off": "Wyłączony",
+        "change": "Zmienisz je w Ustawieniach, w zakładce Skróty."
+      },
+      "loop": {
+        "title": "Bądź na bieżąco",
+        "body": "Akceptacje przychodzą jako powiadomienia, na które odpowiesz bez otwierania czegokolwiek.",
+        "login": "Otwieraj AgenticOS przy logowaniu",
+        "keepRunning": "Działaj po zamknięciu okna",
+        "test": "Powiadomienia",
+        "testHint": "Komputer raz zapyta, czy AgenticOS może wysyłać powiadomienia.",
+        "send": "Wyślij testowe",
+        "sent": "Wysłane",
+        "testTitle": "AgenticOS",
+        "testBody": "Tutaj odezwą się twoi agenci."
+      },
+      "done": {
+        "title": "Wszystko gotowe",
+        "body": "Wszystko to znajdziesz w Ustawieniach, kiedy zechcesz coś zmienić."
+      }
     }
   }
 }

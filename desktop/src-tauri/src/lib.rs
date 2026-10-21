@@ -16,6 +16,7 @@
 mod appearance;
 mod blobby;
 mod console;
+mod local_stack;
 mod notify;
 mod quick_ask;
 mod settings;
@@ -42,7 +43,7 @@ use tauri_plugin_opener::OpenerExt;
 use tauri::RunEvent;
 
 use appearance::{Appearance, Look, Surface};
-use settings::Settings;
+use settings::{Deployment, Settings};
 
 pub const WINDOW: &str = "main";
 const TRAY: &str = "tray";
@@ -57,6 +58,11 @@ const BACK: &str = "back";
 const FORWARD: &str = "forward";
 const DOCUMENTATION: &str = "documentation";
 const DOCUMENTATION_URL: &str = "https://vstorm-co.github.io/agenticos/desktop/";
+/// The console's welcome for a new desktop install: blobby, shortcuts, notifications.
+const WELCOME: &str = "desktop/welcome";
+const LOCAL_START: &str = "local-start";
+const LOCAL_STOP: &str = "local-stop";
+const LOCAL_UPDATE: &str = "local-update";
 const PROBE_TIMEOUT: Duration = Duration::from_secs(1);
 const PROBE_DEADLINE: Duration = Duration::from_secs(2);
 const PENDING_SCREENSHOT_TTL: Duration = Duration::from_secs(120);
@@ -588,16 +594,113 @@ async fn connect(app: AppHandle, window: WebviewWindow, url: String) -> Result<(
     tauri::async_runtime::spawn_blocking(move || reachable(&probed))
         .await
         .map_err(|e| e.to_string())??;
-    let (settings, ()) = settings::update(&app, |settings| settings.server_url = Some(server.clone()))?;
-    window.navigate(server.clone()).map_err(|e| e.to_string())?;
+    arrive(&app, &window, server, Deployment::Server)
+}
+
+/// Point the shell at a console that answers, remember where it lives, and
+/// open it: on the welcome the first time, on the console after that.
+fn arrive(app: &AppHandle, window: &WebviewWindow, server: Url, deployment: Deployment) -> Result<(), String> {
+    let (settings, ()) = settings::update(app, |settings| {
+        settings.server_url = Some(server.clone());
+        settings.deployment = Some(deployment);
+    })?;
+    // Granted before the page loads: the welcome asks the shell for its state as it mounts.
+    console::grant(app, &server)?;
+    let landing = if settings.onboarded {
+        server.clone()
+    } else {
+        server.join(WELCOME).map_err(|e| e.to_string())?
+    };
+    window.navigate(landing).map_err(|e| e.to_string())?;
     // Blobby and quick ask were pages of the previous server, or of none.
     for label in [blobby::WINDOW, quick_ask::WINDOW] {
         if let Some(stale) = app.get_webview_window(label) {
             stale.destroy().map_err(|e| e.to_string())?;
         }
     }
-    start_companions(&app, &server, &settings);
-    Ok(())
+    start_companions(app, &server, &settings);
+    app.state::<ShellMenu>()
+        .reflect_deployment(settings.deployment)
+        .map_err(|e| e.to_string())
+}
+
+/// What onboarding needs to draw its first screen.
+#[derive(serde::Serialize)]
+struct OnboardingState {
+    server_url: Option<Url>,
+    deployment: Option<Deployment>,
+    platform: &'static str,
+}
+
+#[tauri::command]
+fn onboarding_state(app: AppHandle) -> OnboardingState {
+    let settings = settings::current(&app);
+    OnboardingState {
+        server_url: settings.server_url,
+        deployment: settings.deployment,
+        platform: appearance::platform(),
+    }
+}
+
+/// Whether Docker is there and running, and whether AgenticOS already answers here.
+#[tauri::command]
+async fn local_status() -> Result<local_stack::Status, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        let console = Url::parse(local_stack::CONSOLE).expect("a literal URL parses");
+        local_stack::status(reachable(&console).is_ok())
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// Set AgenticOS up on this computer and sign the console in to it.
+#[tauri::command]
+async fn set_up_local(app: AppHandle, window: WebviewWindow, owner: local_stack::Owner) -> Result<(), String> {
+    let handle = app.clone();
+    let console = tauri::async_runtime::spawn_blocking(move || local_stack::set_up(&handle, &owner))
+        .await
+        .map_err(|e| e.to_string())??;
+    arrive(&app, &window, console, Deployment::Local)
+}
+
+/// Use the AgenticOS already answering on this computer - a `make dev` stack, or one set up before.
+#[tauri::command]
+async fn use_local(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
+    let console = Url::parse(local_stack::CONSOLE).expect("a literal URL parses");
+    let probed = console.clone();
+    tauri::async_runtime::spawn_blocking(move || reachable(&probed))
+        .await
+        .map_err(|e| e.to_string())??;
+    arrive(&app, &window, console, Deployment::Local)
+}
+
+#[tauri::command]
+fn open_docker_download(app: AppHandle) -> Result<(), String> {
+    app.opener()
+        .open_url(local_stack::docker_download(), None::<&str>)
+        .map_err(|e| e.to_string())
+}
+
+/// The console's welcome is through; from now on the console opens on itself.
+#[tauri::command]
+fn finish_onboarding(app: AppHandle) -> Result<(), String> {
+    settings::update(&app, |settings| settings.onboarded = true).map(|_| ())
+}
+
+/// Start, stop or update the stack the app set up, off the main thread, saying how it went.
+fn control_local(app: &AppHandle, control: local_stack::Control) {
+    let handle = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let said = match local_stack::control(&handle, control) {
+            Ok(()) => match control {
+                local_stack::Control::Start => "AgenticOS is starting.".to_owned(),
+                local_stack::Control::Stop => "AgenticOS is stopped.".to_owned(),
+                local_stack::Control::Update => "AgenticOS is up to date.".to_owned(),
+            },
+            Err(problem) => problem,
+        };
+        blobby::say(&handle, &said);
+    });
 }
 
 /// Bring the console forward, opening it again if it was closed while blobby stayed.
@@ -690,6 +793,22 @@ fn complain(app: &AppHandle, problem: &str) {
     blobby::say(app, problem);
 }
 
+/// One of the shell's own pages, served from the app rather than a server.
+fn is_local_page(url: &Url) -> bool {
+    url.scheme() == "tauri" || url.host_str() == Some("tauri.localhost")
+}
+
+/// The window's material and the colour behind its page, for what it shows.
+fn dress(window: &WebviewWindow, surface: Surface, appearance: Appearance) -> tauri::Result<()> {
+    appearance::apply(window, surface, appearance)?;
+    let behind = if surface == Surface::Setup && appearance::VIBRANCY {
+        Color(0, 0, 0, 0)
+    } else {
+        loading_color(appearance, window.theme()?)
+    };
+    window.set_background_color(Some(behind))
+}
+
 /// What the console paints behind itself while it loads, in the window's own mode.
 fn loading_color(appearance: Appearance, system: Theme) -> Color {
     if appearance.look == Look::Glass && appearance::VIBRANCY {
@@ -751,9 +870,22 @@ fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow>
     }
     let window = builder
         .on_page_load(|window, payload| {
-            let server = settings::current(window.app_handle()).server_url;
+            let settings = settings::current(window.app_handle());
+            let server = settings.server_url;
             if let Err(e) = window.set_title(&window_title(payload.url(), server.as_ref())) {
                 eprintln!("title: {e}");
+            }
+            // The shell's own pages - onboarding - sit on the window's material,
+            // like a system setup assistant; the console wears its own look.
+            if matches!(payload.event(), PageLoadEvent::Started) {
+                let surface = if is_local_page(payload.url()) {
+                    Surface::Setup
+                } else {
+                    Surface::Console
+                };
+                if let Err(e) = dress(&window, surface, settings.appearance) {
+                    eprintln!("appearance: {e}");
+                }
             }
             if !matches!(payload.event(), PageLoadEvent::Finished) {
                 return;
@@ -829,10 +961,12 @@ pub struct ShellMenu {
     screenshot: MenuItem<Wry>,
     settings: MenuItem<Wry>,
     change_server: MenuItem<Wry>,
+    local: [MenuItem<Wry>; 3],
 }
 
 impl ShellMenu {
     fn build(app: &AppHandle, settings: &Settings) -> tauri::Result<Self> {
+        let local = settings.deployment == Some(Deployment::Local);
         Ok(Self {
             blobby: blobby::BlobbyMenu::build(app, &settings.blobby)?,
             open_console: MenuItem::with_id(app, OPEN_CONSOLE, "Open AgenticOS", true, None::<&str>)?,
@@ -841,7 +975,20 @@ impl ShellMenu {
             screenshot: MenuItem::with_id(app, SCREENSHOT_CHAT, "Screenshot to New Chat", true, None::<&str>)?,
             settings: MenuItem::with_id(app, SETTINGS, "Settings…", true, Some("CmdOrCtrl+,"))?,
             change_server: MenuItem::with_id(app, CHANGE_SERVER, "Change Server…", true, None::<&str>)?,
+            local: [
+                MenuItem::with_id(app, LOCAL_START, "Start", local, None::<&str>)?,
+                MenuItem::with_id(app, LOCAL_STOP, "Stop", local, None::<&str>)?,
+                MenuItem::with_id(app, LOCAL_UPDATE, "Update", local, None::<&str>)?,
+            ],
         })
+    }
+
+    /// The local stack's controls are live only while the app runs one.
+    fn reflect_deployment(&self, deployment: Option<Deployment>) -> tauri::Result<()> {
+        for item in &self.local {
+            item.set_enabled(deployment == Some(Deployment::Local))?;
+        }
+        Ok(())
     }
 
     /// The tray's menu, which is also blobby's: everything the shell does, with no window open.
@@ -849,6 +996,8 @@ impl ShellMenu {
         let separator = || PredefinedMenuItem::separator(app);
         let blobby = self.blobby.submenu(app)?;
         let quit = PredefinedMenuItem::quit(app, Some("Quit AgenticOS"))?;
+        let [start, stop, update] = &self.local;
+        let local = Submenu::with_items(app, "AgenticOS on This Computer", true, &[start, stop, update])?;
         Menu::with_items(
             app,
             &[
@@ -858,6 +1007,7 @@ impl ShellMenu {
                 &self.screenshot,
                 &separator()?,
                 &blobby,
+                &local,
                 &separator()?,
                 &self.settings,
                 &self.change_server,
@@ -1052,6 +1202,15 @@ fn install_menu(app: &AppHandle, settings: &Settings) -> tauri::Result<TrayIcon>
                 .open_url(DOCUMENTATION_URL, None::<&str>)
                 .map_err(|e| e.to_string()),
             blobby::SHOW_MENU_ID => update_blobby(app, |blobby| blobby.enabled = !blobby.enabled),
+            LOCAL_START | LOCAL_STOP | LOCAL_UPDATE => {
+                let control = match id {
+                    LOCAL_START => local_stack::Control::Start,
+                    LOCAL_STOP => local_stack::Control::Stop,
+                    _ => local_stack::Control::Update,
+                };
+                control_local(app, control);
+                Ok(())
+            }
             CHANGE_SERVER | RELOAD | BACK | FORWARD => match app.get_webview_window(WINDOW) {
                 Some(console) if id == CHANGE_SERVER => console
                     .navigate(connect_page())
@@ -1067,17 +1226,20 @@ fn install_menu(app: &AppHandle, settings: &Settings) -> tauri::Result<TrayIcon>
                 }
                 None => bring_console(app),
             },
-            other => match (
-                GO.iter().find(|(go, ..)| *go == other),
-                blobby::cast_from_menu_id(other),
-            ) {
-                (Some((_, _, path, _)), _) => open_in_console_at(app, path),
-                (None, Some(cast)) => update_blobby(app, |blobby| {
-                    blobby.character = blobby::Character::Cast { id: cast };
-                    blobby.enabled = true;
-                }),
-                (None, None) => Ok(()),
-            },
+            other => {
+                if let Some((_, _, path, _)) = GO.iter().find(|(go, ..)| *go == other) {
+                    open_in_console_at(app, path)
+                } else if let Some(cast) = blobby::cast_from_menu_id(other) {
+                    update_blobby(app, |blobby| {
+                        blobby.character = blobby::Character::Cast { id: cast };
+                        blobby.enabled = true;
+                    })
+                } else if let Some(size) = blobby::size_from_menu_id(other) {
+                    update_blobby(app, |blobby| blobby.size = size)
+                } else {
+                    Ok(())
+                }
+            }
         };
         if let Err(e) = outcome {
             eprintln!("menu action {id} failed: {e}");
@@ -1131,11 +1293,18 @@ pub fn run() {
             console::set_appearance,
             console::set_blobby,
             console::save_blobby_position,
+            console::resize_blobby,
             console::blobby_menu,
             console::set_window_preferences,
             console::notify,
             console::set_badge,
             console::open_in_console,
+            onboarding_state,
+            local_status,
+            set_up_local,
+            use_local,
+            open_docker_download,
+            finish_onboarding,
             shortcuts::set_shortcut,
             quick_ask::resize_quick_ask,
             quick_ask::hide_quick_ask

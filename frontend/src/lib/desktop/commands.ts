@@ -24,6 +24,9 @@ export type BlobbyCharacter =
 export const CHATTER = ["quiet", "normal", "chatty"] as const;
 export type Chatter = (typeof CHATTER)[number];
 
+/** How small and how large blobby may be made - the shell holds it to the same range. */
+export const BLOBBY_SIZE = { min: 0.6, max: 1.6 } as const;
+
 export interface BlobbySettings {
   enabled: boolean;
   character: BlobbyCharacter;
@@ -32,6 +35,8 @@ export interface BlobbySettings {
   activity: boolean;
   /** Strolls along the bottom of the screen when idle. */
   roams: boolean;
+  /** How big it is, as a multiple of its natural size (`BLOBBY_SIZE`). */
+  size: number;
   position: { x: number; y: number } | null;
 }
 
@@ -142,6 +147,8 @@ export function parseBlobbySettings(value: unknown): BlobbySettings {
     chatter: field(fields, "chatter", isChatter),
     activity: field(fields, "activity", isBoolean),
     roams: field(fields, "roams", isBoolean),
+    // A shell from before blobby could be resized sends none: its natural size.
+    size: fields.size === undefined ? 1 : field(fields, "size", isNumber),
     position: parsePosition(fields.position ?? null),
   };
 }
@@ -237,12 +244,23 @@ export async function saveBlobbyPosition(x: number, y: number): Promise<void> {
   await invokeShell("save_blobby_position", { x, y });
 }
 
+export async function resizeBlobby(size: number): Promise<void> {
+  await invokeShell("resize_blobby", {
+    size: Math.min(BLOBBY_SIZE.max, Math.max(BLOBBY_SIZE.min, size)),
+  });
+}
+
 export async function showBlobbyMenu(): Promise<void> {
   await invokeShell("blobby_menu");
 }
 
 export async function resizeQuickAsk(height: number): Promise<void> {
   await invokeShell("resize_quick_ask", { height });
+}
+
+/** The desktop welcome is through; from now on the app opens on the console itself. */
+export async function finishOnboarding(): Promise<void> {
+  await invokeShell("finish_onboarding");
 }
 
 export async function hideQuickAsk(): Promise<void> {
