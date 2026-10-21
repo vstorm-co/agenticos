@@ -1,5 +1,5 @@
 ---
-source_sha: "4950f10e6c98"
+source_sha: "9106112f767a"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -224,12 +224,23 @@ jede Anfrage belegen kann, die ein Provider der Organisation erlaubt.
 Abbrechen (`POST /api/v1/eval-runs/{id}/cancel`, durch die Person, die ihn
 gestartet hat, oder jeden, der den Agent bearbeiten darf) stoppt, was noch nicht
 begonnen hat: Bereits laufende Fälle laufen zu Ende und werden behalten, und
-kein weiterer Fall startet. Der Worker eines laufenden Runs meldet alle
-`EVAL_HEARTBEAT_SECONDS`, dass er lebt; ein Run, dessen Worker schweigt und
+kein weiterer Fall startet.
+
+Ein Run, den sein Worker nicht beenden kann - etwa weil ihm mitten im Run die
+Datenbank wegbricht -, endet sofort als `failed`, wie ein Agent-Run: Seine
+laufenden Fälle schlagen fehl, die übrigen werden übersprungen, und seine Seite
+sagt, dass er an einem Fehler angehalten hat und neu gestartet werden sollte. Er
+wird nicht fortgesetzt.
+
+Ein Worker kann auch kommentarlos sterben. Der Worker eines laufenden Runs meldet
+alle `EVAL_HEARTBEAT_SECONDS`, dass er lebt; ein Run, dessen Worker schweigt und
 dessen Fälle sich `EVAL_ABANDONED_AFTER_MINUTES` lang nicht bewegt haben, wird
-vom stündlichen Sweep für hängende Runs als fehlgeschlagen beendet, der auch
-seine Plätze freigibt. Ein Run in der Warteschlange hat noch keinen Worker - er
-wartet auf einen freien Runner - daher gibt der Sweep ihn erst nach
+von einem Sweep, den der Worker jede Minute ausführt, als fehlgeschlagen beendet,
+der auch seine Plätze freigibt. Ein Worker, dessen Heartbeats so lange
+fehlschlagen - auf einem Host, der zu ausgelastet ist, um seine Datenbank zu
+erreichen -, wird ebenso beendet, obwohl er noch arbeitet, und sein Run muss neu
+gestartet werden. Ein Run in der Warteschlange hat noch keinen
+Worker - er wartet auf einen freien Runner - daher gibt der Sweep ihn erst nach
 `EVAL_QUEUED_ABANDONED_AFTER_HOURS` auf.
 
 Solange ein Run wartet oder läuft, lassen sich die Umgebung, die er nennt, und
@@ -399,7 +410,7 @@ verglichen.
 | `EVAL_FALLBACK_OUTPUT_TOKENS` | `400` | Die Output-Tokens, mit denen ein Fall auf einem Modell ohne Historie bepreist wird |
 | `EVAL_FALLBACK_CASE_COST_USD` | `0.05` | Die Schätzung pro Fall auf einem Modell ohne Historie und ohne bekannten Preis |
 | `EVAL_ESTIMATE_SAMPLE` | `50` | Wie viele letzte Runs die Schätzung mittelt |
-| `EVAL_ABANDONED_AFTER_MINUTES` | `30` | Wie lange ein laufender Run bei schweigendem Worker stillstehen darf, bevor der Sweep ihn beendet |
+| `EVAL_ABANDONED_AFTER_MINUTES` | `10` | Wie lange ein laufender Run bei schweigendem Worker stillstehen darf, bevor der Sweep ihn beendet |
 | `EVAL_HEARTBEAT_SECONDS` | `60` | Wie oft ein arbeitender Run meldet, dass er lebt |
 | `EVAL_QUEUED_ABANDONED_AFTER_HOURS` | `24` | Wie lange ein Run auf einen Worker warten darf, bevor der Sweep ihn beendet |
 

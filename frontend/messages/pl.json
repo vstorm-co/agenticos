@@ -4317,6 +4317,8 @@
       "moreActions": "Więcej akcji",
       "n100Default": "100 (domyślnie)",
       "namedMissing": "{name} (brak)",
+      "agentUnavailable": "Agent niedostępny",
+      "backToAgents": "Powrót do agentów",
       "eachPersonsOwnNamed": "{name} (własne konto każdej osoby)",
       "namedPointersAtPublished": "Publikacja tworzy wersję; umieszczenie jej gdzieś to osobna decyzja. Środowisko albo czeka na promocję, albo idzie za każdą publikacją. Produkcja idzie za publikacjami, dopóki jest jedynym środowiskiem; przypnij ją, gdy obok pojawi się dev albo staging. Bot powiązany ze środowiskiem serwuje jego wersję.",
       "newAgent": "Nowy agent",

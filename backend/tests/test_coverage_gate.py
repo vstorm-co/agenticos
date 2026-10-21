@@ -138,6 +138,7 @@ PLATFORM_MODULES = (
     "app/services/scoring.py",
     "app/repositories/case_score.py",
     "app/schemas/scoring.py",
+    "app/repositories/_visibility.py",
 )
 
 

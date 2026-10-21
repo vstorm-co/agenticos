@@ -29,6 +29,7 @@ import {
 import { usePermissions } from "@/hooks/use-permissions";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
+import { isRunnable } from "@/lib/datasets";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { useOrgStore } from "@/stores/org-store";
 import type { EvalRunRequest } from "@/types/eval-runs";
@@ -98,7 +99,7 @@ export function StartEvalDialog({
   const { datasets } = useEveryDataset();
   const { currentVersion, targets, preferred } = useEvalTarget(agentId);
 
-  const runnable = datasets.filter((dataset) => dataset.case_count > 0 && dataset.can_run);
+  const runnable = datasets.filter(isRunnable);
   const offered =
     runs.find((run) => runnable.some((dataset) => dataset.id === run.dataset_id))?.dataset_id ??
     (runnable.length === 1 ? runnable[0]?.id : undefined) ??

@@ -3,12 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { arm, evalRun } from "@/test-utils/eval-runs";
-import { Perm } from "@/types/permissions";
 import { DatasetEvalsPanel, DatasetRunEvalsButton } from "./dataset-evals-panel";
 
 const state = vi.hoisted(() => ({
   runs: {} as Record<string, unknown>,
-  allowed: new Set<string>(),
+  dataset: undefined as { can_run: boolean } | undefined,
   dialog: [] as unknown[],
   skips: [] as number[],
 }));
@@ -22,9 +21,7 @@ vi.mock("@/hooks/use-eval-runs", async (importOriginal) => ({
     agents: [{ id: "agent-1", name: "Refund desk", slug: "refund-desk", has_avatar: true }],
   }),
 }));
-vi.mock("@/hooks/use-permissions", () => ({
-  usePermissions: () => ({ can: (permission: string) => state.allowed.has(permission) }),
-}));
+vi.mock("@/hooks/use-datasets", () => ({ useDataset: () => ({ dataset: state.dataset }) }));
 vi.mock("./start-eval-dialog", () => ({
   StartEvalDialog: (props: {
     datasetId: string;
@@ -40,7 +37,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.dialog = [];
   state.skips = [];
-  state.allowed = new Set([Perm.datasetsRun]);
+  state.dataset = { can_run: true };
   state.runs = { runs: [], total: 0, isLoading: false, error: null, refetch: vi.fn() };
 });
 
@@ -113,8 +110,14 @@ describe("DatasetEvalsPanel", () => {
 });
 
 describe("DatasetRunEvalsButton", () => {
-  it("is not offered to who may not run a dataset", () => {
-    state.allowed = new Set();
+  it("is not offered to who may not run this dataset", () => {
+    state.dataset = { can_run: false };
+    render(<DatasetRunEvalsButton datasetId="ds-1" />);
+    expect(screen.queryByRole("button", { name: "Run evals" })).toBeNull();
+  });
+
+  it("waits for the dataset rather than offering a run it cannot vouch for", () => {
+    state.dataset = undefined;
     render(<DatasetRunEvalsButton datasetId="ds-1" />);
     expect(screen.queryByRole("button", { name: "Run evals" })).toBeNull();
   });

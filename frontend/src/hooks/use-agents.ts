@@ -300,7 +300,7 @@ export function useAgent(agentId: string | null) {
   const queryClient = useQueryClient();
   const t = useTranslations("agents");
 
-  const { data, isLoading, dataUpdatedAt } = useQuery({
+  const { data, isLoading, error, dataUpdatedAt } = useQuery({
     queryKey: qk.agents.detail(agentId ?? ""),
     queryFn: () => apiClient.get<AgentDetail>(`/agents/${agentId}`),
     enabled: !!agentId,
@@ -435,6 +435,9 @@ export function useAgent(agentId: string | null) {
   return {
     agent: data,
     isLoading,
+    /** The read's failure, so a detail page can tell a 404 from a slow first
+     *  load rather than waiting on a skeleton that never resolves. */
+    error,
     /** When the agent was last read successfully - what a page waiting on a
      *  refetch it did not start watches for. A failed refetch does not count:
      *  it has not shown what changed. */
