@@ -8151,7 +8151,15 @@
         "notBound": "Nieprzypisany",
         "save": "Zapisz",
         "clear": "Wyczyść",
-        "taken": "Nie udało się przypisać {accelerator}: zajmuje go inna aplikacja. Wybierz inną kombinację."
+        "taken": "Nie udało się przypisać {accelerator}: zajmuje go inna aplikacja. Wybierz inną kombinację.",
+        "dictate": {
+          "label": "Naciśnij i mów",
+          "hint": "Przytrzymaj, żeby podyktować pytanie do Quick ask; puść, a zostanie wpisane za Ciebie."
+        },
+        "voice_call": {
+          "label": "Rozmowa głosowa",
+          "hint": "Dzwoni do agenta wybranego w czacie. Wyłączony, dopóki nie wybierzesz kombinacji: rozmowa od razu zaczyna mówić."
+        }
       }
     },
     "quickAsk": {
@@ -8160,7 +8168,10 @@
       "openConsole": "Otwórz konsolę",
       "thinking": "Myśli",
       "close": "<kbd>esc</kbd> zamyka",
-      "continueInConsole": "Kontynuuj w konsoli"
+      "continueInConsole": "Kontynuuj w konsoli",
+      "listening": "Słucham - puść, żeby skończyć",
+      "transcribing": "Zapisuję Twoje słowa",
+      "noDictation": "Ten agent nie przyjmuje dyktowania. Włącz jego przełącznik Dyktowanie, żeby mówić do niego tutaj."
     },
     "notifications": {
       "approvalTitle": "{agent} chce uruchomić {tool}",
@@ -8179,12 +8190,14 @@
         "body": "Siedzi na pulpicie i daje znać, kiedy agent cię potrzebuje. Wybierz, kim jest; później możesz dać mu twarz jednego ze swoich agentów."
       },
       "shortcuts": {
-        "title": "Dwa skróty, wszędzie",
+        "title": "Skróty, które działają wszędzie",
         "body": "Działają niezależnie od tego, która aplikacja jest z przodu.",
         "quick_ask": "Zapytaj dowolnego agenta",
         "screenshot_chat": "Zrzut ekranu do nowego czatu",
         "off": "Wyłączony",
-        "change": "Zmienisz je w Ustawieniach, w zakładce Skróty."
+        "change": "Zmienisz je w Ustawieniach, w zakładce Skróty.",
+        "dictate": "Przytrzymaj, żeby podyktować pytanie",
+        "voice_call": "Zadzwoń do agenta"
       },
       "loop": {
         "title": "Bądź na bieżąco",

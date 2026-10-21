@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Merged into the app's own by `tauri build`. Without the reason macOS
+     refuses the console's microphone outright: dictation in the composer and
+     in quick ask, and voice calls. -->
+<plist version="1.0">
+<dict>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>AgenticOS listens when you dictate a message or call an agent.</string>
+</dict>
+</plist>

@@ -75,6 +75,12 @@ Two things are versioned separately from this file and worth knowing about:
   anywhere, with the answer streamed under the question and ⌘↩ to carry the
   conversation into the console. On macOS it is a panel like Spotlight's: it
   takes the keyboard without bringing the app, or the console window, forward.
+- **Voice shortcuts in the desktop app** (#2305): hold `⌥⇧Space` to dictate a
+  question into quick ask with the selected agent's dictation, and let go to
+  have it written in; a voice call shortcut, off until you pick a combination,
+  brings the chat forward and calls the selected agent. The app now declares
+  its use of the microphone, which macOS requires before the console's
+  dictation or calls can record.
 - **Native notifications** for new approvals, with Approve and Reject on the
   notification, and for new inbox rows, plus a count on the Dock icon and
   beside the tray icon.

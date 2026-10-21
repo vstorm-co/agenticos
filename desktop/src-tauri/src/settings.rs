@@ -45,15 +45,28 @@ pub enum Deployment {
 pub enum Action {
     ScreenshotChat,
     QuickAsk,
+    /// Push to talk: held, quick ask records; let go, the words are its question.
+    Dictate,
+    /// A voice call with the agent the chat has selected.
+    VoiceCall,
 }
 
 impl Action {
-    pub const ALL: [Action; 2] = [Action::ScreenshotChat, Action::QuickAsk];
+    pub const ALL: [Action; 4] = [
+        Action::ScreenshotChat,
+        Action::QuickAsk,
+        Action::Dictate,
+        Action::VoiceCall,
+    ];
 
-    pub fn default_accelerator(self) -> &'static str {
+    /// What a fresh install binds. A call costs minutes and starts talking at
+    /// once, so it waits until somebody picks a combination for it.
+    pub fn default_accelerator(self) -> Option<&'static str> {
         match self {
-            Action::ScreenshotChat => "CmdOrCtrl+Shift+A",
-            Action::QuickAsk => "Alt+Space",
+            Action::ScreenshotChat => Some("CmdOrCtrl+Shift+A"),
+            Action::QuickAsk => Some("Alt+Space"),
+            Action::Dictate => Some("Alt+Shift+Space"),
+            Action::VoiceCall => None,
         }
     }
 }
@@ -66,14 +79,26 @@ pub struct Shortcuts {
     pub screenshot_chat: Option<String>,
     #[serde(default = "default_quick_ask")]
     pub quick_ask: Option<String>,
+    #[serde(default = "default_dictate")]
+    pub dictate: Option<String>,
+    #[serde(default)]
+    pub voice_call: Option<String>,
+}
+
+fn default_for(action: Action) -> Option<String> {
+    action.default_accelerator().map(str::to_owned)
 }
 
 fn default_screenshot() -> Option<String> {
-    Some(Action::ScreenshotChat.default_accelerator().to_owned())
+    default_for(Action::ScreenshotChat)
 }
 
 fn default_quick_ask() -> Option<String> {
-    Some(Action::QuickAsk.default_accelerator().to_owned())
+    default_for(Action::QuickAsk)
+}
+
+fn default_dictate() -> Option<String> {
+    default_for(Action::Dictate)
 }
 
 impl Default for Shortcuts {
@@ -81,6 +106,8 @@ impl Default for Shortcuts {
         Self {
             screenshot_chat: default_screenshot(),
             quick_ask: default_quick_ask(),
+            dictate: default_dictate(),
+            voice_call: None,
         }
     }
 }
@@ -90,6 +117,8 @@ impl Shortcuts {
         match action {
             Action::ScreenshotChat => self.screenshot_chat.as_ref(),
             Action::QuickAsk => self.quick_ask.as_ref(),
+            Action::Dictate => self.dictate.as_ref(),
+            Action::VoiceCall => self.voice_call.as_ref(),
         }
     }
 
@@ -97,6 +126,8 @@ impl Shortcuts {
         match action {
             Action::ScreenshotChat => self.screenshot_chat = accelerator,
             Action::QuickAsk => self.quick_ask = accelerator,
+            Action::Dictate => self.dictate = accelerator,
+            Action::VoiceCall => self.voice_call = accelerator,
         }
     }
 }
@@ -205,7 +236,7 @@ mod tests {
         for action in Action::ALL {
             assert_eq!(
                 settings.shortcuts.get(action).map(String::as_str),
-                Some(action.default_accelerator())
+                action.default_accelerator()
             );
         }
     }
@@ -221,8 +252,8 @@ mod tests {
 
     #[test]
     fn every_default_binding_parses_as_a_shortcut() {
-        for action in Action::ALL {
-            assert!(Shortcut::from_str(action.default_accelerator()).is_ok(), "{action:?}");
+        for accelerator in Action::ALL.into_iter().filter_map(Action::default_accelerator) {
+            assert!(Shortcut::from_str(accelerator).is_ok(), "{accelerator}");
         }
     }
 

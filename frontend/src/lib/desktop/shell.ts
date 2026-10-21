@@ -170,6 +170,10 @@ export const SHELL_EVENTS = {
   say: "desktop:say",
   approval: "desktop:approval",
   quickAsk: "desktop:quick-ask",
+  /** Push to talk: `"start"` while the shortcut is held, `"stop"` when it is let go. */
+  dictate: "desktop:dictate",
+  /** What the console's chat should start: `"call"`. */
+  start: "desktop:start",
   /** The phone app: a live activity's button is waiting in `take_activity_action`. */
   activity: "mobile:activity",
 } as const;

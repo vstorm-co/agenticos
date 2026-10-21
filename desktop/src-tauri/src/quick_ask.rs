@@ -20,6 +20,8 @@ use crate::appearance::{self, Appearance, Surface};
 pub const WINDOW: &str = "quick-ask";
 pub const PATH: &str = "desktop/quick-ask";
 pub const OPEN_EVENT: &str = "desktop:quick-ask";
+/// Push to talk: `"start"` while the shortcut is held, `"stop"` when it is let go.
+pub const DICTATE_EVENT: &str = "desktop:dictate";
 const WIDTH: f64 = 680.0;
 /// The panel with only its question row showing.
 pub const MIN_HEIGHT: f64 = 64.0;
@@ -70,21 +72,38 @@ pub fn prepare(app: &AppHandle, server: &Url, appearance: Appearance) -> tauri::
     Ok(window)
 }
 
-/// The shortcut: show the panel where the cursor is, or put it away if it is up.
-pub fn toggle(app: &AppHandle, server: Option<&Url>, appearance: Appearance) -> Result<(), String> {
-    let window = match app.get_webview_window(WINDOW) {
-        Some(window) => window,
+/// The panel, built now if the server came after start-up.
+fn panel(app: &AppHandle, server: Option<&Url>, appearance: Appearance) -> Result<WebviewWindow, String> {
+    match app.get_webview_window(WINDOW) {
+        Some(window) => Ok(window),
         None => {
             let server = server.ok_or("No server yet - connect the console to one first.")?;
-            prepare(app, server, appearance).map_err(|e| e.to_string())?
+            prepare(app, server, appearance).map_err(|e| e.to_string())
         }
-    };
+    }
+}
+
+/// The shortcut: show the panel where the cursor is, or put it away if it is up.
+pub fn toggle(app: &AppHandle, server: Option<&Url>, appearance: Appearance) -> Result<(), String> {
+    let window = panel(app, server, appearance)?;
     if window.is_visible().map_err(|e| e.to_string())? {
         return window.hide().map_err(|e| e.to_string());
     }
     place(app, &window)?;
     present(&window)?;
     app.emit_to(WINDOW, OPEN_EVENT, ()).map_err(|e| e.to_string())
+}
+
+/// Push to talk: held, the panel comes up - if it is not already - and records;
+/// let go, it stops, and the words become its question.
+pub fn dictate(app: &AppHandle, server: Option<&Url>, appearance: Appearance, held: bool) -> Result<(), String> {
+    let window = panel(app, server, appearance)?;
+    if held && !window.is_visible().map_err(|e| e.to_string())? {
+        place(app, &window)?;
+        present(&window)?;
+    }
+    app.emit_to(WINDOW, DICTATE_EVENT, if held { "start" } else { "stop" })
+        .map_err(|e| e.to_string())
 }
 
 /// Bring the panel up with the keyboard. On macOS without activating the app:

@@ -42,7 +42,10 @@ describe("parseDesktopState", () => {
   it("leaves out a shortcut a newer shell knows and this console does not", () => {
     const state = parseDesktopState({
       ...STATE,
-      shortcuts: [...STATE.shortcuts, { action: "voice_call", accelerator: null, problem: null }],
+      shortcuts: [
+        ...STATE.shortcuts,
+        { action: "summon_blobby", accelerator: null, problem: null },
+      ],
     });
     expect(state.shortcuts.map((s) => s.action)).toEqual(["quick_ask"]);
   });

@@ -1,4 +1,5 @@
-//! Global shortcuts: the screenshot to a new chat, and quick ask.
+//! Global shortcuts: the screenshot to a new chat, quick ask, push-to-talk
+//! dictation into it, and a voice call.
 
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -23,26 +24,34 @@ fn bound(app: &AppHandle, action: Action) -> Option<String> {
         .and_then(|bindings| bindings.get(&action).cloned())
 }
 
-fn perform(app: &AppHandle, action: Action) {
-    match action {
-        Action::ScreenshotChat => crate::screenshot_to_chat(app),
+fn perform(app: &AppHandle, action: Action, state: ShortcutState) {
+    let pressed = state == ShortcutState::Pressed;
+    let result = match action {
+        // Push to talk is the one shortcut whose release means something.
+        Action::Dictate => {
+            let settings = settings::current(app);
+            crate::quick_ask::dictate(app, settings.server_url.as_ref(), settings.appearance, pressed)
+        }
+        _ if !pressed => Ok(()),
+        Action::ScreenshotChat => {
+            crate::screenshot_to_chat(app);
+            Ok(())
+        }
         Action::QuickAsk => {
             let settings = settings::current(app);
-            if let Err(e) = crate::quick_ask::toggle(app, settings.server_url.as_ref(), settings.appearance) {
-                eprintln!("quick ask: {e}");
-            }
+            crate::quick_ask::toggle(app, settings.server_url.as_ref(), settings.appearance)
         }
+        Action::VoiceCall => crate::start_in_chat(app, "call"),
+    };
+    if let Err(e) = result {
+        eprintln!("{action:?}: {e}");
     }
 }
 
 pub fn register(app: &AppHandle, action: Action, accelerator: &str) -> Result<(), String> {
     let shortcut = Shortcut::from_str(accelerator).map_err(|e| format!("{accelerator} is not a shortcut: {e}"))?;
     app.global_shortcut()
-        .on_shortcut(shortcut, move |app, _shortcut, event| {
-            if event.state == ShortcutState::Pressed {
-                perform(app, action);
-            }
-        })
+        .on_shortcut(shortcut, move |app, _shortcut, event| perform(app, action, event.state))
         .map_err(|e| format!("Cannot bind {accelerator}: {e}"))?;
     if let Ok(mut bindings) = app.state::<Bindings>().0.lock() {
         bindings.insert(action, accelerator.to_owned());

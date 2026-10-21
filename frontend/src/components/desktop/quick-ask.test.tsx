@@ -2,6 +2,8 @@ import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { useAgentSelectionStore } from "@/stores/agent-selection-store";
+
 import { QuickAsk } from "./quick-ask";
 
 const env = vi.hoisted(() => ({
@@ -13,7 +15,13 @@ const env = vi.hoisted(() => ({
     clearMessages: vi.fn(),
   },
   created: null as null | ((id: string) => void),
-  listeners: new Map<string, () => void>(),
+  listeners: new Map<string, (payload?: unknown) => void>(),
+  dictation: {
+    engine: "server" as string,
+    state: { phase: "idle" as string, transcript: null as null | { id: number; text: string } },
+    actions: { start: vi.fn(async () => {}), stop: vi.fn() },
+    agent: undefined as string | null | undefined,
+  },
   commands: {
     hideQuickAsk: vi.fn(async () => {}),
     openInConsole: vi.fn(async () => {}),
@@ -31,7 +39,14 @@ vi.mock("@/hooks/use-chat", () => ({
   },
 }));
 vi.mock("@/hooks/use-desktop", () => ({
-  useShellEvent: (event: string, handler: () => void) => env.listeners.set(event, handler),
+  useShellEvent: (event: string, handler: (payload?: unknown) => void) =>
+    env.listeners.set(event, handler),
+}));
+vi.mock("@/hooks/use-agent-dictation", () => ({
+  useAgentDictation: (agent: string | null) => {
+    env.dictation.agent = agent;
+    return env.dictation;
+  },
 }));
 vi.mock("@/lib/desktop/commands", () => env.commands);
 vi.mock("@/lib/desktop/shell", async (original) => ({
@@ -61,6 +76,9 @@ beforeEach(() => {
   env.chat.messages = [];
   env.chat.isProcessing = false;
   env.listeners.clear();
+  env.dictation.engine = "server";
+  env.dictation.state = { phase: "idle", transcript: null };
+  useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
   vi.clearAllMocks();
 });
 
@@ -152,5 +170,75 @@ describe("QuickAsk", () => {
     await vi.waitFor(() =>
       expect(env.report).toHaveBeenCalledWith("could not put quick ask away", expect.any(Error)),
     );
+  });
+
+  describe("push to talk", () => {
+    const press = (payload: unknown) => act(() => env.listeners.get("desktop:dictate")?.(payload));
+
+    it("records for the selected agent while held, and stops when let go", () => {
+      const view = render(<QuickAsk />);
+      expect(env.dictation.agent).toBe("a-1");
+      press("start");
+      expect(env.dictation.actions.start).toHaveBeenCalledOnce();
+      env.dictation.state = { phase: "recording", transcript: null };
+      view.rerender(<QuickAsk />);
+      expect(screen.getByRole("status")).toHaveTextContent("Listening - let go to stop");
+      press("stop");
+      expect(env.dictation.actions.stop).toHaveBeenCalled();
+      env.dictation.state = { phase: "transcribing", transcript: null };
+      view.rerender(<QuickAsk />);
+      expect(screen.getByRole("status")).toHaveTextContent("Writing down what you said");
+    });
+
+    it("writes the words after what is typed, once per transcript", async () => {
+      const view = render(<QuickAsk />);
+      await userEvent.type(question(), "Hi");
+      env.dictation.state = { phase: "idle", transcript: { id: 1, text: "what is due today" } };
+      view.rerender(<QuickAsk />);
+      view.rerender(<QuickAsk />);
+      expect(question()).toHaveValue("Hi what is due today");
+    });
+
+    it("starts one recording however often a held key repeats, into an empty question", () => {
+      const view = render(<QuickAsk />);
+      press("start");
+      env.dictation.state = { phase: "recording", transcript: null };
+      view.rerender(<QuickAsk />);
+      press("start");
+      expect(env.dictation.actions.start).toHaveBeenCalledOnce();
+      env.dictation.state = { phase: "idle", transcript: { id: 2, text: "what is due today" } };
+      view.rerender(<QuickAsk />);
+      expect(question()).toHaveValue("what is due today");
+    });
+
+    it("stops as the microphone opens when it was let go while being asked for", () => {
+      const view = render(<QuickAsk />);
+      press("start");
+      env.dictation.state = { phase: "requesting", transcript: null };
+      view.rerender(<QuickAsk />);
+      press("stop");
+      env.dictation.actions.stop.mockClear();
+      env.dictation.state = { phase: "recording", transcript: null };
+      view.rerender(<QuickAsk />);
+      expect(env.dictation.actions.stop).toHaveBeenCalledOnce();
+    });
+
+    it("says why when the agent takes no dictation, until the person types", async () => {
+      env.dictation.engine = "browser";
+      render(<QuickAsk />);
+      press("start");
+      expect(env.dictation.actions.start).not.toHaveBeenCalled();
+      expect(screen.getByRole("status")).toHaveTextContent("This agent takes no dictation");
+      await userEvent.type(question(), "x");
+      expect(screen.queryByRole("status")).toBeNull();
+    });
+
+    it("records for nobody while signed out, and reports a state it does not know", () => {
+      env.auth = { isAuthenticated: false, isLoading: false };
+      render(<QuickAsk />);
+      expect(env.dictation.agent).toBeNull();
+      press("sideways");
+      expect(env.report).toHaveBeenCalledWith("an unknown push-to-talk state", "sideways");
+    });
   });
 });

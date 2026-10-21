@@ -77,20 +77,11 @@ import { useFollowContent } from "@/hooks/use-follow-content";
 import { useReaderScrolledUp } from "@/hooks/use-reader-scrolled-up";
 import { useFocusAfterCall } from "@/hooks/use-focus-after-call";
 import { Beam } from "@/components/ui/beam";
-import { useMicrophone } from "@/components/ui/voice-glow";
-import {
-  useDictation,
-  useDictationStatus,
-  useOrganizationList,
-  usePermissions,
-  useVoiceReadiness,
-  useVoiceSession,
-  type VoiceSession,
-} from "@/hooks";
+import { useAgentDictation } from "@/hooks/use-agent-dictation";
+import { usePermissions, useVoiceReadiness, useVoiceSession, type VoiceSession } from "@/hooks";
 import { useQueryClient } from "@tanstack/react-query";
 import { ROUTES } from "@/lib/constants";
 import { qk } from "@/lib/query-keys";
-import { dictate, type DictationSend } from "@/lib/dictation-api";
 import { Perm } from "@/types/permissions";
 import { BrowserDictationPill, DictationPill } from "./dictation-bar";
 import { browserDictationHint, dictationHint, DictationStrip } from "./dictation-strip";
@@ -109,18 +100,6 @@ import {
   VoiceCallFeed,
 } from "@/components/voice/voice-call-view";
 import type { VoiceTransport } from "@/types/voice";
-
-/**
- * The browser's voice processing, on for a recording that is transcribed: echo
- * cancellation, noise suppression and gain control are what a speech model
- * wants. The glow-only capture keeps them off so it sees the voice's real
- * dynamics.
- */
-const DICTATION_CONSTRAINTS = {
-  constraints: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-};
-/** The organization's longest dictation when its settings have not loaded. */
-const DEFAULT_DICTATION_SECONDS = 300;
 
 /**
  * How many tokens the model that will answer next accepts, or `null`.
@@ -897,44 +876,18 @@ function ChatUI({
 }: ChatUIProps) {
   const t = useTranslations("chat");
   const tDictation = useTranslations("chat.dictation");
-  // The organization sets the longest recording.
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
-  const { data: orgs } = useOrganizationList();
-  const activeOrg = orgs?.find((org) => org.id === activeOrgId) ?? null;
-  const maxSeconds = activeOrg?.dictation_max_seconds ?? DEFAULT_DICTATION_SECONDS;
   const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
-  // The engine and the format are the agent's: its Dictation switch sends the
-  // recording to a provider when one resolves, and the backend says what to
-  // record for it - WAV, unless the deployment accepts compressed audio and
-  // that provider takes WebM. The browser's own recognition until it answers.
-  const { status, failed: dictationStatusFailed } = useDictationStatus(selectedAgentId);
-  const engine = status?.engine ?? "browser";
-  // Opened by the composer's microphone button; the glow around the box reads
-  // its level. With the browser engine it is a second capture (see
-  // `VoiceGlow`); with the server engine it is the one being recorded.
-  const mic = useMicrophone(engine === "server" ? DICTATION_CONSTRAINTS : undefined);
-  const sendDictation = useMemo<DictationSend | null>(
-    () =>
-      selectedAgentId === null
-        ? null
-        : (recording, seconds, signal, onProgress) =>
-            dictate(selectedAgentId, recording, seconds, signal, onProgress),
-    [selectedAgentId],
-  );
-  const { state: dictationState, actions: dictationActions } = useDictation({
+  const {
+    status,
+    failed: dictationStatusFailed,
+    engine,
     mic,
-    send: sendDictation,
     maxSeconds,
-    format: status?.format ?? "wav",
-  });
-  // The agent left `server` mid-dictation: the composer draws the
-  // browser's microphone now, and a recording with no Stop button would run on
-  // to the limit unseen, so it goes.
-  const dictationPhase = dictationState.phase;
+    state: dictationState,
+    actions: dictationActions,
+  } = useAgentDictation(selectedAgentId);
   const cancelDictation = dictationActions.cancel;
-  useEffect(() => {
-    if (engine !== "server" && dictationPhase !== "idle") cancelDictation();
-  }, [engine, dictationPhase, cancelDictation]);
   const { can } = usePermissions();
   const voiceSettingsHref =
     activeOrgId !== null && can(Perm.orgSettings)

@@ -2,15 +2,18 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
-import { ArrowUpRight, CornerDownLeft, Loader2 } from "lucide-react";
+import { ArrowUpRight, CornerDownLeft, Loader2, Mic } from "lucide-react";
 
 import { AgentPicker } from "@/components/chat/agent-picker";
 import { MarkdownContent } from "@/components/chat/markdown-content";
+import { useAgentDictation } from "@/hooks/use-agent-dictation";
 import { useAuth } from "@/hooks/use-auth";
+import { useChanged } from "@/hooks/use-changed";
 import { useChat } from "@/hooks/use-chat";
 import { useShellEvent } from "@/hooks/use-desktop";
 import { hideQuickAsk, openInConsole, resizeQuickAsk, showConsole } from "@/lib/desktop/commands";
 import { reportShellFailure, SHELL_EVENTS } from "@/lib/desktop/shell";
+import { useAgentSelectionStore } from "@/stores/agent-selection-store";
 
 function run(what: string, command: () => Promise<void>) {
   command().catch((error: unknown) => reportShellFailure(what, error));
@@ -24,6 +27,10 @@ function run(what: string, command: () => Promise<void>) {
  * same conversation saved under your name - in a panel that grows with the
  * answer. Enter asks, ⌘↩ (Ctrl+Enter) carries the conversation into the
  * console, ⌘N starts over and Escape puts the panel away.
+ *
+ * Push to talk: while its shortcut is held the panel records for the selected
+ * agent, and on release the words are written into the question - the agent's
+ * own dictation, as the composer's microphone records it.
  */
 export function QuickAsk() {
   const t = useTranslations("desktop.quickAsk");
@@ -38,6 +45,39 @@ export function QuickAsk() {
   });
   const answer = [...messages].reverse().find((message) => message.role === "assistant");
   const asked = messages.some((message) => message.role === "user");
+  const signedOut = !isLoading && !isAuthenticated;
+
+  const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
+  const dictation = useAgentDictation(signedOut ? null : selectedAgentId);
+  const phase = dictation.state.phase;
+  const stopDictation = dictation.actions.stop;
+  /** Whether the push-to-talk shortcut is down - a release can come before the microphone is open. */
+  const held = useRef(false);
+  const [noDictation, setNoDictation] = useState(false);
+  useShellEvent(SHELL_EVENTS.dictate, (payload) => {
+    if (payload === "start") {
+      held.current = true;
+      input.current?.focus();
+      if (dictation.engine !== "server") setNoDictation(true);
+      else if (phase === "idle") void dictation.actions.start();
+    } else if (payload === "stop") {
+      held.current = false;
+      stopDictation();
+    } else {
+      reportShellFailure("an unknown push-to-talk state", payload);
+    }
+  });
+  // Let go while the microphone was still being asked for: stop as it opens.
+  useEffect(() => {
+    if (phase === "recording" && !held.current) stopDictation();
+  }, [phase, stopDictation]);
+  // The words, once per transcript, after whatever is already typed.
+  const transcript = dictation.state.transcript;
+  if (useChanged(transcript?.id ?? null) && transcript !== null) {
+    setQuestion((typed) =>
+      typed.trim() ? `${typed.trimEnd()} ${transcript.text}` : transcript.text,
+    );
+  }
 
   // Built hidden, then shown on the shortcut: the question field is where the
   // hands go, on the first showing and every one after it.
@@ -97,7 +137,7 @@ export function QuickAsk() {
     }
   };
 
-  const signedOut = !isLoading && !isAuthenticated;
+  const listening = phase === "requesting" || phase === "recording";
 
   return (
     <div
@@ -112,12 +152,18 @@ export function QuickAsk() {
           rows={1}
           value={question}
           disabled={signedOut}
-          onChange={(event) => setQuestion(event.target.value)}
+          onChange={(event) => {
+            setQuestion(event.target.value);
+            setNoDictation(false);
+          }}
           onKeyDown={onKeyDown}
           placeholder={signedOut ? t("signedOut") : t("placeholder")}
           aria-label={t("placeholder")}
           className="text-foreground placeholder:text-muted-foreground field-sizing-content max-h-32 min-h-9 flex-1 resize-none bg-transparent py-1.5 text-base outline-none"
         />
+        {listening ? (
+          <Mic className="text-destructive mt-2 size-4 animate-pulse" aria-label={t("listening")} />
+        ) : null}
         {isProcessing ? (
           <Loader2
             className="text-muted-foreground mt-2 size-4 animate-spin"
@@ -125,6 +171,11 @@ export function QuickAsk() {
           />
         ) : null}
       </div>
+      {listening || phase === "transcribing" || noDictation ? (
+        <p role="status" className="border-border text-muted-foreground border-t px-4 py-2 text-xs">
+          {noDictation ? t("noDictation") : listening ? t("listening") : t("transcribing")}
+        </p>
+      ) : null}
       {signedOut ? (
         <div className="border-border border-t px-4 py-3">
           <button

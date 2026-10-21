@@ -23,6 +23,7 @@ import { useRouter } from "@/lib/locale-navigation";
 import { listNotifications } from "@/lib/notifications-api";
 import { Perm } from "@/types/permissions";
 import { qk } from "@/lib/query-keys";
+import { useComposerIntentStore } from "@/stores/composer-intent-store";
 
 const APPROVALS_PATH = "/runs?tab=approvals";
 
@@ -55,6 +56,7 @@ function Bridge() {
   const { pendingApprovals } = useAssistantSignals();
   const unread = useUnreadNotificationCount();
   const { approvals, decide } = useApprovals({ enabled: canDecide });
+  const requestIntent = useComposerIntentStore((state) => state.request);
   // The newest inbox page, re-read whenever the unread count moves.
   const { data: inbox } = useQuery({
     queryKey: qk.desktop.inbox(unread.count),
@@ -110,6 +112,13 @@ function Bridge() {
       }).catch((error: unknown) => reportShellFailure("could not notify", error));
     }
   }, [inbox, t]);
+
+  // The voice call shortcut: the shell has brought the chat forward; it
+  // starts the call once the agent's readiness is known, as the phone's does.
+  useShellEvent(SHELL_EVENTS.start, (payload) => {
+    if (payload === "call") requestIntent("call");
+    else reportShellFailure("an unknown thing to start", payload);
+  });
 
   useShellEvent(SHELL_EVENTS.approval, (payload) => {
     try {

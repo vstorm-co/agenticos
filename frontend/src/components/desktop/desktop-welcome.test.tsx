@@ -55,7 +55,9 @@ describe("DesktopWelcome", () => {
     });
 
     await next();
-    expect(screen.getByRole("heading", { name: "Two shortcuts, anywhere" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Shortcuts that work anywhere" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("⌥Space")).toBeInTheDocument();
 
     await next();

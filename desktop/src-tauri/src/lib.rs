@@ -37,7 +37,9 @@ use tauri::menu::{ContextMenu, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, S
 use tauri::tray::{TrayIcon, TrayIconBuilder};
 use tauri::webview::PageLoadEvent;
 use tauri::window::Color;
-use tauri::{AppHandle, Manager, Theme, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent, Wry};
+use tauri::{
+    AppHandle, Emitter, Manager, Theme, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent, Wry,
+};
 use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_opener::OpenerExt;
@@ -556,6 +558,16 @@ fn bring_console(app: &AppHandle) -> Result<(), String> {
 /// The page is asked through a function it defines (`__agenticosNavigate`)
 /// rather than through an event, so a console from before the desktop bridge -
 /// an older server the shell was pointed at - still gets there, by a full load.
+/// Told to the console with what to start in the chat: `"call"`.
+const START_EVENT: &str = "desktop:start";
+
+/// Bring the console's chat forward and have it start something there - a
+/// voice call with the selected agent - as its own button would.
+pub fn start_in_chat(app: &AppHandle, what: &str) -> Result<(), String> {
+    open_in_console_at(app, "/chat")?;
+    app.emit_to(WINDOW, START_EVENT, what).map_err(|e| e.to_string())
+}
+
 pub fn open_in_console_at(app: &AppHandle, path: &str) -> Result<(), String> {
     if !notify::is_console_path(path) {
         return Err(format!("{path} is not a page of the console."));

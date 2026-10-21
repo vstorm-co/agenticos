@@ -8366,7 +8366,15 @@
         "notBound": "Not bound",
         "save": "Save",
         "clear": "Clear",
-        "taken": "{accelerator} could not be bound: another application holds it. Pick another combination."
+        "taken": "{accelerator} could not be bound: another application holds it. Pick another combination.",
+        "dictate": {
+          "label": "Push to talk",
+          "hint": "Hold to dictate a question into quick ask; let go and it is written in for you."
+        },
+        "voice_call": {
+          "label": "Voice call",
+          "hint": "Calls the agent the chat has selected. Off until you pick a combination: a call starts talking at once."
+        }
       }
     },
     "quickAsk": {
@@ -8375,7 +8383,10 @@
       "openConsole": "Open the console",
       "thinking": "Thinking",
       "close": "<kbd>esc</kbd> to close",
-      "continueInConsole": "Continue in the console"
+      "continueInConsole": "Continue in the console",
+      "listening": "Listening - let go to stop",
+      "transcribing": "Writing down what you said",
+      "noDictation": "This agent takes no dictation. Turn on its Dictation switch to talk to it here."
     },
     "notifications": {
       "approvalTitle": "{agent} wants to run {tool}",
@@ -8394,12 +8405,14 @@
         "body": "It sits on your desktop and tells you when an agent needs you. Pick who it is; you can make it one of your agents later."
       },
       "shortcuts": {
-        "title": "Two shortcuts, anywhere",
+        "title": "Shortcuts that work anywhere",
         "body": "They work whichever application is in front.",
         "quick_ask": "Ask any agent",
         "screenshot_chat": "Screenshot to a new chat",
         "off": "Off",
-        "change": "Change them under Settings, Shortcuts."
+        "change": "Change them under Settings, Shortcuts.",
+        "dictate": "Hold to dictate a question",
+        "voice_call": "Call your agent"
       },
       "loop": {
         "title": "Stay in the loop",

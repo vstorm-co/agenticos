@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Notification } from "@/lib/notifications-api";
 
+import { useComposerIntentStore } from "@/stores/composer-intent-store";
+
 import { DesktopBridge } from "./desktop-bridge";
 import { MAC_MAIN } from "./fixtures";
 
@@ -94,10 +96,18 @@ beforeEach(() => {
   env.list.mockImplementation(async () => ({ items: env.inbox, next_cursor: null }));
 });
 
-/** Let the inbox page the bridge asked for arrive. */
+/**
+ * Let the inbox page the bridge asked for arrive and be drawn. React Query
+ * hands a result to its observers a macrotask after it resolves, so flushing
+ * microtasks alone could leave the bridge on its first look - and the next
+ * page read as one - on a loaded machine.
+ */
 async function inboxRead(times: number) {
   await waitFor(() => expect(env.list).toHaveBeenCalledTimes(times));
-  await act(async () => {});
+  await act(async () => {
+    await env.list.mock.results[times - 1]?.value;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
 }
 
 afterEach(() => {
@@ -122,6 +132,15 @@ describe("DesktopBridge", () => {
     expect(env.push).toHaveBeenCalledWith("/agents");
     unmount();
     expect(window.__agenticosNavigate).toBeUndefined();
+  });
+
+  it("starts the call the voice call shortcut asked for, and reports anything else", () => {
+    mount();
+    act(() => env.listeners.get("desktop:start")?.("call"));
+    expect(useComposerIntentStore.getState().intent).toBe("call");
+    act(() => env.listeners.get("desktop:start")?.("dance"));
+    expect(env.report).toHaveBeenCalledWith("an unknown thing to start", "dance");
+    useComposerIntentStore.setState({ intent: null });
   });
 
   it("counts what is waiting on the badge", () => {
