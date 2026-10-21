@@ -8,6 +8,8 @@ from typing import Literal
 from pydantic import Field, computed_field, field_validator, model_validator, ValidationInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.map_tiles import MapTiles, resolve as resolve_map_tiles
+
 SmtpTlsMode = Literal["auto", "implicit", "starttls"]
 """How an encrypted SMTP connection is opened: chosen by the port, or forced."""
 
@@ -625,6 +627,10 @@ class Settings(BaseSettings):
     # image: behind a proxy every visitor arrives as the proxy and shares one
     # bucket. Turn it on when a proxy is the only thing that can reach this
     # deployment - see `docs/configuration.md`.
+    # Map tiles one address may fetch through this deployment in a minute (#2302).
+    # A map is a few dozen tiles and panning adds more; the bound is what keeps
+    # the deployment from being anybody's free proxy to its tile server.
+    RATE_LIMIT_MAP_TILES_PER_MINUTE: int = 600
     RATE_LIMIT_TRUST_FORWARDED_FOR: bool = False
     # Concurrent voice calls one person may hold (#54). One by default: a second
     # tab's call is almost always a mistake, and each is billed.
@@ -800,6 +806,25 @@ class Settings(BaseSettings):
     # request it makes is answered by the deployment or refused. Empty sends a
     # drawing's title instead of its picture.
     VISUAL_RENDER_CDP_URL: str = ""
+
+    # The tile server a drawing's map is drawn on (#2302): a preset -
+    # `openstreetmap`, `usgs-topo` - or a https URL template with {z}, {x} and
+    # {y}, which then needs VISUAL_MAP_TILES_ATTRIBUTION. Every visual and
+    # published page may then load images from that server's tile path, and
+    # nothing else remote. Empty draws a map as a plain outline. See
+    # `app/core/map_tiles.py`.
+    VISUAL_MAP_TILES: str = ""
+    VISUAL_MAP_TILES_ATTRIBUTION: str = ""
+
+    def map_tiles(self) -> MapTiles | None:
+        """The tile server a drawing's map uses, or `None` when the deployment names none."""
+        return resolve_map_tiles(self.VISUAL_MAP_TILES, self.VISUAL_MAP_TILES_ATTRIBUTION)
+
+    @model_validator(mode="after")
+    def validate_map_tiles(self) -> Settings:
+        """A tile setting that cannot be served is refused at startup, not at the first map."""
+        self.map_tiles()
+        return self
 
     # The proxy the deployment's own browser reaches every site through - the
     # compose `browser-egress` service, `http://browser-egress:3128`, which refuses

@@ -1164,7 +1164,15 @@
       "slashCommands": "Slash-Befehle",
       "emailTitle": "Eine E-Mail entwerfen",
       "emailPrompt": "Entwirf eine kurze, freundliche E-Mail, in der ein Kunde den Termin nächste Woche bestätigen soll.",
-      "unpin": "{prompt} lösen"
+      "unpin": "{prompt} lösen",
+      "visualExplainTitle": "In 3D erklären",
+      "visualExplainPrompt": "Zeig mir in 3D, wie ein Flugzeug eine Kurve fliegt - mit Reglern für Nicken, Rollen und Gieren, einer Abspieltaste und einem Zurücksetzen.",
+      "visualCompareTitle": "Vergleichen, dann als Diagramm",
+      "visualComparePrompt": "Vergleiche die fünf größten Volkswirtschaften der EU nach Bevölkerung, BIP und BIP pro Kopf in einer Tabelle.",
+      "visualToolTitle": "Einen Rechner bauen",
+      "visualToolPrompt": "Bau mir einen Rechnungsteiler: Betrag, Trinkgeld und Anzahl der Personen, neu berechnet beim Tippen.",
+      "visualMapTitle": "Eine Reise auf der Karte planen",
+      "visualMapPrompt": "Plane fünf Tage in Japan auf einer Karte: nummerierte Stopps in Reihenfolge und was man an jedem macht."
     },
     "failedArchiveConversation": "Unterhaltung konnte nicht archiviert werden",
     "failedCreateConversation": "Unterhaltung konnte nicht erstellt werden",
@@ -1724,7 +1732,12 @@
       "savedUnchanged": "Die App hat bereits genau diese Version",
       "savedBadge": "Gespeichert · v{version}",
       "openApp": "Öffnen",
-      "openInConsole": "In AgenticOS sichtbar"
+      "openInConsole": "In AgenticOS sichtbar",
+      "followUpLabel": "Eine Folgenachricht aus dem Visual",
+      "followUpAsks": "Das Visual möchte dies als Ihre Nachricht senden:",
+      "followUpSend": "Senden",
+      "followUpEdit": "Bearbeiten",
+      "followUpDismiss": "Verwerfen"
     },
     "dictation": {
       "cancel": "Diktat abbrechen",
@@ -4507,7 +4520,9 @@
       "monthlyBudgetUsd": "Monatsbudget (USD)",
       "noBudget": "Kein Budget",
       "noMembers": "Keine Mitglieder",
-      "membersTruncated": "Es werden die ersten {shown} von {total} Mitgliedern angezeigt"
+      "membersTruncated": "Es werden die ersten {shown} von {total} Mitgliedern angezeigt",
+      "serviceMapTiles": "Kartenkacheln",
+      "serviceMapTilesDetail": "Woher Karten in Visuals ihren Hintergrund holen"
     },
     "agentDetail": {
       "perMonth": "${amount} pro Monat"

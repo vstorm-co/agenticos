@@ -1,5 +1,5 @@
 ---
-source_sha: "0d99b89ad0c0"
+source_sha: "445f16218979"
 ---
 
 # Licencje i noty stron trzecich { #licences-and-third-party-notices }
@@ -115,6 +115,7 @@ not.
 | CC-BY-4.0 (`caniuse-lite`) | 1 | Atrybucja i link do źródła | Wymieniony wraz ze źródłem w notach |
 | AGPL-3.0-only (`pymupdf`) | 1 | Copyleft sieciowy: obraz jest przekazywany na warunkach AGPL-3.0, a zmodyfikowane wdrożenie jest winne swoim użytkownikom zmodyfikowane źródła (art. 13) | Utrzymany świadomie, warunki nazwane: [sekcja poniżej](#the-agpl-component) i plik `COPYING` wheela w obrazie |
 | OFL-1.1 (Inter, Bricolage Grotesque, Geist Mono) | 3 rodziny | Tekst licencji i noty o prawach autorskich przy fontach; zakaz sprzedaży samych fontów; zakaz używania zastrzeżonych nazw dla zmodyfikowanych fontów | `frontend/src/app/fonts/OFL.txt` niesie wszystkie trzy noty; fonty są serwowane bez modyfikacji |
+| MIT, ISC, BSD-2-Clause, 0BSD ([zestaw bibliotek](artifacts.md#the-library-set)) | 7 bibliotek i kod zaadaptowany z Open Intelligent UI | Zachować noty przy kopiach | Chart.js, d3, Lucide, three.js, Mermaid, idiomorph i Leaflet są skopiowane bajt w bajt do `backend/app/core/catalog/artifact_lib/`, którego README niesie tekst każdej licencji; `agenticos-map-1.js` adaptuje timing wbijania pinezek z Open Intelligent UI (MIT) i trzyma jego notę w nagłówku, a skill `visual-design` zapożycza jego wskazówki. `NOTICE` i `licenses/components.toml` wymieniają je wszystkie |
 | CC0-1.0, MIT (glify marki) | 4 źródła | Noty MIT dla @lobehub/icons i theSVG; znaki pozostają znakami towarowymi swoich właścicieli | `NOTICE` wymienia źródła i stanowisko wobec znaków towarowych |
 
 **Pakietowi, który nie publikuje pliku licencji**, nie da się jej skopiować. Kilka

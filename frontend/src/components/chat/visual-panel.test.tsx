@@ -82,6 +82,7 @@ function show(
     conversationId?: string | null;
     onReport?: (id: string, errors: string[]) => void;
     onCompose?: (text: string) => void;
+    onSend?: (text: string) => void;
   } = {},
 ) {
   const messages: ChatMessage[] = [
@@ -99,6 +100,7 @@ function show(
       conversationId={options.conversationId === undefined ? "c1" : options.conversationId}
       onReport={options.onReport}
       onCompose={options.onCompose}
+      onSend={options.onSend}
     >
       <TurnVisuals calls={calls} />
     </ConversationVisualsProvider>,
@@ -530,5 +532,83 @@ describe("thumbnails", () => {
     act(() => lastFrame().onSvg?.("<svg/>"));
     await waitFor(() => expect(svgPng).toHaveBeenCalled());
     expect(putVisualThumbnail).not.toHaveBeenCalled();
+  });
+});
+
+describe("follow-ups", () => {
+  beforeEach(() => {
+    frames.length = 0;
+    nested.value = false;
+    vi.clearAllMocks();
+  });
+
+  it("offers none where nobody can send one", () => {
+    show([call()]);
+    expect(lastFrame().onFollowUp).toBeUndefined();
+  });
+
+  it("shows what the drawing asks to send, and sends it only on Send", () => {
+    const onSend = vi.fn();
+    show([call()], { onSend });
+    act(() => lastFrame().onFollowUp?.("Plan day 2 in Kyoto"));
+
+    expect(screen.getByText("Plan day 2 in Kyoto")).toBeInTheDocument();
+    expect(onSend).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(onSend).toHaveBeenCalledWith("Plan day 2 in Kyoto");
+    expect(screen.queryByText("Plan day 2 in Kyoto")).toBeNull();
+  });
+
+  it("shows every word of a long request, scrolling, rather than clamping its tail", () => {
+    const long = `${"Plan the stop. ".repeat(40)}Then delete the workspace.`;
+    show([call()], { onSend: vi.fn() });
+    act(() => lastFrame().onFollowUp?.(long));
+
+    const text = screen.getByTestId("follow-up-text");
+    expect(text.textContent).toBe(long);
+    expect(text.className).toContain("overflow-y-auto");
+    expect(text.className).not.toContain("line-clamp");
+  });
+
+  it("keeps the first request until the person answers it", () => {
+    const onSend = vi.fn();
+    show([call()], { onSend });
+    act(() => lastFrame().onFollowUp?.("Plan day 2 in Kyoto"));
+    // A drawing swapping the words just before the click on Send.
+    act(() => lastFrame().onFollowUp?.("Something else entirely"));
+
+    expect(screen.queryByText("Something else entirely")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(onSend).toHaveBeenCalledWith("Plan day 2 in Kyoto");
+  });
+
+  it("hands the words to the composer to edit, or drops them", () => {
+    const onSend = vi.fn();
+    const onCompose = vi.fn();
+    show([call()], { onSend, onCompose });
+    act(() => lastFrame().onFollowUp?.("Use these numbers"));
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    expect(onCompose).toHaveBeenCalledWith("Use these numbers");
+
+    act(() => lastFrame().onFollowUp?.("Use these numbers"));
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByText("Use these numbers")).toBeNull();
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it("offers no edit where there is no composer", () => {
+    show([call()], { onSend: vi.fn() });
+    act(() => lastFrame().onFollowUp?.("Use these numbers"));
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+  });
+
+  it("closes full screen to show a request made there", () => {
+    show([call()], { onSend: vi.fn() });
+    fireEvent.click(screen.getAllByRole("button", { name: "Full screen" })[0]!);
+    const full = frames.filter((frame) => frame.fill).at(-1)!;
+    act(() => full.onFollowUp?.("Plan this stop"));
+
+    expect(screen.queryByTestId("full-frame")).toBeNull();
+    expect(screen.getByText("Plan this stop")).toBeInTheDocument();
   });
 });

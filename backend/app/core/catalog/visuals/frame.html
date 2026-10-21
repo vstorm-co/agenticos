@@ -43,6 +43,11 @@ html, body, #stage { height: 100%; }
   // Markup as it is being written, made inert: no script runs and no handler
   // fires until the drawing is complete, so a half-written scene never starts.
   function inert(markup) {
+    // Styles first: until the last stylesheet is closed, the markup after it
+    // would flash unstyled and then jump, so the previous state stays up.
+    var opened = (markup.match(/<style\b/gi) || []).length;
+    var closed = (markup.match(/<\/style\s*>/gi) || []).length;
+    if (opened > closed) return null;
     var cut = markup.lastIndexOf(">");
     var doc = new DOMParser().parseFromString(cut < 0 ? "" : markup.slice(0, cut + 1), "text/html");
     var holder = doc.createElement("div");
@@ -131,8 +136,12 @@ html, body, #stage { height: 100%; }
       document.close();
       return;
     }
-    if (data.kind === "mermaid") streamMermaid(data.content, data.theme);
-    else morph(inert(data.content));
+    if (data.kind === "mermaid") {
+      streamMermaid(data.content, data.theme);
+      return;
+    }
+    var holder = inert(data.content);
+    if (holder !== null) morph(holder);
   });
 
   window.addEventListener("resize", report);

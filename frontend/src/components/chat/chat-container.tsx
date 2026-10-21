@@ -1174,6 +1174,7 @@ function ChatUI({
                   conversationId={conversationId}
                   onReport={onVisualReport}
                   onCompose={(text) => setIncoming({ id: Date.now(), files: [], text })}
+                  onSend={isArchived ? undefined : (text) => sendMessage(text)}
                 >
                   <MessageList messages={messages} onRegenerate={onRegenerate} pins={pins} />
                 </ConversationVisualsProvider>

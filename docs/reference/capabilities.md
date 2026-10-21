@@ -1152,9 +1152,30 @@ explainer, a 3D scene.*
 
 Draws in the chat itself. `kind` is `svg` for diagrams and illustrations,
 `mermaid` for flowcharts, sequences and ER diagrams, or `html` for anything
-interactive - sliders, `<canvas>`, three.js. No configuration; the bundled
-`visual-design` skill carries the house style and three templates, and the
-Builder binds it when Visuals is switched on.
+interactive - sliders, `<canvas>`, three.js, a map. No configuration; the bundled
+`visual-design` skill carries the house style and five templates, and the
+Builder binds it, with Charts, when Visuals is switched on.
+
+**It chooses the form first.** Not every answer is a drawing. The tool's text
+and the skill tell the model to answer a fact in text, exact values in a
+Markdown table, numbers to see with `create_chart` - so "now chart it" turns a
+table into a native chart - and to draw when the person should understand how
+something works, use a tool made for the moment, or follow places on a map. The
+skill also says how a drawing should look so it reads as made for the answer
+rather than generated: one large subject, space instead of boxes, theme colours
+only, no pills, shadows or gradients.
+
+**A drawing can continue the conversation.** `agenticos.followUp(text)` in a
+drawing asks to send the person's choice as their next message - *Plan this
+stop*, *Use these numbers*. The console shows the text under the drawing and
+sends it only when the person clicks *Send*; a request with no click behind it
+is dropped. See [Follow-ups](../artifacts.md#visuals).
+
+**Maps.** `lib/agenticos-map-1.js` draws an itinerary - numbered pins dropped in
+order, the line between them, pause and replay, and a card per stop - on the
+tile server `VISUAL_MAP_TILES` names, or as an outline of the stops on a
+deployment that names none. The capability's instructions tell the model which,
+so it does not promise streets it cannot show.
 
 **It appears while it is written.** The drawing is the call's `content` argument.
 The console reads it from the streamed tool-call arguments and posts it into a
@@ -1191,7 +1212,8 @@ pictures its drawing still uses, six at most across its revisions.
 
 **It has an app's isolation.** The frame is the app sandbox - an opaque origin,
 `connect-src 'none'`, nothing remote but the deployment's library set, which now
-includes three.js and Mermaid. See [Visuals](../artifacts.md#visuals).
+includes three.js, Mermaid and Leaflet, and the deployment's own map tile path.
+See [Visuals](../artifacts.md#visuals).
 
 ## Apps { #artifacts }
 
