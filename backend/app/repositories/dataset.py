@@ -10,7 +10,7 @@ from collections.abc import Sequence
 from typing import Any, get_args
 from uuid import UUID
 
-from sqlalchemy import and_, func, insert, literal, or_, select, true
+from sqlalchemy import ColumnElement, and_, exists, func, insert, literal, or_, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import Scope
@@ -29,6 +29,13 @@ from app.schemas.dataset import (
     DatasetTagCount,
     ExpectationMix,
 )
+
+
+def _asks(question: str) -> ColumnElement[bool]:
+    """A case asking this question, compared without regard to case, surrounding
+    space or how the space inside it runs."""
+    spaced = func.btrim(func.regexp_replace(DatasetCase.input, r"\s+", " ", "g"))
+    return func.lower(spaced) == " ".join(question.split()).lower()
 
 
 async def get(db: AsyncSession, dataset_id: UUID, *, organization_id: UUID) -> Dataset | None:
@@ -74,6 +81,7 @@ async def list_visible(
     search: str | None = None,
     judge_id: UUID | None = None,
     judge_is_default: bool = False,
+    asking: str | None = None,
     sort: DatasetSort = "name",
     skip: int = 0,
     limit: int = 50,
@@ -90,6 +98,8 @@ async def list_visible(
         judge_id: Narrow to the datasets of this judge: the ones that picked
             it, grading or not, and when `judge_is_default` the ones that
             picked none and grade with the judge or the reference comparison.
+        asking: Narrow to the datasets whose newest version holds a case asking
+            this question, compared as `list_cases`' `same_input` compares.
     """
     where = [Dataset.organization_id == organization_id]
     if shared_with_me:
@@ -135,6 +145,19 @@ async def list_visible(
             or_(picked == str(judge_id), and_(picked.is_(None), grading))
             if judge_is_default
             else picked == str(judge_id)
+        )
+    if asking is not None:
+        where.append(
+            exists(
+                select(DatasetVersionCase.version_id)
+                .join(DatasetVersion, DatasetVersion.id == DatasetVersionCase.version_id)
+                .join(DatasetCase, DatasetCase.id == DatasetVersionCase.case_revision_id)
+                .where(
+                    DatasetVersion.dataset_id == Dataset.id,
+                    DatasetVersion.number == Dataset.latest_version,
+                    _asks(asking),
+                )
+            )
         )
 
     order_by = (
@@ -268,8 +291,7 @@ async def list_cases(
         .offset(skip)
     )
     if same_input is not None:
-        spaced = func.btrim(func.regexp_replace(DatasetCase.input, r"\s+", " ", "g"))
-        query = query.where(func.lower(spaced) == " ".join(same_input.split()).lower())
+        query = query.where(_asks(same_input))
     if limit is not None:
         query = query.limit(limit)
     result = await db.execute(query)

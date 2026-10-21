@@ -35,6 +35,7 @@ rename.
 | Chat | The web conversation with an agent | `conversation` |
 | Channel | Slack, Telegram or Mattermost, where people reach an agent | `channel_bot` |
 | Routine | An agent running on its own, on a schedule or an event | `trigger` |
+| Eval suite | A dataset an agent is held to, run on a schedule, on publish or promotion, or after a change | `eval_suite` |
 | Run | One time an agent answered, with its cost and steps | `agent_run` |
 | Environment | A named stage, such as production, pointing at one version | `environment` |
 | MCP server | An external tool server agents call, connected once | `mcp_connection` |
@@ -54,6 +55,20 @@ rename.
 | Budget | A spending limit that stops runs when it is reached | `budget` |
 | Guardrails | Checks that redact or block what flows through a run | `guardrails` |
 | Vault | Where keys and tokens are stored, sealed and never shown again | `secret` |
+
+## How it is tested
+
+| In the console | What it is | In the API and spec |
+|---|---|---|
+| Dataset | Versioned test cases an agent's answers are checked against | `dataset` |
+| Case | One question, and what a good answer is tested against | `dataset_case` |
+| Grading | How a dataset's answers are scored: checks, the reference answer and a judge | `scoring` |
+| Judge | An agent that grades answers for evals; only the platform runs it | `kind: judge` |
+| Eval | An agent answering every case of a dataset, scored and compared with a version before it | `eval_run` |
+| Review | Scores waiting for a person to confirm or overrule them | `review_state` |
+| Case generator | The system agent that drafts cases from an agent, its knowledge, real chats and red teaming | `kind: generator` |
+| Proposed case | A drafted case waiting under **Generated** until a person accepts or dismisses it | `case_proposal` |
+| Red teaming | Cases checking that an agent refuses what it must | `red-team` tag |
 
 ## Capabilities
 

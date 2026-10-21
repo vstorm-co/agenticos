@@ -1,5 +1,5 @@
 ---
-source_sha: "3abca69da21c"
+source_sha: "33f0f67138d1"
 ---
 
 # Glosario { #glossary }
@@ -40,6 +40,7 @@ tal como se ven en pantalla.
 | Chat | La conversación web con un agent | `conversation` |
 | Channel | Slack, Telegram o Mattermost, donde las personas hablan con un agent | `channel_bot` |
 | Routine | Un agent que se ejecuta solo, con un horario o un evento | `trigger` |
+| Suite de evals | Un dataset con el que se mide un agent, ejecutado con un horario, al publicar o promocionar, o tras un cambio | `eval_suite` |
 | Run | Una vez que un agent respondió, con su coste y sus pasos | `agent_run` |
 | Environment | Una etapa con nombre, como producción, que apunta a una versión | `environment` |
 | MCP server | Un servidor de herramientas externo al que llaman los agents, conectado una vez | `mcp_connection` |
@@ -59,6 +60,20 @@ tal como se ven en pantalla.
 | Budget | Un límite de gasto que detiene los runs al alcanzarse | `budget` |
 | Guardrails | Comprobaciones que redactan o bloquean lo que pasa por un run | `guardrails` |
 | Vault | Donde se guardan claves y tokens, sellados y nunca más mostrados | `secret` |
+
+## Cómo se prueba { #how-it-is-tested }
+
+| En la consola | Qué es | En la API y el spec |
+|---|---|---|
+| Dataset | Casos de prueba versionados con los que se comparan las respuestas de un agent | `dataset` |
+| Case | Una pregunta y aquello con lo que se compara una buena respuesta | `dataset_case` |
+| Grading | Cómo se puntúan las respuestas de un dataset: comprobaciones, la respuesta de referencia y un juez | `scoring` |
+| Judge | Un agent que califica respuestas para evals; solo lo ejecuta la plataforma | `kind: judge` |
+| Eval | Un agent que responde cada caso de un dataset, puntuado y comparado con una versión anterior | `eval_run` |
+| Review | Puntuaciones que esperan a que una persona las confirme o las cambie | `review_state` |
+| Case generator | El agent de sistema que redacta casos a partir de un agent, su conocimiento, chats reales y red teaming | `kind: generator` |
+| Proposed case | Un caso redactado que espera en **Generated** hasta que una persona lo acepta o lo descarta | `case_proposal` |
+| Red teaming | Casos que comprueban que un agent rechaza lo que debe rechazar | etiqueta `red-team` |
 
 ## Capabilities { #capabilities }
 

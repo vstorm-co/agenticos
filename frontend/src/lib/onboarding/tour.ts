@@ -328,6 +328,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "agent-tab-evals",
     permission: Perm.runsView,
   },
+  // The suites card heads the same tab, so the stop needs the same permission.
+  {
+    id: "agent-eval-suites",
+    page: AGENT_BUILDER,
+    target: "agent-eval-suites",
+    activate: "agent-tab-evals",
+    permission: Perm.runsView,
+  },
   {
     id: "agent-history",
     page: AGENT_BUILDER,
@@ -469,6 +477,29 @@ export const TOUR_STEPS: readonly TourStep[] = [
     page: ROUTES.DATASETS,
     target: "datasets-list",
     permission: Perm.datasetsView,
+  },
+  // One dataset: writing a case, having the generator draft some, and the drafts
+  // waiting for a decision - the last only while some wait.
+  {
+    id: "datasets-add-case",
+    page: DATASET_DETAIL,
+    target: "datasets-add-case",
+    permission: Perm.datasetsEdit,
+  },
+  {
+    id: "datasets-generate",
+    page: DATASET_DETAIL,
+    target: "datasets-generate",
+    activate: "datasets-generated-tab",
+    permission: Perm.datasetsEdit,
+  },
+  {
+    id: "datasets-proposals",
+    page: DATASET_DETAIL,
+    target: "datasets-proposals",
+    activate: "datasets-generated-tab",
+    permission: Perm.datasetsEdit,
+    optional: true,
   },
 
   // Published artifacts - pages agents wrote. Nothing to create here (a run

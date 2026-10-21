@@ -2401,6 +2401,68 @@ async def test_a_skill_change_is_never_measured_against_a_cached_baseline(db) ->
     assert baseline.cached_from_run_id is None
 
 
+async def test_an_earlier_run_named_as_the_baseline_must_match_and_stand_alone(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    other = await _dataset(db, ctx, cases=2)
+    service = EvalRunService(db)
+    earlier = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=7))
+    elsewhere = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=other.id, version=7))
+
+    with pytest.raises(BadRequestError, match="a run that completed"):
+        await service.estimate(
+            ctx,
+            agent.id,
+            EvalRunRequest(dataset_id=dataset.id, version=7, baseline_run_id=earlier.id),
+        )
+    await _run_to_end(db, Model(db), elsewhere.id, ctx)
+    with pytest.raises(BadRequestError, match="not both"):
+        await service.estimate(
+            ctx,
+            agent.id,
+            EvalRunRequest(
+                dataset_id=dataset.id,
+                version=7,
+                paired_baseline=True,
+                baseline_run_id=earlier.id,
+            ),
+        )
+    with pytest.raises(BadRequestError, match="same agent on the same dataset"):
+        await service.estimate(
+            ctx,
+            agent.id,
+            EvalRunRequest(dataset_id=dataset.id, version=7, baseline_run_id=elsewhere.id),
+        )
+    with pytest.raises(NotFoundError):
+        await service.estimate(
+            ctx,
+            agent.id,
+            EvalRunRequest(dataset_id=dataset.id, version=7, baseline_run_id=uuid.uuid4()),
+        )
+
+
+async def test_a_run_measured_against_an_earlier_one_confirms_its_flips_against_it(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    service = EvalRunService(db)
+    earlier = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=7))
+    await _run_to_end(db, Model(db), earlier.id, ctx)
+
+    later = await service.start(
+        ctx,
+        agent.id,
+        EvalRunRequest(dataset_id=dataset.id, version=7, baseline_run_id=earlier.id),
+    )
+    model = Model(db, answer=lambda prompt, call: _FAIL if prompt == "Question 1" else _PASS)
+    await _run_to_end(db, model, later.id, ctx)
+
+    comparison = await service.compare(ctx, later.id)
+    assert comparison.baseline is not None and comparison.baseline.run_id == earlier.id
+    assert (comparison.regressions_confirmed, comparison.paired) == (1, False)
+
+
 @pytest.mark.security
 async def test_who_may_publish_an_agent_is_read_per_agent_not_off_the_role(db) -> None:
     """What the console reads to offer Publish, and not the same answer as editing."""

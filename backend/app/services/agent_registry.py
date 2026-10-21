@@ -2173,6 +2173,9 @@ class AgentRegistryService:
         )
         if batch is not None:
             await authoring_repo.close_batch(self.db, batch=batch, status=BatchStatus.PUBLISHED)
+        from app.services.eval_suite import EvalSuiteService
+
+        await EvalSuiteService(self.db).version_published(ctx, agent=agent, version=version)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,

@@ -44,6 +44,7 @@ import { ArtifactsWidget } from "./artifacts";
 import { DatasetsWidget } from "./datasets";
 import { ReviewQueueWidget } from "./review-queue";
 import { EvalRunsWidget } from "./eval-runs";
+import { EvalSuitesWidget } from "./eval-suites";
 import { SuggestionsWidget } from "./suggestions";
 import { ProjectsWidget } from "./projects";
 import { RecentVisualsWidget } from "./recent-visuals";
@@ -99,6 +100,7 @@ export const WIDGET_COMPONENTS: Record<WidgetId, ComponentType<DashboardWidgetPr
   "knowledge-gaps": KnowledgeGapsWidget,
   "review-queue": ReviewQueueWidget,
   "eval-runs": EvalRunsWidget,
+  "eval-suites": EvalSuitesWidget,
   suggestions: SuggestionsWidget,
   projects: ProjectsWidget,
   "recent-visuals": RecentVisualsWidget,

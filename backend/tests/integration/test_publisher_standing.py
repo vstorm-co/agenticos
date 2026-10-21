@@ -139,15 +139,17 @@ def test_only_publisher_context_sets_the_fallback_flag() -> None:
     `AuthContext.anonymous` the sole subject-less constructor - so a new one has to
     be argued for in a diff rather than added quietly.
 
-    Three sites are legitimate: `services/access.py` mints the publisher-standing
+    Four sites are legitimate: `services/access.py` mints the publisher-standing
     context for a hosted/widget run, `services/agent_trigger.py` mints the
     fired-run context whose `user_id` is the trigger *creator* (the authority an
     unattended run executes under), which must not become a memory end-user (#788)
     - unless the creator let that trigger act as them, which is why the trigger
     site sets it from the row rather than to a constant (#2027) - and
     `services/eval_run_worker.py` mints the same for an eval run's starter, whose
-    cases run unattended in a worker, and `services/authoring_worker.py` for the
-    person who asked the authoring assistant, whose request runs in a worker too.
+    cases run unattended in a worker, `services/eval_suite.py` for a suite's owner,
+    whom a scheduled or triggered eval run is started as, and
+    `services/authoring_worker.py` for the person who asked the authoring
+    assistant, whose request runs in a worker too.
     """
     app_root = Path(__file__).resolve().parents[2] / "app"
     setters = {
@@ -162,4 +164,5 @@ def test_only_publisher_context_sets_the_fallback_flag() -> None:
         "services/agent_trigger.py": ["not trigger.runs_as_creator"],
         "services/eval_run_worker.py": ["True"],
         "services/authoring_worker.py": ["True"],
+        "services/eval_suite.py": ["True"],
     }, setters

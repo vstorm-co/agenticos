@@ -78,6 +78,7 @@ import { ThinkingSetting } from "@/components/agents/thinking-setting";
 import { EnvironmentsPanel } from "@/components/agents/environments-panel";
 import { DraftEvalNote } from "@/components/evals/draft-eval-note";
 import { EvalsPanel } from "@/components/evals/evals-panel";
+import { EvalSuitesCard } from "@/components/evals/suites/eval-suites-card";
 import { useEvalArmSpec, useEveryDataset } from "@/hooks/use-eval-runs";
 import { isRunnable } from "@/lib/datasets";
 import { StartEvalDialog } from "@/components/evals/start-eval-dialog";
@@ -1909,6 +1910,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
           {canViewRuns && !isSystem && (
             <TabsContent value="evals" className="mt-6 space-y-6">
+              <EvalSuitesCard agentId={id} canManage={canStartEvals && canEdit} />
               <EvalsPanel agentId={id} canStart={canStartEvals} />
             </TabsContent>
           )}

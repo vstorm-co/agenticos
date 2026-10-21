@@ -1,5 +1,5 @@
 ---
-source_sha: "5678ca4ac57c"
+source_sha: "ed8f0bf377ed"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -312,6 +312,11 @@ Datasets auf der Version vor dem Kandidaten - bei einem Draft die
 veröffentlichte Version. Beide Seiten sind mit Datum, Modell und
 Dataset-Version beschriftet, weil sie sich in jedem davon unterscheiden können.
 
+Ein Run kann stattdessen einen **früheren Run** desselben Agents auf demselben
+Dataset als Baseline nennen (`baseline_run_id`). Seine gekippten Fälle werden
+dann gegen diesen Run wiederholt und bestätigt - so sieht eine
+[Eval-Suite](#suites), die täglich dieselbe Version prüft, die Drift.
+
 ### Eine Baseline im selben Run { #a-baseline-in-the-same-run }
 
 Wenn eine Entscheidung vom Ergebnis abhängt - ein Promotion-Gate, eine mit
@@ -404,6 +409,99 @@ Kosten und Latenz nebeneinander. Mit einer Baseline im selben Run läuft die
 Baseline auf dem zuerst genannten Modell, und jeder Arm wird mit ihr
 verglichen.
 
+## Suites { #suites }
+
+Eine **Suite** ist ein Eval-Run, an dessen Start niemand denken muss. Sie nennt
+den Agent, das Dataset, die Umgebung, deren Version sie prüft, und eine
+Schwelle, die jedes Ergebnis erfüllen muss, und läuft dann selbstständig. Die
+Karte **Suites** steht oben im Evals-Tab eines Agents: das Dataset jeder Suite,
+wann sie läuft und wie sie zuletzt abschnitt. Geöffnet listet eine Suite jedes
+Ergebnis, warum es nicht bestand, die gebrochenen Fälle und einen Link zum
+Eval-Run dahinter; die Seite dieses Runs nennt die Suite, die ihn gestartet hat.
+
+### Wann eine Suite läuft { #when-a-suite-runs }
+
+Jede Kombination aus:
+
+- **Nach Zeitplan** - ein Cron-Ausdruck, gelesen auf der Uhr einer Zeitzone,
+  sodass `0 6 * * *` in `Europe/Berlin` vor und nach der Zeitumstellung sechs
+  Uhr in Berlin ist. Sie prüft die Version, die ihre Umgebung ausliefert - die
+  täglich geprüfte Produktionsversion bemerkt, wenn sich das Modell beim
+  Provider oder eine Wissensbasis darunter ändert. Ein Lauf, der verpasst
+  wurde, während der Worker stand, läuft einmal.
+- **Bei Veröffentlichung** - jede neue Version, mit der Version davor im selben
+  Eval-Run daneben.
+- **Bei Promotion** - eine Version, die auf die Umgebung der Suite promotet
+  wird (die Standardumgebung, wenn sie keine nennt), gemessen an der Version,
+  die sie ersetzt.
+- **Wenn sich eine Abhängigkeit ändert** - ein Skill, den die geprüfte Version
+  bindet, wird bearbeitet, oder ein Dokument in einer Wissensbasis, die sie
+  durchsucht, wird hinzugefügt, neu eingelesen oder gelöscht. Spezialisten, die
+  die Version definiert, zählen als die Version. Eine Reihe von Änderungen ist
+  ein Lauf, fällig `EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS` nach der ersten. Ein
+  Modellprofil lässt sich nicht an Ort und Stelle ändern - einen Agent auf ein
+  anderes zu richten ist eine Veröffentlichung -, und ein Provider, der das
+  Modell dahinter austauscht, ist das, was der Zeitplan bemerkt.
+- **Jetzt ausführen** - von Hand, als die Person, die es drückt.
+
+Eine Suite, die darauf wartet, eine Version zu prüfen, nimmt den nächsten
+Trigger für dieselbe Version auf, sodass eine Veröffentlichung und die
+Promotion dieser Version danach ein Lauf sind. Eine Suite führt einen Eval-Run
+zur Zeit aus; eine Änderung, die währenddessen kommt, wartet auf den nächsten.
+Eine pausierte Suite läuft nicht, weder durch einen Trigger noch von Hand.
+
+### Was ein Ergebnis erfüllen muss { #what-a-result-must-meet }
+
+Ein Ergebnis **besteht nicht**, wenn mehr Fälle reproduzierbar gegenüber der
+Baseline brechen, als die Suite erlaubt - standardmäßig keiner, also lässt eine
+bestätigte Regression es durchfallen -, oder wenn die Bestehensquote, jeder
+Fall nach der Mehrheit seiner Versuche, unter das Minimum der Suite fällt. Die
+Richtung aus dem McNemar-Test steht neben dem Ergebnis und entscheidet es nie.
+Zwei optionale Grenzen prüfen die Effizienz: den Anstieg der Kosten pro
+bestandenem Fall und der p95-Latenz gegenüber der Baseline; leer prüfen sie
+nichts.
+
+Ein Ergebnis, dessen Vergleich
+[ungültig](#a-different-judge-invalidates-the-comparison) ist oder in dem auch
+nur ein Fall nicht bewertet werden konnte, ist **ohne Ergebnis** - nie
+bestanden -, es sei denn, etwas ist klar durchgefallen, und es nennt die Fälle,
+die niemand bewertet hat. Den Judge neu zu veröffentlichen ändert, wie Antworten
+bewertet werden, daher ist das nächste Ergebnis jeder Suite, die er bewertet,
+einmal ohne Ergebnis, und ihr Eigentümer wird benachrichtigt. Eine
+Bestehensquote unter dem Minimum lässt ein Ergebnis unabhängig vom Vergleich
+durchfallen: Das Minimum braucht keine Baseline.
+
+Ein Ergebnis **ist nicht gelaufen**, wenn es mehr
+kosten würde, als ein Budget oder die eigene Grenze der Suite hergibt, wenn nur
+der Judge es bewerten könnte und die KI-Unterstützung aus ist, oder wenn es
+keine veröffentlichte Version zum Prüfen gibt.
+
+Geplante Läufe und Läufe nach
+einer Abhängigkeit werden mit dem letzten bestandenen Lauf der Suite auf
+derselben Version verglichen - dem letzten als gut bekannten Stand, sodass ein
+gebrochener Fall gebrochen bleibt, bis ihn jemand behebt - und messen so die
+Drift; eine Veröffentlichung oder Promotion lässt ihre Baseline im selben Run
+laufen. Nach einem Ergebnis, das sich mit diesem Lauf nicht vergleichen ließ,
+hat der nächste keine Baseline: Er wird an seinen eigenen Zahlen gemessen und
+ist, wenn er besteht, der Lauf, mit dem die folgenden verglichen werden.
+
+### Als wer sie läuft, und wer benachrichtigt wird { #who-it-runs-as-and-who-is-told }
+
+Eine Suite läuft als die Person, die sie zuletzt gespeichert hat - ihr
+**Eigentümer** -, mit deren Berechtigungen zum Start des Runs. Niemand sieht
+einem geplanten Lauf beim Start zu, also stimmt, wer eine Suite speichert,
+ihren Kosten zu, und das Formular nennt vorher den Preis eines Laufs und eines
+Monats des Zeitplans. Wer die Suite sonst ändert, übernimmt sie. Eine Suite,
+deren Eigentümer die Organisation verlässt oder sie nicht mehr ausführen kann,
+pausiert mit dem Grund - ebenso eine, deren Umgebung entfernt wird, ob schon
+pausiert oder nicht, statt still eine andere Version zu prüfen. Sie lässt sich
+erst fortsetzen, wenn jemand wieder eine Umgebung für sie wählt.
+
+Der Eigentümer wird benachrichtigt, wenn ein Ergebnis nicht besteht, ohne
+Ergebnis bleibt oder nicht läuft - einmal pro Serie solcher Ergebnisse auf einer
+Version, mit den gebrochenen oder unbewerteten Fällen -, im Benachrichtigungscenter und per E-Mail, wenn er sie
+eingeschaltet hat. Slack ist noch kein Benachrichtigungskanal.
+
 ## Einstellungen { #settings }
 
 | Einstellung | Standard | Was sie entscheidet |
@@ -421,6 +519,7 @@ verglichen.
 | `EVAL_ABANDONED_AFTER_MINUTES` | `10` | Wie lange ein laufender Run bei schweigendem Worker stillstehen darf, bevor der Sweep ihn beendet |
 | `EVAL_HEARTBEAT_SECONDS` | `60` | Wie oft ein arbeitender Run meldet, dass er lebt |
 | `EVAL_QUEUED_ABANDONED_AFTER_HOURS` | `24` | Wie lange ein Run auf einen Worker warten darf, bevor der Sweep ihn beendet |
+| `EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS` | `600` | Wie lange eine Suite nach einer Änderung an einem Skill oder einer Wissensbasis wartet, damit eine Reihe von Änderungen ein Lauf ist |
 
 ## Zugriff { #access }
 
@@ -436,6 +535,15 @@ Agent als auch das Dataset sehen kann - ein Run über ein Dataset, das sie nicht
 `404`, wie bei einem Run einer anderen Organisation. Die Runs eines Datasets
 erfordern außerdem `datasets:view` darauf und listen nur die Agents, die die
 lesende Person sehen darf.
+
+Eine Suite anzulegen, zu ändern, zu pausieren oder auszuführen erfordert
+`agents:edit` und `agents:run` auf dem Agent, `datasets:run` auf dem Dataset und
+`runs:view`,
+und eine Person, die als sie selbst angemeldet ist: Eine Suite gibt als die
+Person aus, die sie speichert, also kann das weder ein API-Schlüssel noch ein
+Administrator, der für jemanden handelt. Die Suites eines Agents zu lesen
+erfordert `runs:view` und den Agent; die Fragen der Fälle, die ein Ergebnis
+nennt, sieht nur, wer das Dataset öffnen darf.
 
 ## Was ein Run behält { #what-a-run-keeps }
 

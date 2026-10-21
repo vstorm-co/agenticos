@@ -9,7 +9,7 @@ import type { DatasetScoring } from "./scoring";
 import type { Visibility } from "./sharing";
 
 export type CaseSource = "manual" | "import" | "conversation" | "synthetic";
-export type DatasetChange = "add" | "edit" | "remove" | "import";
+export type DatasetChange = "add" | "edit" | "remove" | "import" | "generate";
 export type DatasetSort = "name" | "updated";
 export type DatasetFileFormat = "csv" | "jsonl";
 /** How an agent's calls are matched against the expected ones. */
@@ -55,6 +55,8 @@ export interface DatasetCase extends DatasetCaseContent {
   source_run_id: string | null;
   source_conversation_id: string | null;
   source_message_id: string | null;
+  /** The knowledge base document a generated case's passage came from. */
+  source_document_id: string | null;
   created_by_user_id: string | null;
   created_at: string;
 }
@@ -99,6 +101,8 @@ export interface Dataset {
   can_edit: boolean;
   /** Whether the caller may run this dataset - start an eval on it, score against it. */
   can_run: boolean;
+  /** Generated cases waiting for a decision; 0 for a caller who may not decide. */
+  pending_proposals: number;
   /** How this dataset's cases are scored. */
   scoring: DatasetScoring;
   /** The judge grading it - its own or the default one; null when that judge is gone. */

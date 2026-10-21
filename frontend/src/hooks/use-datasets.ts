@@ -33,6 +33,8 @@ export interface DatasetQuery {
   editable?: boolean;
   /** Only the datasets this judge grades. */
   judge?: string;
+  /** Only the datasets whose newest version has a case asking this run's question. */
+  asksRun?: string;
   /** False holds the request until it is needed, as a picker behind a checkbox is. */
   enabled?: boolean;
 }
@@ -57,6 +59,7 @@ export function useDatasets({
   limit = PAGE_SIZE,
   editable = false,
   judge = "",
+  asksRun = "",
   enabled = true,
 }: DatasetQuery = {}) {
   const t = useTranslations("datasets");
@@ -64,12 +67,13 @@ export function useDatasets({
   const queryClient = useQueryClient();
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
-    queryKey: qk.datasets.list({ search, sort, skip, limit, editable, judge }),
+    queryKey: qk.datasets.list({ search, sort, skip, limit, editable, judge, asksRun }),
     queryFn: () => {
       const params = new URLSearchParams();
       if (search) params.set("q", search);
       if (editable) params.set("editable", "true");
       if (judge) params.set("judge", judge);
+      if (asksRun) params.set("asks_run", asksRun);
       params.set("sort", sort);
       params.set("skip", String(skip));
       params.set("limit", String(limit));
@@ -172,9 +176,6 @@ export function useDatasetVersions(datasetId: string) {
  * `version` null reads the newest. Every mutation invalidates the whole dataset:
  * a change moves the newest version, its count and the version list at once.
  */
-/** The longest question checked for a twin; a URL holding a longer one may be refused. */
-const TWIN_CHECK_MAX = 2_000;
-
 export function useDatasetCases(
   datasetId: string,
   {
@@ -238,13 +239,14 @@ export function useDatasetCases(
     },
   });
 
-  // Read when a new case is saved, never cached: the answer must be as of now. A
-  // question too long to travel in a URL is not checked, rather than refused.
+  // Read when a new case is saved, never cached: the answer must be as of now. The
+  // question is posted: in a URL it would be written to every access log on the way.
   const findTwin = useCallback(
     async (input: string): Promise<DatasetCase | null> => {
-      if (input.length > TWIN_CHECK_MAX) return null;
-      const params = new URLSearchParams({ same_input: input, limit: "1" });
-      const found = await apiClient.get<DatasetCaseList>(`/datasets/${datasetId}/cases?${params}`);
+      const found = await apiClient.post<DatasetCaseList>(
+        `/datasets/${datasetId}/cases/twins?limit=1`,
+        { input },
+      );
       return found.items[0] ?? null;
     },
     [datasetId],

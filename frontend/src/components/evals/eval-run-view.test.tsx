@@ -125,6 +125,16 @@ beforeEach(() => {
 });
 
 describe("EvalRunView", () => {
+  it("says which suite started a run, and on what", () => {
+    state.run = {
+      ...state.run,
+      run: evalRun({ suite: { id: "suite-1", name: "Nightly", trigger: "schedule" } }),
+    };
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+
+    expect(screen.getByText("Started by the suite Nightly on its schedule.")).toBeInTheDocument();
+  });
+
   it("leads with the verdict, then each side, how they compare and every case", async () => {
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
 

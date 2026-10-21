@@ -2,7 +2,11 @@
 
 import uuid
 
+import pytest
+from pydantic import ValidationError
+
 from app.db.models.authoring import AuthoringRequest, SpecProposalBatch, SpecProposalHunk
+from app.schemas.authoring import ProposalCheck
 
 
 def test_each_row_names_itself_by_id_and_state():
@@ -13,3 +17,10 @@ def test_each_row_names_itself_by_id_and_state():
     assert "improve" in repr(request) and "queued" in repr(request)
     assert str(batch.agent_id) in repr(batch) and "open" in repr(batch)
     assert "instructions" in repr(hunk) and "pending" in repr(hunk)
+
+
+def test_a_check_names_a_dataset_or_a_suite_and_not_both():
+    assert ProposalCheck(suite_id=uuid.uuid4()).dataset_id is None
+    for fields in ({}, {"dataset_id": uuid.uuid4(), "suite_id": uuid.uuid4()}):
+        with pytest.raises(ValidationError, match="not both"):
+            ProposalCheck.model_validate(fields)

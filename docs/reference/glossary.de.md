@@ -1,5 +1,5 @@
 ---
-source_sha: "3abca69da21c"
+source_sha: "33f0f67138d1"
 ---
 
 # Glossar { #glossary }
@@ -39,6 +39,7 @@ nicht bricht.
 | Chat | Das Gespräch mit einem Agent im Browser | `conversation` |
 | Kanal | Slack, Telegram oder Mattermost, wo Menschen einen Agent erreichen | `channel_bot` |
 | Routine | Ein Agent, der selbstständig läuft, nach Zeitplan oder Ereignis | `trigger` |
+| Eval-Suite | Ein Dataset, an dem ein Agent gemessen wird, nach Zeitplan, bei Veröffentlichung oder Promotion oder nach einer Änderung | `eval_suite` |
 | Run | Ein Mal, dass ein Agent geantwortet hat, mit Kosten und Schritten | `agent_run` |
 | Environment | Eine benannte Stufe, etwa Produktion, die auf eine Version zeigt | `environment` |
 | MCP-Server | Ein externer Tool-Server, den Agents aufrufen, einmal verbunden | `mcp_connection` |
@@ -58,6 +59,20 @@ nicht bricht.
 | Budget | Ein Ausgabenlimit, das Runs stoppt, sobald es erreicht ist | `budget` |
 | Schutzregeln | Prüfungen, die schwärzen oder blockieren, was durch einen Run fließt | `guardrails` |
 | Vault | Wo Schlüssel und Tokens liegen, versiegelt und nie wieder angezeigt | `secret` |
+
+## Wie getestet wird { #how-it-is-tested }
+
+| In der Konsole | Was es ist | In API und Spec |
+|---|---|---|
+| Dataset | Versionierte Testfälle, an denen die Antworten eines Agents gemessen werden | `dataset` |
+| Fall | Eine Frage und das, woran eine gute Antwort gemessen wird | `dataset_case` |
+| Bewertung | Wie die Antworten eines Datasets bewertet werden: Prüfungen, Referenzantwort und ein Judge | `scoring` |
+| Judge | Ein Agent, der Antworten für Evals bewertet; nur die Plattform führt ihn aus | `kind: judge` |
+| Eval | Ein Agent, der jeden Fall eines Datasets beantwortet, bewertet und mit einer früheren Version verglichen | `eval_run` |
+| Prüfung | Scores, die darauf warten, dass ein Mensch sie bestätigt oder ändert | `review_state` |
+| Fallgenerator | Der System-Agent, der Fälle aus einem Agent, seinem Wissen, echten Chats und Red Teaming entwirft | `kind: generator` |
+| Vorgeschlagener Fall | Ein entworfener Fall, der unter **Generiert** wartet, bis ein Mensch ihn annimmt oder verwirft | `case_proposal` |
+| Red Teaming | Fälle, die prüfen, ob ein Agent ablehnt, was er ablehnen muss | Tag `red-team` |
 
 ## Capabilities { #capabilities }
 

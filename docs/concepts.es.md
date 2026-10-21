@@ -1,5 +1,5 @@
 ---
-source_sha: "8a6ce582650b"
+source_sha: "837d9c8b79a2"
 ---
 
 # Conceptos { #concepts }
@@ -625,6 +625,12 @@ Sus runs se comprueban contra el budget y se registran como cualquier otro, sin
 notificación de run. Un agent del sistema empieza con un budget mensual pequeño
 propio, para que una organización nueva no gaste por accidente todo su budget en
 evaluación o en borradores.
+
+El **generador de casos** también es un agent de sistema, del tipo `generator`:
+redacta [casos de datasets](datasets.md#generating-cases) y se siembra de la
+misma forma, con un budget propio. Aparece en la misma banda, después del
+drafter, y se abre y edita como un juez; la pestaña Generated de un dataset enlaza
+con él para quien puede editarlo.
 
 Solo la plataforma lo ejecuta. El chat, la API, un embed o una página pública,
 un canal, una programación y la delegación desde otro agent lo rechazan, en el

@@ -349,12 +349,16 @@ export const qk = {
       limit: number;
       editable: boolean;
       judge: string;
+      asksRun: string;
     }) => ["datasets", "list", query] as const,
     detail: (id: string) => ["datasets", id] as const,
     versions: (id: string) => ["datasets", id, "versions"] as const,
     cases: (id: string, query: { version: number | null; skip: number; limit: number }) =>
       ["datasets", id, "cases", query] as const,
     case: (id: string, caseId: string) => ["datasets", id, "case", caseId] as const,
+    generations: (id: string) => ["datasets", id, "generations"] as const,
+    proposals: (id: string, query: { skip: number; limit: number }) =>
+      ["datasets", id, "proposals", query] as const,
     allScores: (id: string) => ["datasets", id, "scores"] as const,
     scores: (
       id: string,
@@ -411,6 +415,13 @@ export const qk = {
     ) => ["eval-runs", id, "cases", query] as const,
     comparison: (id: string, query: { arm: string | null; baseline: string | null }) =>
       ["eval-runs", id, "comparison", query] as const,
+  },
+  evalSuites: {
+    all: () => ["eval-suites"] as const,
+    forAgent: (agentId: string) => ["eval-suites", "agent", agentId] as const,
+    visible: () => ["eval-suites", "visible"] as const,
+    results: (agentId: string, suiteId: string, query: { skip: number; limit: number }) =>
+      ["eval-suites", "agent", agentId, suiteId, "results", query] as const,
   },
   context: {
     all: () => ["context"] as const,

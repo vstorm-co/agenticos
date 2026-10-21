@@ -92,6 +92,7 @@ from app.services.access import AGENT, accessible_ids
 from app.services.agent_registry import AgentRegistryService
 from app.services.authoring_evidence import EvidencePack, EvidenceService
 from app.services.eval_run import EvalRunService
+from app.services.eval_suite import EvalSuiteService
 from app.services.model_profile import ModelProfileService
 from app.services.skills import SkillService
 from app.services.spend import month_start, organization_monthly_spend
@@ -698,8 +699,18 @@ class AuthoringService:
             )
         return agent, batch, projected
 
-    @staticmethod
-    def _check_request(body: ProposalCheck) -> EvalRunRequest:
+    async def _check_request(
+        self, ctx: AuthContext, agent_id: UUID, body: ProposalCheck
+    ) -> EvalRunRequest:
+        """The run a check makes: on the dataset named, or on a suite's dataset and environment."""
+        if body.suite_id is not None:
+            suite = await EvalSuiteService(self.db).get(ctx, agent_id, body.suite_id)
+            return EvalRunRequest(
+                dataset_id=suite.dataset_id,
+                environment_id=suite.environment_id,
+                paired_baseline=True,
+            )
+        assert body.dataset_id is not None, "ProposalCheck names a dataset or a suite"
         return EvalRunRequest(
             dataset_id=body.dataset_id,
             dataset_version=body.dataset_version,
@@ -715,7 +726,7 @@ class AuthoringService:
         return await EvalRunService(self.db).estimate(
             ctx,
             agent.id,
-            self._check_request(body),
+            await self._check_request(ctx, agent.id, body),
             purpose=EvalRunPurpose.GATE,
             candidate_spec=projected,
             exclude_conversations=batch.evidence_conversation_ids,
@@ -775,7 +786,7 @@ class AuthoringService:
         )
         evidence = [] if request is None else request.evidence.get("conversation_ids", [])
         bodies = {skill.id: SkillBody(description=proposal.description, content=proposal.content)}
-        request = self._check_request(body).model_copy(
+        request = (await self._check_request(ctx, agent.id, body)).model_copy(
             update={"version": version.version, "baseline_version": version.version}
         )
         return agent, request, bodies, [UUID(str(conversation)) for conversation in evidence]
@@ -824,7 +835,7 @@ class AuthoringService:
         started = await EvalRunService(self.db).start(
             ctx,
             agent.id,
-            self._check_request(body),
+            await self._check_request(ctx, agent.id, body),
             purpose=EvalRunPurpose.GATE,
             candidate_spec=projected,
             exclude_conversations=batch.evidence_conversation_ids,

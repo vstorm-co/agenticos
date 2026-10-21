@@ -29,6 +29,7 @@ import * as conversations from "./conversations/[[...path]]/route";
 import * as datasets from "./datasets/[[...path]]/route";
 import * as authoring from "./authoring/[[...path]]/route";
 import * as evalRuns from "./eval-runs/[[...path]]/route";
+import * as evalSuites from "./eval-suites/[[...path]]/route";
 import * as externalAgents from "./external-agents/[[...path]]/route";
 import * as visuals from "./visuals/[[...path]]/route";
 import * as kb from "./kb/[[...path]]/route";
@@ -120,6 +121,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["conversations", conversations],
   ["datasets", datasets],
   ["eval-runs", evalRuns],
+  ["eval-suites", evalSuites],
   ["authoring", authoring],
   ["external-agents", externalAgents],
   ["visuals", visuals],

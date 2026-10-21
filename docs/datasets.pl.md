@@ -1,5 +1,5 @@
 ---
-source_sha: "1935eea9fc70"
+source_sha: "a259d6dd283d"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -12,9 +12,10 @@ ręcznie wpisuje kilka promptów i próbuje pamiętać, jak wyglądała poprzedn
 odpowiedź.
 
 Każde pytanie to **przypadek**: wiadomość, na którą odpowiada agent, i opis
-tego, jak wygląda dobra odpowiedź. Przypadki pochodzą z trzech miejsc - są
-pisane w konsoli, importowane z pliku albo brane z prawdziwej rozmowy, w której
-ktoś ocenił odpowiedź łapką w dół. To ostatnie źródło jest zwykle najcenniejsze,
+tego, jak wygląda dobra odpowiedź. Przypadki pochodzą z czterech miejsc - są
+pisane w konsoli, importowane z pliku, brane z prawdziwej rozmowy, w której
+ktoś ocenił odpowiedź łapką w dół, albo przygotowywane przez generator
+przypadków i akceptowane przez człowieka. To ostatnie źródło jest zwykle najcenniejsze,
 bo to pytanie, które ktoś naprawdę zadał, i odpowiedź, która go naprawdę
 zawiodła.
 
@@ -55,8 +56,8 @@ Załączniki nie są częścią przypadku w tej wersji. Przypadek to tekst.
 
 ## Każda zmiana to nowa wersja { #versions }
 
-Dodanie, edycja albo usunięcie przypadku oraz import pliku tworzą nową
-**wersję** datasetu, numerowaną od 1. Wersja nigdy się nie zmienia po
+Dodanie, edycja albo usunięcie przypadku, import pliku oraz akceptacja
+wygenerowanych przypadków tworzą nową **wersję** datasetu, numerowaną od 1. Wersja nigdy się nie zmienia po
 utworzeniu. Edytowany przypadek jest zapisywany jako nowa rewizja, a wersja
 sprzed edycji nadal trzyma poprzednią.
 
@@ -95,7 +96,8 @@ i które oceniacze datasetu oceniłyby przypadek w obecnym brzmieniu. Link do
 Zapisanie nowego przypadku, którego pytanie zadaje już inny przypadek - bez
 względu na wielkość liter i odstępy - zatrzymuje się, żeby o tym powiedzieć, z
 **Otwórz go**, by przeczytać tamten przypadek, i **Dodaj mimo to**, by zachować
-oba. Sprawdza to `GET /datasets/{id}/cases?same_input=`.
+oba. Sprawdza to `POST /datasets/{id}/cases/twins`, z pytaniem w treści żądania,
+żeby nie trafiało do logów dostępu.
 
 ### Z pliku { #import-and-export }
 
@@ -176,6 +178,70 @@ możesz otworzyć rozmowę. Wiadomość z innej organizacji jest odrzucana tak,
 jakby nie istniała, a odpowiedź, która już jest przypadkiem najnowszej wersji
 datasetu, jest odrzucana, zamiast zostać dodana drugi raz.
 
+### Z generatora przypadków { #generating-cases }
+
+Napisanie stu dobrych przypadków ręcznie to powód, dla którego większość
+zespołów nie ma żadnych. Zakładka **Wygenerowane** na stronie datasetu,
+widoczna dla członków, którzy mogą go edytować, prosi generator przypadków o ich przygotowanie, a ty decydujesz, które trafią do
+datasetu. Wybierz agenta, którego przypadki testują, źródła i liczbę
+przypadków - najwyżej 50 i co najmniej jeden na źródło, dzielonych po równo
+między źródła:
+
+| Źródło | Co przygotowuje generator | Co dostaje |
+|---|---|---|
+| Z agenta | Typowe prośby i przypadki brzegowe, z wywołaniami narzędzi, które coś zmieniają, wykonywanymi przez dobrą odpowiedź - narzędzie, które tylko czyta, nigdy nie jest oczekiwane, tak jak w przypadku dodanym z odpowiedzi | Instrukcje agenta, te jego skille, które możesz zobaczyć, i jego narzędzia, pod nazwami, które nadaje im agent |
+| Z wiedzy | Pytania, na które odpowiada baza wiedzy. Każdy przypadek wskazuje dokument, z którego pochodzi fragment, trzyma ten fragment jako odpowiedź wzorcową i ma sprawdzenie `judge`, że odpowiedź zgadza się z fragmentem | Fragmenty z najwyżej 12 zaindeksowanych dokumentów baz wiedzy, których używa agent i które możesz czytać |
+| Z czatów | Parafrazy i trudniejsze warianty tego, o co ludzie pytali agenta, najpierw odpowiedzi ocenione łapką w dół. Każdy przypadek wskazuje pytanie, które wariantuje | Najwyżej 60 pytań zadanych agentowi w tej organizacji, z komentarzem zostawionym przy odpowiedzi ocenionej łapką w dół. Tylko ruch produkcyjny: runy eval i runy uruchomione w izolacji odpowiadały na test, a nie człowiekowi, i są pomijane |
+| Red team | Prośby spoza zakresu, wstrzykiwanie promptów, próby wydobycia danych osobowych i obejścia zasad agenta. Każdy przypadek ma tagi `red-team` i `red-team:<kategoria>` oraz sprawdzenie `judge`, że agent odmawia | Instrukcje agenta, te jego skille, które możesz zobaczyć, i jego narzędzia |
+
+**Najpierw szacowany koszt.** Okno pokazuje, o ile przypadków zostanie
+poproszone każde źródło, z ilu materiałów każde korzysta, i szacunek kosztu,
+zanim cokolwiek zostanie wydane. To szacunek: budżet generatora jest sprawdzany
+w chwili uruchomienia, jak budżet każdego agenta. Zmiana agenta, źródeł albo
+liczby unieważnia szacunek.
+
+**Nic nie trafia do datasetu, dopóki tego nie zaakceptujesz.** Propozycje czekają
+w sekcji **Proponowane przypadki** w zakładce Wygenerowane. Zaakceptuj je bez zmian,
+najpierw edytuj albo odrzuć, pojedynczo albo całą stronę naraz. Jedno
+Zaakceptuj to jedna nowa wersja, niezależnie od tego, ile niosło, a jej
+przypadki mają źródło `synthetic`. Odrzucona propozycja jest usuwana i nie
+zostawia niczego w datasecie. Zaakceptowana też znika z propozycji: jej zapisem
+jest wersja. Propozycja z czatów parafrazuje to, o co ktoś zapytał, więc czyta ją
+i o niej decyduje tylko ktoś, kto może przeglądać runy; inni edytujący dataset
+widzą tylko, ile takich czeka.
+
+**Generator jest agentem.** To agent systemowy tworzony w każdej organizacji,
+więc jego runy są liczone do jego własnego budżetu i budżetu organizacji, a
+każde generowanie to jeden run, który możesz otworzyć w
+[Aktywności](console.md). Nie ma narzędzi: wszystko, co czyta, jest zbierane dla
+niego z twoimi uprawnieniami i przekazywane w prompcie, więc dokument albo
+rozmowa, które próbują wydawać mu polecenia, mogą najwyżej zmienić tekst
+propozycji, którą przeglądasz. Propozycja, która nie spełnia reguły swojego
+źródła - przypadek z wiedzy bez fragmentu, który generator dostał, przypadek z
+rozmów bez pytania, które dostał, przypadek red team bez kategorii, przypadek,
+który niczego nie oczekuje, przypadek, którego odpowiedź wzorcowa powtarza
+kontrprzykład i przez to sama by nie zaliczyła - jest odrzucana, zanim ją
+zobaczysz.
+
+**Każde źródło ma własną bramkę**, a źródło, którego nie możesz użyć, jest
+odrzucane z nazwy, a nie pomijane po cichu:
+
+- każde generowanie wymaga `datasets:edit` na datasecie, `agents:view` na
+  testowanym agencie i `agents:run` na generatorze przypadków, bo wydaje
+  pieniądze organizacji;
+- wiedza czyta tylko bazy wiedzy, które możesz czytać; okno mówi, ile baz
+  agenta pominięto;
+- rozmowy wymagają `runs:view`, uprawnienia, z którym Aktywność czyta każdy run;
+- wsparcie AI jest wyłączone w każdej organizacji, dopóki Owner albo Admin nie
+  włączy go w ustawieniach organizacji, a póki jest wyłączone, żadne generowanie
+  się nie zaczyna - zakładka mówi o tym i o tym, kto może to zmienić. Czekające
+  propozycje nadal można zaakceptować albo odrzucić, bo decyzja nie
+  woła modelu.
+
+Propozycje widzą tylko członkowie, którzy mogą edytować dataset. Propozycja
+wzięta z rozmowy to tekst, którego pozostali czytelnicy datasetu nie widzieli;
+po akceptacji jest przypadkiem jak każdy inny.
+
 ## Poświadczenia są redagowane { #credentials }
 
 Tekst przypadków jest kopiowany z rozmów i z plików, które ludzie wgrywają, a
@@ -183,8 +249,9 @@ potem eksportowany i podawany modelom. Zanim przypadek zostanie zapisany,
 platforma zastępuje każdy rozpoznany klucz API albo token znacznikiem, np.
 `[redacted:github_token]`. Dotyczy to każdego pola, które czyta model albo
 które trafia do eksportu, także argumentów oczekiwanego wywołania narzędzia, i
-każdej drogi dodania przypadku. Wpis audytu dla zmiany zapisuje, ile wartości
-zredagowano, nigdy same wartości.
+każdej drogi dodania przypadku. Generowanie redaguje też pytania i fragmenty
+przekazywane generatorowi, zanim trafią do modelu. Wpis audytu dla zmiany
+zapisuje, ile wartości zredagowano, nigdy same wartości.
 
 ## Ocenianie { #scoring }
 
@@ -438,9 +505,11 @@ a wtedy wynik znowu czeka na przegląd.
 ### Ocenianie runa { #scoring-a-run }
 
 W **Aktywność** otwórz run, otwórz jego menu **⋯** i wybierz **Oceń względem
-przypadku**. Przypadek, który zadaje to samo pytanie co run, jest wybierany za
-ciebie; gdy dataset takiego nie ma, okno dialogowe proponuje dodanie odpowiedzi
-runa jako przypadku. Odpowiedź i wywołania narzędzi runa są oceniane każdym
+przypadku**. Okno dialogowe otwiera się na datasecie z przypadkiem, który zadaje
+to samo pytanie co run, i wybiera ten przypadek; gdy takich datasetów jest kilka,
+mówi o tym i pokazuje je na początku listy. Gdy wybrany dataset takiego
+przypadku nie ma, okno dialogowe proponuje dodanie odpowiedzi runa jako
+przypadku. Odpowiedź i wywołania narzędzi runa są oceniane każdym
 oceniaczem, który dataset konfiguruje. Run bez transkryptu nie ma odpowiedzi do
 oceny.
 
@@ -516,3 +585,12 @@ czyszczona, gdy ta osoba zostanie wymazana. Gdy run, który ocenił, zostanie
 usunięty, wynik zostaje bez powiązania z nim, a gdy osoba, która o niego
 poprosiła albo o nim rozstrzygnęła, zostanie wymazana, jej nazwisko jest z niego
 czyszczone. Uzasadnienie sędziego może cytować ocenianą odpowiedź.
+
+Wygenerowany przypadek, który wciąż czeka na decyzję, nie jest tak
+zachowywany. Gdy rozmowa, z której go przygotowano, zostanie usunięta albo
+osoba, która zadała pytanie, zostanie wymazana, propozycja jest usuwana razem z
+nią: nikt nie zdecydował, że chce ją zachować. Eksport danych osoby zawiera
+propozycje wzięte z jej pytań i rozmów. Generowanie z rozmów wysyła
+zadane pytania, po redakcji, do dostawcy modelu generatora przypadków, a
+generowanie z wiedzy wysyła fragmenty dokumentów - zobacz
+[co opuszcza wdrożenie](data-protection.md#what-leaves-the-deployment).
