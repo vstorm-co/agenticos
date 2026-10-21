@@ -31,6 +31,7 @@ from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, Perm, Scope
+from app.db.locks import LockScope, hold_subject
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.knowledge_gap import KnowledgeGapTopic, KnowledgeSearch, TopicStatus
 from app.db.models.rag_document import RAGDocument
@@ -726,9 +727,14 @@ class KnowledgeGapService:
         call. One whose embedding credential cannot be resolved is left as it
         is, and its misses wait for a pass that can embed them.
 
+        A pass holds the knowledge base until its transaction ends, so a
+        regroup that overlaps the scheduled pass waits and then finds the
+        misses that pass placed already taken.
+
         Returns:
             How many misses were placed in a topic.
         """
+        await hold_subject(self.db, LockScope.KNOWLEDGE_GAPS_PER_KNOWLEDGE_BASE, knowledge_base_id)
         misses = await knowledge_gap_repo.ungrouped_misses(
             self.db,
             knowledge_base_id,

@@ -23,6 +23,7 @@ The claims a mocked session cannot make:
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -31,6 +32,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy import delete, func, select
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.core.exceptions import (
     AiAssistanceDisabledError,
@@ -459,6 +461,39 @@ async def test_one_pass_groups_at_most_a_batch(db, monkeypatch) -> None:
         second = await _group(db, ctx, kb)
 
     assert (first, second) == (2, 1)
+
+
+async def test_two_passes_over_one_knowledge_base_at_once_place_each_question_once(
+    db, engine
+) -> None:
+    """A regroup overlapping the scheduled pass waits for it, rather than reading the
+    misses it has not committed yet and putting each in a second topic."""
+    ctx = await _owner(db)
+    kb = await _knowledge_base(db, ctx)
+    run, _ = await _turn(db, ctx, await _agent(db, ctx))
+    await _searched(db, ctx, run, kb, query="parking permit")
+    await _searched(db, ctx, run, kb, query="guest wifi")
+    await db.commit()
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    first_placed = asyncio.Event()
+
+    async def group(*, first: bool) -> int:
+        async with factory() as session:
+            if not first:
+                await first_placed.wait()
+            placed = await _group(session, ctx, kb)
+            if first:
+                first_placed.set()
+                await asyncio.sleep(0.3)
+            await session.commit()
+            return placed
+
+    with _embedding():
+        placed = await asyncio.gather(group(first=True), group(first=False))
+
+    assert placed == [2, 0]
+    async with factory() as fresh:
+        assert sorted((await _topics(fresh, kb)).values()) == [["guest wifi"], ["parking permit"]]
 
 
 async def test_a_knowledge_base_is_never_paired_with_another_organizations_search(db) -> None:

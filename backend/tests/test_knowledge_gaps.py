@@ -104,7 +104,7 @@ class TestGroupPending:
             patch(f"{_SERVICE}.embeddings_for_collection", new=AsyncMock()) as resolve,
             patch(f"{_SERVICE}.embedder_for") as embedder,
         ):
-            grouped = await KnowledgeGapService(MagicMock()).group_pending(
+            grouped = await KnowledgeGapService(AsyncMock()).group_pending(
                 organization_id=ORG, knowledge_base_id=KB
             )
 
@@ -134,7 +134,7 @@ class TestGroupPending:
             patch(f"{_SERVICE}.knowledge_gap_repo.create_topic", new=create_topic),
             patch(f"{_SERVICE}.knowledge_gap_repo.add_members", new=AsyncMock()) as add,
         ):
-            grouped = await KnowledgeGapService(MagicMock()).group_pending(
+            grouped = await KnowledgeGapService(AsyncMock()).group_pending(
                 organization_id=ORG, knowledge_base_id=KB
             )
 
@@ -166,7 +166,7 @@ class TestGroupPending:
             patch(f"{_SERVICE}.knowledge_gap_repo.create_topic", new=AsyncMock()) as create,
             patch(f"{_SERVICE}.knowledge_gap_repo.add_members", new=AsyncMock()) as add,
         ):
-            await KnowledgeGapService(MagicMock()).group_pending(
+            await KnowledgeGapService(AsyncMock()).group_pending(
                 organization_id=ORG, knowledge_base_id=KB
             )
 
@@ -195,7 +195,7 @@ class TestGroupPending:
             patch(f"{_SERVICE}.knowledge_gap_repo.create_topic", new=AsyncMock(return_value=fresh)),
             patch(f"{_SERVICE}.knowledge_gap_repo.add_members", new=AsyncMock()) as add,
         ):
-            await KnowledgeGapService(MagicMock()).group_pending(
+            await KnowledgeGapService(AsyncMock()).group_pending(
                 organization_id=ORG, knowledge_base_id=KB
             )
 
@@ -223,7 +223,7 @@ class TestGroupPending:
             patch(f"{_SERVICE}.knowledge_gap_repo.create_topic", new=AsyncMock(return_value=fresh)),
             patch(f"{_SERVICE}.knowledge_gap_repo.add_members", new=AsyncMock()) as add,
         ):
-            await KnowledgeGapService(MagicMock()).group_pending(
+            await KnowledgeGapService(AsyncMock()).group_pending(
                 organization_id=ORG, knowledge_base_id=KB
             )
 
@@ -242,7 +242,7 @@ class TestGroupPending:
             patch(f"{_SERVICE}.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=kb)),
             patch(f"{_SERVICE}.embeddings_for_collection", new=AsyncMock()) as resolve,
         ):
-            grouped = await KnowledgeGapService(MagicMock()).group_pending(
+            grouped = await KnowledgeGapService(AsyncMock()).group_pending(
                 organization_id=ORG, knowledge_base_id=KB
             )
 
@@ -259,7 +259,7 @@ class TestGroupPending:
             patch(f"{_SERVICE}.embeddings_for_collection", new=AsyncMock(return_value=None)),
             patch(f"{_SERVICE}.knowledge_gap_repo.add_members", new=AsyncMock()) as add,
         ):
-            grouped = await KnowledgeGapService(MagicMock()).group_pending(
+            grouped = await KnowledgeGapService(AsyncMock()).group_pending(
                 organization_id=ORG, knowledge_base_id=KB
             )
 
