@@ -52,6 +52,11 @@ BURST_SECONDS = 2.0
 FLOOD_SECONDS = 5.0
 """Dropped audio, net of real time passing, after which the call is ended as not a microphone."""
 
+MIN_FRAME_SECONDS = 0.02
+"""What every frame costs at least, in audio: a browser sends ~85 ms frames, and an
+empty or 2-byte frame would otherwise cost nothing while each is still a send to the
+provider (Codex on #2204) - so a flood of them ends the call as a flood of audio does."""
+
 SendBytes = Callable[[bytes], Awaitable[bool]]
 """Send one binary frame; `False` when the socket is already gone."""
 
@@ -72,6 +77,7 @@ class AudioRelay:
         self._send = send
         self._bytes_per_ms = output_sample_rate * 2 / 1000
         self._input_bytes_per_second = input_sample_rate * 2
+        self._min_frame_bytes = self._input_bytes_per_second * MIN_FRAME_SECONDS
         self._now = now
         self._tokens = self._input_bytes_per_second * INBOUND_RATE * BURST_SECONDS
         self._overflow = 0.0
@@ -104,11 +110,13 @@ class AudioRelay:
         rate = self._input_bytes_per_second * INBOUND_RATE
         self._tokens = min(rate * BURST_SECONDS, self._tokens + elapsed * rate)
         self._overflow = max(0.0, self._overflow - elapsed * self._input_bytes_per_second)
-        if len(chunk) > self._tokens:
-            self._overflow += len(chunk)
+        cost = max(len(chunk), self._min_frame_bytes)
+        if cost > self._tokens:
+            self._overflow += cost
             return self._overflow <= self._input_bytes_per_second * FLOOD_SECONDS
-        self._tokens -= len(chunk)
-        await session.send_audio(bytes(len(chunk)) if self._muted else chunk)
+        self._tokens -= cost
+        if chunk:
+            await session.send_audio(bytes(len(chunk)) if self._muted else chunk)
         return True
 
     def heard(self, played: int) -> None:

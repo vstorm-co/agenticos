@@ -607,6 +607,63 @@ async def test_a_blocked_answer_counts_one_guardrail_hit():
     assert [p["final"] for k, p in frames if k == "caption"] == ["[withheld by a guardrail]"]
 
 
+async def test_a_block_first_found_at_the_end_of_an_answer_still_cuts_it_off():
+    """Codex on #2204: with no sentence end the deltas are never screened, so the block
+    was first seen at part end and only the saved caption was withheld."""
+    from app.agents.spec import AgentSpec, CapabilityBindingSpec
+
+    guard = TranscriptGuard.for_spec(
+        AgentSpec(
+            name="a",
+            capabilities=[
+                CapabilityBindingSpec(id="guardrails", config={"blocked_keywords_out": "Falcon"})
+            ],
+        )
+    )
+    pump, frames, _, _ = _pump(guard=guard)
+    session = SimpleNamespace(usage=RunUsage(), interrupt=AsyncMock())
+    said = "the codename is Falcon"
+    await pump.handle(
+        PartDeltaEvent(
+            index=4,
+            delta=SpeechPartDelta(speaker="assistant", transcript_delta=said, transcript=said),
+        ),
+        session,
+    )
+    session.interrupt.assert_not_awaited()
+
+    await pump.handle(
+        PartEndEvent(index=4, part=SpeechPart(speaker="assistant", transcript=said)), session
+    )
+
+    session.interrupt.assert_awaited_once()
+    assert ("notice", {"kind": "guardrail"}) in frames
+    assert guard.hits == 1
+
+
+async def test_a_blocked_caller_is_withheld_without_a_notice():
+    from app.agents.spec import AgentSpec, CapabilityBindingSpec
+
+    guard = TranscriptGuard.for_spec(
+        AgentSpec(
+            name="a",
+            capabilities=[
+                CapabilityBindingSpec(id="guardrails", config={"blocked_keywords_in": "Falcon"})
+            ],
+        )
+    )
+    pump, frames, _, _ = _pump(guard=guard)
+    session = SimpleNamespace(usage=RunUsage(), interrupt=AsyncMock())
+
+    await pump.handle(
+        PartEndEvent(index=2, part=SpeechPart(speaker="user", transcript="say Falcon")), session
+    )
+
+    session.interrupt.assert_not_awaited()
+    assert ("notice", {"kind": "guardrail"}) not in frames
+    assert [p["final"] for k, p in frames if k == "caption"] == ["[withheld by a guardrail]"]
+
+
 async def test_a_delta_with_no_speaker_is_screened_as_the_agents():
     from app.agents.spec import AgentSpec, CapabilityBindingSpec
 

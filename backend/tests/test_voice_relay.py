@@ -107,6 +107,33 @@ async def test_a_backlog_after_a_stall_gets_through():
     assert len(session.audio_in) == 20
 
 
+async def test_an_empty_frame_reaches_nobody_and_costs_a_frame():
+    """Codex on #2204: empty and 2-byte frames cost the bucket nothing while each was a
+    send to the provider, so a public link holder could make unbounded upstream work."""
+    clock = Clock()
+    relay, _, _ = _relay(clock=clock)
+    session = FakeSession()
+    results = []
+    for _ in range(2000):  # 2000 empty frames in 1 s of wall clock
+        clock.t += 0.0005
+        results.append(await relay.inbound(session, b""))
+
+    assert session.audio_in == []
+    assert results[-1] is False
+
+
+async def test_a_flood_of_tiny_frames_is_bounded_like_a_flood_of_audio():
+    clock = Clock()
+    relay, _, _ = _relay(clock=clock)
+    session = FakeSession()
+    for _ in range(2000):
+        clock.t += 0.0005
+        await relay.inbound(session, b"\x00\x00")
+
+    # Each costs at least 20 ms: the burst and 1.5x real time hold a few hundred.
+    assert len(session.audio_in) < 300
+
+
 async def test_audio_far_faster_than_speech_is_dropped_and_then_ends_the_call():
     """Review 4: a client could otherwise run the provider's bill ahead of the call's clock."""
     clock = Clock()

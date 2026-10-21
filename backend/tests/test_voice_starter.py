@@ -34,6 +34,7 @@ class _World:
         self.open_calls = 0
         self.open_embed_calls = 0
         self.previous = None
+        self.successor_open = False
 
     def caller(self, **overrides) -> VoiceCaller:
         values = {
@@ -103,6 +104,10 @@ def world(monkeypatch):
         f"{_M}.voice_call_repo.get", AsyncMock(side_effect=lambda db, cid, **kw: w.previous)
     )
     monkeypatch.setattr(f"{_M}.voice_call_repo.chain_seconds", AsyncMock(return_value=0))
+    monkeypatch.setattr(
+        f"{_M}.voice_call_repo.has_open_successor",
+        AsyncMock(side_effect=lambda db, cid: w.successor_open),
+    )
     monkeypatch.setattr(f"{_M}.voice_call_repo.end", AsyncMock())
     monkeypatch.setattr(f"{_M}.voice_call_repo.mark_hung_up", AsyncMock())
     monkeypatch.setattr(f"{_R}.hang_up_row", AsyncMock(return_value=True))
@@ -301,6 +306,28 @@ def _resume_frame(world, previous):
         resume_of=previous.id,
         resume_token=_TOKEN,
     )
+
+
+async def test_a_connection_already_continued_is_not_continued_again(world, monkeypatch):
+    """Codex on #2204: several sockets with the same token each continued the call,
+    each with its remaining time. One at a time, under the connection's own lock,
+    and refused while another reconnect is still open."""
+    from app.db.locks import LockScope
+
+    previous = _open_previous(world, ended_at=datetime.now(UTC))
+    monkeypatch.setattr(f"{_M}.voice_call_repo.get", AsyncMock(return_value=previous))
+    world.successor_open = True
+    starter, db = _starter()
+
+    with pytest.raises(VoiceRefused) as refused:
+        await starter.start(world.caller(), _resume_frame(world, previous))
+
+    assert refused.value.reason == "resume_refused"
+    from app.services.voice import starter as starter_module
+
+    held = [call.args[1:] for call in starter_module.hold_subject.await_args_list]
+    assert (LockScope.VOICE_RESUME, previous.id) in held
+    db.commit.assert_not_awaited()
 
 
 async def test_resume_ends_a_connection_this_worker_still_holds_after_a_drop(world, monkeypatch):

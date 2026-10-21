@@ -421,6 +421,12 @@ class VoiceCallStarter:
             or previous.conversation_id != conversation_id
         ):
             raise refused
+        # One reconnect at a time per connection, and only while no other one has
+        # continued it: the lock holds until this start commits its own row, so a
+        # second socket with the same token waits for it and then finds it open.
+        await hold_subject(self.db, LockScope.VOICE_RESUME, previous.id)
+        if await voice_call_repo.has_open_successor(self.db, previous.id):
+            raise refused
         if previous.ended_at is None:
             # Still open: this reconnect ends it, so it ended just now, for this
             # reconnect - the ten-second window is about a connection that ended

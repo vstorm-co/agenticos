@@ -169,3 +169,50 @@ async def test_two_visitors_at_once_on_an_embed_at_its_limit_leave_one_call(engi
         group.start_soon(start_one)
 
     assert sorted(outcomes) == ["line_busy", "started"]
+
+
+async def test_a_connection_has_an_open_successor_only_while_its_reconnect_is_open(engine):
+    """What refuses a second reconnect with the same token (Codex on #2204)."""
+    from decimal import Decimal
+
+    from app.db.models.voice_call import VoiceEndReason
+
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    org, agent, run, user = await _rows(factory)
+    now = datetime.now(UTC)
+
+    async def connection(db, *, resume_of):
+        return await voice_call_repo.create(
+            db,
+            organization_id=org.id,
+            agent_id=agent.id,
+            run_id=run.id,
+            user_id=user.id,
+            conversation_id=None,
+            embed_id=None,
+            surface="web",
+            provider="openai",
+            model="gpt-realtime",
+            transport="webrtc",
+            secret_id=None,
+            worker_id="host:1",
+            resume_of=resume_of,
+            resume_token_hash="0" * 64,
+            started_at=now,
+        )
+
+    async with factory() as db:
+        previous = await connection(db, resume_of=None)
+        assert await voice_call_repo.has_open_successor(db, previous.id) is False
+        successor = await connection(db, resume_of=previous.id)
+        assert await voice_call_repo.has_open_successor(db, previous.id) is True
+        await voice_call_repo.end(
+            db,
+            successor.id,
+            at=now,
+            reason=VoiceEndReason.ERROR,
+            cost_usd=Decimal(0),
+            seconds=0,
+            guardrail_hits=0,
+        )
+        assert await voice_call_repo.has_open_successor(db, previous.id) is False

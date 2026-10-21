@@ -201,7 +201,7 @@ class EventPump:
                 await self._relay.forward(event.index, event.delta.audio_chunk)
             await self._delta(event.index, event.delta, session)
         elif isinstance(event, PartEndEvent) and isinstance(event.part, SpeechPart):
-            await self._part_end(event.index, event.part)
+            await self._part_end(event.index, event.part, session)
         elif isinstance(event, RealtimeInputSpeechStartEvent):
             if self._relay is not None:
                 if await self._barge_in(self._relay, session):
@@ -306,13 +306,20 @@ class EventPump:
             return
         await self._send(self._caption(index, role, delta=piece))
 
-    async def _part_end(self, index: int, part: SpeechPart) -> None:
+    async def _part_end(self, index: int, part: SpeechPart, session: RealtimeSession) -> None:
         self._live_text.pop(index, None)
         if index in self._withheld:
             # Already screened, counted and cut off in `_delta`: not a second hit.
             text = WITHHELD
         else:
-            text = self._started.guard.screen(part.transcript or "", speaker=part.speaker).text
+            screened = self._started.guard.screen(part.transcript or "", speaker=part.speaker)
+            text = screened.text
+            if screened.blocked and part.speaker == "assistant":
+                # An answer with no sentence end is first screened whole, here: cut
+                # off what is still playing and say so, as a block mid-answer is
+                # (Codex on #2204). The caller's words are not announced.
+                await session.interrupt()
+                await self._send(NoticeFrame(type="notice", kind="guardrail"))
         await self._send(self._caption(index, part.speaker, final=text))
         if part.speaker == "user":
             self.heard = text

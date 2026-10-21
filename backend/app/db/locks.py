@@ -59,6 +59,10 @@ class LockScope(IntEnum):
     #: One embed's concurrent voice calls (#54): the same race, from visitors
     #: who have no account to count against.
     VOICE_CALLS_PER_EMBED = 9
+    #: One connection's reconnects (#54). Several sockets sending the same valid
+    #: `resume_of` and token at once each passed the checks and each continued the
+    #: call - one call's remaining time, spent several times over (Codex on #2204).
+    VOICE_RESUME = 10
 
 
 def _key(subject: UUID) -> int:

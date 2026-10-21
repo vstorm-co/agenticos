@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, and_, extract, func, literal, select, update
+from sqlalchemy import ColumnElement, and_, exists, extract, func, literal, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -160,6 +160,19 @@ async def mark_hung_up(db: AsyncSession, call_id: UUID, *, at: datetime) -> None
         .values(hung_up_at=at)
     )
     await db.flush()
+
+
+async def has_open_successor(db: AsyncSession, call_id: UUID) -> bool:
+    """Whether a connection that resumed `call_id` is still open.
+
+    A reconnect continues a call once: a second one while the first is open is the
+    same call twice. One that ended - failed before it was ready, say - leaves the
+    call free to be resumed again within its window.
+    """
+    result = await db.execute(
+        select(exists().where(VoiceCall.resume_of == call_id, VoiceCall.ended_at.is_(None)))
+    )
+    return bool(result.scalar())
 
 
 async def count_open_for_user(db: AsyncSession, *, user_id: UUID, fresh_since: datetime) -> int:
