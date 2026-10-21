@@ -881,8 +881,20 @@ class KnowledgeGapService:
             output_type=KnowledgeGapClassification,
         )
         verdicts = _verdicts(candidates, result.output.answers)
+        # Taken in one order, after the model call, and held to the commit: an
+        # erasure of an asker takes the same lock, so it either removed their
+        # answer before this reads it or finds the miss to remove afterwards.
+        for asker in sorted({v.candidate.asker_id for v in verdicts if v.candidate.asker_id}):
+            await hold_subject(self.db, LockScope.PERSONAL_DATA_PER_USER, asker)
+        kept = await knowledge_gap_repo.still_asked(
+            self.db, [v.candidate for v in verdicts], organization_id=ctx.organization_id
+        )
         misses = await knowledge_gap_repo.record_classifications(
-            self.db, verdicts, organization_id=ctx.organization_id, run_id=result.run.id
+            self.db,
+            [v for v in verdicts if v.candidate.message_id in kept],
+            kb.id,
+            organization_id=ctx.organization_id,
+            run_id=result.run.id,
         )
         return len(verdicts), misses
 

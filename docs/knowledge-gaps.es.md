@@ -1,5 +1,5 @@
 ---
-source_sha: "c6b52e964f09"
+source_sha: "e3d2d8bbc68f"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, o respondió sin saber, agrupadas por tema, para saber qué documento falta."
 ---
@@ -75,13 +75,17 @@ Una respuesta con cualquiera de los dos primeros veredictos se convierte en una
 pregunta en los temas de la base de conocimiento, agrupada como una búsqueda
 fallida. En el tema dice cuál de los dos es, en lugar de nombrar una búsqueda.
 
-Una respuesta se lee cuando su run, de los últimos 30 días, buscó en la base de
-conocimiento y encontró algo, o fue valorado negativamente con un comentario y
-funciona con una versión del agent vinculada a la base de conocimiento. Un run
-cuya búsqueda ya falló cuenta una vez, como ese fallo. Los runs por la API HTTP
-no guardan respuesta, y los runs de eval, cuyas preguntas se reproducen o se
-generan, nunca se leen. Tampoco las pruebas de un borrador en el builder ni los
-runs delegados.
+Una respuesta se lee cuando su run, de los últimos 30 días, terminó y buscó en
+la base de conocimiento y encontró algo, o fue valorado negativamente con un
+comentario y funciona con una versión del agent vinculada a la base de
+conocimiento. Un run cuya búsqueda ya falló cuenta una vez, como ese fallo. Los
+runs por la API HTTP no guardan respuesta, y los runs de eval, cuyas preguntas se
+reproducen o se generan, nunca se leen. Tampoco las pruebas de un borrador en el
+builder, los runs delegados ni los runs cuyo autor ya no tiene cuenta.
+
+Una revisión pertenece a una base de conocimiento: lo que encuentra es una
+laguna solo de esa base. Una respuesta cuyo run buscó en dos bases de
+conocimiento se vuelve a leer cuando se revisa la otra.
 
 Una revisión lee hasta 100 respuestas, 20 por run del clasificador. Cada run se
 comprueba contra el presupuesto del clasificador y el de la organización antes

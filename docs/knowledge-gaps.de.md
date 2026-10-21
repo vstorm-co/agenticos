@@ -1,5 +1,5 @@
 ---
-source_sha: "c6b52e964f09"
+source_sha: "e3d2d8bbc68f"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden oder ohne Wissen geantwortet hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -74,13 +74,18 @@ Eine Antwort mit einem der ersten beiden Urteile wird zu einer Frage in den
 Themen der Wissensbasis und wie eine fehlgeschlagene Suche gruppiert. Im Thema
 steht, welcher der beiden Fälle es ist, statt einer Suche.
 
-Eine Antwort wird gelesen, wenn ihr Run aus den letzten 30 Tagen die
-Wissensbasis durchsucht und etwas gefunden hat oder mit einem Kommentar negativ
-bewertet wurde und auf einer Agent-Version läuft, die an die Wissensbasis
-gebunden ist. Ein Run, dessen Suche schon ein Fehltreffer war, zählt einmal, als
-dieser Fehltreffer. Runs über die HTTP-API behalten keine Antwort, und Eval-Runs,
-deren Fragen wiederholt oder erzeugt sind, werden nie gelesen. Tests eines Entwurfs im
-Builder und delegierte Runs ebenso wenig.
+Eine Antwort wird gelesen, wenn ihr Run aus den letzten 30 Tagen abgeschlossen
+ist und die Wissensbasis durchsucht und etwas gefunden hat oder mit einem
+Kommentar negativ bewertet wurde und auf einer Agent-Version läuft, die an die
+Wissensbasis gebunden ist. Ein Run, dessen Suche schon ein Fehltreffer war,
+zählt einmal, als dieser Fehltreffer. Runs über die HTTP-API behalten keine
+Antwort, und Eval-Runs, deren Fragen wiederholt oder erzeugt sind, werden nie
+gelesen. Tests eines Entwurfs im Builder, delegierte Runs und Runs, deren
+Starter kein Konto mehr hat, ebenso wenig.
+
+Eine Prüfung gehört zu einer Wissensbasis: Was sie findet, ist eine Lücke nur
+dieser Basis. Eine Antwort, deren Run zwei Wissensbasen durchsucht hat, wird
+erneut gelesen, wenn die andere geprüft wird.
 
 Eine Prüfung liest bis zu 100 Antworten, 20 je Run des Klassifizierers. Jeder
 Run wird gegen das Budget des Klassifizierers und der Organisation geprüft,

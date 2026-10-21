@@ -27,8 +27,9 @@ A miss need not come from retrieval. When a model reads an answer and finds the
 agent said it did not know, or a reader's thumbs-down comment says what was
 missing, the answer is recorded as a row here of that `signal`, holding the
 person's question as its query, and is grouped like any other miss.
-`knowledge_gap_classifications` remembers every answer read that way, whatever
-the verdict, so none is paid for twice; it holds no text.
+`knowledge_gap_classifications` remembers every answer read that way for each
+knowledge base, whatever the verdict, so none is paid for twice; it holds no
+text.
 """
 
 import uuid
@@ -131,6 +132,7 @@ class KnowledgeSearch(Base):
         Index(
             "uq_knowledge_searches_message_id",
             "message_id",
+            "knowledge_base_ids",
             unique=True,
             postgresql_where=text("message_id IS NOT NULL"),
         ),
@@ -242,13 +244,18 @@ class KnowledgeGapMember(Base):
 
 
 class KnowledgeGapClassification(Base):
-    """One answer a model read for a knowledge gap, and what it decided."""
+    """One answer a model read for one knowledge base's gaps, and what it decided."""
 
     __tablename__ = "knowledge_gap_classifications"
 
     message_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("messages.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    knowledge_base_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("knowledge_bases.id", ondelete="CASCADE"),
         primary_key=True,
     )
     organization_id: Mapped[uuid.UUID] = mapped_column(
@@ -263,6 +270,7 @@ class KnowledgeGapClassification(Base):
         PG_UUID(as_uuid=True),
         ForeignKey("agent_runs.id", ondelete="SET NULL"),
         nullable=True,
+        index=True,
     )
     classified_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

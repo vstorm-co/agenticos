@@ -69,12 +69,17 @@ An answer of either of the first two becomes a question in the knowledge base's
 topics, grouped like a search that missed. In the topic it says which of the
 two it is, instead of naming a search.
 
-An answer is read when its run, in the last 30 days, searched the knowledge
-base and found something, or was rated down with a comment and runs on an agent
-version bound to the knowledge base. A run whose search already missed is
-counted once, as that miss. Runs over the HTTP API keep no answer, and eval
+An answer is read when its run, in the last 30 days, finished and searched the
+knowledge base and found something, or was rated down with a comment and runs on
+an agent version bound to the knowledge base. A run whose search already missed
+is counted once, as that miss. Runs over the HTTP API keep no answer, and eval
 runs, whose questions are replayed or generated, are never read. Nor are a
-builder's tests of a draft or delegated runs.
+builder's tests of a draft, delegated runs, or runs whose starter's account is
+gone.
+
+A check belongs to one knowledge base: what it finds is a gap of that base
+alone. An answer whose run searched two knowledge bases is read again when the
+other one is checked.
 
 A check reads up to 100 answers, 20 to a run of the classifier. Each run is
 checked against the classifier's budget and the organization's before the model

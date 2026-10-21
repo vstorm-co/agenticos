@@ -111,9 +111,15 @@ async def classify_knowledge_gaps_flow(
             if read < CLASSIFY_BATCH:
                 break
         if misses:
-            async with get_worker_db_context() as db:
-                await KnowledgeGapService(db).group_pending(
-                    organization_id=org_id, knowledge_base_id=kb_id
+            try:
+                async with get_worker_db_context() as db:
+                    await KnowledgeGapService(db).group_pending(
+                        organization_id=org_id, knowledge_base_id=kb_id
+                    )
+            except Exception:
+                # The misses are committed and the next scheduled pass groups them.
+                logger.exception(
+                    "knowledge_gaps_grouping_failed", extra={"knowledge_base_id": str(kb_id)}
                 )
     if read_any:
         await change_feed.publish_knowledge_gaps_grouped(org_id)

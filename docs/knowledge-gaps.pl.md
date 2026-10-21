@@ -1,5 +1,5 @@
 ---
-source_sha: "c6b52e964f09"
+source_sha: "e3d2d8bbc68f"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego albo odpowiedział, że nie wie, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -71,12 +71,17 @@ Odpowiedź z jednym z dwóch pierwszych werdyktów staje się pytaniem w tematac
 bazy wiedzy, grupowanym tak jak chybione wyszukiwanie. W temacie mówi, który
 to z dwóch przypadków, zamiast podawać wyszukiwanie.
 
-Odpowiedź jest czytana, gdy jej run z ostatnich 30 dni przeszukał bazę wiedzy i
-coś znalazł albo został oceniony łapką w dół z komentarzem i działa na wersji
-agenta powiązanej z bazą wiedzy. Run, którego wyszukiwanie już było chybione,
-liczy się raz, jako to chybienie. Runy przez HTTP API nie zachowują odpowiedzi,
-a runy ewaluacji, których pytania są odtwarzane albo generowane, nie są nigdy
-czytane. Testy draftu w builderze i runy delegowane też nie.
+Odpowiedź jest czytana, gdy jej run z ostatnich 30 dni zakończył się i przeszukał
+bazę wiedzy i coś znalazł albo został oceniony łapką w dół z komentarzem i działa
+na wersji agenta powiązanej z bazą wiedzy. Run, którego wyszukiwanie już było
+chybione, liczy się raz, jako to chybienie. Runy przez HTTP API nie zachowują
+odpowiedzi, a runy ewaluacji, których pytania są odtwarzane albo generowane, nie
+są nigdy czytane. Testy draftu w builderze, runy delegowane i runy, których
+autor nie ma już konta, też nie.
+
+Sprawdzenie dotyczy jednej bazy wiedzy: to, co znajdzie, jest luką tylko tej
+bazy. Odpowiedź, której run przeszukał dwie bazy wiedzy, jest czytana ponownie,
+gdy sprawdza się tę drugą.
 
 Sprawdzenie czyta do 100 odpowiedzi, po 20 na run klasyfikatora. Każdy run jest
 sprawdzany względem budżetu klasyfikatora i organizacji, zanim zostanie

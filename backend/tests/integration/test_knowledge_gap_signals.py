@@ -243,33 +243,96 @@ async def test_a_comment_naming_missing_information_is_a_miss_and_one_about_leng
     assert "Who runs the plan?" not in prompt
 
 
-async def test_a_miss_read_from_an_answer_joins_the_bases_its_run_found_something_in(
+@pytest.mark.security
+async def test_a_miss_read_from_an_answer_belongs_to_the_knowledge_base_checked_alone(
     db,
 ) -> None:
+    """The check rested on the caller's access to one knowledge base, so what it
+    finds is that base's; another base the run searched reads the answer for itself."""
     ctx = await _owner(db)
     kb = await _knowledge_base(db, ctx)
     handbook = await _knowledge_base(db, ctx, "policies")
-    archive = await _knowledge_base(db, ctx, "archive")
     agent = await _agent(db, ctx)
     run, _ = await _asked(db, ctx, agent, question="Visitor parking?", answer="I don't know.")
     await _searched(db, ctx, run, kb, query="parking", top_similarity=0.7)
     await _searched(db, ctx, run, kb, query="visitor parking", top_similarity=0.9)
     await _searched(db, ctx, run, kb, query="garage", top_similarity=None)
     await _searched(db, ctx, run, handbook, query="parking rules", top_similarity=0.95)
-    await _searched(db, ctx, run, archive, query="old parking", top_similarity=0.1)
     await db.execute(
         KnowledgeSearch.__table__.update()
         .where(KnowledgeSearch.query == "garage")
         .values(result_count=2)
     )
+    classifier = await _classifier_run(db, ctx, agent)
+    service = KnowledgeGapService(db)
 
-    await _check(db, ctx, kb, await _classifier_run(db, ctx, agent))
+    first, _ = await _check(db, ctx, kb, classifier)
+    waiting = (await service.list_for_knowledge_base(ctx, handbook.id)).unchecked
+    second, _ = await _check(db, ctx, handbook, classifier)
 
-    row = (
-        await db.execute(select(KnowledgeSearch).where(KnowledgeSearch.signal == "answer"))
-    ).scalar_one()
-    assert set(row.knowledge_base_ids) == {kb.id, handbook.id}
-    assert (row.result_count, row.top_similarity) == (3, 0.9)
+    rows = (
+        (await db.execute(select(KnowledgeSearch).where(KnowledgeSearch.signal == "answer")))
+        .scalars()
+        .all()
+    )
+    assert (first, waiting, second) == ((1, 1), 1, (1, 1))
+    assert sorted((r.knowledge_base_ids, r.top_similarity) for r in rows) == sorted(
+        [([kb.id], 0.9), ([handbook.id], 0.95)]
+    )
+    assert {r.result_count for r in rows if r.knowledge_base_ids == [kb.id]} == {3}
+
+
+@pytest.mark.security
+async def test_an_answer_whose_asker_is_erased_during_the_check_leaves_no_miss(db) -> None:
+    """The model call takes time; an erasure that lands in it has removed the
+    person's searches already, and a miss recorded afterwards would outlive them."""
+    ctx = await _owner(db)
+    kb = await _knowledge_base(db, ctx)
+    agent = await _agent(db, ctx)
+    asker = await _member(db, ctx, OrgRoleName.MEMBER)
+    run, _ = await _asked(db, asker, agent, question="Parking?", answer="I don't know.")
+    await _searched(db, ctx, run, kb, query="parking", top_similarity=0.9)
+    classifier = await _classifier_run(db, ctx, agent)
+    run_id = run.id
+
+    async def erased_meanwhile(_ctx: AuthContext, **kwargs: object) -> SystemAgentResult[Report]:
+        await db.execute(
+            AgentRun.__table__.update().where(AgentRun.id == run_id).values(user_id=None)
+        )
+        return SystemAgentResult(
+            output=Report(answers=[ClassifiedAnswer(number=1, signal="answer")]), run=classifier
+        )
+
+    with patch(
+        "app.services.knowledge_gaps.SystemAgentRunner.run",
+        new=AsyncMock(side_effect=erased_meanwhile),
+    ):
+        read = await KnowledgeGapService(db).classify_batch(ctx, kb.id)
+
+    assert read == (1, 0)
+    assert await _signals(db, kb) == {}
+    assert (await KnowledgeGapService(db).list_for_knowledge_base(ctx, kb.id)).unchecked == 0
+
+
+async def test_only_the_newest_comments_on_an_answer_are_shown(db) -> None:
+    ctx = await _owner(db)
+    kb = await _knowledge_base(db, ctx)
+    agent = await _agent(db, ctx)
+    run, answer = await _asked(db, ctx, agent, question="Price?", answer="It is 10.")
+    await _searched(db, ctx, run, kb, query="price", top_similarity=0.9)
+    for n in range(7):
+        rating = await _rated_down(db, answer, (await _user(db)).id, f"comment {n}")
+        rated_at = datetime.now(UTC) - timedelta(minutes=10 - n)
+        await db.execute(
+            MessageRating.__table__.update()
+            .where(MessageRating.id == rating.id)
+            .values(created_at=rated_at, updated_at=rated_at)
+        )
+
+    _, run_it = await _check(db, ctx, kb, await _classifier_run(db, ctx, agent))
+
+    prompt = run_it.await_args.kwargs["prompt"]
+    assert [n for n in range(7) if f"comment {n}" in prompt] == [2, 3, 4, 5, 6]
 
 
 async def test_a_run_whose_search_missed_is_already_counted_and_is_not_read(db) -> None:
@@ -304,11 +367,13 @@ async def test_evals_tests_delegates_and_other_organizations_are_never_read(db) 
     tested, _ = await _asked(
         db, ctx, agent, question="tested", answer="I don't know.", is_test=True
     )
+    parked, _ = await _asked(db, ctx, agent, question="parked", answer="I don't know.")
+    parked.status = "awaiting_approval"
     other = await _owner(db)
     foreign, _ = await _asked(
         db, other, await _agent(db, other), question="foreign", answer="I don't know."
     )
-    for run in (ours, replayed, delegated, tested, foreign):
+    for run in (ours, replayed, delegated, tested, parked, foreign):
         await _searched(
             db, ctx if run is not foreign else other, run, kb, query="q", top_similarity=0.9
         )
@@ -319,7 +384,7 @@ async def test_evals_tests_delegates_and_other_organizations_are_never_read(db) 
     prompt = run_it.await_args.kwargs["prompt"]
     assert read == 1
     assert "ours" in prompt
-    assert not {"replayed", "delegated", "tested", "foreign"} & set(
+    assert not {"replayed", "delegated", "tested", "parked", "foreign"} & set(
         re.findall(r"Asked: (\w+)", prompt)
     )
     with pytest.raises(NotFoundError):

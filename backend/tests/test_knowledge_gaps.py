@@ -438,6 +438,18 @@ class TestTheCheck:
         group.assert_not_awaited()
         told.assert_not_awaited()
 
+    async def test_a_grouping_that_fails_after_the_check_still_announces_what_was_read(
+        self, caplog
+    ):
+        stack, told, _, group = _check_patches(batches=[(4, 2)])
+        group.side_effect = RuntimeError("embedding provider refused")
+        with stack:
+            misses = await _run_check()
+
+        assert misses == 2
+        told.assert_awaited_once_with(ORG)
+        assert "knowledge_gaps_grouping_failed" in caplog.text
+
     async def test_answers_read_with_no_miss_among_them_are_announced_but_not_grouped(self):
         stack, told, _, group = _check_patches(batches=[(3, 0)])
         with stack:
@@ -462,10 +474,11 @@ class TestTheRepository:
         db = MagicMock(execute=AsyncMock())
 
         recorded = await knowledge_gap_repo.record_classifications(
-            db, [], organization_id=ORG, run_id=uuid.uuid4()
+            db, [], KB, organization_id=ORG, run_id=uuid.uuid4()
         )
+        kept = await knowledge_gap_repo.still_asked(db, [], organization_id=ORG)
 
-        assert recorded == 0
+        assert (recorded, kept) == (0, set())
         db.execute.assert_not_awaited()
 
     def test_rows_name_themselves(self):
