@@ -1777,10 +1777,6 @@
       "start": "Rozpocznij rozmowę głosową",
       "canSetUp": "Możesz to ustawić na karcie Głos agenta.",
       "unavailable": {
-        "noVoice": {
-          "title": "Ten agent nie ma skonfigurowanego głosu",
-          "body": "Na jego karcie Głos nie wybrano modelu do rozmów głosowych."
-        },
         "notOffered": {
           "title": "Model głosowy tego agenta nie jest już oferowany",
           "body": "Wybierz inny model na jego karcie Głos."

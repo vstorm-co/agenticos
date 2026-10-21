@@ -99,19 +99,6 @@ vi.mock("@/components/ui/voice-glow", () => ({
     start: vi.fn(),
     stop: vi.fn(),
   }),
-  VoiceGlow: ({
-    children,
-    active,
-    processing,
-  }: {
-    children: React.ReactNode;
-    active?: boolean;
-    processing?: boolean;
-  }) => (
-    <div data-testid="voice-glow" data-active={String(active)} data-processing={String(processing)}>
-      {children}
-    </div>
-  ),
 }));
 
 /**
@@ -506,26 +493,22 @@ describe("the chat container - server dictation", () => {
     useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
   });
 
-  it("keeps the glow lit and sweeping while the recording is transcribed", async () => {
+  it("shows the pill above the box while the recording is transcribed", async () => {
     dictation.phase = "transcribing";
     mount();
 
-    // The bar is the composer's own row once the agent's engine is read.
+    // The pill floats once the agent's engine is read; nothing glows under the box.
     expect(await screen.findByText("0:42 of audio")).toBeInTheDocument();
-    const glow = screen.getByTestId("voice-glow");
-    expect(glow).toHaveAttribute("data-active", "true");
-    expect(glow).toHaveAttribute("data-processing", "true");
+    expect(screen.getByTestId("floating-pill")).toBeInTheDocument();
+    expect(screen.queryByTestId("voice-glow")).toBeNull();
   });
 
-  it("holds the sweep while the bar counts the upload", async () => {
+  it("counts the upload in the pill", async () => {
     dictation.phase = "transcribing";
     dictation.upload = 42;
     mount();
 
     expect(await screen.findByText("Uploading 42%")).toBeInTheDocument();
-    const glow = screen.getByTestId("voice-glow");
-    expect(glow).toHaveAttribute("data-active", "true");
-    expect(glow).toHaveAttribute("data-processing", "false");
   });
 
   it("shows no note for the words that landed: they are in the box", async () => {
@@ -545,7 +528,6 @@ describe("the chat container - server dictation", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Transcription didn't finish.");
     expect(document.querySelector('[data-tour="chat-composer"]')).toHaveClass("rounded-t-none");
-    expect(screen.getByTestId("voice-glow")).toHaveAttribute("data-active", "false");
   });
 
   it("tells the recorder the format the agent's readiness names", async () => {
@@ -625,14 +607,12 @@ describe("the chat container - server dictation", () => {
     );
   });
 
-  it("leaves the glow to the open microphone for the browser engine", async () => {
+  it("draws no recording pill for the browser engine", async () => {
     readiness.current = { ...readiness.current, engine: "browser" };
     dictation.phase = "transcribing";
     mount();
 
     expect(await screen.findByRole("button", { name: "Voice input" })).toBeInTheDocument();
-    expect(screen.getByTestId("voice-glow")).toHaveAttribute("data-active", "false");
-    expect(screen.getByTestId("voice-glow")).toHaveAttribute("data-processing", "false");
     expect(screen.queryByText("0:42 of audio")).not.toBeInTheDocument();
   });
 });
@@ -693,12 +673,12 @@ describe("the chat container - a voice call (#54)", () => {
     });
   });
 
-  it("crosses the button out, with the reason, for an agent that cannot take a call", async () => {
+  it("crosses the button out, with the reason, for an agent whose voice cannot take a call", async () => {
     useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
     const base = get.getMockImplementation() as (url: string) => Promise<unknown>;
     get.mockImplementation((url: string) =>
       /\/voice$/.test(url)
-        ? Promise.resolve({ ...READY_VOICE, available: false, unavailable: "no_voice" })
+        ? Promise.resolve({ ...READY_VOICE, available: false, unavailable: "no_key" })
         : base(url),
     );
     mount();
@@ -706,7 +686,7 @@ describe("the chat container - a voice call (#54)", () => {
       expect(
         screen.getByRole("button", {
           name: "Start a voice call",
-          description: /This agent has no voice set up/,
+          description: /This agent's voice has no key/,
         }),
       ).toHaveAttribute("aria-disabled", "true"),
     );

@@ -1777,10 +1777,6 @@
       "start": "Start a voice call",
       "canSetUp": "You can set this up on the agent's Voice card.",
       "unavailable": {
-        "noVoice": {
-          "title": "This agent has no voice set up",
-          "body": "Its Voice card has no voice conversation model."
-        },
         "notOffered": {
           "title": "This agent's voice model is no longer offered",
           "body": "Choose another model on its Voice card."

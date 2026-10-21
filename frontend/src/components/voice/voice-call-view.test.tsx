@@ -562,7 +562,11 @@ describe("the call pill in /chat", () => {
 
   it("presses a control in the page's ink, on the pill", () => {
     render(<Pill call={live({ type: "muted", muted: true })} />);
-    expect(screen.getByRole("button", { name: "Unmute" })).toHaveClass("bg-background");
+    expect(screen.getByRole("button", { name: "Unmute" })).toHaveClass(
+      "bg-background",
+      "text-foreground",
+      "hover:text-foreground",
+    );
     useVoiceCallStore.setState({ pushToTalk: true });
     render(<Pill call={live()} />);
     expect(screen.getAllByRole("button", { pressed: true })[0]).toHaveClass("bg-background");

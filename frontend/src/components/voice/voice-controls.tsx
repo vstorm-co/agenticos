@@ -109,7 +109,8 @@ export function VoiceControls({
 
   // Pressed reads as the opposite ink: the page's on the pill, the pill's on the page.
   const on = inverse
-    ? "bg-background text-foreground hover:bg-background/90"
+    ? // Its own hover too: the ghost's lighter hover ink would vanish on white.
+      "bg-background text-foreground hover:bg-background/90 hover:text-foreground"
     : "bg-foreground text-background hover:bg-foreground/90";
   const ghost = inverse ? "text-background hover:bg-background/15 hover:text-background" : "";
   const release = () => {

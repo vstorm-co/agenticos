@@ -1777,10 +1777,6 @@
       "start": "Sprachanruf starten",
       "canSetUp": "Sie können das auf der Karte „Stimme“ des Agents einrichten.",
       "unavailable": {
-        "noVoice": {
-          "title": "Für diesen Agent ist keine Stimme eingerichtet",
-          "body": "Auf seiner Karte „Stimme“ ist kein Modell für Sprachgespräche gewählt."
-        },
         "notOffered": {
           "title": "Das Sprachmodell dieses Agents wird nicht mehr angeboten",
           "body": "Wählen Sie auf seiner Karte „Stimme“ ein anderes Modell."

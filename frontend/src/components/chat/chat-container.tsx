@@ -68,7 +68,7 @@ import { useFollowContent } from "@/hooks/use-follow-content";
 import { useReaderScrolledUp } from "@/hooks/use-reader-scrolled-up";
 import { useFocusAfterCall } from "@/hooks/use-focus-after-call";
 import { Beam } from "@/components/ui/beam";
-import { useMicrophone, VoiceGlow } from "@/components/ui/voice-glow";
+import { useMicrophone } from "@/components/ui/voice-glow";
 import {
   useDictation,
   useDictationStatus,
@@ -1388,28 +1388,9 @@ function ChatUI({
                           : null
                   }
                 />
-                {/* Around the whole composer, not around a row inside it: the glow
-                blooms outward from the edge it is given, and given an inner row
-                it bloomed into the card's own fill and was all but invisible.
-                Always mounted and always lit - at rest it breathes, on a voice
-                it rises with the level, and while the answer is being thought
-                through it sweeps. */}
-                {/* Lit only while the microphone is actually open. At rest it is a
-                glow with nothing to report, and during a turn the transcript
-                already says what is happening. */}
-                {/* For server dictation it stays lit through transcribing, sweeping
-                  instead of listening: the microphone is closed by then, and
-                  the box is still busy. Not while the bar counts the upload:
-                  the sweep is for a wait nobody can measure. */}
-                <VoiceGlow
-                  stream={mic.stream}
-                  active={engine === "server" ? recordingPhase : mic.state === "live"}
-                  processing={
-                    engine === "server" &&
-                    dictationState.phase === "transcribing" &&
-                    dictationState.upload === null
-                  }
-                >
+                {/* No glow under the box: the pill above it says the microphone is
+                    open and how loud, and a second signal below read as a shadow. */}
+                <div>
                   {/* All the way around the composer, and only while somebody is in
                   it. A border that glows permanently is decoration; one that
                   lights when the caret arrives is the box saying it is where
@@ -1531,7 +1512,7 @@ function ChatUI({
                       </div>
                     </div>
                   </Beam>
-                </VoiceGlow>
+                </div>
               </div>
               <ComposerStatus isConnected={isConnected} compact={compact} />
             </div>

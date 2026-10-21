@@ -40,7 +40,6 @@ describe("VoiceCallButton", () => {
   });
 
   it.each([
-    ["no_voice", "This agent has no voice set up"],
     ["not_offered", "This agent's voice model is no longer offered"],
     ["no_key", "This agent's voice has no key"],
   ] as const)("is crossed out with the reason when %s", (reason, title) => {
@@ -58,6 +57,18 @@ describe("VoiceCallButton", () => {
     expect(button).toHaveAccessibleDescription(expect.stringContaining(title));
     fireEvent.click(button);
     expect(onStart).not.toHaveBeenCalled();
+  });
+
+  it("is not there at all for an agent with no voice: most take no calls", () => {
+    const { container } = render(
+      <VoiceCallButton
+        readiness={{ ...READY, available: false, unavailable: "no_voice" }}
+        failed={false}
+        onStart={vi.fn()}
+        canSetUp
+      />,
+    );
+    expect(container).toBeEmptyDOMElement();
   });
 
   it("is not there at all while the agent's answer loads, so it does not flash", () => {
@@ -110,7 +121,7 @@ describe("VoiceCallButton", () => {
   it("explains itself on hover, on keyboard focus and on a press", async () => {
     render(
       <VoiceCallButton
-        readiness={{ ...READY, available: false, unavailable: "no_voice" }}
+        readiness={{ ...READY, available: false, unavailable: "no_key" }}
         failed={false}
         onStart={vi.fn()}
         canSetUp={false}
@@ -118,7 +129,7 @@ describe("VoiceCallButton", () => {
     );
     const button = screen.getByRole("button", { name: NAME });
     const popover = () =>
-      screen.queryByText("Its Voice card has no voice conversation model.", {
+      screen.queryByText("Choose a key on its Voice card.", {
         selector: "p",
       });
 

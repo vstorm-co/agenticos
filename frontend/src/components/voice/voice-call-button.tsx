@@ -7,8 +7,7 @@ import { useId, useRef, useState } from "react";
 import { Button, Popover, PopoverAnchor, PopoverContent } from "@/components/ui";
 import type { VoiceReadiness, VoiceUnavailable } from "@/types/voice";
 
-const REASON_KEYS: Record<VoiceUnavailable, string> = {
-  no_voice: "noVoice",
+const REASON_KEYS: Record<Exclude<VoiceUnavailable, "no_voice">, string> = {
   not_offered: "notOffered",
   no_key: "noKey",
 };
@@ -29,7 +28,9 @@ interface VoiceCallButtonProps {
  * The composer's call button (#54). Offered when a call would start; otherwise
  * crossed out and still focusable, saying why - the dictation rule, so a person
  * is never left guessing why this agent takes no call. Absent while the agent's
- * readiness loads, so it does not flash.
+ * readiness loads, so it does not flash, and for an agent with no voice set up:
+ * most agents take no calls, and a crossed-out phone beside every one of them
+ * read as something broken. Calls are set up on the agent's Voice card.
  *
  * Hover or keyboard focus opens the reason in a popover; a press toggles it,
  * because a touch screen has no hover.
@@ -47,7 +48,7 @@ export function VoiceCallButton({
   const pressed = useRef(false);
   const describedBy = useId();
 
-  if (!failed && readiness === null) return null;
+  if (!failed && (readiness === null || readiness.unavailable === "no_voice")) return null;
   if (readiness?.available) {
     return (
       <Button
@@ -67,7 +68,7 @@ export function VoiceCallButton({
   }
 
   const reason = readiness?.unavailable;
-  const key = failed || !reason ? "unchecked" : REASON_KEYS[reason];
+  const key = failed || !reason || reason === "no_voice" ? "unchecked" : REASON_KEYS[reason];
   const title = t(`unavailable.${key}.title`);
   const body = t(`unavailable.${key}.body`);
 
