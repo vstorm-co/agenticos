@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.12.1] - 2026-10-22
+
 ### Security
 
 - **Dependency alerts match the backend's locked versions again.** Dependabot
