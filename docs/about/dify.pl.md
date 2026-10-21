@@ -1,5 +1,5 @@
 ---
-source_sha: "92e969c9bc2d"
+source_sha: "ed0edc7861e2"
 title: "AgenticOS vs Dify"
 seo_title: "AgenticOS vs Dify: wielotenantowa alternatywa na Apache-2.0"
 description: "Porównaj Dify i AgenticOS, dwie platformy agentów AI self-hosted: warunki licencji, wielotenantowość, SSO, budżety, zatwierdzenia, logi audytowe i ceny."
@@ -53,7 +53,7 @@ AgenticOS sprawdza [miesięczny budżet](../governance.md#budgets) każdego agen
 
 ### Zatwierdzenie na narzędziu, nie tylko w przepływie { #approval-on-the-tool-not-only-in-the-flow }
 
-Węzeł Human Input w Dify wstrzymuje workflow i wysyła formularz, a żądanie zamyka się po pierwszej odpowiedzi. W AgenticOS [zatwierdzenie](../governance.md#approvals) ustawia się per capability i można je nadpisać per narzędzie. Obejmuje narzędzia capabilities; narzędzie MCP jest bramkowane tylko wtedy, gdy rozmowa w czacie webowym pyta o wszystko. Run czeka, wybrane przez Ciebie osoby dostają [alert](../governance.md#alerts), a druga decyzja w sprawie już rozstrzygniętego zatwierdzenia jest odrzucana.
+Węzeł Human Input w Dify wstrzymuje workflow i wysyła formularz, a żądanie zamyka się po pierwszej odpowiedzi. W AgenticOS [zatwierdzenie](../governance.md#approvals) ustawia się per capability i można je nadpisać per narzędzie. Połączenie MCP ma własną [politykę](../mcp.md#which-calls-wait-for-a-person): none, writes albo all. Run czeka, wybrane przez Ciebie osoby dostają [alert](../governance.md#alerts), a druga decyzja w sprawie już rozstrzygniętego zatwierdzenia jest odrzucana.
 
 ### Zmiana, którą może wprowadzić zespół biznesowy { #a-change-a-business-team-can-make }
 

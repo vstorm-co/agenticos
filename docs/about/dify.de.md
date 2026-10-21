@@ -1,5 +1,5 @@
 ---
-source_sha: "92e969c9bc2d"
+source_sha: "ed0edc7861e2"
 title: "AgenticOS vs Dify"
 seo_title: "AgenticOS vs Dify: mandantenfähige Apache-2.0-Alternative"
 description: "Dify und AgenticOS, selbst gehostete KI-Agent-Plattformen, im Vergleich: Lizenzbedingungen, Mandantenfähigkeit, SSO, Budgets, Freigaben, Audit-Logs, Preise."
@@ -53,7 +53,7 @@ AgenticOS prüft das [monatliche Budget](../governance.md#budgets) jedes Agents 
 
 ### Freigabe am Werkzeug, nicht nur im Ablauf { #approval-on-the-tool-not-only-in-the-flow }
 
-Der Human-Input-Knoten von Dify pausiert einen Workflow und sendet ein Formular, und die Anfrage schließt nach der ersten Antwort. In AgenticOS wird eine [Freigabe](../governance.md#approvals) pro Capability festgelegt und kann pro Werkzeug überschrieben werden. Sie gilt für Capability-Werkzeuge; ein MCP-Werkzeug erfordert nur dann eine Freigabe, wenn eine Web-Chat-Konversation bei allem nachfragt. Der Run wartet, die Personen Ihrer Wahl werden [benachrichtigt](../governance.md#alerts), und eine zweite Entscheidung über eine bereits entschiedene Freigabe wird abgelehnt.
+Der Human-Input-Knoten von Dify pausiert einen Workflow und sendet ein Formular, und die Anfrage schließt nach der ersten Antwort. In AgenticOS wird eine [Freigabe](../governance.md#approvals) pro Capability festgelegt und kann pro Werkzeug überschrieben werden. Eine MCP-Verbindung hat ihre eigene [Richtlinie](../mcp.md#which-calls-wait-for-a-person): none, writes oder all. Der Run wartet, die Personen Ihrer Wahl werden [benachrichtigt](../governance.md#alerts), und eine zweite Entscheidung über eine bereits entschiedene Freigabe wird abgelehnt.
 
 ### Eine Änderung, die ein Fachteam vornehmen kann { #a-change-a-business-team-can-make }
 

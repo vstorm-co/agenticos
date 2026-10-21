@@ -1,5 +1,5 @@
 ---
-source_sha: "92e969c9bc2d"
+source_sha: "ed0edc7861e2"
 title: "AgenticOS vs Dify"
 seo_title: "AgenticOS vs Dify: alternativa Apache-2.0 y multi-tenant"
 description: "Compara Dify y AgenticOS, dos plataformas de agents de IA autoalojadas: condiciones de licencia, multi-tenancy, SSO, budgets, aprobaciones, auditoría y precios."
@@ -53,7 +53,7 @@ AgenticOS comprueba el [budget mensual](../governance.md#budgets) de cada agent 
 
 ### Aprobación en la herramienta, no solo en el flujo { #approval-on-the-tool-not-only-in-the-flow }
 
-El nodo Human Input de Dify pausa un workflow y envía un formulario, y la solicitud se cierra tras la primera respuesta. En AgenticOS una [aprobación](../governance.md#approvals) se configura por capability y puede sobrescribirse por herramienta. Cubre las herramientas de capability; una herramienta MCP solo se controla cuando una conversación del chat web pide aprobar todo. El run queda detenido, las personas que elijas reciben una [alerta](../governance.md#alerts), y se rechaza una segunda decisión sobre una aprobación ya decidida.
+El nodo Human Input de Dify pausa un workflow y envía un formulario, y la solicitud se cierra tras la primera respuesta. En AgenticOS una [aprobación](../governance.md#approvals) se configura por capability y puede sobrescribirse por herramienta. Una conexión MCP tiene su propia [política](../mcp.md#which-calls-wait-for-a-person): none, writes o all. El run queda detenido, las personas que elijas reciben una [alerta](../governance.md#alerts), y se rechaza una segunda decisión sobre una aprobación ya decidida.
 
 ### Un cambio que puede hacer un equipo de negocio { #a-change-a-business-team-can-make }
 
