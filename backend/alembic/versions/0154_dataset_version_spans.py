@@ -22,7 +22,7 @@ from - since history that stores only its changes can describe far more versions
 than the old table could hold, and writing them all could fill the disk.
 
 Revision ID: 0154_dataset_version_spans
-Revises: 0153_knowledge_gap_signals
+Revises: 0152_authoring_proposals
 Create Date: 2026-10-21
 """
 
@@ -34,7 +34,7 @@ from alembic import op
 from app.core.config import settings
 
 revision: str = "0154_dataset_version_spans"
-down_revision: str | None = "0153_knowledge_gap_signals"
+down_revision: str | None = "0152_authoring_proposals"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
