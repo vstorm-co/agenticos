@@ -97,7 +97,7 @@ from app.db.models.artifact import (
     ArtifactVersion,
 )
 from app.db.models.case_score import CaseScore
-from app.db.models.dataset import Dataset, DatasetCase, DatasetVersion, DatasetVersionCase
+from app.db.models.dataset import Dataset, DatasetCase, DatasetVersion
 from app.db.models.case_generation import CaseGeneration, CaseProposal
 from app.db.models.knowledge_gap import KnowledgeGapMember, KnowledgeGapTopic, KnowledgeSearch
 from app.db.models.visual import Visual
@@ -124,7 +124,6 @@ __all__ = [
     "Dataset",
     "DatasetCase",
     "DatasetVersion",
-    "DatasetVersionCase",
     "KnowledgeGapMember",
     "KnowledgeGapTopic",
     "KnowledgeSearch",

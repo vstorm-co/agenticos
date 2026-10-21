@@ -30,7 +30,7 @@ from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.conversation import Conversation, Message, ToolCall
-from app.db.models.dataset import Dataset, DatasetCase, DatasetVersion, DatasetVersionCase
+from app.db.models.dataset import Dataset, DatasetCase, DatasetVersion
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
@@ -940,7 +940,6 @@ async def test_deleting_a_dataset_takes_every_version_case_and_grant_with_it(db)
 
     for model in (DatasetVersion, DatasetCase):
         assert await db.scalar(select(func.count()).select_from(model)) == 0
-    assert await db.scalar(select(func.count()).select_from(DatasetVersionCase)) == 0
     assert (
         await db.scalar(
             select(func.count())
@@ -994,6 +993,8 @@ async def test_a_case_source_outside_the_vocabulary_is_refused(db) -> None:
             case_id=uuid.uuid4(),
             input="q",
             source="scraped",
+            position=0,
+            added_in=1,
         )
     )
     with pytest.raises(IntegrityError):
@@ -1229,38 +1230,45 @@ async def test_the_shared_predicate_admits_what_is_visible_and_not_the_callers_o
     assert (rows[6].id in admitted) is granting
 
 
-async def test_an_organization_past_its_stored_version_rows_is_refused(
+async def test_an_organization_past_its_stored_case_revisions_is_refused(
     db, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The ceiling sums every version of every dataset of one organization, and only it."""
-    monkeypatch.setattr(dataset_service.settings, "DATASET_MAX_VERSION_ROWS_PER_ORG", 5)
+    """The ceiling counts every case revision one organization stores, and only its own.
+
+    Adding or editing a case stores a revision; removing one stores nothing, so a
+    removal is allowed however full the organization is.
+    """
+    monkeypatch.setattr(dataset_service.settings, "DATASET_MAX_VERSION_ROWS_PER_ORG", 3)
     ctx = await _owner(db)
     service = DatasetService(db)
     first = await service.create(ctx, DatasetCreate(name="first"))
     second = await service.create(ctx, DatasetCreate(name="second"))
     case = DatasetCaseCreate(input="q", reference_answer="a")
-    await service.add_case(ctx, first.id, case)  # v1 holds 1
-    await service.add_case(ctx, first.id, case)  # v2 holds 2
-    await service.add_case(ctx, second.id, case)  # v1 holds 1: 4 rows in all
+    await service.add_case(ctx, first.id, case)
+    await service.add_case(ctx, first.id, case)
+    await service.add_case(ctx, second.id, case)  # 3 revisions in all
 
-    # Another organization's rows are its own: it still has room for its first five.
+    # Another organization's revisions are its own: it still has room.
     stranger = await _owner(db)
     theirs = await service.create(stranger, DatasetCreate(name="theirs"))
     await service.add_case(stranger, theirs.id, case)
     await service.add_case(stranger, theirs.id, case)
 
     with pytest.raises(BadRequestError) as refused:
-        await service.add_case(ctx, second.id, case)  # v2 would hold 2: 6 rows
-    assert refused.value.details == {"version_rows": 4, "adding": 2, "max_version_rows": 5}
+        await service.add_case(ctx, second.id, case)
+    assert refused.value.details == {"version_rows": 3, "adding": 1, "max_version_rows": 3}
+    assert "case revisions" in refused.value.message
     assert "DATASET_MAX_VERSION_ROWS_PER_ORG" in refused.value.message
+    held = (await service.list_cases(ctx, first.id)).items[0]
+    with pytest.raises(BadRequestError):
+        await service.update_case(ctx, first.id, held.case_id, DatasetCaseUpdate(note="n"))
     assert (await service.read(ctx, second.id)).latest_version == 1
-    assert await dataset_repo.version_rows(db, organization_id=ctx.organization_id) == 4
-    assert await dataset_repo.version_rows(db, organization_id=stranger.organization_id) == 3
+    assert await dataset_repo.stored_revisions(db, organization_id=ctx.organization_id) == 3
+    assert await dataset_repo.stored_revisions(db, organization_id=stranger.organization_id) == 2
 
-    await service.remove_case(
-        ctx, first.id, (await service.list_cases(ctx, first.id)).items[0].case_id
-    )
-    assert await dataset_repo.version_rows(db, organization_id=ctx.organization_id) == 5
+    await service.remove_case(ctx, first.id, held.case_id)
+    assert (await service.read(ctx, first.id)).case_count == 1
+    assert await dataset_repo.stored_revisions(db, organization_id=ctx.organization_id) == 3
 
 
 async def test_a_name_taken_by_a_concurrent_request_answers_409_not_500(
@@ -1301,6 +1309,8 @@ async def test_an_order_mode_outside_the_three_is_refused_by_the_table(db) -> No
             input="q",
             source="manual",
             order_mode="sorted",
+            position=0,
+            added_in=1,
         )
     )
     with pytest.raises(IntegrityError):

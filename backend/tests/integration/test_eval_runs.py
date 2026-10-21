@@ -53,7 +53,7 @@ from app.db.models.resource_grant import GrantLevel, ResourceGrant
 from app.db.models.user import User
 from app.repositories import eval_run_repo
 from app.schemas.agent_environment import EnvironmentCreate
-from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
+from app.schemas.dataset import DatasetCaseCreate, DatasetCaseUpdate, DatasetCreate
 from app.schemas.eval_run import EvalRunRequest
 from app.schemas.scoring import CaseVerdict, RescoreRequest
 from app.services.agent_environment import AgentEnvironmentService
@@ -345,6 +345,36 @@ async def test_a_run_past_the_budget_is_refused_before_anything_is_written(db) -
     assert not estimate.affordable
     assert estimate.org_after_usd == Decimal("-0.50")
     assert await db.scalar(select(func.count()).select_from(EvalRun)) == 0
+
+
+async def test_a_run_on_an_older_version_asks_exactly_what_it_held(db) -> None:
+    """Edits after a version leave what a run started on it is asked unchanged."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=3)
+    datasets = DatasetService(db)
+    held = (await datasets.list_cases(ctx, dataset.id)).items
+    await datasets.update_case(
+        ctx, dataset.id, held[0].case_id, DatasetCaseUpdate(input="Question 0, reworded")
+    )
+    await datasets.remove_case(ctx, dataset.id, held[1].case_id)
+
+    started = await EvalRunService(db).start(
+        ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, dataset_version=3)
+    )
+
+    asked = (
+        (
+            await db.execute(
+                select(EvalRunCase.case_revision_id)
+                .where(EvalRunCase.eval_run_id == started.id)
+                .order_by(EvalRunCase.position)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert asked == [case.id for case in held]
 
 
 async def test_a_cancelled_run_starts_no_further_case(db) -> None:

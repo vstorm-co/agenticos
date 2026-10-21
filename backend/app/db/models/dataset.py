@@ -7,17 +7,22 @@ calls the agent is expected to make and the checks to apply.
 
 **Every change to the cases mints a version, and a version never changes.** An
 eval run points at a version, so two runs over the same version saw the same
-questions and their results compare. That is three tables rather than one:
+questions and their results compare. That is two tables rather than one:
 
 - `dataset_cases` holds case *revisions*. A row's content is never updated;
   editing a case writes a new row with the same `case_id`, so the version that
   held the old one still reads it. The links to where a case came from are the
   one thing cleared later - when that conversation or its author is deleted.
 - `dataset_versions` is one row per change, numbered from 1 within a dataset.
-- `dataset_version_cases` says which revisions a version holds and in what order.
-  A new version copies the previous membership and changes only what the edit
-  touched, so a one-case edit costs a row of ids per case rather than a copy of
-  every case's text.
+
+Which revisions a version holds is kept on the revisions themselves. A revision
+joins at the end, or in the place of the revision it edits, and leaves at most
+once, so it is held by one unbroken run of versions at one position:
+`added_in` is the first version holding it and `removed_in` the first that no
+longer does. Version N holds the revisions with `added_in <= N` and no
+`removed_in`, or one past N. A change sets `removed_in` only to the version it
+mints, so it never alters what an earlier version holds, and storage grows with
+what changed rather than with every version times every case.
 
 The name, the description and the sharing are not versioned: they say what the
 dataset is for and who reaches it, and neither changes what a run was asked.
@@ -38,6 +43,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -262,6 +268,12 @@ class DatasetCase(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+    # The versions holding this revision, and its place in their order. Set when
+    # the revision is written; only `removed_in` is set later, once, by the change
+    # that edits or removes it.
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    added_in: Mapped[int] = mapped_column(Integer, nullable=False)
+    removed_in: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     __table_args__ = (
         CheckConstraint(
@@ -271,31 +283,18 @@ class DatasetCase(Base):
         CheckConstraint(
             "order_mode IN ('any', 'in_order', 'exact')", name="ck_dataset_case_order_mode"
         ),
+        CheckConstraint(
+            "added_in >= 1 AND (removed_in IS NULL OR removed_in > added_in)",
+            name="ck_dataset_case_held",
+        ),
+        Index("ix_dataset_cases_held", "dataset_id", "added_in"),
+        Index(
+            "ix_dataset_cases_current",
+            "dataset_id",
+            "position",
+            postgresql_where=text("removed_in IS NULL"),
+        ),
     )
 
     def __repr__(self) -> str:
         return f"<DatasetCase(dataset={self.dataset_id}, case={self.case_id}, rev={self.id})>"
-
-
-class DatasetVersionCase(Base):
-    """One case revision held by one version, at a position."""
-
-    __tablename__ = "dataset_version_cases"
-
-    version_id: Mapped[uuid.UUID] = mapped_column(
-        PG_UUID(as_uuid=True),
-        ForeignKey("dataset_versions.id", ondelete="CASCADE"),
-        primary_key=True,
-    )
-    case_revision_id: Mapped[uuid.UUID] = mapped_column(
-        PG_UUID(as_uuid=True),
-        ForeignKey("dataset_cases.id", ondelete="CASCADE"),
-        primary_key=True,
-        index=True,
-    )
-    position: Mapped[int] = mapped_column(Integer, nullable=False)
-
-    __table_args__ = (Index("ix_dataset_version_cases_order", "version_id", "position"),)
-
-    def __repr__(self) -> str:
-        return f"<DatasetVersionCase(version={self.version_id}, at={self.position})>"
