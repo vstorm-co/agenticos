@@ -54,6 +54,7 @@ function version(number: number, overrides: Partial<ArtifactVersion> = {}): Arti
     media_type: "text/html",
     size_bytes: 10,
     run_id: null,
+    restored_from: null,
     created_at: "2026-09-22T10:00:00Z",
     ...overrides,
   };
@@ -71,6 +72,7 @@ function artifact(overrides: Partial<Artifact> = {}): Artifact {
     environment_name: null,
     public_url: null,
     published_at: "2026-09-22T10:00:00Z",
+    archived_at: null,
     live: false,
     current_version: version(3),
     created_at: "2026-09-01T10:00:00Z",
@@ -804,6 +806,76 @@ describe("the list card", () => {
     );
     expect(screen.getByText("staging")).toHaveAttribute("title", "Published from this environment");
   });
+
+  it("marks an archived page and draws no thumbnail of a page that would not load", () => {
+    useArtifactViewMock.mockReset();
+    render(
+      <ArtifactCard artifact={artifact({ archived_at: "2026-10-01T09:00:00Z", live: true })} />,
+    );
+    expect(screen.getByText("Archived")).toBeInTheDocument();
+    // Archived serves nothing, so it is not live, whatever its bindings.
+    expect(screen.queryByText("Live")).toBeNull();
+    expect(useArtifactViewMock).not.toHaveBeenCalled();
+    expect(screen.getByRole("link").getAttribute("href")).toBe("/artifacts/a1");
+  });
+
+  function withMenu(overrides: Partial<Artifact> = {}) {
+    useArtifactViewMock.mockReturnValue({ isLoading: false, data: undefined });
+    const actions = { onArchive: vi.fn(), onRestore: vi.fn(), onDelete: vi.fn() };
+    render(<ArtifactCard artifact={artifact(overrides)} actions={actions} />);
+    return actions;
+  }
+
+  it("offers a reader the page and nothing to act on", () => {
+    useArtifactViewMock.mockReturnValue({ isLoading: false, data: undefined });
+    render(<ArtifactCard artifact={artifact()} />);
+
+    expect(screen.getByRole("link", { name: "Open Weekly report" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /More actions/ })).toBeNull();
+  });
+
+  it("archives a live page from its menu, without opening it", async () => {
+    const actions = withMenu();
+    const link = screen.getByRole("link", { name: "Open Weekly report" });
+    const opened = vi.fn();
+    link.addEventListener("click", opened);
+    const trigger = screen.getByRole("button", { name: "More actions for Weekly report" });
+    // The menu sits beside the link, never inside it.
+    expect(link.contains(trigger)).toBe(false);
+
+    await userEvent.click(trigger);
+    expect(screen.queryByRole("menuitem", { name: "Restore" })).toBeNull();
+    await userEvent.click(screen.getByRole("menuitem", { name: "Archive" }));
+
+    expect(actions.onArchive).toHaveBeenCalled();
+    expect(opened).not.toHaveBeenCalled();
+  });
+
+  it("restores an archived page from its menu", async () => {
+    const actions = withMenu({ archived_at: "2026-10-01T09:00:00Z" });
+
+    await userEvent.click(screen.getByRole("button", { name: "More actions for Weekly report" }));
+    expect(screen.queryByRole("menuitem", { name: "Archive" })).toBeNull();
+    await userEvent.click(screen.getByRole("menuitem", { name: "Restore" }));
+
+    expect(actions.onRestore).toHaveBeenCalled();
+  });
+
+  it("deletes permanently, and says that is what it is", async () => {
+    const actions = withMenu();
+
+    await userEvent.click(screen.getByRole("button", { name: "More actions for Weekly report" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Delete permanently" }));
+
+    expect(actions.onDelete).toHaveBeenCalled();
+  });
+
+  it("dims the card while its change is on the way", () => {
+    useArtifactViewMock.mockReturnValue({ isLoading: false, data: undefined });
+    const { container } = render(<ArtifactCard artifact={artifact()} busy />);
+
+    expect(container.firstElementChild).toHaveClass("pointer-events-none");
+  });
 });
 
 describe("the public link card", () => {
@@ -899,6 +971,23 @@ describe("the version picker", () => {
     expect(screen.getByRole("menuitemradio", { name: /^v1/ })).toHaveTextContent(
       /\d+(\.\d+)? (B|KB)/,
     );
+  });
+
+  it("says which version a restored one was restored from, and nothing on a publish", async () => {
+    render(
+      <VersionPicker
+        versions={[version(4, { restored_from: 2 }), version(3), version(2)]}
+        value={null}
+        onChange={vi.fn()}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Version" }));
+
+    expect(screen.getByRole("menuitemradio", { name: /^v4/ })).toHaveTextContent(
+      "v4 · restored from v2",
+    );
+    expect(screen.getByRole("menuitemradio", { name: /^v3/ })).not.toHaveTextContent(/restored/);
   });
 
   it("names nothing on the button for a pinned version that was pruned", () => {

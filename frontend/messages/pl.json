@@ -4454,6 +4454,7 @@
     "latestVersion": "Najnowsza wersja",
     "versions": "Wersje",
     "versionNumber": "v{version}",
+    "versionRestoredFrom": "v{version} · przywrócona z v{source}",
     "latestShort": "Najnowsza",
     "latestVersionHint": "Podąża za kolejną publikacją",
     "currentTag": "Bieżąca",
@@ -4513,7 +4514,21 @@
     "wrongPassword": "To hasło jest nieprawidłowe.",
     "passwordTitle": "Ta strona jest chroniona",
     "passwordWhy": "Wpisz otrzymane hasło, żeby ją otworzyć.",
-    "openPage": "Otwórz stronę"
+    "openPage": "Otwórz stronę",
+    "archive": "Archiwizuj",
+    "archiveTitle": "Zarchiwizować {title}?",
+    "archiveWhy": "Strona, jej wersje i link zostają, ale nikt jej nie otworzy, a agent nie opublikuje jej ponownie. Jej link publiczny zostanie wyłączony. Możesz ją przywrócić z jej strony.",
+    "archived": "Artefakt zarchiwizowany",
+    "unarchived": "Artefakt przywrócony",
+    "archivedOn": "Zarchiwizowano {when}",
+    "archivedWhy": "Nikt nie może otworzyć tej strony, a agent nie opublikuje jej ponownie. Przywróć ją, żeby znów była serwowana; jej link publiczny pozostanie wyłączony, dopóki go nie włączysz.",
+    "unarchive": "Przywróć",
+    "archivedBadge": "Zarchiwizowany",
+    "shownFilter": "Które artefakty",
+    "shown": {
+      "live": "Aktywne artefakty",
+      "all": "Także zarchiwizowane"
+    }
   },
   "tables": {
     "cells": {

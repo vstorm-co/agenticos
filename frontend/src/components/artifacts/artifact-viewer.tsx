@@ -1,12 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FileX, History, Info } from "lucide-react";
-import { useRouter } from "@/lib/locale-navigation";
+import { usePathname, useRouter } from "@/lib/locale-navigation";
 import { useTranslations } from "next-intl";
 
+import {
+  ArchiveArtifactDialog,
+  ArchivedArtifactNotice,
+  DeleteArtifactDialog,
+} from "@/components/artifacts/artifact-archive";
 import { ArtifactFrame, type DataBridge } from "@/components/artifacts/artifact-frame";
 import {
+  liveHealth,
   LiveDataNotice,
   LiveRefreshButton,
   ViewerNotice,
@@ -16,7 +22,7 @@ import { ArtifactShareDialog } from "@/components/artifacts/artifact-share-dialo
 import { ArtifactViewerBar } from "@/components/artifacts/artifact-viewer-bar";
 import { VersionPicker } from "@/components/artifacts/version-picker";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
-import { Button, ConfirmDialog } from "@/components/ui";
+import { Button } from "@/components/ui";
 import { useArtifact } from "@/hooks/use-artifacts";
 import { ApiError } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
@@ -47,9 +53,11 @@ export function ArtifactViewer({ artifactId, initialVersionId }: ArtifactViewerP
   const t = useTranslations("artifacts");
   const tc = useTranslations("common");
   const router = useRouter();
+  const pathname = usePathname();
   const [versionId, setVersionId] = useState(initialVersionId);
   const [sharing, setSharing] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [archiving, setArchiving] = useState(false);
   const [bridge, setBridge] = useState<DataBridge | null>(null);
   const {
     artifact,
@@ -61,8 +69,29 @@ export function ArtifactViewer({ artifactId, initialVersionId }: ArtifactViewerP
     disablePublicLink,
     updatePublicLink,
     restoreVersion,
+    archive,
+    unarchive,
     remove,
   } = useArtifact(artifactId);
+
+  // A link to the version that is current - a chat card names the version its run
+  // published - opens the current one, so the page follows what is published next
+  // instead of staying on that version once it is replaced. Adjusted while
+  // rendering, as React does state that follows other state.
+  const currentId = artifact?.current_version?.id;
+  if (versionId !== null && versionId === currentId) setVersionId(null);
+
+  // The address says which version is on screen, so a reload opens it again: the
+  // version picker, Open current, a restore and a link all land here. No
+  // `version` in the address is the current one.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if ((params.get("version") ?? null) === versionId) return;
+    if (versionId === null) params.delete("version");
+    else params.set("version", versionId);
+    const query = params.toString();
+    router.replace(query === "" ? pathname : `${pathname}?${query}`, { scroll: false });
+  }, [versionId, pathname, router]);
 
   if (artifact === null) {
     // The two do not read the same. A 404 is a fact about the artifact - gone,
@@ -92,6 +121,37 @@ export function ArtifactViewer({ artifactId, initialVersionId }: ArtifactViewerP
     );
   }
 
+  const deleteDialog = (
+    <DeleteArtifactDialog
+      open={confirming}
+      onOpenChange={setConfirming}
+      title={artifact.title}
+      loading={remove.isPending}
+      onConfirm={async () => {
+        await remove.mutateAsync();
+        router.push(ROUTES.ARTIFACTS);
+      }}
+    />
+  );
+
+  // The server shows an archived page only to somebody who may edit it, so what
+  // is left of it here is when it was archived, the way back, and Delete.
+  if (artifact.archived_at !== null) {
+    return (
+      <div className={VIEWER}>
+        <ArtifactViewerBar artifact={artifact} onDelete={() => setConfirming(true)} />
+        <div className="flex flex-1 items-center justify-center p-6">
+          <ArchivedArtifactNotice
+            archivedAt={artifact.archived_at}
+            restoring={unarchive.isPending}
+            onRestore={() => unarchive.mutate()}
+          />
+        </div>
+        {deleteDialog}
+      </div>
+    );
+  }
+
   // Only the current version reads live data, so only it refreshes; an older
   // one of a live page says so, and offers the current one back.
   const current = versionId === null || versionId === artifact.current_version?.id;
@@ -112,8 +172,11 @@ export function ArtifactViewer({ artifactId, initialVersionId }: ArtifactViewerP
     <div className={VIEWER}>
       <ArtifactViewerBar
         artifact={artifact}
-        live={live}
+        live={
+          live ? (bridge === null ? "steady" : (liveHealth(bridge.status) ?? undefined)) : undefined
+        }
         onShare={() => setSharing(true)}
+        onArchive={() => setArchiving(true)}
         onDelete={() => setConfirming(true)}
       >
         {live && bridge !== null && (
@@ -157,19 +220,14 @@ export function ArtifactViewer({ artifactId, initialVersionId }: ArtifactViewerP
         onUpdatePublicLink={(changes) => updatePublicLink.mutateAsync(changes)}
         saving={updatePublicLink.isPending}
       />
-      <ConfirmDialog
-        open={confirming}
-        onOpenChange={setConfirming}
-        title={t("deleteTitle", { title: artifact.title })}
-        description={t("deleteWhy")}
-        confirmLabel={tc("delete")}
-        destructive
-        loading={remove.isPending}
-        onConfirm={async () => {
-          await remove.mutateAsync();
-          router.push(ROUTES.ARTIFACTS);
-        }}
+      <ArchiveArtifactDialog
+        open={archiving}
+        onOpenChange={setArchiving}
+        title={artifact.title}
+        loading={archive.isPending}
+        onConfirm={() => archive.mutate(undefined, { onSuccess: () => setArchiving(false) })}
       />
+      {deleteDialog}
     </div>
   );
 }

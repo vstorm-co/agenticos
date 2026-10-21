@@ -38,6 +38,27 @@ Two things are versioned separately from this file and worth knowing about:
   now show every setting. `Delete` deletes the selection, and a dragged field
   scrolls the form at its edge.
 
+- **Archiving and restoring a published page.** Someone who may edit an
+  artifact archives it from **More actions** above it, after a dialog says that
+  the page, its versions and its link are kept, nobody can open it and its
+  public link is turned off. An archived page serves nothing: its view, its
+  live data, signed addresses minted earlier, the public link and the embed all
+  answer as for a missing page, and the agent's tools treat it as absent -
+  `publish_artifact` refuses the name with a message naming the archive. Its
+  editor sees when it was archived, with **Restore**; a reader is told it is not
+  available. Restoring leaves the public link off. New
+  `POST /api/v1/artifacts/{id}/archive` and `/unarchive` (audited as
+  `artifact.archived` and `artifact.unarchived`), `include_archived` on the
+  list, an **Archived included** filter and an **Archived** badge in the
+  console, and `artifacts.archived_at` (migration `0138_artifact_archive`).
+
+- **A restored page version says what it was restored from.** Restoring a
+  kept version of an artifact still adds a new version with its bytes; that
+  version now records the number it came from, and the console's version list
+  shows it as `v4 · restored from v2`. A publish leaves it empty. New
+  `restored_from` on the version read and `artifact_versions.restored_from`
+  (migration `0139_artifact_restored_from`).
+
 - **Archiving and restoring a table from the console.** A member who can edit
   a Virtual Table archives it from **More actions** on its page, after a
   dialog says that its records stay readable, nothing can change them and it

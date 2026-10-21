@@ -103,6 +103,10 @@ class ArtifactVersionRead(BaseSchema):
     run_id: UUID | None = Field(
         default=None, description="The run that published it, while that run is still kept"
     )
+    restored_from: int | None = Field(
+        default=None,
+        description="The number of the version restored to make this one; null for a publish",
+    )
     created_at: datetime
 
 
@@ -137,6 +141,13 @@ class ArtifactRead(BaseSchema):
     current_version: ArtifactVersionRead | None = None
     live: bool = Field(
         default=False, description="Whether the current version reads live data through bindings"
+    )
+    archived_at: datetime | None = Field(
+        default=None,
+        description=(
+            "When it was archived, or null. An archived page serves nothing - no view, data, "
+            "public link or embed - until someone who may edit it restores it"
+        ),
     )
     created_at: datetime
     updated_at: datetime | None = None

@@ -95,9 +95,15 @@ def _visible(
     see_all: bool,
     shared_ids: list[UUID],
     shared_with_me: bool,
+    include_archived: bool = False,
 ) -> list[Any]:
-    """Which rows one member may see - the predicate the list and its filters share."""
+    """Which rows one member may see - the predicate the list and its filters share.
+
+    Archived pages only when asked for: none of them serves anything.
+    """
     where: list[Any] = [Artifact.organization_id == organization_id]
+    if not include_archived:
+        where.append(Artifact.archived_at.is_(None))
     if shared_with_me:
         where.append(
             and_(
@@ -127,6 +133,7 @@ async def list_visible(
     see_all: bool,
     shared_ids: list[UUID],
     shared_with_me: bool = False,
+    include_archived: bool = False,
     search: str | None = None,
     agent_id: UUID | None = None,
     skip: int = 0,
@@ -138,6 +145,7 @@ async def list_visible(
         see_all: True when the caller's role reaches the whole organization.
         shared_ids: Artifact ids explicitly shared with this member.
         shared_with_me: Narrow to rows shared with the caller and not their own.
+        include_archived: List archived pages too; they are left out otherwise.
         agent_id: Narrow to one agent's pages, on top of the visibility rules.
     """
     where = _visible(
@@ -146,6 +154,7 @@ async def list_visible(
         see_all=see_all,
         shared_ids=shared_ids,
         shared_with_me=shared_with_me,
+        include_archived=include_archived,
     )
     if search:
         where.append(or_(contains_ci(Artifact.title, search), contains_ci(Artifact.name, search)))
@@ -349,6 +358,7 @@ async def create_version(
     storage_path: str,
     run_id: UUID | None,
     bindings: list[dict[str, Any]],
+    restored_from: int | None = None,
 ) -> ArtifactVersion:
     version = ArtifactVersion(
         artifact_id=artifact_id,
@@ -359,6 +369,7 @@ async def create_version(
         storage_path=storage_path,
         run_id=run_id,
         bindings=bindings,
+        restored_from=restored_from,
     )
     db.add(version)
     await db.flush()

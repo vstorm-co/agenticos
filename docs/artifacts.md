@@ -208,7 +208,9 @@ bounded:
 **Restore this version** puts a kept version back. A member who may edit the page
 opens the version and restores it; that adds a new version with the old one's
 bytes, so the history keeps what happened and the restore can be undone the same
-way. Nothing new is stored. It is recorded in the audit trail.
+way. Nothing new is stored. It is recorded in the audit trail. The new version
+says where it came from: the version list shows it as `v4 · restored from v2`,
+and the API gives its `restored_from` number, which a publish leaves empty.
 
 ## Supported formats
 
@@ -401,6 +403,42 @@ the backend and for the frontend, which adds that origin's content route to its
 `frame-src`. See
 [Configuration](configuration.md#published-artifacts).
 
+## Archiving a page
+
+Archiving takes a page away from everyone without losing it. Someone who may
+edit the page chooses **Archive** from the **More actions** menu above it, and
+a dialog says what that does before anything changes. The page, its versions,
+its grants and its name are kept. Nothing serves it until it is restored, from
+the same page. Archiving is audited as `artifact.archived`, and restoring as
+`artifact.unarchived`.
+
+While a page is archived, every path that would show it answers as though it
+were not there:
+
+- **The console.** Its view and its live data are refused, and so is a signed
+  address minted before the archive. A reader who opens its link is told it is
+  not available. Someone who may edit it sees when it was archived, with
+  **Restore** and **Delete**.
+- **Lists.** The Artifacts list and the dashboard widget leave it out. Choose
+  **Archived included** on the list to see it, marked **Archived**.
+- **The public link and the embed.** Both open nothing.
+- **The agent.** `publish_artifact` refuses the name with a message naming the
+  archive, so a run cannot start a second page under it. `read_artifact`,
+  `preview_artifact` and `list_artifacts` treat the page as absent. A run that
+  may not edit the page hears only that the name is not its to change.
+
+Archiving turns the public link off, audited as `artifact.public_link_disabled`,
+and restoring does not turn it back on. An address sent out before the archive
+stays dead until somebody makes a new one from **Share**. The link's expiry,
+pinned version, password and embedding sites are kept for that.
+
+Over the API, `POST /api/v1/artifacts/{id}/archive` archives a page, and
+archiving it again changes nothing. `POST /api/v1/artifacts/{id}/unarchive`
+restores it, and answers `400` for a page that is not archived. Both ask for the
+right to edit that page, a grant included. `GET /api/v1/artifacts` lists
+archived pages only with `include_archived=true`, and `archived_at` on each page
+says when it was archived.
+
 ## Retention and deletion
 
 Artifacts are a [retention class](governance.md#the-classes) of their own,
@@ -409,7 +447,8 @@ alive however old its first version is. Like every class, it keeps artifacts for
 ever until an organization or the deployment sets a period.
 
 Deleting an artifact - by hand or by retention - removes every version, its
-stored bytes, its grants and its public link. Deleting the agent does not delete
+stored bytes, its grants and its public link. An archived page ages and is
+deleted like any other. Deleting the agent does not delete
 its artifacts: they stay readable and simply have no publisher. Deleting a named
 environment does the same to the pages published from it, so they never land on
 the default environment's page of the same name. Deleting the organization

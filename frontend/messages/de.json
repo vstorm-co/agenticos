@@ -6684,6 +6684,7 @@
     "latestVersion": "Neueste Version",
     "versions": "Versionen",
     "versionNumber": "v{version}",
+    "versionRestoredFrom": "v{version} · wiederhergestellt aus v{source}",
     "latestShort": "Neueste",
     "latestVersionHint": "Folgt der nächsten Veröffentlichung",
     "currentTag": "Aktuell",
@@ -6743,7 +6744,21 @@
     "wrongPassword": "Dieses Passwort ist nicht richtig.",
     "passwordTitle": "Diese Seite ist geschützt",
     "passwordWhy": "Geben Sie das Passwort ein, das Sie erhalten haben, um sie zu öffnen.",
-    "openPage": "Seite öffnen"
+    "openPage": "Seite öffnen",
+    "archive": "Archivieren",
+    "archiveTitle": "{title} archivieren?",
+    "archiveWhy": "Die Seite, ihre Versionen und ihr Link bleiben erhalten, aber niemand kann sie öffnen, und der Agent kann sie nicht erneut veröffentlichen. Ihr öffentlicher Link wird ausgeschaltet. Sie können sie auf ihrer Seite wiederherstellen.",
+    "archived": "Artefakt archiviert",
+    "unarchived": "Artefakt wiederhergestellt",
+    "archivedOn": "Archiviert am {when}",
+    "archivedWhy": "Niemand kann diese Seite öffnen, und der Agent kann sie nicht erneut veröffentlichen. Stellen Sie sie wieder her, um sie wieder auszuliefern; ihr öffentlicher Link bleibt aus, bis Sie ihn einschalten.",
+    "unarchive": "Wiederherstellen",
+    "archivedBadge": "Archiviert",
+    "shownFilter": "Welche Artefakte",
+    "shown": {
+      "live": "Aktive Artefakte",
+      "all": "Auch archivierte"
+    }
   },
   "tables": {
     "cells": {

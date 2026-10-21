@@ -59,6 +59,7 @@ const DETAIL: ArtifactDetail = {
   environment_name: null,
   public_url: null,
   published_at: "2026-09-22T10:00:00Z",
+  archived_at: null,
   current_version: null,
   created_at: "2026-09-01T10:00:00Z",
   updated_at: null,
@@ -106,6 +107,16 @@ describe("useArtifacts", () => {
       expect(apiClient.get).toHaveBeenCalledWith("/artifacts?agent_id=ag+1&skip=0&limit=50"),
     );
   });
+
+  it("asks for archived pages only when told to", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    renderHook(() => useArtifacts({ includeArchived: true }), { wrapper });
+    await waitFor(() =>
+      expect(apiClient.get).toHaveBeenCalledWith(
+        "/artifacts?include_archived=true&skip=0&limit=50",
+      ),
+    );
+  });
 });
 
 describe("useArtifactAgents", () => {
@@ -138,6 +149,36 @@ describe("useArtifact", () => {
     await waitFor(() => expect(result.current.artifact?.title).toBe("Weekly report"));
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/artifacts/a1/versions"));
     expect(result.current.versions).toEqual([]);
+  });
+
+  it("asks for no versions of an archived page, which serves none", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ ...DETAIL, archived_at: "2026-10-01T00:00:00Z" });
+    const { result } = renderHook(() => useArtifact("a1"), { wrapper });
+    await waitFor(() => expect(result.current.artifact?.archived_at).not.toBeNull());
+    expect(apiClient.get).not.toHaveBeenCalledWith("/artifacts/a1/versions");
+  });
+
+  it("archives and restores it, and says so, or toasts the refusal", async () => {
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({ ...DETAIL, archived_at: "2026-10-01T00:00:00Z" })
+      .mockResolvedValueOnce(DETAIL);
+    const { result } = renderHook(() => useArtifact("a1"), { wrapper });
+    await waitFor(() => expect(result.current.artifact).not.toBeNull());
+
+    await act(() => result.current.archive.mutateAsync());
+    expect(apiClient.post).toHaveBeenCalledWith("/artifacts/a1/archive");
+    expect(toastSuccess).toHaveBeenCalledWith("Artifact archived");
+    await act(() => result.current.unarchive.mutateAsync());
+    expect(apiClient.post).toHaveBeenCalledWith("/artifacts/a1/unarchive");
+    expect(toastSuccess).toHaveBeenCalledWith("Artifact restored");
+
+    vi.mocked(apiClient.post).mockRejectedValueOnce(new Error("no"));
+    vi.mocked(apiClient.post).mockRejectedValueOnce(new Error("no"));
+    await act(async () => {
+      await result.current.archive.mutateAsync().catch(() => undefined);
+      await result.current.unarchive.mutateAsync().catch(() => undefined);
+    });
+    expect(toastError).toHaveBeenCalledTimes(2);
   });
 
   it("reports a refusal as an error rather than an empty artifact", async () => {
@@ -207,6 +248,7 @@ describe("useArtifact", () => {
         media_type: "text/html",
         size_bytes: 1,
         run_id: null,
+        restored_from: null,
         created_at: "2026-09-30T10:00:00Z",
       },
     });

@@ -26,6 +26,8 @@ export interface ArtifactQuery {
   search?: string;
   /** Only the pages this agent published; null for every agent. */
   agentId?: string | null;
+  /** List archived pages too; they are left out otherwise. */
+  includeArchived?: boolean;
   skip?: number;
   limit?: number;
 }
@@ -40,15 +42,17 @@ export interface ArtifactQuery {
 export function useArtifacts({
   search = "",
   agentId = null,
+  includeArchived = false,
   skip = 0,
   limit = PAGE_SIZE,
 }: ArtifactQuery = {}) {
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: qk.artifacts.list({ search, agentId, skip, limit }),
+    queryKey: qk.artifacts.list({ search, agentId, includeArchived, skip, limit }),
     queryFn: () => {
       const params = new URLSearchParams();
       if (search) params.set("q", search);
       if (agentId) params.set("agent_id", agentId);
+      if (includeArchived) params.set("include_archived", "true");
       params.set("skip", String(skip));
       params.set("limit", String(limit));
       return apiClient.get<ArtifactList>(`/artifacts?${params}`);
@@ -63,6 +67,53 @@ export function useArtifacts({
     error,
     refetch,
   };
+}
+
+/**
+ * Archive, restore and delete from the list, each by the artifact's id.
+ *
+ * The same requests and toasts `useArtifact` sends from the viewer, for a card
+ * that has no detail loaded: a change refreshes every list and the artifact's
+ * own detail, and a delete drops that detail.
+ */
+export function useArtifactListActions() {
+  const t = useTranslations("artifacts");
+  const tErrors = useTranslations("errors");
+  const queryClient = useQueryClient();
+
+  const settle = (artifact: ArtifactDetail) => {
+    queryClient.setQueryData(qk.artifacts.detail(artifact.id), artifact);
+    void queryClient.invalidateQueries({ queryKey: qk.artifacts.all() });
+  };
+  const fail = (error: unknown) => toast.error(getErrorMessage(error, tErrors));
+
+  const archive = useMutation({
+    mutationFn: (id: string) => apiClient.post<ArtifactDetail>(`/artifacts/${id}/archive`),
+    onSuccess: (artifact) => {
+      settle(artifact);
+      toast.success(t("archived"));
+    },
+    onError: fail,
+  });
+  const unarchive = useMutation({
+    mutationFn: (id: string) => apiClient.post<ArtifactDetail>(`/artifacts/${id}/unarchive`),
+    onSuccess: (artifact) => {
+      settle(artifact);
+      toast.success(t("unarchived"));
+    },
+    onError: fail,
+  });
+  const remove = useMutation({
+    mutationFn: (id: string) => apiClient.delete<void>(`/artifacts/${id}`),
+    onSuccess: async (_, id) => {
+      queryClient.removeQueries({ queryKey: qk.artifacts.detail(id) });
+      await queryClient.invalidateQueries({ queryKey: qk.artifacts.all() });
+      toast.success(t("deleted"));
+    },
+    onError: fail,
+  });
+
+  return { archive, unarchive, remove };
 }
 
 /**
@@ -83,11 +134,12 @@ export function useArtifactAgents(enabled: boolean): ArtifactAgent[] {
 /**
  * One artifact, its kept versions, and what a member with `edit` may do to it.
  *
- * A 404 is the answer for a missing artifact, one in another organization and
- * one whose access was revoked alike, so a 404 in `error` is what the page reads
- * to say "not available" rather than guessing which of the three it was. Any
- * other failure is the request's, not the artifact's, and `refetch` is how the
- * page offers to try again.
+ * A 404 is the answer for a missing artifact, one in another organization, one
+ * whose access was revoked and an archived one the caller may not edit alike, so
+ * a 404 in `error` is what the page reads to say "not available" rather than
+ * guessing which it was. Any other failure is the request's, not the artifact's,
+ * and `refetch` is how the page offers to try again. An archived page has no
+ * versions to list: the server serves nothing of it until it is restored.
  */
 export function useArtifact(artifactId: string) {
   const t = useTranslations("artifacts");
@@ -102,7 +154,7 @@ export function useArtifact(artifactId: string) {
   const versions = useQuery({
     queryKey: qk.artifacts.versions(artifactId),
     queryFn: () => apiClient.get<ArtifactVersionList>(`/artifacts/${artifactId}/versions`),
-    enabled: detail.data !== undefined,
+    enabled: detail.data !== undefined && detail.data.archived_at === null,
   });
 
   // A public-link change leaves the page the viewer has open as it is: reloading
@@ -164,6 +216,24 @@ export function useArtifact(artifactId: string) {
     },
     onError: fail,
   });
+  // Both reload the page: an archived one serves nothing, and a restored one is
+  // drawn again from a fresh address.
+  const archive = useMutation({
+    mutationFn: () => apiClient.post<ArtifactDetail>(`/artifacts/${artifactId}/archive`),
+    onSuccess: (artifact) => {
+      settle(artifact, { reloadPage: true });
+      toast.success(t("archived"));
+    },
+    onError: fail,
+  });
+  const unarchive = useMutation({
+    mutationFn: () => apiClient.post<ArtifactDetail>(`/artifacts/${artifactId}/unarchive`),
+    onSuccess: (artifact) => {
+      settle(artifact, { reloadPage: true });
+      toast.success(t("unarchived"));
+    },
+    onError: fail,
+  });
   const remove = useMutation({
     mutationFn: () => apiClient.delete<void>(`/artifacts/${artifactId}`),
     onSuccess: async () => {
@@ -184,6 +254,8 @@ export function useArtifact(artifactId: string) {
     disablePublicLink,
     updatePublicLink,
     restoreVersion,
+    archive,
+    unarchive,
     remove,
   };
 }

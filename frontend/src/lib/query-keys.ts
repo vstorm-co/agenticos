@@ -319,8 +319,13 @@ export const qk = {
   },
   artifacts: {
     all: () => ["artifacts"] as const,
-    list: (query: { search: string; agentId: string | null; skip: number; limit: number }) =>
-      ["artifacts", "list", query] as const,
+    list: (query: {
+      search: string;
+      agentId: string | null;
+      includeArchived: boolean;
+      skip: number;
+      limit: number;
+    }) => ["artifacts", "list", query] as const,
     agents: () => ["artifacts", "agents"] as const,
     detail: (id: string) => ["artifacts", id] as const,
     versions: (id: string) => ["artifacts", id, "versions"] as const,

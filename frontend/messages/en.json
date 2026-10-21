@@ -6826,6 +6826,7 @@
     "latestVersion": "Latest version",
     "versions": "Versions",
     "versionNumber": "v{version}",
+    "versionRestoredFrom": "v{version} · restored from v{source}",
     "latestShort": "Latest",
     "latestVersionHint": "Follows the next publication",
     "currentTag": "Current",
@@ -6885,7 +6886,21 @@
     "wrongPassword": "That password is not right.",
     "passwordTitle": "This page is protected",
     "passwordWhy": "Type the password you were given to open it.",
-    "openPage": "Open the page"
+    "openPage": "Open the page",
+    "archive": "Archive",
+    "archiveTitle": "Archive {title}?",
+    "archiveWhy": "The page, its versions and its link are kept, but nobody can open it and the agent cannot publish it again. Its public link is turned off. You can restore it from its page.",
+    "archived": "Artifact archived",
+    "unarchived": "Artifact restored",
+    "archivedOn": "Archived on {when}",
+    "archivedWhy": "Nobody can open this page and the agent cannot publish it again. Restore it to serve it again; its public link stays off until you turn it on.",
+    "unarchive": "Restore",
+    "archivedBadge": "Archived",
+    "shownFilter": "Which artifacts",
+    "shown": {
+      "live": "Active artifacts",
+      "all": "Archived included"
+    }
   },
   "tables": {
     "cells": {

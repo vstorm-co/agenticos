@@ -19,6 +19,8 @@ export interface ArtifactVersion {
   size_bytes: number;
   /** The run that published it, while that run is still kept. */
   run_id: string | null;
+  /** The number of the version a person restored to make this one; null for a publish. */
+  restored_from: number | null;
   created_at: string;
 }
 
@@ -41,6 +43,11 @@ export interface Artifact {
   live: boolean;
   published_at: string;
   current_version: ArtifactVersion | null;
+  /**
+   * When it was archived, or null. An archived page serves nothing until someone
+   * who may edit it restores it; the server shows one only to such a caller.
+   */
+  archived_at: string | null;
   created_at: string;
   updated_at: string | null;
 }
