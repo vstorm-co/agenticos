@@ -9,6 +9,12 @@
 //!
 //! The console is locked behind Face ID, Touch ID or the device's fingerprint
 //! when the app comes back to the front after a while away.
+//!
+//! While an agent works or waits, the phone shows it outside the app (`live`);
+//! a button there comes back as a link, and the console acts on it - a decision
+//! only once the person is through the lock.
+
+mod live;
 
 use std::fs;
 use std::io::ErrorKind;
@@ -17,11 +23,14 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use agenticos_shell_core::{
-    deep_link_return, external_sign_in_url, is_oauth_start, mint_nonce, pairing_link,
-    parse_server_url_with, Pairing, PendingSignIn,
+    activity_link, deep_link_return, external_sign_in_url, is_oauth_start, mint_nonce,
+    pairing_link, parse_server_url_with, ActivityAction, Pairing, PendingSignIn,
 };
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager, RunEvent, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::webview::PageLoadEvent;
+use tauri::{
+    AppHandle, Emitter, Manager, RunEvent, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
+};
 use tauri_plugin_biometric::{AuthOptions, BiometricExt};
 use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_opener::OpenerExt;
@@ -31,6 +40,8 @@ const WINDOW: &str = "main";
 const LOCK_AFTER: Duration = Duration::from_secs(5 * 60);
 /// Plain `http` to the laptop beside the phone, in a development build only.
 const LAN_HTTP: bool = cfg!(debug_assertions);
+/// Told to the console when a live activity's button is waiting for it.
+const ACTIVITY_EVENT: &str = "mobile:activity";
 
 #[derive(Serialize, Deserialize, Default)]
 struct Settings {
@@ -89,7 +100,9 @@ fn save(app: &AppHandle, settings: &Settings) -> Result<(), String> {
     fs::write(&path, raw).map_err(|e| format!("Cannot write {}: {e}", path.display()))
 }
 
-/// When the console was last unlocked, and whether it is locked now.
+/// When the console was last unlocked, whether it is locked now, and what a
+/// live activity's button asked of it - in one place, so a decision can never be
+/// handed over in the moment between a lock and its veil.
 #[derive(Default)]
 struct Lock(Mutex<LockState>);
 
@@ -97,6 +110,33 @@ struct Lock(Mutex<LockState>);
 struct LockState {
     unlocked_at: Option<Instant>,
     locked: bool,
+    asked: Option<ActivityAction>,
+}
+
+/// A live activity's button, as the console reads it from `take_activity_action`.
+#[derive(Serialize, Debug, PartialEq)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum Asked {
+    Open { path: String },
+    Decide { approval_id: String, approved: bool },
+}
+
+/// Hand the console what was asked - except a decision while the console is
+/// locked: an approval made from the lock screen waits for the face behind it.
+fn take_asked(state: &mut LockState) -> Option<Asked> {
+    if state.locked && matches!(state.asked, Some(ActivityAction::Decide { .. })) {
+        return None;
+    }
+    state.asked.take().map(|action| match action {
+        ActivityAction::Open(path) => Asked::Open { path },
+        ActivityAction::Decide {
+            approval_id,
+            approved,
+        } => Asked::Decide {
+            approval_id,
+            approved,
+        },
+    })
 }
 
 /// What a page needs to know about the shell before its first paint, as the
@@ -135,6 +175,24 @@ fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow>
     let version = app.package_info().version.to_string();
     WebviewWindowBuilder::new(app, WINDOW, url)
         .initialization_script(shell_script(&version))
+        // The veil lives in the page, so a page loaded while locked - a sign-in
+        // returning, a pairing - is veiled again rather than opened by it.
+        .on_page_load(|window, payload| {
+            if payload.event() != PageLoadEvent::Finished {
+                return;
+            }
+            let locked = window
+                .state::<Lock>()
+                .0
+                .lock()
+                .map(|lock| lock.locked)
+                .unwrap_or(false);
+            if locked {
+                if let Err(e) = window.eval(LOCK_SCRIPT) {
+                    eprintln!("lock: {e}");
+                }
+            }
+        })
         // The one navigation the webview refuses: a provider sign-in, handed to
         // the system browser and returned by deep link, as on the desktop (#1532).
         .on_navigation(move |url| {
@@ -157,17 +215,22 @@ fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow>
         .build()
 }
 
-/// The console - a remote page - may ask for one thing: the unlock prompt again.
-/// Granted for the configured server's origin only, as the desktop shell grants
-/// its console's commands.
-fn grant_unlock(app: &AppHandle, server: &Url) -> Result<(), String> {
+/// What the console - a remote page - may ask of the app: the unlock prompt
+/// again, and its live activities. Granted for the configured server's origin
+/// only, as the desktop shell grants its console's commands.
+fn grant_console(app: &AppHandle, server: &Url) -> Result<(), String> {
     let pattern = format!("{}/*", server.origin().ascii_serialization());
     app.add_capability(
-        tauri::ipc::CapabilityBuilder::new(format!("console-unlock-{pattern}"))
+        tauri::ipc::CapabilityBuilder::new(format!("console-{pattern}"))
             .remote(pattern)
             .local(false)
             .window(WINDOW)
-            .permission("allow-unlock"),
+            .permission("allow-unlock")
+            .permission("allow-show-activity")
+            .permission("allow-end-activity")
+            .permission("allow-take-activity-action")
+            .permission("core:event:allow-listen")
+            .permission("core:event:allow-unlisten"),
     )
     .map_err(|e| e.to_string())
 }
@@ -179,7 +242,7 @@ fn console(app: &AppHandle) -> Result<WebviewWindow, String> {
 
 /// Sign in with a scanned code: remember its console and send the webview to redeem it.
 fn pair(app: &AppHandle, pairing: &Pairing) -> Result<(), String> {
-    grant_unlock(app, &pairing.server)?;
+    grant_console(app, &pairing.server)?;
     let mut stored = settings(app);
     stored.server_url = Some(pairing.server.clone());
     save(app, &stored)?;
@@ -204,7 +267,7 @@ fn pair_with(app: AppHandle, link: String) -> Result<(), String> {
 #[tauri::command]
 fn connect(app: AppHandle, url: String) -> Result<(), String> {
     let server = parse_server_url_with(&url, LAN_HTTP)?;
-    grant_unlock(&app, &server)?;
+    grant_console(&app, &server)?;
     let mut stored = settings(&app);
     stored.server_url = Some(server.clone());
     save(&app, &stored)?;
@@ -212,28 +275,46 @@ fn connect(app: AppHandle, url: String) -> Result<(), String> {
     console(&app)?.navigate(login).map_err(|e| e.to_string())
 }
 
-/// Hide the console and ask for the device's biometrics; reveal it once they answer.
+/// Hide the console and ask for the device's biometrics; reveal it once they
+/// answer. Whether the console is locked afterwards.
 ///
 /// A phone with no biometrics enrolled falls back to its passcode
 /// (`allow_device_credential`). One with neither is not locked: a lock nobody
-/// can open is a broken app, not a safe one.
-fn lock(app: &AppHandle) {
+/// can open is a broken app, not a safe one. A console already locked keeps
+/// the prompt it has rather than stacking a second.
+fn lock(app: &AppHandle) -> bool {
     let available = app
         .biometric()
         .status()
         .map(|status| status.is_available)
         .unwrap_or(false);
     if !available {
-        return;
+        return false;
     }
-    let Ok(window) = console(app) else { return };
-    if let Ok(mut lock) = app.state::<Lock>().0.lock() {
-        lock.locked = true;
+    let Ok(window) = console(app) else {
+        return false;
+    };
+    let held = app.state::<Lock>();
+    let Ok(mut state) = held.0.lock() else {
+        return false;
+    };
+    if state.locked {
+        return true;
     }
+    state.locked = true;
+    drop(state);
     if let Err(e) = window.eval(LOCK_SCRIPT) {
         eprintln!("lock: {e}");
     }
     ask_to_unlock(app);
+    true
+}
+
+/// Tell the console something is waiting in `take_activity_action`.
+fn nudge(app: &AppHandle) {
+    if let Err(e) = app.emit_to(WINDOW, ACTIVITY_EVENT, ()) {
+        eprintln!("activity: {e}");
+    }
 }
 
 /// The biometric prompt, off the main thread. A dismissed prompt leaves the
@@ -262,6 +343,8 @@ fn ask_to_unlock(app: &AppHandle) {
                 eprintln!("unlock: {e}");
             }
         }
+        // A decision that was waiting on this unlock can be made now.
+        nudge(&handle);
     });
 }
 
@@ -279,6 +362,30 @@ fn unlock(app: AppHandle) {
     }
 }
 
+/// What a live activity's button asked, for the console to act on; see `take_asked`.
+#[tauri::command]
+fn take_activity_action(app: AppHandle) -> Option<Asked> {
+    app.state::<Lock>()
+        .0
+        .lock()
+        .ok()
+        .and_then(|mut state| take_asked(&mut state))
+}
+
+/// A live activity's button: kept for the console, which is told to come and
+/// take it. A decision first puts the console behind the lock, if it has one, so
+/// an approval made from the lock screen is made by whoever can unlock the phone.
+fn on_activity(app: &AppHandle, action: ActivityAction) {
+    let deciding = matches!(action, ActivityAction::Decide { .. });
+    if let Ok(mut state) = app.state::<Lock>().0.lock() {
+        state.asked = Some(action);
+    }
+    if deciding && settings(app).lock && lock(app) {
+        return;
+    }
+    nudge(app);
+}
+
 /// Whether coming back to the front should lock: long enough since the last unlock.
 fn should_lock(lock_enabled: bool, unlocked_at: Option<Instant>, now: Instant) -> bool {
     lock_enabled && unlocked_at.map_or(true, |at| now.duration_since(at) >= LOCK_AFTER)
@@ -293,6 +400,10 @@ fn on_deep_link(app: &AppHandle, links: Vec<Url>) {
         .ok()
         .and_then(|mut slot| slot.take());
     for link in links {
+        if let Some(action) = activity_link(link.as_str()) {
+            on_activity(app, action);
+            return;
+        }
         if let Ok(pairing) = pairing_link(link.as_str(), LAN_HTTP) {
             if let Err(e) = pair(app, &pairing) {
                 eprintln!("pair: {e}");
@@ -319,13 +430,20 @@ pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_deep_link::init())
-        .plugin(tauri_plugin_biometric::init());
+        .plugin(tauri_plugin_biometric::init())
+        .plugin(live::init());
     // The camera scanner is a phone's; the same app on a laptop types the address.
     #[cfg(mobile)]
     let builder = builder.plugin(tauri_plugin_barcode_scanner::init());
     builder
         .invoke_handler(tauri::generate_handler![
-            server_url, pair_with, connect, unlock
+            server_url,
+            pair_with,
+            connect,
+            unlock,
+            take_activity_action,
+            live::show_activity,
+            live::end_activity
         ])
         .manage(PendingSignIn::default())
         .manage(Lock::default())
@@ -337,7 +455,7 @@ pub fn run() {
                 // sign-in form, and a session kept in the app's cookies would be
                 // asked to sign in again on every launch.
                 Some(server) => {
-                    grant_unlock(handle, &server)?;
+                    grant_console(handle, &server)?;
                     WebviewUrl::External(server.join("dashboard")?)
                 }
                 None => WebviewUrl::App("index.html".into()),
@@ -371,7 +489,9 @@ pub fn run() {
 mod tests {
     use std::time::{Duration, Instant};
 
-    use super::{shell_script, should_lock, Settings, LOCK_AFTER};
+    use agenticos_shell_core::ActivityAction;
+
+    use super::{shell_script, should_lock, take_asked, Asked, LockState, Settings, LOCK_AFTER};
 
     #[test]
     fn the_console_locks_on_first_open_and_after_a_while_away_only() {
@@ -387,6 +507,38 @@ mod tests {
         let settings: Settings = serde_json::from_str("{}").unwrap();
         assert!(settings.lock);
         assert!(settings.server_url.is_none());
+    }
+
+    #[test]
+    fn a_decision_waits_for_the_lock_and_a_page_does_not() {
+        let decide = || ActivityAction::Decide {
+            approval_id: "ap1".into(),
+            approved: true,
+        };
+        let mut state = LockState {
+            locked: true,
+            asked: Some(decide()),
+            ..LockState::default()
+        };
+        assert_eq!(take_asked(&mut state), None);
+        state.locked = false;
+        assert_eq!(
+            take_asked(&mut state),
+            Some(Asked::Decide {
+                approval_id: "ap1".into(),
+                approved: true
+            })
+        );
+        assert_eq!(take_asked(&mut state), None, "taken once");
+
+        state.locked = true;
+        state.asked = Some(ActivityAction::Open("/runs".into()));
+        assert_eq!(
+            take_asked(&mut state),
+            Some(Asked::Open {
+                path: "/runs".into()
+            })
+        );
     }
 
     #[test]

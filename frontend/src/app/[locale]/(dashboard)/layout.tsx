@@ -4,6 +4,7 @@ import { AddToAgentPrompt } from "@/components/agents/add-to-agent";
 import { AssistantWidget } from "@/components/assistant/assistant-widget";
 import { DeploymentGate } from "@/components/branding/deployment-gate";
 import { DesktopBridge } from "@/components/desktop/desktop-bridge";
+import { MobileBridge } from "@/components/mobile/mobile-bridge";
 import { CustomIconsProvider } from "@/components/icons/custom-icons";
 import { MobileHeader, Sidebar } from "@/components/layout";
 import { ActiveOrgGuard } from "@/components/layout/active-org-guard";
@@ -29,6 +30,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <LiveUpdates />
       {/* Inside the desktop app: the badge, native notifications and the menu's navigation. */}
       <DesktopBridge />
+      {/* Inside the phone app: live activities on the lock screen, and their buttons. */}
+      <MobileBridge />
       {/* It reads the search params, which a prerendered page only has in the browser. */}
       <Suspense fallback={null}>
         <NavigationProgress />

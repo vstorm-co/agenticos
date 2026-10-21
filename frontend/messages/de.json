@@ -8108,5 +8108,15 @@
         "hint": "Warm, zum Lesen"
       }
     }
+  },
+  "mobile": {
+    "activity": {
+      "approvalTitle": "{agent} möchte {tool} ausführen",
+      "anAgent": "Ein Agent",
+      "approve": "Genehmigen",
+      "reject": "Ablehnen",
+      "runTitle": "{agent} arbeitet",
+      "runBody": "Tippen, um in AgenticOS mitzuverfolgen."
+    }
   }
 }

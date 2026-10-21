@@ -8217,6 +8217,14 @@
       "signingIn": "Logowanie",
       "failed": "Ten kod już nie działa",
       "failedHint": "Kod działa raz, przez minutę. Pokaż nowy w konsoli, w Ustawieniach, w zakładce Aplikacja mobilna, i zeskanuj go ponownie."
+    },
+    "activity": {
+      "approvalTitle": "{agent} chce uruchomić {tool}",
+      "anAgent": "Agent",
+      "approve": "Zatwierdź",
+      "reject": "Odrzuć",
+      "runTitle": "{agent} pracuje",
+      "runBody": "Stuknij, żeby śledzić to w AgenticOS."
     }
   }
 }

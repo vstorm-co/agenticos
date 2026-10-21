@@ -8432,6 +8432,14 @@
       "signingIn": "Signing you in",
       "failed": "This code no longer works",
       "failedHint": "Codes work once, for a minute. Show a new one in the console, under Settings, Mobile app, and scan it again."
+    },
+    "activity": {
+      "approvalTitle": "{agent} wants to run {tool}",
+      "anAgent": "An agent",
+      "approve": "Approve",
+      "reject": "Reject",
+      "runTitle": "{agent} is working",
+      "runBody": "Tap to follow it in AgenticOS."
     }
   }
 }

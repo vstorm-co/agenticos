@@ -35,6 +35,11 @@ const DESKTOPS: readonly ShellPlatform[] = ["macos", "windows", "linux"];
 export function isDesktopShell(info: ShellInfo | null): info is ShellInfo {
   return info !== null && DESKTOPS.includes(info.platform);
 }
+
+/** Whether the shell is the phone app, whose live activities the console fills. */
+export function isMobileShell(info: ShellInfo | null): info is ShellInfo {
+  return info !== null && !DESKTOPS.includes(info.platform);
+}
 const WINDOWS: readonly ShellWindow[] = ["main", "blobby", "quick-ask"];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -165,4 +170,6 @@ export const SHELL_EVENTS = {
   say: "desktop:say",
   approval: "desktop:approval",
   quickAsk: "desktop:quick-ask",
+  /** The phone app: a live activity's button is waiting in `take_activity_action`. */
+  activity: "mobile:activity",
 } as const;

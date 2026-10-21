@@ -52,8 +52,13 @@ Two things are versioned separately from this file and worth knowing about:
   (`mobile/`, Tauri 2) that signs in by scanning the console's QR or by typing
   the address, keeps the console's session across restarts, and locks behind
   Face ID, Touch ID or the fingerprint after five minutes away. The console
-  lays itself out under the phone's status bar. Push, Live Activities and
-  widgets follow.
+  lays itself out under the phone's status bar. Push and widgets follow.
+- **Live activities in the phone app** (#2097): on Android, your own running
+  runs sit in the notification shade with a running clock, and an approval
+  waiting for you comes up with Reject and Approve on it. A tap opens the run
+  or the queue. A decision made from the lock screen asks for Face ID or the
+  fingerprint first, then goes through the same request as the queue's buttons.
+  The iOS Dynamic Island half needs the Xcode project and follows.
 - **Quick ask** (`⌥Space`, rebindable): a floating panel to ask any agent from
   anywhere, with the answer streamed under the question and ⌘↩ to carry the
   conversation into the console.

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   invokeShell,
   isDesktopShell,
+  isMobileShell,
   listenShell,
   parseShellInfo,
   readShellInfo,
@@ -49,6 +50,15 @@ describe("isDesktopShell", () => {
     expect(isDesktopShell(parseShellInfo({ ...MAC, platform: "ios" }))).toBe(false);
     expect(isDesktopShell(parseShellInfo({ ...MAC, platform: "android" }))).toBe(false);
     expect(isDesktopShell(null)).toBe(false);
+  });
+});
+
+describe("isMobileShell", () => {
+  it("is the phone app, and not the desktop app or a browser", () => {
+    expect(isMobileShell(parseShellInfo({ ...MAC, platform: "ios" }))).toBe(true);
+    expect(isMobileShell(parseShellInfo({ ...MAC, platform: "android" }))).toBe(true);
+    expect(isMobileShell(parseShellInfo(MAC))).toBe(false);
+    expect(isMobileShell(null)).toBe(false);
   });
 });
 

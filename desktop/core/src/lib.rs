@@ -113,6 +113,55 @@ pub fn pairing_link(link: &str, lan_http: bool) -> Result<Pairing, String> {
     })
 }
 
+/// What a button on a live activity asks for - the Dynamic Island, the
+/// lock screen, Android's ongoing notification - as the link it opens the app with.
+#[derive(Debug, PartialEq, Eq)]
+pub enum ActivityAction {
+    /// Show this page of the console.
+    Open(String),
+    /// Approve or reject this approval, as the console's own buttons would.
+    Decide { approval_id: String, approved: bool },
+}
+
+/// Read `agenticos://activity/open?path=…` and `…/approve|reject?approval=…`.
+///
+/// A path must be one of the console's own, as a notification's must
+/// (`is_console_path`): the link is text any app on the phone can fire, and
+/// all it may do is move the console within itself or ask it to decide - which
+/// it does only after the app's own lock.
+pub fn activity_link(link: &str) -> Option<ActivityAction> {
+    let parsed = Url::parse(link).ok()?;
+    if parsed.scheme() != DEEP_LINK_SCHEME || parsed.host_str() != Some("activity") {
+        return None;
+    }
+    let value = |name: &str| {
+        parsed
+            .query_pairs()
+            .find(|(key, _)| key == name)
+            .map(|(_, value)| value.into_owned())
+            .filter(|value| !value.is_empty())
+    };
+    match parsed.path() {
+        "/open" => value("path")
+            .filter(|path| is_console_path(path))
+            .map(ActivityAction::Open),
+        "/approve" | "/reject" => value("approval").map(|approval_id| ActivityAction::Decide {
+            approval_id,
+            approved: parsed.path() == "/approve",
+        }),
+        _ => None,
+    }
+}
+
+/// A path inside the console and nothing else: text from a server or a link
+/// must not send the app's webview to another site.
+pub fn is_console_path(path: &str) -> bool {
+    path.starts_with('/')
+        && !path.starts_with("//")
+        && !path.contains('\\')
+        && !path.contains("://")
+}
+
 /// The scheme the shell registers for a sign-in coming back from the browser.
 ///
 /// Must match `DESKTOP_DEEP_LINK_SCHEME` on the deployment, which is what builds
@@ -271,8 +320,8 @@ mod tests {
     use url::Url;
 
     use super::{
-        constant_time_eq, deep_link_return, external_sign_in_url, is_oauth_start, mint_nonce,
-        pairing_link, parse_server_url, parse_server_url_with,
+        activity_link, constant_time_eq, deep_link_return, external_sign_in_url, is_oauth_start,
+        mint_nonce, pairing_link, parse_server_url, parse_server_url_with, ActivityAction,
     };
 
     fn url(spelled: &str) -> Url {
@@ -586,5 +635,41 @@ mod tests {
             true
         )
         .is_ok());
+    }
+
+    #[test]
+    fn an_activity_button_opens_a_console_page_or_decides_an_approval() {
+        assert_eq!(
+            activity_link("agenticos://activity/open?path=%2Fruns%3Ftab%3Dapprovals"),
+            Some(ActivityAction::Open("/runs?tab=approvals".into()))
+        );
+        assert_eq!(
+            activity_link("agenticos://activity/approve?approval=ap1"),
+            Some(ActivityAction::Decide {
+                approval_id: "ap1".into(),
+                approved: true
+            })
+        );
+        assert_eq!(
+            activity_link("agenticos://activity/reject?approval=ap1"),
+            Some(ActivityAction::Decide {
+                approval_id: "ap1".into(),
+                approved: false
+            })
+        );
+    }
+
+    #[test]
+    fn an_activity_link_cannot_leave_the_console_or_decide_nothing() {
+        for link in [
+            "agenticos://activity/open?path=https%3A%2F%2Fevil.example",
+            "agenticos://activity/open?path=%2F%2Fevil.example",
+            "agenticos://activity/approve",
+            "agenticos://activity/delete?approval=ap1",
+            "agenticos://pair?code=x",
+            "https://activity/open?path=%2Fruns",
+        ] {
+            assert_eq!(activity_link(link), None, "{link}");
+        }
     }
 }
