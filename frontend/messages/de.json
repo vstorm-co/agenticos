@@ -2827,7 +2827,8 @@
       "body": "{count, plural, =0 {Noch niemand ist darin - fügen Sie Personen hinzu und teilen Sie einen Agent mit der Gruppe.} =1 {Ihr einziges Mitglied hat keinen Agent ausgeführt. Teilen Sie einen Agent mit der Gruppe, dann erscheint er in seinem Chat.} other {Keines ihrer # Mitglieder hat einen Agent ausgeführt. Teilen Sie einen Agent mit der Gruppe, dann erscheint er in ihrem Chat.}}",
       "openGroup": "Gruppe öffnen",
       "widen": "Letzte 90 Tage zeigen"
-    }
+    },
+    "appSession": "AgenticOS für {platform} {version}"
   },
   "errors": {
     "authorizationFailed": "Autorisierung fehlgeschlagen",

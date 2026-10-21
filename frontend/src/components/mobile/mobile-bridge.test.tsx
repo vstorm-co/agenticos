@@ -29,6 +29,7 @@ const env = vi.hoisted(() => ({
   loading: false,
   failed: null as unknown,
   updateWidget: vi.fn(async (_glance: unknown) => {}),
+  recordApp: vi.fn(async (_shell: unknown) => {}),
 }));
 vi.mock("@/hooks/use-shell", () => ({ useShell: () => env.shell }));
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => env.can }) }));
@@ -64,6 +65,7 @@ vi.mock("@/lib/mobile/live-activities", async (original) => ({
 }));
 vi.mock("@/lib/mobile/shared", () => ({ takeShared: env.takeShared }));
 vi.mock("@/lib/mobile/widget", () => ({ updateWidget: env.updateWidget }));
+vi.mock("@/lib/session-app", () => ({ recordSessionApp: env.recordApp }));
 vi.mock("sonner", () => ({ toast: { warning: env.warning } }));
 vi.mock("@/lib/desktop/shell", async (original) => ({
   ...(await original<typeof import("@/lib/desktop/shell")>()),
@@ -167,6 +169,11 @@ describe("MobileBridge", () => {
     env.failed = new Error("500");
     mount();
     expect(env.updateWidget).not.toHaveBeenCalled();
+  });
+
+  it("tells the server which app this is", () => {
+    mount();
+    expect(env.recordApp).toHaveBeenCalledWith(PHONE);
   });
 
   it("keeps at most three runs live", () => {
@@ -288,18 +295,20 @@ describe("MobileBridge", () => {
     env.take.mockRejectedValueOnce(new Error("no"));
     env.takeShared.mockRejectedValueOnce(new Error("no"));
     env.updateWidget.mockRejectedValueOnce(new Error("no"));
+    env.recordApp.mockRejectedValueOnce(new Error("no"));
     const view = mount();
     env.approvals = [];
     env.end.mockRejectedValue(new Error("no"));
     view.again();
     view.unmount();
-    await waitFor(() => expect(env.report).toHaveBeenCalledTimes(6));
+    await waitFor(() => expect(env.report).toHaveBeenCalledTimes(7));
     expect(env.report.mock.calls.map(([what]) => what).sort()).toEqual([
       "could not end a live activity",
       "could not end a live activity",
       "could not read an activity's action",
       "could not read what was shared",
       "could not show a live activity",
+      "could not tell the server which app this is",
       "could not update the widget",
     ]);
     env.end.mockReset();

@@ -2827,7 +2827,8 @@
       "body": "{count, plural, =0 {Nikogo w niej jeszcze nie ma - dodaj ludzi i udostępnij jej agenta.} one {Jej jedyny członek nie uruchomił agenta. Udostępnij agenta grupie, a pojawi się w jego czacie.} few {Żaden z # członków nie uruchomił agenta. Udostępnij agenta grupie, a pojawi się w ich czacie.} many {Żaden z # członków nie uruchomił agenta. Udostępnij agenta grupie, a pojawi się w ich czacie.} other {Żaden z # członków nie uruchomił agenta. Udostępnij agenta grupie, a pojawi się w ich czacie.}}",
       "openGroup": "Otwórz grupę",
       "widen": "Pokaż ostatnie 90 dni"
-    }
+    },
+    "appSession": "AgenticOS na {platform} {version}"
   },
   "errors": {
     "authorizationFailed": "Autoryzacja nie powiodła się",

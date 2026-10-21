@@ -2827,7 +2827,8 @@
       "body": "{count, plural, =0 {Nobody is in it yet - add people and share an agent with it.} =1 {Its one member has not run an agent. Share an agent with the group and it shows up in their chat.} other {None of its # members ran an agent. Share an agent with the group and it shows up in their chat.}}",
       "openGroup": "Open the group",
       "widen": "Show the last 90 days"
-    }
+    },
+    "appSession": "AgenticOS for {platform} {version}"
   },
   "errors": {
     "authorizationFailed": "Authorization failed",

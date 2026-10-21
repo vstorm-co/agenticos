@@ -179,6 +179,28 @@ async def create(
     return session
 
 
+async def set_app(
+    db: AsyncSession, *, session_id: UUID, user_id: UUID, platform: str, version: str
+) -> bool:
+    """Record the app an open session of the user's signs in through.
+
+    Whether a row matched: someone else's session, an ended one or an
+    impersonation is none of this caller's to label.
+    """
+    result = await db.execute(
+        update(Session)
+        .where(
+            Session.id == session_id,
+            Session.user_id == user_id,
+            Session.is_active.is_(True),
+            Session.impersonator_user_id.is_(None),
+        )
+        .values(app_platform=platform, app_version=version)
+    )
+    await db.flush()
+    return bool(getattr(result, "rowcount", 0))
+
+
 async def update_last_used(db: AsyncSession, session_id: UUID) -> None:
     """Update session last used timestamp."""
     await db.execute(

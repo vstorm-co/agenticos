@@ -23,6 +23,7 @@ const env = vi.hoisted(() => ({
   setBadge: vi.fn(async () => {}),
   report: vi.fn(),
   list: vi.fn(),
+  recordApp: vi.fn(async (_shell: unknown) => {}),
 }));
 vi.mock("@/hooks/use-shell", () => ({ useShell: () => env.shell }));
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => env.can }) }));
@@ -41,6 +42,7 @@ vi.mock("@/hooks/use-desktop", () => ({
 }));
 vi.mock("@/lib/locale-navigation", () => ({ useRouter: () => ({ push: env.push }) }));
 vi.mock("@/lib/notifications-api", () => ({ listNotifications: env.list }));
+vi.mock("@/lib/session-app", () => ({ recordSessionApp: env.recordApp }));
 vi.mock("@/lib/desktop/commands", async (original) => ({
   ...(await original<typeof import("@/lib/desktop/commands")>()),
   notify: env.notify,
@@ -141,6 +143,18 @@ describe("DesktopBridge", () => {
     act(() => env.listeners.get("desktop:start")?.("dance"));
     expect(env.report).toHaveBeenCalledWith("an unknown thing to start", "dance");
     useComposerIntentStore.setState({ intent: null });
+  });
+
+  it("tells the server which app this is, and reports a refusal", async () => {
+    env.recordApp.mockRejectedValueOnce(new Error("no"));
+    mount();
+    expect(env.recordApp).toHaveBeenCalledWith(MAC_MAIN);
+    await waitFor(() =>
+      expect(env.report).toHaveBeenCalledWith(
+        "could not tell the server which app this is",
+        expect.any(Error),
+      ),
+    );
   });
 
   it("counts what is waiting on the badge", () => {

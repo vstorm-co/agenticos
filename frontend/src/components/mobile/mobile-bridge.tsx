@@ -10,7 +10,12 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { useApprovals, useRuns } from "@/hooks/use-runs";
 import { useShell } from "@/hooks/use-shell";
 import { argumentsPreview } from "@/lib/desktop/notices";
-import { isMobileShell, reportShellFailure, SHELL_EVENTS } from "@/lib/desktop/shell";
+import {
+  isMobileShell,
+  reportShellFailure,
+  SHELL_EVENTS,
+  type ShellInfo,
+} from "@/lib/desktop/shell";
 import { useRouter } from "@/lib/locale-navigation";
 import {
   endActivity,
@@ -21,6 +26,7 @@ import {
 } from "@/lib/mobile/live-activities";
 import { takeShared } from "@/lib/mobile/shared";
 import { updateWidget } from "@/lib/mobile/widget";
+import { recordSessionApp } from "@/lib/session-app";
 import { useAuthStore, useComposerIntentStore } from "@/stores";
 import { Perm } from "@/types/permissions";
 
@@ -46,10 +52,10 @@ const MAX_RUNS = 3;
  */
 export function MobileBridge() {
   const shell = useShell();
-  return isMobileShell(shell) ? <Bridge /> : null;
+  return isMobileShell(shell) ? <Bridge shell={shell} /> : null;
 }
 
-function Bridge() {
+function Bridge({ shell }: { shell: ShellInfo }) {
   const t = useTranslations("mobile.activity");
   const router = useRouter();
   const { can } = usePermissions();
@@ -103,6 +109,13 @@ function Bridge() {
     }));
     return [...waiting, ...working];
   }, [agents, approvals, runs, t]);
+
+  // The sessions list names this app, not the webview's engine.
+  useEffect(() => {
+    recordSessionApp(shell).catch((error: unknown) =>
+      reportShellFailure("could not tell the server which app this is", error),
+    );
+  }, [shell]);
 
   const shown = useRef(new Map<string, string>());
   useEffect(() => {

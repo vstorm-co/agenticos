@@ -18,11 +18,17 @@ import {
   newNotifications,
   notificationPath,
 } from "@/lib/desktop/notices";
-import { isDesktopShell, reportShellFailure, SHELL_EVENTS } from "@/lib/desktop/shell";
+import {
+  isDesktopShell,
+  reportShellFailure,
+  SHELL_EVENTS,
+  type ShellInfo,
+} from "@/lib/desktop/shell";
 import { useRouter } from "@/lib/locale-navigation";
 import { listNotifications } from "@/lib/notifications-api";
 import { Perm } from "@/types/permissions";
 import { qk } from "@/lib/query-keys";
+import { recordSessionApp } from "@/lib/session-app";
 import { useComposerIntentStore } from "@/stores/composer-intent-store";
 
 const APPROVALS_PATH = "/runs?tab=approvals";
@@ -45,10 +51,10 @@ const APPROVALS_PATH = "/runs?tab=approvals";
  */
 export function DesktopBridge() {
   const shell = useShell();
-  return isDesktopShell(shell) && shell.window === "main" ? <Bridge /> : null;
+  return isDesktopShell(shell) && shell.window === "main" ? <Bridge shell={shell} /> : null;
 }
 
-function Bridge() {
+function Bridge({ shell }: { shell: ShellInfo }) {
   const t = useTranslations("desktop.notifications");
   const router = useRouter();
   const { can } = usePermissions();
@@ -62,6 +68,13 @@ function Bridge() {
     queryKey: qk.desktop.inbox(unread.count),
     queryFn: () => listNotifications(),
   });
+
+  // The sessions list names this app, not the webview's engine.
+  useEffect(() => {
+    recordSessionApp(shell).catch((error: unknown) =>
+      reportShellFailure("could not tell the server which app this is", error),
+    );
+  }, [shell]);
 
   useEffect(() => {
     window.__agenticosNavigate = (path: string) => router.push(path);

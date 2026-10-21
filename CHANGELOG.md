@@ -87,6 +87,11 @@ Two things are versioned separately from this file and worth knowing about:
   with the question unless you take them off; the clipboard only when you put
   it on. Reading another app's selection needs the Accessibility permission,
   which the panel offers to open.
+- **Your devices name the app** (#2305, #2097): a session signed in through the
+  AgenticOS desktop or phone app shows as "AgenticOS for macOS 0.2.0" in Active
+  sessions, and revoking it there signs that app out at once. The console marks
+  the session you are using. `PUT /api/v1/sessions/current/app`; migration
+  `0160_session_app` adds two nullable columns to `sessions`.
 - **Native notifications** for new approvals, with Approve and Reject on the
   notification, and for new inbox rows, plus a count on the Dock icon and
   beside the tray icon.
