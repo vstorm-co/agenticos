@@ -198,6 +198,11 @@ class EvalSuiteResult(Base):
     )
     version_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
     baseline_version_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # The dataset this result checked, which the suite may since have moved off:
+    # who may read its failing cases is decided by it, not by the suite's current one.
+    dataset_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("datasets.id", ondelete="SET NULL"), nullable=True
+    )
     environment_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("agent_environments.id", ondelete="SET NULL"),

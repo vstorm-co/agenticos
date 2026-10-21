@@ -57,6 +57,7 @@ async def lock(db: AsyncSession, suite_id: UUID, *, organization_id: UUID) -> Ev
         select(EvalSuite)
         .where(EvalSuite.id == suite_id, EvalSuite.organization_id == organization_id)
         .with_for_update()
+        .execution_options(populate_existing=True)
     )
     return result.scalar_one_or_none()
 
@@ -309,6 +310,31 @@ async def previous_settled(
         )
     result = await db.execute(query.order_by(EvalSuiteResult.settled_at.desc()).limit(1))
     return result.scalar_one_or_none()
+
+
+async def incomparable_since(
+    db: AsyncSession,
+    *,
+    suite_id: UUID,
+    agent_version_id: UUID,
+    since: datetime,
+    organization_id: UUID,
+) -> bool:
+    """Whether a result of this suite on this version settled after `since` with a
+    comparison that could not be read - its two sides graded differently."""
+    result = await db.execute(
+        select(EvalSuiteResult.id)
+        .where(
+            EvalSuiteResult.suite_id == suite_id,
+            EvalSuiteResult.organization_id == organization_id,
+            EvalSuiteResult.agent_version_id == agent_version_id,
+            EvalSuiteResult.status == EvalSuiteResultStatus.INCONCLUSIVE.value,
+            EvalSuiteResult.summary["invalid_reason"].astext.is_not(None),
+            EvalSuiteResult.settled_at > since,
+        )
+        .limit(1)
+    )
+    return result.first() is not None
 
 
 async def list_results(

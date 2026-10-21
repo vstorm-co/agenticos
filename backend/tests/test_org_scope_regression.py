@@ -126,6 +126,7 @@ TENANT_REQUIRED = [
     (eval_suite_repo, "discard_pending"),
     (eval_suite_repo, "running_for"),
     (eval_suite_repo, "previous_settled"),
+    (eval_suite_repo, "incomparable_since"),
     (eval_suite_repo, "list_results"),
     (eval_suite_repo, "latest_results"),
     (eval_suite_repo, "open_results"),

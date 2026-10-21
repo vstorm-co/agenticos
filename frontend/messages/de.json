@@ -8430,7 +8430,7 @@
       "resultsCouldNotBeRead": "Die Ergebnisse konnten nicht gelesen werden.",
       "noResults": "Noch keine Ergebnisse. Ein Ergebnis erscheint beim nächsten Lauf der Suite.",
       "resultCount": "{count, plural, =1 {1 Ergebnis} other {# Ergebnisse}}",
-      "resultMeta": "{trigger, select, schedule {Geplant} publish {Bei Veröffentlichung} promotion {Bei Promotion} dependency {Nach einer Änderung} other {Von Hand}} · v{version} · {date}",
+      "resultMeta": "{trigger, select, schedule {Geplant} publish {Bei Veröffentlichung} promotion {Bei Promotion} dependency {Nach einer Änderung} other {Von Hand}}{version, select, none {} other { · v{version}}} · {date}",
       "openRun": "Run öffnen",
       "passRate": "Bestehensquote {rate} über {cases, plural, =1 {1 Fall} other {# Fälle}} · {regressions, plural, =0 {keine bestätigten Regressionen} =1 {1 bestätigte Regression} other {# bestätigte Regressionen}}",
       "enableAi": "KI-Unterstützung einschalten",

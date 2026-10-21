@@ -84,7 +84,7 @@ async def update_eval_suite(
 )
 async def delete_eval_suite(
     agent_id: UUID, suite_id: UUID, service: EvalSuiteSvc, ctx: Auth
-) -> None:
+) -> Any:
     """Remove a suite and its results. The eval runs it started stay."""
     await service.delete(ctx, agent_id, suite_id)
 

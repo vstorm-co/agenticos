@@ -54,11 +54,20 @@ def cron_next(expression: str, *, now: datetime, time_zone: str = "UTC") -> date
 
 
 def cron_fires(
-    expression: str, *, start: datetime, end: datetime, time_zone: str = "UTC", limit: int
+    expression: str, *, start: datetime, end: datetime, time_zone: str = "UTC", sample: int
 ) -> int:
-    """How many times a cron expression fires after `start` and up to `end`, counting at most `limit`."""
+    """How many times a cron expression fires after `start` and up to `end`.
+
+    Enumerating every fire of a dense expression - `* * * * *` over a month is
+    43,200 - would hold an API worker for seconds, so at most `sample` fires are
+    walked and a cadence denser than that is extrapolated from the span they
+    covered.
+    """
     schedule = croniter(expression, start.astimezone(ZoneInfo(time_zone)))
     fires = 0
-    while fires < limit and cast(datetime, schedule.get_next(datetime)) <= end:
+    while fires < sample:
+        fired = cast(datetime, schedule.get_next(datetime))
+        if fired > end:
+            return fires
         fires += 1
-    return fires
+    return round(fires * (end - start) / (fired - start))

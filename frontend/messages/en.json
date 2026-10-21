@@ -8547,7 +8547,7 @@
       "resultsCouldNotBeRead": "The results could not be read.",
       "noResults": "No results yet. A result appears when the suite next runs.",
       "resultCount": "{count, plural, =1 {1 result} other {# results}}",
-      "resultMeta": "{trigger, select, schedule {Scheduled} publish {On publish} promotion {On promotion} dependency {After a change} other {By hand}} · v{version} · {date}",
+      "resultMeta": "{trigger, select, schedule {Scheduled} publish {On publish} promotion {On promotion} dependency {After a change} other {By hand}}{version, select, none {} other { · v{version}}} · {date}",
       "openRun": "Open run",
       "passRate": "Pass rate {rate} over {cases, plural, =1 {1 case} other {# cases}} · {regressions, plural, =0 {no confirmed regressions} =1 {1 confirmed regression} other {# confirmed regressions}}",
       "enableAi": "Turn on AI assistance",

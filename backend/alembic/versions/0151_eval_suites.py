@@ -165,6 +165,7 @@ def upgrade() -> None:
         sa.Column("agent_version_id", sa.UUID(), nullable=True),
         sa.Column("version_number", sa.Integer(), nullable=True),
         sa.Column("baseline_version_number", sa.Integer(), nullable=True),
+        sa.Column("dataset_id", sa.UUID(), nullable=True),
         sa.Column("environment_id", sa.UUID(), nullable=True),
         sa.Column("status", sa.String(length=16), nullable=False),
         sa.Column("reason", sa.String(length=48), nullable=True),
@@ -204,6 +205,12 @@ def upgrade() -> None:
             ["baseline_eval_run_id"],
             ["eval_runs.id"],
             name=op.f("eval_suite_results_baseline_eval_run_id_fkey"),
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["dataset_id"],
+            ["datasets.id"],
+            name=op.f("eval_suite_results_dataset_id_fkey"),
             ondelete="SET NULL",
         ),
         sa.ForeignKeyConstraint(

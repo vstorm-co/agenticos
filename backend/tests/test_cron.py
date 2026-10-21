@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from app.core.cron import cron_has_next, cron_next
+from app.core.cron import cron_fires, cron_has_next, cron_next
 
 
 class TestCronHasNext:
@@ -55,3 +55,15 @@ class TestCronNext:
     def test_the_answer_is_in_utc(self) -> None:
         now = datetime(2026, 10, 19, 8, 30, tzinfo=UTC)
         assert cron_next("0 9 * * *", now=now, time_zone="Asia/Tokyo").tzinfo is UTC
+
+
+class TestCronFires:
+    start = datetime(2026, 10, 19, 12, 0, tzinfo=UTC)
+    end = datetime(2026, 11, 18, 12, 0, tzinfo=UTC)
+
+    def test_a_sparse_schedule_is_counted_fire_by_fire(self) -> None:
+        assert cron_fires("0 6 * * *", start=self.start, end=self.end, sample=100) == 30
+
+    def test_a_dense_schedule_is_extrapolated_from_its_first_fires(self) -> None:
+        """Thirty days of every minute is 43,200 fires; walking them would hold the worker."""
+        assert cron_fires("* * * * *", start=self.start, end=self.end, sample=100) == 43_200

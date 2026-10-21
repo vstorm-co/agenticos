@@ -1130,6 +1130,30 @@ async def test_a_run_whose_runner_left_or_lost_access_ends_in_error(db) -> None:
     [refused] = await _results(db, second.id)
     assert (left.status, left.reason) == ("error", "owner_inactive")
     assert (refused.status, refused.reason) == ("error", "owner_lacks_access")
+    # Both ran as their suite's owner, so neither can run again until somebody takes it over.
+    for suite_id, reason in ((first.id, "owner_inactive"), (second.id, "owner_lacks_access")):
+        row = await db.get(EvalSuite, suite_id)
+        assert row is not None
+        await db.refresh(row)
+        assert (row.is_active, row.paused_reason) == (False, reason)
+
+
+async def test_a_hand_run_by_someone_who_left_does_not_pause_the_owners_suite(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx)
+    gone = await _member(db, ctx, OrgRoleName.BUILDER)
+    service = EvalSuiteService(db)
+    suite = await service.create(ctx, agent.id, _suite_data(dataset))
+    await service.run_now(gone, agent.id, suite.id)
+    await _finish_runs(db, Model(db))
+    await db.execute(delete(OrganizationMember).where(OrganizationMember.user_id == gone.user_id))
+
+    await service.settle_finished(now=datetime.now(UTC))
+
+    [result] = await _results(db, suite.id)
+    assert (result.status, result.reason) == ("error", "owner_inactive")
+    assert (await service.get(ctx, agent.id, suite.id)).is_active
 
 
 async def test_at_most_twenty_failing_cases_are_named(db) -> None:
@@ -1412,8 +1436,18 @@ async def test_a_suite_on_an_environment_being_removed_pauses_and_says_why(db) -
         "environment_gone",
         None,
     )
+    # One paused by hand is marked too: resumed as it is, it would quietly move
+    # onto the agent's current version.
     kept = await db.get(EvalSuite, paused_already.id)
-    assert kept is not None and kept.paused_reason is None
+    assert kept is not None
+    await db.refresh(kept)
+    assert kept.paused_reason == "environment_gone"
+    with pytest.raises(BadRequestError, match="Choose the one this suite checks"):
+        await service.update(ctx, agent.id, kept.id, EvalSuiteUpdate(is_active=True))
+    resumed = await service.update(
+        ctx, agent.id, kept.id, EvalSuiteUpdate(is_active=True, environment_id=None)
+    )
+    assert (resumed.is_active, resumed.paused_reason, resumed.environment_id) == (True, None, None)
 
 
 async def test_a_case_no_scorer_decided_keeps_the_suite_from_passing_and_says_which(db) -> None:
@@ -1445,3 +1479,117 @@ async def test_a_case_no_scorer_decided_keeps_the_suite_from_passing_and_says_wh
     ]
     [notice] = await _notifications(db, ctx.user_id)
     assert "could not decide" in notice.summary and "Where is my parcel?" in notice.summary
+
+
+@pytest.mark.security
+async def test_a_result_shows_its_cases_by_the_dataset_it_checked_not_the_suites_current_one(
+    db,
+) -> None:
+    """Moved onto a dataset its reader may open, a suite does not open the old one's cases."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    old = await _dataset(db, ctx)
+    new = await _dataset(db, ctx)
+    suite = await _settle_failed_cases(db, ctx, agent, old)
+    service = EvalSuiteService(db)
+    await service.update(ctx, agent.id, suite.id, EvalSuiteUpdate(dataset_id=new.id))
+    [before] = (await service.results(ctx, agent.id, suite.id)).items
+    assert before.summary is not None and before.summary.failing_cases
+
+    # Nobody may open a dataset that is gone; the suite's current one is still there.
+    await db.delete(old)
+    await db.flush()
+
+    [after] = (await service.results(ctx, agent.id, suite.id)).items
+    last = (await service.get(ctx, agent.id, suite.id)).last_result
+    assert after.summary is not None and after.summary.failing_cases == []
+    assert last is not None and last.summary is not None and last.summary.failing_cases == []
+
+
+async def test_moving_a_suite_to_another_dataset_drops_the_run_waiting_on_the_old_one(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    first = await _dataset(db, ctx)
+    second = await _dataset(db, ctx)
+    service = EvalSuiteService(db)
+    created = await service.create(
+        ctx, agent.id, _suite_data(first, schedule=EvalSuiteSchedule(cron="0 6 * * *"))
+    )
+    suite = await db.get(EvalSuite, created.id)
+    assert suite is not None and suite.next_fire_at is not None
+    await service.fire_schedules(now=suite.next_fire_at)
+    assert [r.status for r in await _results(db, suite.id)] == ["pending"]
+
+    await service.update(ctx, agent.id, suite.id, EvalSuiteUpdate(dataset_id=first.id))
+    assert [r.status for r in await _results(db, suite.id)] == ["pending"]
+    await service.update(ctx, agent.id, suite.id, EvalSuiteUpdate(dataset_id=second.id))
+
+    assert await _results(db, suite.id) == []
+
+
+async def test_a_run_due_while_the_suite_is_running_waits_for_it_to_settle(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx)
+    service = EvalSuiteService(db)
+    created = await service.create(
+        ctx, agent.id, _suite_data(dataset, schedule=EvalSuiteSchedule(cron="0 6 * * *"))
+    )
+    suite = await db.get(EvalSuite, created.id)
+    assert suite is not None and suite.next_fire_at is not None
+    due = suite.next_fire_at
+    await service.run_now(ctx, agent.id, suite.id)
+    await service.fire_schedules(now=due)
+
+    assert await service.start_due(now=due) == 0
+    assert sorted(r.status for r in await _results(db, suite.id)) == ["pending", "running"]
+    # A sweep that claimed the result before the press committed, then waited on the
+    # suite's lock, finds the run started meanwhile and leaves its result waiting.
+    [pending] = [r for r in await _results(db, suite.id) if r.status == "pending"]
+    assert await service._start(pending, now=due) is False
+    assert pending.status == "pending"
+
+    await _finish_runs(db, Model(db))
+    await service.settle_finished(now=due)
+    assert await service.start_due(now=due + timedelta(seconds=1)) == 1
+
+
+async def test_after_a_result_that_could_not_be_compared_the_next_run_sets_a_new_reference(
+    db,
+) -> None:
+    """A judge republished since the last good run makes the next result inconclusive,
+    once: the run after it is held to its own numbers and becomes the reference."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx)
+    service = EvalSuiteService(db)
+    created = await service.create(
+        ctx, agent.id, _suite_data(dataset, schedule=EvalSuiteSchedule(cron="0 6 * * *"))
+    )
+    suite = await db.get(EvalSuite, created.id)
+    assert suite is not None and suite.next_fire_at is not None
+    day = suite.next_fire_at
+    real = EvalRunService.compare
+
+    async def judged_anew(self, reader, run_id):
+        read = await real(self, reader, run_id)
+        return read.model_copy(
+            update={"verdict": "invalid", "invalid_reason": "A different judge graded it."}
+        )
+
+    await _sweep(db, Model(db), now=day)
+    with patch.object(EvalRunService, "compare", new=judged_anew):
+        await _sweep(db, Model(db), now=day + timedelta(days=1))
+    await _sweep(db, Model(db), now=day + timedelta(days=2))
+    await _sweep(db, Model(db), now=day + timedelta(days=3))
+
+    first, second, third, fourth = await _results(db, suite.id)
+    assert [r.status for r in (first, second, third, fourth)] == [
+        "passed",
+        "inconclusive",
+        "passed",
+        "passed",
+    ]
+    assert second.baseline_eval_run_id == first.eval_run_id
+    assert third.baseline_eval_run_id is None
+    assert fourth.baseline_eval_run_id == third.eval_run_id

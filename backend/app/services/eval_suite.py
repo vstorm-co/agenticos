@@ -54,6 +54,7 @@ from app.core.exceptions import (
     NotFoundError,
     PaymentRequiredError,
 )
+from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
@@ -107,6 +108,8 @@ _INPUT_CHARS = 120
 _SWEEP_SCHEDULES = 100
 _SWEEP_STARTS = 20
 _SWEEP_SETTLES = 50
+# Enough to count an hourly schedule's month exactly; anything denser is extrapolated.
+_FIRES_SAMPLE = 1000
 
 _TRIGGERED: dict[EvalSuiteTrigger, Literal["on_publish", "on_promotion"]] = {
     EvalSuiteTrigger.PUBLISH: "on_publish",
@@ -150,13 +153,12 @@ def binds(spec: AgentSpec, kind: DependencyKind, resource_id: UUID) -> bool:
 
 def fires_per_month(schedule: EvalSuiteSchedule, *, now: datetime) -> int:
     """How many times a schedule fires over the next thirty days."""
-    # A cron fires at most once a minute, and thirty days hold 43,200 of them.
     return cron_fires(
         schedule.cron,
         start=now,
         end=now + timedelta(days=30),
         time_zone=schedule.timezone,
-        limit=43_200,
+        sample=_FIRES_SAMPLE,
     )
 
 
@@ -232,9 +234,14 @@ class EvalSuiteService:
         rows, total = await eval_suite_repo.list_results(
             self.db, suite.id, organization_id=ctx.organization_id, skip=skip, limit=limit
         )
-        visible = suite.dataset_id in await self._readable_datasets(ctx, [suite.dataset_id])
+        readable = await self._readable_datasets(
+            ctx, [row.dataset_id for row in rows if row.dataset_id is not None]
+        )
         return EvalSuiteResultList(
-            items=[self._result_read(row, cases_visible=visible) for row in rows], total=total
+            items=[
+                self._result_read(row, cases_visible=row.dataset_id in readable) for row in rows
+            ],
+            total=total,
         )
 
     async def _readable_datasets(self, ctx: AuthContext, dataset_ids: list[UUID]) -> set[UUID]:
@@ -264,7 +271,14 @@ class EvalSuiteService:
         datasets = await eval_run_repo.datasets(
             self.db, sorted({suite.dataset_id for suite in suites}), organization_id=org
         )
-        readable = await self._readable_datasets(ctx, list(datasets))
+        latest = await eval_suite_repo.latest_results(self.db, ids, organization_id=org)
+        current = await eval_suite_repo.open_results(self.db, ids, organization_id=org)
+        checked = [
+            result.dataset_id
+            for result in (*latest.values(), *current.values())
+            if result.dataset_id is not None
+        ]
+        readable = await self._readable_datasets(ctx, [*datasets, *checked])
         environments: dict[UUID, AgentEnvironment] = {}
         for agent_id in agents:
             for environment in await agent_environment_repo.list_for_agent(
@@ -276,8 +290,6 @@ class EvalSuiteService:
             organization_id=org,
             user_ids=sorted({suite.owner_user_id for suite in suites if suite.owner_user_id}),
         )
-        latest = await eval_suite_repo.latest_results(self.db, ids, organization_id=org)
-        current = await eval_suite_repo.open_results(self.db, ids, organization_id=org)
         reads = []
         for suite in suites:
             environment = environments.get(suite.environment_id) if suite.environment_id else None
@@ -308,12 +320,12 @@ class EvalSuiteService:
                     next_fire_at=suite.next_fire_at,
                     max_run_usd=suite.max_run_usd,
                     last_result=(
-                        self._result_read(last, cases_visible=suite.dataset_id in readable)
+                        self._result_read(last, cases_visible=last.dataset_id in readable)
                         if last
                         else None
                     ),
                     open_result=(
-                        self._result_read(now, cases_visible=suite.dataset_id in readable)
+                        self._result_read(now, cases_visible=now.dataset_id in readable)
                         if now
                         else None
                     ),
@@ -458,7 +470,7 @@ class EvalSuiteService:
             values["name"] = data.name
         if "description" in fields:
             values["description"] = data.description
-        if data.dataset_id is not None:
+        if data.dataset_id is not None and data.dataset_id != suite.dataset_id:
             values["dataset_id"] = data.dataset_id
         await self.datasets.get(
             ctx, values.get("dataset_id", suite.dataset_id), perm=Perm.DATASETS_RUN
@@ -466,7 +478,15 @@ class EvalSuiteService:
         if "environment_id" in fields:
             if data.environment_id is not None:
                 await self._check_environment(ctx, agent, data.environment_id)
-            values["environment_id"] = data.environment_id
+            if data.environment_id != suite.environment_id:
+                values["environment_id"] = data.environment_id
+            if suite.paused_reason == "environment_gone":
+                values["paused_reason"] = None
+        elif data.is_active and suite.paused_reason == "environment_gone":
+            raise refused_field(
+                "environment_id",
+                "Its environment was removed. Choose the one this suite checks to resume it.",
+            )
         if data.threshold is not None:
             values.update(self._threshold_columns(data.threshold))
         for flag in ("on_publish", "on_promotion", "on_dependency_change"):
@@ -479,6 +499,12 @@ class EvalSuiteService:
         if "schedule" in fields or resuming:
             schedule = data.schedule if "schedule" in fields else _schedule(suite)
             values.update(self._schedule_columns(schedule, now=now))
+        if "dataset_id" in values or "environment_id" in values:
+            # A waiting result was queued for the version and cases as they were set
+            # up; run against the new ones it would record a check nobody asked for.
+            await eval_suite_repo.discard_pending(
+                self.db, suite.id, organization_id=ctx.organization_id
+            )
         action = "eval_suite.updated"
         if data.is_active is not None and data.is_active != suite.is_active:
             values["is_active"] = data.is_active
@@ -590,6 +616,9 @@ class EvalSuiteService:
         """
         agent = await self._editable(ctx, agent_id)
         suite = await self._suite(ctx, agent.id, suite_id)
+        # Held until this request commits, so a second press or the sweep starting
+        # this suite waits and then sees the run this one started.
+        await eval_suite_repo.lock(self.db, suite.id, organization_id=ctx.organization_id)
         if not suite.is_active:
             raise EvalSuiteNotRunnableError(
                 message=f"'{suite.name}' is paused. Resume it to run it.",
@@ -648,6 +677,7 @@ class EvalSuiteService:
             },
         )
         assert result is not None, "a running result never conflicts with a waiting one"
+        self._announce(suite)
         return self._result_read(result, cases_visible=True)
 
     async def _within_cap(
@@ -726,17 +756,17 @@ class EvalSuiteService:
             )
 
     async def environment_removed(self, environment: AgentEnvironment) -> None:
-        """Pause the suites checking an environment that is going away.
+        """Pause the suites checking an environment that is going away, those
+        already paused included.
 
         Its reference would be set null and the suite would quietly check the
         agent's current version instead - a different version than its owner
-        chose.
+        chose - so it resumes only once somebody names the environment again.
         """
         for suite in await eval_suite_repo.list_on_environment(
             self.db, environment.id, organization_id=environment.organization_id
         ):
-            if suite.is_active:
-                await self._pause(suite, reason="environment_gone")
+            await self._pause(suite, reason="environment_gone")
 
     async def dependency_changed(
         self, *, organization_id: UUID, kind: DependencyKind, resource_id: UUID
@@ -801,6 +831,7 @@ class EvalSuiteService:
             "agent_version_id": version.id,
             "version_number": version.version,
             "baseline_version_number": baseline_version,
+            "dataset_id": suite.dataset_id,
             "environment_id": suite.environment_id,
             "status": EvalSuiteResultStatus.PENDING.value,
             "due_at": due_at,
@@ -817,7 +848,7 @@ class EvalSuiteService:
         baseline_version: int | None = None,
         detail: dict[str, str] | None = None,
     ) -> EvalSuiteResult | None:
-        return await eval_suite_repo.add_result(
+        result = await eval_suite_repo.add_result(
             self.db,
             organization_id=suite.organization_id,
             values=self._result_values(
@@ -829,6 +860,9 @@ class EvalSuiteService:
                 detail=detail,
             ),
         )
+        if result is not None:
+            self._announce(suite)
+        return result
 
     async def fire_schedules(self, *, now: datetime) -> int:
         """Queue a run of every suite whose schedule came due, and move its schedule on.
@@ -925,6 +959,9 @@ class EvalSuiteService:
             # Pausing discards what was waiting, but a trigger that read the suite
             # as running before the pause committed can still have queued one.
             await eval_suite_repo.discard_pending(self.db, suite.id, organization_id=org)
+            return False
+        if await eval_suite_repo.running_for(self.db, suite.id, organization_id=org):
+            # One eval run at a time: this one waits for the next sweep after that settles.
             return False
         owner = await self._person(org, suite.owner_user_id)
         if owner is None:
@@ -1037,7 +1074,10 @@ class EvalSuiteService:
         The last state known to be good, not merely the last run: measured against
         yesterday's failure, a case still broken today would not have flipped, and
         a suite that had just gone red would read green again with the agent
-        unchanged.
+        unchanged. None once a later result could not be compared with it - the
+        judge or the scoring changed since - so the next run is held to its own
+        numbers and, passing, becomes the state the ones after it are measured
+        against.
         """
         passed = await eval_suite_repo.previous_settled(
             self.db,
@@ -1047,7 +1087,17 @@ class EvalSuiteService:
             organization_id=suite.organization_id,
             passed_on_dataset=suite.dataset_id,
         )
-        return passed.eval_run_id if passed is not None else None
+        if passed is None or passed.settled_at is None:
+            return None
+        if await eval_suite_repo.incomparable_since(
+            self.db,
+            suite_id=suite.id,
+            agent_version_id=version_id,
+            since=passed.settled_at,
+            organization_id=suite.organization_id,
+        ):
+            return None
+        return passed.eval_run_id
 
     async def settle_finished(self, *, now: datetime) -> int:
         """Hold every result whose eval run has ended to its threshold."""
@@ -1079,6 +1129,7 @@ class EvalSuiteService:
             await self._finish(
                 result, EvalSuiteResultStatus.ERROR, reason="owner_inactive", now=now
             )
+            await self._pause_for_owner(result, reason="owner_inactive")
             return
         try:
             read = await self.evals.get(reader, run.id)
@@ -1091,6 +1142,7 @@ class EvalSuiteService:
                 message=refused.message,
                 now=now,
             )
+            await self._pause_for_owner(result, reason="owner_lacks_access")
             return
         threshold = EvalSuiteThreshold.model_validate(result.threshold)
         candidate = next(arm for arm in read.arms if arm.role == "candidate")
@@ -1171,6 +1223,7 @@ class EvalSuiteService:
             values={
                 "suite_id": suite.id,
                 "trigger": trigger.value,
+                "dataset_id": suite.dataset_id,
                 "environment_id": suite.environment_id,
                 "status": EvalSuiteResultStatus.PENDING.value,
                 "due_at": now,
@@ -1237,6 +1290,18 @@ class EvalSuiteService:
             await NotificationService(self.db).eval_suite_failed(suite, result, agent=agent)
             await eval_suite_repo.update_result(self.db, result=result, values={"notified_at": now})
         self._announce(suite)
+
+    async def _pause_for_owner(self, result: EvalSuiteResult, *, reason: str) -> None:
+        """Pause the suite when the member a result ran as is still its owner.
+
+        A run somebody else started by hand says nothing about the owner.
+        """
+        suite = await eval_suite_repo.get(
+            self.db, result.suite_id, organization_id=result.organization_id
+        )
+        assert suite is not None, "a result goes with its suite"
+        if suite.is_active and suite.owner_user_id == result.run_as_user_id:
+            await self._pause(suite, reason=reason)
 
     async def _pause(self, suite: EvalSuite, *, reason: str) -> None:
         """Stop a suite the platform can no longer run as its owner, saying why."""

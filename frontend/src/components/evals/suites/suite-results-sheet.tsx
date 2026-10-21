@@ -116,7 +116,7 @@ function ResultRow({ agentId, result }: { agentId: string; result: EvalSuiteResu
         <span className="text-muted-foreground text-xs">
           {t("resultMeta", {
             trigger: result.trigger,
-            version: result.version_number ?? 0,
+            version: result.version_number === null ? "none" : String(result.version_number),
             date: formatDateTime(result.settled_at ?? result.created_at, locale),
           })}
         </span>

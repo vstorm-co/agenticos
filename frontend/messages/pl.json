@@ -7790,7 +7790,7 @@
       "resultsCouldNotBeRead": "Nie udało się odczytać wyników.",
       "noResults": "Brak wyników. Wynik pojawi się przy następnym uruchomieniu suity.",
       "resultCount": "{count, plural, one {# wynik} few {# wyniki} many {# wyników} other {# wyniku}}",
-      "resultMeta": "{trigger, select, schedule {Z harmonogramu} publish {Po publikacji} promotion {Po promocji} dependency {Po zmianie} other {Ręcznie}} · v{version} · {date}",
+      "resultMeta": "{trigger, select, schedule {Z harmonogramu} publish {Po publikacji} promotion {Po promocji} dependency {Po zmianie} other {Ręcznie}}{version, select, none {} other { · v{version}}} · {date}",
       "openRun": "Otwórz run",
       "passRate": "Odsetek zaliczonych {rate} na {cases, plural, one {# przypadku} other {# przypadkach}} · {regressions, plural, =0 {brak potwierdzonych regresji} one {# potwierdzona regresja} few {# potwierdzone regresje} many {# potwierdzonych regresji} other {# potwierdzonej regresji}}",
       "enableAi": "Włącz wsparcie AI",
