@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.10.2] - 2026-10-21
+
 ### Added
 
 - **Interactive answers in the chat (#2302).** An agent with Visuals chooses
