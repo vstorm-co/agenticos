@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.10.2"
+version = "1.11.0"
 description = "OS for your agents."
 requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
@@ -881,6 +881,8 @@ include = [
     "app/repositories/visual.py",
     "app/services/visual.py",
     "app/services/visual_render.py",
+    "app/core/map_tiles.py",
+    "app/services/tile_proxy.py",
     "app/api/routes/v1/visuals.py",
     "app/db/models/api_key.py",
     "app/schemas/api_key.py",
@@ -1372,6 +1374,8 @@ include = [
     "app/repositories/visual.py",
     "app/services/visual.py",
     "app/services/visual_render.py",
+    "app/core/map_tiles.py",
+    "app/services/tile_proxy.py",
     "app/api/routes/v1/visuals.py",
     "app/db/models/api_key.py",
     "app/schemas/api_key.py",

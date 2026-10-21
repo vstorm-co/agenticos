@@ -23,6 +23,7 @@ exclude: |
     .*\.lock|
     backend/app/core/catalog/artifact_lib/.*\.min\.js|
     backend/app/core/catalog/artifact_lib/three-[^/]+/.*\.js|
+    backend/app/core/catalog/artifact_lib/leaflet-[^/]+/.*|
     frontend/src/lib/mcp-logos\.generated\.ts|
     site/.*|
     backend/media/.*

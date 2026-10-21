@@ -188,11 +188,14 @@ class VisualsToolset:
     ) -> str:
         """Draw a picture in the conversation: a diagram, a map, a flow, an explainer, a 3D scene.
 
-        Use it whenever a picture explains the answer better than prose - an
-        architecture, a process, a comparison, a timeline, how something moves - or the
-        user asks for one. It renders live under your message while you write it, and
-        stays in the conversation. For a plain chart of numbers you already have, use
-        `create_chart` if you have it; for a page people should open, share and come back
+        Choose the form of each answer first. A fact, advice, writing or code is
+        text. Exact values to compare are a Markdown table, and numbers to see a
+        chart through `create_chart` if you have it - a follow-up such as "now chart
+        it" turns your table into that chart. Draw when the person should understand
+        how something works (an explainer with controls, a 3D model), use a tool made
+        for the moment (a calculator), or follow places on a map - or when they ask
+        for a picture. It renders live under your message while you write it, and
+        stays in the conversation. For a page people should open, share and come back
         to, `publish_artifact`.
 
         Pick the `kind`:
@@ -220,10 +223,24 @@ class VisualsToolset:
           "three/addons/": "./lib/three-0.186.0/addons/"}}</script>`, then
           `import * as THREE from "three"` and
           `import { OrbitControls } from "three/addons/controls/OrbitControls.js"`.
+        - a map: `lib/leaflet-1.9.4/leaflet.css`, `lib/leaflet-1.9.4/leaflet.js` and
+          `lib/agenticos-map-1.js`, then `AOMap.itinerary(element, {stops: [{name, lat,
+          lng, day, note}]})` - numbered pins dropped in order, pause and replay, and
+          cards for the stops. It draws on the deployment's map tiles, or as an outline
+          of the stops where there are none; your instructions say which.
+
+        Controls run inside the drawing. A button may also continue the conversation
+        with what the person picked: `agenticos.followUp("Plan day 2 in Kyoto")`. The
+        person sees the text and sends it themselves; call it only from a click, show
+        the button only while `agenticos.canFollowUp()` is true (it changes on the
+        `agenticos:host` event), and never call it on load, on a timer or as a slider
+        moves.
 
         Make it read in light and dark (`prefers-color-scheme`, or `agenticos-2.css`) and
-        at phone width. Before a first drawing, load the `visual-design` skill if it is
-        available - it has the house style and worked templates.
+        at phone width, on a transparent background - it sits in the conversation, not
+        in a box. Write `<style>` first, then the markup, then the scripts: the drawing
+        shows as it streams. Before a first drawing, load the `visual-design` skill if
+        it is available - it has the house style and a template for each kind of answer.
 
         Args:
             title: What the drawing shows, in a few words, e.g. `Order flow`.

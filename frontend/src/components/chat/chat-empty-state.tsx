@@ -1,11 +1,24 @@
 "use client";
 
-import { CalendarClock, Compass, FileSearch, Mail, MessageSquare, Sparkles } from "lucide-react";
+import {
+  CalendarClock,
+  Calculator,
+  Compass,
+  FileSearch,
+  Mail,
+  MapPinned,
+  MessageSquare,
+  Plane,
+  Sparkles,
+  Table2,
+} from "lucide-react";
 
 import { useTranslations } from "next-intl";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { useAgents, useAuth } from "@/hooks";
+import { useMentionables } from "@/hooks/use-mentionables";
+import { VISUALS_ID } from "@/lib/agent-spec";
 import { useAgentSelectionStore } from "@/stores";
 
 import { ChatWelcome, WelcomeIcon, type WelcomeSuggestion } from "./chat-welcome";
@@ -20,6 +33,18 @@ const PROMPTS = [
   { icon: FileSearch, id: "docs" },
   { icon: CalendarClock, id: "routine" },
   { icon: Mail, id: "email" },
+] as const;
+
+/**
+ * The openers for an agent that can draw (#2302): one per kind of answer it can
+ * give beyond text - explain, compare, make a tool, follow a trip - so the first
+ * thing a person sees is what the agent can do. Words under `empty.visual<Id>*`.
+ */
+const VISUAL_PROMPTS = [
+  { icon: Plane, id: "visualExplain" },
+  { icon: Table2, id: "visualCompare" },
+  { icon: Calculator, id: "visualTool" },
+  { icon: MapPinned, id: "visualMap" },
 ] as const;
 
 interface ChatEmptyStateProps {
@@ -37,8 +62,12 @@ export function ChatEmptyState({ onPick }: ChatEmptyStateProps) {
   const { agents } = useAgents({ includeArchived: true });
   const agent = agents.find((candidate) => candidate.id === selectedAgentId);
   const description = agent?.description?.trim();
+  // The list the composer reads for `@`, so it is usually in hand already.
+  const { items } = useMentionables(agent ? agent.id : null);
+  const draws = items.some((item) => item.kind === "capability" && item.id === VISUALS_ID);
   // The agent's own first messages, as its published version names them, in
   // the words its author wrote - the card is the message, so nothing under it.
+  // Without them, an agent that draws opens on what it can draw (#2302).
   const starters = agent?.starters ?? [];
   const suggestions: WelcomeSuggestion[] = starters.length
     ? starters.map((starter, index) => ({
@@ -48,7 +77,7 @@ export function ChatEmptyState({ onPick }: ChatEmptyStateProps) {
         prompt: starter,
         description: "",
       }))
-    : PROMPTS.map((p) => ({
+    : (draws ? VISUAL_PROMPTS : PROMPTS).map((p) => ({
         key: p.id,
         icon: p.icon,
         title: t(`${p.id}Title`),

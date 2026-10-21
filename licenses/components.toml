@@ -214,6 +214,26 @@ status = "accepted"
 obligations = "None: the Zero-Clause BSD licence asks for no notice."
 fulfilled_by = "Copied byte for byte; backend/app/core/catalog/artifact_lib/README.md names it with its licence text anyway. It morphs a visual's markup in place while the drawing streams (#2171)."
 
+[[component]]
+name = "Leaflet, vendored into backend/app/core/catalog/artifact_lib/"
+version = "1.9.4 (dist/leaflet.js and dist/leaflet.css from the npm tarball)"
+kind = "source, backend image, served to published artifacts and visuals"
+license = "BSD-2-Clause"
+source = "https://github.com/Leaflet/Leaflet"
+status = "accepted"
+obligations = "Keep the copyright notice, the conditions and the disclaimer with the copies, in source and in the documentation of a binary distribution."
+fulfilled_by = "Copied byte for byte; backend/app/core/catalog/artifact_lib/README.md carries the BSD-2-Clause text with both copyright lines, and NOTICE names it. The map kit draws an itinerary on the deployment's tile server with it (#2302). Copied for the same reason as Chart.js."
+
+[[component]]
+name = "Open Intelligent UI, adapted into agenticos-map-1.js and the visual-design skill"
+version = "8391a94c1c3939c679e40ddd7bfc08a9ef690e70"
+kind = "source, backend image, served to published artifacts and visuals"
+license = "MIT"
+source = "https://github.com/CopilotKit/OpenIntelligentUI"
+status = "accepted"
+obligations = "Keep the copyright notice and the permission notice with the copies or substantial portions of the software."
+fulfilled_by = "The pin-drop timing of createTripAnimator is adapted in backend/app/core/catalog/artifact_lib/agenticos-map-1.js, whose header carries the MIT notice with the copyright line; the visual-design skill's guidance on choosing the form of an answer, follow-ups and itineraries borrows from its playbook and skills. backend/app/core/catalog/artifact_lib/README.md and NOTICE name it (#2302)."
+
 # Images a deployment runs beside the two published ones. These are pulled by the
 # operator's compose file and are not redistributed by this project, so what the
 # review owes is the licence a deployment is agreeing to when it starts them.

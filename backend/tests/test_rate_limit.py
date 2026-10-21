@@ -416,6 +416,23 @@ class TestAnArtifactAddressIsCountedPerAddress:
         assert (await rate_limit.artifact_content_allowed("t")).allowed is False
 
 
+class TestMapTilesAreCountedPerAddress:
+    async def test_the_bucket_is_the_caller_s_address(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_TRUST_FORWARDED_FOR", False)
+        client = _redis([1])
+        rate_limit.configure(client)
+
+        assert (await rate_limit.map_tiles_allowed(_connection())).allowed is True
+        assert client.count_in_window.await_args.args[0] == "ratelimit:map_tiles:ip:203.0.113.7"
+
+    @pytest.mark.security
+    async def test_an_address_past_its_allowance_is_refused(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_MAP_TILES_PER_MINUTE", 2)
+        rate_limit.configure(_redis([3]))
+
+        assert (await rate_limit.map_tiles_allowed(_connection())).allowed is False
+
+
 class TestStoringAFileIsCountedTwice:
     """The upload is the only public route that writes bytes to a disk, and the
     only one whose caller has two identities worth counting.

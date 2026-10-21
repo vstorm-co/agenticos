@@ -1669,6 +1669,11 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # drawing - the console posts it in - under the app sandbox policy, framed
         # only by the console.
         ("GET", f"{V1}/artifact-content/visual-frame"),
+        # Map tiles for a visual or an app (#2302): every page loads them, saved
+        # or shared, from an opaque origin with no credentials. Three numbers
+        # checked against the zoom, fetched from the operator's tile server, and
+        # counted per address - nothing of a tenant's is reachable here.
+        ("GET", f"{V1}/artifact-content/tiles/{{z}}/{{x}}/{{y}}"),
         # The document another site frames for a public link (#1973). The key is
         # the capability, as for the link itself, and its policy lets only the
         # origins the artifact names frame it.

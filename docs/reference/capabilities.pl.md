@@ -1,5 +1,5 @@
 ---
-source_sha: "f0c0faf6fb72"
+source_sha: "967585c98165"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1227,9 +1227,30 @@ nieudane, przerwane limitem czasu albo zatrzymane.
 
 Rysuje w samym czacie. `kind` to `svg` dla diagramów i ilustracji, `mermaid` dla
 schematów blokowych, sekwencji i diagramów ER albo `html` dla wszystkiego, co
-interaktywne - suwaków, `<canvas>`, three.js. Bez konfiguracji; dostarczany skill
-`visual-design` niesie styl i trzy szablony, a Builder podpina go przy włączeniu
-Wizualizacji.
+interaktywne - suwaków, `<canvas>`, three.js, mapy. Bez konfiguracji; dostarczany
+skill `visual-design` niesie styl i pięć szablonów, a Builder podpina go, razem z
+Wykresami (Charts), przy włączeniu Wizualizacji.
+
+**Najpierw wybiera formę.** Nie każda odpowiedź jest rysunkiem. Opis narzędzia i
+skill każą modelowi odpowiadać na fakt tekstem, na dokładne wartości tabelą
+Markdown, na liczby do obejrzenia przez `create_chart` - więc „teraz zrób wykres”
+zamienia tabelę w natywny wykres - a rysować wtedy, gdy osoba ma zrozumieć, jak coś
+działa, użyć narzędzia zrobionego na chwilę albo śledzić miejsca na mapie. Skill
+mówi też, jak rysunek ma wyglądać, żeby wyglądał na zrobiony dla tej odpowiedzi, a
+nie wygenerowany: jeden duży temat, przestrzeń zamiast ramek, tylko kolory motywu,
+bez pigułek, cieni i gradientów.
+
+**Rysunek może kontynuować rozmowę.** `agenticos.followUp(text)` w rysunku prosi o
+wysłanie wyboru osoby jako jej następnej wiadomości - *Zaplanuj ten przystanek*,
+*Użyj tych liczb*. Konsola pokazuje tekst pod rysunkiem i wysyła go dopiero, gdy
+osoba kliknie *Wyślij*; prośba, za którą nie stoi kliknięcie, jest odrzucana. Zobacz
+[follow-upy](../artifacts.md#visuals).
+
+**Mapy.** `lib/agenticos-map-1.js` rysuje trasę - ponumerowane pinezki wbijane po
+kolei, linię między nimi, pauzę i powtórkę oraz kartę dla każdego przystanku - na
+serwerze kafelków wskazanym przez `VISUAL_MAP_TILES`, a na deploymencie, który
+żadnego nie wskazuje, jako zarys przystanków. Instrukcje capability mówią modelowi,
+który to przypadek, żeby nie obiecywał ulic, których nie pokaże.
 
 **Pojawia się w trakcie pisania.** Rysunek to argument `content` wywołania. Konsola
 czyta go ze strumieniowanych argumentów i wysyła do ramki pod wiadomością, więc SVG
@@ -1265,7 +1286,8 @@ wszystkie rewizje.
 
 **Ma izolację aplikacji.** Ramka to sandbox aplikacji - nieprzezroczysty origin,
 `connect-src 'none'`, nic zdalnego poza zestawem bibliotek deploymentu, który zawiera
-teraz three.js i Mermaid. Zobacz [Wizualizacje](../artifacts.md#visuals).
+teraz three.js, Mermaid i Leaflet, oraz własną ścieżką kafelków map deploymentu.
+Zobacz [Wizualizacje](../artifacts.md#visuals).
 
 ## Aplikacje { #artifacts }
 

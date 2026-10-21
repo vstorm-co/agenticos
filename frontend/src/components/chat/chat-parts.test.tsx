@@ -34,6 +34,9 @@ vi.mock("@/hooks", () => ({
   useAuth: () => ({ user: auth.user }),
   useAgents: () => ({ agents: auth.agents }),
 }));
+// What the agent may be pointed at - here, nothing that draws, so the general
+// starters show; `chat-empty-state.test.tsx` covers an agent with Visuals.
+vi.mock("@/hooks/use-mentionables", () => ({ useMentionables: () => ({ items: [] }) }));
 
 beforeEach(() => {
   auth.user = null;

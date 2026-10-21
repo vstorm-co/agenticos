@@ -1,5 +1,5 @@
 ---
-source_sha: "f0c0faf6fb72"
+source_sha: "967585c98165"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1303,9 +1303,33 @@ Harness meldet, was sie verbraucht hat - fehlgeschlagen, abgelaufen oder gestopp
 
 Zeichnet im Chat selbst. `kind` ist `svg` für Diagramme und Illustrationen,
 `mermaid` für Flussdiagramme, Sequenzen und ER-Diagramme oder `html` für alles
-Interaktive - Schieberegler, `<canvas>`, three.js. Keine Konfiguration; der
-mitgelieferte Skill `visual-design` trägt den Stil und drei Vorlagen, und der Builder
-bindet ihn, wenn Visuals eingeschaltet wird.
+Interaktive - Schieberegler, `<canvas>`, three.js, eine Karte. Keine Konfiguration;
+der mitgelieferte Skill `visual-design` trägt den Stil und fünf Vorlagen, und der
+Builder bindet ihn, zusammen mit Charts, wenn Visuals eingeschaltet wird.
+
+**Es wählt zuerst die Form.** Nicht jede Antwort ist eine Zeichnung. Der Text des
+Tools und der Skill sagen dem Modell, eine Tatsache als Text zu beantworten, genaue
+Werte als Markdown-Tabelle und Zahlen zum Ansehen mit `create_chart` - sodass
+„jetzt als Diagramm“ eine Tabelle in ein natives Diagramm verwandelt - und zu
+zeichnen, wenn die Person verstehen soll, wie etwas funktioniert, ein Werkzeug für
+den Moment nutzen oder Orten auf einer Karte folgen will. Der Skill sagt auch, wie
+eine Zeichnung aussehen soll, damit sie für die Antwort gemacht und nicht generiert
+wirkt: ein großes Thema, Raum statt Kästen, nur die Farben des Themes, keine Pills,
+Schatten oder Verläufe.
+
+**Eine Zeichnung kann das Gespräch fortsetzen.** `agenticos.followUp(text)` in einer
+Zeichnung bittet darum, die Wahl der Person als ihre nächste Nachricht zu senden -
+*Diesen Stopp planen*, *Diese Zahlen verwenden*. Die Konsole zeigt den Text unter
+der Zeichnung und sendet ihn erst, wenn die Person auf *Senden* klickt; eine Bitte
+ohne Klick dahinter wird verworfen. Siehe
+[Folgenachrichten](../artifacts.md#visuals).
+
+**Karten.** `lib/agenticos-map-1.js` zeichnet eine Reiseroute - nummerierte Pins,
+der Reihe nach gesetzt, die Linie dazwischen, Pause und Wiederholung und eine Karte
+pro Stopp - auf dem Kachelserver, den `VISUAL_MAP_TILES` nennt, oder auf einem
+Deployment ohne einen als Umriss der Stopps. Die Anweisungen der Capability sagen
+dem Modell, welcher Fall vorliegt, damit es keine Straßen verspricht, die es nicht
+zeigen kann.
 
 **Es erscheint, während es geschrieben wird.** Die Zeichnung ist das Argument
 `content` des Aufrufs. Die Konsole liest es aus den gestreamten Argumenten und gibt
@@ -1345,8 +1369,8 @@ seine Zeichnung noch verwendet, über alle Revisionen höchstens sechs.
 
 **Es hat die Isolation einer App.** Der Rahmen ist die App-Sandbox - ein opaker
 Origin, `connect-src 'none'`, nichts Entferntes außer dem Bibliothekssatz des
-Deployments, der jetzt three.js und Mermaid enthält. Siehe
-[Visuals](../artifacts.md#visuals).
+Deployments, der jetzt three.js, Mermaid und Leaflet enthält, und dem eigenen
+Kachelpfad des Deployments. Siehe [Visuals](../artifacts.md#visuals).
 
 ## Apps { #artifacts }
 
