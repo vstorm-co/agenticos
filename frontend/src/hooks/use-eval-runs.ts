@@ -201,6 +201,19 @@ export function useEveryAgent({ enabled = true }: { enabled?: boolean } = {}) {
 }
 
 /**
+ * Whether the caller may run any dataset with a case in it - what an eval or a
+ * score needs - asked of the server as one row rather than read from every dataset.
+ */
+export function useRunsADataset({ enabled = true } = {}): boolean {
+  const { data } = useQuery({
+    queryKey: qk.datasets.runnable(),
+    queryFn: () => apiClient.get<DatasetList>("/datasets?runnable=true&limit=1"),
+    enabled,
+  });
+  return (data?.total ?? 0) > 0;
+}
+
+/**
  * Every dataset the caller sees, by name and page by page - the start dialog
  * offers any of them, and the listing's first page alone would hide the rest.
  */
