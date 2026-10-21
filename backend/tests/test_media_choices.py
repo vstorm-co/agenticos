@@ -86,6 +86,14 @@ def test_the_schema_it_was_given_is_left_as_it_was():
     assert original == _schema()
 
 
+def test_an_open_choice_keeps_the_parameter_and_names_the_usual_value():
+    narrowed = offer_choices(_schema(), {"voice": Choice(None, usual="abc123")})
+
+    voice = narrowed["properties"]["voice"]
+    assert "enum" not in voice and voice["default"] == "abc123"
+    assert voice["description"] == "Who speaks. The usual one is abc123."
+
+
 def test_a_usual_value_outside_the_values_is_a_mistake_said_at_once():
     with pytest.raises(ValueError, match="the usual 'c' is not one of the values"):
         offer_choices(_schema(), {"voice": Choice(("a", "b"), usual="c")})

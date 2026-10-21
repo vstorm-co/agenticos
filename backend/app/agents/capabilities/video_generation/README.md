@@ -39,19 +39,19 @@ its name.
 
 ## What the agent may choose
 
-The model picks a clip's length (up to `max_seconds`), its shape (the model's
-aspect ratios) and - only where the author set `max_resolution` - its resolution,
-anything the model renders up to that ceiling. Resolution is what a second costs,
-so it is the author's ceiling rather than the model's choice: an agent asked for
-"something quick" can go lower, and one asked for a sharp shot can go higher
-without the author's every clip costing that much. The budget is asked with the
-chosen resolution's price.
+The resolution, shape, length and sound a binding sets are defaults: what a clip
+gets unless the agent asks for another, per call. The limits are the longest clip
+and the highest resolution. Left empty, `max_resolution` allows any resolution
+the model renders - the Builder warns, because resolution is what a second costs -
+and set, it is a ceiling the agent can stay under for a draft and reach for a
+sharp shot. The budget is asked with the chosen resolution's price.
 
-The choices reach the model as an `enum` on each parameter (`_choices.py`), and a
-parameter with a single value is left out of the schema, so a binding without a
-ceiling shows the model no `resolution` at all. The catalog lists resolutions
-default first rather than in order, so `resolution_lines` in
-`app/services/video_models.py` reads their height to compare them.
+Shape and resolution reach the model as an `enum` with the usual one as the
+default (`_choices.py`); sound is a parameter only where the model makes it
+optional, and a parameter with nothing to choose is left out of the schema. The
+catalog lists resolutions default first rather than in order, so
+`resolution_lines` in `app/services/video_models.py` reads their height to compare
+them.
 
 ## A job, not a request
 

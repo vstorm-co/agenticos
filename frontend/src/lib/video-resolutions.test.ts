@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolutionLines, resolutionsAbove } from "./video-resolutions";
+import { resolutionLines, resolutionsFrom } from "./video-resolutions";
 
 describe("resolutionLines", () => {
   it("reads both of the catalog's spellings as lines", () => {
@@ -14,9 +14,13 @@ describe("resolutionLines", () => {
   });
 });
 
-describe("resolutionsAbove", () => {
-  it("offers only what is taller than the usual resolution, shortest first", () => {
-    expect(resolutionsAbove(["720p", "360p", "4k", "1080p"], "720p")).toEqual(["1080p", "4k"]);
-    expect(resolutionsAbove(["720p", "480p"], "720p")).toEqual([]);
+describe("resolutionsFrom", () => {
+  it("offers the usual resolution and what is taller, shortest first", () => {
+    expect(resolutionsFrom(["720p", "360p", "4k", "1080p"], "720p")).toEqual([
+      "720p",
+      "1080p",
+      "4k",
+    ]);
+    expect(resolutionsFrom(["720p", "480p"], "720p")).toEqual(["720p"]);
   });
 });

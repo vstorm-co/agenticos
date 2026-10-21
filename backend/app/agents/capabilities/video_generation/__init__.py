@@ -28,9 +28,11 @@ happen, short enough to be cheap on every model here."""
 class VideoGenerationConfig(BaseModel):
     """How this agent makes video.
 
-    `provider` and `model` are the decision; everything else defaults to what the
-    catalog lists first for that model, so turning the capability on is enough to
-    make a clip.
+    `provider` and `model` are the decision. The resolution, shape, length and
+    sound are defaults the agent may override per clip, bounded only by the
+    highest resolution and the longest clip; each defaults to what the catalog
+    lists first for that model, so turning the capability on is enough to make a
+    clip.
     """
 
     provider: str = Field(
@@ -52,15 +54,18 @@ class VideoGenerationConfig(BaseModel):
     resolution: str | None = Field(
         title="Resolution",
         default=None,
-        description="Left empty, the model's first. Higher costs more per second.",
+        description=(
+            "The resolution a clip is made at unless the agent asks for another; left "
+            "empty, the model's first. Higher costs more per second."
+        ),
     )
     max_resolution: str | None = Field(
         title="Highest resolution",
         default=None,
         description=(
-            "The highest resolution the agent may ask for, above the usual one; it caps what "
-            "a second can cost, and the agent may also ask for any lower one. Left empty, "
-            "every clip is made at the resolution above."
+            "The highest resolution the agent may ask for, at least the usual one; it caps "
+            "what a second can cost. Left empty, the agent may ask for any resolution the "
+            "model renders."
         ),
     )
     aspect_ratio: str | None = Field(
@@ -90,8 +95,8 @@ class VideoGenerationConfig(BaseModel):
         title="Sound",
         default=None,
         description=(
-            "Whether clips carry sound, where the model makes it optional; left empty, the "
-            "provider's default."
+            "Whether clips carry sound unless the agent asks otherwise, where the model makes "
+            "it optional; left empty, the provider's default."
         ),
     )
     timeout_seconds: int = Field(
@@ -127,11 +132,9 @@ class VideoGenerationConfig(BaseModel):
                     f"not {self.max_resolution}."
                 )
             usual = self.resolved_resolution()
-            if resolution_lines(usual) >= resolution_lines(self.max_resolution):
-                # Equal would allow every lower resolution while the Builder shows
-                # no ceiling at all; a ceiling exists to allow something higher.
+            if resolution_lines(usual) > resolution_lines(self.max_resolution):
                 raise ValueError(
-                    f"The highest resolution, {self.max_resolution}, must be higher than "
+                    f"The highest resolution, {self.max_resolution}, cannot be lower than "
                     f"the usual one, {usual}."
                 )
         if self.aspect_ratio is not None and self.aspect_ratio not in model.aspect_ratios:
@@ -174,11 +177,10 @@ class VideoGenerationConfig(BaseModel):
         return self.resolution or self.chosen_model().resolutions[0]
 
     def offered_resolutions(self) -> tuple[str, ...]:
-        """What the agent may ask for, shortest first: the usual one alone, or every
-        one up to the highest."""
-        if self.max_resolution:
-            return up_to(self.chosen_model(), self.max_resolution)
-        return (self.resolved_resolution(),)
+        """What the agent may ask for, shortest first: every resolution up to the
+        highest, or - with none set - every one the model renders."""
+        model = self.chosen_model()
+        return up_to(model, self.max_resolution or max(model.resolutions, key=resolution_lines))
 
 
 @register(
@@ -225,6 +227,7 @@ def _build(ctx: CapabilityBuildContext) -> VideoGeneration:
         or min(max(USUAL_SECONDS, model.min_seconds), config.max_seconds or model.max_seconds),
         max_seconds=config.max_seconds or model.max_seconds,
         audio=config.audio,
+        audio_optional=model.audio == "optional",
         timeout_seconds=config.timeout_seconds,
         api_key=api_key,
     )

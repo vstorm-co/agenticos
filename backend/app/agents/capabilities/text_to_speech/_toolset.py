@@ -5,10 +5,12 @@ The clip is made by the provider the binding chose, through
 kept (:mod:`app.agents.capabilities._generated`) - so a person hears it where they
 would have seen the picture, and a later step finds it under `output/`.
 
-**The author bounds which voices the model may choose.** The usual voice, and
-any others the binding lists, are offered as an `enum` in the tool's schema with
-what each is for (:mod:`app.agents.capabilities._choices`); a binding with one
-voice offers no choice at all.
+**The binding's voice is a default the model may override.** It may switch to
+any voice the binding allows - those it lists, or with none listed every voice
+the model has - offered as an `enum` in the tool's schema with what each is for
+and the usual one as its default (:mod:`app.agents.capabilities._choices`). On a
+provider whose voices belong to the account, an empty list leaves any voice id
+in the account open: no catalog lists them, so only the id's shape is checked.
 
 **The budget is asked before the call, with the call's price.** Speech is sold per
 character, so what a clip costs is known before it is made, and a run is refused
@@ -41,7 +43,12 @@ from app.agents.capabilities._failures import steer
 from app.agents.capabilities._generated import store_generated
 from app.agents.capabilities.budget import can_afford_ambient_call, record_ambient_cost
 from app.agents.deps import AgentDeps
-from app.services.text_to_speech import SpeechFailure, SpeechProviderError, synthesize
+from app.services.text_to_speech import (
+    ACCOUNT_VOICE_ID,
+    SpeechFailure,
+    SpeechProviderError,
+    synthesize,
+)
 from app.services.text_to_speech_models import by_provider, price_per_character
 
 MEDIA_TYPES = {"mp3": "audio/mpeg", "wav": "audio/wav"}
@@ -95,7 +102,7 @@ def build_speech_toolset(
     provider: str,
     model: str,
     voice: str,
-    voices: tuple[OfferedVoice, ...],
+    voices: tuple[OfferedVoice, ...] | None,
     audio_format: str,
     max_characters: int,
     api_key: str | None,
@@ -108,7 +115,7 @@ def build_speech_toolset(
     """
     ledger_name = f"{provider}:{model}"
     usual_voice = voice
-    voice_ids = tuple(offered.id for offered in voices)
+    voice_ids = None if voices is None else tuple(offered.id for offered in voices)
 
     async def generate_speech(
         ctx: RunContext[AgentDeps],
@@ -159,8 +166,13 @@ def build_speech_toolset(
                 "characters. Shorten it.",
             )
 
-        speaker = voice or usual_voice
-        if speaker not in voice_ids:
+        speaker = (voice or usual_voice).strip()
+        if voice_ids is None:
+            if not ACCOUNT_VOICE_ID.fullmatch(speaker):
+                return steer(
+                    ctx, "`voice` is a voice id from the account: letters, digits, '-' and '_'."
+                )
+        elif speaker not in voice_ids:
             if len(voice_ids) == 1:
                 return steer(ctx, f"This agent speaks only in {usual_voice}; leave `voice` out.")
             return steer(ctx, f"`voice` must be one of {', '.join(voice_ids)}.")
@@ -243,7 +255,7 @@ def build_speech_toolset(
                 "voice": Choice(
                     voice_ids,
                     usual=usual_voice,
-                    notes={offered.id: offered.note for offered in voices},
+                    notes=None if voices is None else {v.id: v.note for v in voices},
                 )
             }
         ),

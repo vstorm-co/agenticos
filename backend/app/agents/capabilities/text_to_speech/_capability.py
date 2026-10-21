@@ -25,7 +25,9 @@ class TextToSpeech(AbstractCapability[AgentDepsT]):
     provider: str
     model: str
     voice: str
-    voices: tuple[OfferedVoice, ...]
+    voices: tuple[OfferedVoice, ...] | None
+    """What the agent may speak in, or `None` for any voice id in the account."""
+
     audio_format: str
     max_characters: int
     # Unsealed from the vault by the factory. `repr=False` because a dataclass

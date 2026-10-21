@@ -19,14 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
-- **An agent can choose the voice and the resolution per clip.** A speech agent
-  may now be given other voices beside its usual one - from the provider's
-  list, or ElevenLabs voice ids with a note saying who each is - and picks one
-  per clip, for a dialogue or a narrator and a character. A video agent may be
-  given a highest resolution, and asks for anything up to it per clip, priced
-  at the resolution it chose. The shape of a clip was already the agent's to
-  choose. Each choice is offered to the model as a fixed list, and an agent
-  given no choice sees the tool it saw before (#2259, #2260).
+- **An agent can override its speech and video settings per clip.** The voice,
+  resolution, shape, length and sound an author sets are now defaults the
+  agent may change for one clip. The limits are the author's: a list of
+  allowed voices - from the provider's list, or ElevenLabs voice ids with a
+  note saying who each is - and a highest resolution, which prices a clip at
+  the resolution the agent chose. Left empty, the agent may use any voice or
+  resolution the model offers, and the Builder warns about it (#2259, #2260).
 - **Agents can make video.** The new `video_generation` capability gives an
   agent a `generate_video` tool that makes a short clip through Google Gemini
   Omni, ByteDance Seedance on BytePlus, xAI Grok Imagine or Alibaba Wan 3.0,

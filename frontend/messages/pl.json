@@ -836,11 +836,13 @@
     "speechModelUnknownProvider": "Ten binding wskazuje {provider}, który nie potrafi mówić. Wybierz providera powyżej.",
     "speechVoice": "Głos",
     "speechVoicePlaceholder": "Wybierz głos",
-    "speechVoiceDetail": "Głosy, którymi może mówić ten model.",
+    "speechVoiceDetail": "Wartość domyślna - agent może przełączyć się na inny głos dla każdego klipu, spośród głosów dozwolonych poniżej.",
     "speechVoiceIdPlaceholder": "Id głosu",
-    "speechAccountVoiceDetail": "Głosy {provider} należą do Twojego konta. Wklej id jednego z nich ze swojej biblioteki głosów.",
-    "speechOtherVoices": "Inne głosy",
-    "speechOtherVoicesDetail": "Głosy, które agent może wybrać zamiast zwykłego, osobno dla każdego klipu - do dialogu albo dla narratora i postaci. Gdy lista jest pusta, zawsze mówi zwykłym głosem.",
+    "speechAccountVoiceDetail": "Głosy {provider} należą do Twojego konta. Wklej id jednego z nich ze swojej biblioteki głosów. To wartość domyślna - agent może przełączyć się na inny głos dla każdego klipu, spośród głosów dozwolonych poniżej.",
+    "speechOtherVoices": "Dozwolone głosy",
+    "speechOtherVoicesDetail": "Jedyne głosy, na które agent może się przełączyć, osobno dla każdego klipu - do dialogu albo dla narratora i postaci.",
+    "speechAnyVoiceWarning": "{count, plural, one {Żaden nie jest dozwolony: agent może mówić jedynym głosem tego modelu.} few {Żaden nie jest dozwolony: agent może mówić dowolnym z # głosów tego modelu.} many {Żaden nie jest dozwolony: agent może mówić dowolnym z # głosów tego modelu.} other {Żaden nie jest dozwolony: agent może mówić dowolnym z # głosów tego modelu.}}",
+    "speechAnyAccountVoiceWarning": "Lista jest pusta: agent może mówić dowolnym głosem z Twojego konta {provider}, podając jego id - także sklonowanym.",
     "speechOtherVoicesFull": "{count} innych głosów to najwięcej, ile można zaoferować jednemu agentowi.",
     "speechOtherVoiceId": "Id głosu {position}",
     "speechOtherVoiceNote": "Do czego służy głos {position}",
@@ -857,16 +859,19 @@
     "videoModelDetail": "Wszystkie modele, którymi ten provider może tworzyć wideo.",
     "videoModelUnknownProvider": "Ten binding wskazuje {provider}, który nie potrafi tworzyć wideo. Wybierz providera powyżej.",
     "videoResolution": "Rozdzielczość",
-    "videoResolutionDetail": "Rozdzielczości, które renderuje ten model. Wyższa kosztuje więcej za sekundę.",
+    "videoResolutionDetail": "Wartość domyślna - agent może poprosić o inną dla każdego klipu, do najwyższej rozdzielczości poniżej. Wyższa kosztuje więcej za sekundę.",
     "videoMaxResolution": "Najwyższa rozdzielczość",
-    "videoMaxResolutionNone": "Tylko rozdzielczość powyżej",
-    "videoMaxResolutionDetail": "Agent może poprosić o każdą rozdzielczość do tej włącznie, osobno dla każdego klipu, gdy ktoś chce ostrzejszego ujęcia. Sekunda w wyższej rozdzielczości kosztuje więcej.",
+    "videoMaxResolutionAny": "Dowolna rozdzielczość",
+    "videoMaxResolutionDetail": "Jedyny limit rozdzielczości: agent może poprosić o każdą do tej włącznie.",
+    "videoMaxResolutionAnyWarning": "Bez najwyższej rozdzielczości agent może poprosić o każdą rozdzielczość, którą renderuje ten model, aż do {highest}, a sekunda w wyższej rozdzielczości kosztuje więcej.",
     "videoAspectRatio": "Proporcje obrazu",
+    "videoAspectRatioDetail": "Wartość domyślna - agent może poprosić o inne proporcje, które renderuje ten model, dla każdego klipu.",
     "videoLengthRange": "Ten model tworzy klipy od {min} do {max} sekund.",
     "videoLengthDecided": "Ten model sam decyduje o długości, od {min} do {max} sekund.",
     "videoProvidersLoading": "Sprawdzam, co oferuje każdy provider…",
     "videoProvidersUnavailable": "Nie udało się odczytać listy providerów. Model powyżej nadal zostanie użyty.",
     "videoAudio": "Dźwięk",
+    "videoAudioDetail": "Wartość domyślna - agent może poprosić o włączenie albo wyłączenie dźwięku dla każdego klipu.",
     "videoAudioDefault": "Domyślnie u providera",
     "videoAudioOn": "Włączony",
     "videoAudioOff": "Wyłączony",
@@ -7048,11 +7053,11 @@
       },
       "voice": {
         "title": "Głos",
-        "description": "Który głos mówi; puste oznacza pierwszy głos modelu. Głosy ElevenLabs należą do Twojego konta, więc dla ElevenLabs wklej id głosu ze swojej biblioteki głosów."
+        "description": "Głos, który mówi, jeśli agent nie wybierze innego; puste oznacza pierwszy głos modelu. Głosy ElevenLabs należą do Twojego konta, więc dla ElevenLabs wklej id głosu ze swojej biblioteki głosów."
       },
       "voices": {
-        "title": "Inne głosy",
-        "description": "Głosy, które agent może wybrać zamiast powyższego, osobno dla każdego klipu - do dialogu albo dla narratora i postaci. Puste oznacza, że zawsze mówi głosem powyżej."
+        "title": "Dozwolone głosy",
+        "description": "Jedyne głosy, na które agent może przełączyć się zamiast powyższego, osobno dla każdego klipu - do dialogu albo dla narratora i postaci. Puste oznacza, że może wybrać dowolny głos modelu - dla ElevenLabs dowolne id głosu z Twojego konta."
       },
       "output_format": {
         "title": "Format pliku",
@@ -7074,11 +7079,11 @@
       },
       "resolution": {
         "title": "Rozdzielczość",
-        "description": "Puste oznacza pierwszą rozdzielczość modelu. Wyższa kosztuje więcej za sekundę."
+        "description": "Rozdzielczość, w której powstaje klip, jeśli agent nie poprosi o inną; puste oznacza pierwszą rozdzielczość modelu. Wyższa kosztuje więcej za sekundę."
       },
       "max_resolution": {
         "title": "Najwyższa rozdzielczość",
-        "description": "Najwyższa rozdzielczość, o jaką może poprosić agent, wyższa od zwykłej; ogranicza koszt sekundy, a agent może też poprosić o każdą niższą. Puste oznacza, że każdy klip powstaje w rozdzielczości powyżej."
+        "description": "Najwyższa rozdzielczość, o jaką może poprosić agent, co najmniej zwykła; ogranicza koszt sekundy. Puste oznacza, że agent może poprosić o każdą rozdzielczość, którą renderuje model."
       },
       "aspect_ratio": {
         "title": "Proporcje obrazu",
@@ -7094,7 +7099,7 @@
       },
       "audio": {
         "title": "Dźwięk",
-        "description": "Czy klipy mają dźwięk, tam gdzie model pozwala wybrać; puste oznacza domyślne ustawienie providera."
+        "description": "Czy klipy mają dźwięk, jeśli agent nie poprosi inaczej, tam gdzie model robi go opcjonalnym; puste oznacza domyślne ustawienie providera."
       },
       "timeout_seconds": {
         "title": "Limit czasu",

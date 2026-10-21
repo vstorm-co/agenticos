@@ -1,8 +1,11 @@
 "use client";
 
+import { AlertTriangle } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
+  Alert,
+  AlertDescription,
   Label,
   Select,
   SelectContent,
@@ -10,15 +13,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { resolutionsAbove } from "@/lib/video-resolutions";
+import { resolutionsFrom } from "@/lib/video-resolutions";
 
-/** The select's value for "no other resolution", which is stored as no value. */
-const ONLY_USUAL = "only-usual";
+/** The select's value for "any resolution", which is stored as no value. */
+const ANY = "any";
 
 interface VideoMaxResolutionSelectProps {
   /** The chosen model's resolutions, in the catalog's order. */
   resolutions: string[];
-  /** The resolution every clip is made at unless the agent asks for another. */
+  /** The resolution a clip is made at unless the agent asks for another. */
   usual: string;
   /** The stored ceiling, if any. */
   value: unknown;
@@ -28,12 +31,12 @@ interface VideoMaxResolutionSelectProps {
 }
 
 /**
- * The highest resolution the agent may ask for per clip.
+ * The highest resolution the agent may ask for per clip - the one limit on it.
  *
- * Only resolutions above the usual one are offered, as the server requires: a
- * ceiling at the usual one would allow every lower resolution while saying
- * nothing here. With nothing above the usual one there is nothing to choose,
- * and the control is not drawn.
+ * The usual resolution is only a default: with no ceiling the agent may ask for
+ * any resolution the model renders, and since a second costs more the higher it
+ * goes, that is said as a warning rather than left to the field's description.
+ * A ceiling is the usual resolution or anything above it, as the server requires.
  */
 export function VideoMaxResolutionSelect({
   resolutions,
@@ -43,9 +46,8 @@ export function VideoMaxResolutionSelect({
   onChange,
 }: VideoMaxResolutionSelectProps) {
   const t = useTranslations("agents");
-  const ceilings = resolutionsAbove(resolutions, usual);
-  if (ceilings.length === 0) return null;
-  const shown = typeof value === "string" && ceilings.includes(value) ? value : ONLY_USUAL;
+  const ceilings = resolutionsFrom(resolutions, usual);
+  const shown = typeof value === "string" && ceilings.includes(value) ? value : ANY;
 
   return (
     <div className="space-y-1.5">
@@ -53,13 +55,13 @@ export function VideoMaxResolutionSelect({
       <Select
         value={shown}
         disabled={disabled}
-        onValueChange={(next) => onChange(next === ONLY_USUAL ? null : next)}
+        onValueChange={(next) => onChange(next === ANY ? null : next)}
       >
         <SelectTrigger id="video-max-resolution">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={ONLY_USUAL}>{t("videoMaxResolutionNone")}</SelectItem>
+          <SelectItem value={ANY}>{t("videoMaxResolutionAny")}</SelectItem>
           {ceilings.map((entry) => (
             <SelectItem key={entry} value={entry}>
               {entry}
@@ -68,6 +70,14 @@ export function VideoMaxResolutionSelect({
         </SelectContent>
       </Select>
       <p className="text-muted-foreground text-xs">{t("videoMaxResolutionDetail")}</p>
+      {shown === ANY && resolutions.length > 1 && (
+        <Alert variant="warning">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            {t("videoMaxResolutionAnyWarning", { highest: String(ceilings.at(-1)) })}
+          </AlertDescription>
+        </Alert>
+      )}
     </div>
   );
 }

@@ -836,11 +836,13 @@
     "speechModelUnknownProvider": "This binding names {provider}, which cannot speak. Pick a provider above.",
     "speechVoice": "Voice",
     "speechVoicePlaceholder": "Choose a voice",
-    "speechVoiceDetail": "The voices this model can speak in.",
+    "speechVoiceDetail": "The default - the agent may switch to another per clip, among the voices allowed below.",
     "speechVoiceIdPlaceholder": "Voice id",
-    "speechAccountVoiceDetail": "{provider} voices belong to your account. Paste the id of one from your voice library.",
-    "speechOtherVoices": "Other voices",
-    "speechOtherVoicesDetail": "Voices the agent may choose instead of the usual one, clip by clip - for a dialogue, or a narrator and a character. Left empty, it always speaks in the usual one.",
+    "speechAccountVoiceDetail": "{provider} voices belong to your account. Paste the id of one from your voice library. It is the default - the agent may switch to another per clip, among the voices allowed below.",
+    "speechOtherVoices": "Allowed voices",
+    "speechOtherVoicesDetail": "The only voices the agent may switch to, clip by clip - for a dialogue, or a narrator and a character.",
+    "speechAnyVoiceWarning": "{count, plural, =1 {None allowed: the agent may speak in this model's one voice.} other {None allowed: the agent may speak in any of this model's # voices.}}",
+    "speechAnyAccountVoiceWarning": "None listed: the agent may speak in any voice in your {provider} account by its id - cloned voices included.",
     "speechOtherVoicesFull": "{count} other voices is the most one agent can be offered.",
     "speechOtherVoiceId": "Voice id {position}",
     "speechOtherVoiceNote": "What voice {position} is for",
@@ -857,16 +859,19 @@
     "videoModelDetail": "Every model this provider can be asked to make video with.",
     "videoModelUnknownProvider": "This binding names {provider}, which cannot make video. Pick a provider above.",
     "videoResolution": "Resolution",
-    "videoResolutionDetail": "The resolutions this model renders. Higher costs more per second.",
+    "videoResolutionDetail": "The default - the agent may ask for another per clip, up to the highest resolution below. Higher costs more per second.",
     "videoMaxResolution": "Highest resolution",
-    "videoMaxResolutionNone": "Only the resolution above",
-    "videoMaxResolutionDetail": "The agent may ask for any resolution up to this one per clip, for a sharper shot when someone wants it. A second at a higher resolution costs more.",
+    "videoMaxResolutionAny": "Any resolution",
+    "videoMaxResolutionDetail": "The one limit on the resolution: the agent may ask for anything up to it.",
+    "videoMaxResolutionAnyWarning": "With no highest resolution, the agent may ask for any resolution this model renders, up to {highest}, and a second at a higher resolution costs more.",
     "videoAspectRatio": "Aspect ratio",
+    "videoAspectRatioDetail": "The default - the agent may ask for another shape this model renders, per clip.",
     "videoLengthRange": "This model makes clips of {min} to {max} seconds.",
     "videoLengthDecided": "This model decides its own length, {min} to {max} seconds.",
     "videoProvidersLoading": "Reading what each provider offers…",
     "videoProvidersUnavailable": "The list of providers could not be read. The model above is still what will be used.",
     "videoAudio": "Sound",
+    "videoAudioDetail": "The default - the agent may ask for sound on or off, per clip.",
     "videoAudioDefault": "Provider default",
     "videoAudioOn": "On",
     "videoAudioOff": "Off",
@@ -7264,11 +7269,11 @@
       },
       "voice": {
         "title": "Voice",
-        "description": "Which voice speaks; left empty, the model's first. ElevenLabs voices belong to your account, so for ElevenLabs paste the voice id from your voice library."
+        "description": "The voice that speaks unless the agent chooses another; left empty, the model's first. ElevenLabs voices belong to your account, so for ElevenLabs paste the voice id from your voice library."
       },
       "voices": {
-        "title": "Other voices",
-        "description": "Voices the agent may choose instead of the one above, per clip - for a dialogue, or a narrator and a character. Left empty, it always speaks in the one above."
+        "title": "Allowed voices",
+        "description": "The only voices the agent may switch to instead of the one above, per clip - for a dialogue, or a narrator and a character. Left empty, it may choose any voice the model offers - for ElevenLabs, any voice id in your account."
       },
       "output_format": {
         "title": "File format",
@@ -7290,11 +7295,11 @@
       },
       "resolution": {
         "title": "Resolution",
-        "description": "Left empty, the model's first. Higher costs more per second."
+        "description": "The resolution a clip is made at unless the agent asks for another; left empty, the model's first. Higher costs more per second."
       },
       "max_resolution": {
         "title": "Highest resolution",
-        "description": "The highest resolution the agent may ask for, above the usual one; it caps what a second can cost, and the agent may also ask for any lower one. Left empty, every clip is made at the resolution above."
+        "description": "The highest resolution the agent may ask for, at least the usual one; it caps what a second can cost. Left empty, the agent may ask for any resolution the model renders."
       },
       "aspect_ratio": {
         "title": "Aspect ratio",
@@ -7310,7 +7315,7 @@
       },
       "audio": {
         "title": "Sound",
-        "description": "Whether clips carry sound, where the model makes it optional; left empty, the provider's default."
+        "description": "Whether clips carry sound unless the agent asks otherwise, where the model makes it optional; left empty, the provider's default."
       },
       "timeout_seconds": {
         "title": "Time limit",

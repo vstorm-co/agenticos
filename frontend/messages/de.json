@@ -836,11 +836,13 @@
     "speechModelUnknownProvider": "Dieses Binding nennt {provider}, der nicht sprechen kann. Wählen Sie oben einen Provider.",
     "speechVoice": "Stimme",
     "speechVoicePlaceholder": "Stimme wählen",
-    "speechVoiceDetail": "Die Stimmen, in denen dieses Modell sprechen kann.",
+    "speechVoiceDetail": "Die Voreinstellung - der Agent darf pro Clip zu einer anderen wechseln, unter den unten erlaubten Stimmen.",
     "speechVoiceIdPlaceholder": "Stimmen-ID",
-    "speechAccountVoiceDetail": "{provider}-Stimmen gehören zu Ihrem Konto. Fügen Sie die ID einer Stimme aus Ihrer Stimmenbibliothek ein.",
-    "speechOtherVoices": "Weitere Stimmen",
-    "speechOtherVoicesDetail": "Stimmen, die der Agent statt der üblichen wählen darf, Clip für Clip - für einen Dialog oder für Erzähler und Figur. Bleibt die Liste leer, spricht er immer mit der üblichen.",
+    "speechAccountVoiceDetail": "{provider}-Stimmen gehören zu Ihrem Konto. Fügen Sie die ID einer Stimme aus Ihrer Stimmenbibliothek ein. Sie ist die Voreinstellung - der Agent darf pro Clip zu einer anderen wechseln, unter den unten erlaubten Stimmen.",
+    "speechOtherVoices": "Erlaubte Stimmen",
+    "speechOtherVoicesDetail": "Die einzigen Stimmen, zu denen der Agent wechseln darf, Clip für Clip - für einen Dialog oder für Erzähler und Figur.",
+    "speechAnyVoiceWarning": "{count, plural, =1 {Keine erlaubt: der Agent darf mit der einen Stimme dieses Modells sprechen.} other {Keine erlaubt: der Agent darf mit jeder der # Stimmen dieses Modells sprechen.}}",
+    "speechAnyAccountVoiceWarning": "Keine eingetragen: der Agent darf mit jeder Stimme in Ihrem {provider}-Konto sprechen, über ihre ID - geklonte Stimmen eingeschlossen.",
     "speechOtherVoicesFull": "{count} weitere Stimmen sind das Maximum, das einem Agenten angeboten werden kann.",
     "speechOtherVoiceId": "Stimmen-ID {position}",
     "speechOtherVoiceNote": "Wofür Stimme {position} ist",
@@ -857,16 +859,19 @@
     "videoModelDetail": "Jedes Modell, mit dem dieser Provider Videos erzeugen kann.",
     "videoModelUnknownProvider": "Dieses Binding nennt {provider}, der keine Videos erzeugen kann. Wählen Sie oben einen Provider.",
     "videoResolution": "Auflösung",
-    "videoResolutionDetail": "Die Auflösungen, die dieses Modell rendert. Höher kostet mehr pro Sekunde.",
+    "videoResolutionDetail": "Die Voreinstellung - der Agent darf pro Clip eine andere verlangen, bis zur höchsten Auflösung unten. Höher kostet mehr pro Sekunde.",
     "videoMaxResolution": "Höchste Auflösung",
-    "videoMaxResolutionNone": "Nur die Auflösung oben",
-    "videoMaxResolutionDetail": "Der Agent darf pro Clip jede Auflösung bis zu dieser verlangen, für eine schärfere Aufnahme, wenn jemand sie möchte. Eine Sekunde in höherer Auflösung kostet mehr.",
+    "videoMaxResolutionAny": "Beliebige Auflösung",
+    "videoMaxResolutionDetail": "Die einzige Grenze der Auflösung: der Agent darf alles bis zu ihr verlangen.",
+    "videoMaxResolutionAnyWarning": "Ohne höchste Auflösung darf der Agent jede Auflösung verlangen, die dieses Modell rendert, bis zu {highest}, und eine Sekunde in höherer Auflösung kostet mehr.",
     "videoAspectRatio": "Seitenverhältnis",
+    "videoAspectRatioDetail": "Die Voreinstellung - der Agent darf pro Clip ein anderes Seitenverhältnis verlangen, das dieses Modell rendert.",
     "videoLengthRange": "Dieses Modell erzeugt Clips von {min} bis {max} Sekunden.",
     "videoLengthDecided": "Dieses Modell bestimmt seine Länge selbst, {min} bis {max} Sekunden.",
     "videoProvidersLoading": "Lese, was jeder Provider anbietet…",
     "videoProvidersUnavailable": "Die Liste der Provider konnte nicht gelesen werden. Das Modell oben wird trotzdem verwendet.",
     "videoAudio": "Ton",
+    "videoAudioDetail": "Die Voreinstellung - der Agent darf pro Clip Ton an oder aus verlangen.",
     "videoAudioDefault": "Voreinstellung des Providers",
     "videoAudioOn": "An",
     "videoAudioOff": "Aus",
@@ -7147,11 +7152,11 @@
       },
       "voice": {
         "title": "Stimme",
-        "description": "Welche Stimme spricht; leer bedeutet die erste Stimme des Modells. ElevenLabs-Stimmen gehören zu Ihrem Konto, also fügen Sie für ElevenLabs die Stimmen-ID aus Ihrer Stimmenbibliothek ein."
+        "description": "Die Stimme, die spricht, sofern der Agent keine andere wählt; leer bedeutet die erste Stimme des Modells. ElevenLabs-Stimmen gehören zu Ihrem Konto, also fügen Sie für ElevenLabs die Stimmen-ID aus Ihrer Stimmenbibliothek ein."
       },
       "voices": {
-        "title": "Weitere Stimmen",
-        "description": "Stimmen, die der Agent statt der obigen wählen darf, für jeden Clip einzeln - für einen Dialog oder für Erzähler und Figur. Leer bedeutet, dass er immer mit der Stimme oben spricht."
+        "title": "Erlaubte Stimmen",
+        "description": "Die einzigen Stimmen, zu denen der Agent statt der obigen wechseln darf, für jeden Clip einzeln - für einen Dialog oder für Erzähler und Figur. Leer bedeutet, dass er jede Stimme des Modells wählen darf - bei ElevenLabs jede Stimmen-ID in Ihrem Konto."
       },
       "output_format": {
         "title": "Dateiformat",
@@ -7173,11 +7178,11 @@
       },
       "resolution": {
         "title": "Auflösung",
-        "description": "Leer bedeutet die erste Auflösung des Modells. Höher kostet mehr pro Sekunde."
+        "description": "Die Auflösung, in der ein Clip entsteht, sofern der Agent keine andere verlangt; leer bedeutet die erste Auflösung des Modells. Höher kostet mehr pro Sekunde."
       },
       "max_resolution": {
         "title": "Höchste Auflösung",
-        "description": "Die höchste Auflösung, die der Agent verlangen darf, höher als die übliche; sie begrenzt die Kosten einer Sekunde, und der Agent darf auch jede niedrigere verlangen. Leer bedeutet, dass jeder Clip in der Auflösung oben entsteht."
+        "description": "Die höchste Auflösung, die der Agent verlangen darf, mindestens die übliche; sie begrenzt die Kosten einer Sekunde. Leer bedeutet, dass der Agent jede Auflösung verlangen darf, die das Modell rendert."
       },
       "aspect_ratio": {
         "title": "Seitenverhältnis",
@@ -7193,7 +7198,7 @@
       },
       "audio": {
         "title": "Ton",
-        "description": "Ob Clips Ton haben, wo das Modell es zur Wahl stellt; leer bedeutet die Voreinstellung des Providers."
+        "description": "Ob Clips Ton haben, sofern der Agent nichts anderes verlangt, wo das Modell ihn optional macht; leer bedeutet die Voreinstellung des Providers."
       },
       "timeout_seconds": {
         "title": "Zeitlimit",

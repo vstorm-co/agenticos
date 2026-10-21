@@ -14,10 +14,10 @@ export function resolutionLines(resolution: string): number {
   return unit.toLowerCase() === "p" ? Number(count) : Number(count) * 540;
 }
 
-/** The resolutions taller than `above`, shortest first - what a ceiling may be. */
-export function resolutionsAbove(resolutions: string[], above: string): string[] {
-  const floor = resolutionLines(above);
+/** The resolutions at least as tall as `lowest`, shortest first - what a ceiling may be. */
+export function resolutionsFrom(resolutions: string[], lowest: string): string[] {
+  const floor = resolutionLines(lowest);
   return resolutions
-    .filter((entry) => resolutionLines(entry) > floor)
+    .filter((entry) => resolutionLines(entry) >= floor)
     .sort((a, b) => resolutionLines(a) - resolutionLines(b));
 }

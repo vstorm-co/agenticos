@@ -1045,8 +1045,8 @@ and written under `output/` when a workspace is open (#2259).
 |---|---|---|
 | `provider` | `openai` | `openai`, `elevenlabs`, `google` |
 | `model` | `gpt-4o-mini-tts` | That provider's models, from `app/core/catalog/text_to_speech_models.json` |
-| `voice` | the model's first | A catalog voice for OpenAI and Gemini; an id from your own voice library for ElevenLabs |
-| `voices` | none | Up to 20 other voices the agent may choose per clip, each an `id` and, for an account voice, a `note` of up to 120 characters saying who it is |
+| `voice` | the model's first | The default the agent speaks in; it may switch per clip within `voices`. A catalog voice for OpenAI and Gemini; an id from your own voice library for ElevenLabs |
+| `voices` | none: any voice the model has | Up to 20 voices the agent may switch to per clip, each an `id` and, for an account voice, a `note` of up to 120 characters saying who it is. Empty allows every voice the model has - for ElevenLabs, any voice id in the account |
 | `output_format` | the provider's first | `mp3`, `wav` (Gemini returns `wav` only) |
 | `max_characters` | `5000` | 1–100 000; the most text one call may speak |
 
@@ -1061,14 +1061,16 @@ voices are listed per model.
 2026-12-31, so the catalog lists none and a binding names one of the account's own
 voices by id; publishing without one is refused.
 
-**The agent may choose among the voices the author lists.** `voice` is the one it
-speaks in unless it asks for another; `voices` adds the others, for a dialogue or
-a narrator and a character. They reach the model as an `enum` on the tool's
-`voice` parameter, with the catalog's description of each or, for an account
-voice, the author's note - an id says nothing about who it sounds like. A
-binding listing no others offers no `voice` parameter at all, so the tool reads
-as it did before the choice existed. A voice the model is not offered is refused
-at publish, as `voice` is, and steered back to the model at call time.
+**The voice is a default; the allowed voices are the limit.** `voice` is the one
+the agent speaks in unless it asks for another, and `voices` lists the only
+others it may switch to - for a dialogue or a narrator and a character. Left
+empty, every voice the model has is allowed; on ElevenLabs, any voice id in the
+account, cloned voices included, and the Builder says so as a warning. The
+voices reach the model as an `enum` on the tool's `voice` parameter, with the
+usual one as the default and the catalog's description of each or, for an
+account voice, the author's note. An open account voice is a free string whose
+shape is checked. A listed voice the model lacks is refused at publish, and one
+outside the list is steered back to the model at call time.
 
 **The key picker shows the chosen provider's keys.** The secret is required for
 every provider, and declared as required *when* `provider` is one of them, which
@@ -1118,12 +1120,12 @@ the run must have made the image itself.
 |---|---|---|
 | `provider` | `google` | `google`, `byteplus`, `xai`, `alibaba` |
 | `model` | `gemini-omni-1.1-flash` | That provider's models, from `app/core/catalog/video_models.json` |
-| `resolution` | the model's first | The resolutions the model renders |
-| `max_resolution` | none | The highest the agent may ask for; above `resolution` |
-| `aspect_ratio` | the model's first | The aspect ratios the model renders |
+| `resolution` | the model's first | The default; the agent may ask for another per clip, up to `max_resolution` |
+| `max_resolution` | none: any the model renders | The highest the agent may ask for; at least `resolution` |
+| `aspect_ratio` | the model's first | The default; the agent may ask for any shape the model renders |
 | `seconds` | 5, or the nearest the model makes | Within the model's range; refused for Gemini Omni, which decides its own |
 | `max_seconds` | the model's longest | The longest clip the agent may ask for; refused for Gemini Omni |
-| `audio` | provider default | On or off, and refused where the model's sound is fixed |
+| `audio` | provider default | The default, on or off; the agent may ask for either per clip. Refused where the model's sound is fixed |
 | `timeout_seconds` | `600` | 60–1800 |
 
 **What each model can make is data.** The catalog states each model's length
@@ -1133,14 +1135,15 @@ starts from an image, and the Builder offers only those. BytePlus is a
 model providers already. OpenAI is absent: its video API was shut down on
 2026-09-24.
 
-**The agent may choose the shape and, up to a ceiling, the resolution.** The
-aspect ratios are the model's own, and `resolution` is the usual one. With
-`max_resolution` set, the agent may ask for any resolution the model renders up
-to it - lower for a draft, higher for a shot someone wants sharp; without it,
-every clip is made at `resolution`. Resolution is what a second costs, so the
-author sets the ceiling and the budget is asked with the chosen resolution's
-price. Both reach the model as an `enum` on the tool's parameters, with the
-usual one as the default, and a parameter with one value is not offered.
+**The settings are defaults; the highest resolution is the limit.** The
+resolution, shape, length and sound a binding sets are what a clip gets unless
+the agent asks for another, per call. Length stops at `max_seconds`, shape at
+what the model renders, and resolution at `max_resolution`: left empty, the
+agent may ask for any resolution the model renders, which the Builder says as a
+warning, since resolution is what a second costs. The budget is asked with the
+chosen resolution's price. Shape and resolution reach the model as an `enum`
+with the usual one as the default, and sound is offered only where the model
+makes it optional.
 
 **A clip is a job, waited for like a picture.** Gemini answers in the request;
 BytePlus, xAI and Alibaba take a job that is polled. Either way the call waits,

@@ -116,6 +116,7 @@ def _settings(**overrides: Any) -> VideoSettings:
         "seconds": 5,
         "max_seconds": 10,
         "audio": True,
+        "audio_optional": True,
         "timeout_seconds": 600,
     }
     return VideoSettings(**{**base, **overrides})
@@ -202,17 +203,12 @@ class TestConfiguration:
                     "resolution": "1080p",
                     "max_resolution": "720p",
                 },
-                "must be higher than the usual one, 1080p",
+                "cannot be lower than the usual one, 1080p",
             ),
             (
                 # Unset, the usual resolution is the model's first - 720p here.
                 {"provider": "xai", "model": "grok-imagine-video-1.5", "max_resolution": "480p"},
-                "480p, must be higher than the usual one, 720p",
-            ),
-            (
-                # Equal would allow every lower one while the Builder shows none.
-                {"provider": "xai", "model": "grok-imagine-video-1.5", "max_resolution": "720p"},
-                "must be higher than the usual one, 720p",
+                "480p, cannot be lower than the usual one, 720p",
             ),
         ],
         ids=[
@@ -225,7 +221,6 @@ class TestConfiguration:
             "highest resolution",
             "usual over highest",
             "default over highest",
-            "highest equal to usual",
         ],
     )
     def test_a_choice_the_provider_would_refuse_is_refused_here(self, config, says):
@@ -235,16 +230,24 @@ class TestConfiguration:
     @pytest.mark.parametrize(
         ("config", "offered"),
         [
-            ({}, ("720p",)),
-            ({"resolution": "480p"}, ("480p",)),
+            ({}, ("480p", "720p", "1080p", "4k")),
+            ({"resolution": "480p"}, ("480p", "720p", "1080p", "4k")),
             ({"max_resolution": "1080p"}, ("480p", "720p", "1080p")),
             ({"resolution": "480p", "max_resolution": "720p"}, ("480p", "720p")),
+            ({"max_resolution": "720p"}, ("480p", "720p")),
         ],
-        ids=["no choice", "a lower usual", "up to the highest", "a lower highest"],
+        ids=[
+            "no ceiling",
+            "no ceiling, lower usual",
+            "up to the highest",
+            "a lower highest",
+            "at the usual",
+        ],
     )
     def test_the_agent_may_ask_for_what_the_author_allowed(self, config, offered):
-        """Shortest first, and never above the highest: resolution is what a second
-        costs, so the author sets the ceiling and the agent may only go below it."""
+        """Shortest first, and never above the highest. With none set, the usual
+        resolution is a default and the agent may ask for any the model renders;
+        resolution is what a second costs, so a ceiling is the author's limit."""
         config = VideoGenerationConfig(
             provider="byteplus", model="dreamina-seedance-2-0-260128", **config
         )
@@ -304,7 +307,8 @@ def test_the_builder_resolves_the_defaults_from_the_model(config, expected):
 
     assert isinstance(built, VideoGeneration)
     assert (built.resolution, built.aspect_ratio, built.seconds, built.max_seconds) == expected
-    assert built.resolutions == (built.resolution,)
+    # With no ceiling, the usual resolution is a default among every one the model renders.
+    assert built.resolution in built.resolutions and len(built.resolutions) > 1
     assert built.aspect_ratio in built.aspect_ratios
     assert built.api_key == "sk-video" and "sk-video" not in repr(built)
 
@@ -334,6 +338,7 @@ def test_the_capability_builds_its_toolset_once_and_offers_generate_video():
         seconds=5,
         max_seconds=15,
         audio=None,
+        audio_optional=False,
         timeout_seconds=600,
     )
 
@@ -475,6 +480,18 @@ class TestChoosingTheResolution:
         assert generation.calls == []
 
 
+class TestChoosingTheSound:
+    async def test_a_call_may_turn_sound_off_where_the_model_makes_it_optional(self, generation):
+        await _make(_toolset(), _ctx(uuid4()), audio=False)
+
+        assert generation.calls[0]["audio"] is False
+
+    async def test_left_out_the_usual_sound_setting_is_used(self, generation):
+        await _make(_toolset(), _ctx(uuid4()))
+
+        assert generation.calls[0]["audio"] is True
+
+
 class TestTheToolSchema:
     """What the model is offered: the author's choices as an enum, and nothing to
     choose taken out of the schema."""
@@ -489,9 +506,15 @@ class TestTheToolSchema:
         schema = await self._parameters(_settings())
 
         assert "resolution" not in schema["properties"]
+        assert "audio" in schema["properties"]
         assert schema["properties"]["aspect_ratio"]["enum"] == ["16:9", "9:16", "1:1"]
         assert schema["properties"]["aspect_ratio"]["default"] == "16:9"
         assert schema["required"] == ["prompt"]
+
+    async def test_a_model_with_fixed_sound_offers_no_sound_setting(self):
+        schema = await self._parameters(_settings(audio_optional=False))
+
+        assert "audio" not in schema["properties"]
 
     async def test_the_resolutions_the_author_allowed_are_the_enum(self):
         schema = await self._parameters(_settings(resolutions=("480p", "720p", "1080p")))
@@ -720,11 +743,9 @@ class TestRefusingBeforeSubmitting:
             await _make(toolset, _ctx(uuid4()), resolution="1080p")
         assert generation.calls == []
 
-    async def test_where_the_author_allowed_no_other_resolution_it_says_to_leave_it_out(
-        self, generation
-    ):
-        with pytest.raises(ModelRetry, match="every clip at 720p; leave `resolution` out"):
-            await _make(_toolset(), _ctx(uuid4()), resolution="480p")
+    async def test_sound_is_refused_where_the_model_has_no_sound_setting(self, generation):
+        with pytest.raises(ModelRetry, match="no sound setting; leave `audio` out"):
+            await _make(_toolset(audio_optional=False), _ctx(uuid4()), audio=False)
         assert generation.calls == []
 
     async def test_on_the_last_attempt_the_steer_is_the_answer(self, generation):

@@ -9,11 +9,13 @@ where they would have seen the picture, and a later step finds it under `output/
 organization generated - the `filename` `generate_image` returned - or a path in
 the run's workspace. That is what lets "draw a logo, then animate it" be two calls.
 
-**The author bounds what the model may choose.** The shapes are the model's own;
-the resolutions are the usual one alone, or every one up to the highest the
-binding allows. Both are offered as an `enum` in the tool's schema
-(:mod:`app.agents.capabilities._choices`), and a parameter with one value is not
-offered at all.
+**The binding's settings are defaults the model may override.** The shapes are
+the model's own; the resolutions are every one up to the highest the binding
+allows, or every one the model renders where it sets none; the length runs to
+the longest clip; sound can be asked for where the model makes it optional. The
+shapes and resolutions are offered as an `enum` in the tool's schema with the
+usual one as its default (:mod:`app.agents.capabilities._choices`), and a
+parameter with nothing to choose is not offered at all.
 
 **The budget is asked before the job is submitted, with the clip's price.** Video
 is sold per second at a rate set by the resolution, so a clip's cost is known in
@@ -80,6 +82,9 @@ class VideoSettings:
     seconds: int
     max_seconds: int
     audio: bool | None
+    audio_optional: bool
+    """Whether the model makes sound optional, so a call may ask for it on or off."""
+
     timeout_seconds: int
 
 
@@ -184,6 +189,7 @@ def build_video_toolset(
         seconds: int | None = None,
         aspect_ratio: str | None = None,
         resolution: str | None = None,
+        audio: bool | None = None,
         first_frame: str | None = None,
     ) -> str:
         """Make a short video from a written description.
@@ -206,6 +212,8 @@ def build_video_toolset(
             resolution: How sharp, such as "720p". Higher costs more per second,
                 so ask for more only when the user wants it. Left out, the
                 agent's usual resolution.
+            audio: Whether the clip carries sound. Left out, the agent's usual
+                setting.
             first_frame: An image to start from - the `filename` generate_image
                 returned in this run, or a path in your workspace (where a
                 generated image is also kept, under `output/`). PNG, JPEG or
@@ -241,16 +249,14 @@ def build_video_toolset(
             return steer(ctx, f"`aspect_ratio` must be one of {', '.join(settings.aspect_ratios)}.")
         sharpness = resolution or settings.resolution
         if sharpness not in settings.resolutions:
-            if len(settings.resolutions) == 1:
-                return steer(
-                    ctx,
-                    f"This agent makes every clip at {settings.resolution}; leave `resolution` out.",
-                )
             return steer(
                 ctx,
                 f"`resolution` must be one of {', '.join(settings.resolutions)}; this agent "
                 "may use nothing higher.",
             )
+        if audio is not None and not settings.audio_optional:
+            return steer(ctx, "This agent's video model has no sound setting; leave `audio` out.")
+        sound = settings.audio if audio is None else audio
         frame: FirstFrame | None = None
         if first_frame:
             if not model.first_frame:
@@ -281,7 +287,7 @@ def build_video_toolset(
                 api_key=api_key,
                 timeout_seconds=settings.timeout_seconds,
                 duration=duration,
-                audio=settings.audio,
+                audio=sound,
                 first_frame=frame,
             )
         except VideoProviderError as exc:
@@ -332,6 +338,8 @@ def build_video_toolset(
             {
                 "aspect_ratio": Choice(settings.aspect_ratios, usual=settings.aspect_ratio),
                 "resolution": Choice(settings.resolutions, usual=settings.resolution),
+                # A model whose sound is fixed has nothing to choose.
+                **({} if settings.audio_optional else {"audio": Choice((), usual="")}),
             }
         ),
     )

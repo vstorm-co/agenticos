@@ -1,5 +1,5 @@
 ---
-source_sha: "6270d9da251d"
+source_sha: "881b6e491b07"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1103,8 +1103,8 @@ odtwarzacz i zapisywane w `output/`, gdy workspace jest otwarty (#2259).
 |---|---|---|
 | `provider` | `openai` | `openai`, `elevenlabs`, `google` |
 | `model` | `gpt-4o-mini-tts` | Modele tego providera z `app/core/catalog/text_to_speech_models.json` |
-| `voice` | pierwszy głos modelu | Głos z katalogu dla OpenAI i Gemini; id z własnej biblioteki głosów dla ElevenLabs |
-| `voices` | brak | Do 20 innych głosów, które agent może wybrać dla każdego klipu, każdy jako `id` i - dla głosu z konta - `note` do 120 znaków mówiąca, kto to jest |
+| `voice` | pierwszy głos modelu | Domyślny głos agenta; może przełączyć się dla każdego klipu w obrębie `voices`. Głos z katalogu dla OpenAI i Gemini; id z własnej biblioteki głosów dla ElevenLabs |
+| `voices` | brak: dowolny głos modelu | Do 20 głosów, na które agent może się przełączyć dla każdego klipu, każdy jako `id` i - dla głosu z konta - `note` do 120 znaków mówiąca, kto to jest. Pusta lista dopuszcza każdy głos modelu - dla ElevenLabs dowolne id głosu z konta |
 | `output_format` | pierwszy format providera | `mp3`, `wav` (Gemini zwraca tylko `wav`) |
 | `max_characters` | `5000` | 1–100 000; najwięcej tekstu, jaki może wypowiedzieć jedno wywołanie |
 
@@ -1119,14 +1119,15 @@ głosów, więc głosy są wypisane per model.
 31.12.2026, więc katalog nie wypisuje żadnego, a binding wskazuje jeden z głosów
 konta po id; publikacja bez niego jest odrzucana.
 
-**Agent może wybierać spośród głosów, które wskaże autor.** `voice` to głos, którym
-mówi, dopóki nie poprosi o inny; `voices` dodaje pozostałe, do dialogu albo dla
-narratora i postaci. Trafiają do modelu jako `enum` parametru `voice` narzędzia,
-z opisem każdego z katalogu albo - dla głosu z konta - z notatką autora, bo samo
-id nie mówi, jak brzmi głos. Binding bez innych głosów nie ma parametru `voice`
-w ogóle, więc narzędzie wygląda tak jak przed wprowadzeniem wyboru. Głos, którego
-model nie oferuje, jest odrzucany przy publikacji, tak jak `voice`, a w trakcie
-wywołania model dostaje wskazówkę, żeby wybrał inny.
+**Głos jest domyślny; dozwolone głosy są limitem.** `voice` to głos, którym
+agent mówi, dopóki nie poprosi o inny, a `voices` wymienia jedyne pozostałe, na
+które może się przełączyć - do dialogu albo dla narratora i postaci. Pusta lista
+dopuszcza każdy głos modelu; w ElevenLabs dowolne id głosu z konta, łącznie ze
+sklonowanymi, o czym Builder ostrzega. Głosy trafiają do modelu jako `enum`
+parametru `voice` narzędzia, ze zwykłym głosem jako domyślnym i z opisem każdego
+z katalogu albo - dla głosu z konta - z notatką autora. Otwarty głos z konta to
+wolny tekst, którego format jest sprawdzany. Głos z listy, którego model nie ma,
+jest odrzucany przy publikacji, a głos spoza listy wraca do modelu ze wskazówką.
 
 **Picker kluczy pokazuje klucze wybranego providera.** Sekret jest wymagany dla
 każdego providera i zadeklarowany jako wymagany *gdy* `provider` jest jednym z
@@ -1178,12 +1179,12 @@ wygenerowanych plików organizacji: run musi sam zrobić ten obraz.
 |---|---|---|
 | `provider` | `google` | `google`, `byteplus`, `xai`, `alibaba` |
 | `model` | `gemini-omni-1.1-flash` | Modele tego providera z `app/core/catalog/video_models.json` |
-| `resolution` | pierwsza modelu | Rozdzielczości, które renderuje model |
-| `max_resolution` | brak | Najwyższa, o jaką może poprosić agent; wyższa niż `resolution` |
-| `aspect_ratio` | pierwsze modelu | Proporcje obrazu, które renderuje model |
+| `resolution` | pierwsza modelu | Domyślna; agent może poprosić o inną dla każdego klipu, do `max_resolution` |
+| `max_resolution` | brak: dowolna, którą renderuje model | Najwyższa, o jaką może poprosić agent; co najmniej `resolution` |
+| `aspect_ratio` | pierwsze modelu | Domyślne; agent może poprosić o dowolne proporcje, które renderuje model |
 | `seconds` | 5 albo najbliższa wartość modelu | W zakresie modelu; odrzucane dla Gemini Omni, który sam decyduje |
 | `max_seconds` | najdłuższy klip modelu | Najdłuższy klip, o jaki może poprosić agent; odrzucane dla Gemini Omni |
-| `audio` | domyślne providera | Włączony albo wyłączony; odrzucane, gdy dźwięk modelu jest stały |
+| `audio` | domyślne providera | Domyślnie włączony albo wyłączony; agent może poprosić o jedno lub drugie dla każdego klipu. Odrzucane, gdy dźwięk modelu jest stały |
 | `timeout_seconds` | `600` | 60–1800 |
 
 **To, co potrafi każdy model, to dane.** Katalog podaje zakres długości modelu,
@@ -1192,14 +1193,15 @@ od obrazu, a Builder oferuje tylko to. BytePlus jest [celem sekretu](../secrets.
 w vault; Google, xAI i Alibaba Cloud już są providerami modeli. Brakuje OpenAI:
 jego API wideo wyłączono 24.09.2026.
 
-**Agent może wybrać proporcje i, do pułapu, rozdzielczość.** Proporcje są
-własnymi proporcjami modelu, a `resolution` to zwykła rozdzielczość. Gdy ustawione
-jest `max_resolution`, agent może poprosić o każdą rozdzielczość, którą renderuje
-model, aż do niej - niższą na szkic, wyższą na ujęcie, które ktoś chce ostre; bez
-niego każdy klip powstaje w `resolution`. Od rozdzielczości zależy cena sekundy,
-więc pułap ustawia autor, a budżet jest sprawdzany ceną wybranej rozdzielczości.
-Oba trafiają do modelu jako `enum` parametrów narzędzia, ze zwykłą wartością
-jako domyślną, a parametr z jedną wartością nie jest oferowany.
+**Ustawienia są domyślne; najwyższa rozdzielczość jest limitem.** Rozdzielczość,
+proporcje, długość i dźwięk ustawione w bindingu dostaje klip, jeśli agent nie
+poprosi o inne w danym wywołaniu. Długość kończy się na `max_seconds`, proporcje
+na tych, które renderuje model, a rozdzielczość na `max_resolution`: puste
+pozwala agentowi poprosić o każdą rozdzielczość modelu, o czym Builder ostrzega,
+bo od rozdzielczości zależy cena sekundy. Budżet jest sprawdzany ceną wybranej
+rozdzielczości. Proporcje i rozdzielczość trafiają do modelu jako `enum` ze
+zwykłą wartością jako domyślną, a dźwięk jest oferowany tylko tam, gdzie model
+robi go opcjonalnym.
 
 **Klip to zadanie, na które czeka się jak na obraz.** Gemini odpowiada w samym
 żądaniu; BytePlus, xAI i Alibaba przyjmują zadanie, o które się odpytuje. W obu

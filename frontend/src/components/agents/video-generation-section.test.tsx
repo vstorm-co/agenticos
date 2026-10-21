@@ -361,26 +361,43 @@ describe("the key it renders with", () => {
 });
 
 describe("the highest resolution the agent may ask for", () => {
-  it("offers only what is taller than the usual resolution, and none as the default", async () => {
-    mount({ provider: "xai", model: "grok-imagine-video-1.5", resolution: "480p" });
+  it("offers the usual resolution and what is taller, and any as the default", async () => {
+    mount({ provider: "xai", model: "grok-imagine-video-1.5", resolution: "720p" });
 
-    expect(screen.getByLabelText("Highest resolution")).toHaveTextContent(
-      "Only the resolution above",
-    );
+    expect(screen.getByLabelText("Highest resolution")).toHaveTextContent("Any resolution");
     await userEvent.click(screen.getByLabelText("Highest resolution"));
 
     const options = await screen.findAllByRole("option");
     expect(options.map((option) => option.textContent)).toEqual([
-      "Only the resolution above",
+      "Any resolution",
       "720p",
       "1080p",
     ]);
   });
 
-  it("is not offered where nothing is taller than the usual resolution", () => {
-    mount({ provider: "xai", model: "grok-imagine-video-1.5", resolution: "1080p" });
+  it("warns that with no ceiling any resolution may be asked for", () => {
+    mount({ provider: "xai", model: "grok-imagine-video-1.5" });
 
-    expect(screen.queryByLabelText("Highest resolution")).toBeNull();
+    expect(
+      screen.getByText(/the agent may ask for any resolution this model renders, up to 1080p/),
+    ).toBeInTheDocument();
+  });
+
+  it("drops the warning once there is a ceiling", () => {
+    mount({ provider: "xai", model: "grok-imagine-video-1.5", max_resolution: "720p" });
+
+    expect(screen.getByLabelText("Highest resolution")).toHaveTextContent("720p");
+    expect(screen.queryByText(/may ask for any resolution/)).toBeNull();
+  });
+
+  it("says each setting above is a default the agent may override", () => {
+    mount({ provider: "alibaba", model: "wan3.0-video", audio: true });
+
+    expect(screen.getByText(/may ask for another per clip, up to the highest/)).toBeInTheDocument();
+    expect(screen.getByText(/may ask for another shape/)).toBeInTheDocument();
+    expect(screen.getByText(/may ask for sound on or off/)).toBeInTheDocument();
+    // One resolution: nothing to warn about.
+    expect(screen.queryByText(/may ask for any resolution/)).toBeNull();
   });
 
   it("stores a ceiling, and clears it again", async () => {
@@ -396,7 +413,7 @@ describe("the highest resolution the agent may ask for", () => {
     );
   });
 
-  it("drops the ceiling when it is chosen back to the usual resolution alone", async () => {
+  it("drops the ceiling when any resolution is chosen again", async () => {
     const onChange = mount({
       provider: "xai",
       model: "grok-imagine-video-1.5",
@@ -405,7 +422,7 @@ describe("the highest resolution the agent may ask for", () => {
 
     expect(screen.getByLabelText("Highest resolution")).toHaveTextContent("1080p");
     await userEvent.click(screen.getByLabelText("Highest resolution"));
-    await userEvent.click(await screen.findByRole("option", { name: "Only the resolution above" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Any resolution" }));
 
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ config: { provider: "xai", model: "grok-imagine-video-1.5" } }),

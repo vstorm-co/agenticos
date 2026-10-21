@@ -76,18 +76,19 @@ class TextToSpeechConfig(BaseModel):
         title="Voice",
         default=None,
         description=(
-            "Which voice speaks; left empty, the model's first. ElevenLabs voices belong to "
-            "your account, so for ElevenLabs paste the voice id from your voice library."
+            "The voice that speaks unless the agent chooses another; left empty, the model's "
+            "first. ElevenLabs voices belong to your account, so for ElevenLabs paste the "
+            "voice id from your voice library."
         ),
     )
     voices: list[VoiceChoice] = Field(
-        title="Other voices",
+        title="Allowed voices",
         default_factory=list,
         max_length=MAX_VOICES,
         description=(
-            "Voices the agent may choose instead of the one above, per clip - for a "
-            "dialogue, or a narrator and a character. Left empty, it always speaks in "
-            "the one above."
+            "The only voices the agent may switch to instead of the one above, per clip - "
+            "for a dialogue, or a narrator and a character. Left empty, it may choose any "
+            "voice the model offers - for ElevenLabs, any voice id in your account."
         ),
     )
     output_format: Literal["mp3", "wav"] | None = Field(
@@ -160,16 +161,23 @@ class TextToSpeechConfig(BaseModel):
             return self.voice.strip()
         return self.offering().voices_for(self.chosen_model())[0].id
 
-    def offered_voices(self) -> tuple[OfferedVoice, ...]:
-        """Every voice the agent may speak in: the usual one first, then the others.
+    def offered_voices(self) -> tuple[OfferedVoice, ...] | None:
+        """Every voice the agent may speak in, the usual one first - or `None` for
+        any voice id in the account.
 
+        With no voices listed, a catalog provider offers every voice the model has,
+        and an account provider any id in the account, which no catalog can list.
         A catalog voice is described by the catalog; an account voice only by the
         note its author wrote, since an id says nothing about who it sounds like.
         """
-        catalog = {voice.id: voice for voice in self.offering().voices_for(self.chosen_model())}
+        entry = self.offering()
+        catalog = {voice.id: voice for voice in entry.voices_for(self.chosen_model())}
+        if not self.voices and entry.account_voices:
+            return None
         notes = {choice.id.strip(): choice.note for choice in self.voices}
+        others = list(notes) if self.voices else list(catalog)
         offered: list[OfferedVoice] = []
-        for voice_id in dict.fromkeys([self.resolved_voice(), *notes]):
+        for voice_id in dict.fromkeys([self.resolved_voice(), *others]):
             known = catalog.get(voice_id)
             if known is not None:
                 note = f"{known.name}, {known.description}" if known.description else known.name
