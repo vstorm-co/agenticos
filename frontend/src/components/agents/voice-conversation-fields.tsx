@@ -2,7 +2,7 @@
 
 import { Info } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useId } from "react";
+import { useId, useState } from "react";
 
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import { SpeechKeyField } from "@/components/vault/speech-key-field";
@@ -11,6 +11,8 @@ import {
   Input,
   Label,
   MarkdownEditor,
+  MarkdownModeToggle,
+  type MarkdownMode,
   Select,
   SelectContent,
   SelectItem,
@@ -18,7 +20,6 @@ import {
   SelectValue,
   Switch,
 } from "@/components/ui";
-import { useCapabilityCatalog } from "@/hooks/use-agents";
 import { useLanguageName } from "@/hooks/use-language-name";
 import { useSpeechToTextProviders } from "@/hooks/use-model-providers";
 import { useRealtimeModels } from "@/hooks/use-realtime-models";
@@ -47,8 +48,6 @@ const EMPTY: VoiceSpec = {
 export interface VoiceConversationProps {
   value: VoiceSpec | null | undefined;
   onChange: (next: VoiceSpec | null) => void;
-  /** The capabilities this agent has on, to list the ones a call cannot use. */
-  capabilityIds: string[];
   hasGuardrails: boolean;
   disabled?: boolean;
 }
@@ -131,8 +130,9 @@ interface BlockFieldsProps extends VoiceConversationProps {
   write: (next: Partial<VoiceSpec>) => void;
 }
 
-function BlockFields({ block, providers, write, disabled, ...rest }: BlockFieldsProps) {
+function BlockFields({ block, providers, write, disabled, hasGuardrails }: BlockFieldsProps) {
   const t = useTranslations("agents");
+  const [noteMode, setNoteMode] = useState<MarkdownMode>("source");
   const entry = providers.find((candidate) => candidate.provider === block.provider);
   const model = modelOf(entry, block);
   return (
@@ -197,12 +197,13 @@ function BlockFields({ block, providers, write, disabled, ...rest }: BlockFields
       </div>
       <LongestCall block={block} disabled={disabled} write={write} />
       {/* The same editor as the agent's instructions, which this adds to: Markdown,
-          with a preview, rather than a bare box under a name nobody could read. */}
-      <FormField
-        label={t("voiceConversationNote")}
-        htmlFor="agent-voice-call-note"
-        description={t("voiceConversationNoteHint")}
-      >
+          with a preview, rather than a bare box under a name nobody could read.
+          The label and the Source/Preview toggle share one row. */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between gap-2">
+          <Label htmlFor="agent-voice-call-note">{t("voiceConversationNote")}</Label>
+          <MarkdownModeToggle mode={noteMode} onChange={setNoteMode} />
+        </div>
         <MarkdownEditor
           id="agent-voice-call-note"
           label={t("voiceConversationNote")}
@@ -211,10 +212,17 @@ function BlockFields({ block, providers, write, disabled, ...rest }: BlockFields
           placeholder={t("voiceConversationNotePlaceholder")}
           value={block.voice_note ?? ""}
           disabled={disabled}
+          mode={noteMode}
           onChange={(next) => write({ voice_note: next || null })}
         />
-      </FormField>
-      <Limitations capabilityIds={rest.capabilityIds} hasGuardrails={rest.hasGuardrails} />
+        <p className="text-muted-foreground text-xs">{t("voiceConversationNoteHint")}</p>
+      </div>
+      {hasGuardrails && (
+        <p className="bg-muted text-muted-foreground flex gap-2 rounded-lg px-3 py-2 text-xs">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          {t("voiceConversationGuardrails")}
+        </p>
+      )}
     </>
   );
 }
@@ -367,42 +375,5 @@ function LongestCall({ block, disabled, write }: PartProps) {
         </SelectContent>
       </Select>
     </FormField>
-  );
-}
-
-/** How a call differs: work handed to the text model, guardrails after the fact, no audio kept. */
-function Limitations({
-  capabilityIds,
-  hasGuardrails,
-}: {
-  capabilityIds: string[];
-  hasGuardrails: boolean;
-}) {
-  const t = useTranslations("agents");
-  const { capabilities } = useCapabilityCatalog();
-  const handedOff = capabilities.filter(
-    (entry) => entry.voice === "hand_off" && capabilityIds.includes(entry.id),
-  );
-  return (
-    <div className="space-y-2 text-xs">
-      {handedOff.length > 0 && (
-        <div>
-          <p className="font-medium">{t("voiceConversationHandedOff")}</p>
-          <ul className="text-muted-foreground mt-1 list-disc pl-5">
-            {handedOff.map((entry) => (
-              <li key={entry.id}>{entry.name}</li>
-            ))}
-          </ul>
-          <p className="text-muted-foreground mt-1">{t("voiceConversationHandedOffHint")}</p>
-        </div>
-      )}
-      {hasGuardrails && (
-        <p className="bg-muted text-muted-foreground flex gap-2 rounded-lg px-3 py-2">
-          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-          {t("voiceConversationGuardrails")}
-        </p>
-      )}
-      <p className="text-muted-foreground">{t("voiceConversationRecorded")}</p>
-    </div>
   );
 }

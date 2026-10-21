@@ -877,10 +877,7 @@
     "voiceConversationMaxHint": "Calls end at this length. The budgets still apply.",
     "voiceConversationNote": "Instructions for calls",
     "voiceConversationNoteHint": "Added to the agent's instructions only during calls, after its built-in speaking style: how to greet, how long to talk, what to say before a tool runs.",
-    "voiceConversationHandedOff": "Done by the agent's text model in calls",
-    "voiceConversationHandedOffHint": "The agent hands these tasks to itself in text and says what it found. The call goes on meanwhile, and each step shows in the conversation.",
     "voiceConversationGuardrails": "Guardrails check transcripts during a call and cut the agent off when its words hit one, but spoken words cannot be filtered before they are heard. A tool's result is still screened before the agent reads it; tool arguments are not screened.",
-    "voiceConversationRecorded": "Calls are recorded as text in the conversation. No audio is kept.",
     "voiceConversationCatalogFailed": "The list of voice models could not be loaded, so calls cannot be turned on here. Reload the page to try again.",
     "voiceTabCalls": "Voice calls",
     "voiceTabDictation": "Dictation",
@@ -890,7 +887,9 @@
     "voiceConversationMaxMinutes": "{minutes} min",
     "voiceDictationProvider": "Transcribe with a provider",
     "voiceDictationProviderHint": "The chat microphone sends the recording to the provider below: the organization's, or this agent's own. Off, or with no key to send it with, the browser transcribes it for free.",
-    "voiceConversationMaxDefault": "{minutes} min (default)"
+    "voiceConversationMaxDefault": "{minutes} min (default)",
+    "voiceInheritsUntilChosen": "Until you choose one, the organization's is used: {pair}",
+    "voiceProviderChoose": "Choose a provider"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",

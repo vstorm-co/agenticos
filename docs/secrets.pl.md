@@ -1,5 +1,5 @@
 ---
-source_sha: "11255bcc5d61"
+source_sha: "64b487154003"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }

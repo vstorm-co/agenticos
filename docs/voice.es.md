@@ -1,5 +1,5 @@
 ---
-source_sha: "9e4a39e96b30"
+source_sha: "5b606a7b7b0f"
 title: "Conversaciones de voz"
 seo_title: "Conversaciones de voz: habla con un agent publicado"
 description: "Llama a un agent publicado y habla con él: modelos realtime, aprobaciones en la llamada, límites de tiempo y minutos, redes de seguridad y transcripciones."
@@ -155,7 +155,7 @@ Eso la llamada lo pasa al modelo de texto propio del agent.
 | Adaptada | skills: se cargan como instrucciones bajo demanda, sin las herramientas que usa un run de texto para leerlos |
 | Eliminada | búsqueda de herramientas: las herramientas MCP que habría diferido se pasan directamente a la llamada |
 | Traducida | razonamiento (thinking): se convierte en el ajuste de razonamiento propio del modelo realtime, cuando el modelo lo tiene |
-| Delegada | sandbox, automatización del navegador, subagents, trabajar mientras corren herramientas: lo hace el modelo de texto del agent, ver [Pasar trabajo](#handing-work-off) |
+| Delegada | sandbox, automatización del navegador, subagents, el coding agent, trabajar mientras corren herramientas: lo hace el modelo de texto del agent, ver [Pasar trabajo](#handing-work-off) |
 
 La tarjeta Voice del Builder enumera las capabilities que este agent pasa a su
 modelo de texto en las llamadas.

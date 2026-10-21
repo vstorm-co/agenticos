@@ -89,7 +89,12 @@ export function VoiceCard({ value, onChange, disabled, conversation }: VoiceCard
   const language = value?.language ?? null;
   const secretId = value?.secret_id ?? null;
   const dictation = value?.dictation ?? false;
-  const mode: PairMode = provider !== null || model !== null ? "choose" : "inherit";
+  const hasPair = provider !== null || model !== null;
+  // "This agent's own" shows by default; with nothing picked yet the agent
+  // still inherits, and says so. "Organization's" is a choice made here, held
+  // for the visit: the spec has one spelling for both, no pair.
+  const [picked, setPicked] = useState<PairMode | null>(null);
+  const mode: PairMode = hasPair ? "choose" : (picked ?? "choose");
   const hasKey = useSpeechKeyCheck(false);
 
   const write = (next: Partial<SpeechToTextSpec>) => {
@@ -110,6 +115,7 @@ export function VoiceCard({ value, onChange, disabled, conversation }: VoiceCard
   };
 
   const choose = (next: PairMode) => {
+    setPicked(next);
     if (next === "inherit") {
       write({ provider: null, model: null, secret_id: null });
       return;
@@ -175,7 +181,7 @@ export function VoiceCard({ value, onChange, disabled, conversation }: VoiceCard
                 onCheckedChange={(on) => write({ dictation: on })}
               />
             </div>
-            <Notes dictation={dictation} hasPair={orgPair !== null || mode === "choose"} />
+            <Notes dictation={dictation} hasPair={orgPair !== null || hasPair} />
             <div className="space-y-2">
               <p id="agent-voice-pair" className="text-sm font-medium">
                 {t("voicePair")}
@@ -190,9 +196,13 @@ export function VoiceCard({ value, onChange, disabled, conversation }: VoiceCard
                 ]}
                 onChange={choose}
               />
-              {mode === "inherit" && (
+              {!hasPair && (
                 <p className="text-muted-foreground text-xs">
-                  {orgPair ? t("voiceInherits", { pair: orgPair }) : t("voiceOrgNoPair")}
+                  {orgPair
+                    ? t(mode === "inherit" ? "voiceInherits" : "voiceInheritsUntilChosen", {
+                        pair: orgPair,
+                      })
+                    : t("voiceOrgNoPair")}
                 </p>
               )}
             </div>
@@ -314,7 +324,7 @@ function PairFields({
           }}
         >
           <SelectTrigger id="agent-voice-provider">
-            <SelectValue />
+            <SelectValue placeholder={t("voiceProviderChoose")} />
           </SelectTrigger>
           <SelectContent>
             {providers.map((entry) => {
@@ -333,30 +343,32 @@ function PairFields({
           </SelectContent>
         </Select>
       </FormField>
-      <FormField
-        label={t("voiceModel")}
-        htmlFor="agent-voice-model"
-        // What the catalog says about the one chosen: which to reach for is the
-        // question the picker is asked.
-        description={chosen?.models.find((entry) => entry.id === model)?.description}
-      >
-        <Select
-          value={model ?? undefined}
-          disabled={disabled}
-          onValueChange={(next) => onChange({ model: next })}
+      {chosen && (
+        <FormField
+          label={t("voiceModel")}
+          htmlFor="agent-voice-model"
+          // What the catalog says about the one chosen: which to reach for is the
+          // question the picker is asked.
+          description={chosen.models.find((entry) => entry.id === model)?.description}
         >
-          <SelectTrigger id="agent-voice-model">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {(chosen?.models ?? []).map((entry) => (
-              <SelectItem key={entry.id} value={entry.id} textValue={entry.name}>
-                {entry.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </FormField>
+          <Select
+            value={model ?? undefined}
+            disabled={disabled}
+            onValueChange={(next) => onChange({ model: next })}
+          >
+            <SelectTrigger id="agent-voice-model">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {chosen.models.map((entry) => (
+                <SelectItem key={entry.id} value={entry.id} textValue={entry.name}>
+                  {entry.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FormField>
+      )}
       {chosen && (
         <SpeechKeyField
           id="agent-voice-key"

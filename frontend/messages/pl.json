@@ -877,10 +877,7 @@
     "voiceConversationMaxHint": "Rozmowa kończy się po tym czasie. Budżety nadal obowiązują.",
     "voiceConversationNote": "Instrukcje do rozmów",
     "voiceConversationNoteHint": "Dodawane do instrukcji agenta tylko w trakcie rozmów, po wbudowanym stylu mówienia: jak się przywitać, jak długo mówić, co powiedzieć przed uruchomieniem narzędzia.",
-    "voiceConversationHandedOff": "W rozmowach robi to model tekstowy agenta",
-    "voiceConversationHandedOffHint": "Agent przekazuje te zadania sobie w trybie tekstowym i mówi, co ustalił. Rozmowa w tym czasie trwa, a każdy krok widać w konwersacji.",
     "voiceConversationGuardrails": "Guardraile sprawdzają transkrypcje w trakcie rozmowy i przerywają agentowi, gdy jego słowa trafią na regułę, ale wypowiedzianych słów nie da się odfiltrować, zanim zostaną usłyszane. Wynik narzędzia nadal jest sprawdzany, zanim agent go przeczyta; argumenty narzędzi nie są sprawdzane.",
-    "voiceConversationRecorded": "Rozmowy są zapisywane jako tekst w konwersacji. Dźwięk nie jest przechowywany.",
     "voiceConversationCatalogFailed": "Nie udało się wczytać listy modeli głosowych, więc nie można tu włączyć rozmów. Odśwież stronę, aby spróbować ponownie.",
     "voiceTabCalls": "Rozmowy głosowe",
     "voiceTabDictation": "Dyktowanie",
@@ -890,7 +887,9 @@
     "voiceConversationMaxMinutes": "{minutes} min",
     "voiceDictationProvider": "Transkrybuj przez providera",
     "voiceDictationProviderHint": "Mikrofon w czacie wysyła nagranie do providera poniżej: organizacji albo własnego providera tego agenta. Gdy przełącznik jest wyłączony albo brakuje klucza, tekst za darmo rozpoznaje przeglądarka.",
-    "voiceConversationMaxDefault": "{minutes} min (domyślnie)"
+    "voiceConversationMaxDefault": "{minutes} min (domyślnie)",
+    "voiceInheritsUntilChosen": "Dopóki go nie wybierzesz, używany jest provider organizacji: {pair}",
+    "voiceProviderChoose": "Wybierz providera"
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",

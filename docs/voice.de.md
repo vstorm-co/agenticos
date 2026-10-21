@@ -2,7 +2,7 @@
 title: "Sprachgespräche"
 seo_title: "Sprachgespräche: mit einem veröffentlichten Agent sprechen"
 description: "Einen veröffentlichten Agent anrufen und mit ihm sprechen: Realtime-Modelle, Freigaben im Anruf, Minutenlimits, Auflege-Sicherungen, Transkripte als Text."
-source_sha: "9e4a39e96b30"
+source_sha: "5b606a7b7b0f"
 ---
 
 # Sprachgespräche { #voice-conversations }
@@ -160,7 +160,7 @@ Textmodell des Agenten.
 | Angepasst | skills: bei Bedarf als Anweisungen geladen, ohne die Tools, mit denen ein Text-Run sie liest |
 | Weggelassen | tool search: Die MCP-Tools, die sie zurückgestellt hätte, werden dem Anruf direkt übergeben |
 | Abgebildet | thinking: wird zur eigenen Reasoning-Einstellung des Realtime-Modells, wo das Modell eine hat |
-| Übergeben | sandbox, browser use, subagents, Arbeiten während Tools laufen: erledigt das Textmodell des Agenten, siehe [Arbeit übergeben](#handing-work-off) |
+| Übergeben | sandbox, browser use, subagents, der Coding Agent, Arbeiten während Tools laufen: erledigt das Textmodell des Agenten, siehe [Arbeit übergeben](#handing-work-off) |
 
 Die Karte Stimme im Builder listet die Capabilities auf, die dieser Agent in
 Anrufen übergibt.

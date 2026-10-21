@@ -79,15 +79,6 @@ vi.mock("@/hooks/use-realtime-models", () => ({
     isError: state.isError,
   }),
 }));
-vi.mock("@/hooks/use-agents", () => ({
-  useCapabilityCatalog: () => ({
-    capabilities: [
-      { id: "sandbox", name: "Sandbox", voice: "hand_off" },
-      { id: "knowledge", name: "Knowledge", voice: "live" },
-    ],
-    isLoading: false,
-  }),
-}));
 vi.mock("@/hooks/use-model-providers", () => ({
   useSpeechToTextProviders: () => ({ providers: [], languages: ["en", "pl"] }),
 }));
@@ -125,13 +116,7 @@ const OPENAI: VoiceSpec = { ...EMPTY, provider: "openai", model: "gpt-realtime",
 function mount(props: Partial<VoiceConversationProps> = {}) {
   const onChange = vi.fn();
   const view = render(
-    <VoiceConversationFields
-      value={OPENAI}
-      onChange={onChange}
-      capabilityIds={[]}
-      hasGuardrails={false}
-      {...props}
-    />,
+    <VoiceConversationFields value={OPENAI} onChange={onChange} hasGuardrails={false} {...props} />,
   );
   return { onChange, view };
 }
@@ -282,7 +267,6 @@ describe("VoiceConversationFields", () => {
       <VoiceConversationFields
         value={{ ...OPENAI, language: "pl" }}
         onChange={onChange}
-        capabilityIds={[]}
         hasGuardrails={false}
       />,
     );
@@ -290,28 +274,9 @@ describe("VoiceConversationFields", () => {
     expect(onChange).toHaveBeenLastCalledWith({ ...OPENAI });
   });
 
-  it("lists the capabilities a call hands to the agent's text model", () => {
-    mount({ capabilityIds: ["sandbox", "knowledge", "unknown"] });
-    expect(screen.getByText("Done by the agent's text model in calls")).toBeInTheDocument();
-    expect(screen.getByText("Sandbox")).toBeInTheDocument();
-    expect(screen.queryByText("Knowledge")).toBeNull();
-  });
-
-  it("lists nothing when every capability runs on the call's own model", () => {
-    mount({ capabilityIds: ["knowledge"] });
-    expect(screen.queryByText("Done by the agent's text model in calls")).toBeNull();
-  });
-
   it("says plainly that guardrails cannot filter speech before it is heard", () => {
     mount({ hasGuardrails: true });
     expect(screen.getByText(/cannot be filtered before they are heard/)).toBeInTheDocument();
-  });
-
-  it("says no audio is kept", () => {
-    mount();
-    expect(
-      screen.getByText("Calls are recorded as text in the conversation. No audio is kept."),
-    ).toBeInTheDocument();
   });
 
   it("offers lengths up to 50 minutes, ten of them the default", async () => {

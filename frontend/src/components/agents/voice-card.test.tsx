@@ -90,17 +90,27 @@ function pair(provider: string, modelId: string, language: string | null = null)
 }
 
 describe("the agent's Voice card", () => {
-  it("inherits by default and names what it inherits", () => {
-    mount();
+  it("shows this agent's own by default, inheriting until a provider is chosen", async () => {
+    const { onChange } = mount();
 
-    expect(screen.getByRole("radio", { name: "Organization's" })).toHaveAttribute(
+    expect(screen.getByRole("radio", { name: "This agent's own" })).toHaveAttribute(
       "aria-checked",
       "true",
     );
     expect(
+      screen.getByText(
+        "Until you choose one, the organization's is used: OpenAI · gpt-4o-transcribe",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Provider")).toHaveTextContent("Choose a provider");
+    expect(screen.queryByLabelText("Model")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Language")).toHaveTextContent("Inherit (English)");
+    expect(onChange).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("radio", { name: "Organization's" }));
+    expect(
       screen.getByText("From the organization: OpenAI · gpt-4o-transcribe"),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Language")).toHaveTextContent("Inherit (English)");
     expect(screen.queryByLabelText("Provider")).not.toBeInTheDocument();
   });
 
@@ -332,7 +342,7 @@ describe("the agent's Voice card", () => {
     state.org!.speech_to_text_provider = "deepgram";
     mount();
     expect(
-      screen.getByText("From the organization: deepgram · gpt-4o-transcribe"),
+      screen.getByText(/the organization's is used: deepgram · gpt-4o-transcribe/),
     ).toBeInTheDocument();
   });
 
@@ -362,7 +372,6 @@ describe("the agent's Voice card", () => {
     const conversation = {
       value: null,
       onChange: vi.fn(),
-      capabilityIds: [],
       hasGuardrails: false,
     };
 

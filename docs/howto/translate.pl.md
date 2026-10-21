@@ -1,5 +1,5 @@
 ---
-source_sha: "0a08ac08ea50"
+source_sha: "083ce38797dc"
 ---
 
 # Przetłumacz stronę { #translate-a-page }

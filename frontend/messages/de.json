@@ -877,10 +877,7 @@
     "voiceConversationMaxHint": "Anrufe enden nach dieser Dauer. Die Budgets gelten weiterhin.",
     "voiceConversationNote": "Anweisungen für Anrufe",
     "voiceConversationNoteHint": "Wird nur während Anrufen an die Anweisungen des Agents angehängt, nach seinem eingebauten Sprechstil: wie er begrüßt, wie lange er spricht, was er sagt, bevor ein Tool läuft.",
-    "voiceConversationHandedOff": "In Anrufen übernimmt das Textmodell des Agenten",
-    "voiceConversationHandedOffHint": "Der Agent gibt diese Aufgaben an sich selbst im Textmodus weiter und sagt, was er herausgefunden hat. Der Anruf läuft währenddessen weiter, und jeder Schritt erscheint in der Unterhaltung.",
     "voiceConversationGuardrails": "Guardrails prüfen Transkripte während eines Anrufs und unterbrechen den Agent, wenn seine Worte einen Treffer auslösen, aber gesprochene Worte lassen sich nicht filtern, bevor sie zu hören sind. Das Ergebnis eines Tools wird weiterhin geprüft, bevor der Agent es liest; Tool-Argumente werden nicht geprüft.",
-    "voiceConversationRecorded": "Anrufe werden als Text in der Unterhaltung festgehalten. Es wird kein Audio gespeichert.",
     "voiceConversationCatalogFailed": "Die Liste der Sprachmodelle konnte nicht geladen werden, daher lassen sich Anrufe hier nicht einschalten. Laden Sie die Seite neu, um es erneut zu versuchen.",
     "voiceTabCalls": "Sprachanrufe",
     "voiceTabDictation": "Diktieren",
@@ -890,7 +887,9 @@
     "voiceConversationMaxMinutes": "{minutes} Min.",
     "voiceDictationProvider": "Über einen Provider transkribieren",
     "voiceDictationProviderHint": "Das Mikrofon im Chat sendet die Aufnahme an den Provider unten: den der Organisation oder den eigenen dieses Agents. Ist der Schalter aus oder fehlt ein Schlüssel, erkennt der Browser den Text kostenlos.",
-    "voiceConversationMaxDefault": "{minutes} Min. (Standard)"
+    "voiceConversationMaxDefault": "{minutes} Min. (Standard)",
+    "voiceInheritsUntilChosen": "Bis Sie einen wählen, wird der der Organisation verwendet: {pair}",
+    "voiceProviderChoose": "Provider wählen"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",

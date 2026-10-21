@@ -1,5 +1,5 @@
 ---
-source_sha: "9e4a39e96b30"
+source_sha: "5b606a7b7b0f"
 title: "Rozmowy głosowe"
 seo_title: "Rozmowy głosowe: rozmawiaj z opublikowanym agentem"
 description: "Zadzwoń do opublikowanego agenta i porozmawiaj z nim: modele realtime, zatwierdzenia w rozmowie, limity czasu i minut, bezpieczne rozłączanie i transkrypcje."
@@ -153,7 +153,7 @@ rozmowa przekazuje zamiast tego modelowi tekstowemu agenta.
 | Dostosowane | skille: ładowane na żądanie jako instrukcje, bez narzędzi, którymi run tekstowy je czyta |
 | Pominięte | wyszukiwanie narzędzi: narzędzia MCP, które by odroczyło, są przekazywane rozmowie bezpośrednio |
 | Zmapowane | thinking: staje się własnym ustawieniem rozumowania modelu realtime, o ile model je ma |
-| Przekazane | sandbox, browser use, subagenty, praca w trakcie narzędzi: robi to model tekstowy agenta, zob. [Przekazywanie pracy](#handing-work-off) |
+| Przekazane | sandbox, browser use, subagenty, coding agent, praca w trakcie narzędzi: robi to model tekstowy agenta, zob. [Przekazywanie pracy](#handing-work-off) |
 
 Karta Głos w Builderze wymienia capabilities, które ten agent w rozmowach
 przekazuje.
