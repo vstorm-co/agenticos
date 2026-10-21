@@ -26,7 +26,7 @@ from app.services import change_feed
 from app.services.case_generation.drafts import DraftedCases, keep
 from app.services.case_generation.sources import Material
 from app.services.dataset import redacted_case
-from app.services.system_agent_runner import SystemAgentRunner
+from app.services.system_agent_runner import SystemAgentResult, SystemAgentRunner
 
 logger = logging.getLogger(__name__)
 
@@ -105,16 +105,18 @@ async def generate(
 
     The drafts that keep their source's rule become proposals, redacted like any
     case on its way in; the rest are counted in the log and nowhere else. A
-    failure rolls the session back before recording itself: the generation was
-    committed by the request and the run by the runner, so nothing of theirs is
-    lost, and a database error may have left the transaction unusable.
+    refusal of this platform's own leaves the session as it is, so what the
+    runner wrote on the run - why its answer could not be read - is kept. Any
+    other failure rolls the session back before recording itself: the generation
+    was committed by the request and the run by the runner, so nothing of theirs
+    is lost, and a database error - a source deleted while the generator ran -
+    may have left the transaction unusable.
     """
     try:
         result = await SystemAgentRunner(db).run(
             ctx, key=CASE_GENERATOR.key, prompt=prompt, output_type=DraftedCases
         )
     except AppException as exc:
-        await db.rollback()
         await _finish(
             db,
             generation_id,
@@ -130,6 +132,27 @@ async def generate(
         await _finish(db, generation_id, ctx, status=GenerationStatus.FAILED, error=FAILED)
         return
 
+    # Read before a rollback expires the row it is on.
+    run_id = result.run.id
+    try:
+        await _record(db, generation_id, ctx, result=result, material=material, quotas=quotas)
+    except Exception:
+        logger.exception("case_generation_failed", extra={"generation_id": str(generation_id)})
+        await db.rollback()
+        await _finish(
+            db, generation_id, ctx, status=GenerationStatus.FAILED, error=FAILED, run_id=run_id
+        )
+
+
+async def _record(
+    db: AsyncSession,
+    generation_id: UUID,
+    ctx: AuthContext,
+    *,
+    result: SystemAgentResult[DraftedCases],
+    material: Material,
+    quotas: dict[CaseOrigin, int],
+) -> None:
     generation = await case_generation_repo.get_generation(
         db, generation_id, organization_id=ctx.organization_id
     )

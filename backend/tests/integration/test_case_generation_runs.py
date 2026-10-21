@@ -13,7 +13,9 @@ The claims:
 - twenty knowledge drafts become twenty proposals, each citing a document of the
   agent's own knowledge base, and the rest of a generator's answer is dropped;
 - the organization's AI switch turned off after a start fails the generation
-  with that reason and calls no model; every other way a run ends is recorded;
+  with that reason and calls no model; every other way a run ends is recorded,
+  an unreadable answer keeps why on the run, and a source deleted meanwhile
+  fails the generation rather than leaving it running;
 - a credential the generator wrote is redacted before a proposal is stored.
 """
 
@@ -30,6 +32,7 @@ from sqlalchemy import func, select
 from app.core.exceptions import (
     AiAssistanceDisabledError,
     NotFoundError,
+    SystemAgentOutputError,
     SystemAgentRunError,
     SystemAgentUnavailableError,
 )
@@ -42,6 +45,7 @@ from app.db.models.credential import ModelProfile
 from app.db.models.organization import Organization
 from app.db.models.rag_document import DocumentStatus
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
+from app.repositories import agent_run_repo
 from app.schemas.case_generation import CaseGenerationRequest
 from app.schemas.change_event import ChangeEvent
 from app.schemas.dataset import DatasetCreate
@@ -394,6 +398,52 @@ async def test_every_other_way_a_run_ends_is_recorded_on_the_generation(db, monk
         )
         await db.refresh(row)
         assert (row.status, row.error, row.run_id) == ("failed", error, run_id)
+    assert await db.scalar(select(func.count(CaseProposal.id))) == 0
+
+
+async def test_an_unreadable_answer_keeps_why_on_the_generator_s_run(db, monkeypatch) -> None:
+    owner, _, agent, dataset, _ = await _setup(db)
+    row, material, quotas = await _generation(db, owner, dataset, agent, [CaseOrigin.AGENT], 1)
+    run = await _run_row(db, owner, agent)
+
+    async def unreadable(*args, **kwargs) -> None:
+        await agent_run_repo.set_error(db, run=run, error="Not valid JSON")
+        raise SystemAgentOutputError(message="could not be read", run_id=run.id, answer="?")
+
+    monkeypatch.setattr(SystemAgentRunner, "run", unreadable)
+
+    await generate(
+        db, generation_id=row.id, ctx=owner, prompt="p", material=material, quotas=quotas
+    )
+
+    await db.refresh(row)
+    await db.refresh(run)
+    assert (row.status, row.error, row.run_id) == ("failed", "could not be read", run.id)
+    assert run.error == "Not valid JSON"
+
+
+async def test_a_source_deleted_while_the_generator_ran_fails_the_generation(
+    db, monkeypatch
+) -> None:
+    owner, _, agent, dataset, documents = await _setup(db)
+    row, material, quotas = await _generation(db, owner, dataset, agent, [CaseOrigin.KNOWLEDGE], 1)
+    run = await _run_row(db, owner, agent)
+    run_id = run.id
+    cited = next(p for p in material.passages if p.document_id == documents[0].id)
+    await db.delete(documents[0])
+    await db.commit()
+    _answer(
+        monkeypatch,
+        DraftedCases(cases=[DraftedCase(origin="knowledge", input="Q?", passage=cited.ref)]),
+        run=run,
+    )
+
+    await generate(
+        db, generation_id=row.id, ctx=owner, prompt="p", material=material, quotas=quotas
+    )
+
+    await db.refresh(row)
+    assert (row.status, row.error, row.run_id) == ("failed", FAILED, run_id)
     assert await db.scalar(select(func.count(CaseProposal.id))) == 0
 
 
