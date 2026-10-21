@@ -106,6 +106,16 @@ export function useEvalSuites(agentId: string) {
   };
 }
 
+/** One agent's eval suites, read only - for a picker that runs something against one. */
+export function useAgentEvalSuites(agentId: string, { enabled = true } = {}) {
+  const query = useQuery({
+    queryKey: qk.evalSuites.forAgent(agentId),
+    queryFn: () => apiClient.get<EvalSuiteList>(`/agents/${agentId}/eval-suites`),
+    enabled,
+  });
+  return { suites: query.data?.items ?? [] };
+}
+
 /** One suite's results, newest first, a page at a time. */
 export function useEvalSuiteResults(
   agentId: string,

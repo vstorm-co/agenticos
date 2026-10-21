@@ -92,6 +92,7 @@ describe("useSystemAgents", () => {
       "drafter",
       "generator",
       "classifier",
+      "improver",
     ]);
     expect(result.current.groups[0]?.agents[0]?.name).toBe("Eval judge");
     expect(result.current.groups[1]?.agents).toEqual([]);
@@ -100,6 +101,9 @@ describe("useSystemAgents", () => {
     });
     expect(apiClient.get).toHaveBeenCalledWith("/agents", {
       params: { kind: "classifier", limit: "100" },
+    });
+    expect(apiClient.get).toHaveBeenCalledWith("/agents", {
+      params: { kind: "improver", limit: "100" },
     });
   });
 });

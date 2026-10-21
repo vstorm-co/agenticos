@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import ValidationError
 
-from app.db.models.dataset import Dataset, DatasetCase, DatasetVersion, DatasetVersionCase
+from app.db.models.dataset import Dataset, DatasetCase, DatasetVersion
 from app.schemas.dataset import (
     NO_EXPECTATION,
     DatasetCaseCreate,
@@ -99,10 +99,8 @@ def test_every_row_says_which_dataset_it_belongs_to() -> None:
         Dataset(name="refunds", latest_version=3),
         DatasetVersion(dataset_id=dataset_id, number=2),
         DatasetCase(dataset_id=dataset_id, case_id=uuid.uuid4()),
-        DatasetVersionCase(version_id=uuid.uuid4(), position=4),
     ]
     printed = [repr(row) for row in rows]
     assert "refunds" in printed[0]
     assert str(dataset_id) in printed[1]
     assert str(dataset_id) in printed[2]
-    assert "at=4" in printed[3]

@@ -122,9 +122,10 @@ class Settings(BaseSettings):
     # window in which access revoked a moment ago still reaches a page that was
     # already open.
     ARTIFACT_VIEW_TTL_SECONDS: int = Field(default=300, gt=0, le=3600)
-    # Every change to a dataset's cases writes a version holding a row per case, so
-    # storage grows with edits times cases. Summed over every dataset and version of
-    # one organization; a change past it is refused.
+    # The case revisions one organization's datasets may store together: every case
+    # added and every edit is one, kept for the versions that hold it. A version
+    # stores only what it changed, and removing a case stores nothing, so only an
+    # add or an edit past the limit is refused. The name predates that.
     DATASET_MAX_VERSION_ROWS_PER_ORG: int = Field(default=5_000_000, gt=0)
     # Where artifact content is served from. Unset, it is the API's own public
     # address, and isolation rests on the `sandbox` policy every content

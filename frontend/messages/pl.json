@@ -687,6 +687,8 @@
     "classifierKindHint": "Czyta odpowiedzi i komentarze do ocen negatywnych w poszukiwaniu luk w wiedzy, gdy ktoś poprosi o sprawdzenie.",
     "generatorKind": "{count, plural, one {Generator przypadków (#)} few {Generatory przypadków (#)} many {Generatorów przypadków (#)} other {Generatory przypadków (#)}}",
     "generatorKindHint": "Przygotowuje przypadki testowe do datasetu z agenta, jego bazy wiedzy, prawdziwych czatów i red teamingu; każdą propozycję człowiek akceptuje albo odrzuca.",
+    "improverKind": "{count, plural, one {Asystent tworzenia (#)} few {Asystenci tworzenia (#)} many {Asystentów tworzenia (#)} other {Asystenci tworzenia (#)}}",
+    "improverKindHint": "Czyta źle ocenione odpowiedzi i nieudane runy i sugeruje zmiany w agentach i skillach, gdy ktoś poprosi o ulepszenie.",
     "defaultJudge": "Domyślny sędzia",
     "defaultJudgeHint": "Ocenia każdy dataset, który nie ma własnego sędziego.",
     "judgeUsedBy": "{more, plural, =0 {Używają go: {names}} one {Używają go: {names} i # inny} few {Używają go: {names} i # inne} many {Używają go: {names} i # innych} other {Używają go: {names} i # innych}}",
@@ -2152,7 +2154,7 @@
         "title": "Wydatki",
         "unit": "w tym okresie",
         "description": "Ile kosztował okres i ile miesiąc kalendarzowy do dziś. Kwota miesięczna zgadza się z fakturą, więc celowo nie reaguje na filtr okresu.",
-        "split": "{models} na modele{evals, select, none {} other { · {evals} na evale}}{ingestion, select, none {} other { · {ingestion} na indeksowanie}}",
+        "split": "{models} na modele{evals, select, none {} other { · {evals} na evale}}{improving, select, none {} other { · {improving} na ulepszenia}}{ingestion, select, none {} other { · {ingestion} na indeksowanie}}",
         "spentLabel": "wydano {amount}"
       },
       "surfaces": {
@@ -2428,6 +2430,16 @@
           "waiting": "{count} czeka na pierwszy run",
           "paused": "{count} wstrzymanych"
         }
+      },
+      "suggestions": {
+        "title": "Oczekujące sugestie",
+        "description": "Co asystent tworzenia zasugerował dla Twoich agentów i skilli, czekając na Twoją decyzję.",
+        "empty": {
+          "title": "Nic nie czeka",
+          "description": "Poproś asystenta o ulepszenie agenta na jego zakładce Build."
+        },
+        "counts": "{instructions, plural, =0 {} one {1 zmiana instrukcji} few {# zmiany instrukcji} other {# zmian instrukcji}}{tools, plural, =0 {} other { · {tools, plural, one {1 zmiana narzędzia} few {# zmiany narzędzi} other {# zmian narzędzi}}}}",
+        "skills": "{count, plural, one {1 zmiana skilla} few {# zmiany skilli} other {# zmian skilli}} do przejrzenia"
       }
     },
     "edit": {
@@ -4045,6 +4057,10 @@
       "agent-eval-suites": {
         "title": "Suity",
         "body": "Sprawdzaj agenta na datasecie bez pamiętania o tym: co noc, przy każdej publikacji albo promocji, albo po zmianie skilla lub bazy wiedzy, z których korzysta. Dostaniesz wiadomość, gdy jakiś przypadek przestanie przechodzić."
+      },
+      "agent-assistant-strip": {
+        "title": "Asystent tworzenia",
+        "body": "Poproś go o ulepszenie agenta na podstawie negatywnie ocenionych odpowiedzi albo o sprawdzenie Twoich zmian. Każda sugestia czeka, aż przyjmiesz ją do draftu."
       },
       "agent-environment-guards": {
         "title": "Strażnicy",
@@ -5738,7 +5754,8 @@
     },
     "moreFiles": "{count, plural, one {+1 plik} few {+# pliki} many {+# plików} other {+# pliku}}",
     "bodyPlaceholder": "# Zwroty\n\nUżyj tego, gdy klient prosi o zwrot pieniędzy.\n\n## Kroki\n\n1. Sprawdź datę zamówienia.\n2. W ciągu 14 dni zwróć bez pytania.\n3. Później poproś człowieka o zatwierdzenie.",
-    "whoCanUseIt": "Kto może z tego korzystać"
+    "whoCanUseIt": "Kto może z tego korzystać",
+    "expectedEffect": "Oczekiwany efekt:"
   },
   "states": {
     "loading": "Wczytywanie"
@@ -7890,7 +7907,7 @@
       "resultsCouldNotBeRead": "Nie udało się odczytać wyników.",
       "noResults": "Brak wyników. Wynik pojawi się przy następnym uruchomieniu suity.",
       "resultCount": "{count, plural, one {# wynik} few {# wyniki} many {# wyników} other {# wyniku}}",
-      "resultMeta": "{trigger, select, schedule {Z harmonogramu} publish {Po publikacji} promotion {Po promocji} dependency {Po zmianie} gate {Przed promocją} other {Ręcznie}}{version, select, none {} other { · v{version}}} · {date}",
+      "resultMeta": "{trigger, select, schedule {Z harmonogramu} publish {Po publikacji} promotion {Po promocji} dependency {Po zmianie} other {Ręcznie}}{version, select, none {} other { · v{version}}} · {date}",
       "openRun": "Otwórz run",
       "passRate": "Odsetek zaliczonych {rate} na {cases, plural, one {# przypadku} other {# przypadkach}} · {regressions, plural, =0 {brak potwierdzonych regresji} one {# potwierdzona regresja} few {# potwierdzone regresje} many {# potwierdzonych regresji} other {# potwierdzonej regresji}}",
       "enableAi": "Włącz wsparcie AI",
@@ -7983,7 +8000,10 @@
         "save": "Zapisz",
         "create": "Utwórz suitę"
       }
-    }
+    },
+    "excludedEvidence": "{count, plural, one {Pominięto 1 case} few {Pominięto # case'y} other {Pominięto # case'ów}}: pochodzą z rozmów, z których wzięła się sprawdzana zmiana.",
+    "backToSuggestions": "Wróć do sugestii",
+    "backToSkillChange": "Wróć do zmiany skilla"
   },
   "steps": {
     "skills-gallery": {
@@ -8630,6 +8650,106 @@
     "noFilesYet": "W tym projekcie nie ma jeszcze plików",
     "noFilesHint": "Upuść tu pliki albo cały folder, albo je prześlij. Każdy czat w projekcie je czyta i na nich pracuje.",
     "noFilesViewer": "Pliki dodane do projektu pojawią się tutaj."
+  },
+  "authoring": {
+    "strip": {
+      "title": "Asystent tworzenia",
+      "chip": "{count, plural, one {1 sugestia} few {# sugestie} many {# sugestii} other {# sugestii}} · z {ratedDown, plural, one {1 ocenionej negatywnie odpowiedzi} other {# ocenionych negatywnie odpowiedzi}} w {runs, plural, one {1 runie} other {# runach}}",
+      "working": "Czytam runy…",
+      "improve": "Ulepsz",
+      "verify": "Sprawdź moje zmiany",
+      "check": "Sprawdź evalami",
+      "dismissAll": "Odrzuć wszystkie",
+      "empty": "Asystent czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach i opisach narzędzi. Nic się nie zmienia, dopóki tego nie zaakceptujesz, i nic nie trafia do użytkowników, dopóki nie opublikujesz.",
+      "verifyReport": "Co asystent sądzi o Twoich zmianach"
+    },
+    "suggestion": {
+      "tool": "Narzędzie {tool}",
+      "instructions": "Instrukcje",
+      "fromVerify": "Ze sprawdzenia Twoich zmian",
+      "status": {
+        "accepted": "Przyjęta do draftu",
+        "dismissed": "Odrzucona"
+      },
+      "stale": "Nie pasuje już do draftu",
+      "editLabel": "Twoje brzmienie sugestii",
+      "saveAndAccept": "Zapisz i przyjmij",
+      "cancel": "Anuluj",
+      "accept": "Przyjmij",
+      "edit": "Edytuj",
+      "dismiss": "Odrzuć",
+      "undo": "Cofnij"
+    },
+    "evidence": {
+      "none": "Brak dowodów, które dałoby się sprawdzić.",
+      "run": "run {id}",
+      "dropped": "{count, plural, one {1 przytoczony fragment nie został znaleziony} few {# przytoczone fragmenty nie zostały znalezione} other {# przytoczonych fragmentów nie zostało znalezionych}} w runach i {count, plural, one {został pominięty} few {zostały pominięte} other {zostało pominiętych}}."
+    },
+    "batch": {
+      "closed": {
+        "superseded": "Nowsze zlecenie zastąpiło te sugestie. Zostają jako zapis.",
+        "published": "Decyzje o tych sugestiach trafiły do wersji, która jest już opublikowana."
+      },
+      "expected": "Oczekiwany efekt:",
+      "checks": "Sprawdzone evalami:",
+      "checkRun": "run {index}"
+    },
+    "verify": {
+      "nothing": "Asystent nie ma uwag do Twoich zmian.",
+      "verdict": {
+        "supports": "Potwierdzone dowodami",
+        "risk": "Ryzyko",
+        "removed": "Usunięto coś, na czym opierały się dowody"
+      }
+    },
+    "improve": {
+      "improve": {
+        "title": "Ulepsz tego agenta",
+        "body": "Asystent czyta oceniane i nieudane runy z ostatnich 30 dni - nigdy runy evali - i sugeruje zmiany. O każdej decydujesz Ty."
+      },
+      "verify": {
+        "title": "Sprawdź swoje zmiany",
+        "body": "Asystent porównuje Twój draft z opublikowaną wersją na tych samych dowodach: co zmiany poprawiają, czym ryzykują i co usuwają."
+      },
+      "quote": "Przeczyta {runs, plural, one {1 run} few {# runy} other {# runów}}, w tym {ratedDown} ocenionych negatywnie, w {calls, plural, one {1 wywołaniu} other {# wywołaniach}}, za około {cost}.",
+      "reason": {
+        "no_evidence": "Na razie nie ma z czego się uczyć: żaden run z ostatnich 30 dni nie został oceniony ani się nie udał.",
+        "no_draft_change": "Draft jest taki sam jak opublikowana wersja, więc nie ma czego sprawdzać."
+      },
+      "overBudget": "To więcej, niż zostało w miesięcznym budgecie asystenta albo organizacji.",
+      "cancel": "Anuluj",
+      "start": "Uruchom"
+    },
+    "check": {
+      "title": "Sprawdź evalami",
+      "body": "Uruchamia dataset na drafcie z naniesionymi wszystkimi oczekującymi sugestiami, obok opublikowanej wersji. Case'y z rozmów, z których wzięły się sugestie, są pomijane. Sprawdzenie niczego nie przyjmuje.",
+      "skillBody": "Uruchamia dataset na agencie, który używa skilla: po obu stronach jego opublikowana wersja, różni się tylko treść skilla. Case'y z rozmów, z których wzięła się zmiana, są pomijane. Sprawdzenie niczego nie stosuje.",
+      "agent": "Agent, który używa tego skilla",
+      "agentPlaceholder": "Wybierz agenta",
+      "target": "Sprawdź na",
+      "targetPlaceholder": "Wybierz suitę albo dataset",
+      "suites": "Suity",
+      "datasets": "Datasety",
+      "cancel": "Anuluj",
+      "start": "Uruchom sprawdzenie"
+    },
+    "aiOff": {
+      "body": "Wsparcie AI jest wyłączone w tej organizacji, więc asystent nie może działać.",
+      "enable": "Włącz je",
+      "askAdmin": "Poproś administratora o włączenie."
+    },
+    "skill": {
+      "improve": "Ulepsz z asystentem",
+      "working": "Czytam runy…",
+      "aiOff": "Wsparcie AI jest wyłączone w tej organizacji",
+      "check": "Sprawdź evalami"
+    },
+    "describe": {
+      "label": "Albo opisz go, a {name} przygotuje draft razem z Tobą",
+      "placeholder": "Agent wsparcia, który odpowiada na pytania o zwroty na podstawie naszej polityki i przekazuje zdenerwowanych klientów człowiekowi.",
+      "send": "Opisz go Architektowi",
+      "prompt": "Przygotuj dla mnie draft agenta: {description}"
+    }
   },
   "promotionGate": {
     "title": "Promuj v{version} do {name}",

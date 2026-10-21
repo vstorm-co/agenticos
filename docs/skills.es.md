@@ -1,5 +1,5 @@
 ---
-source_sha: "bb644bc0a7d4"
+source_sha: "b07994466fc2"
 ---
 
 # Skills { #skills }
@@ -194,6 +194,11 @@ tocó y uno que quiso borrar dejan la misma ausencia.
 Tres turnos de una conversación refinando el mismo skill dejan **una** propuesta,
 no tres. A un revisor al que se le hace la misma pregunta tres veces se le ha
 dado más trabajo, no más información.
+
+El [asistente de autoría](authoring.md#skills) propone cambios a skills de la
+misma manera, con su justificación y los runs en los que se apoya. Su cambio
+registra la versión del skill para la que se escribió, y Apply lo rechaza si
+alguien ha cambiado el skill desde entonces.
 
 ## Cómo llegan los skills a una organización { #getting-skills-into-an-organization }
 

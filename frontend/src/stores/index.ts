@@ -15,3 +15,4 @@ export { useWorkingStore } from "./working-store";
 export { resetSessionState, resetTenantState } from "./session-reset";
 export { ChatScope } from "./chat-scope";
 export { useInChatScope } from "./chat-scope-context";
+export { useArchitectAskStore } from "./architect-ask-store";

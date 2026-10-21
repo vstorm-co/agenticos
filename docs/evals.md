@@ -154,6 +154,14 @@ A run that could not tell anybody anything is refused before it is estimated:
   instead;
 - a baseline for a first version, which has nothing before it.
 
+### Checking suggestions { #checking-suggestions }
+
+The [authoring assistant](authoring.md#check-with-evals) starts eval runs to check
+what it suggests: the draft with the waiting suggestions applied, beside the
+published version. Such a run leaves out the cases taken from the conversations
+the suggestions came from and says how many, so a smaller sample than the dataset
+explains itself.
+
 ## What each case runs as { #what-each-case-runs-as }
 
 Every case is an ordinary agent run with the surface `eval`. It is checked

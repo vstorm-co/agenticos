@@ -92,6 +92,8 @@ export interface CostBlock {
   model_usd: string;
   /** What eval runs and their judge cost: inside the bill, outside `model_usd`. */
   eval_usd: string;
+  /** What the authoring assistant cost proposing improvements: named apart from evals. */
+  authoring_usd?: string;
   /** Zero at scope=own: a document is indexed by a worker, for nobody. */
   ingestion_usd: string;
   by_provider: ProviderCost[];

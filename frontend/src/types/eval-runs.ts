@@ -97,6 +97,8 @@ export interface EvalRunArm {
   reused_from_arm_id: string | null;
   /** A fingerprint of the spec this side ran. */
   spec_hash: string;
+  /** The skills this side served a proposed body for instead of the stored one. */
+  skill_ids?: string[];
   summary: ArmSummary;
   by_tag: Record<string, ArmSummary>;
   /** The cases this side's first answer was not graded on, by a scorer that reached no verdict. */
@@ -160,6 +162,8 @@ export interface EvalRun {
   routing_error: { code: string; message: string } | null;
   /** This run's scores no scorer reached a verdict on and no person decided. */
   ungraded_score_ids: string[];
+  /** Cases left out because they come from the evidence of the proposal being checked. */
+  excluded_case_ids?: string[];
   /** The eval suite that started this run; null for one started by hand. */
   suite?: { id: string; name: string; trigger: EvalSuiteTrigger } | null;
   /** On the single-run read of a run of the draft: whether the draft changed since. */

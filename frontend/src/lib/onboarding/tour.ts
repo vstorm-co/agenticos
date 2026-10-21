@@ -228,6 +228,16 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // named tab, then spotlights the section. The launch pass takes one per tab —
   // enough for a short line on each section; the "?" adds the sub-cards (model,
   // MCP) the launch leaves out.
+  // The assistant strip above the instructions: only an editor of an ordinary
+  // agent sees it, so it waits on `agents:edit` and may be absent.
+  {
+    id: "agent-assistant-strip",
+    page: AGENT_BUILDER,
+    target: "agent-assistant-strip",
+    activate: "agent-tab-build",
+    permission: Perm.agentsEdit,
+    optional: true,
+  },
   {
     id: "agent-instructions",
     page: AGENT_BUILDER,

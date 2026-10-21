@@ -12,6 +12,12 @@ const state = vi.hoisted(() => ({
   discard: vi.fn(),
 }));
 
+vi.mock("@/components/authoring/skill-check-button", () => ({
+  SkillCheckButton: ({ proposalId }: { proposalId: string }) => (
+    <button>{`check ${proposalId}`}</button>
+  ),
+}));
+
 vi.mock("@/hooks", () => ({
   useSkillChanges: () => ({
     changes: state.changes,
@@ -148,6 +154,39 @@ describe("ProposedChanges", () => {
     render(<ProposedChanges canEdit />);
 
     expect(screen.getByText(/worth adding one before accepting/)).toBeVisible();
+  });
+
+  it("shows why the assistant proposed a change, what it expects and what it rests on", async () => {
+    state.changes = [
+      change({
+        base_version: 3,
+        rationale: "Readers corrected the window.",
+        expected_effect: "Answers say 30 days.",
+        evidence: [{ run_id: "run-12345678", quote: "It is 30 days" }],
+        evidence_dropped: 1,
+      }),
+    ];
+    render(<ProposedChanges canEdit />);
+    expect(screen.getByRole("button", { name: "check p-1" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Show what changed in refunds/ }));
+    expect(screen.getByText("Readers corrected the window.")).toBeInTheDocument();
+    expect(screen.getByText("Answers say 30 days.")).toBeInTheDocument();
+    expect(screen.getByText("It is 30 days")).toBeInTheDocument();
+  });
+
+  it("says an assistant's change cited nothing it could check", async () => {
+    state.changes = [change({ base_version: 2 })];
+    render(<ProposedChanges canEdit />);
+    await userEvent.click(screen.getByRole("button", { name: /Show what changed in refunds/ }));
+    expect(screen.getByText("No evidence that could be checked.")).toBeInTheDocument();
+  });
+
+  it("offers no check and no evidence for a change an agent's workspace wrote", async () => {
+    state.changes = [change({ base_version: null })];
+    render(<ProposedChanges canEdit />);
+    expect(screen.queryByRole("button", { name: /check/ })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /Show what changed in refunds/ }));
+    expect(screen.queryByText("No evidence that could be checked.")).toBeNull();
   });
 
   it("accepts and refuses through their own actions", async () => {

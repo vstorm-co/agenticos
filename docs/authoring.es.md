@@ -1,0 +1,156 @@
+---
+source_sha: "9f2d6d57c080"
+title: "Asistente de autoría"
+description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las descripciones de herramientas y los skills de un agent. Una persona decide cada uno."
+---
+
+# Asistente de autoría { #authoring-assistant }
+
+El **asistente de autoría** mejora agents a partir de evidencia. Lee lo que la
+gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las
+instrucciones de un agent, a los nombres y descripciones de sus herramientas y a
+los skills que usa. Nunca cambia nada por su cuenta: cada sugerencia espera a una
+persona, una aceptada pasa al [draft](concepts.md), y nada llega a nadie hasta
+que se publica el draft.
+
+Hace tres cosas:
+
+- **Mejorar** un agent: sugerir cambios a partir de sus runs valorados
+  negativamente y fallidos.
+- **Verificar** tus propios cambios: comparar el draft con la versión publicada
+  con la misma evidencia y decir qué mejoran los cambios, qué arriesgan y qué
+  quitaron.
+- **Mejorar un skill**: sugerir un cuerpo nuevo a partir de los runs que lo
+  abrieron.
+
+El asistente es un [agent de sistema](datasets.md#judge) propio, que aparece con
+los demás agents de sistema de la organización. Sus instrucciones se editan como
+las de cualquier agent, y sus runs son runs normales: con budget, con precio y
+visibles en Activity.
+
+## Qué lee { #what-it-reads }
+
+El asistente no tiene herramientas. Lo que lee se reúne para él, de los runs del
+agent de los últimos 30 días:
+
+- respuestas valoradas negativamente, primero las que tienen comentario;
+- runs que fallaron, alcanzaron un budget o fueron bloqueados por un guardrail;
+- respuestas valoradas positivamente, como contraste.
+
+Un run sin valorar que salió bien no dice nada y no se lee. Tampoco una prueba
+del panel de pruebas del Builder ni el run de un delegado.
+
+**Nunca lee evals.** Los runs que respondieron un caso de [eval](evals.md), los
+runs del juez y los propios runs del asistente quedan fuera de lo que lee, y
+nunca ve puntuaciones. Un cambio comprobado con evals no debe estar ajustado a
+los casos que lo comprueban.
+
+Cuando hay más que leer de lo que cabe en una petición, los runs se leen primero
+en grupos y las sugerencias se escriben a partir de lo que mostró cada grupo.
+
+### Cada cita se comprueba { #every-quote-is-checked }
+
+Cada sugerencia lleva una justificación y la evidencia que la respalda: los runs
+en los que se apoya y citas de ellos. Antes de que nadie vea una sugerencia, cada
+cita se compara palabra por palabra con el run que nombra. Una cita que no está
+ahí, un run que no está entre los que leyó el asistente y todo lo que pase de
+doce elementos o seiscientos caracteres se descarta, y la sugerencia dice
+cuántos fueron. Quien no tiene `runs:view` ve en qué runs se apoya una
+sugerencia, no lo que se dijo en ellos.
+
+## Sugerencias { #suggestions }
+
+Mejorar y Verificar abren la **barra del asistente** en la pestaña Build del
+agent. Cada sugerencia muestra el fragmento que cambia en su contexto, el porqué
+y la evidencia, y cada una se decide por separado:
+
+| Acción | Qué ocurre |
+|---|---|
+| **Aceptar** | El cambio se escribe en el draft. No se publica nada. |
+| **Editar** | Se acepta tu propia redacción en lugar de la sugerencia. |
+| **Descartar** | Queda registrado; una petición posterior no lo vuelve a sugerir. |
+| **Deshacer** | Revierte la decisión mientras aún encaja en el draft. |
+
+Una sugerencia se ancla en dónde estaba su fragmento y en lo que lo rodeaba, no
+solo en el texto, así que una línea que aparece dos veces se cambia donde se
+pretendía. Si el draft ha cambiado - el fragmento se eliminó o la descripción de
+una herramienta se cambió a mano -, la sugerencia dice que **ya no encaja en el
+draft** y solo se puede descartar. Deshacer se niega igual cuando el texto
+aceptado se editó después a mano: tiraría esa edición.
+
+Un Mejorar más reciente sustituye a las sugerencias pendientes; Verificar añade
+las suyas en su lugar. Publicar el draft las cierra: sus decisiones son
+definitivas y la barra las conserva como registro.
+
+### Comprobar con evals { #check-with-evals }
+
+**Comprobar con evals** ejecuta un [dataset](datasets.md) contra el draft tal como
+quedaría con todas las sugerencias pendientes aceptadas, junto a la versión
+publicada en el mismo [eval run](evals.md#a-baseline-in-the-same-run). Comprobar
+no acepta nada y el draft no cambia. Mientras una sugerencia pendiente ya no
+encaje en el draft, o choque con otra, la comprobación se rechaza hasta que se
+acepte o se descarte: el run mide exactamente lo que espera.
+
+En lugar de un dataset, la comprobación puede ejecutar una de las
+[suites](evals.md#suites) del agente: su dataset, en su entorno. El umbral de la
+suite no se aplica; el run compara el draft con la versión publicada como
+cualquier comprobación.
+
+Los casos tomados de las conversaciones de las que salieron las sugerencias
+quedan fuera, y el run dice cuántos: un cambio nunca se mide con los datos a los
+que se ajustó. Un dataset hecho solo de esos casos se rechaza.
+
+Cada sugerencia indica el efecto que espera. La barra lo muestra junto a los eval
+runs que comprobaron las sugerencias, para que puedas comparar la predicción con
+lo que encontraron los runs.
+
+## Skills { #skills }
+
+Un skill se mejora desde su banco de trabajo en Skills. Lo que sugiere el
+asistente es un cuerpo nuevo completo, que espera con los demás cambios de
+[skills](skills.md) en Skills, con su justificación y evidencia.
+
+Aplicar un cambio a un skill es inmediato: cada agent vinculado al skill lee el
+cuerpo nuevo en su siguiente run. Por eso un cambio a un skill se puede comprobar
+antes con evals, en un agent que lo usa: los dos lados ejecutan la versión
+publicada de ese agent, y solo cambia el cuerpo del skill. Un cambio escrito para
+una versión anterior del skill se rechaza si alguien ha cambiado el skill desde
+entonces.
+
+## Describir un agent nuevo { #describing-a-new-agent }
+
+El diálogo de creación ofrece describir el agent en lugar de rellenar el
+formulario. La descripción va al [Architect](console.md#the-assistant), que crea
+drafts de agents y pregunta antes de crear uno; el resultado es un draft normal.
+
+## Coste y budget { #cost-and-budget }
+
+Mejorar y Verificar dicen qué leerían y cuánto costaría antes de gastar nada, y
+empiezan con un segundo clic. El asistente tiene su propio budget mensual, cinco
+dólares al crearse, que puede cambiar quien edita el agent. Una petición que
+costaría más de lo que les queda al asistente o a la organización se rechaza
+antes de escribir nada.
+
+En el dashboard, la línea de gasto indica aparte lo que costó el asistente **en
+mejoras**, separado de lo que costaron los evals.
+
+## Acceso { #access }
+
+| Para | Necesitas |
+|---|---|
+| Iniciar Mejorar o Verificar en un agent | `runs:view`, permiso de edición del agent y poder usar el asistente |
+| Mejorar un skill | `runs:view`, permiso de edición del skill y poder usar el asistente |
+| Aceptar, descartar o deshacer una sugerencia | Permiso de edición del agent |
+| Aplicar o descartar un cambio a un skill | `skills:edit` en el skill |
+| Comprobar con evals | Lo que pide un [eval run](evals.md#access), y permiso de edición del agent |
+
+Los grants cuentan: un miembro con un grant de edición sobre un agent puede
+mejorar ese agent.
+
+## Cuando la asistencia de IA está desactivada { #when-ai-assistance-is-off }
+
+Con el interruptor de **asistencia de IA** de la organización desactivado, el
+asistente no se ejecuta: el servidor rechaza Mejorar, Verificar y mejorar un
+skill, y la consola los muestra desactivados con un enlace al interruptor. Las
+sugerencias que ya esperan se pueden seguir aceptando, descartando y deshaciendo,
+y un eval run que no necesita juez sigue ejecutándose.
