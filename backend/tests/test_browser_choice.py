@@ -1037,6 +1037,22 @@ class TestTheToolRefusesBeforeItOpensAnything:
     async def test_no_key_is_said_rather_than_authenticated_as_nobody(self):
         assert "no decision-model" in await _call(api_key=None)
 
+    @pytest.mark.security
+    async def test_the_page_renderer_is_refused_on_every_browse(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """An agent published before the operator named its browser the renderer."""
+        monkeypatch.setattr(settings, "ARTIFACT_RENDER_CDP_URL", "http://Artifact-Render:9222")
+        opened: list[Any] = []
+
+        answer = await _call(
+            cdp_url="http://artifact-render:9333",
+            page_factory=lambda **kwargs: opened.append(kwargs),
+        )
+
+        assert "page renderer" in answer
+        assert opened == []
+
 
 @pytest.mark.security
 class TestTheBudgetIsCheckedBeforeEachOwnRequest:
@@ -1466,6 +1482,25 @@ class TestWhichBrowsersTheOperatorAllows:
         monkeypatch.setattr(settings, "BROWSER_CDP_ALLOWED_HOSTS", [])
         with pytest.raises(UrlRefusedError):
             validate_cdp_url(BrowserChoiceConfig(cdp_url="http://browser:9222"))
+
+    @pytest.mark.parametrize(
+        "url",
+        ["http://artifact-render:9222", "ws://Artifact-Render:9333/devtools/browser/x"],
+        ids=["as-configured", "another-port-and-case"],
+    )
+    def test_the_page_renderer_is_refused_even_when_the_allowlist_names_it(
+        self, monkeypatch: pytest.MonkeyPatch, url: str
+    ):
+        """The render browser draws people's records and is the operator's alone."""
+        monkeypatch.setattr(settings, "ARTIFACT_RENDER_CDP_URL", "http://artifact-render:9222")
+        monkeypatch.setattr(settings, "BROWSER_CDP_ALLOWED_HOSTS", ["browser", "artifact-render"])
+        with pytest.raises(UrlRefusedError, match="page renderer"):
+            validate_cdp_url(BrowserChoiceConfig(cdp_url=url))
+        validate_cdp_url(BrowserChoiceConfig(cdp_url="http://browser:9222"))
+
+    def test_without_a_renderer_no_host_is_held_back(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr(settings, "ARTIFACT_RENDER_CDP_URL", None)
+        validate_cdp_url(BrowserChoiceConfig(cdp_url="http://browser:9222"))
 
     def test_the_builder_carries_the_vault_key_and_never_the_model_facing_config(self):
         built = _build_capability(

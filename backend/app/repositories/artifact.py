@@ -171,6 +171,60 @@ async def list_visible(
     return list(items.scalars().all()), total or 0
 
 
+async def list_for_agent(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    environment_id: UUID | None,
+    reader_id: UUID,
+    member: bool,
+    room: bool,
+    see_all: bool,
+    shared_ids: list[UUID],
+    limit: int,
+) -> tuple[list[Artifact], int]:
+    """One agent's pages in one environment that a run's reader may see, newest first.
+
+    Args:
+        member: Whether the reader is an active member. One who is not keeps only
+            their own pages - and in a room only those of them that are
+            organization-wide.
+        room: The run is read by a group chat, so only what the whole
+            organization may see is listed: organization-wide pages. Never the
+            reader's private or team pages, nor one shared with the reader alone.
+        see_all: The reader's role reaches every page. Ignored in a room.
+        shared_ids: Pages explicitly shared with the reader. Ignored in a room.
+
+    An archived page is never listed: to a run it is not there.
+    """
+    where: list[Any] = [
+        Artifact.organization_id == organization_id,
+        Artifact.archived_at.is_(None),
+        Artifact.agent_id == agent_id,
+        Artifact.environment_id.is_(None)
+        if environment_id is None
+        else Artifact.environment_id == environment_id,
+    ]
+    own = Artifact.owner_user_id == reader_id
+    org_wide = Artifact.visibility == Visibility.ORG.value
+    shared = Artifact.id.in_(shared_ids) if shared_ids else false()
+    if not member:
+        where.extend([own, org_wide] if room else [own])
+    elif room:
+        where.append(org_wide)
+    elif not see_all:
+        where.append(or_(own, org_wide, shared))
+    items = await db.execute(
+        select(Artifact)
+        .where(*where)
+        .order_by(Artifact.published_at.desc(), Artifact.name.asc())
+        .limit(limit)
+    )
+    total = await db.scalar(select(func.count(Artifact.id)).where(*where))
+    return list(items.scalars().all()), total or 0
+
+
 async def publishing_agents(
     db: AsyncSession,
     *,

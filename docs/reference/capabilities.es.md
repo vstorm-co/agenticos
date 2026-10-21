@@ -1,5 +1,5 @@
 ---
-source_sha: "d8a950528ed9"
+source_sha: "de3d15f1689a"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -52,7 +52,7 @@ capabilities cubren además cosas que no son herramientas en absoluto, y por eso
 | `compaction` | Gestión del contexto | utility | ninguna, a propósito | — | — |
 | `media` | Descarga de medios | utility | ninguna, a propósito | — | — |
 | `tool_output_limits` | Límites de salida de herramientas | utility | `read_tool_result` | — | — |
-| `artifacts` | Artefactos | utility | `publish_artifact`, `read_artifact` | — | — |
+| `artifacts` | Artefactos | utility | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact` | — | — |
 | `channel_tools` | Consulta del canal de chat | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 
 Siete de ellas no tienen herramientas a propósito. `thinking` cambia cómo trabaja
@@ -651,8 +651,11 @@ la página, detenido en el límite de pasos y no se pudo alcanzar el navegador.
 en la imagen de la API: `cdp_url` apunta a un servicio de navegador que un operador
 ejecuta y aísla. El host tiene que estar en
 [`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md), y una lista vacía —la de
-partida— rechaza la automatización del navegador por completo. Se verifica **al
-publicar**, cuando se guarda el spec, y no en cada run.
+partida— rechaza la automatización del navegador por completo. El host de
+[`ARTIFACT_RENDER_CDP_URL`](../configuration.md#published-artifacts) se rechaza
+aunque la lista lo nombre: ese navegador dibuja las páginas de las personas para
+`preview_artifact` y nunca es de un autor. Se verifica **al publicar**, cuando se
+guarda el spec, y no en cada run.
 
 Es una lista de permitidos y no la verificación SSRF por la que pasa cualquier otra
 URL suministrada por un tenant, y la razón es lo que `cdp_url` es: vive en un spec
@@ -1023,11 +1026,17 @@ no tiene dónde construir con ellas.
 dashboard, un resumen — bajo un enlace estable.*
 `read_artifact` — *Lee la versión actual de una página que publicó este agent, tal
 como se escribió.*
+`list_artifacts` — *Enumera las páginas que publicó este agent y que este run puede
+abrir, de la más reciente a la más antigua.*
+`preview_artifact` — *Mira una página que publicaste como la vería quien la abre:
+una imagen, y lo que salió mal.*
 
 Publica un único documento HTML o Markdown autocontenido como
 [artefacto](../artifacts.md): un recurso compartido con propietario, visibilidad y
-grants, que se abre en el navegador bajo un enlace que no se mueve. Sin
-configuración.
+grants, que se abre en el navegador bajo un enlace que no se mueve. Un solo
+ajuste: `preview_screenshot` (activado por defecto) entrega al modelo la imagen
+que dibuja una vista previa; desactívalo para un modelo que no puede leer
+imágenes.
 
 **El nombre es la identidad.** `(organization, agent, environment, name)` elige el
 artefacto, así que el siguiente run del mismo agent que publique `weekly-report` —
@@ -1053,6 +1062,28 @@ formato, tamaño) y el código fuente, cortado en 100.000 caracteres, cosa que l
 cabecera dice. Solo abre lo que la persona del run puede abrir en la consola, y nada en un widget público, un embed, una programación o un trigger de eventos,
 donde no escucha ninguna persona identificada.
 
+**Listar.** `list_artifacts` devuelve JSON: las páginas de este agent en el
+entorno del run, de la más reciente a la más antigua y como máximo 50, con
+`total`, cada una con su nombre, título, versión, formato, bindings, visibilidad,
+enlace público, hora de publicación, `url` de la consola y `may_edit` (si una
+publicación con ese nombre desde este run la actualiza). Se lee como la persona
+que escucha, con la regla de listado de la consola; en un chat de grupo solo se
+enumeran las páginas de toda la organización, nunca una a la que esa persona
+llega por su cuenta. No se enumera nada donde no escucha ninguna persona
+identificada.
+
+**Vista previa.** `preview_artifact` dibuja la versión actual a 1280 píxeles de
+ancho y como máximo 2400 de alto, en un navegador que ejecuta el operador
+([`ARTIFACT_RENDER_CDP_URL`](../configuration.md#published-artifacts)), con sus
+datos leídos como la persona que escucha. En un chat de grupo solo abre una
+página de toda la organización, y la dibuja sin datos. Devuelve un informe de
+texto (los datos de cada binding, los errores no capturados, los errores de
+consola, los rechazos de la política, las peticiones rechazadas, los diálogos y
+los avisos de publicación) y la imagen como parte de imagen. Cada petición del
+renderizado la responde la API o se rechaza. Sin renderizador ni el extra
+`browser`, o pasado un plazo de 15 segundos, el informe llega solo y dice por
+qué. [Ver la página](../artifacts.md#seeing-the-page-preview) cuenta el resto.
+
 **Sin efectos secundarios.** Una primera publicación es privada para la persona en
 cuyo nombre se hizo el run, y solo una persona amplía quién la lee, así que la
 puerta de aprobación solo aparcaría el informe programado para el que existe esto.
@@ -1064,6 +1095,17 @@ con `connect-src 'none'`, y el texto de la herramienta le dice al modelo que
 incruste sus propios datos y cargue los gráficos desde el
 [conjunto de bibliotecas](../artifacts.md#the-library-set) del despliegue en lugar
 de un CDN. Consulta [cómo se aísla la página](../artifacts.md#how-the-page-is-isolated).
+
+**Cómo es una página.** La capability añade a las instrucciones del agent un
+contrato de página breve y estático: el esqueleto, las clases más usadas del kit,
+iconos de Lucide en lugar de emoji, y `AO.records` para los datos vinculados.
+Cuando el run ofrece el skill `artifact-pages` sin cargar, la primera página HTML
+completa del run es un reintento que pide al modelo cargarlo y reconstruirla; una
+vez por run, y en el último intento la página se publica con ese consejo en su
+lugar. Cada página HTML publicada se comprueba, y el `warning` del resultado
+enumera lo que parece estar mal, un problema por línea; consulta
+[el contrato de página y los avisos de publicación](../artifacts.md#the-page-contract-and-the-publish-warnings).
+Un aviso nunca detiene una publicación.
 
 **Datos en vivo.** Los `bindings` de `publish_artifact` vinculan una página HTML a
 [vistas de tabla](../virtual-tables.md#saved-views) guardadas como

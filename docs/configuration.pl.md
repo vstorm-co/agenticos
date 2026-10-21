@@ -1,5 +1,5 @@
 ---
-source_sha: "c7261314b422"
+source_sha: "a4ed874220d1"
 ---
 
 # Konfiguracja { #configuration }
@@ -719,6 +719,7 @@ serwowane. Zobacz [Artefakty](artifacts.md).
 | `ARTIFACT_MAX_VERSIONS` | `20` | Liczba wersji przechowywanych na artefakt. Najstarsza jest usuwana, gdy pojawia się nowsza, chyba że publiczny link jest do niej przypięty |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Jak długo otwiera się podpisany adres treści, najwyżej 3600. Także jak długo otwarta strona przeżywa odwołany grant albo link |
 | `ARTIFACT_ORIGIN` | (puste) | Skąd serwowana jest treść - strony, ich [zestaw bibliotek](artifacts.md#the-library-set) i dokument do osadzania. Puste serwuje ją z `PUBLIC_BASE_URL`, izolowaną polityką `sandbox`. Ustaw na host w osobnej domenie rejestrowalnej, skierowany do tego API, żeby dodatkowo umieścić stronę w innej witrynie |
+| `ARTIFACT_RENDER_CDP_URL` | (puste) | Endpoint Chromium DevTools, w którym [`preview_artifact`](artifacts.md#seeing-the-page-preview) rysuje strony, np. `http://artifact-render:9222`. To wyłącznie konfiguracja wdrożenia: nie jest sprawdzana względem `BROWSER_CDP_ALLOWED_HOSTS`, która wymienia, czym mogą sterować autorzy agentów, a agent przeglądający strony dostaje odmowę dla tego hosta, nawet gdy ta lista go wymienia. Backend potrzebuje dodatku `browser`. Gdy jest puste, podgląd zwraca raport bez obrazu |
 
 **`ARTIFACT_ORIGIN` jest czytane dwa razy i obie strony muszą je widzieć.** Backend
 podpisuje na nim adresy treści, a frontend dodaje jego ścieżkę treści,
@@ -732,6 +733,19 @@ równe `PUBLIC_BASE_URL` backendu, łącznie ze ścieżką.** Backend podpisuje 
 adresy treści na `PUBLIC_BASE_URL`, a `frame-src` konsoli wskazuje trasę treści pod
 `PUBLIC_API_URL`, więc `https://example.com/agenticos` po jednej stronie i
 `https://example.com` po drugiej to ta sama pusta ramka.
+
+**Renderer to osobna przeglądarka, bez sieci.** Compose dostarcza go jako
+opcjonalny profil `artifact-render`: przypięty bezgłowy Chromium w sieci
+wewnętrznej, do której dołączają tylko API i runner Prefect. Na każde żądanie,
+które wysyła render, odpowiada API - stroną, jej plikami bibliotek i dokumentem
+hosta - albo je odrzuca, więc przeglądarka nie potrzebuje drogi na zewnątrz. A
+ponieważ renderuje rekordy ludzi, nie może być przeglądarką, którą steruje
+[agent przeglądający strony](reference/capabilities.md#browser-automation-choose).
+Uruchom go przez `docker compose --profile artifact-render up -d`, a potem ustaw
+`ARTIFACT_RENDER_CDP_URL=http://artifact-render:9222`. Nie dodawaj
+`artifact-render` do `BROWSER_CDP_ALLOWED_HOSTS`: ta lista jest dla agentów
+przeglądających strony, a renderer nie potrzebuje w niej wpisu. Jeden proces
+rysuje naraz dwie strony, każdą w ciągu 15 sekund.
 
 ## Workspace'y agentów { #agent-workspaces }
 

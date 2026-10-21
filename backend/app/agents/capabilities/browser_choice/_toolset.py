@@ -37,7 +37,7 @@ from pydantic_ai.toolsets import FunctionToolset
 from app.agents.browser_events import BrowserEvent
 from app.agents.capabilities._metered import MeteredModel
 from app.agents.capabilities.browser_choice._elements import Element, Snapshot
-from app.agents.capabilities.browser_choice._endpoint import EndpointError
+from app.agents.capabilities.browser_choice._endpoint import EndpointError, is_renderer
 from app.agents.capabilities.browser_choice._loop import (
     BrowseResult,
     Choice,
@@ -268,6 +268,13 @@ def build_toolset(
                 )
             return detail
 
+        if is_renderer(cdp_url):
+            # Checked again here, not only at publish: an agent published before the
+            # operator named its browser the page renderer would otherwise drive it.
+            return await fail(
+                "This browser is the deployment's page renderer, which a browsing agent "
+                "may not drive. Ask an administrator for a browser of its own."
+            )
         try:
             async with open_browser(
                 cdp_url=cdp_url, start_url=start_url, policy=page_policy

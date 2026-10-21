@@ -8,7 +8,9 @@ at the repository edge; `tests/integration/test_artifacts.py` proves the rows.
 
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -31,6 +33,7 @@ from app.schemas.artifact import ArtifactPublicLinkUpdate
 from app.services import artifact as artifacts
 from app.services.artifact import ArtifactService
 from app.services.artifact_bindings import BindingCheck
+from app.services.artifact_lint import KIT_CLASSES, lint_page
 
 pytestmark = pytest.mark.anyio
 
@@ -914,6 +917,34 @@ class TestTheLibrarySet:
         with pytest.raises(NotFoundError):
             await artifacts.library_file(name)
 
+    @pytest.mark.parametrize(
+        ("name", "digest"),
+        [
+            ("agenticos-1.css", "0def869049db20fffc0163f4b5712432bc6e7fa77dd98e9097ada63529968593"),
+            ("agenticos-2.css", "995d7828591f56a4e7bb16947730dad2bab0844ecd68074c6fc85dedc1e6771b"),
+            ("agenticos-2.js", "73c8953bdcddca2b113021fc9d743728811781f15212cc28ff271d4b89241450"),
+        ],
+    )
+    async def test_a_shipped_kit_file_is_never_edited(self, name: str, digest: str) -> None:
+        """Served `immutable` for a year: a viewer who cached the old bytes keeps them, so
+        an edit makes two viewers of one page disagree (#1974). A change is a new version."""
+        data, _ = await artifacts.library_file(name)
+        assert hashlib.sha256(data).hexdigest() == digest
+
+    async def test_kit_3_keeps_every_class_and_call_of_kit_2(self) -> None:
+        assert "agenticos-3.css" in artifacts.ARTIFACT_LIBRARY
+        assert "agenticos-3.js" in artifacts.ARTIFACT_LIBRARY
+        assert KIT_CLASSES[2] < KIT_CLASSES[3]
+        script_2, _ = await artifacts.library_file("agenticos-2.js")
+        script_3, _ = await artifacts.library_file("agenticos-3.js")
+
+        def calls(script: bytes) -> set[str]:
+            exported = script.decode()[script.decode().rindex("window.AO = {") :]
+            return set(re.findall(r"^\s+(\w+): \w+,$", exported, re.M))
+
+        assert calls(script_2) < calls(script_3)
+        assert calls(script_3) - calls(script_2) == {"onData", "records"}
+
 
 _SCRIPT = artifacts.PLATFORM_SCRIPT
 """What the placement tests put in: where it goes does not depend on what it is."""
@@ -1038,8 +1069,21 @@ class TestTheBundledSkill:
         assert skill.category == "design"
         assert {resource.name for resource in skill.resources} == {
             "templates/dashboard.html",
+            "templates/live-table.html",
             "templates/report.html",
         }
+
+    def test_its_class_table_is_exactly_what_kit_3_defines(self) -> None:
+        """Every class the skill names is real, and every real one is named."""
+        named = set(re.findall(r"(?<![\w-])ao-[a-z0-9]+(?:-[a-z0-9]+)*", self._skill().content))
+        assert named == KIT_CLASSES[3]
+
+    def test_every_template_is_built_on_kit_3_and_passes_the_lint(self) -> None:
+        for resource in self._skill().resources:
+            assert "lib/agenticos-3.css" in resource.content, resource.name
+            assert "lib/agenticos-3.js" in resource.content, resource.name
+            bound = ["tickets"] if resource.name == "templates/live-table.html" else []
+            assert lint_page(resource.content.encode(), bound=bound) == [], resource.name
 
     def test_every_library_file_it_names_is_one_the_deployment_serves(self) -> None:
         """A renamed or upgraded library would otherwise leave the skill teaching

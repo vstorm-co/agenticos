@@ -710,6 +710,7 @@ file storage above; these bound them and say where they are served from. See
 | `ARTIFACT_MAX_VERSIONS` | `20` | Versions kept per artifact. The oldest is removed when a newer one lands, unless the public link is pinned to it |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | How long a signed content address opens, at most 3600. Also how long an open page outlives a revoked grant or link |
 | `ARTIFACT_ORIGIN` | (empty) | Where content is served from - the pages, their [library set](artifacts.md#the-library-set) and the embed document. Empty serves it from `PUBLIC_BASE_URL`, isolated by its `sandbox` policy. Set it to a host on a separate registrable domain, routed to this API, to also put the page on another site |
+| `ARTIFACT_RENDER_CDP_URL` | (empty) | The Chromium DevTools endpoint [`preview_artifact`](artifacts.md#seeing-the-page-preview) draws pages in, such as `http://artifact-render:9222`. Deployment config alone: it is not checked against `BROWSER_CDP_ALLOWED_HOSTS`, which lists what agent authors may drive, and a browsing agent is refused its host even when that list names it. The backend needs the `browser` extra. Empty, a preview returns its report without a picture |
 
 **`ARTIFACT_ORIGIN` is read twice, and both have to see it.** The backend signs
 content addresses on it, and the frontend adds its content route,
@@ -723,6 +724,18 @@ backend's `PUBLIC_BASE_URL` exactly, path included.** The backend then signs
 content addresses on `PUBLIC_BASE_URL`, and the console's `frame-src` names the
 content route under `PUBLIC_API_URL`, so `https://example.com/agenticos` on one
 side and `https://example.com` on the other is the same empty frame.
+
+**The renderer is its own browser, with no network.** Compose ships it as the
+opt-in `artifact-render` profile: a pinned headless Chromium on an internal
+network that only the API and the Prefect runner join. Every request a render
+makes is answered by the API - the page, its library files and a host document -
+or refused, so the browser needs no route out, and it renders people's records,
+so it must not be the browser a [browsing agent](reference/capabilities.md#browser-automation-choose)
+drives. Start it with `docker compose --profile artifact-render up -d`, then set
+`ARTIFACT_RENDER_CDP_URL=http://artifact-render:9222`. Do not add
+`artifact-render` to `BROWSER_CDP_ALLOWED_HOSTS`: that list is for browsing
+agents, and the renderer needs no entry there. One process draws two pages at a
+time, each within 15 seconds.
 
 ## Agent workspaces
 

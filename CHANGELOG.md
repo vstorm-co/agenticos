@@ -59,6 +59,17 @@ Two things are versioned separately from this file and worth knowing about:
   `restored_from` on the version read and `artifact_versions.restored_from`
   (migration `0139_artifact_restored_from`).
 
+- **Tool-call approvals say what they will do in names.** A gated `share_view`
+  or table write is parked with its ids resolved, as the run's person, to the
+  view, table and record names that person may see, and the chat's approval
+  card and the Approvals page lead with a sentence such as "Share the view
+  Closed tickets of Support with everyone who may read the table" above the
+  arguments. A capability declares the describers with `describers=` on
+  `register(...)`; one that fails or is slow parks the call without a sentence.
+  New `context` on `GET /approvals` rows, `GET /runs/{id}/parked` and the
+  `tool_approval_required` frame, and `tool_approvals.context` (migration
+  `0140_tool_approval_context`).
+
 - **Archiving and restoring a table from the console.** A member who can edit
   a Virtual Table archives it from **More actions** on its page, after a
   dialog says that its records stay readable, nothing can change them and it
@@ -67,6 +78,32 @@ Two things are versioned separately from this file and worth knowing about:
   edit it, through the new `POST /api/v1/tables/{id}/unarchive`.
   `TableRead.can_restore` says who may. The catalog can list archived tables
   too. A restore is refused while a live table holds the archived one's name.
+
+- **A page kit an agent follows, and warnings when it does not.** Library
+  version 3 (`lib/agenticos-3.css`, `lib/agenticos-3.js`) keeps every class and
+  call of version 2 and forgives loose markup: a header's parts placed directly
+  in it, a table with no `<thead>`, text written straight into a table's wrap.
+  It adds loading, note, live, list and toolbar classes, draws icons a script
+  adds later, and `AO.records` draws bound records as a finished table. Every
+  Artifacts agent gets a short page contract in its instructions; the first
+  whole HTML page of a run offering an unloaded `artifact-pages` skill is sent
+  back once to load it; and each published HTML page is checked, with what looks
+  wrong listed in the result's `warning`. A warning never stops a publish.
+
+- **Agents can list and preview their pages.** `list_artifacts` names this
+  agent's pages that the run's person may open, newest first, with each one's
+  version, bindings, visibility and whether this run may republish it; in a
+  group chat their private pages are left out. `preview_artifact` draws a page
+  as a viewer would, with its data read as that person, and returns a picture
+  and a report of its errors, console messages, policy refusals and the publish
+  warnings. The picture needs a browser the operator runs, named by the new
+  `ARTIFACT_RENDER_CDP_URL` and shipped as the opt-in `artifact-render` compose
+  profile on a network with no egress, and the `browser` extra; without them the
+  report comes alone. `agenticos cmd doctor` checks the renderer.
+
+- **Binding a private view publishes the page.** Records are read with each
+  viewer's own access, so only the view's owner sees them until it is shared; a
+  line in the publish result's `warning` tells the agent to say so.
 
 - **Pages that stay current.** An agent can bind a published page to saved
   Virtual Table views with `bindings`, and the page draws them from

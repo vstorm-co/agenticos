@@ -1,5 +1,5 @@
 ---
-source_sha: "2ccf44e4440c"
+source_sha: "3394e53d70df"
 ---
 
 # Artefakty { #artifacts }
@@ -17,10 +17,12 @@ można mu nadać publiczny link dla kogoś bez konta.
 
 ## Publikowanie artefaktu { #publishing-one }
 
-Włącz agentowi capability **Artifacts**. Dodaje ona dwa narzędzia:
+Włącz agentowi capability **Artifacts**. Dodaje ona cztery narzędzia:
 `publish_artifact`, które model wywołuje, gdy wynik jest czymś, co człowiek
-powinien otworzyć, a nie przeczytać raz w czacie, oraz `read_artifact`, które
-odczytuje opublikowaną stronę z powrotem.
+powinien otworzyć, a nie przeczytać raz w czacie; `read_artifact`, które
+odczytuje opublikowaną stronę z powrotem; `list_artifacts`, które wymienia
+strony, jakie run może otworzyć; oraz `preview_artifact`, które rysuje stronę i
+mówi, co jest w niej nie tak.
 
 Strona pochodzi z jednego z trzech miejsc:
 
@@ -52,6 +54,23 @@ jeszcze raz — edytowana kopia starszej strony nigdy nie zastępuje nowszej. Od
 podlega tej samej zasadzie co otwarcie strony w konsoli: osoba, w imieniu której
 działa run, musi mieć prawo ją otworzyć. Strona dłuższa niż 100 000 znaków wraca
 ucięta i to mówi; edycja nadal może wskazać tekst za cięciem.
+
+### Ponowne odnalezienie strony { #finding-a-page-again }
+
+Każda wiadomość to nowy run, a run widzi wcześniejsze tury tylko jako tekst, więc
+model nie pamięta nazw, pod którymi publikował. `list_artifacts` wymienia strony
+agenta w środowisku runa, od najnowszej, najwyżej 50: każdą z nazwą, tytułem,
+bieżącą wersją, formatem, bindingami na żywo, widocznością, informacją, czy
+publiczny link jest włączony, datą publikacji, linkiem do konsoli i `may_edit` —
+czy publikacja pod tą nazwą z tego runa zaktualizuje stronę, zamiast zostać
+odrzucona. Model sprawdza listę, zanim wybierze nową nazwę.
+
+Lista jest czytana jako osoba, dla której działa run, według zasady konsoli: jej
+własne strony, strony organizacji i udostępnione jej, albo każda strona dla roli,
+która widzi wszystkie strony. W czacie grupowym kanał widzi tylko strony całej
+organizacji: nigdy prywatnych ani zespołowych stron mówiącego ani strony
+udostępnionej tylko mówiącemu. Powierzchnia, na której nikt nie jest zalogowany,
+na przykład publiczny widget, nie wymienia niczego.
 
 ## Dane na żywo { #live-data }
 
@@ -85,21 +104,40 @@ jako pole `text` o wartości `null` i stanie `missing`; zarchiwizowana kolumna d
 
 Rekordy są czytane **wtedy, gdy ktoś ogląda stronę, z własnym dostępem tego
 oglądającego**, i nigdy nie są w niej przechowywane. Dwie osoby, które otworzą tę
-samą stronę, mogą zobaczyć różne wiersze. Prywatny widok obsługuje tylko swojego
-właściciela, więc agent udostępnia widok, zanim zwiąże z nim stronę dla innych
-osób. Wynik publikacji wymienia każde pole jako `Label (type)`, więc agent może
-sprawdzić, czy związał kolumnę, o którą mu chodziło; binding przeniesiony bez zmian
-mówi `kept`.
+samą stronę, mogą zobaczyć różne wiersze. Wynik publikacji wymienia każde pole
+jako `Label (type)`, więc agent może sprawdzić, czy związał kolumnę, o którą mu
+chodziło; binding przeniesiony bez zmian mówi `kept`.
 
-Nazwy bindingów i nazwy pól składają się z małych liter, cyfr i `_`, maksymalnie
-64 znaki, a `__proto__`, `constructor` i `prototype` są zarezerwowane dla obu (dla
-pola także `id`). Strona ma najwyżej 5 bindingów, a binding najwyżej 50 pól.
+Prywatny widok obsługuje tylko swojego właściciela. Związanie strony z takim
+widokiem nadal ją publikuje, a `warning` w wyniku dostaje wiersz mówiący, że
+dopóki widok nie zostanie udostępniony, rekordy widzi tylko ta osoba — agent jej
+to przekazuje. Czy zobaczy je kolega, rozstrzyga się tam, gdzie strona jest
+udostępniana: zobacz
+[Kto widzi rekordy strony na żywo](#who-sees-a-live-pages-records).
+
+Wersja 3 [biblioteki stron](#the-library-set) rysuje binding za agenta:
+`AO.records("#tickets", data.tickets)` wewnątrz `agenticos.onData` renderuje
+rekordy jako tabelę z nagłówkiem z etykiet pól, liczbami i datami wyrównanymi do
+prawej, wyborami jako plakietkami i każdą wartością wpisaną jako tekst. Zanim
+przyjdą dane, pokazuje wiersz ładowania, a binding `unavailable` albo pusty,
+ucięta lista i pominięty filtr dostają każdy własny komunikat. `AO.onData` w
+wersji 3 to to samo wywołanie co `agenticos.onData`. Strona z bindingami, której
+skrypt nigdy nie prosi o dane, nadal się publikuje, z
+[ostrzeżeniem](#the-page-contract-and-the-publish-warnings).
+
+Nazwa bindingu składa się z małych liter, cyfr i `_`. Pole można nazwać tak, jak
+podpisana jest jego kolumna: słowami z liter dowolnej wielkości, cyfr i `_`,
+rozdzielonymi pojedynczą spacją, np. `Status` albo `Created At`. Obie nazwy mają
+najwyżej 64 znaki, a `__proto__`, `constructor` i `prototype` są zarezerwowane dla
+obu (dla pola także `id`). Strona ma najwyżej 5 bindingów, a binding najwyżej 50 pól.
 
 ### Co widzi oglądający { #what-the-viewer-sees }
 
 Strona z bindingami pokazuje plakietkę **Live** na swojej karcie, w widgecie
-artefaktów na dashboardzie i w podglądzie. Na starszej wersji podgląd nie pokazuje
-plakietki.
+artefaktów na dashboardzie i w podglądzie. W podglądzie jej kropka pulsuje, gdy
+dane napływają, i robi się bursztynowa, gdy część źródeł jest dla tego
+oglądającego niedostępna. Oglądający, który nie może odczytać żadnego z nich, nie
+widzi plakietki; nie ma jej też na starszej wersji.
 
 Podgląd ma przycisk **Refresh**, który czyta dane ponownie i aktualizuje w miejscu
 stronę korzystającą z `agenticos.onData`; w podpowiedzi przycisku widać, kiedy dane
@@ -212,7 +250,9 @@ granicach:
 **Restore this version** przywraca zachowaną wersję. Członek, który może edytować
 stronę, otwiera wersję i ją przywraca; dodaje to nową wersję z bajtami starej,
 więc historia zachowuje to, co się stało, a przywrócenie można cofnąć tak samo.
-Nic nowego nie jest zapisywane w magazynie. Trafia to do dziennika audytu.
+Nic nowego nie jest zapisywane w magazynie. Trafia to do dziennika audytu. Nowa
+wersja mówi, skąd pochodzi: lista wersji pokazuje ją jako `v4 · restored from v2`,
+a API podaje jej numer w `restored_from`, które publikacja zostawia puste.
 
 ## Obsługiwane formaty { #supported-formats }
 
@@ -246,22 +286,89 @@ jeśli wdrożenie przeniesie później treść do innego originu:
 | `lib/chart-4.5.1.umd.min.js` | Chart.js 4.5.1, jako `window.Chart` |
 | `lib/d3-7.9.0.min.js` | d3 7.9.0, jako `window.d3` |
 | `lib/lucide-1.46.0.min.js` | Ikony Lucide 1.46.0, jako `window.lucide` - ten sam zestaw, którego używa konsola |
-| `lib/agenticos-2.css` | Wygląd konsoli dla stron, jasny i ciemny, oraz komponenty `ao-`, z których buduje się stronę |
-| `lib/agenticos-2.js` | `window.AO`: Chart.js w stylu konsoli, formatowanie liczb w języku strony, ikony, zakładki |
+| `lib/agenticos-3.css` | Biblioteka stron: wygląd konsoli dla stron, jasny i ciemny, oraz komponenty `ao-`, z których buduje się stronę |
+| `lib/agenticos-3.js` | `window.AO`: Chart.js w stylu konsoli, formatowanie liczb w języku strony, ikony, zakładki, `AO.onData` i `AO.records` |
+| `lib/agenticos-2.css`, `lib/agenticos-2.js` | Poprzednia wersja biblioteki, zostawiona dla stron opublikowanych z nią |
 | `lib/agenticos-1.css` | Pierwsza wersja wyglądu, zostawiona dla stron opublikowanych z nią |
 
 Każda nazwa niesie swoją wersję i jest cache'owana przez rok. Aktualizacja dodaje
-nowy plik obok starego, więc strona opublikowana z jedną wersją dalej ją dostaje.
-Nic nie jest pobierane spoza wdrożenia, więc wdrożenie bez dostępu do internetu
-działa tak samo. Pliki są wymienione w `backend/app/core/catalog/artifact_lib/`.
+nowy plik obok starego, więc strona opublikowana z jedną wersją dalej ją dostaje,
+a raz wydanego pliku nikt nie edytuje. Nic nie jest pobierane spoza wdrożenia,
+więc wdrożenie bez dostępu do internetu działa tak samo. Pliki są wymienione w
+`backend/app/core/catalog/artifact_lib/`.
 
-Dołączony [skill](skills.md) **`artifact-pages`** uczy agenta z nich korzystać: dwa
-szablony (dashboard i raport), styl domu z jego komponentami, ikony zamiast
-emoji i sposób zmiany strony przez
-`read_artifact`. Nowa organizacja dostaje go razem z innymi dołączonymi skillami,
-istniejąca przez `seed-skills`, a zakładka **Page style** capability Artifacts w
-Builderze go proponuje. Edytuj skill, żeby opisać własny branding, a agent będzie
-się go trzymał.
+Wersja 3 zachowuje każdą klasę i każde wywołanie wersji 2. Wybacza też znaczniki,
+które model pisze niedbale: tytuł, podtytuł i wiersz metadanych wstawione wprost
+do nagłówka układają się jeden pod drugim, zamiast rozjeżdżać się po nim, tabela
+zbudowana bez `<thead>` i tak dostaje wiersz nagłówka, a komunikat wpisany w
+opakowanie tabeli dostaje marginesy. Dodaje wiersze ładowania i notatek, wiersz
+podpisu, kropkę „na żywo”, listy, pasek narzędzi z polami oraz ikonę i akcje
+nagłówka. Rysowane są też ikony, które skrypt dodaje po załadowaniu strony, tak
+jak robią to rekordy strony na żywo.
+
+Dołączony [skill](skills.md) **`artifact-pages`** uczy agenta z nich korzystać:
+obowiązkowy szkielet, każda klasa biblioteki, trzy szablony (dashboard, raport i
+tabela na żywo rysowana przez `AO.records`), styl domu, ikony zamiast emoji i
+sposób zmiany strony przez `read_artifact`. Nowa organizacja dostaje go razem z
+innymi dołączonymi skillami, istniejąca przez `seed-skills`, a zakładka
+**Page style** capability Artifacts w Builderze go proponuje. Edytuj skill, żeby
+opisać własny branding, a agent będzie się go trzymał.
+
+### Kontrakt strony i ostrzeżenia przy publikacji { #the-page-contract-and-the-publish-warnings }
+
+Agent nie widzi strony, którą publikuje, więc platforma mówi mu, jak strona ma
+wyglądać i co wygląda źle w tej, którą wysłał.
+
+Capability Artifacts daje każdemu agentowi, który ją ma, krótki **kontrakt
+strony** w instrukcjach, niezależnie od tego, czy skill jest związany: szkielet
+(doctype, viewport, `lang`, arkusz stylów i skrypt biblioteki w tej kolejności,
+`main.ao-page` i nagłówek), zamkniętą listę najczęściej używanych klas biblioteki,
+ikony Lucide zamiast emoji i `AO.records` dla związanych danych.
+
+Gdy run agenta oferuje skill `artifact-pages`, a go nie załadował, jego pierwsza
+cała strona HTML wraca raz z prośbą, żeby załadować skill i zbudować stronę od
+nowa. Dzieje się to raz na run; każda nowa wiadomość to nowy run, więc może się
+powtórzyć w późniejszej turze. Edycja nigdy nie wraca.
+
+Opublikowana strona HTML jest potem sprawdzana, a wynik niesie `warning` z jednym
+wierszem na każdy znaleziony problem. Strona jest publikowana tak czy inaczej.
+Sprawdzane są:
+
+- brak `<!doctype html>` w pierwszym wierszu albo brak meta viewport;
+- klasa `ao-`, w znacznikach albo wymieniona w skrypcie, której nie definiuje ani
+  wersja biblioteki ładowana przez stronę, ani jej własny `<style>`;
+- tabela bez `<thead>` albo bez klasy `ao-table`;
+- ikony `data-lucide` bez `lib/lucide-1.46.0.min.js`;
+- `AO.onData` albo `AO.records` na stronie, która nie ładuje `lib/agenticos-3.js`;
+- strona z bindingami, której skrypt nigdy nie wywołuje `agenticos.onData` ani nie
+  czyta `agenticos.data`, więc nie pokazuje żadnych rekordów.
+
+### Jak wygląda strona: podgląd { #seeing-the-page-preview }
+
+`preview_artifact` rysuje bieżącą wersję strony tak, jak zobaczy ją ktoś, kto ją
+otworzy, w szerokości 1280 pikseli, i daje modelowi obraz oraz pisemny raport.
+Raport podaje dane każdego bindingu (rekordy, ucięcie albo niedostępność i jej
+powód), czy strona poprosiła o dane, nieprzechwycone błędy z numerem wiersza,
+błędy i ostrzeżenia konsoli, co odrzuciła polityka bezpieczeństwa strony,
+odrzucone żądania, okna dialogowe i opisane wyżej ostrzeżenia przy publikacji.
+Obraz ma najwyżej 2400 pikseli wysokości; dłuższa strona mówi, jak jest wysoka.
+Strona, która po 15 sekundach nadal działa, jest tak zgłaszana, bez obrazu.
+
+Dane są czytane jako osoba, dla której działa run, dokładnie tak, jak konsola
+czytałaby je dla niej. W czacie grupowym da się podejrzeć tylko stronę całej
+organizacji, te same strony, które pokazuje tam lista, i jest ona rysowana bez
+danych. Powierzchnia, na której nikt nie jest zalogowany, nie podgląda niczego.
+Nic, o co prosi strona, nie trafia do sieci: API odpowiada na każde żądanie
+stroną, [zestawem bibliotek](#the-library-set) albo odmową.
+
+Obraz wymaga przeglądarki uruchomionej przez operatora, wskazanej w
+[`ARTIFACT_RENDER_CDP_URL`](configuration.md#published-artifacts), i dodatku
+`browser` backendu. To ustawienie należy wyłącznie do operatora: jest oddzielone
+od hostów, którymi może sterować agent przeglądający strony, i żaden agent nie może
+skierować na nie przeglądarki. Bez któregokolwiek z nich narzędzie nadal zwraca
+raport, bez obrazu, i mówi, że wdrożenie nie ma renderera. Dla modelu, który nie
+czyta obrazów, wyłącz **Preview screenshot** w ustawieniach capability; raport
+nadal wraca. `agenticos cmd doctor` mówi, czy renderer odpowiada.
 
 ## Kto może go otworzyć { #who-can-open-it }
 
@@ -270,10 +377,10 @@ run: dla osoby na czacie albo dla twórcy triggera. Prywatną stronę widzą te�
 role Owner, Admin, Builder i Operator.
 
 Jego link - ten, na który wskazują karta w czacie i odpowiedź agenta - otwiera
-samą stronę, na całe okno, pod jednym paskiem z tytułem, wersją i przyciskiem
-**Share**. Sam link nikogo nie wpuszcza: otwiera się tylko zalogowanemu
-członkowi, którego wpuszczają już poniższe zasady. Link wskazuje organizację, w
-której jest artefakt (`?org=`), więc członek kilku organizacji trafia do
+samą stronę (karta w czacie otwiera ją w nowej karcie), na całe okno, pod
+jednym paskiem z tytułem, wersją i przyciskiem **Share**. Sam link nikogo nie
+wpuszcza: otwiera się tylko zalogowanemu członkowi, którego wpuszczają już
+poniższe zasady. Link wskazuje organizację, w której jest artefakt (`?org=`), więc członek kilku organizacji trafia do
 właściwej.
 
 Pod **Share** każdy, kto może nim zarządzać, może go udostępnić
@@ -299,6 +406,14 @@ decyduje w chwili oglądania własny dostęp każdego oglądającego. Autor, kt�
 strony z bindingami, ustawia `tool_approval` na `publish_artifact` w specu. Stronę
 z bindingami może ponownie opublikować tylko run działający w imieniu członka
 (zobacz [Dane na żywo](#live-data)).
+
+### Kto widzi rekordy strony na żywo { #who-sees-a-live-pages-records }
+
+Udostępnienie [strony na żywo](#live-data) pozwala komuś ją otworzyć, ale rekordy
+każdego bindingu są czytane z jego własnym dostępem. Żeby je zobaczyć, potrzebuje
+też prawa odczytu tabeli bindingu i widoku udostępnionego albo własnego. Strona
+związana z prywatnym widokiem pokazuje więc rekordy tylko właścicielowi widoku;
+wynik publikacji mówi to agentowi, żeby przekazał to dalej.
 
 ### Publiczny link { #the-public-link }
 
@@ -403,6 +518,43 @@ to jest utwardzenie, o które może poprosić przegląd bezpieczeństwa, a nie w
 Ustaw zmienną dla backendu i dla frontendu, który dodaje ścieżkę treści tego
 originu do swojego `frame-src`. Zobacz [Konfiguracja](configuration.md#published-artifacts).
 
+## Archiwizacja strony { #archiving-a-page }
+
+Archiwizacja zabiera stronę wszystkim, nie tracąc jej. Ktoś, kto może edytować
+stronę, wybiera **Archive** z menu **More actions** nad nią, a dialog mówi, co to
+zrobi, zanim cokolwiek się zmieni. Strona, jej wersje, granty i nazwa zostają.
+Nic jej nie serwuje, dopóki nie zostanie przywrócona z tej samej strony.
+Archiwizacja trafia do audytu jako `artifact.archived`, a przywrócenie jako
+`artifact.unarchived`.
+
+Dopóki strona jest zarchiwizowana, każda droga, która by ją pokazała, odpowiada
+tak, jakby jej nie było:
+
+- **Konsola.** Jej podgląd i dane na żywo są odrzucane, podobnie jak podpisany
+  adres wydany przed archiwizacją. Czytelnik, który otworzy jej link, dowiaduje
+  się, że nie jest dostępna. Ktoś, kto może ją edytować, widzi, kiedy ją
+  zarchiwizowano, razem z **Restore** i **Delete**.
+- **Listy.** Lista Artifacts i widget na dashboardzie ją pomijają. Wybierz na
+  liście **Archived included**, żeby ją zobaczyć, oznaczoną jako **Archived**.
+- **Publiczny link i embed.** Oba nie otwierają niczego.
+- **Agent.** `publish_artifact` odrzuca nazwę komunikatem wskazującym archiwum,
+  więc run nie może założyć pod nią drugiej strony. `read_artifact`,
+  `preview_artifact` i `list_artifacts` traktują stronę jak nieistniejącą. Run,
+  który nie może edytować strony, słyszy tylko, że nazwa nie jest jego do zmiany.
+
+Archiwizacja wyłącza publiczny link, co trafia do audytu jako
+`artifact.public_link_disabled`, a przywrócenie nie włącza go ponownie. Adres
+rozesłany przed archiwizacją pozostaje martwy, dopóki ktoś nie utworzy nowego w
+**Share**. Na tę okazję zostają wygaśnięcie linku, przypięta wersja, hasło i
+witryny, które mogą go osadzać.
+
+Przez API `POST /api/v1/artifacts/{id}/archive` archiwizuje stronę, a ponowna
+archiwizacja niczego nie zmienia. `POST /api/v1/artifacts/{id}/unarchive` ją
+przywraca i odpowiada `400` dla strony, która nie jest zarchiwizowana. Oba
+wymagają prawa do edycji tej strony, także z grantu. `GET /api/v1/artifacts`
+wymienia zarchiwizowane strony tylko z `include_archived=true`, a `archived_at`
+na każdej stronie mówi, kiedy ją zarchiwizowano.
+
 ## Retencja i usuwanie { #retention-and-deletion }
 
 Artefakty są osobną [klasą retencji](governance.md#the-classes), liczoną od
@@ -411,7 +563,8 @@ od tego, jak stara jest jego pierwsza wersja. Jak każda klasa, trzyma artefakty
 bezterminowo, dopóki organizacja albo wdrożenie nie ustawi okresu.
 
 Usunięcie artefaktu — ręcznie albo przez retencję — usuwa każdą wersję, jej
-przechowywane bajty, jego granty i jego publiczny link. Usunięcie agenta nie
+przechowywane bajty, jego granty i jego publiczny link. Zarchiwizowana strona
+starzeje się i jest usuwana jak każda inna. Usunięcie agenta nie
 usuwa jego artefaktów: pozostają czytelne i po prostu nie mają wydawcy. Usunięcie
 nazwanego środowiska robi to samo ze stronami z niego opublikowanymi, więc nigdy
 nie trafiają na stronę środowiska domyślnego o tej samej nazwie. Usunięcie
@@ -439,11 +592,17 @@ wdrożenia, pod `artifacts/<organization>/<artifact>/`.
   zalogować się w ramce na cudzej witrynie.
 - **Usunięte wersje przepadają.** Rozmowa, która linkuje do wersji starszej niż
   przechowywane okno, może zaproponować tylko najnowszą.
+- **Bez renderera agent nie widzi swojej strony.** Ostrzeżenia przy publikacji
+  czytają znaczniki i nie mogą powiedzieć, jak strona wygląda. Z rendererem obraz
+  pochodzi z bezgłowego Chromium: fonty i rozmiary mogą się nieco różnić od tych
+  w przeglądarce czytelnika.
 
 ## Podsumowanie { #recap }
 
-- Jedna capability, dwa narzędzia: `publish_artifact`, z pliku w workspace'ie,
-  inline albo jako edycje, oraz `read_artifact` do odczytania strony z powrotem.
+- Jedna capability, cztery narzędzia: `publish_artifact`, z pliku w workspace'ie,
+  inline albo jako edycje; `read_artifact` do odczytania strony z powrotem;
+  `list_artifacts` do jej odnalezienia; oraz `preview_artifact`, żeby zobaczyć ją
+  narysowaną, razem z jej błędami.
 - Agent, środowisko i nazwa to tożsamość; ponowna publikacja zachowuje link i
   dodaje wersję, a każdą zachowaną wersję można przywrócić.
 - Domyślnie prywatny; udostępniany grantami, organizacji albo publicznym linkiem —
@@ -452,7 +611,11 @@ wdrożenia, pod `artifacts/<organization>/<artifact>/`.
 - Strona może związać się z zapisanymi widokami tabel i pokazywać dane na żywo,
   czytane w chwili oglądania z własnym dostępem oglądającego i nigdy nie
   przechowywane w stronie.
+- Krótki kontrakt strony w instrukcjach każdego agenta z Artifacts i ostrzeżenia w
+  wyniku publikacji o tym, co wygląda źle w znacznikach.
 - Serwowany z trasy bez ciasteczek, w nieprzezroczystym originie bez sieci poza
   własnym zestawem bibliotek wdrożenia, z linkami, które pytają przed otwarciem, i
   opcjonalnie z własnej domeny.
+- Archiwizacja zachowuje stronę i nie serwuje z niej niczego, przy wyłączonym
+  publicznym linku, dopóki ktoś, kto może ją edytować, jej nie przywróci.
 - Osobna klasa retencji, liczona od ostatniej publikacji.

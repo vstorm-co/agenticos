@@ -11,6 +11,8 @@ from __future__ import annotations
 from fnmatch import fnmatch
 from urllib.parse import urlparse, urlsplit
 
+from app.core.config import settings
+
 DEBUGGER_KEY = "webSocketDebuggerUrl"
 """The field `/json/version` answers with, and the one thing read out of it."""
 
@@ -116,3 +118,17 @@ def domain_allowed(url: str, patterns: list[str] | None) -> bool:
     if patterns is None:
         return True
     return any(fnmatch(host, pattern.lower()) for pattern in patterns)
+
+
+def is_renderer(cdp_url: str) -> bool:
+    """Whether `cdp_url` names this deployment's page renderer (`ARTIFACT_RENDER_CDP_URL`).
+
+    That browser draws people's records for `preview_artifact` and is the operator's
+    alone, so a browsing agent is refused it - when it is published, and again on
+    every browse, since the renderer may be named after the agent was. Matched by
+    host name, case-folded, any port; an alias or address of it is kept out by
+    `BROWSER_CDP_ALLOWED_HOSTS` itself.
+    """
+    renderer = urlsplit((settings.ARTIFACT_RENDER_CDP_URL or "").strip()).hostname
+    host = urlsplit(cdp_url.strip()).hostname
+    return renderer is not None and host is not None and host.lower() == renderer.lower()

@@ -99,6 +99,11 @@ address check; an unvetted one is refused whatever it resolves to. Matching is
 exact and case-folded: a hostname is not a pattern, and `*.internal` on a
 security allowlist is a wildcard somebody reads as narrower than it is.
 
+One host is refused even when the allowlist names it: the host of
+`ARTIFACT_RENDER_CDP_URL`. That is the browser `preview_artifact` draws people's
+pages in - deployment config, never an author's - so listing it by mistake must
+not hand it to every browsing agent.
+
 **Let a page decide how much this deployment allocates.** The candidate cap, the
 option lists, the labels and the page text are all cut *inside* the page, before
 `JSON.stringify`. Cutting them in Python is cutting a string that has already
