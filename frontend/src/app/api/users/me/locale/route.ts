@@ -1,3 +1,3 @@
 import { platformProxy } from "@/lib/platform-proxy";
 
-export const { PUT } = platformProxy();
+export const { GET, POST, PUT, PATCH, DELETE } = platformProxy();

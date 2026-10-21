@@ -17,10 +17,12 @@ from app.services.platform_mcp._tools import platform_tools
 
 pytestmark = pytest.mark.anyio
 
-ORG = str(uuid.uuid4())
-AGENT = uuid.uuid4()
-KB = uuid.uuid4()
-RUN = uuid.uuid4()
+# Fixed, not `uuid4()`: the paths below are test parameters, and a parameter
+# that differs between xdist workers fails the whole collection.
+ORG = "00000000-0000-4000-8000-00000000000a"
+AGENT = uuid.UUID("00000000-0000-4000-8000-0000000000a1")
+KB = uuid.UUID("00000000-0000-4000-8000-0000000000b1")
+RUN = uuid.UUID("00000000-0000-4000-8000-0000000000c1")
 
 
 @pytest.fixture

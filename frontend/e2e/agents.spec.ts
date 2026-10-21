@@ -265,11 +265,11 @@ test.describe("Agents", () => {
     // same headings and none of this.
     await expect(pageStatus(page)).toContainText("published");
     await expect(page.getByRole("textbox", { name: "Description" })).toHaveValue(
-      /general-purpose agent in the style of Claude Code/,
+      /organization's general-purpose assistant/,
     );
 
     await expect(page.getByRole("textbox", { name: "Instructions" })).toHaveValue(
-      /You are a capable, general-purpose assistant/,
+      /You are \{\{agent_name\}\}, an assistant in/,
     );
 
     // The model section leads with the profile this agent actually runs on, and
