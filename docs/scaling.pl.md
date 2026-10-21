@@ -1,5 +1,5 @@
 ---
-source_sha: "0dc46f479226"
+source_sha: "4d597d189a74"
 ---
 
 # Skalowanie poza jeden host { #scale-beyond-one-host }
@@ -140,6 +140,8 @@ Uruchom tyle procesów workerów, ile potrzeba, na dowolnych hostach. Pobierają
 zadania przez `SKIP LOCKED`, więc żadne dwa nie wykonają tego samego zadania, a
 każdy z nich może odpalić należny harmonogram. Worker, który padnie, oddaje
 swoje zadania w ciągu `WORKER_LEASE_SECONDS`.
+Dlaczego kolejka to wiersze w Postgresie, zmierzone na tle dziewięciu innych
+silników, opisuje [benchmark zadań w tle](task-queue-benchmark.md).
 
 Rozdziel pule, gdy parsowanie konkuruje z uruchomieniami agentów.
 `WORKER_POOLS=agent,system` na jednych procesach i `WORKER_POOLS=ingest` na

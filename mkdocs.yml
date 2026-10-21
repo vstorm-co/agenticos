@@ -372,6 +372,7 @@ nav:
           - adding_features.md
           - testing.md
           - load-testing.md
+          - task-queue-benchmark.md
           - code-review.md
           - branching.md
           - howto/translate.md
