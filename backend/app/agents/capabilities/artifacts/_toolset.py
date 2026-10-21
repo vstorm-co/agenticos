@@ -230,18 +230,23 @@ def build_artifacts_toolset(
             format: `html` or `markdown`. Inferred from `path`'s extension; for
                 `content` it defaults to `html`. An edit keeps the page's format.
             bindings: Live data for an HTML page, as `{name: {view, fields}}`: `view` is a
-                saved view's id, `fields` maps each name the page reads to the column it
-                is, by id or label, e.g.
-                `{"tickets": {"view": "<id>", "fields": {"status": "Status"}}}`. Names are
-                lower-case letters, digits and `_`. Omit to keep the page's current
-                bindings; `{}` removes them.
+                saved view's id or its exact name, `fields` maps each name the page reads
+                to the column it is, by id or label, e.g.
+                `{"tickets": {"view": "Open tickets", "fields": {"status": "Status"}}}`.
+                Binding names are lower-case letters, digits and `_`; a field may be named
+                as its column is labelled (`Status`, `Created At`). Omit to keep the page's
+                current bindings - the usual case when changing a page's look. Never ask
+                the person for an id: `list_views` gives every view's. `{}` removes them.
 
         Returns:
             A JSON reference to the published page - its `url`, the `version` number,
             whether it was `created` or updated, `unchanged` when the content and
             bindings were identical to the current version (nothing new was stored), and
             `bindings`: each field and the column it reads, as `Status (single_select)`,
-            or `kept` for one carried from the previous version. The interface
+            or `kept` for one carried from the previous version. A `warning`, when
+            present, lists what looks wrong in the page, one problem per line: fix each
+            and publish again - except a binding to a private view, which is published
+            as it is and only told to the person. The interface
             shows the user a card with the link; tell them in one line what you
             published. New pages are private to the person this run is for until they
             share it.

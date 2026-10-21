@@ -47,6 +47,10 @@ Two things are versioned separately from this file and worth knowing about:
   `TableRead.can_restore` says who may. The catalog can list archived tables
   too. A restore is refused while a live table holds the archived one's name.
 
+- **Binding a private view publishes the page.** Records are read with each
+  viewer's own access, so only the view's owner sees them until it is shared; a
+  line in the publish result's `warning` tells the agent to say so.
+
 - **Pages that stay current.** An agent can bind a published page to saved
   Virtual Table views with `bindings`, and the page draws them from
   `agenticos.onData`. Records are read when somebody views the page, with that

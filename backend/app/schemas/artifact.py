@@ -17,7 +17,7 @@ class BindingRequest(BaseSchema):
 
     model_config = ConfigDict(extra="forbid")
 
-    view: UUID
+    view: UUID | str = Field(description="The saved view's id from `list_views`, or its exact name")
     fields: dict[str, str] = Field(
         description="Field name to the table column it reads, given as a column id or a label"
     )

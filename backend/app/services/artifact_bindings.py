@@ -31,7 +31,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext
 from app.schemas.artifact import ArtifactBinding, BindingData, BindingRequest, BoundField
 from app.schemas.virtual_table import ColumnDef, RecordRead
@@ -51,13 +51,26 @@ Reason = Literal[
 
 _NAME = re.compile(r"[a-z_][a-z0-9_]{0,63}")
 _PATTERN = "`^[a-z_][a-z0-9_]{0,63}$`"
+_FIELD = re.compile(r"(?!\d)\w+(?: \w+)*")
+"""A field name: words of letters in any case or script, digits and `_`, one space
+between words, not starting with a digit. A model names a field after its column's
+label - `Title`, `Created At` - and the page reads exactly the key it declared, so
+the case is the page's business. A field name reaches the page only as a key of the
+JSON its data arrives in, never in its markup; the binding name, which is written
+into the page's script, keeps `_NAME`."""
 _RESERVED_FIELDS = frozenset({"id", "__proto__", "constructor", "prototype"})
 """Names a page script reads every record by, or that would reach an object's prototype."""
 _RESERVED_NAMES = frozenset({"__proto__", "constructor", "prototype"})
 """Binding names a page script would reach an object's prototype by."""
 MAX_FIELDS = 50
+_VIEWS_PER_TABLE = 100
+"""The views of one table looked through for a name: the most `list_views` gives at once."""
 NO_PERSON = "Only a run acting for a member can bind a page to a view."
 _REPLACE = "; pass `bindings` to replace them."
+VIEW_HINT = (
+    " Take a view's id from `list_views`, never from memory; to keep a page's current "
+    "bindings, leave `bindings` out."
+)
 
 
 @dataclass(frozen=True)
@@ -165,16 +178,65 @@ async def _check_requested(
         return BindingCheck(name, None, f"Binding name {name[:64]!r} must match {_PATTERN}.", True)
     if name in _RESERVED_NAMES:
         return BindingCheck(name, None, f"Binding name {name} is reserved; choose another.", True)
-    if prior is not None and _resends(request, prior):
+    view_id = await _view_id(views, person, name, request.view, grants)
+    if isinstance(view_id, str):
+        return BindingCheck(name, None, view_id, True)
+    if prior is not None and _resends(view_id, request, prior):
         return await _carry(views, organization_id, prior, None, person, grants, recheck_person)
-    resolution = await _resolve(views, organization_id, name, request.view, request.fields)
+    resolution = await _resolve(views, organization_id, name, view_id, request.fields)
     if prior is not None and isinstance(resolution, _Resolved) and _same(resolution.binding, prior):
         return await _carry(
             views, organization_id, prior, resolution, person, grants, recheck_person
         )
-    failure = await _as_person(views, person, name, request.view) or _standing(resolution, grants)
+    failure = await _as_person(views, person, name, view_id) or _standing(resolution, grants)
     binding = resolution.binding if isinstance(resolution, _Resolved) else None
     return BindingCheck(name, binding, failure.sent if failure else None, True)
+
+
+async def _view_id(
+    views: TableViewService,
+    person: AuthContext | None,
+    name: str,
+    view: UUID | str,
+    grants: Mapping[UUID, frozenset[str]],
+) -> UUID | str:
+    """The view a binding names, by id or by name; text when it names none or several.
+
+    A name is matched ignoring case, among the views `person` sees - their own and
+    the shared ones - on the tables the spec grants `read`. A view anyone else could
+    not see is never matched, so a name that misses reads the same whether such a
+    view exists or not. Only a person can be looked up for, as only a person can see
+    a view.
+    """
+    if isinstance(view, UUID):
+        return view
+    as_id = _as_uuid(view)
+    if as_id is not None:
+        return as_id
+    if person is None:
+        return NO_PERSON
+    wanted = view.casefold()
+    found: list[UUID] = []
+    for table_id, operations in grants.items():
+        if "read" not in operations:
+            continue
+        try:
+            listed = await views.list_views(person, table_id, limit=_VIEWS_PER_TABLE)
+        except (NotFoundError, AuthorizationError, TableArchivedError):
+            continue
+        found += [item.id for item in listed.items if item.name.casefold() == wanted]
+    if len(found) == 1:
+        return found[0]
+    if not found:
+        return (
+            f"Binding {name}: no saved view named {view[:64]!r} on a table this agent may "
+            f"read.{VIEW_HINT}"
+        )
+    ids = ", ".join(sorted(str(view_id) for view_id in found))
+    return (
+        f"Binding {name}: {len(found)} saved views are named {view[:64]!r}; pass the id "
+        f"of one, from `list_views`: {ids}."
+    )
 
 
 async def _carry(
@@ -283,10 +345,14 @@ def _misnamed(name: str, fields: Mapping[str, UUID]) -> _Failure | None:
     published, so only a requested one can fail it, and a publish refuses it.
     """
     text = None
-    bad = next((field for field in fields if not _NAME.fullmatch(field)), None)
+    bad = next((field for field in fields if len(field) > 64 or not _FIELD.fullmatch(field)), None)
     reserved = next((field for field in fields if field in _RESERVED_FIELDS), None)
     if bad is not None:
-        text = f"Binding {name}: field name {bad[:64]!r} must match {_PATTERN}."
+        text = (
+            f"Binding {name}: field name {bad[:64]!r} must be words of letters, digits and "
+            "`_` with single spaces between them, at most 64 characters, not starting with a "
+            "digit."
+        )
     elif reserved is not None:
         text = f"Binding {name}: field name {reserved} is reserved; choose another."
     elif len(fields) > MAX_FIELDS:
@@ -369,13 +435,17 @@ def _archived(name: str, view_id: UUID) -> _Failure:
 
 
 def _not_found(view_id: UUID) -> str:
-    return f"View {view_id} not found."
+    """The same words for a view that is gone, elsewhere or not this person's to see.
+
+    The hint is the same for all three, so it says nothing about which one it was.
+    """
+    return f"View {view_id} not found.{VIEW_HINT}"
 
 
-def _resends(request: BindingRequest, prior: ArtifactBinding) -> bool:
+def _resends(view_id: UUID, request: BindingRequest, prior: ArtifactBinding) -> bool:
     """Whether the request names exactly the stored binding's view and column ids."""
     return (
-        request.view == prior.view_id
+        view_id == prior.view_id
         and {field: _as_uuid(ref) for field, ref in request.fields.items()} == prior.fields
     )
 

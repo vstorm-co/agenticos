@@ -5,6 +5,7 @@ import { AlertTriangle, ChevronDown, RefreshCw } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 
 import type { BridgeStatus, DataBridge } from "@/components/artifacts/artifact-frame";
+import type { LiveHealth } from "@/components/artifacts/live-badge";
 import {
   Button,
   DropdownMenu,
@@ -53,6 +54,24 @@ function stopsAutoRefresh(status: BridgeStatus): boolean {
   if (status.error !== null || superseded(status)) return false;
   const bindings = Object.values(status.data?.bindings ?? {});
   return bindings.length > 0 && bindings.every((binding) => binding.status === "unavailable");
+}
+
+/**
+ * What the badge beside the title shows, by the same reading `LiveDataNotice`
+ * makes: some sources unavailable is `partial`, all answering is `flowing`. A
+ * refusal, or no source available, is `null` - no badge, since nothing on the
+ * page is live for this viewer, and the notice says why. A read still to come,
+ * a transient failure or a read of a replaced version says nothing about the
+ * sources.
+ */
+export function liveHealth(status: BridgeStatus): LiveHealth | null {
+  if (refused(status)) return null;
+  if (status.error !== null || superseded(status)) return "steady";
+  const bindings = Object.values(status.data?.bindings ?? {});
+  if (bindings.length === 0) return "steady";
+  const unavailable = bindings.filter((binding) => binding.status === "unavailable").length;
+  if (unavailable === bindings.length) return null;
+  return unavailable > 0 ? "partial" : "flowing";
 }
 
 /** When the last read answered, as the strip says it. */

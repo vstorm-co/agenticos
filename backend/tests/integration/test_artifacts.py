@@ -828,6 +828,45 @@ class TestPublishingBindings:
             }
         ]
 
+    async def test_a_private_view_publishes_with_a_warning_to_tell_the_person(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        world = await _bound(db, visibility="private")
+
+        published = await world.publish(
+            "<p>live</p>", run_person=world.owner.id, bindings=world.ask(status="Status")
+        )
+
+        assert published.bindings == {"tickets": {"status": "Status (single_select)"}}
+        assert published.warnings == [
+            "Binding tickets reads your private view 'Open': only you see its records until "
+            "the view is shared. Tell the person; the page's Share dialog shows what anyone "
+            "they share it with still needs."
+        ]
+
+    async def test_a_shared_view_publishes_without_a_warning(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        world = await _bound(db)
+
+        published = await world.publish(
+            "<p>live</p>", run_person=world.owner.id, bindings=world.ask(status="Status")
+        )
+
+        assert published.warnings == []
+
+    async def test_a_private_binding_carried_forward_is_not_warned_about_again(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        world = await _bound(db, visibility="private")
+        await world.publish(
+            "<p>v1</p>", run_person=world.owner.id, bindings=world.ask(status="Status")
+        )
+
+        second = await world.publish("<p>v2</p>", run_person=world.owner.id)
+
+        assert second.warnings == []
+
     async def test_omitted_bindings_carry_forward(
         self, db: AsyncSession, storage: LocalFileStorage
     ) -> None:

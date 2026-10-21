@@ -15,6 +15,7 @@ transaction.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Awaitable, Callable
 from typing import Annotated, Any
 from uuid import UUID
@@ -60,6 +61,8 @@ from app.services.virtual_tables.presentation import (
     schema,
 )
 from app.services.virtual_tables.receipts import derived_operation_key
+
+logger = logging.getLogger(__name__)
 
 Grants = dict[UUID, frozenset[TableOperation]]
 
@@ -255,14 +258,17 @@ def build_tables_toolset(*, grants: Grants, allow_create: bool) -> FunctionTools
         return await _call_as_person(ctx, work)
 
     @toolset.tool
-    async def share_view(ctx: RunContext[AgentDeps], view_id: UUID) -> str:
+    async def share_view(ctx: RunContext[AgentDeps], view_id: UUID, reason: str) -> str:
         """Share one of your own private views with the organization.
 
         Only the view's owner can: sharing lets everyone who may read the table see
-        the view's filters and the rows it selects.
+        the view's filters and the rows it selects. The person is asked to approve it,
+        and `reason` is what tells them why.
 
         Args:
             view_id: The view's id, from list_views.
+            reason: One sentence for the person approving, naming what needs it, e.g.
+                "So everyone who opens the page My closed tickets sees its records."
 
         Returns:
             The view as list_views returns it, now shared.
@@ -279,6 +285,7 @@ def build_tables_toolset(*, grants: Grants, allow_create: bool) -> FunctionTools
             shared = await views.update_view(
                 person, bound.table_id, view_id, TableViewUpdate(visibility="shared")
             )
+            logger.info("View %s shared by its owner: %s", view_id, reason)
             return as_json(_view_json(shared, bound.columns, person))
 
         return await _call_as_person(ctx, work)

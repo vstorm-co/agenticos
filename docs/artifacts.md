@@ -79,20 +79,29 @@ gone. A field whose column was removed is served under its field name as a
 
 The records are read **when somebody views the page, with that viewer's own
 access**, and are never stored in it. Two people opening the same page can see
-different rows. A private view serves only its owner, so the agent shares a view
-before a page for other people binds to it. The publish result lists each field
-as `Label (type)`, so the agent can check it bound the column it meant; a binding
-carried forward unchanged says `kept`.
+different rows. The publish result lists each field as `Label (type)`, so the
+agent can check it bound the column it meant; a binding carried forward unchanged
+says `kept`.
 
-Binding names and field names are lower-case letters, digits and `_`, at most
-64 characters, and `__proto__`, `constructor` and `prototype` are reserved for
-both (`id` too, for a field). A page has at most 5 bindings, and a binding at most
-50 fields.
+A private view serves only its owner. Binding one still publishes the page, and the
+result's `warning` gets a line saying that only the person sees its records until
+the view is shared, which the agent tells them. Whether a colleague will see them
+is answered where the page is shared: see
+[Who sees a live page's records](#who-sees-a-live-pages-records).
+
+A binding name is lower-case letters, digits and `_`. A field name may be written
+as its column is labelled: words of letters in any case, digits and `_`, with single
+spaces between them, such as `Status` or `Created At`. Both are at most 64
+characters, and `__proto__`, `constructor` and `prototype` are reserved for both
+(`id` too, for a field). A page has at most 5 bindings, and a binding at most 50
+fields.
 
 ### What the viewer sees
 
 A page with bindings shows a **Live** badge on its card, in the dashboard's
-artifact widget and in the viewer. On an older version the viewer shows no badge.
+artifact widget and in the viewer. In the viewer its dot pulses while the data
+arrives and turns amber when some sources are unavailable to this viewer. A
+viewer who can read none of them sees no badge, and neither does an older version.
 
 The viewer has **Refresh**, which reads the data again and updates a page that
 uses `agenticos.onData` in place, with when it was last read in the button's
@@ -257,7 +266,7 @@ person in the chat, or the creator of a trigger. A private page is also visible
 to the Owner, Admin, Builder and Operator roles.
 
 Its link - the one the chat card and the agent's reply point at - opens the page
-itself, filling the window under one strip with its title, its version and
+itself (from the chat card, in a new tab), filling the window under one strip with its title, its version and
 **Share**. Nobody gets in through that link alone: it opens only for a signed-in
 member the rules below already let in. It names the organization the artifact is
 in (`?org=`), so a member of several lands in the right one.
@@ -283,6 +292,14 @@ each viewer's own access. An author who wants a person to approve each republish
 of an already shared page, or of a bound page, sets `tool_approval` on
 `publish_artifact` in the spec. A bound page can be republished only by a run
 acting for a member (see [Live data](#live-data)).
+
+### Who sees a live page's records
+
+Sharing a [live page](#live-data) lets a person open it, but each binding's records
+are read with their own access. To see them they also need read access to the
+binding's table, and a view that is shared or their own. A page bound to a private
+view therefore shows its records only to the view's owner; the publish result tells
+the agent so, for it to pass on.
 
 ### The public link
 

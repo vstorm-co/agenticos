@@ -467,6 +467,9 @@ class PublishedArtifact:
     bindings: dict[str, dict[str, str]] = field(default_factory=dict)
     """Each binding's fields, as `Status (single_select)` for a field this publication
     resolved, or :data:`KEPT` for one carried from the previous version."""
+    warnings: list[str] = field(default_factory=list)
+    """What the model should tell the person about the bindings, one line each: a newly
+    bound view private to them, whose records nobody else the page is shared with sees."""
 
 
 @dataclass(frozen=True)
@@ -737,14 +740,16 @@ async def publish_with(
     unchanged = same_bytes and latest is not None and latest.bindings == canonical
     if person is None and previous and not unchanged:
         raise _live_page(name)
-    echo = await _echo(db, person, resolved)
+    echo, warnings = await _echo(db, person, resolved)
 
     retitle = {"title": title} if title else {}
     if unchanged and latest is not None:
         artifact = await artifact_repo.update(
             db, artifact=artifact, update_data={**retitle, "published_at": datetime.now(UTC)}
         )
-        return _published(artifact, latest, created=created, unchanged=True, bindings=echo)
+        return _published(
+            artifact, latest, created=created, unchanged=True, bindings=echo, warnings=warnings
+        )
 
     path = _storage_path(artifact, sha256, media_type)
     await get_file_storage().save_at(path, data)
@@ -770,7 +775,9 @@ async def publish_with(
         target_id=str(artifact.id),
         details={"name": name, "version": version.number, "agent_id": str(agent_id)},
     )
-    return _published(artifact, version, created=created, unchanged=False, bindings=echo)
+    return _published(
+        artifact, version, created=created, unchanged=False, bindings=echo, warnings=warnings
+    )
 
 
 def _binding_reads(version: ArtifactVersion | None) -> list[ArtifactBindingRead]:
@@ -798,15 +805,21 @@ def _bindings_of(version: ArtifactVersion | None) -> list[ArtifactBinding]:
 
 async def _echo(
     db: AsyncSession, person: AuthContext | None, resolved: Sequence[tuple[ArtifactBinding, bool]]
-) -> dict[str, dict[str, str]]:
-    """What each binding's fields read, for the model to check against what it meant.
+) -> tuple[dict[str, dict[str, str]], list[str]]:
+    """What each binding's fields read, for the model to check against what it meant, and
+    a warning for each binding newly bound to a view private to `person`.
 
     A binding the request named anew was checked as `person`, who sees its view, so
     its columns are read as theirs. One carried from the previous version says only
-    that it was kept.
+    that it was kept, and is not warned about again.
+
+    A private view is bound as it is: the page publishes, and only its owner sees
+    the view's records until it is shared. Whether someone the page is shared with
+    sees them is the Share dialog's to say, which knows who that is.
     """
     views = TableViewService(db)
     echo: dict[str, dict[str, str]] = {}
+    warnings: list[str] = []
     for binding, changed in resolved:
         if changed and person is not None:
             bound = await views.find_view(person, binding.view_id)
@@ -815,9 +828,19 @@ async def _echo(
                 name: f"{columns[column_id].label} ({columns[column_id].type})"
                 for name, column_id in binding.fields.items()
             }
+            if bound.view.visibility == "private":
+                warnings.append(_private_view(binding.name, bound.view.name))
         else:
             echo[binding.name] = dict.fromkeys(binding.fields, KEPT)
-    return echo
+    return echo, warnings
+
+
+def _private_view(binding: str, view: str) -> str:
+    return (
+        f"Binding {binding} reads your private view {view!r}: only you see its records "
+        "until the view is shared. Tell the person; the page's Share dialog shows what "
+        "anyone they share it with still needs."
+    )
 
 
 async def _append_version(
@@ -1008,6 +1031,7 @@ def _published(
     created: bool,
     unchanged: bool,
     bindings: dict[str, dict[str, str]],
+    warnings: list[str],
 ) -> PublishedArtifact:
     return PublishedArtifact(
         artifact_id=artifact.id,
@@ -1021,6 +1045,7 @@ def _published(
         visibility=artifact.visibility,
         public=artifact.public_key is not None,
         bindings=bindings,
+        warnings=warnings,
     )
 
 

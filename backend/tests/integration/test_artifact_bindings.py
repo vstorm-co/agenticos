@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from typing import Literal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,7 +29,7 @@ from app.schemas.virtual_table import (
     TableRead,
 )
 from app.services.access import TABLE
-from app.services.artifact_bindings import BindingCheck, check_bindings
+from app.services.artifact_bindings import VIEW_HINT, BindingCheck, check_bindings
 from app.services.virtual_tables import TableViewService, VirtualTableService
 from tests.integration.virtual_table_support import (
     column,
@@ -221,6 +221,162 @@ async def _linked(world: _World) -> tuple[TableRead, TableRead, TableViewRead]:
     return products, orders, view
 
 
+class TestAPrivateView:
+    """A view only the person sees is bound as it is: who else sees its records is the
+    Share dialog's to say, not the publish's."""
+
+    async def test_ones_own_private_view_is_bound_as_it_is(self, db):
+        world = await _world(db, visibility="private")
+
+        check = await world.one({"tickets": _ask(world.view, s="Status")})
+
+        assert check.problem is None
+        assert check.binding is not None and check.binding.view_id == world.view.id
+
+    async def test_a_shared_view_is_bound_without_a_word(self, db):
+        world = await _world(db)
+
+        check = await world.one({"tickets": _ask(world.view, s="Status")})
+
+        assert check.problem is None
+
+    async def test_a_private_binding_already_on_the_page_is_carried(self, db):
+        world = await _world(db, visibility="private")
+        prior = world.stored({"s": "Status"})
+
+        check = await world.one(
+            {"tickets": _ask(world.view, s=str(world.col("Status")))}, previous=[prior]
+        )
+
+        assert check.problem is None
+        assert check.binding == prior
+
+    async def test_a_restore_is_not_refused_for_a_private_view(self, db):
+        world = await _world(db, visibility="private")
+
+        [check] = await world.check(
+            None, previous=[world.stored({"s": "Status"})], recheck_person=True
+        )
+
+        assert check.problem is None
+
+
+class TestAViewByName:
+    """A model reaches for a view's name as often as its id; the name is looked up."""
+
+    async def test_a_view_named_ignoring_case_resolves_to_its_id(self, db):
+        world = await _world(db)
+
+        check = await world.one({"tickets": BindingRequest(view="open", fields={"s": "Status"})})
+
+        assert check.problem is None
+        assert check.binding is not None and check.binding.view_id == world.view.id
+
+    async def test_an_id_given_as_text_is_still_an_id(self, db):
+        world = await _world(db)
+
+        check = await world.one(
+            {"tickets": BindingRequest(view=str(world.view.id), fields={"s": "Status"})}
+        )
+
+        assert check.binding is not None and check.binding.view_id == world.view.id
+
+    async def test_a_resent_binding_named_by_its_view_is_carried(self, db):
+        world = await _world(db)
+        prior = world.stored({"s": "Status"})
+
+        check = await world.one(
+            {"tickets": BindingRequest(view="Open", fields={"s": str(world.col("Status"))})},
+            previous=[prior],
+        )
+
+        assert check.binding == prior
+        assert check.changed is False
+
+    @pytest.mark.security
+    async def test_no_view_of_that_name_says_where_ids_come_from(self, db):
+        world = await _world(db)
+
+        check = await world.one({"tickets": BindingRequest(view="Closed", fields={"s": "Status"})})
+
+        assert check.binding is None
+        assert check.problem == (
+            "Binding tickets: no saved view named 'Closed' on a table this agent may read."
+            f"{VIEW_HINT}"
+        )
+
+    @pytest.mark.security
+    async def test_a_view_the_person_cannot_see_is_not_found_by_name(self, db):
+        """Someone else's private view reads exactly like a name that does not exist."""
+        world = await _world(db, visibility="private")
+        reader = await _a_member(world, grant=True)
+
+        check = await world.one(
+            {"tickets": BindingRequest(view="Open", fields={"s": "Status"})}, person=reader
+        )
+
+        assert check.problem == (
+            "Binding tickets: no saved view named 'Open' on a table this agent may read."
+            f"{VIEW_HINT}"
+        )
+
+    @pytest.mark.security
+    async def test_a_table_the_agent_may_not_read_is_not_searched(self, db):
+        world = await _world(db)
+
+        check = await world.one(
+            {"tickets": BindingRequest(view="Open", fields={"s": "Status"})}, grants={}
+        )
+
+        assert check.binding is None
+        assert check.problem is not None and "no saved view named 'Open'" in check.problem
+
+    async def test_only_tables_granted_read_and_still_there_are_searched(self, db):
+        """A grant without `read` is skipped; a granted table that is gone is passed over."""
+        world = await _world(db)
+
+        check = await world.one(
+            {"tickets": BindingRequest(view="Open", fields={"s": "Status"})},
+            grants={world.table.id: frozenset({"create"}), uuid4(): READ},
+        )
+
+        assert check.binding is None
+        assert check.problem is not None and "no saved view named 'Open'" in check.problem
+
+    async def test_two_views_of_that_name_ask_for_an_id(self, db):
+        """A name is unique within one table, so the twin is on another table both read."""
+        world = await _world(db)
+        other = await world.tables.create_table(
+            world.owner, TableCreate(name="Other tickets", columns=[column("Status", "text")])
+        )
+        twin = await world.views.create_view(
+            world.owner, other.id, TableViewCreate(name="Open", kind="table", visibility="shared")
+        )
+
+        check = await world.one(
+            {"tickets": BindingRequest(view="Open", fields={"s": "Status"})},
+            grants={world.table.id: READ, other.id: READ},
+        )
+
+        assert check.binding is None
+        assert check.problem == (
+            "Binding tickets: 2 saved views are named 'Open'; pass the id of one, "
+            "from `list_views`: "
+            + ", ".join(sorted(str(view_id) for view_id in (world.view.id, twin.id)))
+            + "."
+        )
+
+    async def test_no_person_cannot_look_a_view_up_by_name(self, db):
+        world = await _world(db)
+
+        check = await world.one(
+            {"tickets": BindingRequest(view="Open", fields={"s": "Status"})}, person=None
+        )
+
+        assert check.binding is None
+        assert check.problem == NO_PERSON
+
+
 class TestTheRequest:
     """Rule 1: the names and the cap, before anything is read."""
 
@@ -344,14 +500,28 @@ class TestResolving:
             f"{world.view.id}; `list_views` lists its columns."
         )
 
-    @pytest.mark.security
-    async def test_a_field_name_must_match_the_pattern(self, db):
+    @pytest.mark.parametrize("field", ["Status", "status", "Order Status", "Statusu_zamówienia"])
+    async def test_a_field_may_be_named_as_its_column_is_labelled(self, db, field):
+        """A model reaches for the label as the key; the page reads exactly the key it declared."""
         world = await _world(db)
 
-        check = await world.one({"tickets": _ask(world.view, Status="Status")})
+        check = await world.one({"tickets": _ask(world.view, **{field: "Status"})})
+
+        assert check.problem is None
+        assert check.binding is not None and list(check.binding.fields) == [field]
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("field", ["Order  Status", "1st", "a.b", "s" * 65, "</script>"])
+    async def test_a_field_name_must_be_words(self, db, field):
+        """Space around a name never gets here: every schema trims its strings, keys too."""
+        world = await _world(db)
+
+        check = await world.one({"tickets": _ask(world.view, **{field: "Status"})})
 
         assert check.problem == (
-            "Binding tickets: field name 'Status' must match `^[a-z_][a-z0-9_]{0,63}$`."
+            f"Binding tickets: field name {field[:64]!r} must be words of letters, digits and "
+            "`_` with single spaces between them, at most 64 characters, not starting with a "
+            "digit."
         )
 
     @pytest.mark.security
@@ -403,7 +573,7 @@ class TestResolving:
         check = await world.one({"tickets": _ask(missing, status="Status")})
 
         assert check.binding is None
-        assert check.problem == f"View {missing} not found."
+        assert check.problem == f"View {missing} not found.{VIEW_HINT}"
         assert check.changed is True
 
 
@@ -464,7 +634,7 @@ class TestThePerson:
         check = await world.one({"tickets": _ask(elsewhere.view, status="Status")})
 
         assert check.binding is None
-        assert check.problem == f"View {elsewhere.view.id} not found."
+        assert check.problem == f"View {elsewhere.view.id} not found.{VIEW_HINT}"
 
     @pytest.mark.security
     async def test_a_view_from_another_org_and_a_missing_view_read_the_same(self, db):
@@ -479,8 +649,8 @@ class TestThePerson:
             }
         )
 
-        assert foreign.problem == f"View {elsewhere.view.id} not found."
-        assert absent.problem == f"View {missing} not found."
+        assert foreign.problem == f"View {elsewhere.view.id} not found.{VIEW_HINT}"
+        assert absent.problem == f"View {missing} not found.{VIEW_HINT}"
 
     @pytest.mark.security
     async def test_a_colleague_s_private_view_reveals_no_columns(self, db):
@@ -500,8 +670,8 @@ class TestThePerson:
             {"tickets": _ask(shared, status="Nope", id="Status")}, person=stranger
         )
 
-        assert private.problem == f"View {world.view.id} not found."
-        assert unreachable.problem == f"View {shared.id} not found."
+        assert private.problem == f"View {world.view.id} not found.{VIEW_HINT}"
+        assert unreachable.problem == f"View {shared.id} not found.{VIEW_HINT}"
 
     async def test_the_owner_of_a_private_view_may_bind_it(self, db):
         world = await _world(db, visibility="private")
@@ -707,7 +877,7 @@ class TestRecheckingAsThePerson:
         assert check.binding == stored.model_copy(
             update={"status": "unavailable", "reason": "view_missing"}
         )
-        assert check.problem == f"View {world.view.id} not found."
+        assert check.problem == f"View {world.view.id} not found.{VIEW_HINT}"
 
     @pytest.mark.security
     async def test_recheck_with_no_person_marks_it_unavailable(self, db):
@@ -823,7 +993,7 @@ class TestAStoredUnavailableBinding:
 
         check = await world.one(None, previous=[stored], person=colleague)
 
-        assert check.problem == f"View {world.view.id} not found."
+        assert check.problem == f"View {world.view.id} not found.{VIEW_HINT}"
 
     async def test_a_stored_unavailable_binding_resent_identically_is_rechecked(self, db):
         world = await _world(db)

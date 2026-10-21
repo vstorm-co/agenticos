@@ -610,7 +610,11 @@ async def test_share_view_shares_your_own_view(world: _World):
     call, _cap, _ts = _tools({world.orders.id: ALL})
     view = await _make_view(world)
 
-    answer = json.loads(await call("share_view", _ctx(_person_deps(world)), view_id=view.id))
+    answer = json.loads(
+        await call(
+            "share_view", _ctx(_person_deps(world)), view_id=view.id, reason="So the page reads it."
+        )
+    )
 
     assert (answer["id"], answer["visibility"], answer["yours"]) == (str(view.id), "shared", True)
     async with world.factory() as db:
@@ -627,7 +631,12 @@ async def test_share_view_refuses_an_admin_sharing_someone_else_s_view(world: _W
     admin = await _member(world, "admin")
     # Shared, so the admin sees it, and the service would let an ALL-scope editor manage it.
     view = await _make_view(world, owner=colleague, name="Theirs", visibility="shared")
-    answer = await call("share_view", _ctx(_person_deps(world, admin)), view_id=view.id)
+    answer = await call(
+        "share_view",
+        _ctx(_person_deps(world, admin)),
+        view_id=view.id,
+        reason="So the page reads it.",
+    )
 
     assert answer == "Only the view's owner can share it."
 
@@ -646,8 +655,15 @@ async def test_share_view_answers_another_member_s_private_view_as_not_found(wor
     colleague = await _member(world, "admin")
     view = await _make_view(world, owner=colleague, name="Theirs private")
 
-    answer = await call("share_view", _ctx(_person_deps(world)), view_id=view.id)
-    missing = await call("share_view", _ctx(_person_deps(world)), view_id=uuid.uuid4())
+    answer = await call(
+        "share_view", _ctx(_person_deps(world)), view_id=view.id, reason="So the page reads it."
+    )
+    missing = await call(
+        "share_view",
+        _ctx(_person_deps(world)),
+        view_id=uuid.uuid4(),
+        reason="So the page reads it.",
+    )
 
     # The same answer as a view that never existed, so nothing says one is there.
     assert answer == missing
@@ -670,7 +686,7 @@ async def test_a_member_who_left_cannot_share_a_view(world: _World):
         )
         await db.commit()
 
-    answer = await call("share_view", _ctx(deps), view_id=view.id)
+    answer = await call("share_view", _ctx(deps), view_id=view.id, reason="So the page reads it.")
 
     assert answer == "The member this agent acts for is no longer in the organization."
     async with world.factory() as db:
@@ -685,7 +701,9 @@ async def test_share_view_on_an_ungranted_table_is_refused_before_sharing(world:
     call, _cap, _ts = _tools({world.other.id: ALL})
     view = await _make_view(world)
 
-    answer = await call("share_view", _ctx(_person_deps(world)), view_id=view.id)
+    answer = await call(
+        "share_view", _ctx(_person_deps(world)), view_id=view.id, reason="So the page reads it."
+    )
 
     assert "no access to table" in answer and "Mine" not in answer
     assert await _visibility(world, view.id) == "private"
@@ -709,7 +727,12 @@ async def test_a_member_who_left_mid_run_cannot_list_views(world: _World):
 async def test_sharing_a_view_that_does_not_exist_is_refused_with_its_code(world: _World):
     call, _cap, _ts = _tools({world.orders.id: ALL})
 
-    answer = await call("share_view", _ctx(_person_deps(world)), view_id=uuid.uuid4())
+    answer = await call(
+        "share_view",
+        _ctx(_person_deps(world)),
+        view_id=uuid.uuid4(),
+        reason="So the page reads it.",
+    )
 
     assert answer.startswith("Refused (NOT_FOUND): View not found")
 
