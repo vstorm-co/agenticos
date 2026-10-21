@@ -108,6 +108,7 @@ async def test_every_deployment_is_registered_before_the_runner_starts(
         "rag-sync-check",
         "run-scheduled-trigger",
         "run-eval",
+        "run-authoring",
         "org-purge-cleanup",
         "sandbox-log-sweep",
         "mcp-connection-sweep",

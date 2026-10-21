@@ -929,6 +929,17 @@ include = [
     "app/repositories/promotion_gate.py",
     "app/schemas/promotion_gate.py",
     "app/services/promotion_gate.py",
+    # The authoring assistant: what it reads, what it proposes and how a person
+    # decides. Its evidence reads are the boundary that keeps it blind to evals.
+    "app/db/models/authoring.py",
+    "app/repositories/authoring.py",
+    "app/schemas/authoring.py",
+    "app/services/authoring_evidence.py",
+    "app/services/authoring_hunks.py",
+    "app/services/authoring.py",
+    "app/services/authoring_worker.py",
+    "app/api/routes/v1/authoring.py",
+    "app/worker/tasks/authoring_tasks.py",
     # Which past conversations an agent may search, and the full-text query over
     # them. The predicate is the whole of it - a way in added here is a way in for
     # every agent at once - so it is held to the same bar as the permission code
@@ -1445,6 +1456,17 @@ include = [
     "app/repositories/promotion_gate.py",
     "app/schemas/promotion_gate.py",
     "app/services/promotion_gate.py",
+    # The authoring assistant: what it reads, what it proposes and how a person
+    # decides. Its evidence reads are the boundary that keeps it blind to evals.
+    "app/db/models/authoring.py",
+    "app/repositories/authoring.py",
+    "app/schemas/authoring.py",
+    "app/services/authoring_evidence.py",
+    "app/services/authoring_hunks.py",
+    "app/services/authoring.py",
+    "app/services/authoring_worker.py",
+    "app/api/routes/v1/authoring.py",
+    "app/worker/tasks/authoring_tasks.py",
     # Which past conversations an agent may search, and the full-text query over
     # them. The predicate is the whole of it - a way in added here is a way in for
     # every agent at once - so it is held to the same bar as the permission code

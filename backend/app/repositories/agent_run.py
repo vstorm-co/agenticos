@@ -24,7 +24,7 @@ from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.db.models.agent import Agent, AgentVersion
+from app.db.models.agent import Agent, AgentKind, AgentVersion
 from app.db.models.agent_run import (
     AgentRun,
     ApprovalDecidedVia,
@@ -1355,6 +1355,12 @@ class RunFilter:
 
 
 _EVAL = AgentRun.surface == RunSurface.EVAL.value
+# The authoring assistant and the knowledge-gap drafter and classifier run on the eval
+# surface like every system agent, but they improve agents and their knowledge rather
+# than measure them, so the bill names them apart.
+_IMPROVING_KINDS = (AgentKind.IMPROVER.value, AgentKind.DRAFTER.value, AgentKind.CLASSIFIER.value)
+_AUTHORING = AgentRun.agent_id.in_(select(Agent.id).where(Agent.kind.in_(_IMPROVING_KINDS)))
+_MEASURING = and_(_EVAL, ~_AUTHORING)
 
 
 def _window_conditions(
@@ -1479,6 +1485,7 @@ class WindowAggregates:
     p50_ms: float | None
     p95_ms: float | None
     eval_cost_usd: Decimal
+    authoring_cost_usd: Decimal = Decimal(0)
     first_started_at: datetime | None = None
     """When the window's first run started - where its timeline begins."""
 
@@ -1502,7 +1509,9 @@ async def window_aggregates(
     explicit filter did - the same distribution, one query.
 
     Every figure is production traffic; `eval_cost_usd` is the eval traffic's
-    cost from the same scan, so the bill can name it beside the rest.
+    cost from the same scan, so the bill can name it beside the rest, and
+    `authoring_cost_usd` the authoring assistant's, which runs on the same
+    surface but improves agents rather than measuring them.
     """
     conditions = _window_conditions(
         organization_id=organization_id, start=start, end=end, where=where, split_evals=True
@@ -1515,11 +1524,21 @@ async def window_aggregates(
             func.count(func.distinct(AgentRun.user_id)).filter(~_EVAL),
             func.percentile_cont(0.5).within_group(duration_ms).filter(~_EVAL),
             func.percentile_cont(0.95).within_group(duration_ms).filter(~_EVAL),
-            func.coalesce(func.sum(AgentRun.cost_usd).filter(_EVAL), 0),
+            func.coalesce(func.sum(AgentRun.cost_usd).filter(_MEASURING), 0),
+            func.coalesce(func.sum(AgentRun.cost_usd).filter(_EVAL, _AUTHORING), 0),
             func.min(AgentRun.started_at).filter(~_EVAL),
         ).where(*conditions)
     )
-    total, cost, distinct_users, p50, p95, eval_cost, first_started_at = result.one()
+    (
+        total,
+        cost,
+        distinct_users,
+        p50,
+        p95,
+        eval_cost,
+        authoring_cost,
+        first_started_at,
+    ) = result.one()
     return WindowAggregates(
         total=int(total or 0),
         cost_usd=Decimal(cost or 0),
@@ -1527,6 +1546,7 @@ async def window_aggregates(
         p50_ms=float(p50) if p50 is not None else None,
         p95_ms=float(p95) if p95 is not None else None,
         eval_cost_usd=Decimal(eval_cost or 0),
+        authoring_cost_usd=Decimal(authoring_cost or 0),
         first_started_at=first_started_at,
     )
 
@@ -1538,9 +1558,9 @@ async def window_totals(
     start: datetime,
     end: datetime,
     where: RunFilter | None = None,
-) -> tuple[int, Decimal, Decimal]:
-    """The count and cost of a window's production traffic, and its eval traffic's
-    cost, in one SELECT and nothing more.
+) -> tuple[int, Decimal, Decimal, Decimal]:
+    """The count and cost of a window's production traffic, its eval traffic's
+    cost and the authoring assistant's, in one SELECT and nothing more.
 
     The previous window is a delta against the current one - it reports only how
     many runs and how much they cost - so it does not pay for
@@ -1554,11 +1574,17 @@ async def window_totals(
         select(
             func.count(AgentRun.id).filter(~_EVAL),
             func.coalesce(func.sum(AgentRun.cost_usd).filter(~_EVAL), 0),
-            func.coalesce(func.sum(AgentRun.cost_usd).filter(_EVAL), 0),
+            func.coalesce(func.sum(AgentRun.cost_usd).filter(_MEASURING), 0),
+            func.coalesce(func.sum(AgentRun.cost_usd).filter(_EVAL, _AUTHORING), 0),
         ).where(*conditions)
     )
-    total, cost, eval_cost = result.one()
-    return int(total or 0), Decimal(cost or 0), Decimal(eval_cost or 0)
+    total, cost, eval_cost, authoring_cost = result.one()
+    return (
+        int(total or 0),
+        Decimal(cost or 0),
+        Decimal(eval_cost or 0),
+        Decimal(authoring_cost or 0),
+    )
 
 
 @dataclass(frozen=True)

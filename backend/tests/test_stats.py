@@ -82,6 +82,7 @@ def repos(monkeypatch: pytest.MonkeyPatch) -> dict[str, AsyncMock]:
             p50_ms=p50,
             p95_ms=p95,
             eval_cost_usd=await mocks["eval_cost_window"](db, **kwargs),
+            authoring_cost_usd=await mocks["authoring_cost_window"](db, **kwargs),
             first_started_at=await mocks["first_started_at"](db, **kwargs),
         )
 
@@ -94,12 +95,16 @@ def repos(monkeypatch: pytest.MonkeyPatch) -> dict[str, AsyncMock]:
     # The eval traffic's cost rides on the same scans with a mock of its own, so
     # the production figures above stay what a test set.
     mocks["eval_cost_window"] = AsyncMock(return_value=Decimal(0))
+    mocks["authoring_cost_window"] = AsyncMock(return_value=Decimal(0))
 
-    async def _window_totals(db: object = None, **kwargs: object) -> tuple[int, Decimal, Decimal]:
+    async def _window_totals(
+        db: object = None, **kwargs: object
+    ) -> tuple[int, Decimal, Decimal, Decimal]:
         return (
             await mocks["count_runs"](db, **kwargs),
             await mocks["sum_cost_window"](db, **kwargs),
             await mocks["eval_cost_window"](db, **kwargs),
+            await mocks["authoring_cost_window"](db, **kwargs),
         )
 
     window_totals = AsyncMock(side_effect=_window_totals)
@@ -274,6 +279,20 @@ class TestTheComposedAnswer:
         # The previous window is the whole bill too, or the change compares a
         # bill against half of one.
         assert result.cost.previous_period_usd == Decimal("1.35")
+
+    async def test_the_authoring_assistant_is_billed_apart_from_evals(self, repos) -> None:
+        repos["sum_cost_window"].side_effect = [Decimal("2.00"), Decimal("1.00")]
+        repos["eval_cost_window"].side_effect = [Decimal("0.30"), Decimal("0.10")]
+        repos["authoring_cost_window"].side_effect = [Decimal("0.05"), Decimal("0.02")]
+        repos["ingestion_sum_cost_window"].side_effect = [Decimal(0), Decimal(0)]
+
+        result = await StatsService(MagicMock()).usage(_ctx())
+
+        assert result.cost is not None
+        assert result.cost.eval_usd == Decimal("0.30")
+        assert result.cost.authoring_usd == Decimal("0.05")
+        assert result.cost.period_usd == Decimal("2.35")
+        assert result.cost.previous_period_usd == Decimal("1.12")
 
     async def test_own_scope_is_not_billed_for_the_organizations_indexing(self, repos) -> None:
         # `ingestion_spend` records no user - a document is indexed by a worker -

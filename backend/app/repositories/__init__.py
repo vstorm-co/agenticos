@@ -40,6 +40,7 @@ from app.repositories import pending_sandbox_destroy as pending_sandbox_destroy_
 from app.repositories import sandbox_connection as sandbox_connection_repo
 from app.repositories import sandbox_operation as sandbox_operation_repo
 from app.repositories import skill_proposal as skill_proposal_repo
+from app.repositories import authoring as authoring_repo
 from app.repositories import audit_log as audit_log_repo
 from app.repositories import personal_data as personal_data_repo
 from app.repositories import ingestion_spend as ingestion_spend_repo
@@ -136,6 +137,7 @@ __all__ = [
     "sandbox_connection_repo",
     "sandbox_operation_repo",
     "skill_proposal_repo",
+    "authoring_repo",
     "ingestion_spend_repo",
     "retention_repo",
     "skill_repo",
