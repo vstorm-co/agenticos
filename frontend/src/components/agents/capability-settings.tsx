@@ -267,6 +267,18 @@ interface CapabilityDetailProps {
    * button somebody presses on the way past.
    */
   settingsFooter?: ReactNode;
+  /**
+   * Configuration the server fills in that `binding.config` does not store.
+   *
+   * A field defaulted through a `default_factory` - the catalog's first speech or
+   * video provider - is absent from the config of a binding somebody has only
+   * switched on, and absent from the JSON Schema too, so the secret's
+   * `required_when` read against the stored config says no key is needed while
+   * publish validation, reading the resolved config, demands one. The panel that
+   * resolves those defaults passes them here. Stored values win, and the key
+   * picker writes what it read, so choosing a key pins the provider it is for.
+   */
+  resolvedConfig?: Record<string, unknown>;
 }
 
 /**
@@ -295,8 +307,13 @@ export function CapabilityDetail({
   resources,
   settingsExtra,
   settingsFooter,
+  resolvedConfig,
 }: CapabilityDetailProps) {
   const t = useTranslations("agents");
+  const keyed =
+    resolvedConfig === undefined
+      ? binding
+      : { ...binding, config: { ...resolvedConfig, ...binding.config } };
   const configErrors = capabilityConfigErrors(configProblems ?? [], binding.id);
   const copyFor = useCapabilityFieldCopy(binding.id);
   const settings = (
@@ -320,11 +337,11 @@ export function CapabilityDetail({
             names the configurations it applies to; asking for a key the server
             will not demand is as wrong as not asking for one it will. */}
       {definition.requires_secret !== null &&
-        secretIsOffered(definition.requires_secret, binding.config) && (
+        secretIsOffered(definition.requires_secret, keyed.config) && (
           <SecretField
-            binding={binding}
+            binding={keyed}
             requirement={definition.requires_secret}
-            optional={!secretIsRequired(definition.requires_secret, binding.config)}
+            optional={!secretIsRequired(definition.requires_secret, keyed.config)}
             onChange={onChange}
             disabled={disabled}
           />
