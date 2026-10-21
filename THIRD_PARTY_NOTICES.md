@@ -24,7 +24,7 @@ names no author is in the evidence column below.
 | Licence | Backend | Frontend |
 |---|---:|---:|
 | MIT | 105 | 241 |
-| Apache-2.0 | 65 | 24 |
+| Apache-2.0 | 64 | 24 |
 | BSD-3-Clause | 24 | 4 |
 | ISC | 3 | 16 |
 | BSD-2-Clause | 7 | 0 |
@@ -35,6 +35,7 @@ names no author is in the evidence column below.
 | 0BSD | 1 | 1 |
 | AGPL-3.0-only | 1 | 0 |
 | Apache-2.0 AND CNRI-Python | 1 | 0 |
+| Apache-2.0 OR BSD-2-Clause | 1 | 0 |
 | Apache-2.0 OR BSD-3-Clause | 1 | 0 |
 | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 | 1 | 0 |
 | CC-BY-4.0 | 0 | 1 |
@@ -188,7 +189,7 @@ names no author is in the evidence column below.
 | opentelemetry-sdk | 1.44.0 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
 | opentelemetry-semantic-conventions | 0.65b0 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
 | opentelemetry-util-http | 0.65b0 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression; no licence file, attributed to OpenTelemetry Authors |
-| packaging | 25.0 | Apache-2.0 | https://github.com/pypa/packaging | licence file text |
+| packaging | 26.3 | Apache-2.0 OR BSD-2-Clause | https://github.com/pypa/packaging | License-Expression |
 | pathable | 0.6.0 | Apache-2.0 | https://github.com/p1c2u/pathable | License field |
 | phonenumberslite | 9.0.41 | Apache-2.0 | https://github.com/daviddrysdale/python-phonenumbers | License-Expression |
 | pillow | 13.0.0 | MIT-CMU | https://github.com/python-pillow/Pillow | License-Expression |

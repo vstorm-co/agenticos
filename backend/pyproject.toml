@@ -1522,4 +1522,9 @@ exclude_also = [
 # be installed on the Python it runs (#2229). aiogram raises that cap with each
 # pydantic minor release rather than for a break; the Telegram channel's tests
 # exercise it. Drop this once aiogram allows 2.14.
-override-dependencies = ["pydantic[email]>=2.14.1"]
+#
+# xai-sdk 1.20 caps packaging below 26, and virtualenv (pre-commit's) fixes
+# CVE-2026-113725 only from 21.14.7, which needs packaging 26.3 - so the cap
+# held a known advisory in the lock. xai-sdk reads versions with packaging's
+# stable API; the xAI realtime tests exercise it. Drop this once xai-sdk allows 26.
+override-dependencies = ["pydantic[email]>=2.14.1", "packaging>=26.3"]
