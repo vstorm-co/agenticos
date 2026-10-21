@@ -180,6 +180,21 @@ async def test_a_question_already_asked_is_found_whatever_its_case_and_spacing(d
     assert (twins.total, none.total) == (1, 0)
 
 
+async def test_a_question_holding_a_credential_finds_the_case_stored_redacted(db) -> None:
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="keys"))
+    question = f"My key is sk-ant-api03-{'a' * 40}, why is it refused?"
+    asked = await service.add_case(
+        ctx, dataset.id, DatasetCaseCreate(input=question, reference_answer="Rotate it.")
+    )
+    assert "[redacted:" in asked.input
+
+    twins = await service.list_cases(ctx, dataset.id, same_input=question)
+
+    assert [case.case_id for case in twins.items] == [asked.case_id]
+
+
 async def test_the_datasets_asking_a_runs_question_are_found_by_their_newest_version(db) -> None:
     """What Score against a case opens on: a dataset holding the run's own question."""
     ctx = await _owner(db)
