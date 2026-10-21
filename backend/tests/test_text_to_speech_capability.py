@@ -241,6 +241,14 @@ def test_without_a_config_or_key_it_builds_on_the_defaults():
     assert built.api_key is None
 
 
+def test_clips_are_spoken_one_at_a_time():
+    """The budget check reserves nothing, so two clips priced together could each
+    fit and together pass a cap; running them one at a time is the guard."""
+    toolset = _toolset()
+
+    assert toolset.tools["generate_speech"].sequential is True
+
+
 def test_the_capability_builds_its_toolset_once_and_offers_generate_speech():
     capability = TextToSpeech(
         provider="openai",

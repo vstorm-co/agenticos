@@ -1,5 +1,5 @@
 ---
-source_sha: "5d2c68b0fb1b"
+source_sha: "9c92ca7dedbe"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1149,6 +1149,12 @@ un límite; después se registra el coste y, si falla a medias, también los tro
 ya dichos. Los modelos que facturan por tokens tienen un precio por carácter de
 habla típica. Un precio fechado entra en vigor ese día: así queda registrada la
 duplicación de precios de Gemini el 01-01-2027.
+
+**Se registra mientras se dice, un clip cada vez.** Cada trozo de un texto largo
+se registra cuando llega su audio, así que un fallo o un run cancelado a medias
+sigue registrando los trozos que volvieron. La comprobación del budget no reserva
+nada, así que la herramienta hace una llamada cada vez. `instructions` tiene un
+límite de 1000 caracteres, va al provider con cada trozo y no se tarifica.
 
 **Tiene efectos secundarios**, por las mismas razones que la generación de
 imágenes: gasta dinero y produce una grabación que alguien puede publicar.

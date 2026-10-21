@@ -1076,6 +1076,12 @@ booked; on a failure partway through, the pieces already spoken are booked too.
 Token-billed models are priced per character of typical speech. A dated price
 takes effect on its day, which is how Gemini's doubling on 2027-01-01 is recorded.
 
+**Booked as it is spoken, one clip at a time.** Each piece of a long text is
+booked as its audio arrives, so a failure or a cancelled run partway through
+still books the pieces that came back. The budget check reserves nothing, so the
+tool runs one call at a time. `instructions` is capped at 1,000 characters,
+goes to the provider with every piece, and is not priced.
+
 **It is side-effecting**, for the reasons image generation is: it spends money and
 produces a recording a person may publish.
 

@@ -8,8 +8,10 @@ would have seen the picture, and a later step finds it under `output/`.
 **The budget is asked before the call, with the call's price.** Speech is sold per
 character, so what a clip costs is known before it is made, and a run is refused
 a clip that would carry it past a cap rather than only the call after the cap is
-reached. What it cost is booked after, and on a failure partway through a long
-text the pieces already spoken are booked too: the provider billed them.
+reached. What it cost is booked piece by piece as each one's audio arrives, so a
+failure or a cancelled run partway through a long text still books the pieces
+that came back: the provider billed them. Calls run one at a time, because the
+check reserves nothing.
 
 **Whose mistake decides the shape of a failure** (`_failures.py`). A text that is
 empty, too long or refused by the provider is the model's to fix, so it is
@@ -161,9 +163,9 @@ def build_speech_toolset(
                 audio_format=audio_format,
                 api_key=api_key,
                 instructions=instructions,
-                # Booked piece by piece, as each is billed, so a failure or a
-                # cancelled run partway through a long text leaves nothing spoken
-                # unbooked.
+                # Booked piece by piece, as each one's audio arrives, so a failure
+                # or a cancelled run partway through a long text still books the
+                # pieces that came back.
                 on_spoken=lambda characters: record_ambient_cost(
                     ledger_name, _cost(price, characters)
                 ),

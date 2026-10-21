@@ -1,5 +1,5 @@
 ---
-source_sha: "5d2c68b0fb1b"
+source_sha: "9c92ca7dedbe"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1135,6 +1135,12 @@ jest księgowany; przy błędzie w połowie księgowane są też kawałki już
 wypowiedziane. Modele rozliczane w tokenach mają cenę za znak typowej mowy.
 Datowana cena działa od swojego dnia - tak zapisane jest podwojenie cen Gemini
 1.01.2027.
+
+**Księgowane w trakcie mówienia, jedno nagranie naraz.** Każdy kawałek długiego
+tekstu jest księgowany, gdy przychodzi jego audio, więc błąd albo anulowany run w
+połowie wciąż księguje kawałki, które wróciły. Sprawdzenie budgetu niczego nie
+rezerwuje, więc narzędzie wykonuje jedno wywołanie naraz. `instructions` ma limit
+1000 znaków, trafia do providera z każdym kawałkiem i nie jest wyceniane.
 
 **Ma skutki uboczne**, z tych samych powodów co generowanie obrazów: wydaje
 pieniądze i tworzy nagranie, które ktoś może opublikować.

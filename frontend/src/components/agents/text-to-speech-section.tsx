@@ -76,12 +76,16 @@ export function TextToSpeechSection({
   /**
    * A voice or a format chosen for one provider means nothing on another, and a
    * voice one model speaks in may be one the next does not - OpenAI's `tts-1` has
-   * nine of its thirteen. Kept only where the new choice still offers it.
+   * nine of its thirteen. Kept only where the new choice still offers it - or,
+   * on a provider whose voices belong to the account, on any of its models,
+   * since the catalog lists none and the id is the author's own.
    */
   const chooseOffering = (patch: { provider?: string; model: string }) => {
     const next = resolveOffering(providers, { ...binding.config, ...patch });
     const offered = next.selected?.voices.map((entry) => entry.id) ?? [];
-    const keepVoice = patch.provider === undefined && offered.includes(storedVoice);
+    const keepVoice =
+      patch.provider === undefined &&
+      (next.current?.account_voices === true || offered.includes(storedVoice));
     const kept = Object.fromEntries(
       Object.entries(binding.config).filter(
         ([name]) =>
