@@ -338,7 +338,11 @@ class KnowledgeGapService:
         """
         _require_runs_view(ctx)
         kb = await self._knowledge_base(ctx, knowledge_base_id)
-        return await self._list(ctx, [kb.id], agent_id=None, status=status, skip=skip, limit=limit)
+        listed = await self._list(
+            ctx, [kb.id], agent_id=None, status=status, skip=skip, limit=limit
+        )
+        listed.can_regroup = await writable_kb(self.db, ctx, kb)
+        return listed
 
     async def _readable_with_misses(self, ctx: AuthContext, *, agent_id: UUID | None) -> list[UUID]:
         candidates = await knowledge_gap_repo.knowledge_bases_with_misses(

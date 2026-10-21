@@ -29,11 +29,14 @@ export function KnowledgeGapsPanel({ scope }: { scope: KnowledgeGapPanelScope })
   const [status, setStatus] = useState<KnowledgeGapStatus>("open");
   const [page, setPage] = useState(0);
   const [openTopic, setOpenTopic] = useState<string | null>(null);
-  const { topics, total, ungrouped, isLoading, error, refetch } = useKnowledgeGaps(scope, {
-    status,
-    skip: page * PAGE_SIZE,
-    limit: PAGE_SIZE,
-  });
+  const { topics, total, ungrouped, canRegroup, isLoading, error, refetch } = useKnowledgeGaps(
+    scope,
+    {
+      status,
+      skip: page * PAGE_SIZE,
+      limit: PAGE_SIZE,
+    },
+  );
 
   return (
     <>
@@ -43,6 +46,7 @@ export function KnowledgeGapsPanel({ scope }: { scope: KnowledgeGapPanelScope })
         controls={
           <KnowledgeGapsToolbar
             scope={scope}
+            canRegroup={canRegroup}
             status={status}
             onStatus={(next) => {
               setStatus(next);

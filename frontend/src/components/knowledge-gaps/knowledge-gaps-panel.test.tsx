@@ -99,6 +99,16 @@ describe("KnowledgeGapsPanel", () => {
     expect(screen.getByText(/2 questions are waiting to be grouped/)).toBeInTheDocument();
   });
 
+  it("offers grouping now only when the list says the caller may change the base", () => {
+    answer({ canRegroup: true });
+    const { unmount } = render(<KnowledgeGapsPanel scope={{ kind: "collection", id: "kb1" }} />);
+    expect(screen.getByRole("button", { name: "Group now" })).toBeInTheDocument();
+    unmount();
+    answer({ canRegroup: false });
+    render(<KnowledgeGapsPanel scope={{ kind: "collection", id: "kb1" }} />);
+    expect(screen.queryByRole("button", { name: "Group now" })).toBeNull();
+  });
+
   it("renders a failed request as an error with a retry, never as an empty list", async () => {
     const refetch = vi.fn();
     answer({ error: new Error("502"), refetch });

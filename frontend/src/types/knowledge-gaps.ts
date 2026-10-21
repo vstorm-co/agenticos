@@ -48,6 +48,8 @@ export interface KnowledgeGapTopicList {
   by_knowledge_base: KnowledgeGapCollectionCount[];
   /** Misses waiting for the next grouping pass, so in no topic yet. */
   ungrouped: number;
+  /** Whether the caller may group a knowledge base's waiting misses now; false off its page. */
+  can_regroup: boolean;
 }
 
 /** One time a topic's question was asked, and what the search found. */

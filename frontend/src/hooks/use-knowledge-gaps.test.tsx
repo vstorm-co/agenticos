@@ -40,6 +40,7 @@ describe("useKnowledgeGaps", () => {
       items: [{ id: "t1", label: "parental leave" }],
       total: 7,
       ungrouped: 3,
+      can_regroup: true,
     });
     const { result } = renderHook(() => useKnowledgeGaps({ kind: "organization" }), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -47,6 +48,7 @@ describe("useKnowledgeGaps", () => {
     expect(result.current.topics[0]?.label).toBe("parental leave");
     expect(result.current.total).toBe(7);
     expect(result.current.ungrouped).toBe(3);
+    expect(result.current.canRegroup).toBe(true);
   });
 
   it("asks one knowledge base, or one agent, for the status and page given", async () => {
@@ -72,6 +74,7 @@ describe("useKnowledgeGaps", () => {
     expect(result.current.topics).toEqual([]);
     expect(result.current.total).toBe(0);
     expect(result.current.ungrouped).toBe(0);
+    expect(result.current.canRegroup).toBe(false);
   });
 });
 

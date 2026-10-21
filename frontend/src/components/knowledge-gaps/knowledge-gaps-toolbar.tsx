@@ -11,29 +11,31 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { usePermissions } from "@/hooks/use-permissions";
 import { useRegroupKnowledgeGaps, type KnowledgeGapPanelScope } from "@/hooks/use-knowledge-gaps";
-import { Perm } from "@/types/permissions";
 import type { KnowledgeGapStatus } from "@/types/knowledge-gaps";
 
 interface KnowledgeGapsToolbarProps {
   scope: KnowledgeGapPanelScope;
+  /** Whether the server lets the caller change this knowledge base, a grant included. */
+  canRegroup: boolean;
   status: KnowledgeGapStatus;
   onStatus: (status: KnowledgeGapStatus) => void;
 }
 
 /**
  * The list card's controls: which topics to show and, on a knowledge base's own
- * page, grouping its waiting questions now - gated as that page's other changes are.
+ * page, grouping its waiting questions now - for whoever may change that base.
  */
-export function KnowledgeGapsToolbar({ scope, status, onStatus }: KnowledgeGapsToolbarProps) {
+export function KnowledgeGapsToolbar({
+  scope,
+  canRegroup,
+  status,
+  onStatus,
+}: KnowledgeGapsToolbarProps) {
   const t = useTranslations("knowledgeGaps");
-  const { can } = usePermissions();
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {scope.kind === "collection" && can(Perm.collectionsEdit) && (
-        <RegroupButton knowledgeBaseId={scope.id} />
-      )}
+      {scope.kind === "collection" && canRegroup && <RegroupButton knowledgeBaseId={scope.id} />}
       <Select value={status} onValueChange={(next) => onStatus(next as KnowledgeGapStatus)}>
         <SelectTrigger className="w-36" aria-label={t("statusFilter")}>
           <SelectValue />

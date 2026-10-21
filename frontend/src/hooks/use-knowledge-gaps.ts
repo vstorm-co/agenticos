@@ -56,6 +56,7 @@ export function useKnowledgeGaps(
     total: data?.total ?? 0,
     byKnowledgeBase: data?.by_knowledge_base ?? [],
     ungrouped: data?.ungrouped ?? 0,
+    canRegroup: data?.can_regroup ?? false,
     isLoading,
     error,
     refetch,

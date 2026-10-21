@@ -67,7 +67,7 @@ function mockApi({ canEdit = false } = {}) {
   vi.mocked(apiClient.get).mockImplementation((endpoint: string) => {
     if (endpoint === `/kb/${KB_ID}`) return Promise.resolve(KB);
     if (endpoint.startsWith(`/knowledge-gaps/collections/${KB_ID}`)) {
-      return Promise.resolve({ items: [topic], total: 1, ungrouped: 0 });
+      return Promise.resolve({ items: [topic], total: 1, ungrouped: 0, can_regroup: canEdit });
     }
     if (endpoint === "/knowledge-gaps/t1") return Promise.resolve({ ...topic, questions: [] });
     return Promise.resolve({ items: [], total: 0 });
@@ -132,8 +132,8 @@ describe("the knowledge gaps tab on a collection", () => {
     expect(screen.queryByRole("button", { name: "More actions for this topic" })).toBeNull();
   });
 
-  it("offers grouping now and Dismiss to a caller who also edits the collection", async () => {
-    perms.add("collections:view").add("runs:view").add("collections:edit");
+  it("offers grouping now and Dismiss to a caller the collection lets edit it", async () => {
+    perms.add("collections:view").add("runs:view");
     mockApi({ canEdit: true });
     vi.mocked(apiClient.post).mockResolvedValue({ ...TOPIC, status: "dismissed", questions: [] });
     await renderPage();

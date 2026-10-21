@@ -2,16 +2,11 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { Perm } from "@/types/permissions";
 import { KnowledgeGapsToolbar } from "./knowledge-gaps-toolbar";
 
 const state = vi.hoisted(() => ({
-  granted: [] as string[],
   regroup: vi.fn(),
   regroupedFor: [] as string[],
-}));
-vi.mock("@/hooks/use-permissions", () => ({
-  usePermissions: () => ({ can: (perm: string) => state.granted.includes(perm) }),
 }));
 vi.mock("@/hooks/use-knowledge-gaps", () => ({
   useRegroupKnowledgeGaps: (id: string) => {
@@ -23,15 +18,14 @@ vi.mock("@/hooks/use-knowledge-gaps", () => ({
 describe("KnowledgeGapsToolbar", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    state.granted = [];
     state.regroupedFor = [];
   });
 
-  it("offers grouping now on a collection to a caller who edits it", async () => {
-    state.granted = [Perm.collectionsEdit];
+  it("offers grouping now on a collection the server says the caller may change", async () => {
     render(
       <KnowledgeGapsToolbar
         scope={{ kind: "collection", id: "kb1" }}
+        canRegroup
         status="open"
         onStatus={vi.fn()}
       />,
@@ -45,6 +39,7 @@ describe("KnowledgeGapsToolbar", () => {
     render(
       <KnowledgeGapsToolbar
         scope={{ kind: "collection", id: "kb1" }}
+        canRegroup={false}
         status="open"
         onStatus={vi.fn()}
       />,
@@ -53,10 +48,10 @@ describe("KnowledgeGapsToolbar", () => {
   });
 
   it("does not offer it on an agent's list, which spans knowledge bases", () => {
-    state.granted = [Perm.collectionsEdit];
     render(
       <KnowledgeGapsToolbar
         scope={{ kind: "agent", id: "a1" }}
+        canRegroup
         status="dismissed"
         onStatus={vi.fn()}
       />,
@@ -69,6 +64,7 @@ describe("KnowledgeGapsToolbar", () => {
     render(
       <KnowledgeGapsToolbar
         scope={{ kind: "agent", id: "a1" }}
+        canRegroup={false}
         status="dismissed"
         onStatus={onStatus}
       />,

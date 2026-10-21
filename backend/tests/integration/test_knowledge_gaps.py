@@ -842,6 +842,35 @@ async def test_an_edit_grant_on_the_knowledge_base_lets_an_operator_dismiss_its_
     assert [(a.slug, a.has_avatar) for a in after.agents] == [(agent.slug, False)]
 
 
+@pytest.mark.security
+async def test_regrouping_is_offered_to_whoever_may_change_the_knowledge_base(db) -> None:
+    ctx = await _owner(db)
+    kb, agent, _ = await _a_topic(db, ctx)
+    operator = await _member(db, ctx, OrgRoleName.OPERATOR)
+    service = KnowledgeGapService(db)
+
+    before = await service.list_for_knowledge_base(operator, kb.id)
+    db.add(
+        ResourceGrant(
+            organization_id=ctx.organization_id,
+            subject_user_id=operator.user_id,
+            resource_type="collection",
+            resource_id=kb.id,
+            level=GrantLevel.EDIT.value,
+        )
+    )
+    await db.flush()
+    after = await service.list_for_knowledge_base(operator, kb.id)
+    owners = await service.list_for_knowledge_base(ctx, kb.id)
+    agents = await service.list_for_agent(ctx, agent.id)
+
+    assert (before.can_regroup, after.can_regroup, owners.can_regroup) == (False, True, True)
+    assert agents.can_regroup is False
+    with patch("app.services.knowledge_gaps.spawn_after_commit") as spawn:
+        await service.regroup(operator, kb.id)
+    spawn.call_args.args[1].close()
+
+
 async def test_dismissing_a_topic_and_reopening_it(db) -> None:
     ctx = await _owner(db)
     kb, _, topic_id = await _a_topic(db, ctx)

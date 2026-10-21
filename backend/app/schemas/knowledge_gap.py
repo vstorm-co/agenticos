@@ -147,6 +147,13 @@ class KnowledgeGapTopicList(BaseSchema):
     ungrouped: int = Field(
         description="Misses waiting for the next grouping pass, so not in any topic yet"
     )
+    can_regroup: bool = Field(
+        default=False,
+        description=(
+            "Whether the caller may group this knowledge base's waiting misses now; "
+            "false for a list of the organization's or an agent's gaps"
+        ),
+    )
 
 
 class KnowledgeGapQuestion(BaseSchema):
