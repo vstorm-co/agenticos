@@ -11,8 +11,9 @@ src/lib/brand-glyphs.generated.ts contains SVG path data for the brand marks the
 console draws, fetched by scripts/gen-brand-icons.ts from:
 
   Simple Icons      https://simpleicons.org            CC0 1.0 Universal
-  Font Awesome Free https://fontawesome.com/license    icons under CC BY 4.0
   @lobehub/icons    https://icons.lobehub.com          MIT
+  SVG Logos         https://github.com/gilbarbara/logos CC0 1.0 Universal
+  theSVG            https://github.com/glincker/thesvg MIT
 
 The marks themselves are the trademarks of their respective owners and are used
 to identify those products. Their inclusion implies no affiliation with or

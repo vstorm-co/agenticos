@@ -1,5 +1,5 @@
 ---
-source_sha: "67523cafdf32"
+source_sha: "66cbedf36a2b"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -405,6 +405,113 @@ pro erfolgreichem Schreibvorgang über die öffentliche API in dieser Organisati
 einen JSON-Frame — `resource`, `id`, `action` (`created`, `updated` oder
 `deleted`), `surface` (`console`, `api_key`, `mcp` oder `assistant`) und wer ihn
 ausgeführt hat — und nur für Zeilen, die der Aufrufer lesen darf.
+
+## Sprachanrufe { #voice-calls }
+
+Ein [Sprachanruf](voice.md) hat ein eigenes Socket, weil ein Anruf keine
+Schleife aus Runden ist: **`/api/v1/ws/voice`** für ein Mitglied und
+**`/api/v1/embed/{public_key}/voice/ws`** für einen Besucher auf einem Widget
+oder einer gehosteten Seite ([Zulassung](channels.md#the-call-socket)). Beide
+sprechen dieselben Frames, definiert in `backend/app/schemas/voice.py`.
+
+Das Socket der Konsole authentifiziert sich wie `/ws/agent`: das Token als
+Eintrag `access_token.<JWT>` in `Sec-WebSocket-Protocol` (oder das
+Same-Origin-Cookie), nie im Query-String, und die Organisation als
+`?organization_id=`. Es schließt mit `4001` ohne gültige Session und mit `4003`,
+wenn der Aufrufer kein Mitglied ist oder sich mit einem API-Schlüssel der
+Organisation authentifiziert: Ein Anruf ist ein Mensch am Mikrofon, so wie ein
+Chat-Turn ein Mensch an der Tastatur ist.
+
+Das Embed-Socket schließt mit `4029`
+jenseits eines Rate-Limits und mit `4003` bei jeder Ablehnung, die das Embed
+betrifft. Jeder Heartbeat prüft die Session erneut, sodass ein Anruf eine
+Abmeldung nicht überdauert.
+
+**Der Client sendet** JSON-Frames und über das Relay auch binäres Audio:
+
+| Frame | Felder | Wann |
+|---|---|---|
+| `start` | `agent_id`, `conversation_id`, `sdp_offer` (WebRTC), `resume_of` und `resume_token` (eine Wiederverbindung), `context` (die Variablen eines Embeds) | Zuerst, innerhalb von 10 Sekunden |
+| `approval` | `id`, `decision` (`approve` oder `deny`) | Entscheidung über eine Freigabe, auf die der Anruf wartet |
+| `mute` | `muted` | Das Relay: das Mikrofon stummgeschaltet |
+| `played` | `bytes` | Das Relay: wie viel vom Audio des Agents abgespielt wurde |
+| `end` | - | Auflegen |
+| *binär* | 16-Bit-PCM mit der Eingangsrate des Modells | Das Relay: das Audio des Anrufers |
+
+**Der Server sendet:**
+
+| Frame | Felder | Bedeutet |
+|---|---|---|
+| `answer` | `sdp` | WebRTC: die Antwort des Providers für die Peer-Verbindung des Browsers |
+| `ready` | `call_id`, `run_id`, `conversation_id`, `transport`, `input_sample_rate`, `output_sample_rate`, `cap_seconds`, `resume_token` | Der Anruf ist eingerichtet. `resume_token` wird nur hier gesendet, nur an diesen Anrufer; eine Wiederverbindung schickt es zurück |
+| `state` | `state`: `connecting`, `listening`, `user_speaking`, `thinking`, `agent_speaking`, `interrupted`, `tool_running`, `awaiting_approval` | Wer spricht oder was der Agent gerade tut |
+| `caption` | `role`, `turn_id`, `part` und eines von `delta` (anhängen), `text` (durch den bisher geprüften Text ersetzen) oder `final` | Ein Live-Untertitel |
+| `turn_saved` | `message` | Eine abgeschlossene Runde, als die Nachricht, als die sie gespeichert wurde; sie ersetzt die Untertitel mit ihrer `turn_id` |
+| `tool` | `name`, `status` (`running` oder `done`) | Ein Tool, das der Agent ausführt |
+| `approval_required` | `id`, `tool`, `args`, `said`, `timeout_seconds` | Eine Freigabe für die Person im Anruf: die exakten Argumente und was von ihr verstanden wurde |
+| `approval_unavailable` | `tool`, `args` | Ein Tool-Aufruf, den dieser Anrufer per Stimme nicht freigeben kann |
+| `approval_settled` | `id`, `outcome` (`approved`, `denied` oder `expired`) | Wie eine Freigabe ausgegangen ist |
+| `notice` | `kind`, `message` (optional) | Etwas, das in Worten zu sagen ist: ein Guardrail-Treffer, ein erreichtes Limit |
+| `limit` | `seconds_left` | Die Zeit des Anrufs ist fast um |
+| `clear_playback` | - | Das Relay: das eingereihte Audio des Agents verwerfen |
+| `ended` | `reason`, `message` | Der Anruf ist vorbei |
+| *binär* | 16-Bit-PCM mit der Ausgangsrate des Modells | Das Relay: das Audio des Agents |
+
+**Ein Besucher eines Widgets oder einer gehosteten Seite erfährt weniger.** Sein
+`ready` enthält kein `run_id`; `cap_seconds` ist das Limit des Anrufs - der
+längste Anruf des Agents oder was von einem fortgesetzten Anruf übrig ist. Die
+Tool-Frames folgen den Schaltern
+`show_tool_steps` und `show_tool_results` des Embeds, wie die einer getippten
+Antwort. Ohne Tool-Schritte wird kein `tool`-Frame gesendet, und
+`tool_running` kommt als `thinking`. Ohne Tool-Ergebnisse kommt
+`approval_unavailable` mit leeren `args`. Das `turn_saved` eines Besuchers
+enthält, unabhängig von den Schaltern, nur `id`, `role`, `content`,
+`interrupted` und `turn_id` der Nachricht: nie die IDs von Run, Agent oder
+Version, nie ihre Kosten oder Tool-Aufrufe.
+
+**Eine Wiederverbindung muss beweisen, dass ihr der Anruf gehört.** Ein `start`
+mit `resume_of` muss auch das `resume_token` aus dem `ready` jener Verbindung
+mitschicken. Ohne es oder mit einem falschen wird die Wiederverbindung als
+`resume_refused` abgelehnt, und der genannte Anruf bleibt unberührt. Der Server
+speichert nur einen Hash des Tokens. Ein Anruf, der schon aus 20 Verbindungen
+besteht, wird nicht mehr fortgesetzt: Auch seine nächste Wiederverbindung wird
+als `resume_refused` abgelehnt.
+
+Ein Socket, das innerhalb von 10 Sekunden kein `start` sendet, bekommt `ended`
+mit `no_start`. Ein Anruf, der nicht startet, antwortet mit `ended` und einem
+stabilen `reason`: `no_agent`, `forbidden`, `not_configured`, `bad_offer`,
+`data_channel`, `resume_refused`, `call_limit`, `not_priced`, `budget`, `busy`
+oder `line_busy`, mit einer `message`, die sich gefahrlos anzeigen lässt.
+`busy` kommt erst, nachdem ein Anruf, den dieselbe Person gerade aufgelegt hat,
+bis zu vier Sekunden hatte, um zu enden. Ein Start, der aus irgendeinem
+anderen Grund scheitert, antwortet mit `ended` und `error`.
+
+Ein Besucher, der
+als `not_configured`, `not_priced` oder `budget` abgelehnt wird oder dessen
+Anruf als `budget` endet, bekommt stattdessen
+`unavailable` mit der Meldung "Calls are not available right now.": Code und
+vollständige Meldung sind Sache des Betreibers des Agents. Ein Anruf in eine archivierte Unterhaltung wird als `forbidden`
+abgelehnt, so wie eine getippte Nachricht dorthin.
+
+Ein Anruf, der gelaufen ist, endet mit `user`, `time_limit`, `budget`,
+`disconnected`, `revoked`, `guardrail`, `shutdown` oder `error`; mit
+`time_limit`, wenn er den längsten Anruf des Agents erreicht hat. Der Anruf eines Besuchers
+endet mit `revoked`, wenn sein Embed pausiert wird, seine Anrufe abgeschaltet
+werden oder es auf einen anderen Agent zeigt. Kein Frame trägt je Zugangsdaten
+eines Providers.
+
+Fünf HTTP-Routen gehören dazu:
+
+| Route | Gate | Antwortet |
+|---|---|---|
+| `GET /api/v1/agents/{agent_id}/voice` | `agents:run` auf diesem Agent, ein Grant eingeschlossen; sonst `404` | Ob ein Anruf starten würde, warum nicht (`no_voice`, `not_offered` oder `no_key`), der Transport und der längste Anruf |
+| `POST /api/v1/agents/{agent_id}/voice/preview` | `agents:edit` auf diesem Agent, ein Grant eingeschlossen; sonst `404` | Die Stimme aus dem Entwurf des Abschnitts „Stimme“, die einen festen Satz sagt, als `audio/wav`. Pro Stimme und Sprache im Cache; `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` pro Person |
+| `GET /api/v1/providers/realtime-models` | `agents:view` | Der Realtime-Katalog, aus dem der Abschnitt Stimme auswählt |
+| `GET /api/v1/voice/usage?start=…&end=…` | `runs:view` | Anrufsekunden und Anrufe für Anrufe, die zu oder nach `start` und vor `end` begonnen haben, nach Agent (die Anrufe eines gelöschten Agents als eine Zeile ohne ID oder Namen). Ein `end`, das nicht nach `start` liegt, wird mit `422` abgelehnt |
+| `GET /api/v1/runs?modality=voice` | `runs:view` | Nur Anrufe (`text` nur für getippte Runs); ein Anruf, der sich neu verbunden hat, ist eine Zeile mit `voice_chain`, alle Verbindungen summiert |
+
+Eine Freigabe, die zu einem laufenden Anruf gehört, wird im Anruf entschieden:
+`POST /api/v1/approvals/{id}` lehnt sie mit `400` ab.
 
 ## Fehler { #errors }
 

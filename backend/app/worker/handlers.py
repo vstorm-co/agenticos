@@ -55,6 +55,7 @@ def production() -> Handlers:
         run_tasks,
         teardown_tasks,
         trigger_tasks,
+        voice_tasks,
     )
     from app.worker.tasks.background_tasks import sweep_background_jobs
 
@@ -85,6 +86,7 @@ def production() -> Handlers:
             Handler(jobs.APPLY_RETENTION, _each_tick(rag_tasks.apply_retention)),
             Handler(jobs.SWEEP_NOTIFICATIONS, _each_tick(notification_tasks.sweep_notifications)),
             Handler(jobs.SWEEP_BACKGROUND_JOBS, _each_tick(sweep_background_jobs)),
+            Handler(jobs.REAP_VOICE_CALLS, _each_tick(voice_tasks.reap_voice_calls)),
             Handler(jobs.WEEKLY_USAGE_REPORT, report_tasks.weekly_usage_report),
             Handler(jobs.MONTHLY_USAGE_REPORT, report_tasks.monthly_usage_report),
         ]

@@ -595,6 +595,30 @@ class Settings(BaseSettings):
     # what one integration can do to the deployment; a run or an ML call is
     # additionally counted against its own, smaller limit.
     RATE_LIMIT_API_KEY_PER_MINUTE: int = 600
+    # Composer dictations per person per minute (#1797). Its own bucket so a person
+    # dictating does not spend an integration's ML quota, or the other way round.
+    RATE_LIMIT_DICTATION_PER_MINUTE: int = 10
+    # Voice previews per person per minute (#54): the Builder's ▶ beside a voice.
+    # Each uncached one is a short paid session on the organization's realtime
+    # provider, outside every model budget.
+    RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE: int = 6
+    # Dictations a visitor may send from a hosted page or a widget, per minute
+    # (#1797). Counted per address first, then - for a `jwt` widget - per visitor
+    # by the token's subject. Each one is a paid call to the organization's
+    # speech-to-text provider, outside every model budget.
+    RATE_LIMIT_EMBED_DICTATION_PER_MINUTE: int = 6
+    # Dictations one hosted page or widget accepts from everybody together, per
+    # minute. The ceiling on what a leaked or public link costs: this many
+    # recordings a minute, each at most the organization's longest dictation.
+    RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE: int = 10
+    # Voice calls one address may start on a hosted page or a widget, per minute
+    # (#54). Each is a paid realtime session, so it is counted before the key is
+    # looked up, the way dictation is.
+    RATE_LIMIT_EMBED_VOICE_PER_MINUTE: int = 3
+    # Voice calls one hosted page or widget accepts from everybody together, per
+    # minute. The ceiling on what a leaked link costs: this many calls a minute,
+    # each at most the organization's longest call, within its monthly minutes.
+    RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE: int = 6
     # Whether `X-Forwarded-For` names the caller. Off by default because the
     # header is set by whoever is calling, so trusting it unconditionally is a
     # per-IP limit anybody bypasses by varying one string. On costs the mirror
@@ -602,6 +626,14 @@ class Settings(BaseSettings):
     # bucket. Turn it on when a proxy is the only thing that can reach this
     # deployment - see `docs/configuration.md`.
     RATE_LIMIT_TRUST_FORWARDED_FOR: bool = False
+    # Concurrent voice calls one person may hold (#54). One by default: a second
+    # tab's call is almost always a mistake, and each is billed.
+    VOICE_MAX_CALLS_PER_USER: int = 1
+    # Concurrent voice calls one hosted page or widget may hold, from everybody
+    # together (#54). Visitors have no account to count against, so this is what
+    # stops a leaked link from spending the organization's monthly minutes - and
+    # with them every member's calls - in parallel.
+    VOICE_MAX_CALLS_PER_EMBED: int = 3
 
     # The background workers (`python -m app.worker`, #2219). Each process serves
     # the pools in `WORKER_POOLS`; a deployment that wants ingestion on its own

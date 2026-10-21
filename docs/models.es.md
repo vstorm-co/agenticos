@@ -1,5 +1,5 @@
 ---
-source_sha: "caab0d1d874d"
+source_sha: "a43a833ec82f"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -498,6 +498,45 @@ La fila del run hijo que escribe una delegación nombra el modelo que la
 respondió, así que el panel de costes agrupa un turno delegado bajo el modelo que
 realmente se ejecutó y no bajo el del padre.
 
+## Modelos realtime { #realtime-models }
+
+Una [llamada de voz](voice.md) no usa un perfil de modelo. Su modelo se elige de
+un catálogo que trae este despliegue, `backend/app/core/catalog/realtime_models.json`,
+que lee `backend/app/services/realtime_models.py` y que se sirve al Builder en
+`GET /api/v1/providers/realtime-models`. La clave se nombra en la sección Voice
+del agent como un secreto del vault, no en un perfil. Es la misma forma que usa
+la voz a texto: una elección del catálogo más una clave explícita.
+
+Cada entrada nombra un provider, sus modelos y, para cada modelo:
+
+| Campo | Qué decide |
+|---|---|
+| `transport` | `webrtc` (el navegador habla con el provider; este despliegue mantiene un sideband) o `relay` (el audio pasa por el socket de este despliegue) |
+| `input_sample_rate`, `output_sample_rate` | Las frecuencias PCM a las que el navegador graba y reproduce, a través del relay |
+| `voices`, `default_voice` | Lo que ofrece la sección Voice, y lo que significa no elegir nada |
+| `supports_thinking` | Si la capability de thinking del agent se traduce al ajuste de razonamiento propio del modelo |
+| `context_window` | Dónde una reconexión pasa de reproducir los turnos a un resumen de los más antiguos |
+| `pricing` | `kind` (`tokens` o `per_minute`), `worst_case_usd_per_minute` para la comprobación previa a una llamada, y `usd_per_minute` para un modelo por minuto |
+
+La familia `gpt-realtime` de OpenAI funciona sobre WebRTC y es el único provider
+probado en vivo. Azure OpenAI, Gemini Live y xAI funcionan sobre el relay y **no
+están verificados en vivo**. GPT-Live no está en el catálogo: no puede recibir
+historial después de que empiece una sesión, así que una reconexión no podría
+continuar una llamada.
+
+**Azure es un deployment más un modelo base.** El nombre de un deployment lo
+elige su propietario y no dice nada de lo que ejecuta, así que la sección Voice
+toma el nombre del deployment como texto libre y el modelo del catálogo que
+ejecuta como `base_model`. El modelo base decide las voces y el precio: los
+tokens de una llamada de Azure se tarifan como ese modelo en OpenAI. El endpoint
+y la versión de la API vienen del secreto `azure_openai`.
+
+**Precios.** Los modelos tarifados por token se tarifan por respuesta a partir
+del mismo snapshot incluido que los runs de texto. Un modelo por minuto (xAI) se
+factura por el tiempo conectado al `usd_per_minute` del catálogo. Un modelo
+tarifado por token que el snapshot no sabe tarifar se rechaza cuando empieza una
+llamada, en vez de funcionar con un budget que no puede hacer cumplir.
+
 ## Resumen { #recap }
 
 - Un **perfil** es un modelo con nombre más una clave con nombre, y los agents
@@ -510,6 +549,9 @@ realmente se ejecutó y no bajo el del padre.
 - El **coste** viene de un snapshot incluido, un modelo desconocido se registra
   como sin tarifar y no como gratis, y un provider sin clave no registra gasto
   alguno.
+- Los **modelos realtime** de las llamadas de voz son una elección del catálogo
+  más una clave con nombre, sin perfil; solo los de OpenAI están verificados en
+  vivo.
 
 ## Configurar uno { #setting-one-up }
 

@@ -2,7 +2,7 @@
 
 import logging
 import re
-from typing import ClassVar
+from typing import ClassVar, overload
 
 #: Bytes that end a log line, or move a terminal reading one.
 #:
@@ -115,6 +115,20 @@ class PiiRedactionFilter(logging.Filter):
         for pattern, replacement in self.PATTERNS:
             value = pattern.sub(replacement, value)
         return _escape_line_breakers(value)
+
+
+@overload
+def one_line(value: str) -> str: ...
+@overload
+def one_line(value: None) -> None: ...
+def one_line(value: str | None) -> str | None:
+    """A request value written out on one line, at the call that logs it.
+
+    `PiiRedactionFilter` already escapes every record, so this adds no protection
+    a handler lacks. It exists for CodeQL's `py/log-injection`, which cannot see a
+    filter installed at startup and recognises only a sanitiser at the call site.
+    """
+    return None if value is None else value.replace("\r", "\\r").replace("\n", "\\n")
 
 
 def _escape_line_breakers(value: str) -> str:

@@ -13,6 +13,15 @@ export type RunStatus =
   /** Stopped for looping on its tool calls after it was warned (#2086). */
   | "loop_stopped";
 
+/** One call as Activity shows it: every connection of it, summed (#54). */
+export interface VoiceChain {
+  /** 1, plus one per reconnect. */
+  connections: number;
+  seconds: number;
+  /** A decimal string, like `cost_usd`. */
+  cost_usd: string;
+}
+
 export interface AgentRun {
   id: string;
   agent_id: string;
@@ -74,6 +83,14 @@ export interface AgentRun {
    * run table reads it to offer the chat behind a run (#765).
    */
   conversation_id: string | null;
+  /** `voice` for a call, `text` for everything typed (#54). */
+  modality: "text" | "voice";
+  /**
+   * For a voice run on the run list: every connection of the call, summed - a
+   * reconnect's run continues the call and is not listed on its own. Null for
+   * text runs and on every other read.
+   */
+  voice_chain: VoiceChain | null;
   started_at: string | null;
   ended_at: string | null;
   /**

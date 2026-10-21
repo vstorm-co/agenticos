@@ -53,6 +53,16 @@ class LockScope(IntEnum):
     #: just ingested, because the older one never saw it (#987). Session-scoped,
     #: unlike the rest: a sync spans many transactions.
     SYNC_SOURCE_RUN = 7
+    #: One person's concurrent voice calls (#54). Two starts at once each counted
+    #: zero open calls and both connected - two billed sessions for one person.
+    VOICE_CALLS_PER_USER = 8
+    #: One embed's concurrent voice calls (#54): the same race, from visitors
+    #: who have no account to count against.
+    VOICE_CALLS_PER_EMBED = 9
+    #: One connection's reconnects (#54). Several sockets sending the same valid
+    #: `resume_of` and token at once each passed the checks and each continued the
+    #: call - one call's remaining time, spent several times over (Codex on #2204).
+    VOICE_RESUME = 10
 
 
 def _key(subject: UUID) -> int:

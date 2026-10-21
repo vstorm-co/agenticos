@@ -289,6 +289,16 @@ class MessageRead(MessageBase, TimestampSchema):
             "run, which is what lets a client say so rather than draw an empty panel."
         ),
     )
+    turn_id: str | None = Field(
+        default=None, description="A spoken turn's id within its call; null for typed turns"
+    )
+    interrupted: bool = Field(
+        default=False,
+        description=(
+            "Whether the caller talked over this answer; its text is trimmed to roughly "
+            "what was heard"
+        ),
+    )
     model_name: str | None = None
     parts: list[MessagePart] | None = Field(
         default=None,

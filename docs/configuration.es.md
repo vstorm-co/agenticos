@@ -1,5 +1,5 @@
 ---
-source_sha: "c10fd9c1aa83"
+source_sha: "14553222ac64"
 ---
 
 # Configuración { #configuration }
@@ -1137,6 +1137,27 @@ pueden apuntar a endpoints locales como Ollama sin ninguna bandera
 `run_python` son configuración de la capability por agent
 (`CODE_EXECUTION_TIMEOUT_SECS` / `CODE_EXECUTION_MAX_MEMORY_MB` se eliminaron).
 
+## Llamadas de voz { #voice-calls }
+
+Las [llamadas de voz](voice.md) se encienden en cada agent, y las acotan su
+llamada más larga y los budgets. Dos techos son del despliegue:
+
+| Variable | Por defecto | Descripción |
+|----------|---------|-------------|
+| `VOICE_MAX_CALLS_PER_USER` | `1` | Llamadas que una persona puede mantener a la vez. La llamada de una segunda pestaña es casi siempre un error, y cada una se factura; un segundo inicio se rechaza como `busy` |
+| `VOICE_MAX_CALLS_PER_EMBED` | `3` | Llamadas que un widget o una página alojada pueden mantener a la vez, de todos los visitantes juntos; la siguiente se rechaza como `line_busy`. Los visitantes no tienen cuenta contra la que contar, así que esto es lo que impide que un enlace filtrado gaste en paralelo el budget de la organización |
+
+Los dos cuentan las llamadas cuyo latido está al día, así que una llamada cuyo
+proceso murió deja de contar en 45 segundos. Iniciar llamadas en un embed
+también tiene un límite de tasa (`RATE_LIMIT_EMBED_VOICE_*`,
+[más abajo](#rate-limiting)). El propio `rate_limit_per_minute` de un embed,
+fijado en el Builder, cuenta los **mensajes** de un visitante, no los inicios de
+llamada, así que no limita las llamadas.
+
+El resto está fijado en el código en lugar de configurarse: una llamada nunca
+dura más de 50 minutos, los latidos van cada 15 segundos, y el barrido de voz se
+ejecuta cada minuto, como la planificación `reap-voice-calls` del worker.
+
 ## CORS { #cors }
 
 | Variable | Por defecto | Descripción |
@@ -1154,7 +1175,7 @@ Validación en producción: `CORS_ORIGINS` no puede contener `"*"` con
 Se aplican a las superficies que un desconocido puede alcanzar, y solo a ellas: la API
 pública de runs, el script del widget, su configuración, el handshake del socket de
 cualquiera de las dos superficies, la configuración y el logo de una página alojada, y
-la subida de un visitante. Las rutas propias de la consola están detrás de una sesión
+la subida, el dictado y la llamada de voz de un visitante. Las rutas propias de la consola están detrás de una sesión
 y no se miden — si toda la API debería llevar un techo es una decisión aparte, no
 esta.
 
@@ -1166,6 +1187,12 @@ esta.
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | La configuración de una página alojada, **por página** — y su logo, en un contador propio. Ver más abajo |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Archivos que un visitante puede guardar en una página alojada. Se cuenta **por dirección y por clave de visitante**, y las dos tienen que permitirlo — la clave la acuña el navegador, así que contar solo esa no acota nada |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | Los [servicios de ML](ml-services.md), por llamante. Estos endpoints hacen su trabajo de forma síncrona, así que un llamante sin límite ocupa el pool de parseo en vez de un presupuesto |
+| `RATE_LIMIT_DICTATION_PER_MINUTE` | `10` | [Dictado en el chat](ml-services.md#dictation-in-chat), por persona, en un contador propio para que dictar y una integración que llama a los servicios de ML no se gasten la cuota el uno al otro. Cada dictado es una llamada al provider de pago de la organización |
+| `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` | `6` | [Escuchar una voz](voice.md#turn-it-on) en el Builder, por persona. Cada vista previa fuera de caché es una sesión de pago corta en el provider realtime del agent, fuera de todo budget de modelo; una voz escuchada una vez queda en caché una semana |
+| `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` | `6` | [Dictado en un widget o en una página alojada](channels.md#dictation-on-a-widget-or-a-hosted-page), por dirección, y por visitante en un widget `jwt`. Cada dictado es una llamada al provider de pago de la organización, fuera de todo budget de modelo |
+| `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` | `10` | Lo mismo, por página o widget, de todos los visitantes a la vez - el techo de lo que cuesta un enlace filtrado: este número de grabaciones por minuto, cada una de hasta el dictado más largo de la organización. Solo se gasta una vez admitido el visitante |
+| `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` | `3` | [Llamadas de voz](channels.md#voice-calls-on-a-widget-or-a-hosted-page) iniciadas en un widget o una página alojada, por dirección, y por sujeto del token del visitante en un widget `jwt`. La dirección se cuenta antes de buscar la clave; cada llamada es una sesión en tiempo real de pago |
+| `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` | `6` | Lo mismo, por página o widget, de todos los visitantes a la vez, gastado solo una vez admitido el visitante. Junto con `VOICE_MAX_CALLS_PER_EMBED` más arriba, el techo de lo que cuesta un enlace filtrado |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Si `X-Forwarded-For` nombra a quien llama |
 
 **Lo que recibe un llamante rechazado** es el sobre de error propio de esta API con

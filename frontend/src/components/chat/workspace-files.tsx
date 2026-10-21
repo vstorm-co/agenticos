@@ -82,9 +82,8 @@ export function WorkspaceFiles({
     void refresh();
   }, [revision, refresh]);
 
-  if (conversationId === null) return null;
-
-  // **Always drawn, once there is a conversation to draw it for.** It used to wait
+  // **Always drawn**, a new chat included, where the panel says what will land
+  // in it. It used to wait
   // for the listing to report a workspace, and the reasoning was about flicker: a
   // workspace has no row until a turn flushes one, so the button appeared as the id
   // arrived, vanished when the listing said `none`, and came back when the turn
@@ -170,6 +169,10 @@ export function WorkspaceFiles({
           </p>
         )}
       </div>
+
+      {conversationId === null && (
+        <p className="text-muted-foreground text-xs">{t("beforeStart")}</p>
+      )}
 
       {error !== null && (
         <div className="text-destructive flex items-start gap-2 text-xs">

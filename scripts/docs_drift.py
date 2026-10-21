@@ -37,6 +37,13 @@ from pathlib import Path
 # change and teach the reader to ignore it.
 TRIGGERS: tuple[tuple[str, str], ...] = (
     ("backend/app/agents/spec.py", "docs/reference/spec.md"),
+    # Voice conversations (#54): the call service, its assembly and the realtime
+    # catalog, ahead of the broader prefixes below.
+    ("backend/app/services/voice/", "docs/voice.md"),
+    ("backend/app/agents/voice.py", "docs/voice.md"),
+    ("backend/app/agents/realtime.py", "docs/voice.md"),
+    ("backend/app/services/realtime_models.py", "docs/models.md"),
+    ("backend/app/core/catalog/realtime_models.json", "docs/models.md"),
     ("backend/app/agents/capabilities/sandbox/", "docs/sandbox.md"),
     ("backend/app/services/sandbox_", "docs/sandbox.md"),
     ("backend/app/core/catalog/sandbox_runtimes.json", "docs/sandbox.md"),

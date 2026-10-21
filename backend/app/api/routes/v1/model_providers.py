@@ -27,13 +27,18 @@ from app.schemas.model_profile import (
     ProviderInfo,
     ProviderModelList,
     ProviderModelRead,
+    RealtimeModelRead,
+    RealtimeProviderList,
+    RealtimeProviderRead,
     SpeechToTextModelRead,
     SpeechToTextProviderList,
     SpeechToTextProviderRead,
 )
+from app.services import realtime_models
 from app.services.image_models import image_providers
 from app.services.model_catalog import models_for
 from app.services.model_profile import provider_catalog
+from app.services.speech_to_text import LANGUAGES as SPEECH_TO_TEXT_LANGUAGES
 from app.services.speech_to_text import providers as speech_to_text_providers
 
 router = APIRouter()
@@ -163,10 +168,13 @@ async def list_speech_to_text_models() -> Any:
     client, is dropped, because a picker entry that fails when somebody sends a
     voice note is worse than one that is absent.
 
-    No credential is read. This says what the deployment can offer, not what this
-    organization has a key for - the key is resolved from its model profiles when a
-    recording actually arrives, and a bot configured for a provider with no key
-    reports that in the log rather than here.
+    No credential is read. This says what the deployment can offer; the key a
+    pair is sent with is chosen beside it, from the vault keys whose purpose is
+    the provider, and the picker that offers them is what says a provider has
+    none.
+
+    `languages` is the ISO-639-1 codes a recording may be pinned to, which an
+    organization's dictation settings choose from.
 
     Declared before `/{provider}/models`, which would otherwise match
     "speech-to-text-models" as a provider.
@@ -180,6 +188,48 @@ async def list_speech_to_text_models() -> Any:
                 models=[
                     SpeechToTextModelRead(
                         id=model.id, name=model.name, description=model.description
+                    )
+                    for model in entry.models
+                ],
+            )
+            for entry in offered
+        ],
+        total=len(offered),
+        languages=list(SPEECH_TO_TEXT_LANGUAGES),
+    )
+
+
+@router.get(
+    "/realtime-models",
+    response_model=RealtimeProviderList,
+    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+)
+async def list_realtime_models() -> Any:
+    """Which providers can hold a voice conversation, with which models and voices.
+
+    The same shape and reasoning as `/speech-to-text-models`. No credential is
+    read; the key is chosen beside the pair, from vault keys whose purpose is
+    the provider. Declared before `/{provider}/models`.
+    """
+    offered = realtime_models.providers()
+    return RealtimeProviderList(
+        items=[
+            RealtimeProviderRead(
+                provider=entry.provider,
+                name=entry.name,
+                secret_kind=entry.secret_kind.value,
+                deployment=entry.deployment,
+                models=[
+                    RealtimeModelRead(
+                        id=model.id,
+                        name=model.name,
+                        description=model.description,
+                        transport=model.transport,
+                        voices=list(model.voices),
+                        default_voice=model.default_voice,
+                        supports_thinking=model.supports_thinking,
+                        input_sample_rate=model.input_sample_rate,
+                        output_sample_rate=model.output_sample_rate,
                     )
                     for model in entry.models
                 ],

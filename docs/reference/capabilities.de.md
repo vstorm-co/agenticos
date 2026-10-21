@@ -1,5 +1,5 @@
 ---
-source_sha: "8854a5e745f3"
+source_sha: "39f077da4c2c"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -49,36 +49,36 @@ hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installati
 
 ## Was ausgeliefert wird { #what-ships }
 
-| id | Name | Kategorie | Tools | Scope | Schlüssel |
-|---|---|---|---|---|---|
-| `knowledge` | Wissenssuche | knowledge | `search_documents` | `knowledge:read` | — |
-| `skills` | Skills | knowledge | `read_skill_resource` | `knowledge:read` | — |
-| `context` | Kontext | knowledge | `list_context`, `read_context` | — | — |
-| `memory_files` | Gedächtnis | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
-| `memory_mem0` | Gedächtnis (mem0) | knowledge | `remember`, `recall` | — | erforderlich |
-| `conversation_search` | Frühere Gespräche | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
-| `web_research` | Websuche | research | `web_search` | `web:read` | für kostenpflichtige Dienste |
-| `web_fetch` | Webseiten lesen | research | `web_fetch` | `web:fetch` | — |
-| `browser_use` | Webbrowser | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | über das Extra `browser` |
-| `code_execution` | Berechnungen | analysis | `run_python` | `code:execute` | — |
-| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | für Daytona |
-| `charts` | Diagramme | analysis | `create_chart` | — | — |
-| `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — |
-| `image_generation` | Bilderzeugung | analysis | `generate_image` | — | erforderlich |
-| `coding_agent` | Coding Agent | analysis | `run_coding_agent` | `sandbox:execute` | erforderlich |
-| `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
-| `planning` | Planung | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
-| `thinking` | Nachdenken | reasoning | keine, mit Absicht | — | — |
-| `system_reminders` | Erinnerung an Anweisungen | reasoning | keine, mit Absicht | — | — |
-| `tool_search` | Tool-Suche | utility | keine, mit Absicht | — | — |
-| `clock` | Datum und Uhrzeit | utility | keine, mit Absicht | — | — |
-| `guardrails` | Schutzregeln | utility | keine, mit Absicht | — | — |
-| `compaction` | Lange Gespräche | utility | keine, mit Absicht | — | — |
-| `media` | Bilder auslagern | utility | keine, mit Absicht | — | — |
-| `tool_output_limits` | Grenzen für Tool-Ergebnisse | utility | `read_tool_result` | — | — |
-| `artifacts` | Apps | utility | `publish_artifact`, `read_artifact` | — | — |
-| `channel_tools` | Infos zum Chat-Kanal | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
-| `ask_user` | Rückfragen | utility | `ask_user_question` | — | — |
+| id | Name | Kategorie | Tools | Scope | Schlüssel | Sprachanruf |
+|---|---|---|---|---|---|---|
+| `knowledge` | Wissenssuche | knowledge | `search_documents` | `knowledge:read` | — | unverändert |
+| `skills` | Skills | knowledge | `read_skill_resource` | `knowledge:read` | — | angepasst |
+| `context` | Kontext | knowledge | `list_context`, `read_context` | — | — | unverändert |
+| `memory_files` | Gedächtnis | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — | unverändert |
+| `memory_mem0` | Gedächtnis (mem0) | knowledge | `remember`, `recall` | — | erforderlich | unverändert |
+| `conversation_search` | Frühere Gespräche | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — | unverändert |
+| `web_research` | Websuche | research | `web_search` | `web:read` | für kostenpflichtige Dienste | unverändert |
+| `web_fetch` | Webseiten lesen | research | `web_fetch` | `web:fetch` | — | unverändert |
+| `browser_use` | Webbrowser | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | über das Extra `browser` | übergeben |
+| `code_execution` | Berechnungen | analysis | `run_python` | `code:execute` | — | unverändert |
+| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | für Daytona | übergeben |
+| `charts` | Diagramme | analysis | `create_chart` | — | — | unverändert |
+| `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — | unverändert |
+| `image_generation` | Bilderzeugung | analysis | `generate_image` | — | erforderlich | unverändert |
+| `coding_agent` | Coding Agent | analysis | `run_coding_agent` | `sandbox:execute` | erforderlich | übergeben |
+| `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — | übergeben |
+| `planning` | Planung | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — | unverändert |
+| `thinking` | Nachdenken | reasoning | keine, mit Absicht | — | — | abgebildet |
+| `system_reminders` | Erinnerung an Anweisungen | reasoning | keine, mit Absicht | — | — | ohne Wirkung |
+| `tool_search` | Tool-Suche | utility | keine, mit Absicht | — | — | entfällt |
+| `clock` | Datum und Uhrzeit | utility | keine, mit Absicht | — | — | unverändert |
+| `guardrails` | Schutzregeln | utility | keine, mit Absicht | — | — | auf Transkripten |
+| `compaction` | Lange Gespräche | utility | keine, mit Absicht | — | — | ohne Wirkung |
+| `media` | Bilder auslagern | utility | keine, mit Absicht | — | — | ohne Wirkung |
+| `tool_output_limits` | Grenzen für Tool-Ergebnisse | utility | `read_tool_result` | — | — | unverändert |
+| `artifacts` | Apps | utility | `publish_artifact`, `read_artifact` | — | — | unverändert |
+| `channel_tools` | Infos zum Chat-Kanal | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — | nicht verfügbar |
+| `ask_user` | Rückfragen | utility | `ask_user_question` | — | — | auf dem Bildschirm |
 
 Sieben davon haben absichtlich keine Tools. `thinking` verändert, wie das Modell
 arbeitet, statt was es erreichen kann, `clock` schreibt das Datum in die
@@ -99,6 +99,29 @@ was einem Modell angeboten wird.** Die Delegation ist die einzige Stelle, an der
 beides auseinandergeht: `create_agent` und `delegate` erscheinen nur unter
 `allow_dynamic`, und `answer_subagent` erscheint überhaupt niemandem — beides wird
 unten unter [Delegation](#delegation) erklärt.
+
+**Die Spalte Sprachanruf zeigt, was eine Capability in einem [Sprachanruf](../voice.md#what-a-call-can-use) tut.**
+*Unverändert* läuft ohne Änderung. *Angepasst*: Skills werden bei Bedarf als
+Instruktionen geladen, ohne ihr Lese-Tool. *Entfällt*: Die Tool-Suche gibt dem
+Anruf seine MCP-Tools direkt, weil die Tools eines Anrufs beim Verbinden
+feststehen. *Abgebildet*: Das Nachdenken wird zur eigenen Reasoning-Einstellung
+des Realtime-Modells. *Übergeben* läuft im eigenen
+Textmodell des Agenten, dem der Anruf eine Aufgabe übergibt
+([Arbeit übergeben](../voice.md#handing-work-off)); die Karte Stimme (Voice) im
+Builder listet diese für einen Agent auf, der sie hat, ebenso das Arbeiten
+während Tools laufen, das ein übergebenes Tool nur in den Hintergrund schickt.
+*Auf dem Bildschirm* stellt seine Fragen auf der Karte der Anrufansicht in
+`/chat`. Die Chat-Kanal-Abfrage ist *nicht verfügbar*, weil ein Anruf nie über
+einen Kanal geführt wird. *Ohne Wirkung* kennzeichnet drei,
+die auf den Modellanfragen eines Text-Runs und deren gespeicherter Historie
+arbeiten, die ein Anruf nicht sendet.
+
+Guardrails prüfen die Transkripte des Anrufs. Das Ergebnis eines Tools wird
+geprüft und blockiert, bevor der Agent es liest; die Prüfung, bevor ein Tool
+läuft, ist die Freigabe, für Tools, die eine brauchen. Guardrails prüfen die
+Argumente eines Tools nicht. Die Katalog-API führt, wie jede Capability an einem Anruf
+teilnimmt, im Feld `voice`: `live` auf dem eigenen Modell des Anrufs,
+`hand_off` oder `never`.
 
 **Eine davon steht gar nicht in der Toolbox.** `channel_tools` wird pro gebundenem
 Bot unter *Where this agent is available* gewählt, und die Veröffentlichung lehnt

@@ -88,6 +88,10 @@ export interface ChatMessage {
    * has no answer on screen to mark.
    */
   wasStopped?: boolean;
+  /** A spoken turn's id within its voice call (#54). Absent for a typed turn. */
+  turnId?: string;
+  /** The caller talked over this spoken answer, so it is trimmed to roughly what was heard. */
+  interrupted?: boolean;
   /**
    * How long the run behind this turn was open, from the stored run. Absent on a
    * live turn, which times itself, and on a turn written outside a run.

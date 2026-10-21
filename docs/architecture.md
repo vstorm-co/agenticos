@@ -130,7 +130,8 @@ A route asks for `DBSession` (`app/api/deps.py`), which resolves `get_db_session
 (`app/db/session.py`). Everything below the route shares that one session:
 services take it in their constructor, repositories take it as their first
 argument, and neither ever calls `commit()` — with one deliberate exception, the
-agent run path, described [below](#the-run-paths-two-commits). `flush()` sends
+agent run path and the voice call that is one, described
+[below](#the-run-paths-two-commits). `flush()` sends
 the statements so the row has an id and the constraints have been checked; the
 commit happens once, on the way out.
 
@@ -222,6 +223,28 @@ history is a run nobody is accountable for.
 
 Both boundaries are proved against a real database in
 `tests/integration/test_run_commit_boundary.py`.
+
+**A voice call is a run, and keeps the same two commits** ([#54][54]). A call
+holds its socket for up to fifty minutes, so it commits where the run path
+does and writes everything in between through sessions of its own:
+
+- `VoiceCallStarter.start` commits once every refusal has passed, with the
+  `voice_calls` row and its run both written, before the provider is called.
+  Approval rows, the heartbeat and the voice sweep all need those rows readable
+  from other sessions; a refusal before that point rolls everything back, so a
+  refused call leaves nothing in Activity.
+- Each saved turn, each 15-second heartbeat and each approval write opens its
+  own `get_db_context()` session and commits there, never on the run's shared
+  session - a turn is durable the moment it is said, and a crash loses at most
+  the turn in progress.
+- `VoiceCallSession`'s teardown, a shielded `finally`, records the call row's
+  end, then hangs the provider call up, finishes the run and commits again -
+  the terminal commit, on every way out. The end comes first so a reconnect
+  waiting on it does not also wait out the hang-up.
+
+`tests/test_voice_starter.py::test_a_started_call_is_committed_with_its_row_and_a_voice_run`
+and `tests/test_voice_session.py::test_every_exit_path_hangs_up_the_provider_call`
+hold the two ends.
 
 ### The one other early commit
 
@@ -315,6 +338,7 @@ once. None of these survives a restart; a job does. See
 
 [3]: https://github.com/vstorm-co/agenticos/issues/3
 [12]: https://github.com/vstorm-co/agenticos/issues/12
+[54]: https://github.com/vstorm-co/agenticos/issues/54
 [353]: https://github.com/vstorm-co/agenticos/issues/353
 [417]: https://github.com/vstorm-co/agenticos/issues/417
 [658]: https://github.com/vstorm-co/agenticos/issues/658

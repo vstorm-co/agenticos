@@ -292,8 +292,10 @@ const DEFAULT_SECTIONS: SectionDef[] = [
     id: "usage",
     titleKey: "usage",
     entries: [
-      { widget: "agents", span: "s6", rows: "r3" },
-      { widget: "spend", span: "s6", rows: "r3" },
+      // Three to a row: the call minutes beside the money they are spent like.
+      { widget: "agents", span: "s4", rows: "r3" },
+      { widget: "spend", span: "s4", rows: "r3" },
+      { widget: "voice-minutes", span: "s4", rows: "r3" },
       // Eight columns are enough for twenty-four hours, and the channel list
       // beside it is about as tall as seven days are.
       { widget: "activity-rhythm", span: "s8", rows: "r4" },

@@ -28,8 +28,10 @@ import {
   Bot,
   CornerUpLeft,
   FileText,
+  Mic,
   OctagonPause,
   Paperclip,
+  Pause,
   Pin,
   PinOff,
   RefreshCw,
@@ -359,6 +361,23 @@ export function MessageItem({
               <span className="text-muted-foreground flex items-center gap-1 text-xs">
                 <OctagonPause className="h-3 w-3" aria-hidden />
                 {t("turnWasStopped")}
+              </span>
+            )}
+            {/* A turn spoken in a call (#54), and one the caller talked over -
+                whose text is cut to roughly what was heard. */}
+            {message.turnId !== undefined && (
+              <span className="text-muted-foreground flex items-center gap-1 text-[11px]">
+                <Mic className="h-3 w-3" aria-hidden />
+                {t("voice.view.voice")}
+              </span>
+            )}
+            {message.interrupted && (
+              <span
+                title={t("voice.view.interruptedTitle")}
+                className="text-foreground flex items-center gap-1 text-[11px] font-medium"
+              >
+                <Pause className="text-warning h-3 w-3" aria-hidden />
+                {t("voice.view.interrupted")}
               </span>
             )}
             {/* When and what it cost, as one quiet group before the actions. */}

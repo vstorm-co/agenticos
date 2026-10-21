@@ -46,6 +46,14 @@ describe("the tool catalog", () => {
     ]);
   });
 
+  it("names the step a call hands to the agent's text model", () => {
+    // No capability registers `hand_off`; a call adds it (#54).
+    expect(toolEntry("hand_off")).toMatchObject({
+      captionKey: "workingInText",
+      displayNameKey: "workedInText",
+    });
+  });
+
   it("answers for a tool it has never heard of rather than throwing", () => {
     // The common path, not the exceptional one: an MCP server names its own tools,
     // and a binding may rename one this table lists.

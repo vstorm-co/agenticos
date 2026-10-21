@@ -1,5 +1,5 @@
 ---
-source_sha: "8854a5e745f3"
+source_sha: "39f077da4c2c"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -49,36 +49,36 @@ Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
 
 ## Co jest dostarczane { #what-ships }
 
-| id | Nazwa | Kategoria | Narzędzia | Zakres | Klucz |
-|---|---|---|---|---|---|
-| `knowledge` | Wyszukiwanie wiedzy | wiedza | `search_documents` | `knowledge:read` | — |
-| `skills` | Skille | wiedza | `read_skill_resource` | `knowledge:read` | — |
-| `context` | Kontekst | wiedza | `list_context`, `read_context` | — | — |
-| `memory_files` | Pamięć | wiedza | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
-| `memory_mem0` | Pamięć (mem0) | wiedza | `remember`, `recall` | — | wymagany |
-| `conversation_search` | Poprzednie rozmowy | wiedza | `search_conversations`, `read_conversation` | `conversations:read` | — |
-| `web_research` | Wyszukiwanie w internecie | badania | `web_search` | `web:read` | dla usług płatnych |
-| `web_fetch` | Czytanie stron | badania | `web_fetch` | `web:fetch` | — |
-| `browser_use` | Przeglądarka | badania | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | przez dodatek `browser` |
-| `code_execution` | Obliczenia | analiza | `run_python` | `code:execute` | — |
-| `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | dla Daytony |
-| `charts` | Wykresy | analiza | `create_chart` | — | — |
-| `visuals` | Wizualizacje | analiza | `draw`, `revise_visual`, `read_visual` | — | — |
-| `image_generation` | Generowanie obrazów | analiza | `generate_image` | — | wymagany |
-| `coding_agent` | Coding agent | analiza | `run_coding_agent` | `sandbox:execute` | wymagany |
-| `subagents` | Subagenci | rozumowanie | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
-| `planning` | Planowanie | rozumowanie | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
-| `thinking` | Myślenie | rozumowanie | brak, celowo | — | — |
-| `system_reminders` | Przypomnienia instrukcji | rozumowanie | brak, celowo | — | — |
-| `tool_search` | Wyszukiwanie narzędzi | użytkowe | brak, celowo | — | — |
-| `clock` | Data i godzina | użytkowe | brak, celowo | — | — |
-| `guardrails` | Zabezpieczenia | użytkowe | brak, celowo | — | — |
-| `compaction` | Długie rozmowy | użytkowe | brak, celowo | — | — |
-| `media` | Odciążenie z obrazów | użytkowe | brak, celowo | — | — |
-| `tool_output_limits` | Limity wyników narzędzi | użytkowe | `read_tool_result` | — | — |
-| `artifacts` | Aplikacje | użytkowe | `publish_artifact`, `read_artifact` | — | — |
-| `channel_tools` | Informacje o kanale czatu | kanały | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
-| `ask_user` | Pytania do użytkownika | narzędzia | `ask_user_question` | — | — |
+| id | Nazwa | Kategoria | Narzędzia | Zakres | Klucz | Głos |
+|---|---|---|---|---|---|---|
+| `knowledge` | Wyszukiwanie wiedzy | wiedza | `search_documents` | `knowledge:read` | — | bez zmian |
+| `skills` | Skille | wiedza | `read_skill_resource` | `knowledge:read` | — | dostosowana |
+| `context` | Kontekst | wiedza | `list_context`, `read_context` | — | — | bez zmian |
+| `memory_files` | Pamięć | wiedza | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — | bez zmian |
+| `memory_mem0` | Pamięć (mem0) | wiedza | `remember`, `recall` | — | wymagany | bez zmian |
+| `conversation_search` | Poprzednie rozmowy | wiedza | `search_conversations`, `read_conversation` | `conversations:read` | — | bez zmian |
+| `web_research` | Wyszukiwanie w internecie | badania | `web_search` | `web:read` | dla usług płatnych | bez zmian |
+| `web_fetch` | Czytanie stron | badania | `web_fetch` | `web:fetch` | — | bez zmian |
+| `browser_use` | Przeglądarka | badania | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | przez dodatek `browser` | przekazana |
+| `code_execution` | Obliczenia | analiza | `run_python` | `code:execute` | — | bez zmian |
+| `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | dla Daytony | przekazana |
+| `charts` | Wykresy | analiza | `create_chart` | — | — | bez zmian |
+| `visuals` | Wizualizacje | analiza | `draw`, `revise_visual`, `read_visual` | — | — | bez zmian |
+| `image_generation` | Generowanie obrazów | analiza | `generate_image` | — | wymagany | bez zmian |
+| `coding_agent` | Coding agent | analiza | `run_coding_agent` | `sandbox:execute` | wymagany | przekazana |
+| `subagents` | Subagenci | rozumowanie | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — | przekazana |
+| `planning` | Planowanie | rozumowanie | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — | bez zmian |
+| `thinking` | Myślenie | rozumowanie | brak, celowo | — | — | odwzorowana |
+| `system_reminders` | Przypomnienia instrukcji | rozumowanie | brak, celowo | — | — | bez efektu |
+| `tool_search` | Wyszukiwanie narzędzi | użytkowe | brak, celowo | — | — | pominięta |
+| `clock` | Data i godzina | użytkowe | brak, celowo | — | — | bez zmian |
+| `guardrails` | Zabezpieczenia | użytkowe | brak, celowo | — | — | na transkrypcjach |
+| `compaction` | Długie rozmowy | użytkowe | brak, celowo | — | — | bez efektu |
+| `media` | Odciążenie z obrazów | użytkowe | brak, celowo | — | — | bez efektu |
+| `tool_output_limits` | Limity wyników narzędzi | użytkowe | `read_tool_result` | — | — | bez zmian |
+| `artifacts` | Aplikacje | użytkowe | `publish_artifact`, `read_artifact` | — | — | bez zmian |
+| `channel_tools` | Informacje o kanale czatu | kanały | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — | niedostępna |
+| `ask_user` | Pytania do użytkownika | narzędzia | `ask_user_question` | — | — | na ekranie |
 
 Siedem z nich celowo nie ma narzędzi. `thinking` zmienia sposób, w jaki model
 pracuje, a nie to, do czego sięga, `clock` wstawia datę do instrukcji,
@@ -99,6 +99,27 @@ model.** Delegowanie jest jedynym miejscem, w którym jedno różni się od drug
 `create_agent` i `delegate` pojawiają się tylko przy `allow_dynamic`, a
 `answer_subagent` nie pojawia się nikomu — oba wyjaśnione niżej w sekcji
 [Delegowanie](#delegation).
+
+**Kolumna Głos mówi, co capability robi w [rozmowie głosowej](../voice.md#what-a-call-can-use).**
+*Bez zmian* działa tak samo. *Dostosowana*: skille ładują się na żądanie jako
+instrukcje, bez narzędzia do ich czytania. *Pominięta*: wyszukiwanie narzędzi
+daje rozmowie jej narzędzia MCP bezpośrednio, bo narzędzia rozmowy są ustalane
+w chwili połączenia. *Odwzorowana*: myślenie staje się własnym ustawieniem
+rozumowania modelu realtime. *Przekazana* działa w modelu tekstowym
+agenta, któremu rozmowa przekazuje zadanie
+([Przekazywanie pracy](../voice.md#handing-work-off)); karta Głos (Voice) w
+Builderze wymienia je dla agenta, który je ma, tak jak pracę w trakcie narzędzi,
+która tylko wysyła przekazane narzędzie w tło. *Na ekranie* zadaje pytania na
+karcie w widoku rozmowy w `/chat`. Podgląd kanału czatu jest *niedostępny*, bo
+rozmowy nigdy nie prowadzi się w kanale. *Bez efektu* oznacza trzy capability, które działają na żądaniach
+do modelu w tekstowym runie i na ich zapisanej historii, a tych rozmowa nie
+wysyła.
+
+Guardraile sprawdzają transkrypcje rozmowy. Wynik narzędzia jest sprawdzany i
+blokowany, zanim agent go przeczyta; sprawdzeniem przed wykonaniem narzędzia
+jest zatwierdzenie, dla narzędzi, które go wymagają. Guardraile nie sprawdzają
+argumentów narzędzia. API katalogu podaje, jak każda capability bierze udział w rozmowie, w polu
+`voice`: `live` na własnym modelu rozmowy, `hand_off` albo `never`.
 
 **Jedna z nich w ogóle nie jest w Toolboksie.** `channel_tools` wybiera się
 osobno dla każdego powiązanego bota, w sekcji *Where this agent is available*, a

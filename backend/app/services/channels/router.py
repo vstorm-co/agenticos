@@ -28,7 +28,7 @@ from app.repositories import (
     conversation_repo,
     member_repo,
 )
-from app.services import rate_limit
+from app.services import rate_limit, transcription_usage
 from app.services.channel_bot import unseal_bot_token
 from app.services.channel_link import ChannelLinkService
 from app.services.channels import get_adapter
@@ -63,9 +63,17 @@ from app.services.channels.mentions import (
 from app.services.channels.prompts import ChannelPrompts
 from app.services.channels.steering import InFlight, answering_aside, aside_question, steerable
 from app.services.conversation import ConversationService
+from app.services.ml import measure_audio_seconds
 from app.services.rate_limit import Limit
+from app.services.speech_to_text_settings import SpeechToTextSettingsService
 from app.services.transcription import MAX_BYTES as TRANSCRIPTION_MAX_BYTES
-from app.services.transcription import Recording, TranscriptionService
+from app.services.transcription import (
+    RECORDING_EXTENSIONS,
+    Recording,
+    TranscriptionService,
+    recording_type,
+)
+from app.services.transcription_usage import TranscriptionCall
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -126,42 +134,9 @@ _chat_locks = _ChatLocks()
 _in_flight: dict[str, InFlight] = {}
 
 
-class _LocalWindows:
-    """A per-process fixed window, for the turns the shared limiter could not count.
-
-    `rate_limit.consume` is the limit that holds across workers, and it fails
-    open when Redis is down or nobody configured one. For a public widget that
-    is the documented trade; for a channel bot the per-sender `rate_limit_rpm`
-    is a production control (`SECURITY.md`), and a limiter that vanishes for
-    the length of a Redis outage lets a permitted participant run the model as
-    fast as they can type until it recovers. So this stands in for exactly that
-    stretch: wrong by the worker count, which is the defect the shared limiter
-    exists to fix, and still a floor where there would have been none.
-
-    Bounded: every write drops the windows that have expired, so the map is the
-    size of the callers seen in the last minute, not of every caller since the
-    process started - which is what the dict this replaces did.
-    """
-
-    def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
-        self._windows: dict[str, tuple[int, float]] = {}
-        self._clock = clock
-
-    def __len__(self) -> int:
-        return len(self._windows)
-
-    def consume(self, caller: str, *, attempts: int, window_seconds: int) -> bool:
-        now = self._clock()
-        for key in [
-            k for k, (_n, opened) in self._windows.items() if now - opened >= window_seconds
-        ]:
-            del self._windows[key]
-        count, opened = self._windows.get(caller, (0, now))
-        self._windows[caller] = (count + 1, opened)
-        return count < attempts
-
-
-_fallback_windows = _LocalWindows()
+# The per-process floor under a sender while the shared limiter cannot count:
+# `rate_limit.LocalWindows` says why a channel bot keeps one.
+_fallback_windows = rate_limit.LocalWindows()
 
 
 _SLASHLESS = re.compile(r"^link$", re.IGNORECASE)
@@ -458,11 +433,27 @@ class ChannelMessageRouter:
         # pointing at it (#683).
         # A voice note goes one way and every other attachment the other: the
         # recording is transcribed and never handed to the agent, which cannot open
-        # it, and the rest is stored and can be read.
+        # it, and the rest is stored and can be read. The split reads the type, so
+        # an adapter whose payload named a file by id alone describes it first.
+        if incoming.attachments:
+            incoming.attachments = await get_adapter(bot.platform).describe_attachments(
+                unseal_bot_token(bot), incoming.attachments
+            )
         recordings, rest = self._split_recordings(incoming)
         incoming.attachments = rest
         files, file_refusals = await self._receive_files(db, bot, incoming, identity)
-        transcripts, voice_refusals = await self._transcribe(db, bot, recordings)
+        # Attributed to the linked person only while they are still a member: a
+        # room admits an unlinked or departed sender, and a usage row naming a
+        # former member puts a call on the record of somebody who no longer
+        # belongs to the organization.
+        requested_by = (
+            identity.user_id
+            if recordings and await self._sender_is_active_member(db, bot, identity)
+            else None
+        )
+        transcripts, voice_refusals = await self._transcribe(
+            db, bot, recordings, requested_by=requested_by
+        )
         file_refusals += voice_refusals
         incoming.text = self._with_transcripts(incoming.text, transcripts)
 
@@ -936,14 +927,35 @@ class ChannelMessageRouter:
 
         On the mime type, which every adapter sets: Telegram invents
         `voice.ogg` / `audio/ogg` for a voice note because the platform sends
-        neither a name nor a type, and the other two carry what was uploaded.
+        neither a name nor a type, and Slack and Mattermost carry what was
+        uploaded, typed from the extension or the clip marker where the platform
+        left it untyped (`attachments.routed_type`).
+
+        Each recording is logged with its type, because the type is the
+        platform's and this is the line that says why a voice note was or was
+        not heard - and by the platform's message id and its place on the
+        message rather than its file name, which a sender chose and which can
+        be personal.
         """
         recordings = [a for a in incoming.attachments if a.mime_type.startswith("audio/")]
         rest = [a for a in incoming.attachments if not a.mime_type.startswith("audio/")]
+        for index, recording in enumerate(recordings):
+            logger.info(
+                "Voice message routed to transcription: bot=%s message=%s recording=%d type=%s",
+                incoming.bot_id,
+                incoming.message_id,
+                index,
+                recording.mime_type,
+            )
         return recordings, rest
 
     async def _transcribe(
-        self, db: AsyncSession, bot: ChannelBot, recordings: list[IncomingAttachment]
+        self,
+        db: AsyncSession,
+        bot: ChannelBot,
+        recordings: list[IncomingAttachment],
+        *,
+        requested_by: UUID | None,
     ) -> tuple[list[str], list[str]]:
         """What the voice notes on this message said, and what could not be read.
 
@@ -951,17 +963,43 @@ class ChannelMessageRouter:
         returns, because they are answered the same way: the reply carries what did
         not make it, and the turn goes ahead with what did.
 
-        A bot with no transcription configured says so once rather than silently
-        dropping the recording - a voice note that produces no reaction is
-        indistinguishable from a bot that is broken, and the sender has no way to
-        learn that this deployment simply does not listen.
+        The engine resolves through `speech_to_text_settings`: the bot's own
+        pair and key, then its exposed agent's published override, then the
+        organization's; the language from the agent, then the organization. The
+        agent is the one this bot serves - never one an `@mention` names, since
+        a handle said aloud cannot be routed and this runs before routing.
+
+        A bot that cannot listen says so once rather than silently dropping the
+        recording - a voice note that produces no reaction is indistinguishable
+        from a bot that is broken - and says which of two reasons it is,
+        because they are fixed by different people: the bot's operator turned
+        transcription off, or nobody has set up a provider at all. A bot with no
+        agent bound says nothing here: the message is refused anyway, and
+        transcribing it first would be a paid call for nothing.
+
+        Every recording handed to the provider leaves a usage row
+        (`transcription_usage`), succeeded or failed, attributed to this bot,
+        the agent it serves and `requested_by` - the person the sender's
+        account is linked to, or nobody. Its length is the provider's figure,
+        else the platform's (`IncomingAttachment.duration_seconds`). The row is
+        flushed into this turn's transaction and committed with it; a
+        recording refused before the provider (too large, not downloaded) or
+        never attempted (off, nothing resolves) writes none.
         """
         if not recordings:
             return [], []
-        if not bot.speech_to_text_provider or not bot.speech_to_text_model:
+        if not bot.transcribe_voice_notes:
             return [], [
-                "This bot cannot listen to voice messages - nobody has chosen a "
-                "transcription model for it."
+                "This bot does not listen to voice messages - transcription is turned off for it."
+            ]
+        settings = await SpeechToTextSettingsService(db).for_bot(bot)
+        if not settings.exposed:
+            return [], []
+        resolved = settings.resolved
+        if resolved is None:
+            return [], [
+                "This bot cannot listen to voice messages - nobody has set up a "
+                "transcription provider for it."
             ]
 
         adapter = get_adapter(bot.platform)
@@ -989,21 +1027,93 @@ class ChannelMessageRouter:
                 logger.warning("Could not fetch a voice message: bot=%s", bot.id, exc_info=True)
                 refusals.append(f"{recording.filename}: could not be downloaded.")
                 continue
-            text = await service.transcribe(
-                Recording(
-                    content=content,
-                    filename=recording.filename,
-                    mime_type=recording.mime_type,
-                ),
+            # Held to the organization's longest dictation before any provider is
+            # paid: 25 MB of low-bitrate audio is hours of it, and the sender's
+            # limit counts messages, not minutes (Codex on #2204). Read off the
+            # file where its container says, else as the platform reported it.
+            seconds = measure_audio_seconds(content) or recording.duration_seconds
+            if settings.max_seconds is not None:
+                # A length nobody can state is refused, not taken as short: on a
+                # public surface it is exactly the file a byte cap does not bound.
+                if seconds is None:
+                    refusals.append(
+                        f"{recording.filename}: its length could not be read, so it "
+                        "was not transcribed."
+                    )
+                    continue
+                if seconds > settings.max_seconds:
+                    refusals.append(
+                        f"{recording.filename}: too long to transcribe (the limit is "
+                        f"{settings.max_seconds} seconds)."
+                    )
+                    continue
+            call = TranscriptionCall(
                 organization_id=bot.organization_id,
-                provider=bot.speech_to_text_provider,
-                model=bot.speech_to_text_model,
+                surface="channel",
+                provider=resolved.provider,
+                model=resolved.model,
+                requested_by_user_id=requested_by,
+                agent_id=settings.agent_id,
+                channel_bot_id=bot.id,
+                secret_id=resolved.secret_id,
             )
-            if text is None:
+            started = time.monotonic()
+            try:
+                result = await service.transcribe(
+                    self._as_sent(recording, content),
+                    organization_id=bot.organization_id,
+                    provider=resolved.provider,
+                    model=resolved.model,
+                    secret_id=resolved.secret_id,
+                    shared_key=resolved.shared_key,
+                    language=resolved.language,
+                )
+            except AppException as exc:
+                await transcription_usage.record(
+                    db,
+                    call,
+                    input_bytes=len(content),
+                    audio_seconds=seconds,
+                    duration_ms=int((time.monotonic() - started) * 1000),
+                    failure=exc,
+                )
+                # Logged by the service with what actually happened; the sender is
+                # owed the same one line whatever the reason.
                 refusals.append(f"{recording.filename}: could not be transcribed.")
                 continue
-            transcripts.append(text)
+            await transcription_usage.record(
+                db,
+                call,
+                input_bytes=len(content),
+                # The provider's figure, else the one measured above - read off
+                # the file or reported by the platform.
+                audio_seconds=(
+                    result.audio_seconds if result.audio_seconds is not None else seconds
+                ),
+                duration_ms=int((time.monotonic() - started) * 1000),
+            )
+            transcripts.append(result.text)
         return transcripts, refusals
+
+    @staticmethod
+    def _as_sent(recording: IncomingAttachment, content: bytes) -> Recording:
+        """The recording as the provider is sent it: `voice.<ext>` for its type.
+
+        OpenAI and Groq choose the decoder from the file name, and a platform's
+        name is whatever somebody called the file - `audio` with no extension
+        for a Telegram upload, `.opus` for an Ogg voice note, `.mp4` for a Slack
+        clip. Renamed from the type through the table dictation uses
+        (`transcription.RECORDING_EXTENSIONS`). A type that table does not know
+        keeps its own name and type: it is still audio, and the provider is the
+        one that knows whether it can read it.
+        """
+        mime_type = recording_type(recording.mime_type)
+        extension = RECORDING_EXTENSIONS.get(mime_type)
+        if extension is None:
+            return Recording(
+                content=content, filename=recording.filename, mime_type=recording.mime_type
+            )
+        return Recording(content=content, filename=f"voice.{extension}", mime_type=mime_type)
 
     @staticmethod
     def _with_transcripts(text: str, transcripts: list[str]) -> str:

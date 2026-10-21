@@ -467,3 +467,153 @@ class TestStoringAFileIsCountedTwice:
         )
 
         assert decision.allowed is False
+
+
+class TestAVisitorsCall:
+    """Every voice call is a paid realtime session (#54)."""
+
+    async def test_before_admission_only_the_address_is_counted(self, monkeypatch):
+        """Codex on #2204: the link's minute spent before the token was checked let
+        anybody holding a `jwt` widget's key deny its calls to signed-in visitors."""
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_VOICE_PER_MINUTE", 3)
+        client = _redis([1])
+        rate_limit.configure(client)
+
+        decision = await rate_limit.embed_voice_allowed(_connection())
+
+        assert decision.allowed is True
+        counted = [call.args[0] for call in client.count_in_window.await_args_list]
+        assert counted == ["ratelimit:embed_voice:ip:203.0.113.7"]
+
+    async def test_an_address_past_its_calls_is_refused(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_VOICE_PER_MINUTE", 3)
+        rate_limit.configure(_redis([4]))
+
+        assert (await rate_limit.embed_voice_allowed(_connection())).allowed is False
+
+    async def test_the_links_ceiling_holds_whatever_address_calls(self, monkeypatch):
+        """What bounds a leaked link: no visitor can vary the key in the path."""
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE", 6)
+        client = _redis([7])
+        rate_limit.configure(client)
+
+        decision = await rate_limit.embed_voice_link_allowed(public_key="pk_abc")
+
+        assert decision.allowed is False
+        assert client.count_in_window.await_args.args[0] == "ratelimit:embed_voice:key:pk_abc"
+
+
+class TestASignedInVisitorsCalls:
+    async def test_a_signed_in_visitor_is_counted_by_their_subject(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_VOICE_PER_MINUTE", 3)
+        client = _redis([4])
+        rate_limit.configure(client)
+
+        decision = await rate_limit.embed_voice_visitor_allowed(
+            public_key="pk_abc", visitor="customer-42"
+        )
+
+        assert decision.allowed is False
+        assert client.count_in_window.await_args.args[0] == (
+            "ratelimit:embed_voice:key:pk_abc:visitor:customer-42"
+        )
+
+
+class TestAVisitorsDictation:
+    """Every dictation is a paid call outside every model budget (#1797)."""
+
+    async def test_before_admission_only_the_address_is_counted(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_DICTATION_PER_MINUTE", 6)
+        client = _redis([1])
+        rate_limit.configure(client)
+
+        decision = await rate_limit.embed_dictation_allowed(_connection())
+
+        assert decision.allowed is True
+        counted = [call.args[0] for call in client.count_in_window.await_args_list]
+        assert counted == ["ratelimit:embed_dictation:ip:203.0.113.7"]
+
+    async def test_a_refused_address_is_refused(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_DICTATION_PER_MINUTE", 6)
+        rate_limit.configure(_redis([7]))
+
+        assert (await rate_limit.embed_dictation_allowed(_connection())).allowed is False
+
+    async def test_the_links_ceiling_holds_whatever_address_calls(self, monkeypatch):
+        """What bounds a leaked link: no visitor can vary the key in the path."""
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE", 30)
+        client = _redis([31])
+        rate_limit.configure(client)
+
+        decision = await rate_limit.embed_dictation_link_allowed(public_key="pk_abc")
+
+        assert decision.allowed is False
+        assert client.count_in_window.await_args.args[0] == "ratelimit:embed_dictation:key:pk_abc"
+
+    async def test_a_signed_in_visitor_is_counted_by_their_subject(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_DICTATION_PER_MINUTE", 6)
+        client = _redis([7])
+        rate_limit.configure(client)
+
+        decision = await rate_limit.embed_dictation_visitor_allowed(
+            public_key="pk_abc", visitor="customer-42"
+        )
+
+        assert decision.allowed is False
+        assert client.count_in_window.await_args.args[0] == (
+            "ratelimit:embed_dictation:key:pk_abc:visitor:customer-42"
+        )
+
+
+class TestPaidSurfacesKeepAFloorWhileRedisIsDown:
+    """A dictation or a call is a paid provider call, and the limit is all that
+    bounds a stranger's spend on a public link: failing open there would make a
+    Redis outage unlimited paid calls (Codex on #2138)."""
+
+    async def test_an_address_is_held_to_its_allowance_with_no_limiter(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_DICTATION_PER_MINUTE", 6)
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE", 100)
+
+        decisions = [await rate_limit.embed_dictation_allowed(_connection()) for _ in range(7)]
+
+        assert [d.allowed for d in decisions] == [True] * 6 + [False]
+        assert decisions[-1].metered is False
+        assert decisions[-1].retry_after_seconds == 60
+
+    async def test_the_links_ceiling_holds_when_redis_throws(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE", 10)
+        broken = MagicMock()
+        broken.count_in_window = AsyncMock(side_effect=ConnectionError("redis is down"))
+        rate_limit.configure(broken)
+
+        decisions = [
+            await rate_limit.embed_dictation_link_allowed(public_key="pk_abc") for _ in range(11)
+        ]
+
+        assert [d.allowed for d in decisions] == [True] * 10 + [False]
+
+    async def test_a_signed_in_visitor_and_a_caller_of_voice_are_floored_too(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_DICTATION_PER_MINUTE", 1)
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_VOICE_PER_MINUTE", 1)
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE", 100)
+
+        visitor = [
+            await rate_limit.embed_dictation_visitor_allowed(public_key="pk", visitor="v")
+            for _ in range(2)
+        ]
+        voice = [await rate_limit.embed_voice_allowed(_connection()) for _ in range(2)]
+
+        assert [d.allowed for d in visitor] == [True, False]
+        assert [d.allowed for d in voice] == [True, False]
+
+    async def test_a_metered_answer_is_the_shared_limiters_alone(self):
+        # The shared count says first, first: a floor counting these too would
+        # refuse the second of a one-attempt allowance.
+        rate_limit.configure(_redis([1, 1]))
+        limit = Limit(attempts=1, window_seconds=60)
+
+        decisions = [
+            await rate_limit.consume_floored(surface="s", caller="c", limit=limit) for _ in range(2)
+        ]
+
+        assert [(d.allowed, d.metered) for d in decisions] == [(True, True), (True, True)]

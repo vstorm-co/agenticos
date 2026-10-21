@@ -397,6 +397,7 @@ from app.core.exceptions import (
     RateLimitError,
 )
 from app.services import rate_limit
+from app.api.embed_cors import allow_embed_origin
 from app.core.audit import set_api_key
 from app.core.security import encode_untrusted, verify_token
 from app.db.models.user import User
@@ -1054,6 +1055,31 @@ async def limit_ml_call(ctx: Auth) -> None:
     _refuse_if_over(decision, "Too many ML service calls in the last minute. Wait and try again.")
 
 
+async def limit_dictation(ctx: Auth) -> None:
+    """Refuse a person dictating more than their share - each one is a paid call.
+
+    Its own bucket rather than `limit_ml_call`'s, so a person dictating into the
+    composer and an integration calling the ML surface do not spend each other's
+    allowance.
+    """
+    decision = await rate_limit.consume(
+        surface="dictation",
+        caller=f"user:{ctx.subject_id}",
+        limit=rate_limit.dictation_limit(),
+    )
+    _refuse_if_over(decision, "Too many dictations in the last minute. Wait and try again.")
+
+
+async def limit_voice_preview(ctx: Auth) -> None:
+    """Refuse a person listening to more voices than their share - each is a paid session."""
+    decision = await rate_limit.consume(
+        surface="voice_preview",
+        caller=f"user:{ctx.subject_id}",
+        limit=rate_limit.voice_preview_limit(),
+    )
+    _refuse_if_over(decision, "Too many voice previews in the last minute. Wait and try again.")
+
+
 def _refuse_if_over(decision: rate_limit.Decision, message: str) -> None:
     """Turn a rate limiter's refusal into this API's own 429.
 
@@ -1201,6 +1227,20 @@ async def limit_embed_upload(
         ),
         "Too many uploads. Try again shortly.",
     )
+
+
+async def limit_embed_dictation(request: Request) -> None:
+    """Refuse a caller sending recordings to a hosted page or a widget too fast.
+
+    Per address, before the key is looked up; the link's own ceiling is spent
+    once the visitor is admitted (`rate_limit.embed_dictation_link_allowed`). A
+    refusal is readable by the site that asked: it runs before admission and says
+    the same to every origin (`app.api.embed_cors`).
+    """
+    decision = await rate_limit.embed_dictation_allowed(request)
+    if not decision.allowed:
+        allow_embed_origin(request, request.headers.get("origin"))
+    _refuse_if_over(decision, "Too many dictations in the last minute. Wait and try again.")
 
 
 class RequireOrgRole:
@@ -1614,6 +1654,31 @@ def get_announcement_service(db: DBSession) -> AnnouncementService:
 
 
 AnnouncementSvc = Annotated[AnnouncementService, Depends(get_announcement_service)]
+from app.services.voice import VoicePreviewService, VoiceSettingsService, VoiceUsageService
+
+
+def get_voice_settings_service(db: DBSession) -> VoiceSettingsService:
+    """Create VoiceSettingsService instance with database session."""
+    return VoiceSettingsService(db)
+
+
+VoiceSettingsSvc = Annotated[VoiceSettingsService, Depends(get_voice_settings_service)]
+
+
+def get_voice_usage_service(db: DBSession) -> VoiceUsageService:
+    """Create VoiceUsageService instance with database session."""
+    return VoiceUsageService(db)
+
+
+VoiceUsageSvc = Annotated[VoiceUsageService, Depends(get_voice_usage_service)]
+
+
+def get_voice_preview_service(db: DBSession, redis: Redis) -> VoicePreviewService:
+    """Create VoicePreviewService instance with database session and Redis."""
+    return VoicePreviewService(db, redis)
+
+
+VoicePreviewSvc = Annotated[VoicePreviewService, Depends(get_voice_preview_service)]
 from app.services.background_jobs import BackgroundJobService
 
 

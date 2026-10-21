@@ -115,6 +115,10 @@ _PATTERN_ALLOWED: dict[str, str] = {
         "the same again: which vault key a collection embeds on - the id of a "
         "reference the organization can revoke, never the key itself"
     ),
+    "speech_to_text_secret_id": (
+        "which organization vault key transcription is billed to, on the "
+        "organization and on a channel bot - the id of the key, never the key"
+    ),
     "token_secret_id": (
         "the same, named for what it points at: an agent's Logfire write token "
         "lives in the vault and the spec carries only its id, because a spec is "

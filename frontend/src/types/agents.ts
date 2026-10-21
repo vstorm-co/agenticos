@@ -99,6 +99,55 @@ export interface ObservabilitySpec {
   content?: TraceContent | null;
 }
 
+/**
+ * Which provider and language this agent's speech is transcribed with, where it
+ * differs from the organization's, and whether `/chat` dictation uses it. A null
+ * field inherits. The provider and model are a pair - both or neither, refused
+ * at publish otherwise - and the language stands alone. Written with every key,
+ * in this order, and a block at its defaults is written as `null`: the server
+ * stores it that way, and the Builder compares the draft as JSON.
+ */
+export interface SpeechToTextSpec {
+  provider: string | null;
+  model: string | null;
+  /** ISO-639-1; null inherits the organization's, then the engine detects it. */
+  language: string | null;
+  /**
+   * The vault key the pair is sent with: an API key whose purpose is the
+   * provider. Set with the pair and only with it; a language-only override
+   * keeps the organization's pair and key.
+   */
+  secret_id: string | null;
+  /**
+   * Send `/chat` dictation to the provider this block resolves to. Off - and
+   * on while no pair or key resolves - the browser's own recognition does it.
+   */
+  dictation: boolean;
+}
+
+/**
+ * How an agent holds a spoken conversation (#54): a pick from the realtime
+ * catalog and the vault key it is held with. Azure names a `deployment` (free
+ * text) and the catalog `base_model` it runs; every other provider names a
+ * `model`. Written with all nine keys, in this order, and an all-null block is
+ * written as `null`, like `SpeechToTextSpec`.
+ */
+export interface VoiceSpec {
+  provider: string | null;
+  model: string | null;
+  deployment: string | null;
+  base_model: string | null;
+  secret_id: string | null;
+  /** One of the model's voices; null is its default. */
+  voice: string | null;
+  /** ISO-639-1; null follows the caller. */
+  language: string | null;
+  /** The longest call (60-3000 s); null is the organization's. */
+  max_call_seconds: number | null;
+  /** Extra spoken-style guidance appended in calls. */
+  voice_note: string | null;
+}
+
 /** The agent's half of the two budget levels; the organization's cap is the other. */
 /** Mirrors `LoopGuardSpec`: identical calls in a row, and cycle repeats, that count as a loop. */
 export interface LoopGuardSpec {
@@ -378,6 +427,10 @@ export interface AgentSpec {
    */
   notifications?: NotificationSpec;
   observability?: ObservabilitySpec | null;
+  /** Optional here and in `create`; the server answers with `null` for none. */
+  speech_to_text?: SpeechToTextSpec | null;
+  /** Optional here and in `create`; the server answers with `null` for none. */
+  voice?: VoiceSpec | null;
 }
 
 /** A remote A2A agent this agent may delegate to, by its registration (#2092). */
@@ -638,6 +691,12 @@ export interface CapabilityCatalogEntry {
    * catalog, the spec or the model; only the agent runner ever reads one.
    */
   requires_secret: SecretRequirement | null;
+  /**
+   * How it takes part in a voice call (#54): `live` on the call's own model,
+   * `hand_off` in the agent's text model the call hands a task to - the Voice
+   * card lists those - and `never` not at all.
+   */
+  voice: "live" | "hand_off" | "never";
   /**
    * How the starter agent (the Claude Code like template) binds this capability,
    * or null where it does not. Marked Recommended, and what a new agent starts with.

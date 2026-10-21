@@ -2603,6 +2603,11 @@ class TestApprovals:
                 new=AsyncMock(return_value=approval),
             ) as decide,
             patch("app.services.approvals.record_audit", new=AsyncMock()) as audit,
+            # Not a call's approval: the queue may decide it (#54).
+            patch(
+                "app.services.approvals.voice_call_repo.is_live_run",
+                new=AsyncMock(return_value=False),
+            ),
         ):
             await ApprovalService(_db()).decide(ctx, approval.id, approved=True)
 
@@ -2653,6 +2658,11 @@ class TestApprovals:
                 new=AsyncMock(return_value=approval),
             ) as decide,
             patch("app.services.approvals.record_audit", new=AsyncMock()) as audit,
+            # Not a call's approval: the queue may decide it (#54).
+            patch(
+                "app.services.approvals.voice_call_repo.is_live_run",
+                new=AsyncMock(return_value=False),
+            ),
         ):
             await ApprovalService(_db()).decide(
                 _ctx(), approval.id, approved=False, note="wrong customer"

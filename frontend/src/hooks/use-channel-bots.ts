@@ -98,6 +98,22 @@ export function useChannelBots(enabled: boolean) {
 }
 
 /**
+ * One bot as its edit form reads it, with what "inherit" would transcribe on.
+ *
+ * The listing leaves `inherited_speech_to_text` out - resolving it reads the
+ * version of the agent the bot serves, which a page of bots should not pay for
+ * - so the form asks for its one row. `null` until it answers.
+ */
+export function useChannelBot(botId: string | null): ChannelBot | null {
+  const { data } = useQuery({
+    queryKey: qk.channelBots.detail(botId ?? ""),
+    queryFn: () => apiClient.get<ChannelBot>(`/channels/bots/${botId}`),
+    enabled: botId !== null,
+  });
+  return data ?? null;
+}
+
+/**
  * Copy a Slack bot's app manifest to the clipboard (#2067).
  *
  * The manifest is the whole Slack app - its events, buttons, `/agent`, the
