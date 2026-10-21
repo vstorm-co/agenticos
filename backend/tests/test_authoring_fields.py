@@ -10,9 +10,11 @@ import pytest
 from app.agents.spec import AgentSpec
 from app.services import authoring_fields as fields
 
-COLLECTION = str(uuid.uuid4())
-CONNECTION = str(uuid.uuid4())
-MODEL = str(uuid.uuid4())
+# Fixed, because they name parametrized cases: xdist workers must collect the same ids.
+COLLECTION = "6f1c0a52-3d0e-4c51-9a41-0b6f4f3c2a10"
+CONNECTION = "0b8e5d7a-91c4-4e0b-8f2e-5a3c6d1e9b20"
+MODEL = "3a9d2c4e-7b15-4f8a-a6c2-1e0d9b8f7c30"
+OTHER_MODEL = "c4e17b20-5d3a-4b9e-8c61-2f0a7d6e5b40"
 
 
 def _spec(**values: Any) -> AgentSpec:
@@ -89,7 +91,7 @@ class TestSet:
         ("path", "base", "new", "check"),
         [
             ("description", "Refund questions", "Refunds and returns", "description"),
-            ("model_profile_id", MODEL, str(uuid.uuid4()), "model_profile_id"),
+            ("model_profile_id", MODEL, OTHER_MODEL, "model_profile_id"),
             ("model_settings/temperature", 0.7, 0.2, "temperature"),
             ("max_steps", 10, 20, "max_steps"),
             ("capabilities/knowledge/config", {"default_top_k": 5}, {"default_top_k": 8}, None),
@@ -252,7 +254,7 @@ class TestRefusals:
             ),
             ({}, "capabilities", "add", {"id": "knowledge"}, "does_not_apply"),
             ({}, "model_settings/temperature", "set", 5, "does_not_apply"),
-            ({}, "collection_ids", "remove", str(uuid.uuid4()), "does_not_apply"),
+            ({}, "collection_ids", "remove", OTHER_MODEL, "does_not_apply"),
         ],
     )
     def test_what_cannot_be_staged_says_why(self, spec_values, path, op, value, reason):

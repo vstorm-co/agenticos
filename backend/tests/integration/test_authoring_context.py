@@ -49,12 +49,15 @@ from tests.integration.test_authoring import (
     COMMENT,
     Improver,
     _answering,
+    _assert_reads_no_eval,
     _clerk,
     _environment,  # noqa: F401 - the autouse fixture that scripts the improver's model
+    _eval_secrets,
     _improver,
     _member,
     _owner,
     _rated,
+    _read_while_working,
     _sessions,
 )
 
@@ -120,6 +123,23 @@ async def _pending(db: AsyncSession, file: ContextFile) -> list[ContextProposal]
         )
     )
     return list(rows)
+
+
+@pytest.mark.security
+async def test_improving_a_file_never_reads_an_eval_run_a_score_or_a_dataset(db):
+    """The second way into the improver: the runs of every agent bound to the file,
+    and still no eval run, score or dataset case among them."""
+    ctx, agent, file, run_id = await _bound(db)
+    await _eval_secrets(db, ctx, agent)
+    model = _proposes(db, run_id)
+
+    started = await AuthoringService(db).start_context(ctx, file.id, AuthoringStart())
+    request, read = await _read_while_working(db, ctx, started.id, model)
+
+    _assert_reads_no_eval(model, read)
+    assert request.evidence["runs"] == 1
+    (proposal,) = await _pending(db, file)
+    assert proposal.content == "Returns take 30 days."
 
 
 async def test_improve_leaves_one_proposal_for_the_file_with_checked_evidence(db):

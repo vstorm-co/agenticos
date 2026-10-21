@@ -1327,18 +1327,20 @@ async def test_what_waits_is_listed_only_for_agents_the_caller_may_edit(db):
     assert theirs.agents == [] and theirs.skills == 0
 
 
-@pytest.mark.security
-async def test_the_improver_never_reads_an_eval_run_a_score_or_a_dataset(db):
-    """What checks the assistant must never be what it learns from: no eval run, no
-    score and no dataset case reaches the model, and the request reads none of
-    their tables."""
-    from sqlalchemy import event
+EVAL_SECRETS = (
+    "SECRET-DATASET-CASE",
+    "SECRET-CHECK",
+    "SECRET-SCORE-ANSWER",
+    "SECRET-EVAL-COMMENT",
+)
 
+
+async def _eval_secrets(db: AsyncSession, ctx: AuthContext, agent: Agent) -> None:
+    """A dataset, a score and an eval run of `agent`, each holding one of `EVAL_SECRETS`."""
     from app.db.models.case_score import CaseScore
     from app.schemas.eval_run import EvalRunRequest
     from app.services.eval_run import EvalRunService
 
-    ctx, agent, _ = await _setup(db)
     datasets = DatasetService(db)
     dataset = await datasets.create(ctx, DatasetCreate(name="hidden-cases"))
     await datasets.add_case(
@@ -1364,36 +1366,89 @@ async def test_the_improver_never_reads_an_eval_run_a_score_or_a_dataset(db):
     )
     await db.flush()
     await EvalRunService(db).start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
-    await _rated(db, ctx, agent, surface=RunSurface.EVAL, comment="SECRET-EVAL-COMMENT")
+    eval_run = await _rated(db, ctx, agent, surface=RunSurface.EVAL, comment="SECRET-EVAL-COMMENT")
+    eval_run.input_tokens, eval_run.output_tokens = 900_000, 900_000
+    await db.flush()
 
-    started = await AuthoringService(db).start_agent(ctx, agent.id, AuthoringStart())
+
+async def _read_while_working(
+    db: AsyncSession, ctx: AuthContext, request_id: Any, model: Improver
+) -> tuple[AuthoringRequest, str]:
+    """Work a request, and every statement it sent to the database meanwhile."""
+    from sqlalchemy import event
+
     statements: list[str] = []
     engine = db.sync_session.get_bind()
 
     def seen(_conn, _cursor, statement, *_args):
         statements.append(statement)
 
-    model = Improver(db)
     event.listen(engine, "before_cursor_execute", seen)
     try:
         with _answering(model):
-            await AuthoringWorker(started.id, ctx.organization_id, sessions=_sessions(db)).run()
+            await AuthoringWorker(request_id, ctx.organization_id, sessions=_sessions(db)).run()
     finally:
         event.remove(engine, "before_cursor_execute", seen)
+    request = await db.get(AuthoringRequest, request_id)
+    assert request is not None and request.status == "completed", request and request.error
+    return request, "\n".join(statements)
 
-    request = await db.get(AuthoringRequest, started.id)
-    assert request is not None and request.status == "completed", request.error
+
+def _assert_reads_no_eval(model: Improver, read: str) -> None:
+    """No eval secret reached the model, and no eval or dataset table was read."""
     sent = "\n".join(model.prompts)
-    for secret in (
-        "SECRET-DATASET-CASE",
-        "SECRET-CHECK",
-        "SECRET-SCORE-ANSWER",
-        "SECRET-EVAL-COMMENT",
-    ):
+    for secret in EVAL_SECRETS:
         assert secret not in sent
-    assert request.evidence["runs"] == 1
-    read = "\n".join(statements)
     assert "agent_runs" in read
     for table in ("eval_runs", "eval_run_cases", "eval_run_arms", "case_scores", "dataset_cases"):
         assert table not in read, table
     assert "FROM datasets" not in read and "JOIN datasets" not in read
+
+
+@pytest.mark.security
+async def test_the_improver_never_reads_an_eval_run_a_score_or_a_dataset(db):
+    """What checks the assistant must never be what it learns from: no eval run, no
+    score and no dataset case reaches the model, and the request reads none of
+    their tables - pricing a change of model included."""
+    from app.db.models.credential import ModelProfile
+
+    ctx, agent, run = await _setup(db)
+    await _eval_secrets(db, ctx, agent)
+    cheaper = ModelProfile(
+        id=uuid.uuid4(),
+        organization_id=ctx.organization_id,
+        label="gpt-4o-mini",
+        provider="openai",
+        model="gpt-4o-mini",
+    )
+    db.add(cheaper)
+    await db.flush()
+    model = Improver(
+        db,
+        improve={
+            "summary": "s",
+            "expected_effect": "e",
+            "instructions": [],
+            "tools": [],
+            "fields": [
+                {
+                    "path": "model_profile_id",
+                    "op": "set",
+                    "value": str(cheaper.id),
+                    "rationale": "r",
+                    "expected_effect": "e",
+                    "evidence": [{"run_id": str(run.id), "quote": COMMENT}],
+                }
+            ],
+        },
+    )
+
+    started = await AuthoringService(db).start_agent(ctx, agent.id, AuthoringStart())
+    request, read = await _read_while_working(db, ctx, started.id, model)
+
+    _assert_reads_no_eval(model, read)
+    assert request.evidence["runs"] == 1
+    batch = (await AuthoringService(db).for_agent(ctx, agent.id)).batch
+    assert batch is not None
+    (hunk,) = batch.hunks
+    assert hunk.effect is not None and hunk.effect["runs"] == 1
