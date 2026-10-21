@@ -70,6 +70,18 @@ describe("NavigationProgress", () => {
     expect(bar()).toBeNull();
   });
 
+  it("keeps waiting on the page it left when a second link is clicked on the way", () => {
+    const { rerender } = render(<NavigationProgress />);
+    fireEvent.click(link("/dashboard"));
+    act(() => vi.advanceTimersByTime(SHOW_AFTER_MS));
+    fireEvent.click(link("/agents"));
+    act(() => vi.advanceTimersByTime(SHOW_AFTER_MS));
+    expect(bar()).toHaveAttribute("data-phase", "pending");
+    place.path = "/agents";
+    rerender(<NavigationProgress />);
+    expect(bar()).toHaveAttribute("data-phase", "done");
+  });
+
   it("lets go of a navigation that never arrives", () => {
     render(<NavigationProgress />);
     fireEvent.click(link("/dashboard"));

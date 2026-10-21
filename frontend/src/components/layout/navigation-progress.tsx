@@ -2,7 +2,7 @@
 
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -53,16 +53,30 @@ function clearAll(timers: { current: number[] }): void {
 export function NavigationProgress() {
   const t = useTranslations("nav");
   const location = `${usePathname()}?${useSearchParams().toString()}`;
-  const [phase, setPhase] = useState<Phase>("idle");
+  // The page a shown bar is waiting to leave. The phase is read off it and the
+  // current location on every render, so no ordering of the click's timers, the
+  // router's transition and its commit can leave the bar behind on a new page.
+  const [waitingOn, setWaitingOn] = useState<string | null>(null);
+  const committed = useRef(location);
   const timers = useRef<number[]>([]);
+
+  // At the commit rather than after it: a timer due in the gap between the two
+  // would show a bar for a page that has already arrived.
+  useLayoutEffect(() => {
+    committed.current = location;
+    clearAll(timers);
+  }, [location]);
 
   useEffect(() => {
     const onClick = (event: MouseEvent) => {
       if (navigationTarget(event) === null) return;
       clearAll(timers);
+      const from = committed.current;
       timers.current = [
-        window.setTimeout(() => setPhase("pending"), SHOW_AFTER_MS),
-        window.setTimeout(() => setPhase("idle"), GIVE_UP_MS),
+        window.setTimeout(() => {
+          if (committed.current === from) setWaitingOn(from);
+        }, SHOW_AFTER_MS),
+        window.setTimeout(() => setWaitingOn(null), GIVE_UP_MS),
       ];
     };
     document.addEventListener("click", onClick, { capture: true });
@@ -72,17 +86,11 @@ export function NavigationProgress() {
     };
   }, []);
 
-  // Arrived: whatever was waiting to show no longer will, and a shown bar finishes.
-  const [arrivedAt, setArrivedAt] = useState(location);
-  if (arrivedAt !== location) {
-    setArrivedAt(location);
-    setPhase((was) => (was === "pending" ? "done" : "idle"));
-  }
-  useEffect(() => clearAll(timers), [location]);
+  const phase: Phase = waitingOn === null ? "idle" : location === waitingOn ? "pending" : "done";
 
   useEffect(() => {
     if (phase !== "done") return;
-    const id = window.setTimeout(() => setPhase("idle"), FINISH_MS);
+    const id = window.setTimeout(() => setWaitingOn(null), FINISH_MS);
     return () => window.clearTimeout(id);
   }, [phase]);
 
