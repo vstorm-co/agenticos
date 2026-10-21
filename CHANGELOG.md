@@ -29,6 +29,26 @@ Two things are versioned separately from this file and worth knowing about:
   1.9.0, and what one run on one machine cannot show. See
   [the background-job benchmark](docs/task-queue-benchmark.md).
 
+## [1.10.1] - 2026-10-21
+
+### Changed
+
+- **The comparison guides are checked again, on 21 October 2026, against
+  1.10.0.** Every vendor source but OpenAI Frontier's, checked on 14 October,
+  was reread, and OpenCode against v1.19.3. ChatGPT's workspace-agent trigger
+  now returns a conversation link and polls run status in beta, though the
+  answer still cannot be read back; ChatGPT Business and Claude Team sell
+  Premium seats; Copilot Studio's credit pack gave way to commit units; Google
+  no longer lists Gemini Enterprise prices; Viktor and OpenCode changed plans.
+  The guides also say what AgenticOS gained since 0.0.504: the coding agent
+  that hands work to Claude Code or Codex, the MCP server, A2A, projects, an
+  approval policy per MCP connection, 33 permissions, the scaling guide and,
+  with 1.10.0, voice calls in web chat, the widget and the hosted page.
+- **AgenticOS vs Sauna**, a new comparison with Sauna, a proactive AI
+  assistant per person: where it runs and processes data, models per plan,
+  sharing, autonomy and pricing, from its public pricing, security and privacy
+  pages.
+
 ## [1.10.0] - 2026-10-21
 
 ### Added

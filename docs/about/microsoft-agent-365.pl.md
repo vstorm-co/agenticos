@@ -2,7 +2,7 @@
 title: "AgenticOS vs Microsoft Agent 365"
 seo_title: "AgenticOS vs Microsoft Agent 365: zarządzanie agentami u siebie"
 description: "Agent 365 to płaszczyzna kontroli Microsoftu nad agentami w Microsoft 365. Porównaj z AgenticOS: budowanie, uruchamianie i zarządzanie agentami na twoich serwerach."
-source_sha: "b13848977282"
+source_sha: "c7529954399e"
 ---
 
 # AgenticOS vs Microsoft Agent 365 { #agenticos-vs-microsoft-agent-365 }
@@ -11,7 +11,7 @@ Microsoft Agent 365 to płaszczyzna kontroli nad agentami firmy - samego Microso
 
 Jeśli twoja firma działa na Microsoft 365 i chce spisać oraz pilnować agentów, których już ma, Agent 365 pasuje do tego środowiska. Jeśli chcesz mieć samych agentów i reguły nad nimi na infrastrukturze, którą kontrolujesz, z dowolnym modelem, AgenticOS robi jedno i drugie w jednym miejscu.
 
-Utrzymuje zespół AgenticOS. Źródła sprawdzono 14 października 2026. Wersja bazowa AgenticOS: v0.0.535. Zakres Agent 365: ogólna dostępność Microsoftu około 1 maja 2026 w relacjach prasy, a nie przetestowany tenant. O budowaniu agentów w stosie Microsoftu przeczytasz w [AgenticOS vs Copilot Studio](copilot-studio.md).
+Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.10.0. Zakres Agent 365: ogólna dostępność Microsoftu około 1 maja 2026 w relacjach prasy, a nie przetestowany tenant. O budowaniu agentów w stosie Microsoftu przeczytasz w [AgenticOS vs Copilot Studio](copilot-studio.md).
 
 ## W skrócie { #at-a-glance }
 
