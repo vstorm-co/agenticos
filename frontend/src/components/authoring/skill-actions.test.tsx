@@ -14,8 +14,9 @@ const state = vi.hoisted(() => ({
   runsView: true,
   latest: null as AuthoringRequest | null,
   enabled: true as boolean | null,
-  assistant: { can_use: true, agent_id: "architect", name: "Architect" } as {
+  assistant: { can_use: true, status: "ready", agent_id: "architect", name: "Architect" } as {
     can_use: boolean;
+    status: string;
     agent_id: string | null;
     name: string;
   } | null,
@@ -62,7 +63,7 @@ beforeEach(() => {
   state.runsView = true;
   state.latest = null;
   state.enabled = true;
-  state.assistant = { can_use: true, agent_id: "architect", name: "Architect" };
+  state.assistant = { can_use: true, status: "ready", agent_id: "architect", name: "Architect" };
   state.ask = vi.fn();
 });
 
@@ -126,5 +127,17 @@ describe("DescribeWithArchitect", () => {
     state.assistant = null;
     const second = render(<DescribeWithArchitect onAsked={vi.fn()} />);
     expect(second.container).toBeEmptyDOMElement();
+  });
+
+  it("is absent while the Architect has no model to answer with", () => {
+    // A description sent to an Architect that cannot answer is lost with the dialog.
+    state.assistant = {
+      can_use: true,
+      status: "needs_model",
+      agent_id: "architect",
+      name: "Architect",
+    };
+    const { container } = render(<DescribeWithArchitect onAsked={vi.fn()} />);
+    expect(container).toBeEmptyDOMElement();
   });
 });

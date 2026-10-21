@@ -14,7 +14,7 @@ import { useArchitectAskStore } from "@/stores/architect-ask-store";
  *
  * The Architect already drafts agents and asks before it creates one, so this
  * hands it the description rather than building a second way to do the same.
- * Absent when the Architect is off or AI assistance is.
+ * Absent unless the Architect is ready and AI assistance is on.
  */
 export function DescribeWithArchitect({ onAsked }: { onAsked: () => void }) {
   const t = useTranslations("authoring.describe");
@@ -22,7 +22,15 @@ export function DescribeWithArchitect({ onAsked }: { onAsked: () => void }) {
   const { enabled } = useAiAssistance();
   const ask = useArchitectAskStore((state) => state.ask);
   const [text, setText] = useState("");
-  if (!assistant?.can_use || assistant.agent_id === null || enabled !== true) return null;
+  // Only a ready Architect answers; one still waiting for a model would drop the description.
+  if (
+    !assistant?.can_use ||
+    assistant.status !== "ready" ||
+    assistant.agent_id === null ||
+    enabled !== true
+  ) {
+    return null;
+  }
 
   return (
     <div className="bg-muted/40 space-y-2 rounded-md border p-3">
