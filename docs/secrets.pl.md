@@ -1,5 +1,5 @@
 ---
-source_sha: "11255bcc5d61"
+source_sha: "8ef08df98eb6"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -202,6 +202,8 @@ przynieść własny klucz:
 | Logfire | [Obserwowalność](reference/spec.md#observability) per agent — ślady do osobnego projektu |
 | LlamaParse | Parsowanie PDF-ów, rozliczane na własny klucz organizacji |
 | mem0 | [`memory_mem0`](reference/capabilities.md#memory-mem0) — cała capability, która trzyma semantyczne wspomnienia agenta w usłudze mem0 (chmurowej albo self-hosted), a nie tutaj. Nic nie jest zapisywane w tym wdrożeniu, więc mem0 rozlicza własny embedding poza pasmem, a wysyłanie wspomnień do chmury mem0 jest decyzją o rezydencji danych, którą podejmuje Builder. Self-hostowany `base_url` musi być https i musi być na liście dozwolonych `MEM0_ALLOWED_HOSTS`, więc klucz z vault nigdy nie trafia do originu kontrolowanego przez agenta. Dla tych wspomnień nie ma konsoli operatora: mem0 ma własny magazyn, własne listowanie i własne usuwanie. |
+| ElevenLabs | [`text_to_speech`](reference/capabilities.md#text-to-speech) — mowa głosami z konta ElevenLabs organizacji |
+| BytePlus ModelArk | `video_generation` — modele wideo Seedance od ByteDance |
 
 ## Co nigdy się nie zdarza { #what-never-happens }
 

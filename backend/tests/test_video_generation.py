@@ -76,6 +76,10 @@ def _json(payload: object, status: int = 200) -> Route:
     return lambda _request: httpx.Response(status, json=payload)
 
 
+def _redirect(location: str) -> Route:
+    return lambda _request: httpx.Response(302, headers={"location": location})
+
+
 def _bytes(body: bytes = MP4, status: int = 200) -> Route:
     return lambda _request: httpx.Response(status, content=body)
 
@@ -538,16 +542,22 @@ class TestARefusedOrBrokenAnswer:
 
         assert caught.value.failure is VideoFailure.UNAVAILABLE
 
-    async def test_a_download_the_storage_host_refuses_is_unavailable(self):
+    @pytest.mark.parametrize("status", [403, 404])
+    async def test_a_download_the_storage_host_refuses_is_unavailable(self, status):
+        """An expired signed address says nothing about the key - the storage host
+        never saw it - so the operator is not told to replace one."""
         routes = {
             ("POST", "/v1/videos/generations"): _json({"request_id": "r4"}),
             ("GET", "/v1/videos/r4"): _json(
                 {"status": "done", "video": {"url": "https://vidgen.example/v.mp4"}}
             ),
-            ("GET", "/v.mp4"): _bytes(b"gone", status=404),
+            ("GET", "/v.mp4"): _bytes(b"gone", status=status),
         }
-        with _answering(routes), pytest.raises(VideoProviderError):
+        with _answering(routes), pytest.raises(VideoProviderError) as caught:
             await _make("xai", "grok-imagine-video-1.5")
+
+        assert caught.value.failure is VideoFailure.UNAVAILABLE
+        assert caught.value.details["status"] == status
 
     async def test_a_download_past_the_size_limit_is_refused(self, monkeypatch):
         monkeypatch.setattr(clients_module, "MAX_BYTES", 4)
@@ -566,7 +576,7 @@ class TestARefusedOrBrokenAnswer:
     @pytest.mark.parametrize(
         ("error", "failure"),
         [
-            (httpx.ReadTimeout, VideoFailure.TIMED_OUT),
+            (httpx.ReadTimeout, VideoFailure.UNAVAILABLE),
             (httpx.ConnectError, VideoFailure.UNAVAILABLE),
         ],
     )
@@ -620,3 +630,242 @@ class TestWhatTheCallerMustRefuseFirst:
 
 async def test_the_pause_between_polls_really_waits():
     await REAL_PAUSE(0)
+
+
+class TestTheKeyAndTheStorageHost:
+    BASE = "/v1beta"
+
+    def _gemini_routes(self, download: Route) -> dict[tuple[str, str], Route | list[Route]]:
+        return {
+            ("POST", f"{self.BASE}/interactions"): _json(
+                {
+                    "steps": [
+                        {
+                            "type": "model_output",
+                            "content": [{"type": "video", "uri": "/v1beta/files/f9:download"}],
+                        }
+                    ]
+                }
+            ),
+            ("GET", f"{self.BASE}/files/f9"): _json({"state": "ACTIVE"}),
+            ("GET", f"{self.BASE}/files/f9:download"): download,
+            ("GET", "/bucket/v.mp4"): _bytes(),
+        }
+
+    async def test_a_redirected_gemini_download_leaves_the_key_behind(self):
+        """httpx strips only `Authorization` on a cross-host redirect, and Gemini's
+        key is `x-goog-api-key` - so the redirect is followed here, without it."""
+        to_storage = _redirect("https://storage.example/bucket/v.mp4")
+        with _answering(self._gemini_routes(to_storage)) as seen:
+            clip = await _make("google", "gemini-omni-1.1-flash")
+
+        storage = seen[-1]
+        assert storage.url.host == "storage.example"
+        assert "x-goog-api-key" not in storage.headers
+        assert clip.data == MP4
+
+    async def test_a_redirect_to_plain_http_is_refused(self):
+        to_http = _redirect("http://storage.example/bucket/v.mp4")
+        with (
+            _answering(self._gemini_routes(to_http)) as seen,
+            pytest.raises(VideoProviderError) as caught,
+        ):
+            await _make("google", "gemini-omni-1.1-flash")
+
+        assert caught.value.failure is VideoFailure.UNAVAILABLE
+        assert all(request.url.host != "storage.example" for request in seen)
+
+    async def test_a_redirect_loop_is_refused(self):
+        def loop(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(302, headers={"location": "/v1beta/files/f9:download"})
+
+        with _answering(self._gemini_routes(loop)), pytest.raises(VideoProviderError) as caught:
+            await _make("google", "gemini-omni-1.1-flash")
+
+        assert caught.value.failure is VideoFailure.UNAVAILABLE
+
+    @pytest.mark.parametrize(
+        "url", ["http://tos.example/v.mp4", "https://[::1", ""], ids=["http", "invalid", "empty"]
+    )
+    async def test_an_address_that_is_not_https_is_not_fetched(self, url):
+        routes = {
+            ("POST", "/api/v3/contents/generations/tasks"): _json({"id": "cgt-9"}),
+            ("GET", "/api/v3/contents/generations/tasks/cgt-9"): _json(
+                {"status": "succeeded", "content": {"video_url": url}}
+            ),
+        }
+        with _answering(routes) as seen, pytest.raises(VideoProviderError) as caught:
+            await _make("byteplus", "dreamina-seedance-2-0-260128")
+
+        assert caught.value.failure is VideoFailure.UNAVAILABLE
+        assert len(seen) == 2
+
+    async def test_a_download_past_the_jobs_deadline_times_out(self, monkeypatch):
+        monkeypatch.setattr(clients_module, "DOWNLOAD_GRACE_SECONDS", -10_000.0)
+        routes = {
+            ("POST", "/v1/videos/generations"): _json({"request_id": "r8"}),
+            ("GET", "/v1/videos/r8"): _json(
+                {"status": "done", "video": {"url": "https://vidgen.example/v.mp4"}}
+            ),
+            ("GET", "/v.mp4"): _bytes(),
+        }
+        with _answering(routes), pytest.raises(VideoProviderError) as caught:
+            await _make("xai", "grok-imagine-video-1.5")
+
+        assert caught.value.failure is VideoFailure.TIMED_OUT
+
+
+class TestAStatusReadThatFails:
+    @pytest.mark.parametrize(
+        "first",
+        [
+            lambda request: (_ for _ in ()).throw(httpx.ReadTimeout("slow", request=request)),
+            lambda _r: httpx.Response(503),
+            lambda _r: httpx.Response(429),
+        ],
+        ids=["timeout", "5xx", "429"],
+    )
+    async def test_is_read_again_rather_than_abandoning_a_billed_job(self, first):
+        """The job is still running and billed; giving up would send the model to
+        start a second one."""
+        routes = {
+            ("POST", "/v1/videos/generations"): _json({"request_id": "r9"}),
+            ("GET", "/v1/videos/r9"): [
+                first,
+                _json({"status": "done", "video": {"url": "https://vidgen.example/v.mp4"}}),
+            ],
+            ("GET", "/v.mp4"): _bytes(),
+        }
+        with _answering(routes):
+            clip = await _make("xai", "grok-imagine-video-1.5")
+
+        assert clip.data == MP4
+
+    async def test_one_slow_request_past_the_deadline_is_a_timeout(self, monkeypatch):
+        def slow(request: httpx.Request) -> httpx.Response:
+            raise httpx.ReadTimeout("slow", request=request)
+
+        with (
+            _answering({("POST", "/v1/videos/generations"): slow}),
+            pytest.raises(VideoProviderError) as caught,
+        ):
+            await _make("xai", "grok-imagine-video-1.5", timeout_seconds=-1.0)
+
+        assert caught.value.failure is VideoFailure.TIMED_OUT
+
+
+class TestAnAnswerOfTheWrongShape:
+    @pytest.mark.parametrize(
+        ("provider", "model", "routes"),
+        [
+            (
+                "google",
+                "gemini-omni-1.1-flash",
+                {("POST", "/v1beta/interactions"): _json({"steps": "nope"})},
+            ),
+            (
+                "google",
+                "gemini-omni-1.1-flash",
+                {("POST", "/v1beta/interactions"): _json({})},
+            ),
+            (
+                "google",
+                "gemini-omni-1.1-flash",
+                {
+                    ("POST", "/v1beta/interactions"): _json(
+                        {"steps": [{"type": "model_output", "content": 7}]}
+                    )
+                },
+            ),
+            (
+                "byteplus",
+                "dreamina-seedance-2-0-260128",
+                {
+                    ("POST", "/api/v3/contents/generations/tasks"): _json({"id": "c"}),
+                    ("GET", "/api/v3/contents/generations/tasks/c"): _json(
+                        {"status": "succeeded", "content": []}
+                    ),
+                },
+            ),
+            (
+                "xai",
+                "grok-imagine-video-1.5",
+                {
+                    ("POST", "/v1/videos/generations"): _json({"request_id": "r"}),
+                    ("GET", "/v1/videos/r"): _json({"status": "done", "video": "x"}),
+                },
+            ),
+            (
+                "alibaba",
+                "wan3.0-video",
+                {
+                    ("POST", "/api/v1/services/aigc/video-generation/video-synthesis"): _json(
+                        {"output": []}
+                    )
+                },
+            ),
+            (
+                "alibaba",
+                "wan3.0-video",
+                {
+                    ("POST", "/api/v1/services/aigc/video-generation/video-synthesis"): _json(
+                        {"output": {"task_id": "t"}}
+                    ),
+                    ("GET", "/api/v1/tasks/t"): _json({"output": "x"}),
+                },
+            ),
+        ],
+        ids=[
+            "gemini steps",
+            "gemini no steps",
+            "gemini content",
+            "byteplus content",
+            "xai video",
+            "alibaba create",
+            "alibaba task",
+        ],
+    )
+    async def test_is_unavailable_rather_than_a_crash(self, provider, model, routes):
+        with _answering(routes), pytest.raises(VideoProviderError) as caught:
+            await _make(provider, model)
+
+        assert caught.value.failure is VideoFailure.UNAVAILABLE
+
+
+@pytest.mark.parametrize(
+    ("status", "body", "failure"),
+    [
+        (400, '{"error":{"details":[{"reason":"API_KEY_INVALID"}]}}', VideoFailure.CREDENTIALS),
+        (408, "slow", VideoFailure.UNAVAILABLE),
+    ],
+    ids=["gemini bad key", "request timeout"],
+)
+async def test_the_providers_reason_outranks_its_status(status, body, failure):
+    routes = {("POST", "/v1/videos/generations"): lambda _r: httpx.Response(status, text=body)}
+    with _answering(routes), pytest.raises(VideoProviderError) as caught:
+        await _make("xai", "grok-imagine-video-1.5")
+
+    assert caught.value.failure is failure
+
+
+def test_every_api_shape_the_catalog_accepts_has_a_client():
+    from app.services.video_generation.clients import CLIENTS
+    from app.services.video_models import SUPPORTED_APIS
+
+    assert frozenset(CLIENTS) == SUPPORTED_APIS
+
+
+def test_a_video_call_keeps_its_key_out_of_its_repr():
+    from app.services.video_generation.clients import VideoCall
+
+    call = VideoCall(
+        provider="xai",
+        base_url="https://x",
+        api_key=KEY,
+        model="m",
+        prompt="p",
+        resolution="720p",
+        aspect_ratio="16:9",
+    )
+
+    assert KEY not in repr(call)
