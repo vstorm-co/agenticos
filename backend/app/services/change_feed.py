@@ -163,8 +163,10 @@ _FEEDS = (
     _shared("/mcp-connections", "mcp_connection"),
     _Feed("/mcp-connections", "mcp_connection", "connection_id"),
     _Feed("/channels/bots", "channel", "bot_id"),
-    # Grouping now is started here and lands later; the pass announces what it placed.
+    # Grouping now and a check of answers are started here and land later; the
+    # work announces what it placed.
     _Feed("/knowledge-gaps/collections/{knowledge_base_id}/regroup", None),
+    _Feed("/knowledge-gaps/collections/{knowledge_base_id}/classify", None),
     _Feed("/knowledge-gaps", "knowledge_gap", "topic_id", creates=False),
     _Feed("/notifications", "notification", "notification_id", creates=False),
     _Feed("/orgs/{org_id}/members", "member", "target_user_id"),

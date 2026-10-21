@@ -9,13 +9,19 @@ topics, and that a pass with nothing to do costs no embedding call.
 from __future__ import annotations
 
 import uuid
+from contextlib import ExitStack
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
 import pytest
 
-from app.db.models.knowledge_gap import KnowledgeGapMember, KnowledgeGapTopic, KnowledgeSearch
+from app.db.models.knowledge_gap import (
+    KnowledgeGapClassification,
+    KnowledgeGapMember,
+    KnowledgeGapTopic,
+    KnowledgeSearch,
+)
 from app.repositories import knowledge_gap_repo
 from app.repositories.knowledge_gap import DraftingRow
 from app.services import change_feed
@@ -26,7 +32,10 @@ from app.services.knowledge_gaps import (
     _Cluster,
     _drafting_prompt,
 )
-from app.worker.tasks.knowledge_gap_tasks import group_knowledge_gaps_flow
+from app.worker.tasks.knowledge_gap_tasks import (
+    classify_knowledge_gaps_flow,
+    group_knowledge_gaps_flow,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -337,6 +346,107 @@ class TestTheFlow:
         assert group.await_args.kwargs == {"organization_id": ORG, "knowledge_base_id": KB}
 
 
+_TASKS = "app.worker.tasks.knowledge_gap_tasks"
+_ASKER = uuid.uuid4()
+
+
+def _check_patches(*, held: bool = True, batches: list[Any], acting: Any = "ctx") -> Any:
+    """Patch what a check touches; `batches` is what each `classify_batch` returns or raises."""
+    stack = ExitStack()
+    stack.enter_context(patch(f"{_TASKS}.get_worker_db_context", new=_Context))
+    stack.enter_context(patch(f"{_TASKS}.get_worker_connection", new=_Context))
+    stack.enter_context(
+        patch(f"{_TASKS}.try_hold_subject_on_connection", new=AsyncMock(return_value=held))
+    )
+    stack.enter_context(patch.object(change_feed, "connect_in_worker", new=AsyncMock()))
+    told = stack.enter_context(
+        patch.object(change_feed, "publish_knowledge_gaps_grouped", new=AsyncMock())
+    )
+    stack.enter_context(
+        patch.object(
+            KnowledgeGapService,
+            "acting_as",
+            new=AsyncMock(return_value=MagicMock() if acting == "ctx" else acting),
+        )
+    )
+    batch = stack.enter_context(
+        patch.object(KnowledgeGapService, "classify_batch", new=AsyncMock(side_effect=batches))
+    )
+    group = stack.enter_context(
+        patch.object(KnowledgeGapService, "group_pending", new=AsyncMock(return_value=1))
+    )
+    return stack, told, batch, group
+
+
+async def _run_check() -> int:
+    return await classify_knowledge_gaps_flow.fn(
+        organization_id=str(ORG), knowledge_base_id=str(KB), user_id=str(_ASKER)
+    )
+
+
+class TestTheCheck:
+    async def test_full_batches_are_read_until_one_comes_back_short_then_grouped_and_announced(
+        self,
+    ):
+        stack, told, batch, group = _check_patches(batches=[(20, 2), (20, 0), (5, 1)])
+        with stack:
+            misses = await _run_check()
+
+        assert misses == 3
+        assert batch.await_count == 3
+        assert group.await_args.kwargs == {"organization_id": ORG, "knowledge_base_id": KB}
+        told.assert_awaited_once_with(ORG)
+
+    async def test_a_check_reads_at_most_its_share_however_many_wait(self):
+        stack, _, batch, _ = _check_patches(batches=[(20, 0)] * 9)
+        with stack:
+            await _run_check()
+
+        assert batch.await_count == 5
+
+    async def test_a_second_check_of_the_same_knowledge_base_does_nothing(self, caplog):
+        caplog.set_level("INFO")
+        stack, told, batch, _ = _check_patches(held=False, batches=[])
+        with stack:
+            misses = await _run_check()
+
+        assert misses == 0
+        batch.assert_not_awaited()
+        told.assert_not_awaited()
+        assert "knowledge_gaps_check_running" in caplog.text
+
+    async def test_a_run_ending_without_an_answer_stops_the_check_and_keeps_what_was_read(
+        self, caplog
+    ):
+        stack, told, batch, group = _check_patches(batches=[(20, 1), RuntimeError("budget")])
+        with stack:
+            misses = await _run_check()
+
+        assert misses == 1
+        assert batch.await_count == 2
+        group.assert_awaited_once()
+        told.assert_awaited_once_with(ORG)
+        assert "knowledge_gaps_check_stopped" in caplog.text
+
+    async def test_an_asker_who_left_reads_nothing_and_nothing_is_announced(self):
+        stack, told, batch, group = _check_patches(batches=[], acting=None)
+        with stack:
+            misses = await _run_check()
+
+        assert misses == 0
+        batch.assert_not_awaited()
+        group.assert_not_awaited()
+        told.assert_not_awaited()
+
+    async def test_answers_read_with_no_miss_among_them_are_announced_but_not_grouped(self):
+        stack, told, _, group = _check_patches(batches=[(3, 0)])
+        with stack:
+            await _run_check()
+
+        group.assert_not_awaited()
+        told.assert_awaited_once_with(ORG)
+
+
 class TestTheRepository:
     async def test_writing_no_searches_sends_no_statement(self):
         db = MagicMock(execute=AsyncMock())
@@ -348,11 +458,23 @@ class TestTheRepository:
 
         db.execute.assert_not_awaited()
 
+    async def test_recording_no_verdicts_sends_no_statement(self):
+        db = MagicMock(execute=AsyncMock())
+
+        recorded = await knowledge_gap_repo.record_classifications(
+            db, [], organization_id=ORG, run_id=uuid.uuid4()
+        )
+
+        assert recorded == 0
+        db.execute.assert_not_awaited()
+
     def test_rows_name_themselves(self):
         search = KnowledgeSearch(id=uuid.uuid4(), run_id=uuid.uuid4(), top_similarity=0.2)
         topic = KnowledgeGapTopic(id=uuid.uuid4(), knowledge_base_id=KB, status="open")
         member = KnowledgeGapMember(topic_id=topic.id, search_id=search.id)
 
+        read = KnowledgeGapClassification(message_id=uuid.uuid4(), signal="none")
+        assert "none" in repr(read)
         assert "0.2" in repr(search)
         assert "open" in repr(topic)
         assert str(search.id) in repr(member)
