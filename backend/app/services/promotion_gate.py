@@ -54,7 +54,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# The states a guard is left in by its last result on the version.
 _SETTLED_STATES: dict[str, GuardState] = {
     EvalSuiteResultStatus.FAILED.value: "failed",
     EvalSuiteResultStatus.INCONCLUSIVE.value: "inconclusive",
