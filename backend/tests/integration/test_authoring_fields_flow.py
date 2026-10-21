@@ -303,9 +303,10 @@ async def test_a_safeguard_is_not_staged_and_a_stored_removal_is_never_accepted(
         await AuthoringService(db).decide(ctx, agent.id, row.id, HunkDecision(action="accept"))
 
 
-async def test_a_stored_change_to_subagents_is_never_accepted(db):
-    """Their configuration holds whole agents, so a row written before the rule - or
-    since - is refused at Accept as staging refuses it."""
+@pytest.mark.parametrize("path", ["capabilities/subagents/config", "capabilities/web_fetch/config"])
+async def test_a_stored_change_to_a_configuration_not_opted_in_is_never_accepted(db, path):
+    """Subagents hold whole agents and web fetch reaches the network; a row written
+    before the rule - or since - is refused at Accept as staging refuses it."""
     ctx, agent, run = await _setup(db)
     run_id = str(run.id)
     model = _improver(
@@ -324,7 +325,7 @@ async def test_a_stored_change_to_subagents_is_never_accepted(db):
         await db.scalars(select(SpecProposalHunk).where(SpecProposalHunk.path.is_not(None)))
     )
     row.path, row.op, row.base_value, row.new_value = (
-        "capabilities/subagents/config",
+        path,
         "set",
         {},
         {"inline": []},

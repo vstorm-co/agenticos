@@ -73,6 +73,7 @@ class ContextConfig(BaseModel):
         ),
     ),
     config_schema=ContextConfig,
+    tunable=True,
 )
 def _build(ctx: CapabilityBuildContext) -> Context | None:
     """Build the capability from the files the runner resolved.

@@ -226,8 +226,25 @@ class TestLists:
         assert fields.stage(_spec(), "collection_ids", "add", added) == (None, str(added))
 
 
+def test_a_capability_may_be_switched_on_and_configured_only_where_it_opts_in():
+    added = fields.stage(_spec(), "capabilities", "add", {"id": "web_fetch"})
+    assert isinstance(added, tuple) and added[1]["id"] == "web_fetch"
+    configured = fields.stage(
+        _spec(), "capabilities", "add", {"id": "thinking", "config": {"effort": "high"}}
+    )
+    assert isinstance(configured, tuple) and configured[1]["config"] == {"effort": "high"}
+    assert (
+        fields.stage(
+            _spec(), "capabilities", "add", {"id": "web_fetch", "config": {"blocked_domains": []}}
+        )
+        == "not_a_target"
+    )
+
+
 def test_a_safeguard_may_be_added():
-    base, new = fields.stage(_spec(), "capabilities", "add", {"id": "guardrails", "config": {}})
+    base, new = fields.stage(
+        _spec(), "capabilities", "add", {"id": "guardrails", "config": {"redact_secrets_out": True}}
+    )
     assert base is None and new["id"] == "guardrails"
 
 
@@ -244,6 +261,7 @@ def test_a_change_never_accepted_says_why_whatever_the_draft_holds():
     )
     assert fields.standing_refusal("capabilities", "add", None, {"id": "charts"}) is None
     assert fields.standing_refusal("capabilities", "add", None, "subagents") is None
+    assert fields.standing_refusal("capabilities", "add", None, {"id": "retired"}) is None
     assert fields.standing_refusal("capabilities", "remove", {"id": "subagents"}, None) is None
 
 
@@ -308,13 +326,11 @@ class TestRefusals:
     def test_what_cannot_be_staged_says_why(self, spec_values, path, op, value, reason):
         assert fields.stage(_spec(**spec_values), path, op, value) == reason
 
-    def test_a_config_for_a_capability_without_a_schema_is_not_checked(self):
-        spec = _spec(capabilities=[{"id": "charts"}])
+    def test_a_config_no_capability_opted_into_is_not_a_target(self):
+        spec = _spec(capabilities=[{"id": "charts"}, {"id": "retired"}])
         assert fields.stage(spec, "capabilities/charts/config", "set", {"anything": 1}) == (
-            {},
-            {"anything": 1},
+            "not_a_target"
         )
-
-    def test_a_config_for_a_retired_capability_is_not_checked_against_a_schema(self):
-        spec = _spec(capabilities=[{"id": "retired"}])
-        assert fields.stage(spec, "capabilities/retired/config", "set", {"x": 1}) == ({}, {"x": 1})
+        assert fields.stage(spec, "capabilities/retired/config", "set", {"x": 1}) == (
+            "not_a_target"
+        )

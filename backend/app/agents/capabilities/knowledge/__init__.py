@@ -40,6 +40,7 @@ __all__ = [
         ),
     ),
     config_schema=KnowledgeConfig,
+    tunable=True,
     scopes=("knowledge:read",),
 )
 def _build(ctx: CapabilityBuildContext) -> Knowledge | None:

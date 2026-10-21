@@ -153,6 +153,44 @@ def test_a_safeguard_is_never_removed_or_reconfigured():
     )
 
 
+def test_a_configuration_is_a_target_only_where_the_capability_opts_in():
+    """Every configuration here is about quality alone. One that reaches a URL, a
+    domain, a connection, a provider or personal data stays out, and a new
+    capability is not a target until this set is changed on purpose."""
+    load_builtins()
+    assert {key for key, definition in REGISTRY.items() if definition.tunable} == {
+        "clock",
+        "compaction",
+        "context",
+        "conversation_search",
+        "knowledge",
+        "media",
+        "planning",
+        "system_reminders",
+        "thinking",
+        "tool_output_limits",
+        "tool_search",
+    }
+    spec = AgentSpec.model_validate(
+        {"name": "Clerk", "capabilities": [{"id": "web_fetch", "config": {}}]}
+    )
+    assert authoring_fields.stage(spec, "capabilities/web_fetch/config", "set", {}) == (
+        "not_a_target"
+    )
+    assert (
+        authoring_fields.stage(
+            spec.model_copy(update={"capabilities": []}),
+            "capabilities",
+            "add",
+            {"id": "web_fetch", "config": {"allowed_domains": ["example.com"]}},
+        )
+        == "not_a_target"
+    )
+    assert authoring_fields.standing_refusal("capabilities/web_fetch/config", "set", {}, {}) == (
+        "not_a_target"
+    )
+
+
 def test_subagents_are_never_added_or_reconfigured():
     """A subagents binding holds whole agents - instructions, models, capabilities and
     their approval - which the checks on one binding never see; of a specialist,
