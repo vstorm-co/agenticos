@@ -207,6 +207,9 @@ export function TextToSpeechSection({
       disabled={disabled}
       configProblems={configProblems}
       settingsExtra={controls}
+      resolvedConfig={
+        resolved.current === undefined ? undefined : { provider: resolved.current.provider }
+      }
       // The controls above *are* this capability's configuration, the generated
       // fields included: drawing the form again would double every field.
       hideConfigForm
