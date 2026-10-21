@@ -32,6 +32,7 @@ from pydantic_ai import ApprovalRequired, RunContext
 from pydantic_ai.capabilities import AbstractCapability, WrapToolExecuteHandler
 from pydantic_ai.messages import ToolCallPart
 from pydantic_ai.tools import ToolDefinition
+from pydantic_core import to_jsonable_python
 
 from app.agents.approval import (
     ApprovalPending,
@@ -115,12 +116,16 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
             )
             return refusal(tool_def.name, "this surface cannot ask anyone to approve it")
 
+        # As JSON, which is how the queue stores them and a person reads them: a tool
+        # taking a `UUID` - `share_view`, every table write - otherwise failed to be
+        # asked about at all.
+        asked = to_jsonable_python(args)
         decision = await ask(
             ApprovalRequest(
                 capability_id=capability_id,
                 tool_name=tool_def.name,
                 tool_call_id=call.tool_call_id,
-                tool_args=args,
+                tool_args=asked,
             )
         )
         if isinstance(decision, ApprovalPending):
@@ -129,4 +134,7 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
             raise ApprovalRequired()
         if isinstance(decision, ApprovalRejected):
             return refusal(tool_def.name, decision.note or "a reviewer rejected it")
-        return await handler(decision.tool_args)
+        # The arguments approved are what runs. When they are this call's own, run
+        # them as the tool validated them, so an id is a `UUID` again and not its text.
+        approved = decision.tool_args
+        return await handler(args if approved == asked else approved)
