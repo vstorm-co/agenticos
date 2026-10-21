@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-10-21
+
 ### Added
 
 - **How to run past one host is written down.** [Scale beyond one

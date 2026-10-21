@@ -7,7 +7,7 @@ overrides = [{ name = "pydantic", extras = ["email"], specifier = ">=2.14.1" }]
 
 [[package]]
 name = "agenticos"
-version = "1.8.3"
+version = "1.9.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiogram" },
