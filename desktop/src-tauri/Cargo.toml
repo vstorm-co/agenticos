@@ -37,3 +37,9 @@ uuid = { version = "1", features = ["v4"] }
 # one that is waiting for it.
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = "2"
+
+# Quick ask as a real NSPanel, which takes the keyboard without bringing the
+# app - and the console window - forward. Already in the tree through Tauri's
+# window layer; declared because this code calls it.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"

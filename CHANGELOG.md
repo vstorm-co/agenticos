@@ -73,7 +73,8 @@ Two things are versioned separately from this file and worth knowing about:
   open; push will refresh them while it is closed.
 - **Quick ask** (`⌥Space`, rebindable): a floating panel to ask any agent from
   anywhere, with the answer streamed under the question and ⌘↩ to carry the
-  conversation into the console.
+  conversation into the console. On macOS it is a panel like Spotlight's: it
+  takes the keyboard without bringing the app, or the console window, forward.
 - **Native notifications** for new approvals, with Approve and Reject on the
   notification, and for new inbox rows, plus a count on the Dock icon and
   beside the tray icon.

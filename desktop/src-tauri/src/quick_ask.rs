@@ -6,6 +6,10 @@
 //! answer over the console's own chat socket. It is built once, hidden, as soon
 //! as a server is known: a panel that has to load a page on the keypress opens a
 //! second late, and a second is the difference between a launcher and a window.
+//!
+//! On macOS it is an `NSPanel` that does not activate the app, as Spotlight's
+//! is: it takes the keyboard while the app you were in stays the active one,
+//! and the console window stays wherever it was.
 
 use tauri::{
     AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
@@ -46,6 +50,13 @@ pub fn prepare(app: &AppHandle, server: &Url, appearance: Appearance) -> tauri::
         builder = builder.effects(effects);
     }
     let window = builder.build()?;
+    #[cfg(target_os = "macos")]
+    {
+        let ns_window = window.ns_window()? as usize;
+        // SAFETY: the pointer is the live NSWindow of the window just built,
+        // used on the main thread, where AppKit requires it.
+        window.run_on_main_thread(move || unsafe { mac::make_panel(ns_window) })?;
+    }
     // A panel that loses focus has been dismissed: clicking elsewhere is how
     // every launcher on every platform is put away.
     let handle = window.clone();
@@ -72,9 +83,25 @@ pub fn toggle(app: &AppHandle, server: Option<&Url>, appearance: Appearance) -> 
         return window.hide().map_err(|e| e.to_string());
     }
     place(app, &window)?;
-    window.show().map_err(|e| e.to_string())?;
-    window.set_focus().map_err(|e| e.to_string())?;
+    present(&window)?;
     app.emit_to(WINDOW, OPEN_EVENT, ()).map_err(|e| e.to_string())
+}
+
+/// Bring the panel up with the keyboard. On macOS without activating the app:
+/// Tauri's `set_focus` would, and the console window would come forward with it.
+#[cfg(target_os = "macos")]
+fn present(window: &WebviewWindow) -> Result<(), String> {
+    let ns_window = window.ns_window().map_err(|e| e.to_string())? as usize;
+    // SAFETY: as in `prepare` - the window's live NSWindow, on the main thread.
+    window
+        .run_on_main_thread(move || unsafe { mac::present(ns_window) })
+        .map_err(|e| e.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn present(window: &WebviewWindow) -> Result<(), String> {
+    window.show().map_err(|e| e.to_string())?;
+    window.set_focus().map_err(|e| e.to_string())
 }
 
 /// Centre it on the monitor the cursor is on, a fifth of the way down.
@@ -92,6 +119,67 @@ fn place(app: &AppHandle, window: &WebviewWindow) -> Result<(), String> {
     window
         .set_position(PhysicalPosition::new(x, y))
         .map_err(|e| e.to_string())
+}
+
+#[cfg(target_os = "macos")]
+mod mac {
+    use std::sync::OnceLock;
+
+    use objc2::runtime::{AnyClass, AnyObject, Bool, ClassBuilder, Sel};
+    use objc2::{class, msg_send, sel};
+
+    /// `NSWindowStyleMaskNonactivatingPanel`: key without making the app active.
+    const NONACTIVATING_PANEL: usize = 1 << 7;
+    /// `NSWindowCollectionBehaviorCanJoinAllSpaces | …FullScreenAuxiliary`: on
+    /// every Space, and over an app in full screen.
+    const EVERY_SPACE: usize = (1 << 0) | (1 << 8);
+
+    /// An `NSPanel` that takes the keyboard, which a borderless one refuses,
+    /// and never becomes the main window.
+    fn panel_class() -> &'static AnyClass {
+        static CLASS: OnceLock<&'static AnyClass> = OnceLock::new();
+        CLASS.get_or_init(|| {
+            extern "C-unwind" fn yes(_: &AnyObject, _: Sel) -> Bool {
+                Bool::YES
+            }
+            extern "C-unwind" fn no(_: &AnyObject, _: Sel) -> Bool {
+                Bool::NO
+            }
+            let mut builder = ClassBuilder::new(c"AgenticOSQuickAskPanel", class!(NSPanel))
+                .expect("the quick ask panel class is declared once");
+            // SAFETY: both selectors take no arguments and return BOOL.
+            unsafe {
+                builder.add_method(sel!(canBecomeKeyWindow), yes as extern "C-unwind" fn(_, _) -> _);
+                builder.add_method(sel!(canBecomeMainWindow), no as extern "C-unwind" fn(_, _) -> _);
+            }
+            builder.register()
+        })
+    }
+
+    /// Turn the window into the panel. The window's delegate - and with it
+    /// Tauri's focus and move events - is the object's, and stays.
+    ///
+    /// # Safety
+    /// `ns_window` is a live NSWindow, and this runs on the main thread.
+    pub unsafe fn make_panel(ns_window: usize) {
+        let window = &*(ns_window as *const AnyObject);
+        AnyObject::set_class(window, panel_class());
+        let mask: usize = msg_send![window, styleMask];
+        let _: () = msg_send![window, setStyleMask: mask | NONACTIVATING_PANEL];
+        let _: () = msg_send![window, setFloatingPanel: Bool::YES];
+        let _: () = msg_send![window, setHidesOnDeactivate: Bool::NO];
+        let _: () = msg_send![window, setCollectionBehavior: EVERY_SPACE];
+    }
+
+    /// Show it over everything, with the keyboard, the app left as it was.
+    ///
+    /// # Safety
+    /// As `make_panel`.
+    pub unsafe fn present(ns_window: usize) {
+        let window = &*(ns_window as *const AnyObject);
+        let _: () = msg_send![window, orderFrontRegardless];
+        let _: () = msg_send![window, makeKeyWindow];
+    }
 }
 
 /// The height the page asks for, kept between the question row and the ceiling.
