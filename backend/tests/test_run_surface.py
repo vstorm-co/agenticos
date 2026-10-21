@@ -43,6 +43,7 @@ class TestEveryMemberIsAssignedBySomething:
             "slack",
             "telegram",
             "mattermost",
+            "teams",
             "schedule",
         }
 
@@ -59,7 +60,7 @@ class TestEveryMemberIsAssignedBySomething:
         """The map's `.get(platform, API)` default is what silently recorded a
         Mattermost mention as an HTTP API call. A platform missing here does not
         error; it lands in the wrong bucket."""
-        assert set(_SURFACES) == {"slack", "telegram", "mattermost"}
+        assert set(_SURFACES) == {"slack", "telegram", "mattermost", "teams"}
         assert _SURFACES["mattermost"] is RunSurface.MATTERMOST
 
 

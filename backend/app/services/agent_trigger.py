@@ -77,6 +77,7 @@ from app.repositories import (
     mcp_connection_repo,
     member_repo,
     organization_secret_repo,
+    teams_conversation_repo,
 )
 from app.schemas.agent_trigger import (
     _EVENT_CONFIG_MODELS,
@@ -90,6 +91,7 @@ from app.services import portal_catalog, portals, trigger_dedupe, trigger_events
 from app.services.access import AGENT, resolve_access, visible_resource_ids
 from app.services.agent_registry import AgentRegistryService
 from app.services.background_jobs import enqueue
+from app.services.channels.teams_post import post_to_teams
 from app.services.mcp_connection import McpConnectionService
 from app.services.notifications import NotificationService
 from app.services.portal_catalog import DeliveryMode
@@ -574,6 +576,8 @@ class AgentTriggerService:
             )
         if data.environment_id is not None:
             await self._environment_of(ctx, agent.id, data.environment_id)
+        if data.teams_conversation_id is not None:
+            await self._teams_target(ctx, data.teams_conversation_id)
         if data.runs_as_creator and not _acts_as_themselves(ctx, ctx.user_id):
             raise AuthorizationError(
                 message="Only you, signed in as yourself, can let a trigger act as you",
@@ -682,6 +686,7 @@ class AgentTriggerService:
             delivery_mode=delivery_mode,
             runs_as_creator=data.runs_as_creator,
             overlap=data.overlap or TriggerOverlap.SKIP.value,
+            teams_conversation_id=data.teams_conversation_id,
         )
         # Open the run-log conversation now, not on the first fire, so a new
         # trigger is a clickable item in the sidebar the moment it exists - empty
@@ -924,6 +929,8 @@ class AgentTriggerService:
 
         if changes.get("environment_id") is not None:
             await self._environment_of(ctx, agent_id, changes["environment_id"])
+        if changes.get("teams_conversation_id") is not None:
+            await self._teams_target(ctx, changes["teams_conversation_id"])
 
         # A cadence change or a resume takes effect from now: a schedule shrunk from
         # daily to minutely, switched to cron, or resumed must not wait out the old
@@ -1765,6 +1772,7 @@ class AgentTriggerService:
         # the wrong fire - the trigger appends every fire to one conversation (#589).
         previous_run_id = trigger.last_run_id
         runner = AgentRunnerService(self.db)
+        answer: str | None = None
         if ctx.fired_as_creator is not None:
             set_acting_trigger(trigger.id, ctx.subject_id)
         # Empty unless the run answered: a fire recovered from an error below has
@@ -1840,6 +1848,17 @@ class AgentTriggerService:
                 # to stamp; a concurrent fire stamps its run itself, and the
                 # sweep bounds a `running` remainder.
                 return
+
+        if (
+            trigger.teams_conversation_id is not None
+            and run.status == RunStatus.COMPLETED.value
+            and answer
+        ):
+            await post_to_teams(
+                self.db,
+                trigger.teams_conversation_id,
+                f"**{trigger.name or agent.name}**\n\n{answer}",
+            )
 
         trigger.last_run_id = run.id
         # And the run says which trigger made it: with `user_id`, "trigger X,
@@ -1970,6 +1989,21 @@ class AgentTriggerService:
             raise NotFoundError(
                 message="Environment not found",
                 details={"environment_id": str(environment_id)},
+            )
+
+    async def _teams_target(self, ctx: AuthContext, conversation_id: UUID) -> None:
+        """Refuse a Teams conversation that is not one of this organization's to post into.
+
+        A team channel or group chat one of its bots is in. Another
+        organization's, or somebody's personal chat with a bot, is not found.
+        """
+        target = await teams_conversation_repo.get_shared(
+            self.db, conversation_id, organization_id=ctx.organization_id
+        )
+        if target is None:
+            raise NotFoundError(
+                message="Teams conversation not found",
+                details={"teams_conversation_id": str(conversation_id)},
             )
 
     async def _owned(self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID) -> AgentTrigger:

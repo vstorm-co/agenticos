@@ -1,5 +1,5 @@
 ---
-source_sha: "2c3ba1b9f219"
+source_sha: "5386fb461910"
 ---
 
 # Die Konsole { #the-console }
@@ -623,7 +623,7 @@ verlassen haben.
 | **Documents** | Alle Dateien, die Agents für Sie aufbewahren - Angehängtes und Geschriebenes | [Die Sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
 | **Sandboxes** | Wo Agents Code ausführen: Hosts, laufende Sessions, Policy | [Die Sandbox](sandbox.md) |
 | **MCP servers** | Verbindungen zu externen Werkzeugen, persönlich und organisationsweit | [MCP](mcp.md) |
-| **Channels** | Slack-, Telegram- und Mattermost-Bots, Widgets, gehostete Seiten | [Oberflächen](channels.md) |
+| **Channels** | Slack-, Teams-, Telegram- und Mattermost-Bots, Widgets, gehostete Seiten | [Oberflächen](channels.md) |
 | **Remote agents** | Agents anderer Anbieter, über ihre A2A Agent Card registriert, an die Agents delegieren | [Capabilities](reference/capabilities.md#remote-agents) |
 | **Vault** | Zugangsdaten, pro Organisation versiegelt | [Secrets](secrets.md) |
 | **Organizations** | Mitglieder, Rollen, Einladungen | [Berechtigungen](permissions.md) |

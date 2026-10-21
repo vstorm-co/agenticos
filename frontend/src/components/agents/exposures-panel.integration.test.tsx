@@ -169,7 +169,8 @@ describe("ExposuresPanel", () => {
     await mount();
 
     expect(await screen.findByRole("button", { name: "Connect a Slack bot" })).toBeDisabled();
-    expect(screen.getAllByText("No bot yet - an admin adds one")).toHaveLength(3);
+    // One per platform with no bot: Slack, Teams, Telegram and Mattermost.
+    expect(screen.getAllByText("No bot yet - an admin adds one")).toHaveLength(4);
   });
 
   it("does not offer a bot the agent already answers on", async () => {

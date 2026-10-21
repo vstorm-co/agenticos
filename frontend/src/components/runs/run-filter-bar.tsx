@@ -33,6 +33,7 @@ export const SURFACES = [
   "telegram",
   "mattermost",
   "a2a",
+  "teams",
   "schedule",
 ] as const;
 

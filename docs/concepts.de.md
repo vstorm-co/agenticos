@@ -1,5 +1,5 @@
 ---
-source_sha: "4fe91aa6f038"
+source_sha: "641ead5d93ef"
 ---
 
 # Begriffe { #concepts }
@@ -245,7 +245,9 @@ genutzt* einen unbeaufsichtigten Run von dem einer Person unterscheiden kann.
 Jedes Auslösen ist ein eigener Run in Activity, und seine Antworten sammeln sich
 in einer Run-Log-Unterhaltung, die der Trigger einmal eröffnet — sofort, sobald
 der Trigger angelegt ist, sodass er ein anklickbarer Eintrag ist, bevor er je
-ausgelöst hat.
+ausgelöst hat. Ein Trigger kann außerdem jede Antwort in einem Teams-Channel oder
+Gruppenchat posten, in dem der Bot seiner Organisation ist
+([Microsoft Teams](channels.md#microsoft-teams)).
 
 ### Zwei Arten auszulösen { #two-ways-to-fire }
 

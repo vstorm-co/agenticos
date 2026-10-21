@@ -1,5 +1,5 @@
 ---
-source_sha: "79b06939c535"
+source_sha: "8b29d490f872"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -1475,7 +1475,7 @@ mejor búsqueda semántica.
 
 ## Desde un canal { #from-a-channel }
 
-Un archivo enviado a un bot de Slack, Telegram o Mattermost entra por aquí, no al
+Un archivo enviado a un bot de Slack, Teams, Telegram o Mattermost entra por aquí, no al
 lado de aquí. El adaptador lo trae con la credencial del propio bot, pasa por la
 misma validación que una subida desde el navegador y se convierte en la misma fila
 `ChatFile` — así que el enrutado de arriba aplica sin cambios y un canal no puede

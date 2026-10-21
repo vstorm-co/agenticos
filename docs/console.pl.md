@@ -1,5 +1,5 @@
 ---
-source_sha: "2c3ba1b9f219"
+source_sha: "5386fb461910"
 ---
 
 # Konsola { #the-console }
@@ -569,7 +569,7 @@ każdej stronie, która do niej należy, i zostaje tak, jak ją zostawisz.
 | **Documents** | Wszystkie pliki, które agenci trzymają dla ciebie: to, co załączyłeś, i to, co napisali | [Sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
 | **Sandboxes** | Gdzie agenci uruchamiają kod: hosty, żywe sesje, polityka | [Sandbox](sandbox.md) |
 | **MCP servers** | Połączenia z zewnętrznymi narzędziami, osobiste i na całą organizację | [MCP](mcp.md) |
-| **Channels** | Boty Slacka, Telegrama i Mattermosta, widgety, hostowane strony | [Powierzchnie](channels.md) |
+| **Channels** | Boty Slacka, Teams, Telegrama i Mattermosta, widgety, hostowane strony | [Powierzchnie](channels.md) |
 | **Remote agents** | Agenci innych dostawców, zarejestrowani po ich agent card A2A, do których delegują agenci | [Capabilities](reference/capabilities.md#remote-agents) |
 | **Vault** | Poświadczenia, zapieczętowane per organizacja | [Sekrety](secrets.md) |
 | **Organizations** | Członkowie, role, zaproszenia | [Uprawnienia](permissions.md) |

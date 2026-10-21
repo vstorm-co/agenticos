@@ -1,5 +1,5 @@
 ---
-source_sha: "7483fef4bd55"
+source_sha: "cd2da62e688d"
 ---
 
 # Sicherheit { #security }
@@ -55,7 +55,7 @@ fragen wird.
 | Wohin | Was | Wann |
 |---|---|---|
 | Der konfigurierte Modell-Provider | Der Prompt, die Ausgabe des Modells, Tool-Argumente und -Ergebnisse | Jeder Run — außer das Modell läuft auf der eigenen Infrastruktur des Betreibers, dann verlässt nichts das Deployment |
-| Der konfigurierte Kanal (Slack, Telegram, Mattermost) | Die generierten Antworten des Agents — Text, Bilder und Anhänge | Immer wenn ein Agent über diesen Kanal exponiert ist; jedes `send_message` postet beim Provider (`app/services/channels/`) |
+| Der konfigurierte Kanal (Slack, Teams, Telegram, Mattermost) | Die generierten Antworten des Agents — Text, Bilder und Anhänge | Immer wenn ein Agent über diesen Kanal exponiert ist; jedes `send_message` postet beim Provider (`app/services/channels/`) |
 | Logfire | Traces, die Prompts und Ausgaben tragen, sofern der Agent nichts anderes sagt | Zwei unabhängige Pfade. Ein Observability-Token pro Agent traced diesen Agent, und sein `content`-Modus entscheidet, wie viel der Span trägt - `none` reduziert ihn auf Zeit, Tokens, Kosten und Tool-Namen (#1413). Ein deploymentweites `LOGFIRE_TOKEN` instrumentiert **jeden** Run, in der API wie im Worker (`app/core/logfire_setup.py`), mit ihm verlässt also der Inhalt jedes Agenten das Deployment, der nicht `none` verlangt hat; ein Agent, der es verlangt hat, wird auch auf diesem Tracer an eine inhaltsfreie Instrumentierung geheftet (`suppress_content`), der Modus hält also auf beiden Pfaden, und ein Spezialist dieses Agenten erbt ihn - inline geschrieben oder mitten im Run erfunden. Eine Lücke, die er nicht abdeckt: ein fehlgeschlagenes Anheften, das protokolliert und belassen wird. Keiner der beiden Pfade ist standardmäßig an. Ein gefiltertes Dazwischen gibt es bewusst nicht - ein teilweise bereinigter Export ist eine Zusicherung, die niemand prüfen kann ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)) |
 | MCP-Server | Tool-Aufrufe und ihre Argumente | Nur für die Tools, an die ein Agent gebunden ist |
 | Ein Websuche-Anbieter (Tavily, DuckDuckGo) | Die Suchanfrage | Nur wenn die Such-Capability gewährt ist |

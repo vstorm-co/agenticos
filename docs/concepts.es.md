@@ -1,5 +1,5 @@
 ---
-source_sha: "4fe91aa6f038"
+source_sha: "641ead5d93ef"
 ---
 
 # Conceptos { #concepts }
@@ -230,7 +230,9 @@ distinguir un run desatendido del de una persona. Cada disparo es su propio run
 en Activity, y sus respuestas se acumulan en una única conversación de registro
 que el trigger abre una vez — de forma anticipada, en el momento en que se crea
 el trigger, así que es un elemento en el que puedes pulsar antes de que se haya
-disparado nunca.
+disparado nunca. Un trigger también puede publicar cada respuesta en un canal o
+chat de grupo de Teams en el que esté el bot de su organización
+([Microsoft Teams](channels.md#microsoft-teams)).
 
 ### Dos formas de disparar { #two-ways-to-fire }
 

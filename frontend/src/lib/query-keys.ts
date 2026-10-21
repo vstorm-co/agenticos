@@ -100,6 +100,8 @@ export const qk = {
     // Under the list's prefix, so every bot mutation refreshes the one a dialog
     // has open too - its "inherit" hint reads the bot's agent.
     detail: (botId: string) => ["channel-bots", botId] as const,
+    /** The Teams channels and group chats a trigger can post into (#1985). */
+    teamsConversations: () => ["channel-bots", "teams-conversations"] as const,
   },
   dictation: {
     // Whether the composer can dictate to one agent, and on which provider. Its

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ClipboardCopy } from "lucide-react";
+import { ClipboardCopy, Download } from "lucide-react";
 import { toast } from "sonner";
 
 import { AnswerStyleFields, REACTION_PATTERN } from "@/components/channels/answer-style-fields";
@@ -23,7 +23,11 @@ import {
   TranscriptionFields,
   type TranscriptionChoice,
 } from "@/components/channels/transcription-fields";
-import { useChannelBot, useCopySlackManifest } from "@/hooks/use-channel-bots";
+import {
+  useChannelBot,
+  useCopySlackManifest,
+  useDownloadTeamsPackage,
+} from "@/hooks/use-channel-bots";
 import { submitFailure } from "@/lib/api-error";
 import { DIALOG_FORM, DIALOG_SCROLL_GUTTER } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
@@ -34,6 +38,8 @@ const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
   telegram: "Telegram",
   slack: "Slack",
   mattermost: "Mattermost",
+  // i18n-exempt: a product\'s own name, written the same in every language
+  teams: "Microsoft Teams",
 };
 
 const MAX_NAME = 255;
@@ -333,6 +339,8 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
 
         {bot.platform === "slack" && <SlackManifest botId={bot.id} />}
 
+        {bot.platform === "teams" && <TeamsSetup bot={bot} />}
+
         {bot.platform === "slack" &&
           (draft.webhookMode ? (
             <FormField
@@ -464,6 +472,41 @@ function SlackManifest({ botId }: { botId: string }) {
         <ClipboardCopy className="h-4 w-4" />
         {t("slackManifestCopy")}
       </Button>
+    </div>
+  );
+}
+
+/**
+ * A Teams bot, set up in two steps (#1985): its messaging endpoint goes into the
+ * Azure Bot resource, and the app package into the tenant's app catalog.
+ */
+function TeamsSetup({ bot }: { bot: ChannelBot }) {
+  const t = useTranslations("pages.channels");
+  const download = useDownloadTeamsPackage();
+  return (
+    <div className="border-border space-y-3 rounded-lg border p-3">
+      {bot.messaging_endpoint && (
+        <div className="space-y-1">
+          <p className="text-sm font-medium">{t("teamsEndpoint")}</p>
+          <p className="text-muted-foreground text-xs">{t("teamsEndpointHint")}</p>
+          <code className="bg-muted block rounded-md px-2 py-1.5 text-xs break-all">
+            {bot.messaging_endpoint}
+          </code>
+        </div>
+      )}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <p className="text-muted-foreground flex-1 text-sm">{t("teamsPackageWhy")}</p>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => download.mutate({ id: bot.id, name: bot.name })}
+          disabled={download.isPending}
+        >
+          <Download className="h-4 w-4" />
+          {t("teamsPackageDownload")}
+        </Button>
+      </div>
     </div>
   );
 }

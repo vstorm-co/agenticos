@@ -31,6 +31,7 @@ import { cn } from "@/lib/utils";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { DEFAULT_ENV, EnvironmentField } from "@/components/triggers/environment-field";
 import { OverlapField } from "@/components/triggers/overlap-field";
+import { NO_TEAMS_POST, TeamsPostField } from "@/components/triggers/teams-post-field";
 import { RunAsCreatorField } from "@/components/triggers/run-as-creator-field";
 import { EventSourceMark } from "@/components/triggers/event-source-mark";
 import { TriggerTemplatePicker } from "@/components/triggers/trigger-template-picker";
@@ -194,6 +195,7 @@ export function TriggerFormDialog({
   const [environmentId, setEnvironmentId] = useState(trigger?.environment_id ?? DEFAULT_ENV);
   const [runsAsCreator, setRunsAsCreator] = useState(trigger?.runs_as_creator ?? false);
   const [overlap, setOverlap] = useState<TriggerOverlap>(trigger?.overlap ?? "skip");
+  const [teamsPost, setTeamsPost] = useState(trigger?.teams_conversation_id ?? NO_TEAMS_POST);
   // A new trigger is the caller's own; an existing one is whoever made it.
   const me = useAuthStore((state) => state.user?.id ?? null);
   const isCreator = trigger === null || trigger.created_by_user_id === me;
@@ -390,6 +392,7 @@ export function TriggerFormDialog({
       // Only when asked for: off is the server's default, and the request then
       // says nothing about acting as anybody.
       ...(runsAsCreator ? { runs_as_creator: true } : {}),
+      ...(teamsPost !== NO_TEAMS_POST ? { teams_conversation_id: teamsPost } : {}),
     };
     if (type === "schedule") {
       return { ...base, ...scheduleCadence(), overlap };
@@ -418,6 +421,8 @@ export function TriggerFormDialog({
         if (trigger.trigger_type === "schedule" && overlap !== trigger.overlap) {
           patch.overlap = overlap;
         }
+        const post = teamsPost === NO_TEAMS_POST ? null : teamsPost;
+        if (post !== (trigger.teams_conversation_id ?? null)) patch.teams_conversation_id = post;
         // A schedule's cadence, only when a cadence control was actually touched.
         // The server recomputes next_fire_at on any cadence field it receives, so
         // echoing the cadence on a prompt-only edit would needlessly reset the
@@ -627,6 +632,8 @@ export function TriggerFormDialog({
               />
             )}
 
+            <TeamsPostField value={teamsPost} onChange={setTeamsPost} />
+
             <RunAsCreatorField
               checked={runsAsCreator}
               onChange={setRunsAsCreator}
@@ -738,6 +745,8 @@ export function TriggerFormDialog({
                   defaultEnvironment={defaultEnvironment}
                 />
               )}
+
+              <TeamsPostField value={teamsPost} onChange={setTeamsPost} />
 
               <RunAsCreatorField
                 checked={runsAsCreator}
