@@ -866,7 +866,9 @@ class BudgetGuard(AbstractCapability[Any]):
         does not pass through the wrapper that would otherwise refuse it
         (agenticos#1808). `cost_usd` is the request's price where it is known in
         advance, which refuses a call that would carry the run past a cap rather
-        than only one made after the cap is reached.
+        than only one made after the cap is reached. Nothing is reserved by asking:
+        two calls priced at once can each fit and together pass the cap, which is
+        the overshoot :class:`RunSpendState` already accepts for concurrent work.
         """
         return await self._first_exceeded(cost_usd) is None
 

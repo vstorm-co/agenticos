@@ -1,5 +1,5 @@
 ---
-source_sha: "07546cc9dfde"
+source_sha: "fee74730c9d4"
 ---
 
 # Konfiguracja { #configuration }
@@ -909,7 +909,8 @@ siatkę — odpowiedź na pytanie „kto trzyma kopię tego CSV”, którego str
 pojedynczego workspace'u udzielić nie potrafi.
 
 **Kliknięcie pliku otwiera go w podglądzie, i jest to ten sam podgląd co w panelu
-czatu.** Obraz jest obrazem, PDF to własny widok PDF przeglądarki, markdown oferuje
+czatu.** Obraz jest obrazem, PDF to własny widok PDF przeglądarki, audio i wideo grają we
+własnym odtwarzaczu przeglądarki, markdown oferuje
 *Preview* i *Source* — oba są plikiem, a `#`, które po cichu stało się dużą czcionką,
 to sposób, w jaki ktoś nie zauważa, że jego agent pisze markdown do czegoś, co nie
 czyta tego jako markdown — a wszystko inne to jego tekst. Pobieranie jest zawsze
@@ -925,9 +926,11 @@ osiągana przez pobranie rozmowy, więc ktoś, komu czat *udostępniono*, zachow
 dostęp — i jeden moduł decyduje, co można wyświetlić, żeby odpowiedź nie mogła się
 różnić w zależności od powierzchni.
 
-Prawie wszystko jest serwowane jako załącznik. **Obrazy rastrowe i PDF-y** są
-serwowane do wyświetlenia: raster, bo nie może się wykonać, a PDF, bo przeglądarka
-renderuje go we własnym podglądzie, który nigdy nie dostaje DOM strony.
+Prawie wszystko jest serwowane jako załącznik. **Obrazy rastrowe, PDF-y, audio i
+wideo** (MP3, WAV, Ogg, Opus, M4A, MP4, WebM) są serwowane do wyświetlenia: raster,
+bo nie może się wykonać, PDF, bo przeglądarka renderuje go we własnym podglądzie,
+który nigdy nie dostaje DOM strony, a audio i wideo, bo przeglądarka przekazuje je
+swojemu odtwarzaczowi, który je odtwarza i niczego w stronie nie uruchamia.
 
 !!! danger "SVG i HTML są do pobrania i nigdy do wyświetlenia"
 
