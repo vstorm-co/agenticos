@@ -28,6 +28,7 @@ from app.db.models.case_generation import CaseOrigin, CaseProposal, GenerationSt
 from app.db.models.dataset import DatasetVersion
 from app.db.models.rag_document import DocumentStatus
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
+from app.repositories import project_repo
 from app.schemas.case_generation import (
     CaseProposalAccept,
     CaseProposalDecision,
@@ -39,6 +40,7 @@ from app.services.case_generation.facade import INTERRUPTED
 from app.services.conversation import ConversationService
 from app.services.dataset import DatasetService
 from app.services.personal_data import PersonalDataService
+from app.services.project import ProjectService
 from tests.integration import case_generation_world as world
 
 pytestmark = pytest.mark.anyio
@@ -340,6 +342,37 @@ async def test_deleting_the_conversation_takes_its_drafts_and_erasure_takes_a_pe
     purged = await PersonalDataService(db).purge(person.id)
 
     assert purged.case_proposals == 1
+    remaining = (
+        await CaseGenerationService(db, vector_store=MagicMock()).list_proposals(owner, dataset.id)
+    ).items
+    assert [item.source_conversation_id for item in remaining] == [kept.id]
+
+
+async def test_deleting_a_project_takes_the_drafts_from_the_chats_it_takes(db) -> None:
+    """A project takes the chats nobody else can reach; the drafts from them go too."""
+    owner, org, agent, dataset = await _setup(db)
+    project = await project_repo.create(
+        db,
+        organization_id=org.id,
+        owner_user_id=owner.user_id,
+        name="Refunds",
+        description="",
+        instructions="",
+        default_agent_id=None,
+        backend="state",
+        visibility="org",
+    )
+    customer = await world.user(db)
+    _, taken, _ = await world.asked(db, org, agent, customer, "Gone", minutes=1)
+    _, kept, _ = await world.asked(db, org, agent, customer, "Kept", minutes=2)
+    # Its starter's account is gone, so the project is the chat's only way in.
+    taken.project_id, taken.user_id = project.id, None
+    await db.flush()
+    await world.proposals(db, org, dataset, agent, 2, source_conversation_id=taken.id)
+    await world.proposals(db, org, dataset, agent, 1, source_conversation_id=kept.id)
+
+    await ProjectService(db).delete(owner, project.id)
+
     remaining = (
         await CaseGenerationService(db, vector_store=MagicMock()).list_proposals(owner, dataset.id)
     ).items
