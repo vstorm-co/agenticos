@@ -325,6 +325,30 @@ class NothingToScoreError(BadRequestError):
         self.case_id = case_id
 
 
+class PromotionBlockedError(AppException):
+    """An environment's eval suites have not all passed on the version (409).
+
+    `details.gate` is the whole gate as `PromotionGateRead` - each guard, its
+    state and the result behind it - so a console can say which suite stopped
+    the promotion, offer to run it, and offer an override where it may.
+    """
+
+    message = "This version has not passed the evals that guard the environment"
+    code = "PROMOTION_BLOCKED"
+    status_code = 409
+
+
+class EvalSuiteInUseError(AppException):
+    """An eval suite guards an environment, so it cannot be deleted (409).
+
+    `details.environments` names them: the suite comes off each first.
+    """
+
+    message = "This eval suite guards an environment"
+    code = "EVAL_SUITE_IN_USE"
+    status_code = 409
+
+
 class EvalSuiteNotRunnableError(AppException):
     """An eval suite cannot run now - it is paused, or already running (409).
 

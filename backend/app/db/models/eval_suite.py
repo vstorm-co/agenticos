@@ -51,6 +51,8 @@ class EvalSuiteTrigger(StrEnum):
     """A skill or knowledge base the checked version binds changed."""
 
     MANUAL = "manual"
+    GATE = "gate"
+    """Run on a version before it is promoted onto an environment these suites guard."""
 
 
 class EvalSuiteResultStatus(StrEnum):
@@ -241,7 +243,7 @@ class EvalSuiteResult(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "trigger IN ('schedule', 'publish', 'promotion', 'dependency', 'manual')",
+            "trigger IN ('schedule', 'publish', 'promotion', 'dependency', 'manual', 'gate')",
             name="ck_eval_suite_result_trigger",
         ),
         CheckConstraint(

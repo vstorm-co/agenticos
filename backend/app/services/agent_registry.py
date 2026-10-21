@@ -88,6 +88,7 @@ from app.repositories import (
     member_repo,
     organization_assistant_repo,
     organization_secret_repo,
+    promotion_gate_repo,
     resource_grant_repo,
     sandbox_connection_repo,
     skill_repo,
@@ -2270,9 +2271,19 @@ class AgentRegistryService:
                 created_by_user_id=ctx.user_id,
             )
         else:
-            for environment in await agent_environment_repo.following_latest(
+            following = await agent_environment_repo.following_latest(
                 self.db, agent_id=agent.id, organization_id=ctx.organization_id
-            ):
+            )
+            # One that names guards waits for them to pass on the new version -
+            # `PromotionGateService.follow` moves it then.
+            guarded = await promotion_gate_repo.guards_for(
+                self.db,
+                [environment.id for environment in following],
+                organization_id=ctx.organization_id,
+            )
+            for environment in following:
+                if environment.id in guarded:
+                    continue
                 await agent_environment_repo.update(
                     self.db, environment=environment, update_data={"version_id": version.id}
                 )
@@ -2607,6 +2618,11 @@ class AgentRegistryService:
             organization_id=ctx.organization_id,
             user_ids=[v.published_by_user_id for v in versions if v.published_by_user_id],
         )
+        from app.services.promotion_gate import PromotionGateService
+
+        overrides = await PromotionGateService(self.db).overrides(
+            ctx, [version.id for version in versions]
+        )
         return [
             AgentVersionRead(
                 id=version.id,
@@ -2617,6 +2633,7 @@ class AgentRegistryService:
                 if version.published_by_user_id
                 else None,
                 created_at=version.created_at,
+                overrides=overrides.get(version.id, []),
             )
             for version in versions
         ], total

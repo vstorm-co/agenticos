@@ -14,6 +14,7 @@ from app.agents.spec import AgentSpec, CapabilityBindingSpec, DelegationMode, Sp
 from app.core.secret_kinds import SecretRequirement
 from app.db.models.agent import AgentKind
 from app.schemas.base import BaseSchema
+from app.schemas.promotion_gate import PromotionOverrideRead
 from app.schemas.resource_grant import AudienceChoice
 
 # The longest a single category/tag may be, matching the `String(32)` array
@@ -402,6 +403,13 @@ class AgentVersionRead(BaseSchema):
         ),
     )
     created_at: datetime | None = None
+    overrides: list[PromotionOverrideRead] = Field(
+        default_factory=list,
+        description=(
+            "Each time this version was promoted onto an environment past eval suites "
+            "that had not passed on it - who, why, and each suite's state then"
+        ),
+    )
 
 
 class AgentVersionDetail(AgentVersionRead):

@@ -827,6 +827,16 @@ def get_eval_suite_service(db: DBSession) -> EvalSuiteService:
 
 EvalSuiteSvc = Annotated[EvalSuiteService, Depends(get_eval_suite_service)]
 
+from app.services.promotion_gate import PromotionGateService
+
+
+def get_promotion_gate_service(db: DBSession) -> PromotionGateService:
+    """Create PromotionGateService instance with database session."""
+    return PromotionGateService(db)
+
+
+PromotionGateSvc = Annotated[PromotionGateService, Depends(get_promotion_gate_service)]
+
 
 def get_mention_service(db: DBSession) -> MentionService:
     return MentionService(db)

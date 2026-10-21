@@ -925,6 +925,10 @@ include = [
     "app/services/eval_suite_threshold.py",
     "app/services/eval_suite.py",
     "app/api/routes/v1/eval_suites.py",
+    "app/db/models/promotion_gate.py",
+    "app/repositories/promotion_gate.py",
+    "app/schemas/promotion_gate.py",
+    "app/services/promotion_gate.py",
     # Which past conversations an agent may search, and the full-text query over
     # them. The predicate is the whole of it - a way in added here is a way in for
     # every agent at once - so it is held to the same bar as the permission code
@@ -1437,6 +1441,10 @@ include = [
     "app/services/eval_suite_threshold.py",
     "app/services/eval_suite.py",
     "app/api/routes/v1/eval_suites.py",
+    "app/db/models/promotion_gate.py",
+    "app/repositories/promotion_gate.py",
+    "app/schemas/promotion_gate.py",
+    "app/services/promotion_gate.py",
     # Which past conversations an agent may search, and the full-text query over
     # them. The predicate is the whole of it - a way in added here is a way in for
     # every agent at once - so it is held to the same bar as the permission code
