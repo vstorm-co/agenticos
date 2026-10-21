@@ -344,7 +344,7 @@ class SupervisedReload(ChangeReload):
         - **Never beaten.** `_silent_for` answers `None` for a worker that has
           not beaten at all, because the first beat only lands once lifespan
           startup has finished - so a worker hung *before* it serves, on a
-          Postgres that is not up or a `PREFECT_API_URL` that does not answer,
+          Postgres that is not up or a Redis that does not answer,
           is the one case the wedge verdict cannot see. It gets `SIGTERM` and a
           second, because it never started serving and so is holding nothing
           worth draining, and then the same `SIGKILL`.

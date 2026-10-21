@@ -12,8 +12,6 @@ turns every file that column names into an apparent orphan, and the count stays
 plausible while being wrong.
 """
 
-from __future__ import annotations
-
 import uuid
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch

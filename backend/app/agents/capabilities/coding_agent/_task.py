@@ -15,8 +15,6 @@ stops inside a UTF-8 character or a long line loses nothing: they are joined
 here, and only whole lines are parsed.
 """
 
-from __future__ import annotations
-
 import base64
 import binascii
 import json
@@ -237,7 +235,7 @@ async def _poll(
     encoded, _, status = result.stdout.partition("\n")
     try:
         chunk = base64.b64decode(encoded.strip(), validate=True)
-    except (binascii.Error, ValueError):
+    except binascii.Error, ValueError:
         chunk = b""
     return chunk, _exit_code(status.strip())
 
@@ -263,7 +261,7 @@ async def _stop(ctx: RunContext[Any], group: int) -> None:
 async def _read(ctx: RunContext[Any], path: str) -> str:
     try:
         return (await ctx.workspace.read_bytes(path)).decode("utf-8", errors="replace")
-    except (FileNotFoundError, WorkspaceError):
+    except FileNotFoundError, WorkspaceError:
         return ""
 
 

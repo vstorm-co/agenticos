@@ -5,8 +5,6 @@ the SSRF check runs as it would; DNS answers one public address except for names
 that resolve to a private one.
 """
 
-from __future__ import annotations
-
 import json
 import socket
 from typing import Any

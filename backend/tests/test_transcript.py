@@ -15,8 +15,6 @@ words in somebody's mouth. A run that answered nothing but *did* something is th
 opposite case, and it is written: the calls are what happened.
 """
 
-from __future__ import annotations
-
 import logging
 import uuid
 from collections.abc import AsyncIterator

@@ -14,7 +14,8 @@ from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -55,6 +56,7 @@ from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.planning import PLANNING_STORE_RESOURCE
 from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE, WORKSPACE_SHARED_RESOURCE
 from app.agents.capabilities.sandbox._capability import build_workspace
+from app.agents.capabilities.sandbox._recording import RecordingWorkspace
 from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse
 from app.agents.loop_guard import ToolLoopStopped
 from app.agents.spec import (
@@ -92,6 +94,7 @@ from app.services.agent_runner import (
     _classify_output,
     _connect_on_use,
     _spend_already_booked,
+    _start_turn_on_first_use,
     _with_account_notes,
     _with_personal_service_gaps,
     month_start,
@@ -104,7 +107,10 @@ from app.services.mcp_connection import (
     UnavailablePersonalService,
     UnavailablePlatformServer,
     UnavailablePrefixCollision,
+    UnavailableUnreachableServer,
 )
+from app.services.sandbox_workspace import OpenWorkspace
+from app.services.skill_workspace import SKILLS_ROOT
 from app.services.transcript import RecordedToolCall
 from tests.workspaces import document_workspace
 
@@ -1689,6 +1695,135 @@ class TestFilesAcrossOneTurn:
         assert prepared.outbound_refused == ["/huge.csv"]
 
 
+def _sandbox(document: StateBackend) -> OpenWorkspace:
+    """A container workspace as the runner holds one: recorded, and opened on first use.
+
+    Over a stored document rather than a local directory, because skills are written
+    to `/workspace/skills` - the container's own root, and not a path a test may
+    create on the machine running it.
+    """
+    recorder = RecordingWorkspace(
+        document_workspace(document),
+        db=MagicMock(),
+        organization_id=uuid.uuid4(),
+        session_key="xc-1",
+        agent_id=uuid.uuid4(),
+    )
+    return OpenWorkspace(
+        workspace=recorder, kind="service", scope="run", scope_key="xc-1", row_id=None
+    )
+
+
+def _skill() -> SimpleNamespace:
+    return SimpleNamespace(
+        id=uuid.uuid4(),
+        name="reconcile",
+        description="Match the ledger",
+        content="Run reconcile.py.",
+        resources=[SimpleNamespace(name="reconcile.py", content="print('ok')")],
+    )
+
+
+class TestASandboxIsSetUpOnFirstUse:
+    """A turn that never touches its sandbox never opens it (#2248).
+
+    Writing the skills and listing the workspace were the first operations of every
+    turn, so a conversation's first message waited on a container start before the
+    model saw a token - and every turn paid a round trip per skill file.
+    """
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("has_skills", [True, False])
+    async def test_preparing_the_run_does_not_touch_the_sandbox(self, has_skills: bool):
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        document = StateBackend()
+        sandbox = _sandbox(document)
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(
+                    return_value=(agent, AgentSpec(name="Books"), agent.current_version_id)
+                ),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(
+                service.skills,
+                "resolve_for_agent",
+                new=AsyncMock(return_value=[_skill()] if has_skills else []),
+            ),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+            ),
+            patch("app.services.agent_runner.build_agent") as build,
+            patch.object(service.workspaces, "open", new=AsyncMock(return_value=sandbox)),
+        ):
+            prepared = await service.prepare(_ctx(), agent.id)
+
+        recorder = cast("RecordingWorkspace", sandbox.workspace)
+        assert not recorder.touched
+        assert document.files == {}
+        # Told where its skills are before they are written: they will be there by
+        # the time anything it does in the sandbox can look. And not told of any
+        # when it has none.
+        instructions = build.call_args.args[0].instructions
+        assert (SKILLS_ROOT in instructions) is has_skills
+        if not has_skills:
+            return
+        # Said before the writes, so not as though they had landed (Codex, #2248).
+        assert "the first time you use the workspace" in instructions
+        assert "refused by the workspace" in instructions
+
+        await recorder.exists("anything")
+
+        assert prepared.materialised_skills is not None
+        assert f"{SKILLS_ROOT}/reconcile/reconcile.py" in prepared.materialised_skills.written
+        assert prepared.workspace_at_start is not None
+        assert any(path.endswith("reconcile/SKILL.md") for path in prepared.workspace_at_start)
+
+    @pytest.mark.anyio
+    async def test_an_untouched_sandbox_is_not_listed_on_the_way_out(self):
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.workspace = _sandbox(StateBackend())
+        prepared.materialised_skills = MagicMock()
+        prepared.ctx = _ctx()
+
+        with (
+            patch("app.services.agent_runner.files_written", new_callable=AsyncMock) as written,
+            patch("app.services.agent_runner.collect_changes", new_callable=AsyncMock) as changes,
+        ):
+            await service._collect_outbound(prepared)
+            await service._propose_skill_changes(prepared)
+
+        written.assert_not_awaited()
+        changes.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_used_sandbox_is_compared_with_what_its_first_use_found(self):
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.workspace = _sandbox(StateBackend())
+        recorder = cast("RecordingWorkspace", prepared.workspace.workspace)
+        await recorder.wrapped.write_text("before.txt", "there already")
+        _start_turn_on_first_use(recorder, prepared, [])
+
+        await recorder.write_text("chart.png", "made this turn")
+        await service._collect_outbound(prepared)
+
+        assert prepared.workspace_at_start is not None
+        assert [file.filename for file in prepared.outbound] == ["chart.png"]
+
+
 class TestSkillChangesARunProposed:
     """What an agent wrote to its skills, on the way out of the run.
 
@@ -1860,7 +1995,7 @@ class TestTheRunsBudgetReachesAmbientCalls:
         seen: dict[str, bool] = {}
 
         class _Iteration:
-            async def __aenter__(self) -> "_Iteration":
+            async def __aenter__(self) -> _Iteration:
                 seen["affordable"] = await can_afford_ambient_call()
                 return self
 
@@ -5067,6 +5202,51 @@ class TestTellingTheAgentWhatItCannotReach:
         )
         assert "only GitHub is attached" in spec.instructions
         assert "is bound to the account" not in spec.instructions
+
+    def test_a_server_that_did_not_answer_is_named_as_unreachable_not_empty(self):
+        """Told nothing, the model reads a missing server as an empty answer and
+        reports "no data"; told the server did not answer, it says so and that a
+        retry may work. Not a personal gap - nobody connects an account to fix
+        it - so it names no link."""
+        spec = _with_personal_service_gaps(
+            AgentSpec(name="Support", instructions="x"),
+            [UnavailableUnreachableServer(server="semrush", binding="the connection 'semrush'")],
+            RunSurface.WEB,
+        )
+
+        assert "semrush server (the connection 'semrush') is not available this turn" in (
+            spec.instructions
+        )
+        assert "none of its semrush_* tools are attached" in spec.instructions
+        # A probe also fails on a refused token or a protocol error, not only a
+        # timeout: a retry may work, and a failure that persists is the connection.
+        assert "did not answer, or refused the connection" in spec.instructions
+        assert "trying again may work" in spec.instructions
+        assert "if it keeps failing the connection needs checking" in spec.instructions
+        assert "is bound to the account" not in spec.instructions
+
+    def test_a_dead_server_whose_prefix_another_holds_names_whose_tools_those_are(self):
+        """Its prefix's tools are attached from another account, so "none of its
+        tools" would be false - and saying nothing lets the live account's
+        results pass for the dead one's."""
+        spec = _with_personal_service_gaps(
+            AgentSpec(name="Support", instructions="x"),
+            [
+                UnavailableUnreachableServer(
+                    server="github",
+                    binding="the connection 'github'",
+                    held_by="the connection 'GitHub'",
+                )
+            ],
+            RunSurface.WEB,
+        )
+
+        assert "github server (the connection 'github') is not available" in spec.instructions
+        assert "none of its github_* tools" not in spec.instructions
+        assert (
+            "the github_* tools that are attached belong to the connection 'GitHub', and "
+            "what they return comes from that account, not this one"
+        ) in spec.instructions
 
     def test_same_named_bindings_are_told_apart_by_binding_not_by_name(self):
         """An organization `notion` and each person's own `notion` collide under

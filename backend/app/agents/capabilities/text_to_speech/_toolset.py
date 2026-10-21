@@ -20,8 +20,6 @@ refused key, an unknown voice and a spent budget are nobody the model can fix -
 they are the author's or the operator's - so they are returned as the result.
 """
 
-from __future__ import annotations
-
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Literal

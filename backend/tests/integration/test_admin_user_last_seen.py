@@ -12,8 +12,6 @@ Here rather than in the unit suite because both halves are a `WHERE` clause: wha
 `is_active AND expires_at > now()` selects is Postgres's answer, not a mock's.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 

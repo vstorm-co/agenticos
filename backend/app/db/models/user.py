@@ -83,7 +83,7 @@ class User(Base, TimestampMixin):
         Boolean, default=True, server_default=text("true"), nullable=False
     )
 
-    sessions: Mapped[list["Session"]] = relationship(
+    sessions: Mapped[list[Session]] = relationship(
         "Session",
         back_populates="user",
         cascade="all, delete-orphan",

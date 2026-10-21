@@ -6,8 +6,6 @@ done as the agent - so an operator who watches every run still cannot type into
 one. Each answer is a join between a token, a membership and the agent's grants.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 

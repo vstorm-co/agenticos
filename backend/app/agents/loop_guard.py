@@ -21,8 +21,6 @@ turns' calls and which a compaction may cut - and a person asking the same thing
 twice is not the agent looping.
 """
 
-from __future__ import annotations
-
 import json
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace

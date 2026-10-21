@@ -15,8 +15,6 @@ Each call is bounded and its failures logged once a while, as `redis_view` says;
 the subscription itself is open-ended, since a quiet room is not a failing one.
 """
 
-from __future__ import annotations
-
 import asyncio
 import contextlib
 import json

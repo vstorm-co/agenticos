@@ -1,5 +1,5 @@
 ---
-source_sha: "29cf0b5c3b94"
+source_sha: "67523cafdf32"
 ---
 
 # API HTTP { #the-http-api }
@@ -181,6 +181,39 @@ turze, z narzędziami wywołanymi w każdej turze i kosztem, dla klucza z
 
     Na tym polega jeden runner i dlatego nie ma "szybkiej ścieżki", która by go
     omijała.
+
+### Bez trzymania połączenia { #without-holding-the-connection }
+
+Run trwający minuty - przeglądanie stron, długi łańcuch narzędzi - trzyma
+żądanie otwarte przez cały czas, a limit czasu odczytu na proxy może je uciąć,
+gdy run trwa dalej. Wyślij `Prefer: respond-async`, a wywołanie od razu
+odpowie `202` z żądaniem runu do odpytywania:
+
+```bash
+curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Prefer: respond-async" \
+  -H "Idempotency-Key: ticket-4711" \
+  -d '{"prompt": "Summarise this quarter for the board"}'
+# 202, Location: /api/v1/run-requests/{id}, Preference-Applied: respond-async
+
+curl "$BASE/api/v1/run-requests/$REQUEST_ID" -H "Authorization: Bearer $AGENTICOS_KEY"
+```
+
+Żądanie ma stan `queued`, `running`, a potem `completed` z `result` - tym samym
+ciałem, którym odpowiada wywołanie synchroniczne - albo `failed` z `error`. Jego
+`conversation_id` jest znane od pierwszej odpowiedzi, więc kolejną wiadomość
+można wysłać, zanim run się skończy. Wykonuje je worker, przez ten sam runner,
+budżet i zatwierdzenia co na każdej innej powierzchni.
+
+To, co da się sprawdzić od razu, jest sprawdzane od razu: nieznana rozmowa albo
+załącznik to `404` na `POST`, a nie błąd, na który trzeba czekać. Uprawnienia
+klucza są sprawdzane ponownie, gdy run startuje, więc klucz odwołany w czasie,
+gdy run czekał, go nie uruchomi. Żądanie runu może odczytać tylko osoba, która
+o nie poprosiła, albo jej klucz; cudze odpowiada `404`. Asynchroniczny run ma
+jedną próbę - run, który się nie powiódł, jest zapisany z tym, co wydał, i nie
+jest ponawiany, żeby nie wydać tego drugi raz.
 
 Ta trasa niesie **limit tempa, a nie bramkę uprawnień**. Uprawnienie jest
 rozstrzygane wewnątrz serwisu, wobec grantów tego konkretnego agenta — bramka
@@ -382,8 +415,9 @@ ponowne wysłanie żądania zaczyna nowy run.
 
 ## Ponawianie, idempotencja i rewizje { #retries-idempotency-and-revisions }
 
-v1 nie ma nagłówka `Idempotency-Key` ani warunków na rewizję: żadnego `ETag`,
-żadnego `If-Match`. Zapis jest stosowany, kiedy przychodzi, i wygrywa ostatni.
+v1 nie ma warunków na rewizję: żadnego `ETag`, żadnego `If-Match`. Zapis jest
+stosowany, kiedy przychodzi, i wygrywa ostatni. `Idempotency-Key` jest
+honorowany na jednej trasie - asynchronicznym runie.
 
 - **`GET`, `PUT` i `DELETE` można bezpiecznie powtórzyć.** Dwa odczyty czytają
   dwa razy; usunięcie czegoś, czego już nie ma, dostaje `404`, które ponowienie
@@ -395,6 +429,12 @@ v1 nie ma nagłówka `Idempotency-Key` ani warunków na rewizję: żadnego `ETag
   albo zerwanym połączeniu sprawdź, zanim ponowisz:
   `GET /api/v1/runs?agent_id=…&surface=api` listuje runy od najnowszych, a
   odczyt listy znajdzie wiersz, który pierwsza próba jednak utworzyła.
+- **Asynchroniczny run tak, z `Idempotency-Key`.** Wyślij `Prefer: respond-async`
+  i wybrany przez siebie klucz, najwyżej 255 znaków, a ponowienie z tym samym
+  kluczem i tym samym ciałem odpowie tym samym żądaniem runu, w jakimkolwiek jest
+  stanie. Ten sam klucz z innym ciałem to `409`, nigdy drugi run. Klucze są per
+  organizacja. Wywołanie synchroniczne z tym nagłówkiem jest odrzucane z `400`,
+  zamiast pozwalać wierzyć, że ponowienie jest bezpieczne.
 - **`429` to jedyna odmowa do ponowienia**, po `Retry-After`, który niesie. Każde
   inne `4xx` jest ostateczne dla tego żądania.
 
@@ -457,6 +497,8 @@ tylko do przodu.
 - Skrypt zdobywa własny klucz **bez przeglądarki** — logowanie, wydanie,
   unieważnienie — a `examples/public-api.sh` przechodzi całą tę drogę.
 - **Warto ponawiać tylko `429`**; `POST` nie jest idempotentny, więc sprawdź,
-  zanim go powtórzysz.
+  zanim go powtórzysz - poza asynchronicznym runem wysłanym z `Idempotency-Key`.
+- **`Prefer: respond-async`** zamienia run w `202` i żądanie runu do
+  odpytywania, więc długi run nie trzyma otwartego połączenia.
 - **Publiczne API jest w `/api/v1/public/openapi.json`** i w ramach v1 zmienia
   się tylko addytywnie, z 90 dniami deprecjacji; SDK jeszcze nie ma.

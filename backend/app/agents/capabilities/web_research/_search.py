@@ -22,8 +22,6 @@ here. It is not an HTTP call we make; it is a capability the model runs with, so
 it lives in `_capability.py` as Pydantic AI's own `WebSearch`.
 """
 
-from __future__ import annotations
-
 import json
 import logging
 from typing import Any, Literal
@@ -268,7 +266,7 @@ def parse_web_search(result: str) -> WebSearchResults | None:
     """
     try:
         payload = json.loads(result)
-    except (json.JSONDecodeError, TypeError):
+    except json.JSONDecodeError, TypeError:
         return None
     if not isinstance(payload, dict) or payload.get("kind") != "web_search":
         return None

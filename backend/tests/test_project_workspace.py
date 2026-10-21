@@ -7,8 +7,6 @@ and no agent, and a run in a project is given the container - and the project's
 instructions - even when its agent keeps no workspace of its own.
 """
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4

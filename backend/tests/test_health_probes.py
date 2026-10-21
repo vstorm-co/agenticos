@@ -11,8 +11,6 @@ branching over what a query returned, and a fake that returns rows makes that
 readable in a way a mock with three `side_effect` lists does not.
 """
 
-from __future__ import annotations
-
 import asyncio
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
@@ -110,27 +108,48 @@ def impatient(monkeypatch: pytest.MonkeyPatch) -> None:
 def _heartbeat(
     monkeypatch: pytest.MonkeyPatch,
     *,
-    sweep: datetime | Exception | None,
-    prefect: datetime | Exception | None,
+    workers: int = 1,
+    fired: datetime | Exception | None,
+    every: int = 60,
+    paused: tuple[str, ...] = (),
+    pools: tuple[str, ...] = ("agent", "ingest", "system"),
 ) -> None:
-    """Make the worker's sweep and Prefect's deployment report these completions."""
+    """Make the queue's tables report these workers, one schedule and these paused kinds."""
+    from app.repositories import background_schedule, background_task_kind, background_worker
 
-    def answering(answer: datetime | Exception | None) -> Any:
-        async def last(*_: object) -> datetime | None:
-            if isinstance(answer, Exception):
-                raise answer
-            return answer
+    async def seen(*_: object, **__: object) -> list[SimpleNamespace]:
+        if isinstance(fired, Exception):
+            raise fired
+        return [SimpleNamespace(id=f"w{n}", pools=list(pools)) for n in range(workers)]
 
-        return last
+    async def schedules(*_: object) -> list[SimpleNamespace]:
+        assert not isinstance(fired, Exception)
+        return [
+            SimpleNamespace(
+                name="check-agent-triggers", interval_seconds=every, last_fired_at=fired
+            ),
+            SimpleNamespace(name="apply-retention", interval_seconds=86400, last_fired_at=None),
+        ]
 
-    monkeypatch.setattr(health.worker_heartbeat, "last", answering(sweep))
-    monkeypatch.setattr(health, "_last_prefect_run", answering(prefect))
+    async def kinds(*_: object) -> list[tuple[SimpleNamespace, str | None]]:
+        # "kind@organization" is a pause for that organization alone.
+        return [
+            (
+                SimpleNamespace(kind=kind.split("@")[0], paused_at=datetime.now(UTC)),
+                kind.split("@")[1] if "@" in kind else None,
+            )
+            for kind in paused
+        ]
+
+    monkeypatch.setattr(background_worker, "list_seen_since", seen)
+    monkeypatch.setattr(background_schedule, "list_all", schedules)
+    monkeypatch.setattr(background_task_kind, "list_all", kinds)
 
 
 @pytest.fixture
 def heartbeat_ok(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A worker and a scheduler that both completed a tick just now."""
-    _heartbeat(monkeypatch, sweep=datetime.now(UTC), prefect=datetime.now(UTC))
+    """A worker alive and the minute schedule fired just now."""
+    _heartbeat(monkeypatch, fired=datetime.now(UTC))
 
 
 class TestDatabaseProbe:
@@ -423,164 +442,118 @@ class TestReadiness:
 
 
 class TestSchedulerProbe:
-    async def test_recent_ticks_are_healthy_and_say_how_recent(
+    async def test_a_live_worker_and_a_minute_schedule_that_fired_are_healthy(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        now = datetime.now(UTC)
-        _heartbeat(
-            monkeypatch, sweep=now - timedelta(seconds=40), prefect=now - timedelta(minutes=9)
-        )
+        _heartbeat(monkeypatch, workers=2, fired=datetime.now(UTC) - timedelta(seconds=40))
 
-        check = await health.probe_scheduler(_Redis())  # type: ignore[arg-type]
+        check = await health.probe_scheduler(_Session())  # type: ignore[arg-type]
 
         assert check.status == "healthy"
-        assert f"all {len(health.worker_heartbeat.SWEEPS)} sweeps ticked within 40s" in check.detail
-        assert "mcp-connection-sweep completed 9 min ago" in check.detail
+        assert check.detail.startswith("2 worker(s) alive")
         assert check.latency_ms is not None
 
-    async def test_a_sweep_that_never_ticked_is_unhealthy(
+    async def test_no_live_worker_is_unhealthy_and_says_what_stops(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A worker that never came up, or one that never reached Redis."""
-        _heartbeat(monkeypatch, sweep=None, prefect=datetime.now(UTC))
+        _heartbeat(monkeypatch, workers=0, fired=datetime.now(UTC))
 
-        check = await health.probe_scheduler(_Redis())  # type: ignore[arg-type]
+        check = await health.probe_scheduler(_Session())  # type: ignore[arg-type]
 
         assert check.status == "unhealthy"
-        assert "agent-triggers-check sweep has never completed" in check.detail
+        assert "no worker has said it is alive" in check.detail
         assert "scheduled triggers" in check.detail
 
-    async def test_a_stale_sweep_is_unhealthy_and_names_its_age(
+    async def test_a_pool_no_live_worker_serves_is_unhealthy_by_name(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        _heartbeat(
-            monkeypatch, sweep=datetime.now(UTC) - timedelta(hours=2), prefect=datetime.now(UTC)
-        )
+        """The `ingest` worker died; the `agent,system` one keeps the schedules firing."""
+        _heartbeat(monkeypatch, fired=datetime.now(UTC), pools=("agent", "system"))
 
-        check = await health.probe_scheduler(_Redis())  # type: ignore[arg-type]
+        check = await health.probe_scheduler(_Session())  # type: ignore[arg-type]
 
         assert check.status == "unhealthy"
-        assert "last completed 120 min ago" in check.detail
-        assert "expected every 60s" in check.detail
+        assert "no live worker serves the ingest pool(s)" in check.detail
 
-    async def test_one_sweep_that_stopped_is_unhealthy_however_well_the_rest_tick(
+    async def test_a_minute_schedule_five_ticks_late_is_unhealthy_by_name(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Each sweep is its own task: a mailbox poll that hangs leaves the
-        trigger heartbeat ticking, and the probe must still say so."""
-        now = datetime.now(UTC)
-        _heartbeat(monkeypatch, sweep=now, prefect=now)
+        _heartbeat(monkeypatch, fired=datetime.now(UTC) - timedelta(minutes=10))
 
-        async def last(_redis: object, sweep: str) -> datetime | None:
-            return now - timedelta(hours=1) if sweep == "portal-poll" else now
-
-        monkeypatch.setattr(health.worker_heartbeat, "last", last)
-
-        check = await health.probe_scheduler(_Redis())  # type: ignore[arg-type]
+        check = await health.probe_scheduler(_Session())  # type: ignore[arg-type]
 
         assert check.status == "unhealthy"
-        assert "portal-poll sweep last completed 60 min ago" in check.detail
-        assert "agent-triggers-check" not in check.detail
+        assert "the check-agent-triggers schedule last fired 10 min ago" in check.detail
 
-    async def test_a_scheduler_that_never_ran_anything_is_unhealthy(
+    async def test_a_minute_schedule_that_never_fired_is_unhealthy(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """The 2026-09-28 outage from a fresh Prefect database: deployments READY,
-        the API healthy, and not one run ever created - while the worker's own
-        sweeps would still tick."""
-        _heartbeat(monkeypatch, sweep=datetime.now(UTC), prefect=None)
+        _heartbeat(monkeypatch, fired=None)
 
-        check = await health.probe_scheduler(_Redis())  # type: ignore[arg-type]
+        check = await health.probe_scheduler(_Session())  # type: ignore[arg-type]
 
         assert check.status == "unhealthy"
-        assert "mcp-connection-sweep deployment has never completed" in check.detail
+        assert "check-agent-triggers schedule has never fired" in check.detail
 
-    async def test_one_missed_tick_is_not_an_outage(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        now = datetime.now(UTC)
-        _heartbeat(
-            monkeypatch, sweep=now - timedelta(seconds=150), prefect=now - timedelta(minutes=20)
-        )
-
-        assert (await health.probe_scheduler(_Redis())).status == "healthy"  # type: ignore[arg-type]
-
-    async def test_a_slowed_development_worker_is_judged_by_its_own_interval(
+    async def test_a_daily_schedule_that_has_not_fired_yet_is_not_a_failure(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """`WORKER_MIN_INTERVAL_SECONDS` lengthens Prefect's ticks, so it lengthens
-        their grace too - or every laptop that sets it would read failed."""
-        monkeypatch.setattr(health.settings, "WORKER_MIN_INTERVAL_SECONDS", 1800)
-        now = datetime.now(UTC)
-        _heartbeat(monkeypatch, sweep=now, prefect=now - timedelta(hours=2))
+        """A fresh deployment's daily sweeps have not come round; only minute ones are judged."""
+        _heartbeat(monkeypatch, fired=datetime.now(UTC))
 
-        assert (await health.probe_scheduler(_Redis())).status == "healthy"  # type: ignore[arg-type]
+        check = await health.probe_scheduler(_Session())  # type: ignore[arg-type]
 
-    async def test_an_unreachable_prefect_is_unhealthy_and_says_why(
+        assert check.status == "healthy"
+        assert "apply-retention" not in check.detail
+
+    async def test_a_paused_kind_is_unhealthy_until_resumed(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        _heartbeat(monkeypatch, sweep=datetime.now(UTC), prefect=OSError("connection refused"))
+        _heartbeat(monkeypatch, fired=datetime.now(UTC), paused=("ingest-document",))
 
-        check = await health.probe_scheduler(_Redis())  # type: ignore[arg-type]
+        check = await health.probe_scheduler(_Session())  # type: ignore[arg-type]
 
         assert check.status == "unhealthy"
-        assert "connection refused" in check.detail
-        assert check.latency_ms is None
+        assert "paused after repeated worker deaths: ingest-document" in check.detail
+        assert "Background jobs page" in check.detail
 
-    async def test_a_hanging_prefect_is_unhealthy_rather_than_a_hanging_page(
+    async def test_a_kind_paused_for_one_organization_names_it(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _heartbeat(monkeypatch, fired=datetime.now(UTC), paused=("ingest-document@Acme",))
+
+        check = await health.probe_scheduler(_Session())  # type: ignore[arg-type]
+
+        assert "paused after repeated worker deaths: ingest-document (Acme)" in check.detail
+
+    async def test_an_unreadable_queue_is_unhealthy_and_says_why(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from sqlalchemy.exc import OperationalError
+
+        _heartbeat(monkeypatch, fired=OperationalError("SELECT", {}, Exception("gone")))
+
+        check = await health.probe_scheduler(_Session())  # type: ignore[arg-type]
+
+        assert check.status == "unhealthy"
+        assert check.detail == "reading the background job tables failed: OperationalError"
+
+    async def test_a_hanging_read_is_unhealthy_rather_than_a_hanging_page(
         self, monkeypatch: pytest.MonkeyPatch, impatient: None
     ) -> None:
-        async def hangs() -> datetime | None:
-            await asyncio.sleep(10)
-            return None
+        from app.repositories import background_worker
 
-        _heartbeat(monkeypatch, sweep=datetime.now(UTC), prefect=None)
-        monkeypatch.setattr(health, "_last_prefect_run", hangs)
+        async def hangs(*_: object, **__: object) -> list[object]:
+            await asyncio.sleep(60)
+            return []
 
-        check = await health.probe_scheduler(_Redis())  # type: ignore[arg-type]
+        _heartbeat(monkeypatch, fired=datetime.now(UTC))
+        monkeypatch.setattr(background_worker, "list_seen_since", hangs)
+
+        check = await health.probe_scheduler(_Session())  # type: ignore[arg-type]
 
         assert check.status == "unhealthy"
-        assert "Redis or the Prefect API did not answer within" in check.detail
-
-
-class TestLastPrefectRun:
-    """The Prefect query itself: the newest *completed* run of the deployment, or none."""
-
-    @staticmethod
-    def _client(monkeypatch: pytest.MonkeyPatch, runs: list[Any]) -> dict[str, Any]:
-        seen: dict[str, Any] = {}
-
-        class _Client:
-            async def __aenter__(self) -> _Client:
-                return self
-
-            async def __aexit__(self, *_: object) -> None:
-                seen["closed"] = True
-
-            async def read_flow_runs(self, **kwargs: Any) -> list[Any]:
-                seen.update(kwargs)
-                return runs
-
-        import prefect.client.orchestration
-
-        monkeypatch.setattr(prefect.client.orchestration, "get_client", _Client)
-        return seen
-
-    async def test_it_answers_the_newest_completed_runs_end(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        ended = datetime(2026, 10, 9, 11, 22, tzinfo=UTC)
-        seen = self._client(monkeypatch, [SimpleNamespace(end_time=ended)])
-
-        assert await health._last_prefect_run() == ended
-        assert seen["closed"]
-        assert seen["limit"] == 1
-        assert seen["deployment_filter"].name.any_ == ["mcp-connection-sweep"]
-        assert [s.value for s in seen["flow_run_filter"].state.type.any_] == ["COMPLETED"]
-        assert seen["sort"].value == "END_TIME_DESC"
-
-    async def test_no_completed_run_is_never(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        self._client(monkeypatch, [])
-
-        assert await health._last_prefect_run() is None
+        assert "the background job tables" in check.detail
 
 
 class TestSystemHealth:
@@ -618,4 +591,5 @@ class TestSystemHealth:
         assert by_key["database"].status == "unhealthy"
         assert by_key["vector_store"].status == "not_checked"
         assert by_key["model_access"].status == "not_checked"
+        assert by_key["scheduler"].status == "not_checked"
         assert by_key["model_access"].detail == "not checked: the database probe failed"

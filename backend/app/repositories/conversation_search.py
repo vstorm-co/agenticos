@@ -12,8 +12,6 @@ with four ways in and one of them costs a call to Slack; it belongs to
 `app.services.conversation_search`, which resolves it once and hands it down.
 """
 
-from __future__ import annotations
-
 from collections.abc import Collection
 from datetime import datetime
 from typing import Any, NamedTuple

@@ -6,8 +6,6 @@ about fourteen times a minute. Each process here is a `StreamLeases` against one
 shared Redis, the way two workers on one deployment are.
 """
 
-from __future__ import annotations
-
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest

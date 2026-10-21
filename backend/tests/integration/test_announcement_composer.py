@@ -9,8 +9,6 @@ addressed, and the send is refused - unwritten - rather than recorded
 against nobody when the resolved audience is empty.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

@@ -14,8 +14,6 @@ that goes out on one. A binding's own prompt is appended after it, so an operato
 can say something more specific without having to restate any of this.
 """
 
-from __future__ import annotations
-
 _MATTERMOST = """
 You are answering in Mattermost. It renders Markdown, including headings, tables,
 fenced code blocks and task lists.

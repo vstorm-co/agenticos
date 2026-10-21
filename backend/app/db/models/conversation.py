@@ -140,7 +140,7 @@ class Conversation(Base, TimestampMixin):
     conversation whose agent has none is for ever.
     """
 
-    messages: Mapped[list["Message"]] = relationship(
+    messages: Mapped[list[Message]] = relationship(
         "Message",
         back_populates="conversation",
         cascade="all, delete-orphan",
@@ -361,14 +361,14 @@ class Message(Base, TimestampMixin):
 
     Null on every message that carried no attachment."""
 
-    conversation: Mapped["Conversation"] = relationship("Conversation", back_populates="messages")
-    tool_calls: Mapped[list["ToolCall"]] = relationship(
+    conversation: Mapped[Conversation] = relationship("Conversation", back_populates="messages")
+    tool_calls: Mapped[list[ToolCall]] = relationship(
         "ToolCall",
         back_populates="message",
         cascade="all, delete-orphan",
         order_by="ToolCall.started_at",
     )
-    files: Mapped[list["ChatFile"]] = relationship(
+    files: Mapped[list[ChatFile]] = relationship(
         "ChatFile",
         foreign_keys="ChatFile.message_id",
         cascade="all, delete-orphan",
@@ -424,7 +424,7 @@ class ToolCall(Base):
         index=True,
     )
 
-    message: Mapped["Message"] = relationship("Message", back_populates="tool_calls")
+    message: Mapped[Message] = relationship("Message", back_populates="tool_calls")
 
     def __repr__(self) -> str:
         return f"<ToolCall(id={self.id}, tool_name={self.tool_name}, status={self.status})>"

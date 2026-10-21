@@ -6,8 +6,6 @@ only when the visual's own call declared it; and the documents the frame and an
 app are built from are the same ones.
 """
 
-from __future__ import annotations
-
 import hashlib
 import uuid
 from contextlib import asynccontextmanager

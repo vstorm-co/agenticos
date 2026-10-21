@@ -1,7 +1,5 @@
 """The console's chat socket refuses an organization API key (Codex review of #2062)."""
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import AsyncMock, MagicMock
 

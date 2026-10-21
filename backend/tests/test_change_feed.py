@@ -1,8 +1,6 @@
 """Change feed paths the end-to-end tests do not reach (#2061): which writes are
 changes, what happens without Redis, and the traffic the middleware leaves alone."""
 
-from __future__ import annotations
-
 import uuid
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -235,7 +233,7 @@ class TestRuns:
     async def test_a_worker_connects_once_and_keeps_its_client(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A routine's run publishes from a Prefect flow, which the API lifespan
+        """A routine's run publishes from the worker, which the API lifespan
         never configured."""
         made: list[MagicMock] = []
 

@@ -11,6 +11,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from pydantic_ai.exceptions import CallDeferred, ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai_harness.ask_user import AskUserRequest, AskUserResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.ask_user import (
     QuestionChoice,
@@ -674,30 +675,33 @@ class AgentSession:
         # failure inside it - the history, the attachment lookup - must not turn
         # a lost answer into a `NameError`.
         try:
-            model_history = await self._history(prompt.message_id)
-            # The files, not a prompt built from them. Where an attachment goes
-            # depends on whether the agent has a workspace, and only `prepare`
-            # knows that - so the routing happens one layer down.
-            # `prompt.message_id` may be None when `persist_user_turn` swallowed a
-            # transient write failure so the turn could still run. The load path
-            # keeps the caller's still-unlinked uploads in that case (a None message
-            # matches unlinked rows), so a lost prompt row does not silently drop
-            # the files the user submitted and paid for (#1654 review).
-            attachments = (
-                await self._attached_files(prompt.message_id, file_ids) if file_ids else []
-            )
-
-            frames = RunFrames(
-                emit=self._frame,
-                timeline=timeline,
-                tool_calls=collected_tool_calls,
-                prompt=user_message,
-            )
-
-            # One session for the whole turn: the run row, the approvals it
-            # parks and the cost it books are a single unit of work, and
-            # `finish` writes back to the row `prepare` opened.
+            # One session for the whole turn: the history and the files it is
+            # given, the run row, the approvals it parks and the cost it books.
+            # The two reads had a transaction each before, ahead of the first
+            # token for nothing (#2248). `finish` writes back to the row
+            # `prepare` opened.
             async with get_db_context() as db:
+                model_history = await self._history(db, prompt.message_id)
+                # The files, not a prompt built from them. Where an attachment
+                # goes depends on whether the agent has a workspace, and only
+                # `prepare` knows that - so the routing happens one layer down.
+                # `prompt.message_id` may be None when `persist_user_turn`
+                # swallowed a transient write failure so the turn could still run.
+                # The load path keeps the caller's still-unlinked uploads in that
+                # case (a None message matches unlinked rows), so a lost prompt row
+                # does not silently drop the files the user submitted and paid for
+                # (#1654 review).
+                attachments = (
+                    await self._attached_files(db, prompt.message_id, file_ids) if file_ids else []
+                )
+
+                frames = RunFrames(
+                    emit=self._frame,
+                    timeline=timeline,
+                    tool_calls=collected_tool_calls,
+                    prompt=user_message,
+                )
+
                 turn = await ChatAgentRunner(db).run(
                     user=self.user,
                     organization_id=self.organization_id,
@@ -1182,7 +1186,9 @@ class AgentSession:
             if turn.overhead_tokens is not None:
                 await conversations.keep_overhead(conversation_id, turn.overhead_tokens)
 
-    async def _history(self, prompt_message_id: UUID | None) -> list[ModelMessage]:
+    async def _history(
+        self, db: AsyncSession, prompt_message_id: UUID | None
+    ) -> list[ModelMessage]:
         """What has already been said in this thread, without the turn being run.
 
         **The summary counts as what was said.** Where one has run, the thread
@@ -1204,9 +1210,10 @@ class AgentSession:
         answers is still in the transcript. Handing it back as history *and* as
         the prompt would ask the model the same question twice.
 
-        Read on its own session, like `_attached_files`: the turn's session is
-        opened later and held for the run, and this is a lookup rather than part
-        of that unit of work.
+        Read on the turn's session, like `_attached_files`: a transaction of its
+        own was a `BEGIN` and a `COMMIT` ahead of the first token, and the run
+        commits before it asks the model anything, so the read holds nothing
+        (#2248).
 
         The repository call carries no tenant predicate, which is safe here for
         one reason only: `current_conversation_id` is what `persist_user_turn`
@@ -1217,28 +1224,26 @@ class AgentSession:
         """
         if self.current_conversation_id is None:
             return []
-        async with get_db_context() as db:
-            return await ConversationService(db).model_history(
-                UUID(self.current_conversation_id),
-                limit=HISTORY_MESSAGES,
-                exclude_message_id=prompt_message_id,
-            )
+        return await ConversationService(db).model_history(
+            UUID(self.current_conversation_id),
+            limit=HISTORY_MESSAGES,
+            exclude_message_id=prompt_message_id,
+        )
 
-    async def _attached_files(self, message_id: UUID | None, file_ids: list[Any]) -> list[ChatFile]:
+    async def _attached_files(
+        self, db: AsyncSession, message_id: UUID | None, file_ids: list[Any]
+    ) -> list[ChatFile]:
         """The rows for the files this turn attached (#1756).
 
-        Read on their own session: the turn's own session is opened later and
-        held for the run, and this is a lookup rather than part of that unit of
-        work. Read by id and kept where the row is linked to this turn's message
+        Read on the turn's session, as `_history` is. Read by id and kept where the row is linked to this turn's message
         or still unlinked: `persist_user_turn` has already linked the frame's ids
         (and enforced ownership, #706), so re-validating them as unlinked would
         reject the turn's own just-linked files - while a file its best-effort
         link left unlinked must still reach the model rather than be dropped.
         """
-        async with get_db_context() as file_db:
-            return await load_turn_attachments(
-                file_db, message_id, [str(file_id) for file_id in file_ids], user_id=self.user.id
-            )
+        return await load_turn_attachments(
+            db, message_id, [str(file_id) for file_id in file_ids], user_id=self.user.id
+        )
 
     async def _emit(self, kind: str, payload: Any) -> bool:
         """Send one frame to this socket, and keep it for whoever follows the turn.
@@ -1457,8 +1462,13 @@ class AgentSession:
         if not here:
             # Not even this socket: no Redis to count anybody, so nothing to say.
             return
-        async with get_db_context() as db:
-            people = await conversation_repo.users_by_id(db, here)
+        # The socket's own person is known already, and alone in a room is the
+        # common case: no session, and no query, to name them (#2248).
+        people = {self.user.id: self.user} if self.user.id in here else {}
+        others = [person for person in here if person != self.user.id]
+        if others:
+            async with get_db_context() as db:
+                people |= await conversation_repo.users_by_id(db, others)
         await send_event(
             self.websocket,
             "presence",

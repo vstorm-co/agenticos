@@ -6,8 +6,6 @@ the run only once nothing is left pending, and a question only once every one of
 its call's questions is answered; and whatever was decided is said in the chat.
 """
 
-from __future__ import annotations
-
 import uuid
 from types import SimpleNamespace
 from typing import Any

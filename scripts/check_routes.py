@@ -35,8 +35,6 @@ Usage::
 Exits 1 when an undeclared helper is found, 0 when clean.
 """
 
-from __future__ import annotations
-
 import ast
 import sys
 from pathlib import Path

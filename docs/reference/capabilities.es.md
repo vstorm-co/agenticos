@@ -1,5 +1,5 @@
 ---
-source_sha: "9c92ca7dedbe"
+source_sha: "d3b4c372db43"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -745,8 +745,8 @@ browser up -d browser`, accesible como `http://browser:9222`. El host tiene que 
 — rechaza la automatización del navegador al publicar.
 
 El navegador de compose está en una red de Docker propia, a la que solo se unen la
-API y el runner para llegar a él: una página que abre, o a la que lo redirigen, no
-alcanza la base de datos, Redis, Prefect ni MinIO. Sigue alcanzando lo que permita
+API y el worker para llegar a él: una página que abre, o a la que lo redirigen, no
+alcanza la base de datos, Redis ni MinIO. Sigue alcanzando lo que permita
 la red del host, como la dirección de metadatos de una nube, así que bloquéala en el
 host donde importe.
 

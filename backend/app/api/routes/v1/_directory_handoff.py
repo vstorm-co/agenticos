@@ -11,8 +11,6 @@ redirect, which the frontend redeems server to server (`/oauth/exchange`), and
 never a token in a URL.
 """
 
-from __future__ import annotations
-
 import base64
 import binascii
 import html
@@ -47,7 +45,7 @@ def negotiate_token(authorization: str | None) -> bytes | None:
         return None
     try:
         return base64.b64decode(credentials.strip(), validate=True)
-    except (binascii.Error, ValueError):
+    except binascii.Error, ValueError:
         return None
 
 

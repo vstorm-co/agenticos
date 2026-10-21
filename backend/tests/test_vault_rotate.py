@@ -8,8 +8,6 @@ performs the full unwrap-and-rewrap without writing - so it proves every
 stored envelope opens under today's keys before anything moves.
 """
 
-from __future__ import annotations
-
 import json
 import uuid
 from contextlib import asynccontextmanager

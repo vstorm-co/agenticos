@@ -24,8 +24,6 @@ best-effort, as Pydantic AI's protocol says: two runs refreshing in the same
 instant can still race, and the loser is asked to sign in again.
 """
 
-from __future__ import annotations
-
 import json
 import logging
 from urllib.parse import parse_qs, urlsplit

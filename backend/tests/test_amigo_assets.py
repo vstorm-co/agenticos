@@ -9,8 +9,6 @@ the failure is invisible: it still renders, just an older face than the one
 beside it. So this regenerates it in memory and compares.
 """
 
-from __future__ import annotations
-
 import importlib.util
 from pathlib import Path
 

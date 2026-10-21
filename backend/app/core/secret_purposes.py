@@ -22,8 +22,6 @@ environment variables. What it costs is that nothing can suggest it anywhere, so
 it is offered as what it is - the answer when none of the others fit.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from enum import StrEnum
 

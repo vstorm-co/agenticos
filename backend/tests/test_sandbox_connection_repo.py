@@ -12,8 +12,6 @@ silent - an agent naming no connection resolves to whichever row happens to
 answer first, which is not the one the operator chose.
 """
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import MagicMock
 

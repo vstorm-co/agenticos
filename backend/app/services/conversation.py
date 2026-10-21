@@ -470,7 +470,9 @@ class ConversationService:
             return None
         return AuthContext(user_id=user_id, organization_id=organization_id, role=membership.role)
 
-    async def visible_project_ids(self, user_id: UUID, organization_id: UUID) -> list[UUID]:
+    async def visible_project_ids(
+        self, user_id: UUID, organization_id: UUID, *, reader: AuthContext | None = None
+    ) -> list[UUID]:
         """The projects whose chats this person reads, their own chats there included.
 
         A project's chats are its members', so `/chat` lists them with the
@@ -478,9 +480,13 @@ class ConversationService:
         has typed in, which left a new member looking at a project whose chats
         were nowhere in their list. Decided on the projects as they stand, so
         losing a project takes its chats out of the list with it (#641).
+
+        `reader` is the request's own context for this person, when the caller
+        has one, and saves reading the membership again. Without a role it is
+        not a member's, so it reaches no project.
         """
-        ctx = await self._member_ctx(organization_id, user_id)
-        if ctx is None:
+        ctx = reader if reader is not None else await self._member_ctx(organization_id, user_id)
+        if ctx is None or not ctx.role:
             return []
         shared = await visible_resource_ids(
             self.db, ctx, resource_type=PROJECT, perm=Perm.PROJECTS_VIEW
@@ -777,6 +783,7 @@ class ConversationService:
         sort_dir: str = "desc",
         hide_api: bool = False,
         project_id: UUID | None = None,
+        reader: AuthContext | None = None,
     ) -> tuple[list[Conversation], int]:
         """One page of the organization's conversations, each naming who answered.
 
@@ -797,7 +804,9 @@ class ConversationService:
             else set()
         )
         project_ids = (
-            await self.visible_project_ids(user_id, organization_id) if user_id is not None else []
+            await self.visible_project_ids(user_id, organization_id, reader=reader)
+            if user_id is not None
+            else []
         )
         items = await conversation_repo.get_conversations_by_user(
             self.db,

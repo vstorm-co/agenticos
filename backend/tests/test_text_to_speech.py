@@ -6,8 +6,6 @@ it - and what is made of the answer: one clip however many requests it took, and
 refusal that never carries the provider's own words.
 """
 
-from __future__ import annotations
-
 import base64
 import json
 import struct

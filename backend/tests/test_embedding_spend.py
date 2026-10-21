@@ -7,8 +7,6 @@ nobody, and nothing failed while every knowledge search and every ingested
 document spent for free.
 """
 
-from __future__ import annotations
-
 import uuid
 from contextlib import asynccontextmanager
 from decimal import Decimal

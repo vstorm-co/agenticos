@@ -1,7 +1,5 @@
 """`background_tools`: a slow tool runs on, and its result is screened all the same (#2108)."""
 
-from __future__ import annotations
-
 from typing import Any
 
 import pytest

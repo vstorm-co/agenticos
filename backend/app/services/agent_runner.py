@@ -50,8 +50,6 @@ the middle of a tool call. What is left at run time is a closure that builds an
 agent already resolved, and a recorder that writes one row.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 from collections import Counter
@@ -147,6 +145,7 @@ from app.agents.capabilities.sandbox import (
     WorkspaceIdentity,
 )
 from app.agents.capabilities.sandbox._identity import SessionScope
+from app.agents.capabilities.sandbox._recording import RecordingWorkspace
 from app.agents.capabilities.subagents import SubagentsConfig, acting_delegate
 from app.agents.capabilities.tool_output_limits import SPILL_LOG_RESOURCE
 from app.agents.connect_on_use import (
@@ -160,7 +159,7 @@ from app.agents.factory import BuiltAgent, build_agent
 from app.agents.failures import run_failure_summary
 from app.agents.loop_guard import ToolLoopStopped
 from app.agents.manifest import RunRecorder, as_payload, carried_over, fit
-from app.agents.mcp import PLATFORM_MCP_PREFIX
+from app.agents.mcp import PLATFORM_MCP_PREFIX, unreachable_briefing
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.observability import current_trace_id
 from app.agents.spec import (
@@ -212,7 +211,8 @@ from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Message
 from app.db.models.project import Project
 from app.db.models.run_manifest import RunManifest
-from app.db.session import get_worker_db_context
+from app.db.models.skill import Skill
+from app.db.session import get_db_context
 from app.repositories import (
     agent_environment_repo,
     agent_exposure_repo,
@@ -256,6 +256,7 @@ from app.services.mcp_connection import (
     UnavailablePersonalService,
     UnavailablePlatformServer,
     UnavailablePrefixCollision,
+    UnavailableUnreachableServer,
     build_toolsets_for_agent,
     connect_personal_toolset,
 )
@@ -1341,7 +1342,7 @@ class PreparedRun:
         user_prompt: str | Sequence[UserContent] | None,
         *,
         message_history: Sequence[ModelMessage] | None,
-    ) -> AsyncGenerator[AgentIteration[AgentDeps, str | DeferredToolRequests], None]:
+    ) -> AsyncGenerator[AgentIteration[AgentDeps, str | DeferredToolRequests]]:
         """Iterate the agent's graph, metered, for a surface that streams.
 
         **The meter is here rather than at the call site because a surface that
@@ -1579,8 +1580,47 @@ _SKILLS_BRIEFING = (
     "text names a different directory is out of date; this is where the files are."
 )
 
+_DEFERRED_SKILLS_BRIEFING = (
+    f"Your skills are also written as files, under `{SKILLS_ROOT}/<name>/` - `SKILL.md` "
+    "and each of the skill's resources beside it - the first time you use the "
+    "workspace. Read and run them there. A skill whose own text names a different "
+    "directory is out of date. A file that is not there was refused by the workspace, "
+    "usually because it is full; the skill's own text is still yours to load."
+)
+"""What a sandbox's run is told, whose skills are written on its first use there.
 
-def _with_skills_briefing(spec: AgentSpec) -> AgentSpec:
+Said before the writes can have succeeded, so it does not claim they did."""
+
+
+def _start_turn_on_first_use(
+    workspace: RecordingWorkspace, prepared: PreparedRun, skills: list[Skill]
+) -> None:
+    """Write the run's skills and take its snapshot when the sandbox is first used.
+
+    The same two steps, in the same order, that a `state` workspace takes while the
+    run is prepared - deferred because on a sandbox they are what opens the
+    session. Both never raise, so the operation waiting behind them is never
+    failed by them; a snapshot that could not be taken stays `None`, which posts
+    nothing back.
+    """
+
+    async def start() -> None:
+        prepared.materialised_skills = await materialise_skills(workspace, skills)
+        prepared.workspace_at_start = await workspace_snapshot(workspace)
+
+    workspace.prepare_on_first_use(start)
+
+
+def _untouched(workspace: OpenWorkspace) -> bool:
+    """Whether the run never used its sandbox, so there is nothing in it to collect.
+
+    Listing it to find out would open the session the turn managed without.
+    """
+    recorder = workspace.workspace
+    return isinstance(recorder, RecordingWorkspace) and not recorder.touched
+
+
+def _with_skills_briefing(spec: AgentSpec, *, deferred: bool = False) -> AgentSpec:
     """The spec told where this run's skills were written.
 
     Nothing else tells it. The path was only ever discoverable from a skill's own
@@ -1591,8 +1631,11 @@ def _with_skills_briefing(spec: AgentSpec) -> AgentSpec:
 
     Appended like the workspace briefing, and only when something was actually
     materialised: a run whose every write was refused has no files to point at.
+    A sandbox's skills are written later, on its first use, so `deferred` says
+    where they will be without claiming they are there.
     """
-    return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{_SKILLS_BRIEFING}"})
+    briefing = _DEFERRED_SKILLS_BRIEFING if deferred else _SKILLS_BRIEFING
+    return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{briefing}"})
 
 
 class PersonalServiceGap(BaseModel):
@@ -1751,6 +1794,8 @@ def _binding_gap_briefing(
             f"in {gap.server}, say it is not available because two of this agent's servers collide "
             "under one name, which the agent's author resolves by renaming one connection."
         )
+    if isinstance(gap, UnavailableUnreachableServer):
+        return unreachable_briefing(gap.server, binding=gap.binding, held_by=gap.held_by)
     return _personal_gap_briefing(personal_service_gap(gap), surface, sender_present=sender_present)
 
 
@@ -2950,11 +2995,12 @@ class AgentRunnerService:
         # that then sits `idle in transaction` for the rest of the run, holding
         # the very connection the opening commit in `_run` exists to hand back:
         # measured under 18 concurrent runs, the three past the pool waited 26
-        # seconds at this read (#12). The worker context and not the pooled one,
-        # because a trigger fires runs inside Prefect flows: a pooled connection
-        # made on one flow's event loop breaks whoever checks it out on the
-        # next, and this read happens on whatever loop the run is on. One
-        # connect per run, next to a model call.
+        # seconds at this read (#12). A session of its own from `get_db_context`:
+        # a pooled connection checked out for the read and handed straight back,
+        # on the loop that owns the pools, and a `NullPool` engine on any other -
+        # the case a trigger's run in the worker used to need this to be the
+        # worker context for. That was a new connection, a SCRAM handshake and
+        # four statements of dialect start-up, two or three times per run (#2248).
         # Both leave this run's own row out. A baseline is what *other* runs have
         # already spent; what this one spends is the ledger's, and on a resume
         # the two are the same money. A run that spent $6 and parked has
@@ -2965,7 +3011,7 @@ class AgentRunnerService:
         # fresh run the row is there too, at zero, so this changes nothing and
         # needs no branch.
         async def agent_period_spend() -> Decimal:
-            async with get_worker_db_context() as db:
+            async with get_db_context() as db:
                 return await agent_run_repo.sum_cost_since(
                     db,
                     organization_id=ctx.organization_id,
@@ -2976,7 +3022,7 @@ class AgentRunnerService:
                 )
 
         async def org_period_spend() -> Decimal:
-            async with get_worker_db_context() as db:
+            async with get_db_context() as db:
                 return await organization_monthly_spend(
                     db, ctx.organization_id, exclude_run_id=run.id
                 )
@@ -3055,12 +3101,23 @@ class AgentRunnerService:
             # agent and the proposal flow use them, and not in a browser about what
             # an agent is keeping *for a person*. `browsable` is where they are
             # dropped instead (#1064).
-            materialised = await materialise_skills(workspace.workspace, resources["skills"])
-            if materialised.written:
-                spec = _with_skills_briefing(spec)
-            # After the skills are written, so materialising them does not read as
-            # the turn's own output.
-            started_with = await workspace_snapshot(workspace.workspace)
+            #
+            # A sandbox's are written on its first use instead, by `_start_turn_on_first_use`
+            # once the prepared run exists: writing them here opened the session -
+            # a container start on a new conversation, a round trip per file on every
+            # turn - before the model saw a token, for a turn that may never touch
+            # the sandbox. The briefing cannot wait for the writes, so it is given
+            # whenever there are skills, worded so it does not claim they landed.
+            if isinstance(workspace.workspace, RecordingWorkspace):
+                if resources["skills"]:
+                    spec = _with_skills_briefing(spec, deferred=True)
+            else:
+                materialised = await materialise_skills(workspace.workspace, resources["skills"])
+                if materialised.written:
+                    spec = _with_skills_briefing(spec)
+                # After the skills are written, so materialising them does not read as
+                # the turn's own output.
+                started_with = await workspace_snapshot(workspace.workspace)
 
         channel = ApprovalChannel(
             organization_id=ctx.organization_id,
@@ -3167,7 +3224,7 @@ class AgentRunnerService:
         for entry in runtimes:
             entry.ledger = built.ledger
 
-        return PreparedRun(
+        prepared = PreparedRun(
             run=run,
             agent=agent,
             spec=spec,
@@ -3203,6 +3260,9 @@ class AgentRunnerService:
                 subject_is_publisher_fallback=subject_is_publisher_fallback,
             ),
         )
+        if workspace is not None and isinstance(workspace.workspace, RecordingWorkspace):
+            _start_turn_on_first_use(workspace.workspace, prepared, resources["skills"])
+        return prepared
 
     async def _delegation_runtime(
         self,
@@ -3379,7 +3439,7 @@ class AgentRunnerService:
                     delegation.profiles[profile.label] = await self.models.resolve(
                         delegation.ctx, profile_id=profile.id
                     )
-                except (BadRequestError, NotFoundError):
+                except BadRequestError, NotFoundError:
                     logger.warning(
                         "model_profile_not_usable_for_dynamic_specialists",
                         extra={"profile_id": str(profile.id), "label": profile.label},
@@ -4093,7 +4153,7 @@ class AgentRunnerService:
         already holding is cheaper than that plumbing. A surface with nowhere to
         put a file simply ignores the list.
         """
-        if prepared.workspace is None:
+        if prepared.workspace is None or _untouched(prepared.workspace):
             return
         delivered = await files_written(prepared.workspace.workspace, prepared.workspace_at_start)
         prepared.outbound.extend(delivered.attachments)
@@ -4114,7 +4174,7 @@ class AgentRunnerService:
         """
         workspace = prepared.workspace
         state = prepared.materialised_skills
-        if workspace is None or state is None or prepared.ctx is None:
+        if workspace is None or state is None or prepared.ctx is None or _untouched(workspace):
             return
         try:
             changes = await collect_changes(workspace.workspace, state)
@@ -4418,7 +4478,7 @@ class AgentRunnerService:
 
         def period_spend(group_id: UUID) -> PeriodSpendLookup:
             async def lookup() -> Decimal:
-                async with get_worker_db_context() as db:
+                async with get_db_context() as db:
                     return await agent_run_repo.sum_cost_since(
                         db,
                         organization_id=ctx.organization_id,

@@ -10,8 +10,6 @@ an SSE connection open and reconnect it themselves; over a socket the browser
 does that, and the same frames the dashboard chat already speaks work unchanged.
 """
 
-from __future__ import annotations
-
 import logging
 from typing import Annotated, Any
 

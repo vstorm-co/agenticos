@@ -6,8 +6,6 @@ capability never holds a token and never chooses a channel: both are decided
 here, from the row the message arrived on, before the agent is built.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 
 from app.agents.capabilities.channel_tools import (

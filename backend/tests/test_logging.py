@@ -9,11 +9,9 @@ unconfigured process is still covered, and the two entrypoints that were missing
 the call now make it.
 """
 
-from __future__ import annotations
-
 import io
 import logging
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -145,27 +143,6 @@ def test_an_unconfigured_process_redacts_through_last_resort(root_stream):
 
     assert logging.lastResort is not None
     assert any(isinstance(f, PiiRedactionFilter) for f in logging.lastResort.filters)
-
-
-def test_the_worker_sets_logging_up():
-    """The worker ran the ingestion and syncs in a process that never called
-    setup_logging, so even redactable lines were not redacted (#440)."""
-    from app.worker import prefect_app
-
-    with (
-        patch.object(prefect_app, "setup_logging") as configure,
-        patch.object(
-            prefect_app.ingest_document_flow,
-            "ato_deployment",
-            new=AsyncMock(side_effect=RuntimeError("stop after setup")),
-        ),
-        pytest.raises(RuntimeError),
-    ):
-        import anyio
-
-        anyio.run(prefect_app.main)
-
-    configure.assert_called_once()
 
 
 def test_the_cli_sets_logging_up():

@@ -6,8 +6,6 @@ three operations at the repository boundary; the serialization they enable is pr
 end to end in `tests/integration/test_collection_teardown_lock.py`.
 """
 
-from __future__ import annotations
-
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 

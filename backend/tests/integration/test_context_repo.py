@@ -8,8 +8,6 @@ on, `list_visible` scopes a private file to its owner while an org-visible one i
 everybody's, and deleting the organization takes its files with it.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

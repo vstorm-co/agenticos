@@ -21,8 +21,6 @@ the Builders who publish agents could not, and the section would be read-only fo
 exactly the people it is for.
 """
 
-from __future__ import annotations
-
 import re
 from typing import Any
 from uuid import UUID

@@ -6,8 +6,6 @@ voice note is worse than one that is absent, because the person who chose it is
 not the person waiting for an answer.
 """
 
-from __future__ import annotations
-
 from dataclasses import replace
 
 import pytest

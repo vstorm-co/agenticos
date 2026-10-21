@@ -8,8 +8,6 @@ per-user check would wave through. Alongside that: one row per person per org,
 and no orphan preference left behind when either side is deleted.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

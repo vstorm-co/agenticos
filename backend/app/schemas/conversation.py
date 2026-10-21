@@ -256,7 +256,7 @@ class ChatPerson(BaseSchema):
     avatar_color: int | None = None
 
     @classmethod
-    def of(cls, user: "User") -> "ChatPerson":
+    def of(cls, user: User) -> ChatPerson:
         return cls(
             user_id=user.id,
             name=user.full_name or user.email,

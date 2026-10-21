@@ -1,5 +1,5 @@
 ---
-source_sha: "9a3d99efe68e"
+source_sha: "767b18fe1f07"
 ---
 
 # Das Komponenteninventar { #the-component-inventory }
@@ -56,7 +56,7 @@ Drittanbieter-Komponente und nichts davon erscheint in den Hinweisen.
 | Komponente | Wo | Was sie ist | Ausgeliefert in |
 |---|---|---|---|
 | API und Plattform | `backend/app` | Die FastAPI-Anwendung: Routes, Services, Repositories, der Runner für Agents, die Capability-Registry | `agenticos-backend` |
-| Hintergrund-Worker | `backend/app/worker` | Der Prefect-Runner für Ingestion, Syncs, Sweeps und geplante Trigger | `agenticos-backend` |
+| Hintergrund-Worker | `backend/app/worker` | Holt Jobs aus der Queue in PostgreSQL ab - Runs von Agents, Ingestion, Syncs, Sweeps - und löst die Zeitpläne des Deployments aus (`python -m app.worker`) | `agenticos-backend` |
 | Migrationen | `backend/alembic` | Die Schema-Kette, angewandt vom Migrationsdienst bevor die API startet | `agenticos-backend` |
 | Kommandozeile | `backend/app/commands` | `agenticos cmd …` — Bootstrap, Doctor, die RAG-Befehle | `agenticos-backend` |
 | Konsole | `frontend/src` | Die Next.js-Anwendung, die ein Betreiber und ein Benutzer sehen | `agenticos-frontend` |
@@ -97,7 +97,7 @@ erscheinen in den CycloneDX-Dokumenten, weil der Generator das veröffentlichte
 Image liest und nicht den Quellbaum.
 
 Dienste, die ein Deployment neben diesen dreien betreibt — PostgreSQL mit
-pgvector, Redis, ein Reverse Proxy, ein Prefect-Server, der Egress-Proxy des Browsers (Squid) — zieht der Betreiber von
+pgvector, Redis, ein Reverse Proxy, der Egress-Proxy des Browsers (Squid) — zieht der Betreiber von
 deren eigenen Herausgebern. Sie sind in den Compose-Dateien benannt, werden hier
 nicht gebaut und stehen nicht im SBOM dieses Projekts.
 

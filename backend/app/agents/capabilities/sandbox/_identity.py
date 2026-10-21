@@ -7,8 +7,6 @@ stops two surfaces computing it differently and one of them handing a Slack
 channel somebody else's workspace.
 """
 
-from __future__ import annotations
-
 import hashlib
 from dataclasses import dataclass
 from typing import Literal

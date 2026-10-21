@@ -29,8 +29,6 @@ counts are two orders of magnitude apart on purpose, so a ledger entry says whic
 agent spent it and a moved price snapshot cannot flip an assertion.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from decimal import Decimal

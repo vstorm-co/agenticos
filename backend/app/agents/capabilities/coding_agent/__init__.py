@@ -130,7 +130,7 @@ class CodingAgentConfig(BaseModel):
     )
 
     @model_validator(mode="after")
-    def _endpoint_is_claude_codes(self) -> "CodingAgentConfig":
+    def _endpoint_is_claude_codes(self) -> CodingAgentConfig:
         # Dropped rather than refused: the field is hidden once Codex is chosen,
         # so a value left from Claude Code is one nobody can see to clear.
         if self.harness != "claude_code":
@@ -138,7 +138,7 @@ class CodingAgentConfig(BaseModel):
         return self
 
     @model_validator(mode="after")
-    def _codex_may_edit(self) -> "CodingAgentConfig":
+    def _codex_may_edit(self) -> CodingAgentConfig:
         if self.harness == "codex" and self.access == "read_only":
             raise ValueError(
                 "Codex can only run with access to change files: its read-only mode is "
@@ -148,7 +148,7 @@ class CodingAgentConfig(BaseModel):
         return self
 
     @model_validator(mode="after")
-    def _model_fits_the_harness(self) -> "CodingAgentConfig":
+    def _model_fits_the_harness(self) -> CodingAgentConfig:
         if self.model is not None and not self.model.startswith(f"{_VENDOR[self.harness]}:"):
             raise ValueError(
                 "Claude Code runs Claude models and Codex runs OpenAI ones; pick a model "

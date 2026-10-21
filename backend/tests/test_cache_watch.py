@@ -5,8 +5,6 @@ cached prefix collapsed - and whether the provider should still have held it -
 is exactly what the run's responses say.
 """
 
-from __future__ import annotations
-
 import logging
 import uuid
 from datetime import UTC, datetime, timedelta

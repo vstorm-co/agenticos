@@ -4,8 +4,6 @@ External callers use `get_adapter` and the base types; the concrete adapters are
 package-internal, resolved by key through the registry.
 """
 
-from __future__ import annotations
-
 from app.services.portals.base import (
     PolledEvent,
     PolledEvents,

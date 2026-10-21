@@ -367,7 +367,7 @@ class _Graph:
         try:
             body = response.json()
             return _Page.model_validate(body) if "value" in body else _Item.model_validate(body)
-        except (ValueError, ValidationError, TypeError):
+        except ValueError, ValidationError, TypeError:
             # Neither the body nor the validation error is quoted: a
             # `ValidationError` embeds the input, and the input is Graph's.
             raise ExternalServiceError(

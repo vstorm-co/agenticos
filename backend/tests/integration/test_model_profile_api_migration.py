@@ -11,8 +11,6 @@ that at the model-built integration database (or a developer's) is how a run
 empties something it should not.
 """
 
-from __future__ import annotations
-
 import os
 import subprocess
 import sys

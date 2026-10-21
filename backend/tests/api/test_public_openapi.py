@@ -1,7 +1,5 @@
 """The public API's OpenAPI document agrees with the routes a key may call (#1796)."""
 
-from __future__ import annotations
-
 from typing import Any
 
 import pytest

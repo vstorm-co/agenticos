@@ -16,8 +16,6 @@ The token is unsealed from the vault by the caller and passed in. Nothing here
 reads a secret, logs one, or puts one in a span attribute.
 """
 
-from __future__ import annotations
-
 import logging
 from typing import Any
 

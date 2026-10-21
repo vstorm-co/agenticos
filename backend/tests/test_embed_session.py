@@ -10,8 +10,6 @@ The turn itself is stubbed throughout. What is being asserted is the guard, not
 the run behind it.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager

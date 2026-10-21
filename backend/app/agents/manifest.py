@@ -29,8 +29,6 @@ scalars and discards the rest, so the manifest cannot become the second place a
 key is written down.
 """
 
-from __future__ import annotations
-
 import json
 import time
 from collections.abc import AsyncGenerator
@@ -270,7 +268,7 @@ class RecordingModel(WrapperModel):
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
         run_context: RunContext[Any] | None = None,
-    ) -> AsyncGenerator[StreamedResponse, None]:
+    ) -> AsyncGenerator[StreamedResponse]:
         self.recorder.observe_request(messages, model_settings, model_request_parameters)
         started, clock = datetime.now(UTC), time.perf_counter()
         # Both halves inside the guard, because both can raise and each leaves the

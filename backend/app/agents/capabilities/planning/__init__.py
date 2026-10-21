@@ -16,8 +16,6 @@ seeds it from `paused_state` on resume, and reads it back when the run stops. Se
 `planning/_capability.py` for why the store lives there rather than here.
 """
 
-from __future__ import annotations
-
 from typing import Literal
 
 from pydantic import BaseModel, Field

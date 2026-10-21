@@ -7,8 +7,6 @@ request, or that cached one capability's flaky first build as empty for the life
 of the process, would pay for it on a routine path (#1621).
 """
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 
 import anyio

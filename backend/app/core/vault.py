@@ -30,8 +30,6 @@ key, an AWS key pair, a service account - live in :mod:`app.core.secret_kinds`,
 which seals through here.
 """
 
-from __future__ import annotations
-
 import base64
 import hashlib
 import json
@@ -328,7 +326,7 @@ def needs_rotation(ciphertext: str, *, key_version: int) -> bool:
     try:
         envelope = json.loads(ciphertext)
         return envelope.get("v", 1) != ENVELOPE_VERSION
-    except (json.JSONDecodeError, AttributeError):
+    except json.JSONDecodeError, AttributeError:
         return True
 
 

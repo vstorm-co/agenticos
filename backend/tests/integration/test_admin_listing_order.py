@@ -18,8 +18,6 @@ coalesced `updated_at` to `created_at` for this reason; the admin path was the
 outlier. Found sweeping the search paths for #372.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 

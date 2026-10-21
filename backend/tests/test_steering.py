@@ -1,7 +1,5 @@
 """Adding to a run while it works (#2087): the words reach the model at its next request."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from unittest.mock import AsyncMock, MagicMock
 

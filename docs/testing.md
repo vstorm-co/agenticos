@@ -568,48 +568,34 @@ touching `alembic/versions/`, but it points at whatever `backend/.env` says, whi
 on a laptop is the database with your own work in it. Prefer
 `uv run pytest tests/test_migrations.py`, which cannot reach it.
 
-## Prefect, and why no test reaches a server
+## The worker's tests
 
-**Calling a `@flow` is a network call, and the suite points it at nowhere.** Prefect
-resolves its own settings from `backend/.env` — its settings model carries
-`env_file=".env"` — so `PREFECT_API_URL=http://localhost:4200/api`, the line `make dev`
-needs, was also the address a test's `@flow` call tried to reach. Without a server up
-that is `RuntimeError: Failed to reach API at http://localhost:4200/api/` out of a test
-that mocked every collaborator it has, and CI never saw it: with no `.env` there is no
-URL, so what a laptop ran was never what CI ran
-([#536](https://github.com/vstorm-co/agenticos/issues/536)).
+**The queue's guarantees are tested where they hold: in PostgreSQL and in real
+processes.** `FOR UPDATE SKIP LOCKED`, the partial unique indexes behind
+`dedupe_key` and `concurrency_key`, and a `NOTIFY` that a rollback withdraws are
+all things a mocked session would simply agree with. So
+`tests/integration/test_background_job_queue.py` runs them against the real
+table, and `tests/integration/test_worker_runtime.py` runs a whole worker: a
+parse that eats memory until the watchdog stops it, a child that sends itself
+`SIGKILL`, a database that refuses twenty connections, a shutdown in the middle
+of a job.
 
-`tests/conftest.py` therefore assigns `PREFECT_API_URL` **empty** before Prefect is
-imported, next to the database name and password above and for the same reason.
+The children those tests start load `tests.worker_handlers:handlers`, a set of
+job kinds that misbehave on purpose - a hog, a suicide, a job that exits
+mid-run. A new way for a job to end belongs there, with a test that makes it
+happen for real.
 
-Deleting the variable would not do: an unset variable leaves the dotenv source to
-answer, and the dotenv source is what holds the URL.
+**The rare branches are also pinned with fakes.** A line reached only through a
+real child or a real database error, after an `await`, is not always recorded
+by the coverage tracer, so the gate would flicker on it.
+`tests/test_worker_runtime_edges.py` and `tests/test_worker_child_run.py` drive
+the same branches against mocked repositories and a stand-in process, every
+run.
 
-An empty assignment outranks it because Prefect's settings model carries
-`env_ignore_empty=False` — which is Prefect's rule and not ours. `app/core/config.py`
-sets it the other way, so the same line against one of *our* settings would be
-discarded and the `.env` would answer anyway.
-
-Prefect reads an empty URL as no URL and starts a temporary server of its own for the
-call, which is what CI has always done. So the run no longer depends on whether a
-Prefect server happens to be up, in either direction.
-
-**That server's state is a SQLite database under `PREFECT_HOME`, and the suite gives it
-one of its own.** Left alone it is `~/.prefect`, so a unit run would write its flow runs
-into a developer's Prefect data and, where Prefect runs on the host rather than in
-Docker, into the file a running `prefect server` has open. `tests/conftest.py` points it
-at `agenticos-prefect-test` under the system temporary directory, for the same reason
-the Postgres name above is a test database. One directory rather than one per process:
-what costs is creating it.
-
-Creating it is a migration, and the suite raises Prefect's 20-second allowance for
-starting that server to 90 — **as headroom, not because 20 has been seen to fail.**
-Against a `PREFECT_HOME` nothing has written yet the whole start takes about six seconds
-on a laptop and about nine on a CI container, which is cold on every run and has never
-been red on the default. What the raised allowance buys is that the one step whose cost
-nothing here bounds — a migration on a contended machine, or a temporary directory that
-has been swept — waits rather than failing a suite that a second run would pass.
-`tests/test_prefect_test_environment.py` pins all four properties.
+Nothing here needs a server or an environment variable. A unit test of a
+service that queues a job patches `enqueue` where the service imported it and
+asserts the payload, as the `queued_fires` fixture in
+`tests/test_agent_triggers.py` does.
 
 ## Recap
 

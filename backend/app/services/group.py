@@ -12,8 +12,6 @@ grants made to it, resolved in `resource_grant_repo`, so deleting one removes
 exactly the access that was shared with it (the grants cascade with the row).
 """
 
-from __future__ import annotations
-
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError

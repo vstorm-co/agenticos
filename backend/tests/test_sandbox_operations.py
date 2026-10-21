@@ -14,14 +14,13 @@ The recorder wraps a real local workspace in a temporary directory: what it reco
 is what a real backend answered, including the way a real one fails.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import anyio
 import pytest
 from pydantic_ai.workspaces import (
     LocalWorkspaceBackend,
@@ -361,7 +360,7 @@ class TestRetention:
             patch("app.repositories.sandbox_operation.delete_older_than") as sweep,
         ):
             sweep.return_value = 4
-            await trigger_tasks.sweep_sandbox_operations_flow()
+            await trigger_tasks.sweep_sandbox_operations()
 
         cutoff = sweep.await_args.kwargs["cutoff"]
         expected = datetime.now(UTC) - timedelta(days=OPERATION_RETENTION_DAYS)
@@ -406,3 +405,110 @@ class TestSayingAnOperationIsOver:
         await recorder.write_text("a.txt", "kept")
 
         assert (tmp_path / "a.txt").read_text() == "kept"
+
+
+class TestSetUpOnFirstUse:
+    """A turn's set-up waits for the sandbox to be used (#2248).
+
+    Writing the run's skills and listing the workspace were what opened its session
+    on every turn - a container start on a new conversation - before the model saw
+    a token, whether or not the turn ever used the sandbox.
+    """
+
+    async def test_nothing_is_set_up_until_an_operation_arrives(self, tmp_path: Path):
+        recorder, _ = _wrap(tmp_path)
+        set_up = AsyncMock()
+        recorder.prepare_on_first_use(set_up)
+
+        # Asking which session it is, as the close does, is not using it.
+        _ = recorder.ref
+        assert not recorder.touched
+        set_up.assert_not_awaited()
+
+        await recorder.exists("a.txt")
+
+        assert recorder.touched
+        set_up.assert_awaited_once()
+
+    async def test_the_set_up_runs_once_and_before_the_operation(self, tmp_path: Path):
+        recorder, _ = _wrap(tmp_path)
+        seen: list[str] = []
+
+        async def set_up() -> None:
+            seen.append("set up")
+
+        recorder.prepare_on_first_use(set_up)
+        await recorder.write_text("a.txt", "a")
+        await recorder.write_text("b.txt", "b")
+
+        assert seen == ["set up"]
+        assert (tmp_path / "a.txt").read_text() == "a"
+
+    async def test_the_set_ups_own_operations_go_straight_through(self, tmp_path: Path):
+        """The skills it writes pass through the same wrapper, and are recorded."""
+        recorder, session = _wrap(tmp_path)
+
+        async def set_up() -> None:
+            await recorder.write_text("skills/s/SKILL.md", "body")
+
+        recorder.prepare_on_first_use(set_up)
+        with anyio.fail_after(5):
+            listing = await recorder.list_dir(".")
+
+        assert {entry.name for entry in listing} == {"skills"}
+        assert [row.target for row in session.rows] == ["skills/s/SKILL.md", "."]
+
+    async def test_an_operation_arriving_meanwhile_waits_for_the_set_up(self, tmp_path: Path):
+        recorder, _ = _wrap(tmp_path)
+        release = anyio.Event()
+        order: list[str] = []
+
+        async def set_up() -> None:
+            await release.wait()
+            await recorder.write_text("skills/s/SKILL.md", "body")
+            order.append("set up")
+
+        async def operation(name: str) -> None:
+            await recorder.write_text(name, name)
+            order.append(name)
+
+        recorder.prepare_on_first_use(set_up)
+        with anyio.fail_after(5):
+            async with anyio.create_task_group() as tasks:
+                tasks.start_soon(operation, "first.txt")
+                tasks.start_soon(operation, "second.txt")
+                await anyio.sleep(0.05)
+                assert order == []
+                release.set()
+
+        assert order[0] == "set up"
+        assert sorted(order[1:]) == ["first.txt", "second.txt"]
+
+    async def test_a_cancelled_set_up_leaves_the_workspace_usable(self, tmp_path: Path):
+        """A tool call cancelled mid set-up must not leave every later call waiting."""
+        recorder, _ = _wrap(tmp_path)
+        started = anyio.Event()
+
+        async def set_up() -> None:
+            started.set()
+            await anyio.sleep_forever()
+
+        recorder.prepare_on_first_use(set_up)
+        with anyio.fail_after(5):
+            async with anyio.create_task_group() as tasks:
+                tasks.start_soon(recorder.write_text, "never.txt", "x")
+                await started.wait()
+                tasks.cancel_scope.cancel()
+            await recorder.write_text("later.txt", "y")
+
+        assert not (tmp_path / "never.txt").exists()
+        assert (tmp_path / "later.txt").read_text() == "y"
+
+    async def test_without_a_set_up_an_operation_only_marks_the_workspace_used(
+        self, tmp_path: Path
+    ):
+        recorder, _ = _wrap(tmp_path)
+
+        await recorder.write_text("a.txt", "a")
+
+        assert recorder.touched

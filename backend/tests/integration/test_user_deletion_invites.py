@@ -11,8 +11,6 @@ neighbouring invite rows when the referenced user is deleted, which a mock
 cannot show.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 

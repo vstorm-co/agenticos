@@ -10,8 +10,6 @@ generates; it has nowhere to build with the result, which is the honest
 difference between the two.
 """
 
-from __future__ import annotations
-
 import logging
 from dataclasses import dataclass
 

@@ -4,7 +4,9 @@ import { BookOpen, FileSearch, Mail, Sparkles } from "lucide-react";
 
 import { useTranslations } from "next-intl";
 
-import { useAuth } from "@/hooks";
+import { AgentAvatar } from "@/components/agents/agent-avatar";
+import { useAgents, useAuth } from "@/hooks";
+import { useAgentSelectionStore } from "@/stores";
 
 import { ChatWelcome, WelcomeIcon } from "./chat-welcome";
 
@@ -24,12 +26,40 @@ export function ChatEmptyState({ onPick }: ChatEmptyStateProps) {
   const t = useTranslations("chat.empty");
   const { user } = useAuth();
   const firstName = user?.full_name?.split(" ")[0] || user?.email?.split("@")[0];
+  // Whoever will answer, so the page opens on them rather than on a generic
+  // sparkle and a line about streaming and tool calls. The list is the one the
+  // picker already holds.
+  const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
+  const { agents } = useAgents({ includeArchived: true });
+  const agent = agents.find((candidate) => candidate.id === selectedAgentId);
+  const description = agent?.description?.trim();
 
   return (
     <ChatWelcome
-      mark={<WelcomeIcon icon={Sparkles} />}
+      mark={
+        agent ? (
+          <AgentAvatar
+            agentId={agent.id}
+            slug={agent.slug}
+            hasAvatar={agent.has_avatar}
+            colorSlot={agent.avatar_color}
+            size="lg"
+          />
+        ) : (
+          <WelcomeIcon icon={Sparkles} />
+        )
+      }
       title={firstName ? t("greeting", { name: firstName }) : t("greetingAnonymous")}
-      lead={t("lead")}
+      lead={
+        agent ? (
+          <>
+            <span className="text-foreground font-medium">{agent.name}</span>
+            {description ? ` · ${description}` : ""}
+          </>
+        ) : (
+          t("lead")
+        )
+      }
       suggestions={PROMPTS.map((p) => ({
         key: p.id,
         icon: p.icon,

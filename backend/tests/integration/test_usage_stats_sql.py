@@ -7,8 +7,6 @@ COUNT(DISTINCT user_id) really ignores anonymous runs. Those are properties
 of the database, so they are asserted against one.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal

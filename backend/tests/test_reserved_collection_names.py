@@ -23,8 +23,6 @@ Both now ask it as one of four questions about a caller-chosen name -
 function all of them live in.
 """
 
-from __future__ import annotations
-
 import uuid
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch

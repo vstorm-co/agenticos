@@ -7,8 +7,6 @@ exactly one version and nothing past its expiry, and the content is served as a
 document - HTML as written, Markdown rendered with its raw HTML escaped.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch

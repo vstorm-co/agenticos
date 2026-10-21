@@ -20,8 +20,6 @@ A later `execute` step can then use the image it just made: assemble it into a
 PDF, a slide, a page.
 """
 
-from __future__ import annotations
-
 import logging
 from typing import Any, Literal
 

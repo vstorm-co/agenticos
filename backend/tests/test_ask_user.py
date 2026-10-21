@@ -6,8 +6,6 @@ it quietly tells the agent something the user never said. Each case below is a
 shape the WebSocket client has actually been able to send.
 """
 
-from __future__ import annotations
-
 import pytest
 from pydantic_ai_harness.ask_user import (
     AskUserAnswer,

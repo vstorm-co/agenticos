@@ -13,8 +13,6 @@ app-scoped one, and never crosses to a third tenant - and that the embedding
 resolver unseals only the caller organization's key.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

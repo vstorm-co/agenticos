@@ -3,6 +3,7 @@
 import { BookOpen, Database, FileText, FolderKanban, Wrench } from "lucide-react";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
+import { BrandMark } from "@/components/branding/brand-mark";
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
 import { readableLink, richSegments } from "@/lib/rich-text";
 import { CAPABILITY_HUE } from "@/components/agents/capability-art/art.generated";
@@ -16,8 +17,19 @@ import { LinkFavicon } from "./link-favicon";
 /** The mark a mention carries: the server's logo, the agent's face, or what kind of thing it is. */
 export function MentionMark({ item, className }: { item: Mentionable; className?: string }) {
   const size = cn("h-4 w-4 shrink-0", className);
+  // The platform's own server wears the deployment's mark, as its card in the
+  // Builder does; it has no catalog entry, so it fell through to a monogram.
+  if (item.kind === "mcp" && item.id === "platform")
+    return <BrandMark size={16} className={size} />;
   if (item.kind === "mcp")
-    return <McpServerIcon icon={item.icon} name={item.name} className={size} />;
+    return (
+      <McpServerIcon
+        icon={item.icon}
+        name={item.name}
+        url={item.host ? `https://${item.host}` : null}
+        className={size}
+      />
+    );
   if (item.kind === "agent")
     return (
       <AgentAvatar

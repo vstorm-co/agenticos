@@ -7,8 +7,6 @@ fit the kind, a duplicate name, an edit to a row the caller may only see, and
 a lookup that lands on another tenant's host.
 """
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 

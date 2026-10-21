@@ -2,7 +2,7 @@
 #
 # On its own - downloaded into an empty directory, no clone - this file pulls
 # `ghcr.io/vstorm-co/agenticos-backend` and `agenticos-frontend`, starts
-# Postgres (pgvector), Redis, the Prefect server and runner, the API and the
+# Postgres (pgvector), Redis, the background worker, the API and the
 # console, runs the migrations, and answers on http://localhost:3000. Every
 # variable carries a default, so there is no `.env` to write first; write one
 # beside this file when there is something to change - `AGENTICOS_VERSION` to
@@ -33,7 +33,7 @@
 # them and where the rest of this repository says to look.
 
 services:
-  # Runs the migrations and exits. `app` and `prefect-runner` wait for it to have
+  # Runs the migrations and exits. `app` and `worker` wait for it to have
   # *completed*, not for the database to be up, so a first `up` on an empty
   # volume is one command and a second `up` on a migrated one is a no-op that
   # takes a second. `docker compose logs migrate` is where a failed migration
@@ -85,7 +85,6 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=${POSTGRES_DB:-agenticos}
       - REDIS_HOST=redis
-      - PREFECT_API_URL=http://prefect-server:4200/api
       # The browser profile's egress proxy, on by default so starting the browser
       # starts the pinning path too. Set BROWSER_EGRESS_PROXY= (empty) in the root
       # .env only for a browser outside compose that cannot reach it.
@@ -117,9 +116,9 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
-    # This probe used to be a HEALTHCHECK in backend/Dockerfile, which the Prefect
-    # runner inherited along with the image and could never answer. It lives with
-    # the service that serves it now; see prefect-runner for the other half.
+    # This probe used to be a HEALTHCHECK in backend/Dockerfile, which every
+    # service built from the image inherited and only the API could answer. It
+    # lives with the service that serves it now; see `worker` for the other half.
     # Two things are not carried over verbatim. The status: `httpx.get` on its
     # own returns a response object whatever the status, so the old probe passed
     # on a 500 as happily as on a 200 - `urlopen` raises on anything >= 400. And
@@ -197,32 +196,17 @@ services:
       start_period: 10s
     restart: unless-stopped
 
-  prefect-server:
-    # Pinned for the reason given in docker-compose-prod.yml.
-    image: prefecthq/prefect:3.8.8-python3.12
-    command: prefect server start --host 0.0.0.0
-    volumes:
-      # $PREFECT_HOME, where the database lives; see docker-compose-prod.yml.
-      - prefect_data:/root/.prefect/
-    environment:
-      - PREFECT_UI_URL=http://localhost:4200/api
-      - PREFECT_API_URL=http://localhost:4200/api
-      - PREFECT_SERVER_API_HOST=0.0.0.0
-    networks:
-      - backend
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4200/api/health')"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-    restart: unless-stopped
-
-  prefect-runner:
+  # The background worker (#2219): fired triggers, ingestion, syncs, cleanups and
+  # every scheduled sweep, claimed from a queue in Postgres. One long-lived
+  # process imports the application once and serves every pool; ingestion runs
+  # in child processes under a memory watchdog (`WORKER_INGEST_MEMORY_MB`) set
+  # below this container's limit, so the watchdog - which says why - acts before
+  # the kernel does. A second worker, here or on another host, shares the queue.
+  worker:
     image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-latest}
     volumes:
       - media_data:/app/media
-    command: python -m app.worker.prefect_app
+    command: python -m app.worker
     env_file:
       - path: ./.env
         required: false
@@ -236,37 +220,36 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=${POSTGRES_DB:-agenticos}
       - REDIS_HOST=redis
-      - PREFECT_API_URL=http://prefect-server:4200/api
       # The browser profile's egress proxy, on by default so starting the browser
       # starts the pinning path too. Set BROWSER_EGRESS_PROXY= (empty) in the root
       # .env only for a browser outside compose that cannot reach it.
       - BROWSER_EGRESS_PROXY=${BROWSER_EGRESS_PROXY-http://browser-egress:3128}
-      # The runner's own health endpoint, started by app/worker/prefect_app.py.
-      # 127.0.0.1 rather than 0.0.0.0 because the same webserver also serves
-      # `/shutdown`, and the only caller that should reach it is the probe below,
-      # inside this container. Pinned here rather than left to Prefect's defaults
-      # so a value in an env file cannot move the port out from under the probe.
-      - PREFECT_RUNNER_SERVER_HOST=127.0.0.1
-      - PREFECT_RUNNER_SERVER_PORT=8080
     networks:
       - backend
       - browser
     depends_on:
-      prefect-server:
-        condition: service_healthy
       migrate:
         condition: service_completed_successfully
-    # Answers 503 once the runner has missed two polls, so a process that is alive
-    # but no longer polling reads as unhealthy - which is the failure this status
-    # exists to show. The long start_period covers importing the whole application
-    # and registering the deployments: until the first poll `/health` has no
-    # `last_polled` to compare against and errors.
+      redis:
+        condition: service_healthy
+    # The worker touches its health file only after a heartbeat that reached the
+    # database, so a worker whose loop is stuck or whose database is gone reads
+    # unhealthy: older than 90s is six missed 15s heartbeats. The standard library
+    # only, like every probe here (#2228). The start period covers importing the
+    # application and starting the ingest children, each of which imports it too.
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=5)"]
+      test: ["CMD", "python", "-c", "import os, sys, time; sys.exit(time.time() - os.stat(os.environ.get('WORKER_HEALTH_FILE', '/tmp/agenticos-worker-alive')).st_mtime > 90)"]
       interval: 15s
       timeout: 5s
       retries: 3
-      start_period: 60s
+      start_period: 90s
+    # Longer than the worker's own drain (30s), so a stop lets running jobs
+    # finish or be given back with their attempt rather than being killed mid-write.
+    stop_grace_period: 45s
+    deploy:
+      resources:
+        limits:
+          memory: ${WORKER_MEMORY_LIMIT:-4g}
     restart: unless-stopped
 
   # The console. `BACKEND_URL` is the server-side address its route handlers
@@ -383,7 +366,7 @@ services:
       - browser
     restart: unless-stopped
 
-  # The browser's egress proxy (`docker/browser-egress`): the app and the runner
+  # The browser's egress proxy (`docker/browser-egress`): the app and the worker
   # default BROWSER_EGRESS_PROXY to it, so every browse without an organization
   # proxy goes out through it. It resolves each host itself, refuses
   # private, loopback, link-local and metadata addresses, and connects to the
@@ -401,6 +384,11 @@ services:
   sandboxd:
     image: ghcr.io/vstorm-co/sandboxd:0.2
     profiles: [sandbox]
+    # Without an init the server is PID 1, and Python reaps only the children it
+    # waits on: anything orphaned under it stays a zombie for the container's
+    # lifetime, and production once showed more than 600. docker-init reaps
+    # them, as it already does in every sandbox this service starts.
+    init: true
     # The token comes from the same files every other secret in this stack comes
     # from, rather than through compose interpolation: interpolation reads the
     # project root's `.env` only, so a token generated into `backend/.env` -
@@ -503,13 +491,12 @@ networks:
     # a bridge on which `db` and `app` resolve to the neighbour's containers.
     driver: bridge
   browser:
-    # The browser's own network, which only the API and the runner share with it
+    # The browser's own network, which only the API and the worker share with it
     # to reach `browser:9222`. A page it is sent to - or redirected to - cannot
-    # reach the database, Redis, Prefect or MinIO, because nothing else is on it.
+    # reach the database, Redis or MinIO, because nothing else is on it.
     driver: bridge
 
 volumes:
   media_data:
   minio_data:
   postgres_data:
-  prefect_data:

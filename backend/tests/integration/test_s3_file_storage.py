@@ -20,8 +20,6 @@ test the absence of a KMS rather than the backend. What every write asks for is
 held by `tests/test_file_storage_s3.py::TestEveryWriteAsksForEncryption`.
 """
 
-from __future__ import annotations
-
 import os
 import uuid
 from collections.abc import Iterator

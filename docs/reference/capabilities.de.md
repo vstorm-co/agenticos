@@ -1,5 +1,5 @@
 ---
-source_sha: "9c92ca7dedbe"
+source_sha: "d3b4c372db43"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -779,8 +779,8 @@ muss auf [`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md) stehen, und eine lee
 Liste — der Standard — lehnt Browser-Automatisierung bei der Veröffentlichung ganz ab.
 
 Der compose-Browser liegt in einem eigenen Docker-Netz, dem nur die API und der
-Runner beitreten, um ihn zu erreichen: Eine Seite, die er öffnet oder auf die er
-umgeleitet wird, erreicht weder die Datenbank noch Redis, Prefect oder MinIO. Er
+Worker beitreten, um ihn zu erreichen: Eine Seite, die er öffnet oder auf die er
+umgeleitet wird, erreicht weder die Datenbank noch Redis oder MinIO. Er
 erreicht weiterhin, was das Netz des Hosts erlaubt, etwa die Metadaten-Adresse einer
 Cloud - wo das zählt, sperre sie auf dem Host.
 

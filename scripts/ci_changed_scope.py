@@ -64,8 +64,6 @@ Usage, from the `changes` job:
     python3 scripts/ci_changed_scope.py changed-files.txt [patches.json] >> "$GITHUB_OUTPUT"
 """
 
-from __future__ import annotations
-
 import json
 import re
 import sys

@@ -5,8 +5,6 @@ is the wiring: saving is gated on `artifacts:edit`, the caller's context reaches
 the service, and a picture is answered with a type and a policy that runs nothing.
 """
 
-from __future__ import annotations
-
 from collections.abc import Iterator
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4

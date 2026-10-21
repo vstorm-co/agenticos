@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
-import { useAdoptSession, useAuth, useReauthenticate } from "./use-auth";
+import { readSession, useAdoptSession, useAuth, useReauthenticate } from "./use-auth";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
 import { useAuthStore, useConversationStore, useOrgStore } from "@/stores";
@@ -114,6 +114,36 @@ describe("checking the session on load", () => {
     renderHook(() => useAuth(), { wrapper });
 
     expect(apiClient.get).toHaveBeenCalledTimes(1);
+  });
+
+  it("shares the read the auth guard already has on its way", async () => {
+    // On a cold load the guard and `useAuth` both start before the persisted
+    // store says anybody is signed in, and each used to send its own request.
+    const guards = readSession();
+    renderHook(() => useAuth(), { wrapper });
+
+    await expect(guards).resolves.toMatchObject({ id: "u-1" });
+    await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(true));
+    expect(apiClient.get).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks again once the shared read has answered", async () => {
+    await readSession();
+    await readSession();
+
+    expect(apiClient.get).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not ask again for a session the auth guard has just adopted", async () => {
+    // The guard reads `/auth/me` before the dashboard mounts, and `useAuth`
+    // then read it again: two requests for one identity on every page load.
+    const { result: adopt } = renderHook(() => useAdoptSession(), { wrapper });
+    act(() => adopt.current(user(), "t-1"));
+
+    renderHook(() => useAuth(), { wrapper });
+
+    expect(apiClient.get).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().accessToken).toBe("t-1");
   });
 
   it("clears a persisted session the server no longer honours", async () => {
@@ -515,6 +545,21 @@ describe("signing out", () => {
     renderHook(() => useAuth(), { wrapper });
 
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(2));
+  });
+
+  it("does not sign back in on a read that set out before the sign-out", async () => {
+    let answer: (value: User) => void = () => {};
+    vi.mocked(apiClient.get).mockReturnValue(new Promise<User>((resolve) => (answer = resolve)));
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      await result.current.logout();
+    });
+    await act(async () => answer(user()));
+
+    expect(useAuthStore.getState().user).toBeNull();
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
   });
 });
 

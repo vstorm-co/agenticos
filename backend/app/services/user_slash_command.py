@@ -11,8 +11,6 @@ This split keeps built-in metadata (description, action handler) in code
 where it belongs while letting users hide commands they never use.
 """
 
-from __future__ import annotations
-
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError

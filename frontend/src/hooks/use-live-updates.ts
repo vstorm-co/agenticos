@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { useWebSocket } from "@/hooks/use-websocket";
+import { invalidateSoon } from "@/lib/coalesced-invalidation";
 import { announceChange, staleQueries } from "@/lib/live-updates";
-import { useAuthStore, useOrgStore } from "@/stores";
+import { useAuthStore, useLiveFeedStore, useOrgStore } from "@/stores";
 import type { ChangeEvent } from "@/types/change-events";
 
 /**
@@ -41,23 +42,45 @@ export function useLiveUpdates(): void {
   const onMessage = useCallback(
     (message: MessageEvent) => {
       const event = JSON.parse(String(message.data)) as ChangeEvent;
+      // Gathered with this tab's own refreshes: the feed echoes the change the
+      // tab just made, and both used to refetch the same list.
       for (const queryKey of staleQueries(event)) {
-        void queryClient.invalidateQueries({ queryKey });
+        void invalidateSoon(queryClient, queryKey);
       }
       announceChange(event);
     },
     [queryClient],
   );
+  const setConnected = useLiveFeedStore((state) => state.setConnected);
+  // Every address this tab's feed has been open on. A socket that comes back to
+  // one - after a drop, or after a visit to another organization, whose feed was
+  // the one open meanwhile - missed whatever changed there, and the queries that
+  // lean on the feed - a dashboard holds its answers for half an hour - would
+  // show the old rows until then, so every cached answer is marked stale. An
+  // address opened for the first time is an organization whose queries are new
+  // keys, already being fetched.
+  const openedOn = useRef<Set<string>>(new Set());
+  const onOpen = useCallback(() => {
+    if (openedOn.current.has(url)) void queryClient.invalidateQueries();
+    openedOn.current.add(url);
+    setConnected(true);
+  }, [queryClient, setConnected, url]);
+  const onClose = useCallback(() => setConnected(false), [setConnected]);
   const { connect, disconnect } = useWebSocket({
     url,
     protocols,
     identity: principal,
     onMessage,
+    onOpen,
+    onClose,
   });
 
   useEffect(() => {
     if (!activeOrgId || !accessToken) return;
     connect();
-    return () => disconnect();
-  }, [activeOrgId, accessToken, connect, disconnect]);
+    return () => {
+      disconnect();
+      setConnected(false);
+    };
+  }, [activeOrgId, accessToken, connect, disconnect, setConnected]);
 }
