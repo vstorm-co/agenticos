@@ -166,7 +166,7 @@ skill is refused once somebody has changed the skill since.
 A [context file](context.md) is improved from its editor on the Context page,
 from the runs of the agents that read it. What the assistant suggests is a new
 body, and it waits above the list on that page with its rationale and evidence,
-and with the agents that read the file - as far as you may see them. One change
+and with the agents bound to the file - as far as you may see them. One change
 waits for each file at a time.
 
 Applying it is live, as for a skill: every agent bound to the file reads the new

@@ -63,8 +63,9 @@ describe("useContextChanges", () => {
     expect(apiClient.post).toHaveBeenCalledWith("/context-changes/change-1/discard");
   });
 
-  it("reports a refused decision rather than swallowing it", async () => {
-    // A file edited since the proposal answers 409; silence would read as applied.
+  it("reports a refused decision and reads the changes again", async () => {
+    // A file edited since the proposal answers 409; the row must turn stale,
+    // not keep offering Apply.
     const { toast } = await import("sonner");
     vi.mocked(apiClient.post).mockRejectedValue(new Error("The file changed since."));
     const { result } = renderHook(() => useContextChanges(), { wrapper });
@@ -72,9 +73,18 @@ describe("useContextChanges", () => {
 
     act(() => result.current.apply("change-1"));
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("The file changed since."));
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(2));
 
     act(() => result.current.discard("change-1"));
     await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(2));
+  });
+
+  it("asks for nothing while it is not enabled", () => {
+    const { result } = renderHook(() => useContextChanges("pending", { enabled: false }), {
+      wrapper,
+    });
+    expect(apiClient.get).not.toHaveBeenCalled();
+    expect(result.current.changes).toEqual([]);
   });
 
   it("says why the list is empty when the request failed", async () => {

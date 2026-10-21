@@ -1,5 +1,5 @@
 ---
-source_sha: "70c5a86639f1"
+source_sha: "559f7f49a4d9"
 ---
 
 # Context-Dateien { #context-files }
@@ -105,7 +105,8 @@ Wissensdatenbank hat dieselbe Aktion auf ihrer eigenen Seite.
 [Authoring-Assistenten](authoring.md#context-files) um einen besseren Inhalt,
 geschrieben aus den Runs der Agents, die die Datei lesen. Was er vorschlägt,
 wird nicht angewendet: Es wartet über der Liste auf der Context-Seite, mit
-Begründung, den Runs, auf denen es beruht, und den Agents, die die Datei lesen.
+Begründung, den Runs, auf denen es beruht, und den Agents, an die die Datei
+gebunden ist.
 
 Es anzuwenden ist dasselbe, wie die Datei von Hand zu bearbeiten - sofort
 wirksam für jeden gebundenen Agent -, deshalb lässt sich jede Änderung vorher mit

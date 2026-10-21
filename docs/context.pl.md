@@ -1,5 +1,5 @@
 ---
-source_sha: "70c5a86639f1"
+source_sha: "559f7f49a4d9"
 ---
 
 # Pliki kontekstowe { #context-files }
@@ -100,7 +100,7 @@ już go mają. Baza wiedzy ma tę samą akcję na swojej stronie.
 [asystenta tworzenia](authoring.md#context-files) o lepszą treść, napisaną na
 podstawie runów agentów, którzy czytają plik. To, co proponuje, nie jest
 stosowane: czeka nad listą na stronie Context, z uzasadnieniem, runami, na
-których się opiera, i agentami, którzy czytają plik.
+których się opiera, i agentami, do których plik jest podpięty.
 
 Zastosowanie jej to to samo co ręczna edycja pliku - działa od razu dla każdego
 podpiętego agenta - więc każdą zmianę można najpierw sprawdzić evalami, na

@@ -184,7 +184,7 @@ export function ContextEditor({ file, canEdit, isSaving, onSave, onCancel }: Con
           canManage={canEdit}
           className="sm:mr-auto"
         />
-        {canEdit && <ImproveContextButton contextId={file.id} />}
+        {canEdit && <ImproveContextButton contextId={file.id} unsaved={changed} />}
         <Button variant="outline" onClick={onCancel}>
           {canEdit ? t("cancel") : t("close")}
         </Button>

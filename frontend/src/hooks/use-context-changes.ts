@@ -15,9 +15,13 @@ import type { ContextChange, ContextChangeList } from "@/types/authoring";
  *
  * Both decisions invalidate the context files as well: applying rewrites a file
  * every bound agent reads on its next run, and a page left showing the old body
- * would show something no agent is reading any more.
+ * would show something no agent is reading any more. A refused decision reads
+ * them again too - a file edited since turns its change stale.
  */
-export function useContextChanges(status: "pending" | "applied" | "discarded" = "pending") {
+export function useContextChanges(
+  status: "pending" | "applied" | "discarded" = "pending",
+  { enabled = true } = {},
+) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("authoring.contextChanges");
   const queryClient = useQueryClient();
@@ -25,6 +29,7 @@ export function useContextChanges(status: "pending" | "applied" | "discarded" = 
   const query = useQuery({
     queryKey: qk.contextChanges.list(status),
     queryFn: () => apiClient.get<ContextChangeList>("/context-changes", { params: { status } }),
+    enabled,
   });
 
   const invalidate = useCallback(async () => {
@@ -41,7 +46,10 @@ export function useContextChanges(status: "pending" | "applied" | "discarded" = 
       await invalidate();
       toast.success(t("applied", { name: change.context_name }));
     },
-    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+    onError: (error) => {
+      toast.error(getErrorMessage(error, tErrors));
+      void invalidate();
+    },
   });
   const discarded = useMutation({
     mutationFn: (id: string) => apiClient.post<ContextChange>(`/context-changes/${id}/discard`),
@@ -49,7 +57,10 @@ export function useContextChanges(status: "pending" | "applied" | "discarded" = 
       await invalidate();
       toast.success(t("discarded", { name: change.context_name }));
     },
-    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+    onError: (error) => {
+      toast.error(getErrorMessage(error, tErrors));
+      void invalidate();
+    },
   });
 
   return {

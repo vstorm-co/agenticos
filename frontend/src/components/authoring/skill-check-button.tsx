@@ -31,9 +31,12 @@ export function SkillCheckButton({ skillId, proposalId }: { skillId: string; pro
 export function ContextCheckButton({
   contextId,
   proposalId,
+  agents,
 }: {
   contextId: string;
   proposalId: string;
+  /** The agents bound to the file: the only ones the check runs on. */
+  agents: { id: string; name: string }[];
 }) {
   const t = useTranslations("authoring.context");
   return (
@@ -42,6 +45,7 @@ export function ContextCheckButton({
       assistant={useContextAuthoring(contextId, { enabled: false })}
       proposalId={proposalId}
       subject="context"
+      agents={agents}
     />
   );
 }
@@ -51,11 +55,13 @@ function CheckButton({
   assistant,
   proposalId,
   subject,
+  agents,
 }: {
   label: string;
   assistant: ReturnType<typeof useSkillAuthoring>;
   proposalId: string;
   subject: "skill" | "context";
+  agents?: { id: string; name: string }[];
 }) {
   const router = useRouter();
   const [checking, setChecking] = useState(false);
@@ -71,6 +77,7 @@ function CheckButton({
           agentId={null}
           proposalId={proposalId}
           subject={subject}
+          agents={agents}
           estimate={assistant.checkEstimate.mutateAsync}
           start={assistant.check.mutateAsync}
           onStarted={(run) => router.push(`${ROUTES.AGENTS}/${run.agent_id}/evals/${run.id}`)}

@@ -106,6 +106,13 @@ describe("a field change", () => {
     expect(onDecide).toHaveBeenCalledWith({ action: "accept", value: 0.4 });
   });
 
+  it("will not accept an emptied number, which would read as no edit at all", async () => {
+    card(field({ path: "max_steps", base_value: 10, new_value: 20 }));
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    await userEvent.clear(screen.getByRole("spinbutton", { name: "Your value" }));
+    expect(screen.getByRole("button", { name: "Save and accept" })).toBeDisabled();
+  });
+
   it("offers a yes or no for a switch, and a box for a text", async () => {
     const onDecide = card(
       field({ path: "model_settings/parallel_tool_calls", base_value: true, new_value: false }),

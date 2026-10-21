@@ -8791,15 +8791,16 @@
       "improve": "Ulepsz z asystentem",
       "working": "Czytam runy…",
       "aiOff": "Asystent AI jest wyłączony w tej organizacji",
-      "check": "Sprawdź evalami"
+      "check": "Sprawdź evalami",
+      "saveFirst": "Najpierw zapisz zmiany: asystent czyta plik w zapisanej wersji."
     },
     "contextChanges": {
       "title": "Zmiany zaproponowane przez asystenta",
       "waiting": "{count, plural, one {Czeka # zmiana} few {Czekają # zmiany} many {Czeka # zmian} other {Czeka # zmian}}. Zastosowanie działa od razu dla każdego agenta, który czyta plik.",
       "stale": "Plik zmienił się od tego czasu",
       "staleHint": "Ktoś edytował ten plik po zaproponowaniu zmiany. Porównaj obie wersje i popraw plik ręcznie albo poproś asystenta ponownie.",
-      "usedBy": "Czytają go: {agents}",
-      "usedByNobody": "Żaden agent, którego widzisz, nie czyta tego pliku",
+      "usedBy": "Powiązany z: {agents}",
+      "usedByNobody": "Żaden agent, którego widzisz, nie ma podpiętego tego pliku",
       "show": "Pokaż, co zmienia się w {name}",
       "hide": "Ukryj",
       "review": "Przejrzyj",

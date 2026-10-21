@@ -1,5 +1,5 @@
 ---
-source_sha: "6c4ef9152525"
+source_sha: "5c8792f5bfe9"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -182,7 +182,7 @@ geändert hat.
 Eine [Context-Datei](context.md) wird aus ihrem Editor auf der Context-Seite
 verbessert, aus den Runs der Agents, die sie lesen. Was der Assistent
 vorschlägt, ist ein neuer Inhalt, und er wartet über der Liste auf dieser Seite,
-mit Begründung und Belegen und mit den Agents, die die Datei lesen - soweit Sie
+mit Begründung und Belegen und mit den Agents, an die die Datei gebunden ist - soweit Sie
 sie sehen dürfen. Pro Datei wartet jeweils eine Änderung.
 
 Sie anzuwenden wirkt sofort, wie bei einem Skill: Jeder an die Datei gebundene

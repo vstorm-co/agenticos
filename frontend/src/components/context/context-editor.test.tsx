@@ -35,8 +35,8 @@ vi.mock("@/components/chat/markdown-content", () => ({
 }));
 
 vi.mock("@/components/authoring/improve-skill-button", () => ({
-  ImproveContextButton: ({ contextId }: { contextId: string }) => (
-    <button>{`improve ${contextId}`}</button>
+  ImproveContextButton: ({ contextId, unsaved }: { contextId: string; unsaved: boolean }) => (
+    <button disabled={unsaved}>{`improve ${contextId}`}</button>
   ),
 }));
 
@@ -61,9 +61,12 @@ const openSource = () => userEvent.click(screen.getByRole("button", { name: "Sou
 const body = () => screen.getByLabelText("glossary.md source");
 
 describe("ContextEditor", () => {
-  it("offers the assistant to somebody who may edit the file, and only to them", () => {
+  it("offers the assistant to somebody who may edit the file, once the edits are saved", async () => {
     mount();
-    expect(screen.getByRole("button", { name: "improve c1" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "improve c1" })).toBeEnabled();
+    await openSource();
+    await userEvent.type(body(), " More.");
+    expect(screen.getByRole("button", { name: "improve c1" })).toBeDisabled();
   });
 
   it("names the file with the format it is stored in, so the body renders as one", () => {

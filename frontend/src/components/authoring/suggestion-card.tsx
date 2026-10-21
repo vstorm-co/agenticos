@@ -98,7 +98,11 @@ export function SuggestionCard({
               <>
                 <Button
                   size="sm"
-                  disabled={busy || Boolean(hunk.blocked)}
+                  disabled={
+                    busy ||
+                    Boolean(hunk.blocked) ||
+                    (editableAs === "number" && editing.trim() === "")
+                  }
                   onClick={() => onDecide(accepting())}
                 >
                   {t("saveAndAccept")}

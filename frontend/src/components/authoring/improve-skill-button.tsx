@@ -33,12 +33,20 @@ export function ImproveSkillButton({ skillId }: { skillId: string }) {
  * What it proposes waits on the Context page: applying it is live for every
  * agent bound to the file, so it is a decision of its own.
  */
-export function ImproveContextButton({ contextId }: { contextId: string }) {
+export function ImproveContextButton({
+  contextId,
+  unsaved = false,
+}: {
+  contextId: string;
+  /** The editor holds changes not saved yet, which the assistant would not read. */
+  unsaved?: boolean;
+}) {
   const t = useTranslations("authoring.context");
   return (
     <ImproveButton
       assistant={useContextAuthoring(contextId)}
       labels={{ improve: t("improve"), working: t("working"), aiOff: t("aiOff") }}
+      held={unsaved ? t("saveFirst") : null}
     />
   );
 }
@@ -46,9 +54,12 @@ export function ImproveContextButton({ contextId }: { contextId: string }) {
 function ImproveButton({
   assistant,
   labels,
+  held = null,
 }: {
   assistant: ReturnType<typeof useSkillAuthoring>;
   labels: { improve: string; working: string; aiOff: string };
+  /** Why it waits for now, when it does. */
+  held?: string | null;
 }) {
   const { enabled } = useAiAssistance();
   const [asking, setAsking] = useState(false);
@@ -60,8 +71,8 @@ function ImproveButton({
     <>
       <Button
         variant="outline"
-        disabled={enabled === false || working}
-        title={enabled === false ? labels.aiOff : undefined}
+        disabled={enabled === false || working || held !== null}
+        title={enabled === false ? labels.aiOff : (held ?? undefined)}
         onClick={() => setAsking(true)}
       >
         {working ? (

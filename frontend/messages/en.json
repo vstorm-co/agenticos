@@ -9015,15 +9015,16 @@
       "improve": "Improve with the assistant",
       "working": "Reading the runs…",
       "aiOff": "AI assistance is off for this organization",
-      "check": "Check with evals"
+      "check": "Check with evals",
+      "saveFirst": "Save your changes first: the assistant reads the file as it is stored."
     },
     "contextChanges": {
       "title": "Changes the assistant proposed",
       "waiting": "{count, plural, =1 {1 change is waiting} other {# changes are waiting}}. Applying one is live for every agent that reads the file.",
       "stale": "File changed since",
       "staleHint": "Somebody edited this file after the change was proposed. Compare the two and edit the file by hand, or ask the assistant again.",
-      "usedBy": "Read by {agents}",
-      "usedByNobody": "No agent you can see reads this file",
+      "usedBy": "Bound to {agents}",
+      "usedByNobody": "No agent you can see binds this file",
       "show": "Show what changes in {name}",
       "hide": "Hide",
       "review": "Review",

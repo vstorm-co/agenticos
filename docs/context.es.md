@@ -1,5 +1,5 @@
 ---
-source_sha: "70c5a86639f1"
+source_sha: "559f7f49a4d9"
 ---
 
 # Archivos de contexto { #context-files }
@@ -102,7 +102,7 @@ propia página.
 [asistente de autoría](authoring.md#context-files) un cuerpo mejor, escrito a
 partir de los runs de los agents que leen el archivo. Lo que propone no se
 aplica: espera encima de la lista en la página Context, con su justificación, los
-runs en los que se apoya y los agents que leen el archivo.
+runs en los que se apoya y los agents vinculados al archivo.
 
 Aplicarlo es lo mismo que editar el archivo a mano - con efecto inmediato para
 cada agent vinculado -, así que cada cambio se puede comprobar antes con evals,

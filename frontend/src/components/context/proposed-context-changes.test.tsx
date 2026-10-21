@@ -12,6 +12,8 @@ const state = vi.hoisted(() => ({
   isDeciding: false,
   apply: vi.fn(),
   discard: vi.fn(),
+  asked: vi.fn(),
+  watch: vi.fn(),
 }));
 
 vi.mock("@/components/authoring/skill-check-button", () => ({
@@ -19,15 +21,19 @@ vi.mock("@/components/authoring/skill-check-button", () => ({
     <button>{`check ${proposalId}`}</button>
   ),
 }));
+vi.mock("@/hooks/use-authoring", () => ({ useContextAuthoringWatch: state.watch }));
 vi.mock("@/hooks/use-context-changes", () => ({
-  useContextChanges: () => ({
-    changes: state.changes,
-    isLoading: false,
-    error: state.error,
-    apply: state.apply,
-    discard: state.discard,
-    isDeciding: state.isDeciding,
-  }),
+  useContextChanges: (status: string, options: { enabled: boolean }) => {
+    state.asked(status, options);
+    return {
+      changes: state.changes,
+      isLoading: false,
+      error: state.error,
+      apply: state.apply,
+      discard: state.discard,
+      isDeciding: state.isDeciding,
+    };
+  },
 }));
 
 beforeEach(() => {
@@ -38,9 +44,17 @@ beforeEach(() => {
 });
 
 describe("ProposedContextChanges", () => {
-  it("says nothing to somebody who may not edit context files", () => {
+  it("says nothing to somebody who may not edit context files, and asks for nothing", () => {
+    // The list answers 403 without context:edit.
     const { container } = render(<ProposedContextChanges canEdit={false} />);
     expect(container).toBeEmptyDOMElement();
+    expect(state.asked).toHaveBeenCalledWith("pending", { enabled: false });
+  });
+
+  it("keeps watching the assistant's requests once their editor has closed", () => {
+    render(<ProposedContextChanges canEdit />);
+    expect(state.asked).toHaveBeenCalledWith("pending", { enabled: true });
+    expect(state.watch).toHaveBeenCalled();
   });
 
   it("is absent when nothing is waiting, and says why when the request failed", () => {
@@ -62,8 +76,8 @@ describe("ProposedContextChanges", () => {
     render(<ProposedContextChanges canEdit />);
     expect(screen.getByText(/2 changes are waiting/)).toBeVisible();
     expect(screen.getByText("house-style")).toBeVisible();
-    expect(screen.getByText("Read by Clerk")).toBeVisible();
-    expect(screen.getByText("No agent you can see reads this file")).toBeVisible();
+    expect(screen.getByText("Bound to Clerk")).toBeVisible();
+    expect(screen.getByText("No agent you can see binds this file")).toBeVisible();
     expect(screen.getByRole("button", { name: "check change-1" })).toBeVisible();
   });
 

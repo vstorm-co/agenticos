@@ -16,6 +16,7 @@ import {
 import { EvidenceList } from "@/components/authoring/evidence-list";
 import { ContextCheckButton } from "@/components/authoring/skill-check-button";
 import { TextDiff } from "@/components/authoring/text-diff";
+import { useContextAuthoringWatch } from "@/hooks/use-authoring";
 import { useContextChanges } from "@/hooks/use-context-changes";
 import type { ContextChange } from "@/types/authoring";
 
@@ -28,7 +29,10 @@ import type { ContextChange } from "@/types/authoring";
  */
 export function ProposedContextChanges({ canEdit }: { canEdit: boolean }) {
   const t = useTranslations("authoring.contextChanges");
-  const { changes, error, apply, discard, isDeciding } = useContextChanges("pending");
+  const { changes, error, apply, discard, isDeciding } = useContextChanges("pending", {
+    enabled: canEdit,
+  });
+  useContextAuthoringWatch();
 
   if (!canEdit) return null;
   if (error !== null) return <p className="text-destructive text-sm">{error}</p>;
@@ -89,7 +93,11 @@ function ChangeRow({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <ContextCheckButton contextId={change.context_id} proposalId={change.id} />
+          <ContextCheckButton
+            contextId={change.context_id}
+            proposalId={change.id}
+            agents={change.used_by}
+          />
           <Button
             variant="ghost"
             size="sm"

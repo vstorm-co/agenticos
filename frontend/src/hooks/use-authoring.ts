@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
@@ -132,7 +132,10 @@ function useResourceAuthoring(
   const start = useMutation({
     mutationFn: (body: AuthoringStart) =>
       apiClient.post<AuthoringRequest>(`${base}/authoring`, body),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.authoring.all() }),
+    onSuccess: (request) => {
+      queryClient.setQueryData<AuthoringRequest[]>(queryKey, (before = []) => [request, ...before]);
+      return queryClient.invalidateQueries({ queryKey: qk.authoring.all() });
+    },
   });
   const checkEstimate = useMutation({
     mutationFn: (body: ProposalCheck) =>
@@ -170,6 +173,44 @@ export function useContextAuthoring(contextId: string, options: { enabled?: bool
     qk.contextChanges.all(),
     options,
   );
+}
+
+/**
+ * Keeps reading every context file request this page has seen queued or running,
+ * after whatever started it is gone.
+ *
+ * Improve is started from a file's editor, and the editor can close while the
+ * assistant works; the change it then proposes still has to appear on the page.
+ */
+export function useContextAuthoringWatch() {
+  const queryClient = useQueryClient();
+  const [ids, setIds] = useState<string[]>([]);
+  const watched = useRef<string[]>([]);
+  useEffect(() => {
+    const cache = queryClient.getQueryCache();
+    const read = () => {
+      const now = cache
+        .findAll({ queryKey: qk.authoring.contexts() })
+        .filter((query) => working((query.state.data as AuthoringRequest[] | undefined)?.[0]))
+        .map((query) => String(query.queryKey[2]));
+      const before = watched.current;
+      if (now.length === before.length && now.every((id) => before.includes(id))) return;
+      if (before.some((id) => !now.includes(id))) {
+        void queryClient.invalidateQueries({ queryKey: qk.contextChanges.all() });
+      }
+      watched.current = now;
+      setIds(now);
+    };
+    read();
+    return cache.subscribe(read);
+  }, [queryClient]);
+  useQueries({
+    queries: ids.map((id) => ({
+      queryKey: qk.authoring.context(id),
+      queryFn: () => apiClient.get<AuthoringRequest[]>(`/context/${id}/authoring`),
+      refetchInterval: AUTHORING_POLL_MS,
+    })),
+  });
 }
 
 /** What the assistant proposed that the caller may decide, for the dashboard. */

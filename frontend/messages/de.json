@@ -8898,15 +8898,16 @@
       "improve": "Mit dem Assistenten verbessern",
       "working": "Lese die Runs…",
       "aiOff": "KI-Unterstützung ist für diese Organisation aus",
-      "check": "Mit Evals prüfen"
+      "check": "Mit Evals prüfen",
+      "saveFirst": "Speichere zuerst deine Änderungen: Der Assistent liest die Datei so, wie sie gespeichert ist."
     },
     "contextChanges": {
       "title": "Vom Assistenten vorgeschlagene Änderungen",
       "waiting": "{count, plural, =1 {1 Änderung wartet} other {# Änderungen warten}}. Anwenden wirkt sofort für jeden Agent, der die Datei liest.",
       "stale": "Datei seitdem geändert",
       "staleHint": "Jemand hat die Datei nach dem Vorschlag bearbeitet. Vergleiche beide Fassungen und bearbeite die Datei von Hand oder frag den Assistenten erneut.",
-      "usedBy": "Gelesen von {agents}",
-      "usedByNobody": "Kein Agent, den du siehst, liest diese Datei",
+      "usedBy": "Gebunden an {agents}",
+      "usedByNobody": "Kein Agent, den du siehst, bindet diese Datei",
       "show": "Zeige, was sich in {name} ändert",
       "hide": "Ausblenden",
       "review": "Prüfen",

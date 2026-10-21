@@ -120,20 +120,34 @@ describe("the context file buttons", () => {
     const { container } = render(
       <>
         <ImproveContextButton contextId="ctx-1" />
-        <ContextCheckButton contextId="ctx-1" proposalId="change-1" />
+        <ContextCheckButton contextId="ctx-1" proposalId="change-1" agents={[]} />
       </>,
     );
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("check a context file change on an agent that reads the file", async () => {
-    render(<ContextCheckButton contextId="ctx-1" proposalId="change-1" />);
+  it("wait for unsaved changes, since the assistant reads the stored file", () => {
+    render(<ImproveContextButton contextId="ctx-1" unsaved />);
+    const button = screen.getByRole("button", { name: "Improve with the assistant" });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("title", expect.stringMatching(/Save your changes first/));
+  });
+
+  it("check a context file change only on an agent bound to the file", async () => {
+    render(
+      <ContextCheckButton
+        contextId="ctx-1"
+        proposalId="change-1"
+        agents={[{ id: "agent-3", name: "Archivist" }]}
+      />,
+    );
     await userEvent.click(screen.getByRole("button", { name: "Check with evals" }));
     expect(screen.getByText(/only the file's body different/)).toBeInTheDocument();
     await userEvent.click(
       await screen.findByRole("combobox", { name: "Agent that uses the file" }),
     );
-    await userEvent.click(await screen.findByRole("option", { name: "Clerk" }));
+    expect(screen.queryByRole("option", { name: "Clerk" })).toBeNull();
+    await userEvent.click(await screen.findByRole("option", { name: "Archivist" }));
     await userEvent.click(screen.getByRole("combobox", { name: "Check against" }));
     await userEvent.click(await screen.findByRole("option", { name: "Refund cases" }));
     await screen.findByText("priced");

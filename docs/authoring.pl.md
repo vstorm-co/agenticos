@@ -1,5 +1,5 @@
 ---
-source_sha: "6c4ef9152525"
+source_sha: "5c8792f5bfe9"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -169,7 +169,7 @@ zmienił skill.
 [Plik kontekstowy](context.md) ulepsza się z jego edytora na stronie Context, na
 podstawie runów agentów, które go czytają. Asystent sugeruje nową treść, a ta
 czeka nad listą na tej stronie, z uzasadnieniem i dowodami, oraz z agentami,
-którzy czytają plik - o ile możesz ich widzieć. Na każdy plik czeka naraz jedna
+do których plik jest podpięty - o ile możesz ich widzieć. Na każdy plik czeka naraz jedna
 zmiana.
 
 Zastosowanie jej działa od razu, jak w przypadku skilla: każdy agent podpięty do

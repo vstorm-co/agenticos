@@ -95,7 +95,7 @@ agents carry it already. A knowledge base has the same action on its own page.
 [authoring assistant](authoring.md#context-files) for a better body, written from
 the runs of the agents that read the file. What it proposes is not applied: it
 waits above the list on the Context page, with why, the runs it rests on, and
-the agents that read the file.
+the agents bound to the file.
 
 Applying it is the same as editing the file by hand - live for every bound
 agent - so each change can be checked with evals first, on one of those agents.

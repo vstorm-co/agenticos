@@ -1,5 +1,5 @@
 ---
-source_sha: "6c4ef9152525"
+source_sha: "5c8792f5bfe9"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -175,7 +175,7 @@ entonces.
 Un [archivo de contexto](context.md) se mejora desde su editor en la página
 Context, a partir de los runs de los agents que lo leen. Lo que sugiere el
 asistente es un cuerpo nuevo, y espera encima de la lista en esa página, con su
-justificación y su evidencia, y con los agents que leen el archivo - en la medida
+justificación y su evidencia, y con los agents vinculados al archivo - en la medida
 en que puedas verlos. Por cada archivo espera un cambio a la vez.
 
 Aplicarlo tiene efecto inmediato, como con un skill: cada agent vinculado al

@@ -389,6 +389,7 @@ export const qk = {
     all: () => ["authoring"] as const,
     agent: (agentId: string) => ["authoring", "agent", agentId] as const,
     skill: (skillId: string) => ["authoring", "skill", skillId] as const,
+    contexts: () => ["authoring", "context"] as const,
     context: (contextId: string) => ["authoring", "context", contextId] as const,
     waiting: () => ["authoring", "waiting"] as const,
   },

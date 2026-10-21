@@ -11,6 +11,7 @@ import {
   AUTHORING_POLL_MS,
   useAgentAuthoring,
   useContextAuthoring,
+  useContextAuthoringWatch,
   useSkillAuthoring,
   useWaitingSuggestions,
 } from "./use-authoring";
@@ -137,8 +138,19 @@ describe("useContextAuthoring", () => {
     await waitFor(() => expect(result.current.latest?.status).toBe("running"));
     expect(apiClient.get).toHaveBeenCalledWith("/context/ctx-1/authoring");
 
+    vi.mocked(apiClient.post).mockResolvedValueOnce(
+      authoringRequest({ id: "r-2", status: "queued", target: "context" }),
+    );
+    const written = vi.spyOn(client, "setQueryData");
     await act(async () => {
       await result.current.start.mutateAsync({ kind: "improve", window_days: 30 });
+    });
+    // What was started is in the cache before any refetch, for a watcher to find
+    // once the editor that started it has closed.
+    const [key, update] = written.mock.calls[0] as [unknown, (before?: unknown[]) => unknown[]];
+    expect(key).toEqual(qk.authoring.context("ctx-1"));
+    expect(update(undefined)).toEqual([expect.objectContaining({ id: "r-2" })]);
+    await act(async () => {
       await result.current.check.mutateAsync({ dataset_id: "ds", proposal_id: "p" });
     });
     expect(vi.mocked(apiClient.post).mock.calls.map(([url]) => url)).toEqual([
@@ -153,6 +165,28 @@ describe("useContextAuthoring", () => {
     await waitFor(() =>
       expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.contextChanges.all() }),
     );
+  });
+});
+
+describe("useContextAuthoringWatch", () => {
+  it("keeps reading a request its editor left behind, and the changes once it ends", async () => {
+    // The editor that started Improve unmounted; its request is still in the cache.
+    client.setQueryData(qk.authoring.context("ctx-1"), [
+      authoringRequest({ id: "r-1", status: "running", target: "context" }),
+    ]);
+    client.setQueryData(qk.authoring.context("ctx-2"), [authoringRequest({ target: "context" })]);
+    vi.mocked(apiClient.get).mockResolvedValue([
+      authoringRequest({ id: "r-1", status: "completed", target: "context" }),
+    ]);
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+
+    renderHook(() => useContextAuthoringWatch(), { wrapper });
+
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.contextChanges.all() }),
+    );
+    expect(apiClient.get).toHaveBeenCalledWith("/context/ctx-1/authoring");
+    expect(apiClient.get).not.toHaveBeenCalledWith("/context/ctx-2/authoring");
   });
 });
 
