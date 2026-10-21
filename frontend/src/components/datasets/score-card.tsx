@@ -28,6 +28,8 @@ interface ScoreCardProps {
   /** Make the reviewer's note a judge criterion. Absent for somebody who may not edit. */
   onNoteToCriterion?: (target: NoteTarget) => void;
   busy?: boolean;
+  /** Link the runs behind the score - the answer's and the judge's - which need `runs:view`. */
+  linksRuns?: boolean;
 }
 
 const STATUS_VARIANT = {
@@ -47,7 +49,7 @@ function OutcomeBadge({ outcome }: { outcome: boolean | null }) {
   );
 }
 
-function ResultRow({ result }: { result: ScorerResult }) {
+function ResultRow({ result, linksRuns }: { result: ScorerResult; linksRuns: boolean }) {
   const t = useTranslations("datasets.scoring");
   const known = reasonKey(result);
   return (
@@ -80,7 +82,8 @@ function ResultRow({ result }: { result: ScorerResult }) {
           </p>
         )}
       </div>
-      {result.judge_run_id !== null &&
+      {linksRuns &&
+        result.judge_run_id !== null &&
         (result.status === "error" ? (
           <Link
             href={`${ROUTES.RUNS}?run=${result.judge_run_id}`}
@@ -103,7 +106,7 @@ function ResultRow({ result }: { result: ScorerResult }) {
 }
 
 /** Which agent answered, at which version, on which model, and when it was graded. */
-function ScoreSource({ score }: { score: CaseScore }) {
+function ScoreSource({ score, linksRuns }: { score: CaseScore; linksRuns: boolean }) {
   const t = useTranslations("datasets.scoring");
   const locale = useLocale();
   return (
@@ -117,26 +120,27 @@ function ScoreSource({ score }: { score: CaseScore }) {
       )}
       {score.run_model !== null && <span className="font-mono">{score.run_model}</span>}
       <time dateTime={score.created_at}>{formatDateTime(score.created_at, locale)}</time>
-      {score.eval_run_id !== null && score.agent_id !== null ? (
-        <Link
-          href={`${ROUTES.AGENTS}/${score.agent_id}/evals/${score.eval_run_id}`}
-          className="underline"
-        >
-          {t("evalRunLink")}
-        </Link>
-      ) : (
-        score.run_id !== null && (
-          <Link href={`${ROUTES.RUNS}?run=${score.run_id}`} className="underline">
-            {t("scoredRun")}
+      {linksRuns &&
+        (score.eval_run_id !== null && score.agent_id !== null ? (
+          <Link
+            href={`${ROUTES.AGENTS}/${score.agent_id}/evals/${score.eval_run_id}`}
+            className="underline"
+          >
+            {t("evalRunLink")}
           </Link>
-        )
-      )}
+        ) : (
+          score.run_id !== null && (
+            <Link href={`${ROUTES.RUNS}?run=${score.run_id}`} className="underline">
+              {t("scoredRun")}
+            </Link>
+          )
+        ))}
     </span>
   );
 }
 
 /** What each scorer found: the ones that did not pass first, the passing ones folded. */
-function Results({ results }: { results: ScorerResult[] }) {
+function Results({ results, linksRuns }: { results: ScorerResult[]; linksRuns: boolean }) {
   const t = useTranslations("datasets.scoring");
   const [open, setOpen] = useState(false);
   const held = results.filter((result) => result.status !== "pass");
@@ -146,7 +150,11 @@ function Results({ results }: { results: ScorerResult[] }) {
     <div>
       <ul className="divide-y">
         {shown.map((result, index) => (
-          <ResultRow key={`${result.scorer}:${result.name}:${index}`} result={result} />
+          <ResultRow
+            key={`${result.scorer}:${result.name}:${index}`}
+            result={result}
+            linksRuns={linksRuns}
+          />
         ))}
       </ul>
       {held.length > 0 && passed.length > 0 && (
@@ -205,6 +213,7 @@ export function ScoreCard({
   onRescore,
   onNoteToCriterion,
   busy = false,
+  linksRuns = false,
 }: ScoreCardProps) {
   const t = useTranslations("datasets.scoring");
   const sendable = onReview !== undefined && score.review_state === "none";
@@ -216,7 +225,7 @@ export function ScoreCard({
         <OutcomeBadge outcome={score.outcome} />
         {decided && <span className="text-muted-foreground text-xs">{t("decidedByPerson")}</span>}
         {score.review_state === "pending" && <Badge variant="outline">{t("awaitingReview")}</Badge>}
-        <ScoreSource score={score} />
+        <ScoreSource score={score} linksRuns={linksRuns} />
       </header>
 
       {score.judge_model !== null && score.judge_model === score.run_model && (
@@ -231,7 +240,7 @@ export function ScoreCard({
       {score.passed === null && score.unscored_reason !== null && (
         <NotGraded code={score.unscored_reason} onRescore={onRescore} busy={busy} />
       )}
-      <Results results={score.results} />
+      <Results results={score.results} linksRuns={linksRuns} />
 
       {(onVerdict || sendable || (decided && score.human_note)) && (
         <ScoreDecision

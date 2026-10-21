@@ -136,6 +136,7 @@ describe("ScoreCard", () => {
     const rescore = vi.fn();
     const { rerender } = render(
       <ScoreCard
+        linksRuns
         score={score({
           passed: null,
           outcome: null,
@@ -165,6 +166,7 @@ describe("ScoreCard", () => {
 
     rerender(
       <ScoreCard
+        linksRuns
         score={score({
           passed: null,
           outcome: null,
@@ -236,6 +238,7 @@ describe("ScoreCard", () => {
   it("shows what did not pass first, folds what passed, and links the scored run", async () => {
     render(
       <ScoreCard
+        linksRuns
         score={score({
           results: [
             result({ judge_run_id: "judge-1" }),
@@ -272,6 +275,7 @@ describe("ScoreCard", () => {
   it("links the question to its case with the case's tags, and an eval run's score to the run", () => {
     render(
       <ScoreCard
+        linksRuns
         score={score({
           case_tags: ["billing"],
           eval_run_id: "e1",
@@ -293,6 +297,26 @@ describe("ScoreCard", () => {
     expect(screen.queryByRole("link", { name: "Scored run" })).toBeNull();
     expect(screen.getByText("2/5: curt")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /passed/ })).toBeNull();
+  });
+
+  it("links no run to a reader who may not open one", () => {
+    const { unmount } = render(
+      <ScoreCard
+        score={score({
+          eval_run_id: "e1",
+          agent_id: "a1",
+          results: [result({ judge_run_id: "j1" })],
+        })}
+      />,
+    );
+    expect(screen.queryByRole("link", { name: "Eval run ↗" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Judge's run" })).toBeNull();
+    unmount();
+
+    render(<ScoreCard score={score({ results: [result()] })} />);
+    expect(screen.queryByRole("link", { name: "Scored run" })).toBeNull();
+    // What it says about the answer stays: only the way to a page that would refuse goes.
+    expect(screen.getByText("2/5: curt")).toBeInTheDocument();
   });
 
   it("says why the judge did not run in the reader's words", () => {
