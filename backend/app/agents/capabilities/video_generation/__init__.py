@@ -58,9 +58,9 @@ class VideoGenerationConfig(BaseModel):
         title="Highest resolution",
         default=None,
         description=(
-            "The highest resolution the agent may ask for, which caps what a second can "
-            "cost; it may also ask for any lower one. Left empty, every clip is made at "
-            "the resolution above."
+            "The highest resolution the agent may ask for, above the usual one; it caps what "
+            "a second can cost, and the agent may also ask for any lower one. Left empty, "
+            "every clip is made at the resolution above."
         ),
     )
     aspect_ratio: str | None = Field(
@@ -126,11 +126,13 @@ class VideoGenerationConfig(BaseModel):
                     f"{self.model} renders {', '.join(model.resolutions)}, "
                     f"not {self.max_resolution}."
                 )
-            usual = self.resolution or model.resolutions[0]
-            if resolution_lines(usual) > resolution_lines(self.max_resolution):
+            usual = self.resolved_resolution()
+            if resolution_lines(usual) >= resolution_lines(self.max_resolution):
+                # Equal would allow every lower resolution while the Builder shows
+                # no ceiling at all; a ceiling exists to allow something higher.
                 raise ValueError(
-                    f"The usual resolution, {usual}, cannot be higher than the highest, "
-                    f"{self.max_resolution}."
+                    f"The highest resolution, {self.max_resolution}, must be higher than "
+                    f"the usual one, {usual}."
                 )
         if self.aspect_ratio is not None and self.aspect_ratio not in model.aspect_ratios:
             raise ValueError(
@@ -167,12 +169,16 @@ class VideoGenerationConfig(BaseModel):
             raise ValueError(f"{self.provider}/{self.model} is no longer offered for video")
         return model
 
+    def resolved_resolution(self) -> str:
+        """The usual resolution: the one chosen, or the model's first."""
+        return self.resolution or self.chosen_model().resolutions[0]
+
     def offered_resolutions(self) -> tuple[str, ...]:
         """What the agent may ask for, shortest first: the usual one alone, or every
         one up to the highest."""
-        model = self.chosen_model()
-        usual = self.resolution or model.resolutions[0]
-        return up_to(model, self.max_resolution) if self.max_resolution else (usual,)
+        if self.max_resolution:
+            return up_to(self.chosen_model(), self.max_resolution)
+        return (self.resolved_resolution(),)
 
 
 @register(
@@ -211,7 +217,7 @@ def _build(ctx: CapabilityBuildContext) -> VideoGeneration:
     return VideoGeneration(
         provider=config.provider,
         model=config.model,
-        resolution=config.resolution or model.resolutions[0],
+        resolution=config.resolved_resolution(),
         resolutions=config.offered_resolutions(),
         aspect_ratio=config.aspect_ratio or model.aspect_ratios[0],
         aspect_ratios=model.aspect_ratios,

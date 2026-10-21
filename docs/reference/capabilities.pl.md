@@ -1,5 +1,5 @@
 ---
-source_sha: "b5ef25abc0be"
+source_sha: "6270d9da251d"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1179,7 +1179,7 @@ wygenerowanych plików organizacji: run musi sam zrobić ten obraz.
 | `provider` | `google` | `google`, `byteplus`, `xai`, `alibaba` |
 | `model` | `gemini-omni-1.1-flash` | Modele tego providera z `app/core/catalog/video_models.json` |
 | `resolution` | pierwsza modelu | Rozdzielczości, które renderuje model |
-| `max_resolution` | brak | Najwyższa, o jaką może poprosić agent, nie niższa niż `resolution` |
+| `max_resolution` | brak | Najwyższa, o jaką może poprosić agent; wyższa niż `resolution` |
 | `aspect_ratio` | pierwsze modelu | Proporcje obrazu, które renderuje model |
 | `seconds` | 5 albo najbliższa wartość modelu | W zakresie modelu; odrzucane dla Gemini Omni, który sam decyduje |
 | `max_seconds` | najdłuższy klip modelu | Najdłuższy klip, o jaki może poprosić agent; odrzucane dla Gemini Omni |
@@ -1198,8 +1198,8 @@ jest `max_resolution`, agent może poprosić o każdą rozdzielczość, którą 
 model, aż do niej - niższą na szkic, wyższą na ujęcie, które ktoś chce ostre; bez
 niego każdy klip powstaje w `resolution`. Od rozdzielczości zależy cena sekundy,
 więc pułap ustawia autor, a budżet jest sprawdzany ceną wybranej rozdzielczości.
-Oba trafiają do modelu jako `enum` parametrów narzędzia, a parametr z jedną
-wartością nie jest oferowany.
+Oba trafiają do modelu jako `enum` parametrów narzędzia, ze zwykłą wartością
+jako domyślną, a parametr z jedną wartością nie jest oferowany.
 
 **Klip to zadanie, na które czeka się jak na obraz.** Gemini odpowiada w samym
 żądaniu; BytePlus, xAI i Alibaba przyjmują zadanie, o które się odpytuje. W obu

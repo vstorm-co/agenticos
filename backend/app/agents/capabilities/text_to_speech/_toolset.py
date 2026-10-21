@@ -241,7 +241,9 @@ def build_speech_toolset(
         prepare=schema_for(
             {
                 "voice": Choice(
-                    voice_ids, notes={offered.id: offered.note or "" for offered in voices}
+                    voice_ids,
+                    usual=usual_voice,
+                    notes={offered.id: offered.note for offered in voices},
                 )
             }
         ),

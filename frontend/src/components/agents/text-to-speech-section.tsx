@@ -5,6 +5,7 @@ import { useCapabilityFieldCopy } from "@/components/agents/capability-field-cop
 import {
   ProviderModelFields,
   resolveOffering,
+  withoutConfig,
   withoutFields,
 } from "@/components/agents/provider-model-fields";
 import { SchemaForm } from "@/components/agents/schema-form";
@@ -74,6 +75,25 @@ export function TextToSpeechSection({
   const setConfig = (patch: Record<string, unknown>) =>
     onChange({ ...binding, config: { ...binding.config, ...patch } });
 
+  /** The config with these other voices, or with no list at all when there are none. */
+  const withVoices = (config: Record<string, unknown>, others: { id: string }[]) => {
+    const rest = withoutConfig(config, ["voices"]);
+    return others.length > 0 ? { ...rest, voices: others } : rest;
+  };
+
+  /**
+   * A new usual voice leaves the other voices: the list hides the usual one, so
+   * left in it would be a choice nobody can see or untick.
+   */
+  const chooseVoice = (next: string) =>
+    onChange({
+      ...binding,
+      config: withVoices(
+        { ...binding.config, voice: next },
+        storedVoices(binding.config.voices).filter((entry) => entry.id !== next),
+      ),
+    });
+
   /**
    * A voice or a format chosen for one provider means nothing on another, and a
    * voice one model speaks in may be one the next does not - OpenAI's `tts-1` has
@@ -101,10 +121,7 @@ export function TextToSpeechSection({
           (name !== "output_format" || sameProvider),
       ),
     );
-    onChange({
-      ...binding,
-      config: { ...kept, ...(others.length > 0 ? { voices: others } : {}), ...patch },
-    });
+    onChange({ ...binding, config: withVoices({ ...kept, ...patch }, others) });
   };
 
   const controls = (
@@ -141,7 +158,7 @@ export function TextToSpeechSection({
             <Select
               value={voice}
               disabled={disabled || voices.length === 0}
-              onValueChange={(next) => setConfig({ voice: next })}
+              onValueChange={chooseVoice}
             >
               <SelectTrigger id="speech-voice">
                 <SelectValue placeholder={t("speechVoicePlaceholder")} />
@@ -169,13 +186,11 @@ export function TextToSpeechSection({
           offered={voices}
           usualVoice={resolved.current.account_voices ? storedVoice : voice}
           value={storedVoices(binding.config.voices)}
+          errors={configErrors}
           disabled={disabled}
-          onChange={(voices) => {
-            const rest = Object.fromEntries(
-              Object.entries(binding.config).filter(([name]) => name !== "voices"),
-            );
-            onChange({ ...binding, config: voices.length > 0 ? { ...rest, voices } : rest });
-          }}
+          onChange={(others) =>
+            onChange({ ...binding, config: withVoices(binding.config, others) })
+          }
         />
       )}
 

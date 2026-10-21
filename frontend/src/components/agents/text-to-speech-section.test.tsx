@@ -93,6 +93,7 @@ const DEFINITION: CapabilityCatalogEntry = {
 function mount(
   config: Record<string, unknown> = { provider: "openai", model: "gpt-4o-mini-tts" },
   definition: CapabilityCatalogEntry = DEFINITION,
+  configProblems: { field: string; message: string }[] = [],
 ) {
   const onChange = vi.fn();
   render(
@@ -110,6 +111,7 @@ function mount(
         } satisfies CapabilityBindingSpec
       }
       onChange={onChange}
+      configProblems={configProblems}
     />,
   );
   return onChange;
@@ -396,6 +398,85 @@ describe("the other voices the agent may choose", () => {
     );
   });
 
+  it("says when the agent has as many as it may be offered, and keeps the ticked ones live", () => {
+    // Gemini has thirty voices to tick; the server takes twenty.
+    const many = Array.from({ length: 21 }, (_, at) => ({
+      id: `v${at}`,
+      name: `Voice ${at}`,
+      description: "",
+    }));
+    providers.mockReturnValue({
+      providers: [{ ...OPENAI, models: [{ ...OPENAI.models[0], voices: many }] }],
+      isLoading: false,
+      isError: false,
+    });
+    mount({
+      provider: "openai",
+      model: "gpt-4o-mini-tts",
+      voice: "v0",
+      voices: many
+        .slice(1, 20)
+        .map(({ id }) => ({ id }))
+        .concat({ id: "v20" }),
+    });
+
+    expect(screen.getByRole("checkbox", { name: "Voice 1" })).toBeEnabled();
+    expect(
+      screen.getByText("20 other voices is the most one agent can be offered."),
+    ).toBeInTheDocument();
+  });
+
+  it("disables what is left unticked at the limit", () => {
+    const many = Array.from({ length: 22 }, (_, at) => ({
+      id: `v${at}`,
+      name: `Voice ${at}`,
+      description: "",
+    }));
+    providers.mockReturnValue({
+      providers: [{ ...OPENAI, models: [{ ...OPENAI.models[0], voices: many }] }],
+      isLoading: false,
+      isError: false,
+    });
+    mount({
+      provider: "openai",
+      model: "gpt-4o-mini-tts",
+      voice: "v0",
+      voices: many.slice(1, 21).map(({ id }) => ({ id })),
+    });
+
+    expect(screen.getByRole("checkbox", { name: "Voice 21" })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "Voice 20" })).toBeEnabled();
+  });
+
+  it("takes a new usual voice out of the others, where it could not be seen", async () => {
+    const onChange = mount({
+      provider: "openai",
+      model: "gpt-4o-mini-tts",
+      voice: "marin",
+      voices: [{ id: "alloy" }],
+    });
+
+    await userEvent.click(screen.getByLabelText("Voice"));
+    await userEvent.click(await screen.findByRole("option", { name: /^Alloy/ }));
+
+    expect(onChange.mock.lastCall?.[0].config).toEqual({
+      provider: "openai",
+      model: "gpt-4o-mini-tts",
+      voice: "alloy",
+    });
+  });
+
+  it("says what publish refused about the list", () => {
+    mount({ provider: "openai", model: "gpt-4o-mini-tts" }, DEFINITION, [
+      {
+        field: "capabilities.text_to_speech.config.voices",
+        message: "List should have at most 20 items",
+      },
+    ]);
+
+    expect(screen.getByText("List should have at most 20 items")).toBeInTheDocument();
+  });
+
   it("unticking the last one stores no list at all", async () => {
     const onChange = mount({
       provider: "openai",
@@ -471,6 +552,40 @@ describe("the other voices the agent may choose", () => {
         { id: "villain2", note: null },
         { id: "extra3" },
       ]);
+    });
+
+    it("marks the row publish refused, and says why", () => {
+      mount(
+        { provider: "elevenlabs", model: "eleven_v4_turbo", voice: "n1", voices: [{ id: "" }] },
+        DEFINITION,
+        [
+          {
+            field: "capabilities.text_to_speech.config.voices.0.id",
+            message: "String should have at least 1 character",
+          },
+        ],
+      );
+
+      expect(screen.getByLabelText("Voice id 1")).toHaveAttribute("aria-invalid", "true");
+      expect(screen.getByText("String should have at least 1 character")).toBeInTheDocument();
+    });
+
+    it("marks a note publish refused", () => {
+      mount(
+        { provider: "elevenlabs", model: "eleven_v4_turbo", voice: "n1", voices: [{ id: "v2" }] },
+        DEFINITION,
+        [{ field: "capabilities.text_to_speech.config.voices.0.note", message: "Too long" }],
+      );
+
+      expect(screen.getByLabelText("What voice 1 is for")).toHaveAttribute("aria-invalid", "true");
+      expect(screen.getByText("Too long")).toBeInTheDocument();
+    });
+
+    it("says nothing about ticking, since there is nothing to tick", () => {
+      account();
+
+      expect(screen.queryByRole("checkbox")).toBeNull();
+      expect(screen.getByText(/Left empty, it always speaks in the usual one/)).toBeInTheDocument();
     });
 
     it("removes a row", async () => {

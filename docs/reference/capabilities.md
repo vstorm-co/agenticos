@@ -1119,7 +1119,7 @@ the run must have made the image itself.
 | `provider` | `google` | `google`, `byteplus`, `xai`, `alibaba` |
 | `model` | `gemini-omni-1.1-flash` | That provider's models, from `app/core/catalog/video_models.json` |
 | `resolution` | the model's first | The resolutions the model renders |
-| `max_resolution` | none | The highest the agent may ask for, at or above `resolution` |
+| `max_resolution` | none | The highest the agent may ask for; above `resolution` |
 | `aspect_ratio` | the model's first | The aspect ratios the model renders |
 | `seconds` | 5, or the nearest the model makes | Within the model's range; refused for Gemini Omni, which decides its own |
 | `max_seconds` | the model's longest | The longest clip the agent may ask for; refused for Gemini Omni |
@@ -1139,8 +1139,8 @@ aspect ratios are the model's own, and `resolution` is the usual one. With
 to it - lower for a draft, higher for a shot someone wants sharp; without it,
 every clip is made at `resolution`. Resolution is what a second costs, so the
 author sets the ceiling and the budget is asked with the chosen resolution's
-price. Both reach the model as an `enum` on the tool's parameters, and a
-parameter with one value is not offered.
+price. Both reach the model as an `enum` on the tool's parameters, with the
+usual one as the default, and a parameter with one value is not offered.
 
 **A clip is a job, waited for like a picture.** Gemini answers in the request;
 BytePlus, xAI and Alibaba take a job that is polled. Either way the call waits,

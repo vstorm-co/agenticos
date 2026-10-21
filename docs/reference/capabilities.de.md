@@ -1,5 +1,5 @@
 ---
-source_sha: "b5ef25abc0be"
+source_sha: "6270d9da251d"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1248,7 +1248,7 @@ gemacht haben.
 | `provider` | `google` | `google`, `byteplus`, `xai`, `alibaba` |
 | `model` | `gemini-omni-1.1-flash` | Die Modelle dieses Providers aus `app/core/catalog/video_models.json` |
 | `resolution` | die erste des Modells | Die Auflösungen, die das Modell rendert |
-| `max_resolution` | keine | Die höchste, die der Agent verlangen darf, mindestens `resolution` |
+| `max_resolution` | keine | Die höchste, die der Agent verlangen darf; höher als `resolution` |
 | `aspect_ratio` | das erste des Modells | Die Seitenverhältnisse, die das Modell rendert |
 | `seconds` | 5 oder der nächste Wert des Modells | Im Bereich des Modells; für Gemini Omni abgelehnt, das selbst entscheidet |
 | `max_seconds` | der längste Clip des Modells | Der längste Clip, den der Agent verlangen darf; für Gemini Omni abgelehnt |
@@ -1270,7 +1270,8 @@ eine höhere für eine Aufnahme, die jemand scharf haben will; ohne sie entsteht
 jeder Clip in `resolution`. Die Auflösung bestimmt den Preis einer Sekunde, also
 setzt der Autor die Obergrenze, und das Budget wird mit dem Preis der gewählten
 Auflösung geprüft. Beide erreichen das Modell als `enum` an den Parametern des
-Tools, und ein Parameter mit nur einem Wert wird nicht angeboten.
+Tools, mit dem üblichen Wert als Voreinstellung, und ein Parameter mit nur einem
+Wert wird nicht angeboten.
 
 **Ein Clip ist ein Job, auf den gewartet wird wie auf ein Bild.** Gemini antwortet
 in der Anfrage selbst; BytePlus, xAI und Alibaba nehmen einen Job an, der abgefragt

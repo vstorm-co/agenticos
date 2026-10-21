@@ -840,7 +840,8 @@
     "speechVoiceIdPlaceholder": "Voice id",
     "speechAccountVoiceDetail": "{provider} voices belong to your account. Paste the id of one from your voice library.",
     "speechOtherVoices": "Other voices",
-    "speechOtherVoicesDetail": "Voices the agent may choose instead of the usual one, clip by clip - for a dialogue, or a narrator and a character. None ticked, it always speaks in the usual one.",
+    "speechOtherVoicesDetail": "Voices the agent may choose instead of the usual one, clip by clip - for a dialogue, or a narrator and a character. Left empty, it always speaks in the usual one.",
+    "speechOtherVoicesFull": "{count} other voices is the most one agent can be offered.",
     "speechOtherVoiceId": "Voice id {position}",
     "speechOtherVoiceNote": "What voice {position} is for",
     "speechOtherVoiceNotePlaceholder": "Who it is, e.g. Anna, the narrator",
@@ -7293,7 +7294,7 @@
       },
       "max_resolution": {
         "title": "Highest resolution",
-        "description": "The highest resolution the agent may ask for, which caps what a second can cost; it may also ask for any lower one. Left empty, every clip is made at the resolution above."
+        "description": "The highest resolution the agent may ask for, above the usual one; it caps what a second can cost, and the agent may also ask for any lower one. Left empty, every clip is made at the resolution above."
       },
       "aspect_ratio": {
         "title": "Aspect ratio",

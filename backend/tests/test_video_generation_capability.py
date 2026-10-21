@@ -202,12 +202,17 @@ class TestConfiguration:
                     "resolution": "1080p",
                     "max_resolution": "720p",
                 },
-                "cannot be higher than the highest",
+                "must be higher than the usual one, 1080p",
             ),
             (
                 # Unset, the usual resolution is the model's first - 720p here.
                 {"provider": "xai", "model": "grok-imagine-video-1.5", "max_resolution": "480p"},
-                "720p, cannot be higher",
+                "480p, must be higher than the usual one, 720p",
+            ),
+            (
+                # Equal would allow every lower one while the Builder shows none.
+                {"provider": "xai", "model": "grok-imagine-video-1.5", "max_resolution": "720p"},
+                "must be higher than the usual one, 720p",
             ),
         ],
         ids=[
@@ -220,6 +225,7 @@ class TestConfiguration:
             "highest resolution",
             "usual over highest",
             "default over highest",
+            "highest equal to usual",
         ],
     )
     def test_a_choice_the_provider_would_refuse_is_refused_here(self, config, says):
@@ -484,6 +490,7 @@ class TestTheToolSchema:
 
         assert "resolution" not in schema["properties"]
         assert schema["properties"]["aspect_ratio"]["enum"] == ["16:9", "9:16", "1:1"]
+        assert schema["properties"]["aspect_ratio"]["default"] == "16:9"
         assert schema["required"] == ["prompt"]
 
     async def test_the_resolutions_the_author_allowed_are_the_enum(self):
@@ -492,6 +499,9 @@ class TestTheToolSchema:
         resolution = schema["properties"]["resolution"]
         assert resolution["enum"] == ["480p", "720p", "1080p"]
         assert "anyOf" not in resolution
+        # Shortest first, so the usual one is named rather than left to its place.
+        assert resolution["default"] == "720p"
+        assert "The usual one is 720p." in resolution["description"]
 
 
 class TestStartingFromAnImage:

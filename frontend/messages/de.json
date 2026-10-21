@@ -840,7 +840,8 @@
     "speechVoiceIdPlaceholder": "Stimmen-ID",
     "speechAccountVoiceDetail": "{provider}-Stimmen gehören zu Ihrem Konto. Fügen Sie die ID einer Stimme aus Ihrer Stimmenbibliothek ein.",
     "speechOtherVoices": "Weitere Stimmen",
-    "speechOtherVoicesDetail": "Stimmen, die der Agent statt der üblichen wählen darf, Clip für Clip - für einen Dialog oder für Erzähler und Figur. Ist keine angehakt, spricht er immer mit der üblichen.",
+    "speechOtherVoicesDetail": "Stimmen, die der Agent statt der üblichen wählen darf, Clip für Clip - für einen Dialog oder für Erzähler und Figur. Bleibt die Liste leer, spricht er immer mit der üblichen.",
+    "speechOtherVoicesFull": "{count} weitere Stimmen sind das Maximum, das einem Agenten angeboten werden kann.",
     "speechOtherVoiceId": "Stimmen-ID {position}",
     "speechOtherVoiceNote": "Wofür Stimme {position} ist",
     "speechOtherVoiceNotePlaceholder": "Wer es ist, z. B. Anna, die Erzählerin",
@@ -7176,7 +7177,7 @@
       },
       "max_resolution": {
         "title": "Höchste Auflösung",
-        "description": "Die höchste Auflösung, die der Agent verlangen darf, was die Kosten einer Sekunde begrenzt; er darf auch jede niedrigere verlangen. Leer bedeutet, dass jeder Clip in der Auflösung oben entsteht."
+        "description": "Die höchste Auflösung, die der Agent verlangen darf, höher als die übliche; sie begrenzt die Kosten einer Sekunde, und der Agent darf auch jede niedrigere verlangen. Leer bedeutet, dass jeder Clip in der Auflösung oben entsteht."
       },
       "aspect_ratio": {
         "title": "Seitenverhältnis",

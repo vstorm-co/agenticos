@@ -7,13 +7,16 @@ import { Button, Checkbox, IconButton, Input, Label } from "@/components/ui";
 import type { TextToSpeechProvider, TextToSpeechVoice } from "@/hooks/use-model-providers";
 
 /** One more voice the agent may speak in, as `voices` stores it. */
-export interface VoiceChoice {
+interface VoiceChoice {
   id: string;
   note?: string | null;
 }
 
 /** The most other voices one agent may be offered - the server's `MAX_VOICES`. */
-export const MAX_VOICES = 20;
+const MAX_VOICES = 20;
+
+/** The longest note on a voice - the server's `VoiceChoice.note` limit. */
+const MAX_NOTE = 120;
 
 /** The stored `voices`, read defensively: a hand-written spec may hold anything. */
 export function storedVoices(value: unknown): VoiceChoice[] {
@@ -31,6 +34,12 @@ interface SpeechVoiceChoicesProps {
   /** The voice the agent speaks in unless it chooses another; not offered twice. */
   usualVoice: string;
   value: VoiceChoice[];
+  /**
+   * What publish validation said, keyed by path within the config - `voices`,
+   * `voices.0.id`. Drawn here because the generated form, which shows the rest,
+   * leaves this field to this control.
+   */
+  errors?: Readonly<Record<string, string>>;
   disabled?: boolean;
   onChange: (voices: VoiceChoice[]) => void;
 }
@@ -47,16 +56,18 @@ export function SpeechVoiceChoices({
   offered,
   usualVoice,
   value,
+  errors,
   disabled,
   onChange,
 }: SpeechVoiceChoicesProps) {
   const t = useTranslations("agents");
+  const full = value.length >= MAX_VOICES;
 
   return (
     <div className="space-y-1.5">
       <Label>{t("speechOtherVoices")}</Label>
       {provider.account_voices ? (
-        <AccountVoices value={value} disabled={disabled} onChange={onChange} />
+        <AccountVoices value={value} errors={errors} disabled={disabled} onChange={onChange} />
       ) : (
         <div className="grid gap-1.5 sm:grid-cols-2">
           {offered
@@ -67,7 +78,7 @@ export function SpeechVoiceChoices({
                 <label key={voice.id} className="flex items-center gap-2 text-sm">
                   <Checkbox
                     checked={checked}
-                    disabled={disabled}
+                    disabled={disabled || (full && !checked)}
                     onCheckedChange={() =>
                       onChange(
                         checked
@@ -82,17 +93,22 @@ export function SpeechVoiceChoices({
             })}
         </div>
       )}
-      <p className="text-muted-foreground text-xs">{t("speechOtherVoicesDetail")}</p>
+      {errors?.voices !== undefined && <p className="text-destructive text-xs">{errors.voices}</p>}
+      <p className="text-muted-foreground text-xs">
+        {full ? t("speechOtherVoicesFull", { count: MAX_VOICES }) : t("speechOtherVoicesDetail")}
+      </p>
     </div>
   );
 }
 
 function AccountVoices({
   value,
+  errors,
   disabled,
   onChange,
 }: {
   value: VoiceChoice[];
+  errors?: Readonly<Record<string, string>>;
   disabled?: boolean;
   onChange: (voices: VoiceChoice[]) => void;
 }) {
@@ -102,33 +118,44 @@ function AccountVoices({
 
   return (
     <div className="space-y-2">
-      {value.map((entry, index) => (
-        <div key={index} className="flex items-center gap-2">
-          <Input
-            value={entry.id}
-            disabled={disabled}
-            aria-label={t("speechOtherVoiceId", { position: index + 1 })}
-            placeholder={t("speechVoiceIdPlaceholder")}
-            onChange={(event) => replace(index, { id: event.target.value })}
-          />
-          <Input
-            value={entry.note ?? ""}
-            disabled={disabled}
-            maxLength={120}
-            aria-label={t("speechOtherVoiceNote", { position: index + 1 })}
-            placeholder={t("speechOtherVoiceNotePlaceholder")}
-            onChange={(event) => replace(index, { note: event.target.value || null })}
-          />
-          <IconButton
-            variant="ghost"
-            disabled={disabled}
-            aria-label={t("speechOtherVoiceRemove", { position: index + 1 })}
-            onClick={() => onChange(value.filter((_, at) => at !== index))}
-          >
-            <Trash2 className="h-4 w-4" />
-          </IconButton>
-        </div>
-      ))}
+      {value.map((entry, index) => {
+        const idError = errors?.[`voices.${index}.id`];
+        const noteError = errors?.[`voices.${index}.note`];
+        return (
+          <div key={index} className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Input
+                value={entry.id}
+                disabled={disabled}
+                aria-invalid={idError !== undefined}
+                aria-label={t("speechOtherVoiceId", { position: index + 1 })}
+                placeholder={t("speechVoiceIdPlaceholder")}
+                onChange={(event) => replace(index, { id: event.target.value })}
+              />
+              <Input
+                value={entry.note ?? ""}
+                disabled={disabled}
+                maxLength={MAX_NOTE}
+                aria-invalid={noteError !== undefined}
+                aria-label={t("speechOtherVoiceNote", { position: index + 1 })}
+                placeholder={t("speechOtherVoiceNotePlaceholder")}
+                onChange={(event) => replace(index, { note: event.target.value || null })}
+              />
+              <IconButton
+                variant="ghost"
+                disabled={disabled}
+                aria-label={t("speechOtherVoiceRemove", { position: index + 1 })}
+                onClick={() => onChange(value.filter((_, at) => at !== index))}
+              >
+                <Trash2 className="h-4 w-4" />
+              </IconButton>
+            </div>
+            {(idError ?? noteError) !== undefined && (
+              <p className="text-destructive text-xs">{idError ?? noteError}</p>
+            )}
+          </div>
+        );
+      })}
       <Button
         type="button"
         variant="outline"

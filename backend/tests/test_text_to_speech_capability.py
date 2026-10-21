@@ -189,6 +189,15 @@ class TestConfiguration:
                 "at most 120",
             ),
             (
+                {
+                    "provider": "elevenlabs",
+                    "model": "eleven_v4",
+                    "voice": "abc123",
+                    "voices": [{"id": "def456", "note": "Anna"}, {"id": " def456", "note": "Igor"}],
+                },
+                "listed once",
+            ),
+            (
                 {"provider": "google", "model": "gemini-3.8-flash-tts", "output_format": "mp3"},
                 "not mp3",
             ),
@@ -204,6 +213,7 @@ class TestConfiguration:
             "other voice not an id",
             "too many voices",
             "a note past a few words",
+            "a voice listed twice",
             "format",
         ],
     )
@@ -426,7 +436,10 @@ class TestChoosingTheVoice:
 
         voice = tools["generate_speech"].tool_def.parameters_json_schema["properties"]["voice"]
         assert voice["enum"] == ["marin", "cedar"]
-        assert voice["description"].endswith("Offered: marin: Marin, the narrator.")
+        assert voice["default"] == "marin"
+        assert voice["description"].endswith(
+            "The usual one is marin. Offered: marin: Marin, the narrator."
+        )
 
     async def test_with_one_voice_the_schema_offers_no_choice(self):
         tools = await _toolset().get_tools(_ctx(uuid4()))

@@ -26,7 +26,7 @@ Two things are versioned separately from this file and worth knowing about:
   given a highest resolution, and asks for anything up to it per clip, priced
   at the resolution it chose. The shape of a clip was already the agent's to
   choose. Each choice is offered to the model as a fixed list, and an agent
-  given no choice sees the tool it saw before (#2260).
+  given no choice sees the tool it saw before (#2259, #2260).
 - **Agents can make video.** The new `video_generation` capability gives an
   agent a `generate_video` tool that makes a short clip through Google Gemini
   Omni, ByteDance Seedance on BytePlus, xAI Grok Imagine or Alibaba Wan 3.0,

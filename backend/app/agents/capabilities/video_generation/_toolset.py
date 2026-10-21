@@ -330,8 +330,8 @@ def build_video_toolset(
         sequential=True,
         prepare=schema_for(
             {
-                "aspect_ratio": Choice(settings.aspect_ratios),
-                "resolution": Choice(settings.resolutions),
+                "aspect_ratio": Choice(settings.aspect_ratios, usual=settings.aspect_ratio),
+                "resolution": Choice(settings.resolutions, usual=settings.resolution),
             }
         ),
     )

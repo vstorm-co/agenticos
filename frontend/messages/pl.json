@@ -840,7 +840,8 @@
     "speechVoiceIdPlaceholder": "Id głosu",
     "speechAccountVoiceDetail": "Głosy {provider} należą do Twojego konta. Wklej id jednego z nich ze swojej biblioteki głosów.",
     "speechOtherVoices": "Inne głosy",
-    "speechOtherVoicesDetail": "Głosy, które agent może wybrać zamiast zwykłego, osobno dla każdego klipu - do dialogu albo dla narratora i postaci. Gdy żaden nie jest zaznaczony, zawsze mówi zwykłym głosem.",
+    "speechOtherVoicesDetail": "Głosy, które agent może wybrać zamiast zwykłego, osobno dla każdego klipu - do dialogu albo dla narratora i postaci. Gdy lista jest pusta, zawsze mówi zwykłym głosem.",
+    "speechOtherVoicesFull": "{count} innych głosów to najwięcej, ile można zaoferować jednemu agentowi.",
     "speechOtherVoiceId": "Id głosu {position}",
     "speechOtherVoiceNote": "Do czego służy głos {position}",
     "speechOtherVoiceNotePlaceholder": "Kto to jest, np. Anna, narratorka",
@@ -7077,7 +7078,7 @@
       },
       "max_resolution": {
         "title": "Najwyższa rozdzielczość",
-        "description": "Najwyższa rozdzielczość, o jaką może poprosić agent, co ogranicza koszt sekundy; może też poprosić o każdą niższą. Puste oznacza, że każdy klip powstaje w rozdzielczości powyżej."
+        "description": "Najwyższa rozdzielczość, o jaką może poprosić agent, wyższa od zwykłej; ogranicza koszt sekundy, a agent może też poprosić o każdą niższą. Puste oznacza, że każdy klip powstaje w rozdzielczości powyżej."
       },
       "aspect_ratio": {
         "title": "Proporcje obrazu",

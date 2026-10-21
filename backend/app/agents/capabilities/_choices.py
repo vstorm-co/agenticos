@@ -28,13 +28,17 @@ from app.agents.deps import AgentDeps
 class Choice:
     """The values one parameter may take, and what the model reads about each.
 
-    `notes` maps a value to a few words appended to the parameter's description -
-    a voice's character, which an id alone does not say. Values without a note
-    are listed bare.
+    `usual` is what the tool uses when the parameter is left out. It is the
+    schema's `default` and named in the description, because "leave it out for
+    the usual one" means nothing to a model that cannot see which one that is -
+    resolutions are listed shortest first, not usual first. `notes` maps a value
+    to a few words appended to the description - a voice's character, which an
+    id alone does not say. Values without a note are listed bare.
     """
 
     values: tuple[str, ...]
-    notes: Mapping[str, str] | None = None
+    usual: str
+    notes: Mapping[str, str | None] | None = None
 
 
 def offer_choices(schema: Mapping[str, Any], choices: Mapping[str, Choice]) -> dict[str, Any]:
@@ -56,21 +60,25 @@ def offer_choices(schema: Mapping[str, Any], choices: Mapping[str, Choice]) -> d
         if len(choice.values) < 2:
             del properties[name]
             continue
+        if choice.usual not in choice.values:
+            raise ValueError(f"{name}: the usual {choice.usual!r} is not one of the values.")
         prop = properties[name]
-        # `str | None` is generated as an `anyOf`; the enum replaces it, since a
-        # parameter left out is how "the usual one" is asked for.
+        # `str | None` is generated as an `anyOf` with a `null` default. The enum
+        # replaces both: a `null` default outside the enum contradicts it, and a
+        # strict transformer reads the parameter as required.
         prop.pop("anyOf", None)
         prop["type"] = "string"
         prop["enum"] = list(choice.values)
+        prop["default"] = choice.usual
         notes = [
-            f"{value}: {choice.notes[value]}"
+            f"{value}: {note}"
             for value in choice.values
-            if choice.notes and choice.notes.get(value)
+            if choice.notes and (note := choice.notes.get(value))
         ]
+        described = f"{prop.get('description', '')} The usual one is {choice.usual}."
         if notes:
-            prop["description"] = (
-                f"{prop.get('description', '')} Offered: {'; '.join(notes)}.".strip()
-            )
+            described += f" Offered: {'; '.join(notes)}."
+        prop["description"] = described.strip()
     narrowed["required"] = [name for name in narrowed.get("required", []) if name in properties]
     return narrowed
 

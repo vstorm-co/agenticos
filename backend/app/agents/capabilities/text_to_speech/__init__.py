@@ -110,10 +110,10 @@ class TextToSpeechConfig(BaseModel):
     def _must_be_offered(self) -> "TextToSpeechConfig":
         """Refuse a choice the provider would refuse on the first call.
 
-        The pair, the voice and the format are each checked against the catalog,
-        because each fails differently mid-run: an unknown model is a bad request,
-        a voice the model lacks is a not-found, and a format the provider does not
-        return would be bytes stored under the wrong extension.
+        The pair, the voice, the other voices and the format are each checked
+        against the catalog, because each fails differently mid-run: an unknown
+        model is a bad request, a voice the model lacks is a not-found, and a format
+        the provider does not return would be bytes stored under the wrong extension.
         """
         entry = by_provider(self.provider)
         model = entry.model(self.model) if entry is not None else None
@@ -130,6 +130,10 @@ class TextToSpeechConfig(BaseModel):
         for voice in [self.voice, *(choice.id for choice in self.voices)]:
             if voice is not None:
                 _check_voice(entry, model, voice)
+        others = [choice.id.strip() for choice in self.voices]
+        if len(others) != len(set(others)):
+            # Two notes for one voice would leave the agent reading only the last.
+            raise ValueError("Each other voice may be listed once.")
         if self.output_format is not None and self.output_format not in entry.formats:
             raise ValueError(
                 f"{entry.name} returns {', '.join(entry.formats)}, not {self.output_format}."

@@ -181,3 +181,14 @@ export function withoutFields(schema: JsonSchema, drawn: readonly string[]): Jso
   );
   return { ...schema, properties };
 }
+
+/**
+ * A binding's config with some settings taken out - for a setting whose default
+ * is no value stored, or one that means nothing once the model changes.
+ */
+export function withoutConfig(
+  config: Record<string, unknown>,
+  names: readonly string[],
+): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(config).filter(([name]) => !names.includes(name)));
+}

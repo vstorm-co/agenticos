@@ -44,9 +44,14 @@ class TestWhatTheCatalogOffers:
             for model in entry.models:
                 assert len(model.description) > 20
                 assert 0 < model.min_seconds <= model.max_seconds
-                assert model.aspect_ratios and model.resolutions
-                for resolution in model.resolutions:
-                    assert price_per_second(model, resolution, on=date(2026, 10, 20)) is not None
+                assert model.aspect_ratios and model.resolutions and model.prices
+                # Every dated row, not one day's: the agent may now choose any
+                # resolution up to its ceiling, and an unpriced one is asked of the
+                # budget at nothing - so a later row dropping one is caught here.
+                for price in model.prices:
+                    assert set(model.resolutions) <= set(price.usd_per_second), (
+                        f"{model.id} from {price.since} leaves a resolution unpriced"
+                    )
 
     def test_gemini_omni_decides_its_own_length(self):
         omni = _provider("google").model("gemini-omni-1.1-flash")
