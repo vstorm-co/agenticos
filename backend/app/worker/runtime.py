@@ -263,7 +263,7 @@ class Worker:
         """
         try:
             async with self.sessions() as db:
-                if not await job_repo.claim_settlement(db, job_id):
+                if not await job_repo.claim_settlement(db, job_id=job_id):
                     return
                 await self.on_ended(kind, payload, why)
                 await job_repo.mark_settled(db, job_id)

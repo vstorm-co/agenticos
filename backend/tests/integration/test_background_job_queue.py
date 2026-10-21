@@ -596,19 +596,19 @@ async def test_a_settlement_is_claimed_by_one_caller_and_released_by_a_rollback(
         assert await job_repo.bury(db, job_id, fence=claimed.attempts, error="no such kind")
 
     async with sessions() as first:
-        assert await job_repo.claim_settlement(first, job_id) is True
+        assert await job_repo.claim_settlement(first, job_id=job_id) is True
         async with sessions() as second, second.begin():
             # Held by the first: skipped, not waited for.
-            assert await job_repo.claim_settlement(second, job_id) is False
+            assert await job_repo.claim_settlement(second, job_id=job_id) is False
         await first.rollback()
 
     # A settler that failed leaves the end owed, for the next pass.
     async with sessions() as db, db.begin():
-        assert await job_repo.claim_settlement(db, job_id) is True
+        assert await job_repo.claim_settlement(db, job_id=job_id) is True
         await job_repo.mark_settled(db, job_id)
 
     async with sessions() as db, db.begin():
-        assert await job_repo.claim_settlement(db, job_id) is False
+        assert await job_repo.claim_settlement(db, job_id=job_id) is False
 
 
 async def test_the_claim_takes_the_lowest_priority_first_then_the_oldest(

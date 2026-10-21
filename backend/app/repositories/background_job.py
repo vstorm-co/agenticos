@@ -464,7 +464,7 @@ async def unsettled_ends(
     ]
 
 
-async def claim_settlement(db: AsyncSession, job_id: UUID) -> bool:
+async def claim_settlement(db: AsyncSession, *, job_id: UUID) -> bool:
     """Lock `job_id` for its settler, if its settlement is still owed and nobody holds it.
 
     Two callers reach one end: the worker that saw it die settles it right after
