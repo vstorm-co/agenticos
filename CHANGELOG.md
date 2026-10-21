@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.10.1] - 2026-10-21
+
 ### Changed
 
 - **The comparison guides are checked again, on 21 October 2026, against
