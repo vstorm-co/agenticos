@@ -69,9 +69,8 @@ def test_a_module_logger_record_is_redacted_at_the_handler(root_stream):
 @pytest.mark.security
 def test_a_submitted_value_cannot_write_a_log_entry_of_its_own(root_stream):
     """One entry is one line, so a value carrying a newline writes a second one -
-    with a timestamp, a level and a message of the sender's choosing. The clearest
-    way in is the rate limiter's `caller`, which can be the address somebody typed
-    into a sign-in form (`py/log-injection`)."""
+    with a timestamp, a level and a message of the sender's choosing - an address
+    somebody typed into a sign-in form, say (`py/log-injection`)."""
     setup_logging()
 
     logging.getLogger("app.services.rate_limit").warning(
