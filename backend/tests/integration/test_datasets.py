@@ -197,12 +197,23 @@ async def test_the_datasets_asking_a_runs_question_are_found_by_their_newest_ver
     dropped = await service.create(ctx, DatasetCreate(name="dropped it"))
     removed = await service.add_case(ctx, dropped.id, question)
     await service.remove_case(ctx, dropped.id, removed.case_id)
+    reworded = await service.create(ctx, DatasetCreate(name="reworded it"))
+    away = await service.add_case(ctx, reworded.id, question)
+    await service.update_case(ctx, reworded.id, away.case_id, DatasetCaseUpdate(input="Refunds?"))
+    learned = await service.create(ctx, DatasetCreate(name="learned it"))
+    toward = await service.add_case(
+        ctx, learned.id, DatasetCaseCreate(input="Refunds?", reference_answer="90")
+    )
+    await service.update_case(
+        ctx, learned.id, toward.case_id, DatasetCaseUpdate(input=question.input)
+    )
 
     found = await service.list_readable(ctx, asked_by_run=run.id)
 
-    # Only the newest version counts: the case is still in the older one.
-    assert [item.name for item in found.items] == ["holds it"]
-    assert found.total == 1
+    # Only the newest version counts: a case removed or edited away is still
+    # in an older one, and a case edited into the question is only in the newest.
+    assert [item.name for item in found.items] == ["holds it", "learned it"]
+    assert found.total == 2
 
 
 @pytest.mark.security
