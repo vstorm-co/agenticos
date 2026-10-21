@@ -1355,9 +1355,11 @@ class RunFilter:
 
 
 _EVAL = AgentRun.surface == RunSurface.EVAL.value
-# The authoring assistant runs on the eval surface like every system agent, but it
-# improves agents rather than measuring them, so the bill names it apart.
-_AUTHORING = AgentRun.agent_id.in_(select(Agent.id).where(Agent.kind == AgentKind.IMPROVER.value))
+# The authoring assistant and the knowledge-gap drafter and classifier run on the eval
+# surface like every system agent, but they improve agents and their knowledge rather
+# than measure them, so the bill names them apart.
+_IMPROVING_KINDS = (AgentKind.IMPROVER.value, AgentKind.DRAFTER.value, AgentKind.CLASSIFIER.value)
+_AUTHORING = AgentRun.agent_id.in_(select(Agent.id).where(Agent.kind.in_(_IMPROVING_KINDS)))
 _MEASURING = and_(_EVAL, ~_AUTHORING)
 
 
