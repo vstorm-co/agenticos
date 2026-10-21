@@ -828,6 +828,17 @@ def get_eval_suite_service(db: DBSession) -> EvalSuiteService:
 EvalSuiteSvc = Annotated[EvalSuiteService, Depends(get_eval_suite_service)]
 
 
+from app.services.authoring import AuthoringService
+
+
+def get_authoring_service(db: DBSession) -> AuthoringService:
+    """Create AuthoringService instance with database session."""
+    return AuthoringService(db)
+
+
+AuthoringSvc = Annotated[AuthoringService, Depends(get_authoring_service)]
+
+
 def get_mention_service(db: DBSession) -> MentionService:
     return MentionService(db)
 

@@ -26,11 +26,12 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
-from app.core.exceptions import AlreadyExistsError, NotFoundError
-from app.core.permissions import AuthContext
+from app.core.exceptions import AlreadyExistsError, ConcurrentChangeError, NotFoundError
+from app.core.permissions import AuthContext, Perm
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
-from app.repositories import skill_proposal_repo
+from app.repositories import skill_proposal_repo, skill_repo
 from app.schemas.skill import SkillUpdate
+from app.schemas.skill_proposal import SkillProposalRead
 from app.services.skill_workspace import SkillChange
 from app.services.skills import SkillService
 
@@ -65,6 +66,7 @@ class SkillProposalService:
                 organization_id=ctx.organization_id,
                 skill_id=change.skill_id,
                 name=change.name,
+                agent_id=agent_id,
             )
             if existing is not None:
                 recorded.append(
@@ -110,6 +112,31 @@ class SkillProposalService:
             self.db, organization_id=ctx.organization_id, status=status
         )
 
+    async def list_read(
+        self, ctx: AuthContext, *, status: str | None = None
+    ) -> list[SkillProposalRead]:
+        """Every proposal as a reviewer reads it - see :meth:`read`."""
+        return [
+            self._readable(ctx, proposal)
+            for proposal in await self.list_proposals(ctx, status=status)
+        ]
+
+    async def read(self, ctx: AuthContext, proposal_id: UUID) -> SkillProposalRead:
+        """One proposal as a reviewer reads it.
+
+        The evidence an assistant cited quotes conversations, so a reviewer
+        without `runs:view` gets the run ids and not the words.
+        """
+        return self._readable(ctx, await self.get(ctx, proposal_id))
+
+    @staticmethod
+    def _readable(ctx: AuthContext, proposal: SkillProposal) -> SkillProposalRead:
+        read = SkillProposalRead.model_validate(proposal)
+        if ctx.has(Perm.RUNS_VIEW):
+            return read
+        hidden = [{"run_id": item.get("run_id"), "quote": None} for item in read.evidence]
+        return read.model_copy(update={"evidence": hidden})
+
     async def get(self, ctx: AuthContext, proposal_id: UUID) -> SkillProposal:
         proposal = await skill_proposal_repo.get(
             self.db, proposal_id, organization_id=ctx.organization_id
@@ -127,12 +154,36 @@ class SkillProposalService:
         skill deleted - the proposal stays pending and the reviewer sees why,
         rather than reading "applied" beside a skill that never moved.
 
+        A proposal that records the version it was written against applies only
+        while the skill is still at it: a body reviewed against v3 must not
+        silently replace a v4 somebody wrote meanwhile.
+
         Raises:
             AlreadyExistsError: If it was already decided.
             NotFoundError: If the proposal is not this organization's.
+            ConcurrentChangeError: If the skill moved past the version it was written against.
         """
         proposal = await self.get(ctx, proposal_id)
         self._refuse_second_decision(proposal)
+
+        if proposal.skill_id is not None and proposal.base_version is not None:
+            current = await self.skills.get(ctx, proposal.skill_id, perm=Perm.SKILLS_EDIT)
+            # Locking re-reads the row into `current`: every edit writes the skill
+            # row, so an edit or a second apply committed meanwhile is seen, not overwritten.
+            await skill_repo.lock(self.db, current.id)
+            if current.version != proposal.base_version:
+                raise ConcurrentChangeError(
+                    message=(
+                        f"'{current.name}' changed since this was proposed "
+                        f"(v{proposal.base_version}, now v{current.version}). Compare the two "
+                        "and edit the skill by hand, or ask the assistant again."
+                    ),
+                    details={
+                        "proposal_id": proposal.id,
+                        "base_version": proposal.base_version,
+                        "version": current.version,
+                    },
+                )
 
         if proposal.skill_id is None:
             skill = await self.skills.create(

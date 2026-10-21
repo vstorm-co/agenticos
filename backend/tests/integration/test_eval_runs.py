@@ -44,9 +44,10 @@ from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName, Perm, Sco
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.case_score import CaseScore
+from app.db.models.conversation import Conversation
 from app.db.models.credential import ModelProfile
 from app.db.models.dataset import Dataset, DatasetCase
-from app.db.models.eval_run import EvalRun, EvalRunArm, EvalRunCase, EvalRunStatus
+from app.db.models.eval_run import EvalRun, EvalRunArm, EvalRunCase, EvalRunPurpose, EvalRunStatus
 from app.db.models.intercepted_tool_call import InterceptedToolCall
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
@@ -2264,6 +2265,170 @@ async def test_who_may_edit_an_agent_is_read_per_agent_not_off_the_role(db) -> N
         assert await registry.may_edit(ctx, agent) is editable
         rows, _ = await registry.list_agents(ctx)
         assert [(row.id, row.can_edit) for row in rows] == [(agent.id, editable)]
+
+
+async def test_cases_from_a_proposals_evidence_are_left_out_and_listed(db) -> None:
+    """A change is never measured on the conversations it was derived from, and the
+    run says which cases it left out so a smaller sample is not a mystery."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=3)
+    evidence = uuid.uuid4()
+    conversation = Conversation(id=evidence, organization_id=ctx.organization_id)
+    db.add(conversation)
+    await db.flush()
+    first = (
+        (
+            await db.execute(
+                select(DatasetCase)
+                .where(DatasetCase.dataset_id == dataset.id)
+                .order_by(DatasetCase.input)
+            )
+        )
+        .scalars()
+        .first()
+    )
+    assert first is not None
+    first.source_conversation_id = evidence
+    await db.flush()
+    service = EvalRunService(db)
+    projection = AgentSpec(name="Clerk", instructions="Proposed")
+
+    started = await service.start(
+        ctx,
+        agent.id,
+        EvalRunRequest(dataset_id=dataset.id, paired_baseline=True),
+        candidate_spec=projection,
+        exclude_conversations=[evidence],
+    )
+
+    assert started.excluded_case_ids == [first.case_id]
+    assert started.cases == 2
+    assert started.paired is True
+    assert all(arm.reused_from_arm_id is None for arm in started.arms)
+
+
+async def test_a_dataset_made_wholly_of_the_evidence_is_refused(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    evidence = uuid.uuid4()
+    db.add(Conversation(id=evidence, organization_id=ctx.organization_id))
+    await db.flush()
+    case = (
+        await db.execute(select(DatasetCase).where(DatasetCase.dataset_id == dataset.id))
+    ).scalar_one()
+    case.source_conversation_id = evidence
+    await db.flush()
+
+    with pytest.raises(BadRequestError, match="none can measure it"):
+        await EvalRunService(db).estimate(
+            ctx,
+            agent.id,
+            EvalRunRequest(dataset_id=dataset.id),
+            candidate_spec=AgentSpec(name="Clerk", instructions="Proposed"),
+            exclude_conversations=[evidence],
+        )
+
+
+async def test_a_proposed_skill_body_reaches_every_candidate_answer(db) -> None:
+    """A skill change is measured with the agent held still: the candidate serves the
+    proposed body, the baseline the stored one."""
+    from app.agents.capabilities.skills import SkillBody
+
+    ctx = await _owner(db)
+    agent, versions = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    skill_id = uuid.uuid4()
+    body = SkillBody(description="Refunds", content="Say 30 days.")
+    published = AgentSpec.model_validate(versions[7].spec)
+    model = Model(db)
+    service = EvalRunService(db)
+
+    started = await service.start(
+        ctx,
+        agent.id,
+        EvalRunRequest(dataset_id=dataset.id, paired_baseline=True),
+        candidate_spec=published,
+        candidate_skills={skill_id: body},
+    )
+    await _run_to_end(db, model, started.id, ctx)
+
+    candidates = [call["candidate"] for call in model.calls]
+    served = [c.skill_bodies for c in candidates if isinstance(c, UnpublishedCandidate)]
+    assert served == [{skill_id: body}]
+    assert any(isinstance(c, PublishedCandidate) for c in candidates)
+    arms = (
+        (await db.execute(select(EvalRunArm).where(EvalRunArm.eval_run_id == started.id)))
+        .scalars()
+        .all()
+    )
+    candidate = next(arm for arm in arms if arm.role == "candidate")
+    baseline = next(arm for arm in arms if arm.role == "baseline")
+    assert candidate.skill_bodies == {
+        str(skill_id): {"description": "Refunds", "content": "Say 30 days."}
+    }
+    assert candidate.spec_hash != baseline.spec_hash
+
+
+async def test_a_published_version_can_carry_a_proposed_skill_body(db) -> None:
+    """Checking a skill change runs the published version on both sides - nothing
+    unpublished to validate - and serves the proposed body on the candidate only."""
+    from app.agents.capabilities.skills import SkillBody
+
+    ctx = await _owner(db)
+    agent, versions = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    skill_id = uuid.uuid4()
+    body = SkillBody(description="Refunds", content="Say 30 days.")
+    model = Model(db)
+
+    started = await EvalRunService(db).start(
+        ctx,
+        agent.id,
+        EvalRunRequest(dataset_id=dataset.id, version=7, baseline_version=7),
+        purpose=EvalRunPurpose.GATE,
+        candidate_skills={skill_id: body},
+    )
+    await _run_to_end(db, model, started.id, ctx)
+
+    candidates = [call["candidate"] for call in model.calls]
+    assert {type(c) for c in candidates} == {PublishedCandidate}
+    assert {c.version_id for c in candidates} == {versions[7].id}
+    assert sorted(len(c.skill_bodies) for c in candidates) == [0, 1]
+    read = await EvalRunService(db).get(ctx, started.id)
+    assert {arm.role: arm.skill_ids for arm in read.arms} == {
+        "candidate": [skill_id],
+        "baseline": [],
+    }
+
+
+async def test_a_skill_change_is_never_measured_against_a_cached_baseline(db) -> None:
+    """A skill's stored body is not versioned with the agent, so a baseline cached
+    before the skill changed would have read a body the change is not replacing."""
+    from app.agents.capabilities.skills import SkillBody
+
+    ctx = await _owner(db)
+    agent, versions = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    service = EvalRunService(db)
+    request = EvalRunRequest(dataset_id=dataset.id, candidate="draft", paired_baseline=True)
+    await _run_to_end(db, Model(db), (await service.start(ctx, agent.id, request)).id, ctx)
+    assert {arm.role: arm.basis for arm in (await service.estimate(ctx, agent.id, request)).arms}[
+        "baseline"
+    ] == "cached"
+
+    estimate = await service.estimate(
+        ctx,
+        agent.id,
+        EvalRunRequest(dataset_id=dataset.id, paired_baseline=True),
+        candidate_spec=AgentSpec.model_validate(versions[7].spec),
+        candidate_skills={uuid.uuid4(): SkillBody(description="Refunds", content="Say 30 days.")},
+    )
+
+    baseline = next(arm for arm in estimate.arms if arm.role == "baseline")
+    assert baseline.basis != "cached"
+    assert baseline.cached_from_run_id is None
 
 
 async def test_an_earlier_run_named_as_the_baseline_must_match_and_stand_alone(db) -> None:

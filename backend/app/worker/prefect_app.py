@@ -36,6 +36,7 @@ from app.core.logging import setup_logging
 from app.services.sandbox_workspace import retry_pending_destroys
 from app.worker.sweeps import Sweep, run_sweeps
 from app.worker.tasks.approval_tasks import approval_expiry_sweep_flow
+from app.worker.tasks.authoring_tasks import run_authoring_flow
 from app.worker.tasks.eval_suite_tasks import check_eval_suites
 from app.worker.tasks.eval_tasks import run_eval_flow
 from app.worker.tasks.invitation_tasks import invitation_expiry_sweep_flow
@@ -196,6 +197,9 @@ async def main() -> None:
     )
     # On-demand: one eval run per flow run, submitted when a person starts one.
     deployments.append(await run_eval_flow.ato_deployment(name="run-eval"))
+    # On-demand: one authoring assistant request per flow run, submitted when a
+    # person starts an Improve or a Verify.
+    deployments.append(await run_authoring_flow.ato_deployment(name="run-authoring"))
     # On-demand: the external cleanup a committed delete leaves - a purged org's
     # tables and files (#1274), a dropped RAG collection's (#1349) - submitted after
     # the delete commits so it survives the request process dying mid-cleanup. The

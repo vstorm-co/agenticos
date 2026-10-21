@@ -16,7 +16,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 
 from app.agents.spec import AgentSpec
-from app.agents.system_agents import JUDGE
+from app.agents.system_agents import IMPROVER, JUDGE
 from app.core.exceptions import (
     AiAssistanceDisabledError,
     AuthorizationError,
@@ -170,6 +170,10 @@ class TestSeeding:
             )
         )
         assert entry.actor_user_id is None
+        improver = await agent_repo.get_system(
+            db, organization_id=organization.id, key=IMPROVER.key
+        )
+        assert improver is not None and improver.current_version_id is not None
         assert entry.details == {
             "key": JUDGE.key,
             "model_profile_id": str(profile.id),

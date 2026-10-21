@@ -59,7 +59,8 @@ class AgentKind(enum.StrEnum):
     the platform seeds, and one per dataset that wants its own. `DRAFTER` writes
     the passage a knowledge gap is missing, `GENERATOR` drafts dataset cases,
     and `CLASSIFIER` reads answers for the ones in which the agent did not know;
-    only the platform runs any of them.
+    only the platform runs any of them. `IMPROVER` is the authoring assistant,
+    which reads an agent's evidence and proposes changes.
     """
 
     AGENT = "agent"
@@ -67,6 +68,7 @@ class AgentKind(enum.StrEnum):
     DRAFTER = "drafter"
     GENERATOR = "generator"
     CLASSIFIER = "classifier"
+    IMPROVER = "improver"
 
 
 class Agent(Base, TimestampMixin):
@@ -171,7 +173,7 @@ class Agent(Base, TimestampMixin):
         CheckConstraint("status IN ('draft', 'published', 'archived')", name="ck_agent_status"),
         CheckConstraint("visibility IN ('private', 'team', 'org')", name="ck_agent_visibility"),
         CheckConstraint(
-            "kind IN ('agent', 'judge', 'drafter', 'generator', 'classifier')",
+            "kind IN ('agent', 'judge', 'drafter', 'generator', 'classifier', 'improver')",
             name="ck_agent_kind",
         ),
         # GIN so the discovery filter's `categories && ARRAY[...]` overlap is an

@@ -148,6 +148,7 @@ from app.agents.capabilities.sandbox import (
     WorkspaceIdentity,
 )
 from app.agents.capabilities.sandbox._identity import SessionScope
+from app.agents.capabilities.skills import SKILL_BODIES_RESOURCE, SkillBody
 from app.agents.capabilities.subagents import SubagentsConfig, acting_delegate
 from app.agents.capabilities.tool_output_limits import SPILL_LOG_RESOURCE
 from app.agents.connect_on_use import (
@@ -2652,6 +2653,7 @@ class AgentRunnerService:
             agent, spec, version_id = await self.registry.get_candidate_spec(
                 ctx, agent_id, candidate, environment_id=effective_environment_id
             )
+        skill_bodies = {} if candidate is None else candidate.skill_bodies
         spec = await self._with_environment_observability(
             ctx, spec, environment_id=effective_environment_id
         )
@@ -2690,6 +2692,7 @@ class AgentRunnerService:
             person_time_zone=person_time_zone,
             is_test=test or draft,
             test_spec=test_spec,
+            skill_bodies=skill_bodies,
         )
         if on_compaction is not None:
             # Set on the built deps rather than passed into `_assemble`: it is a
@@ -2805,6 +2808,7 @@ class AgentRunnerService:
         person_time_zone: str | None = None,
         is_test: bool = False,
         test_spec: dict[str, Any] | None = None,
+        skill_bodies: Mapping[UUID, SkillBody] | None = None,
         on_sandbox_wait: SandboxWaitSink | None = None,
     ) -> PreparedRun:
         """Build the agent for a run, opening its row unless one is being resumed.
@@ -2900,6 +2904,7 @@ class AgentRunnerService:
             KNOWLEDGE_SEARCH_LOG_RESOURCE: search_log,
             "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
             CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(ctx, spec.context_ids),
+            SKILL_BODIES_RESOURCE: dict(skill_bodies or {}),
         }
         # What an earlier turn of this thread wrote down. Read here rather than
         # beside the build below, because one of the three is a resource.
@@ -3183,7 +3188,9 @@ class AgentRunnerService:
             # agent and the proposal flow use them, and not in a browser about what
             # an agent is keeping *for a person*. `browsable` is where they are
             # dropped instead (#1064).
-            materialised = await materialise_skills(workspace.workspace, resources["skills"])
+            materialised = await materialise_skills(
+                workspace.workspace, resources["skills"], resources[SKILL_BODIES_RESOURCE]
+            )
             if materialised.written:
                 spec = _with_skills_briefing(spec)
             # After the skills are written, so materialising them does not read as

@@ -121,6 +121,16 @@ def _ctx(role: str = OrgRoleName.OWNER, *, org_id=None, user_id=None) -> AuthCon
     )
 
 
+@pytest.fixture(autouse=True)
+def _no_open_suggestions():
+    """Publishing closes the authoring assistant's open batch; these agents have none."""
+    with patch(
+        "app.services.agent_registry.authoring_repo.get_open_batch",
+        new=AsyncMock(return_value=None),
+    ):
+        yield
+
+
 def _db():
     db = MagicMock()
     db.add = MagicMock()
@@ -2362,12 +2372,19 @@ class TestPublish:
             ) as update,
             patch(f"{REGISTRY_PATH}.agent_environment_repo") as environments,
             patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()) as audit,
+            patch(f"{REGISTRY_PATH}.authoring_repo") as authoring,
         ):
             environments.get_default_for_agent = AsyncMock(return_value=None)
             environments.create = AsyncMock(
                 return_value=MagicMock(id=uuid.uuid4(), version_id=version.id)
             )
+            open_batch = MagicMock()
+            authoring.get_open_batch = AsyncMock(return_value=open_batch)
+            authoring.close_batch = AsyncMock()
             published = await AgentRegistryService(_db()).publish(ctx, agent.id, note="first cut")
+
+        # The suggestions were for the draft just frozen, so their batch closes with it.
+        assert authoring.close_batch.await_args.kwargs["batch"] is open_batch
 
         frozen = create_version.call_args.kwargs
         assert frozen["version"] == 3

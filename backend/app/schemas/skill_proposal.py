@@ -35,6 +35,25 @@ class SkillProposalRead(BaseSchema, TimestampSchema):
     status: str
     decided_by_user_id: UUID | None = None
     decided_at: datetime | None = None
+    base_version: int | None = Field(
+        default=None,
+        description=(
+            "The skill version the body was written against; Apply refuses once the "
+            "skill has moved past it. Null for a change an agent's workspace wrote"
+        ),
+    )
+    rationale: str = ""
+    evidence: list[dict[str, str | None]] = Field(
+        default_factory=list,
+        description=(
+            "Run ids and quotes, each checked against the run it names; the quote is "
+            "null for a reader without runs:view"
+        ),
+    )
+    evidence_dropped: int = Field(
+        default=0, description="Evidence the assistant cited that could not be found"
+    )
+    expected_effect: str = ""
 
 
 class SkillProposalList(BaseSchema):

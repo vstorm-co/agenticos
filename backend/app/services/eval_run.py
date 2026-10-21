@@ -33,8 +33,8 @@ import hashlib
 import json
 import logging
 from collections import defaultdict
-from collections.abc import Sequence
-from dataclasses import dataclass, replace
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
@@ -44,6 +44,7 @@ from pydantic_ai.usage import RunUsage
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import price_request
+from app.agents.capabilities.skills import SkillBody
 from app.agents.spec import AgentSpec
 from app.agents.system_agents import JUDGE
 from app.core.background import spawn_after_commit
@@ -136,10 +137,24 @@ def scoring_hash(scoring: DatasetScoring) -> str:
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 
-def spec_hash(spec: AgentSpec) -> str:
-    """A fingerprint of a spec, equal for equal specs whatever order their keys were written in."""
-    canonical = json.dumps(spec.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
+def spec_hash(spec: AgentSpec, skill_bodies: Mapping[UUID, SkillBody] | None = None) -> str:
+    """A fingerprint of a spec, equal for equal specs whatever order their keys were written in.
+
+    Skill bodies served in place of the stored ones are part of what an arm runs,
+    so they are part of its fingerprint when there are any.
+    """
+    content: dict[str, object] = spec.model_dump(mode="json")
+    if skill_bodies:
+        content = {"spec": content, "skills": _bodies_json(skill_bodies)}
+    canonical = json.dumps(content, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode()).hexdigest()
+
+
+def _bodies_json(skill_bodies: Mapping[UUID, SkillBody]) -> dict[str, dict[str, str]]:
+    return {
+        str(skill_id): {"description": body.description, "content": body.content}
+        for skill_id, body in skill_bodies.items()
+    }
 
 
 def attempt_outcome(attempt: EvalRunCase, score: CaseScore | None) -> Outcome:
@@ -209,6 +224,7 @@ class ArmPlan:
     model_profile_id: UUID | None
     model_label: str
     cached: tuple[EvalRunArm, EvalRun] | None = None
+    skill_bodies: Mapping[UUID, SkillBody] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -230,6 +246,7 @@ class RunPlan:
     from_recordings: bool
     live_reads: bool
     judged: bool
+    excluded_case_ids: list[UUID] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -303,6 +320,8 @@ class EvalRunService:
         purpose: EvalRunPurpose = EvalRunPurpose.MANUAL,
         scoring: DatasetScoring | None = None,
         candidate_spec: AgentSpec | None = None,
+        exclude_conversations: Sequence[UUID] = (),
+        candidate_skills: Mapping[UUID, SkillBody] | None = None,
     ) -> RunPlan:
         """Decide what a run is, refusing anything that could not or should not run.
 
@@ -310,6 +329,11 @@ class EvalRunService:
         runs a spec the caller built - the authoring assistant's projection -
         and the caller has already decided they may: it is validated against
         the caller's access like a draft, and attributed to no version.
+        `exclude_conversations` leaves out the cases taken from those
+        conversations - a proposal's own evidence - and the baseline then runs
+        fresh beside the candidate, so both sides answer the same cases.
+        `candidate_skills` serves proposed skill bodies on the candidate in place
+        of the stored ones, so a skill change is measured with the agent held still.
 
         Raises:
             NotFoundError: The agent, dataset or environment cannot be reached.
@@ -328,6 +352,19 @@ class EvalRunService:
                 message=f"Version {dataset_version.number} of '{dataset.name}' holds no cases",
                 details={"dataset_id": dataset.id, "version": dataset_version.number},
             )
+        left_out = set(exclude_conversations)
+        excluded = [case.case_id for case in cases if case.source_conversation_id in left_out]
+        if excluded:
+            cases = [case for case in cases if case.source_conversation_id not in left_out]
+            if not cases:
+                raise BadRequestError(
+                    message=(
+                        f"Every case of '{dataset.name}' was taken from the conversations "
+                        "this change was derived from, so none can measure it. Add cases "
+                        "from other conversations, or pick another dataset."
+                    ),
+                    details={"dataset_id": dataset.id, "excluded": len(excluded)},
+                )
         config = scoring or DatasetScoring.model_validate(dataset.scoring)
         ai_enabled = await AiAssistanceService(self.db).is_enabled(
             organization_id=ctx.organization_id
@@ -343,15 +380,18 @@ class EvalRunService:
             )
         source, version, spec = await self._candidate(ctx, agent, request, candidate_spec)
         candidates = [
-            await self._arm(
-                ctx,
-                agent,
-                role=ArmRole.CANDIDATE,
-                source=source,
-                version=version,
-                spec=spec,
-                model_profile_id=profile_id,
-                environment_id=request.environment_id,
+            replace(
+                await self._arm(
+                    ctx,
+                    agent,
+                    role=ArmRole.CANDIDATE,
+                    source=source,
+                    version=version,
+                    spec=spec,
+                    model_profile_id=profile_id,
+                    environment_id=request.environment_id,
+                ),
+                skill_bodies=dict(candidate_skills or {}),
             )
             for profile_id in (request.model_profile_ids or [spec.model_profile_id])
         ]
@@ -378,15 +418,21 @@ class EvalRunService:
                 model_profile_id=profile_id,
                 environment_id=request.environment_id,
             )
-            cached = await self._cached(
-                ctx,
-                agent=agent,
-                dataset=dataset,
-                dataset_version=dataset_version,
-                arm=baseline,
-                scoring_hash=hashed,
-                judged=ai_enabled and (config.judge.enabled or config.reference.enabled),
-                judge_id=config.judge.agent_id,
+            # A skill's stored body is live rather than versioned, so a cached
+            # baseline may have read an older one than the body being replaced.
+            cached = (
+                None
+                if excluded or candidate_skills
+                else await self._cached(
+                    ctx,
+                    agent=agent,
+                    dataset=dataset,
+                    dataset_version=dataset_version,
+                    arm=baseline,
+                    scoring_hash=hashed,
+                    judged=ai_enabled and (config.judge.enabled or config.reference.enabled),
+                    judge_id=config.judge.agent_id,
+                )
             )
             arms.append(baseline if cached is None else replace(baseline, cached=cached))
         return RunPlan(
@@ -405,6 +451,7 @@ class EvalRunService:
             from_recordings=request.from_recordings,
             live_reads=request.live_reads,
             judged=ai_enabled and (config.judge.enabled or config.reference.enabled),
+            excluded_case_ids=excluded,
         )
 
     async def _earlier_baseline(
@@ -645,10 +692,19 @@ class EvalRunService:
         purpose: EvalRunPurpose = EvalRunPurpose.MANUAL,
         scoring: DatasetScoring | None = None,
         candidate_spec: AgentSpec | None = None,
+        exclude_conversations: Sequence[UUID] = (),
+        candidate_skills: Mapping[UUID, SkillBody] | None = None,
     ) -> EvalRunEstimate:
         """What a run would cost, against what the agent and organization have left."""
         plan = await self.plan(
-            ctx, agent_id, request, purpose=purpose, scoring=scoring, candidate_spec=candidate_spec
+            ctx,
+            agent_id,
+            request,
+            purpose=purpose,
+            scoring=scoring,
+            candidate_spec=candidate_spec,
+            exclude_conversations=exclude_conversations,
+            candidate_skills=candidate_skills,
         )
         return await self._estimate(ctx, plan)
 
@@ -803,6 +859,8 @@ class EvalRunService:
         purpose: EvalRunPurpose = EvalRunPurpose.MANUAL,
         scoring: DatasetScoring | None = None,
         candidate_spec: AgentSpec | None = None,
+        exclude_conversations: Sequence[UUID] = (),
+        candidate_skills: Mapping[UUID, SkillBody] | None = None,
     ) -> EvalRunRead:
         """Write a run and hand it to the worker - or refuse it before anything is spent.
 
@@ -811,7 +869,14 @@ class EvalRunService:
                 organization has left this month. Nothing is written.
         """
         plan = await self.plan(
-            ctx, agent_id, request, purpose=purpose, scoring=scoring, candidate_spec=candidate_spec
+            ctx,
+            agent_id,
+            request,
+            purpose=purpose,
+            scoring=scoring,
+            candidate_spec=candidate_spec,
+            exclude_conversations=exclude_conversations,
+            candidate_skills=candidate_skills,
         )
         estimate = await self._estimate(ctx, plan)
         if not estimate.affordable:
@@ -844,6 +909,7 @@ class EvalRunService:
             scoring_hash=plan.scoring_hash,
             estimate_usd=estimate.total_usd,
             rerun_ceiling_usd=estimate.rerun_ceiling_usd,
+            excluded_case_ids=plan.excluded_case_ids,
         )
         arms = [
             EvalRunArm(
@@ -853,7 +919,8 @@ class EvalRunService:
                 agent_version_id=arm.version.id if arm.version else None,
                 version_number=arm.version.version if arm.version else None,
                 spec=None if arm.version else arm.spec.model_dump(mode="json"),
-                spec_hash=spec_hash(arm.spec),
+                spec_hash=spec_hash(arm.spec, arm.skill_bodies),
+                skill_bodies=_bodies_json(arm.skill_bodies) if arm.skill_bodies else None,
                 model_profile_id=arm.model_profile_id,
                 model_label=arm.model_label,
                 reused_from_arm_id=arm.cached[0].id if arm.cached else None,
@@ -1229,6 +1296,7 @@ class EvalRunService:
                         model_label=arm.model_label,
                         reused_from_arm_id=arm.reused_from_arm_id,
                         spec_hash=arm.spec_hash,
+                        skill_ids=[UUID(skill_id) for skill_id in arm.skill_bodies or {}],
                         summary=_summary_read(summary),
                         by_tag={tag: _summary_read(s) for tag, s in summary.by_tag.items()},
                         ungraded_cases=[
@@ -1301,6 +1369,7 @@ class EvalRunService:
                         ),
                         None,
                     ),
+                    excluded_case_ids=list(run.excluded_case_ids or []),
                     ungraded_score_ids=sorted(
                         borrowed | {score.id for score in scores.values() if _not_graded(score)}
                     ),
