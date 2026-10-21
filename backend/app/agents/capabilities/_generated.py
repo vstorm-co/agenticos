@@ -64,6 +64,7 @@ async def store_generated(ctx: RunContext[AgentDeps], data: bytes, *, filename: 
     if organization_id is not None:
         stored = await save_generated_media(organization_id, data, filename=filename)
         url = generated_media_url(stored)
+        ctx.deps.generated_files.add(stored)
 
     workspace_path: str | None = None
     if ctx.workspace.attached:

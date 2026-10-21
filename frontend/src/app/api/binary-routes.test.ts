@@ -293,6 +293,18 @@ describe("reading a generated image back", () => {
     expect(response.headers.get("accept-ranges")).toBe("bytes");
   });
 
+  it("passes a range the file cannot satisfy back as 416 with its length", async () => {
+    serve(null, { status: 416, headers: { "content-range": "bytes */4" } });
+    const ranged = new NextRequest("http://localhost:3000/api/generated/abc123_video.mp4", {
+      headers: { cookie: "access_token=at", range: "bytes=9-" },
+    });
+
+    const response = await readGeneratedImage(ranged, params);
+
+    expect(response.status).toBe(416);
+    expect(response.headers.get("content-range")).toBe("bytes */4");
+  });
+
   it("asks for the whole file when the browser asked for no range", async () => {
     serve("bytes", { headers: { "content-type": "image/png" } });
 

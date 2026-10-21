@@ -57,6 +57,14 @@ _KEY_REFUSED = "api_key_invalid"
 _QUOTA_SPENT = "quota_exceeded"
 """ElevenLabs' reason for a spent quota, which it answers 401 rather than 429."""
 
+_VOICE_MISSING = "voice_not_found"
+"""ElevenLabs' reason for a voice the account no longer has, which it answers 400."""
+
+LOGGED_BODY_CHARACTERS = 200
+"""How much of a provider's error body is logged. Enough for its error code; short
+of the text it may echo back, which is somebody's words, or a key in a format the
+log redaction does not know."""
+
 
 def _failure_for(status: int, body: str) -> SpeechFailure:
     """What kind of failure this was, from the status and the provider's reason.
@@ -70,10 +78,12 @@ def _failure_for(status: int, body: str) -> SpeechFailure:
         return SpeechFailure.CREDENTIALS
     if status == 429 or _QUOTA_SPENT in lowered:
         return SpeechFailure.RATE_LIMITED
-    if status in (401, 403):
-        return SpeechFailure.CREDENTIALS
-    if status == 404:
+    if status == 404 or _VOICE_MISSING in lowered:
         return SpeechFailure.NOT_FOUND
+    if status in (401, 402, 403):
+        # 402 is a plan the account lacks: the key's owner has to act, as for a
+        # refused key, and no rewording of the text will help.
+        return SpeechFailure.CREDENTIALS
     if status == 408:
         return SpeechFailure.UNAVAILABLE
     if 400 <= status < 500:
@@ -85,7 +95,7 @@ def _raise_for(call: SpeechCall, response: httpx.Response) -> None:
     """Refuse a non-2xx answer, logging what the provider said and keeping it out."""
     if response.is_success:
         return
-    body = response.text[:2000]
+    body = response.text[:LOGGED_BODY_CHARACTERS]
     logger.warning(
         "Speech request to %s for model %s failed (%s): %s",
         call.provider,

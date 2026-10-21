@@ -1,5 +1,5 @@
 ---
-source_sha: "886487e9576f"
+source_sha: "e2ff0b27c4e5"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1151,6 +1151,12 @@ ya dichos. Los modelos que facturan por tokens tienen un precio por carácter de
 habla típica. Un precio fechado entra en vigor ese día: así queda registrada la
 duplicación de precios de Gemini el 01-01-2027.
 
+**Se registra mientras se dice, un clip cada vez.** Cada trozo de un texto largo
+se registra cuando llega su audio, así que un fallo o un run cancelado a medias
+sigue registrando los trozos que volvieron. La comprobación del budget no reserva
+nada, así que la herramienta hace una llamada cada vez. `instructions` tiene un
+límite de 1000 caracteres, va al provider con cada trozo y no se tarifica.
+
 **Tiene efectos secundarios**, por las mismas razones que la generación de
 imágenes: gasta dinero y produce una grabación que alguien puede publicar.
 
@@ -1168,9 +1174,11 @@ nunca llega al modelo.
 Crea un clip corto con el provider de vídeo que elige el autor y se comporta como
 la generación de imágenes: el clip se guarda, aparece en la conversación como
 reproductor y se escribe en `output/` cuando hay un workspace abierto (#2260).
-Puede empezar desde una imagen: el `filename` que devolvió `generate_image` en la
-misma conversación o una ruta del workspace, reconocida por sus bytes y no por su
-nombre.
+Puede empezar desde una imagen: el `filename` que devolvió `generate_image` en el
+mismo run o una ruta del workspace, donde una imagen generada también queda en
+`output/`, reconocida por sus bytes y no por su nombre. Un nombre de fichero por sí
+solo nunca llega a los ficheros generados de la organización: el run tiene que
+haber hecho la imagen.
 
 | Configuración | Por defecto | Valores |
 |---|---|---|

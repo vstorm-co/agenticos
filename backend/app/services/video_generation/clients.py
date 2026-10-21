@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
+import logfire
 
 from app.services.video_generation.exceptions import VideoFailure, VideoProviderError
 
@@ -44,12 +45,14 @@ POLL_SECONDS = {
     "xai_videos": 5.0,
     "dashscope_tasks": 15.0,
     "gemini_files": 3.0,
+    "download": 3.0,
 }
 """How long to wait between polls, per API. Alibaba asks for no more than one
 poll in fifteen seconds of a long job; the others take a status read every few."""
 
 POLL_REQUEST_SECONDS = 30.0
-"""The longest one status read may take; never past the job's own deadline."""
+"""The longest one status read, or one wait for a downloaded chunk, may take -
+never past the job's own deadline."""
 
 DOWNLOAD_GRACE_SECONDS = 120.0
 """How far past the job's deadline the download of a finished clip may run. A clip
@@ -57,7 +60,13 @@ done at the last moment is worth fetching; one trickling in for ever is not."""
 
 MAX_REDIRECTS = 5
 
-_POLICY_MARKERS = ("sensitive", "policyviolation", "datainspection", "ipinfringement", "moderation")
+_POLICY_MARKERS = (
+    "sensitivecontent",
+    "policyviolation",
+    "datainspection",
+    "ipinfringement",
+    "moderation",
+)
 """Fragments of a provider's error code that mean its content policy refused."""
 
 _KEY_MARKERS = ("api_key_invalid", "invalid api key", "invalidapikey")
@@ -115,14 +124,39 @@ async def _pause(seconds: float) -> None:
     await asyncio.sleep(seconds)
 
 
+LOGGED_TEXT_CHARACTERS = 200
+"""How much of a provider's error body or code is logged: enough for its code,
+short of a prompt it may echo back or a key in a format redaction does not know."""
+
+_TRANSIENT_STATUSES = frozenset({408, 429, 500, 502, 503, 504})
+"""Answers that say nothing about the request, only about the moment."""
+
+_TRANSIENT_ERRORS = (
+    httpx.TimeoutException,
+    httpx.ConnectError,
+    httpx.ReadError,
+    httpx.RemoteProtocolError,
+    httpx.DecodingError,
+)
+"""Transport failures worth another try. A proxy refusing, or a scheme the client
+cannot speak, is not one: retrying it only spends the deadline."""
+
+
 def _failure_for(status: int, body: str) -> VideoFailure:
+    """What kind of failure an answer was, the status first and the body second.
+
+    A rate limit or an outage is that whatever its body says - a 500 that echoes
+    "invalid api key" back must not tell the operator to rotate a working key - so
+    the reason markers are read only on a 4xx, and the key marker only on a 400,
+    which is how Gemini answers a bad key.
+    """
     lowered = body.lower()
-    if status in (401, 403) or any(marker in lowered for marker in _KEY_MARKERS):
-        return VideoFailure.CREDENTIALS
     if status == 429:
         return VideoFailure.RATE_LIMITED
-    if status == 408:
+    if status == 408 or status >= 500:
         return VideoFailure.UNAVAILABLE
+    if status in (401, 403) or (status == 400 and any(m in lowered for m in _KEY_MARKERS)):
+        return VideoFailure.CREDENTIALS
     if 400 <= status < 500:
         if any(marker in lowered for marker in _POLICY_MARKERS):
             return VideoFailure.POLICY
@@ -134,7 +168,7 @@ def _raise_for(call: VideoCall, response: httpx.Response) -> None:
     """Refuse a non-2xx answer, logging what the provider said and keeping it out."""
     if response.is_success:
         return
-    body = response.text[:2000]
+    body = response.text[:LOGGED_TEXT_CHARACTERS]
     logger.warning(
         "Video request to %s for model %s failed (%s): %s",
         call.provider,
@@ -182,7 +216,12 @@ def _storage_url(call: VideoCall, value: object) -> httpx.URL:
 
 def _job_failure(call: VideoCall, code: object) -> VideoProviderError:
     """A job the provider marked failed, by the error code it gave."""
-    logger.warning("Video job at %s for model %s failed: %s", call.provider, call.model, code)
+    logger.warning(
+        "Video job at %s for model %s failed: %s",
+        call.provider,
+        call.model,
+        str(code)[:LOGGED_TEXT_CHARACTERS],
+    )
     lowered = str(code or "").lower()
     if any(marker in lowered for marker in _POLICY_MARKERS):
         return VideoProviderError(VideoFailure.POLICY, provider=call.provider)
@@ -209,32 +248,51 @@ async def _download(
 
     Redirects are followed here rather than by httpx, which strips only an
     `Authorization` header on the way to another host: Gemini's key travels as
-    `x-goog-api-key`, so it would reach whatever storage host the download
-    redirects to. The key goes to the first address only, every hop must be https,
-    and the whole fetch ends a grace period after the job's own deadline.
+    `x-goog-api-key`. The key stays while a hop keeps the first address's scheme,
+    host and port, and is dropped for good at the first one that does not; every
+    hop must be https. A transient failure is tried again, since the clip is
+    finished and billed, until a grace period after the job's own deadline.
+
+    The fetch is kept out of tracing: a provider's clip address is signed, and a
+    span recording it would let anybody with the traces download the clip while
+    the signature lasts.
     """
+    origin = (url.scheme, url.host, url.port)
     sent = headers or {}
     loop = asyncio.get_running_loop()
     ends = deadline + DOWNLOAD_GRACE_SECONDS
-
-    def overdue() -> None:
-        if loop.time() > ends:
-            raise TimeoutError
-
-    try:
-        # The timeout catches a host that stops answering; the checks below, one
-        # that keeps trickling bytes or redirecting.
-        async with asyncio.timeout_at(ends):
-            for _ in range(MAX_REDIRECTS + 1):
-                overdue()
-                async with client.stream("GET", url, headers=sent) as response:
-                    if response.is_redirect:
-                        url = _storage_url(
-                            call, str(url.join(response.headers.get("location", "")))
-                        )
-                        sent = {}
+    redirects = 0
+    with logfire.suppress_instrumentation():
+        while True:
+            if loop.time() > ends:
+                raise VideoProviderError(VideoFailure.TIMED_OUT, provider=call.provider)
+            try:
+                async with client.stream(
+                    "GET",
+                    url,
+                    headers=sent,
+                    timeout=max(min(POLL_REQUEST_SECONDS, ends - loop.time()), 1.0),
+                ) as response:
+                    if response.has_redirect_location:
+                        redirects += 1
+                        if redirects > MAX_REDIRECTS:
+                            logger.warning(
+                                "Video download from %s redirected too often", call.provider
+                            )
+                            raise VideoProviderError(
+                                VideoFailure.UNAVAILABLE, provider=call.provider
+                            )
+                        url = _storage_url(call, str(url.join(response.headers["location"])))
+                        if (url.scheme, url.host, url.port) != origin:
+                            sent = {}
                         continue
-                    if not response.is_success:
+                    if response.status_code in _TRANSIENT_STATUSES:
+                        logger.warning(
+                            "Video download from %s answered %s; trying again",
+                            call.provider,
+                            response.status_code,
+                        )
+                    elif not response.is_success:
                         # A signed address that expired or is refused says nothing
                         # about the key: the storage host never saw it.
                         logger.warning(
@@ -247,16 +305,25 @@ async def _download(
                             provider=call.provider,
                             status=response.status_code,
                         )
-                    data = bytearray()
-                    async for chunk in response.aiter_bytes():
-                        data.extend(chunk)
-                        if len(data) > MAX_BYTES:
-                            raise _unusable(call)
-                        overdue()
-                    return bytes(data)
-    except TimeoutError:
-        raise VideoProviderError(VideoFailure.TIMED_OUT, provider=call.provider) from None
-    raise _unusable(call)
+                    else:
+                        data = bytearray()
+                        async for chunk in response.aiter_bytes():
+                            data.extend(chunk)
+                            if len(data) > MAX_BYTES:
+                                raise _unusable(call)
+                            if loop.time() > ends:
+                                raise VideoProviderError(
+                                    VideoFailure.TIMED_OUT, provider=call.provider
+                                )
+                        return bytes(data)
+            except _TRANSIENT_ERRORS:
+                logger.warning(
+                    "Video download from %s failed in transit; trying again", call.provider
+                )
+            remaining = ends - loop.time()
+            if remaining <= 0:
+                raise VideoProviderError(VideoFailure.TIMED_OUT, provider=call.provider)
+            await _pause(min(POLL_SECONDS["download"], remaining))
 
 
 async def _poll(
@@ -272,35 +339,43 @@ async def _poll(
 ) -> dict[str, Any]:
     """Read a job's status until it settles, or cancel it once the deadline passes.
 
-    A status read that times out, cannot connect, or is answered 5xx or 429 says
-    nothing about the job, which is still running and billed: it is read again
-    until the deadline rather than abandoned - abandoning it would tell the model
-    to start a second, billed job. A read the provider refuses for another reason
-    ends the poll.
+    A read that fails for the moment - a transient transport error, a 408, 429 or
+    5xx gateway status, or a 2xx that is not JSON - says nothing about the job,
+    which is still running and billed: it is read again until the deadline rather
+    than abandoned, which would tell the model to start a second, billed job. Any
+    other refusal ends the poll at once.
     """
     loop = asyncio.get_running_loop()
+    cause = "no answer"
     while True:
         remaining = deadline - loop.time()
         try:
             response = await client.get(
                 url, headers=headers, timeout=max(min(POLL_REQUEST_SECONDS, remaining), 1.0)
             )
-        except httpx.TransportError:
-            logger.info("Status read at %s failed in transit; reading again", call.provider)
+        except _TRANSIENT_ERRORS as failed:
+            cause = type(failed).__name__
+            logger.warning("Status read at %s failed (%s); reading again", call.provider, cause)
         else:
-            if response.status_code == 429 or response.status_code >= 500:
-                logger.info(
-                    "Status read at %s answered %s; reading again",
-                    call.provider,
-                    response.status_code,
-                )
+            if response.status_code in _TRANSIENT_STATUSES:
+                cause = str(response.status_code)
+                logger.warning("Status read at %s answered %s; reading again", call.provider, cause)
             else:
                 _raise_for(call, response)
-                payload = _json(call, response)
-                if settled(payload):
-                    return payload
+                try:
+                    payload = response.json()
+                except ValueError:
+                    cause = "not JSON"
+                    logger.warning("Status read at %s was not JSON; reading again", call.provider)
+                else:
+                    if not isinstance(payload, dict):
+                        raise _unusable(call)
+                    if settled(payload):
+                        return payload
+                    cause = "still running"
         remaining = deadline - loop.time()
         if remaining <= 0:
+            logger.warning("Video job at %s ran past its deadline (%s)", call.provider, cause)
             if cancel is not None:
                 await cancel()
             raise VideoProviderError(VideoFailure.TIMED_OUT, provider=call.provider)
@@ -368,6 +443,9 @@ async def gemini_interactions(client: httpx.AsyncClient, call: VideoCall, deadli
     if video is None:
         raise _unusable(call)
     if isinstance(video.get("data"), str):
+        # Bounded before it is decoded, as a download is while it streams.
+        if len(video["data"]) * 3 // 4 > MAX_BYTES:
+            raise _unusable(call)
         try:
             return Clip(data=base64.b64decode(video["data"], validate=True), seconds=None)
         except binascii.Error:
@@ -500,9 +578,10 @@ async def xai_videos(client: httpx.AsyncClient, call: VideoCall, deadline: float
         error = job.get("error")
         raise _job_failure(call, error.get("code") if isinstance(error, dict) else "")
     video = _dict(call, job.get("video"))
-    if not video.get("url"):
+    if "url" in video and not video["url"]:
         # `respect_moderation: false` comes back done with an empty address: the
-        # clip was made and withheld by xAI's own moderation.
+        # clip was made and withheld by xAI's own moderation. An answer with no
+        # address field at all is malformed, not moderated.
         raise VideoProviderError(VideoFailure.POLICY, provider=call.provider)
     url = _storage_url(call, video.get("url"))
     duration = video.get("duration")

@@ -115,9 +115,8 @@ class VideoGenerationConfig(BaseModel):
                 f"{self.model} decides its own length, so a length and a longest clip have no effect."
             )
         if self.audio is not None and model.audio != "optional":
-            raise ValueError(
-                f"{self.model} has no sound setting; its clips' sound is {model.audio}."
-            )
+            has = "always have" if model.audio == "always" else "never have"
+            raise ValueError(f"{self.model} has no sound setting: its clips {has} sound.")
         for name, value in (("seconds", self.seconds), ("max_seconds", self.max_seconds)):
             if value is not None and not model.min_seconds <= value <= model.max_seconds:
                 raise ValueError(

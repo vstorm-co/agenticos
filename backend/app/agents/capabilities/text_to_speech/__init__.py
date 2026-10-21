@@ -1,6 +1,5 @@
 """Text to speech capability - speak a text aloud as an audio clip."""
 
-import re
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
@@ -12,6 +11,7 @@ from app.agents.capabilities._registry import (
 )
 from app.agents.capabilities.text_to_speech._capability import TextToSpeech
 from app.core.secret_kinds import ApiKeySecret, SecretCondition, SecretKind, SecretRequirement
+from app.services.text_to_speech import ACCOUNT_VOICE_ID
 from app.services.text_to_speech_models import (
     TextToSpeechProvider,
     by_provider,
@@ -20,10 +20,6 @@ from app.services.text_to_speech_models import (
 )
 
 __all__ = ["TextToSpeech", "TextToSpeechConfig"]
-
-_VOICE_ID = re.compile(r"[A-Za-z0-9_-]+")
-"""An account's voice id, which goes into the provider's URL path - where `.` or
-`..` would be resolved away and send the key to another endpoint."""
 
 
 class TextToSpeechConfig(BaseModel):
@@ -98,7 +94,7 @@ class TextToSpeechConfig(BaseModel):
                 raise ValueError(
                     f"{entry.name} voices belong to your account: name one by its voice id."
                 )
-            if not _VOICE_ID.fullmatch(chosen_voice):
+            if not ACCOUNT_VOICE_ID.fullmatch(chosen_voice):
                 raise ValueError(
                     f"{self.voice!r} is not a voice id: letters, digits, '-' and '_' only."
                 )

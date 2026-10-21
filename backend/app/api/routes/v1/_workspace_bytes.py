@@ -48,7 +48,9 @@ wrote it" is not a trust boundary.
 """
 
 
-_BYTE_RANGE = re.compile(r"bytes=(\d*)-(\d*)")
+_BYTE_RANGE = re.compile(r"bytes=([0-9]{0,18})-([0-9]{0,18})")
+"""One plain byte range. Eighteen digits is past any file this serves; a longer
+number is not a range to honour, and `int()` refuses one past 4,300 digits."""
 
 
 def _byte_range(header: str | None, size: int) -> tuple[int, int] | Literal[False] | None:
@@ -75,7 +77,12 @@ def _byte_range(header: str | None, size: int) -> tuple[int, int] | Literal[Fals
 
 
 def file_response(
-    data: bytes, *, path: str, download: bool, byte_range: str | None = None
+    data: bytes,
+    *,
+    path: str,
+    download: bool,
+    byte_range: str | None = None,
+    serves_ranges: bool = False,
 ) -> Response:
     """One workspace file as an HTTP response.
 
@@ -87,6 +94,8 @@ def file_response(
         byte_range: The request's `Range` header. Answered `206` with that
             slice, because a `<video>` in Safari - and in the desktop app,
             which is WebKit - plays an MP4 only from ranged responses.
+        serves_ranges: Whether the route passes `byte_range` on, which is what
+            `Accept-Ranges` promises - so only such a route sends it.
     """
     name = PurePosixPath(path).name or "file"
     suffix = PurePosixPath(path).suffix.lower()
@@ -104,7 +113,7 @@ def file_response(
         status_code=status,
         media_type=INLINE_TYPES[suffix] if inline else "application/octet-stream",
         headers={
-            "Accept-Ranges": "bytes",
+            **({"Accept-Ranges": "bytes"} if serves_ranges else {}),
             **ranged,
             "Content-Disposition": content_disposition("inline" if inline else "attachment", name),
             # Everything off the list above is typed `application/octet-stream`, and

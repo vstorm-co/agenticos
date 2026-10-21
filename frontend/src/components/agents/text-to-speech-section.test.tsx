@@ -208,6 +208,35 @@ describe("choosing what speaks", () => {
     expect(screen.getByLabelText("File format")).toBeDisabled();
   });
 
+  it("keeps an account voice id when the model changes on the same provider", async () => {
+    // ElevenLabs lists no voices - they belong to the account - so the id cannot
+    // be checked against the new model's list and must survive the switch.
+    providers.mockReturnValue({
+      providers: [
+        OPENAI,
+        {
+          ...ELEVENLABS,
+          models: [
+            ...ELEVENLABS.models,
+            { ...ELEVENLABS.models[0], id: "eleven_v4", name: "Eleven v4" },
+          ],
+        },
+      ],
+      isLoading: false,
+      isError: false,
+    });
+    const onChange = mount({ provider: "elevenlabs", model: "eleven_v4_turbo", voice: "JBFq" });
+
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(await screen.findByRole("option", { name: /^Eleven v4Top/ }));
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        config: { provider: "elevenlabs", model: "eleven_v4", voice: "JBFq" },
+      }),
+    );
+  });
+
   it("keeps the voice when only the model changes", async () => {
     const onChange = mount({ provider: "openai", model: "gpt-4o-mini-tts", voice: "alloy" });
 

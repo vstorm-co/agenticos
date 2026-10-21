@@ -29,15 +29,13 @@ from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel, ValidationError
-from pydantic_ai.messages import ModelRequest, ToolReturnPart
 from pydantic_ai.tools import RunContext
 from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai.workspaces import WorkspaceError
 
 from app.agents.capabilities._failures import steer
-from app.agents.capabilities._generated import store_generated
+from app.agents.capabilities._generated import WORKSPACE_OUTPUT_DIR, store_generated
 from app.agents.capabilities.budget import can_afford_ambient_call, record_ambient_cost
-from app.agents.capabilities.image_generation._toolset import parse_generated_image
 from app.agents.deps import AgentDeps
 from app.core.exceptions import NotFoundError
 from app.services.file_storage import sniff_image_header
@@ -96,59 +94,39 @@ def parse_generated_video(result: str) -> GeneratedVideo | None:
     return payload if payload.kind == "generated_video" else None
 
 
-def _generated_in_conversation(ctx: RunContext[AgentDeps], leaf: str) -> bool:
-    """Whether `generate_image` handed back this file earlier in the conversation.
-
-    The generated store is organization-wide, and an agent can be driven by
-    somebody who is not a member - a channel participant, a widget visitor, text
-    the agent read. Reaching the store only through an image this conversation
-    produced keeps a leaked file name from another chat from being sent to a
-    provider. A parsed result, not a mention: a fetched page that quotes a file
-    name is not that file's having been made here.
-    """
-    for message in ctx.messages:
-        if not isinstance(message, ModelRequest):
-            continue
-        for part in message.parts:
-            if not isinstance(part, ToolReturnPart) or not isinstance(part.content, str):
-                continue
-            image = parse_generated_image(part.content)
-            if image is not None and image.filename == leaf:
-                return True
-    return False
-
-
 async def _frame_bytes(ctx: RunContext[AgentDeps], source: str) -> bytes | str:
     """The named file's bytes, or a sentence saying why there are none.
 
-    An image made in this conversation is looked for first - a bare leaf name is
-    what `generate_image` hands back - then the workspace, whose file size is read
-    before its bytes, so a large file is refused without being loaded.
+    An image this run's own tools generated is looked for first - a bare leaf name
+    is what `generate_image` hands back - and only those: the store is
+    organization-wide and the run may be driven by somebody who is not a member,
+    so a leaf name somebody supplies, or that any other tool's output quotes, is
+    never enough. Then the workspace, where a generated image is also kept under
+    `output/` - which is how an image from an earlier turn is reached. A workspace
+    file's size is read before its bytes, so a large one is refused unread.
     """
     organization_id = ctx.deps.organization_id
-    if (
-        organization_id is not None
-        and "/" not in source
-        and _generated_in_conversation(ctx, source)
-    ):
+    if organization_id is not None and source in ctx.deps.generated_files:
         try:
             return await load_generated_media(organization_id, source)
         except NotFoundError:
             pass
     if ctx.workspace.attached:
-        try:
-            entry = await ctx.workspace.stat(source)
-            if entry.size is not None and entry.size > MAX_FRAME_BYTES:
-                return _too_large(source)
-            return await ctx.workspace.read_bytes(source)
-        except (FileNotFoundError, IsADirectoryError, NotADirectoryError):
-            pass
-        except PermissionError:
-            return f"Reading {source!r} from your workspace was refused."
-        except WorkspaceError as failed:
-            return f"Reading {source!r} from your workspace failed: {failed}"
+        candidates = [source] if "/" in source else [source, f"{WORKSPACE_OUTPUT_DIR}/{source}"]
+        for path in candidates:
+            try:
+                entry = await ctx.workspace.stat(path)
+                if entry.size is not None and entry.size > MAX_FRAME_BYTES:
+                    return _too_large(source)
+                return await ctx.workspace.read_bytes(path)
+            except (FileNotFoundError, IsADirectoryError, NotADirectoryError):
+                continue
+            except PermissionError:
+                return f"Reading {source!r} from your workspace was refused."
+            except WorkspaceError as failed:
+                return f"Reading {source!r} from your workspace failed: {failed}"
     return (
-        f"There is no image called {source!r} generated in this conversation"
+        f"There is no image called {source!r} generated in this run"
         + (" or in your workspace." if ctx.workspace.attached else ".")
         + " Use the `filename` generate_image returned, or a workspace path."
     )
@@ -205,12 +183,14 @@ def build_video_toolset(
         Args:
             prompt: What the video shows, as a director would describe the shot.
             seconds: How long it runs. Left out, the agent's usual length. A length
-                outside what the model makes is refused with the range stated.
+                outside what the model makes is refused with the range stated;
+                a model that decides its own length ignores it.
             aspect_ratio: The shape, such as "16:9" or "9:16". Left out, the
                 agent's usual shape.
             first_frame: An image to start from - the `filename` generate_image
-                returned in this conversation, or a path in your workspace. PNG,
-                JPEG or WebP.
+                returned in this run, or a path in your workspace (where a
+                generated image is also kept, under `output/`). PNG, JPEG or
+                WebP.
 
         Returns:
             A JSON reference to the clip, already on its way to the user. Or, where

@@ -1,5 +1,5 @@
 ---
-source_sha: "886487e9576f"
+source_sha: "e2ff0b27c4e5"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1137,6 +1137,12 @@ wypowiedziane. Modele rozliczane w tokenach mają cenę za znak typowej mowy.
 Datowana cena działa od swojego dnia - tak zapisane jest podwojenie cen Gemini
 1.01.2027.
 
+**Księgowane w trakcie mówienia, jedno nagranie naraz.** Każdy kawałek długiego
+tekstu jest księgowany, gdy przychodzi jego audio, więc błąd albo anulowany run w
+połowie wciąż księguje kawałki, które wróciły. Sprawdzenie budgetu niczego nie
+rezerwuje, więc narzędzie wykonuje jedno wywołanie naraz. `instructions` ma limit
+1000 znaków, trafia do providera z każdym kawałkiem i nie jest wyceniane.
+
 **Ma skutki uboczne**, z tych samych powodów co generowanie obrazów: wydaje
 pieniądze i tworzy nagranie, które ktoś może opublikować.
 
@@ -1153,8 +1159,10 @@ operator. Własny tekst błędu providera jest logowany i nigdy nie trafia do mo
 Tworzy krótki klip przez providera wideo wybranego przez autora i zachowuje się
 jak generowanie obrazów: klip jest zapisywany, pokazywany w rozmowie jako
 odtwarzacz i zapisywany w `output/`, gdy workspace jest otwarty (#2260). Może
-zacząć od obrazu - `filename` zwróconego przez `generate_image` w tej samej
-rozmowie albo ścieżki w workspace - rozpoznanego po bajtach, a nie po nazwie.
+zacząć od obrazu - `filename` zwróconego przez `generate_image` w tym samym runie
+albo ścieżki w workspace, gdzie wygenerowany obraz leży też w `output/` -
+rozpoznanego po bajtach, a nie po nazwie. Sama nazwa pliku nigdy nie sięga do
+wygenerowanych plików organizacji: run musi sam zrobić ten obraz.
 
 | Konfiguracja | Domyślnie | Wartości |
 |---|---|---|

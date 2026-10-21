@@ -1,5 +1,5 @@
 ---
-source_sha: "886487e9576f"
+source_sha: "e2ff0b27c4e5"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1202,6 +1202,13 @@ mittendrin auch die bereits gesprochenen Stücke. Token-abgerechnete Modelle hab
 einen Preis pro Zeichen typischer Sprache. Ein datierter Preis gilt ab seinem Tag
 - so ist die Verdopplung der Gemini-Preise am 01.01.2027 erfasst.
 
+**Gebucht beim Sprechen, ein Clip nach dem anderen.** Jedes Stück eines langen
+Textes wird gebucht, sobald sein Audio ankommt, sodass ein Fehler oder ein
+abgebrochener Run mittendrin die zurückgekommenen Stücke trotzdem bucht. Die
+Budget-Prüfung reserviert nichts, also führt das Tool einen Aufruf nach dem
+anderen aus. `instructions` ist auf 1.000 Zeichen begrenzt, geht mit jedem Stück
+an den Provider und wird nicht bepreist.
+
 **Sie hat Nebenwirkungen**, aus denselben Gründen wie die Bilderzeugung: Sie gibt
 Geld aus und erzeugt eine Aufnahme, die jemand veröffentlichen kann.
 
@@ -1220,8 +1227,10 @@ Erzeugt einen kurzen Clip über einen Video-Provider, den der Autor wählt, und
 verhält sich wie die Bilderzeugung: Der Clip wird gespeichert, im Gespräch als
 Player gezeigt und unter `output/` abgelegt, wenn ein Workspace offen ist (#2260).
 Er kann mit einem Bild beginnen - dem `filename`, den `generate_image` im selben
-Gespräch zurückgab, oder einem Pfad im Workspace -, erkannt an seinen Bytes, nicht
-am Namen.
+Run zurückgab, oder einem Pfad im Workspace, wo ein erzeugtes Bild auch unter
+`output/` liegt -, erkannt an seinen Bytes, nicht am Namen. Ein Dateiname allein
+erreicht nie die erzeugten Dateien der Organisation: Der Run muss das Bild selbst
+gemacht haben.
 
 | Konfiguration | Standard | Werte |
 |---|---|---|

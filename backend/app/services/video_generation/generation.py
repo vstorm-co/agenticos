@@ -19,10 +19,10 @@ from app.services.video_models import VideoProvider
 logger = logging.getLogger(__name__)
 
 REQUEST_SECONDS = 60.0
-"""How long one HTTP request may take - a submit, a status read, a download.
-
-The whole job is bounded by the caller's deadline instead; Gemini, which answers
-in the submitting request itself, is given the rest of that deadline."""
+"""The client's default timeout for each phase of a request - connecting, sending,
+the wait between two chunks of an answer. A status read and a download use
+shorter, deadline-bound timeouts of their own; Gemini, which answers in the
+submitting request itself, is given the rest of the job's deadline."""
 
 
 async def generate_video(

@@ -1077,6 +1077,12 @@ booked; on a failure partway through, the pieces already spoken are booked too.
 Token-billed models are priced per character of typical speech. A dated price
 takes effect on its day, which is how Gemini's doubling on 2027-01-01 is recorded.
 
+**Booked as it is spoken, one clip at a time.** Each piece of a long text is
+booked as its audio arrives, so a failure or a cancelled run partway through
+still books the pieces that came back. The budget check reserves nothing, so the
+tool runs one call at a time. `instructions` is capped at 1,000 characters,
+goes to the provider with every piece, and is not priced.
+
 **It is side-effecting**, for the reasons image generation is: it spends money and
 produces a recording a person may publish.
 
@@ -1093,8 +1099,10 @@ provider's own error text is logged and never reaches the model.
 Makes a short clip through a video provider the author picks, and behaves as
 image generation does: the clip is stored, shown in the conversation as a player,
 and written under `output/` when a workspace is open (#2260). It can start from an
-image - the `filename` `generate_image` returned in the same conversation, or a
-workspace path - typed by its bytes, not its name.
+image - the `filename` `generate_image` returned in the same run, or a workspace
+path, where a generated image is also kept under `output/` - typed by its bytes,
+not its name. A file name alone never reaches the organization's generated files:
+the run must have made the image itself.
 
 | Config | Default | Values |
 |---|---|---|
