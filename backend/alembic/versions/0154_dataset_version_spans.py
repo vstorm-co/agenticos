@@ -17,8 +17,8 @@ differently afterwards would quietly change what an eval run compared.
 The downgrade rebuilds the membership rows from the three columns, one row per
 version a revision is held by, and drops them. It first refuses when an
 organization's history needs more rows than the code it returns to allows -
-`DATASET_MAX_VERSION_ROWS_PER_ORG`, read from the environment as that code reads
-it - since history that stores only its changes can describe far more versions
+`DATASET_MAX_VERSION_ROWS_PER_ORG`, read from the settings that code reads it
+from - since history that stores only its changes can describe far more versions
 than the old table could hold, and writing them all could fill the disk.
 
 Revision ID: 0154_dataset_version_spans
@@ -26,12 +26,12 @@ Revises: 0151_eval_suites
 Create Date: 2026-10-21
 """
 
-import os
 from collections.abc import Sequence
 
 import sqlalchemy as sa
 
 from alembic import op
+from app.core.config import settings
 
 revision: str = "0154_dataset_version_spans"
 down_revision: str | None = "0151_eval_suites"
@@ -162,7 +162,7 @@ def upgrade() -> None:
 
 
 def _refuse_an_unholdable_history() -> None:
-    ceiling = int(os.environ.get("DATASET_MAX_VERSION_ROWS_PER_ORG", "5000000"))
+    ceiling = settings.DATASET_MAX_VERSION_ROWS_PER_ORG
     largest = op.get_bind().execute(sa.text(_LARGEST_HISTORY)).first()
     if largest is not None and largest.rows > ceiling:
         raise RuntimeError(
