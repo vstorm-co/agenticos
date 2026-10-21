@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiClient } from "@/lib/api-client";
@@ -104,6 +105,17 @@ export function useSkillAuthoring(skillId: string, { enabled = true } = {}) {
     enabled,
     refetchInterval: (current) => (working(current.state.data?.[0]) ? AUTHORING_POLL_MS : false),
   });
+  // The change it proposes is written when the request finishes, not when it is
+  // queued, so the waiting changes are read again once the one being worked on ends.
+  const latest = query.data?.[0];
+  const workingOn = latest !== undefined && working(latest) ? latest.id : null;
+  const watched = useRef<string | null>(null);
+  useEffect(() => {
+    if (watched.current !== null && watched.current !== workingOn) {
+      void queryClient.invalidateQueries({ queryKey: qk.skillChanges.all() });
+    }
+    watched.current = workingOn;
+  }, [workingOn, queryClient]);
   const estimate = useMutation({
     mutationFn: (body: AuthoringStart) =>
       apiClient.post<AuthoringEstimate>(`/skills/${skillId}/authoring/estimate`, body),
@@ -111,11 +123,7 @@ export function useSkillAuthoring(skillId: string, { enabled = true } = {}) {
   const start = useMutation({
     mutationFn: (body: AuthoringStart) =>
       apiClient.post<AuthoringRequest>(`/skills/${skillId}/authoring`, body),
-    onSuccess: () =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: qk.authoring.all() }),
-        queryClient.invalidateQueries({ queryKey: qk.skillChanges.all() }),
-      ]),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.authoring.all() }),
   });
   const checkEstimate = useMutation({
     mutationFn: (body: ProposalCheck) =>

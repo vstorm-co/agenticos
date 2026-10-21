@@ -99,6 +99,24 @@ describe("useSkillAuthoring", () => {
     ]);
   });
 
+  it("reads the waiting changes again when the request it is on finishes", async () => {
+    const running = authoringRequest({ id: "r-1", status: "running" });
+    vi.mocked(apiClient.get).mockResolvedValue([running]);
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    const { result } = renderHook(() => useSkillAuthoring("skill-1"), { wrapper });
+    await waitFor(() => expect(result.current.latest?.status).toBe("running"));
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: qk.skillChanges.all() });
+
+    vi.mocked(apiClient.get).mockResolvedValue([{ ...running, status: "completed" }]);
+    await act(async () => {
+      await client.refetchQueries({ queryKey: qk.authoring.skill("skill-1") });
+    });
+
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.skillChanges.all() }),
+    );
+  });
+
   it("answers nothing before it reads", () => {
     const { result } = renderHook(() => useSkillAuthoring("skill-1", { enabled: false }), {
       wrapper,
