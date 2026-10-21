@@ -20,7 +20,7 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.exc import IntegrityError
 
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
@@ -36,7 +36,7 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
 from app.db.models.user import User
 from app.repositories import dataset_repo, project_repo
-from app.repositories._visibility import reached_by_scope
+from app.repositories._visibility import reached_by_scope, shared_with_caller, visible_to_caller
 from app.schemas.dataset import (
     DatasetCaseCreate,
     DatasetCaseFromMessage,
@@ -1111,6 +1111,122 @@ async def test_the_editable_predicate_admits_exactly_what_resolve_access_does(
         row.id for row in rows if _scope_allows(scope, row, owner.user_id) or row.id == granted
     }
     assert admitted == expected
+
+
+async def _every_shape(db, owner: AuthContext) -> list[Dataset]:
+    """One dataset per owner - the caller, somebody else, nobody - and per visibility.
+
+    In the order they are built: the caller's private, team and org rows, then
+    somebody else's, then the ownerless ones.
+    """
+    other = await _user(db)
+    rows = [
+        Dataset(
+            organization_id=owner.organization_id,
+            owner_user_id=row_owner,
+            visibility=visibility,
+            name=f"{label}-{visibility}",
+        )
+        for label, row_owner in (("mine", owner.user_id), ("theirs", other.id), ("nobody", None))
+        for visibility in ("private", "team", "org")
+    ]
+    db.add_all(rows)
+    await db.flush()
+    return rows
+
+
+async def _admitted(db, owner: AuthContext, predicate: ColumnElement[bool]) -> set[uuid.UUID]:
+    return set(
+        await db.scalars(
+            select(Dataset.id).where(Dataset.organization_id == owner.organization_id, predicate)
+        )
+    )
+
+
+@pytest.mark.parametrize("scope", list(Scope))
+async def test_the_editable_predicate_without_a_grant_admits_what_the_scope_alone_does(
+    db, scope: Scope
+) -> None:
+    owner = await _owner(db)
+    rows = await _every_shape(db, owner)
+
+    admitted = await _admitted(
+        db,
+        owner,
+        reached_by_scope(
+            Dataset.owner_user_id,
+            Dataset.visibility,
+            Dataset.id,
+            scope=scope,
+            user_id=owner.user_id,
+            granted_ids=[],
+        ),
+    )
+
+    assert admitted == {row.id for row in rows if _scope_allows(scope, row, owner.user_id)}
+
+
+@pytest.mark.parametrize("granting", [False, True])
+async def test_the_visible_predicate_admits_what_a_shared_scope_or_a_grant_does(
+    db, granting: bool
+) -> None:
+    """Own, org-visible or granted: `_scope_allows` at `shared`, and the grant beside it."""
+    owner = await _owner(db)
+    rows = await _every_shape(db, owner)
+    # Somebody else's team row: nothing but a grant reaches it.
+    granted = [rows[4].id] if granting else []
+
+    admitted = await _admitted(
+        db,
+        owner,
+        visible_to_caller(
+            Dataset.owner_user_id,
+            Dataset.visibility,
+            Dataset.id,
+            user_id=owner.user_id,
+            shared_ids=granted,
+        ),
+    )
+
+    expected = {
+        row.id
+        for row in rows
+        if _scope_allows(Scope.SHARED, row, owner.user_id) or row.id in granted
+    }
+    assert admitted == expected
+    assert (rows[4].id in admitted) is granting
+
+
+@pytest.mark.parametrize("granting", [False, True])
+async def test_the_shared_predicate_admits_what_is_visible_and_not_the_callers_own(
+    db, granting: bool
+) -> None:
+    owner = await _owner(db)
+    rows = await _every_shape(db, owner)
+    # The caller's own team row, and an ownerless private one: a grant on the
+    # first does not make it shared with them, and nobody's row is not theirs.
+    granted = [rows[1].id, rows[6].id] if granting else []
+
+    admitted = await _admitted(
+        db,
+        owner,
+        shared_with_caller(
+            Dataset.owner_user_id,
+            Dataset.visibility,
+            Dataset.id,
+            user_id=owner.user_id,
+            shared_ids=granted,
+        ),
+    )
+
+    expected = {
+        row.id
+        for row in rows
+        if (_scope_allows(Scope.SHARED, row, owner.user_id) or row.id in granted)
+        and row.owner_user_id != owner.user_id
+    }
+    assert admitted == expected
+    assert (rows[6].id in admitted) is granting
 
 
 async def test_an_organization_past_its_stored_version_rows_is_refused(

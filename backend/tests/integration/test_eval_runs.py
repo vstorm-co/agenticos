@@ -2234,3 +2234,40 @@ async def test_who_may_edit_an_agent_is_read_per_agent_not_off_the_role(db) -> N
         assert await registry.may_edit(ctx, agent) is editable
         rows, _ = await registry.list_agents(ctx)
         assert [(row.id, row.can_edit) for row in rows] == [(agent.id, editable)]
+
+
+@pytest.mark.security
+async def test_who_may_publish_an_agent_is_read_per_agent_not_off_the_role(db) -> None:
+    """What the console reads to offer Publish, and not the same answer as editing."""
+    owner = await _owner(db)
+    shared, _ = await _agent(db, owner)
+    shared.visibility = "private"
+    publisher = await _member(db, owner, OrgRoleName.VIEWER)
+    runner = await _member(db, owner, OrgRoleName.VIEWER)
+    for member, level in ((publisher, GrantLevel.EDIT), (runner, GrantLevel.USE)):
+        db.add(
+            ResourceGrant(
+                organization_id=owner.organization_id,
+                subject_user_id=member.user_id,
+                resource_type="agent",
+                resource_id=shared.id,
+                level=level.value,
+            )
+        )
+    member = await _member(db, owner, OrgRoleName.MEMBER)
+    own, _ = await _agent(db, member)
+    own.visibility = "private"
+    await db.flush()
+    registry = AgentRegistryService(db)
+
+    for ctx, agent, publishable in (
+        (owner, shared, True),
+        (publisher, shared, True),
+        (runner, shared, False),
+        (member, own, False),
+    ):
+        assert await registry.may_publish(ctx, agent) is publishable
+        rows, _ = await registry.list_agents(ctx)
+        assert {row.id: row.can_publish for row in rows}[agent.id] is publishable
+    # A Member edits the agent they own - only publishing it is out of reach.
+    assert await registry.may_edit(member, own) is True
