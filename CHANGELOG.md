@@ -17,6 +17,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Security
+
+- **`pillow` moves to 13.0.0 and `certifi` to 2026.10.19.** Pillow 12.3.0 is
+  affected by the decoder and encoder advisories fixed in 13.0.0, eight of which
+  `make audit` reported. Certifi 2026.7.22 has one advisory, fixed in 2026.10.19.
+  Every pull request failed the Security Scan on them. The backend opens
+  uploaded images, makes workspace thumbnails and draws channel charts with
+  Pillow, and none of these uses an API that 13.0.0 removes or changes. Only
+  the lockfile and the third-party notices change.
+
 ## [1.8.3] - 2026-10-20
 
 ### Fixed
