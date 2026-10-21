@@ -28,6 +28,14 @@ export async function GET(
       },
     });
 
+    // A range past the end is not a missing file: the length it was refused
+    // against goes back with it, as RFC 9110 asks, so the player can recover.
+    if (response.status === 416) {
+      return new NextResponse(null, {
+        status: 416,
+        headers: { "Content-Range": response.headers.get("content-range") ?? "" },
+      });
+    }
     if (!response.ok) {
       return bffRefusal("FILE_NOT_FOUND", response.status);
     }
