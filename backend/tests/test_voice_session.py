@@ -1627,3 +1627,16 @@ async def test_a_beat_already_writing_finishes_when_its_loop_is_cancelled(loop):
             await session._heartbeat(started, MagicMock(), MagicMock())
 
     assert finished == [True]
+
+
+def test_a_visitor_is_told_a_budget_notice_as_calls_being_unavailable():
+    """The reason is the operator's to know: a visitor reading the page's frames sees
+    `unavailable`, for a notice as for the end itself."""
+    from app.schemas.voice import NoticeFrame
+    from app.services.voice.session import VISITOR_REASON, _visible
+
+    shown = _visible(NoticeFrame(type="notice", kind="budget"), frozenset())
+
+    assert isinstance(shown, NoticeFrame) and shown.kind == VISITOR_REASON
+    guardrail = _visible(NoticeFrame(type="notice", kind="guardrail"), frozenset())
+    assert isinstance(guardrail, NoticeFrame) and guardrail.kind == "guardrail"
