@@ -10,6 +10,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent_environment import AgentEnvironment
+from app.db.models.eval_suite import EvalSuite
 from app.db.models.promotion_gate import EnvironmentGuard, PromotionOverride
 
 
@@ -63,6 +64,24 @@ async def guarded_by(
             EnvironmentGuard.organization_id == organization_id,
         )
         .order_by(AgentEnvironment.name)
+    )
+    return list(result.scalars().all())
+
+
+async def guarded_by_dataset(
+    db: AsyncSession, dataset_id: UUID, *, organization_id: UUID
+) -> list[AgentEnvironment]:
+    """The environments guarded by a suite that checks this dataset, by name."""
+    result = await db.execute(
+        select(AgentEnvironment)
+        .join(EnvironmentGuard, EnvironmentGuard.environment_id == AgentEnvironment.id)
+        .join(EvalSuite, EvalSuite.id == EnvironmentGuard.suite_id)
+        .where(
+            EvalSuite.dataset_id == dataset_id,
+            EnvironmentGuard.organization_id == organization_id,
+        )
+        .order_by(AgentEnvironment.name)
+        .distinct()
     )
     return list(result.scalars().all())
 

@@ -500,6 +500,7 @@ class EvalSuiteService:
         if "schedule" in fields or resuming:
             schedule = data.schedule if "schedule" in fields else _schedule(suite)
             values.update(self._schedule_columns(schedule, now=now))
+        await self._guarding_change(ctx, suite, data=data, values=values)
         if "dataset_id" in values or "environment_id" in values:
             # A waiting result was queued for the version and cases as they were set
             # up; run against the new ones it would record a check nobody asked for.
@@ -518,6 +519,59 @@ class EvalSuiteService:
         suite = await eval_suite_repo.update(self.db, suite=suite, values=values)
         await self._audit(ctx, suite, action, {"fields": sorted(fields)})
         return (await self._reads(ctx, [suite]))[0]
+
+    async def _guarding_change(
+        self, ctx: AuthContext, suite: EvalSuite, *, data: EvalSuiteUpdate, values: dict[str, Any]
+    ) -> None:
+        """Refuse a change to what a guarding suite checks, unless the caller may override.
+
+        A lower bar, an easier dataset or another environment's connections is
+        a guard taken off by another road, so it needs what taking one off needs,
+        and is recorded the same way. Pausing is not: a paused guard holds a
+        promotion back.
+        """
+        changed = sorted(
+            field
+            for field, moved in (
+                ("threshold", data.threshold is not None and data.threshold != threshold_of(suite)),
+                ("dataset_id", "dataset_id" in values),
+                ("environment_id", "environment_id" in values),
+            )
+            if moved
+        )
+        if not changed:
+            return
+        guarded = await promotion_gate_repo.guarded_by(
+            self.db, suite.id, organization_id=ctx.organization_id
+        )
+        if not guarded:
+            return
+        from app.services.promotion_gate import PromotionGateService
+
+        names = ", ".join(environment.name for environment in guarded)
+        if not PromotionGateService.may_override(ctx):
+            raise AuthorizationError(
+                message=(
+                    f"'{suite.name}' guards {names}. Changing what it checks needs "
+                    "permission to override promotions."
+                ),
+                details={"suite_id": suite.id, "permission": Perm.PROMOTIONS_OVERRIDE.value},
+            )
+        for environment in guarded:
+            await record_audit(
+                self.db,
+                actor_user_id=ctx.subject_id,
+                organization_id=ctx.organization_id,
+                action="agent.environment_guards_changed",
+                target_type="agent",
+                target_id=str(suite.agent_id),
+                details={
+                    "environment_id": str(environment.id),
+                    "name": environment.name,
+                    "suite_id": str(suite.id),
+                    "fields": changed,
+                },
+            )
 
     async def delete(self, ctx: AuthContext, agent_id: UUID, suite_id: UUID) -> None:
         """Remove a suite and its results. The eval runs it started stay.

@@ -88,7 +88,6 @@ def upgrade() -> None:
             ["suite_id"],
             ["eval_suites.id"],
             name=op.f("agent_environment_guards_suite_id_fkey"),
-            ondelete="RESTRICT",
         ),
         sa.PrimaryKeyConstraint(
             "environment_id", "suite_id", name=op.f("agent_environment_guards_pkey")

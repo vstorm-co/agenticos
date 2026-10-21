@@ -37,7 +37,7 @@ from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.dataset import Dataset
 from app.db.models.eval_suite import EvalSuite, EvalSuiteResult
 from app.db.models.notification import Notification
-from app.db.models.promotion_gate import PromotionOverride
+from app.db.models.promotion_gate import EnvironmentGuard, PromotionOverride
 from app.schemas.agent_environment import EnvironmentCreate, EnvironmentUpdate
 from app.schemas.dataset import DatasetCaseCreate
 from app.schemas.eval_suite import EvalSuiteThreshold, EvalSuiteUpdate
@@ -379,6 +379,64 @@ async def test_changing_the_guards_needs_the_permission_and_is_audited(db) -> No
     assert listed.guard_suite_ids == []
     changes = await _audit(db, ctx, "agent.environment_guards_changed")
     assert [c.details["removed"] for c in changes if c.details] == [[], [str(suite.id)]]
+
+
+@pytest.mark.security
+async def test_what_a_guard_checks_changes_only_with_the_permission(db) -> None:
+    """A lower bar or an easier dataset is a guard taken off by another road."""
+    ctx = await _owner(db)
+    agent, first = await _agent(db, ctx)
+    env_id, suite = await _guarded(db, ctx, agent, first, await _dataset(db, ctx))
+    easier = await _dataset(db, ctx)
+    builder = await _member(db, ctx, OrgRoleName.BUILDER)
+    agent.owner_user_id = builder.user_id
+    await db.flush()
+    suites = EvalSuiteService(db)
+    lower = EvalSuiteUpdate(threshold=EvalSuiteThreshold(max_confirmed_regressions=10_000))
+
+    with pytest.raises(AuthorizationError, match="override promotions"):
+        await suites.update(builder, agent.id, suite.id, lower)
+    with pytest.raises(AuthorizationError, match="staging"):
+        await suites.update(builder, agent.id, suite.id, EvalSuiteUpdate(dataset_id=easier.id))
+    # What it checks stays; when it runs, or whether it is paused, is not a weakening.
+    await suites.update(builder, agent.id, suite.id, EvalSuiteUpdate(on_publish=False))
+    await suites.update(ctx, agent.id, suite.id, lower)
+
+    changes = await _audit(db, ctx, "agent.environment_guards_changed")
+    assert [c.details["fields"] for c in changes if c.details and "fields" in c.details] == [
+        ["threshold"]
+    ]
+    assert str(env_id) in {c.details["environment_id"] for c in changes if c.details}
+
+
+async def test_a_dataset_a_guard_checks_cannot_be_deleted(db) -> None:
+    ctx = await _owner(db)
+    agent, first = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx)
+    env_id, _ = await _guarded(db, ctx, agent, first, dataset)
+    datasets = DatasetService(db)
+
+    with pytest.raises(EvalSuiteInUseError, match="staging"):
+        await datasets.delete(ctx, dataset.id)
+    assert await db.get(Dataset, dataset.id) is not None
+
+    await AgentEnvironmentService(db).update(
+        ctx, agent.id, env_id, EnvironmentUpdate(guard_suite_ids=[])
+    )
+    await datasets.delete(ctx, dataset.id)
+    assert await db.get(Dataset, dataset.id) is None
+
+
+async def test_removing_an_agent_takes_its_guards_with_it(db) -> None:
+    ctx = await _owner(db)
+    agent, first = await _agent(db, ctx)
+    await _guarded(db, ctx, agent, first, await _dataset(db, ctx))
+
+    await AgentRegistryService(db).delete(ctx, agent.id)
+    await db.flush()
+
+    assert (await db.execute(select(EnvironmentGuard))).scalars().all() == []
+    assert await db.get(Agent, agent.id) is None
 
 
 async def test_a_suite_that_guards_an_environment_cannot_be_deleted(db) -> None:

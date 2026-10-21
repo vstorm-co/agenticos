@@ -155,6 +155,7 @@ TENANT_REQUIRED = [
     (promotion_gate_repo, "guards_for"),
     (promotion_gate_repo, "replace_guards"),
     (promotion_gate_repo, "guarded_by"),
+    (promotion_gate_repo, "guarded_by_dataset"),
     (promotion_gate_repo, "guarded_following_latest"),
     (promotion_gate_repo, "add_override"),
     (promotion_gate_repo, "overrides_for_versions"),

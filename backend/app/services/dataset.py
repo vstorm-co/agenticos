@@ -30,7 +30,12 @@ from app.agents.spec import AgentSpec
 from app.agents.system_agents import JUDGE
 from app.core.audit import record_audit
 from app.core.config import settings
-from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    BadRequestError,
+    EvalSuiteInUseError,
+    NotFoundError,
+)
 from app.core.exceptions import ValidationError as InvalidCaseError
 from app.core.field_errors import field_problems, refused_field
 from app.core.permissions import AuthContext, Perm, Scope
@@ -45,6 +50,7 @@ from app.repositories import (
     conversation_repo,
     dataset_repo,
     message_rating_repo,
+    promotion_gate_repo,
     resource_grant_repo,
 )
 from app.schemas.dataset import (
@@ -499,9 +505,26 @@ class DatasetService:
         return await self.read(ctx, updated.id)
 
     async def delete(self, ctx: AuthContext, dataset_id: UUID) -> None:
-        """Delete a dataset with every version and case it held."""
+        """Delete a dataset with every version and case it held.
+
+        Raises:
+            EvalSuiteInUseError: An eval suite checking it guards an environment;
+                its suites would go with it and leave that environment unguarded.
+        """
         dataset = await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
         name = dataset.name
+        guarded = await promotion_gate_repo.guarded_by_dataset(
+            self.db, dataset.id, organization_id=ctx.organization_id
+        )
+        if guarded:
+            names = ", ".join(environment.name for environment in guarded)
+            raise EvalSuiteInUseError(
+                message=(
+                    f"'{name}' is checked by eval suites that guard {names}. "
+                    "Take them off there before deleting it."
+                ),
+                details={"dataset_id": dataset.id, "environments": [e.id for e in guarded]},
+            )
         await resource_grant_repo.delete_for_resource(
             self.db,
             organization_id=ctx.organization_id,

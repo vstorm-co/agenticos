@@ -191,7 +191,7 @@ class PromotionGateService:
             version=version.version,
             guarded=bool(guards),
             passing=all(guard.state == "passed" for guard in guards),
-            can_override=ctx is not None and self._may_override(ctx),
+            can_override=ctx is not None and self.may_override(ctx),
             guards=guards,
         )
 
@@ -260,7 +260,7 @@ class PromotionGateService:
         ).get(environment.id, [])
         if set(wanted) == set(current):
             return False
-        if not self._may_override(ctx):
+        if not self.may_override(ctx):
             raise AuthorizationError(
                 message=(
                     "Changing which eval suites guard an environment needs permission "
@@ -476,7 +476,7 @@ class PromotionGateService:
         )
 
     @staticmethod
-    def _may_override(ctx: AuthContext) -> bool:
+    def may_override(ctx: AuthContext) -> bool:
         """An override is a person's decision: signed in as themselves, holding the permission."""
         return (
             ctx.user_id is not None

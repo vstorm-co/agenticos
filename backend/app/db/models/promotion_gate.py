@@ -29,11 +29,12 @@ class EnvironmentGuard(Base):
         ForeignKey("agent_environments.id", ondelete="CASCADE"),
         primary_key=True,
     )
-    # RESTRICT: deleting a suite that guards an environment would unguard it
-    # without anybody deciding to, so the delete is refused until it is removed.
+    # No cascade: deleting a suite that guards an environment would unguard it
+    # without anybody deciding to. NO ACTION rather than RESTRICT, so removing an
+    # agent - its suites and its environments in one statement - still goes through.
     suite_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("eval_suites.id", ondelete="RESTRICT"),
+        ForeignKey("eval_suites.id"),
         primary_key=True,
         index=True,
     )
