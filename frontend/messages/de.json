@@ -2409,6 +2409,20 @@
           "title": "Noch nichts gezeichnet",
           "description": "Bitten Sie einen Agent mit Visuals, etwas zu zeichnen - ein Diagramm, eine Erklärung, eine 3D-Szene - und es erscheint hier."
         }
+      },
+      "eval-suites": {
+        "title": "Eval-Suites",
+        "description": "Datasets, an denen Agents gemessen werden, und wie jede zuletzt abschnitt.",
+        "empty": "Noch keine Suites. Lege eine im Evals-Tab eines Agents an.",
+        "never": "Noch kein Ergebnis",
+        "row": "{suite} · {agent}",
+        "count": {
+          "failing": "{count} nicht bestanden",
+          "inconclusive": "{count} ohne Ergebnis",
+          "passing": "{count} bestanden",
+          "waiting": "{count} warten auf den ersten Lauf",
+          "paused": "{count} pausiert"
+        }
       }
     },
     "edit": {
@@ -4130,6 +4144,10 @@
       "chat-visual": {
         "title": "Zeichnungen",
         "body": "Ein Agent mit Visuals zeichnet hier Diagramme, Erklärungen und 3D-Szenen, live während er sie schreibt. Öffnen Sie eine im Vollbild, laden Sie sie herunter, fragen Sie danach oder speichern Sie sie als App mit einem Link zum Teilen."
+      },
+      "agent-eval-suites": {
+        "title": "Suites",
+        "body": "Miss den Agent an einem Dataset, ohne daran denken zu müssen: jede Nacht, bei jeder Veröffentlichung oder Promotion, oder wenn sich ein Skill oder eine Wissensbasis ändert, die er liest. Du wirst benachrichtigt, wenn ein Fall bricht."
       }
     },
     "chooseLanguage": "Sprache"
@@ -5245,7 +5263,9 @@
       "prefMcpServerDown": "MCP-Server antwortet nicht",
       "prefMcpServerDownTrigger": "Ein MCP-Server der Organisation hat auf eine Prüfung oder in einem Run nicht mehr geantwortet. Einmal pro Ausfall an Administratoren und an die Eigentümer der daran gebundenen Agents.",
       "prefMcpServerRecovered": "MCP-Server antwortet wieder",
-      "prefMcpServerRecoveredTrigger": "Ein Server, der nicht mehr antwortete, ist zurück, und die daran gebundenen Agents haben seine Tools wieder."
+      "prefMcpServerRecoveredTrigger": "Ein Server, der nicht mehr antwortete, ist zurück, und die daran gebundenen Agents haben seine Tools wieder.",
+      "prefEvalSuiteFailed": "Eine Eval-Suite hat nicht bestanden",
+      "prefEvalSuiteFailedTrigger": "Eine Suite, die dir gehört, fiel unter ihre Schwelle oder konnte nicht laufen. Einmal pro Serie von Fehlschlägen auf einer Version, mit den gebrochenen Fällen."
     },
     "skills": {
       "agentsBoundSkillWill": "An diesen Skill gebundene Agents laufen ab ihrem nächsten Run ohne ihn. Das lässt sich nicht rückgängig machen.",
@@ -8430,6 +8450,157 @@
     "noAccess": {
       "title": "Diesen Eval-Run kannst du nicht öffnen",
       "body": "Eval-Runs zu lesen braucht die Berechtigung, Runs anzusehen, und Zugriff auf den Agent und das Dataset. Frag eine Admin-Person der Organisation."
+    },
+    "startedBySuite": "Gestartet von der Suite {name} {trigger, select, schedule {nach ihrem Zeitplan} publish {nach der Veröffentlichung einer Version} promotion {nach der Promotion einer Version} dependency {nach einer Änderung an einem Skill oder einer Wissensbasis} other {von Hand}}.",
+    "suites": {
+      "title": "Suites",
+      "description": "Datasets, an denen dieser Agent gemessen wird, selbstständig ausgeführt: nach Zeitplan, wenn eine Version veröffentlicht oder promotet wird, oder wenn sich ein Skill oder eine Wissensbasis ändert, die er liest.",
+      "new": "Neue Suite",
+      "empty": {
+        "title": "Noch keine Suites",
+        "body": "Eine Suite lässt ein Dataset gegen den Agent laufen, ohne dass jemand daran denken muss - jede Nacht, bei jeder Veröffentlichung oder wenn sich ein Skill ändert, den er liest - und sagt dir, wenn ein Fall bricht."
+      },
+      "created": "Suite angelegt",
+      "saved": "Suite gespeichert",
+      "resumedToast": "Suite fortgesetzt",
+      "pausedToast": "Suite pausiert",
+      "runningToast": "Suite gestartet",
+      "removed": "Suite entfernt",
+      "viewResults": "Ergebnisse von {name}",
+      "holds": "{dataset} · {environment, select, none {aktuell veröffentlichte Version} other {{environment}}}",
+      "hiddenDataset": "ein Dataset, das du nicht sehen kannst",
+      "when": {
+        "publish": "Bei Veröffentlichung",
+        "promotion": "Bei Promotion",
+        "dependency": "Wenn sich ein Skill oder eine Wissensbasis ändert",
+        "manualOnly": "Nur von Hand"
+      },
+      "schedule": {
+        "daily": "Täglich um {time} ({zone})",
+        "weekdays": "Werktags um {time} ({zone})",
+        "weekly": "Jeden {day} um {time} ({zone})",
+        "custom": "Cron {expression} ({zone})"
+      },
+      "status": {
+        "pending": "Wartet",
+        "running": "Läuft",
+        "passed": "Bestanden",
+        "failed": "Nicht bestanden",
+        "inconclusive": "Ohne Ergebnis",
+        "skipped": "Nicht gelaufen",
+        "error": "Fehler"
+      },
+      "lastResult": "{status} · {rate}",
+      "paused": {
+        "byPerson": "Pausiert",
+        "owner_inactive": "Pausiert: Eigentümer ausgeschieden",
+        "owner_lacks_access": "Pausiert: Eigentümer hat keinen Zugriff mehr",
+        "environment_gone": "Pausiert: ihre Umgebung wurde entfernt"
+      },
+      "next": "Nächster Lauf {date}",
+      "runNow": "Jetzt ausführen",
+      "edit": "Bearbeiten",
+      "pause": "Pausieren",
+      "resume": "Fortsetzen",
+      "delete": "Löschen",
+      "deleteTitle": "Diese Suite löschen?",
+      "deleteConfirm": "{name} und ihre Ergebnisse werden entfernt. Die Eval-Runs, die sie gestartet hat, bleiben.",
+      "resultsCouldNotBeRead": "Die Ergebnisse konnten nicht gelesen werden.",
+      "noResults": "Noch keine Ergebnisse. Ein Ergebnis erscheint beim nächsten Lauf der Suite.",
+      "resultCount": "{count, plural, =1 {1 Ergebnis} other {# Ergebnisse}}",
+      "resultMeta": "{trigger, select, schedule {Geplant} publish {Bei Veröffentlichung} promotion {Bei Promotion} dependency {Nach einer Änderung} other {Von Hand}}{version, select, none {} other { · v{version}}} · {date}",
+      "openRun": "Run öffnen",
+      "passRate": "Bestehensquote {rate} über {cases, plural, =1 {1 Fall} other {# Fälle}} · {regressions, plural, =0 {keine bestätigten Regressionen} =1 {1 bestätigte Regression} other {# bestätigte Regressionen}}",
+      "enableAi": "KI-Unterstützung einschalten",
+      "failing": {
+        "regression": "Bricht reproduzierbar: {input}",
+        "failed": "Nicht bestanden: {input}",
+        "ungraded": "Nicht bewertet: {input}"
+      },
+      "reason": {
+        "passRateBelow": "Die Bestehensquote {value} liegt unter dem Minimum von {limit}.",
+        "nothingGraded": "Kein Fall konnte bewertet werden.",
+        "regressions": "{count, plural, =1 {1 Fall bricht} other {# Fälle brechen}} reproduzierbar; die Suite erlaubt {limit}.",
+        "costRise": "Die Kosten pro bestandenem Fall stiegen um {value}, über die Grenze von {limit}.",
+        "p95Rise": "Die p95-Latenz stieg um {value}, über die Grenze von {limit}.",
+        "invalid": "Beide Seiten wurden unterschiedlich bewertet und lassen sich nicht vergleichen.",
+        "ungraded": "{count, plural, =1 {1 Fall konnte} other {# Fälle konnten}} nicht bewertet werden, daher kann die Suite für dieses Ergebnis nicht einstehen."
+      },
+      "skip": {
+        "budget": "Er würde mehr kosten, als das Budget in diesem Monat noch hat.",
+        "over_cost_cap": "Die Schätzung lag über der Grenze der Suite.",
+        "ai_assistance_off": "Nur der Judge könnte diese Fälle bewerten, und die KI-Unterstützung ist aus.",
+        "no_scorer": "Nichts in der Bewertung des Datasets kann einen Fall entscheiden.",
+        "not_published": "Der Agent hat keine veröffentlichte Version zum Prüfen.",
+        "version_gone": "Die zu prüfende Version gibt es nicht mehr.",
+        "owner_inactive": "Ihr Eigentümer ist kein Mitglied mehr.",
+        "owner_lacks_access": "Ihr Eigentümer kann sie nicht mehr ausführen.",
+        "not_runnable": "Der Eval-Run wurde abgelehnt.",
+        "run_gone": "Ihr Eval-Run existiert nicht mehr.",
+        "cancelled": "Ihr Eval-Run wurde gestoppt.",
+        "failed": "Ihr Eval-Run ist fehlgeschlagen.",
+        "budget_exceeded": "Ihrem Eval-Run ist das Budget ausgegangen.",
+        "start_failed": "Die Suite konnte ihren Eval-Run nicht starten.",
+        "settle_failed": "Die Suite konnte das Ergebnis ihres Eval-Runs nicht lesen."
+      },
+      "form": {
+        "newTitle": "Neue Suite",
+        "editTitle": "Suite bearbeiten",
+        "intro": "Eine Suite lässt ein Dataset selbstständig gegen diesen Agent laufen und misst jedes Ergebnis an einer Schwelle. Sie läuft als du: Mit dem Speichern stimmst du den unten gezeigten Kosten zu.",
+        "name": "Name",
+        "namePlaceholder": "Nächtliche Regression",
+        "dataset": "Dataset",
+        "datasetPlaceholder": "Dataset wählen",
+        "datasetOption": "{name} · {count, plural, =1 {1 Fall} other {# Fälle}}",
+        "datasetHint": "Bei jedem Lauf wird seine neueste Version beantwortet und so bewertet, wie das Dataset es vorgibt.",
+        "environment": "Geprüfte Version",
+        "currentVersion": "Aktuell veröffentlichte Version",
+        "environmentHint": "Ein geplanter Lauf prüft die Version, die diese Umgebung ausliefert, über ihre Testverbindungen. Promotion heißt Promotion auf diese Umgebung.",
+        "when": "Wann sie läuft",
+        "onPublish": "Bei jeder Veröffentlichung",
+        "onPublishHint": "Jede neue Version läuft neben der vorherigen, damit eine Regression auffällt, bevor jemand sie promotet.",
+        "onPromotion": "Bei Promotion",
+        "onPromotionHint": "Wenn eine Version auf die Umgebung oben promotet wird, gemessen an der Version, die sie ersetzt.",
+        "onDependency": "Wenn sich ein Skill oder eine Wissensbasis ändert",
+        "onDependencyHint": "Skills und Dokumente ändern sich ohne Veröffentlichung. Eine Reihe von Änderungen ist ein Lauf, zehn Minuten nach der ersten.",
+        "onSchedule": "Nach Zeitplan",
+        "onScheduleHint": "Täglich auf der Produktionsversion, um zu bemerken, wenn sich das Modell beim Provider oder eine Wissensbasis darunter ändert.",
+        "frequency": "Wiederholung",
+        "frequencies": {
+          "daily": "Täglich",
+          "weekdays": "Werktags",
+          "weekly": "Einmal pro Woche",
+          "custom": "Eigener (Cron)"
+        },
+        "time": "Um",
+        "weekday": "Am",
+        "cron": "Cron-Ausdruck",
+        "cronHint": "Fünf Felder: Minute, Stunde, Tag des Monats, Monat, Wochentag.",
+        "timezone": "Zeitzone",
+        "timezoneHint": "Eine IANA-Zone, etwa Europe/Berlin.",
+        "threshold": "Schwelle",
+        "thresholdHint": "Ein Ergebnis besteht nicht, wenn mehr Fälle als erlaubt reproduzierbar gegenüber der Baseline brechen oder die Bestehensquote - jeder Fall nach der Mehrheit seiner Versuche - unter das Minimum fällt.",
+        "maxRegressions": "Erlaubte bestätigte Regressionen",
+        "maxRegressionsHint": "Standardmäßig keine: Ein Fall, der bei jeder Frage bricht, lässt die Suite durchfallen.",
+        "minPassRate": "Mindest-Bestehensquote (%)",
+        "minPassRateHint": "Leer lassen, um nur Regressionen zu prüfen.",
+        "none": "Keine",
+        "advanced": "Effizienz und Kosten",
+        "efficiencyHint": "Optionale Grenzen gegenüber der Baseline. Leer wird nichts geprüft.",
+        "costRise": "Kosten pro bestandenem Fall dürfen steigen um (%)",
+        "p95Rise": "p95-Latenz darf steigen um (%)",
+        "maxRunUsd": "Lauf überspringen, wenn geschätzt über ($)",
+        "maxRunUsdHint": "Geplante Läufe starten, ohne dass jemand zusieht. Ein höher geschätzter Lauf wird übersprungen, und du wirst benachrichtigt.",
+        "description": "Notiz",
+        "estimateRun": "Ein Lauf: etwa {amount} für {count, plural, =1 {1 Fall} other {# Fälle}}.",
+        "estimatePaired": "Bei Veröffentlichung oder Promotion läuft die vorherige Version daneben: etwa {amount}.",
+        "estimateMonth": "Der Zeitplan: {count, plural, =1 {1 Lauf} other {# Läufe}} in 30 Tagen, etwa {amount}.",
+        "runsAsYou": "Die Suite läuft als du. Wer sie sonst speichert, übernimmt sie.",
+        "enableAi": "KI-Unterstützung einschalten",
+        "cancel": "Abbrechen",
+        "save": "Speichern",
+        "create": "Suite anlegen"
+      }
     }
   },
   "remoteAgents": {

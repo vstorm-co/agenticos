@@ -57,6 +57,7 @@ from app.repositories import case_score as case_score_repo
 from app.repositories import dataset as dataset_repo
 from app.repositories import case_generation as case_generation_repo
 from app.repositories import eval_run as eval_run_repo
+from app.repositories import eval_suite as eval_suite_repo
 from app.repositories import knowledge_gap as knowledge_gap_repo
 from app.repositories import memory as memory_repo
 
@@ -145,6 +146,7 @@ __all__ = [
     "dataset_repo",
     "case_generation_repo",
     "eval_run_repo",
+    "eval_suite_repo",
     "knowledge_gap_repo",
     "memory_repo",
     "notification_repo",

@@ -323,3 +323,14 @@ class NothingToScoreError(BadRequestError):
     def __init__(self, *, case_id: UUID) -> None:
         super().__init__(details={"case_id": case_id})
         self.case_id = case_id
+
+
+class EvalSuiteNotRunnableError(AppException):
+    """An eval suite cannot run now - it is paused, or already running (409).
+
+    `details.reason` is `paused` or `running`, each with its own fix.
+    """
+
+    message = "This eval suite cannot run now"
+    code = "EVAL_SUITE_NOT_RUNNABLE"
+    status_code = 409

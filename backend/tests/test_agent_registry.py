@@ -73,6 +73,12 @@ def _no_agent_is_the_assistant(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def _no_suites(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No eval suite watches a publish here; `integration/test_eval_suites` covers that."""
+    monkeypatch.setattr("app.services.eval_suite.EvalSuiteService.version_published", AsyncMock())
+
+
+@pytest.fixture(autouse=True)
 def _builtins_loaded():
     load_builtins()
 

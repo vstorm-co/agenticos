@@ -64,6 +64,7 @@ export type WidgetId =
   | "datasets"
   | "review-queue"
   | "eval-runs"
+  | "eval-suites"
   | "projects"
   | "recent-visuals"
   | "knowledge-gaps";
@@ -596,6 +597,15 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     gate: holds(Perm.runsView),
     defaultSpan: "s6",
     defaultRows: "r4",
+    category: "workspace",
+  },
+  // The organization's eval suites by how they last came out, gated on what
+  // `GET /eval-suites` asks; it lists suites only on agents the reader may see.
+  "eval-suites": {
+    id: "eval-suites",
+    gate: holds(Perm.runsView),
+    defaultSpan: "s6",
+    defaultRows: "r3",
     category: "workspace",
   },
   // The reader's projects, most recently changed first - what `GET /projects`
