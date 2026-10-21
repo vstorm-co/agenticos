@@ -1,5 +1,5 @@
 ---
-source_sha: "46d6bfcea5d0"
+source_sha: "216f6a21d664"
 ---
 
 # Umgebungen { #environments }
@@ -86,10 +86,13 @@ Ein **Übergehen** promotet trotzdem an den Wächtern vorbei. Es braucht
 mindestens zehn Zeichen, gegeben von einer Person, die als sie selbst angemeldet
 ist, nicht über einen API-Schlüssel. Das Übergehen, wer es tat, und das Ergebnis
 jedes Wächters landen im Audit-Log und an der Version in der Historie, und der
-Eigentümer jedes nicht bestandenen Wächters wird benachrichtigt. Welche Suites
-eine Umgebung bewachen, zu ändern, braucht dieselbe Berechtigung, weil ein
-abgenommener Wächter durchlässt, was er aufgehalten hätte; eine Suite, die
-bewacht, lässt sich erst löschen, wenn sie abgenommen ist.
+Eigentümer jedes nicht bestandenen Wächters wird benachrichtigt.
+
+Welche Suites eine Umgebung bewachen, zu ändern, braucht dieselbe Berechtigung,
+weil ein abgenommener Wächter durchlässt, was er aufgehalten hätte, und ebenso,
+zu ändern, was ein Wächter prüft - seine Schwelle, sein Dataset oder seine
+Umgebung. Eine Suite, die bewacht, oder ein Dataset, das eine solche prüft,
+lässt sich erst löschen, wenn sie abgenommen ist.
 
 Eine bewachte Umgebung mit **tracks latest** folgt einer Veröffentlichung nicht
 sofort: Die Veröffentlichung lässt ihre Wächter auf der neuen Version laufen,

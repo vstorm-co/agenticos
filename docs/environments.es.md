@@ -1,5 +1,5 @@
 ---
-source_sha: "46d6bfcea5d0"
+source_sha: "216f6a21d664"
 ---
 
 # Entornos { #environments }
@@ -84,10 +84,12 @@ Necesita `promotions:override` - lo tienen owners y admins - y un motivo de al
 menos diez caracteres, dado por una persona que ha iniciado sesión como ella
 misma, no mediante una clave de API. La excepción, quién la hizo y el resultado
 de cada guardiana quedan en el registro de auditoría y en la versión del
-historial, y se avisa al propietario de cada guardiana que no pasó. Cambiar qué
-suites guardan un entorno necesita el mismo permiso, porque quitar una guardiana
-deja pasar lo que habría detenido; una suite que guarda no se puede borrar hasta
-quitarla.
+historial, y se avisa al propietario de cada guardiana que no pasó.
+
+Cambiar qué suites guardan un entorno necesita el mismo permiso, porque quitar
+una guardiana deja pasar lo que habría detenido, y también cambiar lo que
+comprueba una guardiana: su umbral, su dataset o su entorno. Una suite que
+guarda, o un dataset que una comprueba, no se puede borrar hasta quitarla.
 
 Un entorno guardado con **tracks latest** no sigue una publicación enseguida:
 la publicación ejecuta sus guardianas en la nueva versión, y el entorno avanza

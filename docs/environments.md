@@ -77,10 +77,12 @@ An **override** promotes past the guards anyway. It needs
 ten characters, given by a person signed in as themselves, not through an API
 key. The override, who
 made it and each guard's result go to the audit log and onto the version in
-the history, and each failing guard's owner is told. Changing which suites
-guard an environment needs the same permission, since taking a guard off lets
-through what it would have stopped; a suite that guards cannot be deleted until
-it is taken off.
+the history, and each failing guard's owner is told.
+
+Changing which suites guard an environment needs the same permission, since
+taking a guard off lets through what it would have stopped, and so does changing
+what a guarding suite checks - its threshold, dataset or environment. A suite
+that guards, or a dataset one checks, cannot be deleted until it is taken off.
 
 A guarded environment with **tracks latest** on does not follow a publish at
 once: the publish runs its guards on the new version, and the environment moves

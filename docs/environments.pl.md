@@ -1,5 +1,5 @@
 ---
-source_sha: "46d6bfcea5d0"
+source_sha: "216f6a21d664"
 ---
 
 # Środowiska { #environments }
@@ -83,9 +83,12 @@ zamiast blokować bez powodu.
 najmniej dziesięciu znaków, podanego przez osobę zalogowaną jako ona sama, nie
 przez klucz API. Pominięcie, kto je zrobił i wynik każdego strażnika trafiają
 do audit logu i na wersję w historii, a właściciel każdego strażnika, który nie
-przeszedł, dostaje wiadomość. Zmiana listy strażników wymaga tego samego
-uprawnienia, bo zdjęcie strażnika przepuszcza to, co by zatrzymał; suity, która
-strzeże, nie da się usunąć, dopóki nie zostanie zdjęta.
+przeszedł, dostaje wiadomość.
+
+Zmiana listy strażników wymaga tego samego uprawnienia, bo zdjęcie strażnika
+przepuszcza to, co by zatrzymał, i tak samo zmiana tego, co strażnik sprawdza -
+jego progu, datasetu albo środowiska. Suity, która strzeże, ani datasetu, który
+taka suita sprawdza, nie da się usunąć, dopóki nie zostanie zdjęta.
 
 Strzeżone środowisko z włączonym **tracks latest** nie podąża za publikacją od
 razu: publikacja uruchamia jego strażników na nowej wersji, a środowisko
