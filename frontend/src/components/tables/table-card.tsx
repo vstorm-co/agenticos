@@ -47,9 +47,9 @@ export function TableCard({ table }: { table: TableListItem }) {
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">
               <p className="text-foreground truncate font-medium">{table.name}</p>
-              {!table.can_edit && (
+              {(table.archived_at !== null || !table.can_edit) && (
                 <Badge variant="outline" className="text-muted-foreground shrink-0 font-normal">
-                  {t("readOnly")}
+                  {table.archived_at !== null ? t("archivedBadge") : t("readOnly")}
                 </Badge>
               )}
             </div>

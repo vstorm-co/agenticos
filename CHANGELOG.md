@@ -38,6 +38,15 @@ Two things are versioned separately from this file and worth knowing about:
   now show every setting. `Delete` deletes the selection, and a dragged field
   scrolls the form at its edge.
 
+- **Archiving and restoring a table from the console.** A member who can edit
+  a Virtual Table archives it from **More actions** on its page, after a
+  dialog says that its records stay readable, nothing can change them and it
+  can be restored; what still uses the table is listed when that refuses the
+  archive. An archived table's page says so, with **Restore** for whoever may
+  edit it, through the new `POST /api/v1/tables/{id}/unarchive`.
+  `TableRead.can_restore` says who may. The catalog can list archived tables
+  too. A restore is refused while a live table holds the archived one's name.
+
 - **Pages that stay current.** An agent can bind a published page to saved
   Virtual Table views with `bindings`, and the page draws them from
   `agenticos.onData`. Records are read when somebody views the page, with that

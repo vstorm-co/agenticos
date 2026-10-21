@@ -38,6 +38,12 @@ describe("TableCard", () => {
     expect(screen.getByText("Inbound leads")).toBeTruthy();
     expect(screen.queryByText("Read only")).toBeNull();
   });
+
+  it("says an archived table is archived, rather than read only", () => {
+    render(<TableCard table={{ ...TABLE, archived_at: "2026-10-01T09:00:00Z" }} />);
+    expect(screen.getByText("Archived")).toBeTruthy();
+    expect(screen.queryByText("Read only")).toBeNull();
+  });
 });
 
 const STAGE: ColumnDef = {

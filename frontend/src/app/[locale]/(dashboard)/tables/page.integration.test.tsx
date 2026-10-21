@@ -16,6 +16,7 @@ import type { TableListItem } from "@/types/tables";
  */
 
 let canCreate = true;
+let params = new URLSearchParams();
 const push = vi.fn();
 
 vi.mock("@/lib/api-client", async () => {
@@ -29,6 +30,7 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push }),
   usePathname: () => "/tables",
+  useSearchParams: () => params,
 }));
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => canCreate }) }));
 
@@ -59,12 +61,59 @@ function table(overrides: Partial<TableListItem> = {}): TableListItem {
 
 beforeEach(() => {
   canCreate = true;
+  params = new URLSearchParams();
+  window.history.replaceState({}, "", "/tables");
   push.mockReset();
   vi.mocked(apiClient.get).mockReset();
   vi.mocked(apiClient.post).mockReset();
 });
 
 describe("the tables catalog page", () => {
+  it("lists live tables only until archived ones are asked for, and keeps that in the URL", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [table()], total: 1 });
+    const user = userEvent.setup();
+    render(<TablesPage />, { wrapper });
+    await screen.findByText("Orders");
+    expect(apiClient.get).toHaveBeenLastCalledWith("/tables", {
+      params: expect.not.objectContaining({ include_archived: "true" }),
+    });
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [
+        table(),
+        table({ id: "t-2", name: "Old orders", archived_at: "2026-10-01T09:00:00Z" }),
+      ],
+      total: 2,
+    });
+
+    await user.click(screen.getByRole("combobox", { name: "Which tables" }));
+    await user.click(screen.getByRole("option", { name: "Archived included" }));
+
+    await waitFor(() =>
+      expect(apiClient.get).toHaveBeenLastCalledWith("/tables", {
+        params: expect.objectContaining({ include_archived: "true" }),
+      }),
+    );
+    expect(await screen.findByText("Old orders")).toBeInTheDocument();
+    expect(screen.getByText("Archived")).toBeInTheDocument();
+    expect(window.location.search).toBe("?show=all");
+
+    await user.click(screen.getByRole("combobox", { name: "Which tables" }));
+    await user.click(screen.getByRole("option", { name: "Live tables" }));
+    expect(window.location.search).toBe("");
+  });
+
+  it("opens on the archive when a link asks for it", async () => {
+    params = new URLSearchParams("show=all");
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    render(<TablesPage />, { wrapper });
+
+    await waitFor(() =>
+      expect(apiClient.get).toHaveBeenCalledWith("/tables", {
+        params: expect.objectContaining({ include_archived: "true" }),
+      }),
+    );
+  });
+
   it("lists each table with its size, description and visibility, linking to its detail page", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [table()], total: 1 });
     render(<TablesPage />, { wrapper });

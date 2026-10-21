@@ -158,6 +158,38 @@ cannot open. The console lists them in the dialog that asked, a workflow as a li
 it. Any other dependent is never named and never blocks the caller: its feature copes
 with the change instead.
 
+## Archiving and restoring a table { #archiving-a-table }
+
+A table is never deleted; it is archived. An archived table keeps its records,
+columns, views and history, and every read still answers. Every write is refused with
+`TABLE_ARCHIVED`, whoever asks: no record is created, changed or deleted, and neither
+its name nor its columns change. Its name is free for a new table, and it still counts
+toward the organization's [table limit](#limits-and-retention).
+
+In the console, a member who can edit the table finds **Archive table** in the
+**More actions** menu on its page. The dialog says what archiving does before anything
+changes. A published workflow that still reads or writes the table, and that the
+caller may edit, refuses the archive with `SCHEMA_DEPENDENCY`, and the dialog lists it
+as a link. Saved views and triggers block only a column archive.
+
+An archived table's page says when it was archived. For a member who may edit the
+table, the notice carries **Restore**, which brings it back under its name; anyone
+else reads its records and is told who can restore it. The catalog lists live tables
+until **Archived included** is chosen above it, and an archived table's card says it
+is archived.
+
+| Action | Route | Refused with |
+|---|---|---|
+| Archive | `POST /tables/{id}/archive` | `SCHEMA_DEPENDENCY` (409) while something uses the table. Archiving twice is not an error |
+| Restore | `POST /tables/{id}/unarchive` | `BAD_REQUEST` (400) when the table is not archived; `ALREADY_EXISTS` (409) when a live table took its name meanwhile |
+
+Both need the right to edit that table, by role or by a grant on it, and anyone else
+gets a 404. `can_edit` is false on an archived table, so `TableRead.can_restore` says
+whether this caller may restore it. Each is audited, as `table.archived` and
+`table.unarchived`, and counts toward the table write rate limit. A name taken
+meanwhile is changed on the live table first, because an archived one cannot be
+renamed.
+
 ## Records and revisions { #records-and-revisions }
 
 Every record has a `revision`, starting at 1 and rising with each change.
@@ -328,6 +360,10 @@ it saves what the screen shows as a new view. A kanban board with no view asks w
 single-select column makes its lanes and draws at once; saved as a view, it keeps
 that grouping. A card lists up to four of the screen's columns under its title,
 leaving out empty ones. A table with no single-select column offers **Add a column** instead.
+
+The view's owner switches it between **Private** and **Shared** with the button beside
+**Rename**. Someone who manages another member's view, such as an admin, does not
+get the switch: sharing a person's own filters is theirs to choose.
 
 `GET/POST /tables/{id}/views` and `GET/PATCH/DELETE /tables/{id}/views/{view_id}`
 list, create, read, update and delete them. The list is paged with `skip` and
@@ -537,6 +573,7 @@ what a client branches on.
 | `SCHEMA_VERSION_CONFLICT` | 409 | The schema changed since it was read |
 | `SCHEMA_DEPENDENCY` | 409 | Something depends on what the change removes |
 | `TABLE_ARCHIVED` | 409 | The table refuses writes |
+| `BAD_REQUEST` | 400 | A restore named a table that is not archived |
 | `ALREADY_EXISTS` | 409 | The table name, a view name or the external id is taken |
 | `INVALID_RECORD` | 422 | A value does not fit its column; `details.fields` names each one |
 | `ARCHIVED_COLUMN` | 422 | A value names an archived column |

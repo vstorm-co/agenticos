@@ -62,6 +62,10 @@ export function archiveTable(tableId: string): Promise<TableRead> {
   return apiClient.post<TableRead>(`/tables/${tableId}/archive`);
 }
 
+export function unarchiveTable(tableId: string): Promise<TableRead> {
+  return apiClient.post<TableRead>(`/tables/${tableId}/unarchive`);
+}
+
 export function updateSchema(tableId: string, data: SchemaUpdate): Promise<TableRead> {
   return apiClient.put<TableRead>(`/tables/${tableId}/schema`, data);
 }

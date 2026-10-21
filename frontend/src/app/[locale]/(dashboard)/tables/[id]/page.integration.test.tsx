@@ -255,6 +255,7 @@ function table(overrides: Partial<TableRead> = {}): TableRead {
     created_at: "2026-08-01T00:00:00Z",
     updated_at: null,
     can_edit: true,
+    can_restore: false,
     columns: [
       {
         id: "c1",
@@ -1157,6 +1158,128 @@ describe("the table detail page", () => {
     await user.keyboard("{Escape}");
 
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/tables/t1"));
+  });
+
+  describe("archiving and restoring the table", () => {
+    const ARCHIVED = { archived_at: "2026-10-01T09:00:00Z", can_edit: false };
+
+    /** Answer the archive action with `answer`, every other write as `serve` does. */
+    function archiveAnswers(answer: () => Promise<unknown>) {
+      const served = vi.mocked(apiClient.post).getMockImplementation();
+      vi.mocked(apiClient.post).mockImplementation((path: string, ...rest: unknown[]) =>
+        path === "/tables/t1/archive" ? answer() : served!(path, ...rest),
+      );
+    }
+
+    async function openArchiveDialog() {
+      const user = userEvent.setup();
+      renderPage();
+      await screen.findByTestId("grid-view");
+      await user.click(screen.getByRole("button", { name: "More actions" }));
+      await user.click(screen.getByRole("menuitem", { name: "Archive table" }));
+      return { user, dialog: screen.getByRole("dialog", { name: "Archive Orders?" }) };
+    }
+
+    it("offers no archive to a reader without can_edit", async () => {
+      serve({ tableFixture: table({ can_edit: false }) });
+      const user = userEvent.setup();
+      renderPage();
+      await screen.findByTestId("grid-view");
+
+      await user.click(screen.getByRole("button", { name: "More actions" }));
+
+      expect(screen.getByRole("menuitem", { name: "Export" })).toBeInTheDocument();
+      expect(screen.queryByRole("menuitem", { name: "Archive table" })).not.toBeInTheDocument();
+    });
+
+    it("says what archiving does, archives on confirm and then shows the table archived", async () => {
+      serve();
+      const { user, dialog } = await openArchiveDialog();
+      expect(dialog).toHaveTextContent(/records stay readable, but nothing can change them/);
+      expect(dialog).toHaveTextContent(/can be restored from this page/);
+      expect(apiClient.post).not.toHaveBeenCalledWith("/tables/t1/archive");
+      // What the table reads as once the archive has landed.
+      serve({ tableFixture: table({ ...ARCHIVED, can_restore: true }) });
+
+      await user.click(within(dialog).getByRole("button", { name: "Archive table" }));
+
+      expect(apiClient.post).toHaveBeenCalledWith("/tables/t1/archive");
+      expect(await screen.findByText(/^Archived on/)).toBeInTheDocument();
+      expect(screen.queryByRole("dialog", { name: "Archive Orders?" })).not.toBeInTheDocument();
+      expect(toast.success).toHaveBeenCalledWith("Table archived");
+    });
+
+    it("names what still uses the table when the archive is refused for it", async () => {
+      serve();
+      archiveAnswers(() =>
+        Promise.reject(
+          new ApiError(409, "Other resources depend on this and must be changed first", {
+            error: {
+              code: "SCHEMA_DEPENDENCY",
+              message: "Other resources depend on this and must be changed first",
+              details: { dependents: [{ kind: "workflow", id: "w1", name: "Sync orders" }] },
+            },
+          }),
+        ),
+      );
+      const { user, dialog } = await openArchiveDialog();
+
+      await user.click(within(dialog).getByRole("button", { name: "Archive table" }));
+
+      expect(await within(dialog).findByRole("link", { name: "Sync orders" })).toHaveAttribute(
+        "href",
+        "/workflows/w1",
+      );
+      expect(dialog).toHaveTextContent("Still used by these - change them first:");
+      expect(toast.error).not.toHaveBeenCalled();
+    });
+
+    it("shows any other refusal in the dialog, and not the last one when it reopens", async () => {
+      serve();
+      archiveAnswers(() => Promise.reject(new ApiError(404, "Table not found")));
+      const { user, dialog } = await openArchiveDialog();
+
+      await user.click(within(dialog).getByRole("button", { name: "Archive table" }));
+      expect(await within(dialog).findByRole("alert")).toHaveTextContent("Table not found");
+      await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+      await user.click(screen.getByRole("button", { name: "More actions" }));
+      await user.click(screen.getByRole("menuitem", { name: "Archive table" }));
+
+      expect(
+        within(screen.getByRole("dialog", { name: "Archive Orders?" })).queryByRole("alert"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("marks an archived table and restores it for whoever may", async () => {
+      serve({ tableFixture: table({ ...ARCHIVED, can_restore: true }) });
+      const user = userEvent.setup();
+      renderPage();
+
+      expect(await screen.findByText(/^Archived on/)).toBeInTheDocument();
+      expect(screen.getByText(/Restore the table to change them again/)).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /add record/i })).not.toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "More actions" }));
+      expect(screen.queryByRole("menuitem", { name: "Archive table" })).not.toBeInTheDocument();
+      await user.keyboard("{Escape}");
+
+      // The refetch after the restore answers with the live table.
+      serve({ tableFixture: table() });
+      await user.click(screen.getByRole("button", { name: "Restore" }));
+
+      await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith("/tables/t1/unarchive"));
+      await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Table restored"));
+      await waitFor(() => expect(screen.queryByText(/^Archived on/)).not.toBeInTheDocument());
+      expect(await screen.findByRole("button", { name: /add record/i })).toBeInTheDocument();
+    });
+
+    it("tells a reader the table is archived without offering to restore it", async () => {
+      serve({ tableFixture: table({ ...ARCHIVED, can_restore: false }) });
+      renderPage();
+
+      expect(await screen.findByText(/^Archived on/)).toBeInTheDocument();
+      expect(screen.getByText(/Someone who may edit the table can restore it/)).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Restore" })).not.toBeInTheDocument();
+    });
   });
 
   it("opens the schema editor without the last save's refusal", async () => {

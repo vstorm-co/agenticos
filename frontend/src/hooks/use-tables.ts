@@ -11,6 +11,7 @@ import {
   createTable,
   getTable,
   listTables,
+  unarchiveTable,
   updateSchema,
   updateTable,
   type TableListQuery,
@@ -24,7 +25,6 @@ import type { SchemaUpdate, TableCreate, TableUpdate } from "@/types/tables";
  * holds them all - `total` is the count before paging.
  */
 export function useTables(query: TableListQuery = {}) {
-  const tErrors = useTranslations("errors");
   const t = useTranslations("pages.tables");
   const queryClient = useQueryClient();
   const normalized: Required<TableListQuery> = {
@@ -56,16 +56,6 @@ export function useTables(query: TableListQuery = {}) {
     },
   });
 
-  const archive = useMutation({
-    mutationFn: (tableId: string) => archiveTable(tableId),
-    onSuccess: async (table) => {
-      await invalidateLists();
-      await queryClient.invalidateQueries({ queryKey: qk.tables.detail(table.id), exact: true });
-      toast.success(t("archived"));
-    },
-    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
-  });
-
   return {
     tables: data?.items ?? [],
     total: data?.total ?? 0,
@@ -74,7 +64,6 @@ export function useTables(query: TableListQuery = {}) {
     error,
     refetch,
     create,
-    archive,
   };
 }
 
@@ -91,8 +80,9 @@ export function useTable(tableId: string | null) {
   });
 
   /**
-   * Refetch this table and the catalog pages listing it - after a rename, or
-   * after its sharing changed. Not its records or views: neither changes.
+   * Refetch this table and the catalog pages listing it - after a rename, an
+   * archive or a restore, or after its sharing changed. Not its records or
+   * views: none of those changes them.
    */
   const invalidate = useCallback(async () => {
     if (!tableId) return;
@@ -127,5 +117,34 @@ export function useTable(tableId: string | null) {
     },
   });
 
-  return { table: data, isLoading, error, refetch, update, changeSchema, invalidate };
+  // No `onError`: the confirm dialog shows the refusal in place - what still uses
+  // the table, when that is why - rather than a toast behind it.
+  const archive = useMutation({
+    mutationFn: () => archiveTable(tableId as string),
+    onSuccess: async () => {
+      await invalidate();
+      toast.success(t("archived"));
+    },
+  });
+
+  const unarchive = useMutation({
+    mutationFn: () => unarchiveTable(tableId as string),
+    onSuccess: async () => {
+      await invalidate();
+      toast.success(t("restored"));
+    },
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+  });
+
+  return {
+    table: data,
+    isLoading,
+    error,
+    refetch,
+    update,
+    changeSchema,
+    archive,
+    unarchive,
+    invalidate,
+  };
 }

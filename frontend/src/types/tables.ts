@@ -164,6 +164,11 @@ export interface TableSummary {
 
 export interface TableRead extends TableSummary {
   columns: ColumnDef[];
+  /**
+   * Whether the table is archived and this caller may restore it. `can_edit` is
+   * false on an archived table, since no write to one succeeds.
+   */
+  can_restore: boolean;
 }
 
 /** A table as the catalog lists it: how much it holds. Mirrors `TableListItem`. */

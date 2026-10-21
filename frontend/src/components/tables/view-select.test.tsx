@@ -62,6 +62,8 @@ function renderSelect(overrides: Partial<Props> = {}) {
     onCreate: vi.fn().mockResolvedValue(undefined),
     onRename: vi.fn().mockResolvedValue(undefined),
     onDelete: vi.fn(),
+    onSetVisibility: vi.fn().mockResolvedValue(undefined),
+    meId: "u1",
     canCreate: true,
     ...overrides,
   };
@@ -75,6 +77,38 @@ async function openCreate(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("ViewSelect", () => {
+  it("lets the owner share their view, and make it private again", async () => {
+    const user = userEvent.setup();
+    const { onSetVisibility } = renderSelect({ activeViewId: "v1" });
+
+    await user.click(screen.getByRole("button", { name: "Private" }));
+    expect(onSetVisibility).toHaveBeenCalledWith("v1", "shared");
+  });
+
+  it("offers a shared view of one's own back as private", async () => {
+    const user = userEvent.setup();
+    const { onSetVisibility } = renderSelect({
+      views: [view({ visibility: "shared" })],
+      activeViewId: "v1",
+    });
+
+    await user.click(screen.getByRole("button", { name: "Shared" }));
+    expect(onSetVisibility).toHaveBeenCalledWith("v1", "private");
+  });
+
+  it("does not let someone who manages another member's view reshare it", () => {
+    renderSelect({ views: [view({ owner_user_id: "someone-else" })], activeViewId: "v1" });
+
+    // An admin may rename it, but sharing a person's own filters is theirs to choose.
+    expect(screen.getByRole("button", { name: "Rename" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Private" })).toBeNull();
+  });
+
+  it("says in words that the picker holds the table's views", () => {
+    renderSelect({ views: [] });
+    expect(screen.getByText("Views")).toBeInTheDocument();
+  });
+
   it("shows the unsaved-view placeholder when no view is active", () => {
     renderSelect({ views: [] });
     expect(screen.getByRole("combobox", { name: /select a table view/i })).toHaveTextContent(

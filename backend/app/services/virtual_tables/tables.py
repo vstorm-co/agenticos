@@ -1,4 +1,4 @@
-"""Tables and their schemas: create, list, describe, rename, archive, change columns."""
+"""Tables and their schemas: create, list, describe, rename, archive, restore, change columns."""
 
 from datetime import UTC, datetime
 from typing import Literal
@@ -8,7 +8,12 @@ from pydantic import TypeAdapter
 from pydantic import ValidationError as PydanticValidationError
 
 from app.core.audit import record_audit
-from app.core.exceptions import AlreadyExistsError, AuthorizationError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext, Perm
 from app.db.locks import LockScope, hold_subject
 from app.db.models.virtual_table import VirtualTable
@@ -191,7 +196,10 @@ class TableOperations(Operations):
         """One table with the columns of its current schema."""
         table = await self._load_table(ctx, table_id, Perm.TABLES_VIEW)
         return self._read(
-            table, await self._columns(table), can_edit=await self._can_edit(ctx, table)
+            table,
+            await self._columns(table),
+            can_edit=await self._can_edit(ctx, table),
+            can_restore=await self._can_restore(ctx, table),
         )
 
     async def list_schema_versions(self, ctx: AuthContext, table_id: UUID) -> SchemaVersionList:
@@ -233,9 +241,10 @@ class TableOperations(Operations):
         """
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
         columns = await self._columns(table)
-        # An archived table refuses every write, so neither answer below offers one.
+        # An archived table refuses every write, so neither answer below offers one. The
+        # caller passed the edit check `unarchive_table` makes, so both offer the way back.
         if table.archived_at is not None:
-            return self._read(table, columns, can_edit=False)
+            return self._read(table, columns, can_edit=False, can_restore=True)
         await self._refuse_dependents(ctx, table, column_ids=None)
         table = await virtual_table_repo.update_table(
             self.db, table=table, update_data={"archived_at": datetime.now(UTC)}
@@ -248,7 +257,46 @@ class TableOperations(Operations):
             target_type="table",
             target_id=str(table.id),
         )
-        return self._read(table, columns, can_edit=False)
+        return self._read(table, columns, can_edit=False, can_restore=True)
+
+    async def unarchive_table(self, ctx: AuthContext, table_id: UUID) -> TableRead:
+        """Restore an archived table: it takes writes again, under the name it had.
+
+        Asks for the same edit right archiving does. Its records, columns, views and
+        history are as archiving left them.
+
+        Raises:
+            NotFoundError: The table is out of reach, or this caller may not edit it.
+            BadRequestError: The table is not archived.
+            AlreadyExistsError: A live table has taken its name since it was archived.
+        """
+        # The row lock before the name lock, the order `update_table` takes them in.
+        table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
+        if table.archived_at is None:
+            raise BadRequestError(
+                message=f"Table '{table.name}' is not archived", details={"table_id": table.id}
+            )
+        try:
+            await self._claim_name(ctx, table.name)
+        except AlreadyExistsError:
+            # An archived table cannot be renamed, so the name to change is the live one's.
+            raise AlreadyExistsError(
+                message=f"A table named '{table.name}' already exists. It must be renamed, "
+                "by you or whoever owns it, before this one can be restored.",
+                details={"name": table.name},
+            ) from None
+        table = await virtual_table_repo.update_table(
+            self.db, table=table, update_data={"archived_at": None}
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="table.unarchived",
+            target_type="table",
+            target_id=str(table.id),
+        )
+        return self._read(table, await self._columns(table), can_edit=True)
 
     async def update_schema(
         self, ctx: AuthContext, table_id: UUID, data: SchemaUpdate
