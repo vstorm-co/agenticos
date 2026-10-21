@@ -2843,6 +2843,7 @@
     "accessRemoved": "Dostęp cofnięty",
     "addSubject": "Dodaj osobę lub grupę",
     "chooseSubject": "Wybierz członka lub grupę",
+    "searchSubjects": "Szukaj po nazwie lub adresie e-mail…",
     "collectionRuntimeNote": "Udostępnianie decyduje o tym, kto może wybrać tę kolekcję w Builderze i kto może ją zmienić. Agent do niej podłączony przeszukuje ją dla każdego, kto może go uruchomić — także dla osób, które same nie mogą otworzyć kolekcji.",
     "everyoneAlreadyHasAccess": "Wszyscy już mają dostęp",
     "failedLoadShares": "Nie udało się wczytać udostępnień",

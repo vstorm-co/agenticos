@@ -216,6 +216,30 @@ describe("SharingPanel", () => {
     expect(screen.queryByRole("option", { name: "owner@example.com" })).not.toBeInTheDocument();
   });
 
+  it("finds a member by typing part of their address", async () => {
+    groups = [];
+    members = [...members, member("u-noor", "noor@other.example")];
+    renderPanel();
+    await userEvent.click(screen.getByLabelText(ADD));
+    await userEvent.type(await screen.findByPlaceholderText("Search by name or email…"), "other");
+
+    expect(screen.getByRole("option", { name: "noor@other.example" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "nina@example.com" })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("option", { name: "noor@other.example" }));
+    expect(screen.getByLabelText(ADD)).toHaveTextContent("noor@other.example");
+    await userEvent.click(screen.getByRole("button", { name: "Share" }));
+    expect(share.mutate).toHaveBeenCalledWith({ subject_user_id: "u-noor", level: "read" });
+  });
+
+  it("says so when nobody matches", async () => {
+    renderPanel();
+    await userEvent.click(screen.getByLabelText(ADD));
+    await userEvent.type(await screen.findByPlaceholderText("Search by name or email…"), "zzz");
+
+    expect(screen.getByText("Nobody here matches that.")).toBeInTheDocument();
+  });
+
   it("shares with the member and level that were chosen", async () => {
     renderPanel();
     await choose(screen.getByLabelText(ADD), "nina@example.com");
