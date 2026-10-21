@@ -35,6 +35,7 @@ from app.db.models.agent_embed import AgentEmbed
 from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.browser_sign_in import BrowserSignIn
 from app.db.models.channel_bot import ChannelBot
+from app.db.models.deployment_settings import DeploymentSettings
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.session import get_db_context
@@ -47,6 +48,10 @@ def _org_scope(row: OrganizationSecret | ChannelBot | AgentEmbed | AgentTrigger)
 
 def _person_scope(row: BrowserSignIn) -> VaultScope:
     return VaultScope.user(row.user_id)
+
+
+def _deployment_scope(_row: DeploymentSettings) -> VaultScope:
+    return VaultScope.deployment()
 
 
 @dataclass(frozen=True)
@@ -66,7 +71,13 @@ class SealedTable:
 
     label: str
     model: type[
-        OrganizationSecret | ChannelBot | McpConnection | AgentEmbed | AgentTrigger | BrowserSignIn
+        OrganizationSecret
+        | ChannelBot
+        | McpConnection
+        | AgentEmbed
+        | AgentTrigger
+        | BrowserSignIn
+        | DeploymentSettings
     ]
     columns: tuple[str, ...]
     version_attr: str
@@ -121,6 +132,13 @@ SEALED_TABLES: tuple[SealedTable, ...] = (
         columns=("sealed_state",),
         version_attr="secret_key_version",
         scope=_person_scope,
+    ),
+    SealedTable(
+        label="deployment_settings",
+        model=DeploymentSettings,
+        columns=("vapid_private_key",),
+        version_attr="vapid_key_version",
+        scope=_deployment_scope,
     ),
 )
 

@@ -86,6 +86,7 @@ from app.services.personal_data import PersonalDataService
 from app.services.browser_sign_in import BrowserSignInService
 from app.services.user import UserService
 from app.services.session import SessionService
+from app.services.web_push import WebPushService
 from app.services.impersonation import ImpersonationService
 from app.services.ws_auth import authenticate_socket_key, authenticate_socket_token
 from app.services.device_pairing import DevicePairingService
@@ -135,6 +136,14 @@ SessionSvc = Annotated[SessionService, Depends(get_session_service)]
 ImpersonationSvc = Annotated[ImpersonationService, Depends(get_impersonation_service)]
 OAuthExchangeSvc = Annotated[OAuthExchangeService, Depends(get_oauth_exchange_service)]
 DevicePairingSvc = Annotated[DevicePairingService, Depends(get_device_pairing_service)]
+
+
+def get_web_push_service(db: DBSession) -> WebPushService:
+    """Create WebPushService with the request's database session."""
+    return WebPushService(db)
+
+
+WebPushSvc = Annotated[WebPushService, Depends(get_web_push_service)]
 
 
 def get_conversation_service(db: DBSession) -> ConversationService:

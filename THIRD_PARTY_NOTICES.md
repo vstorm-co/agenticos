@@ -23,14 +23,14 @@ names no author is in the evidence column below.
 
 | Licence | Backend | Frontend |
 |---|---:|---:|
-| MIT | 105 | 242 |
+| MIT | 106 | 242 |
 | Apache-2.0 | 64 | 24 |
 | BSD-3-Clause | 24 | 4 |
 | ISC | 3 | 16 |
 | BSD-2-Clause | 7 | 0 |
+| MPL-2.0 | 5 | 0 |
 | Apache-2.0 AND MIT | 1 | 2 |
 | LGPL-3.0-or-later | 1 | 2 |
-| MPL-2.0 | 3 | 0 |
 | PSF-2.0 | 3 | 0 |
 | 0BSD | 1 | 1 |
 | AGPL-3.0-only | 1 | 0 |
@@ -49,7 +49,7 @@ names no author is in the evidence column below.
 
 ## Backend image (Python)
 
-223 distributions.
+226 distributions.
 
 | Component | Version | Licence | Source | Evidence |
 |---|---|---|---|---|
@@ -126,6 +126,7 @@ names no author is in the evidence column below.
 | h2 | 4.4.1 | MIT | https://github.com/python-hyper/h2/ | License-Expression |
 | hf-xet | 1.4.3 | Apache-2.0 | https://github.com/huggingface/xet-core.git | License-Expression |
 | hpack | 4.2.0 | MIT | https://github.com/python-hyper/hpack/ | License-Expression |
+| http-ece | 1.2.1 | MIT | https://github.com/martinthomson/encrypted-content-encoding | License field; no licence file, attributed to Martin Thomson |
 | httpcore | 1.0.9 | BSD-3-Clause | https://github.com/encode/httpcore | License-Expression |
 | httpcore2 | 2.13.1 | BSD-3-Clause | https://github.com/pydantic/httpx2/blob/main/src/httpcore2 | License-Expression |
 | httptools | 0.9.0 | MIT | https://github.com/MagicStack/httptools | License-Expression |
@@ -202,6 +203,7 @@ names no author is in the evidence column below.
 | psutil | 7.2.2 | BSD-3-Clause | https://github.com/giampaolo/psutil | License field |
 | psycopg2-binary | 2.9.13 | LGPL-3.0-or-later | https://psycopg.org/ | licence file text; review accepted |
 | py-key-value-aio | 0.4.5 | Apache-2.0 | https://pypi.org/project/py-key-value-aio/0.4.5/ | License-Expression |
+| py-vapid | 1.9.6 | MPL-2.0 | https://github.com/mozilla-services/vapid | License field; review accepted |
 | pyasn1 | 0.6.4 | BSD-2-Clause | https://github.com/pyasn1/pyasn1 | License field |
 | pyasn1-modules | 0.4.2 | BSD-2-Clause | https://github.com/pyasn1/pyasn1-modules | licence file text |
 | pycparser | 3.0 | BSD-3-Clause | https://github.com/eliben/pycparser | License-Expression |
@@ -228,6 +230,7 @@ names no author is in the evidence column below.
 | python-pptx | 1.0.2 | MIT | https://github.com/scanny/python-pptx | License field |
 | python-socketio | 5.17.0 | MIT | https://code.miguelgrinberg.com/miguelgrinberg/python-socketio | License field |
 | pytz | 2026.3.post1 | MIT | https://github.com/stub42/pytz.git | License field |
+| pywebpush | 2.5.0 | MPL-2.0 | https://github.com/web-push-libs/pywebpush | License-Expression; review accepted |
 | pyyaml | 6.0.3 | MIT | https://github.com/yaml/pyyaml | License field |
 | qdrant-client | 1.19.0 | Apache-2.0 | https://github.com/qdrant/qdrant-client | License field |
 | rank-bm25 | 0.2.2 | Apache-2.0 | https://github.com/dorianbrown/rank_bm25 | License field |

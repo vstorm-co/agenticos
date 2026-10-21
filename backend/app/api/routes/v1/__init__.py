@@ -15,6 +15,7 @@ from app.api.routes.v1 import (
 from app.api.routes.v1 import admin_users, auth, users
 from app.api.routes.v1 import admin_ratings
 from app.api.routes.v1 import oauth
+from app.api.routes.v1 import push
 from app.api.routes.v1 import sessions
 from app.api.routes.v1 import conversations
 from app.api.routes.v1 import admin_conversations
@@ -151,6 +152,7 @@ v1_router.include_router(admin_ratings.router, prefix="/admin/ratings", tags=["a
 v1_router.include_router(oauth.router, prefix="/oauth", tags=["oauth"])
 
 v1_router.include_router(sessions.router, prefix="/sessions", tags=["sessions"])
+v1_router.include_router(push.router, prefix="/push", tags=["push"])
 
 v1_router.include_router(conversations.router, prefix="/conversations", tags=["conversations"])
 

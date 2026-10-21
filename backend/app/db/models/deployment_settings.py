@@ -22,7 +22,7 @@ serves whichever one a query happened to order first.
 
 import uuid
 
-from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Integer, String
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import text
@@ -77,6 +77,19 @@ class DeploymentSettings(Base, TimestampMixin):
     else's name needs, since our pages describe our terms and not theirs.
     """
 
+    vapid_private_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    """This deployment's VAPID signing key for Web Push (#2097), sealed in the
+    vault under the deployment's scope.
+
+    Generated the first time anything needs it - nobody configures Web Push -
+    and never replaced: every browser subscription is bound to the public half,
+    so a new key would silently end every subscription there is. The master
+    key's rotation re-wraps it (`vault_rotate`), which leaves the key itself,
+    and the subscriptions, as they were.
+    """
+    vapid_public_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    """The public half, base64url, as a browser's `applicationServerKey` takes it."""
+    vapid_key_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     max_organizations_per_user: Mapped[int | None] = mapped_column(Integer, nullable=True)
     """How many organizations one account may own, or null for no ceiling.
 
