@@ -920,6 +920,9 @@ class SkillService:
             resource_id=skill.id,
         )
         await skill_repo.delete(self.db, skill)
+        # A published spec keeps a deleted skill's id and runs without it, so the
+        # bound agents answer differently from now on.
+        await self._changed(skill)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,

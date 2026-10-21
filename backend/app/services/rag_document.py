@@ -775,7 +775,11 @@ class RAGDocumentService:
         failed vector delete leaves the row for the next run to try again,
         rather than vectors nothing tracks. A synced document stores no file.
         """
-        await rag_document_repo.delete(self.db, UUID(doc_id))
+        doc = await rag_document_repo.get_by_id(self.db, UUID(doc_id))
+        if doc is None:
+            return
+        await rag_document_repo.delete(self.db, doc.id)
+        await self._content_changed(doc)
 
     async def delete_by_collection(self, collection_name: str) -> None:
         """Delete a collection's document rows and unlink their stored uploads.
