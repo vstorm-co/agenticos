@@ -7,8 +7,9 @@ key. Nor would it see a miss read from an answer survive as a search. Each test
 upgrades to its revision, seeds the rows, downgrades one step, reads them and
 upgrades again.
 
-It owns a database of its own - created here, dropped when the module is done -
-for the reason `test_migrations.py` does: it runs real migrations, and pointing
+Each test owns a database of its own - created for it, dropped after it, so
+one test's revision is never another's starting point - for the reason
+`test_migrations.py` does: it runs real migrations, and pointing
 that at the model-built integration database (or a developer's) is how a run
 empties something it should not.
 """
@@ -70,7 +71,7 @@ def _server_reachable(url: str) -> bool:
         engine.dispose()
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(autouse=True)
 def migration_database() -> Iterator[None]:
     maintenance = _url(_MAINTENANCE_DATABASE)
     if not _server_reachable(maintenance):
