@@ -19,7 +19,9 @@ from app.api.routes.v1 import sessions
 from app.api.routes.v1 import conversations
 from app.api.routes.v1 import admin_conversations
 from app.api.routes.v1 import me_channel_link
+from app.api.routes.v1 import me_connected_accounts
 from app.api.routes.v1 import me_mcp_connections
+from app.api.routes.v1 import org_connected_accounts
 from app.api.routes.v1 import org_mcp_connections
 from app.api.routes.v1 import local_services
 from app.api.routes.v1 import ml as ml_services
@@ -158,6 +160,9 @@ v1_router.include_router(
     org_mcp_connections.router, prefix="/mcp-connections", tags=["mcp-connections"]
 )
 v1_router.include_router(
+    org_connected_accounts.router, prefix="/connected-accounts", tags=["connected-accounts"]
+)
+v1_router.include_router(
     sandbox_connections.router, prefix="/sandbox-connections", tags=["sandbox-connections"]
 )
 v1_router.include_router(local_services.router, prefix="/local-services", tags=["local-services"])
@@ -167,6 +172,11 @@ v1_router.include_router(
 
 v1_router.include_router(
     me_mcp_connections.router, prefix="/me/mcp-connections", tags=["me:mcp-connections"]
+)
+v1_router.include_router(
+    me_connected_accounts.router,
+    prefix="/me/connected-accounts",
+    tags=["me:connected-accounts"],
 )
 
 v1_router.include_router(

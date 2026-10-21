@@ -239,6 +239,23 @@ browser = [
 kerberos = [
     "gssapi>=1.9.0",
 ]
+# The `mirage` capability's virtual terminal (#2191): Mirage mounts an author's
+# chosen backends - GitHub, Drive, Notion, Postgres, an SSH host... - under one
+# tree with a shell over it. Pinned exactly because 0.0.7 is a preview.
+#
+# An extra for the reason `kerberos` is one: `tree-sitter`, which Mirage parses
+# shell lines with, publishes no 3.15 wheel and compiles, so a build that wants
+# the terminal pays for a compiler and one that does not stays as it was. The
+# extras named are the backends that resolve beside this lock: `s3` (and the
+# S3-compatible stores built on it) needs `aioboto3`, which pins `boto3` below
+# the 1.43 this project needs, and `qdrant` has no 3.15 wheels; `lancedb` is left
+# out for `pyarrow`'s weight, and `langfuse` because it moves every OpenTelemetry
+# package the app's own tracing runs on. Those backends are listed as unavailable
+# rather than missing. The same pin is in the `dev` group so the suite runs the real library;
+# `tests/test_mirage_capability.py` keeps the two equal.
+mirage = [
+    "mirage-ai[pydantic-ai,ssh,mongodb,gridfs,postgres,redis,email,nextcloud,hf-buckets,chroma,mem0]==0.0.7",
+]
 
 # PEP 735 dependency group — installed by `uv sync` / `uv sync --dev` and
 # excluded by `--no-dev`. (A `dev` extra under [project.optional-dependencies]
@@ -246,6 +263,8 @@ kerberos = [
 # could skip it on some uv versions and leave pre-commit/ruff/ty unspawnable.)
 [dependency-groups]
 dev = [
+    # The `mirage` extra's pin, for the suite - see the extra.
+    "mirage-ai[pydantic-ai,ssh,mongodb,gridfs,postgres,redis,email,nextcloud,hf-buckets,chroma,mem0]==0.0.7",
     "pytest>=9.0.0",
     "anyio[trio]>=4.15.1",
     "pytest-cov>=6.1.0",
@@ -784,6 +803,7 @@ include = [
     "app/services/portals/github_oauth.py",
     "app/services/portals/registry.py",
     "app/services/mcp_connection.py",
+    "app/services/mirage_mounts.py",
     # Which providers can draw an image, derived from the SDK. What it decides is
     # what the Builder offers, and a probe that quietly starts answering "no"
     # would empty that picker without a single test failing.
@@ -1277,6 +1297,7 @@ include = [
     "app/services/portals/github_oauth.py",
     "app/services/portals/registry.py",
     "app/services/mcp_connection.py",
+    "app/services/mirage_mounts.py",
     # Which providers can draw an image, derived from the SDK. What it decides is
     # what the Builder offers, and a probe that quietly starts answering "no"
     # would empty that picker without a single test failing.

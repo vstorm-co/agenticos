@@ -320,6 +320,30 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
   },
   execute: { kind: "shell", render: "workspace", verbs: { now: "executing", done: "executed" } },
 
+  // mirage - the same console tools over a virtual terminal's mounted services. The
+  // generic renderer shows a command's output as the text it is: a file written
+  // there lives in a Drive or a repository, not in this conversation's workspace,
+  // so it is not one the workspace renderer could open.
+  mirage_ls: { kind: "list", render: "generic", verbs: { now: "listing", done: "listed" } },
+  mirage_read_file: { kind: "read", render: "generic", verbs: { now: "reading", done: "read" } },
+  mirage_glob: {
+    kind: "search",
+    render: "generic",
+    verbs: { now: "lookingFor", done: "lookedFor" },
+  },
+  mirage_grep: {
+    kind: "search",
+    render: "generic",
+    verbs: { now: "searchingFor", done: "searchedFor" },
+  },
+  mirage_write_file: { kind: "write", render: "generic", verbs: { now: "writing", done: "wrote" } },
+  mirage_edit_file: { kind: "edit", render: "generic", verbs: { now: "editing", done: "edited" } },
+  mirage_execute: {
+    kind: "shell",
+    render: "generic",
+    verbs: { now: "executing", done: "executed" },
+  },
+
   // coding_agent - Claude Code or Codex in the sandbox. Its steps stream into a
   // panel of their own while it works; what it read, ran and changed opens under
   // the step afterwards, because that is what a person checks before trusting it.

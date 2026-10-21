@@ -37,6 +37,11 @@ from app.agents.capabilities.charts import Charts
 from app.agents.capabilities.clock import Clock
 from app.agents.capabilities.code_execution import CodeExecution, CodeExecutionConfig
 from app.agents.capabilities.knowledge import Knowledge, KnowledgeConfig
+from app.agents.capabilities.mirage import (
+    MIRAGE_MOUNTS_RESOURCE,
+    ResolvedMount,
+    ResolvedTerminal,
+)
 from app.agents.capabilities.skills import SAFE_SKILL_TOOLS, Skills
 from app.agents.capabilities.web_research import WebResearch, WebResearchConfig
 from app.agents.hand_off import HAND_OFF_TOOL
@@ -148,6 +153,10 @@ class TestToolDeclarations:
         # and contributes nothing when it is not, and this test is about the
         # names it offers rather than what a platform answers.
         CHANNEL_DIRECTORY_RESOURCE: SimpleNamespace(),
+        # The folders the runner resolved; one scratch folder needs no credential.
+        MIRAGE_MOUNTS_RESOURCE: ResolvedTerminal(
+            mounts=(ResolvedMount("/scratch/", "ram", "write", False, {}, "scratch"),)
+        ),
         # A skill that ships a file, which is the widest shape: `skills` offers
         # `read_skill_resource` only when at least one skill has something to
         # read, and a skill with no resources offers no tool at all.
@@ -261,6 +270,9 @@ class TestToolDeclarations:
         # checklist) offers the six core tools and would hide the other three from
         # the comparison rather than check them.
         "planning": {"enable_subtasks": True},
+        # A terminal has no default folder; one scratch folder is the least it
+        # mounts, and its seven tools are the same whatever is mounted.
+        "mirage": {"mounts": [{"path": "/scratch/", "backend": "ram", "mode": "write"}]},
         # Builds `None` from an empty blob on purpose - binding the capability
         # without setting a reminder attaches nothing. One reminder on is what
         # makes it build here; it offers no tools either way.
@@ -1003,7 +1015,14 @@ def test_exactly_the_capabilities_a_call_cannot_run_live_say_so():
         for support in ("hand_off", "never")
     }
     assert by_support == {
-        "hand_off": {"sandbox", "browser_use", "subagents", "background_tools", "coding_agent"},
+        "hand_off": {
+            "sandbox",
+            "browser_use",
+            "subagents",
+            "background_tools",
+            "coding_agent",
+            "mirage",
+        },
         "never": {"channel_tools"},
     }
 

@@ -7318,6 +7318,15 @@
       "example2": "Model 3D magazynu, który można obracać",
       "needs": "Nic dodatkowego. Skill visual-design sprawia, że rysunki wyglądają na zaprojektowane.",
       "never": "Nigdy nie łączy się z siecią - rysunek działa odcięty, jak strona aplikacji."
+    },
+    "mirage": {
+      "name": "Wirtualny terminal",
+      "does": "Montuje wybrane usługi - Dysk, repozytorium GitHub, Notion, bazę danych, serwer SSH - jako foldery, więc agent przegląda je, przeszukuje i czyta w powłoce, a pisze tam, gdzie mu pozwolisz.",
+      "example1": "Znajdź w folderze na Dysku każdą umowę, która wspomina klienta",
+      "example2": "Przeszukaj naraz repozytorium i przestrzeń w Notion",
+      "example3": "Odczytaj tabelę z bazy danych i ją podsumuj",
+      "needs": "Dane dostępowe usług w vaulcie albo połączone konto Google. Wdrożenie instaluje terminal z extra mirage, a operator zezwala na hosty serwerów, które wpiszesz.",
+      "never": "Nigdy nie pisze w folderze zamontowanym tylko do odczytu i pyta osobę przed każdym zapisem tam, gdzie tak ustawisz."
     }
   },
   "capabilityCategories": {
@@ -7791,6 +7800,20 @@
       "timeout_minutes": {
         "title": "Limit czasu (minuty)",
         "description": "Jak długo jedno zadanie może trwać, zanim zostanie przerwane."
+      }
+    },
+    "mirage": {
+      "mounts": {
+        "title": "Foldery",
+        "description": "Co terminal montuje, każde jako folder."
+      },
+      "allowed_commands": {
+        "title": "Dozwolone polecenia",
+        "description": "Działają tylko te polecenia, np. ls, cat, grep. Puste pozwala na każde polecenie."
+      },
+      "hidden_paths": {
+        "title": "Ukryte ścieżki",
+        "description": "Ścieżki, których agent w ogóle nie widzi, np. /drive/HR/."
       }
     }
   },

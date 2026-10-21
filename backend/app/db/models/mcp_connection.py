@@ -107,7 +107,9 @@ class McpConnection(Base, TimestampMixin):
         CheckConstraint(
             "visibility IN ('private', 'team', 'org')", name="ck_mcp_connection_visibility"
         ),
-        CheckConstraint("purpose IN ('mcp', 'portal')", name="ck_mcp_connection_purpose"),
+        CheckConstraint(
+            "purpose IN ('mcp', 'portal', 'account')", name="ck_mcp_connection_purpose"
+        ),
         # A portal grant names its portal and nothing else does: the column is what
         # the poller and the trigger card look a connection up by.
         CheckConstraint(
@@ -210,6 +212,11 @@ class McpConnection(Base, TimestampMixin):
     # Phase 0. The price is one column and one filter: every MCP-facing read asks
     # for `purpose = 'mcp'`, because a Gmail grant is not a server anybody should
     # be offered to bind an agent to (#1068).
+    #
+    # `account` is a connected account (#2191): an OAuth grant a virtual
+    # terminal's mount signs in as - a person's Google account, or one the
+    # organization connected. Its provider is `catalog_key` (`google`), its
+    # label the account's address, and a person may hold several.
     purpose: Mapped[str] = mapped_column(String(16), nullable=False, default="mcp", index=True)
     # Which portal a `purpose = 'portal'` row holds the grant for. Null on an MCP row.
     portal_key: Mapped[str | None] = mapped_column(String(64), nullable=True)

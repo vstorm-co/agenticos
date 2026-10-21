@@ -7543,6 +7543,15 @@
       "example2": "A 3D model of the warehouse you can turn",
       "needs": "Nothing extra. The visual-design skill makes the drawings look designed.",
       "never": "Never reaches the network - a drawing runs sealed off, like an app's page."
+    },
+    "mirage": {
+      "name": "Virtual terminal",
+      "does": "Mounts the services you choose - a Drive, a GitHub repository, Notion, a database, an SSH server - as folders, so the agent lists, searches and reads them with a shell, and writes where you allow it.",
+      "example1": "Find every contract in a Drive folder that mentions a client",
+      "example2": "Search a repository and a Notion workspace in one go",
+      "example3": "Read a table from your database and summarise it",
+      "needs": "The services' credentials in the vault, or a connected Google account. A deployment installs the terminal with the mirage extra, and an operator allows the hosts of any server you type.",
+      "never": "Never writes to a folder you mounted read-only, and asks a person before each write where you said so."
     }
   },
   "capabilityCategories": {
@@ -8006,6 +8015,20 @@
       "timeout_minutes": {
         "title": "Time limit (minutes)",
         "description": "How long one task may run before it is stopped."
+      }
+    },
+    "mirage": {
+      "mounts": {
+        "title": "Folders",
+        "description": "What the terminal mounts, each as a folder."
+      },
+      "allowed_commands": {
+        "title": "Allowed commands",
+        "description": "Only these commands run, e.g. ls, cat, grep. Empty allows every command."
+      },
+      "hidden_paths": {
+        "title": "Hidden paths",
+        "description": "Paths the agent cannot see at all, e.g. /drive/HR/."
       }
     }
   },

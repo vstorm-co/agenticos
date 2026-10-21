@@ -1,5 +1,5 @@
 ---
-source_sha: "c1a088854770"
+source_sha: "89192b9ae8e1"
 ---
 
 # Słownik { #glossary }
@@ -78,6 +78,7 @@ w [Capabilities](capabilities.md).
 | Odciążenie z obrazów | `media` |
 | Pamięć | `memory_files` |
 | Pamięć (mem0) | `memory_mem0` |
+| Wirtualny terminal | `mirage` |
 | Planowanie | `planning` |
 | Praca w trakcie narzędzi | `background_tools` |
 | Sandbox | `sandbox` |

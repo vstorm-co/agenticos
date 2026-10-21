@@ -75,6 +75,7 @@ in [Capabilities](capabilities.md).
 | Media offload | `media` |
 | Memory | `memory_files` |
 | Memory (mem0) | `memory_mem0` |
+| Virtual terminal | `mirage` |
 | Planning | `planning` |
 | Work while tools run | `background_tools` |
 | Sandbox | `sandbox` |

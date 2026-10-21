@@ -434,10 +434,12 @@ async def create(
     oauth_pending_payload: str | None = None,
     label: str | None = None,
     catalog_key: str | None = None,
+    purpose: str = "mcp",
 ) -> McpConnection:
     connection = McpConnection(
         user_id=user_id,
         catalog_key=catalog_key,
+        purpose=purpose,
         name=name,
         url=url,
         auth_token=auth_token,
@@ -562,3 +564,45 @@ async def portal_grants_for_account(
         )
     )
     return list(result.scalars().all())
+
+
+async def list_accounts(
+    db: AsyncSession,
+    *,
+    provider: str,
+    user_id: UUID | None = None,
+    organization_id: UUID | None = None,
+) -> list[McpConnection]:
+    """Connected accounts on one provider: a person's own, or an organization's.
+
+    Exactly one of `user_id` and `organization_id`; the two are different owners
+    and a read across both would show a person the organization's grants as theirs.
+    Only accounts whose consent completed - a row still waiting at the consent
+    screen has no grant to mount.
+    """
+    owner = (
+        McpConnection.user_id == user_id
+        if user_id is not None
+        else (McpConnection.scope == "org") & (McpConnection.organization_id == organization_id)
+    )
+    result = await db.execute(
+        select(McpConnection)
+        .where(
+            owner,
+            McpConnection.purpose == "account",
+            McpConnection.catalog_key == provider,
+            McpConnection.oauth_payload.is_not(None),
+        )
+        .order_by(McpConnection.created_at)
+    )
+    return list(result.scalars().all())
+
+
+async def get_account(db: AsyncSession, account_id: UUID) -> McpConnection | None:
+    """One connected account by id, whoever owns it - the caller checks the owner."""
+    result = await db.execute(
+        select(McpConnection).where(
+            McpConnection.id == account_id, McpConnection.purpose == "account"
+        )
+    )
+    return result.scalar_one_or_none()

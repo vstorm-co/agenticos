@@ -44,6 +44,13 @@ RUN if echo "${EXTRAS}" | grep -q kerberos; then \
         && apt-get clean && rm -rf /var/lib/apt/lists/*; \
     fi
 
+# The `mirage` extra brings `tree-sitter`, which publishes no 3.15 wheel and
+# compiles (#2191). The same bargain: only that build pays for the compiler.
+RUN if echo "${EXTRAS}" | grep -q mirage; then \
+        apt-get update && apt-get install -y --no-install-recommends gcc \
+        && apt-get clean && rm -rf /var/lib/apt/lists/*; \
+    fi
+
 # Install dependencies
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=backend/uv.lock,target=uv.lock \

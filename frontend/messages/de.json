@@ -7426,6 +7426,15 @@
       "example2": "Ein 3D-Modell des Lagers zum Drehen",
       "needs": "Nichts weiter. Der Skill visual-design lässt die Zeichnungen gestaltet aussehen.",
       "never": "Greift nie aufs Netz zu - eine Zeichnung läuft abgeschottet, wie die Seite einer App."
+    },
+    "mirage": {
+      "name": "Virtuelles Terminal",
+      "does": "Bindet die Dienste ein, die Sie wählen - ein Drive, ein GitHub-Repository, Notion, eine Datenbank, einen SSH-Server - als Ordner, damit der Agent sie mit einer Shell auflistet, durchsucht und liest und dort schreibt, wo Sie es erlauben.",
+      "example1": "Jeden Vertrag in einem Drive-Ordner finden, der einen Kunden erwähnt",
+      "example2": "Ein Repository und einen Notion-Workspace in einem Durchgang durchsuchen",
+      "example3": "Eine Tabelle aus Ihrer Datenbank lesen und zusammenfassen",
+      "needs": "Die Zugangsdaten der Dienste im Vault oder ein verbundenes Google-Konto. Ein Deployment installiert das Terminal mit dem Extra mirage, und ein Operator erlaubt die Hosts jedes Servers, den Sie eintragen.",
+      "never": "Schreibt nie in einen nur lesbar eingebundenen Ordner und fragt vor jedem Schreiben eine Person, wo Sie das festgelegt haben."
     }
   },
   "capabilityCategories": {
@@ -7889,6 +7898,20 @@
       "timeout_minutes": {
         "title": "Zeitlimit (Minuten)",
         "description": "Wie lange eine Aufgabe laufen darf, bevor sie gestoppt wird."
+      }
+    },
+    "mirage": {
+      "mounts": {
+        "title": "Ordner",
+        "description": "Was das Terminal einbindet, jeweils als Ordner."
+      },
+      "allowed_commands": {
+        "title": "Erlaubte Befehle",
+        "description": "Nur diese Befehle laufen, z. B. ls, cat, grep. Leer erlaubt jeden Befehl."
+      },
+      "hidden_paths": {
+        "title": "Verborgene Pfade",
+        "description": "Pfade, die der Agent gar nicht sieht, z. B. /drive/HR/."
       }
     }
   },

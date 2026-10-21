@@ -71,6 +71,9 @@ EXTERNAL_TOOLSET = {
     # satisfied without a module that would only re-export somebody else's
     # functions.
     "sandbox",
+    # The same console toolset as `sandbox`, pinned to the terminal and prefixed;
+    # `_resolved.py` declares the seven tools with the library's own text.
+    "mirage",
     # `pydantic_ai_harness.planning.PlanningToolset`. Same bargain as `sandbox`:
     # the nine tool descriptions are declared in `_capability.py` and handed to the
     # library through `descriptions=`, so the text a reader edits still lives here.
