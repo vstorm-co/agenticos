@@ -15,7 +15,7 @@ the results, notifications and preferences of the new values, and narrows the
 three CHECKs back.
 
 Revision ID: 0155_promotion_gate
-Revises: 0152_authoring_proposals
+Revises: 0154_dataset_version_spans
 Create Date: 2026-10-21
 """
 
@@ -27,7 +27,7 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 revision: str = "0155_promotion_gate"
-down_revision: str | None = "0152_authoring_proposals"
+down_revision: str | None = "0154_dataset_version_spans"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
