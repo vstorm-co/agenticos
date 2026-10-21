@@ -201,6 +201,7 @@ async def _run(
     start_clock=None,
     during_start=None,
     connect_seconds=60.0,
+    mark=None,
 ):
     held: list[VoiceCallSession] = []
 
@@ -223,7 +224,7 @@ async def _run(
         repo.expired = expired
         repo.live_cost = live_cost
         repo.end = end or AsyncMock()
-        repo.mark_hung_up = AsyncMock()
+        repo.mark_hung_up = mark or AsyncMock()
         repo.heartbeat = AsyncMock()
         repo.start_clock = start_clock or AsyncMock()
         repo.set_provider_call_id = AsyncMock()
@@ -745,6 +746,40 @@ async def test_a_hang_up_the_provider_did_not_confirm_is_left_for_the_reaper():
     )
     repo.end.assert_awaited_once()
     repo.mark_hung_up.assert_not_awaited()
+
+
+async def test_a_hung_up_call_whose_end_was_not_written_is_left_for_the_reaper():
+    """Codex on #2204: stamped hung up, the row left the sweep with its final
+    seconds and cost never written."""
+    socket = FakeSocket([_START, json.dumps({"type": "end"})])
+    _, repo = await _run(
+        socket, _started(FakeRealtime(hold=True)), end=AsyncMock(side_effect=RuntimeError("db"))
+    )
+    repo.mark_hung_up.assert_not_awaited()
+
+
+async def test_a_hung_up_call_whose_run_did_not_close_is_left_for_the_reaper():
+    """Codex on #2204: the sweep closes the run from the row; stamped hung up, the
+    stale-run sweep failed it six hours later instead."""
+    socket = FakeSocket([_START, json.dumps({"type": "end"})])
+    started = _started(FakeRealtime(hold=True))
+    started.runner.finish = AsyncMock(side_effect=RuntimeError("commit failed"))
+
+    _, repo = await _run(socket, started)
+
+    repo.end.assert_awaited_once()
+    repo.mark_hung_up.assert_not_awaited()
+    assert socket.sent[-1] == {"type": "ended", "reason": "user"}
+
+
+async def test_a_hang_up_stamp_that_cannot_be_written_still_ends_the_call():
+    socket = FakeSocket([_START, json.dumps({"type": "end"})])
+    mark = AsyncMock(side_effect=RuntimeError("db"))
+
+    await _run(socket, _started(FakeRealtime(hold=True)), mark=mark)
+
+    mark.assert_awaited_once()
+    assert socket.sent[-1] == {"type": "ended", "reason": "user"}
 
 
 async def test_a_second_reason_to_end_does_not_replace_the_first():

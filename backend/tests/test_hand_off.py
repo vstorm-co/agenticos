@@ -155,11 +155,19 @@ async def test_a_twin_left_waiting_on_something_a_call_cannot_give_says_so():
         agent=SimpleNamespace(run=AsyncMock(return_value=deferred)),
         deps=SimpleNamespace(),
         usage_limits=UsageLimits(),
+        budget=SimpleNamespace(ledger=MagicMock(billed_share_of=MagicMock())),
     )
-    worker = CallWorker(lambda: twin, workspace=None, capability_names=["Sandbox"])
+    reports: list[object] = []
+    worker = CallWorker(
+        lambda: twin, workspace=None, capability_names=["Sandbox"], report=reports.append
+    )
 
     with pytest.raises(ToolFailed, match="a call cannot give it"):
         await worker.hand_off(_call(), "Do it")
+
+    # Codex on #2204: its row was written as completed before this was noticed.
+    (spent,) = reports
+    assert spent.error == "it stopped to wait for something a call cannot give it"
 
 
 async def test_the_tool_names_what_the_call_hands_off():

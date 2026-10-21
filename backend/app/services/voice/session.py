@@ -773,6 +773,11 @@ class VoiceCallSession:
         except Exception:
             logger.exception("voice_final_booking_failed", extra={"call_id": call_id})
         now = datetime.now(UTC)
+        # Whether the row's end and the run's close were both written: only then is
+        # the row stamped hung up. Either one failing leaves it to the voice sweep,
+        # which hangs up again, writes the end and closes the run, where a row
+        # stamped hung up is excluded from it for good (Codex on #2204).
+        ended = finished = False
         try:
             # The row's end first: a reconnect on this worker waits for it, and must
             # not wait out the provider's hang-up as well.
@@ -789,6 +794,7 @@ class VoiceCallSession:
                     seconds=int(elapsed),
                     guardrail_hits=started.guard.hits,
                 )
+            ended = True
         except Exception:
             logger.exception("voice_call_row_end_failed", extra={"call_id": call_id})
         hung = False
@@ -809,8 +815,6 @@ class VoiceCallSession:
             logger.exception("voice_flush_failed", extra={"call_id": call_id})
         try:
             async with self._sessions() as own:
-                if hung:
-                    await voice_call_repo.mark_hung_up(own, started.call_id, at=now)
                 # A bridge that could not expire its own approval (the call ended
                 # mid-write) must not leave it pending for ever.
                 await agent_run_repo.expire_pending_approvals(
@@ -828,8 +832,15 @@ class VoiceCallSession:
                 db, run_id=started.prepared.run.id, decided_at=now
             )
             await db.commit()
+            finished = True
         except Exception:
             logger.exception("voice_run_finish_failed", extra={"call_id": call_id})
+        if hung and ended and finished:
+            try:
+                async with self._sessions() as own:
+                    await voice_call_repo.mark_hung_up(own, started.call_id, at=now)
+            except Exception:
+                logger.exception("voice_call_mark_hung_up_failed", extra={"call_id": call_id})
         ended = EndedFrame(type="ended", reason=reason.value)
         if self._message is not None:
             ended.message = self._message

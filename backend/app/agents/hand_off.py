@@ -142,6 +142,12 @@ class CallWorker:
                         workspace=self._workspace,
                         event_stream_handler=self._forward,
                     )
+                if isinstance(result.output, DeferredToolRequests):
+                    # Approvals and questions are settled inline in a call, so only
+                    # a deferral nothing here can answer is left. Inside the `try`,
+                    # so the hand-off's row records it as failed.
+                    error = "it stopped to wait for something a call cannot give it"
+                    raise ToolFailed(HAND_OFF_FAILED.format(reason=error))
             except (AgentRunError, AppException, BudgetExceeded) as exc:
                 logger.exception("voice_hand_off_failed")
                 error = _reason(exc)
@@ -158,14 +164,6 @@ class CallWorker:
                         )
                     )
             self._history = result.all_messages()
-            if isinstance(result.output, DeferredToolRequests):
-                # Approvals and questions are settled inline in a call, so only a
-                # deferral nothing here can answer is left.
-                raise ToolFailed(
-                    HAND_OFF_FAILED.format(
-                        reason="it stopped to wait for something a call cannot give it"
-                    )
-                )
             return result.output
 
     async def _forward(
