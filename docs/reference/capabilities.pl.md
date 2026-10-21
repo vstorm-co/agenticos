@@ -1,5 +1,5 @@
 ---
-source_sha: "13ef0098f849"
+source_sha: "76d458c1aefd"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1105,7 +1105,7 @@ odtwarzacz i zapisywane w `output/`, gdy workspace jest otwarty (#2259).
 | `model` | `gpt-4o-mini-tts` | Modele tego providera z `app/core/catalog/text_to_speech_models.json` |
 | `voice` | pierwszy głos modelu | Głos z katalogu dla OpenAI i Gemini; id z własnej biblioteki głosów dla ElevenLabs |
 | `output_format` | pierwszy format providera | `mp3`, `wav` (Gemini zwraca tylko `wav`) |
-| `max_characters` | `5000` | 1–100 000; najwięcej tekstu, jaki może wypowiedzieć jedno wywołanie |
+| `max_characters` | `5000` | 1–10 000; najwięcej tekstu, jaki może wypowiedzieć jedno wywołanie |
 
 **Providerzy, modele, głosy i ceny to dane** w pliku katalogu. Provider jest
 [celem sekretu](../secrets.md) przyjmującym zwykły klucz API - ElevenLabs nie

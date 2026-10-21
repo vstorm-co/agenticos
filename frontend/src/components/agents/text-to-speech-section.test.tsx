@@ -93,6 +93,8 @@ const DEFINITION: CapabilityCatalogEntry = {
 function mount(
   config: Record<string, unknown> = { provider: "openai", model: "gpt-4o-mini-tts" },
   definition: CapabilityCatalogEntry = DEFINITION,
+  configProblems: { field: string; message: string }[] = [],
+  secretId: string | null = null,
 ) {
   const onChange = vi.fn();
   render(
@@ -105,11 +107,12 @@ function mount(
           approval: "default",
           tool_approval: {},
           tool_overrides: {},
-          secret_id: null,
+          secret_id: secretId,
           enabled: true,
         } satisfies CapabilityBindingSpec
       }
       onChange={onChange}
+      configProblems={configProblems}
     />,
   );
   return onChange;
@@ -176,6 +179,42 @@ describe("choosing what speaks", () => {
         config: { provider: "elevenlabs", model: "eleven_v4_turbo", max_characters: 900 },
       }),
     );
+  });
+
+  it("forgets the key when the provider changes, so one provider's key is not sent to the next", async () => {
+    const onChange = mount(
+      { provider: "openai", model: "gpt-4o-mini-tts" },
+      DEFINITION,
+      [],
+      "sec-openai",
+    );
+
+    await userEvent.click(screen.getByLabelText("Provider"));
+    await userEvent.click(await screen.findByRole("option", { name: "ElevenLabs" }));
+
+    expect(onChange.mock.lastCall?.[0].secret_id).toBeNull();
+  });
+
+  it("keeps the key when only the model changes", async () => {
+    const onChange = mount(
+      { provider: "openai", model: "gpt-4o-mini-tts" },
+      DEFINITION,
+      [],
+      "sec-openai",
+    );
+
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(await screen.findByRole("option", { name: /TTS-1/ }));
+
+    expect(onChange.mock.lastCall?.[0].secret_id).toBe("sec-openai");
+  });
+
+  it("says what publish refused about a control the panel draws itself", () => {
+    mount({ provider: "openai", model: "tts-9" }, DEFINITION, [
+      { field: "capabilities.text_to_speech.config.model", message: "openai/tts-9 cannot speak." },
+    ]);
+
+    expect(screen.getByText("openai/tts-9 cannot speak.")).toBeInTheDocument();
   });
 
   it("drops a voice the newly chosen model does not speak in", async () => {

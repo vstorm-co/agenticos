@@ -1047,7 +1047,7 @@ and written under `output/` when a workspace is open (#2259).
 | `model` | `gpt-4o-mini-tts` | That provider's models, from `app/core/catalog/text_to_speech_models.json` |
 | `voice` | the model's first | A catalog voice for OpenAI and Gemini; an id from your own voice library for ElevenLabs |
 | `output_format` | the provider's first | `mp3`, `wav` (Gemini returns `wav` only) |
-| `max_characters` | `5000` | 1–100 000; the most text one call may speak |
+| `max_characters` | `5000` | 1–10 000; the most text one call may speak |
 
 **Providers, models, voices and prices are data**, in the catalog file. A provider
 is a [secret purpose](../secrets.md) taking a plain API key - ElevenLabs runs no

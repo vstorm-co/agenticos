@@ -4,6 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.agents.capabilities._config_refusal import refused_at
 from app.agents.capabilities._registry import (
     CapabilityBuildContext,
     CapabilityToolInfo,
@@ -67,7 +68,10 @@ class TextToSpeechConfig(BaseModel):
         title="Longest text",
         default=5000,
         ge=1,
-        le=100_000,
+        # A clip is held whole before it is stored, and WAV runs about 48 kB a
+        # second: ten thousand characters is some eleven minutes and 32 MB, where
+        # a hundred thousand was half a gigabyte buffered several times over.
+        le=10_000,
         description="The most text one call may speak, which caps what a single call can cost.",
     )
 
@@ -78,8 +82,10 @@ class TextToSpeechConfig(BaseModel):
         The pair, the voice and the format are each checked against the catalog,
         because each fails differently mid-run: an unknown model is a bad request,
         a voice the model lacks is a not-found, and a format the provider does not
-        return would be bytes stored under the wrong extension.
+        return would be bytes stored under the wrong extension. Each is refused at
+        its own field, so the Builder can mark the control it is about.
         """
+        title = type(self).__name__
         entry = by_provider(self.provider)
         model = entry.model(self.model) if entry is not None else None
         if entry is None or model is None:
@@ -87,24 +93,31 @@ class TextToSpeechConfig(BaseModel):
                 f"{candidate.provider}: {', '.join(item.id for item in candidate.models)}"
                 for candidate in providers()
             )
-            raise ValueError(f"{self.provider}/{self.model} cannot speak. Offered: {offered}.")
+            raise refused_at(
+                title,
+                [
+                    (
+                        ("model",),
+                        f"{self.provider}/{self.model} cannot speak. Offered: {offered}.",
+                        self.model,
+                    )
+                ],
+            )
         if entry.account_voices:
             chosen_voice = (self.voice or "").strip()
             if not chosen_voice:
-                raise ValueError(
-                    f"{entry.name} voices belong to your account: name one by its voice id."
-                )
+                reason = f"{entry.name} voices belong to your account: name one by its voice id."
+                raise refused_at(title, [(("voice",), reason, self.voice)])
             if not ACCOUNT_VOICE_ID.fullmatch(chosen_voice):
-                raise ValueError(
-                    f"{self.voice!r} is not a voice id: letters, digits, '-' and '_' only."
-                )
+                reason = f"{self.voice!r} is not a voice id: letters, digits, '-' and '_' only."
+                raise refused_at(title, [(("voice",), reason, self.voice)])
         elif self.voice is not None and self.voice not in {v.id for v in entry.voices_for(model)}:
             voices = ", ".join(voice.id for voice in entry.voices_for(model))
-            raise ValueError(f"{self.model} has no voice {self.voice!r}. Offered: {voices}.")
+            reason = f"{self.model} has no voice {self.voice!r}. Offered: {voices}."
+            raise refused_at(title, [(("voice",), reason, self.voice)])
         if self.output_format is not None and self.output_format not in entry.formats:
-            raise ValueError(
-                f"{entry.name} returns {', '.join(entry.formats)}, not {self.output_format}."
-            )
+            reason = f"{entry.name} returns {', '.join(entry.formats)}, not {self.output_format}."
+            raise refused_at(title, [(("output_format",), reason, self.output_format)])
         return self
 
     def offering(self) -> TextToSpeechProvider:

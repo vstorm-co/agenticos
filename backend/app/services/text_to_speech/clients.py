@@ -21,6 +21,7 @@ from urllib.parse import quote
 
 import httpx
 
+from app.services.provider_error_code import error_code
 from app.services.text_to_speech.exceptions import SpeechFailure, SpeechProviderError
 
 logger = logging.getLogger(__name__)
@@ -58,11 +59,6 @@ _QUOTA_SPENT = "quota_exceeded"
 _VOICE_MISSING = "voice_not_found"
 """ElevenLabs' reason for a voice the account no longer has, which it answers 400."""
 
-LOGGED_BODY_CHARACTERS = 200
-"""How much of a provider's error body is logged. Enough for its error code; short
-of the text it may echo back, which is somebody's words, or a key in a format the
-log redaction does not know."""
-
 
 def _failure_for(status: int, body: str) -> SpeechFailure:
     """What kind of failure this was, from the status and the provider's reason.
@@ -90,16 +86,16 @@ def _failure_for(status: int, body: str) -> SpeechFailure:
 
 
 def _raise_for(call: SpeechCall, response: httpx.Response) -> None:
-    """Refuse a non-2xx answer, logging what the provider said and keeping it out."""
+    """Refuse a non-2xx answer, logging only the provider's error code."""
     if response.is_success:
         return
-    body = response.text[:LOGGED_BODY_CHARACTERS]
+    body = response.text
     logger.warning(
         "Speech request to %s for model %s failed (%s): %s",
         call.provider,
         call.model,
         response.status_code,
-        body,
+        error_code(body) or "no error code",
     )
     raise SpeechProviderError(
         _failure_for(response.status_code, body),

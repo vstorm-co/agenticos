@@ -10,6 +10,7 @@ provider's own words.
 import asyncio
 import base64
 import json
+import logging
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from typing import Any
@@ -532,6 +533,19 @@ class TestARefusedOrBrokenAnswer:
             "status": status,
         }
         assert KEY not in caught.value.message
+
+    async def test_only_the_providers_error_code_is_logged(self, caplog):
+        body = f'{{"code":"InvalidParameter","message":"A red bicycle {KEY}"}}'
+        routes = {("POST", "/v1/videos/generations"): lambda _r: httpx.Response(400, text=body)}
+        with (
+            caplog.at_level(logging.WARNING),
+            _answering(routes),
+            pytest.raises(VideoProviderError),
+        ):
+            await _make("xai", "grok-imagine-video-1.5")
+
+        assert caplog.records[-1].getMessage().endswith("failed (400): InvalidParameter")
+        assert KEY not in caplog.text and "red bicycle" not in caplog.text
 
     @pytest.mark.parametrize("body", [b"not json", b"[1, 2]"], ids=["not JSON", "not an object"])
     async def test_an_answer_that_is_not_an_object_is_unavailable(self, body):
