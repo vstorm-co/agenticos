@@ -26,8 +26,10 @@ Two things are versioned separately from this file and worth knowing about:
   from an image the agent generated in the same run, or one in its workspace.
   The clip plays in the conversation, where a generated image would be shown. Its per-second
   price is checked against the budget before the job is submitted, and a job
-  past the agent's time limit is cancelled where the provider allows. BytePlus
-  keys are a new purpose in the vault (#2260).
+  past the agent's time limit is cancelled where the provider allows. Google
+  keeps the request it answers, because Gemini delivers a clip by address only
+  from a stored interaction. BytePlus keys are a new purpose in the vault
+  (#2260).
 - **Agents can speak.** The new `text_to_speech` capability gives an agent a
   `generate_speech` tool that reads a text aloud through OpenAI, ElevenLabs or
   Gemini, chosen per agent with a model and a voice. The clip plays in the

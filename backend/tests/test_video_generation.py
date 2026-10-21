@@ -143,7 +143,7 @@ class TestGemini:
                 "delivery": "uri",
             },
             "background": False,
-            "store": False,
+            "store": True,
             "stream": False,
         }
         assert seen[-1].headers["x-goog-api-key"] == KEY
