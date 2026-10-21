@@ -7,8 +7,6 @@ bytes fetched before the address expires, and a refusal that never carries the
 provider's own words.
 """
 
-from __future__ import annotations
-
 import asyncio
 import base64
 import json
@@ -143,7 +141,6 @@ class TestGemini:
                 "delivery": "uri",
             },
             "background": False,
-            # Delivery by address is refused for an interaction that is not stored.
             "store": True,
             "stream": False,
         }

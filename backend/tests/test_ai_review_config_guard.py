@@ -16,8 +16,6 @@ Extracting by step name rather than copying the script keeps one copy: rename
 the step and this fails loudly instead of testing a stale fork of it.
 """
 
-from __future__ import annotations
-
 import shutil
 import subprocess
 from pathlib import Path

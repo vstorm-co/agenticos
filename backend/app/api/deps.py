@@ -578,7 +578,7 @@ async def get_current_session_id(
 
 
 CurrentSessionId = Annotated[UUID | None, Depends(get_current_session_id)]
-from app.db.models.organization import Organization, OrgRole
+from app.db.models.organization import Organization, OrganizationMember, OrgRole
 
 # Module-level alias so tests can patch via `app.api.deps._member_repo`.
 # RequireOrgRole methods reference this alias instead of importing the repo
@@ -620,17 +620,20 @@ async def get_active_organization(
             raise NotFoundError(message="Personal organization not found - please re-register")
         return org
 
-    membership = await member_repo.get(db, organization_id=x_organization_id, user_id=user.id)
-    if not membership:
+    # The membership and the organization in one query, and the membership kept
+    # for `get_auth_context`, which read the same row again on every request
+    # (#2248). A membership names an existing organization - the foreign key
+    # sees to that - so a missing pair is one answer.
+    found = await member_repo.get_with_organization(
+        db, organization_id=x_organization_id, user_id=user.id
+    )
+    if found is None:
         raise NotFoundError(
             message="Organization not found or access denied",
             details={"org_id": str(x_organization_id)},
         )
-    org = await organization_repo.get_by_id(db, x_organization_id)
-    if not org:
-        raise NotFoundError(
-            message="Organization not found", details={"org_id": str(x_organization_id)}
-        )
+    membership, org = found
+    request.state.active_membership = membership
     return org
 
 
@@ -862,7 +865,9 @@ async def get_auth_context(
     caller = _key_caller(request)
     if caller is not None:
         return _attributed(request, user, caller.context, caller.surface)
-    membership = await _member_repo.get(db, organization_id=org.id, user_id=user.id)
+    membership = _membership_read(request, org, user) or await _member_repo.get(
+        db, organization_id=org.id, user_id=user.id
+    )
     if membership is None and not user.is_app_admin:
         raise NotFoundError(
             message="Organization not found or access denied",
@@ -875,6 +880,18 @@ async def get_auth_context(
         is_app_admin=user.is_app_admin,
     )
     return _attributed(request, user, ctx, "console")
+
+
+def _membership_read(request: Request, org: Organization, user: User) -> OrganizationMember | None:
+    """The membership `get_active_organization` already read for this request, if it is this one."""
+    membership = getattr(request.state, "active_membership", None)
+    if (
+        isinstance(membership, OrganizationMember)
+        and membership.organization_id == org.id
+        and membership.user_id == user.id
+    ):
+        return membership
+    return None
 
 
 Auth = Annotated[AuthContext, Depends(get_auth_context)]
@@ -1358,14 +1375,14 @@ async def get_active_organization_ws(
             if org is None:
                 raise WebSocketException(code=4001, reason="Personal organization not found")
         else:
-            membership = await _member_repo.get(
+            # One query, as `get_active_organization` reads it: the foreign key
+            # means a membership always names an organization that exists.
+            found = await _member_repo.get_with_organization(
                 db, organization_id=organization_id, user_id=user.id
             )
-            if membership is None:
+            if found is None:
                 raise WebSocketException(code=4003, reason="Organization access denied")
-            org = await organization_repo.get_by_id(db, organization_id)
-            if org is None:
-                raise WebSocketException(code=4003, reason="Organization access denied")
+            _membership, org = found
 
         # Detach so attribute access survives the session closing (same reason as
         # the user in get_current_user_ws).
@@ -1404,8 +1421,6 @@ async def verify_api_key(
 
 ValidAPIKey = Annotated[str, Depends(verify_api_key)]
 
-
-from fastapi import Request
 
 from app.core.config import settings
 from app.services.rag.embeddings import EmbeddingService
@@ -1599,3 +1614,38 @@ def get_announcement_service(db: DBSession) -> AnnouncementService:
 
 
 AnnouncementSvc = Annotated[AnnouncementService, Depends(get_announcement_service)]
+from app.services.background_jobs import BackgroundJobService
+
+
+def get_background_job_service(db: DBSession) -> BackgroundJobService:
+    """Create BackgroundJobService instance with database session."""
+    return BackgroundJobService(db)
+
+
+BackgroundJobSvc = Annotated[BackgroundJobService, Depends(get_background_job_service)]
+from app.services.api_runs import ApiRunService
+
+
+def get_api_run_service(db: DBSession) -> ApiRunService:
+    """Create ApiRunService instance with database session."""
+    return ApiRunService(db)
+
+
+ApiRunSvc = Annotated[ApiRunService, Depends(get_api_run_service)]
+
+
+def prefers_async(
+    prefer: Annotated[
+        str | None, Header(description="`respond-async` (RFC 7240) queues the request.")
+    ] = None,
+) -> bool:
+    """Whether the caller's `Prefer` header asks for `respond-async`, among whatever else it asks."""
+    if prefer is None:
+        return False
+    return any(
+        token.strip().split("=", 1)[0].strip().lower() == "respond-async"
+        for token in prefer.split(",")
+    )
+
+
+PrefersAsync = Annotated[bool, Depends(prefers_async)]

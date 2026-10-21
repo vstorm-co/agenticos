@@ -16,7 +16,7 @@
 # The frontend is `docker-compose-dev.frontend.yml`.
 
 services:
-  # Runs the migrations and exits; `app` and `prefect-runner` wait for it to have
+  # Runs the migrations and exits; `app` and `worker` wait for it to have
   # completed, so `make dev-server` is a `pull` and an `up`.
   migrate:
     image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-edge}
@@ -49,7 +49,6 @@ services:
       - ENVIRONMENT=dev
       - POSTGRES_HOST=db
       - REDIS_HOST=redis
-      - PREFECT_API_URL=http://prefect-server:4200/api
       # The browser profile's egress proxy, on by default so starting the browser
       # starts the pinning path too. Set BROWSER_EGRESS_PROXY= (empty) in the root
       # .env only for a browser outside compose that cannot reach it.
@@ -86,8 +85,8 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
-    # Moved out of backend/Dockerfile, which the Prefect runner shares and could
-    # never answer; see docker-compose.yml for the whole reasoning, including why
+    # Moved out of backend/Dockerfile, which the worker shares and could never
+    # answer; see docker-compose.yml for the whole reasoning, including why
     # `raise_for_status` and a 30s start_period are not what the image had.
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health', timeout=5)"]
@@ -141,72 +140,44 @@ services:
       start_period: 10s
     restart: unless-stopped
 
-  prefect-server:
-    # Pinned for the reason given in docker-compose-prod.yml.
-    image: prefecthq/prefect:3.8.8-python3.12
-    command: prefect server start --host 0.0.0.0
-    volumes:
-      # $PREFECT_HOME, where the database lives; see docker-compose-prod.yml.
-      - prefect_data:/root/.prefect/
-    environment:
-      - PREFECT_API_URL=http://prefect-server:4200/api
-      # Empty unless the sandbox profile is up. Note what is absent from
-      # this service: the Docker socket.
-      - PREFECT_SERVER_API_HOST=0.0.0.0
-    networks:
-      - backend
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4200/api/health')"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-    restart: unless-stopped
-
-  prefect-runner:
-    # Ingestion, collection syncs and scheduled reports run here. Without it
-    # documents upload and then never become searchable.
+  # The background worker: ingestion, syncs, fired triggers, cleanups and the
+  # scheduled sweeps. Without it documents upload and then never become
+  # searchable. See docker-compose.yml.
+  worker:
     image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-edge}
     volumes:
       - media_data:/app/media
-    command: python -m app.worker.prefect_app
+    command: python -m app.worker
     env_file:
       - ./backend/.env
     environment:
-      - DEBUG=true
+      - DEBUG=false
       - ENVIRONMENT=dev
       - POSTGRES_HOST=db
       - REDIS_HOST=redis
-      - PREFECT_API_URL=http://prefect-server:4200/api
       # The browser profile's egress proxy, on by default so starting the browser
       # starts the pinning path too. Set BROWSER_EGRESS_PROXY= (empty) in the root
       # .env only for a browser outside compose that cannot reach it.
       - BROWSER_EGRESS_PROXY=${BROWSER_EGRESS_PROXY-http://browser-egress:3128}
-      # The runner's own health endpoint, started by app/worker/prefect_app.py.
-      # Bound to the loopback because the same webserver serves `/shutdown`; see
-      # docker-compose.yml.
-      - PREFECT_RUNNER_SERVER_HOST=127.0.0.1
-      - PREFECT_RUNNER_SERVER_PORT=8080
-      # Empty unless the sandbox profile is up. Note what is absent from
-      # this service: the Docker socket.
     networks:
       - backend
       - browser
     depends_on:
-      prefect-server:
-        condition: service_healthy
       migrate:
         condition: service_completed_successfully
-      app:
-        condition: service_started
-    # 503 once the runner has missed two polls; the start_period covers the
-    # application import and the first poll. See docker-compose.yml.
+      redis:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=5)"]
+      test: ["CMD", "python", "-c", "import os, sys, time; sys.exit(time.time() - os.stat(os.environ.get('WORKER_HEALTH_FILE', '/tmp/agenticos-worker-alive')).st_mtime > 90)"]
       interval: 15s
       timeout: 5s
       retries: 3
-      start_period: 60s
+      start_period: 90s
+    stop_grace_period: 45s
+    deploy:
+      resources:
+        limits:
+          memory: ${WORKER_MEMORY_LIMIT:-4g}
     restart: unless-stopped
 
   # The only service holding the Docker socket. See docker-compose.yml for the
@@ -233,7 +204,7 @@ services:
       - browser
     restart: unless-stopped
 
-  # The browser's egress proxy (`docker/browser-egress`): the app and the runner
+  # The browser's egress proxy (`docker/browser-egress`): the app and the worker
   # default BROWSER_EGRESS_PROXY to it, so every browse without an organization
   # proxy goes out through it. It resolves each host itself, refuses
   # private, loopback, link-local and metadata addresses, and connects to the
@@ -381,12 +352,11 @@ networks:
     name: ${AGENTICOS_NETWORK:-agenticos_backend}
     driver: bridge
   browser:
-    # The browser's own network, which only the API and the runner share with it
+    # The browser's own network, which only the API and the worker share with it
     # to reach `browser:9222`. A page it is sent to - or redirected to - cannot
-    # reach the database, Redis, Prefect or MinIO, because nothing else is on it.
+    # reach the database, Redis or MinIO, because nothing else is on it.
     driver: bridge
 
 volumes:
   media_data:
   postgres_data:
-  prefect_data:

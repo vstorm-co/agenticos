@@ -14,8 +14,6 @@ would use. The database is this module's and this pid's, created and dropped her
 for the reasons `tests/test_migrations.py` sets out at length.
 """
 
-from __future__ import annotations
-
 import json
 import os
 import subprocess

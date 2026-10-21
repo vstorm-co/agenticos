@@ -125,10 +125,9 @@ class TestActiveOrganizationWS:
 
         with (
             patch("app.api.deps.get_db_context", _fake_db_context),
-            patch("app.api.deps._member_repo.get", new=AsyncMock(return_value=MagicMock())),
             patch(
-                "app.api.deps.organization_repo.get_by_id",
-                new=AsyncMock(return_value=requested),
+                "app.api.deps._member_repo.get_with_organization",
+                new=AsyncMock(return_value=(MagicMock(), requested)),
             ),
         ):
             org = await get_active_organization_ws(
@@ -142,7 +141,10 @@ class TestActiveOrganizationWS:
         """Asking for an org the user does not belong to closes the socket."""
         with (
             patch("app.api.deps.get_db_context", _fake_db_context),
-            patch("app.api.deps._member_repo.get", new=AsyncMock(return_value=None)),
+            patch(
+                "app.api.deps._member_repo.get_with_organization",
+                new=AsyncMock(return_value=None),
+            ),
             pytest.raises(WebSocketException) as exc,
         ):
             await get_active_organization_ws(
@@ -152,19 +154,20 @@ class TestActiveOrganizationWS:
         assert exc.value.code == 4003
 
     @pytest.mark.anyio
-    async def test_unknown_org_looks_like_denied_access(self):
-        """A non-existent org must not be distinguishable from a forbidden one."""
+    async def test_a_refusal_names_no_organization(self):
+        """A missing org and a forbidden one are one answer, so ids cannot be probed."""
         with (
             patch("app.api.deps.get_db_context", _fake_db_context),
-            patch("app.api.deps._member_repo.get", new=AsyncMock(return_value=MagicMock())),
-            patch("app.api.deps.organization_repo.get_by_id", new=AsyncMock(return_value=None)),
+            patch(
+                "app.api.deps._member_repo.get_with_organization",
+                new=AsyncMock(return_value=None),
+            ),
             pytest.raises(WebSocketException) as exc,
         ):
             await get_active_organization_ws(
                 _session_socket(), _user(), organization_id=uuid.uuid4()
             )
 
-        assert exc.value.code == 4003
         assert exc.value.reason == "Organization access denied"
 
 

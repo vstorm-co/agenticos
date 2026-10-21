@@ -15,8 +15,6 @@ tests run the real resolver against a knowledge-base row and assert what the
 outgoing client was actually built with, rather than that a resolver was passed.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import ExitStack, asynccontextmanager
@@ -33,11 +31,7 @@ from app.services.rag import embedding_providers
 from app.services.rag.config import RAGSettings
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.vectorstore import PgVectorStore
-from app.worker.tasks.rag_tasks import (
-    _announcing_resolver,
-    _ingestion_service,
-    _say_in_flow_log,
-)
+from app.worker.tasks.rag_tasks import _announcing_resolver, _ingestion_service
 
 pytestmark = pytest.mark.anyio
 
@@ -378,57 +372,62 @@ class TestWhenTheChosenKeyCannotBeUsed:
         assert "does not hold an API key" in refusal.value.message
 
 
-class TestWhatTheFlowLogSays:
-    """The `logger.warning` in the resolver reaches the worker's stdout and
-    stops there, so a degraded credential was invisible to the run an operator
-    opens. These pin that a degradation is announced and a normal one is not."""
+class TestWhatTheWorkerLogSays:
+    """A degraded credential is said once, in the worker's log, where the job's
+    failure is read; a normal one is not. The resolver itself only degrades -
+    its own `logger.warning` is about the vault, not about this collection."""
 
-    async def _resolution(self, key_source: EmbeddingKeySource):
+    _LOGGER = "app.worker.tasks.rag_tasks"
+
+    def _said(self, caplog: pytest.LogCaptureFixture) -> list[str]:
+        return [record.getMessage() for record in caplog.records if record.name == self._LOGGER]
+
+    async def _resolution(self, key_source: EmbeddingKeySource, caplog: pytest.LogCaptureFixture):
         resolved = _resolved(key_source, api_key="sk-org")
         with (
+            caplog.at_level("WARNING", logger=self._LOGGER),
             patch(
                 "app.worker.tasks.rag_tasks.embeddings_for_collection",
                 new=AsyncMock(return_value=resolved),
             ),
-            patch("app.worker.tasks.rag_tasks._say_in_flow_log") as said,
         ):
             answer = await _announcing_resolver(None)("handbook")
-        return answer, said
+        return answer, self._said(caplog)
 
-    async def test_a_degraded_credential_is_announced_with_the_reason(self):
-        answer, said = await self._resolution(EmbeddingKeySource.SECRET_MISSING)
+    async def test_a_degraded_credential_is_announced_with_the_reason(self, caplog):
+        answer, said = await self._resolution(EmbeddingKeySource.SECRET_MISSING, caplog)
 
         assert answer is not None
-        said.assert_called_once()
-        assert "no longer in this organization's vault" in said.call_args.args[0]
-        assert "'handbook'" in said.call_args.args[0]
+        [line] = said
+        assert "no longer in this organization's vault" in line
+        assert "'handbook'" in line
 
-    async def test_a_collection_embedding_on_the_key_it_chose_says_nothing(self):
-        _, said = await self._resolution(EmbeddingKeySource.ORGANIZATION)
+    async def test_a_collection_embedding_on_the_key_it_chose_says_nothing(self, caplog):
+        _, said = await self._resolution(EmbeddingKeySource.ORGANIZATION, caplog)
 
-        said.assert_not_called()
+        assert said == []
 
-    async def test_a_collection_that_chose_no_key_is_announced_too(self):
+    async def test_a_collection_that_chose_no_key_is_announced_too(self, caplog):
         """With no deployment key to fall back to, a collection that names none
-        is a collection that cannot index, and the run says so."""
-        _, said = await self._resolution(EmbeddingKeySource.NONE_CHOSEN)
+        is a collection that cannot index, and the job says so."""
+        _, said = await self._resolution(EmbeddingKeySource.NONE_CHOSEN, caplog)
 
-        said.assert_called_once()
-        assert "names no vault key" in said.call_args.args[0]
+        [line] = said
+        assert "names no vault key" in line
 
-    async def test_a_collection_no_knowledge_base_claims_says_nothing(self):
+    async def test_a_collection_no_knowledge_base_claims_says_nothing(self, caplog):
         with (
+            caplog.at_level("WARNING", logger=self._LOGGER),
             patch(
                 "app.worker.tasks.rag_tasks.embeddings_for_collection",
                 new=AsyncMock(return_value=None),
             ),
-            patch("app.worker.tasks.rag_tasks._say_in_flow_log") as said,
         ):
             assert await _announcing_resolver(None)("unclaimed") is None
 
-        said.assert_not_called()
+        assert self._said(caplog) == []
 
-    async def test_one_collection_is_announced_once_however_often_it_resolves(self):
+    async def test_one_collection_is_announced_once_however_often_it_resolves(self, caplog):
         """Indexing one document resolves twice - once to create the table,
         once to embed - and a sync of two hundred files would otherwise print
         four hundred copies of the line that exists to be noticed. Each
@@ -437,49 +436,30 @@ class TestWhatTheFlowLogSays:
             name: _resolved(EmbeddingKeySource.SECRET_MISSING) for name in ("handbook", "policies")
         }
         with (
+            caplog.at_level("WARNING", logger=self._LOGGER),
             patch(
                 "app.worker.tasks.rag_tasks.embeddings_for_collection",
                 new=AsyncMock(side_effect=lambda name, org=None: resolutions[name]),
             ),
-            patch("app.worker.tasks.rag_tasks._say_in_flow_log") as said,
         ):
             resolve = _announcing_resolver(None)
             for name in ("handbook", "handbook", "policies", "handbook"):
                 await resolve(name)
 
-        assert [call.args[0].split("'")[1] for call in said.call_args_list] == [
-            "handbook",
-            "policies",
-        ]
+        assert [line.split("'")[1] for line in self._said(caplog)] == ["handbook", "policies"]
 
-    async def test_a_second_flow_run_reports_a_credential_that_is_still_broken(self):
+    async def test_a_second_job_reports_a_credential_that_is_still_broken(self, caplog):
         """The set lives on the resolver, which lives on the ingestion service,
-        which is built per flow run - so silence never outlasts the run that
-        earned it."""
+        which is built per job - so silence never outlasts the job that earned it."""
         resolved = _resolved(EmbeddingKeySource.SECRET_UNUSABLE)
         with (
+            caplog.at_level("WARNING", logger=self._LOGGER),
             patch(
                 "app.worker.tasks.rag_tasks.embeddings_for_collection",
                 new=AsyncMock(return_value=resolved),
             ),
-            patch("app.worker.tasks.rag_tasks._say_in_flow_log") as said,
         ):
             await _announcing_resolver(None)("handbook")
             await _announcing_resolver(None)("handbook")
 
-        assert said.call_count == 2
-
-    def test_the_line_goes_to_the_prefect_run_when_there_is_one(self):
-        with patch("app.worker.tasks.rag_tasks.get_run_logger") as run_logger:
-            _say_in_flow_log("the collection's key is gone")
-
-        run_logger.return_value.warning.assert_called_once_with("the collection's key is gone")
-
-    def test_outside_a_run_it_still_logs_rather_than_raising(self, caplog):
-        """The resolver is a plain callable: a CLI ingest and
-        a test both reach it with no Prefect context, and a log line must never
-        be what takes an ingestion down."""
-        with caplog.at_level("WARNING"):
-            _say_in_flow_log("the collection's key is gone")
-
-        assert "the collection's key is gone" in caplog.text
+        assert len(self._said(caplog)) == 2

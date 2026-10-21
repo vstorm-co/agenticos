@@ -20,8 +20,6 @@ deliberately absent: an entry naming a deleted actor is worse than one naming
 nobody, so those are retained rather than exported or removed.
 """
 
-from __future__ import annotations
-
 import logging
 from datetime import UTC, datetime
 from typing import Any

@@ -13,8 +13,6 @@ which is what the S3 backend is for (#1423). Neither migrates what the other
 holds; switching backend leaves the files already written where they were.
 """
 
-from __future__ import annotations
-
 import logging
 import os
 import re

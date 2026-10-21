@@ -161,10 +161,20 @@ async def update_connection(
     response_model=None,
     dependencies=[Depends(require(Perm.CONNECTIONS_MANAGE))],
 )
-async def delete_connection(connection_id: UUID, service: SandboxConnectionSvc, ctx: Auth) -> None:
+async def delete_connection(
+    connection_id: UUID,
+    service: SandboxConnectionSvc,
+    ctx: Auth,
+    forget_pending_destroys: bool = False,
+) -> None:
     """Forget a host. The workspaces keyed to it keep their rows, which are what
-    record where an agent did its work."""
-    await service.delete(ctx, connection_id)
+    record where an agent did its work.
+
+    Refused while sandboxes on it still wait to be destroyed on the provider.
+    `forget_pending_destroys=true` says they were deleted there by hand: they are
+    forgotten, the count is audited, and the connection goes.
+    """
+    await service.delete(ctx, connection_id, forget_pending_destroys=forget_pending_destroys)
 
 
 @router.get(

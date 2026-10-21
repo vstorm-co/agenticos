@@ -11,8 +11,6 @@ is the *reader's* - two people looking at the same shared thread see two
 different sidebars.
 """
 
-from __future__ import annotations
-
 import asyncio
 import contextlib
 import uuid

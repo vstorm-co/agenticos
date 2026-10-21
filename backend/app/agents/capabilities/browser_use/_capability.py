@@ -8,8 +8,6 @@ there is no engine to install beside the platform and no second vendor that page
 content goes to (#2127).
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 from typing import Any
 

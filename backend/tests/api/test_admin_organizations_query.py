@@ -12,8 +12,6 @@ route is app-admin only. Whether the ordering is really applied before
 `OFFSET`/`LIMIT` is SQL - see `tests/integration/test_admin_org_owner.py`.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from typing import Any
@@ -49,7 +47,7 @@ def _client(*, is_app_admin: bool, service: Any) -> AsyncClient:
 
 
 @pytest.fixture
-async def service() -> AsyncGenerator[AsyncMock, None]:
+async def service() -> AsyncGenerator[AsyncMock]:
     yield AsyncMock(list_organizations=AsyncMock(return_value={"items": [], "total": 0}))
     app.dependency_overrides.clear()
 

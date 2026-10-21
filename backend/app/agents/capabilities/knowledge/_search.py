@@ -25,7 +25,7 @@ def get_retrieval_service() -> RetrievalService:
     """The retrieval service for the loop this search is running on.
 
     An agent is the one vector caller that does not know which loop it is on: it
-    runs on the API's loop in one process and on a Prefect flow's loop in
+    runs on the API's loop in one process and on a worker's loop in
     another. That decides which engine its store may ride, because a pooled
     asyncpg connection belongs to the loop that opened it - a store cached for
     the life of the process and shared by two loops in one worker handed the

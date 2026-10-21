@@ -12,8 +12,6 @@ indexes exist and that the indexed SQL agrees with that precedence on real rows,
 including the two orderings a heap would decide wrong.
 """
 
-from __future__ import annotations
-
 import json
 from collections.abc import AsyncGenerator
 
@@ -79,7 +77,7 @@ async def _insert(
 
 
 @pytest.fixture(autouse=True)
-async def _clean_runtime_table(engine: AsyncEngine) -> AsyncGenerator[None, None]:
+async def _clean_runtime_table(engine: AsyncEngine) -> AsyncGenerator[None]:
     """The runtime table is not a model, so nothing else drops it between tests."""
     async with engine.begin() as conn:
         await conn.execute(text(f"DROP TABLE IF EXISTS {TABLE}"))

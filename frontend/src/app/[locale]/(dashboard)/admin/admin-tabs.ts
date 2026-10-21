@@ -1,4 +1,4 @@
-import { Activity, Building2, Settings, Users } from "lucide-react";
+import { Activity, Building2, ListTodo, Settings, Users } from "lucide-react";
 
 import type { PageTab } from "@/components/dashboard/page-tabs";
 import { ROUTES } from "@/lib/constants";
@@ -21,6 +21,9 @@ export const ADMIN_TABS: readonly PageTab[] = [
   // different destinations. This one is the deployment's whole tenant list.
   { labelKey: "allOrganizations", href: ROUTES.ADMIN_ORGANIZATIONS, icon: Building2 },
   { labelKey: "system", href: ROUTES.ADMIN_SYSTEM, icon: Activity },
+  // Beside System: the scheduler check there says whether work is running, this
+  // says which work, and what to do about the work that is not.
+  { labelKey: "backgroundJobs", href: ROUTES.ADMIN_BACKGROUND_JOBS, icon: ListTodo },
   // Last, and named for the deployment rather than for the app: `settings` alone
   // is what the sidebar already calls a person's own preferences, and the palette
   // lists both.

@@ -23,8 +23,6 @@ it terminate under both the fixed and the broken implementation, and the sleep
 count is then the whole difference: two, or none.
 """
 
-from __future__ import annotations
-
 import asyncio
 import contextlib
 from collections.abc import Awaitable, Callable

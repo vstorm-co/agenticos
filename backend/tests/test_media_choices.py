@@ -6,8 +6,6 @@ parameter with nothing to choose leaves the schema whole, and that the original
 is never edited in place, since Pydantic AI keeps it on the tool.
 """
 
-from __future__ import annotations
-
 from typing import Any
 from uuid import uuid4
 

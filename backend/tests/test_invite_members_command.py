@@ -25,7 +25,7 @@ OWNER_ID = uuid4()
 @pytest.fixture(autouse=True)
 def _session(monkeypatch):
     @asynccontextmanager
-    async def session() -> AsyncGenerator[object, None]:
+    async def session() -> AsyncGenerator[object]:
         yield object()
 
     monkeypatch.setattr(cmd, "get_db_context", session)

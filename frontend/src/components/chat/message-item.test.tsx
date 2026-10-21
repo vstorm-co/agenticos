@@ -724,7 +724,9 @@ describe("what a person attached", () => {
     expect(screen.queryByRole("link")).toBeNull();
   });
 
-  it("shows a person's own picture beside their message", () => {
+  it("keeps a person's face beside their message while their picture loads, or if it fails", () => {
+    // jsdom never loads an image, which is what a missing file looks like: a
+    // bare <img> left an empty circle there (#2248).
     useAuthStore.setState({
       user: { id: "u-1", email: "k@example.com", avatar_url: "/api/users/avatar/u-1" } as never,
       avatarVersion: 2,
@@ -732,7 +734,7 @@ describe("what a person attached", () => {
 
     const { container } = item({ role: "user", content: "x" });
 
-    expect(container.querySelector("img")).toBeInTheDocument();
+    expect(container.querySelector("g.mo-root")).toBeInTheDocument();
   });
 
   it("draws a person who uploaded nothing the face generated from their id", () => {

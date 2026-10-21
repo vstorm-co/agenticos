@@ -29,8 +29,6 @@ delegation in progress and `None` everywhere else - the same shape, and the same
 reasoning, as `ask_user` and `request_approval`.
 """
 
-from __future__ import annotations
-
 from collections.abc import Awaitable, Callable
 from decimal import Decimal
 from typing import Annotated, Literal

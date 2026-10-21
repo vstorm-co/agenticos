@@ -16,8 +16,6 @@ halves are asserted here, because a guard that silently reads less than it claim
 the failure mode this file exists to catch.
 """
 
-from __future__ import annotations
-
 import importlib.util
 import subprocess
 import sys

@@ -111,7 +111,7 @@ class VideoGenerationConfig(BaseModel):
     )
 
     @model_validator(mode="after")
-    def _must_be_offered(self) -> "VideoGenerationConfig":
+    def _must_be_offered(self) -> VideoGenerationConfig:
         """Refuse a choice the provider would refuse on the first call."""
         entry = by_provider(self.provider)
         model = entry.model(self.model) if entry is not None else None

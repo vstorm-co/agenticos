@@ -10,8 +10,6 @@ proved end to end in `tests/integration/test_skill_binding_audit.py`; these cove
 the decisions and the wiring with the repositories mocked.
 """
 
-from __future__ import annotations
-
 import uuid
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch

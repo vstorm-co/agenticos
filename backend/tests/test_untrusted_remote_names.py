@@ -14,10 +14,11 @@ called.
 """
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 from pydantic import SecretStr
 
@@ -34,6 +35,7 @@ from app.services.rag.connectors import (
 )
 from app.services.rag.connectors.google_drive import GoogleDriveConnector
 from app.services.rag.connectors.s3 import S3Connector
+from app.services.rag.drive_api import DRIVE_API, DriveClient
 from app.services.rag.filters import Source
 from app.services.rag.remote_names import checked_drive_folder_id, destination_within
 from app.services.rag.sources.base import SourceFile
@@ -57,15 +59,38 @@ class _RecordingConnector(BaseSyncConnector):
         dest_path.write_bytes(b"payload")
 
 
-class _Downloader:
-    """Stands in for `MediaIoBaseDownload`: writes one chunk into the open handle."""
+class _Token:
+    valid = True
+    token = "t"
 
-    def __init__(self, handle: Any, request: Any) -> None:
-        self._handle = handle
+    def refresh(self, request: object) -> None:
+        raise AssertionError("a valid token is not refreshed")
 
-    def next_chunk(self) -> tuple[None, bool]:
-        self._handle.write(b"payload")
-        return None, True
+
+class _Drive:
+    """A Drive that answers from a dict, and records every request it was sent."""
+
+    def __init__(
+        self, files: list[dict[str, str]] | None = None, meta: dict[str, str] | None = None
+    ):
+        self.files = files or []
+        self.meta = meta or {}
+        self.requests: list[httpx.Request] = []
+
+    def client(self) -> DriveClient:
+        transport = httpx.MockTransport(self._answer)
+        return DriveClient(_Token(), http=httpx.Client(base_url=DRIVE_API, transport=transport))
+
+    def queries(self) -> list[str]:
+        return [r.url.params["q"] for r in self.requests if r.url.path == "/drive/v3/files"]
+
+    def _answer(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
+        if request.url.path == "/drive/v3/files":
+            return httpx.Response(200, json={"files": self.files})
+        if request.url.params.get("alt") == "media":
+            return httpx.Response(200, content=b"payload")
+        return httpx.Response(200, json=self.meta)
 
 
 def _remote(name: str) -> RemoteFile:
@@ -150,13 +175,9 @@ class TestTheGoogleDriveConnector:
     ) -> None:
         sync_dir = tmp_path / "sync"
         sync_dir.mkdir()
-        service = MagicMock()
-        service.files.return_value.get.return_value.execute.return_value = {
-            "mimeType": "text/plain"
-        }
-        monkeypatch.setattr("googleapiclient.http.MediaIoBaseDownload", _Downloader)
+        remote = _Drive(meta={"mimeType": "text/plain"})
         connector = GoogleDriveConnector()
-        monkeypatch.setattr(connector, "_get_drive_service", lambda credential: service)
+        monkeypatch.setattr(connector, "_get_drive_service", lambda credential: remote.client())
 
         local = await connector.download_file(_remote("../authorized_keys"), sync_dir, config={})
 
@@ -164,26 +185,69 @@ class TestTheGoogleDriveConnector:
         assert local.read_bytes() == b"payload"
         assert not (tmp_path / "authorized_keys").exists()
 
+    async def test_a_google_docs_file_is_exported(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        remote = _Drive(meta={"mimeType": "application/vnd.google-apps.document"})
+        connector = GoogleDriveConnector()
+        monkeypatch.setattr(connector, "_get_drive_service", lambda credential: remote.client())
+
+        await connector.download_file(_remote("Plan.pdf"), tmp_path, config={})
+
+        exported = remote.requests[-1]
+        assert exported.url.path == "/drive/v3/files/f1/export"
+        assert exported.url.params["mimeType"] == "application/pdf"
+
     async def test_the_listing_query_constrains_to_one_parent(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        service = MagicMock()
-        service.files.return_value.list.return_value.execute.return_value = {"files": []}
+        remote = _Drive()
         connector = GoogleDriveConnector()
-        monkeypatch.setattr(connector, "_get_drive_service", lambda credential: service)
+        monkeypatch.setattr(connector, "_get_drive_service", lambda credential: remote.client())
 
         await connector.list_files({"folder_id": "1AbC-dEf_2", "include_subfolders": False}, None)
 
-        assert service.files.return_value.list.call_args.kwargs["q"] == (
-            "'1AbC-dEf_2' in parents and trashed = false"
+        assert remote.queries() == ["'1AbC-dEf_2' in parents and trashed = false"]
+
+    async def test_a_listing_names_exports_and_reads_drive_timestamps(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        remote = _Drive(
+            files=[
+                {"id": "d1", "name": "Plan", "mimeType": "application/vnd.google-apps.document"},
+                {
+                    "id": "f1",
+                    "name": "a.txt",
+                    "mimeType": "text/plain",
+                    "size": "7",
+                    "modifiedTime": "2026-10-19T08:00:00Z",
+                },
+            ]
+        )
+        connector = GoogleDriveConnector()
+        monkeypatch.setattr(connector, "_get_drive_service", lambda credential: remote.client())
+
+        listing = await connector.list_files({"folder_id": "1AbC"}, None)
+
+        doc, text = listing.files
+        assert (doc.name, doc.mime_type, doc.size, doc.modified_at) == (
+            "Plan.pdf",
+            "application/pdf",
+            0,
+            None,
+        )
+        assert (text.size, text.modified_at, text.source_path) == (
+            7,
+            datetime(2026, 10, 19, 8, tzinfo=UTC),
+            "gdrive://f1",
         )
 
     async def test_a_folder_id_carrying_a_quote_never_reaches_the_query(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        service = MagicMock()
+        remote = _Drive()
         connector = GoogleDriveConnector()
-        monkeypatch.setattr(connector, "_get_drive_service", lambda credential: service)
+        monkeypatch.setattr(connector, "_get_drive_service", lambda credential: remote.client())
 
         with pytest.raises(BadRequestError) as exc:
             await connector.list_files(
@@ -192,23 +256,24 @@ class TestTheGoogleDriveConnector:
 
         assert exc.value.details is None
         assert "salary" not in exc.value.message
-        service.files.return_value.list.assert_not_called()
+        assert remote.requests == []
 
     async def test_a_hostile_sub_folder_id_is_refused_too(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """The check sits where the query is built, so the recursion passes through it."""
-        service = MagicMock()
-        service.files.return_value.list.return_value.execute.return_value = {
-            "files": [
+        remote = _Drive(
+            files=[
                 {"id": "x' or name contains 'pay", "mimeType": "application/vnd.google-apps.folder"}
             ]
-        }
+        )
         connector = GoogleDriveConnector()
-        monkeypatch.setattr(connector, "_get_drive_service", lambda credential: service)
+        monkeypatch.setattr(connector, "_get_drive_service", lambda credential: remote.client())
 
         with pytest.raises(BadRequestError):
             await connector.list_files({"folder_id": "1AbC", "include_subfolders": True}, None)
+
+        assert remote.queries() == ["'1AbC' in parents and trashed = false"]
 
     @pytest.mark.parametrize(
         "folder_id",
@@ -268,6 +333,19 @@ class TestTheGoogleDriveConnector:
             GoogleDriveConnector()._get_drive_service(None)
         assert exc.value.details is None
 
+    def test_a_source_s_service_account_signs_the_client(self) -> None:
+        key = {
+            "type": "service_account",
+            "client_email": "sa@p.iam",
+            "private_key": "k",
+            "project_id": "p",
+        }
+        credential = GcpServiceAccountSecret(service_account_json=SecretStr(json.dumps(key)))
+        with patch.object(DriveClient, "from_service_account_info") as build:
+            GoogleDriveConnector()._get_drive_service(credential)
+
+        build.assert_called_once_with(key)
+
 
 class TestTheS3Connector:
     async def test_a_key_naming_no_file_is_refused(
@@ -291,43 +369,56 @@ class TestTheLegacyCliSources:
     """`rag-sync-gdrive` and `rag-sync-s3` reach `sources/`, which had both defects."""
 
     async def test_the_drive_source_refuses_a_folder_id_from_the_shell(self) -> None:
+        remote = _Drive()
         source = GoogleDriveSource.__new__(GoogleDriveSource)
-        source.service = MagicMock()
+        source.service = remote.client()
 
         with pytest.raises(BadRequestError):
             await source.list_files(path="x' in parents or name contains 'salary")
 
-        source.service.files.return_value.list.assert_not_called()
+        assert remote.requests == []
 
     async def test_the_drive_source_constrains_to_one_parent(self) -> None:
+        remote = _Drive(
+            files=[
+                {"id": "d1", "name": "Plan", "mimeType": "application/vnd.google-apps.document"},
+                {"id": "f1", "name": "a.txt", "mimeType": "text/plain", "size": "7"},
+            ]
+        )
         source = GoogleDriveSource.__new__(GoogleDriveSource)
-        source.service = MagicMock()
-        source.service.files.return_value.list.return_value.execute.return_value = {"files": []}
+        source.service = remote.client()
 
-        await source.list_files(path="1AbC-dEf_2")
+        files = await source.list_files(path="1AbC-dEf_2", extensions=[".pdf"])
 
-        assert source.service.files.return_value.list.call_args.kwargs["q"] == (
+        assert remote.queries() == [
             "trashed = false and '1AbC-dEf_2' in parents "
             "and mimeType != 'application/vnd.google-apps.folder'"
-        )
+        ]
+        assert [(f.id, f.name) for f in files] == [("d1", "Plan.pdf")]
 
     async def test_the_drive_source_writes_a_traversing_name_inside_the_directory(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path
     ) -> None:
         sync_dir = tmp_path / "sync"
         sync_dir.mkdir()
         source = GoogleDriveSource.__new__(GoogleDriveSource)
-        source.service = MagicMock()
-        source.service.files.return_value.get.return_value.execute.return_value = {
-            "name": "../../evil.txt",
-            "mimeType": "text/plain",
-        }
-        monkeypatch.setattr("googleapiclient.http.MediaIoBaseDownload", _Downloader)
+        source.service = _Drive(meta={"name": "../../evil.txt", "mimeType": "text/plain"}).client()
 
         local = await source.download_file("f1", sync_dir)
 
         assert local == sync_dir / "evil.txt"
+        assert local.read_bytes() == b"payload"
         assert not (tmp_path / "evil.txt").exists()
+
+    async def test_the_drive_source_exports_a_google_docs_file(self, tmp_path: Path) -> None:
+        remote = _Drive(meta={"name": "Plan", "mimeType": "application/vnd.google-apps.document"})
+        source = GoogleDriveSource.__new__(GoogleDriveSource)
+        source.service = remote.client()
+
+        local = await source.download_file("d1", tmp_path)
+
+        assert local == tmp_path / "Plan.pdf"
+        assert remote.requests[-1].url.path == "/drive/v3/files/d1/export"
 
     async def test_the_s3_source_writes_a_traversing_key_inside_the_directory(
         self, tmp_path: Path

@@ -19,8 +19,6 @@ and anybody it was explicitly shared with are not this module's business - both
 ways in survive a refusal here.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 from uuid import UUID

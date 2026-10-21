@@ -14,8 +14,6 @@ cost is partial rather than claiming a figure nobody computed. The run's ceiling
 is checked before every call, as before every model request.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 from typing import Any

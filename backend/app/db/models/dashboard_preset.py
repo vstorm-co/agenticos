@@ -13,8 +13,6 @@ entries carry the same `{"widget", "span", "rows"?}` placements, validated on
 write and returned untrusted on read (see `app/schemas/dashboard_layout.py`).
 """
 
-from __future__ import annotations
-
 import uuid
 from typing import Any
 

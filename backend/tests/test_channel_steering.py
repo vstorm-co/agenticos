@@ -1,7 +1,5 @@
 """Adding to a channel turn while it runs, and asking on the side of one (#2087)."""
 
-from __future__ import annotations
-
 import asyncio
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch

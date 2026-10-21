@@ -24,8 +24,6 @@ and binds to agents - and one job with two mechanisms is how the two disagree
 `context`.
 """
 
-from __future__ import annotations
-
 from app.agents.audience import RunAudience
 from app.core.memory_keys import person_owner_key
 

@@ -11,8 +11,6 @@ chat, a Slack mention or the public API - which is what makes "the Builder is
 just another client" true rather than aspirational.
 """
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field

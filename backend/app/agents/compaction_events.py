@@ -33,8 +33,6 @@ either returns a compacted history or the request goes out uncompacted, and
 neither is a reason for the surface to stay stuck.
 """
 
-from __future__ import annotations
-
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field

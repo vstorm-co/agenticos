@@ -16,8 +16,6 @@ path where a bug means a file silently dropped with nothing logged - which is
 exactly the failure the feature exists to fix.
 """
 
-from __future__ import annotations
-
 from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch

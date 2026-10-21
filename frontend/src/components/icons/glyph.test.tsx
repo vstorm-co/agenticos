@@ -28,6 +28,25 @@ describe("GlyphIcon", () => {
     expect(paths[1]).not.toHaveAttribute("fill-opacity");
   });
 
+  it("draws a mark of several colours path by path, unless the caller asks for the text colour", () => {
+    // Google's G on a sign-in button is four shapes in four colours; one fill
+    // for the whole mark is a different, flat logo.
+    const fourColour: Glyph = {
+      viewBox: "0 0 24 24",
+      paths: [
+        { d: "M1 1h1v1H1z", fill: "#4285F4" },
+        { d: "M2 2h1v1H2z", fill: "#34A853" },
+      ],
+    };
+
+    const coloured = render(<GlyphIcon glyph={fourColour} />).container.querySelectorAll("path");
+    expect([...coloured].map((path) => path.getAttribute("fill"))).toEqual(["#4285F4", "#34A853"]);
+
+    const mono = render(<GlyphIcon glyph={fourColour} mono />).container;
+    expect(mono.firstElementChild).toHaveAttribute("fill", "currentColor");
+    expect(mono.querySelectorAll("path[fill]")).toHaveLength(0);
+  });
+
   it("carries the fill rule a mark's holes depend on", () => {
     const { container } = render(<GlyphIcon glyph={{ ...ONE_PATH, fillRule: "evenodd" }} />);
     expect(container.firstElementChild).toHaveAttribute("fill-rule", "evenodd");

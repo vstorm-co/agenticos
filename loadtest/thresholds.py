@@ -18,8 +18,6 @@ is meaningless: an upload and a list are not the same request, and a p95 across
 both describes neither.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 
 from metrics import RunSummary

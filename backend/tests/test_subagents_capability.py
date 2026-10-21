@@ -21,8 +21,6 @@ agent run, and this suite would otherwise be the most expensive one in the
 repository.
 """
 
-from __future__ import annotations
-
 import asyncio
 import json
 import logging

@@ -147,7 +147,7 @@ class AgentRunRead(BaseSchema):
     )
 
     @model_validator(mode="after")
-    def _no_delegation_handle_without_a_delegation(self) -> "AgentRunRead":
+    def _no_delegation_handle_without_a_delegation(self) -> AgentRunRead:
         """Withhold the task id of a delegation that no longer has a parent.
 
         `agent_runs.parent_run_id` is `ON DELETE SET NULL`, which is the right

@@ -15,8 +15,6 @@ itself: that the directory is found from wherever the package is installed, and
 that every template the email service can ask for is actually on disk.
 """
 
-from __future__ import annotations
-
 from pathlib import Path
 
 import pytest

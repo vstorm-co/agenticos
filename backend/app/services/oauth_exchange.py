@@ -6,8 +6,6 @@ appears in a redirect URL, an access log, or a `Referer` header. The frontend
 swaps the code for the pair server-to-server.
 """
 
-from __future__ import annotations
-
 import json
 import secrets
 from typing import TYPE_CHECKING

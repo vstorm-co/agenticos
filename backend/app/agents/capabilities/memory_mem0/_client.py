@@ -27,8 +27,6 @@ cannot mix two organizations', two agents', or two owners' memories. It is built
 from the run's audience, never from the model.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 import os
@@ -153,7 +151,7 @@ def _construct(api_key: str, base_url: str | None) -> AsyncMemoryClient:
     same as any other external service.
     """
     # Here rather than at the top: the SDK pulls in qdrant-client and numpy,
-    # 0.4 s of every API worker's and every flow run's import for a capability
+    # 0.4 s of every API worker's and every worker process's import for a capability
     # most deployments never enable (#2225).
     from mem0 import AsyncMemoryClient
 

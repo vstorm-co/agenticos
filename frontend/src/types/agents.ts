@@ -267,8 +267,12 @@ export interface OrgMcpServerRef {
    * administrator's ceiling and the two intersect at run time.
    */
   allowed_tools: string[] | null;
-  /** Which tools wait for a person: those not marked read-only (default), all, or none. */
-  approval?: McpApproval;
+  /**
+   * Which tools wait for a person: those not marked read-only, all, or none.
+   * Required, as the API always returns it (`none` when unset): a binding built
+   * without it never compares equal to the stored draft, so autosave never settles.
+   */
+  approval: McpApproval;
 }
 
 /** How much of an MCP server's tools wait for a person's approval (#2060). */
@@ -288,7 +292,7 @@ export interface PersonalMcpServerRef {
   catalog_key: string;
   /** The administrator's ceiling; the person's own connection may narrow further. */
   allowed_tools: string[] | null;
-  approval?: McpApproval;
+  approval: McpApproval;
 }
 
 /**
@@ -297,8 +301,8 @@ export interface PersonalMcpServerRef {
  */
 export interface PlatformMcpServerRef {
   account: "platform";
-  allowed_tools?: string[] | null;
-  approval?: McpApproval;
+  allowed_tools: string[] | null;
+  approval: McpApproval;
 }
 
 /** One MCP binding: the organization's connection, each person's own, or the platform's. */

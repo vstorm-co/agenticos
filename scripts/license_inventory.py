@@ -45,8 +45,6 @@ not fail the run - the review is honest about them - but they are counted in the
 verdict and listed in the notices.
 """
 
-from __future__ import annotations
-
 import argparse
 import difflib
 import json
@@ -95,8 +93,8 @@ LINUX_ENVIRONMENTS: tuple[dict[str, str], ...] = tuple(
         "platform_system": "Linux",
         "os_name": "posix",
         "platform_machine": machine,
-        "python_version": "3.12",
-        "python_full_version": "3.12.0",
+        "python_version": "3.15",
+        "python_full_version": "3.15.0",
         "implementation_name": "cpython",
         "platform_python_implementation": "CPython",
     }

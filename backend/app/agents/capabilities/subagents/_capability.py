@@ -32,8 +32,6 @@ replacing it - what the library's own sweep cannot reach is a `sync` delegation,
 which has a handle and no task - and it says what the sweep does not guarantee.
 """
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace

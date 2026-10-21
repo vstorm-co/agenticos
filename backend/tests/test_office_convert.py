@@ -9,8 +9,6 @@ ignores `SIGTERM`, forks a child, or exits a chosen way - so the teardown is
 exercised on every machine, LibreOffice installed or not.
 """
 
-from __future__ import annotations
-
 import asyncio
 import os
 import signal

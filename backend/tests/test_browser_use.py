@@ -13,8 +13,6 @@ module that needs a browser (`_page.py`) is reduced to the pure functions that
 parse what a browser answered and address it.
 """
 
-from __future__ import annotations
-
 import asyncio
 import json
 import re
@@ -738,7 +736,7 @@ class _FakePage:
         return self._image
 
     @asynccontextmanager
-    async def stream(self, deliver: Any) -> AsyncGenerator[None, None]:
+    async def stream(self, deliver: Any) -> AsyncGenerator[None]:
         """Paints `painted` as the stream opens - a page loading while watched."""
         self.done.append("stream:on")
         for image in self._painted:

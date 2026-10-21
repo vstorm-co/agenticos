@@ -6,8 +6,6 @@ an attachment of the thread, the workspace, or - for an agent that already reads
 the web - an address; and the person's browser's report reaches the model.
 """
 
-from __future__ import annotations
-
 import asyncio
 import uuid
 from typing import Any

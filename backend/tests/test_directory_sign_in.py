@@ -7,8 +7,6 @@ reconcile memberships - and the two sign-in methods ending at one account.
 The sync's behaviour over real rows is `tests/integration/test_directory_groups.py`.
 """
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 

@@ -20,8 +20,6 @@ model's own memory, confidently and from nowhere - so the last step is a person
 reading the instructions and pressing Publish.
 """
 
-from __future__ import annotations
-
 import logging
 from dataclasses import dataclass, field
 from functools import cache

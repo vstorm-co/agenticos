@@ -14,8 +14,6 @@ exists to send one agent's traces to a client's own project, and a URL built fro
 the deployment's slugs would point at a project that does not contain the run.
 """
 
-from __future__ import annotations
-
 import uuid
 from decimal import Decimal
 from types import SimpleNamespace

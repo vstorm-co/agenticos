@@ -1,5 +1,5 @@
 ---
-source_sha: "d6244bf5e175"
+source_sha: "64760597cdc5"
 ---
 
 # Arquitectura { #architecture }
@@ -275,77 +275,65 @@ resuelve y lo que deja en paz deliberadamente.
 
 ### Despachar trabajo en segundo plano desde una petición { #dispatching-background-work-from-a-request }
 
-**El trabajo que vaya a leer una fila que esta petición escribió se entrega con
-`spawn_after_commit`, nunca con `spawn`** (los dos en
-`app/core/background.py`):
+**El trabajo que tiene que ocurrir es un job, encolado en la propia transacción
+de la petición.** `app.services.background_jobs.enqueue` escribe la fila del job
+en la sesión de la petición, así que se confirma con las filas que nombra o no
+se confirma:
 
 ```python
-from app.core.background import spawn_after_commit
+from app.services.background_jobs import enqueue
+from app.worker.jobs import FIRE_TRIGGER, FireTrigger
 
-spawn_after_commit(self.db, ingest_document_flow(rag_document_id=str(doc.id)), name=...)
+await enqueue(self.db, FIRE_TRIGGER, FireTrigger(trigger_id=trigger.id), organization_id=org_id)
 ```
 
-`spawn` crea la tarea de inmediato, y el loop la arranca en el siguiente punto de
-suspensión — que es el paso 1 o el 2 de arriba, antes del commit. El flow abre una
-sesión propia, correctamente, así que bajo `READ COMMITTED` no puede ver una fila
-que esta petición no ha confirmado: busca el documento cuyo id se le dio, no
-encuentra nada, y para. Eso es [#417][417], y su forma visible es una subida
-respondida con `{"status": "processing"}` que se queda así para siempre.
+Una petición revertida no encola nada, y una confirmada despierta a los workers
+del pool mediante `NOTIFY`, que PostgreSQL solo entrega al confirmar, así que
+ningún worker puede recoger un job antes de que exista la fila que lee. Eso
+cierra [#417][417] por construcción: una subida que respondía
+`{"status": "processing"}` y se quedaba así, porque el trabajo empezaba antes del
+commit y su propia sesión no veía el documento. Una subida, una sincronización
+que alguien lanzó, cada disparo de un trigger - programado, entregado o «run
+now» -, un run asíncrono de la API y la limpieza de lo que vive fuera de la base
+de datos tras un borrado se entregan todos así.
 
-`spawn_after_commit` encola en su lugar la corrutina en la sesión. Nada la arranca
-hasta el paso 3, dos sentencias después de que `commit()` retorne, así que un flow
-despachado de esta manera lee una fila que la base de datos ya ha aceptado. Así se
-entregan la subida de un documento, una sincronización que alguien inició, el
-stream de la conexión de un canal y el «run now» manual de un trigger. El orden se
-demuestra contra una base de datos real en
-`tests/integration/test_flow_starts_after_commit.py`.
+El disparo manual de un trigger está aquí por una segunda razón que vale la pena
+nombrar: `POST /agents/{id}/triggers/{id}/run` antes *esperaba* al run que
+lanzaba, así que un agent más lento que el tiempo límite de lectura de un proxy
+respondía 504 mientras el run seguía y se confirmaba: un fallo notificado para
+algo que funcionaba, y una invitación a pulsar el botón otra vez ([#658][658]).
+La ruta responde `202` en cuanto el job está encolado.
 
-En el otro extremo de la vida del proceso, el lifespan de la aplicación cierra el
-círculo: después de que pare la admisión y se haya drenado el servicio, hace
-`await` de `background.drain()` para todo lo que `spawn` entregó y sigue en vuelo,
-**antes** de deshacerse del vector store, de Redis y de la sesión que esas tareas
-leen. Sin eso, un apagado a mitad de una ingesta cancelaba el flow y dejaba el
-documento en `processing` — la misma fila atascada de [#417][417], alcanzada desde
-el otro extremo.
+**Un borrado cuya entrada destruye su propio commit encola su limpieza en ese
+commit.** El borrado de una organización pasa las rutas de almacenamiento y los
+nombres de colección cuyo último registro elimina su transacción, así que
+`queue_external_state_cleanup` los escribe en jobs de limpieza en la misma
+sesión: una caída entre el commit y la limpieza no pierde nada, y el job se
+reintenta hasta que los archivos y las colecciones vectoriales desaparecen.
 
-El disparo manual de un trigger está ahí por una segunda razón que merece
-nombrarse, porque es la otra mitad de por qué una petición entrega trabajo a otro
-lado: `POST /agents/{id}/triggers/{id}/run` hacía antes *await* del run que
-arrancaba, así que un agent más lento que el read timeout de un proxy respondía 504
-mientras el run seguía y hacía commit — un fallo reportado sobre algo que
-funcionaba, y una invitación a pulsar el botón otra vez y disparar la programación
-dos veces ([#658][658]). La ruta responde `202` y el disparo arranca después del
-commit.
+**El trabajo que se puede perder usa `spawn_after_commit`**
+(`app/core/background.py`): trabajo corto y sin garantías en el propio bucle de
+la API, como anotar la accesibilidad de un servidor MCP o borrar archivos a los
+que un artefacto ya no hace referencia. Encola la corrutina en la sesión y la
+arranca dos sentencias después de `commit()`; el orden está probado contra una
+base de datos real en `tests/integration/test_flow_starts_after_commit.py`. Al
+apagarse, el lifespan espera a `background.drain()` antes de descartar lo que
+leen esas tareas.
 
-!!! warning "No es una cola que sobreviva al proceso"
+De dónde vive esa cola se siguen dos cosas:
 
-    `spawn_after_commit` ejecuta el trabajo solo si el proceso vive lo bastante
-    como para arrancarlo. Eso está bien para trabajo que una petición posterior
-    puede reproducir, y no está bien para trabajo cuya *entrada* acaba de destruir
-    el commit - la purga de una organización entrega las rutas y los nombres de
-    colección de los que su propio commit borró el último registro, así que una
-    caída entre las dos cosas los pierde para siempre.
+- **Pertenece a la sesión, no a la petición.** Un servicio que entrega trabajo
+  no necesita saber si lo llamaron desde una ruta, un handler de WebSocket, la
+  CLI o un worker; por eso no son los `BackgroundTasks` de FastAPI, cuya
+  garantía es sobre la respuesta y que esos otros tres llamantes no tienen.
+- **Una transacción revertida no despacha nada.** Las corrutinas encoladas se
+  cierran, porque ejecutar trabajo cuya fila se descartó solo mueve el fallo a
+  un sitio más difícil de explicar.
 
-    Donde eso aplica, la intención se escribe como una fila en la misma transacción
-    y la entrega pasa a ser una optimización: `teardown_intents` nombra lo que queda
-    por liberar, el flow borra la fila en cuanto lo ha hecho, y un barrido vuelve a
-    despachar todo lo que nada terminó. La ausencia de la fila es la finalización,
-    así que una tabla vacía significa que no queda nada pendiente.
-
-Del sitio donde vive la cola se siguen dos cosas:
-
-- **Pertenece a la sesión, no a la petición.** Un servicio que despacha un flow no
-  necesita saber si lo llamaron desde una ruta, un handler de WebSocket, la CLI o
-  un worker — que es por lo que esto no es el `BackgroundTasks` de FastAPI, cuya
-  garantía es sobre la respuesta y que esos otros tres llamadores no tienen.
-- **Una transacción con rollback no despacha nada.** El paso 3 se salta y las
-  corrutinas encoladas se cierran, porque ejecutar trabajo cuya fila se tiró a la
-  basura solo mueve el fallo a un sitio menos explicable.
-
-`spawn` sigue siendo lo correcto para trabajo que posee todo lo que necesita — los
-correos de notificación en `app/services/notifications.py` llevan su propio
-contexto y no tocan ninguna fila. Ninguno de los dos es una cola de trabajos:
-cualquier cosa que deba sobrevivir a un reinicio es un deployment de Prefect.
+`spawn` sigue siendo lo correcto para el trabajo que posee todo lo que necesita
+y no toca ninguna fila: los webhooks de canal le entregan cada envío para que el
+provider reciba su respuesta al momento. Nada de esto sobrevive a un reinicio;
+un job sí. Consulta [Añade una tarea en segundo plano](howto/add-background-task.md).
 
 [3]: https://github.com/vstorm-co/agenticos/issues/3
 [12]: https://github.com/vstorm-co/agenticos/issues/12
@@ -964,7 +952,9 @@ dice cómo encontrar los documentos, publicado al asistente como JSON Schema.
   `SessionService.detect_refresh_reuse` hace commit de la sesión que acaba de
   revocar y de la entrada que dice por qué — porque quien lo llama lanza un 401
   inmediatamente después, y la reversión desharía ambas.
-- El trabajo en segundo plano que lee una fila que esta petición escribió se
-  entrega con **`spawn_after_commit`**, nunca con `spawn`.
+- El trabajo en segundo plano que tiene que ocurrir es un **job encolado en la
+  transacción de la petición** (`enqueue`); el trabajo sin garantías que lee una
+  fila que esta petición escribió se entrega con **`spawn_after_commit`**, nunca
+  con `spawn`.
 - Un dominio fino es un módulo; uno grueso es un subpaquete con una fachada, y nada
   fuera de él importa sus submódulos.

@@ -1,5 +1,5 @@
 ---
-source_sha: "881b6e491b07"
+source_sha: "db197b5a7d42"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -737,8 +737,8 @@ browser`, osiągalną jako `http://browser:9222`. Host musi być na
 automatyzację przeglądarki całkowicie, przy publikacji.
 
 Przeglądarka z compose działa we własnej sieci Dockera, do której dołączają tylko
-API i runner, żeby się z nią połączyć: strona, którą otwiera albo na którą zostaje
-przekierowana, nie dosięgnie bazy, Redisa, Prefecta ani MinIO. Nadal sięga tam,
+API i worker, żeby się z nią połączyć: strona, którą otwiera albo na którą zostaje
+przekierowana, nie dosięgnie bazy, Redisa ani MinIO. Nadal sięga tam,
 dokąd pozwala sieć hosta, np. do adresu metadanych chmury, więc tam, gdzie to ważne,
 zablokuj go na hoście.
 

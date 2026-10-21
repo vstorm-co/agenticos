@@ -1,151 +1,84 @@
-"""External-state cleanup survives the process that dispatched it (#1274, #1349).
+"""External-state cleanup survives the process that asked for it (#1274, #1349, #2219).
 
 A committed delete - an organization purge (`OrganizationService.purge`) or a RAG
-collection drop (`KnowledgeBaseService.delete`, `RAGDocumentService`) - used to hand
-its external cleanup, unlinking stored uploads and dropping vector tables, to an
-in-process `spawn_after_commit` task that died with the process. It now submits a
-durable Prefect deployment run: the run and its parameters are recorded on the
-server and retried by a worker. These pin the two halves - the dispatch submits the
-right run, and the cleanup it runs is idempotent and re-checks a shared collection
+collection drop (`KnowledgeBaseService.delete`, `RAGDocumentService`) - leaves an
+external cleanup behind: unlinking stored uploads and dropping vector tables. It is
+queued as a job in the delete's own transaction, so it exists exactly when the
+delete does and a worker retries it. These pin the two halves - the right jobs are
+queued, and the cleanup they run is idempotent and re-checks a shared collection
 name before dropping it.
 """
-
-from __future__ import annotations
 
 from contextlib import ExitStack, asynccontextmanager
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import UUID
 
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.worker.jobs import CLEANUP_EXTERNAL_STATE, CleanupExternalState, Restamp
 from app.worker.tasks import teardown_tasks
 from app.worker.tasks.teardown_tasks import (
     cleanup_external_state,
-    dispatch_external_state_cleanup,
-    external_state_cleanup_flow,
+    queue_external_state_cleanup,
+    run_external_state_cleanup,
     sweep_teardown_reservations,
-    teardown_reservation_sweep_flow,
 )
 
 pytestmark = pytest.mark.anyio
 
 
-class TestDispatch:
-    async def test_it_submits_the_cleanup_as_its_own_deployment_run(self) -> None:
-        """`run_deployment` records the run on the Prefect server; that is what
-        makes the cleanup outlive the process that dispatched it."""
-        run = AsyncMock()
-        with patch.object(teardown_tasks, "run_deployment", run):
-            await dispatch_external_state_cleanup(["a/one.txt"], ["docs"])
+_ORG = UUID("11111111-1111-1111-1111-111111111111")
+_KB = UUID("22222222-2222-2222-2222-222222222222")
 
-        run.assert_awaited_once_with(
-            name="org-purge-cleanup/org-purge-cleanup",
-            parameters={"storage_paths": ["a/one.txt"], "collections": ["docs"]},
-            timeout=0,
+
+def _restamp(collection: str = "handbook") -> Restamp:
+    return Restamp(collection=collection, organization_id=_ORG, knowledge_base_id=_KB)
+
+
+class TestQueueing:
+    async def _queued(self, *args: Any, **kwargs: Any) -> list[tuple[Any, ...]]:
+        calls: list[tuple[Any, ...]] = []
+
+        async def enqueue(db, task, payload, **options):
+            calls.append((db, task, payload, options))
+
+        db = MagicMock()
+        with patch.object(teardown_tasks, "enqueue", enqueue):
+            await queue_external_state_cleanup(db, *args, **kwargs)
+        assert all(call[0] is db for call in calls), "every job rides the delete's own session"
+        assert all(call[1] is CLEANUP_EXTERNAL_STATE for call in calls)
+        return calls
+
+    async def test_it_queues_one_cleanup_carrying_the_paths_and_the_drops(self) -> None:
+        [(_, _, payload, options)] = await self._queued(
+            ["a/one.txt"], ["docs"], organization_id=_ORG
         )
-
-    async def test_a_purge_with_no_paths_still_submits_the_table_drops(self) -> None:
-        run = AsyncMock()
-        with patch.object(teardown_tasks, "run_deployment", run):
-            await dispatch_external_state_cleanup([], ["docs"])
-
-        run.assert_awaited_once_with(
-            name="org-purge-cleanup/org-purge-cleanup",
-            parameters={"storage_paths": [], "collections": ["docs"]},
-            timeout=0,
+        assert payload == CleanupExternalState(
+            storage_paths=["a/one.txt"], collections=["docs"], restamps=[]
         )
+        assert options == {"organization_id": _ORG}
 
-    async def test_it_chunks_a_large_path_list_across_bounded_runs(self) -> None:
-        """A payload over Prefect's 512 KiB flow-parameter limit would be rejected
-        after the rows are gone, so the paths are split across runs and each stays
-        bounded; the table drops ride the first run only (#1274)."""
-        paths = [f"u/{i}.txt" for i in range(teardown_tasks._MAX_PATHS_PER_RUN + 1)]
-        run = AsyncMock()
-        with patch.object(teardown_tasks, "run_deployment", run):
-            await dispatch_external_state_cleanup(paths, ["docs"])
+    async def test_a_purge_with_no_paths_still_queues_the_table_drops(self) -> None:
+        [(_, _, payload, _)] = await self._queued([], ["docs"])
+        assert payload.collections == ["docs"]
 
-        assert run.await_count == 2
-        first, second = run.await_args_list
-        assert len(first.kwargs["parameters"]["storage_paths"]) == teardown_tasks._MAX_PATHS_PER_RUN
-        assert first.kwargs["parameters"]["collections"] == ["docs"]
-        assert second.kwargs["parameters"]["storage_paths"] == [paths[-1]]
-        assert second.kwargs["parameters"]["collections"] == []
+    async def test_it_chunks_a_large_path_list_and_drops_on_the_first_job_only(self) -> None:
+        """Each job's row stays small, and a retry re-attempts one chunk (#1274)."""
+        paths = [f"u/{i}.txt" for i in range(teardown_tasks._MAX_PATHS_PER_JOB + 1)]
+        first, second = (call[2] for call in await self._queued(paths, ["docs"]))
+        assert len(first.storage_paths) == teardown_tasks._MAX_PATHS_PER_JOB
+        assert first.collections == ["docs"]
+        assert (second.storage_paths, second.collections) == ([paths[-1]], [])
 
-    async def test_a_transient_submission_failure_is_retried(self) -> None:
-        run = AsyncMock(side_effect=[RuntimeError("prefect blip"), None])
-        with (
-            patch.object(teardown_tasks, "run_deployment", run),
-            patch("asyncio.sleep", new=AsyncMock()),
-        ):
-            await dispatch_external_state_cleanup(["a/one.txt"], [])
-
-        assert run.await_count == 2
-
-    async def test_a_submission_that_keeps_failing_is_logged_not_raised(self) -> None:
-        """A run that cannot be submitted has no row to reconstruct it, but one
-        transient failure must not abort the rest, so it is logged rather than
-        raised (#1274)."""
-        run = AsyncMock(side_effect=RuntimeError("prefect down"))
-        with (
-            patch.object(teardown_tasks, "run_deployment", run),
-            patch("asyncio.sleep", new=AsyncMock()),
-        ):
-            await dispatch_external_state_cleanup(["a/one.txt"], [])
-
-        assert run.await_count == teardown_tasks._SUBMIT_ATTEMPTS
-
-    async def test_it_carries_the_orphaned_restamps_on_the_first_run(self) -> None:
-        """The personal bases a purge orphaned ride the run so the durable cleanup
-        untags their rows; like the drops they go on the first run only (#1684)."""
-        run = AsyncMock()
-        with patch.object(teardown_tasks, "run_deployment", run):
-            await dispatch_external_state_cleanup([], [], [["handbook", "org-1", "kb-1"]])
-
-        run.assert_awaited_once_with(
-            name="org-purge-cleanup/org-purge-cleanup",
-            parameters={
-                "storage_paths": [],
-                "collections": [],
-                "restamps": [["handbook", "org-1", "kb-1"]],
-            },
-            timeout=0,
-        )
-
-    async def test_it_omits_restamps_when_there_are_none(self) -> None:
-        """The common purge orphans nothing, so its payload is exactly what it always
-        was - only a purge that orphaned a base carries the newer parameter across an
-        upgrade (#1684)."""
-        run = AsyncMock()
-        with patch.object(teardown_tasks, "run_deployment", run):
-            await dispatch_external_state_cleanup(["a/one.txt"], ["docs"])
-
-        assert "restamps" not in run.await_args.kwargs["parameters"]
-
-    async def test_restamps_ride_only_the_first_of_several_chunks(self) -> None:
-        paths = [f"u/{i}.txt" for i in range(teardown_tasks._MAX_PATHS_PER_RUN + 1)]
-        run = AsyncMock()
-        with patch.object(teardown_tasks, "run_deployment", run):
-            await dispatch_external_state_cleanup(paths, [], [["handbook", "org-1", "kb-1"]])
-
-        first, second = run.await_args_list
-        assert first.kwargs["parameters"]["restamps"] == [["handbook", "org-1", "kb-1"]]
-        assert "restamps" not in second.kwargs["parameters"]
-
-    async def test_many_restamps_are_chunked_across_runs(self) -> None:
-        """An organization with more personal bases than a run can carry spreads its
-        re-stamps across runs, the way storage paths are, so no run's parameters
-        overflow Prefect's 512 KiB limit (#1684)."""
-        restamps = [
-            [f"kb-{i}", "org-1", f"id-{i}"] for i in range(teardown_tasks._MAX_RESTAMPS_PER_RUN + 1)
-        ]
-        run = AsyncMock()
-        with patch.object(teardown_tasks, "run_deployment", run):
-            await dispatch_external_state_cleanup([], [], restamps)
-
-        first, second = run.await_args_list
-        assert len(first.kwargs["parameters"]["restamps"]) == teardown_tasks._MAX_RESTAMPS_PER_RUN
-        assert second.kwargs["parameters"]["restamps"] == [restamps[-1]]
+    async def test_restamps_are_chunked_on_their_own_and_zipped_onto_the_jobs(self) -> None:
+        """More orphaned personal bases than a job carries spread across jobs, the way
+        storage paths are (#1684)."""
+        restamps = [_restamp(f"kb-{i}") for i in range(teardown_tasks._MAX_RESTAMPS_PER_JOB + 1)]
+        first, second = (call[2] for call in await self._queued([], [], restamps))
+        assert len(first.restamps) == teardown_tasks._MAX_RESTAMPS_PER_JOB
+        assert second.restamps == [restamps[-1]]
 
 
 @asynccontextmanager
@@ -279,27 +212,20 @@ class TestTheCleanup:
         """A purge orphans a personal base by nulling its org; the cleanup hands the
         store that base's id and tenant, and the store untags exactly that base's own
         surviving rows so its new `vector_tenant=None` reaches them again (#1684)."""
-        from uuid import UUID
-
         _storage, store, _engine, _release, patches = _patch_cleanup()
-        org = "11111111-1111-1111-1111-111111111111"
-        kb = "22222222-2222-2222-2222-222222222222"
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
-            result = await cleanup_external_state([], [], [["handbook", org, kb]])
+            result = await cleanup_external_state([], [], [_restamp()])
 
-        store.restamp_documents_to_untagged.assert_awaited_once_with(
-            "handbook", UUID(org), UUID(kb)
-        )
+        store.restamp_documents_to_untagged.assert_awaited_once_with("handbook", _ORG, _KB)
         assert result == {"unlinked": 0, "dropped": 0, "restamped": 1}
 
     async def test_a_failed_restamp_attempts_the_rest_then_fails_the_flow(self) -> None:
         """A re-stamp has no sweep to reattempt it, so a failure is isolated per entry
-        - the others still run - but then raised, failing the flow so its retries
+        - the others still run - but then raised, failing the job so its retries
         re-run the idempotent cleanup rather than leaving a base stranded (#1684)."""
         from app.core.exceptions import DatabaseError
 
         _storage, store, _engine, _release, patches = _patch_cleanup()
-        org, kb = "11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222"
         store.restamp_documents_to_untagged = AsyncMock(side_effect=[SQLAlchemyError("blip"), None])
         with (
             patches[0],
@@ -310,7 +236,7 @@ class TestTheCleanup:
             patches[5],
             pytest.raises(DatabaseError) as excinfo,
         ):
-            await cleanup_external_state([], [], [["bad", org, kb], ["good", org, kb]])
+            await cleanup_external_state([], [], [_restamp("bad"), _restamp("good")])
 
         assert store.restamp_documents_to_untagged.await_count == 2
         assert excinfo.value.details == {"collections": ["bad"]}
@@ -319,31 +245,24 @@ class TestTheCleanup:
         """A purge that only orphaned a personal base - no files, no drops - still
         opens the vector store to untag it."""
         _storage, store, engine, _release, patches = _patch_cleanup()
-        org, kb = "11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222"
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
-            await cleanup_external_state([], [], [["handbook", org, kb]])
+            await cleanup_external_state([], [], [_restamp()])
 
         store.restamp_documents_to_untagged.assert_awaited_once()
         engine.dispose.assert_awaited_once()
 
 
-class TestTheFlow:
-    async def test_it_runs_the_cleanup(self) -> None:
-        """The `@flow` wrapper is thin: it carries the durability and delegates the
-        work to `cleanup_external_state`."""
-        impl = AsyncMock(return_value={"unlinked": 1, "dropped": 1})
+class TestTheJob:
+    async def test_it_runs_the_cleanup_with_what_the_job_carries(self) -> None:
+        impl = AsyncMock(return_value={"unlinked": 1, "dropped": 1, "restamped": 1})
+        job = CleanupExternalState(
+            storage_paths=["u/a.txt"], collections=["docs"], restamps=[_restamp()]
+        )
         with patch.object(teardown_tasks, "cleanup_external_state", impl):
-            result = await external_state_cleanup_flow(["u/a.txt"], ["docs"])
+            result = await run_external_state_cleanup(job)
 
-        impl.assert_awaited_once_with(["u/a.txt"], ["docs"], None)
-        assert result == {"unlinked": 1, "dropped": 1}
-
-    async def test_it_passes_the_restamps_through(self) -> None:
-        impl = AsyncMock(return_value={"unlinked": 0, "dropped": 0, "restamped": 1})
-        with patch.object(teardown_tasks, "cleanup_external_state", impl):
-            await external_state_cleanup_flow([], [], [["handbook", "org-1", "kb-1"]])
-
-        impl.assert_awaited_once_with([], [], [["handbook", "org-1", "kb-1"]])
+        impl.assert_awaited_once_with(["u/a.txt"], ["docs"], [_restamp()])
+        assert result == {"unlinked": 1, "dropped": 1, "restamped": 1}
 
 
 def _patch_sweep(stale: list[Any], *, reserved: bool = True) -> Any:
@@ -436,13 +355,3 @@ class TestTheSweep:
 
         make_engine.assert_not_called()
         assert result == {"swept": 0, "dropped": 0}
-
-
-class TestTheSweepFlow:
-    async def test_it_runs_the_sweep(self) -> None:
-        impl = AsyncMock(return_value={"swept": 2, "dropped": 1})
-        with patch.object(teardown_tasks, "sweep_teardown_reservations", impl):
-            result = await teardown_reservation_sweep_flow()
-
-        impl.assert_awaited_once_with()
-        assert result == {"swept": 2, "dropped": 1}

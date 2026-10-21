@@ -19,6 +19,8 @@ export interface Mentionable extends MentionRef {
   detail?: string | null;
   /** The catalog's mark for an MCP server; for a capability, the tool whose icon draws it. */
   icon?: string | null;
+  /** An MCP server's host, which its brand logo is drawn from. */
+  host?: string | null;
   /** An agent's handle, for its face. */
   slug?: string | null;
   has_avatar?: boolean;

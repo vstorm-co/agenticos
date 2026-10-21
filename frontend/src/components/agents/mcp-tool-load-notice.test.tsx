@@ -98,8 +98,8 @@ describe("McpToolLoadNotice", () => {
       <McpToolLoadNotice
         spec={spec({
           mcp_servers: [
-            { account: "organization", connection_id: "o1", allowed_tools: null },
-            { account: "platform", approval: "writes" },
+            { account: "organization", connection_id: "o1", allowed_tools: null, approval: "none" },
+            { account: "platform", allowed_tools: null, approval: "writes" },
           ],
         })}
         connections={[connection(20)]}

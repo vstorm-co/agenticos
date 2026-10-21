@@ -7,8 +7,6 @@ unlocks `exec` on the sandbox service, so it can never reach a browser and
 nothing may be proxied before the access check has passed.
 """
 
-from __future__ import annotations
-
 import uuid
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock

@@ -8,8 +8,6 @@ that summing the cost column of a run export on a deployment that delegates give
 the bill and not double it.
 """
 
-from __future__ import annotations
-
 import csv
 import io
 import uuid

@@ -630,7 +630,7 @@ def test_shutting_down_kills_a_worker_that_never_ran_its_event_loop(
     """#366: the one state the wedge verdict cannot see, and the one that hangs Ctrl+C.
 
     A worker hung during lifespan startup - a Postgres that is down, a
-    `PREFECT_API_URL` that does not answer - has never beaten, so `_silent_for`
+    Redis that does not answer - has never beaten, so `_silent_for`
     answers `None` and there is nothing to escalate on. It gets a second rather
     than `STOP_GRACE`, because a worker that never finished starting is holding
     nothing worth draining.

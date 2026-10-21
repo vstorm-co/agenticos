@@ -369,9 +369,18 @@ function ServerCard({
       return;
     }
     if (connection) {
-      onRebind([{ account: "organization", connection_id: connection.id, allowed_tools: null }]);
+      onRebind([
+        {
+          account: "organization",
+          connection_id: connection.id,
+          allowed_tools: null,
+          approval: "none",
+        },
+      ]);
     } else if (entry) {
-      onRebind([{ account: "personal", catalog_key: entry.key, allowed_tools: null }]);
+      onRebind([
+        { account: "personal", catalog_key: entry.key, allowed_tools: null, approval: "none" },
+      ]);
     }
     setSettingsOpen(true);
   };

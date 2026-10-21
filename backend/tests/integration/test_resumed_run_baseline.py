@@ -16,8 +16,6 @@ columns, so this is the layer that can show it: a mocked session answers with
 whatever the test told it to.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal

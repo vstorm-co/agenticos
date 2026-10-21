@@ -1,5 +1,5 @@
 ---
-source_sha: "64fce98b00b5"
+source_sha: "ecc5b8b8c62c"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -15,6 +15,9 @@ contenedores propios, y uno de los cuales es un Postgres que debe ser pgvector -
 que ya es más de lo que modela un destino de despliegue a base de `git push`, y
 una guía que fingiera lo contrario estaría describiendo un despliegue que nadie
 ha ejecutado.
+
+Más allá de un host - un Postgres gestionado, varios hosts de API, varios
+despliegues - está [Escalar más allá de un host](scaling.md).
 
 !!! tip "Lee antes la [lista de comprobación para producción](configuration.md#production-checklist)"
 
@@ -33,8 +36,8 @@ ha ejecutado.
 | **Un proxy inverso** | [Traefik](#option-a-traefik) o [Nginx](#option-b-nginx). Termina el TLS |
 | **Ninguna clave de provider** | los modelos de chat y los embeds llevan ambos su clave por organización, en el vault del producto. El entorno no guarda credenciales para ninguno de los dos — consulta [Protección de datos](data-protection.md#nothing-leaves-by-default) |
 
-El host también necesita los puertos 80 y 443 abiertos, y nada más. Postgres,
-Redis y la API de Prefect no se publican en ninguna interfaz.
+El host también necesita los puertos 80 y 443 abiertos, y nada más. Postgres y
+Redis no se publican en ninguna interfaz, y el worker no sirve nada.
 
 ### Por qué dos nombres de host { #why-two-hostnames }
 
@@ -55,8 +58,7 @@ Medido sobre un despliegue en reposo, no estimado:
 |---|---|---|
 | `app` (2 workers de uvicorn) | ~1,0 GB | 2,5 GB con los 4 workers por defecto |
 | `db` | ~1,3 GB con el ajuste de abajo | 2 GB |
-| `prefect-runner` | 241 MiB | 1,5 GB |
-| `prefect-server` | 245 MiB | 768 MB |
+| `worker` (un proceso hijo de ingesta) | 387 MiB | 2,5 GB (`WORKER_MEMORY_LIMIT`) |
 | `frontend` | ~300 MB | 1 GB |
 | `redis` | 9 MiB | 512 MB |
 
@@ -97,6 +99,13 @@ Dos ajustes mantienen diagnosticable un despliegue lento:
     colección agota, informando `could not resize shared memory segment`. Si
     mueves el límite, mueve el ajuste con él; están escritos uno al lado del otro
     por esa razón.
+
+    También fija `max_connections=200`, porque los pools pueden abrir más que
+    los 100 de serie de Postgres: dos pools de 15 por worker de uvicorn, o sea
+    120 con los cuatro por defecto, y 30 más para el worker de tareas en segundo
+    plano. Súbelo junto con `UVICORN_WORKERS` o `DB_POOL_SIZE`, o Postgres
+    rechazará conexiones con «too many clients» antes de que un pool pueda
+    encolarlas o descartar la carga.
 
 ## Apunta los nombres al host { #point-the-names-at-the-host }
 
@@ -146,7 +155,7 @@ repositorio.
 
 | | |
 |---|---|
-| `ghcr.io/vstorm-co/agenticos-backend` | La API, el runner de Prefect y las migraciones - una imagen, tres comandos |
+| `ghcr.io/vstorm-co/agenticos-backend` | La API, el worker y las migraciones - una imagen, tres comandos |
 | `ghcr.io/vstorm-co/agenticos-frontend` | La consola |
 
 Las dos se construyen para `linux/amd64` y `linux/arm64` en
@@ -245,7 +254,7 @@ proxy con el que se configuró este host y no el que asumiera un script.
 
     Es el único ajuste de `traefik/traefik.yml` que merece la pena leer antes de
     ejecutarlo. Solo `app` y `frontend` llevan `traefik.enable=true`, así que
-    Postgres, Redis, el servidor de Prefect y el demonio de la sandbox no son
+    Postgres, Redis, el worker y el demonio de la sandbox no son
     alcanzables desde nada fuera del host — y eso es una propiedad de *no estar
     etiquetados*, así que sobrevive a que alguien añada un servicio sin pensar en
     el proxy.
@@ -282,8 +291,7 @@ deja deliberadamente a lo que termine el TLS.
     `agenticos` — y levantar el frontend informaba entonces de los cinco
     contenedores del backend como **orphans**, con la propia sugerencia de
     compose de volver a ejecutar el comando con `--remove-orphans`. Seguir ese
-    consejo detiene la API, la base de datos, Redis y los dos servicios de
-    Prefect. Los targets de `make` y `scripts/deploy.sh` pasan
+    consejo detiene la API, la base de datos, Redis y el worker. Los targets de `make` y `scripts/deploy.sh` pasan
     `-p agenticos-frontend`, así que el aviso ha desaparecido. Los archivos de
     compose tampoco fijan nombres de contenedor - cada proyecto nombra los suyos,
     así que dos stacks en un host no pueden apropiarse de los contenedores del
@@ -490,7 +498,6 @@ Un volumen importa, y no es obvio cuál:
 |---|---|---|
 | `postgres_data` | todo — agents, conversaciones, credenciales selladas | **sí** |
 | `media_data` | archivos subidos, antes de la ingesta | sí |
-| `prefect_data` | la base de datos de Prefect: deployments, historial de ejecuciones, ejecuciones en cola | no |
 
 La caché ya no tiene ningún volumen. Los buckets del límite de peticiones, las
 marcas de deduplicación de los canales y las respuestas de pertenencia llevan

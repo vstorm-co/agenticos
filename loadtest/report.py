@@ -14,8 +14,6 @@ that, and the sample counts underneath it are what say whether a tail is a
 finding or three requests.
 """
 
-from __future__ import annotations
-
 import platform
 from collections.abc import Iterable
 
@@ -130,6 +128,12 @@ def _phase_summary(
     )
 
 
+def steady_verdicts(samples: list[Sample], phases: tuple[Phase, ...]) -> tuple[Verdict, ...]:
+    """Every threshold, judged against the `sustain` phase - what the report's verdict says."""
+    steady, _ = _phase_summary(samples, phases, "sustain")
+    return judge(steady)
+
+
 def render(
     samples: list[Sample],
     *,
@@ -238,6 +242,6 @@ def render(
     if not probes.resources and not probes.pools and not probes.unavailable:
         lines.append("- Nothing was sampled; the run measured requests only.")
 
-    lines.extend(_verdicts(judge(steady)))
+    lines.extend(_verdicts(steady_verdicts(samples, phases)))
     lines.append("")
     return "\n".join(lines)

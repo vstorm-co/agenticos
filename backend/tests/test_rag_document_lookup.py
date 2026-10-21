@@ -19,8 +19,6 @@ This module is template-inherited and outside the coverage gate, which is why
 the precedence is pinned by name rather than trusted to a percentage.
 """
 
-from __future__ import annotations
-
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 

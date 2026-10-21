@@ -336,12 +336,13 @@ presses the button.
 
 ## When a container appears
 
-**On the first workspace operation, which is not the same as the agent's first
-tool call.** A run stages what somebody attached and materialises the agent's
-skills *before* the model is called, and either one opens the session lazily — so
-a container can exist for a turn in which the agent never reached for the shell.
-Worth knowing when reading a session list: a sandbox whose activity log holds
-nothing but writes is one nothing asked for yet.
+**On the first workspace operation: a tool the agent calls there, or a file
+somebody attached being staged into it.** The agent's skills are written into the
+workspace at that moment, just before the operation runs, and not while the run is
+prepared, so a turn that never uses the sandbox opens no session and starts no
+container. A turn that does use it finds the skills on disk already. A session
+list can still show a sandbox whose activity log holds only writes: one that had a
+file attached and then sat unused.
 
 ## What was done in one, and where that record lives
 
@@ -569,7 +570,10 @@ Daytona sandbox has no TTL behind it, so this is the only thing that ends one.
 A connection that is switched off still has its sandboxes destroyed, because
 off stops new work and not the bill. A connection with tombstones left cannot
 be deleted: the tombstones would go with it, and they are the only record of
-what is still running on the provider.
+what is still running on the provider. When the sweep can never succeed - the
+connection's credential was deleted or revoked - delete the sandboxes in the
+provider's console. Then delete the connection again and confirm that you did:
+its tombstones are forgotten, and how many goes in the audit log.
 
 ## Recap
 

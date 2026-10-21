@@ -5,8 +5,6 @@ that must *not* reach a picker; the rest about what a model can make, which the
 tool checks a request against, and the price a budget is checked against.
 """
 
-from __future__ import annotations
-
 import uuid
 from dataclasses import replace
 from datetime import date

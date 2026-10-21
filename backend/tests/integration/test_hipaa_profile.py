@@ -7,8 +7,6 @@ settings say - and a mocked session answering them is a sheet that proves the
 mock rather than the deployment.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

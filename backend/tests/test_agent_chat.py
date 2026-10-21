@@ -11,8 +11,6 @@ is not. A run must carry the person's own role at the moment they typed, never
 the organization's and never none at all.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 import uuid

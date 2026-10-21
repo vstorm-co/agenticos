@@ -7,8 +7,6 @@ still within its window, and not the one an administrator already revoked,
 whose status records a decision the sweep must not write over (#456).
 """
 
-from __future__ import annotations
-
 import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
