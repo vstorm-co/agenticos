@@ -1,5 +1,5 @@
 ---
-source_sha: "51103c7b1def"
+source_sha: "fa5a6c8ba066"
 ---
 
 # O AgenticOS { #about-agenticos }
@@ -51,7 +51,7 @@ go porównujesz.
 | Procesy | Runy są pierwszej kategorii: historia, koszt, status oraz izolacja tenantów egzekwowana przez ograniczenia bazy danych, a nie przez kod serwisu |
 | Limity zasobów | [Miesięczne budżety](../governance.md) per agent, sprawdzane przed każdym żądaniem do modelu. Run, który się nie powiódł, i tak zapisuje, ile wydał, bo budżet ignorujący porażki nie jest budżetem |
 | Kontrola dostępu | [Katalog uprawnień](../permissions.md) w kodzie, role złożone z niego, granty per zasób, które poszerzają i nigdy nie zawężają. `approval: required` jest tutaj `sudo` — run parkuje i czeka na człowieka |
-| Sterowniki | [27 providerów modeli](../models.md) za profilem modelu i [dowolny serwer MCP po URL](../mcp.md). Zmień profil, a przesuną się wszyscy agenci, którzy go używają, bez publikowania żadnego z nich na nowo |
+| Sterowniki | [28 providerów modeli](../models.md) za profilem modelu i [dowolny serwer MCP po URL](../mcp.md). Zmień profil, a przesuną się wszyscy agenci, którzy go używają, bez publikowania żadnego z nich na nowo |
 | System plików | [Kolekcje, skille i kontekst](../file-processing.md) w Twoim własnym Postgresie, z embeddingami kluczowanymi per organizacja |
 | Powłoka | Jeden runner za [czatem webowym, API, Slackiem, Telegramem, widgetem, hostowaną stroną i harmonogramem](../channels.md) |
 | Log audytowy | Każdy run, każda decyzja o approvalu, każda rotacja sekretu — z wartościami, nigdy z wierszami i nigdy z kluczem otwartym tekstem |

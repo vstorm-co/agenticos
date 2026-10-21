@@ -15,8 +15,6 @@ Adding a route that returns a credential should fail here. If it does, the fix
 is the route, not the allowlist.
 """
 
-from __future__ import annotations
-
 import re
 from typing import Any
 
@@ -117,6 +115,10 @@ _PATTERN_ALLOWED: dict[str, str] = {
         "the same again: which vault key a collection embeds on - the id of a "
         "reference the organization can revoke, never the key itself"
     ),
+    "speech_to_text_secret_id": (
+        "which organization vault key transcription is billed to, on the "
+        "organization and on a channel bot - the id of the key, never the key"
+    ),
     "token_secret_id": (
         "the same, named for what it points at: an agent's Logfire write token "
         "lives in the vault and the spec carries only its id, because a spec is "
@@ -129,6 +131,8 @@ _PATTERN_ALLOWED: dict[str, str] = {
     "output_tokens": "the same, for the completion",
     "context_used_tokens": "the same word again: how much of a context window a turn filled",
     "context_window_tokens": "how many tokens a model accepts, which is a capacity not a key",
+    "cache_read_tokens": "the prompt tokens a turn read from the provider's prompt cache",
+    "cache_write_tokens": "the prompt tokens a turn wrote to that cache",
 }
 
 # A property whose type is one of these cannot be carrying a credential

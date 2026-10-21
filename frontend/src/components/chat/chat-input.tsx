@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
 import type { ReactNode } from "react";
 import { getErrorMessage } from "@/lib/api-error";
 import { Button, Spinner } from "@/components/ui";
@@ -13,6 +13,8 @@ import { createPortal } from "react-dom";
 
 import { AttachmentCard, PendingAttachmentCard } from "./attachment-card";
 import { AttachmentRow } from "./attachment-row";
+import { ReplyingTo } from "./reply-quote";
+import { useChatStore } from "@/stores";
 import { ComposerSheet } from "./composer-sheet";
 
 /**
@@ -37,12 +39,44 @@ import {
   type SlashCommandContext,
 } from "./slash-commands";
 import { SlashCommandPalette } from "./slash-command-palette";
+import { ComposerEditor, type ComposerEditorHandle } from "./composer-editor";
+import { ComposerHints } from "./composer-hints";
+import { MentionPalette } from "./mention-palette";
+import { useMentionables } from "@/hooks/use-mentionables";
+import {
+  insertMention,
+  matching,
+  mentionAt,
+  stillMentioned,
+  type MentionQuery,
+} from "@/lib/mentions";
+import type { Mentionable } from "@/types/mention";
 import { FileDropOverlay } from "@/components/files";
-import { cn } from "@/lib/utils";
 import { useChanged } from "@/hooks/use-changed";
 import { useFileDrop } from "@/hooks/use-file-drop";
 import { useTranslations } from "next-intl";
 import type { UseMicrophoneResult } from "voice-glow";
+import { wordCount, type DictationActions, type DictationState } from "@/hooks/use-dictation";
+import type { ComposerDictation as DictationEngine } from "@/lib/dictation-api";
+
+import { movesOn } from "./dictation-strip";
+
+/**
+ * Dictation for the selected agent, as the composer needs it.
+ *
+ * The recording itself lives in the page (`useDictation` beside the microphone),
+ * because the glow around the box reads its phase; this component only shows
+ * it, and inserts what comes back.
+ */
+export interface ComposerDictation {
+  /**
+   * `server` when the selected agent's Dictation switch sends recordings to a
+   * provider it can reach; `browser`, the browser's own recognition, otherwise.
+   */
+  engine: DictationEngine;
+  state: DictationState;
+  actions: DictationActions;
+}
 
 /**
  * Past this many characters, a paste is a file rather than a message.
@@ -54,6 +88,9 @@ import type { UseMicrophoneResult } from "voice-glow";
  * Below it nothing changes: the text lands in the textarea as it always has.
  */
 const PASTE_AS_FILE_CHARS = 2000;
+
+/** What one message may point at; the server refuses a frame with more (`agent_chat.MAX_MENTIONS`). */
+const MAX_MENTIONS = 10;
 
 /** A file queued for upload, shown as a card before the server has answered. */
 interface PendingUpload {
@@ -76,7 +113,21 @@ interface Attachment {
 }
 
 interface ChatInputProps {
-  onSend: (message: string, fileIds?: string[], files?: FileUploadResponse[]) => void;
+  onSend: (
+    message: string,
+    fileIds?: string[],
+    files?: FileUploadResponse[],
+    mentions?: Mentionable[],
+  ) => void;
+  /**
+   * The agent this turn is addressed to, whose servers, delegates and knowledge
+   * `@` offers (#2189). Absent where the composer offers no mentions.
+   */
+  agentId?: string | null;
+  /** Offer what the Builder's draft reaches - its test panel runs the draft. */
+  mentionsFromDraft?: boolean;
+  /** Suggest what can be asked while the box is empty - a conversation with nothing in it yet. */
+  hints?: boolean;
   disabled?: boolean;
   isProcessing?: boolean;
   /** When set, a stop control replaces the send button while processing. */
@@ -107,6 +158,8 @@ interface ChatInputProps {
    * stay inside this `<form>` to submit it.
    */
   controlsSlot?: ReactNode;
+  /** Opens the project picker from the `+`; absent where a chat cannot change project. */
+  onProject?: () => void;
   /**
    * Icons drawn before the microphone: what the conversation is using, and the
    * model it runs on. Icons, because a line of readings and a model's name took
@@ -114,10 +167,28 @@ interface ChatInputProps {
    */
   actionsSlot?: ReactNode;
   /**
+   * The selected agent's dictation engine and, for `server`, the recording.
+   * Absent, the microphone is the browser's own speech recognition.
+   */
+  dictation?: ComposerDictation;
+  /**
+   * Hears when the browser's own recognition starts listening, with how to stop
+   * it, and when it stops - for the page's dictation pill (#54).
+   */
+  onListeningChange?: (stop: (() => void) | null) => void;
+  /**
    * Files handed in from outside the composer - the AI Architect's screenshot of
    * the page (#2063) - attached as if picked, once per `id`.
    */
   incoming?: IncomingFiles | null;
+  /** Called as the person types, so a shared chat can say they are. */
+  onTyping?: () => void;
+  /**
+   * Projects `@` offers beside what the agent reaches, before the first message;
+   * picking one starts the chat in it rather than mentioning it.
+   */
+  projects?: Mentionable[];
+  onPickProject?: (projectId: string) => void;
 }
 
 /** Files to attach from outside the composer, once per `id`, and words to go with them. */
@@ -143,12 +214,25 @@ export function ChatInput({
   attachmentSlot,
   mic,
   controlsSlot,
+  onProject,
   actionsSlot,
+  dictation,
+  onListeningChange,
   incoming = null,
+  agentId = null,
+  mentionsFromDraft = false,
+  hints = false,
+  onTyping,
+  projects,
+  onPickProject,
 }: ChatInputProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("chat.input");
+  // The message this turn will answer, chosen with Reply on it.
+  const replyTo = useChatStore((state) => state.replyTo);
+  const setReplyTo = useChatStore((state) => state.setReplyTo);
   const tCommands = useTranslations("chat.commands");
+  const tDictation = useTranslations("chat.dictation");
   const { chatMaxUploadSizeMb } = usePublicConfig();
   const [message, setMessage] = useState("");
   const [attachedFiles, setAttachedFiles] = useState<Attachment[]>([]);
@@ -159,11 +243,134 @@ export function ChatInput({
   // Slash-command palette state. Open while message starts with "/" and the
   // caller wired a context - without one, commands have nothing to do.
   const [paletteIndex, setPaletteIndex] = useState(0);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<ComposerEditorHandle>(null);
+  // Reply was just chosen on a message: the person goes on to type the answer.
+  useEffect(() => {
+    if (replyTo) editorRef.current?.focus();
+  }, [replyTo]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
+  const server = dictation?.engine === "server" ? dictation : null;
+  const phase = server?.state.phase ?? "idle";
+  // The box is the recording's while it runs and while its text is on the way:
+  // nothing typed then would survive the insertion, and nothing may be sent.
+  const dictating = phase === "requesting" || phase === "recording" || phase === "transcribing";
+  // Where the person was in the text when they pressed the mic, and the text it
+  // points into; the transcript lands there, replacing a selection.
+  const [caret, setCaret] = useState<{ from: number; to: number; text: string } | null>(null);
+  const [placeCaret, setPlaceCaret] = useState<{ at: number } | null>(null);
+  const [announcement, setAnnouncement] = useState("");
+
+  if (useChanged(phase)) {
+    if (phase === "recording") setAnnouncement(tDictation("announceRecording"));
+    else if (phase === "transcribing") setAnnouncement(tDictation("announceTranscribing"));
+  }
+  const remaining = phase === "recording" ? (server?.state.remaining ?? null) : null;
+  if (useChanged(remaining !== null) && remaining !== null) {
+    setAnnouncement(tDictation("announceLeft", { count: remaining }));
+  }
+  // Once per transcript: inserted during render, so the text and the caret
+  // never show a frame apart.
+  const transcript = server?.state.transcript ?? null;
+  if (useChanged(transcript?.id ?? null) && transcript !== null && caret !== null) {
+    // The box is writable while a failed recording waits for Retry, so the text
+    // can change between the press and the transcript. The saved offsets point
+    // into text that is gone then, and the transcript goes at the end instead.
+    const kept = message === caret.text;
+    const from = kept ? caret.from : message.length;
+    const to = kept ? caret.to : message.length;
+    const before = message.slice(0, from);
+    const after = message.slice(to);
+    const join = before.length > 0 && !/\s$/.test(before) ? " " : "";
+    const gap = after.length > 0 && !/^\s/.test(after) ? " " : "";
+    const inserted = join + transcript.text + gap;
+    setMessage(before + inserted + after);
+    setCaret(null);
+    setPlaceCaret({ at: from + inserted.length });
+    setAnnouncement(tDictation("announceInserted", { count: wordCount(transcript.text) }));
+  }
+
+  // After the render that holds the text: focus the box and put the caret
+  // after what was inserted, ready to edit it.
+  useEffect(() => {
+    if (placeCaret === null) return;
+    const frame = requestAnimationFrame(() => editorRef.current?.setCaret(placeCaret.at));
+    return () => cancelAnimationFrame(frame);
+  }, [placeCaret]);
+
+  // Focus went to <body> with the bar, which unmounts when dictation ends without
+  // a transcript; back to the box, beside the strip that says what happened.
+  const wasDictating = useRef(false);
+  useEffect(() => {
+    const ended = wasDictating.current && !dictating;
+    wasDictating.current = dictating;
+    if (ended && document.activeElement === document.body) editorRef.current?.focus();
+  }, [dictating]);
+
+  const startDictation = () => {
+    const end = { from: message.length, to: message.length };
+    setCaret({ ...(editorRef.current?.selection() ?? end), text: message });
+    void server?.actions.start();
+  };
+
   const showPalette = !!slashContext && message.startsWith("/") && !message.includes("\n");
+  // `@`-mentions (#2189): what was picked, and the one being typed at the caret.
+  // A pick stays in the text as `@Name`; deleting that text unpicks it, so what
+  // is sent is always what the message still says.
+  const [picked, setPicked] = useState<Mentionable[]>([]);
+  const mentions = useMemo(() => stillMentioned(message, picked), [message, picked]);
+  const [mentionQuery, setMentionQuery] = useState<MentionQuery | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const mentionOpen = mentionQuery !== null && agentId !== null && !showPalette;
+  const offered = useMentionables(agentId, mentionsFromDraft);
+  const mentionMatches = useMemo(
+    () =>
+      mentionOpen && mentionQuery
+        ? matching([...offered.items, ...(projects ?? [])], mentionQuery.query)
+        : [],
+    [mentionOpen, mentionQuery, offered.items, projects],
+  );
+  if (useChanged(`${mentionMatches.length}|${mentionQuery?.query ?? ""}`)) setMentionIndex(0);
+  // Another agent's servers and knowledge are not this one's, so a switch drops
+  // what was picked for the previous one rather than sending what it cannot reach.
+  if (useChanged(agentId ?? "") && picked.length > 0) setPicked([]);
+
+  // Where the caret goes once the picked `@query` is replaced - set as that text
+  // commits, so the next keystroke lands after what was picked.
+  const caretAfterPick = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    if (caretAfterPick.current === null) return;
+    editorRef.current?.setCaret(caretAfterPick.current);
+    caretAfterPick.current = null;
+  }, [message]);
+
+  const typed = (text: string, at: number) => {
+    setMessage(text);
+    setMentionQuery(mentionAt(text, at));
+    if (text.trim()) onTyping?.();
+  };
+
+  const full = mentions.length >= MAX_MENTIONS;
+  const pickMention = (item: Mentionable) => {
+    if (mentionQuery === null) return;
+    if (item.kind === "project") {
+      // Not a word in the message: the chat moves into the project, and the
+      // `@` typed to find it goes.
+      setMentionQuery(null);
+      const rest = message.slice(mentionQuery.start + 1 + mentionQuery.query.length);
+      setMessage(message.slice(0, mentionQuery.start) + rest.replace(/^ /, ""));
+      caretAfterPick.current = mentionQuery.start;
+      onPickProject?.(item.id);
+      return;
+    }
+    if (full && !mentions.includes(item)) return;
+    setMentionQuery(null);
+    const next = insertMention(message, mentionQuery, item);
+    setMessage(next.text);
+    caretAfterPick.current = next.caret;
+    setPicked(mentions.includes(item) ? mentions : [...mentions, item]);
+  };
   // The palette before the user's own commands have loaded: the built-ins, with their
   // copy resolved here because the registry holds keys (#446).
   const allCommands = useMemo(
@@ -180,17 +387,8 @@ export function ChatInput({
   if (useChanged(`${filteredCommands.length}|${message}`)) setPaletteIndex(0);
 
   useEffect(() => {
-    if (!isProcessing && !isUploading && textareaRef.current) {
-      textareaRef.current.focus();
-    }
+    if (!isProcessing && !isUploading) editorRef.current?.focus();
   }, [isProcessing, isUploading]);
-
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
-    }
-  }, [message]);
 
   const runSlashCommand = useCallback(
     (cmd: SlashCommand) => {
@@ -215,6 +413,7 @@ export function ChatInput({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (dictating) return;
     if (showPalette && filteredCommands[paletteIndex]) {
       runSlashCommand(filteredCommands[paletteIndex]);
       return;
@@ -228,12 +427,50 @@ export function ChatInput({
       trimmed || t("analyzeFiles"),
       files?.map((f) => f.id),
       files,
+      mentions.length > 0 ? mentions : undefined,
     );
     setMessage("");
     setAttachedFiles([]);
+    setPicked([]);
+    setMentionQuery(null);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // The note under the box saying the text landed goes with the next key.
+    if (server?.state.inserted && movesOn(e.key)) server.actions.dismissInserted();
+    if (dictating) {
+      // Enter finishes the recording rather than sending; Escape is the form's.
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (phase === "recording") server?.actions.stop();
+      }
+      return;
+    }
+    if (mentionOpen) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setMentionQuery(null);
+        return;
+      }
+      if (mentionMatches.length > 0) {
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          setMentionIndex((i) => (i + 1) % mentionMatches.length);
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          setMentionIndex((i) => (i - 1 + mentionMatches.length) % mentionMatches.length);
+          return;
+        }
+        if (e.key === "Enter" || e.key === "Tab") {
+          e.preventDefault();
+          const item = mentionMatches[mentionIndex];
+          if (item) pickMention(item);
+          return;
+        }
+      }
+    }
     if (showPalette && filteredCommands.length > 0) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -265,6 +502,22 @@ export function ChatInput({
       handleSubmit(e);
     }
   };
+
+  // Through a ref: `useMicrophone` answers a new object every render, and a stop
+  // that changed with it was handed to the page on every render while the browser
+  // listened - which re-rendered this, which handed it over again, without end.
+  const micRef = useRef(mic);
+  useLayoutEffect(() => {
+    micRef.current = mic;
+  });
+  const stopListening = useCallback(() => {
+    recognitionRef.current?.stop();
+    micRef.current?.stop();
+    setIsListening(false);
+  }, []);
+  useEffect(() => {
+    onListeningChange?.(isListening ? stopListening : null);
+  }, [isListening, stopListening, onListeningChange]);
 
   const toggleMic = useCallback(() => {
     if (isListening) {
@@ -365,7 +618,7 @@ export function ChatInput({
     if (incoming === null || attachedIncoming.current === incoming.id) return;
     attachedIncoming.current = incoming.id;
     void uploadFiles(incoming.files);
-    if (incoming.text) textareaRef.current?.focus();
+    if (incoming.text) editorRef.current?.focus();
   }, [incoming, uploadFiles]);
   // The words that came with them, once per hand-off and after whatever is
   // already typed - written during render, as state that follows a prop is.
@@ -389,7 +642,7 @@ export function ChatInput({
    * textarea is left alone, so the question gets typed beside it.
    */
   const handlePaste = useCallback(
-    (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    (e: React.ClipboardEvent<HTMLElement>) => {
       const pastedFiles = Array.from(e.clipboardData.files);
       if (pastedFiles.length > 0) {
         e.preventDefault();
@@ -441,12 +694,36 @@ export function ChatInput({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="relative">
+    <form
+      onSubmit={handleSubmit}
+      onKeyDown={(e) => {
+        // From the box or from the bar, wherever focus is while dictating.
+        if (dictating && e.key === "Escape") {
+          e.preventDefault();
+          server?.actions.cancel();
+        }
+      }}
+      className="relative"
+    >
+      <span role="status" aria-live="polite" className="sr-only">
+        {announcement}
+      </span>
       <FileDropOverlay
         active={isDragging}
         title={t("dropFilesAttach")}
         hint={t("dropMaxSize", { max: chatMaxUploadSizeMb })}
       />
+      {mentionOpen && (
+        <MentionPalette
+          items={mentionMatches}
+          selectedIndex={mentionIndex}
+          onSelectIndex={setMentionIndex}
+          onPick={pickMention}
+          isLoading={offered.isLoading}
+          failed={offered.isError}
+          full={full ? MAX_MENTIONS : undefined}
+        />
+      )}
       {showPalette && (
         <SlashCommandPalette
           commands={filteredCommands}
@@ -475,31 +752,45 @@ export function ChatInput({
           </AttachmentRow>,
         )}
 
+      {replyTo && <ReplyingTo reply={replyTo} onCancel={() => setReplyTo(null)} />}
+
       {/* The text has the box to itself, and every control is on one row under
           it. The buttons used to sit *beside* the textarea, which is fine on
           one line and wrong on ten: the send button drifted to the vertical
           middle of a tall message, with text above it and text below. */}
-      <textarea
-        ref={textareaRef}
+      {/* Plain text with real chips in it: a picked mention and a settled
+          address are drawn as what they name, and the message is still the
+          one string it always was. */}
+      <ComposerEditor
+        ref={editorRef}
         value={message}
-        onChange={(e) => setMessage(e.target.value)}
+        mentions={mentions}
+        onChange={typed}
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
         placeholder={t("placeholder")}
+        idle={
+          hints && !disabled ? (
+            <ComposerHints
+              offered={offered.items}
+              commands={allCommands.map((command) => command.name)}
+            />
+          ) : undefined
+        }
         disabled={disabled}
-        rows={1}
+        readOnly={dictating}
         // What a phone's keyboard offers: a return key that reads as a line
-        // break where Enter makes one, and sentences that start capitalised.
+        // break where Enter makes one. 16px text, never less: iOS zooms the
+        // page into any field smaller than that when it is focused (#2066).
         enterKeyHint={touchKeyboard() ? "enter" : "send"}
-        autoCapitalize="sentences"
-        // 16px, never less: iOS zooms the page into any field smaller than that
-        // the moment it is focused, which is the whole screen lurching (#2066).
-        className="placeholder:text-muted-foreground block min-h-[40px] w-full resize-none scrollbar-thin bg-transparent py-2.5 text-base focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
       />
 
       {/* `min-w-0` and a shrinkable right group: at 390px the controls used to
           run 27px past the composer's own edge, measured on an iPhone 15. */}
-      <div className="flex items-center gap-1.5 pt-0.5 pb-1">
+      {/* Inert rather than hidden while dictating: the composer does not change
+          under the page's dictation pill, and the agent the recording goes to
+          must not change under it either. */}
+      <div className="flex items-center gap-1.5 pt-0.5 pb-1" inert={dictating}>
         <input
           ref={fileInputRef}
           type="file"
@@ -510,15 +801,18 @@ export function ChatInput({
         />
         <ComposerSheet
           onAttach={() => fileInputRef.current?.click()}
-          onVoice={toggleMic}
+          // The agent's engine: the browser's recogniser, or a recording sent
+          // to its provider.
+          onVoice={server ? startDictation : toggleMic}
           onCommand={
             slashContext
               ? () => {
                   setMessage("/");
-                  textareaRef.current?.focus();
+                  editorRef.current?.focus();
                 }
               : undefined
           }
+          onProject={onProject}
           disabled={disabled || isUploading}
         />
         {isUploading && <Spinner className="text-muted-foreground h-4 w-4 shrink-0" />}
@@ -528,14 +822,16 @@ export function ChatInput({
 
         <div className="ml-auto flex shrink-0 items-center gap-1">
           {actionsSlot}
+          {/* Beside Send and the call, as in ChatGPT; the `+` offers it too. A
+              server recording takes the box over with its own bar, so this
+              button only ever starts one. */}
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            onClick={toggleMic}
+            onClick={server ? startDictation : toggleMic}
             disabled={disabled}
-            // It starts from the `+`, and shows here only to stop.
-            className={cn("h-9 w-9 shrink-0", !isListening && "hidden")}
+            className="h-9 w-9 shrink-0"
             title={isListening ? t("stopRecording") : t("voiceInput")}
             aria-label={isListening ? t("stopRecording") : t("voiceInput")}
           >

@@ -11,8 +11,6 @@ branching over what a query returned, and a fake that returns rows makes that
 readable in a way a mock with three `side_effect` lists does not.
 """
 
-from __future__ import annotations
-
 import asyncio
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
@@ -107,21 +105,51 @@ def impatient(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(health, "PROBE_TIMEOUT_SECONDS", 0.01)
 
 
-def _heartbeat(monkeypatch: pytest.MonkeyPatch, answer: datetime | Exception | None) -> None:
-    """Make Prefect report this heartbeat - a completion time, never, or a failure."""
+def _heartbeat(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    workers: int = 1,
+    fired: datetime | Exception | None,
+    every: int = 60,
+    paused: tuple[str, ...] = (),
+    pools: tuple[str, ...] = ("agent", "ingest", "system"),
+) -> None:
+    """Make the queue's tables report these workers, one schedule and these paused kinds."""
+    from app.repositories import background_schedule, background_task_kind, background_worker
 
-    async def last_heartbeat() -> datetime | None:
-        if isinstance(answer, Exception):
-            raise answer
-        return answer
+    async def seen(*_: object, **__: object) -> list[SimpleNamespace]:
+        if isinstance(fired, Exception):
+            raise fired
+        return [SimpleNamespace(id=f"w{n}", pools=list(pools)) for n in range(workers)]
 
-    monkeypatch.setattr(health, "_last_heartbeat", last_heartbeat)
+    async def schedules(*_: object) -> list[SimpleNamespace]:
+        assert not isinstance(fired, Exception)
+        return [
+            SimpleNamespace(
+                name="check-agent-triggers", interval_seconds=every, last_fired_at=fired
+            ),
+            SimpleNamespace(name="apply-retention", interval_seconds=86400, last_fired_at=None),
+        ]
+
+    async def kinds(*_: object) -> list[tuple[SimpleNamespace, str | None]]:
+        # "kind@organization" is a pause for that organization alone.
+        return [
+            (
+                SimpleNamespace(kind=kind.split("@")[0], paused_at=datetime.now(UTC)),
+                kind.split("@")[1] if "@" in kind else None,
+            )
+            for kind in paused
+        ]
+
+    monkeypatch.setattr(background_worker, "list_seen_since", seen)
+    monkeypatch.setattr(background_schedule, "list_all", schedules)
+    monkeypatch.setattr(background_task_kind, "list_all", kinds)
 
 
 @pytest.fixture
 def heartbeat_ok(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A scheduler that completed its heartbeat just now."""
-    _heartbeat(monkeypatch, datetime.now(UTC))
+    """A worker alive and the minute schedule fired just now."""
+    _heartbeat(monkeypatch, fired=datetime.now(UTC))
 
 
 class TestDatabaseProbe:
@@ -414,124 +442,118 @@ class TestReadiness:
 
 
 class TestSchedulerProbe:
-    async def test_a_recent_heartbeat_is_healthy_and_says_how_recent(
+    async def test_a_live_worker_and_a_minute_schedule_that_fired_are_healthy(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        _heartbeat(monkeypatch, datetime.now(UTC) - timedelta(seconds=40))
+        _heartbeat(monkeypatch, workers=2, fired=datetime.now(UTC) - timedelta(seconds=40))
 
-        check = await health.probe_scheduler()
+        check = await health.probe_scheduler(_Session())  # type: ignore[arg-type]
 
         assert check.status == "healthy"
-        assert "agent-triggers-check heartbeat completed" in check.detail
+        assert check.detail.startswith("2 worker(s) alive")
         assert check.latency_ms is not None
 
-    async def test_a_heartbeat_that_never_completed_is_unhealthy(
+    async def test_no_live_worker_is_unhealthy_and_says_what_stops(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """The 2026-09-28 outage from a fresh Prefect database: deployments READY,
-        the API healthy, and not one run ever created."""
-        _heartbeat(monkeypatch, None)
+        _heartbeat(monkeypatch, workers=0, fired=datetime.now(UTC))
 
-        check = await health.probe_scheduler()
+        check = await health.probe_scheduler(_Session())  # type: ignore[arg-type]
 
         assert check.status == "unhealthy"
-        assert "has ever completed" in check.detail
+        assert "no worker has said it is alive" in check.detail
         assert "scheduled triggers" in check.detail
 
-    async def test_a_stale_heartbeat_is_unhealthy_and_names_its_age(
+    async def test_a_pool_no_live_worker_serves_is_unhealthy_by_name(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """The same outage on a database that had run before: the last completion
-        stays put while the scheduler keeps failing."""
-        _heartbeat(monkeypatch, datetime.now(UTC) - timedelta(hours=2))
+        """The `ingest` worker died; the `agent,system` one keeps the schedules firing."""
+        _heartbeat(monkeypatch, fired=datetime.now(UTC), pools=("agent", "system"))
 
-        check = await health.probe_scheduler()
+        check = await health.probe_scheduler(_Session())  # type: ignore[arg-type]
 
         assert check.status == "unhealthy"
-        assert "last completed 120 min ago" in check.detail
-        assert "expected every 60s" in check.detail
+        assert "no live worker serves the ingest pool(s)" in check.detail
 
-    async def test_one_missed_tick_is_not_an_outage(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        _heartbeat(monkeypatch, datetime.now(UTC) - timedelta(seconds=150))
-
-        assert (await health.probe_scheduler()).status == "healthy"
-
-    async def test_a_slowed_development_worker_is_judged_by_its_own_interval(
+    async def test_a_minute_schedule_five_ticks_late_is_unhealthy_by_name(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """`WORKER_MIN_INTERVAL_SECONDS` lengthens the tick, so it lengthens the
-        grace too - or every laptop that sets it would read failed."""
-        monkeypatch.setattr(health.settings, "WORKER_MIN_INTERVAL_SECONDS", 600)
-        _heartbeat(monkeypatch, datetime.now(UTC) - timedelta(minutes=20))
+        _heartbeat(monkeypatch, fired=datetime.now(UTC) - timedelta(minutes=10))
 
-        assert (await health.probe_scheduler()).status == "healthy"
-
-    async def test_an_unreachable_prefect_is_unhealthy_and_says_why(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        _heartbeat(monkeypatch, OSError("connection refused"))
-
-        check = await health.probe_scheduler()
+        check = await health.probe_scheduler(_Session())  # type: ignore[arg-type]
 
         assert check.status == "unhealthy"
-        assert "connection refused" in check.detail
-        assert check.latency_ms is None
+        assert "the check-agent-triggers schedule last fired 10 min ago" in check.detail
 
-    async def test_a_hanging_prefect_is_unhealthy_rather_than_a_hanging_page(
+    async def test_a_minute_schedule_that_never_fired_is_unhealthy(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _heartbeat(monkeypatch, fired=None)
+
+        check = await health.probe_scheduler(_Session())  # type: ignore[arg-type]
+
+        assert check.status == "unhealthy"
+        assert "check-agent-triggers schedule has never fired" in check.detail
+
+    async def test_a_daily_schedule_that_has_not_fired_yet_is_not_a_failure(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A fresh deployment's daily sweeps have not come round; only minute ones are judged."""
+        _heartbeat(monkeypatch, fired=datetime.now(UTC))
+
+        check = await health.probe_scheduler(_Session())  # type: ignore[arg-type]
+
+        assert check.status == "healthy"
+        assert "apply-retention" not in check.detail
+
+    async def test_a_paused_kind_is_unhealthy_until_resumed(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _heartbeat(monkeypatch, fired=datetime.now(UTC), paused=("ingest-document",))
+
+        check = await health.probe_scheduler(_Session())  # type: ignore[arg-type]
+
+        assert check.status == "unhealthy"
+        assert "paused after repeated worker deaths: ingest-document" in check.detail
+        assert "Background jobs page" in check.detail
+
+    async def test_a_kind_paused_for_one_organization_names_it(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _heartbeat(monkeypatch, fired=datetime.now(UTC), paused=("ingest-document@Acme",))
+
+        check = await health.probe_scheduler(_Session())  # type: ignore[arg-type]
+
+        assert "paused after repeated worker deaths: ingest-document (Acme)" in check.detail
+
+    async def test_an_unreadable_queue_is_unhealthy_and_says_why(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from sqlalchemy.exc import OperationalError
+
+        _heartbeat(monkeypatch, fired=OperationalError("SELECT", {}, Exception("gone")))
+
+        check = await health.probe_scheduler(_Session())  # type: ignore[arg-type]
+
+        assert check.status == "unhealthy"
+        assert check.detail == "reading the background job tables failed: OperationalError"
+
+    async def test_a_hanging_read_is_unhealthy_rather_than_a_hanging_page(
         self, monkeypatch: pytest.MonkeyPatch, impatient: None
     ) -> None:
-        async def hangs() -> datetime | None:
-            await asyncio.sleep(10)
-            return None
+        from app.repositories import background_worker
 
-        monkeypatch.setattr(health, "_last_heartbeat", hangs)
+        async def hangs(*_: object, **__: object) -> list[object]:
+            await asyncio.sleep(60)
+            return []
 
-        check = await health.probe_scheduler()
+        _heartbeat(monkeypatch, fired=datetime.now(UTC))
+        monkeypatch.setattr(background_worker, "list_seen_since", hangs)
+
+        check = await health.probe_scheduler(_Session())  # type: ignore[arg-type]
 
         assert check.status == "unhealthy"
-        assert "the Prefect API did not answer within" in check.detail
-
-
-class TestLastHeartbeat:
-    """The Prefect query itself: the newest *completed* heartbeat, or none."""
-
-    @staticmethod
-    def _client(monkeypatch: pytest.MonkeyPatch, runs: list[Any]) -> dict[str, Any]:
-        seen: dict[str, Any] = {}
-
-        class _Client:
-            async def __aenter__(self) -> _Client:
-                return self
-
-            async def __aexit__(self, *_: object) -> None:
-                seen["closed"] = True
-
-            async def read_flow_runs(self, **kwargs: Any) -> list[Any]:
-                seen.update(kwargs)
-                return runs
-
-        import prefect.client.orchestration
-
-        monkeypatch.setattr(prefect.client.orchestration, "get_client", _Client)
-        return seen
-
-    async def test_it_answers_the_newest_completed_runs_end(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        ended = datetime(2026, 10, 9, 11, 22, tzinfo=UTC)
-        seen = self._client(monkeypatch, [SimpleNamespace(end_time=ended)])
-
-        assert await health._last_heartbeat() == ended
-        assert seen["closed"]
-        assert seen["limit"] == 1
-        assert seen["deployment_filter"].name.any_ == ["agent-triggers-check"]
-        assert [s.value for s in seen["flow_run_filter"].state.type.any_] == ["COMPLETED"]
-        assert seen["sort"].value == "END_TIME_DESC"
-
-    async def test_no_completed_run_is_never(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        self._client(monkeypatch, [])
-
-        assert await health._last_heartbeat() is None
+        assert "the background job tables" in check.detail
 
 
 class TestSystemHealth:
@@ -569,4 +591,5 @@ class TestSystemHealth:
         assert by_key["database"].status == "unhealthy"
         assert by_key["vector_store"].status == "not_checked"
         assert by_key["model_access"].status == "not_checked"
+        assert by_key["scheduler"].status == "not_checked"
         assert by_key["model_access"].detail == "not checked: the database probe failed"

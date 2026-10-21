@@ -8,8 +8,6 @@ inline, kept verbatim inside `<pre>` and `<code>` - and then bold, italic, links
 and headings in the prose between them.
 """
 
-from __future__ import annotations
-
 import html
 import re
 

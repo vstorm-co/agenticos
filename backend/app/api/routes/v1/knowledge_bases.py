@@ -23,6 +23,7 @@ from app.api.deps import (
 from app.api.public_api import PUBLIC
 from app.api.routes.v1._stored_bytes import stored_file_response
 from app.core.exceptions import NotFoundError
+from app.core.field_errors import refused_field
 from app.core.permissions import Perm
 from app.schemas.knowledge_base import (
     KnowledgeBaseCreate,
@@ -43,6 +44,7 @@ from app.schemas.sync_source import (
     SyncSourceCreate,
     SyncSourceList,
     SyncSourceRead,
+    SyncSourceUpdate,
 )
 from app.services.collection_access import in_knowledge_base
 from app.services.ingestion_config import parse_override
@@ -462,6 +464,42 @@ async def list_kb_sync_source_logs(
             details={"kb_id": str(kb_id), "source_id": str(source_id)},
         )
     return await sync_source_svc.list_logs(source.id, limit=limit)
+
+
+@router.patch("/{kb_id}/sync-sources/{source_id}", response_model=SyncSourceRead)
+async def update_kb_sync_source(
+    kb_id: UUID,
+    source_id: UUID,
+    data: SyncSourceUpdate,
+    service: KnowledgeBaseSvc,
+    sync_source_svc: SyncSourceSvc,
+    ctx: Auth,
+) -> Any:
+    """Change one of this KB's sync sources - its name, config, credential or schedule.
+
+    Send only the fields that change. Resending an unchanged `secret_id` checks
+    it again, as the caller's own choice, and a credential private to whoever
+    set the source up is then refused.
+
+    The source stays filed under this KB: a `collection_name` naming another one,
+    or `null`, is refused rather than followed, because moving a source changes
+    who can read what it syncs and that is not a decision made from inside one
+    base.
+
+    A key set to `null` in `config` removes it from the stored config.
+    """
+    kb = await service.get_for_write(kb_id, ctx=ctx)
+    source = await sync_source_svc.get_source(str(source_id))
+    if not in_knowledge_base(source, kb):
+        raise NotFoundError(
+            message="Sync source not found in this knowledge base",
+            details={"kb_id": str(kb_id), "source_id": str(source_id)},
+        )
+    if "collection_name" in data.model_fields_set and data.collection_name != kb.collection_name:
+        raise refused_field(
+            "collection_name", "A source cannot be moved to another knowledge base from here"
+        )
+    return await sync_source_svc.update_source(str(source_id), data, ctx=ctx)
 
 
 @router.delete(

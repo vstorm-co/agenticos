@@ -6,8 +6,6 @@ from, and clearing the setting when its organization is deleted is the foreign
 key's `ON DELETE SET NULL`, not anything this code does.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

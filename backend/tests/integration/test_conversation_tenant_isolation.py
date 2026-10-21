@@ -17,8 +17,6 @@ So these run against a real `ConversationService` and a real database, and
 assert the consequence: the row is reported missing, and nothing is written.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

@@ -12,13 +12,11 @@ removing it: deleting a colleague's account must not delete the agent the team
 runs on. `docs/security.md` has the table, with the reason for each.
 """
 
-from __future__ import annotations
-
 from typing import Any
 from uuid import UUID
 
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy import delete as sa_delete
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent_run import AgentRun
@@ -40,30 +38,64 @@ from app.db.models.user_slash_command import UserSlashCommand
 
 
 async def conversations_of(db: AsyncSession, user_id: UUID) -> list[Conversation]:
-    """The threads this person started, newest first."""
+    """The threads this person started, and the project chats they typed in, newest first.
+
+    A project's chat is several people's, so whoever started it is not the only
+    one with turns there: typing in one makes it part of this person's export
+    whether or not they began it.
+    """
+    typed_in = (
+        select(Message.id)
+        .where(Message.conversation_id == Conversation.id, Message.author_user_id == user_id)
+        .correlate(Conversation)
+        .exists()
+    )
     result = await db.execute(
         select(Conversation)
-        .where(Conversation.user_id == user_id)
+        .where(
+            or_(
+                Conversation.user_id == user_id,
+                and_(Conversation.project_id.is_not(None), typed_in),
+            )
+        )
         .order_by(Conversation.created_at.desc())
     )
     return list(result.scalars().all())
 
 
-async def messages_in(db: AsyncSession, conversation_ids: list[UUID]) -> list[Message]:
-    """Every turn of those threads, in the order they happened.
+async def messages_in(
+    db: AsyncSession, conversation_ids: list[UUID], *, user_id: UUID
+) -> list[Message]:
+    """This person's turns of those threads, in the order they happened.
 
-    Not filtered by author: a thread's answers are part of what the person is
-    asking to see, and a transcript with every second turn removed answers
-    nothing. A thread they did *not* start is not here at all.
+    Outside a project, every turn: a thread's answers are part of what the
+    person is asking to see, and a transcript with every second turn removed
+    answers nothing. In a project's chat the other members' turns are theirs,
+    not this person's, so it holds what this person typed and the turns that
+    answered it - everything after one of their turns up to somebody else's.
     """
     if not conversation_ids:
         return []
     result = await db.execute(
-        select(Message)
+        select(Message, Conversation.project_id)
+        .join(Conversation, Conversation.id == Message.conversation_id)
         .where(Message.conversation_id.in_(conversation_ids))
         .order_by(Message.conversation_id, Message.ordinal)
     )
-    return list(result.scalars().all())
+    kept: list[Message] = []
+    thread: UUID | None = None
+    theirs = False
+    for message, project_id in result.all():
+        if message.conversation_id != thread:
+            thread, theirs = message.conversation_id, False
+        if project_id is None:
+            kept.append(message)
+            continue
+        if message.role == "user":
+            theirs = message.author_user_id == user_id
+        if theirs:
+            kept.append(message)
+    return kept
 
 
 async def tool_calls_in(db: AsyncSession, message_ids: list[UUID]) -> list[ToolCall]:
@@ -128,9 +160,28 @@ async def sessions_of(db: AsyncSession, user_id: UUID) -> list[Session]:
 
 
 async def runs_started_by(db: AsyncSession, user_id: UUID) -> list[AgentRun]:
-    """Runs they started, for what each cost and which agent answered."""
+    """Runs they started, for what each cost and which agent answered.
+
+    Not the runs that carry their id only as the publisher standing in for
+    somebody else - a widget visitor, an unlinked channel sender: those were
+    started by another person, and listing them made the publisher's export
+    an account of strangers' activity (#2235). And the runs a chat account of
+    theirs started before they linked it: linking is what attributes those
+    runs to them, after the fact, whoever they ran as at the time.
+    """
+    linked = select(ChannelIdentity.id).where(ChannelIdentity.user_id == user_id)
     result = await db.execute(
-        select(AgentRun).where(AgentRun.user_id == user_id).order_by(AgentRun.created_at.desc())
+        select(AgentRun)
+        .where(
+            or_(
+                and_(
+                    AgentRun.user_id == user_id,
+                    AgentRun.initiated_by_publisher_fallback.is_(False),
+                ),
+                AgentRun.channel_identity_id.in_(linked),
+            )
+        )
+        .order_by(AgentRun.created_at.desc())
     )
     return list(result.scalars().all())
 

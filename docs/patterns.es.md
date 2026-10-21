@@ -1,5 +1,5 @@
 ---
-source_sha: "df313b9bcff6"
+source_sha: "5f2679674e19"
 ---
 
 # Patrones de código { #code-patterns }
@@ -293,8 +293,9 @@ nada hasta que haya aterrizado la transacción de la que depende el trabajo — 
 flow que lee su propia fila por id se ejecutaría si no contra una base de datos
 que todavía no la tiene
 ([#417](https://github.com/vstorm-co/agenticos/issues/417)). Ninguna de las dos
-sobrevive a un reinicio; el trabajo que deba hacerlo pertenece a un deployment de
-Prefect.
+sobrevive a un reinicio; el trabajo que deba hacerlo es un job, encolado con
+`app.services.background_jobs.enqueue` en la misma transacción - consulta
+[Añade una tarea en segundo plano](howto/add-background-task.md).
 
 ## El patrón de conector (sincronización RAG) { #connector-pattern-rag-sync }
 

@@ -94,6 +94,35 @@ describe("useAgents", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/agents", undefined);
   });
 
+  it("reads every page, so a picker is not cut off after the first", async () => {
+    const agent = (id: string) => ({ id, name: id });
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ items: [agent("a1"), agent("a2")], total: 4 })
+      .mockResolvedValueOnce({ items: [agent("a3"), agent("a4")], total: 4 });
+    const { result } = renderHook(() => useAgents({ includeArchived: true }), {
+      wrapper,
+    });
+
+    await waitFor(() => expect(result.current.agents).toHaveLength(4));
+    expect(apiClient.get).toHaveBeenLastCalledWith("/agents", {
+      params: [
+        ["include_archived", "true"],
+        ["skip", "2"],
+        ["limit", "100"],
+      ],
+    });
+  });
+
+  it("stops at a page that comes back empty, whatever the total said", async () => {
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ items: [{ id: "a1", name: "a1" }], total: 9 })
+      .mockResolvedValueOnce({ items: [], total: 9 });
+    const { result } = renderHook(() => useAgents(), { wrapper });
+
+    await waitFor(() => expect(result.current.agents).toHaveLength(1));
+    expect(apiClient.get).toHaveBeenCalledTimes(2);
+  });
+
   it("posts a whole spec when creating", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
     vi.mocked(apiClient.post).mockResolvedValue({ id: "a1", name: "Support" });
@@ -355,6 +384,29 @@ describe("useAgent metadata", () => {
       result.current.setMetadata.mutateAsync({ categories: [], tags: Array(21).fill("x") }),
     ).rejects.toThrow();
     expect(toast.error).toHaveBeenCalledWith("too many tags");
+  });
+
+  it("serves the agent over A2A through its own endpoint", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ id: "a1", draft_spec: {} });
+    vi.mocked(apiClient.put).mockResolvedValue({ id: "a1", a2a_enabled: true });
+
+    const { result } = renderHook(() => useAgent("a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.setA2a.mutateAsync(true);
+
+    expect(apiClient.put).toHaveBeenCalledWith("/agents/a1/a2a", { enabled: true });
+  });
+
+  it("reports a refused A2A switch", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ id: "a1", draft_spec: {} });
+    vi.mocked(apiClient.put).mockRejectedValue(new Error("Publish the agent first"));
+
+    const { result } = renderHook(() => useAgent("a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await expect(result.current.setA2a.mutateAsync(true)).rejects.toThrow();
+    expect(toast.error).toHaveBeenCalledWith("Publish the agent first");
   });
 });
 

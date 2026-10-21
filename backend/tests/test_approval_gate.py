@@ -9,8 +9,6 @@ The last test is the one that would have caught the bug this exists to fix: a
 parked run that never continues. It drives a real agent through park and resume.
 """
 
-from __future__ import annotations
-
 import asyncio
 import uuid
 from dataclasses import dataclass

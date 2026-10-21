@@ -3,8 +3,6 @@
 Against a real database because the question is which columns a query fetched.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

@@ -12,6 +12,7 @@ import { MarkdownContent } from "./markdown-content";
 import { BUILTIN_COMMANDS, resolveBuiltin } from "./slash-commands";
 import type { Translate } from "@/lib/agent-step-captions";
 import messages from "../../../messages/en.json";
+import { useAgentSelectionStore } from "@/stores";
 
 /**
  * The built-ins as the palette receives them: `BUILTIN_COMMANDS` holds keys, and the
@@ -27,11 +28,17 @@ const commands = BUILTIN_COMMANDS.map((command) =>
 
 const auth = vi.hoisted(() => ({
   user: null as { full_name?: string | null; email?: string } | null,
+  agents: [] as Record<string, unknown>[],
 }));
-vi.mock("@/hooks", () => ({ useAuth: () => ({ user: auth.user }) }));
+vi.mock("@/hooks", () => ({
+  useAuth: () => ({ user: auth.user }),
+  useAgents: () => ({ agents: auth.agents }),
+}));
 
 beforeEach(() => {
   auth.user = null;
+  auth.agents = [];
+  useAgentSelectionStore.setState({ selectedAgentId: null });
   vi.stubGlobal("navigator", { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } });
 });
 
@@ -121,6 +128,28 @@ describe("the queue above the composer", () => {
     expect(onSendNow).toHaveBeenCalledWith("q-1");
     // A file cannot ride along into a running task, so that one waits.
     expect(within(rows[1]!).getByRole("button", { name: /Send now/ })).toBeDisabled();
+  });
+
+  it("holds a message that points at something, which a correction cannot carry", () => {
+    render(
+      <PendingMessages
+        messages={
+          [
+            {
+              id: "q-3",
+              content: "@Contracts check this",
+              mentions: [{ kind: "collection", id: "kb-1", name: "Contracts" }],
+            },
+          ] as Parameters<typeof PendingMessages>[0]["messages"]
+        }
+        onCancel={vi.fn()}
+        onSendNow={vi.fn()}
+      />,
+    );
+
+    const send = screen.getByRole("button", { name: /Send now/ });
+    expect(send).toBeDisabled();
+    expect(send).toHaveAttribute("title", "A message pointing at something waits for the answer");
   });
 
   it("offers no Send now with no task running to join", () => {
@@ -371,6 +400,26 @@ describe("the empty chat", () => {
     await userEvent.click(screen.getByText("Summarize my docs"));
 
     expect(onPick).toHaveBeenCalledWith("Summarize the key points from my latest documents.");
+  });
+
+  it("opens on the agent who will answer, by name and with what it does", () => {
+    auth.agents = [
+      {
+        id: "a-1",
+        slug: "sales-researcher",
+        name: "Sales Researcher",
+        description: "Prepares a company brief before a first call.",
+        has_avatar: false,
+        avatar_color: null,
+      },
+    ];
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+
+    render(<ChatEmptyState onPick={vi.fn()} />);
+
+    expect(screen.getByText("Sales Researcher")).toBeInTheDocument();
+    expect(screen.getByText(/Prepares a company brief before a first call/)).toBeInTheDocument();
+    expect(screen.queryByText(/start from one of these/)).toBeNull();
   });
 });
 

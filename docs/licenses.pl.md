@@ -1,5 +1,5 @@
 ---
-source_sha: "f65f76a23f9a"
+source_sha: "0d99b89ad0c0"
 ---
 
 # Licencje i noty stron trzecich { #licences-and-third-party-notices }
@@ -115,7 +115,7 @@ not.
 | CC-BY-4.0 (`caniuse-lite`) | 1 | Atrybucja i link do źródła | Wymieniony wraz ze źródłem w notach |
 | AGPL-3.0-only (`pymupdf`) | 1 | Copyleft sieciowy: obraz jest przekazywany na warunkach AGPL-3.0, a zmodyfikowane wdrożenie jest winne swoim użytkownikom zmodyfikowane źródła (art. 13) | Utrzymany świadomie, warunki nazwane: [sekcja poniżej](#the-agpl-component) i plik `COPYING` wheela w obrazie |
 | OFL-1.1 (Inter, Bricolage Grotesque, Geist Mono) | 3 rodziny | Tekst licencji i noty o prawach autorskich przy fontach; zakaz sprzedaży samych fontów; zakaz używania zastrzeżonych nazw dla zmodyfikowanych fontów | `frontend/src/app/fonts/OFL.txt` niesie wszystkie trzy noty; fonty są serwowane bez modyfikacji |
-| CC0-1.0, CC-BY-4.0, MIT (glify marki) | 3 źródła | Atrybucja dla ikon Font Awesome; znaki pozostają znakami towarowymi swoich właścicieli | `NOTICE` wymienia źródła i stanowisko wobec znaków towarowych |
+| CC0-1.0, MIT (glify marki) | 4 źródła | Noty MIT dla @lobehub/icons i theSVG; znaki pozostają znakami towarowymi swoich właścicieli | `NOTICE` wymienia źródła i stanowisko wobec znaków towarowych |
 
 **Pakietowi, który nie publikuje pliku licencji**, nie da się jej skopiować. Kilka
 pakietów npm w domknięciu jest właśnie takich, wśród nich

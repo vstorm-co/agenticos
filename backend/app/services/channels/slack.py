@@ -29,6 +29,7 @@ from app.agents.capabilities.channel_tools import (
 from app.core.security import encode_untrusted
 from app.db.session import get_db_context
 from app.services.channels import connection_state
+from app.services.channels.attachments import routed_type
 from app.services.channels.base import (
     ChannelAdapter,
     ChannelChoice,
@@ -140,7 +141,7 @@ class SlackAdapter(ChannelAdapter):
         await self._http.aclose()
 
     @staticmethod
-    def _web(bot_token: str) -> "AsyncWebClient":
+    def _web(bot_token: str) -> AsyncWebClient:
         """A Web API client for one bot's token.
 
         The `slack_sdk` import is deferred to the call rather than the module so a
@@ -349,7 +350,7 @@ class SlackAdapter(ChannelAdapter):
         """
         try:
             return datetime.fromtimestamp(float(ts), UTC)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return None
 
     async def channel_details(
@@ -839,21 +840,48 @@ class SlackAdapter(ChannelAdapter):
         A file still being processed has no download URL yet and is skipped. It
         arrives again on `file_shared` when Slack has finished with it; treating a
         missing URL as a failure would report an error for something that is
-        merely not ready.
+        merely not ready. This adapter does not subscribe to `file_shared`, so a
+        skipped file is logged: a voice clip that is never answered is otherwise
+        indistinguishable from a bot that is broken.
+
+        An audio clip recorded in Slack's composer says so twice - `subtype:
+        "slack_audio"` and `media_display_type: "audio"` - and either is taken
+        as the platform's word that it is a recording, because its `mimetype`
+        is not: a clip recorded on a phone can arrive as `video/mp4`, and a
+        `video/*` type would send the clip to storage rather than to
+        transcription (`routed_type`).
         """
         found: list[IncomingAttachment] = []
         for file in event.get("files") or []:
             if not isinstance(file, dict):
                 continue
+            recording = (
+                file.get("subtype") == "slack_audio" or file.get("media_display_type") == "audio"
+            )
             url = file.get("url_private_download") or file.get("url_private")
             if not url:
+                logger.info(
+                    "Skipped a Slack file with no download URL yet: file=%s recording=%s",
+                    file.get("id"),
+                    recording,
+                )
                 continue
+            name = file.get("name") or "file"
+            duration_ms = file.get("duration_ms")
             found.append(
                 IncomingAttachment(
-                    filename=file.get("name") or "file",
-                    mime_type=file.get("mimetype") or "application/octet-stream",
+                    filename=name,
+                    mime_type=routed_type(
+                        file.get("mimetype"),
+                        name,
+                        extension=file.get("filetype"),
+                        recording=recording,
+                    ),
                     size=int(file.get("size") or 0),
                     handle=str(url),
+                    duration_seconds=(
+                        duration_ms / 1000 if isinstance(duration_ms, int | float) else None
+                    ),
                 )
             )
         return found

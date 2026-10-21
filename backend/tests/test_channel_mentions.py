@@ -12,8 +12,6 @@ Slack app was a door onto all of them; `_bound` is what that door being closed
 by default looks like from a test.
 """
 
-from __future__ import annotations
-
 import uuid
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch

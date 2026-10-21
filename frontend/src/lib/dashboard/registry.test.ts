@@ -32,6 +32,7 @@ const GATE_TABLE: Record<WidgetId, Permission | "app_admin" | "everyone"> = {
   knowledge: Perm.collectionsView,
   platform: "app_admin",
   health: "app_admin",
+  "background-jobs": "app_admin",
   "top-orgs": "app_admin",
   "platform-ratings": "app_admin",
   runs: Perm.runsView,
@@ -61,6 +62,9 @@ const GATE_TABLE: Record<WidgetId, Permission | "app_admin" | "everyone"> = {
   "my-quality": Perm.agentsRun,
   "shared-with-you": Perm.agentsView,
   artifacts: Perm.artifactsView,
+  "voice-minutes": Perm.runsView,
+  projects: Perm.projectsView,
+  "recent-visuals": Perm.agentsRun,
   "sandbox-capacity": Perm.connectionsView,
   "sandbox-sessions": Perm.connectionsView,
   "sandbox-policy": Perm.connectionsView,
@@ -68,8 +72,8 @@ const GATE_TABLE: Record<WidgetId, Permission | "app_admin" | "everyone"> = {
 };
 
 describe("the widget catalog", () => {
-  it("holds all thirty-eight widgets", () => {
-    expect(WIDGET_IDS).toHaveLength(40);
+  it("holds all forty-four widgets", () => {
+    expect(WIDGET_IDS).toHaveLength(44);
   });
 
   it.each(WIDGET_IDS)("%s opens on exactly its own permission", (id) => {

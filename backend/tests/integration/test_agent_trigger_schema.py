@@ -7,8 +7,6 @@ and - the one the whole no-double-fire design rests on - that a second heartbeat
 claiming at the same instant takes none of the rows the first one locked.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -130,6 +128,11 @@ def _trigger(org: Organization, agent: Agent, **overrides) -> AgentTrigger:
     }
     fields.update(overrides)
     return AgentTrigger(**fields)
+
+
+async def _claim(db, *, now: datetime) -> dict[uuid.UUID, bool]:
+    """What a heartbeat at `now` claims, each trigger with whether it was busy."""
+    return {trigger.id: busy for trigger, busy in await agent_trigger_repo.claim_due(db, now=now)}
 
 
 def _event(org: Organization, agent: Agent, **overrides) -> AgentTrigger:
@@ -314,11 +317,11 @@ class TestTheClaimReturnsTheRightRows:
         db.add_all([due, not_yet, paused, orphaned])
         await db.flush()
 
-        claimed = await agent_trigger_repo.claim_due(db, now=datetime.now(UTC))
+        claimed = await _claim(db, now=datetime.now(UTC))
 
-        assert {t.id for t in claimed} == {due.id, orphaned.id}
+        assert claimed == {due.id: False, orphaned.id: False}
 
-    async def test_a_trigger_whose_last_run_is_unfinished_is_skipped(self, db):
+    async def test_a_trigger_whose_last_run_is_unfinished_is_busy(self, db):
         org = await _org(db)
         agent = await _agent(db, org)
         running = AgentRun(
@@ -333,14 +336,13 @@ class TestTheClaimReturnsTheRightRows:
         db.add(blocked)
         await db.flush()
 
-        assert await agent_trigger_repo.claim_due(db, now=datetime.now(UTC)) == []
+        assert await _claim(db, now=datetime.now(UTC)) == {blocked.id: True}
 
         running.status = RunStatus.COMPLETED.value
         await db.flush()
-        claimed = await agent_trigger_repo.claim_due(db, now=datetime.now(UTC))
-        assert [t.id for t in claimed] == [blocked.id]
+        assert await _claim(db, now=datetime.now(UTC)) == {blocked.id: False}
 
-    async def test_a_trigger_with_a_fire_in_flight_marker_is_skipped_until_the_lease(self, db):
+    async def test_a_trigger_with_a_fire_in_flight_marker_is_busy_until_the_lease(self, db):
         """The claim sets fire_in_flight_since, so a run slower than its interval is
         not fired on top of itself - the guard `last_run_id` cannot be, since it is
         only written when the run returns. Once the marker is older than the lease - a
@@ -354,11 +356,34 @@ class TestTheClaimReturnsTheRightRows:
         db.add(in_flight)
         await db.flush()
 
-        assert await agent_trigger_repo.claim_due(db, now=now) == []
+        assert await _claim(db, now=now) == {in_flight.id: True}
 
         past_lease = now + timedelta(hours=1, minutes=1)
-        claimed = await agent_trigger_repo.claim_due(db, now=past_lease)
-        assert [t.id for t in claimed] == [in_flight.id]
+        assert await _claim(db, now=past_lease) == {in_flight.id: False}
+
+    async def test_a_queueing_trigger_is_not_claimed_while_busy_and_fires_once_free(self, db):
+        """`queue` waits rather than passing the occurrence (#2219): busy, it is
+        left due, so the first claim after the run ends takes it - once, however
+        many occurrences went by."""
+        org = await _org(db)
+        agent = await _agent(db, org)
+        now = datetime.now(UTC)
+        waiting = _trigger(org, agent, overlap="queue", fire_in_flight_since=now)
+        db.add(waiting)
+        await db.flush()
+
+        assert await _claim(db, now=now) == {}
+
+        waiting.fire_in_flight_since = None
+        await db.flush()
+        assert await _claim(db, now=now) == {waiting.id: False}
+
+    async def test_an_unknown_policy_is_refused_by_the_table(self, db):
+        org = await _org(db)
+        agent = await _agent(db, org)
+        db.add(_trigger(org, agent, overlap="often"))
+        with pytest.raises(IntegrityError, match="ck_trigger_overlap"):
+            await db.flush()
 
 
 class TestAnUnlinkedInFlightRunBlocksAReclaim:
@@ -406,13 +431,12 @@ class TestAnUnlinkedInFlightRunBlocksAReclaim:
         db.add(trigger)
         await db.flush()
 
-        assert await agent_trigger_repo.claim_due(db, now=now) == []
+        assert await _claim(db, now=now) == {trigger.id: True}
 
         # Once the parked run settles, the schedule is free to fire again.
         parked.status = RunStatus.COMPLETED.value
         await db.flush()
-        claimed = await agent_trigger_repo.claim_due(db, now=now)
-        assert [t.id for t in claimed] == [trigger.id]
+        assert await _claim(db, now=now) == {trigger.id: False}
 
     async def test_a_delegated_child_in_flight_does_not_block_the_claim(self, db):
         """The reconcile is top-level only: a delegated child shares its parent's
@@ -452,8 +476,7 @@ class TestAnUnlinkedInFlightRunBlocksAReclaim:
         db.add(trigger)
         await db.flush()
 
-        claimed = await agent_trigger_repo.claim_due(db, now=now)
-        assert [t.id for t in claimed] == [trigger.id]
+        assert await _claim(db, now=now) == {trigger.id: False}
 
 
 class TestTwoHeartbeatsDoNotDoubleFire:

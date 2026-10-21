@@ -1,5 +1,5 @@
 ---
-source_sha: "4d7e8773dd9e"
+source_sha: "5931b7688a5d"
 ---
 
 # Governance { #governance }
@@ -482,6 +482,28 @@ wierszu dalej daje rachunek, bo koszt każdego dziecka jest dodawany przez jego
 własny wiersz i usuwany przez wiersz jego rodzica. Klucz działa tak samo i znaczy
 więcej: to klucz ktoś rotuje, gdy rachunek wygląda źle.
 
+### Budżet rozmowy głosowej { #a-voice-calls-budget }
+
+[Rozmowa głosowa](voice.md) jest runem, a jej wydatki liczą się do budżetów
+agenta i organizacji jak każde inne. Różnią się trzy rzeczy, bo rozmowy nie da
+się sprawdzić przed każdym żądaniem tak, jak sprawdza się run tekstowy:
+
+- **Zanim się zacznie**, najdłuższy możliwy czas rozmowy pomnożony przez
+  najgorszą cenę modelu za minutę jest porównywany z pozostałym budżetem.
+  Rozmowa, na którą nie byłoby stać, jest odrzucana, zamiast zacząć się i zostać
+  ucięta.
+- **W trakcie**, każda odpowiedź jest księgowana na runie, gdy się skończy, a
+  wydatki miesiąca są odczytywane na nowo co 15 sekund, więc widać runy, które w
+  tym czasie wydają. Budżet, który wyczerpie się w trakcie rozmowy, dostaje jedno
+  wypowiedziane zdanie i kończy rozmowę, zapisaną jako `budget_exceeded`.
+- **Jej długość należy do agenta.** Rozmowa trwa najwyżej tyle, ile najdłuższa
+  rozmowa agenta, domyślnie 10 minut i najwyżej 50; nie ma osobnej puli minut
+  rozmów, więc budżety są jedynym limitem tego, co rozmowy wydają.
+
+Rozmowę, której proces umarł, zamyka przemiatanie rozmów głosowych z kosztem
+zapisanym przez jej ostatni heartbeat - inaczej niż run tekstowy, którego
+wydatki umierają razem z jego procesem.
+
 ### Co pokazuje historia runów { #what-run-history-shows }
 
 **`GET /runs` wypisuje wyłącznie runy najwyższego poziomu, a jego `total` liczy
@@ -920,11 +942,86 @@ i nigdy się nie kończy. Budżet tylko wystawia za nią rachunek. `max_steps`
 ogranicza, ile żądań do modelu może wykonać jeden run, i to on faktycznie ją
 zatrzymuje.
 
+Strażnik pętli zatrzymuje większość pętli wcześniej i mówi dlaczego. Ma go każdy
+agent, domyślnie włączony. Gdy run wywoła jedno narzędzie z tymi samymi
+argumentami cztery razy z rzędu albo trzy razy obejdzie cykl dwóch lub trzech
+wywołań, model dostaje informację, że się zapętlił i ma zmienić podejście. Jeśli
+wywołania po tym ostrzeżeniu znowu się zapętlą, run kończy się jako
+`loop_stopped`, z powodem wymieniającym narzędzia - nigdy ich argumenty.
+Wywołania z różnymi argumentami nigdy nie są pętlą i liczą się tylko wywołania
+tego runa. Builder ustawia oba progi albo wyłącza strażnika obok `max_steps`
+(`loop_guard` w specu).
+
+### Recenzenci runu { #run-reviewers }
+
+Długi run dryfuje: instrukcje bledną, twierdzenia bez źródła się mnożą, agent
+odchodzi od prośby. Agent może mieć do pięciu recenzentów (`reviewers` w specu,
+*Recenzenci runu* w Builderze obok limitów), każdy to drugi, zwykle tańszy model z
+jednym zadaniem. Co `every` żądań do modelu recenzent czyta ostatnie `window`
+tokenów runu i albo zostawia go w spokoju, albo wysyła jedną krótką poprawkę,
+którą model runu dostaje przy następnym żądaniu, z nazwą recenzenta. Widok runu
+wymienia każdą poprawkę i to, kto ją wysłał.
+
+Wywołania recenzenta są sprawdzane z budżetem agenta i organizacji, zanim
+zostaną wykonane, i księgowane na runie po cenie modelu recenzenta. Wywołanie
+odrzucone z powodu budżetu jest pomijane, a recenzent, który zawiedzie, jest
+logowany; żadne z nich nie przerywa runu. Agent bez recenzenta nie wykonuje
+dodatkowych wywołań modelu.
+
+### Tryb kodu { #code-mode }
+
+Agent, który przechodzi przez rekordy - zaktualizuj dziesięć wierszy, potem je
+podsumuj - płaci turą modelu za każde zależne wywołanie, a każda tura wysyła
+ponownie cały kontekst. Z włączonym *Trybem kodu* (`code_mode` w specu, obok
+limitów w Builderze) narzędzia agenta są zwijane w jedno narzędzie `run_code`:
+model pisze krótki skrypt Pythona, który działa w sandboksie Monty i wywołuje
+narzędzia w pętlach i równolegle, do `max_tool_calls` na skrypt.
+
+Naraz działają najwyżej cztery wywołania skryptu, a reszta czeka, więc skrypt
+rozsyłający setki wywołań w sandboksie nie otworzy ich wszystkich jednocześnie.
+
+Każde wywołanie ze skryptu przechodzi przez te same guardraile, budżet i
+sprawdzenia uprawnień co wywołanie bezpośrednie. Narzędzie wymagające
+zatwierdzenia nigdy nie trafia do skryptu: pozostaje zwykłym wywołaniem, a run
+zatrzymuje się dla człowieka jak zawsze. Widok runu wymienia każdy skrypt i każde
+wywołanie, które wykonał.
+
 ### Raportowanie { #reporting }
 
 Run, którego nie dało się wycenić — model, którego `genai-prices` nie zna — jest
 zapisywany na zero z ostrzeżeniem, a suma jest oznaczana jako **dolna granica**,
 zamiast być zgadywana. UI pokazuje to jako `+` obok liczby.
+
+**Odczyty i zapisy cache są liczone osobno.** Tokeny wejściowe runa obejmują te,
+które dostawca podał z cache promptu, i te, które do niego zapisał, a wszystkie
+trzy są wyceniane osobno - na Claude Sonnet 5.5 odczyt z cache kosztuje 5% stawki
+wejściowej, a zapis 125%. Każdy run i każda odpowiedź zapisują
+`cache_read_tokens` i `cache_write_tokens` obok sumy, koszt jest liczony z tego
+podziału, a widok runa i koszt pod każdą odpowiedzią go pokazują - i to pozwala
+uzgodnić run z konsolą dostawcy.
+
+**Koszt runa obejmuje jego delegacje.** Run, który ktoś uruchomił, niesie cały
+ledger, łącznie z delegatami; własny wiersz delegacji dzieli te same pieniądze
+według agenta, a widok runa mówi, że jego delegacje są już w liczbie nad nimi.
+Dodanie obu liczy delegacje dwa razy.
+
+**Cache promptu, który przestaje trafiać, jest oznaczany.** Cache'owanie opłaca
+się tylko, dopóki początek każdego żądania jest identyczny; zmieniona kolejność
+narzędzi albo znacznik czasu w instrukcjach sprawia, że dostawca liczy pełną
+stawkę za tokeny, które miał w cache. Każdy agent odczytuje z każdej odpowiedzi
+liczby cache podane przez dostawcę, a żądanie, którego prefiks z cache się
+załamał, jest oznaczane w wykresie żądań runu - *cache zerwany*, gdy dostawca
+powinien go jeszcze trzymać, *cache wygasł*, gdy minęła retencja - z liczbą
+tokenów z cache, których nie odczytało, i logowane z agentem i modelem.
+Pierwsze żądanie tury jest porównywane z tym, co zapisała poprzednia tura, gdy
+obie obsługuje ten sam worker API.
+
+Liczby są zapisywane na każdym runie, więc **Runs → Spend** sumuje, gdzie cache
+nie trzymał: karta *Cache promptu*, jeden wiersz na agenta i model, z busts,
+wygaśnięciami i tokenami z cache, których nie odczytano z powrotem, w wybranym
+oknie - to miara chybienia, a nie tego, co naliczono ponownie, bo prompt trzymany
+w cache może też skrócić kompakcja.
+Karty nie ma, dopóki każdy cache trzymał.
 
 ## Zatwierdzenia { #approvals }
 
@@ -1104,6 +1201,29 @@ na połączeniu i powiązaniu z agentem określają, co jest dostępne; na czło
 każe im czekać własna polityka `approval` powiązania - `writes` albo `all` - którą
 domyślny tryb **Follow the agent** stosuje tak jak politykę capability (zobacz
 [które wywołania czekają na człowieka](mcp.md#which-calls-wait-for-a-person)).
+
+### Zatwierdzenie w trakcie rozmowy głosowej { #an-approval-inside-a-voice-call }
+
+[Rozmowa głosowa](voice.md#approvals-in-a-call) nie może się wstrzymać i czekać
+na kolejkę, więc jej zatwierdzenia rozstrzyga się w rozmowie, a decyduje osoba,
+która w niej jest:
+
+- Prośba trafia do kolejki od razu, a rozmowa pokazuje narzędzie, dokładne
+  argumenty, z którymi się wykona, i to, co według transkrypcji powiedział
+  rozmówca. Zatwierdzenie wykonuje te argumenty, raz.
+- Rozstrzyga się ją **wyłącznie przez rozmowę** i tylko wtedy, gdy rozmówca ma
+  `approvals:decide`. `POST /approvals/{id}` odrzuca prośbę, która należy do
+  trwającej rozmowy, a opisane niżej przemiatanie nieaktualnych zatwierdzeń
+  pomija runy głosowe.
+- **60 sekund** bez decyzji powoduje jej wygaśnięcie, bez decydenta - ten sam
+  null, który zapisuje przemiatanie. Rozmowa, która kończy się z dowolnego
+  powodu, powoduje wygaśnięcie wszystkiego, na co jeszcze czekała.
+- Członek bez `approvals:decide` słyszy to wprost, a narzędzie jest odrzucane.
+  Odwiedzający w widgecie albo na hostowanej stronie nigdy nie widzi narzędzia,
+  które wymaga zatwierdzenia: jest ono pomijane w jego rozmowie.
+
+`approval_mode` wynika ze speca agenta, tak jak w czacie tekstowym, a każda
+decyzja trafia do śladu audytowego jak każda inna.
 
 ### Decyzja, której nikt nie podejmuje { #a-decision-nobody-makes }
 
@@ -1607,7 +1727,7 @@ gdzie ustawia się okresy per tenant.
 |---|---|---|
 | Rozmowy | Wiadomości, wywołania narzędzi i pliki czatu do nich przypięte — bajty **przed** wierszami, więc plik, którego nie udało się odpiąć, zachowuje swój wiersz na kolejny przebieg, zamiast przeżyć go nieodnajdywalny | Ostatniej aktywności wątku, więc ten, do którego ktoś wraca, nie jest stary |
 | Runy | Wiersz runu, jego manifest i jego zatwierdzenia narzędzi | Startu runu |
-| Workspace'y | Zapis platformy o plikach agenta. Dla backendu `state` wiersz *jest* magazynem; pliki backendu sandboxowego sprząta własny TTL sandboxa | Ostatniego użycia |
+| Workspace'y | Zapis platformy o plikach agenta. Dla backendu `state` wiersz *jest* magazynem; pliki backendu sandboxowego sprząta własny TTL sandboxa. Pliki projektu zostają, dopóki jest projekt | Ostatniego użycia |
 | Aplikacje | [Opublikowana strona](artifacts.md) z każdą wersją, jej przechowywanymi bajtami (**przed** wierszami, jak przy rozmowach), jej grantami i jej publicznym linkiem | Ostatniej publikacji, więc raport, który harmonogram publikuje ponownie, nie jest stary |
 | Pamięć | Pliki pamięci agenta | Ostatniego zapisu, bo notatka jest pisana raz, a czytana miesiącami |
 | Wgrane dokumenty | Wiersz, jego wektory i wgrany plik | Momentu wgrania |

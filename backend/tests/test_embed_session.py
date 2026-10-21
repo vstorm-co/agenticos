@@ -10,8 +10,6 @@ The turn itself is stubbed throughout. What is being asserted is the guard, not
 the run behind it.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -164,6 +162,15 @@ class TestHowATurnEnds:
             unanswered = await session._turn_frames("hello", ())
 
         assert unanswered is not None
+
+    async def test_a_run_stopped_for_looping_says_so(self):
+        session = _session()
+        run = MagicMock(status=RunStatus.LOOP_STOPPED.value, awaiting_approval_run_id=None)
+
+        with patch.object(EmbedSession, "_answer", AsyncMock(return_value=("", run))):
+            unanswered = await session._turn_frames("hello", ())
+
+        assert unanswered is not None and "kept repeating" in unanswered
 
 
 class TestTheRestOfTheSession:

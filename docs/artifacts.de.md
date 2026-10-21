@@ -1,5 +1,5 @@
 ---
-source_sha: "94ce53b8a699"
+source_sha: "06f8c1ff3994"
 ---
 
 # Apps { #artifacts }
@@ -140,12 +140,18 @@ später auf einen anderen Origin verlegt:
 | `lib/agenticos-2.css` | Das Aussehen der Konsole für Seiten, hell und dunkel, und die `ao-`-Komponenten, aus denen eine Seite gebaut wird |
 | `lib/agenticos-2.js` | `window.AO`: Chart.js im Stil der Konsole, Zahlenformate in der Sprache der Seite, Icons, Tabs |
 | `lib/agenticos-1.css` | Die erste Version des Aussehens, behalten für die Seiten, die gegen sie veröffentlicht wurden |
+| `lib/three-0.186.0/three.module.js` | three.js 0.186.0 als ES-Modul, mit `addons/controls/OrbitControls.js` daneben - `three` und `three/addons/` per Import Map darauf abbilden |
+| `lib/mermaid-12.1.0.min.js` | Mermaid 12.1.0, als `window.mermaid` |
 
 Jeder Name trägt seine Version und wird ein Jahr lang gecacht. Ein Upgrade fügt
 eine neue Datei neben der alten hinzu, sodass eine Seite, die gegen eine Version
 veröffentlicht wurde, weiter genau diese bekommt. Nichts wird von außerhalb des
 Deployments geholt, also funktioniert ein Deployment ohne Internetzugang genauso.
 Die Dateien sind in `backend/app/core/catalog/artifact_lib/` aufgeführt.
+
+Die Dateien antworten mit `Access-Control-Allow-Origin: *`, weil ein Modulskript im
+CORS-Modus geladen wird und eine Seite in einem opaken Origin `Origin: null` sendet -
+ohne das würde three.js nicht importiert.
 
 Der mitgelieferte [Skill](skills.md) **`artifact-pages`** bringt einem Agent bei, sie
 zu nutzen: zwei Vorlagen (ein Dashboard und ein Bericht), den Hausstil mit seinen
@@ -154,6 +160,57 @@ eine Seite mit `read_artifact` ändert. Eine neue Organisation bekommt ihn mit d
 anderen mitgelieferten Skills, eine bestehende über `seed-skills`, und der Tab
 **Page style** der Capability Artifacts im Builder bietet ihn an. Bearbeiten Sie
 den Skill, um Ihre eigene Marke zu beschreiben, und der Agent folgt ihr.
+
+## Visuals { #visuals }
+
+Ein [Visual](reference/capabilities.md#visuals) ist eine App, die noch nicht
+gespeichert wurde: eine Zeichnung, die ein Agent mit `draw` ins Gespräch schreibt und
+die unter seiner Nachricht erscheint, während sie geschrieben wird. Es ist dieselbe Art
+Dokument - ein `html`-Visual ist eine Seite, ein `svg`- oder `mermaid`-Visual wird zu
+einer Seite, die es enthält - und es wird mit derselben Isolation gezeichnet.
+
+**Der Rahmen.** `/api/v1/artifact-content/visual-frame` ist eine feste Seite auf dem
+Content-Origin, ausgeliefert mit genau der Policy, die jede App-Seite bekommt. Sie
+enthält keine Zeichnung: Die Konsole gibt die Zeichnung beim Streamen hinein, sodass
+nichts gespeichert werden muss, bevor es gezeigt wird, und die Isolation kommt aus dem
+Response-Header statt aus einem `srcdoc`-Meta-Tag. Während des Streamens formt der
+Rahmen das Markup an Ort und Stelle um, ohne Skripte und `on*`-Attribute; ist es
+vollständig, schreibt er das ganze Dokument, damit seine Skripte laufen, genau wie auf
+der gespeicherten Seite. Der Rahmen meldet seine Größe, seine Fehler und einen
+Herzschlag; eine Zeichnung, die nicht mehr schlägt, wird geschlossen, statt den Tab
+festzuhalten.
+
+**Im Chat.** Das Panel zeigt die ganze Zeichnung - ein SVG nach seiner `viewBox`
+eingepasst, eine Seite in der Breite des Panels gesetzt und über 560 Pixel verkleinert -
+unter ihrem Titel, in der Nachricht des Agent, nie als Teil der Konsole. Vollbild
+zeigt sie in ihrer eigenen Größe; auf einem Telefon öffnet ein Tippen das Vollbild.
+Der Zoom erscheint in der unteren rechten Ecke der Zeichnung, solange der Zeiger auf
+der Karte ist, in der Vorschau und im Vollbild: ein SVG wird größer gezeichnet, eine
+Seite skaliert, und der Rahmen scrollt, sobald die Zeichnung über ihn hinauswächst.
+Darüber stehen *Code anzeigen*, *Herunterladen* (`.svg`, `.html` oder die
+Mermaid-Quelle) und *Als Bild kopieren* für ein SVG, und ein Fehler, den die Zeichnung
+meldet, kommt mit *Beheben*, das den Agent fragt.
+
+**Herunterladen.** Eine von der Festplatte geöffnete Datei hat keinen Rahmen um
+sich, also trägt der Download mit, was der Rahmen durchgesetzt hat. Ein SVG behält
+die Zeichnung und verliert, was laufen oder nach außen greifen könnte: Skripte,
+Handler, eingebettete Dokumente und jeden Verweis außerhalb der Datei. Eine Seite
+öffnet sich mit der Richtlinie des Rahmens vor allem, was sie geschrieben hat, und
+lädt ihre Bibliotheken vom Artefakt-Origin dieses Deployments.
+
+**Als App speichern.** *In Apps speichern* nimmt einen Titel und einen Namen, beide
+vorausgefüllt, und veröffentlicht das Visual als Version einer App unter dem Agent,
+dessen Turn es gezeichnet hat, in der Umgebung, in der dieser Turn lief, im Besitz der Person, die speichert, und privat, bis
+sie es teilt. Der Server baut das Visual aus dem Transkript neu - Überarbeitungen
+angewendet - statt Bytes aus dem Browser zu nehmen, sodass die App genau das ist, was
+der Agent gezeichnet hat. Unter einem Namen gespeichert, den die Person schon hat, wird
+es eine Version dieser App - so aktualisiert eine Überarbeitung einer gespeicherten
+Zeichnung die Seite, unter der sie geteilt wurde. Speichern erfordert `artifacts:edit`.
+
+**Aus einem Delegate.** Eine Zeichnung bleibt in dem Run, der sie gemacht hat, also
+zeichnet ein Agent, der als Delegate eines anderen Agents arbeitet, nicht: `draw`
+sagt es ihm, und er beschreibt das Bild in seinem Ergebnis, damit der Agent, für den
+er arbeitet, es im Gespräch zeichnet.
 
 ## Wer sie öffnen kann { #who-can-open-it }
 
@@ -353,6 +410,14 @@ Deployments, unter `artifacts/<organization>/<artifact>/`.
 - **Entfernte Versionen sind weg.** Eine Unterhaltung, die auf eine Version
   verlinkt, die älter als das aufbewahrte Fenster ist, kann nur die neueste
   anbieten.
+- **Ein Visual wird nur im Web-Chat und in einem geteilten Thread gezeichnet.** Eine
+  Chat-App bekommt ein Bild davon, wo `VISUAL_RENDER_CDP_URL` einen Browser nennt,
+  sonst seinen Titel; das Widget und eine Einbettung auf einer anderen Website
+  zeigen seinen Titel.
+- **Ein geteilter Thread zeigt seine zwölf neuesten Visuals**, zusammen höchstens
+  16 MB. Wer den Link hat, kann ihn beliebig oft öffnen, also ist ein Aufruf
+  begrenzt; ein Turn jenseits einer der Grenzen behält seinen Text und zeigt keine
+  Zeichnung.
 
 ## Zusammenfassung { #recap }
 

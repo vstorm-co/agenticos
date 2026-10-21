@@ -1,5 +1,5 @@
 ---
-source_sha: "111d48326705"
+source_sha: "4fe91aa6f038"
 ---
 
 # Koncepcje { #concepts }
@@ -311,6 +311,7 @@ działającą platformę:
 | `failed` | zepsuł się |
 | `budget_exceeded` | dobił do limitu — limit wydatków robiący swoje |
 | `guardrail_blocked` | został odrzucony przez [guardrail](reference/capabilities.md#guardrails) |
+| `loop_stopped` | powtarzał te same wywołania narzędzi po ostrzeżeniu i został [zatrzymany](governance.md#step-limits) |
 | `cancelled` | został zatrzymany: przyciskiem stop w kompozytorze, przez zerwany socket, przez delegację anulowaną z góry. Na każdej powierzchni, nie tylko na strumieniowej |
 | `awaiting_approval` | zaparkował na zatwierdzeniu i jest **wznawialny** — jego historia wiadomości jest zapisana, więc decyzja dotyczy rozmowy, do której należy |
 
@@ -520,6 +521,12 @@ czyimś specu.
 Używaj więc specjalisty do pracy, która nie powinna wymagać publikowania agenta —
 „streść to w trzech punktach” — a delegata do zdolności, którą organizacja
 posiada i wykorzystuje wielokrotnie.
+
+Trzeci rodzaj stoi obok nich: **zdalny agent**, agent innego dostawcy osiągalny
+przez A2A i zarejestrowany w organizacji po jego agent card. Wywołuje się go tak samo
+i rozlicza z tego samego budżetu, ale nie jest tu wersjonowany — jego właściciel
+zmienia go po swojej stronie — więc odwołanie wskazuje rejestrację, a nie wersję.
+Zobacz [Zdalni agenci przez A2A](reference/capabilities.md#remote-agents).
 
 #### Specjaliści dynamiczni i droga wyjścia { #dynamic-specialists-and-the-way-out }
 

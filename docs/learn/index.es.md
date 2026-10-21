@@ -1,5 +1,5 @@
 ---
-source_sha: "80ee04abded5"
+source_sha: "f7d97e79857b"
 ---
 
 # Aprende { #learn }
@@ -56,7 +56,7 @@ independientes — coge las que tu agent necesite.
 
 - :material-brain:{ .lg .middle } **[Modelos y providers](../models.md)**
 
-    27 providers, perfiles de modelo, alternativas de reserva, y lo que cuesta de
+    28 providers, perfiles de modelo, alternativas de reserva, y lo que cuesta de
     verdad un token.
 
 - :material-school:{ .lg .middle } **[Skills](../skills.md)**

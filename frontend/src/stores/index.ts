@@ -1,5 +1,8 @@
 export { useAuthStore } from "./auth-store";
 export { useThemeStore } from "./theme-store";
+export { useVoiceGlowStore } from "./voice-glow-store";
+export { useVoiceCallStore } from "./voice-call-store";
+export { useMotionStore } from "./motion-store";
 export { useSidebarStore } from "./sidebar-store";
 export { useChatStore } from "./chat-store";
 export { useChatBandsStore, useChatSidebarStore } from "./chat-sidebar-store";
@@ -12,6 +15,7 @@ export { useSourcesPanelStore } from "./sources-panel-store";
 export { useBrowserPanelStore } from "./browser-panel-store";
 export { useAddToAgentStore } from "./add-to-agent-store";
 export { useWorkingStore } from "./working-store";
+export { useLiveFeedStore } from "./live-feed-store";
 export { resetSessionState, resetTenantState } from "./session-reset";
 export { ChatScope } from "./chat-scope";
 export { useInChatScope } from "./chat-scope-context";

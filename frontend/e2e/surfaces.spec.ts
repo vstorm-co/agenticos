@@ -179,7 +179,10 @@ test.describe("What the page offers a visitor", () => {
     }
   });
 
-  test("offers dictation only where the operator turned it on", async ({ page, browser }) => {
+  test("offers browser dictation only where the operator turned it on", async ({
+    page,
+    browser,
+  }) => {
     // Two halves, and the second is the reason this is an end-to-end test rather
     // than a unit one: the control is gated on the *browser* having a recogniser
     // as well as on the operator allowing it, and only a real browser can answer
@@ -188,7 +191,12 @@ test.describe("What the page offers a visitor", () => {
     const panel = await openAvailability(page, DRAFT_AGENT_NAME);
     const hostedUrl = await publishPage(page, panel);
     await editNewest(panel).click();
-    await panel.getByRole("checkbox", { name: /A microphone in the composer/ }).click();
+    // The label rather than the radio: the radio itself is visually hidden
+    // inside it, the way the organization's Voice card draws its choices.
+    await panel
+      .locator("label")
+      .filter({ hasText: /^Browser/ })
+      .click();
     const save = panel.getByRole("button", { name: "Save changes", exact: true });
     await save.click();
     // The write must land before the stranger loads the page, or they see the

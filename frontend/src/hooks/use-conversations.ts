@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
+import { invalidateSoon } from "@/lib/coalesced-invalidation";
 import { qk } from "@/lib/query-keys";
 import { setUrlParam } from "@/lib/utils";
 import {
@@ -14,6 +15,7 @@ import {
   useConversationStore,
   useChatStore,
   useInChatScope,
+  useLiveFeedStore,
   useOrgStore,
   useWorkingStore,
 } from "@/stores";
@@ -185,6 +187,8 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
   // the previous request - otherwise a slower earlier fetch could resolve last
   // and overwrite the messages of the conversation the user actually selected.
   const messagesAbortRef = useRef<AbortController | null>(null);
+  // Which re-read is the latest; an older one answering after it is dropped.
+  const rereadRef = useRef(0);
 
   /**
    * Whether the account the caller started as is still the one signed in.
@@ -213,10 +217,14 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     // row stops saying so when the run ends - a routine's, or another tab's, as
     // well as this one's. A thread this tab handed off counts too: the listing
     // has to catch up with it before it can say anything about it.
+    // While the live-update socket is up it announces the run ending, so the poll
+    // is only the safety net for what it does not announce (#2219).
     refetchInterval: (query) =>
       query.state.data?.items.some((conversation) => conversation.running_since) ||
       Object.keys(useWorkingStore.getState().handedOff).length > 0
-        ? RUNNING_POLL_MS
+        ? useLiveFeedStore.getState().connected
+          ? RUNNING_POLL_LIVE_MS
+          : RUNNING_POLL_MS
         : false,
   });
   const conversations = data?.items ?? [];
@@ -277,7 +285,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
    * holding it when somebody switches tab.
    */
   const invalidateLists = useCallback(
-    () => queryClient.invalidateQueries({ queryKey: qk.conversations.list() }),
+    () => invalidateSoon(queryClient, qk.conversations.list()),
     [queryClient],
   );
 
@@ -296,7 +304,9 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       clearMessages();
       setCurrentMessages([]);
       try {
-        const msgs = await apiClient.get<MessagesResponse>(`/conversations/${urlId}/messages`);
+        const msgs = await apiClient.get<MessagesResponse>(
+          `/conversations/${encodeURIComponent(urlId)}/messages`,
+        );
         if (!stillSameAccount(startedAs)) return;
         setCurrentMessages(msgs.items, msgs.cost);
       } catch {
@@ -426,6 +436,36 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       tErrors,
       scoped,
     ],
+  );
+
+  /**
+   * Read the open conversation's messages again in place - nothing cleared, no
+   * loading flag, so the transcript and its scroll stay put - for turns written
+   * while it is on screen: a voice call's, as each is saved (#54). An answer for
+   * a conversation no longer open, or older than the latest re-read, is dropped.
+   */
+  const rereadConversation = useCallback(
+    async (id: string) => {
+      const ticket = ++rereadRef.current;
+      const startedAs = useAuthStore.getState().user?.id;
+      let response: MessagesResponse;
+      try {
+        response = await apiClient.get<MessagesResponse>(`/conversations/${id}/messages`);
+      } catch {
+        // The turn is saved whatever this read did; the transcript keeps what it
+        // shows, and the next saved turn reads it again.
+        return;
+      }
+      if (
+        ticket !== rereadRef.current ||
+        useConversationStore.getState().currentConversationId !== id ||
+        !stillSameAccount(startedAs)
+      ) {
+        return;
+      }
+      setCurrentMessages(response.items, response.cost);
+    },
+    [setCurrentMessages],
   );
 
   const archiveConversation = useCallback(
@@ -634,6 +674,9 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     // selection to the first published agent as usual.
     const { defaultAgentId, select } = selectionApi.getState();
     if (defaultAgentId) select(defaultAgentId);
+    // Nor in the last one's project: a new chat is an ordinary one until the
+    // composer's `+` puts it in a project.
+    conversationApi.getState().setPendingProjectId(null);
     // Reuse the conversation already open when it is empty, so a stray click does
     // not leave an untitled row in the sidebar.
     //
@@ -693,6 +736,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     hasMore,
     createConversation,
     selectConversation,
+    rereadConversation,
     archiveConversation,
     unarchiveConversation,
     setFavourite,
@@ -709,6 +753,8 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
  */
 /** How often a listing with a thread at work in it is read again. */
 const RUNNING_POLL_MS = 4000;
+/** The same poll while the live-update socket carries the run's end as an event. */
+const RUNNING_POLL_LIVE_MS = 30_000;
 
 export function useConversationSearch(term: string) {
   const params = listParams({ ...DEFAULT_QUERY, search: term });

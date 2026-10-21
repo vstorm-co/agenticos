@@ -8,8 +8,6 @@ is the same grant the Share panel writes, held to the same rule: only something
 the caller may edit can be shared.
 """
 
-from __future__ import annotations
-
 from collections.abc import Sequence
 from uuid import UUID
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "ef634a1ced73"
+source_sha: "b04c9562a2e8"
 ---
 
 <div class="agenticos-hero" markdown>
@@ -16,7 +16,7 @@ Pon a los agents de IA a trabajar en las tareas de tu equipo. Crea agents en el 
 <a href="https://github.com/vstorm-co/agenticos/actions"><img src="https://img.shields.io/github/actions/workflow/status/vstorm-co/agenticos/ci.yml?branch=main&label=tests" alt="Tests"></a>
 <a href="https://github.com/vstorm-co/agenticos/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="Licence"></a>
 <a href="https://github.com/vstorm-co/agenticos"><img src="https://img.shields.io/github/stars/vstorm-co/agenticos?style=flat" alt="Stars"></a>
-<img src="https://img.shields.io/badge/python-3.12-blue" alt="Python 3.12">
+<img src="https://img.shields.io/badge/python-3.15-blue" alt="Python 3.15">
 </p>
 
 <p class="agenticos-hero__links" markdown>
@@ -145,7 +145,7 @@ alrededor.
 Docker y Docker Compose. Esa es la lista entera — Postgres (con pgvector),
 Redis, la API, el worker y la consola arrancan todos juntos.
 
-¿Prefieres ejecutar los servicios a mano? Python 3.12, Node con
+¿Prefieres ejecutar los servicios a mano? Python 3.15, Node con
 [bun](https://bun.sh), PostgreSQL 16 con
 [pgvector](https://github.com/pgvector/pgvector) y Redis.
 
@@ -250,7 +250,7 @@ vino la pregunta.
 | **Agents** | Construidos en una UI, versionados al publicar, exportables como YAML a tu propio repositorio git |
 | **[Capabilities](reference/capabilities.md)** | Retrieval, búsqueda y descarga web, un navegador de verdad, Python, una sandbox con archivos y una shell, gráficos, imágenes, delegación, planificación, guardrails — activados por agent |
 | **[Integraciones](mcp.md)** | Servidores MCP compatibles, con 59 de los más habituales en el selector — GitHub, Linear, Notion, Slack, Stripe, Postgres |
-| **[Modelos](models.md)** | 27 providers, claves por organización, fallbacks y Ollama autoalojado o un proxy LiteLLM |
+| **[Modelos](models.md)** | 28 providers, claves por organización, fallbacks y Ollama autoalojado o un proxy LiteLLM |
 | **[Conocimiento](file-processing.md)** | Retrieval sobre tus documentos con tres parsers de PDF, tu propio chunking, OCR y descripción de imágenes — por colección, anulable por subida. Sincronización con Google Drive y S3 |
 | **[Skills](skills.md)** | Conocimiento escrito que el agent carga solo cuando decide que es relevante |
 | **[Gobernanza](governance.md)** | Budgets mensuales, aprobación humana, un rastro de auditoría, alertas por agent |
@@ -302,8 +302,8 @@ vino la pregunta.
 ## Stack { #stack }
 
 FastAPI y Pydantic v2 sobre PostgreSQL, [Pydantic AI](https://ai.pydantic.dev)
-para el runtime del agent, pgvector para retrieval, Prefect para el trabajo en
-segundo plano y Next.js 15 para la consola.
+para el runtime del agent, pgvector para retrieval, una cola de jobs en el mismo
+PostgreSQL para el trabajo en segundo plano y Next.js 15 para la consola.
 
 Los destinos externos dependen de modelos, parsers, embeddings, herramientas, canales, sandboxes y trazas configurados. Revisa el [flujo de datos](security.md).
 

@@ -14,8 +14,6 @@ not owned, so the decision is the service's - which is why the gate sweep in
 service rather than through the permission table.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -65,6 +63,8 @@ def _message(*, run_id, content: str) -> Message:
         role="assistant",
         content=content,
         created_at=datetime(2026, 8, 6, 9, 0, tzinfo=UTC),
+        # Set explicitly: a column default is applied on flush, and this row never is.
+        interrupted=False,
     )
     message.tool_calls = []
     message.files = []

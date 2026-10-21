@@ -23,8 +23,6 @@ back; that one belongs to the run - `app.agents.audience` says who is listening
 and `app.agents.memory_scope` turns that into the one store this run may touch.
 """
 
-from __future__ import annotations
-
 from uuid import UUID
 
 __all__ = [

@@ -15,21 +15,53 @@ because the field is what says how to call it and there is no second shape yet.
 When there is, it arrives as another `api` value and another branch, not as a
 special case wired into the caller.
 
-The difference from `image_models` is where the credential comes from. Drawing is
-a capability on an agent, so it seals its own key into the spec. Transcribing is
-something a *channel bot* does to a voice note before there is an agent involved,
-so it runs on the credential the organization already configured for that provider
-in its model profiles - which is the store the vault and the profile list already
-join. Nothing new to configure, and no second place a key can be wrong.
+The key works the way `image_models`' does: the pair is a pick from this
+catalog and the key is a vault secret named beside it, whose purpose is the
+provider. Speech to text is configured at three levels rather than on one
+binding - the organization, an agent, a channel bot - and each level names its
+own key next to its own pair (`speech_to_text_settings`). Model profiles are not
+read: they are what a text run uses.
 """
 
 from dataclasses import dataclass
+from typing import Literal
 
 from pydantic import TypeAdapter
 
 from app.agents.model_resolver import PROVIDERS
 from app.core import catalog
 from app.core.secret_kinds import SecretKind
+
+RecordingFormat = Literal["webm", "wav"]
+"""What a browser records a dictation in for one provider.
+
+`webm` is whatever `MediaRecorder` makes - WebM or Ogg Opus, or MP4 on Safari.
+`wav` is 16 kHz mono 16-bit PCM the page builds itself, for a provider that
+documents neither WebM nor Opus.
+"""
+
+LanguageField = Literal["language", "languages"]
+"""How a model is told which language a recording is in.
+
+`language`, one ISO-639-1 code, is the field OpenAI defined and Groq and
+Mistral serve. OpenAI's `gpt-transcribe` replaces it with a `languages` list
+and says not to send both - so the model's entry says which it takes.
+"""
+
+ComposerDictation = Literal["browser", "server"]
+"""How the `/chat` composer transcribes for one agent: the browser's own speech
+recognition, free and always there, or the agent's provider through this
+deployment - only when the agent's Dictation switch is on and a pair and key
+resolve for it."""
+
+DictationUnavailable = Literal["no_provider", "not_offered", "no_key"]
+"""Why a recording for an agent would not reach a provider.
+
+`no_provider`: no level names a pair. `not_offered`: the pair named was
+withdrawn from the catalog. `no_key`: no usable key is named beside the pair -
+it was never chosen, was deleted, or stopped being one that level may use - so
+the fix is "choose a key".
+"""
 
 
 @dataclass(frozen=True)
@@ -39,6 +71,7 @@ class SpeechToTextModel:
     id: str
     name: str
     description: str
+    language_field: LanguageField = "language"
 
 
 @dataclass(frozen=True)
@@ -50,9 +83,8 @@ class SpeechToTextEntry:
     """Where this provider serves the endpoint.
 
     In the file because nothing else knows it: `ProviderSpec` carries no address -
-    the SDK holds those, and this does not go through the SDK - and a `base_url`
-    on the organization's model profile overrides it, which is how a proxy or a
-    self-hosted server is reached.
+    the SDK holds those, and this does not go through the SDK. Every recording
+    for this provider goes here; a self-hosted server is not reachable yet.
     """
 
     models: tuple[SpeechToTextModel, ...]
@@ -62,6 +94,25 @@ class SpeechToTextEntry:
     A field rather than an assumption, so the day a provider is worth offering
     whose only route to audio is a chat call, the catalog can say so and the
     client can branch on it - instead of the caller growing a name check.
+    """
+
+    response_format: str | None = None
+    """The `response_format` to ask for, or `None` to send none (plain JSON).
+
+    Only for the length of the recording (#1797). Groq states a recording's
+    `duration` in `verbose_json` and nowhere else, while OpenAI's `gpt-4o-*`
+    models refuse that format outright - so it is the provider's entry that says,
+    and a provider whose plain answer already carries the length (OpenAI's
+    `usage`, Mistral's) is sent nothing it might not accept.
+    """
+
+    recording_format: RecordingFormat = "webm"
+    """What a browser records a dictation in for this provider (#1797).
+
+    In the file rather than in each client, because three clients record - the
+    console's composer, the hosted page and the plain-JS widget - and a list of
+    WAV-only providers kept in each was three lists to keep in step. Mistral
+    documents WAV and MP3 input and never WebM or Opus, so it is `wav`.
     """
 
 
@@ -82,6 +133,8 @@ class SpeechToTextProvider:
     api: str
     base_url: str
     models: tuple[SpeechToTextModel, ...]
+    response_format: str | None = None
+    recording_format: RecordingFormat = "webm"
 
 
 def providers() -> tuple[SpeechToTextProvider, ...]:
@@ -108,6 +161,8 @@ def providers() -> tuple[SpeechToTextProvider, ...]:
                 api=entry.api,
                 base_url=entry.base_url,
                 models=entry.models,
+                response_format=entry.response_format,
+                recording_format=entry.recording_format,
             )
         )
     return tuple(found)
@@ -116,6 +171,17 @@ def providers() -> tuple[SpeechToTextProvider, ...]:
 def by_provider(provider: str) -> SpeechToTextProvider | None:
     """The offering for one provider id, or None where it cannot transcribe."""
     return next((entry for entry in providers() if entry.provider == provider), None)
+
+
+def recording_format(provider: str | None) -> RecordingFormat:
+    """The format a browser records a dictation in for `provider`.
+
+    `webm` where no provider resolves or the catalog no longer offers it: the
+    recording is then refused as `not_configured` whatever its format, so the
+    answer only has to be one a browser can make.
+    """
+    entry = by_provider(provider) if provider is not None else None
+    return entry.recording_format if entry is not None else "webm"
 
 
 def is_offered(provider: str, model: str) -> bool:
@@ -142,3 +208,71 @@ def default_choice() -> tuple[str, str] | None:
     if not offered:
         return None
     return offered[0].provider, offered[0].models[0].id
+
+
+LANGUAGES: tuple[str, ...] = (
+    "af",
+    "ar",
+    "hy",
+    "az",
+    "be",
+    "bs",
+    "bg",
+    "ca",
+    "zh",
+    "hr",
+    "cs",
+    "da",
+    "nl",
+    "en",
+    "et",
+    "fi",
+    "fr",
+    "gl",
+    "de",
+    "el",
+    "he",
+    "hi",
+    "hu",
+    "is",
+    "id",
+    "it",
+    "ja",
+    "kn",
+    "kk",
+    "ko",
+    "lv",
+    "lt",
+    "mk",
+    "ms",
+    "mr",
+    "mi",
+    "ne",
+    "no",
+    "fa",
+    "pl",
+    "pt",
+    "ro",
+    "ru",
+    "sr",
+    "sk",
+    "sl",
+    "es",
+    "sw",
+    "sv",
+    "tl",
+    "ta",
+    "th",
+    "tr",
+    "uk",
+    "ur",
+    "vi",
+    "cy",
+)
+"""The languages a recording may be pinned to, as ISO-639-1 codes.
+
+Whisper's supported list, in the order of the languages' English names, which
+every catalogued provider accepts as the `language` form field. A code outside it
+is refused at the organization's PATCH rather than sent to a provider that
+answers with its own error text.
+"""

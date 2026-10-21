@@ -63,6 +63,7 @@ export type ToolRenderer =
   | "web-search"
   | "rag"
   | "run-python"
+  | "coding-agent"
   | "loaded-skill"
   | "load-skill"
   | "skill-list"
@@ -168,6 +169,30 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     render: "generic",
     captionKey: "readingArtifact",
     displayNameKey: "readArtifact",
+  },
+
+  // visuals - the drawing is its own panel under the message, drawn while it is
+  // written; the step stays a line, since opening it would print the drawing's
+  // source as JSON.
+  draw: {
+    kind: "image",
+    render: "generic",
+    captionKey: "drawingVisual",
+    displayNameKey: "drawVisual",
+    staysClosed: true,
+  },
+  revise_visual: {
+    kind: "edit",
+    render: "generic",
+    captionKey: "revisingVisual",
+    displayNameKey: "reviseVisual",
+    staysClosed: true,
+  },
+  read_visual: {
+    kind: "read",
+    render: "generic",
+    captionKey: "readingVisual",
+    displayNameKey: "readVisual",
   },
 
   // browser_use - a whole browse. The step card stays generic because the live view
@@ -294,6 +319,17 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     opensWhenDone: true,
   },
   execute: { kind: "shell", render: "workspace", verbs: { now: "executing", done: "executed" } },
+
+  // coding_agent - Claude Code or Codex in the sandbox. Its steps stream into a
+  // panel of their own while it works; what it read, ran and changed opens under
+  // the step afterwards, because that is what a person checks before trusting it.
+  run_coding_agent: {
+    kind: "code",
+    render: "coding-agent",
+    captionKey: "runningCodingAgent",
+    displayNameKey: "runCodingAgent",
+    opensWhenDone: true,
+  },
 
   // code_execution
   run_python: {
@@ -547,6 +583,24 @@ export const FRAMEWORK_TOOLS: Record<string, ToolEntry> = {
 };
 
 /**
+ * Tools a voice call adds that no capability registers (#54).
+ *
+ * `hand_off` is how a call's realtime model hands a task to the agent's own text
+ * model, which has the sandbox, the browser and the delegates a call cannot
+ * carry. Out of `TOOL_CATALOG` for the reason `FRAMEWORK_TOOLS` is: the drift
+ * check there is against the capability registry, and the backend checks this
+ * table against the tool's own name instead.
+ */
+export const CALL_TOOLS: Record<string, ToolEntry> = {
+  hand_off: {
+    kind: "delegate",
+    render: "generic",
+    captionKey: "workingInText",
+    displayNameKey: "workedInText",
+  },
+};
+
+/**
  * Tools no agent emits any more, kept for the conversations that recorded them.
  *
  * A stored turn holds the tool name it actually called and the result it actually
@@ -576,7 +630,9 @@ export const LEGACY_TOOLS: Record<string, ToolEntry> = {
 
 /** What this side knows about `name`, or null for a tool it has never heard of. */
 export function toolEntry(name: string): ToolEntry | null {
-  return TOOL_CATALOG[name] ?? FRAMEWORK_TOOLS[name] ?? LEGACY_TOOLS[name] ?? null;
+  return (
+    TOOL_CATALOG[name] ?? FRAMEWORK_TOOLS[name] ?? CALL_TOOLS[name] ?? LEGACY_TOOLS[name] ?? null
+  );
 }
 
 /**

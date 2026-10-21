@@ -1,5 +1,5 @@
 ---
-source_sha: "dc1db9e6554c"
+source_sha: "d1ffc0743a58"
 ---
 
 # Funkcje { #features }
@@ -101,7 +101,7 @@ decyzją, którą ktoś podejmuje wobec *tego* agenta, a nie zmianą w platformi
 
 [Każda capability, jej narzędzia i jej konfiguracja →](reference/capabilities.md)
 
-## Dowolny model, od 27 providerów { #any-model-from-27-providers }
+## Dowolny model, od 28 providerów { #any-model-from-28-providers }
 
 OpenAI, Anthropic, Google, Groq, Mistral, Bedrock, Vertex, Ollama na Twoim
 własnym sprzęcie, proxy LiteLLM przed tym wszystkim.
@@ -173,7 +173,19 @@ Publikujesz raz. Ten sam runner odpowiada na wszystkich tych:
 - **Slack**, **Telegram** i **Mattermost**, gdzie `@mention` uruchamia się jako
   osoba, która go wysłała — a nie jako bot
 
-[Powierzchnie →](channels.md)
+Zamiana mowy na tekst działa na nich na własnym providerze organizacji:
+dyktowanie w czacie webowym, na hostowanej stronie i w widgecie oraz
+transkrypcja wiadomości głosowych w Slacku, Telegramie i Mattermost.
+
+**Rozmowy głosowe** pozwalają rozmawiać z opublikowanym agentem i mu przerywać,
+w czacie webowym, na hostowanej stronie albo w widgecie. Agent zachowuje swoje
+narzędzia, wiedzę, zatwierdzenia i budżety, każda tura jest zapisywana jako
+tekst w konwersacji, a żadne audio nie jest przechowywane. Rozmowy są
+wyłączone, dopóki organizacja ich nie włączy, i mają własne limity czasu
+i miesięcznych minut. Modele realtime OpenAI są przetestowane na żywo; Azure
+OpenAI, Gemini Live i xAI nie zostały jeszcze zweryfikowane na żywo.
+
+[Powierzchnie →](channels.md) · [Rozmowy głosowe →](voice.md)
 
 ## Budżety, które naprawdę zatrzymują run { #budgets-that-actually-stop-a-run }
 

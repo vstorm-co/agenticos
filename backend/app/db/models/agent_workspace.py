@@ -50,12 +50,22 @@ class AgentWorkspace(Base, TimestampMixin):
         nullable=False,
         index=True,
     )
-    agent_id: Mapped[uuid.UUID] = mapped_column(
+    agent_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("agents.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
+    """The agent whose workspace this is; `None` for a project's, which every agent
+    answering in the project shares and no one agent owns."""
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    """The project this is the container of, for a project-scoped one. A deleted
+    project takes its files with it."""
     conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("conversations.id", ondelete="CASCADE"),
@@ -133,28 +143,24 @@ class AgentWorkspace(Base, TimestampMixin):
     """Bumped on every flush, and compared against on the next one.
 
     A run loads the document at `open` and stores it at `finish`, so two runs
-    holding one workspace is a read-modify-write race and **the last flush wins**.
-    That is the accepted behaviour, not an oversight: refusing the write would lose
-    a finished turn's work to protect a turn that had already finished, and merging
-    two documents needs a rule about what a conflict means that nothing here can
-    supply. What this column buys is that the overwrite is *not silent* -
-    `SandboxWorkspaceService._flush_state` re-reads the committed row, and logs
-    `workspace_flush_overtaken` with the paths it is about to drop.
+    holding one workspace is a read-modify-write race. Refusing the second write
+    would lose a finished turn's work, and storing it whole erased whatever the
+    first had written in between. So a flush that finds the version moved stores
+    only what its run changed from the document it loaded, path by path, over
+    the one now stored - see `SandboxWorkspaceService._merged`. A path both runs
+    changed keeps the later write and is logged as `workspace_flush_conflict`.
 
-    Where the race actually happens is worth naming, because it is not where the
-    guard is. `agent_session` refuses a second turn on a socket while one is in
-    flight, which covers `conversation` scope in web chat - one socket, one turn.
-    It covers none of the scopes whose purpose is sharing:
+    Where the race happens is not where the socket's guard is. `agent_session`
+    refuses a second turn on a socket while one is in flight, which covers
+    `conversation` scope in web chat - one socket, one turn - and none of the
+    scopes whose purpose is sharing:
 
+    * `project` - a project's teammates, each in a chat of their own.
     * `agent` - one workspace across every user of the agent, so two people
       chatting at once are two sockets and two runs.
     * `channel` - a Slack or Telegram chat, where two mentions arrive through the
       router and never touch that guard.
     * `user` - one person on web and on Slack at the same time.
-
-    A real fix is a merge or a lock, and #119's review is where the trade is
-    argued. Until then the log is the record, and it names the paths so "a file
-    went missing" is answerable.
     """
 
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

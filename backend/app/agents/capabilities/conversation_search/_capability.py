@@ -12,8 +12,6 @@ one sentence telling the agent the tools exist - a model holding a search tool b
 no standing note to use it answers from what is in front of it, confidently.
 """
 
-from __future__ import annotations
-
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any

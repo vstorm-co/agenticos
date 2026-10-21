@@ -468,8 +468,12 @@ two long names stay two tools. The server is still called by its real name.
     otherwise abort the whole turn: one expired token on one connection would take
     down every agent that names it, including the ones that never needed it.
 
-    The model then answers **without** those tools — right for a chat turn, wrong
-    if you assumed a tool was always there.
+    The model then answers **without** those tools, and is told so: the turn's
+    instructions name the server, say it did not answer or refused the
+    connection, and ask the model to say it could not be reached rather than
+    report an empty result. That holds for a server that answered a moment ago and
+    fails when the turn connects. It is right for a chat turn, wrong if you
+    assumed a tool was always there.
 
 That is a deliberate trade. The `/test` endpoint and `last_status` are how you find
 out, and the [audit trail](governance.md#audit) records what actually ran.
@@ -955,6 +959,28 @@ the console.
 Connected applications are listed under **Settings → MCP clients**, where
 disconnecting one ends its access and every token it holds. Calls that change
 something wait for approval, as [below](#which-calls-wait-for-a-person) explains.
+
+### Giving it to an agent { #giving-it-to-an-agent }
+
+The same server is also an MCP binding any agent can have, so an agent can answer
+"what failed yesterday" or "which agents use this knowledge base" from the
+platform's own records. In the Builder it is the first card under **MCP servers**,
+named after this deployment; switching it on binds it as
+`mcp_servers: [{account: platform, approval: writes}]`.
+
+- **It acts as whoever the agent runs for.** A run mints a short-lived credential
+  holding that person's permissions, so a Viewer's agent can read what the Viewer
+  can read and create nothing. Nothing new is granted, and where nobody is behind
+  the run - a public widget, a schedule acting for nobody - the binding is absent.
+- **Changes wait for approval.** `writes`, the default, holds every tool that
+  changes something (`create_agent_draft`, `run_agent`, `invite_member` and the
+  rest) for the person to approve; `all` holds reading too. `none` is not offered:
+  these tools act with a person's authority.
+- **The tools can be narrowed** in the card's settings, which list every tool and
+  mark the ones that change something.
+
+The **Claude Code like** template binds it this way, so a fresh agent from it can
+look the platform up out of the box.
 
 ## What MCP does not get you
 

@@ -20,30 +20,119 @@ because the transaction that would have carried it is the one being rolled back
 by the refusal it describes.
 """
 
-from __future__ import annotations
-
 import logging
 import time
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.exceptions import AppException, ExternalServiceError, NotFoundError
+from app.core.exceptions import (
+    AppException,
+    AuthorizationError,
+    BadRequestError,
+    ConfigurationError,
+    NotFoundError,
+)
 from app.core.field_errors import refused_field
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm
+from app.db.models.agent import Agent, AgentStatus
 from app.db.models.local_service import LocalServiceKind
-from app.db.models.ml_service_call import MLCallStatus, MLServiceCall
+from app.db.models.ml_service_call import MLCallStatus, MLServiceCall, TranscriptionSurface
+from app.db.models.organization import Organization
 from app.repositories import ml_service_call_repo
-from app.services import speech_to_text, transcription
+from app.repositories import organization as organization_repo
+from app.repositories.ml_service_call import CallFilters, UsageSummary
+from app.services import speech_to_text, transcription, transcription_usage
+from app.services.deployment_settings import DeploymentSettingsService
 from app.services.local_service import LocalServiceService
-from app.services.ml import parsing, pii
+from app.services.ml import audio_duration, parsing, pcm_wav, pii
 from app.services.ml.catalog import SERVICE_CATALOG, MLServiceEntry
+from app.services.speech_to_text import ComposerDictation, DictationUnavailable, RecordingFormat
+from app.services.speech_to_text_settings import SpeechToTextSettingsService
 from app.services.transcription import Recording, TranscriptionService
+from app.services.transcription_usage import TranscriptionCall
 
 logger = logging.getLogger(__name__)
+
+DICTATION_BYTES_PER_SECOND = pcm_wav.BYTES_PER_SECOND
+"""Bytes per second of recording the dictation byte cap allows: 32,000.
+
+What dictation's own format holds - 16 kHz mono 16-bit PCM is exactly this
+many bytes of samples a second - so for a WAV recording the cap and the length
+are the same limit, read twice. The length is what is refused on, from the
+samples counted (`pcm_wav`); the cap is the cheap check in front of it.
+
+**For compressed audio it is an outer bound only.** Where the deployment
+accepts WebM, Ogg and MP4 (`DeploymentSettings.dictation_compressed_audio`),
+32 kbps Opus is 4,000 bytes a second, so a browser's recording fits with room
+to spare - and Opus at a script's lowest bitrate fits one to three hours into
+the same bytes. Their length is read from the file's own header
+(`audio_duration`), which a file built by hand can understate; this cap is what
+still holds then, and for a recording whose length is unknown where the surface
+accepts one.
+"""
+
+DICTATION_HEADER_ALLOWANCE = 4_096
+"""Bytes the cap allows beyond the audio itself, for the container around it.
+
+A browser's WAV header is 44 bytes; the rest is room for a chunk a writer
+adds, which `pcm_wav` steps over and the provider is never sent.
+"""
+
+DICTATION_GRACE_SECONDS = 3
+"""How far past `dictation_max_seconds` a measured recording may run.
+
+The composer stops a recording on a once-a-second tick of the browser's clock,
+so one that stopped at the limit is up to a second over it, and a throttled tab
+ticks late. Refusing those would refuse exactly the recordings the limit
+stopped for the person.
+"""
+
+DICTATION_PCM_TYPES = frozenset({"audio/wav"})
+"""What dictation accepts by default, by `transcription.recording_type`.
+
+WAV holding 16 kHz mono 16-bit PCM, which the composer, the hosted page and the
+widget build themselves from the microphone's samples: the one format whose
+length is its size. Every other kind of WAV is refused by `pcm_wav`.
+"""
+
+DICTATION_COMPRESSED_TYPES = frozenset({"audio/webm", "audio/ogg", "audio/mp4"})
+"""What dictation also accepts once the deployment has turned compressed audio on.
+
+What browsers' `MediaRecorder` produces. A `Blob` in a `FormData` arrives named
+`blob`, so the name the provider is sent comes from the type
+(`transcription.RECORDING_EXTENSIONS`). Narrower than that table on purpose: an
+MP3 is not something a browser records here, so one posted is not a dictation.
+"""
+
+
+@dataclass(frozen=True)
+class ServerDictation:
+    """Whether a recording for one agent would reach a provider, and in what format."""
+
+    available: bool
+    unavailable: DictationUnavailable | None
+    """Why not, where it is not: no pair resolves, the catalog withdrew it, or
+    no usable key is named beside it."""
+    provider: str | None
+    format: RecordingFormat
+
+
+@dataclass(frozen=True)
+class DictationStatus:
+    """What the composer needs before offering the microphone for one agent."""
+
+    engine: ComposerDictation
+    requested: bool
+    server_available: bool
+    unavailable: DictationUnavailable | None
+    max_seconds: int
+    provider: str | None
+    format: RecordingFormat
 
 
 @dataclass(frozen=True)
@@ -149,50 +238,374 @@ class MLService:
         mime_type: str,
         provider: str | None,
         model: str | None,
+        secret_id: UUID | None = None,
     ) -> Transcript:
         """Turn a recording into text on the organization's own engine (FA-072).
 
+        With no provider or model named, the organization's default pair is
+        used, or the deployment's first offered one where it has none. The key
+        is named, never looked up: `secret_id`, which the caller must be able to
+        view and which must be an API key for the provider, or - with none
+        named - the organization's default key, when the provider is the one it
+        names that key for.
+
         Raises:
             BadRequestError: If the deployment offers no transcription at all,
-                or the provider and model named are not a pair it offers.
-            ExternalServiceError: If the engine answered with nothing. The
-                organization having no usable credential for the provider is
-                the common cause, and the message says so - the client's own
-                text stays in the log, where it cannot carry a key.
+                the provider and model named are not a pair it offers, the key
+                named is not one the caller may use for it, the recording is
+                over the size limit (`reason="too_large"`), or the engine heard
+                nothing in it (`reason="empty"`).
+            ConfigurationError: `reason="not_configured"` - no key is named and
+                the organization has no default key for the provider, or the
+                one named is no longer usable.
+            ExternalServiceError: `reason="provider_error"` or `reason="timeout"`.
+                The client's own text stays in the log, where it cannot carry a key.
         """
         started = time.monotonic()
+        call = TranscriptionCall(
+            organization_id=ctx.organization_id,
+            requested_by_user_id=ctx.subject_id,
+            surface="api",
+            provider=None,
+            model=None,
+        )
         try:
             _refuse_oversized(content, ceiling=transcription.MAX_BYTES)
-            chosen = self._transcription_choice(provider, model)
-            text = await TranscriptionService(self.db).transcribe(
+            org = await organization_repo.get_by_id(self.db, ctx.organization_id)
+            chosen = self._transcription_choice(provider, model, organization=org)
+            key, shared = await self._transcription_key(
+                ctx, provider=chosen[0], secret_id=secret_id, organization=org
+            )
+            call = replace(call, provider=chosen[0], model=chosen[1], secret_id=key)
+            result = await TranscriptionService(self.db).transcribe(
                 Recording(content=content, filename=filename, mime_type=mime_type),
                 organization_id=ctx.organization_id,
                 provider=chosen[0],
                 model=chosen[1],
+                secret_id=key,
+                shared_key=shared,
             )
-            if text is None:
-                raise ExternalServiceError(
-                    message=(
-                        "The transcription engine returned nothing. Check that this "
-                        "organization has a usable credential for the provider and that "
-                        "the recording is within the size limit."
-                    ),
-                    details={"provider": chosen[0], "model": chosen[1], "stage": "engine"},
-                )
         except AppException as exc:
-            await self._record_failure(
-                ctx, "speech_to_text", exc=exc, input_bytes=len(content), started=started
+            await self._record_transcription_failure(
+                call, exc=exc, input_bytes=len(content), audio_seconds=None, started=started
             )
             raise
-        await self._record(
-            ctx,
-            "speech_to_text",
+        await transcription_usage.record(
+            self.db,
+            call,
             input_bytes=len(content),
-            units=len(text),
-            unit="characters",
-            started=started,
+            audio_seconds=result.audio_seconds,
+            duration_ms=_elapsed_ms(started),
         )
-        return Transcript(text=text, provider=chosen[0], model=chosen[1])
+        return Transcript(text=result.text, provider=chosen[0], model=chosen[1])
+
+    async def dictate(
+        self,
+        ctx: AuthContext,
+        *,
+        agent: Agent,
+        content: bytes,
+        mime_type: str,
+        reported_seconds: float | None = None,
+    ) -> str:
+        """Transcribe a composer recording for one agent (#1797).
+
+        The caller has already proven run access on `agent`. The gate is the
+        agent's published Dictation switch: off, the composer transcribes in the
+        browser, and a recording posted anyway refuses as `not_configured`. Everything after the gate is `transcribe_dictation`,
+        which the hosted page and the widget share. A compressed recording
+        whose length cannot be read - where the deployment accepts compressed
+        audio at all - is accepted here, under the byte cap: the caller is a
+        signed-in member on their own rate limit, and refusing would refuse a
+        browser whose container this does not read.
+
+        Raises:
+            ConfigurationError: `reason="not_configured"` - the agent's switch
+                is off, the agent is archived, no pair resolves, or no usable
+                key is named beside it.
+            BadRequestError: `reason` `empty`, `unsupported_type` or `too_large`.
+            ExternalServiceError: `reason` `provider_error` or `timeout`.
+        """
+        # What `dictation_status` says before the press, said again here: an
+        # archived agent takes no message, so a paid transcription for one is
+        # money spent on text with nowhere to go.
+        if agent.status == AgentStatus.ARCHIVED.value:
+            raise ConfigurationError(
+                message="Dictation is off for an archived agent.",
+                details={"reason": "not_configured"},
+            )
+        org = await organization_repo.get_by_id(self.db, ctx.organization_id)
+        return await self.transcribe_dictation(
+            TranscriptionCall(
+                organization_id=ctx.organization_id,
+                requested_by_user_id=ctx.subject_id,
+                surface="chat",
+                provider=None,
+                model=None,
+                agent_id=agent.id,
+            ),
+            organization=(
+                org
+                if org is not None
+                and await SpeechToTextSettingsService(self.db).dictates_on_provider(agent)
+                else None
+            ),
+            agent=agent,
+            content=content,
+            mime_type=mime_type,
+            reported_seconds=reported_seconds,
+            accept_unmeasured=True,
+        )
+
+    async def transcribe_dictation(
+        self,
+        call: TranscriptionCall,
+        *,
+        organization: Organization | None,
+        agent: Agent,
+        content: bytes,
+        mime_type: str,
+        reported_seconds: float | None = None,
+        accept_unmeasured: bool,
+    ) -> str:
+        """Transcribe one dictation for `agent`, past whichever gate its surface has.
+
+        **No `AuthContext`, on purpose.** The composer has a signed-in member; the
+        hosted page and the widget have a stranger, and nothing about them belongs
+        in a context. So the caller decides whether this surface may dictate at
+        all - the agent's Dictation switch for the composer, the embed's own
+        `dictation` setting for a page or a widget - and says who the call is
+        attributed to in `call`. `organization` is `None` when that gate is shut,
+        and the refusal is then the same `not_configured` either way. Usage is
+        never attributed to whoever published an embed: a visitor's dictation is
+        the agent's and the surface's, with no requester.
+
+        The provider, model and language resolve through
+        `speech_to_text_settings` - the agent's published override first, then
+        the organization. Nothing is kept but the usage record: the audio is
+        discarded when this returns, and the text goes back in the response only.
+
+        **Raw PCM unless the deployment says otherwise.** A dictation is WAV
+        holding 16 kHz mono 16-bit PCM (`pcm_wav`), whose length is its byte
+        count: the samples are counted, a recording longer than
+        `dictation_max_seconds` (plus `DICTATION_GRACE_SECONDS`) is refused as
+        `too_large` before the provider is called, and the provider is sent
+        those samples behind a header built here - never the caller's header,
+        nor any other chunk the file carried. Any other WAV is refused as
+        `unsupported_type`.
+
+        Where the deployment accepts compressed audio
+        (`DeploymentSettingsService.accepts_compressed_dictation`), WebM, Ogg
+        and MP4 are accepted too, and their length is read from the file's own
+        header (`audio_duration`) - the file's word for it, which a file built
+        by hand can understate, so the byte cap is then what bounds it. A
+        length that cannot be read is the caller's to decide:
+        `accept_unmeasured` lets it through under the byte cap alone, which is
+        what the console does for a member; otherwise it is refused as
+        `unsupported_type`, which is what a public page does for a stranger,
+        whose spend nothing else bounds. Off, these types are refused as
+        `unsupported_type` before anything is read.
+
+        The byte cap - the longest dictation plus its grace at
+        `DICTATION_BYTES_PER_SECOND`, with `DICTATION_HEADER_ALLOWANCE` for
+        the container, never above what transcription accepts - is checked
+        first in both, because it is free.
+
+        The usage row's length is the measured one, then the provider's own
+        figure, then `reported_seconds` - the length the browser says it
+        recorded. For PCM it is always the measured one, exactly. The last is
+        **client-reported**, used only where nothing else states a length,
+        and clamped to the organization's longest dictation - so a caller
+        posting straight to the endpoint can inflate its own usage figure by
+        at most that, never by an hour.
+
+        Raises:
+            ConfigurationError: `reason="not_configured"` - the gate is shut, no
+                pair resolves, or no usable key is named beside it.
+            BadRequestError: `reason` `empty`, `unsupported_type` (a type or a
+                WAV this does not accept, or a compressed length that cannot
+                be read, unless `accept_unmeasured`) or `too_large`, the latter
+                with `limit_seconds` in its details.
+            ExternalServiceError: `reason` `provider_error` or `timeout`.
+        """
+        started = time.monotonic()
+        reported: float | None = None
+        measured: float | None = None
+        try:
+            resolved = (
+                await SpeechToTextSettingsService(self.db).for_agent(agent)
+                if organization is not None
+                else None
+            )
+            if organization is None or resolved is None:
+                raise ConfigurationError(
+                    message="Server dictation is not set up for this agent.",
+                    details={"reason": "not_configured"},
+                )
+            call = replace(
+                call,
+                provider=resolved.provider,
+                model=resolved.model,
+                secret_id=resolved.secret_id,
+            )
+            if not content:
+                raise BadRequestError(
+                    message="The recording is empty.", details={"reason": "empty"}
+                )
+            compressed = await DeploymentSettingsService(self.db).accepts_compressed_dictation()
+            accepted = (
+                DICTATION_PCM_TYPES | DICTATION_COMPRESSED_TYPES
+                if compressed
+                else DICTATION_PCM_TYPES
+            )
+            base_type = transcription.recording_type(mime_type)
+            if base_type not in accepted:
+                raise refused_field(
+                    "file",
+                    _ACCEPTED_AUDIO[compressed],
+                    reason="unsupported_type",
+                    accepted=sorted(accepted),
+                )
+            limit = organization.dictation_max_seconds
+            cap = min(
+                (limit + DICTATION_GRACE_SECONDS) * DICTATION_BYTES_PER_SECOND
+                + DICTATION_HEADER_ALLOWANCE,
+                transcription.MAX_BYTES,
+            )
+            if reported_seconds is not None:
+                reported = min(max(reported_seconds, 0.0), float(limit))
+            too_long = refused_field(
+                "file",
+                f"The recording is longer than this organization's {limit}-second limit.",
+                reason="too_large",
+                limit_seconds=limit,
+            )
+            if len(content) > cap:
+                raise too_long
+            if base_type in DICTATION_PCM_TYPES:
+                recording, measured = _pcm_recording(content)
+            else:
+                measured = audio_duration.measure(content)
+                if measured is None and not accept_unmeasured:
+                    raise refused_field(
+                        "file",
+                        "The recording's length could not be read. Dictation accepts WebM, "
+                        "Ogg or MP4 audio as a browser records it.",
+                        reason="unsupported_type",
+                    )
+                recording = Recording(
+                    content=content,
+                    filename=f"recording.{transcription.RECORDING_EXTENSIONS[base_type]}",
+                    mime_type=base_type,
+                )
+            if measured is not None and measured > limit + DICTATION_GRACE_SECONDS:
+                raise too_long
+            result = await TranscriptionService(self.db).transcribe(
+                recording,
+                organization_id=call.organization_id,
+                provider=resolved.provider,
+                model=resolved.model,
+                secret_id=resolved.secret_id,
+                shared_key=resolved.shared_key,
+                language=resolved.language,
+            )
+        except AppException as exc:
+            await self._record_transcription_failure(
+                call,
+                exc=exc,
+                input_bytes=len(content),
+                audio_seconds=measured if measured is not None else reported,
+                started=started,
+            )
+            raise
+        await transcription_usage.record(
+            self.db,
+            call,
+            input_bytes=len(content),
+            audio_seconds=_first_known(measured, result.audio_seconds, reported),
+            duration_ms=_elapsed_ms(started),
+        )
+        return result.text
+
+    async def dictation_status(self, ctx: AuthContext, *, agent: Agent) -> DictationStatus:
+        """Whether the composer can dictate to this agent, and on which provider.
+
+        Read before the microphone is offered. The composer always has the
+        browser's own recognition; `engine` is `server` only where the agent's
+        published Dictation switch is on (`requested`) *and* `server_dictation`
+        says a provider is there to reach - otherwise the browser transcribes, so
+        a missing key costs a member the provider, never the microphone.
+        `server_available` is the second half alone, which is what the embed
+        form asks - a hosted page and a widget have a switch of their own.
+
+        An archived agent never dictates on its provider: nobody chats with it,
+        so a recording for it would spend the organization's credit on text with
+        nowhere to go.
+        """
+        org = await organization_repo.get_by_id(self.db, ctx.organization_id)
+        if org is None:
+            raise NotFoundError(
+                message="Organization not found",
+                details={"organization_id": ctx.organization_id},
+            )
+        server = await self.server_dictation(agent)
+        requested = await SpeechToTextSettingsService(self.db).dictates_on_provider(agent)
+        return DictationStatus(
+            engine=(
+                "server"
+                if requested and server.available and agent.status != AgentStatus.ARCHIVED.value
+                else "browser"
+            ),
+            requested=requested,
+            server_available=server.available,
+            unavailable=server.unavailable,
+            max_seconds=org.dictation_max_seconds,
+            provider=server.provider,
+            format=server.format,
+        )
+
+    async def server_dictation(self, agent: Agent) -> ServerDictation:
+        """Whether a recording for `agent` would reach a provider, whatever the gate.
+
+        `available` needs a pair that resolves for this agent, the catalog still
+        offering it, and a usable key named beside the pair - checked for
+        existence, never opened (`TranscriptionService.has_key`). Configured,
+        not proven: a revoked key fails on the first recording. Where it is not
+        available, `unavailable` says which of the three is missing, so a card
+        can say "choose a key" rather than "not set up". The provider and the
+        format are returned whether or not it is available, because a browser
+        records in the format they say.
+
+        The format is `wav` - 16 kHz mono 16-bit PCM - unless the deployment
+        accepts compressed audio *and* the catalog says this provider takes
+        what `MediaRecorder` makes; Mistral is `wav` either way.
+
+        No `AuthContext`: the embed service asks this for an anonymous visitor's
+        page, so the organization is the agent's own and never a caller's.
+        """
+        resolved = await SpeechToTextSettingsService(self.db).for_agent(agent)
+        unavailable: DictationUnavailable | None
+        if resolved is None:
+            unavailable = "no_provider"
+        elif not speech_to_text.is_offered(resolved.provider, resolved.model):
+            unavailable = "not_offered"
+        elif not await TranscriptionService(self.db).has_key(
+            agent.organization_id,
+            provider=resolved.provider,
+            secret_id=resolved.secret_id,
+            shared_key=resolved.shared_key,
+        ):
+            unavailable = "no_key"
+        else:
+            unavailable = None
+        provider = resolved.provider if resolved is not None else None
+        compressed = await DeploymentSettingsService(self.db).accepts_compressed_dictation()
+        return ServerDictation(
+            available=unavailable is None,
+            unavailable=unavailable,
+            provider=provider,
+            format=speech_to_text.recording_format(provider) if compressed else "wav",
+        )
 
     async def detect_personal_data(
         self, ctx: AuthContext, *, text: str, categories: Sequence[str] | None
@@ -224,20 +637,83 @@ class MLService:
         return row
 
     async def call_records(
-        self, ctx: AuthContext, *, service: str | None, skip: int, limit: int
+        self,
+        ctx: AuthContext,
+        *,
+        service: str | None,
+        skip: int,
+        limit: int,
+        agent_id: UUID | None = None,
+        channel_bot_id: UUID | None = None,
+        surface: TranscriptionSurface | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
     ) -> tuple[list[MLServiceCall], int]:
-        """A page of this organization's calls, and how many there are."""
+        """A page of this organization's calls, and how many there are.
+
+        The filters narrow inside the caller's organization and never widen it:
+        another tenant's agent or bot id matches nothing, the same as an id that
+        does not exist. `since` is inclusive and `until` exclusive.
+
+        Filtering by agent, bot or surface needs `runs:view`, as the summary
+        does (`sees_attribution`): a count of calls per agent id is the
+        summary's breakdown asked for one row at a time.
+
+        Raises:
+            AuthorizationError: An attribution filter without `runs:view`.
+        """
+        if (
+            agent_id is not None or channel_bot_id is not None or surface is not None
+        ) and not self.sees_attribution(ctx):
+            raise AuthorizationError(
+                message="Filtering calls by agent, bot or surface needs runs:view",
+                details={"required": [Perm.RUNS_VIEW.value]},
+            )
+        filters = CallFilters(
+            service=service,
+            agent_id=agent_id,
+            channel_bot_id=channel_bot_id,
+            surface=surface,
+            since=since,
+            until=until,
+        )
         rows = await ml_service_call_repo.list_for(
             self.db,
             organization_id=ctx.organization_id,
-            service=service,
+            filters=filters,
             skip=skip,
             limit=limit,
         )
         total = await ml_service_call_repo.count_for(
-            self.db, organization_id=ctx.organization_id, service=service
+            self.db, organization_id=ctx.organization_id, filters=filters
         )
         return rows, total
+
+    @staticmethod
+    def sees_attribution(ctx: AuthContext) -> bool:
+        """Whether this caller may read which agent, bot and surface a call came from.
+
+        `runs:view`, the summary's gate. `ml:invoke` - every Member - lets a
+        caller use the services and read the log of calls, which before #1797
+        named nobody; the attribution added since is the organization's map
+        of which agents and bots transcribe, and is answered to the people who
+        may read runs. Without it a call record comes back as it did before.
+        """
+        return ctx.has(Perm.RUNS_VIEW)
+
+    async def usage_summary(self, ctx: AuthContext, *, service: str, days: int) -> UsageSummary:
+        """This organization's successful `service` calls over the last `days`, added up.
+
+        By agent and by channel bot with their names, which is why the route
+        asks for `runs:view` rather than `ml:invoke`: a Member may transcribe,
+        but the names of agents and bots they cannot see are not theirs to read.
+        """
+        return await ml_service_call_repo.summarise(
+            self.db,
+            organization_id=ctx.organization_id,
+            service=service,
+            since=datetime.now(UTC) - timedelta(days=days),
+        )
 
     async def _ocr_server(self, ctx: AuthContext, ocr_service_id: UUID | None) -> str | None:
         """The address of the OCR server the caller named, or None for the bundled one.
@@ -260,16 +736,26 @@ class MLService:
         return row.base_url
 
     @staticmethod
-    def _transcription_choice(provider: str | None, model: str | None) -> tuple[str, str]:
+    def _transcription_choice(
+        provider: str | None, model: str | None, *, organization: Organization | None
+    ) -> tuple[str, str]:
         """The provider and model to transcribe with, refusing a pair nobody serves.
 
-        A caller who names a provider and no model gets *that provider's* first
-        model, never the deployment's default pair. Falling back to the default
-        when half the choice was made is how a recording meant for a self-hosted
-        engine is sent to a vendor instead - the caller said which engine, and
-        the only thing they left open was which of its models.
+        Naming neither takes the organization's default pair, or the
+        deployment's first offered one where it has none. A caller who names a
+        provider and no model gets *that provider's* first model, never a
+        default pair. Falling back to the default when half the choice was made
+        is how a recording meant for one vendor is sent to another - the caller
+        said which engine, and the only thing they left open was which of its
+        models.
         """
         if provider is None and model is None:
+            if (
+                organization is not None
+                and organization.speech_to_text_provider is not None
+                and organization.speech_to_text_model is not None
+            ):
+                return organization.speech_to_text_provider, organization.speech_to_text_model
             chosen = speech_to_text.default_choice()
             if chosen is None:
                 raise refused_field(
@@ -294,6 +780,48 @@ class MLService:
                 "model", f"{provider} does not offer {model} for transcription here."
             )
         return provider, model
+
+    async def _transcription_key(
+        self,
+        ctx: AuthContext,
+        *,
+        provider: str,
+        secret_id: UUID | None,
+        organization: Organization | None,
+    ) -> tuple[UUID, bool]:
+        """The key an ML API transcription is sent with, and whether it is shared.
+
+        A key the caller names is checked as an agent's would be - they must be
+        able to view it, and it must be an API key for this provider - and is
+        theirs to spend, not shared. With none named, the organization's
+        default key is taken, but only for the provider it was named beside: a
+        key never carries over to another provider.
+
+        Raises:
+            BadRequestError: The named key is not one the caller may use here.
+            ConfigurationError: `reason="not_configured"` - nothing is named and
+                the organization has no default key for this provider.
+        """
+        if secret_id is not None:
+            problem = await SpeechToTextSettingsService(self.db).key_problem(
+                secret_id, organization_id=ctx.organization_id, provider=provider, ctx=ctx
+            )
+            if problem is not None:
+                raise refused_field("secret_id", problem)
+            return secret_id, False
+        if (
+            organization is None
+            or organization.speech_to_text_provider != provider
+            or organization.speech_to_text_secret_id is None
+        ):
+            raise ConfigurationError(
+                message=(
+                    f"No key is chosen for {provider}: name one with `secret_id`, or set "
+                    "this organization's speech-to-text default and its key."
+                ),
+                details={"reason": "not_configured", "provider": provider},
+            )
+        return organization.speech_to_text_secret_id, True
 
     async def _record(
         self,
@@ -351,8 +879,7 @@ class MLService:
         A failure to write it is logged and swallowed: the caller is owed the
         refusal that actually happened, not a 500 from the bookkeeping.
         """
-        reason = exc.message[:512]
-        stage = str(exc.details.get("stage", "input")) if exc.details else "input"
+        stage, reason = transcription_usage.failure_of(exc)
         try:
             await ml_service_call_repo.record(
                 self.db,
@@ -364,7 +891,7 @@ class MLService:
                 units=0,
                 unit="",
                 duration_ms=_elapsed_ms(started),
-                failure_stage=stage[:32],
+                failure_stage=stage,
                 failure_reason=reason,
             )
             await self.db.commit()
@@ -376,6 +903,68 @@ class MLService:
                 exc_info=True,
             )
             await self.db.rollback()
+
+    async def _record_transcription_failure(
+        self,
+        call: TranscriptionCall,
+        *,
+        exc: AppException,
+        input_bytes: int,
+        audio_seconds: float | None,
+        started: float,
+    ) -> None:
+        """A refused transcription's row, with its attribution, committed like any refusal.
+
+        The same bargain as `_record_failure`, and the same session: the row is
+        flushed by `transcription_usage.record` and committed here, before the
+        refusal rolls the request back. A commit that fails is logged and the
+        refusal still reaches the caller.
+        """
+        await transcription_usage.record(
+            self.db,
+            call,
+            input_bytes=input_bytes,
+            audio_seconds=audio_seconds,
+            duration_ms=_elapsed_ms(started),
+            failure=exc,
+        )
+        try:
+            await self.db.commit()
+        except Exception:
+            logger.warning(
+                "Could not commit the failure of a transcription for organization %s",
+                call.organization_id,
+                exc_info=True,
+            )
+            await self.db.rollback()
+
+
+_ACCEPTED_AUDIO: dict[bool, str] = {
+    False: "Dictation accepts WAV audio as 16 kHz mono 16-bit PCM.",
+    True: "Dictation accepts WebM, Ogg or MP4 audio, or WAV as 16 kHz mono 16-bit PCM.",
+}
+"""What a refused type is told, by whether the deployment accepts compressed audio."""
+
+
+def _pcm_recording(content: bytes) -> tuple[Recording, float]:
+    """A dictation WAV as the provider is sent it, and its exact length in seconds.
+
+    The samples behind a header built by `pcm_wav.wrap`, so the provider is
+    sent what was counted and nothing the caller's header said.
+
+    Raises:
+        BadRequestError: `unsupported_type` for anything but 16 kHz mono 16-bit
+            PCM in a well-formed WAV, `empty` for one holding no samples.
+    """
+    pcm = pcm_wav.samples(content)
+    if pcm is None:
+        raise refused_field("file", _ACCEPTED_AUDIO[False], reason="unsupported_type")
+    if not pcm:
+        raise BadRequestError(message="The recording is empty.", details={"reason": "empty"})
+    return (
+        Recording(content=pcm_wav.wrap(pcm), filename="recording.wav", mime_type="audio/wav"),
+        len(pcm) / DICTATION_BYTES_PER_SECOND,
+    )
 
 
 def _refuse_oversized(content: bytes, *, ceiling: int | None = None) -> None:
@@ -405,6 +994,11 @@ def _refuse_oversized(content: bytes, *, ceiling: int | None = None) -> None:
             f"This service accepts at most {limit // (1024 * 1024)} MB; "
             "split the document or the recording.",
         )
+
+
+def _first_known(*figures: float | None) -> float | None:
+    """The first length somebody stated, in the order the caller trusts them."""
+    return next((figure for figure in figures if figure is not None), None)
 
 
 def _elapsed_ms(started: float) -> int:

@@ -6,6 +6,7 @@ import { Loader2, Save } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { BrandingImageField } from "@/components/admin/branding-image-field";
+import { DictationAudioCard } from "@/components/admin/dictation-audio-card";
 import { DomainListField } from "@/components/admin/domain-list-field";
 import { ErrorState, LoadingState } from "@/components/states";
 import {
@@ -109,6 +110,7 @@ export default function DeploymentSettingsPage() {
     personal_organizations: settings.personal_organizations,
     default_organization_id: settings.default_organization_id,
     default_organization_role: settings.default_organization_role,
+    dictation_compressed_audio: settings.dictation_compressed_audio,
     ...edits,
   };
 
@@ -403,6 +405,12 @@ export default function DeploymentSettingsPage() {
           />
         </div>
       </ListCard>
+
+      <DictationAudioCard
+        checked={draft.dictation_compressed_audio ?? false}
+        disabled={save.isPending}
+        onChange={(accept) => set("dictation_compressed_audio", accept)}
+      />
 
       <ListCard title={t("noticesTitle")} counted={t("noticesHint")}>
         <div className="space-y-5">

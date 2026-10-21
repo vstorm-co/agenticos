@@ -42,8 +42,6 @@ an agent's author cannot raise it - so its alert goes to the people who can, and
 no spec can redirect it.
 """
 
-from __future__ import annotations
-
 import hashlib
 from collections.abc import Sequence
 from datetime import datetime, timedelta
@@ -103,6 +101,21 @@ _SECURITY_EVENT_SUMMARY: dict[str, str] = {
     "sandbox_connection.created": "A sandbox connection was created.",
     "sandbox_connection.deleted": "A sandbox connection was deleted.",
 }
+
+
+def agent_face(agent: Agent) -> dict[str, str | bool | int | None]:
+    """Which agent a notification is about, kept so the inbox can draw its face.
+
+    In `render_context` beside the name the email reads: the row is the one
+    record of the event, and an id there is what lets the bell show the agent
+    rather than a dot.
+    """
+    return {
+        "agent_id": str(agent.id),
+        "agent_slug": agent.slug,
+        "agent_has_avatar": agent.has_avatar,
+        "agent_avatar_color": agent.avatar_color,
+    }
 
 
 def _security_event_summary(entry: AppAdminAuditLog) -> str:
@@ -177,6 +190,7 @@ class NotificationService:
         run_path = self._link(f"/agents/{agent.id}", run.organization_id)
         render_context = {
             "agent_name": agent.name,
+            **agent_face(agent),
             "org_name": organization_name,
             "reason": reason,
             "spent": f"{run.cost_usd:.2f}" if run.cost_usd is not None else "0.00",
@@ -293,6 +307,7 @@ class NotificationService:
         ]
         render_context = {
             "agent_name": agent.name,
+            **agent_face(agent),
             "tools": ", ".join(tools) if tools else "a tool call",
             "approvals_url": absolute_context_url(approvals_path),
             "app_name": settings.PROJECT_NAME,
@@ -357,6 +372,7 @@ class NotificationService:
             context_url=run_path,
             render_context={
                 "agent_name": agent.name,
+                **agent_face(agent),
                 "app_name": settings.PROJECT_NAME,
                 "run_url": absolute_context_url(run_path),
             },
@@ -395,6 +411,7 @@ class NotificationService:
             context_url=run_path,
             render_context={
                 "agent_name": agent.name,
+                **agent_face(agent),
                 "app_name": settings.PROJECT_NAME,
                 "run_url": absolute_context_url(run_path),
             },
@@ -442,6 +459,7 @@ class NotificationService:
             context_url=chat_path,
             render_context={
                 "agent_name": agent.name,
+                **agent_face(agent),
                 "app_name": settings.PROJECT_NAME,
                 "run_url": absolute_context_url(chat_path),
             },
@@ -813,6 +831,42 @@ class NotificationService:
             # alone gives every impersonated target its own fresh budget and
             # never actually bounds the administrator doing the impersonating.
             actor_user_id=entry.impersonator_user_id or entry.actor_user_id,
+            use_savepoint=True,
+        )
+
+    async def background_task_paused(
+        self, kind: str, *, organization_name: str | None, reason: str, paused_at: datetime
+    ) -> None:
+        """A kind of background job kept killing its workers and is paused (#2219).
+
+        To the deployment's owners - the app admins - in the app and by email,
+        whatever their preferences: work of that kind is piling up from now on
+        and nothing restarts it but one of them, from the Background jobs page.
+        Once per pause: the occurrence is the kind and the moment it paused.
+        Paused for one organization, it says which - the rest still run (#2248).
+        """
+        recipients = sorted(await member_repo.list_app_admin_ids(self.db))
+        if not recipients:
+            return
+        link_path = "/admin/background-jobs"
+        await self._center.write(
+            recipients=recipients,
+            event_type=NotificationEventType.BACKGROUND_TASK_PAUSED,
+            occurrence_id=f"{kind}:{organization_name or ''}:{paused_at.isoformat()}",
+            summary=(
+                f"Background jobs of the kind {kind} are paused"
+                + ("" if organization_name is None else f" for {organization_name}")
+                + f": {reason}. Resume them on the Background jobs page once the cause is fixed."
+            ),
+            context_url=link_path,
+            render_context={
+                "kind": kind,
+                "organization_name": organization_name,
+                "reason": reason,
+                "app_name": settings.PROJECT_NAME,
+                "url": absolute_context_url(link_path),
+            },
+            organization_id=None,
             use_savepoint=True,
         )
 

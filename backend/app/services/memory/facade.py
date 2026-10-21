@@ -21,8 +21,6 @@ success, which is exactly the failure mode this feature exists to avoid - so the
 result carries what each half actually removed.
 """
 
-from __future__ import annotations
-
 import logging
 from datetime import UTC, datetime
 from typing import Any

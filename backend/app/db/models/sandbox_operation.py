@@ -20,8 +20,6 @@ the product has to be too, because these rows are readable by everyone who can s
 the sandbox.
 """
 
-from __future__ import annotations
-
 import uuid
 
 from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Index, Integer, String, Text

@@ -9,8 +9,6 @@ a row that violates a column length or carries a URL template is a row somebody
 tries to connect to.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 import httpx

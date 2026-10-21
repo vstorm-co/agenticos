@@ -12,7 +12,15 @@ import {
   spotlightPath,
   waitForElement,
 } from "./spotlight";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui";
 
 describe("activateTab", () => {
   it("switches a Radix tab that a bare click leaves unmoved", () => {
@@ -37,6 +45,20 @@ describe("activateTab", () => {
     // activateTab fires what Radix actually listens to, so the panel mounts.
     act(() => activateTab(toolbox));
     expect(screen.getByText("toolbox-panel")).toBeInTheDocument();
+  });
+
+  it("opens a popover, which a press alone leaves closed", () => {
+    render(
+      <Popover>
+        <PopoverTrigger>Settings</PopoverTrigger>
+        <PopoverContent>approval-section</PopoverContent>
+      </Popover>,
+    );
+    const trigger = screen.getByRole("button", { name: "Settings" });
+    expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
+
+    act(() => activateTab(trigger));
+    expect(screen.getByText("approval-section")).toBeInTheDocument();
   });
 });
 

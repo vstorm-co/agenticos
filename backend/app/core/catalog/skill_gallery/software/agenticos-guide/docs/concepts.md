@@ -301,6 +301,7 @@ correctly:
 | `failed` | broke |
 | `budget_exceeded` | reached a cap — a spending limit doing its job |
 | `guardrail_blocked` | was refused by a [guardrail](reference/capabilities.md#guardrails) |
+| `loop_stopped` | kept repeating the same tool calls after it was warned, and was [stopped](governance.md#step-limits) |
 | `cancelled` | was stopped: the composer's stop button, a socket that went away, a delegation cancelled from above. On every surface, not only the streaming one |
 | `awaiting_approval` | parked on an approval, and is **resumable** — its message history is stored, so the decision applies to the conversation it belongs to |
 
@@ -500,6 +501,12 @@ somebody else's spec.
 So use a specialist for work that should not require publishing an agent —
 "summarise this in three bullets" — and a delegate for a capability the
 organization owns and reuses.
+
+A third kind sits beside them: a **remote agent**, another vendor's agent reached
+over A2A and registered in the organization by its agent card. It is called the
+same way and billed against the same budget, but it is not versioned here — its
+owner changes it on their side — so a reference names the registration rather than
+a version. See [Remote agents over A2A](reference/capabilities.md#remote-agents).
 
 #### Dynamic specialists, and the way out
 

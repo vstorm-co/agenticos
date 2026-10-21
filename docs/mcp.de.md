@@ -1,5 +1,5 @@
 ---
-source_sha: "3409285bde3b"
+source_sha: "d22e9f561f9c"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -514,8 +514,13 @@ Server wird weiterhin unter seinem echten Namen aufgerufen.
     Connection legte jeden Agent lahm, der sie benennt, auch die, die sie nie
     gebraucht haben.
 
-    Das Modell antwortet dann **ohne** diese Tools — richtig für einen Chat-Zug,
-    falsch, wenn Sie angenommen haben, ein Tool sei immer da.
+    Das Modell antwortet dann **ohne** diese Tools und erfährt das: Die
+    Anweisungen des Zugs nennen den Server, sagen, dass er nicht geantwortet oder
+    die Verbindung abgelehnt hat, und bitten das Modell zu sagen, dass er gerade
+    nicht erreichbar war, statt ein leeres Ergebnis zu melden. Das gilt auch für
+    einen Server, der eben noch geantwortet hat und beim Verbinden des Zugs
+    scheitert. Richtig für einen Chat-Zug, falsch, wenn Sie angenommen haben, ein
+    Tool sei immer da.
 
 Das ist ein bewusster Kompromiss. Der `/test`-Endpunkt und `last_status` sind der
 Weg, es herauszufinden, und der [Audit-Trail](governance.md#audit) hält fest, was
@@ -1034,6 +1039,29 @@ hier angelegten Entwurf veröffentlicht eine Person in der Konsole.
 Verbundene Anwendungen stehen unter **Einstellungen → MCP-Clients**, wo das
 Trennen ihren Zugriff samt jedem Token beendet. Aufrufe, die etwas ändern,
 warten auf eine Freigabe, wie [oben](#which-calls-wait-for-a-person) beschrieben.
+
+### Ihn einem Agent geben { #giving-it-to-an-agent }
+
+Derselbe Server ist auch eine MCP-Bindung, die jeder Agent haben kann, sodass ein
+Agent „was ist gestern fehlgeschlagen“ oder „welche Agents nutzen diese
+Wissensbasis“ aus den eigenen Daten der Plattform beantwortet. Im Builder ist er
+die erste Karte unter **MCP-Server**, benannt nach dieser Installation; sie
+einzuschalten bindet ihn als `mcp_servers: [{account: platform, approval: writes}]`.
+
+- **Er handelt als die Person, für die der Agent läuft.** Ein Run erzeugt einen
+  kurzlebigen Schlüssel mit den Berechtigungen dieser Person, sodass der Agent
+  eines Viewers liest, was der Viewer lesen darf, und nichts anlegt. Nichts Neues
+  wird gewährt, und wo niemand hinter dem Run steht - ein öffentliches Widget, ein
+  Zeitplan im Namen von niemandem - fehlt die Bindung.
+- **Änderungen warten auf Freigabe.** `writes`, der Standard, hält jedes Werkzeug,
+  das etwas ändert (`create_agent_draft`, `run_agent`, `invite_member` und die
+  übrigen), zur Freigabe zurück; `all` auch das Lesen. `none` wird nicht
+  angeboten: Diese Werkzeuge handeln mit der Befugnis eines Menschen.
+- **Die Werkzeuge lassen sich einschränken** in den Einstellungen der Karte, die
+  jedes Werkzeug auflisten und die ändernden markieren.
+
+Die Vorlage **Claude Code like** bindet ihn genau so, sodass ein neuer Agent daraus
+die Plattform sofort nachschlagen kann.
 
 ## Was MCP Ihnen nicht bringt { #what-mcp-does-not-get-you }
 

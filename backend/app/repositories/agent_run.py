@@ -23,6 +23,7 @@ from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import (
@@ -39,6 +40,7 @@ from app.db.models.group import Group, GroupMember
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.user import User
+from app.db.models.voice_call import VoiceCall
 
 
 async def create_run(
@@ -60,6 +62,7 @@ async def create_run(
     subagent_task_id: str | None = None,
     channel_identity_id: UUID | None = None,
     initiated_by_publisher_fallback: bool = False,
+    modality: str = "text",
     is_test: bool = False,
     test_spec: dict[str, Any] | None = None,
     key_scopes: list[str] | None = None,
@@ -78,6 +81,7 @@ async def create_run(
         exposure_id=exposure_id,
         environment_id=environment_id,
         surface=surface,
+        modality=modality,
         model_label=model_label,
         provider=provider,
         secret_id=secret_id,
@@ -105,17 +109,42 @@ async def finish_run(
     error: str | None = None,
     logfire_trace_id: str | None = None,
     paused_state: dict[str, Any] | None = None,
+    tool_args_repaired: int | None = None,
+    cache_read_tokens: int | None = None,
+    cache_write_tokens: int | None = None,
+    cache_busts: int = 0,
+    cache_expiries: int = 0,
+    cache_missed_tokens: int = 0,
 ) -> AgentRun:
     run.status = status
     run.input_tokens = input_tokens
     run.output_tokens = output_tokens
+    # Left alone by a caller that passes none - a path that ran no model and
+    # carries the totals over - rather than zeroed under them.
+    if cache_read_tokens is not None:
+        run.cache_read_tokens = cache_read_tokens
+    if cache_write_tokens is not None:
+        run.cache_write_tokens = cache_write_tokens
     run.cost_usd = cost_usd
     run.cost_is_partial = cost_is_partial
+    # Left alone by a path that ran no model - an approval that expired - so it
+    # does not wipe what the run's earlier segments counted.
+    if tool_args_repaired is not None:
+        run.tool_args_repaired = tool_args_repaired
     run.ended_at = ended_at
     run.error = error
+    # Written even when unchanged in memory: another writer may have set it since
+    # the run was loaded - the voice sweep's error on a call whose teardown was
+    # still finishing - and an unchanged attribute is left out of the UPDATE.
+    flag_modified(run, "error")
     # Written on every finish, not only when parking: a run that ended must not
     # keep the state it was parked with, or it can be resumed a second time.
     run.paused_state = paused_state
+    # Added, not set: a run parked on an approval is finished once per stretch
+    # it runs, each with a recorder of its own.
+    run.cache_busts += cache_busts
+    run.cache_expiries += cache_expiries
+    run.cache_missed_tokens += cache_missed_tokens
     if logfire_trace_id is not None:
         run.logfire_trace_id = logfire_trace_id
     db.add(run)
@@ -134,6 +163,8 @@ async def record_delegated_run(
     parent_run_id: UUID,
     subagent_task_id: str,
     user_id: UUID | None,
+    initiated_by_publisher_fallback: bool,
+    channel_identity_id: UUID | None,
     conversation_id: UUID | None,
     exposure_id: UUID | None,
     surface: str,
@@ -148,6 +179,11 @@ async def record_delegated_run(
     started_at: datetime,
     ended_at: datetime,
     error: str | None = None,
+    cache_read_tokens: int = 0,
+    cache_write_tokens: int = 0,
+    cache_busts: int = 0,
+    cache_expiries: int = 0,
+    cache_missed_tokens: int = 0,
 ) -> AgentRun:
     """Write a delegated run that is already over, in one insert.
 
@@ -174,6 +210,8 @@ async def record_delegated_run(
         parent_run_id=parent_run_id,
         subagent_task_id=subagent_task_id,
         user_id=user_id,
+        initiated_by_publisher_fallback=initiated_by_publisher_fallback,
+        channel_identity_id=channel_identity_id,
         conversation_id=conversation_id,
         exposure_id=exposure_id,
         surface=surface,
@@ -182,6 +220,11 @@ async def record_delegated_run(
         secret_id=secret_id,
         status=status,
         input_tokens=input_tokens,
+        cache_read_tokens=cache_read_tokens,
+        cache_write_tokens=cache_write_tokens,
+        cache_busts=cache_busts,
+        cache_expiries=cache_expiries,
+        cache_missed_tokens=cache_missed_tokens,
         output_tokens=output_tokens,
         cost_usd=cost_usd,
         cost_is_partial=cost_is_partial,
@@ -365,6 +408,16 @@ class RunFilters:
             been renamed or deleted, and the dashboard's model card counts these
             same strings - so "the runs behind this bar" is the same set on both
             screens.
+        modality: Typed runs (`text`) or calls (`voice`) (#54).
+        one_row_per_call: Leave out the runs that continue a call after a
+            reconnect, so a call reads as one row on its first run - what the
+            Activity list asks for (#54). Every other filter and the sort then
+            read that first run alone: a continuation's own status, model or
+            cost neither surfaces the call under a filter nor moves it in a
+            sort, and the whole call's seconds and cost are the row's
+            `voice_chain`. Off by default, and off for the CSV export: a
+            continuation's run is still money spent, and an export that dropped
+            it would not add up to the bill.
         is_test: Only test runs from the Builder's panel, or only real ones
             (#2074). Unset lists both.
     """
@@ -380,6 +433,8 @@ class RunFilters:
     exposure_id: UUID | None = None
     agent_version_id: UUID | None = None
     rated: RunRating | None = None
+    modality: str | None = None
+    one_row_per_call: bool = False
     is_test: bool | None = None
 
     def conditions(self) -> list[ColumnElement[bool]]:
@@ -411,6 +466,14 @@ class RunFilters:
             clauses.append(AgentRun.agent_version_id == self.agent_version_id)
         if self.rated is not None:
             clauses.append(_was_rated(self.rated))
+        if self.modality is not None:
+            clauses.append(AgentRun.modality == self.modality)
+        if self.one_row_per_call:
+            clauses.append(
+                ~select(VoiceCall.id)
+                .where(VoiceCall.run_id == AgentRun.id, VoiceCall.resume_of.is_not(None))
+                .exists()
+            )
         if self.is_test is not None:
             clauses.append(AgentRun.is_test.is_(self.is_test))
         return clauses
@@ -965,6 +1028,48 @@ async def spend_by_agent(
     ]
 
 
+async def cache_collapses(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    since: datetime,
+    until: datetime | None = None,
+) -> list[tuple[UUID, str, str, str | None, int, int, int, int]]:
+    """Prompt-cache busts and expiries per agent and model over a window (#2109).
+
+    Returns (agent_id, agent_name, agent_slug, model_label, busts, expiries,
+    missed_tokens, run_count) rows, for pairs with at least one of either, most
+    busts first. Every run counts, a delegate's too: each row is its own requests.
+    """
+    collapsed = or_(AgentRun.cache_busts > 0, AgentRun.cache_expiries > 0)
+    busts = func.sum(AgentRun.cache_busts)
+    result = await db.execute(
+        select(
+            Agent.id,
+            Agent.name,
+            Agent.slug,
+            AgentRun.model_label,
+            busts,
+            func.sum(AgentRun.cache_expiries),
+            func.sum(AgentRun.cache_missed_tokens),
+            func.count(AgentRun.id),
+        )
+        .join(Agent, Agent.id == AgentRun.agent_id)
+        .where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.started_at >= since,
+            *([] if until is None else [AgentRun.started_at <= until]),
+            collapsed,
+        )
+        .group_by(Agent.id, Agent.name, Agent.slug, AgentRun.model_label)
+        .order_by(busts.desc(), Agent.name)
+    )
+    return [
+        (agent_id, name, slug, model, int(b), int(e), int(missed), int(runs))
+        for agent_id, name, slug, model, b, e, missed, runs in result.all()
+    ]
+
+
 def _own_cost() -> ColumnElement[Decimal]:
     """What a run spent *itself*, with its delegations' share taken back out.
 
@@ -1346,7 +1451,7 @@ class WindowBreakdown:
     by_day: list[tuple[date, int, int, Decimal]]
     by_surface: list[tuple[str | None, int]]
     by_status: list[tuple[str | None, int]]
-    by_model: list[tuple[str | None, str | None, int]]
+    by_model: list[tuple[str | None, str | None, int, int]]
     by_provider: list[tuple[str | None, Decimal]]
 
 
@@ -1372,6 +1477,7 @@ async def window_breakdown(
     runs = func.count(AgentRun.id)
     completed = func.count(AgentRun.id).filter(AgentRun.status == RunStatus.COMPLETED.value)
     cost = func.coalesce(func.sum(AgentRun.cost_usd), 0)
+    repaired = func.coalesce(func.sum(AgentRun.tool_args_repaired), 0)
     result = await db.execute(
         select(
             func.grouping(day),
@@ -1387,6 +1493,7 @@ async def window_breakdown(
             runs,
             completed,
             cost,
+            repaired,
         )
         .where(*conditions)
         .group_by(
@@ -1402,12 +1509,12 @@ async def window_breakdown(
     by_day: list[tuple[date, int, int, Decimal]] = []
     by_surface: list[tuple[str | None, int]] = []
     by_status: list[tuple[str | None, int]] = []
-    by_model: list[tuple[str | None, str | None, int]] = []
+    by_model: list[tuple[str | None, str | None, int, int]] = []
     by_provider: list[tuple[str | None, Decimal]] = []
     for row in result.all():
         g_day, g_surface, g_status, g_model, g_provider = row[0], row[1], row[2], row[3], row[4]
         day_value, surface, status, model_label, provider = row[5], row[6], row[7], row[8], row[9]
-        run_count, completed_count, cost_usd = row[10], row[11], row[12]
+        run_count, completed_count, cost_usd, repaired_count = row[10], row[11], row[12], row[13]
         if g_day == 0:
             by_day.append((day_value, run_count, completed_count, Decimal(cost_usd)))
         elif g_surface == 0:
@@ -1415,7 +1522,7 @@ async def window_breakdown(
         elif g_status == 0:
             by_status.append((status, run_count))
         elif g_model == 0:
-            by_model.append((model_label, provider, run_count))
+            by_model.append((model_label, provider, run_count, int(repaired_count)))
         elif g_provider == 0:
             by_provider.append((provider, Decimal(cost_usd)))
     # Largest group first, ties broken by the label so the order is the same
@@ -2017,12 +2124,17 @@ async def list_stale_approvals(
     several sweeps instead of one transaction holding every stale row in the
     deployment. Oldest first, so the ones that have waited longest go first and a
     backlog drains in the order it accumulated.
+
+    A voice run's approvals are the call's: decided through its socket, expired
+    by its own timeout, and by the voice reaper if the process died (#54).
     """
     result = await db.execute(
         select(ToolApproval)
+        .join(AgentRun, AgentRun.id == ToolApproval.run_id)
         .where(
             ToolApproval.status == ApprovalStatus.PENDING.value,
             ToolApproval.created_at < older_than,
+            AgentRun.modality != "voice",
         )
         .order_by(ToolApproval.created_at.asc())
         .limit(limit)
@@ -2070,6 +2182,65 @@ async def fail_stale_runs(
     )
     await db.flush()
     return [row[0] for row in result.all()]
+
+
+async def close_voice_run(
+    db: AsyncSession,
+    *,
+    run_id: UUID,
+    status: str,
+    cost_usd: Decimal,
+    ended_at: datetime,
+    error: str | None,
+) -> bool:
+    """End a voice run no live process will finish, at the cost its call row recorded (#54).
+
+    The sweep's, for a call whose process died, and a reconnect's, for the
+    connection it took over (`close_orphaned`). Unscoped like `fail_stale_runs`:
+    the sweep has no tenant. Only a run still `running` is touched, so a run its
+    own `finish` closed is never rewritten.
+    """
+    result = await db.execute(
+        sql_update(AgentRun)
+        .where(AgentRun.id == run_id, AgentRun.status == RunStatus.RUNNING.value)
+        .values(status=status, cost_usd=cost_usd, ended_at=ended_at, error=error)
+        .returning(AgentRun.id)
+    )
+    await db.flush()
+    return result.first() is not None
+
+
+async def record_live_cost(db: AsyncSession, *, run_id: UUID, cost_usd: Decimal) -> None:
+    """Write a live call's spend so far onto its run, for every other run's budget baseline (#54).
+
+    Baselines sum `agent_runs.cost_usd`, and a text run writes it only at its
+    end - seconds later. A call lasts up to fifty minutes, so its heartbeat
+    writes it as it goes. Only while the run is `running`: the run's `finish`
+    writes the final figure, and a heartbeat landing after it must not undo that.
+    """
+    await db.execute(
+        sql_update(AgentRun)
+        .where(AgentRun.id == run_id, AgentRun.status == RunStatus.RUNNING.value)
+        .values(cost_usd=cost_usd)
+    )
+    await db.flush()
+
+
+async def expire_pending_approvals(db: AsyncSession, *, run_id: UUID, decided_at: datetime) -> int:
+    """Expire, with no decider, every approval an ended call left pending (#54).
+
+    The call's teardown, the sweep and a reconnect's takeover each call it once
+    nothing is left to decide them. Unscoped for the same reason as
+    :func:`close_voice_run`; `run_id` names one run.
+    """
+    result = await db.execute(
+        sql_update(ToolApproval)
+        .where(ToolApproval.run_id == run_id, ToolApproval.status == ApprovalStatus.PENDING.value)
+        .values(status=ApprovalStatus.EXPIRED.value, decided_by_user_id=None, decided_at=decided_at)
+        .returning(ToolApproval.id)
+    )
+    await db.flush()
+    return len(result.all())
 
 
 async def decide_approval(

@@ -63,6 +63,7 @@ export default defineConfig({
         "src/components/dashboard/widgets/sandbox-*.tsx",
         // The routines card, held to the gate by #594's own "done when".
         "src/components/dashboard/widgets/routines.tsx",
+        "src/components/dashboard/widgets/recent-visuals.tsx",
         "src/components/dashboard/widgets/recent-failures.tsx",
         // The notifications card (#1598).
         "src/components/dashboard/widgets/notifications.tsx",
@@ -73,6 +74,8 @@ export default defineConfig({
         "src/components/dashboard/agent-face.tsx",
         "src/components/dashboard/me-header.tsx",
         "src/components/dashboard/widgets/artifacts.tsx",
+        "src/components/dashboard/widgets/voice-minutes.tsx",
+        "src/components/dashboard/widgets/projects.tsx",
         // Department budgets (#2072): the dashboard card and the group page's.
         "src/components/dashboard/widgets/department-spend.tsx",
         "src/components/dashboard/widgets/department-quality.tsx",
@@ -107,6 +110,17 @@ export default defineConfig({
         "src/components/public-config/**/*.tsx",
         "src/components/runs/**/*.tsx",
         "src/components/sandboxes/**/*.tsx",
+        "src/components/remote-agents/**/*.tsx",
+        // Projects: the pages, the composer's picker and the sidebar's rows.
+        "src/components/projects/**/*.tsx",
+        "src/components/layout/project-rows.tsx",
+        "src/components/layout/navigation-progress.tsx",
+        "src/components/layout/notification-glyph.tsx",
+        "src/components/chat/project-chip.tsx",
+        "src/components/chat/chat-room-bar.tsx",
+        "src/components/chat/typing-indicator.tsx",
+        "src/components/chat/reply-quote.tsx",
+        "src/components/chat/person-face.tsx",
         // One file viewer for every surface (#136). Held to the gate because what
         // it replaced was: three of the four implementations sat under
         // `components/sandboxes/**` and one under `chat/`, all already at 100%, so
@@ -118,6 +132,15 @@ export default defineConfig({
         "src/components/ui/question-prompt.tsx",
         "src/components/ui/question-slide.tsx",
         "src/components/ui/text-peek.tsx",
+        // The composer's glow, the account menu's theme and language, and the
+        // Appearance card that picks the glow's style and the Motion preference,
+        // with what applies that preference app-wide (#1797).
+        "src/components/ui/voice-glow.tsx",
+        "src/components/layout/account-preferences.tsx",
+        "src/components/settings/appearance-settings.tsx",
+        "src/components/settings/choice-group.tsx",
+        "src/components/theme/motion-provider.tsx",
+        "src/components/theme/motion-script.tsx",
         // The cue a sideways-scrolling strip gives that there is more of it.
         "src/components/ui/scroll-fade.ts",
         "src/components/ui/more-options.tsx",
@@ -134,6 +157,12 @@ export default defineConfig({
         "src/components/chat/chat-controls.tsx",
         // A phone's `+` sheet for attaching and dictating (#2066).
         "src/components/chat/composer-sheet.tsx",
+        // `@`-mentions in the composer and the transcript (#2189).
+        "src/components/chat/mention-chip.tsx",
+        "src/components/chat/composer-editor.tsx",
+        "src/components/chat/composer-hints.tsx",
+        "src/components/chat/link-favicon.tsx",
+        "src/components/chat/mention-palette.tsx",
         "src/components/chat/connect-account-prompt.tsx",
         "src/components/chat/connect-services-card.tsx",
         "src/components/chat/your-connections.tsx",
@@ -142,12 +171,25 @@ export default defineConfig({
         "src/components/chat/conversation-filters.tsx",
         "src/components/chat/copy-button.tsx",
         "src/components/chat/delegation-panel.tsx",
+        // The composer's dictation: the recording bar, the strip under the box
+        // and the crossed-out mic (#1797).
+        "src/components/chat/dictation-bar.tsx",
+        "src/components/chat/dictation-strip.tsx",
+        "src/components/chat/dictation-unavailable.tsx",
+        // Voice calls (#54): the call button, the approval card, captions, the
+        // level meter, the controls and the status line. New, so inside the gate.
+        "src/components/voice/**/*.tsx",
         "src/components/chat/file-preview-panel.tsx",
         "src/components/chat/markdown-content.impl.tsx",
         "src/components/chat/markdown-content.tsx",
         "src/components/chat/message-cost.tsx",
         "src/components/chat/turn-action.ts",
         "src/components/chat/turn-parts.tsx",
+        "src/components/chat/shared-visuals.tsx",
+        "src/components/chat/visual-actions.ts",
+        "src/components/chat/visual-frame.tsx",
+        "src/components/chat/visual-panel.tsx",
+        "src/components/chat/visual-save-dialog.tsx",
         "src/components/chat/work-fold.tsx",
         "src/components/chat/you-face.tsx",
         "src/components/chat/message-item.tsx",
@@ -164,6 +206,7 @@ export default defineConfig({
         "src/components/chat/source-mark.tsx",
         "src/components/chat/markdown-quote.tsx",
         "src/components/chat/delegation-chat.tsx",
+        "src/components/chat/delegate-face.tsx",
         "src/components/chat/delegation-sheet.tsx",
         "src/components/chat/turn-delegations.tsx",
         "src/components/chat/tool-call-card.tsx",
@@ -178,6 +221,17 @@ export default defineConfig({
         "src/components/skills/**/*.tsx",
         "src/components/context/**/*.tsx",
         "src/components/memory/**/*.tsx",
+        // The organization's Voice card (#1797). The rest of `teams/` predates
+        // the gate; this file is new, so it starts inside.
+        "src/components/teams/org-voice-settings.tsx",
+        // Its voice-call section (#54), new and so inside the gate too.
+        "src/components/teams/org-voice-conversations.tsx",
+        // The deployment's switch for compressed dictation audio (#1797), new and
+        // so inside the gate, like the Voice card above.
+        "src/components/admin/dictation-audio-card.tsx",
+        // The one key field every speech-to-text level names its key with
+        // (#1797), new and so inside the gate.
+        "src/components/vault/speech-key-field.tsx",
       ],
       exclude: [
         "node_modules",

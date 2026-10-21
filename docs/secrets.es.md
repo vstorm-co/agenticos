@@ -1,5 +1,5 @@
 ---
-source_sha: "965ad3ad82f8"
+source_sha: "64b487154003"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }
@@ -100,6 +100,7 @@ secreto tiene un **kind**, y el kind decide qué campos existen.
 | `github_oauth_app` | El client id público de una GitHub OAuth App y su secreto |
 | `git_token` | Un access token para git sobre HTTPS, y el único host al que puede enviarse |
 | `entra_app` | El tenant id, el client id y el client secret de un registro de aplicación de Microsoft Entra |
+| `openai_codex` | Un inicio de sesión de ChatGPT: un access token, un refresh token y el id de cuenta |
 | `none` | No es un secreto — la marca para un endpoint que no necesita credencial |
 
 `github_oauth_app` lo gasta la plataforma en lugar de elegirlo una persona — el
@@ -109,6 +110,15 @@ exactamente uno**: la credencial privada de un miembro nunca se usa en silencio
 para la conexión de toda la organización, y con dos apps visibles para la
 organización guardadas la conexión se rechaza (nombrando ambas) en lugar de
 quedar atada al nombre que ordene primero.
+
+La misma regla - **solo visibles para la organización** - cubre la clave de API
+con la que se envían la configuración por defecto de voz a texto de la
+organización y el par de transcripción propio de un bot de canal: la plataforma
+la gasta en el dictado de cada miembro y en cada nota de voz que recibe un bot,
+así que la clave privada de un miembro se rechaza al guardar cualquiera de los
+dos, y una clave que se vuelve privada después deja de usarse. A diferencia de
+`github_oauth_app`, estas claves se nombran por id, así que puede haber varias
+guardadas a la vez.
 
 `git_token` lleva su host porque una fuente de sincronización Git envía el token a
 una URL que elige quien edita la fuente. Atado al host con el que se añadió, el
@@ -122,6 +132,13 @@ un token no dice cuáles son. Concédele `Sites.Selected` sobre el único sitio 
 lee la fuente — consulta [Configurar SharePoint y
 OneDrive](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup). Su pista
 son los cuatro últimos caracteres del client id, que es público, y no del secreto.
+
+`openai_codex` es el único kind que nadie teclea. Se guarda [iniciando sesión con
+ChatGPT](models.md#running-on-a-chatgpt-subscription), y cambia mientras se usa:
+cada renovación gasta el refresh token, así que el par nuevo se vuelve a sellar
+bajo el mismo id. Su pista son los cuatro últimos caracteres del id de cuenta.
+Cuando un inicio de sesión deja de funcionar, **Reconnect** vuelve a iniciar
+sesión en su lugar.
 
 `aws_credentials` es el caso más claro de por qué existen los kinds: el access key
 id no es secreto y el secret access key sí lo es, y un único campo no puede
@@ -146,6 +163,33 @@ truncado mientras el formulario sigue abierto.
 **Providers de modelos.** Los nombra un [perfil de modelo](models.md). El gasto se
 atribuye al secreto al que resolvió el run, y así «qué clave está costando más»
 tiene respuesta.
+
+**Voz a texto.** Una clave de API cuyo propósito es el proveedor, nombrada por
+id junto al proveedor y el modelo allí donde se configura la voz a texto: la
+configuración por defecto de la organización, la sobrescritura de un agent y el
+par propio de un bot de canal. Nada busca una clave en tiempo de ejecución. La
+clave de la organización y la de un bot tienen que ser visibles para la
+organización; la de un agent sigue la regla del préstamo: quien publica tiene que
+poder verla. El [registro de uso](ml-services.md#what-is-recorded) de cada
+transcripción nombra la clave con la que se envió. Consulta
+[a qué motor llega una grabación](ml-services.md#which-engine-a-recording-reaches).
+La lista de agents que usan una clave no muestra este uso.
+
+**Llamadas de voz.** La clave con la que se mantiene una
+[llamada de voz](voice.md) se nombra en la tarjeta Voice del agent, junto al
+provider y el modelo en tiempo real. Su propósito tiene que ser el provider y su
+kind el del provider: una `api_key`, o un secreto `azure_openai` para Azure, que
+lleva además el endpoint y la versión de la API. Sigue la regla del préstamo -
+quien publica tiene que poder verla - y nada busca una clave en tiempo de
+ejecución. La clave se desella para abrir una llamada y nunca llega al
+navegador: el servidor responde a la oferta WebRTC y no se emite ningún secreto
+de cliente.
+
+Para colgar una llamada cuyo proceso murió, el barrido de voz la lee a través
+de `OrganizationSecretService.voice_call_key`, un lector cuyo texto en claro va
+al endpoint de colgar del provider y a ningún otro sitio. Una fila de llamada
+solo guarda el id de la clave, y una clave borrada deja al agent sin poder
+atender llamadas hasta que se elija otra.
 
 **Capabilities.** Una capability declara que necesita una credencial de un *kind*
 dado — nunca una instancia. El código dice «necesito una clave de API»; la

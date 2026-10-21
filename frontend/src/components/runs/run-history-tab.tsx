@@ -33,8 +33,8 @@ import { setUrlParam } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 import type { RunStatus } from "@/types/runs";
 
-/** "What went wrong" as one choice - the query the two statuses exist apart for. */
-const PROBLEM_STATUSES: RunStatus[] = ["failed", "budget_exceeded"];
+/** "What went wrong" as one choice - the query the statuses exist apart for. */
+const PROBLEM_STATUSES: RunStatus[] = ["failed", "budget_exceeded", "loop_stopped"];
 
 /** One server page - `GET /runs`' own default, so an unpaged call reads the same. */
 const PAGE_SIZE = 50;
@@ -167,6 +167,7 @@ export function RunHistoryTab({
           ? PROBLEM_STATUSES
           : [filters.status],
     surface: filters.surface === "all" ? undefined : filters.surface,
+    modality: filters.modality === "all" ? undefined : filters.modality,
     modelLabel: filters.model === "all" ? undefined : filters.model,
     userId: filters.userId === "all" ? undefined : filters.userId,
     agentVersionId: filters.versionId === "all" ? undefined : filters.versionId,
@@ -191,6 +192,7 @@ export function RunHistoryTab({
       filters.status === "problems" ? PROBLEM_STATUSES.join(",") : filters.status;
   }
   if (filters.surface !== "all") exportParams.surface = filters.surface;
+  if (filters.modality !== "all") exportParams.modality = filters.modality;
   if (filters.model !== "all") exportParams.model_label = filters.model;
   if (filters.rated !== "all") exportParams.rated = filters.rated;
   if (filters.userId !== "all") exportParams.user_id = filters.userId;

@@ -17,8 +17,6 @@ is never written. Narrowing to an environment therefore cannot return one, which
 is a fact the surface has to state rather than one a reader should have to notice.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal

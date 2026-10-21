@@ -7,8 +7,6 @@ five, that they are wired to the right resource type, and that a row from
 another organization is refused before the sharing service is ever reached.
 """
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -20,6 +18,7 @@ from app.api.routes.v1._sharing_loaders import (
     load_collection,
     load_context,
     load_mcp_connection,
+    load_project,
     load_secret,
     load_skill,
 )
@@ -29,6 +28,7 @@ from app.api.routes.v1.sharing import (
     collection_sharing_router,
     context_sharing_router,
     mcp_connection_sharing_router,
+    project_sharing_router,
     secret_sharing_router,
     skill_sharing_router,
 )
@@ -44,6 +44,7 @@ ROUTERS = (
     ("secrets", secret_sharing_router),
     ("artifacts", artifact_sharing_router),
     ("mcp-connections", mcp_connection_sharing_router),
+    ("projects", project_sharing_router),
 )
 
 LOADERS = (
@@ -54,6 +55,7 @@ LOADERS = (
     ("secret", load_secret, "Secret not found", "secret_id"),
     ("artifact", load_artifact, "App not found", "artifact_id"),
     ("mcp_connection", load_mcp_connection, "MCP connection not found", "connection_id"),
+    ("project", load_project, "Project not found", "project_id"),
 )
 
 

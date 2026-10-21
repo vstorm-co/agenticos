@@ -1,5 +1,6 @@
 "use client";
 
+import type { Mentionable } from "@/types/mention";
 import type { ApprovalMode } from "@/components/chat/chat-controls";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -11,6 +12,8 @@ import { clientId } from "@/lib/ids";
 import { useChatStore, useAuthStore, useInChatScope, useOrgStore } from "@/stores";
 import { useTenantId } from "@/hooks/use-organizations";
 import { useAgentSelectionStore } from "@/stores";
+import { addVisualImages, appendVisualArgs, dropVisualArgs } from "@/stores/visual-stream-store";
+import { isVisualTool } from "@/lib/visuals";
 import { Perm } from "@/types/permissions";
 import type {
   ActionRequest,
@@ -18,6 +21,7 @@ import type {
   AskUserQuestion,
   BrowserFrame,
   ChatMessageFile,
+  ChatPerson,
   Compaction,
   ConnectionRequest,
   PersonalServiceGap,
@@ -41,7 +45,7 @@ import {
 } from "@/lib/delegations";
 import { applyBrowserFrame, type Browse } from "@/lib/browse";
 import { useBrowserPanelStore } from "@/stores/browser-panel-store";
-import { buildAssistantParts } from "@/lib/conversation-to-chat";
+import { buildAssistantParts, replyFromWire, type WireReply } from "@/lib/conversation-to-chat";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { toast } from "sonner";
 
@@ -61,6 +65,8 @@ export interface QueuedMessage {
   content: string;
   fileIds?: string[];
   files?: ChatMessageFile[];
+  /** What the person pointed the agent at with `@`, sent with the message (#2189). */
+  mentions?: Mentionable[];
 }
 
 /** One conversation, including the one a first question has not named yet. */
@@ -108,6 +114,41 @@ function withoutThread(threads: ReadonlySet<string>, id: string | null): Readonl
   const next = new Set(threads);
   next.delete(id);
   return next;
+}
+
+/** How often a person still writing says so, and how long a room shows it after. */
+const TYPING_EVERY_MS = 3000;
+const TYPING_SHOWN_MS = 6000;
+
+/** What a running turn streams - drawn only into a turn this tab writes or follows. */
+const TURN_FRAMES: ReadonlySet<string> = new Set([
+  "model_request_start",
+  "part_start",
+  "tool_call_delta",
+  "visual_images",
+  "text_delta",
+  "thinking_delta",
+  "tool_call",
+  "tool_result",
+  "final_result",
+  "subagent_start",
+  "subagent_text_delta",
+  "subagent_thinking_delta",
+  "subagent_tool_call",
+  "subagent_tool_result",
+  "subagent_awaiting_approval",
+  "subagent_complete",
+  "browser_opened",
+  "browser_step",
+  "browser_frame",
+  "browser_finished",
+  "complete",
+]);
+
+interface TypingPerson {
+  conversationId: string;
+  person: ChatPerson;
+  until: number;
 }
 
 export function useChat(options: UseChatOptions = {}) {
@@ -173,6 +214,8 @@ export function useChat(options: UseChatOptions = {}) {
   // The tool calls whose arguments are still streaming, by part index, so a turn
   // that ends before `tool_call` arrives can mark them unfinished.
   const streamingCallsRef = useRef<Map<number, string>>(new Map());
+  // The streaming calls that draw, whose arguments are shown as they arrive.
+  const visualCallsRef = useRef<Set<string>>(new Set());
   // Whether the next text delta opens a new model response, and so a new part.
   const newResponseRef = useRef(false);
   // Outbound queue: messages typed while agent is busy / socket offline. Held
@@ -261,6 +304,11 @@ export function useChat(options: UseChatOptions = {}) {
   // it outlives a turn: it describes what is configured, and clearing it when the
   // turn ends would flash the one message that explains why nothing happened.
   const [compactionImpossible, setCompactionImpossible] = useState<Compaction | null>(null);
+  // Whether the run's sandbox is still being opened. The first session after an
+  // update builds the runtime's image on the host, which is minutes during which no
+  // token and no tool step arrives (#2222). Cleared by the next tool result and by
+  // the end of the turn, which is when the session is known to be open or gone.
+  const [sandboxPreparing, setSandboxPreparing] = useState(false);
   // The agent's personal MCP services this person cannot reach, for the turn on
   // screen. Cleared when the next question is sent: the card belongs beside the
   // answer that says the agent could not reach them.
@@ -313,6 +361,23 @@ export function useChat(options: UseChatOptions = {}) {
   // goes on without them - see the switch below - and lands in the transcript
   // when it finishes, which is what coming back to one of these says.
   const [leftRunning, setLeftRunning] = useState<ReadonlySet<string>>(() => new Set());
+  // The conversation whose turn this tab is following from another socket's
+  // frames (`turn_attached`), or null. Its end is a re-read, not a `complete`.
+  const followingRef = useRef<string | null>(null);
+  // A turn announced for a conversation other than the one on screen, whose
+  // frames are dropped until it ends or another is followed.
+  const declinedRef = useRef<string | null>(null);
+  // Whether this tab is writing a turn, readable from the frame handler.
+  const processingRef = useRef(isProcessing);
+  useEffect(() => {
+    processingRef.current = isProcessing;
+  }, [isProcessing]);
+  // Who else has this conversation open, as its room last said - see `presence`.
+  const [present, setPresent] = useState<{ conversationId: string; people: ChatPerson[] }>();
+  // Who else is writing a message here, each until a while after their last
+  // keystroke was heard - see `typing`.
+  const [typing, setTyping] = useState<TypingPerson[]>([]);
+  const typingSentAt = useRef(0);
   const leftTurnPending = activeConversationId !== null && leftRunning.has(activeConversationId);
   // Say in the list of conversations that this one is being answered, from the
   // moment the question goes rather than from whenever the server's next listing
@@ -387,6 +452,17 @@ export function useChat(options: UseChatOptions = {}) {
   const handleWebSocketMessage = useCallback(
     (event: MessageEvent) => {
       const wsEvent: WSEvent = JSON.parse(event.data);
+      // The frames of a turn this tab declined to follow: a teammate's, in a room
+      // the tab has just left - another chat opened before the server heard.
+      // Drawn, they would land in the chat on screen.
+      if (
+        declinedRef.current !== null &&
+        TURN_FRAMES.has(wsEvent.type) &&
+        !processingRef.current &&
+        followingRef.current === null
+      ) {
+        return;
+      }
 
       // Opens the turn's message. It used to close a previous one first, which is
       // no longer reachable and would be the wrong place for it if it were: every
@@ -414,6 +490,98 @@ export function useChat(options: UseChatOptions = {}) {
       };
 
       switch (wsEvent.type) {
+        // The reader came back to a conversation whose agent is still answering,
+        // under a socket this tab no longer holds - another chat was opened, the
+        // page reloaded. The server sends the turn so far and then the rest as it
+        // comes, and every frame after this one is drawn exactly as a live turn's.
+        case "turn_attached": {
+          const { conversation_id } = wsEvent.data as { conversation_id: string };
+          if (conversation_id !== activeConversationId) {
+            declinedRef.current = conversation_id;
+            break;
+          }
+          declinedRef.current = null;
+          followingRef.current = conversation_id;
+          setCurrentMessageId(null);
+          setLeftRunning((threads) => withoutThread(threads, conversation_id));
+          setIsProcessing(true);
+          break;
+        }
+
+        // A turn somebody else in the room asked: their question, drawn before the
+        // answer that follows it. Skipped when the transcript already holds it -
+        // a person who came back mid-turn read it there.
+        case "turn_prompt": {
+          const data = wsEvent.data as {
+            conversation_id: string;
+            message_id: string | null;
+            content: string;
+            sender: ChatPerson;
+            reply_to?: WireReply | null;
+            agent_id?: string;
+          };
+          // Their message is here, so they are no longer writing it.
+          setTyping((list) => list.filter((entry) => entry.person.user_id !== data.sender.user_id));
+          if (followingRef.current !== data.conversation_id) break;
+          // The answer that follows is this agent's: its face and name from the start.
+          turnAgentIdRef.current = data.agent_id ?? null;
+          const id = data.message_id ?? clientId();
+          if (chatApi.getState().messages.some((message) => message.id === id)) break;
+          addMessage({
+            id,
+            role: "user",
+            content: data.content,
+            timestamp: new Date(),
+            conversationId: data.conversation_id,
+            sender: data.sender,
+            replyTo: replyFromWire(data.reply_to),
+          });
+          break;
+        }
+
+        // Who has this conversation open now: its room says so whenever somebody
+        // comes or goes.
+        case "presence": {
+          const data = wsEvent.data as { conversation_id: string; people: ChatPerson[] };
+          setPresent({ conversationId: data.conversation_id, people: data.people });
+          // Somebody who closed the chat is not writing in it any more.
+          const here = new Set(data.people.map((person) => person.user_id));
+          setTyping((list) => list.filter((entry) => here.has(entry.person.user_id)));
+          break;
+        }
+
+        // Somebody else in the room pressed a key, as a messenger says "Anna is
+        // typing": shown until a while after the last one, renewed by the next.
+        case "typing": {
+          const data = wsEvent.data as { conversation_id: string; person: ChatPerson };
+          const entry: TypingPerson = {
+            conversationId: data.conversation_id,
+            person: data.person,
+            until: Date.now() + TYPING_SHOWN_MS,
+          };
+          setTyping((list) => [
+            ...list.filter((other) => other.person.user_id !== data.person.user_id),
+            entry,
+          ]);
+          break;
+        }
+
+        // The followed turn is over and saved. The transcript is read again so the
+        // stored answer - its id, its cost, its rating - replaces the one drawn
+        // from the frames.
+        case "turn_followed_to_end": {
+          declinedRef.current = null;
+          if (followingRef.current === null) break;
+          followingRef.current = null;
+          if (currentMessageIdRef.current) {
+            updateMessage(currentMessageIdRef.current, (msg) => ({ ...msg, isStreaming: false }));
+          }
+          setCurrentMessageId(null);
+          setIsProcessing(false);
+          onTurnInterrupted?.();
+          break;
+        }
+
         case "conversation_created": {
           const { conversation_id } = wsEvent.data as { conversation_id: string };
           setCurrentConversationId(conversation_id);
@@ -508,6 +676,7 @@ export function useChat(options: UseChatOptions = {}) {
           };
           if (currentMessageIdRef.current && tool_name && tool_call_id) {
             streamingCallsRef.current.set(index, tool_call_id);
+            if (isVisualTool(tool_name)) visualCallsRef.current.add(tool_call_id);
             addToolCallPart(currentMessageIdRef.current, {
               id: tool_call_id,
               name: tool_name,
@@ -520,9 +689,28 @@ export function useChat(options: UseChatOptions = {}) {
 
         // How far the arguments have streamed is not drawn: a byte count beside
         // the step said nothing a reader could use, and writing it into the store
-        // on every frame re-rendered the turn hundreds of times a second.
-        case "tool_call_delta":
+        // on every frame re-rendered the turn hundreds of times a second. A
+        // drawing is the exception - it is shown as it is written - and its text
+        // gathers outside the chat store (`visual-stream-store`).
+        case "tool_call_delta": {
+          const { index, args_delta } = wsEvent.data as { index: number; args_delta: unknown };
+          const callId = streamingCallsRef.current.get(index);
+          if (callId !== undefined && visualCallsRef.current.has(callId)) {
+            appendVisualArgs(callId, args_delta);
+          }
           break;
+        }
+
+        // A drawing's pictures, sent before it is rendered: its call is not in the
+        // transcript until the turn ends, so the panel could not ask for them.
+        case "visual_images": {
+          const { tool_call_id, images } = wsEvent.data as {
+            tool_call_id: string;
+            images: Record<string, string>;
+          };
+          addVisualImages(tool_call_id, images);
+          break;
+        }
 
         case "text_delta": {
           // Append to the ordered parts timeline (extends the trailing
@@ -561,6 +749,7 @@ export function useChat(options: UseChatOptions = {}) {
               args,
               status: "running",
             };
+            if (visualCallsRef.current.delete(tool_call_id)) dropVisualArgs(tool_call_id);
             const drawn = chatApi
               .getState()
               .messages.find((m) => m.id === currentMessageIdRef.current)
@@ -666,6 +855,18 @@ export function useChat(options: UseChatOptions = {}) {
           break;
         }
 
+        case "sandbox_preparing": {
+          setSandboxPreparing(true);
+          break;
+        }
+
+        // Its own signal rather than the next tool result: a faster tool running
+        // beside the sandbox one would clear the notice mid-build.
+        case "sandbox_ready": {
+          setSandboxPreparing(false);
+          break;
+        }
+
         case "personal_services_unavailable": {
           // Before the model answers, so the button that connects the account is on
           // screen while the agent is still saying it cannot reach it.
@@ -675,6 +876,8 @@ export function useChat(options: UseChatOptions = {}) {
 
         case "error": {
           setPendingConnection(null);
+          // An open that failed ends the turn here, with no `complete` after it.
+          setSandboxPreparing(false);
           awaitingConnectionRef.current = false;
           // A refusal before the turn opened a message - an agent with no model,
           // nobody picked to answer - lands in a message of its own under the
@@ -808,6 +1011,7 @@ export function useChat(options: UseChatOptions = {}) {
             }
             // Whatever else this turn did, it is not summarising any more.
             setCompacting(null);
+            setSandboxPreparing(false);
             if (usage) {
               setLiveUsage({
                 // From the store rather than the render closure: a turn that created
@@ -858,6 +1062,7 @@ export function useChat(options: UseChatOptions = {}) {
       setCurrentMessageId,
       onConversationCreated,
       onTurnSaved,
+      onTurnInterrupted,
       activeConversationId,
       refreshConversationCost,
       t,
@@ -955,7 +1160,7 @@ export function useChat(options: UseChatOptions = {}) {
   }, [hasAccessToken, connect, disconnect]);
 
   const doSend = useCallback(
-    (content: string, fileIds?: string[], files?: ChatMessageFile[]) => {
+    (content: string, fileIds?: string[], files?: ChatMessageFile[], mentions?: Mentionable[]) => {
       // The previous turn's panels belong to the previous turn. Cleared here rather
       // than on `complete` so they survive it - which is the whole point - and a
       // late frame from a background delegation of the turn before is dropped by
@@ -996,6 +1201,10 @@ export function useChat(options: UseChatOptions = {}) {
         setCurrentMessageId(null);
       }
       const userMessageId = clientId();
+      // Read at send time, as the agent is: a reply chosen while the turn was
+      // queued is the one it answers. Spent by this turn either way.
+      const replyTo = chatApi.getState().replyTo;
+      chatApi.getState().setReplyTo(null);
       addMessage({
         id: userMessageId,
         role: "user",
@@ -1004,13 +1213,29 @@ export function useChat(options: UseChatOptions = {}) {
         conversationId: conversationId || undefined,
         fileIds,
         files,
+        // Its id is this tab's until a reload reads the stored one, so nothing
+        // may be addressed to it yet - a reply to it included.
+        isTemporaryId: true,
+        replyTo: replyTo ?? undefined,
+        mentions,
       });
       setIsProcessing(true);
+      // Now, not after the render: the turn's first frame may come before it.
+      processingRef.current = true;
       const payload: Record<string, unknown> = {
         message: content,
         conversation_id: conversationId || null,
       };
       if (fileIds?.length) payload.file_ids = fileIds;
+      if (replyTo) payload.reply_to = replyTo.messageId;
+      // Only on the turn that starts the conversation: the server files a new
+      // chat into the project and ignores the field on every turn after.
+      const projectId = conversationApi.getState().pendingProjectId;
+      if (!conversationId && projectId) payload.project_id = projectId;
+      // Resolved again on the server as the person, against what the agent reaches.
+      if (mentions?.length) {
+        payload.mentions = mentions.map((mention) => ({ kind: mention.kind, id: mention.id }));
+      }
       // A model profile from the vault - the agent runs on it for this turn
       // instead of the model its spec names, and the run records which.
       if (modelProfileRef.current) payload.model_profile_id = modelProfileRef.current;
@@ -1040,6 +1265,8 @@ export function useChat(options: UseChatOptions = {}) {
     },
     [
       selectionApi,
+      conversationApi,
+      chatApi,
       addMessage,
       updateMessage,
       setCurrentMessageId,
@@ -1052,7 +1279,7 @@ export function useChat(options: UseChatOptions = {}) {
   );
 
   const sendChatMessage = useCallback(
-    (content: string, fileIds?: string[], files?: ChatMessageFile[]) => {
+    (content: string, fileIds?: string[], files?: ChatMessageFile[], mentions?: Mentionable[]) => {
       // While the agent works a message waits for its answer, as in any chat;
       // "Send now" on the queued message is how it joins the running task
       // instead (#2087) - see `sendQueuedNow`.
@@ -1061,11 +1288,11 @@ export function useChat(options: UseChatOptions = {}) {
       // drainer effect below pops the head as soon as the agent is idle.
       if (isProcessing || !isConnected) {
         const id = clientId();
-        messageQueueRef.current.push({ id, content, fileIds, files });
+        messageQueueRef.current.push({ id, content, fileIds, files, mentions });
         setQueuedMessages([...messageQueueRef.current]);
         return;
       }
-      doSend(content, fileIds, files);
+      doSend(content, fileIds, files, mentions);
     },
     [isProcessing, isConnected, doSend],
   );
@@ -1079,7 +1306,16 @@ export function useChat(options: UseChatOptions = {}) {
   const sendQueuedNow = useCallback(
     (id: string) => {
       const queued = messageQueueRef.current.find((q) => q.id === id);
-      if (!queued || !isProcessing || !isConnected || queued.fileIds?.length) return;
+      // Mentions travel with a message, never with a correction: the steer frame
+      // carries text alone, so one sent now would lose what it pointed at.
+      if (
+        !queued ||
+        !isProcessing ||
+        !isConnected ||
+        queued.fileIds?.length ||
+        queued.mentions?.length
+      )
+        return;
       messageQueueRef.current = messageQueueRef.current.filter((q) => q.id !== id);
       setQueuedMessages([...messageQueueRef.current]);
       setSteers((waiting) => [...waiting, { id: clientId(), text: queued.content }]);
@@ -1199,6 +1435,7 @@ export function useChat(options: UseChatOptions = {}) {
     }
     setCompacting(null);
     setCompactionImpossible(null);
+    setSandboxPreparing(false);
     setPersonalGaps([]);
     approvalOfferedForRef.current = new Set();
     // Both, or a question read for this conversation and dropped because the
@@ -1395,6 +1632,8 @@ export function useChat(options: UseChatOptions = {}) {
           usage: {
             input_tokens: resumed.input_tokens,
             output_tokens: resumed.output_tokens,
+            cache_read_tokens: resumed.cache_read_tokens ?? null,
+            cache_write_tokens: resumed.cache_write_tokens ?? null,
             cost_usd: resumed.cost_usd ?? "0",
             cost_is_partial: resumed.cost_is_partial,
             // A resume is not told where the run stands against its budget, and
@@ -1666,10 +1905,19 @@ export function useChat(options: UseChatOptions = {}) {
     setPendingConnection(null);
     awaitingConnectionRef.current = false;
     setDelegations(closeOpenDelegations);
+    // A dropped socket can no longer bring `sandbox_ready`, and the next turn
+    // on the open sandbox sends no preparation frames to clear it (#2251).
+    setSandboxPreparing(false);
   }, [updateMessage, abandonOpenCalls, setCurrentMessageId]);
 
   const stopGeneration = useCallback(() => {
-    sendMessage({ type: "stop" });
+    // A turn this tab only follows is not this socket's to stop: stop following.
+    if (followingRef.current !== null) {
+      followingRef.current = null;
+      sendMessage({ type: "unfollow" });
+    } else {
+      sendMessage({ type: "stop" });
+    }
     endTurnLocally();
   }, [sendMessage, endTurnLocally]);
 
@@ -1699,6 +1947,7 @@ export function useChat(options: UseChatOptions = {}) {
     const previous = turnBelongsTo.current;
     turnBelongsTo.current = activeConversationId;
     if (previous === null || previous === activeConversationId || !isProcessing) return;
+    followingRef.current = null;
     // Before the working mark's own cleanup, which runs after layout effects:
     // the thread left is still being answered, whatever this tab does next.
     handOffWorking(previous);
@@ -1764,6 +2013,52 @@ export function useChat(options: UseChatOptions = {}) {
     onTurnInterrupted?.();
   }, [isConnected, isProcessing, activeConversationId, endTurnLocally, onTurnInterrupted, chatApi]);
 
+  // Opening a conversation - or this socket coming back - asks to follow the turn
+  // being written in it, if one is. The server answers with `turn_attached` and
+  // the turn so far, or with nothing when no turn is running there. Not while this
+  // tab is writing a turn itself: that one already streams here.
+  //
+  // Once its transcript is here, not before: the transcript replaces what the chat
+  // holds when it lands, and a turn already drawn from the frames would go with it.
+  // A new chat has none to wait for, and says so at once: the socket leaves the
+  // room it was in, which otherwise went on counting this person there and sending
+  // them its turns.
+  const transcriptHere =
+    activeConversationId !== null && messages.at(-1)?.conversationId === activeConversationId;
+  const attachedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isConnected || processingRef.current) return;
+    if (activeConversationId === null ? attachedRef.current === null : !transcriptHere) return;
+    attachedRef.current = activeConversationId;
+    sendMessage({ type: "attach", conversation_id: activeConversationId });
+  }, [isConnected, transcriptHere, activeConversationId, sendMessage]);
+
+  // Nobody types forever: an entry goes when its time is up, without waiting for
+  // a frame to say so - the last keystroke is the last thing anybody hears.
+  useEffect(() => {
+    if (typing.length === 0) return;
+    const next = Math.min(...typing.map((entry) => entry.until));
+    const timer = setTimeout(
+      () => setTyping((list) => list.filter((entry) => entry.until > Date.now())),
+      Math.max(next - Date.now(), 0),
+    );
+    return () => clearTimeout(timer);
+  }, [typing]);
+
+  // Tell the room this person is writing - at most every few seconds, and only
+  // when somebody else has the chat open to be told.
+  const othersPresent =
+    present !== undefined &&
+    present.conversationId === activeConversationId &&
+    present.people.length > 1;
+  const notifyTyping = useCallback(() => {
+    if (!isConnected || !othersPresent) return;
+    const now = Date.now();
+    if (now - typingSentAt.current < TYPING_EVERY_MS) return;
+    typingSentAt.current = now;
+    sendMessage({ type: "typing" });
+  }, [isConnected, othersPresent, sendMessage]);
+
   // Drain message queue when processing finishes AND we're back online.
   // Re-runs on either flip so a reconnect after offline → drains; a busy turn
   // ending → drains the next one.
@@ -1783,7 +2078,7 @@ export function useChat(options: UseChatOptions = {}) {
       if (next) {
         // Small debounce so the UI shows the queue clearing visibly before
         // the next user bubble lands; also avoids racing the WS state flip.
-        setTimeout(() => doSend(next.content, next.fileIds, next.files), 100);
+        setTimeout(() => doSend(next.content, next.fileIds, next.files, next.mentions), 100);
       }
     }
   }, [isProcessing, isConnected, interruptedFor, doSend]);
@@ -1816,12 +2111,34 @@ export function useChat(options: UseChatOptions = {}) {
   const onThisConversation =
     liveUsage !== null && liveUsage.conversationId === activeConversationId;
 
+  // How a drawing rendered in this tab, for the `draw` call still waiting on it:
+  // the model hears a script error while it can still fix it (#2171).
+  const reportVisual = useCallback(
+    (toolCallId: string, errors: string[]) => {
+      sendMessage({ type: "visual_report", tool_call_id: toolCallId, errors });
+    },
+    [sendMessage],
+  );
+
   return {
     messages,
+    /** Who has this conversation open, the reader included; empty until the room says. */
+    present:
+      present !== undefined && present.conversationId === activeConversationId
+        ? present.people
+        : [],
+    /** Who else is writing a message in this conversation right now. */
+    typing: typing
+      .filter((entry) => entry.conversationId === activeConversationId)
+      .map((entry) => entry.person),
+    /** The reader typed: says so to the room, throttled. */
+    notifyTyping,
     isConnected,
     isProcessing,
     compacting,
     compactionImpossible,
+    /** Whether the run's sandbox is still being opened - see `SandboxPreparingNotice`. */
+    sandboxPreparing,
     /** A turn whose socket went away. The answer is still being written; see `onTurnInterrupted`. */
     interrupted,
     /**
@@ -1845,6 +2162,8 @@ export function useChat(options: UseChatOptions = {}) {
     connect,
     disconnect,
     sendMessage: sendChatMessage,
+    /** Tell the running turn how one of its drawings rendered. */
+    reportVisual,
     stopGeneration,
     clearMessages,
     queuedMessages,

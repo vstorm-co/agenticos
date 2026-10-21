@@ -514,6 +514,29 @@ Zero is refused by the schema: an account that may own no organizations is an
 account that cannot be created, since sign-up gives every one of them a personal
 organization.
 
+## What a dictation may be uploaded as
+
+`dictation_compressed_audio`, **off by default**, decides the format of every
+[dictation](ml-services.md#dictation-in-chat) on the deployment - the `/chat`
+composer, hosted pages and widgets, in every organization. Off, the server
+accepts one format: WAV holding 16 kHz mono 16-bit PCM, which every browser
+records. Its length is its size, 32,000 bytes a second, so the server counts the
+samples and the longest dictation bounds what one recording costs exactly.
+
+On, WebM, Ogg and MP4 are accepted as well, and uploads are about an eighth
+of the size. Their length is read from the file's own header, which a file built by
+hand can understate: one dictation can then carry up to about forty times the
+longest dictation within the size cap. On a [public page or widget](channels.md#what-it-costs-and-what-bounds-it)
+anyone holding the link can send one, billed to the organization's provider
+account and outside every budget.
+
+So the switch on `/admin/settings` asks first. Turning it on opens a dialog
+naming those risks and enables its confirm button only once a box saying they
+were read is ticked; turning it off asks nothing. Either way it is saved with
+the rest of the form and audited like any other field. Browsers follow it the
+next time a page asks: the format they record in is the one the server
+advertises, never a list kept in the client.
+
 ## The row
 
 One row for the whole installation, guarded by the database rather than by a
@@ -562,6 +585,38 @@ the same fallback upstream already uses in the branch it did guard. Still unfixe
 upstream as of 0.65b0, and `tests/test_otel_route_details.py` fails when it is fixed,
 which is when the module goes away.
 
+## Background jobs
+
+**Admin → Background jobs** (`/admin/background-jobs`) is the queue as the
+deployment's owner sees it, and only an app admin can open it: the queue is the
+deployment's, so an organization's own owner is refused. The header counts the
+jobs in each state, names any kind that is paused and why, lists the workers
+alive and the next time each schedule fires. Below it the jobs, newest first,
+filtered by state and pool, each with its attempts and the error it last ended
+on.
+
+Under the counts, **Activity** charts what finished over the last 24 hours
+or 7 days, stacked by how it ended, beside the longest wait of a job that is
+due now. **By kind** gives each kind's volume, its deaths, its run time at the
+median and 95th percentile, and how long its jobs waited for a worker: a wait
+that grows says a pool needs more workers. The deployment's dashboard carries
+the same day as a card.
+
+Three actions, each audited with who took it:
+
+- **Retry** gives a dead job a fresh set of attempts.
+- **Cancel** withdraws a job nobody has started.
+- **Resume** lets workers claim a paused kind again.
+
+A kind is paused by the worker's circuit breaker: its jobs killed their worker
+`WORKER_BREAKER_DEATHS` times in a row, most often a document that runs a parse
+out of memory. Every owner is told in the app and by email, and the
+notification cannot be switched off - work of that kind piles up until one of
+them resumes it. A pause names the organization whose jobs caused it, and the
+kind keeps running for every other. Retry the dead jobs only once the cause is fixed, or they die
+the same way. The settings are in
+[Configuration](configuration.md#background-work).
+
 ## Recap
 
 - The deployment's identity is **one row**, edited from `/admin/settings`, and a
@@ -576,4 +631,6 @@ which is when the module goes away.
   clipboard, named in a banner, ended by the administrator, by the person signing
   out everywhere, or by the hour. Whether the person is told is
   `notify_impersonated_users`, off by default.
+- Dictation is **raw PCM unless `dictation_compressed_audio` is on**, which an
+  administrator turns on only after a dialog naming what it costs.
 - Every refusal from this deployment looks the same, whichever layer produced it.

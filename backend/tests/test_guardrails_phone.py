@@ -5,8 +5,6 @@ the refusal half matters as much as the match: a date, a timestamp or an order
 id that a digit-count regex would have taken must come through untouched.
 """
 
-from __future__ import annotations
-
 from unittest.mock import patch
 
 import pytest

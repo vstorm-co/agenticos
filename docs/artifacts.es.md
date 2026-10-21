@@ -1,5 +1,5 @@
 ---
-source_sha: "94ce53b8a699"
+source_sha: "06f8c1ff3994"
 ---
 
 # Aplicaciones { #artifacts }
@@ -134,12 +134,18 @@ contenido a otro origen:
 | `lib/agenticos-2.css` | El aspecto de la consola para páginas, claro y oscuro, y los componentes `ao-` con los que se construye una página |
 | `lib/agenticos-2.js` | `window.AO`: Chart.js con el estilo de la consola, formato de números en el idioma de la página, iconos, pestañas |
 | `lib/agenticos-1.css` | La primera versión del aspecto, conservada para las páginas publicadas con ella |
+| `lib/three-0.186.0/three.module.js` | three.js 0.186.0 como módulo ES, con `addons/controls/OrbitControls.js` al lado - asigne `three` y `three/addons/` con un import map |
+| `lib/mermaid-12.1.0.min.js` | Mermaid 12.1.0, como `window.mermaid` |
 
 Cada nombre lleva su versión y se guarda en caché un año. Una actualización añade
 un archivo nuevo junto al antiguo, así que una página publicada con una versión
 sigue recibiendo esa. No se descarga nada de fuera del despliegue, así que uno sin
 acceso a internet funciona igual. Los archivos están en
 `backend/app/core/catalog/artifact_lib/`.
+
+Los archivos responden `Access-Control-Allow-Origin: *`, porque un script de módulo se
+descarga en modo CORS y una página en un origen opaco envía `Origin: null` - sin ello
+three.js no se importaría.
 
 El [skill](skills.md) incluido **`artifact-pages`** enseña a un agent a usarlos: dos
 plantillas (un dashboard y un informe), el estilo de la casa con sus componentes,
@@ -148,6 +154,56 @@ página con `read_artifact`. Una organización nueva lo recibe con los demás sk
 incluidos, una existente con `seed-skills`, y la pestaña **Page style** de la
 capability Artifacts en el Builder lo ofrece. Edita el skill para describir tu
 propia marca, y el agent la sigue.
+
+## Visuals { #visuals }
+
+Un [visual](reference/capabilities.md#visuals) es una aplicación que aún no se ha
+guardado: un dibujo que un agente escribe en la conversación con `draw`, mostrado bajo
+su mensaje mientras se escribe. Es el mismo tipo de documento - un visual `html` es una
+página, y uno `svg` o `mermaid` se convierte en una página que lo contiene - y se dibuja
+con el mismo aislamiento.
+
+**El marco.** `/api/v1/artifact-content/visual-frame` es una página fija en el origen
+de contenido, servida con la misma política que recibe la página de cada aplicación. No
+contiene ningún dibujo: la consola se lo envía mientras llega, así que nada tiene que
+guardarse antes de mostrarse, y el aislamiento viene de la cabecera de la respuesta y no
+de una etiqueta meta en `srcdoc`. Mientras llega, el marco transforma el marcado en su
+sitio, sin scripts ni atributos `on*`; al completarse escribe el documento entero para
+que sus scripts se ejecuten, exactamente como en la página guardada. El marco informa de
+su tamaño, sus errores y un latido; un dibujo que deja de latir se cierra en lugar de
+bloquear la pestaña.
+
+**En el chat.** El panel muestra el dibujo entero - un SVG ajustado por su `viewBox`,
+una página maquetada al ancho del panel y reducida por encima de 560 píxeles - con su
+título, en el mensaje del agente, nunca como parte de la consola. La pantalla completa
+lo muestra a su propio tamaño; en un teléfono, un toque abre la pantalla completa. El
+zoom aparece en la esquina inferior derecha del dibujo mientras el puntero está sobre
+la tarjeta, en la vista previa y a pantalla completa: un SVG se dibuja más grande, una
+página se escala y el marco se desplaza cuando el dibujo lo supera. Encima están
+*Mostrar código*, *Descargar* (`.svg`, `.html` o el código Mermaid) y *Copiar como
+imagen* para un SVG, y un error que informa el dibujo viene con *Corregir*, que se lo
+pide al agente.
+
+**Descargarlo.** Un archivo abierto desde el disco no tiene marco alrededor, así que
+la descarga lleva lo que imponía el marco. Un SVG conserva el dibujo y pierde lo que
+podría ejecutarse o salir fuera: scripts, manejadores, documentos incrustados y
+cualquier referencia fuera del archivo. Una página se abre con la política del marco
+por delante de todo lo que escribió, y carga sus bibliotecas desde el origen de
+artefactos de este despliegue.
+
+**Guardarlo como aplicación.** *Guardar en Aplicaciones* toma un título y un nombre,
+ambos rellenados, y publica el visual como versión de una aplicación bajo el agente
+cuyo turno lo dibujó, en el entorno en el que corrió ese turno, propiedad de quien lo guarda y privada hasta que la comparta. El
+servidor reconstruye el visual a partir de la transcripción - con las revisiones
+aplicadas - en lugar de tomar bytes del navegador, así que la aplicación es exactamente
+lo que dibujó el agente. Guardarlo con un nombre que la persona ya tiene añade una
+versión a esa aplicación - así una revisión de un dibujo guardado actualiza la página con
+la que se compartió. Guardar requiere `artifacts:edit`.
+
+**Desde un delegado.** Un dibujo se queda en el run que lo hizo, así que un agente
+que trabaja como delegado de otro agente no dibuja: `draw` se lo dice, y describe la
+imagen en su resultado para que el agente para el que trabaja la dibuje en la
+conversación.
 
 ## Quién puede abrirla { #who-can-open-it }
 
@@ -336,6 +392,14 @@ del despliegue, bajo `artifacts/<organization>/<artifact>/`.
   miembros no pueden iniciar sesión dentro del frame de otro sitio.
 - **Las versiones eliminadas desaparecen.** Una conversación que enlaza a una
   versión más antigua que la ventana conservada solo puede ofrecer la última.
+- **Un visual solo se dibuja en el chat web y en un hilo compartido.** Una app de
+  chat recibe una imagen de él donde `VISUAL_RENDER_CDP_URL` nombra un navegador, y
+  su título en otro caso; el widget y una incrustación en otro sitio muestran su
+  título.
+- **Un hilo compartido muestra sus doce visuals más recientes**, y no más de 16 MB
+  entre todos. Cualquiera con el enlace puede abrirlo tantas veces como quiera, así
+  que una vista está acotada; un turno más allá de cualquiera de los dos límites
+  conserva su texto y no muestra el dibujo.
 
 ## Resumen { #recap }
 

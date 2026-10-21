@@ -9,6 +9,7 @@ import { hasResource, withResource, type AgentResourceRef } from "@/lib/agent-sp
 import { apiClient } from "@/lib/api-client";
 import { fieldProblems, getErrorMessage, problemList } from "@/lib/api-error";
 import type { FieldProblem } from "@/lib/api-error";
+import { invalidateSpeechSettings } from "@/lib/dictation-api";
 import { qk } from "@/lib/query-keys";
 import { useCapabilityGuide } from "./use-capability-guide";
 import type { Visibility } from "@/types/sharing";
@@ -41,6 +42,29 @@ export interface PromoteSpecialist {
  * version pointer change as a side effect of publishing, and guessing what the
  * server did is how a Builder starts showing a draft as published.
  */
+/**
+ * Every agent the list names, not its first page.
+ *
+ * The route pages at 50 by default and 100 at most, and what reads this - the
+ * chat's agent picker, a project's default agent, the run filters - is a picker
+ * that silently lacked whoever came after the first page. The first request is
+ * the one it always was; the rest are asked for only when the total says so.
+ */
+async function everyAgent(params: ReturnType<typeof agentListParams>): Promise<AgentList> {
+  const first = await apiClient.get<AgentList>("/agents", params ? { params } : undefined);
+  const base: [string, string][] =
+    params === undefined ? [] : Array.isArray(params) ? params : Object.entries(params);
+  const items = [...first.items];
+  while (items.length < first.total) {
+    const page = await apiClient.get<AgentList>("/agents", {
+      params: [...base, ["skip", String(items.length)], ["limit", "100"]],
+    });
+    if (page.items.length === 0) break;
+    items.push(...page.items);
+  }
+  return { ...first, items };
+}
+
 export function useAgents({
   includeArchived = false,
   enabled = true,
@@ -64,10 +88,7 @@ export function useAgents({
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: qk.agents.list(includeArchived, facetCategories, facetTags),
-    queryFn: () => {
-      const params = agentListParams(includeArchived, facetCategories, facetTags);
-      return apiClient.get<AgentList>("/agents", params ? { params } : undefined);
-    },
+    queryFn: () => everyAgent(agentListParams(includeArchived, facetCategories, facetTags)),
     // How a surface without agents:view stays out of the network log - the
     // run table's agent column and the filter bar both read this gated.
     enabled,
@@ -234,8 +255,14 @@ export function useAgent(agentId: string | null) {
   // environment server-side, and the environments cache is not under
   // `qk.agents` - without this the panel keeps naming the pin the publish
   // just moved, right after a dialog said it would move.
+  // Dictation readiness too: it reads the published version's speech-to-text
+  // override, which the publish may just have changed.
   const invalidateEnvironments = useCallback(
-    () => queryClient.invalidateQueries({ queryKey: qk.environments.list(agentId ?? "") }),
+    () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: qk.environments.list(agentId ?? "") }),
+        invalidateSpeechSettings(queryClient),
+      ]),
     [queryClient, agentId],
   );
 
@@ -344,6 +371,13 @@ export function useAgent(agentId: string | null) {
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
+  /** Serve this agent to other systems over A2A, or stop (#2092). */
+  const setA2a = useMutation({
+    mutationFn: (enabled: boolean) => apiClient.put<Agent>(`/agents/${agentId}/a2a`, { enabled }),
+    onSuccess: invalidate,
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+  });
+
   return {
     agent: data,
     isLoading,
@@ -358,6 +392,7 @@ export function useAgent(agentId: string | null) {
     setAvatar,
     setColor,
     setMetadata,
+    setA2a,
   };
 }
 

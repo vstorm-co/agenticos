@@ -9,7 +9,18 @@ export type RunStatus =
   /** Parked on an agent's question its person left unanswered (#2064). */
   | "awaiting_answer"
   | "budget_exceeded"
-  | "guardrail_blocked";
+  | "guardrail_blocked"
+  /** Stopped for looping on its tool calls after it was warned (#2086). */
+  | "loop_stopped";
+
+/** One call as Activity shows it: every connection of it, summed (#54). */
+export interface VoiceChain {
+  /** 1, plus one per reconnect. */
+  connections: number;
+  seconds: number;
+  /** A decimal string, like `cost_usd`. */
+  cost_usd: string;
+}
 
 export interface AgentRun {
   id: string;
@@ -28,10 +39,16 @@ export interface AgentRun {
   provider: string | null;
   input_tokens: number;
   output_tokens: number;
+  /** Of `input_tokens`, those read from the provider's cache (#2170). */
+  cache_read_tokens?: number;
+  /** Of `input_tokens`, those written to the provider's cache (#2170). */
+  cache_write_tokens?: number;
   /** Serialised Decimal - never parse into a float for arithmetic. */
   cost_usd: string;
   /** True when a model in this run had no price; the cost is a floor. */
   cost_is_partial: boolean;
+  /** Tool calls whose malformed JSON arguments were repaired rather than retried. */
+  tool_args_repaired?: number;
   logfire_trace_id: string | null;
   /**
    * Where this run's trace can be read, resolved server-side. Sent on the
@@ -66,6 +83,14 @@ export interface AgentRun {
    * run table reads it to offer the chat behind a run (#765).
    */
   conversation_id: string | null;
+  /** `voice` for a call, `text` for everything typed (#54). */
+  modality: "text" | "voice";
+  /**
+   * For a voice run on the run list: every connection of the call, summed - a
+   * reconnect's run continues the call and is not listed on its own. Null for
+   * text runs and on every other read.
+   */
+  voice_chain: VoiceChain | null;
   started_at: string | null;
   ended_at: string | null;
   /**
@@ -228,6 +253,10 @@ export interface ManifestRequest {
   finish_reason: string | null;
   /** The exception class, where the request raised - never its message. */
   failed: string | null;
+  /** `bust` when its cached prompt prefix collapsed early, `expired` when past retention (#2109). */
+  cache?: "bust" | "expired" | null;
+  /** Of the prefix earlier requests cached, the tokens it did not read back. */
+  cache_missed_tokens: number;
 }
 
 /**
@@ -251,8 +280,29 @@ export interface RunManifest {
   requests: ManifestRequest[];
   /** The last request's messages, dumped - what the model saw at the end. */
   messages: Record<string, unknown>[];
+  /** Each correction a run reviewer sent, and who sent it (#2106). */
+  reviews?: ManifestReview[];
+  /** Each `run_code` script code mode ran, and the calls it made (#2107). */
+  code_runs?: ManifestCodeRun[];
   /** Whether the record was trimmed to fit its size ceiling. */
   truncated: boolean;
+}
+
+/** One correction a run reviewer sent while the run went. */
+export interface ManifestReview {
+  reviewer: string;
+  /** The model request the review read up to. */
+  after_request: number;
+  steer: string;
+}
+
+/** One script code mode ran. */
+export interface ManifestCodeRun {
+  tool_call_id: string;
+  code: string;
+  calls: { tool: string; args: string; status: "returned" | "failed" }[];
+  /** Calls past the ones listed - a script that loops can make thousands. */
+  omitted_calls?: number;
 }
 
 export interface ToolApproval {
@@ -405,6 +455,27 @@ export interface CostSummary {
   by_key: CostByKey[];
   /** Spend per UTC day over the window - days with no runs are absent. */
   by_day: CostByDay[];
+  /** Prompt-cache busts and expiries per agent and model, most busts first (#2109). */
+  cache_by_agent_model: CacheByAgentModel[];
+}
+
+/**
+ * One agent on one model, over the Spend tab's window: how often its cached
+ * prompt prefix collapsed. A *bust* moved while the provider should still have
+ * held it, and was billed at the full input rate; an *expiry* had outlived the
+ * provider's retention.
+ */
+export interface CacheByAgentModel {
+  agent_id: string;
+  agent_slug: string;
+  agent_name: string;
+  model_label: string | null;
+  busts: number;
+  expiries: number;
+  /** Tokens earlier requests had cached that these did not read back. */
+  missed_tokens: number;
+  /** Runs with at least one bust or expiry. */
+  run_count: number;
 }
 
 /**
@@ -487,6 +558,10 @@ export interface ResumedRun {
   cost_is_partial: boolean;
   input_tokens: number;
   output_tokens: number;
+  /** Of `input_tokens`, those read from the provider's cache. */
+  cache_read_tokens?: number;
+  /** Of `input_tokens`, those written to the provider's cache. */
+  cache_write_tokens?: number;
 }
 
 /** One question as the server carries it, before the card's own shape (#2064). */

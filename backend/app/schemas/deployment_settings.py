@@ -24,8 +24,6 @@ against `settings.PROJECT_NAME` for the text it sends itself.
 only thing keeping a rename in one from disagreeing with the other.
 """
 
-from __future__ import annotations
-
 import re
 from datetime import datetime
 from typing import Literal
@@ -167,6 +165,13 @@ class DeploymentSettingsRead(BrandingRead):
     default_organization_id: UUID | None = None
     """The organization every new account joins, or null for none (#2156)."""
     default_organization_role: DefaultOrganizationRole = "member"
+    dictation_compressed_audio: bool = False
+    """Whether dictation accepts WebM, Ogg and MP4 as well as raw PCM (#1797).
+
+    Off by default, because a compressed file states its own length and a file
+    built by hand can understate it - see `DeploymentSettings` for the risk an
+    administrator accepts by turning it on.
+    """
     retention_defaults: RetentionDays | None = None
     """Days per class, for an organization that has set nothing itself (#1420)."""
     retention_max_days: RetentionDays | None = None
@@ -210,6 +215,7 @@ class DeploymentSettingsUpdate(BaseSchema):
     max_agents_per_organization: int | None = Field(default=None, ge=1, le=10_000)
 
     notify_impersonated_users: bool | None = None
+    dictation_compressed_audio: bool | None = None
 
     # Where a new account starts (#2156). A null `default_organization_id` clears
     # it; the other two are `NOT NULL`, so a null for them is "not provided".

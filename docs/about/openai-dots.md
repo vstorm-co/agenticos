@@ -19,7 +19,7 @@ Maintained by the AgenticOS team. Sources checked 14 October 2026. AgenticOS bas
 | What you get | Always-on agents inside ChatGPT, each with a cloud computer | Any number of agents, each a versioned spec |
 | Where it runs | OpenAI's cloud | Your infrastructure, with Docker Compose |
 | Source | Proprietary | Apache-2.0 |
-| Models | OpenAI only | 27 providers, including local models |
+| Models | OpenAI only | 28 providers, including local models |
 | Tools | 4,000+ connected apps, a browser and a computer per dot | 4,700+ MCP servers in the gallery, a browser, a code sandbox, your own capabilities |
 | Surfaces | ChatGPT, Slack, Microsoft Teams; SMS announced | Web chat, widget, hosted page, HTTP API, WebSocket, Slack, Telegram, Mattermost |
 | Rules | Custom rules to allow, block or require approval; a model reviews risky actions | Approvals checked by the platform before a tool runs; per-tool allow-lists |
@@ -38,7 +38,7 @@ dots run in OpenAI's cloud, and at launch the Pro plan was not offered in the EE
 
 ### Any model, not one vendor's
 
-A dot thinks with OpenAI's models. An AgenticOS agent uses a [model profile](../models.md#a-model-profile) over 27 providers, with fallbacks, so one agent can run on Claude, another on a local model, and a change of provider is one setting.
+A dot thinks with OpenAI's models. An AgenticOS agent uses a [model profile](../models.md#a-model-profile) over 28 providers, with fallbacks, so one agent can run on Claude, another on a local model, and a change of provider is one setting.
 
 ### A record you can audit
 

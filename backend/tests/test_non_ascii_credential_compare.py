@@ -14,8 +14,6 @@ every attacker-controlled value reaches the compare as bytes that cannot match a
 real secret.
 """
 
-from __future__ import annotations
-
 import time
 
 import pytest

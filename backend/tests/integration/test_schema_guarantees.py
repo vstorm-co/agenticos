@@ -6,8 +6,6 @@ what it should. These are the promises the schema makes to the code above it,
 and code that trusts an unenforced promise fails in production rather than here.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -919,6 +917,124 @@ class TestOrganizationBudgetConstraint:
         await db.refresh(org)
 
         assert org.monthly_budget_usd == Decimal("12.345678")
+
+
+class TestOrganizationSpeechConstraints:
+    """The organization's speech-to-text default (#1797), and the rows the columns refuse."""
+
+    async def test_an_existing_organization_has_no_default(self, db):
+        """No pair, so an upgrade sends nobody's audio to a new vendor."""
+        org = await _org(db)
+        await db.refresh(org)
+
+        assert org.dictation_max_seconds == 300
+        assert org.speech_to_text_provider is None
+
+    async def test_a_provider_without_a_model_is_refused(self, db):
+        """Half a pair is a server engine with nothing to call."""
+        org = await _org(db)
+        org.speech_to_text_provider = "openai"
+
+        with pytest.raises(IntegrityError):
+            await db.flush()
+
+    @pytest.mark.parametrize("seconds", [9, 601])
+    async def test_a_length_outside_the_bounds_is_refused(self, db, seconds: int):
+        org = await _org(db)
+        org.dictation_max_seconds = seconds
+
+        with pytest.raises(IntegrityError):
+            await db.flush()
+
+    async def test_a_full_default_is_stored(self, db):
+        org = await _org(db)
+        org.speech_to_text_provider = "openai"
+        org.speech_to_text_model = "gpt-4o-transcribe"
+        org.speech_to_text_language = "pl"
+        org.dictation_max_seconds = 600
+        await db.flush()
+        await db.refresh(org)
+
+        assert (org.speech_to_text_provider, org.speech_to_text_model) == (
+            "openai",
+            "gpt-4o-transcribe",
+        )
+
+    async def test_a_key_with_no_pair_is_refused(self, db):
+        """A key left behind by a cleared pair would ride along to the next provider."""
+        org = await _org(db)
+        secret = _secret(org.id)
+        db.add(secret)
+        await db.flush()
+        org.speech_to_text_secret_id = secret.id
+
+        with pytest.raises(IntegrityError):
+            await db.flush()
+
+    async def test_deleting_the_key_leaves_the_pair_asking_for_one(self, db):
+        """SET NULL: the organization keeps its pair and reads as "choose a key"."""
+        org = await _org(db)
+        secret = _secret(org.id)
+        db.add(secret)
+        await db.flush()
+        org.speech_to_text_provider = "openai"
+        org.speech_to_text_model = "whisper-1"
+        org.speech_to_text_secret_id = secret.id
+        await db.flush()
+
+        await db.delete(secret)
+        await db.flush()
+        await db.refresh(org)
+
+        assert (org.speech_to_text_provider, org.speech_to_text_secret_id) == ("openai", None)
+
+
+class TestChannelBotSpeechConstraints:
+    """A bot's transcription switch and pair (#1797)."""
+
+    async def test_a_new_bot_inherits_by_default(self, db):
+        """On, with no pair: the agent's or the organization's engine answers."""
+        bot = await _bot(db, await _org(db))
+        await db.refresh(bot)
+
+        assert bot.transcribe_voice_notes is True
+        assert bot.speech_to_text_provider is None
+
+    async def test_a_provider_without_a_model_is_refused(self, db):
+        """Half a pair now reads as an engine where it used to read as off."""
+        bot = await _bot(db, await _org(db))
+        bot.speech_to_text_provider = "openai"
+
+        with pytest.raises(IntegrityError):
+            await db.flush()
+
+    async def test_a_key_without_a_pair_of_the_bots_own_is_refused(self, db):
+        org = await _org(db)
+        bot = await _bot(db, org)
+        secret = _secret(org.id)
+        db.add(secret)
+        await db.flush()
+        bot.speech_to_text_secret_id = secret.id
+
+        with pytest.raises(IntegrityError):
+            await db.flush()
+
+    async def test_deleting_the_key_keeps_the_bot_and_its_pair(self, db):
+        org = await _org(db)
+        bot = await _bot(db, org)
+        secret = _secret(org.id)
+        db.add(secret)
+        await db.flush()
+        bot.speech_to_text_provider = "openai"
+        bot.speech_to_text_model = "whisper-1"
+        bot.speech_to_text_secret_id = secret.id
+        await db.flush()
+
+        await db.delete(secret)
+        await db.flush()
+        await db.refresh(bot)
+
+        assert (bot.speech_to_text_provider, bot.speech_to_text_secret_id) == ("openai", None)
 
 
 class TestIngestionSpend:

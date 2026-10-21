@@ -2,7 +2,7 @@
 title: "AgenticOS vs OpenAI Frontier"
 seo_title: "AgenticOS vs OpenAI Frontier: alternatywa open source"
 description: "OpenAI Frontier zarządza firmowymi współpracownikami AI na modelach OpenAI. Porównaj z AgenticOS: open source, dowolny model, uruchamiany i zarządzany na twoich serwerach."
-source_sha: "19c8ef39db93"
+source_sha: "604c3b920001"
 ---
 
 # AgenticOS vs OpenAI Frontier { #agenticos-vs-openai-frontier }
@@ -20,7 +20,7 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 14 października 2026. Wersja
 | Co dostajesz | Zarządzaną platformę dla firmowych współpracowników AI | Warstwę dla agentów firmy, którą hostujesz sam |
 | Gdzie działa | Lokalnie, w twojej chmurze albo w chmurze OpenAI | Twoja infrastruktura, z Docker Compose |
 | Kod źródłowy | Zamknięty | Apache-2.0 |
-| Modele | OpenAI | 27 providerów, w tym modele lokalne |
+| Modele | OpenAI | 28 providerów, w tym modele lokalne |
 | Kontekst firmy | Połączenia z CRM i hurtowniami danych | Bazy wiedzy synchronizowane z Drive, S3, SharePoint, OneDrive, stron i gita; ponad 4700 serwerów MCP |
 | Zarządzanie | Uprawnienia per agent, ewaluacje, dashboardy | Role i granty per zasób, zgody, budżety sprawdzane przed każdym zapytaniem do modelu, log audytu odporny na manipulację |
 | Cena | Nieopublikowana | Bez opłaty licencyjnej; płacisz providerom modeli i za infrastrukturę |
@@ -33,7 +33,7 @@ Frontier to produkt, który licencjonujesz. AgenticOS jest na Apache-2.0: możes
 
 ### Dowolny model { #any-model }
 
-Frontier jest zbudowany wokół modeli OpenAI. Agent AgenticOS korzysta z [profilu modelu](../models.md#a-model-profile) opartego na 27 providerach, z fallbackami, także z modelami na twoim sprzęcie.
+Frontier jest zbudowany wokół modeli OpenAI. Agent AgenticOS korzysta z [profilu modelu](../models.md#a-model-profile) opartego na 28 providerach, z fallbackami, także z modelami na twoim sprzęcie.
 
 ### Zarządzanie bez rozmowy z działem sprzedaży { #governance-without-a-sales-call }
 
@@ -49,7 +49,7 @@ Frontier jest zbudowany wokół modeli OpenAI. Agent AgenticOS korzysta z [profi
 
 ### Czy AgenticOS to open-source'owa alternatywa dla OpenAI Frontier? { #is-agenticos-an-open-source-alternative-to-openai-frontier }
 
-Tak. Oba dają firmie wielu agentów z uprawnieniami i wspólnym kontekstem. AgenticOS jest na Apache-2.0, działa na twojej infrastrukturze i współpracuje z każdym z 27 providerów modeli.
+Tak. Oba dają firmie wielu agentów z uprawnieniami i wspólnym kontekstem. AgenticOS jest na Apache-2.0, działa na twojej infrastrukturze i współpracuje z każdym z 28 providerów modeli.
 
 ### Czy AgenticOS ma ewaluacje jak Frontier? { #does-agenticos-have-evaluations-like-frontier }
 

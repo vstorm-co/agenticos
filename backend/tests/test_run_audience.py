@@ -11,8 +11,6 @@ every visitor onto the owner, which is a cross-person leak rather than a missing
 feature.
 """
 
-from __future__ import annotations
-
 from dataclasses import FrozenInstanceError
 from uuid import uuid4
 

@@ -4,13 +4,23 @@ import asyncio
 import contextlib
 import hmac
 import logging
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from typing import Any
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
+from aiogram.client.session.middlewares.base import (
+    BaseRequestMiddleware,
+    NextRequestMiddlewareType,
+)
 from aiogram.enums import ParseMode
-from aiogram.exceptions import TelegramBadRequest, TelegramUnauthorizedError
+from aiogram.exceptions import (
+    TelegramBadRequest,
+    TelegramConflictError,
+    TelegramUnauthorizedError,
+)
+from aiogram.methods import GetUpdates, TelegramMethod
+from aiogram.methods.base import Response, TelegramType
 from aiogram.types import (
     BotCommand,
     CallbackQuery,
@@ -23,7 +33,7 @@ from aiogram.types import Message as AiogramMessage
 from app.agents.capabilities.channel_tools import ChannelDetails, ChannelMember
 from app.core.security import encode_untrusted
 from app.db.session import get_db_context
-from app.services.channels import connection_state
+from app.services.channels import connection_state, stream_lease
 from app.services.channels.base import (
     CHANNEL_COMMANDS,
     ChannelAdapter,
@@ -72,6 +82,58 @@ _REACTIONS = {
 names Slack and Mattermost use for ones that set holds. Another name is skipped."""
 
 
+ANOTHER_POLLER = (
+    "Another process is polling this bot's token, so Telegram ends one of the two "
+    "requests on every poll. Look for a second deployment, or a script, using the "
+    "same token."
+)
+
+
+class _ConflictWatch(BaseRequestMiddleware):
+    """Tells the adapter when Telegram ends this bot's poll for somebody else's (#2224),
+    and when it stops (#2252).
+
+    aiogram catches every error a poll raises, logs it and polls again, so two
+    pollers on one token end each other's requests for as long as both run - on
+    prod that was fifteen minutes, about ten times a minute. Only a request made
+    with the bot can see the error, which is why this sits on the polling bot's
+    session rather than around `start_polling`.
+
+    The poll that succeeds after a conflict is the recovery, in the same
+    dispatcher session: `record_up` ran once before polling began, so without
+    this the channels listing kept naming the other poller until the heartbeat
+    overwrote it - and the heartbeat, firing mid-conflict, briefly read `up`.
+    `conflicted` is what keeps it from doing so.
+    """
+
+    def __init__(
+        self,
+        on_conflict: Callable[[], Awaitable[None]],
+        on_recovery: Callable[[], Awaitable[None]],
+    ) -> None:
+        self._on_conflict = on_conflict
+        self._on_recovery = on_recovery
+        self.conflicted = False
+
+    async def __call__(
+        self,
+        make_request: NextRequestMiddlewareType[TelegramType],
+        bot: Bot,
+        method: TelegramMethod[TelegramType],
+    ) -> Response[TelegramType]:
+        try:
+            response = await make_request(bot, method)
+        except TelegramConflictError:
+            if isinstance(method, GetUpdates):
+                self.conflicted = True
+                await self._on_conflict()
+            raise
+        if self.conflicted and isinstance(method, GetUpdates):
+            self.conflicted = False
+            await self._on_recovery()
+        return response
+
+
 def _where(platform_chat_id: str) -> dict[str, Any]:
     """The chat a message goes to, and the forum topic within it if there is one."""
     chat, thread = split_thread(platform_chat_id)
@@ -93,7 +155,7 @@ class TelegramAdapter(ChannelAdapter):
     @contextlib.asynccontextmanager
     async def _bot(
         bot_token: str, *, default: DefaultBotProperties | None = None
-    ) -> AsyncGenerator[Bot, None]:
+    ) -> AsyncGenerator[Bot]:
         """A Telegram bot bound to one token, its TLS session closed on the way out.
 
         aiogram opens a fresh session per `Bot` and leaks the connection if it is
@@ -302,6 +364,32 @@ class TelegramAdapter(ChannelAdapter):
                 await task
         logger.info("Stopped Telegram polling for bot %s", bot_id)
 
+    async def _another_poller(self, bot_id: str) -> None:
+        """Telegram ended this bot's poll because another process polls it.
+
+        A worker that no longer holds the bot's stream lease is the extra copy:
+        it closes, and the holder goes on alone. A worker that does hold it is
+        the rightful poller and has nothing to close - so it says what is in the
+        way, on the channels listing, because the other process is outside
+        anything this deployment can stop.
+        """
+        leases = stream_lease.leases()
+        if not await leases.holds(bot_id):
+            logger.warning(
+                "Telegram: bot %s is polled by the worker holding its lease; closing "
+                "the copy on worker %s",
+                bot_id,
+                leases.holder,
+            )
+            leases.drop(bot_id)
+            task = self._polling_tasks.pop(bot_id, None)
+            if task is not None:
+                # This runs inside that task. The cancellation lands at its next
+                # await, so the poll unwinds itself instead of being awaited here.
+                task.cancel()
+            return
+        await connection_state.record_down(bot_id, ANOTHER_POLLER)
+
     async def _polling_supervisor(self, bot_id: str, bot_token: str) -> None:
         """Polling sessions, reopened under the shared reconnect loop."""
         await supervise_stream(
@@ -330,6 +418,11 @@ class TelegramAdapter(ChannelAdapter):
         async with self._bot(
             bot_token, default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN)
         ) as bot:
+            watch = _ConflictWatch(
+                lambda: self._another_poller(bot_id),
+                lambda: connection_state.record_up(bot_id),
+            )
+            bot.session.middleware(watch)
             dp = Dispatcher()
 
             @dp.message()
@@ -344,7 +437,9 @@ class TelegramAdapter(ChannelAdapter):
 
             await self._offer_commands(bot)
             await connection_state.record_up(bot_id)
-            beat = asyncio.create_task(connection_state.heartbeat(bot_id))
+            beat = asyncio.create_task(
+                connection_state.heartbeat(bot_id, live=lambda: not watch.conflicted)
+            )
             try:
                 await dp.start_polling(bot, handle_signals=False)
             except TelegramUnauthorizedError as exc:
@@ -485,6 +580,9 @@ class TelegramAdapter(ChannelAdapter):
         largest, which is the one worth having - the rest are thumbnails Telegram
         generated. It also sends no MIME type for one, so a JPEG is stated rather
         than guessed from bytes nobody has yet.
+
+        A voice note or an audio file states its `duration` in whole seconds,
+        which is kept as the recording's length for the usage record (#1797).
         """
         found: list[IncomingAttachment] = []
 
@@ -492,12 +590,16 @@ class TelegramAdapter(ChannelAdapter):
             media = msg_data.get(field)
             if not isinstance(media, dict) or not media.get("file_id"):
                 continue
+            duration = media.get("duration")
             found.append(
                 IncomingAttachment(
                     filename=media.get("file_name") or fallback_name,
                     mime_type=media.get("mime_type") or fallback_mime,
                     size=int(media.get("file_size") or 0),
                     handle=str(media["file_id"]),
+                    duration_seconds=(
+                        float(duration) if isinstance(duration, int | float) else None
+                    ),
                 )
             )
 

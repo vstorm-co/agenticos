@@ -1,5 +1,5 @@
 ---
-source_sha: "80ee04abded5"
+source_sha: "f7d97e79857b"
 ---
 
 # Lernen { #learn }
@@ -61,7 +61,7 @@ braucht.
 
 - :material-brain:{ .lg .middle } **[Modelle und Provider](../models.md)**
 
-    27 Provider, Modellprofile, Fallbacks, und was ein Token wirklich kostet.
+    28 Provider, Modellprofile, Fallbacks, und was ein Token wirklich kostet.
 
 - :material-school:{ .lg .middle } **[Skills](../skills.md)**
 

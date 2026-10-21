@@ -32,6 +32,7 @@ export const SURFACES = [
   "slack",
   "telegram",
   "mattermost",
+  "a2a",
   "schedule",
 ] as const;
 
@@ -109,6 +110,19 @@ export function RunFilterBar({
               </span>
             </SelectItem>
           ))}
+        </SelectContent>
+      </Select>
+      <Select
+        value={filters.modality}
+        onValueChange={(value) => set({ modality: value as RunFilters["modality"] })}
+      >
+        <SelectTrigger className="h-8 w-[140px]" aria-label={t("modalityFilter")}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">{t("anyModality")}</SelectItem>
+          <SelectItem value="text">{t("modalityText")}</SelectItem>
+          <SelectItem value="voice">{t("modalityVoiceCalls")}</SelectItem>
         </SelectContent>
       </Select>
       {/* Both directions, not only down: "what did people like" is how a good

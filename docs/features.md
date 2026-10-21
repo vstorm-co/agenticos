@@ -95,7 +95,7 @@ somebody makes about *this* agent, not a change to the platform.
 
 [Every capability, its tools and its config →](reference/capabilities.md)
 
-## Any model, from 27 providers
+## Any model, from 28 providers
 
 OpenAI, Anthropic, Google, Groq, Mistral, Bedrock, Vertex, an Ollama on your own
 hardware, a LiteLLM proxy in front of all of it.
@@ -164,7 +164,18 @@ Publish once. The same runner answers on all of these:
 - **Slack**, **Telegram** and **Mattermost**, where an `@mention` runs as the
   person who sent it — not as the bot
 
-[Surfaces →](channels.md)
+Speech to text runs on the organization's own provider on these too: dictation
+in web chat, on a hosted page and in the widget, and voice notes transcribed
+in Slack, Telegram and Mattermost.
+
+**Voice calls** let a person talk to a published agent and interrupt it, in web
+chat, on a hosted page or in the widget. The agent keeps its tools, knowledge,
+approvals and budgets, every turn is saved as text in the conversation, and no
+audio is stored. Calls are off until an organization turns them on, and carry
+their own time and monthly-minute limits. OpenAI's realtime models are tested
+live; Azure OpenAI, Gemini Live and xAI are not verified live yet.
+
+[Surfaces →](channels.md) · [Voice conversations →](voice.md)
 
 ## Budgets that actually stop a run
 

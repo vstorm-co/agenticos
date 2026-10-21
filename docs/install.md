@@ -56,8 +56,8 @@ curl -fsSLO https://raw.githubusercontent.com/vstorm-co/agenticos/main/docker-co
 docker compose up -d
 ```
 
-That pulls the images and starts **Postgres (with pgvector), Redis, the Prefect
-server and runner, the API and the console**, runs the migrations, and answers on
+That pulls the images and starts **Postgres (with pgvector), Redis, the API, the
+background worker and the console**, runs the migrations, and answers on
 <http://localhost:3000>. The first pull is about 2 GB.
 
 ```mermaid
@@ -66,9 +66,7 @@ flowchart LR
     A --> PG[("postgres<br/>pgvector")]
     A --> RD[("redis")]
     A --> SD["sandboxd<br/><i>holds the Docker socket</i>"]
-    A --> PF["prefect server"]
-    PF --> WK["prefect runner"]
-    WK --> PG
+    WK["worker<br/><i>claims jobs</i>"] --> PG
     M["migrate<br/><i>runs once, exits</i>"] --> PG
 ```
 
@@ -132,9 +130,7 @@ flowchart LR
     A --> PG[("postgres<br/>pgvector, :5432")]
     A --> RD[("redis<br/>:6379")]
     A --> SD["sandboxd<br/><i>holds the Docker socket</i>"]
-    A --> PF["prefect server<br/>:4200"]
-    PF --> WK["prefect runner"]
-    WK --> PG
+    WK["worker<br/><i>claims jobs</i>"] --> PG
 ```
 
 Migrations run as the `migrate` service every time the stack starts, and are a
@@ -239,7 +235,7 @@ code instead: `git clone`, `make dev`, `make dev-frontend`, `make platform-boots
 | What you see | Why |
 |---|---|
 | Ingestion 500s with `extension "vector" is not available` | Stock Postgres instead of `pgvector/pgvector:pg16`. See below |
-| `uv run` reports Python 3.13 or 3.14 | `backend/.venv` resolved past the pin. Delete it and re-run `uv sync` |
+| `uv run` reports a Python other than 3.15 | `backend/.venv` resolved past the pin. Delete it and re-run `uv sync` |
 | The frontend loads but every request fails | The API is still starting - it waits for the `migrate` service - or the browser was told the wrong host: `PUBLIC_API_URL` and `PUBLIC_WS_URL` have to be reachable from where the browser is. `docker compose logs migrate app` |
 | `docker compose up` fails with `unauthorized` on `ghcr.io/vstorm-co/...` | The package is private, or a stale `docker login` to GHCR is in the way. The images pull anonymously; `docker logout ghcr.io` and try again, and if it still refuses the package's visibility is the problem, not your machine |
 | The `app` service is `Up` and `unhealthy`, and every request hangs | A wedged event loop. The worker takes itself down after 15s and something replaces it, in all three stacks — so if it is still hanging a minute later, `EVENT_LOOP_WEDGED_AFTER` is set to `0` somewhere, which is what a debugger needs and what nothing else should. `docker inspect` shows `137` with `OOMKilled=false`, and the log line above it says which |
@@ -283,7 +279,7 @@ And where everything is:
 | API | <http://localhost:8000> |
 | OpenAPI docs | <http://localhost:8000/docs> |
 | Django-style admin | <http://localhost:8000/admin> |
-| Prefect UI | <http://localhost:4200> |
+| Background jobs | <http://localhost:3000/admin/background-jobs> - as the deployment's owner |
 | Postgres | `localhost:5432` (`postgres` / `postgres`) - published by the clone's override file only |
 | Redis | `localhost:6379` - the same |
 
@@ -322,7 +318,7 @@ None of the three is optional, and each was missing at some point:
 Both are per-checkout and shared between no two worktrees, so this is owed on
 every clone rather than once per laptop.
 
-!!! note "Python is pinned to 3.12"
+!!! note "Python is pinned to 3.15"
 
     `backend/.python-version` pins it, matching `requires-python`,
     `backend/Dockerfile` and every CI job. If `uv run python -V` reports anything

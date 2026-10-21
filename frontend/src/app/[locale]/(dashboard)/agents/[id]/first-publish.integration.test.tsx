@@ -91,6 +91,7 @@ vi.mock("@/hooks", async () => {
       setAvatar: { mutateAsync: vi.fn(), isPending: false },
       setColor: { mutate: vi.fn(), isPending: false },
       setMetadata: { mutate: vi.fn(), isPending: false },
+      setA2a: { mutate: vi.fn(), isPending: false },
     }),
     useAgentEnvironments: () => ({ environments: [], promote: { mutateAsync: vi.fn() } }),
     useAgents: () => ({
@@ -150,6 +151,7 @@ vi.mock("@/stores", () => ({
 // harder to read.
 vi.mock("@/components/agents/agent-avatar", () => ({ AgentAvatar: () => null }));
 vi.mock("@/components/agents/model-settings-form", () => ({ ModelSettingsForm: () => null }));
+vi.mock("@/components/agents/voice-card", () => ({ VoiceCard: () => null }));
 vi.mock("@/components/agents/thinking-setting", () => ({ ThinkingSetting: () => null }));
 vi.mock("@/components/ui/markdown-editor", () => ({
   MarkdownEditor: () => null,

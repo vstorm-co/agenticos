@@ -8,8 +8,6 @@ read-then-insert races itself the moment two administrators save from two tabs
 and the loser gets an `IntegrityError` no handler translates.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 from sqlalchemy import func, select

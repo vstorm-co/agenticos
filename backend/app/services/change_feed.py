@@ -23,8 +23,6 @@ publish that fails is logged and dropped, and a disconnected tab behaves as the
 console always did.
 """
 
-from __future__ import annotations
-
 import contextlib
 import json
 import logging
@@ -189,10 +187,11 @@ _redis: RedisClient | None = None
 async def connect_in_worker() -> None:
     """Give a worker process a Redis to publish on, once.
 
-    A routine's run executes in a Prefect flow, in a process that ran none of the
-    API's startup, so the lifespan's `configure` never reached it and every event
-    it published went nowhere - the run an open Activity page most wants to see
-    arrive. The client lives for the process; a flow-run subprocess exits with it.
+    A routine's run executes in the worker, a process that ran none of the API's
+    startup, so the lifespan's `configure` never reaches it and every event it
+    published went nowhere - the run an open Activity page most wants to see
+    arrive. `python -m app.worker` calls this on start; the client lives for the
+    process.
     """
     global _redis
     if _redis is not None:
@@ -518,14 +517,27 @@ async def stream_changes(websocket: WebSocket, *, organization_id: UUID, auth_to
     ):
         tasks.start_soon(_until_disconnect, websocket, tasks.cancel_scope)
         async for event in events:
-            async with get_db_context() as db:
-                ctx = await _subscriber(db, auth_token, organization_id)
-                if ctx is None:
-                    await websocket.close(code=_REVOKED_CLOSE_CODE, reason="Access revoked")
-                    tasks.cancel_scope.cancel()
-                    return
-                if await visible(db, ctx, event):
-                    await websocket.send_text(as_heard(ctx, event).model_dump_json())
+            # Shielded from the disconnect (#2241): cancelled mid-query, asyncpg's
+            # connection was cancelled while it closed too, and the pool handed
+            # the dead connection to the next request on this worker, a 500. The
+            # session finishes and goes back whole; the socket is written only
+            # outside the shield, and only while the client is still there.
+            with anyio.CancelScope(shield=True):
+                async with get_db_context() as db:
+                    ctx = await _subscriber(db, auth_token, organization_id)
+                    heard = (
+                        as_heard(ctx, event).model_dump_json()
+                        if ctx is not None and await visible(db, ctx, event)
+                        else None
+                    )
+            if tasks.cancel_scope.cancel_called:
+                return
+            if ctx is None:
+                await websocket.close(code=_REVOKED_CLOSE_CODE, reason="Access revoked")
+                tasks.cancel_scope.cancel()
+                return
+            if heard is not None:
+                await websocket.send_text(heard)
         # Redis ended the subscription. 1011 is one the console retries, and a
         # reconnect subscribes again.
         await websocket.close(code=1011, reason="Live updates were interrupted")

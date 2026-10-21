@@ -107,6 +107,9 @@ In the Builder, open the agent → **Availability** → *Website widget*. You ch
   pricing page"*, *"Answer in German"*. It never replaces the agent's own
   instructions, which belong to the published version.
 - **Rate limit** — messages per visitor per minute.
+- **Voice input** — `off`, `browser` or `server`, which decides where a
+  visitor's voice goes. See
+  [dictation on a widget or a hosted page](#dictation-on-a-widget-or-a-hosted-page).
 
 !!! danger "An empty origin list allows nothing, and that is on purpose"
 
@@ -375,6 +378,7 @@ be wrong here" or "this is not built yet" — never silence.
 | Delegation frames | yes | **no, deliberately**: attaching a sink makes the library open a *streamed* request per child, so a delegate whose provider cannot stream breaks the moment somebody watches it |
 | Approvals: parks the run | yes | yes | yes |
 | Approvals: a path to the decision | yes (`/runs`) | one sentence, deliberately: a stranger holding a link is not shown a URL into somebody's console | yes — the result carries `parked`, naming what is waiting and the approval to post to |
+| `@`-mentions | yes (`mentions`) | **no, not yet**: a widget has no menu to pick from, and a visitor's mention would need the same as-them check | **no, not yet**: a script names what to use in the message itself |
 
 ### `environment_id` on the socket, and why it is the publisher's
 
@@ -511,18 +515,18 @@ will not load.
 
 ### What it offers
 
-Two switches, and both are the operator's rather than the page's — a capability
-a page turned on for itself would be one nobody could turn off.
+Three choices, and every one is the operator's rather than the page's — a
+capability a page turned on for itself would be one nobody could turn off.
 
 - **A button to start a fresh thread**, on by default. It mints a new continuity
   key, so the old thread is not deleted: it stops being the one that browser
   resumes.
-- **A microphone in the composer**, off by default. It dictates into the box
-  using the *visitor's own browser*, so no audio reaches this deployment and
-  nothing is transcribed here — but a browser that offers speech recognition
-  hands the audio to its vendor, which is the half worth reading before turning
-  it on for the public. A browser without one is shown no microphone rather than
-  a button that does nothing.
+- **Voice input**, off by default: `browser` dictates with the visitor's own
+  browser, and `server` with the organization's speech-to-text provider. Which
+  one decides where a visitor's voice goes - see
+  [dictation on a widget or a hosted page](#dictation-on-a-widget-or-a-hosted-page).
+  A page published before the choice existed keeps what it had: its old
+  *microphone in the composer* became `browser`, and no microphone became `off`.
 - **A way to attach a file**, off by default. See below: it is the only thing on
   this surface that lets a stranger *store* something.
 
@@ -695,6 +699,237 @@ that follows one has published it.
 
 ---
 
+## Dictation on a widget or a hosted page
+
+A widget and a hosted page each have a `dictation` setting: `off`, `browser` or
+`server`. **`browser`** uses the visitor's own browser to recognise speech, so
+the audio goes to the browser's vendor - Google for Chrome, Apple for Safari -
+and nothing reaches this deployment. A browser without a recogniser, Firefox
+among them, is shown no microphone. **`server`** records in the page and sends
+the audio here, where the organization's speech-to-text provider transcribes it:
+the agent's override and its key if it has one, the organization's default and
+its key otherwise - the same resolution as
+[dictation in chat](ml-services.md#dictation-in-chat).
+
+The organization's engine for `/chat` has no say over either surface. An
+organization that keeps its members on the browser's recogniser can still give
+a public page `server` dictation, and the other way round.
+
+**Switching `server` on is refused** while no provider with a usable key
+resolves for the agent, and the embed form shows the choice disabled with the
+reason. Only the switch is checked, so a page whose key was deleted later can
+still be renamed. While nothing resolves, its public config says `off` and
+visitors see no microphone rather than one that fails. The agent must also be
+published: a recording for an agent nobody runs is refused before anything is
+paid for.
+
+**The hosted page** uses the console composer's own recorder: the recording bar
+with its waveform and timer, the hints under the box, and the voice glow. Its
+copy follows the visitor's language and names no administrator or setting.
+**The widget** has a plain-JavaScript recorder of its own: a microphone button,
+a level bar in the accent colour, a timer, Stop and Cancel, and one line under
+the box when something goes wrong. Its copy is English, like the rest of the
+widget, and it has no glow. On both, the text lands in the box and is never
+sent by itself; Enter stops a recording and Escape discards it.
+
+Both record in the format the server advertises in the public config's
+`dictation_format`: 16 kHz mono 16-bit PCM WAV, built from the microphone's
+samples, unless the deployment
+[accepts compressed audio](deployment.md#what-a-dictation-may-be-uploaded-as)
+and the provider takes what `MediaRecorder` makes - WebM, Ogg or MP4. Mistral,
+which documents neither WebM nor Opus, gets WAV either way.
+
+### The endpoint
+
+`POST /api/v1/embed/{public_key}/dictation` takes a multipart `file` and an
+optional `duration`, and answers `{"text": ...}`. Admission follows the surface.
+A **widget** is admitted as its socket is: the `Origin` has to be on its
+allow-list, and in `jwt` mode the visitor's token travels as a form field named
+`token` - never in the URL, which lands in access logs, and never in a header,
+which would need a CORS preflight that somebody else's site does not pass. A
+**hosted page** sends its continuity key in `X-Visitor-Key`, a custom header
+that only this deployment's own origin may send. A **raw socket** has nothing
+to dictate into and is answered 404.
+
+Refusals carry the same `details.reason` as the
+[composer's route](ml-services.md#dictation-in-chat): 400 `empty`,
+`unsupported_type` or `too_large`, 503 `not_configured`, `provider_error` or
+`timeout`. Unlike the composer's route, a compressed recording whose length
+cannot be read is refused here, as `unsupported_type`
+([below](#what-it-costs-and-what-bounds-it)).
+Anything about the embed itself - unknown, paused, not on `server`,
+an origin it does not allow - is 404. Once a widget is admitted, every answer
+carries its origin in `Access-Control-Allow-Origin`, refusals included;
+otherwise a browser hides the reason and a recording that was too long would
+read to the visitor as being offline.
+
+### What it costs, and what bounds it
+
+A transcription is **outside every model budget**: the embed's budget counts
+the runs, not the dictations. What bounds a stranger's spend is two rate limits
+and the organization's longest dictation. Each address may send
+`RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` recordings a minute (6 by default), and
+so may each visitor of a `jwt` widget, by the token's subject. Each page or
+widget accepts `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` a minute (10 by
+default) from everybody together, however many addresses a script rotates
+through.
+
+The address is counted before the link is looked up, so a refused request
+spends its own address's minute. The link's ten are spent only once the visitor
+is admitted, so a caller with no valid `jwt` token cannot use them up for the
+visitors who have one. On a hosted page or a public widget everybody is
+admitted, so anybody holding the link can still spend its minute; that costs
+the organization nothing beyond those ten recordings.
+
+While the deployment's Redis cannot be reached, these limits **do not open**:
+each worker counts the same allowances in its own memory until Redis is back.
+The ceiling is then the allowance times the number of API workers, rather than
+no ceiling at all. A voice call's start limits behave the same way.
+
+**The length is measured before the provider is called**, and a recording
+longer than `dictation_max_seconds` is refused as `too_large`, with three
+seconds' grace for the browser's once-a-second stop. By default a recording is
+raw PCM and its length is its size - the server counts the samples, so the
+figure cannot be anything but true. Where the deployment accepts compressed
+audio, a WebM, Ogg or MP4 recording's length is read from its own header - the
+last Ogg page, the WebM block timestamps, the MP4 movie or fragment headers -
+and one whose length cannot be read is refused as `unsupported_type`. A byte
+cap alone would not do: Opus at a low bitrate fits hours into the bytes of a
+five-minute recording.
+
+!!! danger "The worst case for a leaked or public link"
+
+    The link's limit times the longest dictation: 10 recordings a minute of up
+    to 300 seconds each is 50 minutes of audio every minute. At about
+    $0.006 a minute, which is `whisper-1`'s list price, that is near $0.30 a
+    minute, $18 an hour, or $430 a day, billed to the organization's provider
+    account. Lower `dictation_max_seconds` or the link limit, pause the embed, or
+    keep it on `browser` where that is too much.
+
+    With the default, raw PCM, that is exact: no file can hold more seconds
+    than its size says. Where the deployment accepts compressed audio it holds
+    only for a file whose header states its true length, as every browser's
+    does. A file built by hand to understate its length is bounded by the byte
+    cap instead - `dictation_max_seconds` plus three seconds at 32,000 bytes a
+    second - which low-bitrate audio can fill with up to about forty times as
+    many seconds. That is the risk the administrator accepts when turning it on.
+
+Every attempt that reaches the provider leaves a usage record with the surface
+(`hosted` or `widget`) and the agent, and **no person**: a visitor is not a
+member, and the call is not the publisher's. The audio is never stored.
+
+**The microphone prompt is the customer's site's.** The browser asks on behalf
+of the page the widget runs on, so a site that sends
+`Permissions-Policy: microphone=()`, an `<iframe>` without `allow="microphone"`,
+or plain HTTP blocks it. The widget says so under its box rather than failing
+silently.
+
+## Voice calls on a widget or a hosted page
+
+A widget and a hosted page each have a **Voice calls** switch
+(`voice_conversation`), off by default and separate from dictation. With it on,
+visitors can hold a [voice call](voice.md) with the agent: the same call a member
+makes from `/chat`, with the same limits, run under the publisher's context and
+recorded with the `embed` surface.
+
+**Switching it on is refused** while the agent has no published Voice section a
+call can be held with. Only the switch is
+checked, so an embed whose agent loses its voice later can still be edited.
+While a call would not start, the public config says `voice_conversation: false`
+and visitors are offered no call; when it would, the config also says which
+transport the call uses (`voice_transport`).
+
+**On a hosted page**, a call button appears in the composer, and the call
+runs in the console's own [call bar](console.md#voice-calls): the state, the time
+against the call's limit, the waveform, mute, push to talk and End, with captions
+inside the message being spoken. It is cut to what a visitor needs: no approval
+controls, no count of the organization's minutes, and endings and refusals in a
+visitor's words. Each saved turn joins the page's thread, so the visitor can
+carry on typing; **New chat** hangs the call up.
+
+**In the widget**, the call is a separate script, `voice.js`, fetched the first
+time a visitor opens the panel and only when the public config offers calls, so
+the script every visitor downloads stays small. It is served at
+`/api/v1/embed/{public_key}/voice.js` on the widget script's counter, and its URL
+carries a hash of the script, so a cached copy never pairs with a newer widget.
+
+The widget's input row becomes a cut-down call bar - a level meter in the widget's
+accent, the state, the time against the limit, Mute and End - with no
+push-to-talk and no approval card. Captions land in the message list and give
+way to the saved turns, and a refusal, a limit or a busy line shows as one line
+under the bar. End, closing the panel, leaving the page or a connection that
+fails to set up ends the call and releases the microphone, the audio and the
+connection; a connection that drops mid-call is retried once, within eight
+seconds. The widget's call copy is English, like the rest of it.
+
+**A widget call is a conversation of its own.** The widget's typed chat keeps
+no visitor key - each page load starts afresh - so the turns of a call are saved
+to a conversation of the call's, and a message typed after it starts another.
+On the screen they share one list; to the agent, what was said in the call is
+not context for what is typed next. The hosted page has a visitor key, and there
+the call and the typing are one thread.
+
+**A visitor cannot approve anything.** Tools that need an approval are left out
+of a visitor's call entirely, so the agent never reaches for one; it says
+plainly when it cannot do something there. A call also gets the embed's
+placement note and the page's declared variables, exactly as a typed message
+does, so the agent behaves the same in both.
+
+**A visitor is told only what a visitor needs.** The switches under [what the
+visitor sees of the work](#what-the-visitor-sees-of-the-work) filter a call's
+frames as they filter typed replies: without *What the agent is doing* a visitor
+is not told a tool ran, and without *What each step returned* a step does not
+carry what a tool was called with or what came back. The limit a visitor sees is
+the call's own, and a refusal about the operator's setup, price or budget says
+only that calls are not available right now. Pausing the embed, switching its calls off or pointing it
+at another agent ends the calls on it within a heartbeat. The frames are in [the
+API page](api.md#voice-calls).
+
+### The call socket
+
+`/api/v1/embed/{public_key}/voice/ws` speaks the same frames as the console's
+`/api/v1/ws/voice` ([API](api.md#voice-calls)). Admission follows the surface,
+as the chat socket's does. A **widget** is admitted by its allow-list and, in
+`jwt` mode, the customer's token in `?token=`. A **hosted page** is admitted by
+this deployment's own origin and the continuity key in `?visitor=`, and the call
+lands in the thread that key holds, so a dropped call can resume there. A **raw
+socket** has nothing to call from.
+
+The socket closes with `4029` past a rate limit and with `4003` for anything
+about the embed - unknown, paused, a raw socket, calls switched off, an origin
+it does not allow - without saying which. Everything after admission is the
+call's own refusal, sent as an `ended` frame with its reason.
+
+### What a call costs a public link
+
+Calls are inside the budgets: each is a run, metered on the agent's and the
+organization's budgets, and at most the agent's longest call. On top of that, a
+public link has limits of its own:
+
+| Limit | Default | Counted |
+|---|---|---|
+| `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` | 3 | Call starts per address, and per visitor's token subject on a `jwt` widget |
+| `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` | 6 | Call starts on one page or widget, from everybody together |
+| `VOICE_MAX_CALLS_PER_EMBED` | 3 | Calls open on one embed at once; the next caller is refused as `line_busy` |
+
+The embed's own `rate_limit_per_minute` counts **messages**, not call starts, so
+it does not bound calls. The address is counted before the key is looked up, so
+a refused start spends its address's minute; the link's starts are spent only
+once the visitor is admitted. The `jwt` subject limit is a start rate, not a cap
+on open calls; the open calls are bounded with everybody's by the embed's.
+
+!!! danger "The worst case for a leaked link"
+
+    Three calls open at once, each at most the agent's longest call - 10
+    minutes by default, 50 at most - spends at most three call-minutes a minute,
+    on the organization's provider account. The agent's and the organization's
+    budgets are what end it: each call is checked against what is left before it
+    starts, and ended when the budget runs out, members' runs included. Give the
+    agent a budget of its own, pause the embed, or switch its calls off if that
+    is too much.
+
+---
+
 ## The public API
 
 No frontend at all, and no browser. One request, one answer:
@@ -717,6 +952,42 @@ in the approvals queue, and it continues when somebody decides.
 
 Limited per caller rather than per address — an office behind one NAT is not one
 caller — at `RATE_LIMIT_RUN_PER_MINUTE`.
+
+## Other agents, over A2A { #a2a }
+
+Another system's agent can send an agent tasks over the
+[Agent2Agent protocol](https://a2a-protocol.org). It is off for every agent until
+somebody who may publish it turns on **Agent2Agent (A2A)** on its **Availability**
+tab, which shows the two addresses to give the other side:
+
+- the **agent card**, at `/api/v1/a2a/{agent_id}/.well-known/agent-card.json`,
+  readable without a key — the agent's name, description, version, its one skill
+  and how to authenticate;
+- the **endpoint** for tasks, `POST /api/v1/a2a/{agent_id}`, JSON-RPC 2.0.
+
+The caller sends an organization API key, or an OAuth access token this deployment
+issued, as a bearer token, and it must be allowed to run the agent: one that is not
+is refused with HTTP `403`, or `404` when it may not see the agent at all, as A2A
+leaves authorization to the transport. `message/send` takes text parts only, and
+refuses a message with a data or file part with `-32005`, rather than run it on
+its text alone.
+
+`message/send` runs the published version as an ordinary run stamped `a2a`, so the budget, the
+approval gate, the audit trail and Activity all apply. The task's id is the run's
+id and its `contextId` is the conversation the run files under, so sending it again
+continues that conversation. A run that stops for an approval answers
+`input-required`; it is decided in the console, and `tasks/get` reads where it
+stands since.
+
+A task is read by whoever sent it, or by somebody who may read every
+run (`runs:view`); to anyone else its id is unknown. A message naming a `taskId`
+is refused rather than run beside the waiting task: send without it, in the same
+`contextId`, to ask something new.
+
+Answered synchronously: `message/stream`, push notifications and `tasks/cancel` are
+refused by name, and the card says streaming is not offered. An agent that is not
+served — off, unpublished, archived or another organization's — answers `404`, card
+and endpoint alike.
 
 ---
 
@@ -867,7 +1138,8 @@ question, or turn streaming off, which falls back to a reply edited once a
 second. Streaming also falls back on its own where Slack refuses to start one.
 
 A Markdown table in the answer is drawn as a Slack table, and a chart arrives as
-an image, as it always did. If the finished answer is not what was streamed - an
+an image, as it always did. So does a [visual](reference/capabilities.md#visuals), drawn by
+the deployment's browser when `VISUAL_RENDER_CDP_URL` names one. If the finished answer is not what was streamed - an
 output guardrail redacted something - the streamed message is rewritten whole.
 
 ### Scopes and events
@@ -1300,7 +1572,7 @@ agent that does well in the console and badly in Slack shows it.
     operator two minutes and makes the chat say which agent it is talking to,
     which no amount of routing can. `@slug` still parses — as an alias for the
     agent behind this bot, refused when it names any other.
-- **A voice message is transcribed, where a bot has been given a model.** It is
+- **A voice message is transcribed, unless the bot is switched off.** It is
   the one attachment an agent cannot be handed as a file: it reads a PDF and
   looks at a screenshot, and an `audio/ogg` blob is a byte count.
 
@@ -1313,14 +1585,103 @@ agent that does well in the console and badly in Slack shows it.
     typed. A voice note with a caption stays one message, because that is what
     somebody sent.
 
-    Which model is a **pair on the bot** — a provider and one of its models, from
-    `app/core/catalog/speech_to_text_models.json` — chosen under **Channels**, and
-    null by default: transcription spends the organization's provider credit on
-    every recording, so it is opted into. The key is the one already configured
-    for that provider in the organization's model profiles; there is nothing new
-    to store. A bot with no model chosen says it cannot listen rather than
-    dropping the recording, because a voice note that produces no reaction is
-    indistinguishable from a broken bot.
+    Each bot's form under **Channels** offers three answers. **Inherit**, the
+    default, uses the provider and model of the agent the bot serves, then the
+    organization's, and the language of the agent, then the organization's
+    ([the order](ml-services.md#which-engine-a-recording-reaches)). **Choose**
+    names the bot's own pair - a provider and one of its models, from
+    `app/core/catalog/speech_to_text_models.json` - and the vault key it is sent
+    with. **Off** never transcribes, whatever the agent or the organization say.
+    Inherit beside the choice names what it resolves to, which of the two chose
+    it, and whether that level still needs a key.
+
+    **The bot's own pair needs its own key**: an API key whose purpose is the
+    provider, and one **visible to the whole organization**, because a bot's
+    voice notes are paid for on behalf of whoever writes to it. A member's
+    private key is refused when the bot is saved, and one made private later
+    stops being used. The picker offers only keys that fit, says when a
+    provider has none, and links to the vault to add one. An inheriting bot
+    takes the inherited level's key together with its pair, never a key of its
+    own. Deleting the key leaves the pair asking for another, and the bot
+    transcribes nothing until somebody chooses one.
+
+    Inheriting costs nothing until somebody sets a provider up: with none on the
+    agent or the organization, nothing is transcribed, so spending the
+    organization's provider credit stays the organization's decision. A bot
+    registered from the CLI, or by a client that sends no switch, inherits.
+
+    **A voice note is held to the organization's longest dictation** before any
+    provider is paid: its length is read off the file where the container says
+    (Ogg, WebM, MP4, WAV, MP3), else as the platform reported it. A longer note
+    is refused with a line saying so, and so is one whose length neither states -
+    a Mattermost MP3 with more than a tag after its last frame, say. Bytes alone
+    do not bound it - 25 MB of low-bitrate audio is hours - and the sender's
+    limit counts messages, not minutes. Its usage records the provider's length,
+    else the one measured here.
+
+    A bot that cannot listen says so rather than dropping the recording, because
+    a voice note that produces no reaction is indistinguishable from a broken
+    bot - and it says which reason, because different people fix them: the bot
+    is switched off, or nobody has set up a provider. A bot with no agent bound,
+    or whose agent is archived or has no version to run, transcribes nothing at
+    all, since the message is refused anyway.
+
+    Every recording sent to the provider leaves a
+    [usage record](ml-services.md#what-is-recorded) naming the bot, its agent and
+    the person the sender is linked to - while that person is still a member of
+    the organization - with the recording's length where Telegram, Slack or the
+    provider states it.
+
+    !!! note "Upgrading: a bot that did not transcribe still does not"
+
+        Before this switch existed, a bot with no pair was a bot that did not
+        transcribe, and the API cleared the pair to turn transcription off.
+        Migration `0151_bot_transcription_switch.py` switches every such bot
+        **off**, so none of them starts sending audio to a provider on upgrade;
+        a bot with a pair keeps it. From then on a client that clears the pair
+        gets **inherit**, and **off** is `transcribe_voice_notes: false`, which
+        also clears the pair. The organization's or the agent's language now
+        reaches a bot with its own pair too.
+
+        A bot with a pair used to transcribe on the first model profile, by
+        label, holding a key for its provider. The same migration writes that
+        key down as the bot's own, where it is an organization-visible API key
+        for the provider and the profile has no `base_url` of its own. A bot
+        with no such profile keeps its pair with no key: its form says "choose
+        a key", and it transcribes nothing until somebody does.
+
+    What counts as a voice message is read off the file's type, and each
+    platform types its files differently. A Telegram voice note or audio file
+    always counts. On Slack, an audio clip recorded in the composer counts
+    whatever type Slack gives it - a clip from the phone app can arrive as
+    `video/mp4` - and so does any uploaded audio file. A file the platform left
+    untyped counts when its extension names audio: `.m4a`, `.mp3`, `.ogg`,
+    `.oga`, `.opus`, `.webm` or `.wav`. An untyped `.mp4` that Slack did not
+    mark as a clip stays an ordinary file: it is far more often a video, and
+    transcribing it would bill a soundtrack.
+
+    On Mattermost any audio upload counts, by its type or its extension. An
+    outgoing webhook sends only each file's id, so for a bot in webhook mode the
+    router first looks the file up with `GET /api/v4/files/{id}/info`; a lookup
+    that fails leaves it an ordinary attachment. A Slack clip that arrives before
+    Slack has finished processing it has no download URL yet and is skipped,
+    since the bot does not subscribe to the `file_shared` event that follows.
+    The backend logs both, and logs every recording it routes to transcription
+    with its type and file name - the line to read when one is not heard.
+
+    The provider is sent the recording as `voice.<ext>`, named from its type
+    rather than from what somebody called the file: OpenAI and Groq choose the
+    decoder from the name, and refuse `.opus` or a name with no extension for
+    audio they can read. A Telegram voice note is Ogg/Opus and a clip recorded
+    in Slack's desktop app is WebM, and Mistral lists neither as a format it
+    accepts, so a Telegram or Slack bot reaching Mistral - chosen or inherited -
+    may fail to transcribe; the form says so.
+
+    Voice messages posted in a thread before the bot joined it are not
+    transcribed. The first mention reads the thread's earlier files, and
+    transcribing every recording among them would bill a whole thread's audio
+    for one question. Each one is named in the reply instead: "Voice messages
+    sent before I joined this thread are not transcribed - send it again here."
 
     Three providers ship: OpenAI, Groq and Mistral, all serving OpenAI's
     `POST /audio/transcriptions`. Adding a model is an entry in that file. Every
@@ -1466,6 +1827,20 @@ agent that does well in the console and badly in Slack shows it.
   take effect immediately, for the same reason: the stream is reopened to match
   whatever the row now says. It is opened *after* the transaction commits, so a
   registration that fails leaves no connection behind.
+- **One connection per bot, however many API workers.** Telegram allows one
+  `getUpdates` per bot and two Mattermost sockets would each receive every
+  event, so the worker holding a bot's connection holds a lease on it in the
+  shared Redis and renews it every 10 seconds. The others leave that bot alone.
+  A worker that shuts down hands its bots to another within about 10 seconds,
+  and one that dies within about 40. An edit served by another worker opens the
+  new connection at once, and the old one closes at its holder's next renewal.
+  With Redis unreachable, every worker connects, as before.
+- **A second Telegram poller is noticed, not fought.** When Telegram ends a
+  bot's poll because another process polls the same token, a worker that does
+  not hold the bot's lease closes its copy at once. The holder keeps polling and
+  marks the bot down on the channels page: "another process is polling this
+  bot's token". That process is outside the deployment, usually a second
+  deployment or a script with the same token, and only its owner can stop it.
 - **A binding's instructions may name what only the platform knows.**
   `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{member_count}`,
   `{member_list}` - filled in when a run starts, from the same calls the channel
@@ -1550,6 +1925,7 @@ is stored is what its reader actually saw.
 | `@mention` on a channel | The same, with the handle stripped from the recorded prompt |
 | Embedded widget | The same. The visitor is anonymous; the run and the turns belong to the widget's owner |
 | HTTP API | The same when the call carries a `conversation_id`. Nothing without one — there is no thread to write a turn into, and the run row is still the record that it happened |
+| A2A | The same. Every task files under a conversation, a new one or the one its `contextId` names |
 | A run resumed after an approval | Its continuation — the answer and the calls it made, and the calls even when there is no answer, which is what a continuation that parks again on a second gated call has. No user turn: it picks up at the call it stopped on, and inventing a question would put words in somebody's mouth |
 
 **What is recorded is what the person wrote, not the prompt assembled around it.**

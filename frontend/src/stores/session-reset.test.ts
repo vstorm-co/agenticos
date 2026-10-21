@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { resetSessionState, resetTenantState } from "./session-reset";
 import { useOnboardingStore } from "./onboarding-store";
 import { useOrgStore } from "./org-store";
+import { addVisualImages, useVisualImagesStore } from "./visual-stream-store";
 
 describe("resetTenantState", () => {
   beforeEach(() => {
@@ -30,6 +31,16 @@ describe("resetTenantState", () => {
 
     expect(useOnboardingStore.getState().isOpen).toBe(false);
     expect(useOnboardingStore.getState().offer).toBeNull();
+  });
+});
+
+describe("resetTenantState and visuals", () => {
+  it("forgets the previous tenant's pictures, keyed by a call id the next may reuse", () => {
+    addVisualImages("call_0", { logo: "data:previous-tenant" });
+
+    resetTenantState();
+
+    expect(useVisualImagesStore.getState().images).toEqual({});
   });
 });
 

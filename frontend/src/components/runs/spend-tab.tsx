@@ -21,6 +21,7 @@ import {
   ListCardControlsRow,
   type Column,
 } from "@/components/ui";
+import { CacheBustsCard } from "@/components/runs/cache-busts-card";
 import { ExportMenu } from "@/components/runs/export-menu";
 import { SpendByPerson } from "@/components/runs/spend-by-person";
 import { ProviderIcon } from "@/components/vault/provider-icon";
@@ -442,6 +443,8 @@ export function SpendTab({
           {facet === "person" && <SpendByPerson from={period.from} to={period.to} />}
         </CardContent>
       </Card>
+
+      <CacheBustsCard rows={spend.cache_by_agent_model} />
     </div>
   );
 }

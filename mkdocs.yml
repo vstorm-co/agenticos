@@ -318,6 +318,7 @@ nav:
           - first-agent.md
           - concepts.md
           - console.md
+          - projects.md
           - screens.md
       - Build the agent:
           - choosing-models.md
@@ -331,11 +332,13 @@ nav:
       - Put it in front of people:
           - environments.md
           - channels.md
+          - voice.md
           - artifacts.md
           - desktop.md
           - rollout.md
           - deployment.md
           - deploy.md
+          - scaling.md
       - Keep it under control:
           - permissions.md
           - directory.md

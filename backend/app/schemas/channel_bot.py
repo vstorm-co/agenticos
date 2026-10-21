@@ -1,7 +1,5 @@
 """Channel bot, identity, and session schemas."""
 
-from __future__ import annotations
-
 from datetime import datetime
 from typing import Literal
 from uuid import UUID
@@ -141,18 +139,34 @@ class ChannelBotCreate(BaseSchema):
             "platform's name for it (`eyes`). Slack and Mattermost; null for none."
         ),
     )
+    transcribe_voice_notes: bool = Field(
+        default=True,
+        description=(
+            "Whether voice notes are transcribed at all. On by default, with the "
+            "pair below or - with none - the agent's or organization's engine; "
+            "off never transcribes, and a pair sent with it is refused."
+        ),
+    )
     speech_to_text_provider: str | None = Field(
         default=None,
         max_length=32,
         description=(
             "Which provider transcribes voice notes, from the speech-to-text "
-            "catalog. Null for a bot that does not transcribe."
+            "catalog. Null inherits the agent's or the organization's."
         ),
     )
     speech_to_text_model: str | None = Field(
         default=None,
         max_length=255,
         description="Which of that provider's transcription models to use.",
+    )
+    speech_to_text_secret_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The vault key the bot's own pair is sent with: an organization-visible "
+            "API key whose purpose is the provider. Required with a pair, refused "
+            "without one."
+        ),
     )
 
     @model_validator(mode="after")
@@ -178,6 +192,11 @@ class ChannelBotCreate(BaseSchema):
         if provider is not None and model is not None and not is_offered(provider, model):
             raise ValueError(
                 f"'{model}' is not a transcription model this deployment offers for {provider}"
+            )
+        if provider is None and self.speech_to_text_secret_id is not None:
+            raise ValueError(
+                "A transcription key goes with the bot's own provider and model - "
+                "an inheriting bot uses the key of the level it inherits from"
             )
         return self
 
@@ -215,7 +234,9 @@ class ChannelBotUpdate(BaseSchema):
     """Schema for updating a channel bot (all fields optional).
 
     The Slack credentials distinguish omission from an explicit null: omitted
-    leaves the stored value, null clears it.
+    leaves the stored value, null clears it. So does the transcription pair -
+    null clears it, which since #1797 means "inherit", not "off". Off is
+    `transcribe_voice_notes: false`, which refuses an explicit null.
     """
 
     name: str | None = Field(default=None, max_length=255)
@@ -228,6 +249,7 @@ class ChannelBotUpdate(BaseSchema):
     is_active: bool | None = None
     slack_signing_secret: str | None = Field(default=None, min_length=8, max_length=255)
     slack_app_token: str | None = Field(default=None, min_length=8, max_length=500)
+    transcribe_voice_notes: bool | None = None
     command_token: str | None = Field(default=None, min_length=8, max_length=255)
     ack_reaction: str | None = Field(default=None, pattern=ACK_REACTION_PATTERN)
     stream_answers: bool | None = None
@@ -235,6 +257,7 @@ class ChannelBotUpdate(BaseSchema):
     rate_answers: bool | None = None
     speech_to_text_provider: str | None = Field(default=None, max_length=32)
     speech_to_text_model: str | None = Field(default=None, max_length=255)
+    speech_to_text_secret_id: UUID | None = None
 
     @model_validator(mode="after")
     def _a_named_transcription_model_is_one_that_exists(self) -> ChannelBotUpdate:
@@ -260,6 +283,26 @@ class BotAgent(BaseSchema):
     name: str
     slug: str
     has_avatar: bool
+
+
+class InheritedSpeechToTextRead(BaseSchema):
+    """What a bot's voice notes go to when it inherits rather than names a pair.
+
+    For the hint beside "Inherit" in the bot's form: which provider and model,
+    and whether the bot's agent or its organization chose them. The key is
+    the inherited level's own and is not named - only whether one is usable,
+    so the form can say the level still needs one.
+    """
+
+    provider: str
+    model: str
+    has_key: bool = False
+    """Whether the inherited level names a key that is still usable for it."""
+    language: str | None = None
+    pair_source: Literal["agent", "organization"]
+    language_source: Literal["agent", "organization"] | None = None
+    agent_name: str | None = None
+    """The agent this bot serves, through whose spec the pair may have come."""
 
 
 class ChannelConnectionRead(BaseSchema):
@@ -295,6 +338,8 @@ class ChannelBotRead(BaseSchema):
     has_webhook_secret: bool = False
     has_slack_signing_secret: bool = False
     has_slack_app_token: bool = False
+    transcribe_voice_notes: bool = True
+    """Whether voice notes are transcribed here at all; off wins over every pair."""
     has_command_token: bool = False
     ack_reaction: str | None = None
     stream_answers: bool = True
@@ -309,11 +354,23 @@ class ChannelBotRead(BaseSchema):
 
     speech_to_text_provider: str | None = None
     speech_to_text_model: str | None = None
-    """Which model transcribes voice notes here, or null for none.
+    """Which model transcribes voice notes here, or null to inherit one.
 
     Read back plainly: a provider id and a model id are choices somebody made,
-    not credentials. The key they run on is the organization's own model profile
-    and is never named here.
+    not credentials.
+    """
+    speech_to_text_secret_id: UUID | None = None
+    """The vault key the bot's own pair is sent with, by id - never its value.
+    Null with a pair means the key was deleted, and voice notes wait for another."""
+
+    inherited_speech_to_text: InheritedSpeechToTextRead | None = None
+    """What "inherit" resolves to for this bot, on the single-bot read only.
+
+    Answered whatever the bot is set to now, because the form asks it before
+    somebody switches to inherit. Null on the listing - resolving it reads each
+    bot's agent version, which a page of bots should not pay for - and null
+    where nothing resolves: no agent or organization provider, or no agent
+    bound to the bot at all.
     """
 
     connection: ChannelConnectionRead | None = None

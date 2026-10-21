@@ -146,6 +146,27 @@ describe("useSharing", () => {
     expect(client.getQueryState(["agents", "a1"])?.isInvalidated).toBe(false);
   });
 
+  it("marks the resource's own queries stale on a grant and a revoke too", async () => {
+    // A project's header names the groups it reaches, read off the project: after
+    // a group share it went on naming the old audience until something refetched.
+    vi.mocked(apiClient.put).mockResolvedValue({});
+    vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const own = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useSharing("project", "p1"), { wrapper: own });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    client.setQueryData(["projects", "p1"], { id: "p1", shared_groups: [] });
+    await result.current.share.mutateAsync({ subject_group_id: "g-fin", level: "use" });
+    expect(client.getQueryState(["projects", "p1"])?.isInvalidated).toBe(true);
+
+    client.setQueryData(["projects", "p1"], { id: "p1", shared_groups: [] });
+    await result.current.revoke.mutateAsync({ kind: "group", id: "g-fin" });
+    expect(client.getQueryState(["projects", "p1"])?.isInvalidated).toBe(true);
+  });
+
   it("surfaces the server's refusal instead of leaving the panel silent", async () => {
     const { toast } = await import("sonner");
     vi.mocked(apiClient.put).mockRejectedValue(new Error("You cannot change sharing"));

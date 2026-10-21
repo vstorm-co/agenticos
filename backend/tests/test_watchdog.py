@@ -12,8 +12,6 @@ kills the process it runs in, so the end-to-end proof runs in a subprocess and
 reads its exit status.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 import os

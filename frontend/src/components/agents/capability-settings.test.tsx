@@ -31,6 +31,7 @@ const KNOWLEDGE: CapabilityCatalogEntry = {
   category: "knowledge",
   description: "Search the collections this agent is connected to.",
   side_effecting: false,
+  voice: "live",
   scopes: ["knowledge:read"],
   tools: [
     {
@@ -56,6 +57,7 @@ const CLOCK: CapabilityCatalogEntry = {
   category: "utility",
   description: "Read the current date and time.",
   side_effecting: false,
+  voice: "live",
   scopes: [],
   tools: [],
   config_schema: null,
@@ -70,6 +72,7 @@ const SEND_EMAIL: CapabilityCatalogEntry = {
   category: "action",
   description: "Send a message on the organization's behalf.",
   side_effecting: true,
+  voice: "live",
   scopes: [],
   tools: [],
   config_schema: null,
@@ -89,6 +92,7 @@ const EMAIL: CapabilityCatalogEntry = {
   category: "action",
   description: "Read, draft and send mail.",
   side_effecting: true,
+  voice: "live",
   scopes: [],
   tools: [
     { id: "draft_email", name: "draft_email", description: "Write a message without sending it." },
@@ -388,6 +392,69 @@ describe("CapabilitySettings tools", () => {
 
     expect(toolField("draft_email", "Description the model reads")).toHaveValue(
       "Write a message without sending it.\n\nArgs:\n    body: What to say.",
+    );
+  });
+
+  it("offers no Tools tab for a capability whose one tool is the capability itself", () => {
+    const coding: CapabilityCatalogEntry = {
+      ...EMAIL,
+      id: "coding_agent",
+      name: "Coding agent",
+      tools: [{ id: "run_coding_agent", name: "run_coding_agent", description: "Hand it over." }],
+      tool_settings: false,
+    };
+    render(
+      <CapabilitySettings
+        catalog={[coding]}
+        selected={[binding("coding_agent")]}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("tab", { name: "Tools" })).toBeNull();
+    expect(screen.getByRole("tab", { name: "Settings" })).toBeInTheDocument();
+    expect(screen.queryByText(/Every tool follows this/)).toBeNull();
+  });
+
+  it("moves a gate left on a tool that is gone up to the capability", () => {
+    const coding: CapabilityCatalogEntry = {
+      ...EMAIL,
+      id: "coding_agent",
+      tools: [{ id: "run_coding_agent", name: "run_coding_agent", description: "Hand it over." }],
+      tool_settings: false,
+    };
+    const onChange = vi.fn();
+    render(
+      <CapabilitySettings
+        catalog={[coding]}
+        selected={[
+          {
+            ...binding("coding_agent"),
+            tool_approval: { apply_code_change: "required" },
+            tool_overrides: { plan_code_change: { name: "plan" } },
+          },
+        ]}
+        onChange={onChange}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Move to the capability" }));
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ approval: "required", tool_approval: {}, tool_overrides: {} }),
+    );
+  });
+
+  it("keeps the capability's own approval when no gate is carried over", () => {
+    const coding: CapabilityCatalogEntry = { ...EMAIL, id: "coding_agent", tool_settings: false };
+    const onChange = vi.fn();
+    render(
+      <CapabilitySettings
+        catalog={[coding]}
+        selected={[{ ...binding("coding_agent"), tool_overrides: { gone: { name: "x" } } }]}
+        onChange={onChange}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Move to the capability" }));
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ approval: "default", tool_overrides: {} }),
     );
   });
 

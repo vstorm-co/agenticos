@@ -12,8 +12,6 @@ paid for in tokens on every call. `search_channels` is the one that carries ids,
 because an id is the only part of a channel summary that is not for a person.
 """
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Collection
 

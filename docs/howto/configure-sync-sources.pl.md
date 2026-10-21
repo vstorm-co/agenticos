@@ -1,5 +1,5 @@
 ---
-source_sha: "35cbb3d979ce"
+source_sha: "593e85034342"
 ---
 
 # Konfiguracja źródeł synchronizacji { #configure-sync-sources }
@@ -134,6 +134,11 @@ liście `rag-sources`.
 7. Przyciskiem **"Sync Now"** wyzwolisz synchronizację natychmiast albo
    poczekasz, aż harmonogram zadziała sam.
 
+Żeby później zmienić source, kliknij ołówek w jego wierszu. Otworzy się ten sam
+kreator z wypełnionymi wartościami source'a. Connectora nie da się zmienić, a
+**"Save Changes"** wysyła tylko pola, które zmieniłeś. Source zostaje w bazie
+wiedzy, w której jest.
+
 Interfejs wywołuje to samo REST API, które opisano poniżej: cokolwiek zrobisz
 w interfejsie, zrobisz też przez `curl` lub dowolnego klienta HTTP.
 
@@ -215,13 +220,14 @@ samoczynnie:
 | `120` | Co 2 godziny |
 | `1440` | Raz dziennie |
 
-!!! warning "Harmonogram wymaga runnera Prefect"
+!!! warning "Harmonogram wymaga workera"
 
-    `check_scheduled_syncs_flow` to deployment Prefect, który budzi się co 60
-    sekund i uruchamia to, czego termin nadszedł. Bez kontenerów
-    `prefect-server` i `prefect-runner`, które startuje `make dev`,
-    `schedule_minutes` nie robi nic. Gdy nie działa żaden z nich, cokolwiek
-    synchronizuje wyłącznie ręczne wyzwolenie (CLI, API lub interfejs).
+    Harmonogram `dispatch-due-syncs` budzi się co 60 sekund i kolejkuje
+    synchronizację każdego źródła, którego termin nadszedł, więc bez kontenera
+    `worker`, który startuje `make dev`, `schedule_minutes` nie robi nic. Bez
+    niego ręczne wyzwolenie (CLI, API lub interfejs) też kolejkuje swoją
+    synchronizację, która również czeka na workera. Jedno źródło nigdy nie ma
+    dwóch synchronizacji naraz.
 
 ## Konfiguracja Google Drive { #google-drive-setup }
 

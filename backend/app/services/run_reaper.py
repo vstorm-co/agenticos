@@ -10,8 +10,6 @@ leaves the orphan, which is why the ceiling has to be a schedule, exactly as
 the approvals queue's is.
 """
 
-from __future__ import annotations
-
 import logging
 from datetime import UTC, datetime, timedelta
 

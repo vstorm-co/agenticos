@@ -15,8 +15,6 @@ decide, and only the person a question was put to may answer it. An unlinked
 presser is told to link, like an unlinked sender.
 """
 
-from __future__ import annotations
-
 import logging
 import re
 from functools import cache

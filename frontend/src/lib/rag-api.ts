@@ -121,6 +121,20 @@ export interface SyncSourceCreate {
   schedule_minutes?: number | null;
 }
 
+/**
+ * A change to an existing source: only the fields that change.
+ *
+ * The connector is fixed once a source exists. `config` is merged into the
+ * stored one rather than replacing it, and a `secret_id` sent is checked again
+ * as the caller's own choice - so leave it out unless the credential changes.
+ */
+export type SyncSourceUpdate = Partial<
+  Pick<
+    SyncSourceCreate,
+    "name" | "config" | "secret_id" | "organizational_unit" | "sync_mode" | "schedule_minutes"
+  >
+>;
+
 export interface SyncSourceRead {
   id: string;
   organization_id: string;

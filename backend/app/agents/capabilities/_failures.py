@@ -33,8 +33,6 @@ and never worse than the string it would have returned anyway.
 `toolsets/_failures.py`, with the same helper name.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 from pydantic_ai import ModelRetry

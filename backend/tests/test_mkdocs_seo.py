@@ -8,8 +8,6 @@ next section, a link that leaves a stray space before a full stop, or a `</` tha
 closes the script element early.
 """
 
-from __future__ import annotations
-
 import importlib.util
 import json
 import re

@@ -15,15 +15,23 @@ ended. Reading `docs/data-protection.md` and finding a new home for tenant
 content is exactly what this design avoids.
 
 **Usage is counted in the unit the service works in.** Pages for a parse,
-characters for a scan, bytes for a recording - not money. The delivered services
+characters for a scan, seconds of audio for a recording - not money. The delivered services
 either run on the operator's own machines, where there is no vendor price to
 record, or on the organization's own provider account, which bills it directly;
 inventing a figure for either would put a number in a report that nobody can
 reconcile against an invoice.
+
+**A transcription also says where it came from** (#1797): which provider and
+model heard it, the surface it arrived on, and the agent and channel bot it was
+for. Speech to text is reached from three places - this API, dictation in
+`/chat` and a channel bot's voice notes - and "how much did we transcribe, and
+for whom" is the question an organization asks of it. The columns are null for
+every other service and for rows written before them.
 """
 
 import uuid
 from enum import StrEnum
+from typing import Literal
 
 from sqlalchemy import CheckConstraint, ForeignKey, Index, Integer, String
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -43,6 +51,13 @@ class MLCallStatus(StrEnum):
 
     SUCCEEDED = "succeeded"
     FAILED = "failed"
+
+
+TranscriptionSurface = Literal["chat", "channel", "api", "hosted", "widget"]
+"""Where a transcription arrived: dictation in `/chat`, a channel bot's voice
+note, `POST /ml/audio/transcriptions`, or a visitor dictating on a hosted page or
+in a website widget. A string column rather than an enum, which is how the last
+two joined without a migration."""
 
 
 class MLServiceCall(Base, TimestampMixin):
@@ -89,10 +104,57 @@ class MLServiceCall(Base, TimestampMixin):
     input_bytes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     units: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     unit: Mapped[str] = mapped_column(String(16), nullable=False, default="")
-    """What `units` counts: `pages`, `characters`, `bytes`. Empty on a failure,
-    where nothing was produced to count."""
+    """What `units` counts: `pages`, `characters`, `seconds`. Empty on a failure,
+    where nothing was produced to count.
+
+    A successful transcription counts `seconds` of audio, rounded up, and `0`
+    when nobody reported the length (`audio_ms` is null) - so a summary can say
+    how many recordings it could not measure instead of reading them as silence."""
 
     duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    """How long the call took to answer - processing time, not audio length."""
+
+    provider: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    """The transcription provider the recording was sent to, where one was chosen."""
+
+    model: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    surface: Mapped[TranscriptionSurface | None] = mapped_column(String(16), nullable=True)
+    """A `TranscriptionSurface`; null for the other services."""
+
+    agent_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agents.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    """The agent a dictation was for, or the agent a channel bot serves. SET NULL
+    for the same reason as the requester: deleting an agent does not unmake what
+    was transcribed for it."""
+
+    channel_bot_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("channel_bots.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    """The bot a voice note arrived on."""
+
+    secret_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("organization_secrets.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    """The vault key a transcription was sent with, as `agent_runs.secret_id`
+    records a run's - so "which key costs most" has one answer across chat and
+    speech. SET NULL: deleting a key does not unmake what it paid for."""
+
+    audio_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    """How long the recording was, in milliseconds, or null where nobody said.
+
+    The first known of: the provider's own answer (`whisper-1`, Groq's verbose
+    answer, Mistral), the platform's metadata (Telegram, Slack), and for a
+    dictation the length the browser reports. Not measured here: decoding audio
+    needs a library the image does not carry."""
 
     def __repr__(self) -> str:
         return f"<MLServiceCall(service={self.service}, status={self.status})>"

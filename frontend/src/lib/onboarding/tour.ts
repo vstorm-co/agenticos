@@ -68,6 +68,13 @@ export const GROUP_DETAIL = "group-detail";
 export const WORKSPACE_DETAIL = "workspace-detail";
 
 /**
+ * One project, `/projects/<id>`. Like a Documents folder there is no seeded
+ * example to open, so its stop is "?"-only help shown on a project of the
+ * reader's own.
+ */
+export const PROJECT_DETAIL = "project-detail";
+
+/**
  * One stop on the guided tour.
  *
  * The engine (`components/onboarding`) gets the reader to `page`, optionally
@@ -160,14 +167,21 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // organization whose agents carry no planning capability would otherwise wait
   // four seconds for a strip that never mounts.
   { id: "chat-plan", page: ROUTES.CHAT, target: "chat-plan", optional: true },
+  // Only where an agent has drawn something in the conversation on screen.
+  { id: "chat-visual", page: ROUTES.CHAT, target: "chat-visual", optional: true },
   { id: "chat-model-picker", page: ROUTES.CHAT, target: "chat-model-picker" },
-  // Inside the same popover as the model, so the walk opens it once. `optional`
-  // because the control it names lives behind the trigger: the caption is
-  // pinned to nothing on a walk that never opened it.
+  // The call button sits in the composer whenever an agent is selected - offered
+  // or crossed out - but readiness loads after the page, so the stop is optional:
+  // a slow read must not pin the caption to nothing (#54).
+  { id: "chat-voice-call", page: ROUTES.CHAT, target: "chat-voice-call", optional: true },
+  // Inside the same popover as the model, so the walk opens it - `activate` on a
+  // popover's trigger clicks it - and the next stop finds it already open.
+  // `optional` because the section renders only for someone who may change it.
   {
     id: "chat-approval-mode",
     page: ROUTES.CHAT,
     target: "chat-approval-mode",
+    activate: "chat-settings",
     optional: true,
   },
   // Same popover, and rendered only for an agent bound to each person's own
@@ -177,6 +191,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "chat-your-connections",
     page: ROUTES.CHAT,
     target: "chat-your-connections",
+    activate: "chat-settings",
     optional: true,
   },
 
@@ -216,6 +231,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "agent-model",
     page: AGENT_BUILDER,
     target: "agent-model",
+    activate: "agent-tab-build",
+    permission: Perm.agentsView,
+  },
+  // The Voice card, right under the model: dictation and, below it, the
+  // realtime model, key and voice the agent takes calls with (#54).
+  {
+    id: "agent-voice",
+    page: AGENT_BUILDER,
+    target: "agent-voice",
     activate: "agent-tab-build",
     permission: Perm.agentsView,
   },
@@ -531,6 +555,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // walk: the members page (profile, then the member list) and then a step
   // across into the roles matrix. Ungated — any member reaches both.
   { id: "org-profile", page: ORG_MEMBERS, target: "org-profile" },
+  // The Voice card sits above the member list on the same page, so it comes
+  // before the list rather than doubling back from the roles matrix. Gated like
+  // the card, which is hidden from anybody who may not change settings.
+  {
+    id: "org-voice",
+    page: ORG_MEMBERS,
+    target: "org-voice",
+    permission: Perm.orgSettings,
+  },
   // The AI Architect's card: drawn only on the active organization's page, and
   // only for somebody who may change the organization's settings.
   {
@@ -644,6 +677,36 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.connectionsView,
   },
 
+  // Projects: shared instructions and files, and the chats started in them.
+  {
+    id: "projects-new",
+    page: ROUTES.PROJECTS,
+    target: "projects-new",
+    permission: Perm.projectsEdit,
+  },
+  {
+    id: "projects-list",
+    page: ROUTES.PROJECTS,
+    target: "projects-list",
+    permission: Perm.projectsView,
+  },
+  { id: "project-tabs", page: PROJECT_DETAIL, target: "project-tabs" },
+
+  // Other vendors' agents, reached over A2A (#2092). The list is what the page
+  // is for; registering is `agents:edit`, which the button carries.
+  {
+    id: "remote-agents-list",
+    page: ROUTES.REMOTE_AGENTS,
+    target: "remote-agents-list",
+    permission: Perm.agentsView,
+  },
+  {
+    id: "remote-agents-register",
+    page: ROUTES.REMOTE_AGENTS,
+    target: "remote-agents-register",
+    permission: Perm.agentsEdit,
+  },
+
   // Routines — the org-wide home for everything an agent does on its own. Two
   // stops: what is already running, and the two ways to start one. The create
   // stop is gated on the run floor a trigger is created at, not on a role: a
@@ -678,6 +741,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // in the shared layout, so it lands on whichever of the four pages the reader
   // opened help from. Ungated: everyone has their own settings.
   { id: "settings-tabs", page: SETTINGS_DETAIL, target: "settings-tabs" },
+  // The Appearance card - theme, voice glow, motion. On the profile tab only,
+  // so `optional`: help opened on another tab has no card to wait four seconds
+  // for. Ungated, like the tabs: these are every person's own preferences.
+  {
+    id: "settings-appearance",
+    page: SETTINGS_DETAIL,
+    target: "settings-appearance",
+    optional: true,
+  },
   // Optional, because the card it anchors on renders only where an agent has
   // written something - and an unmarked step waits four seconds for an element
   // an empty store never mounts (#1594).
@@ -729,6 +801,7 @@ export function pageKey(path: string): string {
   if (path.startsWith(`${ROUTES.GROUPS}/`)) return GROUP_DETAIL;
   if (path.startsWith(`${ROUTES.SETTINGS}/`)) return SETTINGS_DETAIL;
   if (path.startsWith(`${ROUTES.DOCUMENTS}/`)) return WORKSPACE_DETAIL;
+  if (path.startsWith(`${ROUTES.PROJECTS}/`)) return PROJECT_DETAIL;
   return path;
 }
 

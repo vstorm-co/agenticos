@@ -10,15 +10,15 @@ refusals worth more than the feature itself:
   rather than accepted and dropped in a `finally` block.
 """
 
-from __future__ import annotations
-
 import errno
 import logging
 import os
 import threading
-from collections.abc import Mapping
+from collections.abc import AsyncGenerator, Mapping, Sequence
+from contextlib import asynccontextmanager
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
@@ -37,6 +37,7 @@ from pydantic_ai.workspaces import (
     WorkspaceUnavailableError,
 )
 from pydantic_ai_backends import ConsoleCapability, FileInfo, StateBackend
+from pydantic_ai_backends.remote import WorkspaceArchiveError, WorkspaceTree
 
 from app.agents.capabilities import build as build_capabilities
 from app.agents.capabilities import get as get_capability
@@ -54,14 +55,19 @@ from app.agents.capabilities.sandbox._identity import (
 from app.agents.capabilities.sandbox._recording import RecordingWorkspace
 from app.agents.capabilities.tool_output_limits import OVERFLOW_PREFIX, WorkspaceOverflowStore
 from app.agents.spec import AgentSpec
+from app.core import background
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.repositories import agent_workspace as workspace_repo
+from app.services import sandbox_workspace
 from app.services.sandbox_connection import ResolvedConnection, SandboxConnectionService
 from app.services.sandbox_workspace import (
+    RETRY_CAP,
     SandboxWorkspaceService,
     WorkspaceContents,
     browsable,
+    next_destroy_attempt,
+    retry_pending_destroys,
     sandbox_config,
 )
 from tests.workspaces import document_workspace
@@ -125,6 +131,8 @@ def _serve(monkeypatch, resolved: ResolvedConnection | Exception) -> None:
         return resolved
 
     monkeypatch.setattr(SandboxConnectionService, "resolve", _resolve)
+    # Teardown resolves the same connection without the switched-off check.
+    monkeypatch.setattr(SandboxConnectionService, "resolve_for_teardown", _resolve)
 
 
 class _ClosesItsClient:
@@ -142,6 +150,56 @@ class _ClosesItsClient:
 
     def close(self) -> None:
         self.closed = True
+
+    def ls(self, session_id: str, path: str = ".") -> list[dict[str, object]]:
+        return []
+
+    def tree(
+        self, session_id: str, path: str = ".", *, max_depth: int, max_entries: int
+    ) -> WorkspaceTree:
+        """The service's `/tree`, walked over this fake's `ls` the way it walks disk.
+
+        A directory below the start that raises is left out and marks the
+        listing truncated; the start's failure is raised.
+        """
+        found: list[FileInfo] = []
+        truncated = False
+        queue = [(path, 1)]
+        while queue:
+            directory, depth = queue.pop(0)
+            try:
+                entries = self.ls(session_id, directory)
+            except Exception:
+                if depth == 1:
+                    raise
+                truncated = True
+                continue
+            for entry in entries:
+                if len(found) == max_entries:
+                    return WorkspaceTree(entries=found, truncated=True)
+                found.append(cast(FileInfo, entry))
+                if not entry.get("is_dir"):
+                    continue
+                if depth < max_depth:
+                    queue.append((str(entry.get("path")), depth + 1))
+                else:
+                    truncated = True
+        return WorkspaceTree(entries=found, truncated=truncated)
+
+    def trees(
+        self, session_ids: Sequence[str], path: str = ".", *, max_depth: int, max_entries: int
+    ) -> dict[str, WorkspaceTree | WorkspaceArchiveError]:
+        """The service's `/trees`: each workspace's `tree`, its failure answered on its own."""
+        self.trees_asked = [*getattr(self, "trees_asked", []), list(session_ids)]
+        answers: dict[str, WorkspaceTree | WorkspaceArchiveError] = {}
+        for session_id in session_ids:
+            try:
+                answers[session_id] = self.tree(
+                    session_id, path, max_depth=max_depth, max_entries=max_entries
+                )
+            except Exception as exc:
+                answers[session_id] = WorkspaceArchiveError(str(exc))
+        return answers
 
 
 class TestWhoSharesAWorkspace:
@@ -356,6 +414,38 @@ class TestTheStorageCeiling:
         document.write_bytes("/big.txt", b"small")
 
         assert document_size(document.files) <= 400
+
+    def test_the_running_measure_is_the_stored_size(self):
+        """`stored_size()` must agree with what the store is charged, byte for byte."""
+        document = CappedStateBackend(max_bytes=10_000_000)
+        assert document.stored_size() == document_size(document.files, document.directories)
+        document.write_bytes("/notes/żółw.md", 'zażółć gęślą jaźń\n"quoted"'.encode())
+        document.write_bytes("/bin/chart.png", bytes(range(256)))
+        document.write_bytes("/a/b/c/deep.txt", b"deep")
+        document.write_bytes("/notes/żółw.md", b"shorter")
+        document.remove("/bin/chart.png")
+        document.make_dir("/empty")
+
+        assert document.stored_size() == document_size(document.files, document.directories)
+
+    def test_a_write_serialises_only_the_file_it_wrote(self, monkeypatch):
+        """Dumping the whole document per write cost its size on the event loop."""
+        from app.agents.capabilities.sandbox import _capped
+
+        document = CappedStateBackend(max_bytes=10_000_000)
+        for index in range(20):
+            document.write_bytes(f"/f{index}.txt", b"x" * 1000)
+        measured: list[str] = []
+        real = _capped._entry_size
+
+        def counted(path: str, data: Any) -> int:
+            measured.append(path)
+            return real(path, data)
+
+        monkeypatch.setattr(_capped, "_entry_size", counted)
+        document.write_bytes("/f3.txt", b"changed")
+
+        assert measured == ["/f3.txt"]
 
     def test_a_failing_write_is_reported_as_itself_rather_than_measured(self):
         """A path the document rejects never reaches the ceiling check."""
@@ -683,20 +773,17 @@ class TestOpeningAndClosing:
 
         assert handle in saved.await_args.kwargs["files"]
 
-    async def test_a_flush_overtaken_by_another_run_says_which_paths_it_dropped(
+    async def test_a_flush_overtaken_by_another_run_keeps_what_that_run_stored(
         self, monkeypatch, mock_db_session, caplog
     ):
-        """The last flush wins, and this is what stops it winning silently.
-
-        Reachable under the scopes whose purpose is sharing - `agent`, `channel`,
-        `user` - where two runs hold one workspace and the socket's own guard does
-        not apply. `version` documented this detection long before anything read
-        the column.
-        """
-        opened = _row(version=4)
+        """Stored whole, the second flush erased what the first had written in
+        between - two teammates in a project, two users of an `agent`-scoped
+        workspace. Only what this run changed is laid over the stored document."""
+        opened = _row(version=4, files={"/shared.txt": {"content": ["v1"]}})
         monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=opened))
         monkeypatch.setattr(workspace_repo, "touch", AsyncMock(return_value=opened))
-        monkeypatch.setattr(workspace_repo, "save_files", AsyncMock(return_value=opened))
+        saved = AsyncMock(return_value=opened)
+        monkeypatch.setattr(workspace_repo, "save_files", saved)
         service = SandboxWorkspaceService(mock_db_session)
 
         workspace = await service.open(
@@ -704,18 +791,78 @@ class TestOpeningAndClosing:
         )
         assert workspace is not None
         await workspace.workspace.write_text("/mine.txt", "this run's work")
-        # Somebody else finished in between: the committed row has moved on, and
-        # holds a file this run never saw.
-        overtaken = _row(version=5, files={"/theirs.txt": {"content": ["gone"]}})
+        # Somebody else finished in between, with a file this run never saw.
+        overtaken = _row(
+            version=5,
+            files={"/shared.txt": {"content": ["v1"]}, "/theirs.txt": {"content": ["kept"]}},
+        )
         mock_db_session.get = AsyncMock(return_value=overtaken)
 
         with caplog.at_level(logging.WARNING):
             await service.close(workspace)
 
-        [record] = [r for r in caplog.records if r.message == "workspace_flush_overtaken"]
-        assert record.opened_version == 4
-        assert record.found_version == 5
-        assert record.paths_lost == ["/theirs.txt"]
+        stored = saved.await_args.kwargs["files"]
+        assert set(stored) == {"/mine.txt", "/shared.txt", "/theirs.txt"}
+        assert stored["/theirs.txt"] == {"content": ["kept"]}
+        assert not [r for r in caplog.records if r.message == "workspace_flush_conflict"]
+
+    async def test_a_path_both_runs_changed_is_this_runs_and_named(
+        self, monkeypatch, mock_db_session, caplog
+    ):
+        opened = _row(
+            version=4,
+            files={
+                "/plan.md": {
+                    "content": ["v1"],
+                    "created_at": "2026-10-18T00:00:00Z",
+                    "modified_at": "2026-10-18T00:00:00Z",
+                },
+                "/old.txt": {
+                    "content": ["x"],
+                    "created_at": "2026-10-18T00:00:00Z",
+                    "modified_at": "2026-10-18T00:00:00Z",
+                },
+            },
+        )
+        monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=opened))
+        monkeypatch.setattr(workspace_repo, "touch", AsyncMock(return_value=opened))
+        saved = AsyncMock(return_value=opened)
+        monkeypatch.setattr(workspace_repo, "save_files", saved)
+        service = SandboxWorkspaceService(mock_db_session)
+
+        workspace = await service.open(
+            _spec(session_scope="agent"), ctx=_ctx(), identity=_identity()
+        )
+        assert workspace is not None
+        await workspace.workspace.write_text("/plan.md", "mine")
+        await workspace.workspace.remove("/old.txt")
+        mock_db_session.get = AsyncMock(
+            return_value=_row(
+                version=5,
+                files={
+                    "/plan.md": {
+                        "content": ["theirs"],
+                        "created_at": "2026-10-18T00:00:00Z",
+                        "modified_at": "2026-10-18T00:00:00Z",
+                    },
+                    "/old.txt": {
+                        "content": ["x"],
+                        "created_at": "2026-10-18T00:00:00Z",
+                        "modified_at": "2026-10-18T00:00:00Z",
+                    },
+                },
+            )
+        )
+
+        with caplog.at_level(logging.WARNING):
+            await service.close(workspace)
+
+        stored = saved.await_args.kwargs["files"]
+        # The later write wins where both wrote; a removal this run made holds.
+        assert set(stored) == {"/plan.md"} and stored["/plan.md"]["content"] == ["mine"]
+        [record] = [r for r in caplog.records if r.message == "workspace_flush_conflict"]
+        assert (record.opened_version, record.found_version) == (4, 5)
+        assert record.paths_overwritten == ["/plan.md"]
         assert record.scope == "agent"
 
     async def test_an_uncontested_flush_says_nothing(self, monkeypatch, mock_db_session, caplog):
@@ -735,7 +882,7 @@ class TestOpeningAndClosing:
         with caplog.at_level(logging.WARNING):
             await service.close(workspace)
 
-        assert not [r for r in caplog.records if r.message == "workspace_flush_overtaken"]
+        assert not [r for r in caplog.records if r.message == "workspace_flush_conflict"]
 
     async def test_the_committed_row_is_read_rather_than_the_one_already_loaded(
         self, monkeypatch, mock_db_session
@@ -750,9 +897,87 @@ class TestOpeningAndClosing:
         service = SandboxWorkspaceService(mock_db_session)
 
         workspace = await service.open(_spec(), ctx=_ctx(), identity=_identity())
+        assert workspace.document is not None
+        workspace.document.write_bytes("/workspace/out.txt", b"written")
         await service.close(workspace)
 
         assert mock_db_session.get.await_args.kwargs["populate_existing"] is True
+        # Held to the commit, so a second flush waits and merges onto this one.
+        assert mock_db_session.get.await_args.kwargs["with_for_update"] is True
+
+    async def test_a_turn_that_wrote_nothing_stores_nothing(self, monkeypatch, mock_db_session):
+        """Storing it anyway rewrote the whole column, and its WAL, every message."""
+        row = _row(version=1)
+        monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=row))
+        monkeypatch.setattr(workspace_repo, "touch", AsyncMock(return_value=row))
+        saved = AsyncMock(return_value=row)
+        used = AsyncMock()
+        monkeypatch.setattr(workspace_repo, "save_files", saved)
+        monkeypatch.setattr(workspace_repo, "mark_used", used)
+        mock_db_session.get = AsyncMock(return_value=row)
+        service = SandboxWorkspaceService(mock_db_session)
+
+        workspace = await service.open(_spec(), ctx=_ctx(), identity=_identity())
+        await service.close(workspace)
+
+        saved.assert_not_awaited()
+        # Not even read back: that alone loads the whole document.
+        mock_db_session.get.assert_not_awaited()
+        used.assert_awaited_once_with(mock_db_session, workspace_id=row.id)
+
+    @pytest.mark.parametrize(
+        ("rewrite", "stored"),
+        [
+            # A skill written again with the same text: only `modified_at` moved.
+            (b"same", False),
+            (b"different", True),
+            (b"\xff\xfe", True),
+        ],
+    )
+    async def test_a_rewrite_counts_only_when_the_content_changed(
+        self, monkeypatch, mock_db_session, rewrite, stored
+    ):
+        original = StateBackend()
+        original.write_bytes("/workspace/skills/a/SKILL.md", b"same")
+        # And a file nobody touched, which is compared by identity alone.
+        original.write_bytes("/workspace/notes.md", b"untouched")
+        row = _row(version=1)
+        row.files = dict(original.files)
+        row.directories = sorted(original.directories)
+        monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=row))
+        monkeypatch.setattr(workspace_repo, "touch", AsyncMock(return_value=row))
+        saved = AsyncMock(return_value=row)
+        monkeypatch.setattr(workspace_repo, "save_files", saved)
+        monkeypatch.setattr(workspace_repo, "mark_used", AsyncMock())
+        mock_db_session.get = AsyncMock(return_value=row)
+        service = SandboxWorkspaceService(mock_db_session)
+
+        workspace = await service.open(_spec(), ctx=_ctx(), identity=_identity())
+        assert workspace.document is not None
+        workspace.document.write_bytes("/workspace/skills/a/SKILL.md", rewrite)
+        await service.close(workspace)
+
+        assert saved.await_count == (1 if stored else 0)
+
+    async def test_a_removed_file_is_a_change(self, monkeypatch, mock_db_session):
+        original = StateBackend()
+        original.write_bytes("/workspace/gone.txt", b"bye")
+        row = _row(version=1)
+        row.files = dict(original.files)
+        row.directories = sorted(original.directories)
+        monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=row))
+        monkeypatch.setattr(workspace_repo, "touch", AsyncMock(return_value=row))
+        saved = AsyncMock(return_value=row)
+        monkeypatch.setattr(workspace_repo, "save_files", saved)
+        mock_db_session.get = AsyncMock(return_value=row)
+        service = SandboxWorkspaceService(mock_db_session)
+
+        workspace = await service.open(_spec(), ctx=_ctx(), identity=_identity())
+        assert workspace.document is not None
+        workspace.document.remove("/workspace/gone.txt")
+        await service.close(workspace)
+
+        saved.assert_awaited_once()
 
     async def test_the_skills_tree_from_before_the_move_is_not_persisted_again(
         self, monkeypatch, mock_db_session
@@ -829,6 +1054,9 @@ class TestOpeningAndClosing:
         service = SandboxWorkspaceService(mock_db_session)
 
         workspace = await service.open(_spec(), ctx=_ctx(), identity=_identity())
+        # A change to store, or the flush is skipped and never reaches the failure.
+        assert workspace is not None and workspace.document is not None
+        workspace.document.write_bytes("/workspace/out.txt", b"kept")
 
         await service.close(workspace)
 
@@ -964,6 +1192,18 @@ class TestWorkspacesAreScopedToTheirReader:
         await SandboxWorkspaceService(mock_db_session).files_of(_ctx(), row.id)
 
         listed.assert_not_called()
+
+    @pytest.mark.security
+    async def test_a_projects_workspace_is_not_read_by_id_even_by_an_operator(
+        self, monkeypatch, mock_db_session
+    ):
+        """A project's files are read through the project, whose sharing decides
+        who may; `connections:manage` is not a way around it."""
+        row = _row(files={}, scope="project", project_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "get", AsyncMock(return_value=row))
+
+        with pytest.raises(NotFoundError):
+            await SandboxWorkspaceService(mock_db_session).files_of(_ctx(), row.id)
 
 
 class TestListingAStoredWorkspace:
@@ -1314,6 +1554,8 @@ class TestServingAConversationsFileAsBytes:
         """An empty body would be indistinguishable from a file the agent wrote and
         left empty."""
         monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[]))
+        # Not in a project either, so there is no project's to fall back on.
+        mock_db_session.scalar = AsyncMock(return_value=None)
 
         with pytest.raises(NotFoundError):
             await SandboxWorkspaceService(mock_db_session).read_bytes(
@@ -1926,6 +2168,164 @@ class TestWhatReadingAHostCosts:
 
         assert made
         assert all(archive.closed for archive in made)
+
+    async def test_a_host_is_asked_once_for_every_workspace_it_holds(
+        self, monkeypatch, mock_db_session
+    ):
+        """#2248: a `tree` per workspace was eighteen requests and connections for
+        one Documents page on production. Now one `trees` per host, through one
+        client kept for the request - its thumbnails too - and closed at the end."""
+        from app.repositories import agent as agent_repo
+
+        made = self._archive_recording(monkeypatch)
+        first, second = uuid4(), uuid4()
+        _serve(monkeypatch, _resolved())
+        rows = [
+            *(_row(backend="service", session_id=f"a-{n}", connection_id=first) for n in range(3)),
+            _row(backend="service", session_id="b-0", connection_id=second),
+        ]
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=rows))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+
+        listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
+
+        assert listing.workspaces_read == 4
+        assert sorted(asked for archive in made for asked in archive.trees_asked) == [
+            ["a-0", "a-1", "a-2"],
+            ["b-0"],
+        ]
+        assert [archive.closed for archive in made] == [True, True]
+
+    async def test_a_page_past_the_batch_bound_is_asked_in_batches(
+        self, monkeypatch, mock_db_session
+    ):
+        from app.repositories import agent as agent_repo
+        from app.services import sandbox_workspace as module
+
+        made = self._archive_recording(monkeypatch)
+        monkeypatch.setattr(module, "MAX_TREES", 2)
+        connection = uuid4()
+        _serve(monkeypatch, _resolved())
+        rows = [
+            _row(backend="service", session_id=f"dc-{n}", connection_id=connection)
+            for n in range(5)
+        ]
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=rows))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+
+        listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
+
+        assert listing.workspaces_read == 5
+        assert sorted(len(asked) for archive in made for asked in archive.trees_asked) == [1, 2, 2]
+        assert len(made) == 1
+
+    async def test_one_workspace_the_host_cannot_list_is_unreadable_alone(
+        self, monkeypatch, mock_db_session
+    ):
+        from pydantic_ai_backends import remote as remote_module
+
+        from app.repositories import agent as agent_repo
+
+        class _Archive(_ClosesItsClient):
+            def __init__(self, url, token="", timeout=None):
+                pass
+
+            def ls(self, session_id, path="."):
+                if session_id == "gone":
+                    raise RuntimeError("no such workspace")
+                return [{"path": "/run.py", "size": 8, "is_dir": False}]
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        connection = uuid4()
+        _serve(monkeypatch, _resolved())
+        rows = [
+            _row(backend="service", session_id="kept", connection_id=connection),
+            _row(backend="service", session_id="gone", connection_id=connection),
+        ]
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=rows))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+
+        listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
+
+        assert (listing.workspaces_read, listing.unreadable) == (1, 1)
+        assert [file.overview.row.session_id for file in listing.files] == ["kept"]
+
+    async def test_a_host_that_cannot_be_asked_leaves_every_workspace_on_it_unreadable(
+        self, monkeypatch, mock_db_session, caplog
+    ):
+        from pydantic_ai_backends import remote as remote_module
+
+        from app.repositories import agent as agent_repo
+
+        class _Archive(_ClosesItsClient):
+            def __init__(self, url, token="", timeout=None):
+                pass
+
+            def trees(self, session_ids, path=".", *, max_depth, max_entries):
+                raise WorkspaceArchiveError("Could not reach the sandbox service")
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        connection = uuid4()
+        _serve(monkeypatch, _resolved())
+        rows = [
+            _row(backend="service", session_id=f"dc-{n}", connection_id=connection)
+            for n in range(3)
+        ]
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=rows))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+
+        with caplog.at_level(logging.WARNING, logger="app.services.sandbox_workspace"):
+            listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
+
+        assert (listing.workspaces_read, listing.unreadable) == (0, 3)
+        assert [r.message for r in caplog.records].count("workspace_listing_failed") == 1
+
+    async def test_a_host_listing_cut_short_says_so(self, monkeypatch, mock_db_session, caplog):
+        from pydantic_ai_backends import remote as remote_module
+
+        from app.repositories import agent as agent_repo
+
+        class _Archive(_ClosesItsClient):
+            def __init__(self, url, token="", timeout=None):
+                pass
+
+            def trees(self, session_ids, path=".", *, max_depth, max_entries):
+                entry = cast(FileInfo, {"path": "/a.txt", "size": 1, "is_dir": False})
+                return {s: WorkspaceTree(entries=[entry], truncated=True) for s in session_ids}
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        _serve(monkeypatch, _resolved())
+        rows = [_row(backend="service", session_id="big", connection_id=uuid4())]
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=rows))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+
+        with caplog.at_level(logging.WARNING, logger="app.services.sandbox_workspace"):
+            listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
+
+        assert [file.info["path"] for file in listing.files] == ["/a.txt"]
+        assert "workspace_listing_truncated" in [r.message for r in caplog.records]
+
+    async def test_a_workspace_with_no_host_to_ask_lists_nothing(
+        self, monkeypatch, mock_db_session
+    ):
+        """A Daytona sandbox keeps no host volume of ours: nothing to list, and no error."""
+        from app.repositories import agent as agent_repo
+
+        self._archive_recording(monkeypatch)
+        _serve(monkeypatch, _resolved(kind="daytona"))
+        rows = [_row(backend="service", session_id="dt-1", connection_id=uuid4())]
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=rows))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+
+        listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
+
+        assert (listing.workspaces_read, listing.unreadable, listing.files) == (1, 0, [])
 
     async def test_one_host_is_resolved_once_however_many_workspaces_it_holds(
         self, monkeypatch, mock_db_session
@@ -2679,6 +3079,62 @@ class TestASessionAcrossRuns:
         assert [r for r in caplog.records if r.message == "workspace_lost_sandbox_not_deleted"]
 
 
+async def _committed(session: object) -> None:
+    """What the request's session does after its commit: start what it deferred."""
+    background.start_deferred(session)  # ty: ignore[invalid-argument-type]
+    await background.drain()
+
+
+class _Tombstones:
+    """The tombstone repository and the session `_destroy_and_forget` opens, faked.
+
+    Every purge writes a tombstone now (#2209), and a destroy that succeeds opens
+    a session of its own to remove it. Faked for the whole module, so no purge
+    test reaches for a real database from a background task, where a failure is
+    only a log line.
+    """
+
+    def __init__(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self.added: list[dict[str, object]] = []
+        self.removed: list[UUID] = []
+        self.postponed: list[tuple[UUID, int, datetime]] = []
+        self.due: list[Any] = []
+
+        async def add(_db: object, **fields: object) -> Any:
+            self.added.append(fields)
+            return MagicMock(id=uuid4(), **fields)
+
+        async def remove(_db: object, pending_id: UUID) -> None:
+            self.removed.append(pending_id)
+
+        async def postpone(
+            _db: object, pending_id: UUID, *, attempts: int, until: datetime
+        ) -> None:
+            self.postponed.append((pending_id, attempts, until))
+
+        async def claim_due(_db: object, *, now: datetime, limit: int) -> list[Any]:
+            return self.due[:limit]
+
+        @asynccontextmanager
+        async def session() -> AsyncGenerator[MagicMock]:
+            yield MagicMock()
+
+        repo = sandbox_workspace.pending_destroy_repo
+        for name, fake in (
+            ("add", add),
+            ("remove", remove),
+            ("postpone", postpone),
+            ("claim_due", claim_due),
+        ):
+            monkeypatch.setattr(repo, name, fake)
+        monkeypatch.setattr(sandbox_workspace, "get_db_context", session)
+
+
+@pytest.fixture(autouse=True)
+def tombstones(monkeypatch: pytest.MonkeyPatch) -> _Tombstones:
+    return _Tombstones(monkeypatch)
+
+
 def _conversation_holds(monkeypatch: pytest.MonkeyPatch, *rows: object) -> AsyncMock:
     monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=list(rows)))
     deleted = AsyncMock()
@@ -2710,6 +3166,9 @@ class TestDeletingAConversation:
         await SandboxWorkspaceService(mock_db_session).purge_for_conversation(
             _ctx(), conversation_id=uuid4()
         )
+        # Nothing is destroyed until the deletion has committed.
+        assert sandboxes.destroyed == []
+        await _committed(mock_db_session)
 
         # By the session the row recorded, on the connection's own provider name.
         assert sandboxes.destroyed == [
@@ -2734,13 +3193,14 @@ class TestDeletingAConversation:
 
         assert count == 1
         deleted.assert_awaited_once()
+        await _committed(mock_db_session)
         # The organization's own key, and the sandbox the row recorded.
         assert sandboxes.made[0]["config"].api_key == "dtn-live-key"
         assert sandboxes.destroyed == [WorkspaceRef(provider="daytona", id="dt-1")]
 
     @pytest.mark.parametrize("kind", ["docker", "daytona"])
     async def test_a_host_that_is_down_does_not_stop_the_deletion(
-        self, monkeypatch, mock_db_session, sandboxes, kind
+        self, monkeypatch, mock_db_session, sandboxes, kind, caplog
     ):
         """A provider having a bad day must not be the reason somebody cannot
         delete their own conversation; the workspace TTL is the net under a
@@ -2754,9 +3214,30 @@ class TestDeletingAConversation:
         count = await SandboxWorkspaceService(mock_db_session).purge_for_conversation(
             _ctx(), conversation_id=uuid4()
         )
+        with caplog.at_level(logging.WARNING):
+            await _committed(mock_db_session)
 
         assert count == 1
         deleted.assert_awaited_once()
+        assert [r for r in caplog.records if r.message == "workspace_purge_failed"]
+
+    async def test_a_deletion_that_rolls_back_leaves_the_sandbox_alone(
+        self, monkeypatch, mock_db_session, sandboxes
+    ):
+        """Destroyed before the commit, a rollback would restore rows naming
+        files that no longer exist."""
+        _serve(monkeypatch, _resolved())
+        _conversation_holds(
+            monkeypatch, _row(backend="service", session_id="dc-1", connection_id=uuid4())
+        )
+
+        await SandboxWorkspaceService(mock_db_session).purge_for_conversation(
+            _ctx(), conversation_id=uuid4()
+        )
+        background.discard_deferred(mock_db_session)
+        await background.drain()
+
+        assert sandboxes.destroyed == []
 
     async def test_a_connection_deleted_since_does_not_stop_the_deletion(
         self, monkeypatch, mock_db_session
@@ -2878,6 +3359,8 @@ class TestShowingTheFilesToAPerson:
         self, monkeypatch, mock_db_session
     ):
         monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[]))
+        # Not in a project either, so there is no project's to fall back on.
+        mock_db_session.scalar = AsyncMock(return_value=None)
 
         found = await SandboxWorkspaceService(mock_db_session).listing(
             _ctx(), conversation_id=uuid4()
@@ -2964,6 +3447,8 @@ class TestShowingTheFilesToAPerson:
         self, monkeypatch, mock_db_session
     ):
         monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[]))
+        # Not in a project either, so there is no project's to fall back on.
+        mock_db_session.scalar = AsyncMock(return_value=None)
 
         assert (
             await SandboxWorkspaceService(mock_db_session).read_text(
@@ -3572,16 +4057,13 @@ class TestWalkingAHostsDirectories:
     def _archive(monkeypatch, tree: dict[str, list[dict[str, object]]], asked: list[str]):
         from pydantic_ai_backends import remote as remote_module
 
-        class _Archive:
+        class _Archive(_ClosesItsClient):
             def __init__(self, url, token="", timeout=None):
                 pass
 
             def ls(self, session_id, path="."):
                 asked.append(path)
                 return tree.get(path, [])
-
-            def close(self):
-                pass
 
         monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
 
@@ -3681,7 +4163,8 @@ class TestWalkingAHostsDirectories:
 
         Walking every level made every level able to fail the whole listing, so a
         single directory the agent chmod'ed away would report a workspace nobody
-        can read - where before the walk it reported the root's files.
+        can read - where before the walk it reported the root's files. What it
+        held is missing from the page, so the listing says it is incomplete.
         """
         from pydantic_ai_backends import remote as remote_module
 
@@ -3692,7 +4175,7 @@ class TestWalkingAHostsDirectories:
             ]
         }
 
-        class _Archive:
+        class _Archive(_ClosesItsClient):
             def __init__(self, url, token="", timeout=None):
                 pass
 
@@ -3716,7 +4199,7 @@ class TestWalkingAHostsDirectories:
         assert found is not None
         _, contents = found
         assert contents.unreadable_reason is None
-        assert contents.truncated is False
+        assert contents.truncated is True
         assert [str(entry.get("path")) for entry in contents.entries] == ["notes.md", "locked"]
 
     async def test_a_root_that_refuses_is_still_the_hosts_failure(
@@ -3724,7 +4207,7 @@ class TestWalkingAHostsDirectories:
     ):
         from pydantic_ai_backends import remote as remote_module
 
-        class _Archive:
+        class _Archive(_ClosesItsClient):
             def __init__(self, url, token="", timeout=None):
                 pass
 
@@ -3773,7 +4256,7 @@ class TestDrawingAHostsImages:
 
         png = self._png()
 
-        class _Archive:
+        class _Archive(_ClosesItsClient):
             def __init__(self, url, token="", timeout=None):
                 pass
 
@@ -4018,7 +4501,7 @@ class TestDrawingAHostsImages:
 
         from app.repositories import agent as agent_repo
 
-        class _Archive:
+        class _Archive(_ClosesItsClient):
             def __init__(self, url, token="", timeout=None):
                 pass
 
@@ -4057,7 +4540,7 @@ class TestDrawingAHostsImages:
 
         from app.repositories import agent as agent_repo
 
-        class _Archive:
+        class _Archive(_ClosesItsClient):
             def __init__(self, url, token="", timeout=None):
                 pass
 
@@ -4171,6 +4654,35 @@ class TestWhatTheBrowserDoesNotShow:
         ]
 
         assert [entry["path"] for entry in browsable(entries)] == ["/skillset.md", "/workspace/w"]
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            ".venv/lib/python3.12/site-packages/py.py",
+            "/workspace/app/__pycache__/main.cpython-312.pyc",
+            "web/node_modules/react/index.js",
+            ".pytest_cache",
+            ".git/HEAD",
+        ],
+    )
+    def test_what_a_toolchain_fills_is_left_out_at_any_depth(self, path: str):
+        """A coding agent's virtualenv was a thousand files on Documents."""
+        entries: list[FileInfo] = [
+            {"name": path.rsplit("/", 1)[-1], "path": path, "is_dir": False},
+            {"name": "main.py", "path": "/workspace/app/main.py", "is_dir": False},
+        ]
+        assert [entry["path"] for entry in browsable(entries)] == ["/workspace/app/main.py"]
+
+    @pytest.mark.parametrize(
+        "path", [".agenticos/coding-agent/a1.exit", "/workspace/.agenticos/coding-agent/x.session"]
+    )
+    def test_the_platforms_own_working_files_are_left_out(self, path: str):
+        """A coding task's events and session are the platform's, not the agent's work."""
+        entries: list[FileInfo] = [
+            {"name": path.rsplit("/", 1)[-1], "path": path, "is_dir": False},
+            {"name": "report.md", "path": "/workspace/report.md", "is_dir": False},
+        ]
+        assert [entry["path"] for entry in browsable(entries)] == ["/workspace/report.md"]
 
     async def test_the_flat_view_leaves_them_out_too(self, monkeypatch, mock_db_session):
         from app.repositories import agent as agent_repo
@@ -4306,7 +4818,7 @@ class TestAListingCarriesWhatEachTileDraws:
         """The flat view's allowance is request-wide: a stored workspace listed first
         spends it before a host is asked for anything."""
         from app.repositories import agent as agent_repo
-        from app.services.sandbox_workspace import THUMBNAIL_BUDGET, stored_entries
+        from app.services.sandbox_workspace import THUMBNAIL_BUDGET
 
         stored = StateBackend()
         for n in range(THUMBNAIL_BUDGET):
@@ -4321,12 +4833,11 @@ class TestAListingCarriesWhatEachTileDraws:
         service = SandboxWorkspaceService(mock_db_session)
         host_entries = [{"path": "/remote.png", "size": 10, "is_dir": False}]
 
-        async def _entries(ctx, row):
-            if row is host_row:
-                return WorkspaceContents(entries=host_entries)
-            return WorkspaceContents(entries=stored_entries(dict(row.files or {})))
+        async def _host_trees(ctx, rows):
+            assert rows == [host_row]
+            return [WorkspaceContents(entries=host_entries)]
 
-        monkeypatch.setattr(service, "_entries", _entries)
+        monkeypatch.setattr(service, "_host_trees", _host_trees)
         fetched = AsyncMock(return_value={})
         monkeypatch.setattr(service, "_host_thumbnails", fetched)
 
@@ -4360,3 +4871,247 @@ class TestAListingCarriesWhatEachTileDraws:
         assert found[1].thumbnails == {"/out/chart.png": "data:image/webp;base64,AA"}
         # A directory is never fetched as an image.
         assert drawn.await_args.args[2] == ["/out/chart.png"]
+
+
+class TestADestroyThatFailsIsRetried:
+    """#2209: the rows naming a remote sandbox go with the conversation or the
+    project, so a destroy that failed after the commit left nothing that knew the
+    sandbox existed - and a Daytona sandbox has no TTL behind it."""
+
+    async def test_the_deletion_writes_a_tombstone_naming_the_sandbox(
+        self, monkeypatch, mock_db_session, sandboxes, tombstones
+    ):
+        _serve(monkeypatch, _resolved())
+        connection_id = uuid4()
+        row = _row(backend="service", session_id="dc-1", connection_id=connection_id)
+        _conversation_holds(monkeypatch, row)
+
+        await SandboxWorkspaceService(mock_db_session).purge_for_conversation(
+            _ctx(), conversation_id=uuid4()
+        )
+
+        assert tombstones.added == [
+            {
+                "organization_id": row.organization_id,
+                "connection_id": connection_id,
+                "ref_id": "dc-1",
+                "scope_key": row.scope_key,
+            }
+        ]
+
+    async def test_a_destroy_that_succeeds_removes_its_tombstone(
+        self, monkeypatch, mock_db_session, sandboxes, tombstones
+    ):
+        _serve(monkeypatch, _resolved())
+        _conversation_holds(
+            monkeypatch, _row(backend="service", session_id="dc-1", connection_id=uuid4())
+        )
+
+        await SandboxWorkspaceService(mock_db_session).purge_for_conversation(
+            _ctx(), conversation_id=uuid4()
+        )
+        await _committed(mock_db_session)
+
+        assert len(sandboxes.destroyed) == 1
+        assert len(tombstones.removed) == 1
+
+    async def test_a_destroy_that_fails_leaves_its_tombstone(
+        self, monkeypatch, mock_db_session, sandboxes, tombstones
+    ):
+        sandboxes.unreachable = RuntimeError("connection refused")
+        _serve(monkeypatch, _resolved(kind="daytona", base_url=None))
+        _conversation_holds(
+            monkeypatch, _row(backend="service", session_id="dt-1", connection_id=uuid4())
+        )
+
+        await SandboxWorkspaceService(mock_db_session).purge_for_conversation(
+            _ctx(), conversation_id=uuid4()
+        )
+        await _committed(mock_db_session)
+
+        assert len(tombstones.added) == 1
+        assert tombstones.removed == []
+
+    async def test_a_connection_that_cannot_be_resolved_still_leaves_a_tombstone(
+        self, monkeypatch, mock_db_session, sandboxes, tombstones
+    ):
+        """Resolving reads the vault; a key rotated away must not lose the sandbox."""
+        _serve(monkeypatch, RuntimeError("vault refused"))
+        _conversation_holds(
+            monkeypatch, _row(backend="service", session_id="dc-1", connection_id=uuid4())
+        )
+
+        await SandboxWorkspaceService(mock_db_session).purge_for_conversation(
+            _ctx(), conversation_id=uuid4()
+        )
+        await _committed(mock_db_session)
+
+        assert len(tombstones.added) == 1
+        assert sandboxes.destroyed == []
+
+    async def test_the_sweep_destroys_what_is_due_and_forgets_it(
+        self, monkeypatch, sandboxes, tombstones
+    ):
+        resolved = _resolved()
+        _serve(monkeypatch, resolved)
+        pending = MagicMock(
+            id=uuid4(),
+            organization_id=uuid4(),
+            connection_id=resolved.row.id,
+            ref_id="dc-1",
+            scope_key="sc-1",
+            attempts=2,
+        )
+        tombstones.due = [pending]
+
+        assert await retry_pending_destroys() == 1
+
+        assert sandboxes.destroyed == [
+            WorkspaceRef(provider=f"sandboxd:{resolved.row.id}", id="dc-1")
+        ]
+        assert tombstones.removed == [pending.id]
+        assert tombstones.postponed == []
+
+    async def test_a_sweep_that_fails_postpones_and_moves_on(
+        self, monkeypatch, sandboxes, tombstones, caplog
+    ):
+        """One provider that is down must not hold back the next sandbox."""
+        sandboxes.unreachable = RuntimeError("connection refused")
+        _serve(monkeypatch, _resolved(kind="daytona", base_url=None))
+        first = MagicMock(
+            id=uuid4(),
+            organization_id=uuid4(),
+            connection_id=uuid4(),
+            ref_id="dt-1",
+            scope_key="sc-1",
+            attempts=0,
+        )
+        second = MagicMock(
+            id=uuid4(),
+            organization_id=uuid4(),
+            connection_id=uuid4(),
+            ref_id="dt-2",
+            scope_key="sc-2",
+            attempts=3,
+        )
+        tombstones.due = [first, second]
+
+        with caplog.at_level(logging.WARNING):
+            assert await retry_pending_destroys() == 0
+
+        assert [(pid, attempts) for pid, attempts, _ in tombstones.postponed] == [
+            (first.id, 1),
+            (second.id, 4),
+        ]
+        assert tombstones.removed == []
+        assert [r for r in caplog.records if r.message == "workspace_purge_retry_failed"]
+
+    def test_the_pause_doubles_up_to_six_hours(self):
+        now = datetime(2026, 10, 19, tzinfo=UTC)
+
+        assert next_destroy_attempt(1, now) - now == timedelta(minutes=2)
+        assert next_destroy_attempt(3, now) - now == timedelta(minutes=8)
+        assert next_destroy_attempt(20, now) - now == RETRY_CAP
+
+    def test_a_row_failing_for_weeks_is_still_postponed(self):
+        """#2250: from about 41 attempts the uncapped power overflowed `timedelta`."""
+        now = datetime(2026, 10, 19, tzinfo=UTC)
+
+        assert next_destroy_attempt(41, now) - now == RETRY_CAP
+        assert next_destroy_attempt(10_000, now) - now == RETRY_CAP
+
+
+class TestTheWaitSink:
+    """#2222: the sandbox client is handed the surface's sink as it is built."""
+
+    async def test_a_sandboxd_workspace_is_handed_the_runs_sink(
+        self, monkeypatch, mock_db_session, sandboxes
+    ):
+        _serve(monkeypatch, _resolved())
+        _a_row_is_created(monkeypatch)
+        heard = AsyncMock()
+
+        await SandboxWorkspaceService(mock_db_session).open(
+            _spec(backend="service"), ctx=_ctx(), identity=_identity(), on_wait=heard
+        )
+        await sandboxes.made[0]["on_wait"]()
+
+        heard.assert_awaited_once_with(True)
+
+    async def test_the_end_of_the_open_is_said_once_and_only_after_a_wait(self):
+        heard = AsyncMock()
+        notice = sandbox_workspace._OpeningNotice(heard)
+
+        await notice.settled()
+        assert heard.await_count == 0
+        await notice.waiting()
+        await notice.settled()
+        await notice.settled()
+
+        assert [call.args for call in heard.await_args_list] == [(True,), (False,)]
+
+    async def test_with_no_surface_there_is_no_sink(self, monkeypatch, mock_db_session, sandboxes):
+        _serve(monkeypatch, _resolved())
+        _a_row_is_created(monkeypatch)
+
+        await SandboxWorkspaceService(mock_db_session).open(
+            _spec(backend="service"), ctx=_ctx(), identity=_identity()
+        )
+
+        assert sandboxes.made[0]["on_wait"] is None
+
+
+async def test_the_real_client_is_handed_the_notice_and_the_shared_client():
+    """Against the installed library, not the fake: `on_wait` arrived in
+    pydantic-ai-backend 0.2.34, and an older one would refuse the keyword."""
+    from pydantic_ai_backends.workspaces import SandboxdWorkspace as RealSandboxd
+
+    notice = AsyncMock()
+    made = SandboxWorkspaceService._service_capability(_resolved(), "sc-1", on_wait=notice)
+    again = SandboxWorkspaceService._service_capability(_resolved(), "sc-2")
+
+    assert isinstance(made, RealSandboxd)
+    assert made.on_wait is notice
+    # One pool for every workspace in the process, not a connection per request.
+    assert made.client is not None
+    assert made.client is again.client
+    await sandbox_workspace.close_sandboxd_client()
+
+
+class TestTheSharedSandboxdClient:
+    def test_another_loop_gets_its_own_client(self):
+        """Connections belong to the loop that opened them."""
+        import asyncio
+
+        async def take() -> object:
+            return sandbox_workspace._sandboxd_http()
+
+        first = asyncio.run(take())
+        second = asyncio.run(take())
+
+        assert first is not second
+        asyncio.run(sandbox_workspace.close_sandboxd_client())
+
+    def test_closing_from_another_loop_drops_it_rather_than_raising(self, monkeypatch):
+        import asyncio
+
+        async def warm() -> None:
+            client = sandbox_workspace._sandboxd_http()
+            # What `aclose` says for connections whose loop has gone.
+            monkeypatch.setattr(
+                client, "aclose", AsyncMock(side_effect=RuntimeError("Event loop is closed"))
+            )
+
+        asyncio.run(warm())
+        asyncio.run(sandbox_workspace.close_sandboxd_client())
+
+        assert sandbox_workspace._sandboxd_client is None
+
+    async def test_a_closed_client_is_rebuilt(self):
+        first = sandbox_workspace._sandboxd_http()
+        await first.aclose()
+
+        assert sandbox_workspace._sandboxd_http() is not first
+        await sandbox_workspace.close_sandboxd_client()
+        # Closing twice is a shutdown that found nothing to close.
+        await sandbox_workspace.close_sandboxd_client()

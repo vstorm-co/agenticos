@@ -102,6 +102,14 @@ describe("useArtifacts", () => {
       expect(apiClient.get).toHaveBeenCalledWith("/apps?skip=0&limit=50&group_id=g1"),
     );
   });
+
+  it("asks for one project's apps when opened inside it", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    renderHook(() => useArtifacts({ projectId: "p1" }), { wrapper });
+    await waitFor(() =>
+      expect(apiClient.get).toHaveBeenCalledWith("/apps?skip=0&limit=50&project_id=p1"),
+    );
+  });
 });
 
 describe("useArtifactAgents", () => {

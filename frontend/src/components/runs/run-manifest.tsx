@@ -104,6 +104,59 @@ export function RunManifest({ runId }: { runId: string }) {
         <RunWaterfall requests={manifest.requests} />
       </Section>
 
+      {/* What steered the run, and who: a correction the run's model received
+          mid-run reads as the agent changing its mind otherwise (#2106). */}
+      {!!manifest.reviews?.length && (
+        <Section title={t("reviewerCorrections", { count: manifest.reviews.length })}>
+          <ul className="space-y-1.5">
+            {manifest.reviews.map((review) => (
+              <li key={`${review.reviewer}-${review.after_request}`} className="text-sm">
+                <span className="text-muted-foreground text-xs">
+                  {t("reviewerCorrectionBy", {
+                    reviewer: review.reviewer,
+                    request: review.after_request,
+                  })}
+                </span>
+                <p>{review.steer}</p>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      {/* One `run_code` step hides every call its script made; this is them (#2107). */}
+      {!!manifest.code_runs?.length && (
+        <Section title={t("codeRuns", { count: manifest.code_runs.length })}>
+          <ul className="space-y-3">
+            {manifest.code_runs.map((run) => (
+              <li key={run.tool_call_id} className="space-y-1.5">
+                <pre className="bg-muted/50 max-h-64 overflow-auto rounded-md p-3 text-xs">
+                  {run.code}
+                </pre>
+                <p className="text-muted-foreground text-xs">
+                  {t("codeRunCalls", { count: run.calls.length + (run.omitted_calls ?? 0) })}
+                </p>
+                <ol className="space-y-0.5">
+                  {run.calls.map((call, index) => (
+                    <li key={index} className="flex gap-2 font-mono text-xs">
+                      <span className={call.status === "failed" ? "text-destructive" : ""}>
+                        {call.tool}
+                      </span>
+                      <span className="text-muted-foreground truncate">{call.args}</span>
+                    </li>
+                  ))}
+                </ol>
+                {!!run.omitted_calls && (
+                  <p className="text-muted-foreground text-xs">
+                    {t("codeRunOmittedCalls", { count: run.omitted_calls })}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
       {manifest.messages.length > 0 && (
         <Section
           title={t("lastRequestContext")}

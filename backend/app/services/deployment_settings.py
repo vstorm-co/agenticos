@@ -25,8 +25,6 @@ from the origin the app runs on, and a stored name is what decides whether a
 browser treats it as a picture or as a script.
 """
 
-from __future__ import annotations
-
 import contextlib
 import logging
 from dataclasses import dataclass
@@ -137,6 +135,7 @@ class DeploymentSettingsService:
             default_organization_role=(
                 _default_role(row.default_organization_role) if row else "member"
             ),
+            dictation_compressed_audio=row.dictation_compressed_audio if row else False,
             updated_at=row.updated_at if row else None,
         )
 
@@ -148,6 +147,16 @@ class DeploymentSettingsService:
         """
         row = await deployment_settings_repo.get(self.db)
         return bool(row and row.notify_impersonated_users)
+
+    async def accepts_compressed_dictation(self) -> bool:
+        """Whether a dictation may be WebM, Ogg or MP4 rather than raw PCM alone (#1797).
+
+        No row is the unconfigured deployment, and the unconfigured answer is
+        no: raw PCM is the format whose length cannot lie, and accepting the
+        others is a risk somebody has to have taken on the settings page.
+        """
+        row = await deployment_settings_repo.get(self.db)
+        return bool(row and row.dictation_compressed_audio)
 
     async def limits(self) -> DeploymentLimits:
         """The two ceilings, as whatever creates the thing they bound reads them.

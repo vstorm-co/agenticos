@@ -1,5 +1,5 @@
 ---
-source_sha: "a2025e286fde"
+source_sha: "c10b3f38d92b"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -69,7 +69,7 @@ Zwei Ablehnungen sollten Sie kennen:
 
 - **`403` "API keys are not accepted on this endpoint"** — Schlüssel werden nur in
   der öffentlichen API angenommen: Agents, Runs und Freigaben, Wissensbasen und
-  RAG, Skills, Kontextdateien, Apps, die ML-Dienste, `/me/permissions`
+  RAG, Skills, Kontextdateien, Projekte, Apps, die ML-Dienste, `/me/permissions`
   sowie Mitglieder, Einladungen, Gruppen und Einstellungen einer Organisation.
   Die eigenen Routen der Konsole, Ihr Konto, das Verlassen oder Übergeben einer
   Organisation und die Schlüsselverwaltung selbst bleiben Sitzungen vorbehalten,
@@ -203,6 +203,41 @@ Kosten, für einen Schlüssel mit `runs:view`.
     Das ist der Sinn eines einzigen Runners, und deshalb gibt es keinen
     "schnellen Weg", der ihn überspringt.
 
+### Ohne die Verbindung zu halten { #without-holding-the-connection }
+
+Ein Run von Minuten - ein Browse, eine lange Tool-Kette - hält die Anfrage die
+ganze Zeit offen, und das Lese-Timeout eines Proxys kann sie abschneiden,
+während der Run weiterläuft. Senden Sie `Prefer: respond-async`, und der Aufruf
+antwortet sofort mit `202` und einer Run-Anfrage zum Abfragen:
+
+```bash
+curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Prefer: respond-async" \
+  -H "Idempotency-Key: ticket-4711" \
+  -d '{"prompt": "Summarise this quarter for the board"}'
+# 202, Location: /api/v1/run-requests/{id}, Preference-Applied: respond-async
+
+curl "$BASE/api/v1/run-requests/$REQUEST_ID" -H "Authorization: Bearer $AGENTICOS_KEY"
+```
+
+Die Anfrage steht auf `queued`, `running`, dann `completed` mit `result` -
+demselben Body, mit dem der synchrone Aufruf antwortet - oder `failed` mit
+`error`. Ihre `conversation_id` ist ab der ersten Antwort bekannt, eine
+Folgenachricht kann also gesendet werden, bevor der Run endet. Ein Worker führt
+sie aus, durch denselben Runner, dasselbe Budget und dieselben Freigaben wie
+jede andere Oberfläche.
+
+Was sich sofort prüfen lässt, wird sofort geprüft: Eine unbekannte Konversation
+oder Anlage ist ein `404` auf den `POST`, kein Fehler, auf den man warten muss.
+Die Rechte des Schlüssels werden beim Start des Runs erneut geprüft, ein
+Schlüssel, der widerrufen wurde, während sein Run wartete, führt ihn also nicht
+aus. Nur die Person, die angefragt hat, oder ein Schlüssel von ihr kann eine
+Run-Anfrage lesen; die eines anderen antwortet `404`. Ein asynchroner Run hat
+einen Versuch - ein gescheiterter Run wird mit dem festgehalten, was er
+ausgegeben hat, und nicht wiederholt, um es nicht zweimal auszugeben.
+
 Die Route trägt eine **Rate-Limitierung und kein Berechtigungs-Tor**. Über die
 Berechtigung entscheidet der Service, anhand der Grants genau dieses Agents — ein
 Rollen-Tor auf einer Route für eine einzelne Ressource
@@ -229,6 +264,33 @@ Die Antwort trägt außerdem
 `categories` und `tags`: jedes eindeutige Label auf den Agents, die Sie auflisten
 können, unabhängig von Filter und Seite — die Auswahl, die ein Filtermenü anbietet.
 Ein privater Agent, den Sie nicht sehen, trägt keines bei.
+## Agents über A2A { #agents-over-a2a }
+
+Ein Agent, den seine Organisation über A2A anbietet, beantwortet JSON-RPC unter
+`POST /api/v1/a2a/{agent_id}`, mit denselben Keys wie `/run`; seine Agent Card liegt
+unter `GET /api/v1/a2a/{agent_id}/.well-known/agent-card.json` und braucht keinen.
+`PUT /api/v1/agents/{id}/a2a` mit `{"enabled": true}` schaltet es ein, für einen
+Aufrufer mit `agents:publish` auf diesem Agent.
+
+```bash
+curl -X POST "$BASE/api/v1/a2a/$AGENT_ID" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc": "2.0", "id": 1, "method": "message/send",
+       "params": {"message": {"role": "user", "messageId": "m1",
+                              "parts": [{"kind": "text", "text": "Review clause 7"}]}}}'
+```
+
+Die Antwort ist ein `Task`, dessen ID die des Runs ist und dessen `contextId` das
+Gespräch fortsetzt. `tasks/get` liest einen erneut. Den Rest beschreiben die
+[Kanäle](channels.md#a2a).
+
+Remote Agents, an die diese Organisation delegiert, werden unter
+`/api/v1/external-agents` registriert: `GET` listet sie (`agents:view`); `POST` mit
+einer `card_url`, optional einem `slug` und optional der `secret_id` eines API-Keys
+liest die Karte und registriert ihn, und `POST /{id}/refresh` liest sie erneut;
+`DELETE /{id}` entfernt einen (`agents:edit` für alle drei).
+
 ## Die ML-Dienste { #the-ml-services }
 
 Vier Dienste der Plattform antworten für sich allein, ohne Unterhaltung und ohne
@@ -349,6 +411,113 @@ einen JSON-Frame — `resource`, `id`, `action` (`created`, `updated` oder
 `deleted`), `surface` (`console`, `api_key`, `mcp` oder `assistant`) und wer ihn
 ausgeführt hat — und nur für Zeilen, die der Aufrufer lesen darf.
 
+## Sprachanrufe { #voice-calls }
+
+Ein [Sprachanruf](voice.md) hat ein eigenes Socket, weil ein Anruf keine
+Schleife aus Runden ist: **`/api/v1/ws/voice`** für ein Mitglied und
+**`/api/v1/embed/{public_key}/voice/ws`** für einen Besucher auf einem Widget
+oder einer gehosteten Seite ([Zulassung](channels.md#the-call-socket)). Beide
+sprechen dieselben Frames, definiert in `backend/app/schemas/voice.py`.
+
+Das Socket der Konsole authentifiziert sich wie `/ws/agent`: das Token als
+Eintrag `access_token.<JWT>` in `Sec-WebSocket-Protocol` (oder das
+Same-Origin-Cookie), nie im Query-String, und die Organisation als
+`?organization_id=`. Es schließt mit `4001` ohne gültige Session und mit `4003`,
+wenn der Aufrufer kein Mitglied ist oder sich mit einem API-Schlüssel der
+Organisation authentifiziert: Ein Anruf ist ein Mensch am Mikrofon, so wie ein
+Chat-Turn ein Mensch an der Tastatur ist.
+
+Das Embed-Socket schließt mit `4029`
+jenseits eines Rate-Limits und mit `4003` bei jeder Ablehnung, die das Embed
+betrifft. Jeder Heartbeat prüft die Session erneut, sodass ein Anruf eine
+Abmeldung nicht überdauert.
+
+**Der Client sendet** JSON-Frames und über das Relay auch binäres Audio:
+
+| Frame | Felder | Wann |
+|---|---|---|
+| `start` | `agent_id`, `conversation_id`, `sdp_offer` (WebRTC), `resume_of` und `resume_token` (eine Wiederverbindung), `context` (die Variablen eines Embeds) | Zuerst, innerhalb von 10 Sekunden |
+| `approval` | `id`, `decision` (`approve` oder `deny`) | Entscheidung über eine Freigabe, auf die der Anruf wartet |
+| `mute` | `muted` | Das Relay: das Mikrofon stummgeschaltet |
+| `played` | `bytes` | Das Relay: wie viel vom Audio des Agents abgespielt wurde |
+| `end` | - | Auflegen |
+| *binär* | 16-Bit-PCM mit der Eingangsrate des Modells | Das Relay: das Audio des Anrufers |
+
+**Der Server sendet:**
+
+| Frame | Felder | Bedeutet |
+|---|---|---|
+| `answer` | `sdp` | WebRTC: die Antwort des Providers für die Peer-Verbindung des Browsers |
+| `ready` | `call_id`, `run_id`, `conversation_id`, `transport`, `input_sample_rate`, `output_sample_rate`, `cap_seconds`, `resume_token` | Der Anruf ist eingerichtet. `resume_token` wird nur hier gesendet, nur an diesen Anrufer; eine Wiederverbindung schickt es zurück |
+| `state` | `state`: `connecting`, `listening`, `user_speaking`, `thinking`, `agent_speaking`, `interrupted`, `tool_running`, `awaiting_approval` | Wer spricht oder was der Agent gerade tut |
+| `caption` | `role`, `turn_id`, `part` und eines von `delta` (anhängen), `text` (durch den bisher geprüften Text ersetzen) oder `final` | Ein Live-Untertitel |
+| `turn_saved` | `message` | Eine abgeschlossene Runde, als die Nachricht, als die sie gespeichert wurde; sie ersetzt die Untertitel mit ihrer `turn_id` |
+| `tool` | `name`, `status` (`running` oder `done`) | Ein Tool, das der Agent ausführt |
+| `approval_required` | `id`, `tool`, `args`, `said`, `timeout_seconds` | Eine Freigabe für die Person im Anruf: die exakten Argumente und was von ihr verstanden wurde |
+| `approval_unavailable` | `tool`, `args` | Ein Tool-Aufruf, den dieser Anrufer per Stimme nicht freigeben kann |
+| `approval_settled` | `id`, `outcome` (`approved`, `denied` oder `expired`) | Wie eine Freigabe ausgegangen ist |
+| `notice` | `kind`, `message` (optional) | Etwas, das in Worten zu sagen ist: ein Guardrail-Treffer, ein erreichtes Limit |
+| `limit` | `seconds_left` | Die Zeit des Anrufs ist fast um |
+| `clear_playback` | - | Das Relay: das eingereihte Audio des Agents verwerfen |
+| `ended` | `reason`, `message` | Der Anruf ist vorbei |
+| *binär* | 16-Bit-PCM mit der Ausgangsrate des Modells | Das Relay: das Audio des Agents |
+
+**Ein Besucher eines Widgets oder einer gehosteten Seite erfährt weniger.** Sein
+`ready` enthält kein `run_id`; `cap_seconds` ist das Limit des Anrufs - der
+längste Anruf des Agents oder was von einem fortgesetzten Anruf übrig ist. Die
+Tool-Frames folgen den Schaltern
+`show_tool_steps` und `show_tool_results` des Embeds, wie die einer getippten
+Antwort. Ohne Tool-Schritte wird kein `tool`-Frame gesendet, und
+`tool_running` kommt als `thinking`. Ohne Tool-Ergebnisse kommt
+`approval_unavailable` mit leeren `args`. Das `turn_saved` eines Besuchers
+enthält, unabhängig von den Schaltern, nur `id`, `role`, `content`,
+`interrupted` und `turn_id` der Nachricht: nie die IDs von Run, Agent oder
+Version, nie ihre Kosten oder Tool-Aufrufe.
+
+**Eine Wiederverbindung muss beweisen, dass ihr der Anruf gehört.** Ein `start`
+mit `resume_of` muss auch das `resume_token` aus dem `ready` jener Verbindung
+mitschicken. Ohne es oder mit einem falschen wird die Wiederverbindung als
+`resume_refused` abgelehnt, und der genannte Anruf bleibt unberührt. Der Server
+speichert nur einen Hash des Tokens. Ein Anruf, der schon aus 20 Verbindungen
+besteht, wird nicht mehr fortgesetzt: Auch seine nächste Wiederverbindung wird
+als `resume_refused` abgelehnt.
+
+Ein Socket, das innerhalb von 10 Sekunden kein `start` sendet, bekommt `ended`
+mit `no_start`. Ein Anruf, der nicht startet, antwortet mit `ended` und einem
+stabilen `reason`: `no_agent`, `forbidden`, `not_configured`, `bad_offer`,
+`data_channel`, `resume_refused`, `call_limit`, `not_priced`, `budget`, `busy`
+oder `line_busy`, mit einer `message`, die sich gefahrlos anzeigen lässt.
+`busy` kommt erst, nachdem ein Anruf, den dieselbe Person gerade aufgelegt hat,
+bis zu vier Sekunden hatte, um zu enden. Ein Start, der aus irgendeinem
+anderen Grund scheitert, antwortet mit `ended` und `error`.
+
+Ein Besucher, der
+als `not_configured`, `not_priced` oder `budget` abgelehnt wird oder dessen
+Anruf als `budget` endet, bekommt stattdessen
+`unavailable` mit der Meldung "Calls are not available right now.": Code und
+vollständige Meldung sind Sache des Betreibers des Agents. Ein Anruf in eine archivierte Unterhaltung wird als `forbidden`
+abgelehnt, so wie eine getippte Nachricht dorthin.
+
+Ein Anruf, der gelaufen ist, endet mit `user`, `time_limit`, `budget`,
+`disconnected`, `revoked`, `guardrail`, `shutdown` oder `error`; mit
+`time_limit`, wenn er den längsten Anruf des Agents erreicht hat. Der Anruf eines Besuchers
+endet mit `revoked`, wenn sein Embed pausiert wird, seine Anrufe abgeschaltet
+werden oder es auf einen anderen Agent zeigt. Kein Frame trägt je Zugangsdaten
+eines Providers.
+
+Fünf HTTP-Routen gehören dazu:
+
+| Route | Gate | Antwortet |
+|---|---|---|
+| `GET /api/v1/agents/{agent_id}/voice` | `agents:run` auf diesem Agent, ein Grant eingeschlossen; sonst `404` | Ob ein Anruf starten würde, warum nicht (`no_voice`, `not_offered` oder `no_key`), der Transport und der längste Anruf |
+| `POST /api/v1/agents/{agent_id}/voice/preview` | `agents:edit` auf diesem Agent, ein Grant eingeschlossen; sonst `404` | Die Stimme aus dem Entwurf des Abschnitts „Stimme“, die einen festen Satz sagt, als `audio/wav`. Pro Stimme und Sprache im Cache; `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` pro Person |
+| `GET /api/v1/providers/realtime-models` | `agents:view` | Der Realtime-Katalog, aus dem der Abschnitt Stimme auswählt |
+| `GET /api/v1/voice/usage?start=…&end=…` | `runs:view` | Anrufsekunden und Anrufe für Anrufe, die zu oder nach `start` und vor `end` begonnen haben, nach Agent (die Anrufe eines gelöschten Agents als eine Zeile ohne ID oder Namen). Ein `end`, das nicht nach `start` liegt, wird mit `422` abgelehnt |
+| `GET /api/v1/runs?modality=voice` | `runs:view` | Nur Anrufe (`text` nur für getippte Runs); ein Anruf, der sich neu verbunden hat, ist eine Zeile mit `voice_chain`, alle Verbindungen summiert |
+
+Eine Freigabe, die zu einem laufenden Anruf gehört, wird im Anruf entschieden:
+`POST /api/v1/approvals/{id}` lehnt sie mit `400` ab.
+
 ## Fehler { #errors }
 
 Überall ein Umschlag:
@@ -387,9 +556,9 @@ neuen Run.
 
 ## Wiederholungen, Idempotenz und Revisionen { #retries-idempotency-and-revisions }
 
-v1 hat keinen `Idempotency-Key`-Header und keine Revisions-Vorbedingungen: kein
-`ETag`, kein `If-Match`. Ein Schreibzugriff wird angewendet, wenn er ankommt,
-und der letzte gewinnt.
+v1 hat keine Revisions-Vorbedingungen: kein `ETag`, kein `If-Match`. Ein
+Schreibzugriff wird angewendet, wenn er ankommt, und der letzte gewinnt.
+`Idempotency-Key` wird auf einer Route beachtet, dem asynchronen Run.
 
 - **`GET`, `PUT` und `DELETE` lassen sich gefahrlos wiederholen.** Zweimal lesen
   liest zweimal; etwas zu löschen, das schon weg ist, antwortet `404`, was eine
@@ -402,6 +571,13 @@ und der letzte gewinnt.
   schauen Sie nach, bevor Sie wiederholen: `GET /api/v1/runs?agent_id=…&surface=api`
   listet die Runs, neueste zuerst, und ein Listenabruf findet eine Zeile, die der
   erste Versuch doch angelegt hat.
+- **Ein asynchroner Run schon, mit einem `Idempotency-Key`.** Senden Sie
+  `Prefer: respond-async` und einen Schlüssel Ihrer Wahl, höchstens 255 Zeichen,
+  und eine Wiederholung mit demselben Schlüssel und demselben Body antwortet mit
+  derselben Run-Anfrage, in welchem Zustand sie auch ist. Derselbe Schlüssel mit
+  einem anderen Body ist ein `409`, nie ein zweiter Run. Schlüssel gelten pro
+  Organisation. Ein synchroner Aufruf mit dem Header wird mit `400` abgelehnt,
+  statt glauben zu lassen, eine Wiederholung sei sicher.
 - **`429` ist die einzige Ablehnung zum Wiederholen**, nach dem `Retry-After`,
   das sie trägt. Jedes andere `4xx` ist für diese Anfrage endgültig.
 
@@ -470,6 +646,9 @@ versioniert und bewegt sich nur vorwärts.
 - Ein Skript holt sich seinen eigenen Schlüssel **ohne Browser** — anmelden,
   ausstellen, widerrufen — und `examples/public-api.sh` geht diesen Weg ganz.
 - **Nur `429` lohnt eine Wiederholung**; ein `POST` ist nicht idempotent, also
-  schauen Sie nach, bevor Sie ihn wiederholen.
+  schauen Sie nach, bevor Sie ihn wiederholen - außer bei einem asynchronen Run
+  mit `Idempotency-Key`.
+- **`Prefer: respond-async`** macht aus einem Run ein `202` und eine Run-Anfrage
+  zum Abfragen, ein langer Run hält also keine Verbindung offen.
 - **Die öffentliche API steht in `/api/v1/public/openapi.json`** und ändert
   sich in v1 nur additiv, mit 90 Tagen Deprecation; ein SDK gibt es noch nicht.

@@ -31,8 +31,6 @@ log a worker's operator reads nor the error the upload leaves on the document
 row. So the source travels *with* the resolution, and both surfaces name it.
 """
 
-from __future__ import annotations
-
 import logging
 from dataclasses import dataclass
 from enum import StrEnum

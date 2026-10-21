@@ -3,7 +3,7 @@ import { act, renderHook } from "@testing-library/react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { Pager, useListControls } from "./list-controls";
+import { Pager, useChosenFirst, useListControls } from "./list-controls";
 
 const items = Array.from({ length: 120 }, (_, i) => `item ${i}`);
 const matches = (item: string, query: string) => item.includes(query);
@@ -146,5 +146,22 @@ describe("Pager", () => {
 
     expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Next page" })).toBeEnabled();
+  });
+});
+
+describe("useChosenFirst", () => {
+  const rows = ["a", "b", "c", "d"].map((id) => ({ id }));
+
+  it("puts what is already chosen first, each half in its own order", () => {
+    const { result } = renderHook(() => useChosenFirst(rows, ["d", "b"]));
+    expect(result.current.map((row) => row.id)).toEqual(["b", "d", "a", "c"]);
+  });
+
+  it("keeps the order it opened with while somebody ticks and unticks", () => {
+    const { result, rerender } = renderHook(({ chosen }) => useChosenFirst(rows, chosen), {
+      initialProps: { chosen: ["c"] },
+    });
+    rerender({ chosen: ["c", "a"] });
+    expect(result.current.map((row) => row.id)).toEqual(["c", "a", "b", "d"]);
   });
 });

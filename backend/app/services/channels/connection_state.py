@@ -22,11 +22,10 @@ whose API worker was replaced is not down, it is unknown.
 `unknown`, which is what the listing showed before this existed.
 """
 
-from __future__ import annotations
-
 import asyncio
 import json
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal
 from uuid import UUID
@@ -96,8 +95,12 @@ one slow Redis round trip must not make a healthy bot read `unknown`.
 """
 
 
-async def heartbeat(bot_id: UUID | str) -> None:
+async def heartbeat(bot_id: UUID | str, *, live: Callable[[], bool] | None = None) -> None:
     """Keep this bot's `up` entry alive for as long as this task runs.
+
+    `live`, when given, is asked before each beat: a stream that knows it is
+    being refused - a Telegram poll another process keeps ending - must not have
+    its `down` overwritten with `up` by a beat that only knows it is still alive.
 
     Never returns; cancel it when the stream closes. It exists because
     `record_up` fires once, when the stream opens, and the entry expires after
@@ -107,7 +110,8 @@ async def heartbeat(bot_id: UUID | str) -> None:
     """
     while True:
         await asyncio.sleep(HEARTBEAT_SECONDS)
-        await record_up(bot_id)
+        if live is None or live():
+            await record_up(bot_id)
 
 
 async def forget(bot_id: UUID | str) -> None:
@@ -159,7 +163,7 @@ async def read(bot_id: UUID | str) -> ChannelConnection | None:
     try:
         payload = json.loads(raw)
         state = payload["state"]
-    except (json.JSONDecodeError, KeyError, TypeError):
+    except json.JSONDecodeError, KeyError, TypeError:
         return None
     if state not in ("up", "down"):
         return None

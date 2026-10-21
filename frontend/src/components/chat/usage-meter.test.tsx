@@ -83,10 +83,15 @@ function valueOf(label: string) {
 }
 
 describe("UsageMeter, closed", () => {
-  it("is one icon, and nothing at all before anything was measured", () => {
-    // "0 tokens" under a conversation that has not run anything is a claim.
-    const { container: empty } = render(<UsageMeter usage={null} />);
-    expect(empty).toBeEmptyDOMElement();
+  it("is one icon, there before anything was measured, saying what it will show", async () => {
+    // "0 tokens" under a conversation that has not run anything is a claim, so
+    // the popover says what comes rather than showing a zero.
+    const { unmount } = render(<UsageMeter usage={null} />);
+    await userEvent.click(trigger());
+    expect(
+      screen.getByText("Context, cost and budgets show up here after the agent's first reply."),
+    ).toBeInTheDocument();
+    unmount();
 
     render(<UsageMeter usage={null} total={total()} />);
     expect(trigger()).toHaveTextContent("");

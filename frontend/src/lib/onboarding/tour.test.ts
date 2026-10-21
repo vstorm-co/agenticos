@@ -16,6 +16,7 @@ import {
   TOUR_STEPS,
   visibleTourSteps,
   WORKSPACE_DETAIL,
+  PROJECT_DETAIL,
 } from "./tour";
 import { ROUTES } from "@/lib/constants";
 import { Perm, type Permission } from "@/types/permissions";
@@ -36,6 +37,7 @@ const UNGATED_LAUNCH = [
 const BUILDER_STEPS = [
   "agent-instructions",
   "agent-model",
+  "agent-voice",
   "agent-identity",
   "agent-toolbox",
   "agent-mcp",
@@ -53,10 +55,10 @@ const BUILDER_STEPS = [
 // pass takes one of these (kb-documents).
 const KB_STEPS = ["kb-header", "kb-documents", "kb-ingestion", "kb-sync"];
 
-// The organization detail walk: the members page (profile, the AI Architect's
-// card, then the list), then across into the roles matrix. None are inTour —
-// orgs is a "?"-only section.
-const ORG_STEPS = ["org-profile", "org-assistant", "org-members", "org-roles"];
+// The organization detail walk: the members page (profile, the Voice card, the
+// AI Architect's card, then the list), then across into the roles matrix. None
+// are inTour — orgs is a "?"-only section.
+const ORG_STEPS = ["org-profile", "org-voice", "org-assistant", "org-members", "org-roles"];
 
 describe("pageKey", () => {
   it("collapses every concrete builder route onto the one builder identity", () => {
@@ -85,6 +87,7 @@ describe("pageKey", () => {
     expect(pageKey(ROUTES.SETTINGS_PROFILE)).toBe(SETTINGS_DETAIL);
     expect(pageKey(ROUTES.SETTINGS_SLASH_COMMANDS)).toBe(SETTINGS_DETAIL);
     expect(pageKey("/documents/abc-123")).toBe(WORKSPACE_DETAIL);
+    expect(pageKey("/projects/abc-123")).toBe(PROJECT_DETAIL);
   });
 });
 
@@ -183,7 +186,9 @@ describe("stepsForPage", () => {
       "chat-agent-picker",
       "chat-composer",
       "chat-plan",
+      "chat-visual",
       "chat-model-picker",
+      "chat-voice-call",
       "chat-approval-mode",
       "chat-your-connections",
     ]);
@@ -206,11 +211,12 @@ describe("stepsForPage", () => {
 
   it("gives Settings and a workspace their own '?' stop, from any of their routes", () => {
     // Settings collapses its eight tabs onto one identity, so help opened on any of
-    // them lands the same stops; a workspace detail has its own. The memory,
-    // sign-in and API key stops are optional - each card renders on one
+    // them lands the same stops; a workspace detail has its own. The Appearance,
+    // memory, sign-in and API key stops are optional - each card renders on one
     // tab only.
     expect(stepsForPage(ROUTES.SETTINGS_NOTIFICATIONS, () => true).map((s) => s.id)).toEqual([
       "settings-tabs",
+      "settings-appearance",
       "my-memory",
       "sign-in-to-site",
       "my-sign-ins",
@@ -300,6 +306,15 @@ describe("stepsForPage", () => {
     expect(stepsForPage("/orgs/some-id/members", () => true).map((step) => step.id)).toEqual(
       ORG_STEPS,
     );
+  });
+
+  it("skips the Voice stop for somebody who may not change organization settings", () => {
+    // The card is hidden from them, and an ungated step would wait on it.
+    expect(
+      stepsForPage("/orgs/some-id/members", (permission) => permission !== Perm.orgSettings).map(
+        (step) => step.id,
+      ),
+    ).toEqual(["org-profile", "org-members", "org-roles"]);
   });
 
   it("walks only the roles matrix from a roles route — the last page of the flow", () => {
@@ -400,4 +415,22 @@ describe("the Routines page", () => {
     expect(refused).toEqual(["routines-list"]);
     expect(allowed).toEqual(["routines-list", "routines-create", "routines-ideas"]);
   });
+});
+
+describe("voice call stops (#54)", () => {
+  it("spotlights the composer's call button, optionally, because readiness loads late", () => {
+    const step = TOUR_STEPS.find((s) => s.id === "chat-voice-call");
+    expect(step).toMatchObject({ page: ROUTES.CHAT, target: "chat-voice-call", optional: true });
+    expect(step?.permission).toBeUndefined();
+  });
+
+  it.each([["agent-voice", "agent-voice", Perm.agentsView, "agent-tab-build"]])(
+    "%s spotlights %s, gated like its control",
+    (id, target, permission, activate) => {
+      const step = TOUR_STEPS.find((s) => s.id === id);
+      expect(step).toMatchObject({ target });
+      expect(step?.permission).toBe(permission);
+      expect(step?.activate).toBe(activate);
+    },
+  );
 });

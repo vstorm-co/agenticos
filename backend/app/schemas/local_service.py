@@ -6,8 +6,6 @@ rule a sandbox host or a self-hosted Mattermost takes - because the worker POSTs
 document pages and query text to whatever is stored here.
 """
 
-from __future__ import annotations
-
 from typing import Literal
 from uuid import UUID
 

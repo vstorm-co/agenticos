@@ -41,8 +41,8 @@ class RunStatus(enum.StrEnum):
     """Where a run ended up.
 
     `AWAITING_APPROVAL` is a real terminal-ish state, not a transient one: the
-    run is parked until a human decides, which may be tomorrow. `BUDGET_EXCEEDED`
-    and `GUARDRAIL_BLOCKED` are separated from `FAILED` for the same reason - each
+    run is parked until a human decides, which may be tomorrow. `BUDGET_EXCEEDED`,
+    `GUARDRAIL_BLOCKED` and `LOOP_STOPPED` are separated from `FAILED` for the same reason - each
     is not a malfunction but the platform working, and an operator filtering for
     problems should not have to wade through them. A guardrail that redacted rather
     than blocked leaves no trace here: the run `COMPLETED`, which is the point.
@@ -58,6 +58,8 @@ class RunStatus(enum.StrEnum):
     It resumes when they answer and ends, the agent told so, after a day."""
     BUDGET_EXCEEDED = "budget_exceeded"
     GUARDRAIL_BLOCKED = "guardrail_blocked"
+    LOOP_STOPPED = "loop_stopped"
+    """Stopped for looping on its tool calls after it was warned (#2086)."""
 
     @classmethod
     def parse_csv(cls, raw: str | None) -> list[str] | None:
@@ -110,6 +112,8 @@ class RunSurface(enum.StrEnum):
     SLACK = "slack"
     TELEGRAM = "telegram"
     MATTERMOST = "mattermost"
+    # Another system's agent sent it a task over A2A (#2092).
+    A2A = "a2a"
     # A run nobody typed into: the agent-triggers heartbeat fired it on a
     # schedule. The one member here assigned by a machine rather than a surface a
     # person reached the agent through (agenticos#44).
@@ -287,6 +291,12 @@ class AgentRun(Base, TimestampMixin):
     subagent_task_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     surface: Mapped[str] = mapped_column(String(16), nullable=False, default=RunSurface.WEB.value)
+    # `voice` for a call (#54). Its own column rather than a `RunSurface` member,
+    # for the reason that enum's docstring gives: where a run came from and how
+    # it was held are two questions, and a call in the widget is still the widget.
+    modality: Mapped[str] = mapped_column(
+        String(8), nullable=False, default="text", server_default="text"
+    )
     status: Mapped[str] = mapped_column(
         String(24), nullable=False, default=RunStatus.RUNNING.value, index=True
     )
@@ -310,10 +320,38 @@ class AgentRun(Base, TimestampMixin):
     )
     input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Of `input_tokens`, which by Pydantic AI's convention includes them: those
+    # served from the provider's cache, and those written to it. Priced apart, so
+    # a run is reconciled with a provider's console from these (#2170).
+    cache_read_tokens: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    cache_write_tokens: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
     # Numeric, not float: costs are summed into monthly totals that must not drift.
     cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal(0))
     # True when some model in the run had no price - the cost is then a floor.
     cost_is_partial: Mapped[bool] = mapped_column(nullable=False, default=False)
+    # Tool calls whose arguments arrived as malformed JSON and were repaired
+    # before validation (#2105) - how often a model needed it.
+    tool_args_repaired: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+
+    # Prompt-cache collapses on this run's own requests (#2109): a *bust* is a
+    # prefix that moved while the provider should still have held it, an
+    # *expiry* one whose retention had passed, and the missed tokens what earlier
+    # requests had cached that these did not read back. On the row, beside the
+    # cost they explain, so they can be counted per agent and model; each
+    # request's own mark is in the run's manifest.
+    cache_busts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    cache_expiries: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    cache_missed_tokens: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
 
     # The trace lives in Logfire; we keep the id so the UI can deep-link into it
     # instead of duplicating spans into our database.
@@ -342,6 +380,7 @@ class AgentRun(Base, TimestampMixin):
             "started_at",
             "provider",
         ),
+        CheckConstraint("modality IN ('text', 'voice')", name="ck_agent_runs_modality"),
     )
 
     def __repr__(self) -> str:

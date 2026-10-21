@@ -2,14 +2,14 @@
 
 import { useTranslations } from "next-intl";
 
-import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { Sheet, SheetClose, SheetContent } from "@/components/ui";
 import type { DelegateRef } from "@/lib/delegations";
-import { toolStep } from "@/lib/tool-steps";
+import { delegationStep } from "@/lib/tool-steps";
 import { cn } from "@/lib/utils";
 import type { DelegationStatus, DelegationStep } from "@/types";
 
 import { AgentStep } from "./agent-step";
+import { DelegateFace as Face } from "./delegate-face";
 import { MarkdownContent } from "./markdown-content";
 
 /** The catalog key for each status, translated at the point of use. */
@@ -30,19 +30,6 @@ export interface SheetDelegation {
   answer: string;
   /** What the delegate did, where it is known - live, from its frames. */
   steps?: DelegationStep[];
-}
-
-function Face({ who, className }: { who: DelegateRef; className?: string }) {
-  return (
-    <AgentAvatar
-      agentId={who.id ?? who.slug}
-      slug={who.slug}
-      hasAvatar={who.has_avatar}
-      colorSlot={who.avatar_color}
-      size="sm"
-      className={className}
-    />
-  );
 }
 
 /**
@@ -132,7 +119,7 @@ export function DelegationSheet({
                 {item.steps.map((step) => {
                   // The frames carry no arguments and no result, so a step is a
                   // line and nothing opens under it.
-                  const shown = toolStep(step.name, undefined, step.ok !== null, tTools);
+                  const shown = delegationStep(step, tTools);
                   return (
                     <AgentStep
                       key={step.id}

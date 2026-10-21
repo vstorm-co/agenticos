@@ -18,8 +18,6 @@ it, and `CapabilityDef.effective_tools` is what turns that id back into the name
 the gate has to match.
 """
 
-from __future__ import annotations
-
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 

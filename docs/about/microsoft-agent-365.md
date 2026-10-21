@@ -21,7 +21,7 @@ Maintained by the AgenticOS team. Sources checked 14 October 2026. AgenticOS bas
 | Source | Proprietary | Apache-2.0 |
 | Identity | Microsoft Entra ID | OIDC single sign-on, LDAP and Kerberos, including Entra ID |
 | Policy and audit | Purview, data loss prevention, lifecycle | Roles and per-resource grants, approvals, budgets before each model request, a tamper-evident audit log |
-| Models | Through the agents it governs | 27 providers, including local models |
+| Models | Through the agents it governs | 28 providers, including local models |
 | Pricing | Microsoft 365 licensing | No licence fee; you pay model providers and infrastructure |
 
 ## Where AgenticOS goes further
@@ -32,7 +32,7 @@ A control plane watches agents that run elsewhere. AgenticOS [checks the budget]
 
 ### Outside one vendor's cloud
 
-Agent 365 lives in Microsoft's cloud and its licensing. AgenticOS runs [where you deploy it](../deploy.md), signs in through your [directory](../directory.md#signing-in-with-a-directory-account) - Entra ID included - and works with [any of 27 model providers](../models.md#providers).
+Agent 365 lives in Microsoft's cloud and its licensing. AgenticOS runs [where you deploy it](../deploy.md), signs in through your [directory](../directory.md#signing-in-with-a-directory-account) - Entra ID included - and works with [any of 28 model providers](../models.md#providers).
 
 ### Open to read and extend
 

@@ -6,8 +6,6 @@ never reaches processing, and a bot without a secret refuses with the sentence
 that says where to add one.
 """
 
-from __future__ import annotations
-
 import json
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch

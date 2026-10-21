@@ -7,15 +7,13 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
-import pymupdf
-from docx import Document as DOCXDocument
-
 from app.core.office_convert import (
     OfficeConversionError,
     OfficeConversionTimeout,
     convert_to_pdf,
     soffice_command,
 )
+from app.services.office_archive import safe_unzip
 from app.services.rag._splitters import (
     MarkdownHeaderSplitter,
     RecursiveCharacterSplitter,
@@ -147,7 +145,15 @@ class DocxDocumentParser(BaseDocumentParser):
         Returns:
             Document object with the file content.
         """
-        file: Any = DOCXDocument(str(filepath))
+        # Imported where a .docx is parsed: every API worker and background worker loads
+        # this module, and most never parse a document (#2225).
+        from docx import Document as DOCXDocument
+
+        # Through the bounded unzip the chat's office files take: a DOCX is a ZIP,
+        # and a few megabytes of upload can inflate to gigabytes in python-docx -
+        # a child the memory watchdog kills, over and over (Codex, #2248). Over a
+        # bound is a `ValueError`, the document's own failure, not a death.
+        file: Any = DOCXDocument(safe_unzip(filepath.read_bytes()))
         page = DocumentPage(page_num=1, content="\n".join([p.text for p in file.paragraphs]))
         return Document(pages=[page], metadata=self.get_document_metadata(filepath))
 
@@ -252,7 +258,7 @@ class PyMuPDFParser(BaseDocumentParser):
             return ""
         return await image_describer.describe(image_bytes, "image/png")
 
-    def _extract_images(self, doc: Any, page: Any) -> list["DocumentImage"]:
+    def _extract_images(self, doc: Any, page: Any) -> list[DocumentImage]:
         """Extract images from page for LLM description."""
         images = []
         for img_info in page.get_images(full=True):
@@ -278,6 +284,9 @@ class PyMuPDFParser(BaseDocumentParser):
 
     async def _parse_pdf_file(self, filepath: Path) -> Document:
         """Parse PDF with smart extraction pipeline."""
+        # Imported where a PDF is parsed, for the reason `_parse_docx_file` gives.
+        import pymupdf
+
         doc: Any = pymupdf.open(filepath)  # type: ignore[no-untyped-call]
 
         meta = doc.metadata or {}

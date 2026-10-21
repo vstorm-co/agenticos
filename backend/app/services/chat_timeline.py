@@ -16,8 +16,6 @@ of lists doing the same thing: two collectors over one stream are two things to
 keep in step, and the ordering is only true if there is one.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 
 from app.schemas.conversation import MessagePart

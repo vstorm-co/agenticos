@@ -7,8 +7,6 @@ between a header, a row and a membership that a mocked session would simply agre
 with.
 """
 
-from __future__ import annotations
-
 import logging
 import uuid
 from collections import Counter
@@ -34,6 +32,7 @@ from app.main import app
 from app.schemas.api_key import ApiKeyCreate
 from app.services import rate_limit
 from app.services.api_key import ApiKeyService
+from app.services.platform_mcp import PlatformApi, platform_tools
 
 pytestmark = pytest.mark.anyio
 
@@ -851,3 +850,85 @@ class TestTheAssistantsCredential:
         async with get_db_context() as elsewhere:
             caller = await ApiKeyService(elsewhere).authenticate(minted)
         assert caller.user.id == owner.id
+
+
+class TestThePlatformServerAsAnAgentsBinding:
+    """An agent binding AgenticOS's own MCP server acts as whoever it runs for (#2190).
+
+    Through the very tools a run is handed, called in-process against the real
+    API: what a Viewer could not do in the console, their agent cannot do through
+    the platform's tools either, and what they could, it can.
+    """
+
+    async def test_a_viewer_s_agent_reads_but_cannot_create_an_agent(
+        self, db: AsyncSession, client: Client
+    ) -> None:
+        owner = await _person(db)
+        organization = await _organization(db, owner)
+        viewer = await _join(db, organization, OrgRoleName.VIEWER)
+        credential = await ApiKeyService(db).issue_for_run(
+            AuthContext(user_id=viewer.id, organization_id=organization.id, role="viewer")
+        )
+        refusals: list[str] = []
+
+        def refuse(message: str) -> dict[str, str]:
+            refusals.append(message)
+            return {"refused": message}
+
+        tools = {
+            tool.name: tool.function
+            for tool in platform_tools(
+                PlatformApi(app, token=lambda: credential, on_refusal=refuse)
+            )
+        }
+
+        async with client():
+            listed = await tools["list_agents"]()
+            created = await tools["create_agent_draft"](name="Sneaky", instructions="Do it.")
+
+        assert "items" in listed
+        assert "refused" in created
+        assert refusals and refusals[0].startswith("403")
+
+
+class TestWorkAKeyAskedForEarlier:
+    """`context_for_key`: what a queued run re-establishes when it starts (#2219)."""
+
+    async def _held(self, db: AsyncSession) -> tuple[Organization, User, ApiKey]:
+        owner = await _person(db)
+        organization = await _organization(db, owner)
+        await _issue(db, organization, owner, Perm.AGENTS_RUN)
+        row = (await db.execute(select(ApiKey))).scalar_one()
+        return organization, owner, row
+
+    async def test_a_live_key_stands_for_its_issuer_and_its_scopes(self, db: AsyncSession) -> None:
+        organization, owner, row = await self._held(db)
+
+        ctx = await ApiKeyService(db).context_for_key(row.id, organization_id=organization.id)
+
+        assert (ctx.user_id, ctx.role, ctx.api_key_id) == (owner.id, "owner", row.id)
+        assert ctx.key_scopes == frozenset({Perm.AGENTS_RUN})
+
+    @pytest.mark.security
+    async def test_a_key_revoked_since_or_an_issuer_gone_since_stands_for_nobody(
+        self, db: AsyncSession
+    ) -> None:
+        organization, owner, row = await self._held(db)
+        other = await _organization(db, await _person(db))
+        service = ApiKeyService(db)
+
+        with pytest.raises(AuthenticationError):
+            await service.context_for_key(row.id, organization_id=other.id)
+
+        await db.execute(
+            OrganizationMember.__table__.delete().where(OrganizationMember.user_id == owner.id)
+        )
+        with pytest.raises(AuthenticationError):
+            await service.context_for_key(row.id, organization_id=organization.id)
+
+        db.add(OrganizationMember(organization_id=organization.id, user_id=owner.id, role="owner"))
+        await db.flush()
+        ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role="owner")
+        await service.revoke(ctx, row.id)
+        with pytest.raises(AuthenticationError):
+            await service.context_for_key(row.id, organization_id=organization.id)

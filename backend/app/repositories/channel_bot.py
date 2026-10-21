@@ -1,8 +1,9 @@
 """ChannelBot repository (PostgreSQL async)."""
 
+from collections.abc import Collection
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.channel_bot import ChannelBot
@@ -79,20 +80,40 @@ async def get_by_platform(
     return list(result.scalars().all())
 
 
-async def get_active_polling_bots(db: AsyncSession, platform: str) -> list[ChannelBot]:
-    """Get all active polling bots for a given platform, across every organization.
+def _polling(*platforms: str) -> list[ColumnElement[bool]]:
+    return [
+        ChannelBot.platform.in_(platforms),
+        ChannelBot.is_active.is_(True),
+        ChannelBot.webhook_mode.is_(False),
+    ]
+
+
+async def get_active_polling_bot_ids(db: AsyncSession, *platforms: str) -> list[UUID]:
+    """The ids of every active polling bot on these platforms, across every organization.
+
+    Deliberately unscoped, like `get_active_polling_bots`: the keeper serves the
+    whole deployment. What it claims leases from. Ids, not rows: every API worker
+    asked for the full rows - sealed tokens included - every ten seconds, which
+    was most of production's statements on an idle day.
+    """
+    result = await db.execute(select(ChannelBot.id).where(*_polling(*platforms)))
+    return list(result.scalars().all())
+
+
+async def get_active_polling_bots(
+    db: AsyncSession, *platforms: str, ids: Collection[UUID] | None = None
+) -> list[ChannelBot]:
+    """Get all active polling bots on these platforms, across every organization.
 
     Deliberately unscoped: the poller is a background worker serving the whole
     deployment, not a request made by a member of one organization. Each bot it
-    returns still carries its own `organization_id`.
+    returns still carries its own `organization_id`. Several platforms in one
+    query (#2227). `ids` narrows it to the bots a pass has just claimed.
     """
-    result = await db.execute(
-        select(ChannelBot).where(
-            ChannelBot.platform == platform,
-            ChannelBot.is_active.is_(True),
-            ChannelBot.webhook_mode.is_(False),
-        )
-    )
+    statement = select(ChannelBot).where(*_polling(*platforms))
+    if ids is not None:
+        statement = statement.where(ChannelBot.id.in_(ids))
+    result = await db.execute(statement)
     return list(result.scalars().all())
 
 
@@ -111,9 +132,11 @@ async def create(
     access_policy: dict | None = None,
     slack_signing_secret_encrypted: str | None = None,
     slack_app_token_encrypted: str | None = None,
+    transcribe_voice_notes: bool = True,
     command_token_encrypted: str | None = None,
     speech_to_text_provider: str | None = None,
     speech_to_text_model: str | None = None,
+    speech_to_text_secret_id: UUID | None = None,
     ack_reaction: str | None = None,
     stream_answers: bool = True,
     step_display: str = "timeline",
@@ -124,8 +147,10 @@ async def create(
         organization_id=organization_id,
         platform=platform,
         name=name,
+        transcribe_voice_notes=transcribe_voice_notes,
         speech_to_text_provider=speech_to_text_provider,
         speech_to_text_model=speech_to_text_model,
+        speech_to_text_secret_id=speech_to_text_secret_id,
         ack_reaction=ack_reaction,
         stream_answers=stream_answers,
         step_display=step_display,

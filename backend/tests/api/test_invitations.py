@@ -14,8 +14,6 @@ therefore addresses the invitation by id, and the token route stays for the
 invitee, who has nothing else.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace

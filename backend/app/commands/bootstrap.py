@@ -11,8 +11,6 @@ Deliberately idempotent. Running it twice is what people do when they are not
 sure it worked the first time, and it should not punish them for that.
 """
 
-from __future__ import annotations
-
 import asyncio
 import uuid
 

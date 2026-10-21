@@ -15,8 +15,6 @@ column constrained to true, so a second identity is an `IntegrityError` rather t
 a deployment that quietly has two and serves whichever one a query ordered first.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

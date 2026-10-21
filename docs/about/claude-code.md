@@ -20,7 +20,7 @@ Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS b
 | What it works on | A code repository and a shell | Company documents, tools and systems, through capabilities and MCP |
 | Where it runs | Developer machines; cloud sessions on Anthropic's infrastructure or your own | Your infrastructure, as a shared service |
 | Source | Proprietary: "All rights reserved" | Apache-2.0 |
-| Models | Claude only, through Anthropic, Bedrock, Vertex or Foundry | 27 providers, Claude included |
+| Models | Claude only, through Anthropic, Bedrock, Vertex or Foundry | 28 providers, Claude included |
 | End users | The developer at the keyboard | Employees, customers and systems, on eight surfaces |
 | Approvals | The developer, or a classifier in auto mode | A person with `approvals:decide`, from a shared queue |
 | Spend control | Plan allowance or API billing; `--max-budget-usd` per run | A monthly budget per agent and per organization |
@@ -74,7 +74,7 @@ Yes. AgenticOS is extended in typed Python, and a capability written with Claude
 
 ### Can AgenticOS agents use Claude models?
 
-Yes, through the Anthropic API or Amazon Bedrock, two of the 27 providers AgenticOS supports.
+Yes, through the Anthropic API or Amazon Bedrock, two of the 28 providers AgenticOS supports.
 
 ### Is Claude Code open source?
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "090def62072a"
+source_sha: "12eb1406746c"
 ---
 
 # El despliegue en sí { #the-deployment-itself }
@@ -553,6 +553,32 @@ El schema rechaza el cero: una cuenta que no puede poseer ninguna organización 
 una cuenta que no se puede crear, ya que el registro da a cada una su propia
 organización personal.
 
+## En qué formato puede subirse un dictado { #what-a-dictation-may-be-uploaded-as }
+
+`dictation_compressed_audio`, **desactivado por defecto**, decide el formato de
+todo [dictado](ml-services.md#dictation-in-chat) del despliegue - el composer de
+`/chat`, las páginas alojadas y los widgets, en todas las organizaciones.
+Desactivado, el servidor acepta un único formato: WAV con PCM de 16 bits, mono y
+16 kHz, que graba cualquier navegador. Su duración es su tamaño, 32.000 bytes por
+segundo, así que el servidor cuenta las muestras y el dictado más largo limita
+con exactitud lo que cuesta una grabación.
+
+Activado, se aceptan además WebM, Ogg y MP4, y las subidas pesan más o menos una
+octava parte. Su duración se lee de la propia cabecera del archivo, que un archivo hecho
+a mano puede declarar por debajo: un dictado puede llevar entonces hasta unas
+cuarenta veces el dictado más largo dentro del límite de tamaño. En una
+[página o un widget públicos](channels.md#what-it-costs-and-what-bounds-it)
+cualquiera que tenga el enlace puede enviar uno, cobrado a la cuenta del provider
+de la organización y fuera de todo budget.
+
+Por eso el interruptor de `/admin/settings` pregunta antes. Activarlo abre un
+diálogo que nombra esos riesgos y solo habilita su botón de confirmar cuando se
+marca una casilla que dice que se han leído; desactivarlo no pregunta nada. En
+ambos casos se guarda con el resto del formulario y se audita como cualquier otro
+campo. Los navegadores lo siguen la próxima vez que una página pregunta: el
+formato en que graban es el que anuncia el servidor, nunca una lista guardada en
+el cliente.
+
 ## La fila { #the-row }
 
 Una sola fila para toda la instalación, custodiada por la base de datos y no por
@@ -605,6 +631,38 @@ rama que sí protegió. Sigue sin arreglarse en upstream a fecha de 0.65b0, y
 `tests/test_otel_route_details.py` falla cuando se arregle, que es cuando el
 módulo desaparece.
 
+## Jobs en segundo plano { #background-jobs }
+
+**Admin → Background jobs** (`/admin/background-jobs`) es la cola tal como la ve
+el propietario del despliegue, y solo un app admin puede abrirla: la cola es del
+despliegue, así que al propietario de una organización se le rechaza. La
+cabecera cuenta los jobs en cada estado, nombra cada tipo pausado y el motivo,
+lista los workers vivos y la próxima vez que se dispara cada programación.
+Debajo están los jobs, del más reciente al más antiguo, filtrados por estado y
+pool, cada uno con sus intentos y el error con el que terminó por última vez.
+
+Bajo los contadores, **Activity** representa lo que terminó en las últimas
+24 horas o los últimos 7 días, apilado según cómo acabó, junto a la espera más
+larga de un job que ya toca ejecutar. **By kind** da para cada tipo su volumen,
+sus muertes, su tiempo de ejecución en la mediana y el percentil 95, y cuánto
+esperaron sus jobs a un worker: una espera que crece dice que a un pool le
+faltan workers. El panel del despliegue muestra el mismo día como tarjeta.
+
+Tres acciones, cada una auditada con quién la hizo:
+
+- **Retry** da a un job muerto una nueva serie de intentos.
+- **Cancel** retira un job que nadie ha empezado.
+- **Resume** deja que los workers vuelvan a recoger un tipo pausado.
+
+Un tipo lo pausa el cortacircuitos del worker: sus jobs mataron a su worker
+`WORKER_BREAKER_DEATHS` veces seguidas, casi siempre un documento cuyo parseo se
+queda sin memoria. Cada propietario recibe un aviso en la aplicación y por
+correo, y la notificación no se puede desactivar: el trabajo de ese tipo se
+acumula hasta que uno de ellos lo reanuda. Una pausa nombra la organización
+cuyos jobs la provocaron, y para todas las demás el tipo sigue funcionando. Reintenta los jobs muertos solo
+cuando la causa esté resuelta, o morirán igual. Los ajustes están en
+[Configuración](configuration.md#background-work).
+
 ## Resumen { #recap }
 
 - La identidad del despliegue es **una fila**, editada desde `/admin/settings`, y
@@ -619,5 +677,8 @@ módulo desaparece.
   en el portapapeles, nombrada en una franja, terminada por el administrador, por
   la persona al cerrar sesión en todas partes, o por la hora. Si se avisa a la
   persona es `notify_impersonated_users`, desactivado por defecto.
+- El dictado es **PCM en crudo salvo que `dictation_compressed_audio` esté
+  activado**, y un administrador solo lo activa tras un diálogo que nombra lo que
+  cuesta.
 - Cada rechazo de este despliegue tiene el mismo aspecto, sea cual sea la capa que
   lo produjo.

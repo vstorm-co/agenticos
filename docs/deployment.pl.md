@@ -1,5 +1,5 @@
 ---
-source_sha: "090def62072a"
+source_sha: "12eb1406746c"
 ---
 
 # Samo wdrożenie { #the-deployment-itself }
@@ -544,6 +544,32 @@ Zero jest odrzucane przez schemat: konto, które nie może posiadać żadnej
 organizacji, to konto, którego nie da się utworzyć, skoro rejestracja daje każdemu
 z nich organizację osobistą.
 
+## W jakim formacie można wgrać dyktowanie { #what-a-dictation-may-be-uploaded-as }
+
+`dictation_compressed_audio`, **domyślnie wyłączone**, rozstrzyga format każdego
+[dyktowania](ml-services.md#dictation-in-chat) na wdrożeniu — w composerze
+`/chat`, na hostowanych stronach i w widgetach, w każdej organizacji. Wyłączone
+sprawia, że serwer przyjmuje jeden format: WAV z 16-bitowym PCM 16 kHz mono,
+który nagrywa każda przeglądarka. Jego długość to jego rozmiar, 32 000 bajtów na
+sekundę, więc serwer liczy próbki, a najdłuższe dyktowanie dokładnie ogranicza
+koszt jednego nagrania.
+
+Włączone dopuszcza dodatkowo WebM, Ogg i MP4, a przesyłane pliki są mniej więcej
+ośmiokrotnie mniejsze. Ich długość jest odczytywana z własnego nagłówka pliku, który
+plik zbudowany ręcznie może zaniżyć: jedno dyktowanie może wtedy nieść w ramach
+limitu rozmiaru nawet około czterdziestokrotność najdłuższego dyktowania. Na
+[publicznej stronie albo w widgecie](channels.md#what-it-costs-and-what-bounds-it)
+każdy, kto ma link, może takie wysłać, na rachunek konta organizacji u providera
+i poza każdym budżetem.
+
+Dlatego przełącznik na `/admin/settings` najpierw pyta. Włączenie otwiera okno
+dialogowe, które nazywa te ryzyka, a jego przycisk potwierdzenia staje się
+aktywny dopiero po zaznaczeniu pola z oświadczeniem, że zostały przeczytane;
+wyłączenie o nic nie pyta. Tak czy inaczej zmiana jest zapisywana razem z resztą
+formularza i audytowana jak każde inne pole. Przeglądarki stosują się do niej,
+gdy strona następnym razem zapyta: format, w którym nagrywają, to ten, który
+ogłasza serwer, nigdy lista trzymana w kliencie.
+
 ## Ten wiersz { #the-row }
 
 Jeden wiersz na całą instalację, pilnowany przez bazę danych, a nie przez
@@ -596,6 +622,39 @@ w gałęzi zabezpieczonej. Wciąż niepoprawione w upstreamie na 0.65b0,
 a `tests/test_otel_route_details.py` zawodzi, gdy zostanie poprawione — i wtedy
 moduł znika.
 
+## Zadania w tle { #background-jobs }
+
+**Admin → Background jobs** (`/admin/background-jobs`) to kolejka widziana oczami
+właściciela wdrożenia i tylko app admin może ją otworzyć: kolejka należy do
+wdrożenia, więc właściciel organizacji dostaje odmowę. Nagłówek liczy zadania w
+każdym stanie, wskazuje każdy wstrzymany rodzaj i powód, wymienia żyjące workery
+i najbliższy termin każdego harmonogramu. Pod nim są zadania, od najnowszych,
+filtrowane po stanie i puli, każde z liczbą prób i błędem, na którym ostatnio się
+skończyło.
+
+Pod licznikami **Activity** pokazuje na wykresie, co zakończyło się w
+ostatnich 24 godzinach albo 7 dniach, z podziałem na to, jak się skończyło, a
+obok najdłuższe czekanie zadania, które jest już do wykonania. **By kind**
+podaje dla każdego rodzaju liczbę zadań, liczbę martwych, czas wykonania w
+medianie i 95. percentylu oraz to, jak długo jego zadania czekały na workera:
+rosnące czekanie mówi, że pula potrzebuje więcej workerów. Dashboard wdrożenia
+pokazuje ten sam dzień jako kartę.
+
+Trzy akcje, każda zapisywana w audycie z tym, kto ją wykonał:
+
+- **Retry** daje martwemu zadaniu nowy zestaw prób.
+- **Cancel** wycofuje zadanie, którego nikt jeszcze nie zaczął.
+- **Resume** pozwala workerom znowu pobierać wstrzymany rodzaj.
+
+Rodzaj wstrzymuje bezpiecznik workera: jego zadania zabiły swojego workera
+`WORKER_BREAKER_DEATHS` razy z rzędu, najczęściej dokument, przy którym
+parsowanie kończy się brakiem pamięci. Każdy właściciel dostaje powiadomienie w
+aplikacji i e-mailem, którego nie da się wyłączyć - praca tego rodzaju gromadzi
+się, dopóki któryś z nich jej nie wznowi. Pauza podaje organizację, której
+zadania ją wywołały, a dla pozostałych ten rodzaj działa dalej. Martwe zadania ponawiaj dopiero po
+usunięciu przyczyny, inaczej zginą tak samo. Ustawienia są w
+[Konfiguracji](configuration.md#background-work).
+
 ## Podsumowanie { #recap }
 
 - Tożsamość wdrożenia to **jeden wiersz**, edytowany z `/admin/settings`,
@@ -611,5 +670,8 @@ moduł znika.
   w schowku, nazwana w banerze, kończona przez administratora, przez wylogowanie
   się danej osoby wszędzie albo przez upływ godziny. To, czy ta osoba zostanie
   poinformowana, rozstrzyga `notify_impersonated_users`, domyślnie wyłączone.
+- Dyktowanie to **surowy PCM, chyba że `dictation_compressed_audio` jest
+  włączone**, a administrator włącza je dopiero po oknie dialogowym, które nazywa,
+  ile to kosztuje.
 - Każde odrzucenie z tego wdrożenia wygląda tak samo, niezależnie od tego, która
   warstwa je wyprodukowała.

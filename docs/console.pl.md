@@ -1,5 +1,5 @@
 ---
-source_sha: "19bc39209f10"
+source_sha: "eb356ae8cd01"
 ---
 
 # Konsola { #the-console }
@@ -42,7 +42,7 @@ sandboxy - czeka w katalogu, jedno kliknięcie dalej pod **Customize**:
 |---|---|
 | *(bez tytułu, na górze)* | Podsumowanie, runy w czasie i to, jak się skończyły |
 | **Needs attention** | Co czeka: [zatwierdzenia](governance.md#approvals), ostatnie błędy, zapas w budżecie, twoje najnowsze [powiadomienia](#the-bell) |
-| **Usage & cost** | Których agentów się używa, wydatki, kiedy dzieje się praca, skąd przychodzą runy, miks modeli, opóźnienia, jakość odpowiedzi, kto z tego korzysta |
+| **Usage & cost** | Których agentów się używa, wydatki, [minuty rozmów](#voice-calls), kiedy dzieje się praca, skąd przychodzą runy, miks modeli, opóźnienia, jakość odpowiedzi, kto z tego korzysta |
 
 Kto buduje agentów, widzi też nad pasmami kartę **Get started**, dopóki nie
 wykona wszystkich jej kroków: utworzyć agenta, opublikować go, dać mu bazę
@@ -86,6 +86,12 @@ powyżej, otwarcie pobiera stronę, na której właśnie jesteś, a nie pięciok
 podgląd — **Load more** cofa cię, stronę po stronie, przez organizację, w
 której właśnie jesteś, plus to, co zaadresowano do całego wdrożenia, aż dojdzie
 do tego, co wypadło z zasięgu.
+
+Każdy wiersz zaczyna się od tego, czego dotyczy: twarzy agenta z plakietką
+mówiącą, jak poszedł jego run, albo ikony rodzaju zdarzenia — zielonej dla
+ukończonego runu albo serwera MCP, który znów działa, czerwonej dla porażki
+albo wyczerpanego budgetu, bursztynowej dla zatwierdzenia albo ostrzeżenia
+o budgecie.
 
 Przełącz organizację, a dzwonek jest jej:
 powiadomienie z organizacji, którą zostawiłeś, nie zniknęło — jest za
@@ -253,6 +259,20 @@ Wbudowane przychodzą razem z produktem; własne możesz napisać w
 **Settings → Slash commands**, a każdą wbudowaną, z której nie korzystasz,
 ukryć. Należą do ciebie, nie do organizacji.
 
+**`@` wskazuje agentowi, czego użyć.** Wpisz `@`, a menu pokaże, czego agent może
+użyć, w tej kolejności: jego serwery MCP, agentów, którym przekazuje pracę (przy
+włączonej capability delegowania), jego capabilities - **Sandbox**, **Web
+research** - jego skille, a potem bazy wiedzy i pliki kontekstu. Wybór zostaje w
+twoim tekście jako `@Nazwa`, oznaczony swoim logo, a agent dostaje polecenie, by z
+niego skorzystał - z narzędzi serwera, narzędzi capability, wyszukiwania w bazie
+wiedzy, skilla - bez wklejania samej treści. Wskazanie agenta przekazuje mu pracę;
+nigdy nie zmienia tego, kto odpowiada. Usuń `@Nazwa`, a wybór znika. Wklejony link
+pokazuje ikonę swojej strony nad polem i w wysłanej wiadomości. Wzmianka nigdy nie
+poszerza tego, do czego agent sięga: serwer sprawdza każdą ponownie jako ty, wobec
+tego, co agent już ma. W panelu testowym Buildera menu czyta testowany szkic. Dopóki rozmowa jest pusta, pole pokazuje po kolei
+przykłady zbudowane z tego, czego agent może użyć - jego serwera, capability,
+delegata, skilla - oraz `/`; znikają, gdy tylko w nie klikniesz.
+
 **Gdy agent pracuje**, to, co wysyłasz, czeka na jego odpowiedź, jak w każdym
 czacie: stoi w kolejce nad kompozytorem i wychodzi, gdy run się skończy.
 Przeciągnij wiadomość w kolejce albo użyj jej strzałek, żeby zmienić kolejność.
@@ -269,12 +289,25 @@ godzinie bez nikogo przy ekranie wciąż trwa, zostaje zatrzymana i dostajesz o 
 informację ([`CHAT_DETACHED_TURN_MINUTES`](configuration.md#a-chat-turn-left-running)).
 Taka, która czeka na zatwierdzenie albo na Twoją odpowiedź na pytanie, powiadamia
 Cię przez nie.
+Gdy wrócisz, zanim odpowiedź się skończy - do rozmowy, z innej karty, po
+odświeżeniu strony - czat podejmie ją tam, gdzie jest, ze wszystkim, co agent już
+zrobił, i dalej rysuje ją na bieżąco.
 
 **Na telefonie** czat działa jak komunikator: pole wpisywania zostaje nad
 klawiaturą, a rozmowa przy ostatniej wiadomości, gdy klawiatura się otwiera,
 Enter zaczyna nową linię, a załącznik i
 dyktowanie są pod jednym **+**. Pola nigdy nie są na tyle małe, żeby iOS je
 przybliżał.
+
+**Rysunki.** Agent z [Wizualizacjami](reference/capabilities.md#visuals) rysuje pod
+swoją wiadomością - diagram, explainer z suwakami, scenę 3D - a ty widzisz, jak powstaje
+w trakcie pisania; jego skrypty startują po zakończeniu. Panel pokazuje cały rysunek,
+dopasowany do rozmowy, z przyciskami do pełnego ekranu, pokazania kodu, pobrania,
+skopiowania SVG jako obrazu, powiększenia i zapisu jako
+[aplikacji](artifacts.md#visuals) z linkiem do udostępnienia. Gdy rysunek zgłosi błąd,
+agent już o nim wie; **Napraw** prosi go ponownie. Na telefonie stuknięcie otwiera go na
+pełnym ekranie. Karta **Ostatnie wizualizacje** na dashboardzie pokazuje najnowsze
+rysunki zrobione dla ciebie, a każdy otwiera rozmowę, w której powstał.
 
 **Oglądanie przeglądania.** Gdy agent z
 [przeglądarką](reference/capabilities.md#browser-automation) zaczyna na stronie, jego
@@ -313,12 +346,186 @@ zaloguj się, oddaj ją z zaznaczonym polem, a logowanie zostanie zapamiętane t
 Wymaga przeglądarki wdrożenia do logowania
 ([`BROWSER_SIGN_IN_CDP_URL`](configuration.md)).
 
+### Dyktowanie { #dictation }
+
+Mikrofon stoi obok Wyślij przy każdym agencie, a także w menu `+`. Zamienia mowę
+na tekst w polu i nigdy go nie wysyła: to, co powiesz, trafia tam, gdzie był
+kursor, gdy nacisnąłeś mikrofon, gotowe do edycji, i nigdzie nie idzie, dopóki
+nie naciśniesz Wyślij. Sposób transkrypcji wybiera agent, na zakładce Dyktowanie
+[swojej karty Głos (Voice)](#an-agents-voice-card):
+
+- **Transkrybuj u providera** włączone — przeglądarka nagrywa, a ten deployment
+  wysyła nagranie do providera agenta albo do domyślnego providera organizacji.
+  Działa w każdej przeglądarce, która potrafi nagrywać. Endpoint, jego limity i
+  to, co jest zapisywane, opisuje [Dyktowanie w czacie](ml-services.md#dictation-in-chat).
+- Wyłączone albo bez klucza, którym można wysłać — własne rozpoznawanie mowy
+  przeglądarki, więc dźwięk trafia do jej dostawcy (Google, Apple) i nic nie
+  kosztuje. Firefox go nie ma: jego mikrofon mówi o tym po naciśnięciu. Gdy
+  przeglądarka słucha, notka nad kompozytorem mówi, że Dyktowanie agenta jest
+  wyłączone, a temu, kto może edytować agenta, daje link do jego zakładki
+  Dyktowanie.
+
+Z providerem naciśnięcie mikrofonu wyświetla nad kompozytorem, który się nie
+zmienia, **pigułkę nagrywania**: Anuluj, poziom, licznik czasu i Stop. **Enter**
+zatrzymuje i transkrybuje, **Escape** anuluje, a nic, co wpiszesz albo naciśniesz
+w trakcie nagrywania lub transkrypcji, nie zostaje wysłane. Nagranie zatrzymuje
+się samo na najdłuższym dyktowaniu organizacji i jest transkrybowane, a mikrofon
+odłączony w trakcie kończy je tak samo, zamiast je odrzucać. Gdy wysyłanie trwa
+dłużej niż sekundę, pigułka pokazuje, ile już poszło; potem mówi
+**Przepisywanie**, dopóki nie przyjdzie tekst. Rozpoznawanie w przeglądarce ma
+własną pigułkę, z **Zakończ dyktowanie**.
+
+Wszystko, co dyktowanie ma do powiedzenia, pojawia się w pasku nad kompozytorem,
+obok pigułki: prośba o uprawnienia, zablokowany albo brakujący mikrofon, ostatnie
+30 sekund, pięć sekund bez dźwięku, nagranie krótsze niż sekunda (nie wysłane),
+nagranie zatrzymane na limicie i każda porażka. Ile słów wstawiono, słyszy
+czytnik ekranu, ale nie jest to pokazywane, bo słowa są w polu. Nagranie, którego
+nie udało się przetranskrybować, jest trzymane, dopóki nie naciśniesz **Ponów**
+albo **Odrzuć**.
+
+Poświata wokół pola na hostowanej stronie, gdy mówisz, idzie za ustawieniem **Animacja
+dyktowania (Voice glow)** w **Ustawienia → Profil → Wygląd (Settings → Profile →
+Appearance)**, obok motywu i ustawienia **Animacje (Motion)**: **Wyrazista
+(Vivid)**, **Subtelna (Subtle)** (domyślnie) albo **Wyłączona (Off)**. Jest
+zapamiętywana dla każdej przeglądarki. **Animacje** decydują, ile ruchu pokazuje
+cała konsola: **Systemowe (System)** (domyślnie) idą za ustawieniem ograniczenia
+ruchu w systemie operacyjnym, **Ograniczone (Reduce)** ograniczają ruch bez
+niego, a **Pełne (Full)** zachowują ruch niezależnie od systemu operacyjnego. Gdy ruch jest ograniczony, nie ma żadnej poświaty, pasek
+pojawia się bez wysuwania, a poziom dźwięku to pięciostopniowy wskaźnik.
+
+### Karta Głos (Voice) { #the-voice-card }
+
+Na stronie **Członkowie (Members)** organizacji, dla kogoś z `org:settings`.
+Trzyma **domyślny** speech-to-text, który dziedziczą agenty i boty kanałów, oraz
+to, jak długo może trwać dyktowanie; to, czy agent dyktuje u providera albo
+odbiera rozmowy, włącza się na jego własnej karcie Głos (Voice). **Maksymalna
+długość nagrania** to od 10 sekund do 10 minut. **Domyślny provider** to provider
+i model z katalogu speech-to-text oraz język (automatyczne rozpoznawanie albo
+jeden stały język, co jest dokładniejsze). To także to, do czego
+[boty kanałów](channels.md#what-every-channel-shares) ustawione na
+dziedziczenie wysyłają swoje wiadomości głosowe; **Brak (None)** go czyści.
+
+**Klucz**, obok providera, to klucz z vaulta, którym wysyłany jest domyślny
+provider. Lista obejmuje klucze API, których przeznaczeniem jest ten provider i
+które widzi cała organizacja - platforma wydaje ten klucz na dyktowanie każdego
+członka i każdego dziedziczącego bota, więc prywatny klucz członka nie jest
+oferowany i zostaje odrzucony, jeśli zostanie wysłany. Gdy jest dokładnie jeden
+taki klucz, jest wybierany za ciebie i w każdym razie zapisywany po nazwie; nic
+nie wybiera klucza w trakcie działania. Provider bez klucza jest oznaczony **brak
+klucza dla tego providera**, a selektor prowadzi do vaulta, żeby go dodać. Gdy
+domyślny provider nie może działać - model wycofano z katalogu albo klucz
+usunięto lub uczyniono prywatnym - karta to mówi i prosi o **wybranie klucza**,
+gdy brakuje właśnie jego.
+
+Dla kogoś, kto ma też `runs:view`, karta zaczyna się jedną linią o tym, co
+organizacja przetranskrybowała w ostatnich 30 dniach — „42 min · 118 nagrań (30
+bez długości)” — w dyktowaniu, wiadomościach głosowych kanałów i API. **Pokaż
+podział** rozbija to na agenty i boty kanałów. Minuty liczą tylko nagrania,
+których długość została podana, więc linia mówi, ilu nie podano; jest ukryta,
+dopóki nic nie przetranskrybowano. Liczby pochodzą z
+[`GET /ml/calls/summary`](ml-services.md#what-is-recorded).
+
+### Karta Głos (Voice) agenta { #an-agents-voice-card }
+
+Zakładka **Build** agenta ma kartę **Głos (Voice)** po ustawieniach modelu, z
+dwiema zakładkami: **Rozmowy głosowe** i **Dyktowanie**.
+
+**Dyktowanie** trzyma **Transkrybuj u providera**. Włączone, mikrofon w czacie
+wysyła nagranie do providera: **Własny tego agenta** (domyślnie) wybiera parę z
+katalogu i klucz, którym ją wysłać - klucz API tego providera, który możesz
+zobaczyć, bo publikacja pożycza go każdemu, kto może uruchomić agenta - a dopóki
+go nie wybierzesz, używany jest domyślny provider organizacji, wskazany z nazwy.
+**Organizacji** zostawia providera, model i klucz organizacji. Wyłączone albo bez
+klucza, którym można wysłać, transkrybuje przeglądarka, co nic nie kosztuje.
+
+Język wybiera się osobno: dziedziczony z organizacji albo stały - więc polski
+agent może zachować providera i klucz organizacji. Karta jest częścią spec,
+zapisywana z wersją roboczą i aktywna po publikacji agenta, a dotyczy
+[dyktowania](#dictation) do tego agenta i wiadomości głosowych, które dziedziczą
+jego boty kanałów. Resztę opisuje
+[kolejność](ml-services.md#which-engine-a-recording-reaches).
+
+### Rozmowy głosowe { #voice-calls }
+
+[Rozmowa głosowa](voice.md) to mówiona rozmowa z opublikowanym agentem: mówisz,
+on odpowiada na głos, a ty możesz mu przerwać. Rozmowy włącza się w agencie;
+organizacja nie ma ustawień rozmów.
+
+- **Karta Głos (Voice) agenta**, na zakładce **Rozmowy głosowe**: provider i
+  model rozmowy (dla Azure nazwa deploymentu i jego model bazowy), klucz, głos z
+  przyciskiem **odtwarzania**, żeby go usłyszeć, język mówiony (albo **Za
+  rozmówcą**), **Najdłuższa rozmowa** (10 minut, gdy nieustawiona, najwyżej 50)
+  oraz **Instrukcje dla rozmów**. Karta wymienia, co agent
+  [przekazuje swojemu modelowi tekstowemu](voice.md#handing-work-off) w
+  rozmowach, mówi, że guardrails nie mogą odfiltrować wypowiedzianych słów, zanim
+  zostaną usłyszane, i że rozmowy są zapisywane jako tekst, bez zachowywania
+  dźwięku. Zaczyna działać po publikacji agenta.
+- **Przełącznik Rozmowy głosowe embeda**, w formularzach widżetu i hostowanej
+  strony - zobacz [Kanały](channels.md#voice-calls-on-a-widget-or-a-hosted-page).
+
+Zanim zaproponuje rozmowę, konsola pyta, czy ten agent może ją odebrać
+(`GET /agents/{id}/voice`), żeby nikt nie udzielał dostępu do mikrofonu tylko po
+to, by zostać odrzuconym. Odpowiedź mówi, czego brakuje: głosu ustawionego w
+agencie, modelu, który nadal jest oferowany, albo klucza.
+
+**Przycisk rozmowy** stoi w kompozytorze czatu, obok mikrofonu, przy każdym
+agencie. Gdy ten agent nie może odebrać rozmowy, przycisk jest przekreślony, a
+najechanie, fokus albo naciśnięcie mówi dlaczego. Ktoś, kto może edytować
+agenta, dostaje **Otwórz w Agent Builderze**, co otwiera jego kartę Głos (Voice)
+na zakładce Rozmowy; każdy inny słyszy, żeby poprosił kogoś, kto może.
+
+W trakcie rozmowy nad kompozytorem, który zostaje taki, jaki był, razem z wersją
+roboczą i załącznikami, unosi się **pigułka**: co robi rozmowa, jej czas, fala
+dźwięku obu głosów, push-to-talk, wyciszenie i **Zakończ rozmowę**. Rozmowę kończy tylko
+Zakończ rozmowę; otwarcie innej konwersacji albo nowego czatu ją rozłącza. Domyślnie
+mówi się bez trzymania przycisku; **push-to-talk** (przytrzymaj przycisk albo
+Spację) to wybór zapamiętywany w przeglądarce. Przy ograniczonym ruchu falę
+zastępuje schodkowy miernik poziomu.
+
+Rozmowa przechodzi przez stany, które nazywa pigułka: łączenie, słuchanie, ty
+mówisz, myślenie, agent mówi, przerwanie, praca nad narzędziem, czekanie na twoje
+zatwierdzenie, zatwierdzenie, którego nie możesz udzielić, prawie koniec czasu i
+zakończenie - przez ciebie, przez limit, zerwane połączenie albo awarię.
+
+Rozmowa toczy się w konwersacji: każda tura jest rysowana jako wiadomość, którą
+się stanie, rośnie słowo po słowie w miarę mówienia, czytnik ekranu słyszy każdą
+linię, gdy jest ostateczna, a zapisana wiadomość zajmuje jej miejsce bez
+żadnego przesunięcia, więc rozmowa zostaje potem w historii i możesz dalej
+pisać. Gdy agent myśli albo uruchamia narzędzie, konwersacja mówi o tym tam,
+gdzie pojawi się jego odpowiedź.
+
+**Zatwierdzenia** zapadają w rozmowie: karta w konwersacji pokazuje narzędzie,
+jego dokładne argumenty i to, co usłyszano, że powiedziałeś, z odliczaniem 60
+sekund. Decydują tylko jej przyciski; powiedzenie „tak” niczego nie zatwierdza.
+Bez `approvals:decide` karta mówi, że narzędzie wymaga zatwierdzenia, którego
+nie możesz udzielić głosem, i proponuje zakończyć rozmowę i kontynuować pisemnie.
+**Pytania**, które zadaje agent, pojawiają się jako karta pytania czatu, także
+czytana na głos: stuknij odpowiedź albo po prostu ją powiedz. Praca, którą agent
+[przekazuje swojemu modelowi tekstowemu](voice.md#handing-work-off), pokazuje
+każdy krok w trakcie, a kroki zostają potem na turze. **Limity** są mówione:
+minutę przed końcem najdłuższej rozmowy dostajesz ostrzeżenie, a gdy skończy się
+czas albo budżet, agent mówi jedno zdanie i rozmowa się kończy.
+
+**Pasek nad kompozytorem** wskazuje to, co wymaga twojej uwagi: prośbę o
+mikrofon, czekające zatwierdzenie (z **Pokaż kartę**), ostatnią minutę, limit
+kończący rozmowę, ponowne łączenie albo to, jak działa push-to-talk. Gdy rozmowa
+się kończy, karta w konwersacji mówi, jak długo trwała i ile tur zapisano, albo
+jaki limit ją zakończył, z przyciskiem **Zadzwoń ponownie**. Rozmowa, która w
+ogóle się nie zaczęła, mówi dlaczego nad kompozytorem, z **Spróbuj ponownie**.
+
+W **Aktywności (Activity)** rozmowa to jeden wiersz z plakietką mikrofonu, a
+filtr rodzaju (**Tekst** albo **Rozmowy głosowe**) zawęża do rozmów; rozmowa,
+która się ponownie połączyła, to nadal jeden wiersz, z czasem i kosztem
+wszystkich połączeń zsumowanymi. Karta pulpitu **Minuty rozmów (Voice minutes)**,
+w pasie Użycie dla posiadacza `runs:view`, pokazuje minuty i liczbę rozmów w
+okresie oraz trzech najczęstszych agentów.
+
 ## Do czego służy każdy obszar { #what-each-area-is-for }
 
 Sidebar grupuje je. **Build** to Agents, Routines, Apps i Activity;
 **Knowledge** to Knowledge bases, Documents, Skills i Context. Dwie grupy są
 zwinięte do nagłówka, dopóki ich nie otworzysz, bo ustawia się je raz i odwiedza
-rzadko: **Connections** (MCP servers, Channels, Vault, Sandboxes) i
+rzadko: **Connections** (MCP servers, Channels, Remote agents, Vault, Sandboxes) i
 **Organization** (Organizations, Groups). Zwinięta grupa otwiera się sama na
 każdej stronie, która do niej należy, i zostaje tak, jak ją zostawisz.
 
@@ -335,10 +542,11 @@ każdej stronie, która do niej należy, i zostaje tak, jak ją zostawisz.
 | **Sandboxes** | Gdzie agenci uruchamiają kod: hosty, żywe sesje, polityka | [Sandbox](sandbox.md) |
 | **MCP servers** | Połączenia z zewnętrznymi narzędziami, osobiste i na całą organizację | [MCP](mcp.md) |
 | **Channels** | Boty Slacka, Telegrama i Mattermosta, widgety, hostowane strony | [Powierzchnie](channels.md) |
+| **Remote agents** | Agenci innych dostawców, zarejestrowani po ich agent card A2A, do których delegują agenci | [Capabilities](reference/capabilities.md#remote-agents) |
 | **Vault** | Poświadczenia, zapieczętowane per organizacja | [Sekrety](secrets.md) |
 | **Organizations** | Członkowie, role, zaproszenia | [Uprawnienia](permissions.md) |
 | **Settings** | Providerzy, domyślne ustawienia ingestii, powiadomienia, twój własny profil | [Konfiguracja](configuration.md) |
-| **Admin** | Sam deployment: użytkownicy, najemcy, system, ustawienia deploymentu | [Deployment](deployment.md) |
+| **Admin** | Sam deployment: użytkownicy, najemcy, system, zadania w tle, ustawienia deploymentu | [Deployment](deployment.md) |
 
 Katalog **Agents** można filtrować po **category** i **tag** — edytowalnych,
 lokalnych dla organizacji etykietach pokazywanych na karcie każdego agenta.
@@ -374,7 +582,7 @@ problem zostaje odczytany jako cisza.
 
 ## Podsumowanie { #recap }
 
-- Dashboard to **trzydzieści sześć widgetów**, które układasz sam, zapisywanych
+- Dashboard to **trzydzieści osiem widgetów**, które układasz sam, zapisywanych
   per osoba i per organizacja — wszystkie poza twoimi własnymi powiadomieniami
   bramkowane uprawnieniem, którego wymagają ich dane.
 - Zapisany układ **może ukrywać i zmieniać kolejność, ale nigdy nie odsłania** —

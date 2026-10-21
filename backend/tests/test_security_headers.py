@@ -7,8 +7,6 @@ registered now, and because it sets each header with `setdefault`, that
 per-response override still wins.
 """
 
-from __future__ import annotations
-
 import pytest
 from fastapi import FastAPI, Response
 from httpx import ASGITransport, AsyncClient

@@ -5,15 +5,19 @@ import { useTranslations } from "next-intl";
 
 import { useLinger, useSmoothText } from "@/hooks/use-smooth-text";
 import { toolEntry } from "@/lib/tool-catalog";
+import { isVisualTool } from "@/lib/visuals";
 import { cn } from "@/lib/utils";
 import { useInChatScope } from "@/stores/chat-scope-context";
 import type { DelegateRef } from "@/lib/delegations";
 import type { McpServerRef } from "@/lib/tool-steps";
 import type { MessagePart, ToolCall } from "@/types";
+import type { Mentionable } from "@/types/mention";
 import { AgentSteps } from "./agent-step";
 import { TurnBrowses } from "./browser-card";
 import { MarkdownContent } from "./markdown-content";
+import { RichText } from "./mention-chip";
 import { ToolCallCard } from "./tool-call-card";
+import { TurnVisuals } from "./visual-panel";
 import { YouFace } from "./you-face";
 import { useTurnElapsed, WorkFold, WorkingLine } from "./work-fold";
 
@@ -96,6 +100,7 @@ export function TurnParts({
           ))}
         </AgentSteps>
         {browses && <TurnBrowses calls={browseCalls([run])} />}
+        {browses && <TurnVisuals calls={visualCalls([run])} />}
       </div>
     ) : run.part.type === "thinking" ? (
       <ThinkingBlock
@@ -142,6 +147,7 @@ export function TurnParts({
         {split.folded.map((run) => render(run, false))}
       </WorkFold>
       <TurnBrowses calls={browseCalls(split.folded)} />
+      <TurnVisuals calls={visualCalls(split.folded)} />
       {split.shown.map((run) => render(run))}
     </>
   );
@@ -279,11 +285,14 @@ export function TextBubble({
   showCursor,
   isUser,
   onCiteClick,
+  mentions,
 }: {
   text: string;
   showCursor: boolean;
   isUser: boolean;
   onCiteClick?: (index: number) => void;
+  /** What the person picked with `@`, shown where it sits in their text. */
+  mentions?: readonly Mentionable[];
 }) {
   const visible = useSmoothText(text, showCursor && !isUser);
   // The narrow chat beside a page reads at the size of the page around it.
@@ -306,7 +315,7 @@ export function TextBubble({
         )}
       >
         <p className={cn("break-words whitespace-pre-wrap", compact ? "text-[13px]" : "text-sm")}>
-          {text}
+          <RichText text={text} mentions={mentions ?? []} />
         </p>
       </div>
     );
@@ -422,6 +431,21 @@ export function browseCalls(runs: PartRun[]): ToolCall[] {
           driving = true;
           return [call];
         })
+      : [],
+  );
+}
+
+/**
+ * The calls that draw in these runs, in the order they were made. Like a browse,
+ * a drawing is shown whether or not the steps around it fold: it is what the
+ * turn produced, not a step of the work.
+ */
+export function visualCalls(runs: PartRun[]): ToolCall[] {
+  return runs.flatMap((run) =>
+    run.kind === "tools"
+      ? run.parts.flatMap((part) =>
+          part.toolCall && isVisualTool(part.toolCall.name) ? [part.toolCall] : [],
+        )
       : [],
   );
 }

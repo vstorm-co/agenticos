@@ -88,10 +88,7 @@ export function CredentialStep({
       <p className="text-foreground/65 text-sm">{t("credentialIntro", { name: connector.name })}</p>
 
       <div className="space-y-1.5">
-        <Label
-          htmlFor="sync-credential"
-          className="text-foreground/80 text-xs font-medium tracking-wider uppercase"
-        >
+        <Label htmlFor="sync-credential">
           {t("credentialLabel")}
           <span className="text-destructive ml-0.5">*</span>
         </Label>

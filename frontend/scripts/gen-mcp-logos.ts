@@ -11,6 +11,8 @@ import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
+import { fetchDataUri } from "./favicon";
+
 const here = dirname(fileURLToPath(import.meta.url));
 const OUT = join(here, "..", "src", "lib", "mcp-logos.generated.ts");
 /**
@@ -39,23 +41,6 @@ function hostOf(url: string | null): string | null {
   if (url === null || url === "") return null;
   try {
     return new URL(url).hostname;
-  } catch {
-    return null;
-  }
-}
-
-/** Google's favicon service — follows redirects to the actual PNG. */
-function faviconUrl(domain: string): string {
-  return `https://www.google.com/s2/favicons?sz=128&domain=${encodeURIComponent(domain)}`;
-}
-
-async function fetchDataUri(domain: string): Promise<string | null> {
-  try {
-    const res = await fetch(faviconUrl(domain), { redirect: "follow" });
-    if (!res.ok) return null;
-    const type = res.headers.get("content-type") ?? "image/png";
-    const b64 = Buffer.from(await res.arrayBuffer()).toString("base64");
-    return `data:${type};base64,${b64}`;
   } catch {
     return null;
   }

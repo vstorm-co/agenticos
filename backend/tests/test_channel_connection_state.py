@@ -11,8 +11,6 @@ the other way, and it would put a red badge on every bot in a deployment whose
 Redis is not configured.
 """
 
-from __future__ import annotations
-
 import asyncio
 import contextlib
 import json
@@ -200,6 +198,26 @@ class TestKeepingAQuietConnectionAlive:
         assert slept == [connection_state.HEARTBEAT_SECONDS] * 3
         assert json.loads(redis.store[f"channel:conn:{bot}"])["state"] == "up"
 
+    async def test_a_stream_that_is_being_refused_is_not_beaten_up(self, monkeypatch):
+        """A Telegram poll another process keeps ending stays `down` between beats (#2252)."""
+        redis = _Redis()
+        connection_state.configure(redis)
+        bot = uuid4()
+        await connection_state.record_down(bot, "another poller")
+        beats = 0
+
+        async def sleep(_seconds: float) -> None:
+            nonlocal beats
+            beats += 1
+            if beats > 2:
+                raise asyncio.CancelledError
+
+        monkeypatch.setattr(connection_state.asyncio, "sleep", sleep)
+        with pytest.raises(asyncio.CancelledError):
+            await connection_state.heartbeat(bot, live=lambda: False)
+
+        assert json.loads(redis.store[f"channel:conn:{bot}"])["state"] == "down"
+
     def test_the_interval_leaves_room_for_a_missed_beat(self):
         """Two beats can be missed before the entry expires; one slow round trip
         must not make a healthy bot read `unknown`."""
@@ -218,7 +236,7 @@ class TestTheTelegramPollIsOneOfThem:
         kept_alive_for: list[str] = []
         stopped_with_the_poll = False
 
-        async def heartbeat(bot_id: str) -> None:
+        async def heartbeat(bot_id: str, **_: object) -> None:
             nonlocal stopped_with_the_poll
             kept_alive_for.append(bot_id)
             beating.set()

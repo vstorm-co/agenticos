@@ -1,5 +1,5 @@
 ---
-source_sha: "f65f76a23f9a"
+source_sha: "0d99b89ad0c0"
 ---
 
 # Lizenzen und Drittanbieter-Hinweise { #licences-and-third-party-notices }
@@ -123,7 +123,7 @@ Notices-Datei ist die aktuelle Zahl.
 | CC-BY-4.0 (`caniuse-lite`) | 1 | Namensnennung und ein Link auf die Quelle | In den Notices mit seiner Quelle genannt |
 | AGPL-3.0-only (`pymupdf`) | 1 | Netzwerk-Copyleft: Das Image wird unter AGPL-3.0-Bedingungen weitergegeben, und ein verändertes Deployment schuldet seinen Nutzern den veränderten Quellcode (Abschnitt 13) | Bewusst behalten, Bedingungen benannt: [der Abschnitt unten](#the-agpl-component) und das `COPYING` des Wheels im Image |
 | OFL-1.1 (Inter, Bricolage Grotesque, Geist Mono) | 3 Familien | Lizenztext und Copyright-Hinweise bei den Fonts; kein Verkauf der Fonts für sich allein; keine Wiederverwendung der reservierten Namen für veränderte Fonts | `frontend/src/app/fonts/OFL.txt` trägt alle drei Hinweise; die Fonts werden unverändert ausgeliefert |
-| CC0-1.0, CC-BY-4.0, MIT (Marken-Glyphen) | 3 Quellen | Namensnennung für die Font-Awesome-Icons; die Marken bleiben Marken ihrer Inhaber | `NOTICE` nennt die Quellen und die markenrechtliche Position |
+| CC0-1.0, MIT (Marken-Glyphen) | 4 Quellen | MIT-Hinweise für @lobehub/icons und theSVG; die Marken bleiben Marken ihrer Inhaber | `NOTICE` nennt die Quellen und die markenrechtliche Position |
 
 **Von einem Paket, das keine Lizenzdatei veröffentlicht**, lässt sich keine
 kopieren. Mehrere npm-Pakete in der Hülle sind so, darunter

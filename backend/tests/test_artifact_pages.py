@@ -6,8 +6,6 @@ the platform script that turns a link into a question. The database is stubbed
 at the repository edge; `tests/integration/test_artifacts.py` proves the rows.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
@@ -940,5 +938,5 @@ class TestTheBundledSkill:
         from app.agents.capabilities.artifacts._toolset import build_artifacts_toolset
 
         tool = build_artifacts_toolset().tools["publish_artifact"]
-        for name in artifacts.ARTIFACT_LIBRARY:
+        for name in set(artifacts.ARTIFACT_LIBRARY) - artifacts.FRAME_ONLY_LIBRARY:
             assert f"lib/{name}" in (tool.description or "")

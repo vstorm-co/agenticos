@@ -1,5 +1,5 @@
 ---
-source_sha: "dc1db9e6554c"
+source_sha: "d1ffc0743a58"
 ---
 
 # Funktionen { #features }
@@ -107,7 +107,7 @@ Plattform.
 
 [Jede Capability, ihre Tools und ihre Konfiguration →](reference/capabilities.md)
 
-## Jedes Modell, von 27 Providern { #any-model-from-27-providers }
+## Jedes Modell, von 28 Providern { #any-model-from-28-providers }
 
 OpenAI, Anthropic, Google, Groq, Mistral, Bedrock, Vertex, ein Ollama auf Ihrer
 eigenen Hardware, ein LiteLLM-Proxy vor allem zusammen.
@@ -181,7 +181,19 @@ Einmal veröffentlichen. Derselbe Runner antwortet auf all diesen:
 - **Slack**, **Telegram** und **Mattermost**, wo eine `@mention` als die Person
   läuft, die sie geschickt hat — nicht als der Bot
 
-[Oberflächen →](channels.md)
+Spracherkennung läuft auch hier über den eigenen Provider der Organisation:
+Diktieren im Web-Chat, auf einer gehosteten Seite und im Widget sowie
+transkribierte Sprachnachrichten in Slack, Telegram und Mattermost.
+
+**Sprachanrufe** lassen eine Person mit einem veröffentlichten Agent sprechen und
+ihn unterbrechen, im Web-Chat, auf einer gehosteten Seite oder im Widget. Der
+Agent behält seine Tools, sein Wissen, seine Freigaben und Budgets, jede Runde
+wird als Text in der Unterhaltung gespeichert, und kein Audio wird gespeichert.
+Anrufe sind aus, bis eine Organisation sie einschaltet, und haben eigene Limits
+für Dauer und monatliche Minuten. Die Realtime-Modelle von OpenAI sind live
+getestet; Azure OpenAI, Gemini Live und xAI sind noch nicht live verifiziert.
+
+[Oberflächen →](channels.md) · [Sprachgespräche →](voice.md)
 
 ## Budgets, die einen Run wirklich stoppen { #budgets-that-actually-stop-a-run }
 

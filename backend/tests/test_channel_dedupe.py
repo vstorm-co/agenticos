@@ -7,8 +7,6 @@ the one point all six inbound paths cross - so the redelivery test here
 asserts at the `process_channel_event` boundary, not on the claim alone.
 """
 
-from __future__ import annotations
-
 import asyncio
 from contextlib import asynccontextmanager
 from typing import Any, cast

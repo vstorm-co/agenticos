@@ -23,8 +23,6 @@ optional field, added by somebody who never read the issue:
    the shape this replaced.
 """
 
-from __future__ import annotations
-
 import importlib
 import pkgutil
 import re
@@ -55,6 +53,7 @@ from app.db.models.memory import AgentMemoryFile
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_assistant import OrganizationAssistant
 from app.db.models.organization_secret import OrganizationSecret
+from app.db.models.project import Project
 from app.db.models.sandbox_connection import SandboxConnection
 from app.db.models.skill import Skill, SkillResource
 from app.db.models.sync_source import SyncSource
@@ -80,6 +79,7 @@ from app.schemas.mcp_connection import McpConnectionUpdate, OrgMcpConnectionUpda
 from app.schemas.memory import MemoryNoteUpdate
 from app.schemas.notification import NotificationPreferenceUpdate
 from app.schemas.organization import OrganizationMemberUpdate, OrganizationUpdate
+from app.schemas.project import ProjectUpdate
 from app.schemas.resource_grant import VisibilityUpdate
 from app.schemas.retention import RetentionUpdate
 from app.schemas.sandbox_connection import SandboxConnectionUpdate
@@ -122,6 +122,7 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     OrgMcpConnectionUpdate: McpConnection,
     OrganizationMemberUpdate: OrganizationMember,
     OrganizationUpdate: Organization,
+    ProjectUpdate: Project,
     RetentionUpdate: Organization,
     SandboxConnectionUpdate: SandboxConnection,
     SecretUpdate: OrganizationSecret,
@@ -137,9 +138,12 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
 # What is left, and none of it writes a row. `ingestion_config` merges two Pydantic
 # models - `exclude_unset` doing exactly what it is for - and `rag_document` puts an
 # override into a JSONB payload, where a null is a value the column can hold.
+# `voice/transport` serializes a call's server frame for the socket, so a field the
+# frame was not built with stays off the wire; there is no row and no `over`.
 _DUMP_EXEMPT = {
     "app/services/ingestion_config.py",
     "app/services/rag_document.py",
+    "app/services/voice/transport.py",
 }
 
 # `exclude_unset=True` anywhere in the call, not `model_dump(exclude_unset=True)`

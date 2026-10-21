@@ -1,5 +1,5 @@
 ---
-source_sha: "111d48326705"
+source_sha: "4fe91aa6f038"
 ---
 
 # Begriffe { #concepts }
@@ -330,6 +330,7 @@ Problemen filtert, sollte nicht durch korrekt arbeitende Plattform waten müssen
 | `failed` | ist kaputtgegangen |
 | `budget_exceeded` | hat eine Obergrenze erreicht — ein Ausgabenlimit, das seine Arbeit tut |
 | `guardrail_blocked` | wurde von einem [Guardrail](reference/capabilities.md#guardrails) abgelehnt |
+| `loop_stopped` | wiederholte nach einer Warnung dieselben Tool-Aufrufe und wurde [gestoppt](governance.md#step-limits) |
 | `cancelled` | wurde gestoppt: die Stopp-Schaltfläche im Composer, ein weggefallener Socket, eine von oben abgebrochene Delegation. Auf jeder Oberfläche, nicht nur der streamenden |
 | `awaiting_approval` | ist auf einem Approval geparkt und ist **fortsetzbar** — sein Nachrichtenverlauf ist gespeichert, sodass die Entscheidung für die Unterhaltung gilt, zu der sie gehört |
 
@@ -551,6 +552,13 @@ ist ein Absatz im Spec eines anderen.
 Nehmen Sie also einen Spezialisten für Arbeit, die keine Veröffentlichung eines
 Agents verlangen sollte — "fasse das in drei Stichpunkten zusammen" —, und einen
 Delegate für eine Fähigkeit, die die Organisation besitzt und wiederverwendet.
+
+Eine dritte Art steht daneben: ein **Remote Agent**, der Agent eines anderen
+Anbieters, über A2A erreichbar und in der Organisation über seine Agent Card
+registriert. Er wird genauso aufgerufen und gegen dasselbe Budget abgerechnet, ist
+hier aber nicht versioniert — sein Eigentümer ändert ihn auf seiner Seite —, daher
+nennt ein Verweis die Registrierung statt einer Version. Siehe
+[Remote Agents über A2A](reference/capabilities.md#remote-agents).
 
 #### Dynamische Spezialisten, und der Weg heraus { #dynamic-specialists-and-the-way-out }
 

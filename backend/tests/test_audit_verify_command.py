@@ -6,8 +6,6 @@ non-zero naming the entry it broke on - so a scheduled run cannot pass over a
 trail that has been altered.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator, Callable, Coroutine
 from contextlib import asynccontextmanager

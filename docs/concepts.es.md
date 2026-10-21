@@ -1,5 +1,5 @@
 ---
-source_sha: "111d48326705"
+source_sha: "4fe91aa6f038"
 ---
 
 # Conceptos { #concepts }
@@ -316,6 +316,7 @@ correctamente:
 | `failed` | se rompió |
 | `budget_exceeded` | alcanzó un tope — un límite de gasto haciendo su trabajo |
 | `guardrail_blocked` | lo rechazó un [guardrail](reference/capabilities.md#guardrails) |
+| `loop_stopped` | siguió repitiendo las mismas llamadas tras el aviso y se [detuvo](governance.md#step-limits) |
 | `cancelled` | se detuvo: el botón de parar del compositor, un socket que se fue, una delegación cancelada desde arriba. En todas las superficies, no solo en la de streaming |
 | `awaiting_approval` | quedó aparcado en una aprobación, y es **reanudable** — su historial de mensajes está guardado, así que la decisión se aplica a la conversación a la que pertenece |
 
@@ -525,6 +526,12 @@ dentro del spec de otro.
 Así que usa un especialista para trabajo que no debería exigir publicar un agent
 — "resume esto en tres viñetas" — y un delegado para una capacidad que la
 organización posee y reutiliza.
+
+Un tercer tipo está a su lado: un **agent remoto**, el agent de otro proveedor al
+que se llega por A2A y que se registra en la organización por su agent card. Se
+llama igual y se cobra contra el mismo budget, pero aquí no tiene versiones — su
+dueño lo cambia de su lado —, así que una referencia nombra el registro y no una
+versión. Ver [Agents remotos por A2A](reference/capabilities.md#remote-agents).
 
 #### Especialistas dinámicos, y la salida { #dynamic-specialists-and-the-way-out }
 

@@ -1,7 +1,5 @@
 """Serving generated images: the caller's own organization, and nobody else's."""
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

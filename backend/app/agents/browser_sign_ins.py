@@ -20,8 +20,6 @@ or a child of it - so a sign-in made on `www.linkedin.com` keeps the
 `.linkedin.com` cookies it actually depends on.
 """
 
-from __future__ import annotations
-
 import json
 from urllib.parse import urlsplit
 

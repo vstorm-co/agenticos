@@ -47,6 +47,12 @@ export interface DeploymentSettings extends BrandingResponse {
   /** The organization every new account joins, or null for none. */
   default_organization_id: string | null;
   default_organization_role: DefaultOrganizationRole;
+  /**
+   * Whether dictation accepts WebM, Ogg and MP4 as well as raw PCM WAV. Off
+   * until an administrator accepts the risk: a compressed file states its own
+   * length, and one built by hand can understate it.
+   */
+  dictation_compressed_audio: boolean;
   updated_at: string | null;
 }
 
@@ -80,6 +86,7 @@ export interface DeploymentSettingsPatch {
   personal_organizations?: boolean;
   default_organization_id?: string | null;
   default_organization_role?: DefaultOrganizationRole;
+  dictation_compressed_audio?: boolean;
 }
 
 /** Which of the two marks an upload replaces. */

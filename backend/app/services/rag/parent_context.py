@@ -25,8 +25,6 @@ per deployment any more, and a knob that reads as configurable and is not is wor
 than a stated number.
 """
 
-from __future__ import annotations
-
 from collections.abc import Callable
 from typing import Protocol
 from uuid import UUID

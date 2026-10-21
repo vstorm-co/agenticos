@@ -15,8 +15,6 @@ migration that has not run - must not close the API, because the alternative tur
 an infrastructure hiccup into a total outage nobody scheduled.
 """
 
-from __future__ import annotations
-
 import contextlib
 import json
 from unittest.mock import AsyncMock, MagicMock

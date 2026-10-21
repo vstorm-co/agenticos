@@ -51,8 +51,6 @@ belongs (#1773). So `invite_only` and the domain list admit it, and `closed`
 still refuses it.
 """
 
-from __future__ import annotations
-
 from typing import Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession

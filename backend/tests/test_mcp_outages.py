@@ -7,8 +7,6 @@ share: an outage is opened and closed once, so a server failing every check
 for a day is one notification, and the next outage is another.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime

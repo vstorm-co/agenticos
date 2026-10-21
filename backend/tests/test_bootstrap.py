@@ -6,8 +6,6 @@ sure it worked - and that a missing API key produces a visible half-built state
 rather than an agent that silently cannot run.
 """
 
-from __future__ import annotations
-
 import uuid
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch

@@ -49,6 +49,7 @@ export function ChannelsWidget({ title, hint, seeAll, options }: DashboardWidget
       ) : (
         <StatusList
           rows={bots.map((bot) => ({
+            id: bot.id,
             label: bot.name,
             sub: t(`platforms.${bot.platform}`),
             // The platform's own brand mark, from the module the run table and

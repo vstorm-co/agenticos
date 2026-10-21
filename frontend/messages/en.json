@@ -73,6 +73,19 @@
     "sessionsCouldNotBeRead": "The sessions could not be read."
   },
   "agents": {
+    "reviewersTitle": "Run reviewers",
+    "reviewersDescription": "A second, usually cheaper model reads the run every few requests and sends one short correction when it drifts. Its calls count against the budget like any other, and a run without a reviewer makes no extra calls.",
+    "reviewerName": "Name",
+    "reviewerModel": "Model it reviews with",
+    "reviewerInstructions": "What to look for",
+    "reviewerInstructionsPlaceholder": "Flag claims that have no source among the pages the agent read.",
+    "reviewerEvery": "Every N requests",
+    "reviewerWindow": "Tokens it reads",
+    "addReviewer": "Add a reviewer",
+    "removeReviewer": "Remove reviewer {name}",
+    "codeMode": "Code mode",
+    "codeModeHint": "The agent calls its tools from one short Python script in a sandbox - loops, conditions, many calls at once - instead of one model turn per call. Worth it for working through records or fanning out over an MCP server. Tools that need approval stay ordinary calls.",
+    "codeModeMaxCalls": "Tool calls per script",
     "accentColour": "Accent colour",
     "actsOutsideWorld": "acts on the outside world",
     "actsWorld": "acts on the world",
@@ -362,7 +375,7 @@
     "noSandboxConnectionRegistered": "No sandbox connection registered",
     "noSecretOfKind": "No {kind} secret in the vault",
     "noSecret": "No secret",
-    "noSecretSelected": "No secret selected. This capability needs one of kind {kind}, and the agent cannot be published until it has one.",
+    "noSecretSelected": "Nothing chosen yet - the agent cannot be published until something is.",
     "noSignMarketingPage": "No sign-in - a marketing page",
     "noSitesAllowedWidget": "No sites allowed - this widget cannot open anywhere",
     "noSpecialistsYet": "No specialists. One is worth adding when publishing a whole agent would be too much ceremony for the job.",
@@ -400,8 +413,6 @@
     "pageAllowFilesHint": "The only thing here that lets a stranger store something on this deployment. The file goes through the same checks and parser a member's upload does, under a smaller cap and a limit per visitor - and the agent reads it the way it reads any attachment.",
     "pageAllowNewConversation": "A button to start a fresh thread",
     "pageAllowNewConversationHint": "The old thread is not deleted. It stops being the one this browser resumes.",
-    "pageAllowVoice": "A microphone in the composer",
-    "pageAllowVoiceHint": "Dictation using the visitor's own browser. No audio reaches this deployment and nothing is transcribed here - but a browser that offers it hands the audio to its vendor, so this is off unless you turn it on.",
     "pageCapabilities": "What the page offers",
     "pageShowThinking": "The agent's reasoning",
     "pageShowThinkingHint": "What the model says to itself before it answers. It is not written for anybody to read and it is not an answer you can stand behind.",
@@ -472,6 +483,7 @@
     "runCompleted": "Completed",
     "runFailed": "Failed",
     "runGuardrailBlocked": "Blocked by guardrail",
+    "runLoopStopped": "Stopped: looping",
     "runRunning": "Running",
     "runningThemOneAt": "Running them one at a time makes a conversation easier to follow, and easier to approve.",
     "runs": "Runs",
@@ -775,7 +787,112 @@
     "capabilityShelfEnabled": "{enabled} of {total} on",
     "capabilityShelfPrevious": "Earlier in {shelf}",
     "capabilityShelfNext": "More in {shelf}",
-    "capabilityToolCount": "{count, plural, =0 {Built in, no tools} =1 {1 tool} other {# tools}}"
+    "capabilityToolCount": "{count, plural, =0 {Built in, no tools} =1 {1 tool} other {# tools}}",
+    "a2aTitle": "Agent2Agent (A2A)",
+    "a2aDescription": "Let other systems' agents send this agent tasks over the A2A protocol. Each task is a run of the published version, under its budget and approvals, and shows in Activity.",
+    "a2aSwitch": "Serve this agent over A2A",
+    "a2aPublishFirst": "Publish the agent first: what A2A serves is the published version.",
+    "a2aOff": "Off. Turn it on to give this agent an agent card other systems can find it by.",
+    "a2aCardUrl": "Agent card",
+    "a2aEndpoint": "Endpoint for tasks",
+    "a2aAuthHint": "Callers send an organization API key or an OAuth access token from this deployment as a bearer token, and it must be allowed to run this agent.",
+    "remoteDelegatesHeading": "Remote agents",
+    "remoteDelegatesDetail": "Other vendors' agents this one may hand work to over A2A. Each call goes under this agent's budget.",
+    "addRemoteDelegate": "Add a remote agent",
+    "noRemoteDelegatesYet": "No remote agents yet.",
+    "noRemoteAgentsRegistered": "No remote agents are registered yet. <link>Register one</link> by its agent card.",
+    "remoteDelegateGone": "A remote agent no longer registered",
+    "remoteDelegateGoneDetail": "Its registration was removed, so publishing refuses this agent until it is taken off the list.",
+    "keyOrSignIn": "Key or sign-in",
+    "codingAgentKeyName": "{signIn, select, chatgpt {OpenAI key for Codex} other {Claude Code key}}",
+    "chatgptSignInName": "ChatGPT for Codex",
+    "claudeTokenHint": "On a Claude Pro or Max subscription: run <code>claude setup-token</code> on your own computer and add the token it prints as a key here. An Anthropic API key works too.",
+    "capabilityHasNoToolSettings": "It used to have settings per tool, which it no longer has. Its approval is the one below now.",
+    "useCapabilityApproval": "Move to the capability",
+    "visualDesignDetail": "Bind the visual-design skill and the agent draws from its house style and templates - architecture diagrams, explainers with sliders, 3D scenes. Switching Visuals on binds it for you; the agent reads it through the Skills capability.",
+    "visualDesignMissing": "This organization has no visual-design skill. Seed the bundled skills to add it.",
+    "visualDesignHeading": "Drawing style",
+    "platformServerDescription": "This platform's own tools: agents, runs, spend, knowledge bases, skills and members - so the agent can answer questions about the platform and act in it.",
+    "platformServerBadge": "Built in",
+    "platformAsksBeforeWrites": "Asks before any change",
+    "platformAsksEveryCall": "Asks before every call",
+    "platformAsWhoeverAsks": "Acts as whoever asks",
+    "platformActsAsWhoeverAsks": "Every tool acts as the person the agent runs for, with exactly their permissions. Nothing new is granted: what they could not do in the console, the agent cannot do here either.",
+    "platformUseIt": "Use it in this agent",
+    "platformApproval": "Approval",
+    "platformWritesHint": "Reading is free; creating, running or changing anything waits for the person to approve it.",
+    "platformAllHint": "Every call waits for approval, reading included.",
+    "platformTools": "Tools this agent may call",
+    "platformWritesBadge": "changes something",
+    "platformRemove": "Remove from this agent",
+    "voiceTitle": "Voice",
+    "voiceDescription": "How people can talk to this agent: a live voice call, or dictation that turns speech into text. Takes effect when the agent is published.",
+    "voicePair": "Transcription model",
+    "voicePairInherit": "Organization's",
+    "voicePairChoose": "This agent's own",
+    "voiceInherits": "From the organization: {pair}",
+    "voiceOrgPair": "{provider} · {model}",
+    "voiceOrgNoPair": "The organization has no provider set, so there is nothing to inherit.",
+    "voiceProvider": "Provider",
+    "voiceProviderHint": "From the speech-to-text catalog. Sent with the key chosen below.",
+    "voiceModel": "Model",
+    "voiceLanguage": "Language",
+    "voiceLanguageHint": "A fixed language is more accurate than auto-detect.",
+    "voiceLanguageInherit": "Inherit ({language})",
+    "voiceLanguageAuto": "auto-detect",
+    "voiceLanguageOption": "{name} ({code})",
+    "voiceNoteChannelsOnly": "The browser transcribes chat dictation to this agent, so the provider below only changes how voice notes sent to its channel bots are transcribed.",
+    "voiceNoteNoProvider": "Neither the organization nor this agent has a speech-to-text provider, so the browser keeps transcribing until you choose one here.",
+    "embedDictation": "Voice input",
+    "embedDictationOff": "Off",
+    "embedDictationOffHint": "No microphone.",
+    "embedDictationBrowser": "Browser",
+    "embedDictationBrowserHint": "The visitor's browser transcribes and sends the audio to its vendor - Google, Apple and others. Nothing reaches this deployment, and not every browser offers it.",
+    "embedDictationServer": "Server",
+    "embedDictationServerHint": "Recorded in the page and transcribed by this organization's speech-to-text provider, on the organization's bill. The audio isn't stored.",
+    "embedDictationServerUnavailable": "Server needs a speech-to-text provider with a credential, chosen on the organization's Voice card or on this agent's.",
+    "embedDictationServerDrift": "No speech-to-text provider answers for this agent right now, so visitors see no microphone until one does.",
+    "embedDictationServerUnchecked": "Server can't be checked right now: this agent's speech-to-text readiness didn't load. Reload the page to try again.",
+    "embedVoice": "Voice calls",
+    "embedVoiceHint": "Visitors can call the agent. They can't approve anything, so tools that need approval are left out of their calls. Calls count against the budgets.",
+    "embedVoiceUnavailable": "Voice calls need a voice set up on this agent's Voice card.",
+    "embedVoiceDrift": "Visitors see no call button until this agent can take calls again.",
+    "embedVoiceUnchecked": "Voice calls can't be checked right now: this agent's call readiness didn't load. Reload the page to try again.",
+    "voiceProviderNoKey": "{name} (no key yet)",
+    "voiceConversationEnabled": "Allow voice calls",
+    "voiceConversationEnabledHint": "Off until you switch it on. Takes effect when the agent is published.",
+    "voiceConversationProvider": "Call provider",
+    "voiceConversationModel": "Call model",
+    "voiceConversationBaseModel": "Base model",
+    "voiceConversationDeployment": "Deployment name",
+    "voiceConversationDeploymentHint": "The Azure OpenAI deployment calls go to. The endpoint comes from the key.",
+    "voiceConversationKeyName": "{provider} voice calls",
+    "voiceConversationVoice": "Voice",
+    "voiceConversationVoiceHint": "How the agent sounds in calls.",
+    "voiceConversationVoiceDefault": "{voice} (default)",
+    "voiceConversationLanguage": "Spoken language",
+    "voiceConversationLanguageHint": "The language the agent speaks in calls.",
+    "voiceConversationFollowCaller": "Follow the caller",
+    "voiceConversationMaxLength": "Longest call",
+    "voiceConversationMaxHint": "Calls end at this length. The budgets still apply.",
+    "voiceConversationNote": "Instructions for calls",
+    "voiceConversationNoteHint": "Added to the agent's instructions only during calls, after its built-in speaking style: how to greet, how long to talk, what to say before a tool runs.",
+    "voiceConversationGuardrails": "Guardrails check transcripts during a call and cut the agent off when its words hit one, but spoken words cannot be filtered before they are heard. A tool's result is still screened before the agent reads it; tool arguments are not screened.",
+    "voiceConversationCatalogFailed": "The list of voice models could not be loaded, so calls cannot be turned on here. Reload the page to try again.",
+    "voiceTabCalls": "Voice calls",
+    "voiceTabDictation": "Dictation",
+    "voiceCallsLead": "A live, two-way conversation: the agent listens, answers out loud and keeps its tools. People call it from the chat, the website widget and the hosted page. Runs on a realtime voice model.",
+    "voiceDictationLead": "Speech turned into text that the person reads before sending: the microphone in the chat, and voice notes sent to this agent's channel bots. Runs on a transcription model.",
+    "voiceConversationNotePlaceholder": "Greet the caller by name. Keep each answer to two sentences, then ask whether they want more detail.",
+    "voiceConversationMaxMinutes": "{minutes} min",
+    "voiceDictationProvider": "Transcribe with a provider",
+    "voiceDictationProviderHint": "The chat microphone sends the recording to the provider below: the organization's, or this agent's own. Off, or with no key to send it with, the browser transcribes it for free.",
+    "voiceConversationMaxDefault": "{minutes} min (default)",
+    "voiceInheritsUntilChosen": "Until you choose one, the organization's is used: {pair}",
+    "voiceProviderChoose": "Choose a provider",
+    "voicePreview": "Listen to this voice",
+    "voicePreviewStop": "Stop",
+    "voicePreviewNeedsKey": "Choose a key to listen to this voice"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -934,6 +1051,7 @@
       "summarizePrompt": "Please give me a concise summary of our conversation so far - key topics, decisions, and any open questions."
     },
     "compacting": "Summarising the conversation so far, to keep it inside the model's limit…",
+    "sandboxPreparing": "Preparing the sandbox. The first run after an update builds it, which can take a few minutes…",
     "compactingCount": "{count, plural, =1 {Summarising 1 earlier message} other {Summarising # earlier messages}} to keep the conversation inside the model's limit…",
     "compactionImpossible": "Context management cannot run: this agent's instructions and tools take {overhead, number} tokens of the {window, number}-token window it was given, which is already past the point it would compact at. Raise the window or the fraction in the Toolbox.",
     "personalServices": {
@@ -1042,7 +1160,7 @@
       "docsTitle": "Summarize my docs",
       "greeting": "How can I help, {name}?",
       "greetingAnonymous": "How can I help today?",
-      "lead": "Ask anything - get streaming answers with tool calls and citations from your knowledge.",
+      "lead": "Ask anything, attach a file, or start from one of these.",
       "slashCommands": "slash commands",
       "emailTitle": "Draft an email",
       "emailPrompt": "Draft a short, friendly email asking a client to confirm next week's meeting.",
@@ -1071,7 +1189,8 @@
       "show": "Show the files",
       "showWithCount": "Show the files ({count})",
       "storedSuffix": "{size} stored",
-      "title": "Files"
+      "title": "Files",
+      "beforeStart": "Files you attach and files the agent writes appear here once the conversation starts."
     },
     "generateShareLink": "Generate share link",
     "helpful": "Helpful",
@@ -1098,7 +1217,9 @@
       "attachFileHint": "Images, PDFs, spreadsheets and documents",
       "voiceInputHint": "Speak instead of typing",
       "commands": "Commands",
-      "commandsHint": "Pick one from a list - the same as typing /"
+      "commandsHint": "Pick one from a list - the same as typing /",
+      "project": "Work in a project",
+      "projectHint": "Start this chat in a project: its files and instructions"
     },
     "knowledgeBase": "Knowledge base",
     "link": "Link",
@@ -1204,7 +1325,8 @@
       "untitled": "Untitled",
       "title": "Chats",
       "unread": "New answer",
-      "unreadHeading": "Unread"
+      "unreadHeading": "Unread",
+      "unnamedProject": "A project"
     },
     "skipComment": "Skip comment",
     "sourceCount": "{count, plural, =1 {1 source} other {# sources}}",
@@ -1238,6 +1360,7 @@
     "title": "Chat",
     "tokensDetail": "{input, number} input · {output, number} output tokens",
     "tokensDetailPartial": "{input, number} input · {output, number} output tokens - a floor: some model in this run had no price",
+    "tokensWithCache": "{detail} - of the input, {read, number} read from the cache and {write, number} written to it",
     "toolApprovalRequired": "Tool approval required",
     "draftProposalTitle": "A new agent draft",
     "draftProposalIn": "Created in {organization}",
@@ -1399,7 +1522,27 @@
       "scrollingPage": "Scrolling",
       "scrollPage": "Scrolled",
       "goingBack": "Going back",
-      "goBack": "Went back"
+      "goBack": "Went back",
+      "codingAgent": {
+        "task": "Task",
+        "outcome": "{outcome, select, completed {Done} timed_out {Stopped: out of time} other {Failed}}",
+        "filesChanged": "{count, plural, =1 {Changed 1 file:} other {Changed # files:}}",
+        "steps": "{count, plural, =1 {1 step} other {# steps}}",
+        "stepKind": "{kind, select, read {Read} search {Searched} edit {Edited} command {Ran} web {Looked up} failed {Failed} other {Used}}",
+        "refused": "Not allowed read-only: {tools}"
+      },
+      "runCodingAgent": "Hand the work to the coding agent",
+      "runningCodingAgent": "The coding agent is working",
+      "codingStepRunning": "{kind, select, read {Reading} search {Searching} edit {Editing} command {Running} web {Looking up} other {Working on}}",
+      "codingStepDone": "{kind, select, read {Read} search {Searched} edit {Edited} command {Ran} web {Looked up} other {Used}}",
+      "drawingVisual": "Drawing",
+      "drawVisual": "Drew a visual",
+      "revisingVisual": "Revising a visual",
+      "reviseVisual": "Revised a visual",
+      "readingVisual": "Reading a visual",
+      "readVisual": "Read a visual",
+      "workingInText": "Working on it in text",
+      "workedInText": "Worked on it in text"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -1426,18 +1569,36 @@
       "threadTotalPartialDetail": "{input, number} in · {output, number} out billed across this conversation - a floor: some model in it had no price",
       "unmeasured": "in use - this host did not report a number",
       "workspace": "Workspace",
-      "workspaceUsed": "Workspace used"
+      "workspaceUsed": "Workspace used",
+      "empty": "Context, cost and budgets show up here after the agent's first reply."
     },
     "view": "View",
     "viewMeans": "View lets them read this conversation and nothing else.",
     "web": "Web",
     "whatWentWrong": "What went wrong?",
+    "reply": {
+      "reply": "Reply",
+      "cancel": "Don't reply",
+      "theAgent": "The agent",
+      "jump": "Show the message",
+      "inReplyTo": "In reply to {name}",
+      "inReplyToYou": "In reply to you",
+      "replyingTo": "Replying to <strong>{name}</strong>",
+      "replyingToYourself": "Replying to yourself"
+    },
+    "room": {
+      "here": "{count, plural, =1 {{name} is here too} other {# people are here with you}}",
+      "more": "+{count}",
+      "share": "Invite",
+      "typing": "{count, plural, =1 {{name} is typing} other {{name} are typing}}"
+    },
     "rail": {
       "label": "Jump to a message",
       "previous": "Previous message",
       "next": "Next message",
       "jumpTo": "Jump to the message from {author}",
       "you": "You",
+      "formerMember": "A former member",
       "agent": "Agent",
       "empty": "No text in this message"
     },
@@ -1474,6 +1635,7 @@
     "sendNow": "Send now",
     "sendNowHint": "Send it into the running task now, instead of after the answer",
     "sendNowNotWithFiles": "A message with files waits for the answer",
+    "sendNowNotWithMentions": "A message pointing at something waits for the answer",
     "queuedCount": "{count, plural, =1 {1 message queued} other {# messages queued}}",
     "sentIntoTask": "sent into the task",
     "moveUp": "Move up",
@@ -1500,7 +1662,271 @@
     "openPageNamed": "Open {name}",
     "showMore": "Show more",
     "showLess": "Show less",
-    "openApp": "Open the app"
+    "openApp": "Open the app",
+    "mentions": {
+      "menu": "Point the agent at",
+      "loading": "Loading what this agent can use…",
+      "failed": "Could not load what this agent can use.",
+      "nothing": "Nothing this agent can use matches.",
+      "full": "You can point at {count, plural, one {# thing} other {# things}} at most in one message.",
+      "kind": {
+        "mcp": "MCP servers",
+        "capability": "Capabilities",
+        "agent": "Agents",
+        "collection": "Knowledge bases",
+        "skill": "Skills",
+        "context": "Context files",
+        "project": "Projects"
+      }
+    },
+    "hints": {
+      "mention": "Type <key>@</key> to point the agent at a server, a teammate or a skill",
+      "mcp": "Pull this week's updates from <chip></chip> and summarise them",
+      "capability": "Use <chip></chip> to work through the attached spreadsheet",
+      "agent": "Ask <chip></chip> to double-check the numbers",
+      "skill": "Follow <chip></chip> and draft a reply to this customer",
+      "collection": "What does <chip></chip> say about notice periods?",
+      "slash": "Type <command></command> to summarise this conversation, or / for every command"
+    },
+    "visuals": {
+      "drawing": "Drawing…",
+      "revising": "Revising…",
+      "unfinished": "Unfinished",
+      "revisionOf": "Revision of {title}",
+      "showCode": "Show code",
+      "showVisual": "Show visual",
+      "fullScreen": "Full screen",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "zoomReset": "Reset zoom",
+      "zoomLevel": "{zoom, number, percent}",
+      "download": "Download",
+      "copyImage": "Copy as image",
+      "imageCopied": "Image copied",
+      "copyImageFailed": "The image could not be copied",
+      "renderError": "The drawing reported an error",
+      "stalled": "The drawing stopped responding, so it was closed.",
+      "reload": "Reload",
+      "baseMissing": "The visual this revises is not in the loaded conversation.",
+      "close": "Close",
+      "fixIt": "Fix it",
+      "fixItPrompt": "The visual “{title}” ({id}) reported these errors:\n{errors}\nPlease fix it.",
+      "saveToApps": "Save to Apps",
+      "updateApp": "Update the app",
+      "saveDescription": "Saved as an app, it gets a link, versions and sharing. Saving under a name you already have adds a version to that app.",
+      "saveTitleLabel": "Title",
+      "saveName": "Name",
+      "saveNameHint": "Lower-case letters, digits and hyphens. The same name again updates the app.",
+      "save": "Save",
+      "saving": "Saving…",
+      "cancel": "Cancel",
+      "savedToast": "Saved as an app, version {version}",
+      "savedUnchanged": "The app already has exactly this version",
+      "savedBadge": "Saved · v{version}",
+      "openApp": "Open",
+      "openInConsole": "Shown in AgenticOS"
+    },
+    "dictation": {
+      "cancel": "Cancel dictation",
+      "cancelTranscription": "Cancel transcription",
+      "cancelTitle": "Cancel (Esc)",
+      "stop": "Stop and transcribe",
+      "stopTitle": "Stop and transcribe (Enter)",
+      "timerLabel": "Recording time",
+      "transcribing": "Transcribing",
+      "ofAudio": "{duration} of audio",
+      "uploading": "Uploading {percent}%",
+      "dismiss": "Dismiss",
+      "discard": "Discard",
+      "retry": "Retry",
+      "retryCountdown": "Retry in {seconds} s",
+      "tryAgain": "Try again",
+      "recordAgain": "Record again",
+      "askAdmin": "Ask an admin to set it up.",
+      "openVoiceSettings": "Open Voice settings",
+      "setForAgent": "Set one for this agent",
+      "announceRecording": "Recording",
+      "announceTranscribing": "Transcribing",
+      "announceLeft": "{count, plural, =1 {1 second left} other {# seconds left}}",
+      "announceInserted": "{count, plural, =1 {Inserted 1 word} other {Inserted # words}}",
+      "hint": {
+        "requesting": "<strong>Allow the microphone</strong> in your browser's prompt to start recording.",
+        "micDenied": "<strong>Microphone blocked for this site.</strong> Click the icon left of the address bar, set Microphone to Allow, then try again.",
+        "micInsecure": "<strong>This page can't use the microphone.</strong> Browsers open the microphone only on HTTPS or on localhost. Ask your administrator to serve the console over HTTPS.",
+        "micNotFound": "<strong>No microphone found.</strong> The browser sees no input device, so it can't ask for one. Connect a microphone, or check that your system lets the browser use it (on Windows: Settings → Privacy & security → Microphone), then try again.",
+        "micBusy": "<strong>The microphone didn't start.</strong> Another app may be using it, or your system is blocking the browser. Close the other app or check your system's microphone settings, then try again.",
+        "nearLimit": "<strong>{remaining} left.</strong> At {limit} the recording stops and is transcribed.",
+        "nearLimitSpoken": "<strong>The recording is about to stop.</strong> At {limit} it stops and is transcribed.",
+        "stoppedAtLimit": "<strong>Stopped at the {limit} limit.</strong> Transcribing everything up to here.",
+        "silent": "<strong>Can't hear you — is your microphone muted?</strong> Recording continues.",
+        "tooShort": "<strong>That was under a second,</strong> so nothing was sent. Press the microphone, speak, then press Stop.",
+        "empty": "<strong>No speech in that recording.</strong> Check the microphone isn't muted, then record again.",
+        "tooLarge": "<strong>Recording too large to transcribe.</strong> Keep dictations shorter, and attach long audio as a file.",
+        "signedOut": "<strong>You're signed out.</strong> Sign in again, then record again.",
+        "forbidden": "<strong>You're not allowed to dictate to this agent.</strong> Ask an admin for access to it.",
+        "unsupported": "<strong>This browser's recording isn't in a format the server accepts.</strong> Update the browser, or try Chrome or Firefox.",
+        "failedTitle": "Transcription didn't finish.",
+        "providerErrorBody": "The speech-to-text provider answered with an error.",
+        "timeoutBody": "The speech-to-text provider didn't answer in time.",
+        "offlineBody": "The server couldn't be reached.",
+        "rateLimitedBody": "Too many dictations in a minute.",
+        "keptBody": "Your {duration} recording is kept until you retry or discard it.",
+        "notSetUpTitle": "Dictation isn't set up.",
+        "notSetUpBody": "This agent's speech-to-text provider has no usable key any more.",
+        "browserOff": "<strong>Dictation isn't turned on for this agent,</strong> so your browser transcribes what you say. Turn it on to use a speech-to-text provider."
+      },
+      "pill": "Dictation",
+      "listening": "Listening",
+      "done": "Done dictating",
+      "openBuilder": "Open in the Agent Builder"
+    },
+    "voice": {
+      "start": "Start a voice call",
+      "unavailable": {
+        "notOffered": {
+          "title": "This agent's voice model is no longer offered",
+          "body": "Choose another model on its Voice card."
+        },
+        "noKey": {
+          "title": "This agent's voice has no key",
+          "body": "Choose a key on its Voice card."
+        },
+        "unchecked": {
+          "title": "Could not check whether this agent can take a call",
+          "body": "Reload the page to try again."
+        },
+        "noVoice": {
+          "title": "Calls aren't turned on for this agent",
+          "body": "Choose a voice model on its Voice card, then publish, and it can take calls."
+        }
+      },
+      "approval": {
+        "title": "Approve {tool}?",
+        "youSaid": "You said: <q>{said}</q>",
+        "countdown": "Time left to decide",
+        "approve": "Approve",
+        "deny": "Deny",
+        "notByVoice": "Only these buttons decide. Saying “yes” to the agent doesn't approve.",
+        "unavailable": "{tool} needs an approval you cannot give by voice. Ask in text chat, where the request can wait for someone who can approve it.",
+        "needed": "Approval needed",
+        "autoDeny": "Auto-deny in {time}",
+        "misheard": "Speech can be misheard. Check every name and number before you approve.",
+        "exactJson": "Exact JSON sent to the tool",
+        "outcome": {
+          "approved": "Approved by you",
+          "denied": "Denied by you",
+          "expired": "{seconds, plural, =1 {Denied automatically: no decision within 1 second} other {Denied automatically: no decision within # seconds}}"
+        },
+        "unavailableTitle": "Needs an approval you can't give here",
+        "keepTalking": "Keep talking",
+        "continueInText": "End call, continue in text"
+      },
+      "captions": {
+        "you": "You: {text}",
+        "agent": "{agent}: {text}"
+      },
+      "controls": {
+        "mute": "Mute",
+        "unmute": "Unmute",
+        "hold": "Hold to talk",
+        "pushToTalk": "Push to talk",
+        "end": "End call",
+        "endShort": "End"
+      },
+      "state": {
+        "connecting": "Connecting…",
+        "listening": "Listening",
+        "user": "You're speaking",
+        "thinking": "Thinking…",
+        "agent": "{agent} is speaking",
+        "interrupted": "Interrupted",
+        "tool": "Working…",
+        "approval": "Waiting for your approval",
+        "noapproval": "This needs an approval you can't give",
+        "limitwarn": "Almost out of time",
+        "limitend": "Call ended by a limit",
+        "ended": "Call ended",
+        "micblocked": "The microphone is blocked",
+        "connfailed": "The call could not connect",
+        "reconnecting": "Reconnecting…",
+        "dropped": "Call dropped"
+      },
+      "callAgain": "Call again",
+      "notice": {
+        "limitWarning": "{seconds, plural, =60 {1 minute left in this call} other {# seconds left in this call}}",
+        "guardrail": "A guardrail cut the agent off.",
+        "providerError": "The voice provider reported an error.",
+        "timeLimit": "This call has reached its time limit. The call is ending.",
+        "budget": "The budget has run out. The call is ending.",
+        "unavailable": "Calls aren't available right now. The call is ending."
+      },
+      "ended": {
+        "timeLimit": "The call ended: it reached its time limit",
+        "budget": "The call ended: the budget ran out",
+        "revoked": "The call ended: your access changed",
+        "guardrail": "The call ended: a guardrail stopped it",
+        "shutdown": "The call ended: the server restarted",
+        "busy": "You're already on a call",
+        "lineBusy": "Too many calls are open here right now. Try again in a few minutes.",
+        "forbidden": "This agent can't take your call",
+        "notConfigured": "This agent isn't set up for calls",
+        "notPriced": "This model's price is unknown, so calls are off",
+        "resumeRefused": "The call couldn't be resumed",
+        "generic": "The call ended",
+        "unavailable": "This assistant can't take calls right now. Please type your message instead."
+      },
+      "failure": {
+        "micInsecure": "<strong>This page can't use the microphone.</strong> Browsers open the microphone only on HTTPS or on localhost. Ask your administrator to serve the console over HTTPS.",
+        "micDenied": "<strong>Microphone blocked for this site.</strong> Click the icon left of the address bar, set Microphone to Allow, then try again. Nothing was recorded and no minutes were used.",
+        "micNotFound": "<strong>No microphone found.</strong> Connect one, or check that your system lets the browser use it, then try again.",
+        "micBusy": "<strong>The microphone didn't start.</strong> Another app may be using it. Close it or check your system's microphone settings, then try again.",
+        "connectionFailed": "<strong>The call couldn't connect.</strong> No minutes were used. Check your connection, then try again.",
+        "dropped": "The connection was lost and could not be restored. Everything said until then is saved above."
+      },
+      "view": {
+        "bar": "Voice call",
+        "live": "Live",
+        "voice": "Voice",
+        "interrupted": "Interrupted",
+        "interruptedTitle": "Cut to roughly what was heard",
+        "you": "You",
+        "micOff": "Mic off",
+        "muted": "Muted",
+        "talking": "Talking · release to send",
+        "settingUp": "Setting up a secure connection",
+        "announceApproval": "{seconds, plural, =1 {Approval needed for {tool}. Approve or deny on screen. It is denied automatically in 1 second.} other {Approval needed for {tool}. Approve or deny on screen. It is denied automatically in # seconds.}}",
+        "ending": {
+          "timeLimit": "Ending: time limit reached",
+          "budget": "Ending: the budget ran out",
+          "unavailable": "Ending: calls aren't available right now"
+        },
+        "strip": {
+          "allowMic": "<strong>Allow the microphone</strong> in your browser's prompt. The call starts when it's on.",
+          "reconnecting": "<strong>Reconnecting…</strong> The connection dropped; the call picks up where it left off.",
+          "approval": "<strong>Approve or deny the request above.</strong> Denied automatically in {time}.",
+          "showCard": "Show card",
+          "noApproval": "<strong>{tool} needs an approval you can't give here.</strong> The card above explains what you can do.",
+          "ending": {
+            "timeLimit": "<strong>Time limit reached.</strong> The agent is saying so, then the call ends.",
+            "budget": "<strong>The budget has run out.</strong> The agent is saying so, then the call ends."
+          },
+          "limitWarning": "<strong>{remaining} left in this call.</strong> At {limit} the agent says so and hangs up. You can start a new call after.",
+          "pushToTalk": "<strong>Push to talk is on.</strong> Hold <kbd>Space</kbd> or the button while you speak; let go to send."
+        },
+        "refused": "<strong>The call didn't start.</strong> {reason}",
+        "tryAgain": "Try again",
+        "dismiss": "Dismiss",
+        "summary": {
+          "ended": "Voice call ended · {duration}",
+          "timeLimit": "{minutes, plural, =1 {Call ended at the 1-minute limit} other {Call ended at the #-minute limit}}",
+          "turns": "{count, plural, =0 {No turns were saved. Keep going by typing, or call again.} =1 {1 turn saved as a message. Keep going by typing, or call again.} other {# turns saved as messages. Keep going by typing, or call again.}}",
+          "newCall": "Start a new call"
+        },
+        "mediaFailed": "<strong>The call's audio couldn't get through,</strong> so the call has ended. Your network may block it. Everything said until then is saved above."
+      },
+      "openBuilder": "Open in the Agent Builder",
+      "askEditor": "Ask someone who can edit this agent to set it up."
+    }
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
@@ -1744,6 +2170,7 @@
           "description": "The model mix appears with the first run.",
           "title": "No runs in this period"
         },
+        "modelRepaired": "{model} · {repaired} repaired",
         "notRecorded": "not recorded",
         "title": "Models behind the runs",
         "description": "Which models are behind the runs, as each run recorded its own.",
@@ -2035,6 +2462,7 @@
           "failed": "failed",
           "budget_exceeded": "over budget",
           "guardrail_blocked": "guardrail blocked",
+          "loop_stopped": "stopped looping",
           "running": "running",
           "cancelled": "cancelled",
           "awaiting_approval": "awaiting approval"
@@ -2136,6 +2564,42 @@
         "nothingWaiting": "Nothing waiting",
         "spent": "Spent",
         "spentLabel": "{amount} spent"
+      },
+      "projects": {
+        "title": "Projects",
+        "description": "Your projects, most recently changed first.",
+        "empty": {
+          "title": "No projects yet",
+          "description": "A project keeps instructions and files that every chat in it shares."
+        }
+      },
+      "recent-visuals": {
+        "title": "Recent visuals",
+        "description": "Diagrams, explainers and scenes your agents drew for you lately.",
+        "app": "App",
+        "empty": {
+          "title": "Nothing drawn yet",
+          "description": "Ask an agent with Visuals to draw something - a diagram, an explainer, a 3D scene - and it appears here."
+        }
+      },
+      "background-jobs": {
+        "title": "Background jobs",
+        "description": "What the job queue finished in the last 24 hours, and how much of it died.",
+        "empty": {
+          "title": "Nothing finished yet",
+          "description": "No background job has finished in the last 24 hours."
+        }
+      },
+      "voice-minutes": {
+        "title": "Voice minutes",
+        "description": "Call minutes in the period and which agents took them.",
+        "minutes": "{minutes} min",
+        "calls": "{count, plural, one {# call} other {# calls}}",
+        "empty": {
+          "title": "No voice calls yet",
+          "description": "Minutes appear here once members or visitors call an agent."
+        },
+        "deletedAgent": "Deleted agent"
       }
     },
     "edit": {
@@ -2301,6 +2765,16 @@
       "dismissAll": "Hide tips",
       "dismiss": "Hide the tip {title}",
       "tips": {
+        "mentions": {
+          "title": "Point the agent with @",
+          "body": "In the chat, type @ to hand the agent one of its servers, capabilities, skills or teammates. It shows as a chip, and the agent uses exactly that.",
+          "cta": "Try it in chat"
+        },
+        "commands": {
+          "title": "Shortcuts with /",
+          "body": "Type / in the chat for commands - summarise, explain, start over - or write your own under Settings → Slash commands.",
+          "cta": "Open the chat"
+        },
         "mcp": {
           "title": "Use it from Claude Code or Cursor",
           "body": "AgenticOS is an MCP server too: connect Claude Code, Codex or Cursor and build agents, run them and read results without leaving them.",
@@ -2427,7 +2901,90 @@
     "attach": "Attach a file",
     "removeAttachment": "Remove {name}",
     "uploadFailed": "That file could not be attached.",
-    "uploading": "Attaching…"
+    "uploading": "Attaching…",
+    "dictation": {
+      "dismiss": "Dismiss",
+      "discard": "Discard",
+      "retry": "Retry",
+      "retryCountdown": "Retry in {seconds} s",
+      "tryAgain": "Try again",
+      "recordAgain": "Record again",
+      "announceInserted": "{count, plural, =1 {Inserted 1 word} other {Inserted # words}}",
+      "hint": {
+        "requesting": "<strong>Allow the microphone</strong> in your browser's prompt to start recording.",
+        "micDenied": "<strong>Microphone blocked for this site.</strong> Click the icon left of the address bar, set Microphone to Allow, then try again.",
+        "micInsecure": "<strong>This page can't use the microphone.</strong> Browsers open the microphone only on secure (HTTPS) pages. Please type your message instead.",
+        "micNotFound": "<strong>No microphone found.</strong> Connect one, or check that your system lets the browser use it, then try again.",
+        "micBusy": "<strong>The microphone didn't start.</strong> Another app may be using it. Close it, then try again.",
+        "nearLimit": "<strong>{remaining} left.</strong> At {limit} the recording stops and is transcribed.",
+        "nearLimitSpoken": "<strong>The recording is about to stop.</strong> At {limit} it stops and is transcribed.",
+        "stoppedAtLimit": "<strong>Stopped at the {limit} limit.</strong> Transcribing everything up to here.",
+        "silent": "<strong>Can't hear you - is your microphone muted?</strong> Recording continues.",
+        "tooShort": "<strong>That was under a second,</strong> so nothing was sent. Press the microphone, speak, then press Stop.",
+        "empty": "<strong>No speech in that recording.</strong> Check the microphone isn't muted, then record again.",
+        "tooLarge": "<strong>That recording is too long to transcribe.</strong> Try a shorter one.",
+        "signedOut": "<strong>This page's session has ended.</strong> Reload the page, then try again.",
+        "forbidden": "<strong>Voice input isn't allowed here.</strong> Please type your message instead.",
+        "unsupported": "<strong>This browser records audio in a format we can't accept.</strong> Try a recent Chrome or Firefox.",
+        "failedTitle": "Transcription didn't finish.",
+        "providerErrorBody": "The transcription service answered with an error.",
+        "timeoutBody": "The transcription service didn't answer in time.",
+        "offlineBody": "The server couldn't be reached.",
+        "rateLimitedBody": "Too many recordings in a minute.",
+        "keptBody": "Your {duration} recording is kept until you retry or discard it.",
+        "notSetUpTitle": "Voice input isn't available right now.",
+        "notSetUpBody": "Please type your message instead."
+      }
+    },
+    "voice": {
+      "view": {
+        "mediaFailed": "<strong>The call's audio couldn't get through,</strong> so the call has ended. Your network may block it. Everything said until then is saved above.",
+        "refused": "<strong>The call didn't start.</strong> {reason}",
+        "tryAgain": "Try again",
+        "dismiss": "Dismiss",
+        "ending": {
+          "timeLimit": "Ending: time limit reached",
+          "budget": "Ending: calls aren't available right now",
+          "unavailable": "Ending: calls aren't available right now"
+        },
+        "strip": {
+          "ending": {
+            "timeLimit": "<strong>Time limit reached.</strong> The assistant is saying so, then the call ends.",
+            "budget": "<strong>Calls aren't available right now.</strong> The assistant is saying so, then the call ends."
+          }
+        }
+      },
+      "failure": {
+        "micInsecure": "<strong>This page can't use the microphone.</strong> Browsers allow it only on secure (HTTPS) pages. Please type your message instead.",
+        "micDenied": "<strong>Microphone blocked for this site.</strong> Click the icon left of the address bar, set Microphone to Allow, then try again.",
+        "micNotFound": "<strong>No microphone found.</strong> Connect one, or check that your system lets the browser use it, then try again.",
+        "micBusy": "<strong>The microphone didn't start.</strong> Another app may be using it. Close it, then try again.",
+        "connectionFailed": "<strong>The call couldn't connect.</strong> Check your connection, then try again."
+      },
+      "ended": {
+        "timeLimit": "The call reached its time limit.",
+        "budget": "This assistant can't take calls right now. Please type your message instead.",
+        "revoked": "Calls were switched off here.",
+        "guardrail": "The call was ended by a content rule.",
+        "shutdown": "The server restarted. Please try again.",
+        "busy": "A call from here is already open.",
+        "lineBusy": "All lines are busy. Try again in a few minutes, or type your message.",
+        "forbidden": "Calls aren't available here right now. Please type your message instead.",
+        "notConfigured": "Calls aren't available here right now. Please type your message instead.",
+        "notPriced": "Calls aren't available here right now. Please type your message instead.",
+        "resumeRefused": "The call dropped and couldn't be picked up again.",
+        "generic": "The call ended unexpectedly. Please try again.",
+        "unavailable": "This assistant can't take calls right now. Please type your message instead."
+      },
+      "notice": {
+        "limitWarning": "{seconds, plural, =60 {1 minute left in this call} other {# seconds left in this call}}",
+        "guardrail": "A content rule cut the answer off.",
+        "providerError": "The call ran into a problem.",
+        "timeLimit": "This call has reached its time limit. The call is ending.",
+        "budget": "Calls aren't available right now. The call is ending.",
+        "unavailable": "Calls aren't available right now. The call is ending."
+      }
+    }
   },
   "invitations": {
     "acceptSuccess": "Joined organization!",
@@ -2652,6 +3209,7 @@
     "scopePersonal": "Personal - only you",
     "syncSourceConnected": "Sync source connected",
     "syncSourceRemoved": "Sync source removed",
+    "syncSourceUpdated": "Sync source updated",
     "syncStarted": "Sync started - documents will appear as they ingest",
     "title": "Knowledge Bases",
     "updated": "Knowledge base updated",
@@ -3156,6 +3714,7 @@
     "quickActions": "Quick actions",
     "rag": "RAG",
     "register": "Register",
+    "remoteAgents": "Remote agents",
     "sandboxes": "Sandboxes",
     "search": "Search",
     "searchJump": "Search or jump to…",
@@ -3187,7 +3746,11 @@
     "connections": "Connections",
     "organization": "Organization",
     "documents": "Documents",
-    "signIns": "Sign-ins"
+    "signIns": "Sign-ins",
+    "projects": "Projects",
+    "allProjects": "All projects",
+    "backgroundJobs": "Background jobs",
+    "loadingPage": "Opening the page"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -3398,6 +3961,10 @@
       "flow-agent-limits": {
         "title": "Set a budget (optional)",
         "body": "Cap what this agent can spend in a month and how many steps one run may take, and choose who's told when it reaches a limit. It's how an agent that loops or runs away stops itself. Choose Next to move on."
+      },
+      "flow-agent-platform-mcp": {
+        "title": "Let it act in the platform (optional)",
+        "body": "This platform's own server needs no connection: switched on, the agent can answer questions about agents, runs and knowledge here, as whoever it talks to - and asks before changing anything."
       },
       "flow-agent-mcp": {
         "title": "Add MCP servers (optional)",
@@ -3663,6 +4230,14 @@
         "title": "Where agents run code",
         "body": "Agents that write and run code do it on these hosts. Watch the live sessions and set the ceilings from here."
       },
+      "remote-agents-register": {
+        "title": "Register one",
+        "body": "Paste the address of an agent's card. It is read and checked now, and a key from the vault can go with every call."
+      },
+      "remote-agents-list": {
+        "title": "Agents from other vendors",
+        "body": "Agents registered here by their A2A agent card can be picked as delegates, beside your own agents."
+      },
       "settings-tabs": {
         "title": "Your settings",
         "body": "Your profile, sign-in and security, notifications, and slash-commands all live behind these tabs - switch between them here."
@@ -3786,6 +4361,38 @@
       "agent-identity": {
         "title": "Call it something recognizable",
         "body": "The name is what people pick in chat and find in the catalog. A duplicate starts as its source with a suffix, so rename it here; the handle other agents reach it by stays the same."
+      },
+      "projects-new": {
+        "title": "Start a project",
+        "body": "Give ongoing work a home: instructions every agent in it reads, and files every chat in it shares."
+      },
+      "projects-list": {
+        "title": "Your projects",
+        "body": "The projects you own and the ones shared with you or your departments. Every chat in one is its members' to read and join."
+      },
+      "project-tabs": {
+        "title": "Chats, files and instructions",
+        "body": "Start a chat in the project, add files and folders its agents work in, and set what every agent here is told."
+      },
+      "chat-visual": {
+        "title": "Drawings",
+        "body": "An agent with Visuals draws diagrams, explainers and 3D scenes here, live while it writes them. Open one full screen, download it, ask about it, or save it as an app with a link you can share."
+      },
+      "chat-voice-call": {
+        "title": "Talk to the agent",
+        "body": "Start a voice call. The agent answers aloud, uses its tools, and asks you before acting; every turn is saved here as text."
+      },
+      "settings-appearance": {
+        "title": "Appearance",
+        "body": "Pick the theme, how the chat box glows while you dictate, and how much the console moves. Each choice applies at once, in this browser."
+      },
+      "org-voice": {
+        "title": "Voice",
+        "body": "Choose the speech-to-text provider, key and language agents and channel bots inherit. Dictation and calls are switched on in each agent."
+      },
+      "agent-voice": {
+        "title": "Voice",
+        "body": "Take calls with a realtime model and voice on the Voice calls tab, and on the Dictation tab choose whether the chat microphone uses a provider or the browser."
       }
     },
     "chooseLanguage": "Language"
@@ -4082,6 +4689,10 @@
       "mapMayInventSpecialists": "May invent specialists mid-run",
       "mapSurfaces": "Surfaces",
       "maxStepsPerRun": "Max steps per run",
+      "loopGuard": "Stop tool-call loops",
+      "loopGuardHint": "A run that keeps making the same calls is told to change approach, and stopped if it goes on - with the reason, before the steps or the budget run out.",
+      "loopRepeats": "Identical calls in a row",
+      "loopCycles": "Cycle repeats",
       "mcpServers": "MCP servers",
       "mcpServersDescription": "External tools this agent may call, from <servers>the catalog</servers>. Bind a server to the organization's account, which answers for everybody, or to each person's own account, which they connect themselves. A member's connection is never bound directly - an agent everyone runs cannot depend on whose credential is behind it.",
       "model": "Model",
@@ -4242,9 +4853,9 @@
       "tokenTooShort": "A token this short is not one the platform issued",
       "transcriptionModel": "Transcription model",
       "transcriptionModelHint": "Which of that provider's models to use.",
-      "transcriptionOff": "Do not transcribe",
+      "transcriptionOff": "Off",
       "transcriptionProvider": "Voice transcription",
-      "transcriptionProviderHint": "Which provider turns a voice message into text before the agent reads it.",
+      "transcriptionProviderHint": "This bot's own provider, whatever its agent or the organization use.",
       "webhook": "Webhook",
       "webhookToken": "No webhook token",
       "slackManifestWhy": "Create the Slack app from its manifest: in Slack, Create New App, From a manifest, and paste. Buttons, /agent, the assistant pane and App Home come with it.",
@@ -4271,7 +4882,19 @@
       "mattermostCommandUrlCopied": "Request URL copied",
       "mattermostCommandToken": "Slash command token",
       "noReaction": "No reaction",
-      "moreOptions": "More options"
+      "moreOptions": "More options",
+      "transcriptionInherit": "Inherit",
+      "transcriptionChoose": "Choose",
+      "transcriptionOffHint": "Voice messages are not transcribed; the sender is told this bot does not listen to them.",
+      "transcriptionInheritHint": "Uses the agent this bot serves, then the organization.",
+      "transcriptionInheritsNothing": "Nothing to inherit: neither the agent nor the organization has a provider, so voice messages are not transcribed.",
+      "transcriptionInheritsFromAgent": "{pair}, from agent {agent}",
+      "transcriptionInheritsFromOrg": "{pair}, from the organization",
+      "transcriptionPair": "{provider} · {model}",
+      "transcriptionEngine": "Provider",
+      "transcriptionMistralFormat": "{platform, select, slack {Slack's desktop app records audio clips as WebM} other {Telegram sends voice messages as Ogg/Opus}}, which Mistral does not list as a format it accepts. They may fail to transcribe; choose another provider for this bot if they do.",
+      "transcriptionProviderNoKey": "{name} (no key yet)",
+      "transcriptionInheritedNoKey": "No key is chosen where this pair comes from, so voice messages are not transcribed until one is."
     },
     "invitations": {
       "acceptInvitation": "Accept invitation",
@@ -4311,6 +4934,7 @@
       "documents": "Documents",
       "downloadFile": "Download file",
       "downloadFile2": "Download file",
+      "editSource": "Edit source",
       "dragFilesAnywherePage": "Drag files anywhere on this page, or pick from your computer.",
       "dragFilesToAdd": "drag files anywhere to add",
       "dropUpload": "Drop to upload",
@@ -4592,6 +5216,8 @@
       "model": "Model",
       "modelFilter": "Filter by model",
       "modelRunHadNo": "A model in this run had no price, so this is a floor",
+      "toolArgsRepaired": "{count, plural, =1 {Repaired one tool call's malformed arguments instead of retrying it} other {Repaired # tool calls' malformed arguments instead of retrying them}}",
+      "cacheSplit": "Of the input, {read, number} read from the provider's cache and {write, number} written to it - priced apart from the rest",
       "modelSettings": "Model settings",
       "monthToDate": "Month to date",
       "narrowedToOneAgent": "Narrowed to one agent, including what it did as somebody's delegate.",
@@ -4639,6 +5265,15 @@
       "recordWasTrimmed": "This record was trimmed to fit its size limit - the messages, and possibly the argument schemas, were dropped.",
       "reject": "Reject",
       "requestDetail": "{input} in, {output} out · {messages} messages carried · finished {finish}",
+      "reviewerCorrections": "{count, plural, =1 {1 reviewer correction} other {# reviewer corrections}}",
+      "reviewerCorrectionBy": "{reviewer}, after request {request}",
+      "codeRuns": "{count, plural, =1 {1 script} other {# scripts}}",
+      "codeRunCalls": "{count, plural, =0 {It called no tools} =1 {It made 1 tool call} other {It made # tool calls}}",
+      "codeRunOmittedCalls": "{count, plural, =1 {and 1 more call, not listed} other {and # more calls, not listed}}",
+      "cacheBust": "cache bust",
+      "cacheExpired": "cache expired",
+      "cacheBustDetail": "{missed, number} cached tokens not read back from the cache - something before them in the prompt changed",
+      "cacheExpiredDetail": "{missed, number} cached tokens not read back from the cache - the provider's cache had expired",
       "requestIndex": "#{index}",
       "requests": "{count, plural, =0 {Requests} =1 {1 request} other {# requests}}",
       "resizeRunDetail": "Resize the run detail",
@@ -4671,6 +5306,7 @@
       "surfaceEmbed": "Embed",
       "surfaceFilter": "Filter by surface",
       "surfaceMattermost": "Mattermost",
+      "surfaceA2a": "A2A",
       "surfaceSchedule": "Schedule",
       "surfaceSlack": "Slack",
       "surfaceTelegram": "Telegram",
@@ -4727,7 +5363,22 @@
       "spendOverTimeHint": "What each day of the window cost, in UTC days.",
       "actionInService": "{action} in {service}",
       "approvalDetails": "Details",
-      "approvalNoArguments": "It takes nothing."
+      "approvalNoArguments": "It takes nothing.",
+      "cache": {
+        "title": "Prompt cache",
+        "description": "Requests whose cached prompt was not read back. A bust is a prefix that moved - tools reordered, a timestamp in the instructions - and was billed at the full input rate; an expiry had outlived the provider's cache.",
+        "agentAndModel": "Agent and model",
+        "noModel": "model not recorded",
+        "busts": "Busts",
+        "expiries": "Expiries",
+        "missedTokens": "Cached tokens missed"
+      },
+      "modalityVoice": "Voice call",
+      "modalityFilter": "Filter by kind",
+      "anyModality": "Any kind",
+      "modalityText": "Text",
+      "modalityVoiceCalls": "Voice calls",
+      "reconnected": "{count, plural, one {Reconnected once} other {Reconnected # times}}"
     },
     "sandboxes": {
       "addConnection": "Add connection",
@@ -4738,7 +5389,11 @@
       "sandboxConnections": "Sandbox connections",
       "sandboxes2": "Sandboxes",
       "tabConnections": "Connections",
-      "tabRunning": "Running"
+      "tabRunning": "Running",
+      "deleteFailed": "Could not delete the connection",
+      "strandedTitle": "{count, plural, one {A sandbox is} other {# sandboxes are}} still on the provider",
+      "strandedBody": "AgenticOS could not remove {count, plural, one {a sandbox} other {# sandboxes}} from the provider behind {name}, and the provider may still be billing for {count, plural, one {it} other {them}}. Delete {count, plural, one {it} other {them}} in the provider's console first, then confirm here to forget {count, plural, one {it} other {them}} and delete the connection.",
+      "strandedConfirm": "I deleted them, delete the connection"
     },
     "settings": {
       "absencesWorthStatingBecause": "Absences worth stating, because a settings page implies the opposite.",
@@ -4964,6 +5619,96 @@
       "siteLabel": "Site",
       "sitePlaceholder": "linkedin.com/login",
       "title": "Browser sign-ins"
+    },
+    "backgroundJobs": {
+      "status": {
+        "queued": "Queued",
+        "running": "Running",
+        "succeeded": "Succeeded",
+        "dead": "Dead",
+        "cancelled": "Cancelled"
+      },
+      "pools": {
+        "agent": "Agent runs",
+        "ingest": "Ingestion",
+        "system": "System"
+      },
+      "kind": "Kind",
+      "statusColumn": "Status",
+      "attempts": "Attempts",
+      "attemptsOf": "{attempts} of {max}",
+      "pool": "Pool",
+      "queued": "Queued",
+      "actions": "Actions",
+      "retry": "Retry",
+      "cancel": "Cancel",
+      "jobs": "Jobs",
+      "newestFirst": "Newest first",
+      "filterByPool": "Filter by pool",
+      "allPools": "All pools",
+      "jobsCouldNotBeRead": "The jobs could not be read.",
+      "noJobs": "No jobs here.",
+      "loadMore": "Load more",
+      "workers": "Workers",
+      "workersAlive": "{count, plural, =0 {none alive} =1 {1 alive} other {# alive}}",
+      "noWorkers": "No worker has said it is alive in the last two minutes, so nothing in the queue is running.",
+      "workerLine": "{pools} · seen {beat}",
+      "schedules": "Schedules",
+      "schedulesCount": "{count, plural, =1 {1 schedule} other {# schedules}}",
+      "every": "{unit, select, day {{count, plural, =1 {every day} other {every # days}}} hour {{count, plural, =1 {every hour} other {every # hours}}} other {{count, plural, =1 {every minute} other {every # minutes}}}}",
+      "nextRun": "next {time}",
+      "pausedTitle": "{count, plural, =1 {A kind of job is paused} other {# kinds of job are paused}}",
+      "pausedSince": "Paused since {time}",
+      "resume": "Resume",
+      "retried": "The job is queued again.",
+      "cancelled": "The job is cancelled.",
+      "resumed": "Jobs of this kind are claimed again.",
+      "actionFailed": "That did not go through.",
+      "couldNotRead": "Couldn't read the queue",
+      "couldNotReadBody": "The background jobs could not be fetched. The database may be unreachable.",
+      "activity": "Activity",
+      "windowLabel": "Window",
+      "window": {
+        "day": "24 hours",
+        "week": "7 days"
+      },
+      "finishedFigure": "Finished",
+      "finishedCaption": "{window, select, day {in the last 24 hours} other {in the last 7 days}}",
+      "deadFigure": "Dead",
+      "deadShare": "{share} of finished",
+      "noneDead": "none",
+      "waitFigure": "Waiting longest",
+      "waitCaption": "a due job, now",
+      "waitNone": "nothing due is waiting",
+      "slowestFigure": "Slowest pickup (p95)",
+      "byKind": "By kind",
+      "kindsCount": "{count, plural, =0 {no kinds} =1 {1 kind} other {# kinds}}",
+      "columns": {
+        "finished": "Finished",
+        "dead": "Dead",
+        "run": "Run p50 / p95",
+        "wait": "Wait p95"
+      },
+      "noActivity": "Nothing finished in this window.",
+      "activityCouldNotBeRead": "The activity could not be read.",
+      "perSlice": "{window, select, day {about {count} an hour} other {about {count} every six hours}}",
+      "pausedEverywhere": "Paused for every organization",
+      "pausedFor": "Paused for {organization}"
+    },
+    "adminDictation": {
+      "title": "Dictation audio",
+      "hint": "What a dictation may be uploaded as, in every organization's composer, hosted pages and widgets.",
+      "toggle": "Accept compressed recordings (WebM, Ogg, MP4)",
+      "toggleHint": "Off, browsers record 16 kHz mono PCM WAV. Its length is its size, so the longest dictation bounds what one recording costs. On, uploads are about half the size, at the risks turning it on lists.",
+      "dialogTitle": "Accept compressed recordings?",
+      "dialogIntro": "Raw PCM is the only format whose length cannot be faked. Read what changes before you turn this on.",
+      "riskLength": "A compressed recording's length is read from the file's own header. A crafted file can understate it, so one dictation can carry far more audio than the maximum length - up to about 40 times as much within the size cap.",
+      "riskPublic": "On public widgets and hosted pages, anyone holding the link can send such files. Transcription is billed to the organization's provider account and is outside agent budgets, so the per-link rate limit no longer bounds the cost to the documented worst case.",
+      "riskScope": "It applies to every organization on this deployment.",
+      "benefit": "The benefit: recordings upload at about an eighth of the size. Turning this off again needs no confirmation.",
+      "acknowledge": "I understand that a dictation's cost is no longer bounded by its maximum length, in any organization.",
+      "cancel": "Keep PCM only",
+      "confirm": "Accept compressed recordings"
     }
   },
   "profile": {
@@ -5008,6 +5753,7 @@
     "credentialUnreadable": "The vault could not be read, so there is nothing to choose from yet. Try again, or reload the page.",
     "customMinutes": "Custom (minutes):",
     "dropFilesDetail": "Files will be added to the active collection",
+    "editSyncSource": "Edit sync source",
     "eGEngineeringDocs": "e.g. Engineering docs (S3)",
     "everyHour": "Every hour",
     "everySixHours": "Every 6h",
@@ -5034,6 +5780,8 @@
     "orgIntegrationsLoadFailed": "The organization's integrations could not be loaded; you can still create a new source.",
     "pickExistingOrgIntegration": "Pick an existing org integration to use in this knowledge base. Its credentials are copied independently - you can adjust the schedule separately.",
     "removedCount": "{count} removed",
+    "saveChanges": "Save changes",
+    "saving": "Saving…",
     "schedule": "Schedule",
     "search": {
       "allBases": "All knowledge bases",
@@ -5268,7 +6016,10 @@
       "searchPlaceholder": "Search every folder",
       "source": "Source",
       "stored": "stored",
-      "whoPutItThere": "Who put it there"
+      "whoPutItThere": "Who put it there",
+      "openFolder": "Open folder",
+      "moreInFolder": "{count, plural, =1 {1 more in the folder} other {# more in the folder}}",
+      "recent": "Recent"
     }
   },
   "settings": {
@@ -5503,7 +6254,54 @@
     "waiverAllowed": "Conversations may now waive approvals",
     "waiverFailed": "Could not change whether chats may waive approvals",
     "waiverForbidden": "Conversations may no longer waive approvals",
-    "you": "(you)"
+    "you": "(you)",
+    "voice": {
+      "title": "Voice",
+      "description": "The speech-to-text default agents and channel bots inherit. Dictation and voice calls are switched on in each agent's Voice card.",
+      "sttTitle": "Speech to text",
+      "sttDescription": "When an agent's Dictation switch is on, the chat microphone sends the recording to a provider; otherwise the browser transcribes it. Text lands in the box for editing; nothing is sent until the person presses Send.",
+      "usage": {
+        "label": "Transcription usage",
+        "summary": "{days, plural, one {Last day} other {Last # days}}: {duration} · {count, plural, one {# recording} other {# recordings}}",
+        "unknown": "({count, plural, one {# without a length} other {# without a length}})",
+        "minutes": "{minutes} min",
+        "underMinute": "under 1 min",
+        "show": "Show breakdown",
+        "hide": "Hide breakdown",
+        "byAgent": "By agent",
+        "byChannel": "By channel bot",
+        "rowStats": "{duration} · {count, plural, one {# recording} other {# recordings}}",
+        "unknownNote": "Minutes count only recordings with a known length. GPT-4o transcription models and Mattermost voice notes report none."
+      },
+      "defaultTitle": "Default provider",
+      "defaultDescription": "Used by agents that transcribe with a provider and by voice messages sent to channel bots, unless an agent or a bot chooses its own.",
+      "providerNone": "None",
+      "notReadyTitle": "The default provider can't transcribe",
+      "notReadyWithdrawn": "The chosen model, {model}, is no longer offered. Agents and bots that inherit it can't transcribe with a provider until you pick another model.",
+      "provider": "Provider",
+      "providerHint": "From the speech-to-text catalog. Sent with the key chosen below.",
+      "model": "Model",
+      "modelHint": "{provider} models in the speech-to-text catalog.",
+      "language": "Language",
+      "languageAuto": "Auto-detect",
+      "languageHint": "Auto-detect suits mixed teams. A fixed language is more accurate.",
+      "languageHintMistral": "Mistral transcribes fewer languages than this list offers and does not say which recording formats it accepts. Leave it on Auto-detect and try a recording before relying on it.",
+      "languageOption": "{name} ({code})",
+      "maxLength": "Max recording length",
+      "maxLengthHint": "10 s to 10 min. The composer's timer counts to this and stops there.",
+      "maxLengthInvalid": "Enter a length between 10 seconds and 10 minutes.",
+      "unit": "Unit",
+      "seconds": "seconds",
+      "minutes": "minutes",
+      "pathBrowser": "Browser",
+      "pathDeployment": "This deployment",
+      "pathNote": "Sent with the organization's {provider} key chosen below. The audio is discarded after transcription; only the text is kept.",
+      "cancel": "Cancel",
+      "save": "Save changes",
+      "saved": "Voice settings saved",
+      "providerNoKey": "{name} (no key yet)",
+      "notReadyNoKey": "No key is chosen for {provider}. Agents and bots that inherit it can't transcribe with a provider until you choose one below."
+    }
   },
   "theme": {
     "darkMode": "Dark mode",
@@ -5584,6 +6382,18 @@
     "cancel": "Cancel",
     "cancel2": "Cancel",
     "cancel3": "Cancel",
+    "chatgptCallbackLabel": "Address ChatGPT sent you to",
+    "chatgptOpenAgain": "Open the sign-in again",
+    "chatgptPersonal": "This runs models on your own ChatGPT subscription and counts against its limits, so it is stored as yours alone.",
+    "chatgptNameOf": "{name} - {person}",
+    "chatgptReconnect": "Reconnect",
+    "chatgptReconnectBody": "Sign in with ChatGPT again. The new sign-in replaces the old one, and every model using this secret keeps working.",
+    "chatgptReconnectNamed": "Reconnect {name}",
+    "chatgptReconnected": "Reconnected {name} to ChatGPT",
+    "chatgptSave": "Save sign-in",
+    "chatgptSignIn": "Sign in with ChatGPT",
+    "chatgptStepOne": "Sign in in the tab this opens, and approve access.",
+    "chatgptStepTwo": "ChatGPT then sends you to a localhost address that does not load. That is expected: copy the whole address from the address bar and paste it here.",
     "customService": "Custom service",
     "eitherWayAgentRunsWithIt": "Either way, an agent that uses this key runs with it for everyone who can run that agent.",
     "encryptedBoundOrganizationAgent": "Encrypted and bound to this organization. An agent names it by id, never by value - so it can be rotated without touching a single agent, and it cannot be read back.",
@@ -5639,7 +6449,20 @@
     "whoCanUse": "Who can use it",
     "yoursAloneYouCan": "Yours alone. You can share it with named people afterwards.",
     "zendeskApiToken": "Zendesk API token",
-    "moreOptions": "More options"
+    "moreOptions": "More options",
+    "speechKey": {
+      "label": "Key",
+      "choose": "Choose a key",
+      "option": "{name} (…{hint})",
+      "orgHint": "An organization-wide API key for this provider. It is spent for everybody, so a key only some people can see cannot be chosen here.",
+      "agentHint": "An API key for this provider that you can see. Publishing lends it to everyone who can run this agent.",
+      "stale": "The chosen key was deleted or can no longer be used here. Choose a key.",
+      "none": "No {provider} keys in the vault yet. Add one below.",
+      "noneOrg": "No organization-wide {provider} keys in the vault yet. Add one below, or share an existing one with the whole organization.",
+      "cannotList": "You cannot list the vault's keys, so a key cannot be chosen here. Ask someone who manages connections.",
+      "suggestedName": "{provider} speech to text",
+      "noneInVault": "No {provider} keys in the vault yet. Add one in the vault, then choose it here."
+    }
   },
   "context": {
     "created": "Created {name}",
@@ -5821,7 +6644,9 @@
       "running": "running",
       "pending": "starting",
       "cancelled": "cancelled",
-      "awaiting_approval": "awaiting approval"
+      "awaiting_approval": "awaiting approval",
+      "guardrail_blocked": "blocked by a guardrail",
+      "loop_stopped": "stopped: looping"
     },
     "noMessagesYet": "No messages yet",
     "noMessagesDescription": "This trigger has not run yet. Its runs will appear here once it fires.",
@@ -5869,7 +6694,18 @@
     "presetWeekdays9": "Weekdays 09:00",
     "stepConfigure": "Configure",
     "stepMessage": "Message",
-    "templateScratchHelpEvent": "Write your own message."
+    "templateScratchHelpEvent": "Write your own message.",
+    "overlapLabel": "If the previous run is still going",
+    "overlap": {
+      "skip": "Skip this run",
+      "queue": "Run when it finishes",
+      "allow": "Run anyway"
+    },
+    "overlapHint": {
+      "skip": "The schedule waits for its next time. A slow agent runs as often as it can finish.",
+      "queue": "Runs once the previous run ends, however many times were missed.",
+      "allow": "Starts on time alongside the run still going. Both runs are paid for."
+    }
   },
   "portals": {
     "title": "Portals",
@@ -5882,10 +6718,10 @@
     "reauthorizeAction": "Re-authorize",
     "redirecting": "Redirecting…",
     "advancedWebhook": "API trigger",
-    "ambiguousOAuthApp": "Two org-visible GitHub OAuth App secrets are stored, so connecting cannot tell which one you meant. Remove one in the vault.",
+    "ambiguousOAuthApp": "Two org-visible {credential} secrets are stored, so connecting cannot tell which one you meant. Remove one in the vault.",
     "apiCategory": "Your own code",
     "addCredentials": "Add credentials",
-    "needsOAuthApp": "Connecting needs your organization's GitHub OAuth App credentials. Add them here, or in the vault.",
+    "needsOAuthApp": "Connecting needs your organization's {credential} credentials. Add them here, or in the vault.",
     "oauthUnavailable": "Connecting a mailbox needs this deployment's own Google client, and none is configured. An operator sets GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET; nothing in the vault fixes it.",
     "openVault": "Open the vault",
     "apiDescription": "Trigger an agent with a signed POST from anything that can send JSON.",
@@ -5918,7 +6754,8 @@
     "authorFilterLabel": "Author contains",
     "authorFilterPlaceholder": "e.g. Jane Doe",
     "textFilterLabel": "Text contains",
-    "textFilterPlaceholder": "e.g. hiring"
+    "textFilterPlaceholder": "e.g. hiring",
+    "oauthAppFallback": "OAuth app"
   },
   "agentTemplates": {
     "browse": "Agent templates",
@@ -6523,6 +7360,14 @@
       "needs": "Nothing extra.",
       "never": "Keeps nothing between messages and cannot reach the internet. For files that stay, use the Sandbox."
     },
+    "coding_agent": {
+      "name": "Coding agent",
+      "does": "Hands software work to Claude Code or Codex, which work on it in the agent's sandbox while you watch each step in the chat.",
+      "example1": "Fix a failing test in a repository the agent cloned",
+      "example2": "Explain how a module works, read-only",
+      "needs": "The Sandbox capability on a sandbox connection, and in the vault an Anthropic or OpenAI key, a Claude subscription token or a ChatGPT sign-in.",
+      "never": "Never works outside the agent's sandbox. Set Human approval to Always ask and each task waits for your yes."
+    },
     "compaction": {
       "name": "Long conversations",
       "does": "Shortens the oldest part of a long conversation so the agent keeps going instead of hitting the model's limit.",
@@ -6675,6 +7520,14 @@
       "example2": "Find three competitors and their prices",
       "needs": "Nothing, with DuckDuckGo. Brave, Exa or Tavily need their API key in the vault.",
       "never": "Never sends your documents to the search engine, only the search words."
+    },
+    "visuals": {
+      "name": "Visuals",
+      "does": "Draws in the conversation - a diagram, an architecture map, an explainer with sliders, a 3D scene - live while the agent writes it. A drawing can be saved as an app.",
+      "example1": "Our order flow as a diagram",
+      "example2": "A 3D model of the warehouse you can turn",
+      "needs": "Nothing extra. The visual-design skill makes the drawings look designed.",
+      "never": "Never reaches the network - a drawing runs sealed off, like an app's page."
     }
   },
   "capabilityCategories": {
@@ -7117,6 +7970,28 @@
         "title": "Results per search",
         "description": "How many results one search returns; ignored for native search."
       }
+    },
+    "coding_agent": {
+      "harness": {
+        "title": "Coding agent",
+        "description": "Which coding agent does the work: Claude Code, on an Anthropic key or a Claude subscription token, or Codex, on an OpenAI key or a ChatGPT sign-in."
+      },
+      "access": {
+        "title": "What it may do",
+        "description": "Change files and run commands, such as tests - or only read the code and answer. Set Human approval to ask before each task either way."
+      },
+      "model": {
+        "title": "Model",
+        "description": "The model the coding agent runs: a Claude model for Claude Code, an OpenAI one for Codex. Not set takes the coding agent's own default."
+      },
+      "base_url": {
+        "title": "Anthropic-compatible endpoint",
+        "description": "Claude Code only: a gateway that speaks Anthropic's API, such as https://openrouter.ai/api, with the key in the vault being that gateway's. Empty calls Anthropic directly."
+      },
+      "timeout_minutes": {
+        "title": "Time limit (minutes)",
+        "description": "How long one task may run before it is stopped."
+      }
     }
   },
   "apiReference": {
@@ -7205,5 +8080,135 @@
     "unavailableBody": "This deployment has no Redis for live views. Try again shortly.",
     "rememberSignIn": "Keep me signed in to {site} for later browses",
     "signInKept": "Your sign-in to {site} is kept for later browses - manage it in Settings → Sign-ins."
+  },
+  "remoteAgents": {
+    "title": "Remote agents",
+    "pageDescription": "Other vendors' agents your agents can hand work to over the A2A protocol. Register one here by its agent card, then pick it in an agent's delegation settings.",
+    "listTitle": "Registered remote agents",
+    "registeredCount": "{count, plural, =1 {1 registered} other {# registered}}",
+    "emptyTitle": "No remote agents yet",
+    "emptyDescription": "Register an agent by the address of its A2A agent card, and your agents can delegate to it like to one of your own.",
+    "register": "Register an agent",
+    "registerTitle": "Register a remote agent",
+    "registerDescription": "The agent card is read now, so its name, description and skills come from the agent itself.",
+    "cardUrl": "Agent card address",
+    "cardUrlHint": "The card's URL, or the agent's base address, where /.well-known/agent-card.json is read.",
+    "handle": "Handle",
+    "handleHint": "What your agents call it by. Left empty, it is made from the agent's name.",
+    "key": "Key it sends",
+    "keyHint": "An API key from the vault, sent as a bearer token, when the agent asks for one.",
+    "noKey": "No key",
+    "suggestedKeyName": "Remote agent key",
+    "cancel": "Cancel",
+    "reading": "Reading the card…",
+    "registered": "Registered {name}",
+    "refreshed": "Read {name}'s card again",
+    "refresh": "Read the card again",
+    "refreshNamed": "Read {name}'s card again",
+    "remove": "Remove",
+    "removeNamed": "Remove {name}",
+    "removeTitle": "Remove {name}?",
+    "removeDescription": "Agents that delegate to it cannot be published again until they stop naming it, and their published versions fail the run when they try.",
+    "withKey": "Sends a key",
+    "answersOn": "Answers on {host}",
+    "failedToLoad": "The remote agents could not be loaded."
+  },
+  "projects": {
+    "title": "Projects",
+    "pageDescription": "Instructions and files shared by every chat started in a project, whichever agent answers.",
+    "newProject": "New project",
+    "newProjectHint": "A place for ongoing work: every chat in it reads its instructions and works in its files.",
+    "created": "Project {name} created",
+    "saved": "Project saved",
+    "deleted": "Project deleted. Its chats are ordinary chats now.",
+    "uploaded": "{count, plural, =1 {1 file added} other {# files added}}",
+    "removed": "Removed",
+    "filesUnreadable": "The project's files could not be read",
+    "activeWhen": "Active {when}",
+    "chatCount": "{count, plural, =0 {No chats yet} =1 {1 chat} other {# chats}}",
+    "projectCount": "{count, plural, =1 {1 project} other {# projects}}",
+    "startsWith": "Starts with {agent}",
+    "noDefaultAgent": "No default - the agent chosen in the chat",
+    "name": "Name",
+    "namePlaceholder": "Q3 launch",
+    "description": "Description",
+    "descriptionPlaceholder": "What this project is for",
+    "defaultAgent": "Default agent",
+    "defaultAgentHint": "A new chat in the project starts with this agent. Any agent can still answer in it.",
+    "instructions": "Instructions",
+    "instructionsHint": "Every agent answering in the project reads these after its own.",
+    "details": "Details",
+    "instructionsPlaceholder": "Write in British English. The brand guide is in brand/guide.pdf.",
+    "whoWorksInIt": "Who works in it",
+    "cancel": "Cancel",
+    "create": "Create",
+    "save": "Save",
+    "newChat": "New chat",
+    "chats": "Chats",
+    "files": "Files",
+    "untitledChat": "Untitled chat",
+    "columnChat": "Chat",
+    "columnStartedBy": "Started by",
+    "columnAgents": "Agents",
+    "columnActivity": "Last activity",
+    "columnPeople": "People",
+    "appCount": "{count, plural, =1 {1 app} other {# apps}}",
+    "moreChats": "Show more chats",
+    "hereNow": "Here now: {names}",
+    "seenBy": "Seen by {names}",
+    "moreReaders": "+{count}",
+    "isWorking": "{name} is working",
+    "noChatsYet": "No chats in this project yet",
+    "noChatsHint": "Start one: it reads the project's instructions and works in its files.",
+    "noChatsViewer": "You can read this project's files and instructions, but not chat in it.",
+    "uploadFiles": "Upload files",
+    "uploadFolder": "Upload folder",
+    "newFolder": "New folder",
+    "folderName": "Folder name",
+    "folderPlaceholder": "reports",
+    "remove": "Remove",
+    "removeTitle": "Remove {path}?",
+    "removeBody": "It goes for every chat and agent in the project. A folder goes with everything in it.",
+    "delete": "Delete",
+    "deleteProject": "Delete project",
+    "deleteProjectHint": "Its files go with it. Its chats stay, as ordinary chats.",
+    "deleteTitle": "Delete {name}?",
+    "cannotSee": "You cannot see projects in this organization",
+    "askForAccess": "Ask an administrator for access to projects.",
+    "search": "Search projects",
+    "noMatches": "No projects match",
+    "searchedNames": "Names and descriptions are searched.",
+    "noProjectsYet": "No projects yet",
+    "noProjectsHint": "A project keeps instructions and files that every chat in it shares.",
+    "pickTitle": "Work in a project",
+    "pickHint": "The chat reads the project's instructions and works in its files. It stays in the project.",
+    "noProject": "No project",
+    "noProjectHint": "An ordinary chat",
+    "manageProjects": "New or all projects",
+    "leaveProject": "Start outside {name}",
+    "apps": "Apps",
+    "noAppsYet": "No apps made in this project yet",
+    "noAppsHint": "An app an agent publishes in one of the project's chats - a report, a dashboard - appears here.",
+    "uploadFailed": "The upload failed",
+    "noFilesYet": "Nothing in this project yet",
+    "noFilesHint": "Drop files or a whole folder here, or upload them. Every chat in the project reads and works in them.",
+    "noFilesViewer": "Files added to the project will appear here."
+  },
+  "voiceGlow": {
+    "title": "Voice glow",
+    "vivid": "Vivid",
+    "subtle": "Subtle",
+    "off": "Off",
+    "reducedMotion": "Off while reduced motion is on"
+  },
+  "appearance": {
+    "description": "How the console looks and moves for you. Kept in this browser and applied at once.",
+    "theme": "Theme",
+    "voiceGlowHint": "How the chat box reacts to your voice while dictating",
+    "motion": "Motion",
+    "system": "System",
+    "reduce": "Reduce",
+    "full": "Full",
+    "motionHint": "System follows your operating system's setting. Reduce turns off the voice glow and slide animations."
   }
 }

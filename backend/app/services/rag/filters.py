@@ -23,8 +23,6 @@ This module is trust-boundary validation, so it is held to the 100% coverage
 gate (unlike the template-inherited rest of `app/services/rag/*`).
 """
 
-from __future__ import annotations
-
 import re
 from datetime import date
 from enum import StrEnum

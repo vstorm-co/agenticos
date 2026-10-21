@@ -172,6 +172,7 @@ describe("visibleSections", () => {
     expect(deployment.map((entry) => entry.widget)).toEqual([
       "platform",
       "health",
+      "background-jobs",
       "top-orgs",
       "platform-ratings",
     ]);

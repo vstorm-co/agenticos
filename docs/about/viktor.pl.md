@@ -1,5 +1,5 @@
 ---
-source_sha: "174f12cba031"
+source_sha: "95b659c100bc"
 title: "AgenticOS vs Viktor"
 seo_title: "AgenticOS vs Viktor: self-hosted alternatywa dla Viktora"
 description: "Viktor to jeden współpracownik AI na workspace Slacka lub Teams. AgenticOS: wielu zarządzanych agentów, dowolny model i budżet per agent na twoich serwerach."
@@ -20,7 +20,7 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 25 września 2026. Wersja baz
 | Co dostajesz | Jednego wspólnego „pracownika AI” na workspace | Dowolną liczbę agentów, każdy jako wersjonowany spec |
 | Gdzie działa | Chmura Viktor, hostowana w AWS us-east-1 | Twoja infrastruktura, z Docker Compose |
 | Źródła | Własnościowe | Apache-2.0 |
-| Modele | Presety OpenAI, Anthropic, Google i Kimi; własny klucz OpenRouter | 27 providerów, w tym Ollama i LiteLLM na twoim sprzęcie |
+| Modele | Presety OpenAI, Anthropic, Google i Kimi; własny klucz OpenRouter | 28 providerów, w tym Ollama i LiteLLM na twoim sprzęcie |
 | Wiedza | Pamięć workspace'u i podłączone narzędzia | Kolekcje dokumentów w twoim Postgresie, z pięcioma konektorami synchronizacji |
 | Powierzchnie | Slack, Teams, Discord, własna skrzynka e-mail, aplikacje web, desktop i mobilne, API | Czat webowy, widget, hostowana strona, HTTP API, WebSocket, Slack, Telegram, Mattermost |
 | Dostęp | Na poziomie workspace'u; jego strony różnią się w opisie dostępu opartego na rolach | Sześć ról, 27 uprawnień i granty per zasób, w każdej organizacji |

@@ -11,12 +11,13 @@ import {
   ExternalLink,
   MessageSquare,
   Play,
+  Wrench,
   X,
 } from "lucide-react";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { RunStatusBadge } from "@/components/agents/status-badge";
-import { SurfaceIcon, surfaceLabel } from "@/components/runs/surface-icon";
+import { ModalityBadge, SurfaceIcon, surfaceLabel } from "@/components/runs/surface-icon";
 import { RunManifest } from "@/components/runs/run-manifest";
 import { RunTimeline } from "@/components/runs/run-timeline";
 import { ProviderIcon } from "@/components/vault/provider-icon";
@@ -252,6 +253,7 @@ export function FocusedRun({
           <span className="flex items-center gap-1.5">
             <SurfaceIcon surface={run.surface} />
             {surfaceLabel(run.surface, t)}
+            <ModalityBadge modality={run.modality} />
           </span>
           <span className="flex items-center gap-1.5">
             {run.provider !== null && (
@@ -290,6 +292,24 @@ export function FocusedRun({
           </Fact>
           <Fact label={t("took")}>{formatRunDuration(run.started_at, run.ended_at)}</Fact>
         </dl>
+
+        {!!run.tool_args_repaired && (
+          <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+            <Wrench className="size-3.5 shrink-0" aria-hidden />
+            {t("toolArgsRepaired", { count: run.tool_args_repaired })}
+          </p>
+        )}
+
+        {/* The input above includes the cache's share, priced apart from the rest:
+            this is what reconciles a run with the provider's console (#2170). */}
+        {!!(run.cache_read_tokens || run.cache_write_tokens) && (
+          <p className="text-muted-foreground text-xs">
+            {t("cacheSplit", {
+              read: run.cache_read_tokens ?? 0,
+              write: run.cache_write_tokens ?? 0,
+            })}
+          </p>
+        )}
 
         {/* Hidden when it holds none of the three, rather than repeating all
             three conditions around it. */}

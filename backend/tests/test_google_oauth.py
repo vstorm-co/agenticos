@@ -7,8 +7,6 @@ response this module lets raise past `GoogleOAuthError` strands a consent flow o
 a 500 the user can do nothing about.
 """
 
-from __future__ import annotations
-
 from typing import Any
 from unittest.mock import patch
 

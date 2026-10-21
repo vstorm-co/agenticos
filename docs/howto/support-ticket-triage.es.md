@@ -1,5 +1,5 @@
 ---
-source_sha: "9121fc5ca757"
+source_sha: "716cdf4abccd"
 title: "Clasifica las solicitudes de soporte entrantes desde tu propia app"
 description: "Dispara un agent desde tu propio backend con un webhook firmado y haz que clasifique, redacte una respuesta y señale los informes de seguridad."
 ---
@@ -87,7 +87,7 @@ Repite con T-1002 y T-1003. Cada entrega aceptada responde `202`: aceptada, no t
 ## Cuando algo sale mal { #when-it-goes-wrong }
 
 - **Cada entrega vuelve con `403`.** La firma cubre los bytes *exactos* enviados. `echo` añade un salto de línea final que puede coincidir o no con lo firmado; usa `printf '%s'` y `curl --data-raw`, y nunca dejes que un cliente vuelva a codificar un diccionario después de firmar la cadena.
-- **`202` pero no aparece ningún run.** Significa aceptado, no terminado: un flow de Prefect lo ejecuta en el worker. Dale unos segundos y revisa Activity filtrando por el agent.
+- **`202` pero no aparece ningún run.** Significa aceptado, no terminado: un job lo ejecuta en el worker. Dale unos segundos y revisa Activity filtrando por el agent; si nunca aparece nada, busca el job `fire-trigger` en la página Background jobs.
 - **La señal de seguridad no se activó.** La señal sale de las instrucciones, no de un clasificador integrado; vuelve a leer el prompt del trigger y precisa qué cuenta como informe de seguridad si se escapa un caso sintético como T-1003.
 - **Solo quieres probar el prompt, no la vía de entrega.** Usa primero **Run now** en el trigger: dispara el prompt base del agent sin contexto de entrega, sin firma y sin webhook. No pondrá a prueba la clasificación, porque no hay JSON de ticket que clasificar, pero confirma que el agent, su budget y su estado de publicación funcionan.
 - **Zapier o Make en lugar de un script.** Ninguno tiene una acción HMAC integrada; calcula una hora para un paso de código que firme el cuerpo, no cinco minutos de clics. Consulta [los triggers](../triggers.md#zapier-and-make-cannot-do-this-without-a-code-step).

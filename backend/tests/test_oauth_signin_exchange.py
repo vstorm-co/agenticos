@@ -6,8 +6,6 @@ refresh token is good for a week. The callback therefore hands out a single-use
 code that the frontend swaps for the pair server to server.
 """
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 from urllib.parse import parse_qs, urlparse

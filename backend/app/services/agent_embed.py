@@ -23,8 +23,6 @@ Step 2 is the one place the three kinds diverge at admission: a `widget` and a
 this deployment's own origin, because it is the only site that serves one.
 """
 
-from __future__ import annotations
-
 import contextlib
 import logging
 import secrets
@@ -42,15 +40,19 @@ from app.core.config import settings
 from app.core.exceptions import (
     BadRequestError,
     NotFoundError,
+    RateLimitError,
 )
+from app.core.field_errors import refused_field
+from app.core.logging import one_line
 from app.core.permissions import AuthContext, Perm
 from app.core.vault import VaultScope, current_key_version, seal_fields, unseal
-from app.db.models.agent import Agent
+from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_embed import AgentEmbed
 from app.db.models.chat_file import ChatFile
 from app.db.updates import cleared, writable
 from app.repositories import agent_embed_repo, agent_repo, organization_repo
 from app.schemas.agent_embed import (
+    DictationMode,
     EmbedConfig,
     EmbedCreate,
     EmbedRead,
@@ -61,9 +63,15 @@ from app.schemas.agent_embed import (
     PublicPageConfig,
     WidgetConfig,
 )
+from app.services import rate_limit
 from app.services.agent_registry import AgentRegistryService
 from app.services.file_storage import IMAGE_MIME_TYPES, MAX_AVATAR_SIZE, get_file_storage
 from app.services.file_upload import FileUploadService
+from app.services.ml import MLService
+from app.services.realtime_models import Transport
+from app.services.speech_to_text import RecordingFormat
+from app.services.transcription_usage import TranscriptionCall
+from app.services.voice import VoiceSettingsService
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +104,32 @@ class Admission:
     visitor: str | None
 
 
+@dataclass(frozen=True)
+class PublicDictation:
+    """What a public config says about the microphone, after the readiness check."""
+
+    mode: DictationMode
+    max_seconds: int
+    format: RecordingFormat
+
+
+_DICTATION_DEFAULT_SECONDS = 300
+"""What a public config says the limit is when the organization was not read.
+
+Only sent with `off` or `browser`, where nothing is recorded by the page and the
+figure is never used - so reading the organization on every page load to fill it
+in would be a query for nothing.
+"""
+
+_SERVER_DICTATION_UNAVAILABLE = (
+    "Server dictation needs a speech-to-text provider and a key for it, set for this "
+    "agent or for the organization. Set one up on the Voice card, or choose Browser or Off."
+)
+
+
+_VOICE_UNAVAILABLE = "Voice calls need a voice set up on this agent's Voice card, and published."
+
+
 class EmbedDenied(Exception):
     """The widget refuses this visitor, and the reason is not theirs to know.
 
@@ -103,6 +137,11 @@ class EmbedDenied(Exception):
     caller cannot accidentally tell a stranger which of the three it was, and
     an origin probe learns nothing about tokens.
     """
+
+
+def _runs(agent: Agent) -> bool:
+    """Whether the agent behind an embed has a published version anybody runs."""
+    return agent.current_version_id is not None and agent.status != AgentStatus.ARCHIVED.value
 
 
 def _own_origin() -> str:
@@ -160,6 +199,8 @@ class AgentEmbedService:
         self._check_origins(kind, [str(origin) for origin in data.allowed_origins])
         if kind == "page":
             self._check_page(data.auth_mode, data.context_variables)
+        await self._check_dictation(agent, before=None, after=data.config)
+        await self._check_voice_conversation(agent, before=None, after=data.config)
 
         sealed_jwt, jwt_version = self._seal(ctx.organization_id, data.jwt_secret)
         embed = AgentEmbed(
@@ -197,7 +238,7 @@ class AgentEmbedService:
     async def update(self, ctx: AuthContext, embed_id: UUID, data: EmbedUpdate) -> EmbedRead:
         """Change a widget. The agent it points at is not changeable - see `EmbedUpdate`."""
         embed = await self._owned(ctx, embed_id)
-        await self.agents.get(ctx, embed.agent_id, perm=Perm.AGENTS_PUBLISH)
+        agent = await self.agents.get(ctx, embed.agent_id, perm=Perm.AGENTS_PUBLISH)
 
         # `writable` rather than a dump: on an `*Update` a `None` is the "not
         # provided" sentinel, and `exclude_unset` keeps an explicitly sent one - so
@@ -236,6 +277,9 @@ class AgentEmbedService:
         # sensible request by doing nothing at all.
         if "config" in changes or cleared(data, "config"):
             config = self._parse_config(changes.get("config"), kind=embed.kind)
+            stored = _CONFIG_ADAPTER.validate_python(embed.config)
+            await self._check_dictation(agent, before=stored, after=config)
+            await self._check_voice_conversation(agent, before=stored, after=config)
             changes["config"] = config.model_dump()
         if "context_variables" in changes or cleared(data, "context_variables"):
             # "Declare none", for the same reason: a widget that declares nothing is
@@ -375,13 +419,16 @@ class AgentEmbedService:
         embed = await agent_embed_repo.get_by_key(self.db, public_key)
         if embed is None or not embed.is_active:
             raise EmbedDenied("unknown or inactive embed")
+        return self._admit(embed, origin=origin, token=token)
 
+    def _admit(self, embed: AgentEmbed, *, origin: str | None, token: str | None) -> Admission:
+        """Steps 2 and 3 of admission, on a row already found active."""
         if not self._origin_allowed(embed, origin):
             # Logged, not answered: the person who needs this message is the
             # operator wondering why their embed is silent, not the caller.
             logger.info(
                 "embed_origin_refused",
-                extra={"embed_id": str(embed.id), "kind": embed.kind, "origin": origin},
+                extra={"embed_id": str(embed.id), "kind": embed.kind, "origin": one_line(origin)},
             )
             raise EmbedDenied("origin not allowed")
 
@@ -410,6 +457,10 @@ class AgentEmbedService:
         declared = [
             EmbedVariable.model_validate(variable) for variable in (embed.context_variables or [])
         ]
+        dictation = await self._public_dictation(embed, agent, config.dictation)
+        voice_conversation, voice_transport = await self._public_voice(
+            embed, agent, enabled=config.voice_conversation
+        )
         return PublicPageConfig(
             title=config.title or (agent.name if agent else "Assistant"),
             welcome=config.welcome,
@@ -417,7 +468,11 @@ class AgentEmbedService:
             logo_url=await self._logo_url(embed, config),
             agent_name=agent.name if agent else "Assistant",
             variables=[variable.name for variable in declared if variable.url_safe],
-            allow_voice=config.allow_voice,
+            dictation=dictation.mode,
+            dictation_max_seconds=dictation.max_seconds,
+            dictation_format=dictation.format,
+            voice_conversation=voice_conversation,
+            voice_transport=voice_transport,
             allow_new_conversation=config.allow_new_conversation,
             allow_files=config.allow_files,
         )
@@ -544,6 +599,21 @@ class AgentEmbedService:
             return None
         return embed
 
+    async def find_voice_widget(self, public_key: str) -> AgentEmbed | None:
+        """The widget a key names, if its call script is to be served (#54).
+
+        Active and with its stored voice switch on; no origin check, for the
+        reason `find_public` gives. Whether a call would actually start - the
+        organization's switch, the agent's voice - is the public config's to say
+        and the socket's to refuse: the script decides nothing.
+        """
+        embed = await self.find_public(public_key)
+        if embed is None or not embed.is_active:
+            return None
+        if not WidgetConfig.model_validate(embed.config).voice_conversation:
+            return None
+        return embed
+
     async def public_config(self, embed: AgentEmbed) -> PublicEmbedConfig:
         """What the widget renders itself from, before anybody authenticates.
 
@@ -557,6 +627,10 @@ class AgentEmbedService:
             raise EmbedDenied("not a widget")
         agent = await agent_repo.get(self.db, embed.agent_id, organization_id=embed.organization_id)
         config = WidgetConfig.model_validate(embed.config)
+        dictation = await self._public_dictation(embed, agent, config.dictation)
+        voice_conversation, voice_transport = await self._public_voice(
+            embed, agent, enabled=config.voice_conversation
+        )
         avatar_url, avatar_thinking_url = await self._widget_faces(embed, agent)
         return PublicEmbedConfig(
             title=config.title,
@@ -571,7 +645,254 @@ class AgentEmbedService:
             agent_name=agent.name if agent else "Assistant",
             avatar_url=avatar_url,
             avatar_thinking_url=avatar_thinking_url,
+            dictation=dictation.mode,
+            dictation_max_seconds=dictation.max_seconds,
+            dictation_format=dictation.format,
+            voice_conversation=voice_conversation,
+            voice_transport=voice_transport,
         )
+
+    async def admit_dictation(
+        self,
+        public_key: str,
+        *,
+        origin: str | None,
+        token: str | None,
+        visitor_key: str | None,
+    ) -> Admission:
+        """Admit a visitor sending a recording, by the rules of the surface they are on.
+
+        The kinds take different paths, and neither borrows the other's:
+
+        - **widget** - `admit`, exactly as the socket: the origin against the
+          allow-list, and in `jwt` mode the customer's signed token.
+        - **page** - no origin check, as for everything else a page does (see
+          `find_page`), and a well-formed continuity key, as an upload needs.
+          The page's own `X-Visitor-Key` header is what makes a third-party
+          site's browser unable to send one at all: a custom header is a CORS
+          preflight, and only this deployment's own origin passes it.
+        - **socket** - nothing to dictate into, so the same refusal as an
+          unknown key.
+
+        `visitor_key` is the continuity key already checked for shape
+        (`embed_session.continuity_key`), or `None`.
+
+        Raises:
+            EmbedDenied: For every refusal about the embed, without saying which.
+            BadRequestError: A page reached without a usable visitor key - which
+                is about what the caller sent, not about the page.
+        """
+        embed = await agent_embed_repo.get_by_key(self.db, public_key)
+        if embed is None or not embed.is_active:
+            raise EmbedDenied("unknown or inactive embed")
+        if embed.kind == "widget":
+            return self._admit(embed, origin=origin, token=token)
+        if embed.kind == "page":
+            if visitor_key is None:
+                raise BadRequestError(
+                    message="A visitor key is required", details={"header": "X-Visitor-Key"}
+                )
+            return Admission(embed=embed, visitor=None)
+        raise EmbedDenied("a socket has no microphone")
+
+    async def admit_voice(
+        self,
+        public_key: str,
+        *,
+        origin: str | None,
+        token: str | None,
+        visitor_key: str | None,
+    ) -> Admission:
+        """Admit a visitor opening a voice call, by the rules of the embed socket (#54).
+
+        - **widget** - `admit`'s rules: the origin against the allow-list, and in
+          `jwt` mode the customer's signed token.
+        - **page** - this deployment's own origin, as the page's chat socket is
+          checked, plus a well-formed continuity key: the call lands in the thread
+          that key holds. A socket handshake carries no custom header, so the
+          origin is what keeps a third-party site from opening one; the dictation
+          route's preflight argument does not apply here.
+        - **socket** - nothing to call from, so the same refusal as an unknown key.
+
+        Then the stored config's `voice_conversation` has to be on. Whether a call
+        would actually start - the organization's switch, the agent's voice, the
+        month's minutes - is the call's own refusal, sent on the socket.
+
+        Raises:
+            EmbedDenied: For every refusal about the embed, without saying which.
+            BadRequestError: A page reached without a usable visitor key.
+        """
+        embed = await agent_embed_repo.get_by_key(self.db, public_key)
+        if embed is None or not embed.is_active or embed.kind == "socket":
+            raise EmbedDenied("unknown, inactive or a socket")
+        admission = self._admit(embed, origin=origin, token=token)
+        if embed.kind == "page" and visitor_key is None:
+            raise BadRequestError(message="A visitor key is required", details={"query": "visitor"})
+        config = _CONFIG_ADAPTER.validate_python(embed.config)
+        if not isinstance(config, PageConfig | WidgetConfig) or not config.voice_conversation:
+            raise EmbedDenied("voice calls are off")
+        return admission
+
+    async def dictate(
+        self,
+        admission: Admission,
+        *,
+        content: bytes,
+        mime_type: str,
+        reported_seconds: float | None,
+    ) -> str:
+        """Transcribe a visitor's recording on the organization's own engine (#1797).
+
+        The gate is **this embed's** `dictation` setting, and nothing else: the
+        organization's `/chat` engine is about the console's composer, and an
+        organization that keeps its members on the browser's recogniser may still
+        want a page that does not hand a visitor's voice to a browser vendor. So
+        the organization is passed to `MLService.transcribe_dictation` only when
+        the embed says `server`; the provider, model, language and the longest
+        dictation are resolved there, the same as for the composer.
+
+        The agent has to be published and not archived: there is nothing for the
+        text to be sent to otherwise, and a paid transcription for a message the
+        socket would refuse is money spent on nothing.
+
+        **Raw PCM unless the deployment accepts compressed audio**, whose
+        length is its size, so the link's rate limit times the longest
+        dictation bounds what a stranger can spend exactly. Where compressed
+        audio is accepted, **a recording whose length cannot be read is
+        refused** (`unsupported_type`), where the console accepts one under its
+        byte cap: the length is what the provider bills, the visitor is a
+        stranger, and bytes alone let low-bitrate Opus carry hours.
+
+        **The usage row has no requester**, a `jwt` visitor included - neither is
+        a member, and attributing a stranger's call to whoever published the page
+        would put it on a person's record who never made it. It carries the
+        surface (`hosted` or `widget`) and the agent instead.
+
+        Raises:
+            EmbedDenied: Not `server`, or no published agent behind it.
+            RateLimitError: A `jwt` visitor past their own allowance.
+            ConfigurationError, BadRequestError, ExternalServiceError: As
+                `MLService.transcribe_dictation`, with the same `reason`s.
+        """
+        embed = admission.embed
+        config = _CONFIG_ADAPTER.validate_python(embed.config)
+        if not isinstance(config, PageConfig | WidgetConfig) or config.dictation != "server":
+            raise EmbedDenied("this embed does not take recordings")
+        agent = await agent_repo.get(self.db, embed.agent_id, organization_id=embed.organization_id)
+        if agent is None or not _runs(agent):
+            raise EmbedDenied("nothing published to dictate to")
+        if admission.visitor is not None:
+            decision = await rate_limit.embed_dictation_visitor_allowed(
+                public_key=embed.public_key, visitor=admission.visitor
+            )
+            if not decision.allowed:
+                raise RateLimitError(
+                    message="Too many dictations in the last minute. Wait and try again.",
+                    details={"retry_after_seconds": decision.retry_after_seconds},
+                )
+        # The link's ceiling once admitted, so nobody without a valid token can
+        # spend it for the visitors who have one (Codex on #2204).
+        decision = await rate_limit.embed_dictation_link_allowed(public_key=embed.public_key)
+        if not decision.allowed:
+            raise RateLimitError(
+                message="Too many dictations in the last minute. Wait and try again.",
+                details={"retry_after_seconds": decision.retry_after_seconds},
+            )
+        organization = await organization_repo.get_by_id(self.db, embed.organization_id)
+        return await MLService(self.db).transcribe_dictation(
+            TranscriptionCall(
+                organization_id=embed.organization_id,
+                surface="hosted" if embed.kind == "page" else "widget",
+                provider=None,
+                model=None,
+                agent_id=agent.id,
+            ),
+            organization=organization,
+            agent=agent,
+            content=content,
+            mime_type=mime_type,
+            reported_seconds=reported_seconds,
+            accept_unmeasured=False,
+        )
+
+    async def _public_dictation(
+        self, embed: AgentEmbed, agent: Agent | None, mode: DictationMode
+    ) -> PublicDictation:
+        """What a public config tells the page about its microphone.
+
+        Only `server` is checked, and it is sent as `off` whenever a recording
+        would be refused as `not_configured` - no published agent, no pair, or
+        no credential. A visitor is owed a page without a microphone rather than
+        one that fails, and nothing about the operator's setup; the operator
+        sees the same answer as a disabled choice in the embed form.
+        """
+        if mode != "server":
+            return PublicDictation(mode=mode, max_seconds=_DICTATION_DEFAULT_SECONDS, format="wav")
+        organization = await organization_repo.get_by_id(self.db, embed.organization_id)
+        if organization is None or agent is None or not _runs(agent):
+            return PublicDictation(mode="off", max_seconds=_DICTATION_DEFAULT_SECONDS, format="wav")
+        server = await MLService(self.db).server_dictation(agent)
+        return PublicDictation(
+            mode="server" if server.available else "off",
+            max_seconds=organization.dictation_max_seconds,
+            format=server.format,
+        )
+
+    async def _check_dictation(
+        self, agent: Agent, *, before: EmbedConfig | None, after: EmbedConfig
+    ) -> None:
+        """Refuse switching `server` on while no provider would answer it.
+
+        Only the switch is checked - a config that *becomes* `server` - and not
+        every save of one that already is: a credential deleted since would
+        otherwise make a page impossible to rename, and the public config
+        already sends such a page as `off`. The same readiness the form reads
+        (`server_available`), so a choice the form offers is one this accepts.
+        """
+        if not isinstance(after, PageConfig | WidgetConfig) or after.dictation != "server":
+            return
+        if isinstance(before, PageConfig | WidgetConfig) and before.dictation == "server":
+            return
+        if not (await MLService(self.db).server_dictation(agent)).available:
+            raise refused_field("config.dictation", _SERVER_DICTATION_UNAVAILABLE)
+
+    async def _public_voice(
+        self, embed: AgentEmbed, agent: Agent | None, *, enabled: bool
+    ) -> tuple[bool, Transport | None]:
+        """Whether a public config offers a call, and over which transport (#54).
+
+        Offered only while a call would start for a visitor - the embed's switch,
+        a published agent, and its Voice section ready - and otherwise
+        sent as off with no transport: a visitor gets no call button rather than
+        one that fails, and nothing about the operator's setup.
+        """
+        if not enabled or agent is None or not _runs(agent):
+            return False, None
+        readiness = await VoiceSettingsService(self.db).readiness(
+            organization_id=embed.organization_id, agent=agent
+        )
+        if not readiness.available or readiness.transport is None:
+            return False, None
+        return True, readiness.transport
+
+    async def _check_voice_conversation(
+        self, agent: Agent, *, before: EmbedConfig | None, after: EmbedConfig
+    ) -> None:
+        """Refuse switching calls on while no call could start - the dictation rule.
+
+        Only the switch is checked, not every save of an embed already on: a key
+        deleted since must not make the page impossible to rename, and the public
+        config already sends such an embed as off.
+        """
+        if not isinstance(after, PageConfig | WidgetConfig) or not after.voice_conversation:
+            return
+        if isinstance(before, PageConfig | WidgetConfig) and before.voice_conversation:
+            return
+        readiness = await VoiceSettingsService(self.db).readiness(
+            organization_id=agent.organization_id, agent=agent
+        )
+        if not readiness.available:
+            raise refused_field("config.voice_conversation", _VOICE_UNAVAILABLE)
 
     async def _widget_faces(self, embed: AgentEmbed, agent: Agent | None) -> tuple[str, str | None]:
         """The widget's avatar, at rest and mid-thought.

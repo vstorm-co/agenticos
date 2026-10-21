@@ -13,6 +13,7 @@ import {
   PopoverTrigger,
   RingingBell,
 } from "@/components/ui";
+import { NotificationGlyph } from "@/components/layout/notification-glyph";
 import { useNotificationInbox, useUnreadNotificationCount } from "@/hooks";
 import { isInAppPath } from "@/lib/notification-link";
 import type { Notification } from "@/lib/notifications-api";
@@ -235,7 +236,7 @@ function NotificationRow({
   const locale = useLocale();
   const unread = item.read_at === null;
   const rowClassName =
-    "hover:bg-muted/60 focus-visible:ring-ring flex w-full items-start gap-2 rounded-md px-2 py-2 pr-7 text-left outline-none focus-visible:ring-2";
+    "hover:bg-muted/60 focus-visible:ring-ring flex w-full items-start gap-3 rounded-md px-2 py-2 pr-7 text-left outline-none focus-visible:ring-2";
 
   // A row's own click is fire-and-forget: nothing here needs to know its
   // outcome, but an unhandled rejection (a row the read-time gate has since
@@ -257,13 +258,7 @@ function NotificationRow({
 
   const content = (
     <>
-      <span
-        aria-hidden
-        className={cn(
-          "mt-1.5 size-1.5 shrink-0 rounded-full",
-          unread ? "bg-primary" : "bg-transparent",
-        )}
-      />
+      <NotificationGlyph item={item} />
       <span className="min-w-0 flex-1">
         <span className="sr-only">
           {unread ? tNotifications("rowUnread") : tNotifications("rowRead")}
@@ -280,6 +275,13 @@ function NotificationRow({
           {timeAgo(item.created_at, tTime, locale)}
         </span>
       </span>
+      <span
+        aria-hidden
+        className={cn(
+          "mt-1.5 size-2 shrink-0 rounded-full",
+          unread ? "bg-primary" : "bg-transparent",
+        )}
+      />
     </>
   );
 

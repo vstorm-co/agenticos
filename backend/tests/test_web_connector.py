@@ -8,8 +8,6 @@ the address that check approved; DNS is stubbed so the check has something to
 resolve.
 """
 
-from __future__ import annotations
-
 import hashlib
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta

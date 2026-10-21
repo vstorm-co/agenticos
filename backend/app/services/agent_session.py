@@ -2,13 +2,16 @@
 import asyncio
 import contextlib
 import logging
+import time
+from collections.abc import Mapping
 from typing import Any, NamedTuple
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import WebSocket, WebSocketDisconnect
 from pydantic_ai.exceptions import CallDeferred, ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai_harness.ask_user import AskUserRequest, AskUserResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.ask_user import (
     QuestionChoice,
@@ -24,16 +27,19 @@ from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.compaction_events import CompactionEvent
 from app.agents.connect_on_use import ConnectionRequest
 from app.agents.failures import run_failure_summary
+from app.agents.loop_guard import ToolLoopStopped
 from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentEvent
+from app.agents.visual_reports import VisualReports
 from app.core.config import settings
-from app.core.exceptions import AppException, AuthenticationError
+from app.core.exceptions import AppException, AuthenticationError, NotFoundError
 from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.db.session import get_db_context
-from app.repositories import agent_repo, agent_run_repo
-from app.schemas.conversation import MessagePart
+from app.repositories import agent_repo, agent_run_repo, conversation_repo, member_repo
+from app.schemas.conversation import ChatPerson, MessagePart
+from app.services import chat_room, live_turn, redis_view
 from app.services.agent import (
     persist_assistant_turn,
     persist_user_turn,
@@ -46,6 +52,7 @@ from app.services.agent_chat import (
     requested_agent_id,
     requested_approval_mode,
     requested_environment_id,
+    requested_mentions,
     requested_model_profile_id,
     requested_testing,
     requested_time_zone,
@@ -60,6 +67,23 @@ from app.services.usage_report import usage_frame
 from app.services.ws_auth import authenticate_socket_token
 
 logger = logging.getLogger(__name__)
+
+RECHECK_SECONDS = 30.0
+"""How often a turn being followed asks again whether its reader may still read it."""
+
+ROOM_READS_FOR_SECONDS = 5.0
+"""How long a room's reader, once asked, is taken to still read it.
+
+Every piece of a room's news asks again - each keystroke announced, each
+arrival - and in a busy room that was a credential, membership and conversation
+query per reader per announcement. A reader removed is still cut off within
+this long."""
+
+ROOM_RETRY_SECONDS = 5.0
+"""How long a socket whose room subscription failed waits before listening again."""
+
+TYPING_EVERY_SECONDS = 2.0
+"""The least time between two "typing" announcements from one socket; the console sends one every three."""
 
 # Said to a frame that names no agent. There is nothing else a frame could run:
 # the general assistant the template shipped is gone, and guessing an agent on
@@ -211,11 +235,35 @@ class AgentSession:
         # What the person adds to the running turn (#2087). Set for the length of
         # a turn by `process_message`, None between turns.
         self._steering: SteeringInbox | None = None
+        # How the turn's drawings rendered in this tab (#2171), for the same span.
+        self._visual_reports: VisualReports | None = None
         # The running turn's agent and run, and how the turn ended - read by
         # `shutdown` to tell a person who left before the answer came (#2108).
         self._turn_agent_id: UUID | None = None
         self._turn_runs: list[OpenedRun] = []
         self._outcome: _Outcome | None = None
+        # The conversation whose running turn this socket is writing, and that
+        # turn's handle, which every frame is also kept under for a person who
+        # comes back to it; and the turn this socket is following instead, from
+        # another socket (`attach`).
+        self._live: str | None = None
+        self._live_turn: live_turn.Turn | None = None
+        self._follower: asyncio.Task[None] | None = None
+        # The conversation this socket has open, as one of the people in its
+        # room (`chat_room`), and the task keeping it there.
+        self._room: str | None = None
+        # This socket's own entry in the room, beside the person's other tabs.
+        self._socket = uuid4().hex
+        self._room_task: asyncio.Task[None] | None = None
+        # Until when the room this socket is in was last found readable - see
+        # `ROOM_READS_FOR_SECONDS`.
+        self._reads_until = float("-inf")
+        # When this socket last told its room the person is typing - see `typing`.
+        self._typed_at = float("-inf")
+        # Set by `shutdown`. A room joined or a turn followed after it - by a turn
+        # still running past the socket, or an `attach` that was mid-query when
+        # the socket went - would count a closed tab as present until it expired.
+        self._closed = False
 
     async def handle_frame(self, data: dict[str, Any]) -> None:
         """Dispatch one incoming WebSocket frame.
@@ -274,11 +322,24 @@ class AgentSession:
             if inbox is None or self._turn_task is None or self._turn_task.done():
                 # The turn ended between the click and the frame: nothing left to
                 # steer, so the client sends it as an ordinary message instead.
-                await send_event(self.websocket, "steer_unapplied", {"texts": [text]})
+                await self._emit("steer_unapplied", {"texts": [text]})
                 return
             if not await self._reauthorize():
                 return
             inbox.add(text)
+            return
+
+        if msg_type == "visual_report":
+            reports = self._visual_reports
+            call_id = data.get("tool_call_id")
+            raw = data.get("errors")
+            if reports is None or not isinstance(call_id, str) or not isinstance(raw, list):
+                return
+            if self._turn_task is None or self._turn_task.done():
+                return
+            if not await self._reauthorize():
+                return
+            reports.resolve(call_id, [str(error) for error in raw])
             return
 
         if msg_type == "connect_account_response":
@@ -290,6 +351,30 @@ class AgentSession:
             waiting.set_result(data.get("connected") is True)
             return
 
+        if msg_type == "attach":
+            if not await self._reauthorize():
+                return
+            await self._attach(data.get("conversation_id"))
+            return
+
+        if msg_type == "unfollow":
+            # Stop on a turn this socket only follows: it is somebody else's to
+            # stop, so this tab stops drawing it and stays in the room.
+            await self._stop_following()
+            return
+
+        if msg_type == "typing":
+            # Only into the room this socket is in, which `attach` checked; no
+            # credential query, since a keystroke is not an action, and the
+            # people hearing it are re-checked before it reaches them. At most
+            # one per `TYPING_EVERY_SECONDS`, whatever the client sends: each
+            # costs everybody else in the room a lookup of who is typing.
+            now = time.monotonic()
+            if self._room is not None and now - self._typed_at >= TYPING_EVERY_SECONDS:
+                self._typed_at = now
+                await chat_room.typing(self._room, self.user.id)
+            return
+
         if msg_type is not None:
             return
 
@@ -299,6 +384,8 @@ class AgentSession:
 
         if not await self._reauthorize():
             return
+        # Asking something here is watching this socket's own turn, not another's.
+        await self._stop_following()
         task = asyncio.create_task(self._run_turn(data))
         self._turn_task = task
         task.add_done_callback(self._on_turn_done)
@@ -361,8 +448,7 @@ class AgentSession:
         try:
             await self.process_message(data)
         except asyncio.CancelledError:
-            await send_event(
-                self.websocket,
+            await self._emit(
                 "complete",
                 {
                     "conversation_id": self.current_conversation_id,
@@ -373,12 +459,7 @@ class AgentSession:
 
     async def _cancel_turn(self) -> None:
         """Cancel the in-flight turn task and wait for it to unwind."""
-        task = self._turn_task
-        if task is None or task.done():
-            return
-        task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await task
+        await _cancelled(self._turn_task)
 
     async def shutdown(self) -> None:
         """Let the in-flight turn finish without its socket, then stop it.
@@ -393,8 +474,15 @@ class AgentSession:
         `stop` is untouched. `handle_frame` still cancels immediately there,
         because somebody asked.
         """
+        self._closed = True
+        # Read before leaving the room, which waits on its tasks and on Redis: a
+        # turn that ends meanwhile still ended with nobody watching it.
         task = self._turn_task
-        if task is None or task.done():
+        if task is not None and task.done():
+            task = None
+        await self._stop_following()
+        await self._leave_room()
+        if task is None:
             return
         # Released before the wait. A run paused on `ask_user` is waiting for an
         # answer from somebody who is no longer there and cannot reach its own
@@ -450,17 +538,38 @@ class AgentSession:
         file_ids = data.get("file_ids", [])
 
         if not user_message and not file_ids:
-            await send_event(self.websocket, "error", {"message": "Empty message"})
+            await self._emit("error", {"message": "Empty message"})
             return
         # Refused before the user turn is persisted: a message nothing will
         # answer does not belong in the transcript.
         try:
             agent_id = requested_agent_id(data)
         except AppException as exc:
-            await send_event(self.websocket, "error", {"message": exc.message})
+            await self._emit("error", {"message": exc.message})
             return
         if agent_id is None:
-            await send_event(self.websocket, "error", {"message": _PICK_AN_AGENT})
+            await self._emit("error", {"message": _PICK_AN_AGENT})
+            return
+        # What the person pointed at with `@`, resolved as them against what the
+        # agent can reach (#2189). It never changes which agent answers.
+        try:
+            mention_refs = requested_mentions(data)
+            if mention_refs:
+                async with get_db_context() as db:
+                    resolved = await ChatAgentRunner(db).mentions(
+                        user=self.user,
+                        organization_id=self.organization_id,
+                        agent_id=agent_id,
+                        refs=mention_refs,
+                        # The test panel's draft, so a mention resolves against
+                        # what that run reaches rather than the published version.
+                        draft=requested_testing(data).draft,
+                    )
+                mentioned, mention_note = resolved.mentions, resolved.note
+            else:
+                mentioned, mention_note = [], None
+        except AppException as exc:
+            await send_event(self.websocket, "error", {"message": exc.message})
             return
         # `conversation_id: null` is the console's new chat, and it starts one. The
         # session used to read it as "no id given" and carry on in the conversation
@@ -478,23 +587,54 @@ class AgentSession:
                 requested_conversation_id=data.get("conversation_id"),
                 current_conversation_id=self.current_conversation_id,
                 organization_id=self.organization_id,
+                # Read only when the turn starts a conversation: a chat is in
+                # the project it was started in, and stays there.
+                project_id=_wire_text(data.get("project_id")),
+                # The message this turn answers, where the person replied to one.
+                reply_to=_wire_text(data.get("reply_to")),
+                mentions=mentioned,
             )
         except AppException as e:
             # Every refusal the write can raise, not only the cross-org one:
             # an archived conversation and an id that is not a UUID reach here
             # too, and both used to be logged inside `persist_user_turn` and
             # answered as though the turn had been recorded.
-            await send_event(self.websocket, "error", {"message": e.message})
+            await self._emit("error", {"message": e.message})
             return
         self.current_conversation_id = prompt.conversation_id
+        if self.current_conversation_id:
+            self._live = self.current_conversation_id
+            self._live_turn = await live_turn.begin(self._live)
+            await self._enter_room(self._live)
+            if self._live_turn is not None:
+                # Who asked, and what: the others in the room follow this turn
+                # from its trace, and have no other way to see the question.
+                await live_turn.publish(
+                    self._live_turn,
+                    "turn_prompt",
+                    {
+                        "conversation_id": self._live,
+                        "message_id": None if prompt.message_id is None else str(prompt.message_id),
+                        "content": user_message,
+                        "sender": ChatPerson.of(self.user).model_dump(mode="json"),
+                        # The message it answers: "yes, do that" means nothing to
+                        # a teammate without the quote above it.
+                        "reply_to": None
+                        if prompt.reply is None
+                        else prompt.reply.model_dump(mode="json"),
+                        # Which agent answers, so a follower draws its face and name
+                        # on the answer from the first word rather than at the end.
+                        "agent_id": str(agent_id),
+                    },
+                )
+            await chat_room.turn_begun(self._live, self.user.id)
         if prompt.newly_created and self.current_conversation_id:
-            await send_event(
-                self.websocket,
+            await self._emit(
                 "conversation_created",
                 {"conversation_id": self.current_conversation_id},
             )
 
-        await send_event(self.websocket, "user_prompt", {"content": user_message})
+        await self._emit("user_prompt", {"content": user_message})
 
         collected_tool_calls: list[dict[str, Any]] = []
         # Everything the model produces, in the order it produces it - the text,
@@ -514,10 +654,12 @@ class AgentSession:
         async def steered(text: str) -> None:
             # Where it reached the model is where the transcript shows it.
             timeline.add_steer(text)
-            await send_event(self.websocket, "steer_applied", {"text": text})
+            await self._emit("steer_applied", {"text": text})
 
         steering = SteeringInbox(on_applied=steered)
         self._steering = steering
+        visual_reports = VisualReports(send_images=self._visual_images)
+        self._visual_reports = visual_reports
         # The run row, as soon as `prepare` opens one. A list because the
         # callback is `list.append` and a turn opens at most one run - it is
         # empty when the run was refused before it existed.
@@ -533,35 +675,42 @@ class AgentSession:
         # failure inside it - the history, the attachment lookup - must not turn
         # a lost answer into a `NameError`.
         try:
-            model_history = await self._history(prompt.message_id)
-            # The files, not a prompt built from them. Where an attachment goes
-            # depends on whether the agent has a workspace, and only `prepare`
-            # knows that - so the routing happens one layer down.
-            # `prompt.message_id` may be None when `persist_user_turn` swallowed a
-            # transient write failure so the turn could still run. The load path
-            # keeps the caller's still-unlinked uploads in that case (a None message
-            # matches unlinked rows), so a lost prompt row does not silently drop
-            # the files the user submitted and paid for (#1654 review).
-            attachments = (
-                await self._attached_files(prompt.message_id, file_ids) if file_ids else []
-            )
-
-            frames = RunFrames(
-                emit=self._frame,
-                timeline=timeline,
-                tool_calls=collected_tool_calls,
-                prompt=user_message,
-            )
-
-            # One session for the whole turn: the run row, the approvals it
-            # parks and the cost it books are a single unit of work, and
-            # `finish` writes back to the row `prepare` opened.
+            # One session for the whole turn: the history and the files it is
+            # given, the run row, the approvals it parks and the cost it books.
+            # The two reads had a transaction each before, ahead of the first
+            # token for nothing (#2248). `finish` writes back to the row
+            # `prepare` opened.
             async with get_db_context() as db:
+                model_history = await self._history(db, prompt.message_id)
+                # The files, not a prompt built from them. Where an attachment
+                # goes depends on whether the agent has a workspace, and only
+                # `prepare` knows that - so the routing happens one layer down.
+                # `prompt.message_id` may be None when `persist_user_turn`
+                # swallowed a transient write failure so the turn could still run.
+                # The load path keeps the caller's still-unlinked uploads in that
+                # case (a None message matches unlinked rows), so a lost prompt row
+                # does not silently drop the files the user submitted and paid for
+                # (#1654 review).
+                attachments = (
+                    await self._attached_files(db, prompt.message_id, file_ids) if file_ids else []
+                )
+
+                frames = RunFrames(
+                    emit=self._frame,
+                    timeline=timeline,
+                    tool_calls=collected_tool_calls,
+                    prompt=user_message,
+                )
+
                 turn = await ChatAgentRunner(db).run(
                     user=self.user,
                     organization_id=self.organization_id,
                     agent_id=agent_id,
-                    user_input=user_message,
+                    user_input=(
+                        prompt.for_model or user_message
+                        if mention_note is None
+                        else f"{prompt.for_model or user_message}\n\n{mention_note}"
+                    ),
                     message_history=model_history,
                     attachments=attachments,
                     conversation_id=(
@@ -575,6 +724,7 @@ class AgentSession:
                     subagent_events=self._subagent_event,
                     on_compaction=self._compaction_event,
                     browser_events=self._browser_event,
+                    on_sandbox_wait=self._sandbox_wait_event,
                     on_personal_gaps=self._personal_gaps_event,
                     request_connection=self._request_connection,
                     # The chat may run a published agent on another of the
@@ -592,6 +742,7 @@ class AgentSession:
                     # as a test either way (#2074).
                     testing=requested_testing(data),
                     steering=steering,
+                    visual_reports=visual_reports,
                 )
             # `turn.output` is what the run *ended* with; a turn that parked ended
             # with nothing, so its words are on the timeline (#509).
@@ -634,8 +785,7 @@ class AgentSession:
                     )
 
             if assistant_msg_id:
-                await send_event(
-                    self.websocket,
+                await self._emit(
                     "message_saved",
                     {
                         "message_id": assistant_msg_id,
@@ -647,8 +797,7 @@ class AgentSession:
             # turn is still on screen. The queue and the email carry the same rows;
             # this is a shortcut for whoever is already looking at the tab.
             if turn.parked:
-                await send_event(
-                    self.websocket,
+                await self._emit(
                     "tool_approval_required",
                     {
                         "run_id": str(turn.run_id),
@@ -673,8 +822,7 @@ class AgentSession:
                     },
                 )
 
-            await send_event(
-                self.websocket,
+            await self._emit(
                 "complete",
                 {
                     "conversation_id": self.current_conversation_id,
@@ -686,39 +834,56 @@ class AgentSession:
             )
         except WebSocketDisconnect:
             raise
-        except (AppException, BudgetExceeded, GuardrailBlocked) as exc:
+        except (AppException, BudgetExceeded, GuardrailBlocked, ToolLoopStopped) as exc:
             # A refusal - an agent that is unpublished, archived, or not theirs
             # to see - a budget stop, and a guardrail block are the platform
             # working, not a crash. The client is told plainly; nothing answers
             # in the named agent's place.
             logger.info("Agent turn refused: %s", exc)
-            await send_event(self.websocket, "error", {"message": str(exc)})
+            await self._emit("error", {"message": str(exc)})
             if opened:
                 self._outcome = _Outcome(opened[0].run_id, agent_id, str(exc))
         except Exception as exc:
             logger.exception("Error processing agent request")
-            await send_event(self.websocket, "error", {"message": _turn_failed(exc)})
+            await self._emit("error", {"message": _turn_failed(exc)})
             if opened:
                 self._outcome = _Outcome(opened[0].run_id, agent_id, _turn_failed(exc))
         finally:
-            self._current_timeline = None
-            self._steering = None
-            late = steering.unapplied()
-            if late:
-                # Sent after the agent's last request, so no request carried them.
-                # Handed back rather than dropped: the client sends them as the
-                # next message.
-                with contextlib.suppress(Exception):
-                    await send_event(self.websocket, "steer_unapplied", {"texts": late})
-            if not answered:
-                await self._persist_partial_turn(
-                    opened,
-                    agent_id=agent_id,
-                    output=timeline.text,
-                    tool_calls=collected_tool_calls,
-                    thinking=timeline.thinking,
-                    parts=timeline.stored(),
-                )
+            try:
+                # Before the trace ends: its end is what tells the others in the
+                # room to re-read the transcript, which must already hold this.
+                if not answered:
+                    await self._persist_partial_turn(
+                        opened,
+                        agent_id=agent_id,
+                        output=timeline.text,
+                        tool_calls=collected_tool_calls,
+                        thinking=timeline.thinking,
+                        parts=timeline.stored(),
+                    )
+            finally:
+                await self._end_live_turn(steering)
+
+    async def _end_live_turn(self, steering: SteeringInbox) -> None:
+        """Close the turn this socket was writing: its trace, and what it held for it."""
+        if self._live_turn is not None:
+            await live_turn.end(self._live_turn)
+        finished, self._live = self._live, None
+        self._live_turn = None
+        self._current_timeline = None
+        self._steering = None
+        self._visual_reports = None
+        late = steering.unapplied()
+        if late:
+            # Sent after the agent's last request, so no request carried them.
+            # Handed back rather than dropped: the client sends them as the
+            # next message.
+            with contextlib.suppress(Exception):
+                await self._emit("steer_unapplied", {"texts": late})
+        if finished is not None and finished == self._room:
+            # A teammate's turn begun while this socket wrote its own was
+            # not followed then; it is now, from its start.
+            await self._follow_if_running(finished)
 
     async def _tell_the_absent(self, outcome: _Outcome | None) -> None:
         """Notify the person a turn ended without, in the inbox and by email (#2108).
@@ -879,7 +1044,7 @@ class AgentSession:
         fut: asyncio.Future[list[dict[str, Any]]] = loop.create_future()
         self._ask_user_future = fut
         try:
-            await send_event(self.websocket, "ask_user", {"questions": questions})
+            await self._emit("ask_user", {"questions": questions})
             return await fut
         finally:
             self._ask_user_future = None
@@ -897,8 +1062,7 @@ class AgentSession:
             waiting: asyncio.Future[bool] = asyncio.get_running_loop().create_future()
             self._connect_future = waiting
             try:
-                await send_event(
-                    self.websocket,
+                await self._emit(
                     "connect_account",
                     {"catalog_key": request.catalog_key, "name": request.name, "gap": request.gap},
                 )
@@ -926,7 +1090,7 @@ class AgentSession:
         a closed socket rather than raising, so a background delegation whose
         frames outlive the tab does not take the run down with it.
         """
-        await send_event(self.websocket, event.kind, event.model_dump(mode="json"))
+        await self._emit(event.kind, event.model_dump(mode="json"))
 
     async def _compaction_event(self, event: CompactionEvent) -> None:
         """Forward one frame from a summary in progress, under the frame's own name.
@@ -941,7 +1105,13 @@ class AgentSession:
         does not take the run down with it.
         """
         frame = event.model_dump(mode="json")
-        await send_event(self.websocket, event.kind, frame)
+        await self._emit(event.kind, frame)
+
+    async def _visual_images(self, tool_call_id: str, images: Mapping[str, str]) -> None:
+        """A drawing's images, for the tab about to render it (#2171)."""
+        await send_event(
+            self.websocket, "visual_images", {"tool_call_id": tool_call_id, "images": dict(images)}
+        )
 
     async def _browser_event(self, event: BrowserEvent) -> bool:
         """Forward one frame from a browse in progress, under the frame's own name.
@@ -963,7 +1133,17 @@ class AgentSession:
         Returns:
             Whether the frame reached the client.
         """
-        return await send_event(self.websocket, event.kind, event.model_dump(mode="json"))
+        return await self._emit(event.kind, event.model_dump(mode="json"))
+
+    async def _sandbox_wait_event(self, preparing: bool) -> None:
+        """Say the run's sandbox is still being opened, and then that it is not (#2222).
+
+        The first session after an update builds the runtime's image on the host,
+        minutes in which nothing streams. The console shows a notice above the
+        composer from `sandbox_preparing` until `sandbox_ready`, an error or the
+        end of the turn.
+        """
+        await self._emit("sandbox_preparing" if preparing else "sandbox_ready", {})
 
     async def _personal_gaps_event(self, gaps: list[PersonalServiceGap]) -> None:
         """Say which of the agent's personal services this person cannot reach yet.
@@ -976,7 +1156,7 @@ class AgentSession:
         would be wrong to repeat it.
         """
         frame = {"services": [gap.model_dump(mode="json") for gap in gaps]}
-        await send_event(self.websocket, "personal_services_unavailable", frame)
+        await self._emit("personal_services_unavailable", frame)
 
     async def _remember_context(self, turn: ChatTurn) -> None:
         """Record what this turn learned about the thread's own context.
@@ -1006,7 +1186,9 @@ class AgentSession:
             if turn.overhead_tokens is not None:
                 await conversations.keep_overhead(conversation_id, turn.overhead_tokens)
 
-    async def _history(self, prompt_message_id: UUID | None) -> list[ModelMessage]:
+    async def _history(
+        self, db: AsyncSession, prompt_message_id: UUID | None
+    ) -> list[ModelMessage]:
         """What has already been said in this thread, without the turn being run.
 
         **The summary counts as what was said.** Where one has run, the thread
@@ -1028,9 +1210,10 @@ class AgentSession:
         answers is still in the transcript. Handing it back as history *and* as
         the prompt would ask the model the same question twice.
 
-        Read on its own session, like `_attached_files`: the turn's session is
-        opened later and held for the run, and this is a lookup rather than part
-        of that unit of work.
+        Read on the turn's session, like `_attached_files`: a transaction of its
+        own was a `BEGIN` and a `COMMIT` ahead of the first token, and the run
+        commits before it asks the model anything, so the read holds nothing
+        (#2248).
 
         The repository call carries no tenant predicate, which is safe here for
         one reason only: `current_conversation_id` is what `persist_user_turn`
@@ -1041,28 +1224,323 @@ class AgentSession:
         """
         if self.current_conversation_id is None:
             return []
-        async with get_db_context() as db:
-            return await ConversationService(db).model_history(
-                UUID(self.current_conversation_id),
-                limit=HISTORY_MESSAGES,
-                exclude_message_id=prompt_message_id,
-            )
+        return await ConversationService(db).model_history(
+            UUID(self.current_conversation_id),
+            limit=HISTORY_MESSAGES,
+            exclude_message_id=prompt_message_id,
+        )
 
-    async def _attached_files(self, message_id: UUID | None, file_ids: list[Any]) -> list[ChatFile]:
+    async def _attached_files(
+        self, db: AsyncSession, message_id: UUID | None, file_ids: list[Any]
+    ) -> list[ChatFile]:
         """The rows for the files this turn attached (#1756).
 
-        Read on their own session: the turn's own session is opened later and
-        held for the run, and this is a lookup rather than part of that unit of
-        work. Read by id and kept where the row is linked to this turn's message
+        Read on the turn's session, as `_history` is. Read by id and kept where the row is linked to this turn's message
         or still unlinked: `persist_user_turn` has already linked the frame's ids
         (and enforced ownership, #706), so re-validating them as unlinked would
         reject the turn's own just-linked files - while a file its best-effort
         link left unlinked must still reach the model rather than be dropped.
         """
-        async with get_db_context() as file_db:
-            return await load_turn_attachments(
-                file_db, message_id, [str(file_id) for file_id in file_ids], user_id=self.user.id
+        return await load_turn_attachments(
+            db, message_id, [str(file_id) for file_id in file_ids], user_id=self.user.id
+        )
+
+    async def _emit(self, kind: str, payload: Any) -> bool:
+        """Send one frame to this socket, and keep it for whoever follows the turn.
+
+        Kept even when the socket is gone, which is the point: a person who left
+        and came back follows the rest of the turn from another socket. Answers
+        whether this socket took it, as `send_event` does.
+        """
+        sent = await send_event(self.websocket, kind, payload)
+        if self._live_turn is not None:
+            await live_turn.publish(self._live_turn, kind, payload)
+        return sent
+
+    async def _attach(self, raw: object) -> None:
+        """Follow the turn running in a conversation the person may read, from its start.
+
+        The person came back to a conversation whose agent is still answering -
+        from another chat, another tab, a reloaded page. The turn's frames so far
+        are sent as they were, then the rest as they come, so the answer is drawn
+        exactly as it would have been. Nothing happens for a conversation with no
+        turn running, one this socket is itself answering, or one they may not
+        read - which is answered as nothing rather than as a refusal, so it says
+        nothing about a conversation they cannot see.
+        """
+        await self._stop_following()
+        conversation_id = _conversation_id(raw)
+        if conversation_id is None:
+            await self._leave_room()
+            return
+        async with get_db_context() as db:
+            try:
+                await ConversationService(db).get_conversation(
+                    UUID(conversation_id),
+                    organization_id=self.organization_id,
+                    user_id=self.user.id,
+                    include_favourite=False,
+                )
+            except NotFoundError:
+                await self._leave_room()
+                return
+        await self._enter_room(conversation_id)
+        await self._follow_if_running(conversation_id)
+
+    async def _follow_if_running(self, conversation_id: str) -> None:
+        """Follow the turn being written in the conversation, unless this socket writes it.
+
+        One follower at a time: a turn somebody begins while another is followed
+        is taken up when that one ends, by `_follow` itself.
+        """
+        if self._closed or conversation_id == self._live or self._following():
+            return
+        token = await live_turn.live_token(conversation_id)
+        # Asked again past the await: the socket may have closed, this socket
+        # begun its own turn there, or another path started a follower meanwhile -
+        # two followers would draw the same turn twice.
+        if token is None or self._closed or conversation_id == self._live or self._following():
+            return
+        if conversation_id != self._room:
+            # Left for another conversation, or for none, while asking.
+            return
+        self._follower = asyncio.create_task(self._follow(conversation_id, token))
+
+    def _following(self) -> bool:
+        return self._follower is not None and not self._follower.done()
+
+    async def _enter_room(self, conversation_id: str) -> None:
+        """Be one of the people with this conversation open, and hear what happens in it."""
+        if self._closed or self._room == conversation_id:
+            return
+        await self._leave_room()
+        self._room = conversation_id
+        # Found readable for the last room, not this one.
+        self._reads_until = float("-inf")
+        await chat_room.join(conversation_id, self.user.id, self._socket)
+        if self._closed or self._room != conversation_id:
+            # `shutdown` - or another room - came in while joining, and its leave
+            # ran before this join landed: undo it rather than stay counted.
+            await chat_room.leave(conversation_id, self.user.id, self._socket)
+            return
+        self._room_task = asyncio.create_task(self._in_room(conversation_id))
+
+    async def _leave_room(self) -> None:
+        room, task = self._room, self._room_task
+        self._room, self._room_task = None, None
+        # Wound down before anything else: its heartbeat, cancelled and not
+        # awaited, could count this socket back in after the leave below, and its
+        # listener, still running, could start a new follower for this room
+        # while the old one unwinds.
+        await _cancelled(task)
+        # A turn followed in the room is the room's: leaving stops drawing it.
+        await self._stop_following()
+        if room is not None:
+            await chat_room.leave(room, self.user.id, self._socket)
+
+    async def _in_room(self, conversation_id: str) -> None:
+        """Keep this socket counted as here, and pass on the room's news.
+
+        Who is here goes to the person as a `presence` frame; a turn somebody
+        else began is followed like one they came back to, so a teammate's
+        question and its answer appear as they are written.
+
+        Access is asked again before each piece of news is passed on: the check
+        at `attach` ran once, and a person removed from the organization or the
+        project since must stop hearing the room - the socket of somebody idle
+        sends no frame that would re-check it otherwise.
+        """
+        heartbeat = asyncio.create_task(self._heartbeat(conversation_id))
+        try:
+            while True:
+                try:
+                    await self._hear_room(conversation_id)
+                except Exception as error:
+                    # Redis went away under the subscription. The socket stays
+                    # open and still in this room, so it listens again rather
+                    # than stay deaf - and uncounted - until a reload.
+                    redis_view.failed(logger, "chat_room_listen_failed", error)
+                    await asyncio.sleep(ROOM_RETRY_SECONDS)
+                    # Asked again before going back in: access may have gone while
+                    # Redis was away, and rejoining shows who is here at once.
+                    if not await self._still_reads(conversation_id):
+                        await self._stop_following()
+                        self._room = self._room_task = None
+                        with contextlib.suppress(Exception):
+                            await chat_room.leave(conversation_id, self.user.id, self._socket)
+                        return
+                    with contextlib.suppress(Exception):
+                        await chat_room.join(conversation_id, self.user.id, self._socket)
+                else:
+                    return
+        finally:
+            await _cancelled(heartbeat)
+
+    async def _hear_room(self, conversation_id: str) -> None:
+        """Pass on the room's news until it ends or this person may no longer read it."""
+        await self._send_presence(conversation_id)
+        async for event in chat_room.events(conversation_id):
+            if not await self._reads_lately(conversation_id):
+                await self._stop_following()
+                self._room = self._room_task = None
+                await chat_room.leave(conversation_id, self.user.id, self._socket)
+                return
+            if event["type"] == chat_room.PRESENCE:
+                await self._send_presence(conversation_id)
+            elif event["type"] == chat_room.TYPING:
+                await self._send_typing(conversation_id, event.get("by"))
+            else:
+                await self._follow_if_running(conversation_id)
+
+    async def _reads_lately(self, conversation_id: str) -> bool:
+        """`_still_reads`, answered from the last time it said yes when that was lately."""
+        if time.monotonic() < self._reads_until:
+            return True
+        if not await self._still_reads(conversation_id):
+            return False
+        self._reads_until = time.monotonic() + ROOM_READS_FOR_SECONDS
+        return True
+
+    async def _still_reads(self, conversation_id: str) -> bool:
+        """Whether this person may still read the conversation, as of now.
+
+        Their credential first: a revoked session or a suspended account keeps
+        its membership and its access, and an idle socket sends no frame that
+        would re-check it - so the room's news re-checks it, and closes the
+        socket on refusal as an inbound frame would.
+        """
+        if not await self._reauthorize():
+            return False
+        async with get_db_context() as db:
+            if (
+                await member_repo.get(
+                    db, organization_id=self.organization_id, user_id=self.user.id
+                )
+                is None
+            ):
+                return False
+            try:
+                await ConversationService(db).get_conversation(
+                    UUID(conversation_id),
+                    organization_id=self.organization_id,
+                    user_id=self.user.id,
+                    include_favourite=False,
+                )
+            except NotFoundError:
+                return False
+        return True
+
+    async def _heartbeat(self, conversation_id: str) -> None:
+        while True:
+            await asyncio.sleep(chat_room.HEARTBEAT_SECONDS)
+            await chat_room.join(conversation_id, self.user.id, self._socket)
+
+    async def _send_typing(self, conversation_id: str, by: object) -> None:
+        """Say somebody else in the room is writing a message - never this person."""
+        try:
+            person_id = UUID(str(by))
+        except ValueError:
+            return
+        if person_id == self.user.id:
+            return
+        async with get_db_context() as db:
+            people = await conversation_repo.users_by_id(db, {person_id})
+        person = people.get(person_id)
+        if person is None:
+            return
+        await send_event(
+            self.websocket,
+            "typing",
+            {
+                "conversation_id": conversation_id,
+                "person": ChatPerson.of(person).model_dump(mode="json"),
+            },
+        )
+
+    async def _send_presence(self, conversation_id: str) -> None:
+        here = await chat_room.present(conversation_id)
+        if not here:
+            # Not even this socket: no Redis to count anybody, so nothing to say.
+            return
+        # The socket's own person is known already, and alone in a room is the
+        # common case: no session, and no query, to name them (#2248).
+        people = {self.user.id: self.user} if self.user.id in here else {}
+        others = [person for person in here if person != self.user.id]
+        if others:
+            async with get_db_context() as db:
+                people |= await conversation_repo.users_by_id(db, others)
+        await send_event(
+            self.websocket,
+            "presence",
+            {
+                "conversation_id": conversation_id,
+                "people": [
+                    ChatPerson.of(person).model_dump(mode="json")
+                    for person in sorted(people.values(), key=lambda p: str(p.full_name or p.email))
+                ],
+            },
+        )
+
+    async def _follow(self, conversation_id: str, token: str) -> None:
+        """Forward the conversation's running turns, one after another, until none is.
+
+        A teammate's turn begun while another was followed found this follower
+        busy and was not taken up then; so when a turn ends, the conversation is
+        asked again, and the newer turn is followed from its start.
+
+        A failure ends the following, not the socket: it is logged, and the tab
+        is told the turn is over so it re-reads the transcript rather than spin.
+        """
+        try:
+            while await self._follow_one(conversation_id, token):
+                newer = await live_turn.live_token(conversation_id)
+                if newer is None or newer == token or conversation_id == self._live:
+                    return
+                token = newer
+        except Exception:
+            logger.warning("chat_follow_failed", exc_info=True)
+            await send_event(self.websocket, live_turn.END, {"conversation_id": conversation_id})
+
+    async def _follow_one(self, conversation_id: str, token: str) -> bool:
+        """Forward one turn's frames until it ends, then say it has.
+
+        Whether to go on following the conversation: not when the socket closed
+        or the person may no longer read it.
+        """
+        await send_event(self.websocket, "turn_attached", {"conversation_id": conversation_id})
+        ended = False
+        recheck = time.monotonic() + RECHECK_SECONDS
+        async for frame in live_turn.follow(conversation_id, token):
+            ended = frame["type"] == live_turn.END
+            # A long turn is asked about again as it goes: somebody removed from
+            # the project mid-answer must not read the rest of it.
+            if time.monotonic() >= recheck and not ended:
+                if not await self._still_reads(conversation_id):
+                    await send_event(
+                        self.websocket, live_turn.END, {"conversation_id": conversation_id}
+                    )
+                    return False
+                recheck = time.monotonic() + RECHECK_SECONDS
+            if not await send_event(self.websocket, frame["type"], frame["data"]):
+                return False
+        if not ended:
+            # The turn ended between the check and the subscription: the
+            # follower still needs to hear it is over.
+            return await send_event(
+                self.websocket, live_turn.END, {"conversation_id": conversation_id}
             )
+        return True
+
+    async def _stop_following(self) -> None:
+        """Stop drawing the followed turn, once its task has wound down.
+
+        Awaited rather than only cancelled: the follower's own `finally` closes
+        its subscription, and left to run later it did so after the next room
+        was joined and the next turn followed.
+        """
+        follower = self._follower
+        self._follower = None
+        await _cancelled(follower)
 
     async def _frame(self, kind: str, payload: dict[str, Any]) -> None:
         """Where this surface's frames go: to the member who is watching.
@@ -1071,4 +1549,33 @@ class AgentSession:
         the organization that owns the agent may see everything it did - which is
         exactly the decision a public surface makes differently.
         """
-        await send_event(self.websocket, kind, payload)
+        await self._emit(kind, payload)
+
+
+async def _cancelled(task: asyncio.Task[None] | None) -> None:
+    """Cancel a task and wait for it to unwind, so its cleanup runs before what follows."""
+    if task is None or task.done():
+        return
+    task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await task
+
+
+def _conversation_id(raw: object) -> str | None:
+    """A conversation id off the wire, canonical, or `None` for anything that is not one."""
+    if not isinstance(raw, str):
+        return None
+    try:
+        return str(UUID(raw))
+    except ValueError:
+        return None
+
+
+def _wire_text(raw: object) -> str | None:
+    """A frame's id field as text, or `None` for an empty or non-text one.
+
+    Checked before anything parses it: a number or an object where an id
+    belongs raised past the turn's refusal handling, and the client waited for
+    an answer that was never coming.
+    """
+    return raw if isinstance(raw, str) and raw else None

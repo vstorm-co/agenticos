@@ -20,8 +20,6 @@ see: `singleton` is unique and constrained to true, so a second row is an
 serves whichever one a query happened to order first.
 """
 
-from __future__ import annotations
-
 import uuid
 
 from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Integer, String
@@ -162,6 +160,21 @@ class DeploymentSettings(Base, TimestampMixin):
     upgrade sends nobody mail they were not sending before; on, every
     impersonation emails its target once, when it starts. The audit trail records
     the impersonation either way.
+    """
+
+    dictation_compressed_audio: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    """Whether dictation accepts WebM, Ogg and MP4 as well as raw PCM (#1797).
+
+    Off, a dictation is 16 kHz mono 16-bit PCM WAV and nothing else, so its
+    length *is* its byte count and the longest dictation bounds what a
+    recording can cost exactly. On, the compressed formats `MediaRecorder`
+    makes are accepted too, with their length read from the file's own header -
+    which a file built by hand can understate, so the byte cap is then the only
+    bound, and low-bitrate audio fits about forty times the longest dictation
+    into it. A deployment's decision, because a hosted page or a widget lets a
+    stranger send the file, in every organization at once.
     """
 
     retention_defaults: Mapped[dict[str, int | None] | None] = mapped_column(JSONB, nullable=True)

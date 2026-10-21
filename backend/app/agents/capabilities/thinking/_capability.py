@@ -11,8 +11,6 @@ package has the same shape as every other capability: `__init__.py` registers,
 where the other nine put it.
 """
 
-from __future__ import annotations
-
 from pydantic_ai.capabilities import Thinking
 from pydantic_ai.settings import ThinkingEffort
 

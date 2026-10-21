@@ -44,6 +44,11 @@ from app.db.models.agent_trigger import AgentTrigger, ScheduleKind
 from app.db.models.run_manifest import RunManifest
 from app.db.models.ingestion_spend import IngestionSpend
 from app.db.models.ml_service_call import MLCallStatus, MLServiceCall
+from app.db.models.pending_sandbox_destroy import PendingSandboxDestroy
+from app.db.models.background_job import BackgroundJob
+from app.db.models.background_schedule import BackgroundSchedule
+from app.db.models.background_task_kind import BackgroundTaskKind
+from app.db.models.background_worker import BackgroundWorker
 from app.db.models.purged_run_spend import PurgedRunSpend
 from app.db.models.credential import ModelProfile
 from app.db.models.organization_secret import OrganizationSecret
@@ -61,6 +66,8 @@ from app.db.models.announcement import Announcement
 from app.db.models.api_key import ApiKey
 from app.db.models.organization_assistant import OrganizationAssistant
 from app.db.models.channel_prompt import ChannelPrompt
+from app.db.models.external_agent import ExternalAgent
+from app.db.models.project import Project
 from app.db.models.oauth import (
     OAuthAuthorizationCode,
     OAuthAuthorizationRequest,
@@ -74,12 +81,16 @@ from app.db.models.artifact import (
     ArtifactMediaType,
     ArtifactVersion,
 )
+from app.db.models.voice_call import VoiceCall, VoiceEndReason
+from app.db.models.visual import Visual
 
 __all__ = [
+    "Visual",
     "ApiKey",
     "BrowserSignIn",
     "OrganizationAssistant",
     "ChannelPrompt",
+    "ExternalAgent",
     "OAuthAuthorizationCode",
     "OAuthAuthorizationRequest",
     "OAuthClient",
@@ -148,6 +159,12 @@ __all__ = [
     "ApprovalStatus",
     "ModelProfile",
     "OrganizationSecret",
+    "PendingSandboxDestroy",
+    "BackgroundJob",
+    "BackgroundSchedule",
+    "BackgroundTaskKind",
+    "BackgroundWorker",
+    "Project",
     "ContextFile",
     "ContextMode",
     "AgentMemoryFile",
@@ -167,4 +184,6 @@ __all__ = [
     "DeliveryStatus",
     "NotificationChannelPreference",
     "Announcement",
+    "VoiceCall",
+    "VoiceEndReason",
 ]
