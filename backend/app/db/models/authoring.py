@@ -311,6 +311,10 @@ class SpecProposalHunk(Base):
     effect: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
 
     rationale: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # A field change's own prediction, written before any check measures it.
+    expected_effect: Mapped[str] = mapped_column(
+        Text, nullable=False, default="", server_default=""
+    )
     # Only verified items; `evidence_dropped` counts the rest, so a reviewer knows
     # something was removed.
     evidence: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, default=list)

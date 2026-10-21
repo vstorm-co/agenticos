@@ -14,6 +14,8 @@ import pytest
 from app.agents.capabilities import ToolOverride
 from app.db.models.authoring import FieldOp, HunkKind, SpecProposalHunk
 from app.schemas.authoring import (
+    ContextImprovement,
+    FieldChange,
     Finding,
     ImprovementProposal,
     InstructionChange,
@@ -28,10 +30,19 @@ from app.services import authoring_fields
 pytestmark = pytest.mark.security
 
 ANSWERS = {
-    ImprovementProposal: {"summary", "expected_effect", "instructions", "tools"},
-    VerifyReport: {"findings", "instructions", "tools"},
+    ImprovementProposal: {"summary", "expected_effect", "instructions", "tools", "fields"},
+    VerifyReport: {"findings", "instructions", "tools", "fields"},
+    FieldChange: {"path", "op", "value", "rationale", "expected_effect", "evidence"},
     InstructionChange: {"old_text", "new_text", "after", "rationale", "evidence"},
     ToolChange: {"capability_id", "tool_id", "name", "description", "rationale", "evidence"},
+    ContextImprovement: {
+        "summary",
+        "expected_effect",
+        "description",
+        "content",
+        "rationale",
+        "evidence",
+    },
     SkillImprovement: {
         "summary",
         "expected_effect",

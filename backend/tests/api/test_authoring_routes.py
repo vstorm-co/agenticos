@@ -143,7 +143,11 @@ async def test_what_waits_is_answered(client: OpenClient) -> None:
     async with client() as http:
         response = await http.get(_url("/authoring/waiting"))
 
-    assert response.status_code == 200 and response.json() == {"agents": [], "skills": 0}
+    assert response.status_code == 200 and response.json() == {
+        "agents": [],
+        "skills": 0,
+        "contexts": 0,
+    }
 
 
 async def test_a_decision_must_name_an_action(client: OpenClient) -> None:

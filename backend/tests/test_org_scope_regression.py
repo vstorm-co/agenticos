@@ -108,6 +108,7 @@ TENANT_REQUIRED = [
     (knowledge_gap_repo, "still_asked"),
     (agent_repo, "get_system"),
     (agent_repo, "lock"),
+    (agent_run_repo, "recent_usage"),
     (credential_repo, "oldest_profile"),
     (case_score_repo, "create"),
     (case_score_repo, "get"),

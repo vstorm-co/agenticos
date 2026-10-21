@@ -2,8 +2,8 @@
 
 `spec_proposal_hunks` gains the columns a `spec_field` hunk needs - the field's
 path in the spec, what it does there, and the values it was written against,
-proposes and was accepted as, with the effect measured on recent runs - and the
-kind check gains `spec_field`. Every existing hunk is an instruction or a tool
+proposes and was accepted as, the effect measured on recent runs and the effect
+the change predicts - and the kind check gains `spec_field`. Every existing hunk is an instruction or a tool
 override and keeps working as before.
 
 `authoring_requests.context_id` is the context file an Improve was asked for, and
@@ -55,6 +55,10 @@ def upgrade() -> None:
     op.add_column("spec_proposal_hunks", sa.Column("op", sa.String(length=8), nullable=True))
     for column in ("base_value", "new_value", "accepted_value", "effect"):
         op.add_column("spec_proposal_hunks", sa.Column(column, _JSONB, nullable=True))
+    op.add_column(
+        "spec_proposal_hunks",
+        sa.Column("expected_effect", sa.Text(), nullable=False, server_default=""),
+    )
     op.drop_constraint("ck_spec_proposal_hunk_kind", "spec_proposal_hunks", type_="check")
     op.create_check_constraint("ck_spec_proposal_hunk_kind", "spec_proposal_hunks", _HUNK_KINDS)
     op.create_check_constraint(
@@ -142,5 +146,13 @@ def downgrade() -> None:
     op.create_check_constraint(
         "ck_spec_proposal_hunk_kind", "spec_proposal_hunks", _HUNK_KINDS_BEFORE
     )
-    for column in ("effect", "accepted_value", "new_value", "base_value", "op", "path"):
+    for column in (
+        "expected_effect",
+        "effect",
+        "accepted_value",
+        "new_value",
+        "base_value",
+        "op",
+        "path",
+    ):
         op.drop_column("spec_proposal_hunks", column)

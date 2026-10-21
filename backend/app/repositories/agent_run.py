@@ -842,6 +842,37 @@ async def average_cost(
     return Decimal(average) if average is not None else None
 
 
+async def recent_usage(
+    db: AsyncSession, *, organization_id: UUID, agent_id: UUID, sample: int
+) -> tuple[int, float, float]:
+    """How many of this agent's recent finished runs, and their average input and output tokens.
+
+    Over its latest `sample` completed top-level runs that served somebody - not
+    an eval's or a Builder test's - which is the traffic a change of model would
+    reprice.
+    """
+    recent = (
+        select(AgentRun.input_tokens, AgentRun.output_tokens)
+        .where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.agent_id == agent_id,
+            AgentRun.parent_run_id.is_(None),
+            AgentRun.status == RunStatus.COMPLETED.value,
+            AgentRun.surface != RunSurface.EVAL.value,
+            AgentRun.is_test.is_(False),
+        )
+        .order_by(AgentRun.started_at.desc())
+        .limit(sample)
+        .subquery()
+    )
+    count, input_tokens, output_tokens = (
+        await db.execute(
+            select(func.count(), func.avg(recent.c.input_tokens), func.avg(recent.c.output_tokens))
+        )
+    ).one()
+    return int(count), float(input_tokens or 0), float(output_tokens or 0)
+
+
 async def cost_of_runs(
     db: AsyncSession, run_ids: Sequence[UUID], *, organization_id: UUID
 ) -> tuple[Decimal, bool]:

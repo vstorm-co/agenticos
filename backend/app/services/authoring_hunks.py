@@ -16,7 +16,8 @@ accepted text by hand has made a newer decision, and Undo refuses to reverse it.
 
 **A tool hunk compares the binding with what it read.** The name and
 description overrides the proposal was computed against must still be the
-draft's, or a newer manual edit would be overwritten.
+draft's, or a newer manual edit would be overwritten. A field hunk does the same
+with the value it read, through :mod:`app.services.authoring_fields`.
 """
 
 from __future__ import annotations
@@ -29,6 +30,7 @@ from app.agents.capabilities import ToolOverride
 from app.agents.spec import AgentSpec
 from app.db.models.authoring import HunkKind, HunkStatus, SpecProposalHunk
 from app.schemas.authoring import InstructionChange
+from app.services import authoring_fields
 
 CONTEXT_CHARS = 60
 """How much surrounding text an anchor keeps on either side."""
@@ -194,11 +196,25 @@ def undo_tool(spec: AgentSpec, hunk: SpecProposalHunk) -> AgentSpec | None:
     )
 
 
+def apply_field(spec: AgentSpec, hunk: SpecProposalHunk, value: Any) -> AgentSpec | None:
+    """`spec` with a field hunk's change made with `value`, or `None` when it is stale."""
+    return authoring_fields.apply(spec, hunk.path or "", hunk.op or "", hunk.base_value, value)
+
+
+def undo_field(spec: AgentSpec, hunk: SpecProposalHunk) -> AgentSpec | None:
+    """`spec` with an accepted field hunk reversed, or `None` when it was edited since."""
+    return authoring_fields.undo(
+        spec, hunk.path or "", hunk.op or "", hunk.base_value, hunk.accepted_value
+    )
+
+
 def apply(spec: AgentSpec, hunk: SpecProposalHunk, *, text: str | None = None) -> AgentSpec | None:
     """`spec` with one pending hunk applied, or `None` when it is stale.
 
     `text` replaces an instructions hunk's proposed text - the person's edit of it.
     """
+    if hunk.kind == HunkKind.SPEC_FIELD.value:
+        return apply_field(spec, hunk, hunk.new_value)
     if hunk.kind == HunkKind.TOOL_OVERRIDE.value:
         applied = apply_tool(spec, hunk)
         return None if applied is None else applied[0]
@@ -209,6 +225,8 @@ def apply(spec: AgentSpec, hunk: SpecProposalHunk, *, text: str | None = None) -
 def applies(spec: AgentSpec, hunk: SpecProposalHunk) -> bool:
     """Whether a pending hunk still applies, or an accepted one can still be undone."""
     if hunk.status == HunkStatus.ACCEPTED.value:
+        if hunk.kind == HunkKind.SPEC_FIELD.value:
+            return undo_field(spec, hunk) is not None
         if hunk.kind == HunkKind.TOOL_OVERRIDE.value:
             return undo_tool(spec, hunk) is not None
         return undo_text(spec.instructions, hunk) is not None
