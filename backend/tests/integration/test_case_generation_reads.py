@@ -276,17 +276,13 @@ async def test_deleting_a_conversation_takes_its_proposals_along(db) -> None:
     await world.proposals(db, org, dataset, agent, 1, source_conversation_id=kept.conversation_id)
 
     other = await world.org(db, person)
-    assert (
-        await personal_data_repo.delete_case_proposals_from_conversation(
-            db, conversation.id, organization_id=other.id
-        )
-        == 0
+    await personal_data_repo.unlink_dataset_cases_from_conversation(
+        db, conversation.id, organization_id=other.id
     )
-    assert (
-        await personal_data_repo.delete_case_proposals_from_conversation(
-            db, conversation.id, organization_id=org.id
-        )
-        == 2
+    assert await db.scalar(select(func.count(CaseProposal.id))) == 3
+
+    await personal_data_repo.unlink_dataset_cases_from_conversation(
+        db, conversation.id, organization_id=org.id
     )
     assert await db.scalar(select(func.count(CaseProposal.id))) == 1
 

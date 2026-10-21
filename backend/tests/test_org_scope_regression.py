@@ -86,7 +86,6 @@ TENANT_REQUIRED = [
     (agent_run_repo, "questions_asked"),
     (knowledge_base_repo, "get_in_organization"),
     (rag_document_repo, "indexed_in"),
-    (personal_data_repo, "delete_case_proposals_from_conversation"),
     (eval_run_repo, "create"),
     (eval_run_repo, "add_cases"),
     (eval_run_repo, "get"),

@@ -359,17 +359,24 @@ _NO_SOURCE: dict[str, None] = {
 async def unlink_dataset_cases_from_conversation(
     db: AsyncSession, conversation_id: UUID, *, organization_id: UUID
 ) -> int:
-    """Cut every dataset case taken from this conversation loose from it.
+    """Cut every dataset case taken from this conversation loose from it, and drop its drafts.
 
     A case keeps the question and answer it copied, which is the point of
     taking one, but not where they came from: the run outlives a deleted
-    conversation, and a link to it would still lead back to who asked. Run
-    *before* the conversation goes, while `source_conversation_id` still names
-    it.
+    conversation, and a link to it would still lead back to who asked. A
+    generated draft nobody has accepted yet is not kept at all - nobody chose
+    to keep it, and its source is going. Run *before* the conversation goes,
+    while `source_conversation_id` still names it.
 
     Returns:
         How many case revisions were unlinked.
     """
+    await db.execute(
+        sa_delete(CaseProposal).where(
+            CaseProposal.source_conversation_id == conversation_id,
+            CaseProposal.organization_id == organization_id,
+        )
+    )
     result = await db.execute(
         update(DatasetCase)
         .where(
@@ -406,29 +413,6 @@ async def unlink_dataset_cases_of(db: AsyncSession, user_id: UUID) -> int:
             )
         )
         .values(**_NO_SOURCE)
-    )
-    await db.flush()
-    return result.rowcount or 0  # ty: ignore[unresolved-attribute]
-
-
-async def delete_case_proposals_from_conversation(
-    db: AsyncSession, conversation_id: UUID, *, organization_id: UUID
-) -> int:
-    """Delete every proposed case drafted from this conversation.
-
-    A proposal nobody has accepted is a draft nobody chose to keep, so it goes
-    with the conversation rather than being cut loose from it the way an
-    accepted case is. Run *before* the conversation goes, while
-    `source_conversation_id` still names it.
-
-    Returns:
-        How many proposals were deleted.
-    """
-    result = await db.execute(
-        sa_delete(CaseProposal).where(
-            CaseProposal.source_conversation_id == conversation_id,
-            CaseProposal.organization_id == organization_id,
-        )
     )
     await db.flush()
     return result.rowcount or 0  # ty: ignore[unresolved-attribute]
