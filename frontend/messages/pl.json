@@ -889,7 +889,10 @@
     "voiceDictationProviderHint": "Mikrofon w czacie wysyła nagranie do providera poniżej: organizacji albo własnego providera tego agenta. Gdy przełącznik jest wyłączony albo brakuje klucza, tekst za darmo rozpoznaje przeglądarka.",
     "voiceConversationMaxDefault": "{minutes} min (domyślnie)",
     "voiceInheritsUntilChosen": "Dopóki go nie wybierzesz, używany jest provider organizacji: {pair}",
-    "voiceProviderChoose": "Wybierz providera"
+    "voiceProviderChoose": "Wybierz providera",
+    "voicePreview": "Posłuchaj tego głosu",
+    "voicePreviewStop": "Zatrzymaj",
+    "voicePreviewNeedsKey": "Wybierz klucz, aby posłuchać tego głosu"
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",

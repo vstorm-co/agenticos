@@ -1,4 +1,6 @@
 import { apiClient } from "@/lib/api-client";
+import type { Locale } from "@/lib/locales";
+import type { VoiceSpec } from "@/types/agents";
 import type { RealtimeProvider, VoiceReadiness, VoiceUsage } from "@/types/voice";
 
 /**
@@ -20,4 +22,21 @@ export function realtimeModels(): Promise<{ items: RealtimeProvider[]; total: nu
 export function voiceUsage(start: string, end: string): Promise<VoiceUsage> {
   const query = new URLSearchParams({ start, end });
   return apiClient.get<VoiceUsage>(`/voice/usage?${query.toString()}`);
+}
+
+/**
+ * A draft Voice section's voice saying one fixed sentence, as WAV (#54).
+ *
+ * The draft, not the published section: a voice is heard before anybody calls it.
+ */
+export async function previewVoice(
+  agentId: string,
+  voice: VoiceSpec,
+  locale: Locale,
+): Promise<Blob> {
+  const response = await apiClient.raw(`/agents/${agentId}/voice/preview`, {
+    method: "POST",
+    body: { voice, locale },
+  });
+  return response.blob();
 }

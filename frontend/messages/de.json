@@ -889,7 +889,10 @@
     "voiceDictationProviderHint": "Das Mikrofon im Chat sendet die Aufnahme an den Provider unten: den der Organisation oder den eigenen dieses Agents. Ist der Schalter aus oder fehlt ein Schlüssel, erkennt der Browser den Text kostenlos.",
     "voiceConversationMaxDefault": "{minutes} Min. (Standard)",
     "voiceInheritsUntilChosen": "Bis Sie einen wählen, wird der der Organisation verwendet: {pair}",
-    "voiceProviderChoose": "Provider wählen"
+    "voiceProviderChoose": "Provider wählen",
+    "voicePreview": "Diese Stimme anhören",
+    "voicePreviewStop": "Anhalten",
+    "voicePreviewNeedsKey": "Wählen Sie einen Schlüssel, um diese Stimme anzuhören"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",

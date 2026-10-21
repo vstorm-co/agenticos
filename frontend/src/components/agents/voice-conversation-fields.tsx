@@ -4,6 +4,7 @@ import { Info } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useId, useState } from "react";
 
+import { VoicePreviewButton } from "@/components/agents/voice-preview-button";
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import { SpeechKeyField } from "@/components/vault/speech-key-field";
 import {
@@ -50,6 +51,8 @@ export interface VoiceConversationProps {
   onChange: (next: VoiceSpec | null) => void;
   hasGuardrails: boolean;
   disabled?: boolean;
+  /** The agent being built, for listening to the chosen voice; none, no ▶. */
+  agentId?: string;
 }
 
 /** The catalog model a block runs: Azure names it as the deployment's base. */
@@ -130,7 +133,14 @@ interface BlockFieldsProps extends VoiceConversationProps {
   write: (next: Partial<VoiceSpec>) => void;
 }
 
-function BlockFields({ block, providers, write, disabled, hasGuardrails }: BlockFieldsProps) {
+function BlockFields({
+  block,
+  providers,
+  write,
+  disabled,
+  hasGuardrails,
+  agentId,
+}: BlockFieldsProps) {
   const t = useTranslations("agents");
   const [noteMode, setNoteMode] = useState<MarkdownMode>("source");
   const entry = providers.find((candidate) => candidate.provider === block.provider);
@@ -192,7 +202,15 @@ function BlockFields({ block, providers, write, disabled, hasGuardrails }: Block
             onChange={(secret_id) => write({ secret_id })}
           />
         )}
-        {model && <VoiceField model={model} block={block} disabled={disabled} write={write} />}
+        {model && (
+          <VoiceField
+            model={model}
+            block={block}
+            disabled={disabled}
+            write={write}
+            agentId={agentId}
+          />
+        )}
         <LanguageField block={block} disabled={disabled} write={write} />
       </div>
       <LongestCall block={block} disabled={disabled} write={write} />
@@ -267,7 +285,13 @@ function ModelField({ entry, block, disabled, write }: PartProps & { entry: Real
   );
 }
 
-function VoiceField({ model, block, disabled, write }: PartProps & { model: RealtimeModel }) {
+function VoiceField({
+  model,
+  block,
+  disabled,
+  write,
+  agentId,
+}: PartProps & { model: RealtimeModel; agentId?: string }) {
   const t = useTranslations("agents");
   return (
     <FormField
@@ -275,24 +299,27 @@ function VoiceField({ model, block, disabled, write }: PartProps & { model: Real
       htmlFor="agent-voice-call-voice"
       description={t("voiceConversationVoiceHint")}
     >
-      <Select
-        value={block.voice ?? model.default_voice}
-        disabled={disabled}
-        onValueChange={(voice) => write({ voice })}
-      >
-        <SelectTrigger id="agent-voice-call-voice">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {model.voices.map((voice) => (
-            <SelectItem key={voice} value={voice}>
-              {voice === model.default_voice
-                ? t("voiceConversationVoiceDefault", { voice })
-                : voice}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <div className="flex items-center gap-2">
+        <Select
+          value={block.voice ?? model.default_voice}
+          disabled={disabled}
+          onValueChange={(voice) => write({ voice })}
+        >
+          <SelectTrigger id="agent-voice-call-voice">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {model.voices.map((voice) => (
+              <SelectItem key={voice} value={voice}>
+                {voice === model.default_voice
+                  ? t("voiceConversationVoiceDefault", { voice })
+                  : voice}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {agentId !== undefined && <VoicePreviewButton agentId={agentId} block={block} />}
+      </div>
     </FormField>
   );
 }

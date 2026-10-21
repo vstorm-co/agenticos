@@ -1409,6 +1409,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
               value={spec.speech_to_text}
               onChange={(speech_to_text) => update({ speech_to_text })}
               conversation={{
+                agentId: id,
                 value: spec.voice,
                 onChange: (voice) => update({ voice }),
                 hasGuardrails: spec.capabilities.some(

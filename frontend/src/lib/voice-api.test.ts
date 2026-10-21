@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiClient } from "@/lib/api-client";
-import { realtimeModels, voiceReadiness, voiceUsage } from "./voice-api";
+import { previewVoice, realtimeModels, voiceReadiness, voiceUsage } from "./voice-api";
 
-vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn() } }));
+vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn(), raw: vi.fn() } }));
 
 describe("voice api", () => {
   beforeEach(() => vi.mocked(apiClient.get).mockReset());
@@ -26,5 +26,19 @@ describe("voice api", () => {
     expect(apiClient.get).toHaveBeenCalledWith(
       "/voice/usage?start=2026-09-01T00%3A00%3A00.000Z&end=2026-09-07T23%3A59%3A59.999Z",
     );
+  });
+
+  it("posts the draft's voice section and hands back the audio", async () => {
+    const wav = new Blob(["RIFF"], { type: "audio/wav" });
+    vi.mocked(apiClient.raw).mockResolvedValue({ blob: async () => wav } as Response);
+    const voice = { provider: "openai", model: "gpt-realtime" } as never;
+
+    const audio = await previewVoice("a1", voice, "pl");
+
+    expect(apiClient.raw).toHaveBeenCalledWith("/agents/a1/voice/preview", {
+      method: "POST",
+      body: { voice, locale: "pl" },
+    });
+    expect(audio).toBe(wav);
   });
 });

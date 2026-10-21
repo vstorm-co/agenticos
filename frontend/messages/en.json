@@ -889,7 +889,10 @@
     "voiceDictationProviderHint": "The chat microphone sends the recording to the provider below: the organization's, or this agent's own. Off, or with no key to send it with, the browser transcribes it for free.",
     "voiceConversationMaxDefault": "{minutes} min (default)",
     "voiceInheritsUntilChosen": "Until you choose one, the organization's is used: {pair}",
-    "voiceProviderChoose": "Choose a provider"
+    "voiceProviderChoose": "Choose a provider",
+    "voicePreview": "Listen to this voice",
+    "voicePreviewStop": "Stop",
+    "voicePreviewNeedsKey": "Choose a key to listen to this voice"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
