@@ -29,8 +29,6 @@ per worker this deployment had before - duplicates, never silence. A command
 Redis refuses is not a Redis it cannot reach, and is not read as a lease held.
 """
 
-from __future__ import annotations
-
 import logging
 from uuid import uuid4
 
@@ -151,7 +149,12 @@ class StreamLeases:
                 continue
             del self.held[bot_id]
             lost.append(bot_id)
-            logger.info("%s: bot %s is served by another worker now", platform.capitalize(), bot_id)
+            logger.info(
+                "%s: bot %s is served by another worker now; closing it on worker %s",
+                platform.capitalize(),
+                bot_id,
+                self.holder,
+            )
             await get_adapter(platform).stop_polling(bot_id)
         return lost
 

@@ -22,7 +22,7 @@ interface ChatWelcomeProps {
   /** Above the title: an icon tile, or the avatar of whoever answers. */
   mark: ReactNode;
   title: string;
-  lead: string;
+  lead: ReactNode;
   suggestions: readonly WelcomeSuggestion[];
   onPick: (prompt: string) => void;
   /** Under the cards: hints, a note. */
@@ -77,7 +77,7 @@ export function ChatWelcome({
         </h2>
         <p
           className={cn(
-            "text-muted-foreground mx-auto max-w-md leading-relaxed",
+            "text-muted-foreground mx-auto line-clamp-2 max-w-md leading-relaxed",
             compact ? "mt-1 text-[13px]" : "mt-2 text-sm",
           )}
         >
@@ -91,14 +91,16 @@ export function ChatWelcome({
             <button
               type="button"
               onClick={() => onPick(suggestion.prompt)}
+              // A filled card rather than a hairline box: four outlines on a
+              // blank page read as a form to fill in, not as places to start.
               className={cn(
-                "group border-border bg-card hover:border-foreground/30 hover:bg-accent flex w-full items-start gap-3 rounded-xl border text-left transition-colors",
-                compact ? "px-3 py-2.5" : "p-3 md:p-4",
+                "group bg-muted/60 hover:bg-muted focus-visible:ring-ring flex w-full items-start gap-3 rounded-2xl text-left transition-colors outline-none focus-visible:ring-2",
+                compact ? "px-3 py-2.5" : "p-3.5 md:p-4",
               )}
             >
               {/* Off in a narrow column, where it took a third of a card's
                   width and wrapped the title onto two lines. */}
-              <span className="bg-muted text-muted-foreground group-hover:text-foreground flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors @max-xl:hidden">
+              <span className="bg-card text-foreground shadow-card flex h-9 w-9 shrink-0 items-center justify-center rounded-xl @max-xl:hidden">
                 <suggestion.icon className="h-4 w-4" />
               </span>
               <span className="min-w-0 flex-1">
@@ -107,7 +109,7 @@ export function ChatWelcome({
                 </span>
                 <span
                   className={cn(
-                    "text-muted-foreground mt-0.5 block text-xs leading-relaxed",
+                    "text-muted-foreground mt-0.5 block text-[13px] leading-relaxed",
                     // A narrow window shows four cards and a composer at once only
                     // when each says its prompt in a line.
                     compact ? "line-clamp-1" : "line-clamp-1 md:line-clamp-2",
@@ -120,7 +122,7 @@ export function ChatWelcome({
                 // Room for the × that sits over this corner.
                 <span className="h-4 w-4 shrink-0" />
               ) : (
-                <ArrowUpRight className="text-muted-foreground group-hover:text-foreground mt-0.5 h-4 w-4 shrink-0 transition-colors" />
+                <ArrowUpRight className="text-muted-foreground group-hover:text-foreground mt-0.5 h-4 w-4 shrink-0 opacity-0 transition-[opacity,color] group-hover:opacity-100 group-focus-visible:opacity-100" />
               )}
             </button>
             {suggestion.onRemove && (

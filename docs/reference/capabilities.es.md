@@ -1,5 +1,5 @@
 ---
-source_sha: "cc5a76355164"
+source_sha: "8854a5e745f3"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -63,7 +63,9 @@ guarda archivos. El navegador web apunta al servicio de navegador del despliegue
 | `code_execution` | Cálculos | analysis | `run_python` | `code:execute` | — | tal cual |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | para Daytona | delegada |
 | `charts` | Gráficos | analysis | `create_chart` | — | — | tal cual |
+| `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — | tal cual |
 | `image_generation` | Generación de imágenes | analysis | `generate_image` | — | obligatoria | tal cual |
+| `coding_agent` | Coding agent | analysis | `run_coding_agent` | `sandbox:execute` | obligatoria | delegada |
 | `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — | delegada |
 | `planning` | Planificación | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — | tal cual |
 | `thinking` | Razonamiento | reasoning | ninguna, a propósito | — | — | mapeada |
@@ -767,8 +769,8 @@ browser up -d browser`, accesible como `http://browser:9222`. El host tiene que 
 — rechaza la automatización del navegador al publicar.
 
 El navegador de compose está en una red de Docker propia, a la que solo se unen la
-API y el runner para llegar a él: una página que abre, o a la que lo redirigen, no
-alcanza la base de datos, Redis, Prefect ni MinIO. Sigue alcanzando lo que permita
+API y el worker para llegar a él: una página que abre, o a la que lo redirigen, no
+alcanza la base de datos, Redis ni MinIO. Sigue alcanzando lo que permita
 la red del host, como la dirección de metadatos de una nube, así que bloquéala en el
 host donde importe.
 
@@ -1124,6 +1126,155 @@ un paso `execute` posterior pueda construir con ella: montar un PDF, una diaposi
 una página. Un agent sin workspace sigue generando y mostrando imágenes; simplemente
 no tiene dónde construir con ellas.
 
+## Coding agent { #coding-agent }
+
+`run_coding_agent` — *Hand a software task to the coding agent, which works on it in the sandbox until done.*
+
+Entrega el trabajo de software a **Claude Code** o **Codex**, que se ejecutan en la
+propia [sandbox](../sandbox.md) del agent. Un agent corriente con shell puede editar
+código; un harness de programación lo hace mejor, y así es como un agent llega a uno.
+El harness es un agent aparte: el agent le entrega una tarea entera, el harness
+trabaja hasta terminarla y el chat lo muestra trabajando. Otro agent llega a un
+coding agent mediante la [delegación](#delegation) de siempre, como a cualquier
+especialista.
+
+| Configuración | Predeterminado | Valores |
+|---|---|---|
+| `harness` | `claude_code` | `claude_code` (una clave API de Anthropic o un token de suscripción de Claude), `codex` (una clave API de OpenAI o un inicio de sesión de ChatGPT) |
+| `access` | `edit` | `edit` cambia archivos y ejecuta comandos; `read_only` lee el código y responde (solo Claude Code) |
+| `model` | el del harness | Claude Opus, Sonnet o Haiku 5.5 para Claude Code; GPT-5.6 Sol, Terra, Luna o GPT-5.3 Codex para Codex |
+| `base_url` | Anthropic directamente | Solo Claude Code: una pasarela que habla la API de Anthropic, como `https://openrouter.ai/api`, cuya clave guarda entonces el vault. Se descarta al elegir Codex |
+| `timeout_minutes` | 15 | 1–60, por tarea |
+
+**Una herramienta, y el binding decide lo que puede hacer.** Con `edit` el harness
+edita cualquier archivo y ejecuta cualquier comando en la sandbox, con sus propias
+preguntas desactivadas (`--dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`):
+nadie está ante su terminal, y el límite es el contenedor para el que ambas opciones
+están documentadas. Con `read_only`, Claude Code se ejecuta en modo plan, sin
+ninguna herramienta que escriba - ni las de edición ni la shell - y lee con Read, Grep
+y Glob; sabe que no se puede aprobar nada más. Ni siquiera comandos que leen: ninguna
+lista de prefijos de comandos hace de una shell algo de solo lectura, porque
+`git log --output=<archivo>` encaja con `git log` igual que cualquier lectura. Codex no tiene `read_only`: su modo de solo lectura es una
+sandbox propia, que no arranca dentro del contenedor del agent, y la publicación
+rechaza la combinación. Que una persona diga sí antes de cada tarea es la
+**Aprobación humana** de la capability, puesta en **Preguntar siempre** — como toda
+compuerta, está desactivada hasta que alguien la pone. No hay pestaña de
+herramientas: la única herramienta es la capability.
+
+**La persona lo ve trabajar.** El harness se arranca en segundo plano en la sandbox
+(`claude -p --output-format stream-json` o `codex exec --json`), y su archivo de
+eventos se lee cada segundo y medio. Cada paso llega al chat mientras ocurre, en un
+panel propio bajo la marca de Claude Code o Codex, como los de una delegación: el
+archivo que lee, la edición, el comando que ejecuta, lo que dice entre medias. Al
+terminar, el resultado de la llamada contiene la respuesta, cada paso y los archivos
+que cambió. Una tarea que pasa de `timeout_minutes`, y una que la persona detiene,
+ve detenido todo su grupo de procesos. En segundo plano significa también que una
+tarea no se corta en el límite del servicio de sandbox para un comando.
+
+**Las tareas de una conversación continúan una sesión.** El id de sesión del harness
+se guarda en la sandbox junto al trabajo, en `.agenticos/coding-agent/`, uno por
+conversación, así que la segunda tarea de un chat sabe lo que leyó la primera - y un
+chat nunca continúa la de otro en una sandbox que comparten varias: la de un proyecto o
+una asignada a una persona o a un agent. El modelo pasa `fresh_session`
+para empezar de cero, y una sesión que la sandbox ya no tiene empieza de cero sola,
+una vez.
+
+**Lo que necesita.** La capability `sandbox` en el backend `service` con los
+comandos de shell activados — publicar rechaza cualquier otra cosa — y un runtime con
+el harness instalado: el runtime `workbench` fija Claude Code 2.1.288 y Codex
+0.160.0. La credencial viene del vault mediante el `secret_id` del binding y llega al
+comando por su entorno, nunca en su línea de comandos. En un [proyecto](../projects.md)
+que guarda sus archivos sin contenedor no hay shell, así que el coding agent se deja
+fuera de los runs ahí y el agent sabe por qué.
+
+**Una clave o una suscripción.** Claude Code toma una clave API de Anthropic, o el
+token que `claude setup-token` imprime para una suscripción Claude Pro o Max, guardado
+como clave — se distingue por su prefijo `sk-ant-oat` y solo inicia sesión en
+Anthropic, no en una pasarela. Codex toma una clave API de OpenAI, o un inicio de
+sesión de ChatGPT hecho con **Sign in with ChatGPT**, el mismo que usa un
+[perfil de modelo](../models.md). Para una tarea, el inicio de sesión se escribe en un
+`auth.json` en un directorio de Codex propio de esa tarea (`CODEX_HOME`), fuera
+del workspace, y se elimina después - dos tareas que se ejecutan a la vez nunca
+comparten uno, y las sesiones que Codex reanuda se guardan por conversación a su
+lado. Los tokens que Codex renovó se sellan de nuevo
+sobre el mismo secreto. Todo lo que Codex ejecuta puede leer ese archivo, así que el
+inicio de sesión solo se entrega a una persona que puede verlo en el vault - ejecutar
+el agent nunca es un camino a la suscripción de otro -, y solo en un sandbox que no
+comparten tareas de otras personas: en el contenedor de un proyecto, en uno a nivel de
+agent o en un chat compartido con alguien para editar, la tarea de otra persona se ejecuta como el mismo usuario y podría leerlo.
+Una clave API es distinta:
+es del agent, como el token de un bot en Slack, así que cada run la usa, sea quien
+sea quien preguntó - y todo lo que ejecuta una tarea puede leerla. Vincula una
+clave que puedan compartir todos los que pueden ejecutar el agent. Trabajar con una suscripción
+personal está sujeto a las condiciones de Anthropic y OpenAI para esos planes, que
+pueden no permitirlo en un despliegue compartido.
+
+**Delegar en un coding agent.** Un delegado que enlaza `sandbox` por sí mismo se
+ejecuta en un workspace nuevo en memoria, sin shell, así que un coding agent al que se
+llega por delegación no tiene dónde ejecutar su harness. Da al agent que delega la
+capability `sandbox` en una conexión de sandbox y añade `sandbox` a *Capabilities delegates inherit* en la
+delegación: el coding agent trabaja entonces en el contenedor
+del padre, y los archivos que escribe son los que ve el padre.
+
+**Su gasto se mide.** Ambos harness informan de sus tokens por modelo, que se
+anotan en el registro del run como cualquier petición al modelo, y el budget se
+comprueba antes de cada tarea. Codex no nombra ningún modelo en sus eventos, así que
+sin `model` su uso se anota sin precio y el coste del run se marca como parcial.
+Igual se anota una tarea que termina antes de que su harness diga cuánto gastó:
+fallida, agotado su tiempo o detenida.
+
+## Visuals { #visuals }
+
+`draw` — *Dibuja en la conversación: un diagrama, un mapa, un flujo, una explicación, una escena 3D.*
+`revise_visual` — *Cambia un visual con reemplazos exactos, sin dibujarlo de nuevo.*
+`read_visual` — *Lee un visual de esta conversación tal como está, con las revisiones aplicadas.*
+
+Dibuja en el propio chat. `kind` es `svg` para diagramas e ilustraciones, `mermaid`
+para diagramas de flujo, secuencias y diagramas ER, o `html` para todo lo
+interactivo - controles deslizantes, `<canvas>`, three.js. Sin configuración; el skill
+incluido `visual-design` lleva el estilo y tres plantillas, y el Builder lo vincula al
+activar Visuals.
+
+**Aparece mientras se escribe.** El dibujo es el argumento `content` de la llamada. La
+consola lo lee de los argumentos en streaming y lo envía a un marco bajo el mensaje,
+así que el SVG y el HTML crecen en pantalla y Mermaid se redibuja en cada línea
+completa. Los scripts se ejecutan una vez, cuando la llamada está completa: hasta
+entonces el marcado se muestra sin scripts ni atributos `on*`, así que una escena a
+medio escribir nunca arranca.
+
+**Vive en la conversación.** Solo se guarda la llamada a la herramienta, que la
+transcripción ya conserva, así que una recarga y un hilo compartido lo vuelven a
+dibujar. Un turno anterior llega al modelo solo como texto, por eso la capability
+nombra en sus instrucciones los visuales anteriores de la conversación, por id y
+título, y `read_visual` recupera uno antes de una revisión.
+
+**El modelo sabe cómo se renderizó.** Mientras alguien mira en el chat web, la consola
+informa de los errores de script, las cargas fallidas y las peticiones rechazadas de
+cada dibujo, y `draw` espera ese informe hasta diez segundos antes de responder - así
+el modelo corrige un dibujo roto con `revise_visual` en el mismo turno. Si nadie mira,
+responde enseguida y dice que el dibujo no se comprobó.
+
+**Las revisiones** son reemplazos exactos, la misma regla que las ediciones de
+`publish_artifact`, y cada una es un visual propio bajo el mensaje que la hizo. Un
+dibujo demasiado grande para una aplicación (`ARTIFACT_MAX_BYTES`), un SVG que no es un
+único elemento `<svg>`, o uno que carga algo de otro sitio es un reintento que dice qué
+cambiar.
+
+**Imágenes.** `images` lleva hasta seis imágenes a un dibujo, cada una con un
+nombre que el dibujo usa como `{{image:NAME}}`: una imagen adjunta a la
+conversación, un archivo del workspace o una dirección `https://`. Una dirección
+solo sirve a un agente que ya lee la web - con `web_fetch` o `browser_use`
+activados - y solo en un host que uno de ellos leería: sus `allowed_domains` y
+`blocked_domains` limitan también las imágenes, y la descarga no puede
+redirigirse a otro host. Cada imagen tiene como mucho 2 MiB, y un visual lleva
+solo las imágenes que su dibujo todavía usa, seis como máximo entre todas sus
+revisiones.
+
+**Tiene el aislamiento de una aplicación.** El marco es el sandbox de las aplicaciones
+- un origen opaco, `connect-src 'none'`, nada remoto salvo el conjunto de bibliotecas
+del despliegue, que ahora incluye three.js y Mermaid. Consulte
+[Visuals](../artifacts.md#visuals).
+
 ## Aplicaciones { #artifacts }
 
 `publish_artifact` — *Publica una página terminada — un informe, un pequeño
@@ -1465,6 +1616,50 @@ los delegados por nombre y descripción, el modo que este run usará realmente y
 tope de fan-out que si no descubriría al ser rechazado. Dos listas de los mismos
 delegados en un solo system prompt son contexto pagado dos veces, y solo una de ellas
 puede decir lo que el despliegue impone.
+
+### Agents remotos por A2A { #remote-agents }
+
+Un agent también puede delegar en el **agent de otro proveedor** que hable el
+[protocolo Agent2Agent](https://a2a-protocol.org). Se registra una vez en
+**Connections → Remote agents** por la dirección de su agent card, que se lee y se
+valida en ese momento, con una clave API opcional del vault enviada como bearer
+token. El spec de un agent nombra registros en `external_agents`, y los ajustes de
+delegación los muestran junto a los agents propios de la organización. La clave de
+un registro se presta a cada run, como la de una capability, así que publicar
+rechaza un registro cuya clave quien publica no puede ver en el vault.
+
+Cada agent que delega en un registro depende de él, así que actualizarlo o
+eliminarlo le corresponde a quien lo registró, o a quien edita todos los agents; y
+actualizarlo, que decide adónde va la clave, solo a quien aún puede usar esa clave.
+Una actualización cuya card lleva el agent a otro host queda en la auditoría, porque
+ese host recibe desde entonces las peticiones y la clave. La lista muestra la
+dirección de una card y su endpoint sin query ni userinfo, donde una dirección
+firmada lleva su credencial.
+
+Borrar la clave que envía un registro borra el registro, en lugar de dejarlo
+llamando sin ella. Una clave solo se envía a un endpoint HTTPS, así que una card con
+HTTP sin cifrar se rechaza para un registro que tiene clave. Una dirección con
+nombre de usuario o contraseña se rechaza de entrada: una credencial va al vault.
+
+Para el modelo que delega, un agent remoto es un delegado más, llamado por su nombre
+con la misma herramienta `task`. Cada llamada es un `message/send` de A2A con la
+última petición, y el `contextId` del agent remoto pasa de una llamada a la
+siguiente dentro de la misma delegación: una pregunta de seguimiento sobre una tarea
+continúa su conversación remota, y dos tareas enviadas a la vez tienen cada una la
+suya.
+
+Una respuesta `input-required` o `auth-required` vuelve como texto que lo dice,
+porque un delegado que espera a su propio usuario es una respuesta que el modelo
+tiene que leer. Una parte de datos o de archivo de una respuesta no se lee, y aparece
+como una línea que dice que se envió. Un agent remoto al que no se puede llegar
+responde precisamente eso, y el run sigue.
+
+El budget se comprueba antes de cada llamada. Lo que cuesta una llamada lo fija el
+proveedor remoto y nadie lo publica, así que cada llamada se anota sin precio y el
+coste del run dice que es parcial. Cada petición pasa por las comprobaciones de
+direcciones del despliegue, de modo que ni una card ni un endpoint pueden apuntar la
+plataforma a su propia red. Publicar rechaza una referencia a un registro que no
+existe, y un run cuyo registro se eliminó entretanto falla nombrándolo.
 
 Para ver qué cuesta una delegación y qué fila de run la registra, consulta
 [Gobernanza](../governance.md#delegation-spends-the-parents-budget). Para ver quién

@@ -7,8 +7,6 @@ the capability exists at all - it is what makes the factory hide the MCP toolset
 behind search. An agent that does not bind it pays nothing.
 """
 
-from __future__ import annotations
-
 import pytest
 from pydantic import ValidationError
 from pydantic_ai.capabilities import ToolSearch

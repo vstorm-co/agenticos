@@ -145,6 +145,14 @@ class RedisClient:
         items = await self.client.lrange(key, 0, -1)  # ty: ignore[invalid-await]
         return [str(item) for item in items]
 
+    async def hash_all(self, key: str) -> dict[str, str]:
+        """Every field of a hash, and its value (Redis HGETALL)."""
+        if not self.client:
+            raise RuntimeError("Redis client not connected")
+        # The stubs union a sync and an async return; this client is the async one.
+        fields = await self.client.hgetall(key)  # ty: ignore[invalid-await]
+        return {str(field): str(value) for field, value in fields.items()}
+
     async def exists(self, key: str) -> bool:
         """Check if key exists."""
         if not self.client:

@@ -10,8 +10,6 @@ The practical rule when adding a tool: if the model should not be able to choose
 it, it belongs here, not in the signature.
 """
 
-from __future__ import annotations
-
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -25,6 +23,7 @@ from app.agents.browser_events import BrowserEventSink
 from app.agents.compaction_events import CompactionEvent
 from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentEventSink
+from app.agents.visual_reports import VisualReports
 
 AskUserCallback = Callable[[str, list[str]], Awaitable[str]]
 """How a delegate reaches the person waiting on its parent, and back.
@@ -70,6 +69,9 @@ class AgentDeps:
     user_name: str | None = None
     agent_id: UUID | None = None
     run_id: UUID | None = None
+    # The thread the run answers in, where it has one. What a tool keeps between
+    # turns is the conversation's, even in a sandbox several conversations share.
+    conversation_id: UUID | None = None
 
     # Who will hear this run - one person, a whole channel, or nobody
     # identifiable - derived server-side in `app.agents.audience`. It decides which
@@ -100,6 +102,11 @@ class AgentDeps:
     # would wait for ever, so a delegate's question is declined instead.
     parks_questions: bool = False
 
+    # True in a delegated run. What it shows is not the conversation's: its tool
+    # calls stay in its own run, so a tool whose result is meant to be seen there
+    # - a drawing - has to say so rather than claim the person can see it.
+    delegated: bool = False
+
     # Set when the surface can hold a run for human approval. A tool that needs
     # approval and finds this None must refuse rather than proceed unattended.
     request_approval: ApprovalCallback | None = None
@@ -117,6 +124,11 @@ class AgentDeps:
     # everywhere else, and the browse then runs unnarrated - the frames are a
     # progress report, not a permission, exactly as `on_compaction` is.
     browser_events: BrowserEventSink | None = None
+
+    # Set when somebody is watching the run draw (#2171): the console reports how
+    # each visual rendered, and `draw` waits a moment to hand that to the model.
+    # None everywhere else, and a drawing is then simply not checked.
+    visual_reports: VisualReports | None = None
 
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -155,6 +167,9 @@ class AgentDeps:
         person, in the same panel. A delegate whose browse is silent is the one
         run nobody can see, and it is the one most worth seeing.
 
+        `delegated` is set, not inherited: whatever the parent is, this run is a
+        delegate, and a drawing it makes is never shown in the conversation.
+
         What it does **not** inherit: `kb_collection_names`. Those come from the
         delegate's own spec, and inheriting the parent's would hand a specialist a
         collection nobody granted it. The delegate's own are put back by the
@@ -184,10 +199,12 @@ class AgentDeps:
             user_name=self.user_name,
             agent_id=self.agent_id,
             run_id=self.run_id,
+            conversation_id=self.conversation_id,
             ask_user=self.ask_user,
             ask_questions=None if self.parks_questions else self.ask_questions,
             request_approval=self.request_approval,
             subagent_events=self.subagent_events,
             browser_events=self.browser_events,
+            delegated=True,
             metadata=dict(self.metadata),
         )

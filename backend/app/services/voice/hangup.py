@@ -9,8 +9,6 @@ A relay call (Gemini, xAI, Azure) is our own upstream socket: when the session
 exits, the provider ends the call (provider docs). Not verified live.
 """
 
-from __future__ import annotations
-
 import logging
 from dataclasses import dataclass
 

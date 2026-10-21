@@ -12,6 +12,7 @@ from app.api.routes.v1._sharing_loaders import (
     load_collection,
     load_context,
     load_mcp_connection,
+    load_project,
     load_secret,
     load_skill,
 )
@@ -22,6 +23,7 @@ from app.services.access import (
     COLLECTION,
     CONTEXT,
     MCP_CONNECTION,
+    PROJECT,
     SECRET,
     SKILL,
 )
@@ -35,3 +37,4 @@ artifact_sharing_router = build_sharing_router(resource_type=ARTIFACT, load=load
 mcp_connection_sharing_router = build_sharing_router(
     resource_type=MCP_CONNECTION, load=load_mcp_connection
 )
+project_sharing_router = build_sharing_router(resource_type=PROJECT, load=load_project)

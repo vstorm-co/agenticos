@@ -202,3 +202,29 @@ describe("@-mentions in the composer", () => {
     expect(marked()).toEqual(["@Google Drive"]);
   });
 });
+
+describe("a project from @", () => {
+  const LAUNCH: Mentionable = { kind: "project", id: "p-1", name: "Launch", detail: "Q4" };
+
+  it("starts the chat in it rather than writing it into the message", async () => {
+    const onPickProject = vi.fn();
+    const { box, onSend, marked } = composer({ projects: [LAUNCH], onPickProject });
+    await userEvent.type(box, "plan @laun");
+
+    expect(screen.getByRole("listbox")).toHaveTextContent("Projects");
+    await userEvent.keyboard("{Enter}");
+
+    expect(onPickProject).toHaveBeenCalledWith("p-1");
+    expect(messageOf(box)).toBe("plan ");
+    expect(marked()).toEqual([]);
+
+    await userEvent.type(box, "it{Enter}");
+    expect(onSend).toHaveBeenCalledWith("plan it", undefined, undefined, undefined);
+  });
+
+  it("is not offered where the chat cannot choose a project", async () => {
+    const { box } = composer();
+    await userEvent.type(box, "@laun");
+    expect(screen.queryByRole("option")).toBeNull();
+  });
+});

@@ -7,8 +7,6 @@ attributes its usage. A hosted page's visitor calls into the thread their
 continuity key holds; a widget's call starts a new conversation each time.
 """
 
-from __future__ import annotations
-
 from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession

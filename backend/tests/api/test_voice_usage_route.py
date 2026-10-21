@@ -1,7 +1,5 @@
 """`GET /voice/usage`: call minutes, gated on `runs:view` (#54)."""
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime

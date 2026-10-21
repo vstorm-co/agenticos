@@ -10,8 +10,6 @@ older turns become a short summary written by the agent's own chat model and
 billed to the run, and the recent turns follow verbatim.
 """
 
-from __future__ import annotations
-
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 from uuid import UUID

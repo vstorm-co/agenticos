@@ -327,18 +327,25 @@ const ME_SECTIONS: SectionDef[] = [
       // under three cards of history, which is the wrong way round.
       { widget: "approvals", span: "s6", rows: "r3" },
       { widget: "conversations", span: "s6", rows: "r3" },
+      // Where their ongoing work is, a row of tiles under what they left open.
+      { widget: "projects", span: "s12", rows: "r2" },
       { widget: "my-agents", span: "s6", rows: "r3" },
       { widget: "my-top-agents", span: "s6", rows: "r3" },
       // Three rows like the pair above: two left the quality chart a sliver
       // under its figure and legend, which said nothing either.
       { widget: "my-quality", span: "s6", rows: "r3" },
       { widget: "shared-with-you", span: "s6", rows: "r3" },
+      // What agents drew for them lately, as pictures: the one card here that is
+      // something to look at rather than a list to read. Four rows, so a
+      // thumbnail is big enough to tell one drawing from another.
+      { widget: "recent-visuals", span: "s12", rows: "r4" },
     ],
   },
   {
     id: "attention",
     titleKey: "attention",
-    entries: [{ widget: "notifications", span: "s12", rows: "r2" }],
+    // Three rows: at two, the third notification was cut through by the card's edge.
+    entries: [{ widget: "notifications", span: "s12", rows: "r3" }],
   },
 ];
 
@@ -381,6 +388,7 @@ const DEPLOYMENT_SECTIONS: SectionDef[] = [
     entries: [
       { widget: "platform", span: "s6", rows: "r2" },
       { widget: "health", span: "s6", rows: "r2" },
+      { widget: "background-jobs", span: "s12", rows: "r3" },
       { widget: "top-orgs", span: "s6", rows: "r3" },
       { widget: "platform-ratings", span: "s6", rows: "r3" },
     ],

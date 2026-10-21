@@ -502,6 +502,12 @@ So use a specialist for work that should not require publishing an agent —
 "summarise this in three bullets" — and a delegate for a capability the
 organization owns and reuses.
 
+A third kind sits beside them: a **remote agent**, another vendor's agent reached
+over A2A and registered in the organization by its agent card. It is called the
+same way and billed against the same budget, but it is not versioned here — its
+owner changes it on their side — so a reference names the registration rather than
+a version. See [Remote agents over A2A](reference/capabilities.md#remote-agents).
+
 #### Dynamic specialists, and the way out
 
 A third kind sits below the inline one: a **dynamic specialist**, invented by the

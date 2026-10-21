@@ -1,7 +1,5 @@
 """Activity shows a reconnected call as one call (#54, amendment 9)."""
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal

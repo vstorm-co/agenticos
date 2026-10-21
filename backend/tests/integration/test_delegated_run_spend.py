@@ -20,8 +20,6 @@ A mock cannot tell you which rows a `WHERE` actually returned, and it certainly
 cannot tell you what `ON DELETE SET NULL` does to the arithmetic afterwards.
 """
 
-from __future__ import annotations
-
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -156,6 +154,8 @@ async def _delegated(
         parent_run_id=parent.id,
         subagent_task_id=task_id,
         user_id=None,
+        initiated_by_publisher_fallback=False,
+        channel_identity_id=None,
         conversation_id=None,
         exposure_id=None,
         surface="api",
@@ -918,6 +918,8 @@ class TestTheCacheSplit:
             parent_run_id=parent.id,
             subagent_task_id="t-1",
             user_id=None,
+            initiated_by_publisher_fallback=False,
+            channel_identity_id=None,
             conversation_id=None,
             exposure_id=None,
             surface="api",

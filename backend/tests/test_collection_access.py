@@ -13,8 +13,6 @@ one name - the case that makes `get_by_collection_name` unsafe - is expressible
 here rather than only against Postgres.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field

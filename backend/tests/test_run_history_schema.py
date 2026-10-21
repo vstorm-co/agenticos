@@ -9,8 +9,6 @@ was written, and the API sent neither the link nor the task id. Nothing was
 broken enough to notice.
 """
 
-from __future__ import annotations
-
 import uuid
 from decimal import Decimal
 

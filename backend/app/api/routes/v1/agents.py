@@ -21,7 +21,8 @@ private variant, which is what keeps "the Builder is just another client" true.
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Header, Query, Response, UploadFile, status
+from fastapi.responses import JSONResponse
 
 from app.agents.capabilities import all_capabilities
 from app.agents.prompt_variables import SYSTEM_VARIABLES
@@ -29,22 +30,26 @@ from app.agents.spec import AgentSpec
 from app.api.deps import (
     AgentRegistrySvc,
     AgentRunnerSvc,
+    ApiRunSvc,
     Auth,
     ConversationSvc,
     DBSession,
     KnowledgeReachSvc,
     MentionSvc,
     MLSvc,
+    PrefersAsync,
     limit_agent_run,
     limit_dictation,
     require,
 )
 from app.api.public_api import PUBLIC
 from app.api.routes.v1._stored_bytes import stored_image_response
-from app.core.exceptions import NotFoundError
+from app.core.config import settings
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import Perm
 from app.db.models.agent_run import RunSurface
 from app.schemas.agent import (
+    AgentA2ARequest,
     AgentAvatarColorRequest,
     AgentClone,
     AgentCreate,
@@ -69,8 +74,11 @@ from app.schemas.agent import (
     DelegationTree,
     McpCatalog,
     McpCatalogEntry,
+    PlatformMcpTool,
+    PlatformMcpToolList,
     PromptVariableCatalog,
     PromptVariableRead,
+    RunRequestRead,
     SpecialistPromote,
     TemplateInstallRequest,
     TemplateInstallResult,
@@ -80,6 +88,7 @@ from app.schemas.ml import DictationRead, DictationStatusRead
 from app.services import agent_templates, mcp_listing, transcription
 from app.services.attachments import load_attached_files
 from app.services.capability_contracts import tool_contracts
+from app.services.platform_mcp import platform_tool_catalog
 
 router = APIRouter(dependencies=[PUBLIC])
 
@@ -116,6 +125,7 @@ async def list_capability_catalog() -> Any:
             description=definition.description,
             side_effecting=definition.side_effecting,
             tools=list(definition.tools),
+            tool_settings=definition.tool_settings,
             scopes=sorted(definition.scopes),
             voice=definition.voice,
             contracts=[
@@ -190,6 +200,25 @@ async def list_mcp_catalog(db: DBSession) -> Any:
         total=len(items),
         registry_total=await mcp_listing.mirror_size(db),
     )
+
+
+@router.get(
+    "/platform-mcp-tools",
+    response_model=PlatformMcpToolList,
+    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+)
+async def list_platform_mcp_tools() -> Any:
+    """The tools of this deployment's own MCP server, for a binding to choose from.
+
+    Every caller sees the same list: a tool runs with the permissions of whoever
+    the agent runs for, so what may actually be done is decided per call, not
+    by who reads this list.
+    """
+    items = [
+        PlatformMcpTool(name=tool.name, description=tool.summary, writes=tool.writes)
+        for tool in platform_tool_catalog()
+    ]
+    return PlatformMcpToolList(items=items, total=len(items))
 
 
 @router.get(
@@ -527,6 +556,25 @@ async def set_agent_avatar_color(
     return await service.set_avatar_color(ctx, agent_id, color=data.color)
 
 
+@router.put(
+    "/{agent_id}/a2a",
+    response_model=AgentRead,
+)
+async def set_agent_a2a(
+    agent_id: UUID,
+    data: AgentA2ARequest,
+    service: AgentRegistrySvc,
+    ctx: Auth,
+) -> Any:
+    """Serve this agent over A2A, or stop (#2092).
+
+    Per-resource: the service's grant-aware `AGENTS_PUBLISH` check decides. Served,
+    its card is at `/a2a/{agent_id}/.well-known/agent-card.json` and its tasks at
+    `POST /a2a/{agent_id}`.
+    """
+    return await service.set_a2a(ctx, agent_id, enabled=data.enabled)
+
+
 @router.patch(
     "/{agent_id}/metadata",
     response_model=AgentRead,
@@ -695,6 +743,14 @@ async def dictate_into_composer(
             "500": "The run started and failed. `details.run_id` names it, and `message` says why.",
             "502": "The model provider refused or failed the run's request. "
             "`details.run_id` names the run, which is recorded as failed.",
+            "409": "With `Idempotency-Key`: the key was already used for a different request.",
+        }
+    },
+    responses={
+        202: {
+            "model": RunRequestRead,
+            "description": "Sent with `Prefer: respond-async`: the run is queued. Poll "
+            "`Location` (`GET /api/v1/run-requests/{id}`) for its outcome.",
         }
     },
     # Not a permission gate - see the boundary about `require(...)` on
@@ -707,8 +763,19 @@ async def run_agent(
     data: AgentRunRequest,
     service: AgentRunnerSvc,
     conversations: ConversationSvc,
+    api_runs: ApiRunSvc,
     db: DBSession,
     ctx: Auth,
+    respond_async: PrefersAsync,
+    idempotency_key: Annotated[
+        str | None,
+        Header(
+            alias="Idempotency-Key",
+            max_length=255,
+            description="With `Prefer: respond-async`: a retry under the same key answers "
+            "the same run request instead of starting another run.",
+        ),
+    ] = None,
 ) -> Any:
     """Run a published agent and return its answer.
 
@@ -724,7 +791,28 @@ async def run_agent(
     other. The surface whose whole purpose is "run it from your own backend" was
     the one that could not send a document, and a caller whose run stopped for an
     approval got an empty string and a status.
+
+    **Sent with `Prefer: respond-async` it answers `202` at once** (#2219): the run
+    is queued for a worker and the answer is a run request to poll, so a run of
+    minutes does not hold a connection - or a proxy's read timeout - open. Only
+    then is `Idempotency-Key` honoured; a synchronous call carrying one is refused
+    rather than letting the caller believe a retry is safe when it is not.
     """
+    if respond_async:
+        queued = await api_runs.queue(ctx, agent_id, data, idempotency_key=idempotency_key)
+        return JSONResponse(
+            status_code=status.HTTP_202_ACCEPTED,
+            content=queued.model_dump(mode="json"),
+            headers={
+                "Location": f"{settings.API_V1_STR}/run-requests/{queued.id}",
+                "Preference-Applied": "respond-async",
+            },
+        )
+    if idempotency_key is not None:
+        raise BadRequestError(
+            message="Idempotency-Key is honoured only with Prefer: respond-async",
+            details={"header": "Idempotency-Key"},
+        )
     # The caller's own conversation, checked - an unknown id was a foreign-key
     # 500, and somebody else's would have handed this run its workspace and its
     # plan (#1796) - or a new one, so the next call can continue it (#2122).

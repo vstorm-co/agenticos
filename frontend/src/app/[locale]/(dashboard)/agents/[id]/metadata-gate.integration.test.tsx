@@ -88,6 +88,7 @@ vi.mock("@/hooks", async () => {
     useExposures: () => ({ exposures: [] }),
     useKnowledgeBases: () => ({ kbs: [], isLoading: false, listError: null }),
     useMcpCatalog: () => ({ servers: [], isLoading: false, error: null }),
+    usePlatformMcpTools: () => ({ tools: [], isLoading: false, error: null }),
     useModelProviders: () => ({ profiles: [], profilesStatus: "loaded" }),
     useMcpConnections: () => ({ connections: [] }),
     useOrgMcpConnections: () => ({

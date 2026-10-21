@@ -17,6 +17,7 @@ import {
   useWorkingStore,
 } from "@/stores";
 import { DEFAULT_COLLAPSED_BANDS, LONG_LIST } from "@/stores/chat-sidebar-store";
+import { useProjects } from "@/hooks/use-projects";
 import {
   Archive,
   ArchiveRestore,
@@ -276,17 +277,21 @@ function ConversationItem({
                 <Pencil className="h-4 w-4" />
                 {t("rename")}
               </button>
-              <button
-                className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onShare();
-                  setShowMenu(false);
-                }}
-              >
-                <Share2 className="h-4 w-4" />
-                {t("share")}
-              </button>
+              {/* Not for a project's chat: who reads it is the project's to say,
+                  and the server refuses a share of one. */}
+              {!conversation.project_id && (
+                <button
+                  className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onShare();
+                    setShowMenu(false);
+                  }}
+                >
+                  <Share2 className="h-4 w-4" />
+                  {t("share")}
+                </button>
+              )}
               {/* In the menu as well as on the row: the hover control does not
                   exist on a touch screen until something is long-pressed. */}
               <button
@@ -377,7 +382,7 @@ interface ConversationListProps {
  * A thread at work, in place of when it last moved: a spinner and how long the
  * run has been going, counted here between the listing's reads.
  */
-function RunningFor({ since }: { since: string }) {
+export function RunningFor({ since }: { since: string }) {
   const t = useTranslations("chat.steps");
   const started = useMemo(() => new Date(since), [since]);
   const elapsed = useTurnElapsed(started, true);
@@ -424,12 +429,56 @@ export function byAge(
   return AGES.filter((age) => groups.has(age)).map((age) => ({ age, rows: groups.get(age)! }));
 }
 
+/** A project's initial on a tile - the mark the main sidebar draws for it too. */
+function ProjectTile({ name }: { name: string }) {
+  return (
+    <span
+      aria-hidden
+      className="bg-foreground/[0.07] text-foreground flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[5px] text-[10px] leading-none font-semibold"
+    >
+      {name.trim().charAt(0).toUpperCase()}
+    </span>
+  );
+}
+
 /** One band of the list: what heads it, and the threads under it. */
 interface Band {
   key: string;
   heading: string | null;
-  icon: "star" | "unread" | null;
+  icon: "star" | "unread" | "project" | null;
   rows: Conversation[];
+}
+
+/**
+ * The threads started in a project, one band per project, in the order the list
+ * reached them - so the project worked in most recently comes first.
+ *
+ * A project the reader can no longer see still heads its threads, under a
+ * generic name: they are the reader's own chats, and hiding them would lose them.
+ */
+export function byProject(
+  conversations: Conversation[],
+  names: ReadonlyMap<string, string>,
+  unnamed: string,
+): { inProjects: Band[]; outside: Conversation[] } {
+  const bands = new Map<string, Band>();
+  const outside: Conversation[] = [];
+  for (const conversation of conversations) {
+    const projectId = conversation.project_id;
+    if (!projectId) {
+      outside.push(conversation);
+      continue;
+    }
+    const band = bands.get(projectId) ?? {
+      key: `project:${projectId}`,
+      heading: names.get(projectId) ?? unnamed,
+      icon: "project" as const,
+      rows: [],
+    };
+    band.rows.push(conversation);
+    bands.set(projectId, band);
+  }
+  return { inProjects: [...bands.values()], outside };
 }
 
 /**
@@ -456,6 +505,13 @@ function useBands(
 ): Band[] {
   const t = useTranslations("chat");
   const ts = useTranslations("chat.sidebar");
+  // The names a project band is headed with. Every project the reader works in
+  // fits one page; one they lost access to is headed generically by `byProject`.
+  const { projects } = useProjects({ limit: 100 });
+  const names = useMemo(
+    () => new Map(projects.map((project) => [project.id, project.name])),
+    [projects],
+  );
   return useMemo((): Band[] => {
     // Threads with an answer the reader has not seen lead the list, as an inbox
     // does, and leave the band they would otherwise sit in. Not the open one,
@@ -471,7 +527,11 @@ function useBands(
     const starred = isArchivedView
       ? []
       : remaining.slice(0, firstOther === -1 ? remaining.length : firstOther);
-    const rest = remaining.slice(starred.length);
+    // Threads in a project sit under it rather than under their date, the way a
+    // folder holds its files. Not in the archive, which is one flat list.
+    const { inProjects, outside: rest } = isArchivedView
+      ? { inProjects: [], outside: remaining.slice(starred.length) }
+      : byProject(remaining.slice(starred.length), names, ts("unnamedProject"));
     return [
       ...(unread.length > 0
         ? [{ key: "unread", heading: ts("unreadHeading"), icon: "unread" as const, rows: unread }]
@@ -479,6 +539,7 @@ function useBands(
       ...(starred.length > 0
         ? [{ key: "favourites", heading: t("favourites"), icon: "star" as const, rows: starred }]
         : []),
+      ...inProjects,
       // Under the date they were last active, the way a chat product's history
       // reads, when the list is in that order; any other order has no dates to
       // fall into, so it stays one run.
@@ -493,7 +554,7 @@ function useBands(
           ? [{ key: "rest", heading: null, icon: null, rows: rest }]
           : []),
     ];
-  }, [conversations, currentConversationId, isArchivedView, datedOrder, t, ts]);
+  }, [conversations, currentConversationId, isArchivedView, datedOrder, names, t, ts]);
 }
 
 /**
@@ -682,6 +743,7 @@ function ConversationList({
                   >
                     {icon === "star" && <Star className="h-3.5 w-3.5" aria-hidden />}
                     {icon === "unread" && <Inbox className="h-3.5 w-3.5" aria-hidden />}
+                    {icon === "project" && <ProjectTile name={heading} />}
                     <span>{heading}</span>
                     {isFolded(key) && (
                       <span className="text-muted-foreground/70 tabular-nums">{rows.length}</span>
@@ -1042,6 +1104,8 @@ function CollapsedSidebar({
                     <Star className="h-3.5 w-3.5" aria-hidden />
                   ) : icon === "unread" ? (
                     <Inbox className="h-3.5 w-3.5" aria-hidden />
+                  ) : icon === "project" ? (
+                    <ProjectTile name={heading} />
                   ) : (
                     <span
                       aria-hidden

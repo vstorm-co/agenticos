@@ -12,8 +12,6 @@ the hang-up - then finishes the run (spend recorded on every path) and commits:
 the terminal commit of the run path (amendment 5).
 """
 
-from __future__ import annotations
-
 import json
 import logging
 import time
@@ -333,7 +331,7 @@ class VoiceCallSession:
             return audio if isinstance(audio, bytes) else None
         try:
             return _FRAMES.validate_python(json.loads(text))
-        except (ValidationError, ValueError):
+        except ValidationError, ValueError:
             return None
 
     async def run(self) -> None:

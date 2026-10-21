@@ -95,7 +95,7 @@ somebody makes about *this* agent, not a change to the platform.
 
 [Every capability, its tools and its config →](reference/capabilities.md)
 
-## Any model, from 27 providers
+## Any model, from 28 providers
 
 OpenAI, Anthropic, Google, Groq, Mistral, Bedrock, Vertex, an Ollama on your own
 hardware, a LiteLLM proxy in front of all of it.

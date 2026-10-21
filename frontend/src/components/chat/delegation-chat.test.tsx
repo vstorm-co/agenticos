@@ -20,6 +20,7 @@ function delegation(overrides: Partial<Delegation> = {}): Delegation {
     parentTaskId: null,
     status: "running",
     specialist: null,
+    harness: null,
     text: "",
     thinking: "",
     steps: [],
@@ -37,6 +38,41 @@ const CHIEF = { id: "a-chief", slug: "chief-of-staff", name: "Chief of Staff" };
 
 /** The team talking it through while the turn runs. */
 describe("the team at work", () => {
+  it("draws a coding harness by its mark and says what it is doing right now", () => {
+    render(
+      <DelegationChat
+        parent={CHIEF}
+        agents={AGENTS}
+        delegations={[
+          delegation({
+            subagent: "Claude Code",
+            harness: "claude_code",
+            steps: [
+              { id: "s1", name: "read", ok: true, title: "/workspace/app.py" },
+              { id: "s2", name: "command", ok: null, title: "pytest -q" },
+            ],
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getAllByRole("img", { name: "Claude Code" }).length).toBeGreaterThan(0);
+    expect(screen.getByText("Running pytest -q")).toBeInTheDocument();
+  });
+
+  it("says nothing of a step that names no subject", () => {
+    render(
+      <DelegationChat
+        parent={CHIEF}
+        agents={AGENTS}
+        delegations={[
+          delegation({ steps: [{ id: "s1", name: "search_documents", ok: null, title: null }] }),
+        ]}
+      />,
+    );
+    expect(screen.queryByText(/^Running|^Reading/)).toBeNull();
+  });
+
   it("shows what was asked, and the colleague typing while it works", () => {
     const { container } = render(
       <DelegationChat
@@ -45,8 +81,8 @@ describe("the team at work", () => {
         delegations={[
           delegation({
             steps: [
-              { id: "s1", name: "search_documents", ok: true },
-              { id: "s2", name: "search_documents", ok: null },
+              { id: "s1", name: "search_documents", ok: true, title: null },
+              { id: "s2", name: "search_documents", ok: null, title: null },
             ],
           }),
         ]}
@@ -91,9 +127,9 @@ describe("the team at work", () => {
           delegation({
             text: "MRR is €153k.",
             steps: [
-              { id: "s1", name: "search_documents", ok: true },
-              { id: "s2", name: "fetch_url", ok: false },
-              { id: "s3", name: "search_documents", ok: null },
+              { id: "s1", name: "search_documents", ok: true, title: null },
+              { id: "s2", name: "fetch_url", ok: false, title: null },
+              { id: "s3", name: "search_documents", ok: null, title: null },
             ],
           }),
         ]}

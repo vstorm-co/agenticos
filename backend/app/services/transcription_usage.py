@@ -28,8 +28,6 @@ A bot switched off, or a recording with no engine resolving for it, never
 attempted anything and writes none.
 """
 
-from __future__ import annotations
-
 import logging
 import math
 from dataclasses import dataclass

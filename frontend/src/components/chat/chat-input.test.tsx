@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { messageOf } from "./composer-editor";
 import { ChatInput, type ComposerDictation } from "./chat-input";
 import type { DictationState } from "@/hooks/use-dictation";
+import { useChatStore } from "@/stores";
 import { PublicConfigProvider } from "@/components/public-config/public-config-provider";
 import type { FileUploadResponse } from "@/lib/file-api";
 import { DEFAULT_PUBLIC_CONFIG } from "@/lib/public-config";
@@ -53,6 +54,38 @@ beforeEach(() => {
   // test is still recorded in the next one that asserts none.
   vi.mocked(toast.error).mockClear();
   vi.mocked(toast.info).mockClear();
+});
+
+describe("ChatInput replying", () => {
+  it("says what the next turn answers, and lets it be taken back", async () => {
+    act(() =>
+      useChatStore
+        .getState()
+        .setReplyTo({ messageId: "m-2", role: "assistant", excerpt: "Plan: A, B" }),
+    );
+    render(<ChatInput onSend={vi.fn()} />);
+    expect(screen.getByText("The agent")).toBeInTheDocument();
+    expect(screen.getByText("Plan: A, B")).toBeInTheDocument();
+    // Ready to type the answer.
+    expect(screen.getByRole("textbox")).toHaveFocus();
+
+    await userEvent.click(screen.getByRole("button", { name: "Don't reply" }));
+    expect(useChatStore.getState().replyTo).toBeNull();
+    expect(screen.queryByText("Plan: A, B")).toBeNull();
+  });
+});
+
+describe("ChatInput typing", () => {
+  it("says the person is writing when they type words, not when they clear the box", async () => {
+    const onTyping = vi.fn();
+    render(<ChatInput onSend={vi.fn()} onTyping={onTyping} />);
+
+    await userEvent.type(screen.getByRole("textbox"), "hi");
+    expect(onTyping).toHaveBeenCalledTimes(2);
+
+    await userEvent.clear(screen.getByRole("textbox"));
+    expect(onTyping).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("ChatInput paste", () => {

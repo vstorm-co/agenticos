@@ -6,8 +6,6 @@ about fourteen times a minute. Each process here is a `StreamLeases` against one
 shared Redis, the way two workers on one deployment are.
 """
 
-from __future__ import annotations
-
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -196,6 +194,27 @@ class TestWhatRedisMissed:
         redis.get = AsyncMock(side_effect=ValueError("NOPERM this user has no permissions"))  # ty: ignore[invalid-assignment]
 
         assert await leases.renew() == ["bot"]
+
+    async def test_a_claim_made_while_redis_was_down_closes_once_it_is_back(
+        self, adapter: MagicMock
+    ):
+        """The shape of the 2026-10-18 conflicts (#2224): a worker claims during
+        a Redis outage, which fails open, while another already holds the lease.
+        At the first renewal that reaches Redis the extra copy closes, and the
+        holder goes on alone."""
+        redis = _FlakyRedis()
+        holder, extra = StreamLeases(redis, holder="a"), StreamLeases(redis, holder="b")  # ty: ignore[invalid-argument-type]
+        await holder.take("bot", "telegram")
+
+        redis.down = True
+        assert await extra.claim("bot") is True
+        extra.hold("bot", "telegram")
+        redis.down = False
+
+        assert await extra.renew() == ["bot"]
+        adapter.stop_polling.assert_awaited_once_with("bot")
+        assert await holder.renew() == []
+        assert redis.keys == {"channel:stream:bot": "a"}
 
     async def test_a_claimed_lease_is_checked_before_its_stream_opens(self):
         first, second, _ = _workers()

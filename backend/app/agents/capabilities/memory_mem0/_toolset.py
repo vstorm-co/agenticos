@@ -11,8 +11,6 @@ can reach obeys exactly the rule the file store obeys - a person's only where
 that person is the sole listener, a room's only inside that room.
 """
 
-from __future__ import annotations
-
 from uuid import UUID
 
 from pydantic_ai.tools import RunContext

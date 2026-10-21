@@ -1,7 +1,5 @@
 """`GET /providers/realtime-models`: the Voice card's picker, over the wire (#54)."""
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import Iterator
 

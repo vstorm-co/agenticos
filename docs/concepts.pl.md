@@ -1,5 +1,5 @@
 ---
-source_sha: "efe226528843"
+source_sha: "4fe91aa6f038"
 ---
 
 # Koncepcje { #concepts }
@@ -521,6 +521,12 @@ czyimś specu.
 Używaj więc specjalisty do pracy, która nie powinna wymagać publikowania agenta —
 „streść to w trzech punktach” — a delegata do zdolności, którą organizacja
 posiada i wykorzystuje wielokrotnie.
+
+Trzeci rodzaj stoi obok nich: **zdalny agent**, agent innego dostawcy osiągalny
+przez A2A i zarejestrowany w organizacji po jego agent card. Wywołuje się go tak samo
+i rozlicza z tego samego budżetu, ale nie jest tu wersjonowany — jego właściciel
+zmienia go po swojej stronie — więc odwołanie wskazuje rejestrację, a nie wersję.
+Zobacz [Zdalni agenci przez A2A](reference/capabilities.md#remote-agents).
 
 #### Specjaliści dynamiczni i droga wyjścia { #dynamic-specialists-and-the-way-out }
 

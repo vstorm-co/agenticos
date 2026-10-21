@@ -24,8 +24,6 @@ it replaced.
     would be the one action in the tree that a repository rename could move.
 """
 
-from __future__ import annotations
-
 import re
 from pathlib import Path
 from typing import Any

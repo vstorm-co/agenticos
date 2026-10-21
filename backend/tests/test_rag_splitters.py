@@ -13,8 +13,6 @@ model this platform supports. It now runs the recursive splitter over each
 section, so its golden list is a *new* one.
 """
 
-from __future__ import annotations
-
 import itertools
 import logging
 

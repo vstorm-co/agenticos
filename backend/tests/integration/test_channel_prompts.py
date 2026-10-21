@@ -1,7 +1,5 @@
 """Channel prompts against Postgres: what a press can find, and in what order (#2064)."""
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 

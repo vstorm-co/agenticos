@@ -1,7 +1,5 @@
 """Approvals in a call: decided by the person on it, through the socket (#54)."""
 
-from __future__ import annotations
-
 import asyncio
 from contextlib import asynccontextmanager
 from types import SimpleNamespace

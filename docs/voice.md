@@ -145,7 +145,7 @@ model instead.
 | Adapted | skills: loaded as instructions on demand, without the tools a text run uses to read them |
 | Dropped | tool search: the MCP tools it would have deferred are passed to the call directly |
 | Mapped | thinking: becomes the realtime model's own reasoning setting, where the model has one |
-| Handed off | sandbox, browser use, subagents, work while tools run: done by the agent's text model, see [Handing work off](#handing-work-off) |
+| Handed off | sandbox, browser use, subagents, the coding agent, work while tools run: done by the agent's text model, see [Handing work off](#handing-work-off) |
 
 The Builder's Voice card lists the capabilities this agent hands off in calls.
 

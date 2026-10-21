@@ -1,6 +1,6 @@
 "use client";
 
-import { Mic, Paperclip, Plus, SquareSlash } from "lucide-react";
+import { FolderKanban, Mic, Paperclip, Plus, SquareSlash } from "lucide-react";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
@@ -19,6 +19,8 @@ interface ComposerSheetProps {
   onVoice?: () => void;
   /** Starts a slash command; absent where the composer offers none. */
   onCommand?: () => void;
+  /** Picks the project a new chat starts in; absent once the chat exists. */
+  onProject?: () => void;
   disabled?: boolean;
 }
 
@@ -39,7 +41,13 @@ interface Action {
  * menu over the `+`; on a phone as an action sheet of full-width rows, the way
  * messaging apps offer them (#2066).
  */
-export function ComposerSheet({ onAttach, onVoice, onCommand, disabled }: ComposerSheetProps) {
+export function ComposerSheet({
+  onAttach,
+  onVoice,
+  onCommand,
+  onProject,
+  disabled,
+}: ComposerSheetProps) {
   const t = useTranslations("chat.input");
   const [sheetOpen, setSheetOpen] = useState(false);
   const actions: Action[] = [
@@ -69,6 +77,17 @@ export function ComposerSheet({ onAttach, onVoice, onCommand, disabled }: Compos
             label: t("commands"),
             description: t("commandsHint"),
             run: onCommand,
+          },
+        ]
+      : []),
+    ...(onProject
+      ? [
+          {
+            key: "project",
+            icon: FolderKanban,
+            label: t("project"),
+            description: t("projectHint"),
+            run: onProject,
           },
         ]
       : []),

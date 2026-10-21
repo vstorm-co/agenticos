@@ -14,8 +14,6 @@ tests underneath (`tests/test_collection_access.py`,
 none of the code they cover.
 """
 
-from __future__ import annotations
-
 import uuid
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -161,7 +159,7 @@ class TestDroppingACollection:
         )
         dispatch = AsyncMock()
         monkeypatch.setattr(
-            "app.worker.tasks.teardown_tasks.dispatch_external_state_cleanup", dispatch
+            "app.worker.tasks.teardown_tasks.queue_external_state_cleanup", dispatch
         )
 
         response = await client.delete(f"{settings.API_V1_STR}/rag/collections/handbook")

@@ -142,14 +142,14 @@ async def test_a_call_that_cannot_be_hung_up_yet_is_retried_within_the_hour():
 
 @pytest.mark.parametrize("reaped", [0, 2])
 async def test_the_sweep_runs_the_reaper_on_sessions_of_its_own(reaped):
-    from app.worker.tasks.voice_tasks import voice_call_sweep_flow
+    from app.worker.tasks.voice_tasks import reap_voice_calls
 
     reaper = MagicMock(reap=AsyncMock(return_value=reaped))
     with (
         patch("app.worker.tasks.voice_tasks.get_worker_db_context") as ctx,
         patch("app.worker.tasks.voice_tasks.VoiceCallReaper", return_value=reaper) as made,
     ):
-        assert await voice_call_sweep_flow() == reaped
+        assert await reap_voice_calls() == reaped
 
     assert made.call_args.args == (ctx,)
     reaper.reap.assert_awaited_once()

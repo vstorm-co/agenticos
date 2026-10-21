@@ -1,12 +1,10 @@
-"""Migration `0143_voice_calls`: runs read as text, and the call table comes and goes.
+"""Migration `0155_voice_calls`: runs read as text, and the call table comes and goes.
 
 A run that exists before the upgrade was typed, so it must read `text`; the
 call table must be created with its foreign keys and dropped cleanly. Run here
 against real PostgreSQL, on a scratch database holding only the tables the
 revision references.
 """
-
-from __future__ import annotations
 
 import importlib.util
 import os
@@ -22,7 +20,7 @@ from sqlalchemy import Engine, create_engine, inspect, text
 from app.core.config import settings
 
 SCRATCH_DATABASE = f"agenticos_voice_calls_test_p{os.getpid()}"
-_MIGRATION = Path(__file__).parents[1] / "alembic" / "versions" / "0143_voice_calls.py"
+_MIGRATION = Path(__file__).parents[1] / "alembic" / "versions" / "0155_voice_calls.py"
 
 
 def _url(database: str) -> str:

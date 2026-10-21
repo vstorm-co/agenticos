@@ -11,8 +11,6 @@ control that is genuinely the operator's - volume encryption - is *named* rather
 than quietly passed, and does not fail a command nobody could otherwise pass.
 """
 
-from __future__ import annotations
-
 import uuid
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock

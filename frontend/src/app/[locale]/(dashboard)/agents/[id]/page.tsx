@@ -48,6 +48,7 @@ import { LoopGuardFields } from "@/components/agents/loop-guard-fields";
 import { ReviewersCard } from "@/components/agents/reviewers-card";
 import { CodeModeField } from "@/components/agents/code-mode-field";
 import { CapabilityWorkbench } from "@/components/agents/capability-workbench";
+import { A2aPanel } from "@/components/agents/a2a-panel";
 import { EmbedsPanel } from "@/components/agents/embeds-panel";
 import { ExposuresPanel } from "@/components/agents/exposures-panel";
 import { TriggersPanel } from "@/components/triggers/triggers-panel";
@@ -141,6 +142,8 @@ import {
   withCapability,
   withContextFiles,
   withSkills,
+  withVisuals,
+  VISUALS_ID,
 } from "@/lib/agent-spec";
 import { useContextFiles } from "@/hooks/use-context";
 import { getErrorMessage, type FieldProblem } from "@/lib/api-error";
@@ -756,6 +759,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   const toggleCapability = (capabilityId: string) => {
     const on = spec.capabilities.some((binding) => binding.id === capabilityId);
+    if (capabilityId === VISUALS_ID && !on) {
+      update(withVisuals(spec, skills));
+      return;
+    }
     update({ capabilities: withCapability(spec.capabilities, capabilityId, !on) });
   };
 
@@ -1171,6 +1178,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
               account: "organization",
               connection_id: connection.id,
               allowed_tools: null,
+              approval: "none",
             };
             update({ mcp_servers: [...spec.mcp_servers, ref] });
             setToolBinding(bindingKey(ref));
@@ -1493,6 +1501,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   // is handed that slice as well as the binding.
                   subagents={spec.subagents ?? []}
                   onSubagentsChange={(subagents) => update({ subagents })}
+                  externalAgents={spec.external_agents ?? []}
+                  onExternalAgentsChange={(external_agents) => update({ external_agents })}
                   // What the agent is *given*, picked in the panel of the
                   // capability that reads it. Each setter switches that capability
                   // on with the first pick, because bound without it the resources
@@ -1732,6 +1742,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 (binding) => binding.id === SANDBOX_ID && binding.enabled !== false,
               )}
             />
+            <A2aPanel agent={agent} canManage={canPublish} />
             {/* Managing a trigger is the same floor as running the agent, not
               publishing it - the server resolves `agents:run` per row. */}
             <TriggersPanel

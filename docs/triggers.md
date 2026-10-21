@@ -28,6 +28,21 @@ the delivery has to contain, and how to test the whole thing from a laptop.
     issue", "draft a reply to the email" — pre-fills the prompt on its own source's
     message step. Neither starts from a blank box.
 
+## A schedule whose last run is still going
+
+A schedule can come due while the run it fired last time is still going - a
+nightly sync that takes longer than a night, or one parked on an approval
+nobody has decided. **If the previous run is still going** on the schedule's
+form, `overlap` in the API, decides what happens:
+
+| Option | `overlap` | What it does |
+|---|---|---|
+| Skip this run | `skip` (the default) | The occurrence passes, and the schedule waits for its next time. A slow agent runs as often as it can finish |
+| Run when it finishes | `queue` | It fires once the previous run ends, however many occurrences went by |
+| Run anyway | `allow` | It fires on time, into the same run log, so two runs overlap and both are paid for |
+
+An event trigger has no such setting: each delivery is its own fire.
+
 Everything below is for the event case.
 
 ## Where they live in the product, and what to call them
@@ -68,7 +83,7 @@ flowchart TD
     J -->|no| R400["400"]
     J -->|yes| F{trigger active,<br/>filter matches?}
     F -->|no| R202["202 - nothing to do"]
-    F -->|yes| SUB["submit a capped Prefect flow"]
+    F -->|yes| SUB["queue a fire-trigger job"]
     SUB --> R202b["202 - accepted, not finished"]
     SUB -.->|later, in the worker| RUN[the agent runs, spending the org's budget]
 ```
@@ -115,10 +130,10 @@ in a read, a listing, or the URL.
 
 !!! info "The `202` means accepted, not finished"
 
-    A matched delivery is submitted as its own `run-scheduled-trigger` flow and
-    the agent runs in the worker, so the provider gets its answer in one fast
-    Prefect call rather than waiting out a model. Do not read a `202` as
-    "the agent has replied" - read the run in Activity for that.
+    A matched delivery is queued as a `fire-trigger` job in the request's own
+    transaction and the agent runs in the worker, so the provider gets its
+    answer after one insert rather than waiting out a model. Do not read a `202`
+    as "the agent has replied" - read the run in Activity for that.
 
 A verified delivery that has nothing to do - an inactive trigger, or a payload the
 filter does not match - answers `202` exactly as a fired one does, so holding the secret

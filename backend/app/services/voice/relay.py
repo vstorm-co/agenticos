@@ -32,8 +32,6 @@ Nothing runs as a bare task, and closing the session closes our upstream socket,
 which ends the call at the provider.
 """
 
-from __future__ import annotations
-
 import time
 from collections.abc import Awaitable, Callable
 

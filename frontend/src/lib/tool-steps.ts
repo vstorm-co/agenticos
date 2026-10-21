@@ -23,6 +23,8 @@
  * module cannot reach one (#446).
  */
 
+import type { DelegationStep } from "@/types";
+
 import { toolCaption, toolDisplayName, type Translate } from "./agent-step-captions";
 import { toolEntry, type StepKind } from "./tool-catalog";
 
@@ -253,4 +255,34 @@ function subjectOf(
   const path = pathArg(given);
   if (path !== null) return name === "ls" ? path : basename(path);
   return text(given.query) ?? text(given.url) ?? text(given.skill_name);
+}
+
+/** How a coding harness's step kinds read as the console's own step kinds. */
+const CODING_STEP_KINDS: Record<string, StepKind> = {
+  read: "read",
+  search: "search",
+  edit: "edit",
+  command: "shell",
+  web: "web",
+  other: "tool",
+};
+
+/** The sandbox's working directory, which every path a harness reports starts in. */
+const WORKSPACE_ROOT = /^\/workspace\//;
+
+/**
+ * One step a delegation took, as a line.
+ *
+ * A step that names its subject - Claude Code or Codex reading a file, running a
+ * command - reads as the verb and that subject ("Edited hello.py"), present
+ * tense while it runs. A delegate's own tool names nothing more, so it is captioned
+ * as any tool call is.
+ */
+export function delegationStep(step: DelegationStep, t: Translate): ToolStep {
+  if (step.title === null) return toolStep(step.name, undefined, step.ok !== null, t);
+  return {
+    label: t(step.ok === null ? "codingStepRunning" : "codingStepDone", { kind: step.name }),
+    detail: step.title.replace(WORKSPACE_ROOT, ""),
+    kind: CODING_STEP_KINDS[step.name] ?? "tool",
+  };
 }

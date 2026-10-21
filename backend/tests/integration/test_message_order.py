@@ -12,8 +12,6 @@ equal (otherwise this test would pass for the wrong reason on a schema that neve
 had `ordinal`), and the rows still come back in the order they were written.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

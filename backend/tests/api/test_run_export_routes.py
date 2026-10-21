@@ -9,8 +9,6 @@ success comes back as a downloadable `text/csv`, and that the query parameters
 arrive at the service as the filter they name.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock

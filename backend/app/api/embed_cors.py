@@ -16,8 +16,6 @@ limit, which runs before admission and is the same answer for every origin, so
 saying it to whoever asked tells them nothing about the embed.
 """
 
-from __future__ import annotations
-
 from starlette.requests import HTTPConnection
 
 _STATE_KEY = "embed_cors_origin"

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   basename,
   contentArg,
+  delegationStep,
   mcpCall,
   mcpToolPrefix,
   pathArg,
@@ -125,6 +126,25 @@ describe("the line for one tool call", () => {
  * rule here mirrors `app/agents/mcp.py::_tool_prefix`, and drift costs a step reading
  * "Github Work Create Issue" - which is what a miss already looks like.
  */
+describe("a step inside a delegation", () => {
+  it("reads as the verb and the file or command a coding harness named", () => {
+    const running = delegationStep(
+      { id: "s1", name: "edit", ok: null, title: "/workspace/src/app.py" },
+      t,
+    );
+    expect(running).toEqual({ label: "Editing", detail: "src/app.py", kind: "edit" });
+    const done = delegationStep({ id: "s2", name: "command", ok: true, title: "pytest" }, t);
+    expect(done).toEqual({ label: "Ran", detail: "pytest", kind: "shell" });
+    const odd = delegationStep({ id: "s3", name: "telepathy", ok: false, title: "x" }, t);
+    expect(odd.kind).toBe("tool");
+  });
+
+  it("is captioned as any tool call where the step names nothing more", () => {
+    const step = { id: "s1", name: "search_documents", ok: true, title: null };
+    expect(delegationStep(step, t)).toEqual(toolStep("search_documents", undefined, true, t));
+  });
+});
+
 describe("a call from an MCP server", () => {
   it.each(prefixCases)("mirrors the backend's prefix rule for $name", ({ name, prefix }) => {
     expect(mcpToolPrefix(name)).toBe(prefix);

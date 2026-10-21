@@ -26,7 +26,10 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { ChevronRight, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
+import { ProjectRows } from "@/components/layout/project-rows";
+
 import { BrandLink } from "@/components/layout/brand-link";
+import { stripLocale } from "@/lib/active-route";
 import { SidebarShell } from "@/components/layout/sidebar-shell";
 import { useMounted } from "@/hooks/use-mounted";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -47,7 +50,7 @@ function NavLink({
 }) {
   const pathname = usePathname();
   const t = useTranslations("nav");
-  const active = isActive(pathname, item.href);
+  const active = item.exact ? stripLocale(pathname) === item.href : isActive(pathname, item.href);
   const label = t(item.labelKey);
 
   return (
@@ -63,7 +66,9 @@ function NavLink({
       aria-label={collapsed ? label : undefined}
       className={cn(
         "flex items-center rounded-lg text-sm font-medium transition-colors",
-        collapsed ? "h-9 w-9 justify-center" : "gap-2.5 px-2.5 py-1.5",
+        // One row height in both states, so collapsing the column moves no icon
+        // up or down - the rail is the same list with its words taken away.
+        collapsed ? "h-8 w-9 justify-center" : "h-8 gap-2.5 px-2.5",
         // Selected is a neutral raised pill with a dark label. Section hues live
         // on the page's own tile, not here: a column of coloured pills competed
         // with the content it points at.
@@ -102,7 +107,7 @@ export function SidebarNav({
   return (
     <nav
       aria-label={t("primary")}
-      className={cn("flex flex-col py-4", collapsed ? "items-center gap-3 px-2" : "gap-5 px-3")}
+      className={cn("flex flex-col gap-4 py-4", collapsed ? "items-center px-2" : "px-3")}
     >
       {groups.map((group) => (
         <NavGroupBlock
@@ -134,26 +139,48 @@ function NavGroupBlock({
   // The page you are on is never hidden behind a folded heading. The stored
   // choice is read only after mount, for the same hydration reason as the rail.
   const holdsActive = group.items.some((item) => isActive(pathname, item.href));
-  const folds = !!group.collapsible && !collapsed;
+  // The rail folds too: a group closed in the column is closed on the rail, so
+  // the two show the same destinations rather than the rail every one of them.
+  const folds = !!group.collapsible;
   const open = !folds || holdsActive || (mounted && openGroups.includes(key));
 
   return (
-    <div className={cn("flex flex-col gap-0.5", collapsed && "w-full items-center gap-1")}>
+    <div className={cn("flex flex-col gap-0.5", collapsed && "w-full items-center")}>
       {group.labelKey &&
         // The heading is what tells the groups apart, and on the rail there is
         // no room for the word. A rule does the same job: it says "a different
         // kind of thing starts here" without claiming to say which, which an
-        // abbreviation would do badly. The rail never folds - it is already
-        // one icon per row.
+        // abbreviation would do badly. A folding group's rule is its fold
+        // control, at the height the heading has in the column.
         (collapsed ? (
-          <div aria-hidden className="bg-border mb-1 h-px w-5" />
+          folds ? (
+            <button
+              type="button"
+              onClick={() => toggleGroup(key)}
+              disabled={holdsActive}
+              aria-expanded={open}
+              aria-label={t(group.labelKey)}
+              title={t(group.labelKey)}
+              className="text-muted-foreground hover:text-foreground flex h-6 w-9 items-center justify-center gap-0.5 rounded-md disabled:cursor-default"
+            >
+              <span aria-hidden className="bg-border h-px w-3" />
+              <ChevronRight
+                className={cn("size-3 transition-transform", open && "rotate-90")}
+                aria-hidden
+              />
+            </button>
+          ) : (
+            <div aria-hidden className="flex h-6 items-center">
+              <span className="bg-border h-px w-5" />
+            </div>
+          )
         ) : folds ? (
           <button
             type="button"
             onClick={() => toggleGroup(key)}
             disabled={holdsActive}
             aria-expanded={open}
-            className="text-muted-foreground hover:text-foreground disabled:hover:text-muted-foreground flex items-center gap-1 rounded-md px-2.5 pb-1.5 text-left text-xs font-medium tracking-wide uppercase transition-colors disabled:cursor-default"
+            className="text-muted-foreground hover:text-foreground disabled:hover:text-muted-foreground flex h-6 items-center gap-1 rounded-md px-2.5 text-left text-xs font-medium tracking-wide uppercase transition-colors disabled:cursor-default"
           >
             <span className="flex-1">{t(group.labelKey)}</span>
             <ChevronRight
@@ -162,10 +189,11 @@ function NavGroupBlock({
             />
           </button>
         ) : (
-          <div className="text-muted-foreground px-2.5 pb-1.5 text-xs font-medium tracking-wide uppercase">
+          <div className="text-muted-foreground flex h-6 items-center px-2.5 text-xs font-medium tracking-wide uppercase">
             {t(group.labelKey)}
           </div>
         ))}
+      {key === "projects" && <ProjectRows onNavigate={onNavigate} collapsed={collapsed} />}
       {open
         ? group.items.map((item) => (
             <NavLink key={item.href} item={item} onNavigate={onNavigate} collapsed={collapsed} />

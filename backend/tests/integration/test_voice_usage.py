@@ -1,7 +1,5 @@
 """Call minutes by agent, read from the call rows (#54)."""
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal

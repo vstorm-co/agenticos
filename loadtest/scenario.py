@@ -18,8 +18,6 @@ arrival model keeps offering work at the stated rate and lets the queue grow,
 which is the thing under test.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 
 

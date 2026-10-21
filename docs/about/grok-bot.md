@@ -19,7 +19,7 @@ Maintained by the AgenticOS team. Sources checked 14 October 2026. AgenticOS bas
 | What you get | Named teammates, each with a cloud computer | Any number of agents, each a versioned spec |
 | Where it runs | xAI's cloud | Your infrastructure, with Docker Compose |
 | Source | Proprietary | Apache-2.0 |
-| Models | Grok only, no choice | 27 providers, including local models |
+| Models | Grok only, no choice | 28 providers, including local models |
 | Computer | A persistent VM shared by all of an account's bots | A sandbox per conversation; a browser whose sign-ins are kept per person |
 | Learning a task | Record your screen for up to ten minutes; a draft skill comes back | Skills written or installed from a gallery, bound to each agent |
 | Teamwork | Group chats of two to six bots that hand work on | [Delegation](../reference/capabilities.md#delegation) to other published agents, pinned to a version |
@@ -43,7 +43,7 @@ Grok Bot's approvals are written as instructions and can be reviewed by a model.
 
 ### Any model, on your servers
 
-Grok Bot runs Grok in xAI's cloud. An AgenticOS agent picks from [27 providers](../models.md#providers), including models on your own hardware, and stores its data in [your own Postgres](../data-protection.md#where-personal-data-lives).
+Grok Bot runs Grok in xAI's cloud. An AgenticOS agent picks from [28 providers](../models.md#providers), including models on your own hardware, and stores its data in [your own Postgres](../data-protection.md#where-personal-data-lives).
 
 ## When Grok Bot is enough
 

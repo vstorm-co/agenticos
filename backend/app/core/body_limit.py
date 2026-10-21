@@ -30,8 +30,6 @@ ends up below it - and this middleware is global while the ceilings are per surf
 so it has to follow the largest of them or the highest one becomes unreachable.
 """
 
-from __future__ import annotations
-
 import logging
 
 from starlette.responses import JSONResponse

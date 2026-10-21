@@ -1,5 +1,5 @@
 ---
-source_sha: "a1ac0cd854a3"
+source_sha: "cac21a253ef9"
 ---
 
 # Bezpieczeństwo { #security }
@@ -50,7 +50,7 @@ skonfigurowało, i każde jest granicą, o którą przegląd u klienta zapyta.
 |---|---|---|
 | Skonfigurowany provider modelu | Prompt, wyjście modelu, argumenty i wyniki narzędzi | Każdy run — chyba że model działa na własnej infrastrukturze operatora, wtedy nic nie wychodzi |
 | Skonfigurowany kanał (Slack, Telegram, Mattermost) | Wygenerowane odpowiedzi agenta — tekst, obrazy i załączniki | Zawsze, gdy agent jest wystawiony przez ten kanał; każde `send_message` publikuje u providera (`app/services/channels/`) |
-| Logfire | Trace'y, które niosą prompty i wyjścia, chyba że agent mówi inaczej | Dwie niezależne ścieżki. Token observability per agent trace'uje tego agenta, a jego tryb `content` decyduje, ile niesie span - `none` sprowadza go do czasu, tokenów, kosztu i nazw narzędzi (#1413). `LOGFIRE_TOKEN` na poziomie wdrożenia instrumentuje **każdy** run, tak samo w API jak w workerze Prefect (`app/core/logfire_setup.py`), więc przy nim ustawionym wychodzi treść każdego agenta, który nie poprosił o `none`; agent, który poprosił, jest przypięty do instrumentacji bez treści również na tym tracerze (`suppress_content`), więc tryb trzyma na obu ścieżkach, a specjalista tego agenta go dziedziczy - napisany inline albo wymyślony w trakcie runu. Jedna luka, której nie obejmuje: nieudane podpięcie, które jest logowane i zostawione. Żadna ze ścieżek nie jest domyślnie włączona. Stanu pośredniego z filtrem świadomie nie ma - częściowo wyczyszczony eksport to gwarancja, której nikt nie zaudytuje ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)) |
+| Logfire | Trace'y, które niosą prompty i wyjścia, chyba że agent mówi inaczej | Dwie niezależne ścieżki. Token observability per agent trace'uje tego agenta, a jego tryb `content` decyduje, ile niesie span - `none` sprowadza go do czasu, tokenów, kosztu i nazw narzędzi (#1413). `LOGFIRE_TOKEN` na poziomie wdrożenia instrumentuje **każdy** run, tak samo w API jak w workerze (`app/core/logfire_setup.py`), więc przy nim ustawionym wychodzi treść każdego agenta, który nie poprosił o `none`; agent, który poprosił, jest przypięty do instrumentacji bez treści również na tym tracerze (`suppress_content`), więc tryb trzyma na obu ścieżkach, a specjalista tego agenta go dziedziczy - napisany inline albo wymyślony w trakcie runu. Jedna luka, której nie obejmuje: nieudane podpięcie, które jest logowane i zostawione. Żadna ze ścieżek nie jest domyślnie włączona. Stanu pośredniego z filtrem świadomie nie ma - częściowo wyczyszczony eksport to gwarancja, której nikt nie zaudytuje ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)) |
 | Serwery MCP | Wywołania narzędzi i ich argumenty | Tylko dla narzędzi, do których agent jest podpięty |
 | Dostawca web search (Tavily, DuckDuckGo) | Zapytanie wyszukiwania | Tylko gdy przyznana jest capability wyszukiwania |
 | Provider embeddingów | Tekst dokumentu, przy ingest | Tylko dla bazy wiedzy, której provider jest zdalny |
@@ -111,7 +111,7 @@ dalej, bo usunięcie konta kolegi nie może usunąć agenta, od którego zależy
 | Tabela | Przy usunięciu | W eksporcie | Dlaczego |
 |---|---|---|---|
 | `users` | Usuwany | Profil, bez hasha hasła | Samo konto |
-| `conversations`, `messages`, `tool_calls` | Kaskada | Wątki, które zaczęli, z każdą turą | Ich własne, a transkrypt bez co drugiej tury nie odpowiada na nic |
+| `conversations`, `messages`, `tool_calls` | Kaskada, poza czatami projektu, które zostają z zespołem | Wątki, które zaczęli, z każdą turą; w czacie projektu, gdziekolwiek pisali, tylko ich tury i odpowiedzi na nie | Ich własne, a transkrypt bez co drugiej tury nie odpowiada na nic. Czat projektu należy do kilku osób, a tury pozostałych członków są ich |
 | `chat_files` | Kaskada; bajty odpinane po commicie | Nie wypisywane | Wiersz kaskaduje od wiadomości, a plik na dysku nie, więc ścieżki są zbierane przed usunięciem i odpinane po jego commicie — inaczej bajty przeżywają żądanie, które kazało im zniknąć: nieosiągalne dla niczego i nieusuwane przez nikogo. Transkrypt w eksporcie nazywa załącznik; bajty są do pobrania dopóki konto istnieje, a nie pakowane do środka |
 | `message_ratings` | Kaskada | Tak | Wyrażona opinia |
 | `sessions` | Kaskada | Urządzenie, adres i czasy — nigdy poświadczenie, bo jest hashem | Gdzie się logowali |

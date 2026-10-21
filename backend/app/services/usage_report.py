@@ -18,8 +18,6 @@ the whole reason `include_sandbox` is a parameter rather than something this mod
 decides for itself.
 """
 
-from __future__ import annotations
-
 import logging
 from dataclasses import dataclass
 from decimal import Decimal
@@ -273,12 +271,11 @@ class UsageReportService:
         )
 
     async def _sandbox(self, ctx: AuthContext, conversation_id: UUID) -> SandboxUsage | None:
-        rows = await agent_workspace_repo.list_for_conversation(
+        row = await agent_workspace_repo.kept_for_conversation(
             self.db, organization_id=ctx.organization_id, conversation_id=conversation_id
         )
-        if not rows:
+        if row is None:
             return None
-        row = rows[0]
         if row.backend == "state":
             return SandboxUsage(
                 kind="state",

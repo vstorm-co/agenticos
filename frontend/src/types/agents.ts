@@ -311,8 +311,12 @@ export interface OrgMcpServerRef {
    * administrator's ceiling and the two intersect at run time.
    */
   allowed_tools: string[] | null;
-  /** Which tools wait for a person: those not marked read-only (default), all, or none. */
-  approval?: McpApproval;
+  /**
+   * Which tools wait for a person: those not marked read-only, all, or none.
+   * Required, as the API always returns it (`none` when unset): a binding built
+   * without it never compares equal to the stored draft, so autosave never settles.
+   */
+  approval: McpApproval;
 }
 
 /** How much of an MCP server's tools wait for a person's approval (#2060). */
@@ -332,7 +336,7 @@ export interface PersonalMcpServerRef {
   catalog_key: string;
   /** The administrator's ceiling; the person's own connection may narrow further. */
   allowed_tools: string[] | null;
-  approval?: McpApproval;
+  approval: McpApproval;
 }
 
 /**
@@ -341,8 +345,8 @@ export interface PersonalMcpServerRef {
  */
 export interface PlatformMcpServerRef {
   account: "platform";
-  allowed_tools?: string[] | null;
-  approval?: McpApproval;
+  allowed_tools: string[] | null;
+  approval: McpApproval;
 }
 
 /** One MCP binding: the organization's connection, each person's own, or the platform's. */
@@ -397,6 +401,8 @@ export interface AgentSpec {
    * optional in this type because `create` does not send one.
    */
   subagents?: SubagentRef[];
+  /** Remote A2A agents it may delegate to (#2092). Optional here, always on the wire. */
+  external_agents?: ExternalAgentRef[];
   /** Model requests one run may make; null uses the platform default of 100. */
   max_steps?: number | null;
   /** When a run looping on its tool calls is warned, then stopped; defaulted server side. */
@@ -420,6 +426,12 @@ export interface AgentSpec {
   speech_to_text?: SpeechToTextSpec | null;
   /** Optional here and in `create`; the server answers with `null` for none. */
   voice?: VoiceSpec | null;
+}
+
+/** A remote A2A agent this agent may delegate to, by its registration (#2092). */
+export interface ExternalAgentRef {
+  external_agent_id: string;
+  preferred_mode?: DelegationMode | null;
 }
 
 /** The model an agent's published version runs on. Enough to prefill a picker. */
@@ -453,6 +465,8 @@ export interface Agent {
    * backend re-checks on every create, so it is not a security boundary.
    */
   can_run: boolean;
+  /** Whether other systems may reach it over A2A, by its agent card (#2092). */
+  a2a_enabled?: boolean;
   /** How many members hold an explicit grant. Filled by the listing only. */
   shared_user_count?: number;
   /** Surfaces with an active binding ("slack", "telegram", ...). Listing only. */
@@ -651,6 +665,12 @@ export interface CapabilityCatalogEntry {
   category: string;
   description: string;
   side_effecting: boolean;
+  /**
+   * Whether the Builder offers per-tool settings. False where the one tool is the
+   * capability itself - the coding agent's - so its approval is the capability's.
+   * Absent from an older server, which means offered.
+   */
+  tool_settings?: boolean;
   scopes: string[];
   /** Empty for a capability that is not tools at all - a guardrail, or instructions. */
   tools: CapabilityTool[];
@@ -786,6 +806,12 @@ export interface JsonSchemaProperty {
    * the same picker the Builder uses for the agent's own model.
    */
   "x-widget"?: "model-profile";
+  /**
+   * The choices an enum offers for each value of another field of the form -
+   * the coding agent's models, which depend on its harness. A choice the other
+   * field no longer allows is cleared when that field changes.
+   */
+  "x-enum-when"?: { field: string; choices: Record<string, string[]> };
   /**
    * Show this field only while another field of the same form holds one of
    * these values - a proxy's address under "Through a proxy" and nowhere else.

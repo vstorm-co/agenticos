@@ -14,6 +14,9 @@ widen their access.
 
 The catalogs (`/kinds`, `/purposes`) describe the deployment rather than the
 tenant, and are readable by anyone who may see a secret at all.
+
+A ChatGPT sign-in (`/openai-codex`) is the one secret nobody types: the value is
+an OAuth grant, so it is stored by finishing a sign-in rather than by posting it.
 """
 
 from typing import Annotated, Any
@@ -21,12 +24,15 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
 
-from app.api.deps import Auth, SecretSvc, require
+from app.api.deps import Auth, OpenAICodexSvc, SecretSvc, require
 from app.core.permissions import Perm
 from app.core.secret_kinds import describe_kinds
 from app.core.secret_purposes import all_purposes
 from app.db.models.resource_grant import Visibility
 from app.schemas.secret import (
+    OpenAICodexSecretCreate,
+    OpenAICodexSecretReconnect,
+    OpenAICodexSignIn,
     SecretCreate,
     SecretKindList,
     SecretList,
@@ -109,6 +115,44 @@ async def create_secret(data: SecretCreate, service: SecretSvc, ctx: Auth) -> An
         purpose=data.purpose,
         visibility=Visibility(data.visibility),
     )
+
+
+@router.post("/openai-codex/sign-in", response_model=OpenAICodexSignIn)
+async def start_openai_codex_sign_in(service: OpenAICodexSvc, ctx: Auth) -> Any:
+    """Begin a ChatGPT sign-in. The address it ends on is redeemable once, by you.
+
+    Open to any member: starting stores nothing in the vault, and what the
+    address is redeemed for - a new secret, or reconnecting one somebody may
+    edit through a grant - is authorized when it is.
+    """
+    return OpenAICodexSignIn(authorization_url=await service.start_sign_in(ctx))
+
+
+@router.post(
+    "/openai-codex",
+    response_model=SecretRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require(Perm.SECRETS_EDIT))],
+)
+async def create_openai_codex_secret(
+    data: OpenAICodexSecretCreate, service: OpenAICodexSvc, ctx: Auth
+) -> Any:
+    """Finish a ChatGPT sign-in and store it, sealed for this organization."""
+    return await service.create(
+        ctx,
+        callback_url=data.callback_url,
+        name=data.name,
+        description=data.description,
+        visibility=Visibility(data.visibility),
+    )
+
+
+@router.put("/{secret_id}/openai-codex", response_model=SecretRead)
+async def reconnect_openai_codex_secret(
+    secret_id: UUID, data: OpenAICodexSecretReconnect, service: OpenAICodexSvc, ctx: Auth
+) -> Any:
+    """Sign in with ChatGPT again, in place of a sign-in that stopped working."""
+    return await service.reconnect(ctx, secret_id, callback_url=data.callback_url)
 
 
 @router.patch("/{secret_id}", response_model=SecretRead)

@@ -1,7 +1,5 @@
 """What a call leaves in the conversation (#54)."""
 
-from __future__ import annotations
-
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from types import SimpleNamespace

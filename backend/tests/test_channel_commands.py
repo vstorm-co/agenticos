@@ -13,8 +13,6 @@ decision rather than the plumbing: which tenant a command acts for, and what it
 says when it cannot tell.
 """
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import UUID, uuid4

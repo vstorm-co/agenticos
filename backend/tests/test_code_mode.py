@@ -5,8 +5,6 @@ model turns the work took, which tools a script may reach and what the run
 records are exactly what the run did. The script runs in the real Monty sandbox.
 """
 
-from __future__ import annotations
-
 from typing import Any
 from unittest.mock import MagicMock
 

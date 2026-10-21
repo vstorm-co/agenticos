@@ -5,8 +5,6 @@ source that cannot drift from what actually runs - the library's own realtime
 profiles - wherever the library states a value.
 """
 
-from __future__ import annotations
-
 from decimal import Decimal
 
 import pytest

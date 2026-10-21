@@ -23,8 +23,6 @@ The underlying `LocalFileStorage.save`/`load` do their IO on the event loop
 inherits the fix when it lands.
 """
 
-from __future__ import annotations
-
 from pathlib import PurePosixPath
 from uuid import UUID
 

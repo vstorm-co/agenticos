@@ -10,8 +10,6 @@ So this writes real rows for two organizations and reads them back through the
 service the routes use.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

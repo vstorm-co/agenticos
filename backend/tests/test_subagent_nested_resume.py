@@ -29,8 +29,6 @@ both are the library's: it appends a chat-trace id to every delegation report, a
 those ids are random per delegation. `_answer` strips them, and only them.
 """
 
-from __future__ import annotations
-
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field

@@ -1,7 +1,5 @@
 """Each spoken turn is one message, and writing it twice keeps one (#54)."""
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from typing import Literal

@@ -272,7 +272,14 @@ class TestRedisClient:
         mock_aioredis.lrange.assert_awaited_once_with("queue", 0, -1)
 
     @pytest.mark.anyio
-    @pytest.mark.parametrize("verb", ["pop_left", "wait_pop_left", "list_range"])
+    async def test_hash_all_reads_every_field(self, redis_client: RedisClient, mock_aioredis):
+        mock_aioredis.hgetall = AsyncMock(return_value={"u-1": "1700000000.0"})
+        redis_client.client = mock_aioredis
+
+        assert await redis_client.hash_all("room") == {"u-1": "1700000000.0"}
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("verb", ["pop_left", "wait_pop_left", "list_range", "hash_all"])
     async def test_list_verbs_not_connected(self, redis_client: RedisClient, verb: str):
         redis_client.client = None
         args = ("queue", 1.0) if verb == "wait_pop_left" else ("queue",)

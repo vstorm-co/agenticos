@@ -19,8 +19,6 @@ cold tool cache against an unreachable host fails in a vocabulary pip-audit neve
 uses. The second is why matching phrases no longer decides whether to retry.
 """
 
-from __future__ import annotations
-
 import importlib.util
 import json
 import shutil

@@ -39,8 +39,6 @@ less than it holds is measured at what it states. The byte cap the caller keeps
 is what bounds that one.
 """
 
-from __future__ import annotations
-
 import math
 import struct
 from collections.abc import Iterator
@@ -124,7 +122,7 @@ def measure(content: bytes) -> float | None:
         return None
     try:
         seconds = reader(content, _Budget())
-    except (_Malformed, struct.error, IndexError):
+    except _Malformed, struct.error, IndexError:
         return None
     if seconds is None or not math.isfinite(seconds) or seconds < 0:
         return None

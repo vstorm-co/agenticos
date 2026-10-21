@@ -8,8 +8,6 @@ against what it asked. A card nobody answers within two minutes is declined,
 which the model is told and carries on from.
 """
 
-from __future__ import annotations
-
 import asyncio
 from dataclasses import dataclass
 from typing import Any

@@ -1,5 +1,5 @@
 ---
-source_sha: "80ee04abded5"
+source_sha: "f7d97e79857b"
 ---
 
 # Nauka { #learn }
@@ -56,7 +56,7 @@ są one niezależne — weź te, których twój agent potrzebuje.
 
 - :material-brain:{ .lg .middle } **[Modele i providerzy](../models.md)**
 
-    27 providerów, profile modeli, fallbacki i ile naprawdę kosztuje token.
+    28 providerów, profile modeli, fallbacki i ile naprawdę kosztuje token.
 
 - :material-school:{ .lg .middle } **[Skille](../skills.md)**
 

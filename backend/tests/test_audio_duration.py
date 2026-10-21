@@ -6,8 +6,6 @@ truncated or hostile shape has to come back as `None`, quickly, rather than
 raise or walk a file to its end.
 """
 
-from __future__ import annotations
-
 import struct
 import time
 

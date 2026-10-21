@@ -8,8 +8,6 @@ string folds into parent_doc_id or is refused, and the facet read is tenant
 scoped and omits absent values.
 """
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import AsyncMock, MagicMock
 

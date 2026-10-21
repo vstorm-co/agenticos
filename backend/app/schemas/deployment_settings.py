@@ -24,8 +24,6 @@ against `settings.PROJECT_NAME` for the text it sends itself.
 only thing keeping a rename in one from disagreeing with the other.
 """
 
-from __future__ import annotations
-
 import re
 from datetime import datetime
 from typing import Literal

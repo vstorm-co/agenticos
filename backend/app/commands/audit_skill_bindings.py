@@ -37,8 +37,6 @@ the publisher holds today. A publisher whose user row is gone
 *unknown* rather than guessed either way.
 """
 
-from __future__ import annotations
-
 import asyncio
 from dataclasses import dataclass, replace
 from enum import StrEnum

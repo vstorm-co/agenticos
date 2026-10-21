@@ -119,8 +119,13 @@ keeps working if the deployment later moves its content to another origin:
 | `lib/agenticos-2.css` | The console's look for pages, light and dark, and the `ao-` components a page is built from |
 | `lib/agenticos-2.js` | `window.AO`: Chart.js in the console's style, number formatting in the page's language, icons, tabs |
 | `lib/agenticos-1.css` | The first version of the look, kept for the pages published against it |
+| `lib/three-0.186.0/three.module.js` | three.js 0.186.0 as an ES module, with `addons/controls/OrbitControls.js` beside it - map `three` and `three/addons/` to them with an import map |
+| `lib/mermaid-12.1.0.min.js` | Mermaid 12.1.0, as `window.mermaid` |
 
-Every name carries its version and is cached for a year. An upgrade adds a new
+Every name carries its version and is cached for a year. The files answer
+`Access-Control-Allow-Origin: *`, because a module script is fetched in CORS mode
+and a page in an opaque origin sends `Origin: null` - without it three.js would not
+import. An upgrade adds a new
 file beside the old one, so a page published against a version keeps getting it.
 Nothing is fetched from outside the deployment, so an air-gapped one works the
 same way. The files are listed in `backend/app/core/catalog/artifact_lib/`.
@@ -132,6 +137,56 @@ with `read_artifact`. A new organization gets it with the other bundled skills, 
 existing one through `seed-skills`, and the Apps capability's **Page style**
 tab in the Builder offers it. Edit the skill to describe your own brand, and the
 agent follows it.
+
+## Visuals
+
+A [visual](reference/capabilities.md#visuals) is an app that has not been saved:
+a drawing an agent writes into the conversation with `draw`, shown under its
+message while it is written. It is the same kind of document - an `html` visual is
+a page, and an `svg` or `mermaid` one becomes a page that holds it - and it is
+drawn with the same isolation.
+
+**The frame.** `/api/v1/artifact-content/visual-frame` is one fixed page on the
+content origin, served with the very policy every app's page gets. It holds no
+drawing: the console posts the drawing into it as it streams, so nothing has to
+be stored before it can be shown, and the isolation comes from the response
+header rather than a `srcdoc` meta tag. While the call streams, the frame morphs
+the markup in place with scripts and `on*` handlers removed; when it is complete,
+it writes the whole document so its scripts run, exactly as the saved page will.
+The frame reports its size, its errors and a heartbeat; a drawing that stops
+beating is taken down rather than left to hold the tab.
+
+**In the chat.** The panel shows the drawing whole - an SVG fitted by its
+`viewBox`, a page laid out at the panel's width and shrunk past 560 pixels -
+under its title, framed as the agent's message, never the console's. Full screen
+shows it at its own size; on a phone the preview opens full screen at a tap. Zoom
+sits in the drawing's bottom right corner while the pointer is on it, in the
+preview and full screen: an SVG is drawn larger, a page is scaled, and the box
+scrolls once the drawing outgrows it. *Show code*, *Download* (`.svg`, `.html`,
+or the Mermaid source) and *Copy as image* for an SVG are above it, and an error
+the drawing reports comes with *Fix it*, which asks the agent.
+
+**Downloading one.** A file opened from disk has no frame around it, so the
+download carries what the frame enforced. An SVG keeps the drawing and loses
+what could run or reach out: scripts, handlers, embedded documents and any
+reference outside the file. A page opens with the frame's policy ahead of
+everything it wrote, and loads its libraries from this deployment's artifact
+origin.
+
+**Saving one as an app.** *Save to Apps* takes a title and a name, both filled
+in, and publishes the visual as a version of an app under the agent whose turn
+drew it, in the environment that turn ran in, owned by the person saving it and
+private to them until they share it.
+The server rebuilds the visual from the transcript - revisions applied - rather
+than taking bytes from the browser, so the app is exactly what the agent drew.
+Saving under a name the person already has adds a version to that app, which is
+how a revision of a saved drawing updates the page it was shared as. Saving takes
+`artifacts:edit`.
+
+**From a delegate.** A drawing stays in the run that made it, so an agent
+working as another agent's delegate does not draw: `draw` tells it so, and it
+describes the picture in its result for the agent it works for to draw in the
+conversation.
 
 ## Who can open it
 
@@ -306,6 +361,12 @@ under `artifacts/<organization>/<artifact>/`.
   inside another site's frame.
 - **Removed versions are gone.** A conversation that links to a version older
   than the kept window can only offer the latest one.
+- **A visual draws only in the web chat and a shared thread.** A chat app gets a
+  picture of it where `VISUAL_RENDER_CDP_URL` names a browser, and its title
+  otherwise; the widget and an embed on another site show its title.
+- **A shared thread shows its newest twelve visuals**, and no more than 16 MB of
+  them between them. Anybody holding the link can open it as often as they like,
+  so one view is bounded; a turn past either keeps its text and shows no drawing.
 
 ## Recap
 

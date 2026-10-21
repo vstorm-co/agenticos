@@ -42,7 +42,7 @@ budget disappears.
 
 ## Closed models or open weights
 
-Both are first-class here. The 27 providers include the closed frontier labs,
+Both are first-class here. The 28 providers include the closed frontier labs,
 the open-weights hosts, and two keyless entries — [Ollama](models.md) and a
 LiteLLM proxy — for models running on hardware you own.
 
@@ -79,7 +79,7 @@ card - a model that needs many is one to reconsider.
 
 ## Putting a gateway in front
 
-Three of the 27 are not model vendors but routers: **OpenRouter**, **Vercel AI
+Three of the 28 are not model vendors but routers: **OpenRouter**, **Vercel AI
 Gateway** and a **LiteLLM proxy** you run. Each gives one key and one endpoint in
 front of many models.
 

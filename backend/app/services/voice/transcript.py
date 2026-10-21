@@ -14,8 +14,6 @@ of the audio - that is accepted. Over the relay the played bytes are exact and
 the same `trim_to_played` is given the exact time.
 """
 
-from __future__ import annotations
-
 import time
 from collections.abc import Callable, Sequence
 from contextlib import AbstractAsyncContextManager

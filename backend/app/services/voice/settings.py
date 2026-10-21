@@ -5,8 +5,6 @@ level that names a realtime model or a longest call, and the organization has no
 call settings at all - its budgets bound a call's spend as they bound any run's.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Literal
 from uuid import UUID

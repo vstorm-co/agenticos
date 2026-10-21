@@ -1,5 +1,5 @@
 ---
-source_sha: "911fcf1c1d12"
+source_sha: "c1a088854770"
 ---
 
 # Słownik { #glossary }
@@ -37,6 +37,8 @@ skrypt napisany pod nie nie przestał działać po zmianie nazwy.
 | Run | Jedna odpowiedź agenta, z jej kosztem i krokami | `agent_run` |
 | Środowisko | Nazwany etap, np. produkcja, wskazujący jedną wersję | `environment` |
 | Serwer MCP | Zewnętrzny serwer narzędzi, z którego korzystają agenci, podłączony raz | `mcp_connection` |
+| Zdalny agent | Agent innego dostawcy, osiągalny przez A2A, do którego delegują agenci | `external_agent` |
+| Agent2Agent (A2A) | Protokół, przez który agenci innych systemów wysyłają agentowi zadania | `a2a_enabled` |
 | Sandbox | Odizolowany komputer, na którym agent zapisuje pliki i uruchamia kod | `sandbox` |
 | Dokumenty | Pliki, które agenci trzymają dla człowieka, załączone lub napisane, w swoich sandboxach | `workspace` |
 
@@ -66,6 +68,7 @@ w [Capabilities](capabilities.md).
 | Wykresy | `charts` |
 | Data i godzina | `clock` |
 | Obliczenia | `code_execution` |
+| Coding agent | `coding_agent` |
 | Długie rozmowy | `compaction` |
 | Kontekst | `context` |
 | Poprzednie rozmowy | `conversation_search` |
@@ -84,5 +87,6 @@ w [Capabilities](capabilities.md).
 | Myślenie | `thinking` |
 | Limity wyników narzędzi | `tool_output_limits` |
 | Wyszukiwanie narzędzi | `tool_search` |
+| Wizualizacje | `visuals` |
 | Czytanie stron | `web_fetch` |
 | Wyszukiwanie w internecie | `web_research` |

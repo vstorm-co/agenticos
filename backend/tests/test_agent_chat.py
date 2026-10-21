@@ -11,8 +11,6 @@ is not. A run must carry the person's own role at the moment they typed, never
 the organization's and never none at all.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 import uuid
@@ -256,6 +254,7 @@ async def _run(
     on_personal_gaps: Any = None,
     request_connection: Any = None,
     steering: Any = None,
+    on_sandbox_wait: Any = None,
 ):
     return await ChatAgentRunner(db).run(
         user=user or _user(),
@@ -273,6 +272,7 @@ async def _run(
         on_personal_gaps=on_personal_gaps,
         request_connection=request_connection,
         steering=steering,
+        on_sandbox_wait=on_sandbox_wait,
     )
 
 
@@ -1062,7 +1062,9 @@ class TestAttachmentsAreRoutedHereAndNotBySurfaces:
         # `parses_documents` is what says the runtime can read a PDF itself; a
         # stored workspace cannot, and so keeps the extracted text beside the file.
         prepared.workspace = SimpleNamespace(
-            workspace=document_workspace(document), briefing=None, parses_documents=False
+            workspace=document_workspace(document),
+            briefing=None,
+            parses_documents=False,
         )
 
         with (
@@ -1210,3 +1212,23 @@ class TestAddingToTheTurnAndAskingAside:
             await _run(_db(), steering=inbox)
 
         assert prepared.deps.steering is inbox
+
+
+class TestSayingTheSandboxIsStillOpening:
+    """#2222: preparing the run already opens the sandbox session, so the chat's
+    sink has to be handed to `prepare` - attached afterwards, it missed the build."""
+
+    async def test_the_chat_sink_goes_into_the_preparation(self):
+        prepared = _prepared()
+        heard = AsyncMock()
+        with _runner(prepared) as runner:
+            await _run(_db(), on_sandbox_wait=heard)
+
+        assert runner.prepare.await_args.kwargs["on_sandbox_wait"] is heard
+
+    async def test_a_run_with_no_workspace_has_nothing_to_tell(self):
+        prepared = _prepared()
+        with _runner(prepared):
+            await _run(_db(), on_sandbox_wait=AsyncMock())
+
+        assert prepared.workspace is None

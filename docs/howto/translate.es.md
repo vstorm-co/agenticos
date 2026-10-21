@@ -1,5 +1,5 @@
 ---
-source_sha: "f9e926e2b557"
+source_sha: "0a08ac08ea50"
 ---
 
 # Traduce una página { #translate-a-page }
@@ -136,7 +136,7 @@ Deja lo siguiente exactamente como está en inglés:
 | Nombres de permisos | `agents:edit` es una cadena que el producto compara |
 | Rutas de archivo y de directorio | `backend/app/core/vault.py` |
 | Nombres de clases de error y de excepción | `AuthorizationError` |
-| Nombres de producto | Docker Compose, PostgreSQL, Slack, Prefect |
+| Nombres de producto | Docker Compose, PostgreSQL, Slack, Logfire |
 | Bloques Mermaid | Una etiqueta con un corchete o una comilla dentro rompe el grafo, y la build no puede avisarte — Mermaid se renderiza en el navegador |
 | Una etiqueta de la consola que el lector tiene que encontrar en pantalla | Donde la interfaz la muestra en inglés, `Admin → Response Ratings` es una referencia, no una frase. Donde el propio catálogo de la consola la traduce (`frontend/messages/pl.json`, `de.json`), escribe la etiqueta que muestra la interfaz del lector con la inglesa entre paréntesis - «Głos (Voice)» -, para que se encuentre en cualquiera de los dos idiomas |
 | Rutas de imagen | Una captura sirve para las cuatro locales |

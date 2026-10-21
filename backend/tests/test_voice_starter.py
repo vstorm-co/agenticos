@@ -1,7 +1,5 @@
 """Every reason a call does not start, and what a started one leaves behind (#54)."""
 
-from __future__ import annotations
-
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace

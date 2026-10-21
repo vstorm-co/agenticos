@@ -11,6 +11,27 @@ import { useTranslations } from "next-intl";
 /** What a page holds before somebody has to ask for the next one. */
 export const PAGE_SIZE = 50;
 
+/** What a page of a picker holds: cards with a description each, in a side panel. */
+export const PICKER_PAGE_SIZE = 10;
+
+/**
+ * A picker's items with the ones already chosen first, in their own order.
+ *
+ * The choice is read once, when the picker opens: a card that jumped to the top
+ * the moment it was ticked would move out from under the pointer, and the next
+ * click would land on its neighbour.
+ */
+export function useChosenFirst<T extends { id: string }>(items: T[], selectedIds: string[]): T[] {
+  const [chosen] = useState(() => new Set(selectedIds));
+  return useMemo(
+    () => [
+      ...items.filter((item) => chosen.has(item.id)),
+      ...items.filter((item) => !chosen.has(item.id)),
+    ],
+    [items, chosen],
+  );
+}
+
 /**
  * Search, filter and paging over a list the client already holds.
  *

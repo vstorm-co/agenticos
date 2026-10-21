@@ -20,8 +20,6 @@ see: `singleton` is unique and constrained to true, so a second row is an
 serves whichever one a query happened to order first.
 """
 
-from __future__ import annotations
-
 import uuid
 
 from sqlalchemy import Boolean, CheckConstraint, Integer, String

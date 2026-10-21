@@ -28,6 +28,21 @@ export const ARTIFACTS_ID = "artifacts";
 export const ASK_USER_ID = "ask_user";
 export const ARTIFACT_PAGES_SKILL = "artifact-pages";
 
+/** The capability that draws in the conversation, and the bundled skill that teaches it how. */
+export const VISUALS_ID = "visuals";
+export const VISUAL_DESIGN_SKILL = "visual-design";
+
+/**
+ * The bundled skill each capability is better with, by capability id.
+ *
+ * Offered in the capability's own panel, where the work it teaches happens, so
+ * nobody has to know to look for it in the Skills tab.
+ */
+export const COMPANION_SKILLS: Readonly<Record<string, string>> = {
+  [ARTIFACTS_ID]: ARTIFACT_PAGES_SKILL,
+  [VISUALS_ID]: VISUAL_DESIGN_SKILL,
+};
+
 /** The capability that searches the collections bound in `collection_ids`. */
 export const KNOWLEDGE_ID = "knowledge";
 
@@ -40,6 +55,7 @@ export const KNOWLEDGE_ID = "knowledge";
  * served by the API, so the panel asks rather than lists.
  */
 export const IMAGE_GENERATION_ID = "image_generation";
+export const CODING_AGENT_ID = "coding_agent";
 
 /**
  * The binding a capability would get if somebody switched it on.
@@ -174,6 +190,31 @@ export function withSkills(
     skill_ids: skillIds,
     capabilities: withCapability(spec.capabilities, SKILLS_ID, skillIds.length > 0),
   };
+}
+
+/**
+ * Switch on the visuals capability with the skill that teaches it to draw (#2171).
+ *
+ * The house style and the worked templates are what make a drawing look designed
+ * rather than generated, and an author switching on drawing has no reason to want
+ * it without them - so the skill comes along, with the Skills capability that
+ * reads it. Left alone when the organization has no such skill: there is nothing
+ * to bind, and the drawing still works. Switching visuals off leaves the skill
+ * bound - that is the Skills tab's to undo.
+ */
+export function withVisuals(
+  spec: Pick<AgentSpec, "capabilities" | "skill_ids">,
+  skills: readonly { id: string; name: string }[],
+): Pick<AgentSpec, "skill_ids" | "capabilities"> {
+  const capabilities = withCapability(spec.capabilities, VISUALS_ID, true);
+  const design = skills.find((skill) => skill.name === VISUAL_DESIGN_SKILL);
+  if (design === undefined) return { skill_ids: spec.skill_ids, capabilities };
+  // Through `withSkills` even when the skill is already bound: it may be bound
+  // with the Skills capability since switched off, which reads nothing.
+  const bound = spec.skill_ids.includes(design.id)
+    ? spec.skill_ids
+    : [...spec.skill_ids, design.id];
+  return withSkills({ capabilities }, bound);
 }
 
 /** The capability that injects bound context files and exposes the linked ones. */
@@ -422,6 +463,7 @@ export function withResource(spec: AgentSpec, resource: AgentResourceRef): Agent
       account: "organization",
       connection_id: resource.id,
       allowed_tools: null,
+      approval: "none",
     };
     return { ...spec, mcp_servers: [...spec.mcp_servers, bound] };
   }

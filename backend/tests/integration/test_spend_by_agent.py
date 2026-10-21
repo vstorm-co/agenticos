@@ -11,8 +11,6 @@ aggregates, a join for the name and a JSONB path for the cap, and a mocked sessi
 will report all four as whatever it was told to.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal

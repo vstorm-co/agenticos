@@ -4099,6 +4099,9 @@ class TestAgentTemplates:
         assert result.skills_installed == ["Clinical procedure lookup"]
         # The skills it expects are installed before the agent that binds them.
         skills.return_value.install_gallery.assert_awaited_once()
+        # Visible to the organization: installed private, every template agent
+        # had to be found and re-shared by hand before a colleague could see it.
+        assert create.await_args.kwargs["visibility"] is Visibility.ORG
 
     @pytest.mark.anyio
     async def test_a_bundled_skill_is_bound_without_a_gallery_install(self):

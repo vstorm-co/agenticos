@@ -1,5 +1,5 @@
 ---
-source_sha: "365083b43da8"
+source_sha: "1b24107e2e10"
 ---
 
 # Elegir un modelo { #choosing-a-model }
@@ -47,7 +47,7 @@ evapore.
 
 ## Modelos cerrados o pesos abiertos { #closed-models-or-open-weights }
 
-Los dos son de primera clase aquí. Los 27 providers incluyen los laboratorios de
+Los dos son de primera clase aquí. Los 28 providers incluyen los laboratorios de
 frontera cerrados, los hosts de pesos abiertos y dos entradas sin clave —
 [Ollama](models.md) y un proxy LiteLLM — para modelos que corren en hardware
 tuyo.
@@ -89,7 +89,7 @@ conviene reconsiderar.
 
 ## Poner una pasarela delante { #putting-a-gateway-in-front }
 
-Tres de los 27 no son fabricantes de modelos sino enrutadores: **OpenRouter**,
+Tres de los 28 no son fabricantes de modelos sino enrutadores: **OpenRouter**,
 **Vercel AI Gateway** y un **proxy LiteLLM** que ejecutas tú. Cada uno te da una
 clave y un endpoint delante de muchos modelos.
 

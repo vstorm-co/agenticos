@@ -34,8 +34,6 @@ The engine choice for `/chat` (off, browser, server) and the longest dictation
 stay the organization's; nothing here overrides them.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Literal
 from uuid import UUID

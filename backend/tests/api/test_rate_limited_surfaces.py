@@ -12,8 +12,6 @@ decision, and a blanket middleware quietly metering the dashboard would be a
 different one.
 """
 
-from __future__ import annotations
-
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 

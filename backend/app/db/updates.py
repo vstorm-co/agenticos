@@ -24,8 +24,6 @@ the worked example, and it substitutes the kind's defaults rather than dropping 
 key.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 from pydantic import BaseModel

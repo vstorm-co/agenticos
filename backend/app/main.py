@@ -4,7 +4,8 @@
 import asyncio
 import contextlib
 import logging
-from collections.abc import AsyncGenerator
+from uuid import UUID
+from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
 from typing import TypedDict
 
@@ -16,7 +17,14 @@ from starlette.middleware.sessions import SessionMiddleware
 from app import __version__
 from starlette.routing import Route
 
-from app.services import browse_plans, change_feed, live_browse, platform_mcp
+from app.services import (
+    browse_plans,
+    change_feed,
+    chat_room,
+    live_browse,
+    live_turn,
+    platform_mcp,
+)
 from app.services.change_feed import ChangeFeedMiddleware
 from app.api.exception_handlers import register_exception_handlers
 from app.api.router import api_router
@@ -41,7 +49,7 @@ from app.clients.redis import RedisClient
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.vectorstore import process_vector_store
 from app.services.rag.vectorstore import BaseVectorStore
-from app.repositories.channel_bot import get_active_polling_bots
+from app.repositories.channel_bot import get_active_polling_bot_ids, get_active_polling_bots
 from app.services.channel_bot import unseal_bot_token, unseal_slack_app_token
 from app.services.channels import register_adapter
 from app.services import rate_limit
@@ -82,8 +90,17 @@ _UNSEALABLE_TOKEN = (
 )
 
 
-async def _start_channel_polling(channel: str) -> None:
-    """Open a stream for every active polling bot on this platform.
+async def _polling_bot_ids(*platforms: str) -> list[str]:
+    async with get_db_context() as _db:
+        return [str(bot_id) for bot_id in await get_active_polling_bot_ids(_db, *platforms)]
+
+
+async def _start_channel_polling(*platforms: str, bot_ids: Sequence[str] | None = None) -> None:
+    """Open a stream for every active polling bot on these platforms.
+
+    `bot_ids` is the keeper's list of which bots should have a stream, read from
+    the database once a minute rather than on every pass; without it the ids are
+    read now. Only a bot claimed here is read in full - token included.
 
     The catch-up pass, and only that. A bot registered *while* the process is
     running has its stream opened by `ChannelBotService`, through the same
@@ -98,24 +115,22 @@ async def _start_channel_polling(channel: str) -> None:
     not keep the whole API from starting, which is what it did on a machine
     where the quickstart had reused a development stack's database.
     """
-    async with get_db_context() as _db:
-        _bots = await get_active_polling_bots(_db, channel)
+    ids = await _polling_bot_ids(*platforms) if bot_ids is None else bot_ids
     leases = stream_lease.leases()
     # Only a bot nobody serves: every worker runs this, at startup and on each
     # pass of `_keep_channel_streams`, and a bot gets one stream per deployment -
     # Telegram allows one `getUpdates` per bot (#2168).
-    claimed = [
-        str(_bot.id)
-        for _bot in _bots
-        if str(_bot.id) not in leases.held and await leases.claim(str(_bot.id))
-    ]
+    claimed = [bot_id for bot_id in ids if bot_id not in leases.held and await leases.claim(bot_id)]
     if not claimed:
         return
-    # Read again once the leases are held: a pause or an edit committed after
-    # the read above withdrew or took its lease before this claim, and the row
-    # as it is now is the one to open with.
+    # Read once the leases are held: a pause or an edit committed after the ids
+    # were read withdrew or took its lease before this claim, and the row as it
+    # is now is the one to open with.
     async with get_db_context() as _db:
-        current = {str(_bot.id): _bot for _bot in await get_active_polling_bots(_db, channel)}
+        rows = await get_active_polling_bots(
+            _db, *platforms, ids=[UUID(bot_id) for bot_id in claimed]
+        )
+    current = {str(_bot.id): _bot for _bot in rows}
     started = 0
     for bot_id in claimed:
         _bot = current.get(bot_id)
@@ -127,7 +142,9 @@ async def _start_channel_polling(channel: str) -> None:
             app_token = unseal_slack_app_token(_bot)
         except (BadRequestError, ConfigurationError) as exc:
             logger.exception(
-                "%s: bot %s skipped - its token cannot be unsealed", channel.capitalize(), _bot.id
+                "%s: bot %s skipped - its token cannot be unsealed",
+                _bot.platform.capitalize(),
+                _bot.id,
             )
             await channel_connection_state.record_down(
                 _bot.id, _UNSEALABLE_TOKEN.format(exc.message)
@@ -135,12 +152,12 @@ async def _start_channel_polling(channel: str) -> None:
             # Kept, with no stream: the next pass would otherwise claim it again
             # and log the same refusal every few seconds. Entering the token
             # again takes the lease and opens the stream.
-            leases.hold(bot_id, channel)
+            leases.hold(bot_id, _bot.platform)
             continue
-        leases.hold(bot_id, channel)
+        leases.hold(bot_id, _bot.platform)
         await open_inbound_stream(
             bot_id=bot_id,
-            platform=channel,
+            platform=_bot.platform,
             token=token,
             api_base_url=_bot.api_base_url,
             app_token=app_token,
@@ -149,11 +166,16 @@ async def _start_channel_polling(channel: str) -> None:
         started += 1
     if started:
         logger.info(
-            "%s: polling started for %d of %d bot(s)", channel.capitalize(), started, len(_bots)
+            "%s: polling started for %d of %d bot(s)", "/".join(platforms), started, len(ids)
         )
 
 
 _POLLING_PLATFORMS = ("telegram", "mattermost", "slack")
+
+_DISCOVER_BOTS_EVERY_SECONDS = 60.0
+"""How often the keeper re-reads which bots should stream. Leases are checked on
+every pass; a bot whose stream the request that registered it failed to open
+waits at most this long."""
 
 
 async def _keep_channel_streams() -> None:
@@ -164,12 +186,20 @@ async def _keep_channel_streams() -> None:
     to another worker is closed here. One failed pass is logged and the next one
     tries again: this loop going away would leave every bot it held to lapse.
     """
+    loop = asyncio.get_running_loop()
+    ids: list[str] = []
+    read_at: float | None = None
     while True:
         await asyncio.sleep(stream_lease.RENEW_EVERY_SECONDS)
         try:
             await stream_lease.leases().renew()
-            for platform in _POLLING_PLATFORMS:
-                await _start_channel_polling(platform)
+            # Which bots should stream changes when somebody edits one, and that
+            # request's worker opens or withdraws the stream itself; the leases,
+            # checked on every pass, are what changes when a holder dies.
+            if read_at is None or loop.time() - read_at >= _DISCOVER_BOTS_EVERY_SECONDS:
+                ids = await _polling_bot_ids(*_POLLING_PLATFORMS)
+                read_at = loop.time()
+            await _start_channel_polling(*_POLLING_PLATFORMS, bot_ids=ids)
         except Exception:
             logger.exception("Could not renew this worker's channel streams")
 
@@ -196,7 +226,7 @@ async def _shutdown_voice_then_drain() -> None:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
+async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
     """Application lifespan - startup and shutdown events.
 
     Resources yielded here are available via request.state in route handlers.
@@ -252,6 +282,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # And browses' live views (#2128): published from a tool call, read by sockets
     # that outlive any request.
     live_browse.configure(redis_client)
+    # And chat turns still being written, for a person who comes back to one.
+    live_turn.configure(redis_client)
+    chat_room.configure(redis_client)
     # And a person's replayable browse steps, kept between their runs.
     browse_plans.configure(redis_client)
     try:
@@ -347,9 +380,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # closed the same way now that nothing can still be mid-request on them (#1263).
     from app.agents.capabilities.web_research._search import close_http_client
     from app.services.model_catalog import close_listing_client
+    from app.services.sandbox_workspace import close_sandboxd_client
 
     await close_http_client()
     await close_listing_client()
+    await close_sandboxd_client()
     # The knowledge capability caches a store of its own, built on the first
     # search and reachable from no request; a shutdown followed by more work -
     # a test, a reload - must not search through it once `close_db` has run.
@@ -363,6 +398,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     maintenance.configure(None)
     change_feed.configure(None)
     live_browse.configure(None)
+    live_turn.configure(None)
+    chat_room.configure(None)
     browse_plans.configure(None)
     if "redis" in state:
         await state["redis"].close()

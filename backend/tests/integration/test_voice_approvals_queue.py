@@ -5,8 +5,6 @@ call's own 60-second timeout; the hourly sweep must not expire it out from under
 the person deciding it.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 

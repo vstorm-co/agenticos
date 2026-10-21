@@ -2,7 +2,7 @@
 
 A worker that is SIGKILLed, OOM-killed or deployed over without a drain never
 runs its calls' `finally`, and an OpenAI WebRTC call goes on billing for up to
-60 minutes. This sweep - every minute, and once at start-up - finds rows with no
+60 minutes. This sweep - the worker's `reap-voice-calls` schedule, every minute - finds rows with no
 `hung_up_at` whose heartbeat went stale (or whose end was recorded but whose
 hang-up failed), hangs them up with the call id and the key, records the call's
 end from its last heartbeat, closes the run at the cost the heartbeats wrote,
@@ -14,8 +14,6 @@ pass rather than rolling back the rows before it and, at the head of the
 oldest-first queue, stopping every pass after it. A row's own transaction also
 keeps its provider hang-up from holding the locks of every other row.
 """
-
-from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime, timedelta

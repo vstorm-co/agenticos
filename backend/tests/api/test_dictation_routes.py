@@ -6,8 +6,6 @@ bounded read of the upload. The grants themselves are exercised against a real
 database in `tests/integration/test_platform_flows.py`.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import Iterator
 from unittest.mock import AsyncMock, MagicMock, patch

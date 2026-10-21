@@ -7,7 +7,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { BUILT_IN_BRANDING } from "./branding";
-import { readBranding } from "./branding-server";
+import { BRANDING_TAG, readBranding } from "./branding-server";
 import { backendFetch } from "./server-api";
 
 vi.mock("./server-api", async () => {
@@ -45,16 +45,16 @@ describe("reading the deployment's identity on the server", () => {
     expect(branding.signupMode).toBe("closed");
   });
 
-  it("never caches, so a rename shows on the next page load", async () => {
-    // Next would otherwise reuse this answer for the whole lifetime of the build,
-    // which reads as a save that did not take.
+  it("is kept in the data cache under the tag a settings save expires", async () => {
+    // Read on every render it put a backend round trip in front of every page;
+    // the tag is what lets a rename still show on the next page load.
     fetchBackend.mockResolvedValue(null);
 
     await readBranding();
 
     expect(fetchBackend).toHaveBeenCalledWith(
       expect.stringContaining("/branding"),
-      expect.objectContaining({ cache: "no-store" }),
+      expect.objectContaining({ next: { revalidate: 300, tags: [BRANDING_TAG] } }),
     );
   });
 

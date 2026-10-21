@@ -25,8 +25,6 @@ secret and cannot choose which one is used - code defines, configuration
 composes.
 """
 
-from __future__ import annotations
-
 import uuid
 
 from sqlalchemy import CheckConstraint, ForeignKey, Integer, String, Text, UniqueConstraint

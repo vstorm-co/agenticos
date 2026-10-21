@@ -1,5 +1,5 @@
 ---
-source_sha: "35b4b38a6819"
+source_sha: "67523cafdf32"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -69,7 +69,7 @@ Zwei Ablehnungen sollten Sie kennen:
 
 - **`403` "API keys are not accepted on this endpoint"** — Schlüssel werden nur in
   der öffentlichen API angenommen: Agents, Runs und Freigaben, Wissensbasen und
-  RAG, Skills, Kontextdateien, Apps, die ML-Dienste, `/me/permissions`
+  RAG, Skills, Kontextdateien, Projekte, Apps, die ML-Dienste, `/me/permissions`
   sowie Mitglieder, Einladungen, Gruppen und Einstellungen einer Organisation.
   Die eigenen Routen der Konsole, Ihr Konto, das Verlassen oder Übergeben einer
   Organisation und die Schlüsselverwaltung selbst bleiben Sitzungen vorbehalten,
@@ -198,6 +198,41 @@ Kosten, für einen Schlüssel mit `runs:view`.
     Das ist der Sinn eines einzigen Runners, und deshalb gibt es keinen
     "schnellen Weg", der ihn überspringt.
 
+### Ohne die Verbindung zu halten { #without-holding-the-connection }
+
+Ein Run von Minuten - ein Browse, eine lange Tool-Kette - hält die Anfrage die
+ganze Zeit offen, und das Lese-Timeout eines Proxys kann sie abschneiden,
+während der Run weiterläuft. Senden Sie `Prefer: respond-async`, und der Aufruf
+antwortet sofort mit `202` und einer Run-Anfrage zum Abfragen:
+
+```bash
+curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Prefer: respond-async" \
+  -H "Idempotency-Key: ticket-4711" \
+  -d '{"prompt": "Summarise this quarter for the board"}'
+# 202, Location: /api/v1/run-requests/{id}, Preference-Applied: respond-async
+
+curl "$BASE/api/v1/run-requests/$REQUEST_ID" -H "Authorization: Bearer $AGENTICOS_KEY"
+```
+
+Die Anfrage steht auf `queued`, `running`, dann `completed` mit `result` -
+demselben Body, mit dem der synchrone Aufruf antwortet - oder `failed` mit
+`error`. Ihre `conversation_id` ist ab der ersten Antwort bekannt, eine
+Folgenachricht kann also gesendet werden, bevor der Run endet. Ein Worker führt
+sie aus, durch denselben Runner, dasselbe Budget und dieselben Freigaben wie
+jede andere Oberfläche.
+
+Was sich sofort prüfen lässt, wird sofort geprüft: Eine unbekannte Konversation
+oder Anlage ist ein `404` auf den `POST`, kein Fehler, auf den man warten muss.
+Die Rechte des Schlüssels werden beim Start des Runs erneut geprüft, ein
+Schlüssel, der widerrufen wurde, während sein Run wartete, führt ihn also nicht
+aus. Nur die Person, die angefragt hat, oder ein Schlüssel von ihr kann eine
+Run-Anfrage lesen; die eines anderen antwortet `404`. Ein asynchroner Run hat
+einen Versuch - ein gescheiterter Run wird mit dem festgehalten, was er
+ausgegeben hat, und nicht wiederholt, um es nicht zweimal auszugeben.
+
 Die Route trägt eine **Rate-Limitierung und kein Berechtigungs-Tor**. Über die
 Berechtigung entscheidet der Service, anhand der Grants genau dieses Agents — ein
 Rollen-Tor auf einer Route für eine einzelne Ressource
@@ -224,6 +259,33 @@ Die Antwort trägt außerdem
 `categories` und `tags`: jedes eindeutige Label auf den Agents, die Sie auflisten
 können, unabhängig von Filter und Seite — die Auswahl, die ein Filtermenü anbietet.
 Ein privater Agent, den Sie nicht sehen, trägt keines bei.
+## Agents über A2A { #agents-over-a2a }
+
+Ein Agent, den seine Organisation über A2A anbietet, beantwortet JSON-RPC unter
+`POST /api/v1/a2a/{agent_id}`, mit denselben Keys wie `/run`; seine Agent Card liegt
+unter `GET /api/v1/a2a/{agent_id}/.well-known/agent-card.json` und braucht keinen.
+`PUT /api/v1/agents/{id}/a2a` mit `{"enabled": true}` schaltet es ein, für einen
+Aufrufer mit `agents:publish` auf diesem Agent.
+
+```bash
+curl -X POST "$BASE/api/v1/a2a/$AGENT_ID" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc": "2.0", "id": 1, "method": "message/send",
+       "params": {"message": {"role": "user", "messageId": "m1",
+                              "parts": [{"kind": "text", "text": "Review clause 7"}]}}}'
+```
+
+Die Antwort ist ein `Task`, dessen ID die des Runs ist und dessen `contextId` das
+Gespräch fortsetzt. `tasks/get` liest einen erneut. Den Rest beschreiben die
+[Kanäle](channels.md#a2a).
+
+Remote Agents, an die diese Organisation delegiert, werden unter
+`/api/v1/external-agents` registriert: `GET` listet sie (`agents:view`); `POST` mit
+einer `card_url`, optional einem `slug` und optional der `secret_id` eines API-Keys
+liest die Karte und registriert ihn, und `POST /{id}/refresh` liest sie erneut;
+`DELETE /{id}` entfernt einen (`agents:edit` für alle drei).
+
 ## Die ML-Dienste { #the-ml-services }
 
 Vier Dienste der Plattform antworten für sich allein, ohne Unterhaltung und ohne
@@ -490,9 +552,9 @@ neuen Run.
 
 ## Wiederholungen, Idempotenz und Revisionen { #retries-idempotency-and-revisions }
 
-v1 hat keinen `Idempotency-Key`-Header und keine Revisions-Vorbedingungen: kein
-`ETag`, kein `If-Match`. Ein Schreibzugriff wird angewendet, wenn er ankommt,
-und der letzte gewinnt.
+v1 hat keine Revisions-Vorbedingungen: kein `ETag`, kein `If-Match`. Ein
+Schreibzugriff wird angewendet, wenn er ankommt, und der letzte gewinnt.
+`Idempotency-Key` wird auf einer Route beachtet, dem asynchronen Run.
 
 - **`GET`, `PUT` und `DELETE` lassen sich gefahrlos wiederholen.** Zweimal lesen
   liest zweimal; etwas zu löschen, das schon weg ist, antwortet `404`, was eine
@@ -505,6 +567,13 @@ und der letzte gewinnt.
   schauen Sie nach, bevor Sie wiederholen: `GET /api/v1/runs?agent_id=…&surface=api`
   listet die Runs, neueste zuerst, und ein Listenabruf findet eine Zeile, die der
   erste Versuch doch angelegt hat.
+- **Ein asynchroner Run schon, mit einem `Idempotency-Key`.** Senden Sie
+  `Prefer: respond-async` und einen Schlüssel Ihrer Wahl, höchstens 255 Zeichen,
+  und eine Wiederholung mit demselben Schlüssel und demselben Body antwortet mit
+  derselben Run-Anfrage, in welchem Zustand sie auch ist. Derselbe Schlüssel mit
+  einem anderen Body ist ein `409`, nie ein zweiter Run. Schlüssel gelten pro
+  Organisation. Ein synchroner Aufruf mit dem Header wird mit `400` abgelehnt,
+  statt glauben zu lassen, eine Wiederholung sei sicher.
 - **`429` ist die einzige Ablehnung zum Wiederholen**, nach dem `Retry-After`,
   das sie trägt. Jedes andere `4xx` ist für diese Anfrage endgültig.
 
@@ -572,6 +641,9 @@ versioniert und bewegt sich nur vorwärts.
 - Ein Skript holt sich seinen eigenen Schlüssel **ohne Browser** — anmelden,
   ausstellen, widerrufen — und `examples/public-api.sh` geht diesen Weg ganz.
 - **Nur `429` lohnt eine Wiederholung**; ein `POST` ist nicht idempotent, also
-  schauen Sie nach, bevor Sie ihn wiederholen.
+  schauen Sie nach, bevor Sie ihn wiederholen - außer bei einem asynchronen Run
+  mit `Idempotency-Key`.
+- **`Prefer: respond-async`** macht aus einem Run ein `202` und eine Run-Anfrage
+  zum Abfragen, ein langer Run hält also keine Verbindung offen.
 - **Die öffentliche API steht in `/api/v1/public/openapi.json`** und ändert
   sich in v1 nur additiv, mit 90 Tagen Deprecation; ein SDK gibt es noch nicht.

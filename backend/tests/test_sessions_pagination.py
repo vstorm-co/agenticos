@@ -6,8 +6,6 @@ full page from the last one, and revoking the final row on page three leaves it
 sitting on a page that no longer exists.
 """
 
-from __future__ import annotations
-
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch

@@ -1,7 +1,5 @@
 """A voice call is one run, prepared and finished like any other (#54)."""
 
-from __future__ import annotations
-
 import uuid
 from contextlib import asynccontextmanager, contextmanager
 from decimal import Decimal

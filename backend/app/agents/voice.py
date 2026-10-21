@@ -19,8 +19,6 @@ the spike (`.dev-agent/54/spike-findings.md` §2-3):
   call's own are.
 """
 
-from __future__ import annotations
-
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, Literal

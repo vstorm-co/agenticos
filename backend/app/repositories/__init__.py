@@ -35,6 +35,7 @@ from app.repositories import agent_run as agent_run_repo
 from app.repositories import agent_trigger as agent_trigger_repo
 from app.repositories import run_manifest as run_manifest_repo
 from app.repositories import agent_workspace as agent_workspace_repo
+from app.repositories import pending_sandbox_destroy as pending_sandbox_destroy_repo
 from app.repositories import sandbox_connection as sandbox_connection_repo
 from app.repositories import sandbox_operation as sandbox_operation_repo
 from app.repositories import skill_proposal as skill_proposal_repo
@@ -57,6 +58,8 @@ from app.repositories import invitation as invitation_repo
 from app.repositories import member as member_repo
 from app.repositories import organization as organization_repo
 from app.repositories import channel_prompt as channel_prompt_repo
+from app.repositories import external_agent as external_agent_repo
+from app.repositories import project as project_repo
 from app.repositories import organization_assistant as organization_assistant_repo
 
 from app.repositories import user_slash_command as user_slash_command_repo
@@ -93,6 +96,8 @@ __all__ = [
     "channel_session_repo",
     "organization_repo",
     "channel_prompt_repo",
+    "external_agent_repo",
+    "project_repo",
     "organization_assistant_repo",
     "member_repo",
     "invitation_repo",
@@ -119,6 +124,7 @@ __all__ = [
     "agent_trigger_repo",
     "run_manifest_repo",
     "agent_workspace_repo",
+    "pending_sandbox_destroy_repo",
     "sandbox_connection_repo",
     "sandbox_operation_repo",
     "skill_proposal_repo",

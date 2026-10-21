@@ -1,109 +1,160 @@
 # Add a background task
 
-Background work runs outside the request-response cycle. This project uses
-**Prefect** for anything scheduled or long-running, and `app/core/background.py`
-for work a request hands over.
+Work that outlives a request is a **job** in the `background_jobs` table: a
+service queues it in its own transaction, and a worker (`python -m app.worker`)
+claims it, runs it and writes down how it ended. The same table carries the
+deployment's recurring jobs. `app/core/background.py` remains for the small,
+best-effort work a request hands to its own process.
 
-## Step-by-Step
+A job is durable where a task on the API's loop is not. It survives a restart,
+it is retried with backoff, and a job that kills its worker - an out-of-memory
+kill included - has already spent the attempt, so it cannot loop. What it did is
+on the Background jobs page.
 
-### 1. Create the task
-```python
-# app/worker/tasks/notifications.py
-from uuid import UUID
+## Step by step
 
-from prefect import flow
+### 1. Declare the job
 
-from app.db.session import get_db_context
-from app.repositories import notification_repo
-
-
-@flow(name="send-notification", log_prints=True)
-async def send_notification_flow(notification_id: str) -> dict:
-    """Send a notification that a request has already written."""
-    # A flow opens its own session: the request's is long gone by now.
-    async with get_db_context() as db:
-        notification = await notification_repo.get_by_id(db, UUID(notification_id))
-        if notification is None:
-            # Reachable, and the whole reason for `spawn_after_commit` below.
-            raise ValueError(f"notification {notification_id} not found")
-        print(f"Sending {notification.title} on {notification.channel}")
-    return {"status": "sent", "notification_id": notification_id}
-```
-
-The flow takes an **id and reads the row**, which is the shape almost every real
-flow has and the reason the handover below matters. A flow that only prints its
-arguments would work either way and would teach nothing.
-
-### 2. Call it from a service
-
-!!! danger "Work that reads a row this request wrote takes `spawn_after_commit`"
-
-    `spawn` creates the task at once and the loop starts it before the request
-    commits, so the flow opens its own session and cannot see the row it was
-    given the id of - an upload that answered `processing` and stayed that way
-    ([#417](https://github.com/vstorm-co/agenticos/issues/417)). A bare
-    `asyncio.create_task` has that problem *and* loses the exception, because
-    nothing holds a reference to the task or reads its result.
+A job kind is declared in `app/worker/jobs.py`: its payload, its pool, its
+attempts, its timeout and its priority. The module imports Pydantic and nothing
+else, so the service that queues the job never imports the code that runs it.
 
 ```python
-from app.core.background import spawn, spawn_after_commit
-from app.worker.tasks.notifications import send_notification_flow
-from app.worker.tasks.reports import nightly_digest_flow
+# app/worker/jobs.py
+class SendNotification(Payload):
+    notification_id: UUID
 
-# A row this request just wrote. The flow reads it by id, so the task must not
-# start before the commit that makes it readable.
-spawn_after_commit(
-    self.db,
-    send_notification_flow(str(notification.id)),
-    name=f"notify:{notification.id}",
+
+SEND_NOTIFICATION = Task(
+    kind="send-notification",
+    payload_type=SendNotification,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=5),
+    priority=Priority.INTERACTIVE,
 )
-
-# Work that reads nothing this request wrote can start immediately.
-spawn(nightly_digest_flow(), name="digest:nightly")
 ```
 
-Both keep a reference to the task so it is not garbage-collected mid-flight, and
-both log a failure with the `name` you gave them - which is the only context that
-error will ever carry, so be specific.
+A payload carries **identifiers and primitives**, never a row or a session. The
+job reads the row when it runs, and re-establishes whatever authority it needs
+then: by the time a worker claims it, the row may have changed and the person
+who asked may no longer be allowed to.
 
-### 3. Add scheduling (optional)
+Pick the pool by what the job spends:
 
-A schedule fires with **fixed** parameters, so the flow it names has to be one
-that needs none — `send_notification_flow` above takes the id of a row somebody
-wrote and there is no such id at nine in the morning. Register the flow that goes
-looking for its own work:
+| Pool | For | How it runs |
+|---|---|---|
+| `agent` | Agent runs and trigger fires: long, waiting on models | On the worker's loop, `WORKER_AGENT_CONCURRENCY` at once |
+| `ingest` | Parsing and embedding: CPU and memory heavy | One job per child process, under `WORKER_INGEST_MEMORY_MB` |
+| `system` | Sweeps, cleanups, reports: short | On the worker's loop, `WORKER_SYSTEM_CONCURRENCY` at once |
+
+### 2. Write the handler and bind it
 
 ```python
-from prefect.client.schemas.schedules import CronSchedule
-
-from app.worker.tasks.reports import nightly_digest_flow
-
-deployments.append(await nightly_digest_flow.ato_deployment(
-    name="daily-digest",
-    schedules=[CronSchedule(cron="0 9 * * *")],  # Daily at 9 AM
-))
+# app/worker/tasks/notification_tasks.py
+async def send_notification(job: SendNotification) -> None:
+    async with get_worker_db_context() as db:
+        notification = await notification_repo.get_by_id(db, job.notification_id)
+        if notification is None:
+            return  # deleted since it was queued: nothing left to send
+        await NotificationDelivery(db).send(notification)
 ```
 
-### 4. Run the worker
+Bind it to its kind in `production()` in `app/worker/handlers.py`:
+
+```python
+Handler(jobs.SEND_NOTIFICATION, notification_tasks.send_notification),
+```
+
+An exception fails the attempt, and the job is retried until `max_attempts`;
+its type, message and last frames go on the job's row. A payload that no longer
+validates, or a kind no worker knows, fails at once with no retry - it would
+only fail the same way again. A handler can return a Pydantic model, which is
+kept as the job's result.
+
+### 3. Queue it from a service
+
+```python
+from app.services.background_jobs import enqueue
+from app.worker.jobs import SEND_NOTIFICATION, SendNotification
+
+await enqueue(
+    self.db,
+    SEND_NOTIFICATION,
+    SendNotification(notification_id=notification.id),
+    organization_id=notification.organization_id,
+)
+```
+
+The job is written in the request's transaction, so it exists exactly when the
+row it names does: a rolled-back request queues nothing, and a committed one
+wakes the pool's workers through `NOTIFY` once the row is there to read. That is
+the race [#417](https://github.com/vstorm-co/agenticos/issues/417) was, closed
+by construction rather than by `spawn_after_commit`.
+
+Three options shape how copies of a job behave:
+
+- `dedupe_key` keeps at most one queued copy. With `dedupe_active=True`, a
+  running copy also drops the new one - a sync already in progress makes a
+  second request for it redundant.
+- `concurrency_key` lets copies queue but runs them one at a time, such as two
+  syncs of one source.
+- `run_after` delays the first attempt.
+
+### 4. Schedule it (optional)
+
+A recurring job is declared in `SCHEDULES` in `app/worker/schedules.py`. Its
+payload is a `Tick`, which names the occurrence it was fired for, so a job
+covering a period - a weekly report - knows which period:
+
+```python
+Schedule("send-digest", jobs.SEND_DIGEST, timedelta(days=1)),
+```
+
+Every schedule is an interval on a fixed grid, kept in `background_schedules`,
+so a restart picks up where the last worker left off. Two settings decide what
+an awkward occurrence does:
+
+- **`misfire`**, for one later than `grace` (a minute): `latest` fires once for
+  the whole backlog, `skip` waits for the next. Nothing ever fires once per
+  missed occurrence.
+- **`overlap`**, for one that arrives while the previous job is queued or
+  running: `skip` drops it, `queue` lets one wait behind it, `allow` runs it
+  alongside.
+
+Sweep over current state with the defaults, `latest` and `skip`. A job whose
+run covers a period of its own, like the usage reports, takes `overlap=QUEUE`, so
+a slow week is not a week nobody is sent.
+
+### 5. Run the worker
 
 ```bash
-# The prefect-server + prefect-runner containers start with `make dev`.
-# To run the runner directly (registers deployments + polls for work):
-uv run --directory backend python -m app.worker.prefect_app
-# Prefect UI: http://localhost:4200
+make dev                                   # API, worker, frontend, Postgres, Redis
+uv run --directory backend python -m app.worker   # the worker on its own
 ```
 
-!!! warning "A short schedule is cheap to add but not free"
+`WORKER_POOLS` limits which pools a worker serves, so a deployment can run
+ingestion on a bigger host. Every worker runs the schedules; their claim takes
+each due schedule once however many workers tick at the same instant.
 
-    At most `PREFECT_RUNNER_LIMIT` runs execute at once (default 5) and the rest
-    queue. Every run is a process that imports the whole application, so prefer
-    the longest interval that still answers the question.
+## When something goes wrong
 
-The interval also decides how much work is waiting after downtime. Pass
-`concurrency_limit=_ONE_AT_A_TIME` when the flow sweeps current state, as the
-sweeps in `prefect_app.py` do: the server then refuses a tick that arrives while
-the previous one is still running, before the runner starts a process for it,
-so a host that falls behind sheds ticks instead of running every one. Leave it
-off an on-demand deployment, where every run is its own piece of work, and off a
-flow whose run covers a period of its own, like the usage reports or the digest
-above.
+A job that killed its worker five times in a row pauses its **kind**: no worker
+claims it until the deployment's owner resumes it on the Background jobs page,
+and every owner is told in the app and by email. A dead job can be retried from
+that page, and a queued one cancelled. Each action is audited.
+
+!!! note "When `spawn_after_commit` is still the right call"
+
+    Work that may be lost on a restart without harm - a cache warmed, a
+    notification of something that is also visible elsewhere - can still go to
+    `spawn_after_commit`. It runs on the API's own loop, so keep it short and
+    let anything that must happen be a job.
+
+## Testing
+
+Run a job's handler directly in a unit test; it is a plain coroutine. Queueing
+and claiming are tested against the real database in
+`backend/tests/integration/test_background_job_queue.py`, and a worker that is
+killed for real in `backend/tests/integration/test_worker_runtime.py` - start
+there when a change touches the queue itself.

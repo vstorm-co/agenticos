@@ -38,7 +38,7 @@ This test is written to be applied to other products in the category, and to thi
 
 - **Licence:** Apache-2.0 — chosen over MIT for the explicit patent grant, because the platform is meant to be deployed inside other companies.
 - **Requirements:** PostgreSQL with pgvector, Redis, Docker. No vendor account of any kind. Runs air-gapped.
-- **Stack:** FastAPI and Pydantic v2, PostgreSQL via asyncpg, pgvector, Redis, Prefect for background work, Next.js 15 and React 19 for the console, Pydantic AI as the agent runtime, MCP for tools.
+- **Stack:** FastAPI and Pydantic v2, PostgreSQL via asyncpg, pgvector, Redis, a job queue in PostgreSQL for background work, Next.js 15 and React 19 for the console, Pydantic AI as the agent runtime, MCP for tools.
 - **Models:** 27 providers including Anthropic, OpenAI, Google, Bedrock, Vertex and Azure, plus keyless entries for Ollama and a LiteLLM proxy, so a model can run on the operator's own hardware.
 - **Surfaces:** eight — web chat, a hosted page, an embedded widget, a raw WebSocket, the HTTP API, Slack, Telegram and Mattermost, all behind one runner with one budget and one audit trail.
 - **Desktop app:** optional. The console is a web app; the desktop app is a thin shell around the same console with a pet and a screenshot-to-chat shortcut, not a second way of running the platform.

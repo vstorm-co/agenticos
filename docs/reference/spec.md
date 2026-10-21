@@ -25,6 +25,11 @@ which to reach for. `subagents` holds the first; the second lives in the
 
 ::: app.agents.spec.SubagentRef
 
+`external_agents` names remote A2A agents registered in the organization, which
+[delegation](capabilities.md#remote-agents) calls beside these.
+
+::: app.agents.spec.ExternalAgentRef
+
 ::: app.agents.spec.SpecialistSpec
 
 ## Budgets

@@ -36,8 +36,6 @@ first, and the model-table check here. The two regexes disagreed, and every read
 write and drop went through the lax one (#368, #371).
 """
 
-from __future__ import annotations
-
 import re
 from typing import TYPE_CHECKING
 

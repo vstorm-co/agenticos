@@ -6,8 +6,6 @@ same cookie a moment after the first, holds exactly that token. Before the
 window, presenting it ended the session and signed the person out.
 """
 
-from __future__ import annotations
-
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4

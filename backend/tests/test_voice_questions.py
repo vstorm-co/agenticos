@@ -1,7 +1,5 @@
 """The `ask_user` card inside a call, answered by a tap or aloud (#54)."""
 
-from __future__ import annotations
-
 import anyio
 import pytest
 from pydantic_ai_harness.ask_user import (

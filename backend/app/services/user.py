@@ -33,6 +33,7 @@ from app.db.models.user import User
 from app.db.updates import writable
 from app.repositories import (
     collection_teardown_repo,
+    conversation_repo,
     knowledge_base_repo,
     member_repo,
     organization_repo,
@@ -80,7 +81,7 @@ deployment's verification mail to any inbox it likes, repeatedly (#1772)."""
 
 
 class UserService:
-    def __init__(self, db: AsyncSession, vector_store: "BaseVectorStore | None" = None):
+    def __init__(self, db: AsyncSession, vector_store: BaseVectorStore | None = None):
         self.db = db
         # Only the account-teardown path drops a departing user's vector tables.
         # A caller may inject the store (the delete route, a test on its own
@@ -761,6 +762,10 @@ class UserService:
         them, and their documents, files and vector table would be retained and
         unreachable while the collection name kept blocking reuse. They are torn
         down explicitly, with the same store the org purge needs (#1131).
+
+        A sixth is a loss rather than an orphan: a project's chat the user
+        started, which the `users` cascade would delete for every teammate who
+        reads and continues it. It is kept, with no starter.
         """
         from app.services.rag.embeddings import EmbeddingService
         from app.services.rag.vectorstore import process_vector_store
@@ -820,6 +825,11 @@ class UserService:
                 )
 
         await organization_secret_repo.promote_owned_private_to_org(self.db, owner_user_id=user_id)
+        # A project's chat is the team's, not its starter's: teammates read and
+        # continue it, and the cascade from `users` would take it - transcript and
+        # all - with the account. Unowned, it stays with the project; the
+        # person's own chats outside any project still go.
+        await conversation_repo.release_project_chats(self.db, user_id=user_id)
 
         await self._purge_personal_collections(user_id)
 
@@ -841,9 +851,9 @@ class UserService:
         Mirrors `OrganizationService.purge`'s collection teardown for the rows the
         org purge cannot see. Each base's document rows and the base row go in the
         request's transaction; the stored files and the physical `rag_<collection>`
-        tables are handed to the durable cleanup after the commit
-        (`spawn_after_commit` → `dispatch_external_state_cleanup`), so a rollback
-        keeps them, a worker restart mid-cleanup does not orphan them (#1349), and
+        tables are a cleanup job queued in this transaction
+        (`queue_external_state_cleanup`), so a rollback keeps them, a worker
+        restart mid-cleanup does not orphan them (#1349), and
         the drop takes the `COLLECTION_TEARDOWN` lock and re-reads the reference
         check on its own session, so a name a second base still holds - or is
         mid-claim on - keeps its table (#913, #1355). A table is queued for drop
@@ -870,14 +880,9 @@ class UserService:
                 collections_to_drop.append(collection)
                 await collection_teardown_repo.reserve(self.db, collection)
         if storage_paths or collections_to_drop:
-            from app.core.background import spawn_after_commit
-            from app.worker.tasks.teardown_tasks import dispatch_external_state_cleanup
+            from app.worker.tasks.teardown_tasks import queue_external_state_cleanup
 
-            spawn_after_commit(
-                self.db,
-                dispatch_external_state_cleanup(storage_paths, collections_to_drop),
-                name="purge-personal-collections",
-            )
+            await queue_external_state_cleanup(self.db, storage_paths, collections_to_drop)
 
     async def admin_update(
         self, user_id: UUID, user_in: UserUpdate, *, acting_admin_id: UUID

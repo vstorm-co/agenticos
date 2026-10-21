@@ -23,8 +23,6 @@ Step 2 is the one place the three kinds diverge at admission: a `widget` and a
 this deployment's own origin, because it is the only site that serves one.
 """
 
-from __future__ import annotations
-
 import contextlib
 import logging
 import secrets

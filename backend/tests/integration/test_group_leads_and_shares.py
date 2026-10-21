@@ -1,7 +1,5 @@
 """A department runs itself: its lead, its page's "add to this group", and its inbox (#2072)."""
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

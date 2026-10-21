@@ -10,8 +10,6 @@ being deleted, and that every vocabulary CHECK constraint rejects a value
 outside it.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

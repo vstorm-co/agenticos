@@ -17,8 +17,6 @@ somebody adds `is_app_admin` to `UserUpdate` so the admin page can toggle it, an
 suite would fail. Hence this file.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock

@@ -129,7 +129,7 @@ Leave these exactly as they are in English:
 | Permission names | `agents:edit` is a string the product compares |
 | File and directory paths | `backend/app/core/vault.py` |
 | Error and exception class names | `AuthorizationError` |
-| Product names | Docker Compose, PostgreSQL, Slack, Prefect |
+| Product names | Docker Compose, PostgreSQL, Slack, Logfire |
 | Mermaid blocks | A label with a bracket or a quote in it breaks the graph, and the build cannot tell you - Mermaid renders in the browser |
 | A console label the reader has to find on screen | Where the UI shows it in English, `Admin → Response Ratings` is a landmark, not a phrase. Where the console's own catalog translates it (`frontend/messages/pl.json`, `de.json`), write the label the reader's UI shows with the English one in parentheses - „Głos (Voice)” - so it is findable in either language |
 | Image paths | One screenshot serves all four locales |

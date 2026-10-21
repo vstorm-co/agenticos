@@ -1,7 +1,5 @@
 """`GET /agents/{agent_id}/voice`: whether a call would start, over the wire (#54)."""
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import Iterator
 from types import SimpleNamespace

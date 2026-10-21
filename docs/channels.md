@@ -952,6 +952,42 @@ in the approvals queue, and it continues when somebody decides.
 Limited per caller rather than per address — an office behind one NAT is not one
 caller — at `RATE_LIMIT_RUN_PER_MINUTE`.
 
+## Other agents, over A2A { #a2a }
+
+Another system's agent can send an agent tasks over the
+[Agent2Agent protocol](https://a2a-protocol.org). It is off for every agent until
+somebody who may publish it turns on **Agent2Agent (A2A)** on its **Availability**
+tab, which shows the two addresses to give the other side:
+
+- the **agent card**, at `/api/v1/a2a/{agent_id}/.well-known/agent-card.json`,
+  readable without a key — the agent's name, description, version, its one skill
+  and how to authenticate;
+- the **endpoint** for tasks, `POST /api/v1/a2a/{agent_id}`, JSON-RPC 2.0.
+
+The caller sends an organization API key, or an OAuth access token this deployment
+issued, as a bearer token, and it must be allowed to run the agent: one that is not
+is refused with HTTP `403`, or `404` when it may not see the agent at all, as A2A
+leaves authorization to the transport. `message/send` takes text parts only, and
+refuses a message with a data or file part with `-32005`, rather than run it on
+its text alone.
+
+`message/send` runs the published version as an ordinary run stamped `a2a`, so the budget, the
+approval gate, the audit trail and Activity all apply. The task's id is the run's
+id and its `contextId` is the conversation the run files under, so sending it again
+continues that conversation. A run that stops for an approval answers
+`input-required`; it is decided in the console, and `tasks/get` reads where it
+stands since.
+
+A task is read by whoever sent it, or by somebody who may read every
+run (`runs:view`); to anyone else its id is unknown. A message naming a `taskId`
+is refused rather than run beside the waiting task: send without it, in the same
+`contextId`, to ask something new.
+
+Answered synchronously: `message/stream`, push notifications and `tasks/cancel` are
+refused by name, and the card says streaming is not offered. An agent that is not
+served — off, unpublished, archived or another organization's — answers `404`, card
+and endpoint alike.
+
 ---
 
 ## Slack
@@ -1101,7 +1137,8 @@ question, or turn streaming off, which falls back to a reply edited once a
 second. Streaming also falls back on its own where Slack refuses to start one.
 
 A Markdown table in the answer is drawn as a Slack table, and a chart arrives as
-an image, as it always did. If the finished answer is not what was streamed - an
+an image, as it always did. So does a [visual](reference/capabilities.md#visuals), drawn by
+the deployment's browser when `VISUAL_RENDER_CDP_URL` names one. If the finished answer is not what was streamed - an
 output guardrail redacted something - the streamed message is rewritten whole.
 
 ### Scopes and events
@@ -1589,7 +1626,7 @@ agent that does well in the console and badly in Slack shows it.
 
         Before this switch existed, a bot with no pair was a bot that did not
         transcribe, and the API cleared the pair to turn transcription off.
-        Migration `0139_bot_transcription_switch.py` switches every such bot
+        Migration `0151_bot_transcription_switch.py` switches every such bot
         **off**, so none of them starts sending audio to a provider on upgrade;
         a bot with a pair keeps it. From then on a client that clears the pair
         gets **inherit**, and **off** is `transcribe_voice_notes: false`, which
@@ -1788,6 +1825,12 @@ agent that does well in the console and badly in Slack shows it.
   and one that dies within about 40. An edit served by another worker opens the
   new connection at once, and the old one closes at its holder's next renewal.
   With Redis unreachable, every worker connects, as before.
+- **A second Telegram poller is noticed, not fought.** When Telegram ends a
+  bot's poll because another process polls the same token, a worker that does
+  not hold the bot's lease closes its copy at once. The holder keeps polling and
+  marks the bot down on the channels page: "another process is polling this
+  bot's token". That process is outside the deployment, usually a second
+  deployment or a script with the same token, and only its owner can stop it.
 - **A binding's instructions may name what only the platform knows.**
   `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{member_count}`,
   `{member_list}` - filled in when a run starts, from the same calls the channel
@@ -1872,6 +1915,7 @@ is stored is what its reader actually saw.
 | `@mention` on a channel | The same, with the handle stripped from the recorded prompt |
 | Embedded widget | The same. The visitor is anonymous; the run and the turns belong to the widget's owner |
 | HTTP API | The same when the call carries a `conversation_id`. Nothing without one — there is no thread to write a turn into, and the run row is still the record that it happened |
+| A2A | The same. Every task files under a conversation, a new one or the one its `contextId` names |
 | A run resumed after an approval | Its continuation — the answer and the calls it made, and the calls even when there is no answer, which is what a continuation that parks again on a second gated call has. No user turn: it picks up at the call it stopped on, and inventing a question would put words in somebody's mouth |
 
 **What is recorded is what the person wrote, not the prompt assembled around it.**

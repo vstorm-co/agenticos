@@ -18,8 +18,6 @@ somebody's machine long before CI's database ever sees it. `ScriptDirectory`
 reads the files, and the files are the whole of the question.
 """
 
-from __future__ import annotations
-
 from pathlib import Path
 
 from alembic.config import Config

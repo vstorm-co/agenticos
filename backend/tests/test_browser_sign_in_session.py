@@ -5,8 +5,6 @@ hold a take-over uses, so the give-back that keeps a sign-in is the same code a
 take-over runs.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager

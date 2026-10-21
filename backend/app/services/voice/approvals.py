@@ -21,8 +21,6 @@ a reason the agent says aloud. Timeouts, hang-ups and cancellations expire the
 row with no decider.
 """
 
-from __future__ import annotations
-
 import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass

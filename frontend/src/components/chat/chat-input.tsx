@@ -13,6 +13,8 @@ import { createPortal } from "react-dom";
 
 import { AttachmentCard, PendingAttachmentCard } from "./attachment-card";
 import { AttachmentRow } from "./attachment-row";
+import { ReplyingTo } from "./reply-quote";
+import { useChatStore } from "@/stores";
 import { ComposerSheet } from "./composer-sheet";
 
 /**
@@ -172,6 +174,8 @@ interface ChatInputProps {
    * stay inside this `<form>` to submit it.
    */
   controlsSlot?: ReactNode;
+  /** Opens the project picker from the `+`; absent where a chat cannot change project. */
+  onProject?: () => void;
   /**
    * Icons drawn before the microphone: what the conversation is using, and the
    * model it runs on. Icons, because a line of readings and a model's name took
@@ -188,6 +192,14 @@ interface ChatInputProps {
    * the page (#2063) - attached as if picked, once per `id`.
    */
   incoming?: IncomingFiles | null;
+  /** Called as the person types, so a shared chat can say they are. */
+  onTyping?: () => void;
+  /**
+   * Projects `@` offers beside what the agent reaches, before the first message;
+   * picking one starts the chat in it rather than mentioning it.
+   */
+  projects?: Mentionable[];
+  onPickProject?: (projectId: string) => void;
 }
 
 /** Files to attach from outside the composer, once per `id`, and words to go with them. */
@@ -213,15 +225,22 @@ export function ChatInput({
   attachmentSlot,
   mic,
   controlsSlot,
+  onProject,
   actionsSlot,
   dictation,
   incoming = null,
   agentId = null,
   mentionsFromDraft = false,
   hints = false,
+  onTyping,
+  projects,
+  onPickProject,
 }: ChatInputProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("chat.input");
+  // The message this turn will answer, chosen with Reply on it.
+  const replyTo = useChatStore((state) => state.replyTo);
+  const setReplyTo = useChatStore((state) => state.setReplyTo);
   const tCommands = useTranslations("chat.commands");
   const tDictation = useTranslations("chat.dictation");
   const { chatMaxUploadSizeMb } = usePublicConfig();
@@ -235,6 +254,10 @@ export function ChatInput({
   // caller wired a context - without one, commands have nothing to do.
   const [paletteIndex, setPaletteIndex] = useState(0);
   const editorRef = useRef<ComposerEditorHandle>(null);
+  // Reply was just chosen on a message: the person goes on to type the answer.
+  useEffect(() => {
+    if (replyTo) editorRef.current?.focus();
+  }, [replyTo]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
@@ -313,8 +336,11 @@ export function ChatInput({
   const mentionOpen = mentionQuery !== null && agentId !== null && !showPalette;
   const offered = useMentionables(agentId, mentionsFromDraft);
   const mentionMatches = useMemo(
-    () => (mentionOpen && mentionQuery ? matching(offered.items, mentionQuery.query) : []),
-    [mentionOpen, mentionQuery, offered.items],
+    () =>
+      mentionOpen && mentionQuery
+        ? matching([...offered.items, ...(projects ?? [])], mentionQuery.query)
+        : [],
+    [mentionOpen, mentionQuery, offered.items, projects],
   );
   if (useChanged(`${mentionMatches.length}|${mentionQuery?.query ?? ""}`)) setMentionIndex(0);
   // Another agent's servers and knowledge are not this one's, so a switch drops
@@ -333,11 +359,22 @@ export function ChatInput({
   const typed = (text: string, at: number) => {
     setMessage(text);
     setMentionQuery(mentionAt(text, at));
+    if (text.trim()) onTyping?.();
   };
 
   const full = mentions.length >= MAX_MENTIONS;
   const pickMention = (item: Mentionable) => {
     if (mentionQuery === null) return;
+    if (item.kind === "project") {
+      // Not a word in the message: the chat moves into the project, and the
+      // `@` typed to find it goes.
+      setMentionQuery(null);
+      const rest = message.slice(mentionQuery.start + 1 + mentionQuery.query.length);
+      setMessage(message.slice(0, mentionQuery.start) + rest.replace(/^ /, ""));
+      caretAfterPick.current = mentionQuery.start;
+      onPickProject?.(item.id);
+      return;
+    }
     if (full && !mentions.includes(item)) return;
     setMentionQuery(null);
     const next = insertMention(message, mentionQuery, item);
@@ -710,6 +747,8 @@ export function ChatInput({
           </AttachmentRow>,
         )}
 
+      {replyTo && <ReplyingTo reply={replyTo} onCancel={() => setReplyTo(null)} />}
+
       {/* The text has the box to itself, and every control is on one row under
           it. The buttons used to sit *beside* the textarea, which is fine on
           one line and wrong on ten: the send button drifted to the vertical
@@ -778,6 +817,7 @@ export function ChatInput({
                 }
               : undefined
           }
+          onProject={onProject}
           disabled={disabled || isUploading}
         />
         {isUploading && <Spinner className="text-muted-foreground h-4 w-4 shrink-0" />}

@@ -2,16 +2,13 @@
 
 import logging
 
-from prefect import flow
-
 from app.db.session import get_worker_db_context
 from app.services.voice import VoiceCallReaper
 
 logger = logging.getLogger(__name__)
 
 
-@flow(name="voice-call-sweep")
-async def voice_call_sweep_flow() -> int:
+async def reap_voice_calls() -> int:
     """Hang up calls a dead worker left on the provider's bill. Returns how many."""
     reaped = await VoiceCallReaper(get_worker_db_context).reap()
     if reaped:

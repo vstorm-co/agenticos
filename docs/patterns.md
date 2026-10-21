@@ -277,7 +277,9 @@ queues the coroutine on the session, so nothing starts until the transaction the
 work depends on has landed — a flow that reads its own row by id would otherwise
 run against a database that does not have it yet
 ([#417](https://github.com/vstorm-co/agenticos/issues/417)). Neither survives a
-restart; work that must belongs in a Prefect deployment.
+restart; work that must is a job, queued with
+`app.services.background_jobs.enqueue` in the same transaction - see
+[Add a background task](howto/add-background-task.md).
 
 ## Connector pattern (RAG sync)
 

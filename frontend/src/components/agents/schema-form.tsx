@@ -94,13 +94,25 @@ export function SchemaForm({
   );
   if (properties.length === 0) return null;
 
-  const set = (key: string, fieldValue: unknown) => onChange({ ...value, [key]: fieldValue });
+  const set = (key: string, fieldValue: unknown) => {
+    const next: Record<string, unknown> = { ...value, [key]: fieldValue };
+    // A choice that depended on this field and is no longer offered goes,
+    // rather than staying selected where the form cannot show it.
+    for (const [other, property] of Object.entries(schema.properties ?? {})) {
+      const when = property["x-enum-when"];
+      if (when?.field !== key || next[other] === undefined) continue;
+      if (!(when.choices[String(fieldValue)] ?? []).includes(String(next[other]))) {
+        next[other] = undefined;
+      }
+    }
+    onChange(next);
+  };
   const field = ([key, property]: [string, JsonSchemaProperty]) => (
     <SchemaField
       key={key}
       id={`${idPrefix}-${key}`}
       name={key}
-      property={property}
+      property={narrowed(property, schema, value)}
       value={value[key]}
       required={schema.required?.includes(key) ?? false}
       disabled={disabled}
@@ -126,6 +138,32 @@ export function SchemaForm({
       )}
     </div>
   );
+}
+
+/**
+ * The property with only the choices `x-enum-when` allows for what the form holds now.
+ *
+ * Read with the deciding field's schema default, as `visible` does, because the
+ * form shows a default without storing it.
+ */
+function narrowed(
+  property: JsonSchemaProperty,
+  schema: JsonSchema,
+  value: Record<string, unknown>,
+): JsonSchemaProperty {
+  const when = property["x-enum-when"];
+  if (when === undefined) return property;
+  const current = value[when.field] ?? schema.properties?.[when.field]?.default;
+  const allowed = new Set(when.choices[String(current)] ?? []);
+  const keep = (values: unknown[] | undefined) =>
+    values?.filter((choice) => allowed.has(String(choice)));
+  return {
+    ...property,
+    enum: keep(property.enum),
+    anyOf: property.anyOf?.map((branch) =>
+      branch.enum ? { ...branch, enum: keep(branch.enum) } : branch,
+    ),
+  };
 }
 
 /**

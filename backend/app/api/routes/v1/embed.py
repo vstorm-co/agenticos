@@ -10,8 +10,6 @@ an SSE connection open and reconnect it themselves; over a socket the browser
 does that, and the same frames the dashboard chat already speaks work unchanged.
 """
 
-from __future__ import annotations
-
 import logging
 from typing import Annotated, Any
 
@@ -556,7 +554,7 @@ async def embed_voice_socket(
                 token=token,
                 visitor_key=visitor_key,
             )
-        except (EmbedDenied, BadRequestError):
+        except EmbedDenied, BadRequestError:
             await websocket.accept()
             await websocket.close(code=WS_DENIED, reason="Calls are not available here")
             return

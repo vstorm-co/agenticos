@@ -12,8 +12,6 @@ the directory refused is an answer, and one it never received is reported as
 unavailable for the person to try again.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Protocol
 

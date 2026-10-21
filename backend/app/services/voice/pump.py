@@ -7,8 +7,6 @@ before the next one; `UsageLimits.cost_limit` is the hard stop under that, and
 can overshoot by at most one response.
 """
 
-from __future__ import annotations
-
 import re
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Literal

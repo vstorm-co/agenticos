@@ -7,8 +7,6 @@ needs to read a refusal at all. The admission and gating rules themselves are in
 `tests/test_agent_embed.py`.
 """
 
-from __future__ import annotations
-
 from collections.abc import Iterator
 from unittest.mock import AsyncMock, MagicMock, patch
 

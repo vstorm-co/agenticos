@@ -13,8 +13,6 @@ at a time: each continues from what the previous one did, so a call can say
 "now send that file" after "write it up".
 """
 
-from __future__ import annotations
-
 import logging
 from collections.abc import AsyncIterable, Awaitable, Callable, Sequence
 

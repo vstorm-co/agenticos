@@ -11,8 +11,6 @@ reaches it, since the route delegates to the grant-aware service.
 The real service runs with the repository stubbed at the database edge.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
@@ -51,6 +49,8 @@ def _agent(*, categories: list[str] | None = None, tags: list[str] | None = None
         draft_spec={},
         categories=categories or [],
         tags=tags or [],
+        # What the column's default gives every stored row.
+        a2a_enabled=False,
     )
 
 

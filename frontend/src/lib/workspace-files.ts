@@ -16,18 +16,25 @@
 
 import { readConversationFile, readConversationFileBytes } from "./conversation-workspace-api";
 import { saveBlob, type FileAccess, type FileText } from "./file-access";
+import { readProjectBytes, readProjectText } from "./projects-api";
 import { qk } from "./query-keys";
 import { readWorkspaceBytes, readWorkspaceFile } from "./sandbox-workspaces-api";
 
 /** Where a workspace file is read from. */
 export type FileSource =
   | { readonly kind: "conversation"; readonly id: string }
-  | { readonly kind: "workspace"; readonly id: string };
+  | { readonly kind: "workspace"; readonly id: string }
+  | { readonly kind: "project"; readonly id: string };
 
 export function readFileText(source: FileSource, path: string): Promise<FileText> {
-  return source.kind === "conversation"
-    ? readConversationFile(source.id, path)
-    : readWorkspaceFile(source.id, path);
+  switch (source.kind) {
+    case "conversation":
+      return readConversationFile(source.id, path);
+    case "project":
+      return readProjectText(source.id, path);
+    case "workspace":
+      return readWorkspaceFile(source.id, path);
+  }
 }
 
 export function readFileBytes(
@@ -35,21 +42,36 @@ export function readFileBytes(
   path: string,
   options: { download?: boolean } = {},
 ): Promise<Blob> {
-  return source.kind === "conversation"
-    ? readConversationFileBytes(source.id, path, options)
-    : readWorkspaceBytes(source.id, path, options);
+  switch (source.kind) {
+    case "conversation":
+      return readConversationFileBytes(source.id, path, options);
+    case "project":
+      return readProjectBytes(source.id, path, options);
+    case "workspace":
+      return readWorkspaceBytes(source.id, path, options);
+  }
 }
 
 export function textKey(source: FileSource, path: string) {
-  return source.kind === "conversation"
-    ? qk.conversationWorkspace.file(source.id, path)
-    : qk.sandboxWorkspaces.file(source.id, path);
+  switch (source.kind) {
+    case "conversation":
+      return qk.conversationWorkspace.file(source.id, path);
+    case "project":
+      return qk.projects.file(source.id, path);
+    case "workspace":
+      return qk.sandboxWorkspaces.file(source.id, path);
+  }
 }
 
 export function bytesKey(source: FileSource, path: string) {
-  return source.kind === "conversation"
-    ? qk.conversationWorkspace.bytes(source.id, path)
-    : qk.sandboxWorkspaces.bytes(source.id, path);
+  switch (source.kind) {
+    case "conversation":
+      return qk.conversationWorkspace.bytes(source.id, path);
+    case "project":
+      return qk.projects.bytes(source.id, path);
+    case "workspace":
+      return qk.sandboxWorkspaces.bytes(source.id, path);
+  }
 }
 
 /**

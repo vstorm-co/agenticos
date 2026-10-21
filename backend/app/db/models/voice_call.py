@@ -13,8 +13,6 @@ call's time and budget carry over the chain while every connection stays
 attributable. Call minutes are summed from these rows, never from run durations.
 """
 
-from __future__ import annotations
-
 import enum
 import uuid
 from datetime import datetime

@@ -18,8 +18,6 @@ Parametrised over routes owned by different routers on purpose: the fault was in
 worked for the one route somebody happened to try is the failure mode to catch.
 """
 
-from __future__ import annotations
-
 import pytest
 from httpx import ASGITransport, AsyncClient
 

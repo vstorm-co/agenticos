@@ -1,7 +1,5 @@
 """Call rows: what bounds a call nobody hung up (#54)."""
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal

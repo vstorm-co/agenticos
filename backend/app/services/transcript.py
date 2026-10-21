@@ -22,8 +22,6 @@ answer for a person appending a turn, the wrong one here: archiving a thread
 must not make the run inside it unaccountable.
 """
 
-from __future__ import annotations
-
 import json
 import logging
 from collections.abc import Collection, Mapping, Sequence
@@ -123,7 +121,7 @@ def tool_result_text(content: Any) -> str:
         return content
     try:
         return json.dumps(content, ensure_ascii=False, default=str)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         # `default=` is consulted for a *value* json cannot write and never for a
         # key, so a mapping keyed by a tuple raises `TypeError` and escaped this
         # fallback - taking the stream down on a tool call that had succeeded.
@@ -343,6 +341,15 @@ class TranscriptService:
                         # records which chat account asked, and a second route to
                         # the same fact is a second route to getting it wrong.
                         channel_identity_id=run.channel_identity_id,
+                        # Whoever started the run typed it - unless it ran as a
+                        # surface's publisher for a visitor, or a chat account
+                        # says who instead.
+                        author_user_id=(
+                            None
+                            if run.initiated_by_publisher_fallback
+                            or run.channel_identity_id is not None
+                            else run.user_id
+                        ),
                     )
                     await self._attach(asked.id, attachments)
                 for tool_call_id, result in (settled or {}).items():

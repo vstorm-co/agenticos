@@ -30,8 +30,6 @@ them in the usage log and hands them to the caller, so the composer can say what
 went wrong.
 """
 
-from __future__ import annotations
-
 import logging
 from dataclasses import dataclass
 from uuid import UUID

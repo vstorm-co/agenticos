@@ -10,8 +10,6 @@ is the security contract (#1593) the feature is not allowed to weaken. And the
 sees, so it has to refuse on an exhausted budget and book itself exactly once.
 """
 
-from __future__ import annotations
-
 import json
 from datetime import date
 from decimal import Decimal

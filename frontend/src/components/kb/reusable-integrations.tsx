@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Copy, Plug, Trash2 } from "lucide-react";
 
-import { ConnectorIcon } from "@/components/icons/brand-icon";
+import { ConnectorIcon } from "@/components/rag/connector-icon";
 import { SyncSourceWizard } from "@/components/rag/sync-source-wizard";
 import {
   AlertDialog,
@@ -168,9 +168,7 @@ function IntegrationRow({
   const tc = useTranslations("common");
   return (
     <li className="hover:bg-accent flex items-center gap-3 px-4 py-3 transition-colors">
-      <span className="bg-muted text-muted-foreground inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
-        <ConnectorIcon type={source.connector_type} className="h-4 w-4" />
-      </span>
+      <ConnectorIcon type={source.connector_type} size="sm" />
       <div className="min-w-0 flex-1">
         <p className="text-foreground truncate text-sm font-medium">{source.name}</p>
         <p className="text-muted-foreground mt-0.5 font-mono text-xs tracking-wider uppercase">

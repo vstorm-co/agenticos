@@ -1,7 +1,5 @@
 """A bot's reaction emoji and Mattermost's `/agent` token, as settings (#2084)."""
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch

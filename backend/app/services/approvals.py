@@ -11,8 +11,6 @@ seeing the recipient is a rubber stamp, and replaying the stored arguments means
 the model cannot change its mind between asking and acting.
 """
 
-from __future__ import annotations
-
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any

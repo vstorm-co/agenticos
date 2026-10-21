@@ -1,10 +1,8 @@
-"""Migration `0145_voice_call_indexes`: each indexed column comes and goes.
+"""Migration `0157_voice_call_indexes`: each indexed column comes and goes.
 
 Run against real PostgreSQL, on a scratch database holding only a `voice_calls`
 with the columns the revision indexes.
 """
-
-from __future__ import annotations
 
 import importlib.util
 import os
@@ -20,7 +18,7 @@ from sqlalchemy import Engine, create_engine, inspect, text
 from app.core.config import settings
 
 SCRATCH_DATABASE = f"agenticos_voice_call_indexes_test_p{os.getpid()}"
-_MIGRATION = Path(__file__).parents[1] / "alembic" / "versions" / "0145_voice_call_indexes.py"
+_MIGRATION = Path(__file__).parents[1] / "alembic" / "versions" / "0157_voice_call_indexes.py"
 
 
 def _url(database: str) -> str:

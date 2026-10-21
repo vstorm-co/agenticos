@@ -21,8 +21,6 @@ recording is samples or `None`, and the caller says what was accepted.
 was measured, and whatever else the file carried stays here.
 """
 
-from __future__ import annotations
-
 import struct
 
 SAMPLE_RATE = 16_000

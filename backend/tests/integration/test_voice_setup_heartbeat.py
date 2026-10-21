@@ -6,8 +6,6 @@ the sweep reads a quiet row as a dead worker's, so the real rows and the real
 sweep are what show whether a live call survives it.
 """
 
-from __future__ import annotations
-
 import asyncio
 import json
 import uuid

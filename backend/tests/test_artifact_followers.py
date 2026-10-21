@@ -1,7 +1,5 @@
 """Following an artifact: who is told about a new version, and who still sees it (#1977)."""
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from typing import Any

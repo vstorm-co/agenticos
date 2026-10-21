@@ -1,4 +1,4 @@
-"""Migration `0142_dictation_compressed_audio`: the switch arrives off, and leaves cleanly.
+"""Migration `0154_dictation_compressed_audio`: the switch arrives off, and leaves cleanly.
 
 The row a deployment already holds has to read as off after the upgrade - raw
 PCM is the format whose length cannot lie, and accepting the others is a risk
@@ -6,8 +6,6 @@ somebody takes on the settings page, never one an upgrade takes for them. So
 the revision runs here against real PostgreSQL, on a scratch database holding
 only the one table it touches.
 """
-
-from __future__ import annotations
 
 import importlib.util
 import os
@@ -24,7 +22,7 @@ from app.core.config import settings
 
 SCRATCH_DATABASE = f"agenticos_dictation_audio_test_p{os.getpid()}"
 _MIGRATION = (
-    Path(__file__).parents[1] / "alembic" / "versions" / "0142_dictation_compressed_audio.py"
+    Path(__file__).parents[1] / "alembic" / "versions" / "0154_dictation_compressed_audio.py"
 )
 
 

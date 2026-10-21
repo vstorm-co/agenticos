@@ -1,5 +1,5 @@
 ---
-source_sha: "f182e329a479"
+source_sha: "c10fd9c1aa83"
 ---
 
 # Konfiguration { #configuration }
@@ -60,6 +60,7 @@ Die Konfiguration lehnt einen nicht gesetzten `VAULT_MASTER_KEY` außerhalb von 
 | `MEM0_ALLOWED_HOSTS` | `[]` (empty) | Hostnamen, auf die ein selbst gehosteter mem0-Memory-Dienst zeigen darf. Eine `base_url` kommt aus dem Spec eines Agents, ohne Allowlist könnte also ein Builder, der einen geteilten mem0-Key binden (aber nicht lesen) darf, ihn auf den eigenen Server richten und den Key aus dem Request-Header abgreifen. Leer lehnt selbst gehostetes mem0 ab und lässt nur die verwaltete Cloud zu; fügen Sie einen vertrauenswürdigen Hostnamen hinzu, um ein selbst gehostetes Deployment zu erlauben. Siehe [Secrets](secrets.md) |
 | `BROWSER_CDP_ALLOWED_HOSTS` | `[]` (empty) | Hostnamen, an denen ein browsender Agent ein Chromium steuern darf. Eine `cdp_url` kommt aus dem Spec eines Agents, den jeder mit `edit`-Recht darauf schreibt - die Adresse ist also mandantenkontrolliert und die Anfrage gehört diesem Deployment. Dieselbe Form, für die `MEM0_ALLOWED_HOSTS` existiert, und der Grund, warum hier eine Allowlist steht und nicht der SSRF-Schutz, durch den jede andere mandantengelieferte URL geht: Der lässt nur *öffentliche* Adressen zu, lehnt damit den isolierten Browser-Dienst im eigenen Netz des Deployments ab, den [die Capability](reference/capabilities.md#browser-automation) zu betreiben verlangt, und akzeptiert einen ins Internet gestellten CDP-Debugger, was schlechter ist. Der Abgleich ist exakt und ohne Rücksicht auf Groß- und Kleinschreibung, ohne Globs. Leer lehnt Browser-Automatisierung vollständig ab |
 | `BROWSER_SIGN_IN_CDP_URL` | `""` (empty) | Der Browser, mit dem sich eine Person unter **Einstellungen → Anmeldungen** bei einer Website anmeldet, wo kein Agent einen nennt - der compose-Dienst `browser` ist `http://browser:9222`. Sein Host muss in `BROWSER_CDP_ALLOWED_HOSTS` stehen. Die Website muss eine öffentliche Adresse haben, und nur die Person, die ihn geöffnet hat, darf zusehen. Leer blendet die Option aus |
+| `VISUAL_RENDER_CDP_URL` | `""` (leer) | Der Browser, mit dem ein [Visual](reference/capabilities.md#visuals) zu einem Bild gezeichnet wird, wo kein Rahmen es ausführen kann - eine Antwort in Slack, Telegram oder Mattermost und das Dashboard-Vorschaubild einer Seite. Der compose-Dienst `browser` ist `http://browser:9222`; sein Host muss in `BROWSER_CDP_ALLOWED_HOSTS` stehen. Die Zeichnung erreicht von dort nichts: Jede ihrer Anfragen beantwortet das Deployment oder lehnt sie ab. Leer schickt einer Chat-App die Antwort ohne Bild |
 | `BROWSER_EGRESS_PROXY` | `""` (empty); compose setzt `http://browser-egress:3128` | Der Proxy, über den der Browser der Installation jede Website erreicht. Der compose-Dienst `browser-egress` ist `http://browser-egress:3128` (`docker compose --profile browser up -d browser-egress`): Er löst jeden Host selbst auf, lehnt private, Loopback-, Link-Local- und Metadaten-Adressen ab und verbindet sich mit der geprüften Adresse, sodass weder eine Weiterleitung noch DNS-Rebinding eine Seite ins Netz bringt. Genutzt von jedem Durchlauf ohne Proxy der Organisation und nicht auf einem gehosteten Browser. Ein internes Werkzeug, das ein Agent besuchen soll, braucht eine Ausnahme in `docker/browser-egress/squid.conf`. Leer schickt den Browser direkt hinaus: Setze `BROWSER_EGRESS_PROXY=` in der Root-`.env` nur für einen Browser außerhalb von compose, der den Proxy nicht erreicht. Ohne Proxy wird jede Website bei ihrer ersten Anfrage in einem Tab geprüft, danach löst der Browser ihren Namen selbst auf; ein Name, der später im selben Tab auf eine private Adresse zeigt, wird also nicht erkannt |
 | `FILE_IO_MAX_WORKERS` | `8` | Größe des eigenen Thread-Pools, der blockierende Dateiarbeit ausführt — das Parsen eines Uploads und das Lesen oder Schreiben seiner Bytes. Bewusst außerhalb des gemeinsamen Default-Executors von `asyncio`, der auch `bcrypt` und DNS für gepinnte Hosts ausführt, damit eine Welle von Uploads Anmeldung und ausgehende Anfragen nicht dahinter warten lässt ([#1108](https://github.com/vstorm-co/agenticos/issues/1108)). Heben Sie ihn auf einem Host an, der viele Uploads gleichzeitig parst. Muss eine positive ganze Zahl sein — eine `0` oder ein negativer Wert wird beim Start abgelehnt |
 | `CHAT_CONVERT_TIMEOUT_SECONDS` | `60` | Wie lange eine einzelne DOC-zu-Text-Konvertierung durch LibreOffice laufen darf, bevor sie gekillt wird. Weit unter den 600s der Wissensdatenbank, weil dies ein interaktiver Upload ist |
@@ -306,7 +307,7 @@ mit `KERBEROS_DISPLAY_NAME` (Standard `Kerberos`).
 | `POSTGRES_SSLMODE` | (empty) | Die Verbindung verschlüsseln: `require`, `verify-ca` oder `verify-full`. Leer heißt Klartext. Siehe [Verschlüsselte Verbindungen](#encrypted-connections-tls) |
 | `DB_POOL_SIZE` | `5` | Größe des Connection Pools |
 | `DB_MAX_OVERFLOW` | `10` | Maximale Overflow-Verbindungen |
-| `DB_POOL_TIMEOUT` | `30` | Pool-Timeout in Sekunden |
+| `DB_POOL_TIMEOUT` | `5` | Sekunden, die eine Anfrage auf eine freie Verbindung wartet, bevor sie mit `503` und `Retry-After` beantwortet wird. Absichtlich kurz: Eine Anfrage, die 30 s wartete, war ohnehin verloren, und die Schlange der Wartenden hielt den Pool nach einer Lastspitze voll |
 
 Berechnete Eigenschaften:
 - `DATABASE_URL` -- asynchroner Connection String (`postgresql+asyncpg://...`)
@@ -373,7 +374,7 @@ Hostnamen an der URL selbst, statt beides den Voreinstellungen von redis-py zu
 
 !!! note "Jeder Dienst, der eine Verbindung zu einem Store öffnet, braucht die Änderung"
 
-    `app`, `migrate` und `prefect-runner` verbinden sich jeweils mit Postgres und
+    `app`, `migrate` und `worker` verbinden sich jeweils mit Postgres und
     Redis, und die mitgelieferten Compose-Dateien pinnen `POSTGRES_HOST=db` und
     `REDIS_HOST=redis` in der `environment` jedes einzelnen, was eine Env-Datei
     übersteuert. Ein verwalteter Store ist deshalb eine Override-Datei, die alle
@@ -396,7 +397,7 @@ x-managed: &managed
 services:
   app: *managed
   migrate: *managed
-  prefect-runner: *managed
+  worker: *managed
 ```
 
 Die mitgelieferten Dienste `db` und `redis` starten weiter, ungenutzt;
@@ -442,44 +443,68 @@ angewiesen ist, hört still auf, ohne dass einer davon es ankündigt:
     Handshake im Klartext an und jeder Versand würde scheitern. `starttls` ist der
     spiegelbildliche Fall.
 
-## Hintergrundarbeit (Prefect) { #background-work-prefect }
+## Hintergrundarbeit { #background-work }
+
+Jobs warten in PostgreSQL und laufen in einem Worker, `python -m app.worker`,
+aus demselben Image wie die API. Es gibt keinen Server, auf den er zeigen muss,
+und keinen Schlüssel: Der Worker erreicht dieselbe Datenbank wie die API. Jede
+Einstellung unten gilt pro Worker-Prozess.
 
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|
-| `PREFECT_API_URL` | `http://localhost:4200/api` | Der selbst gehostete Server oder die URL eines Workspace in Prefect Cloud |
-| `PREFECT_API_KEY` | (none) | Nur für Prefect Cloud |
-| `PREFECT_RUNNER_LIMIT` | `5` | Wie viele Flow Runs gleichzeitig laufen; der Rest wartet in der Warteschlange |
-| `PREFECT_RUNNER_SERVER_HOST` | `127.0.0.1` in compose | Interface, auf dem der Runner seinen eigenen Health-Endpunkt bedient |
-| `PREFECT_RUNNER_SERVER_PORT` | `8080` | Port dafür |
+| `WORKER_POOLS` | `agent,ingest,system` | Die Pools, die dieser Prozess bedient. Ein zweiter Worker mit `ingest` legt das Parsen auf einen eigenen Host |
+| `WORKER_AGENT_CONCURRENCY` | `10` | Runs von Agents und ausgelöste Trigger gleichzeitig |
+| `WORKER_SYSTEM_CONCURRENCY` | `4` | Aufräumläufe, Bereinigungen und Berichte gleichzeitig |
+| `WORKER_INGEST_CHILDREN` | `2` (`1` in den mitgelieferten Compose-Dateien) | Kindprozesse für Parsen und Embeddings, jeder mit einem Job zur Zeit |
+| `WORKER_INGEST_MEMORY_MB` | `1536` | Wie viel ein Kindprozess samt allem, was er gestartet hat, halten darf, bevor der Watchdog ihn stoppt |
+| `WORKER_INGEST_MAX_JOBS` | `100` | Jobs, die ein Kindprozess ausführt, bevor er ersetzt wird |
+| `WORKER_LEASE_SECONDS` | `60` | Wie lange ein abgeholter Job ohne Heartbeat gehalten wird |
+| `WORKER_BREAKER_DEATHS` | `5` | Tode des Workers in Folge, über die Jobs einer Art, die diese Art pausieren |
+| `WORKER_HEALTH_FILE` | `/tmp/agenticos-worker-alive` | Die Datei, die die Probe des Containers liest |
+| `WORKER_MEMORY_LIMIT` | `4g`, `2560M` im Produktions-Compose | Das eigene Speicherlimit des Containers - eine Compose-Variable, keine Einstellung |
+| `BACKGROUND_JOB_RETENTION_DAYS` | `14` | Beendete Jobs, die für die Seite Background jobs aufbewahrt werden |
 
-`PREFECT_RUNNER_LIMIT` ist eine Speicherobergrenze, kein Regler für den
-Durchsatz. Jeder Run ist ein eigener Prozess, der die gesamte Anwendung
-importiert — rund 120 MB —, und die Zahl, auf die es ankommt, ist nicht der
-Normalbetrieb, sondern der Neustart: Der Runner kommt hoch, findet jeden Run, der
-während seiner Abwesenheit geplant wurde, und startet so viele, wie das Limit
-zulässt. Ohne Cap waren drei Tage Ausfall 71 Prozesse und 6 GiB. Heben Sie es an,
-wenn die Ingestion auf einer Maschine mit freiem Speicher hinter Syncs wartet;
-senken Sie es auf einem kleinen Host.
+**Planen Sie den Speicher nach den Kindprozessen, nicht nach der Zahl der
+Jobs.** Ein Worker hält etwa 450 MB für seine importierte Anwendung, jeder
+Ingestion-Kindprozess noch einmal so viel plus das Dokument, das er parst.
+`WORKER_INGEST_MEMORY_MB` liegt absichtlich unter dem Limit des Containers: Der
+Watchdog stoppt einen Kindprozess, der darüber wächst, und schreibt den Grund an
+den Job, wo der OOM-Killer des Kernels nur einen toten Prozess hinterließe. Auf
+einem Host mit freiem Speicher erhöhen Sie `WORKER_INGEST_CHILDREN` und das
+Limit des Containers mit.
 
-Geplante Sweeps tragen wenig zu diesem Rückstand bei: Jeder läuft mit einem
-Tick zur Zeit, und die übrigen überfälligen Ticks weist der Server ab, bevor der
-Runner einen Prozess dafür startet. Ausgenommen sind die Nutzungsberichte, weil
-jeder Run einen eigenen Zeitraum abdeckt.
+**Ein Job, der seinen Prozess umbringt, kann sich nicht im Kreis drehen.** Sein
+Versuch wird beim Abholen gezählt, ein Kindprozess, den der Kernel mitten im
+Parsen tötet, hat also einen verbraucht, und nach `max_attempts` ist der Job
+tot. Eine Art, deren Jobs ihren Worker `WORKER_BREAKER_DEATHS`-mal in Folge
+umbringen, wird pausiert, und jeder Eigentümer des Deployments erfährt es;
+nichts holt sie ab, bis einer von ihnen sie auf der Seite Background jobs
+fortsetzt. Gezählt wird je Organisation: Ein Mandant, dessen Jobs ihren Worker
+immer wieder umbringen, pausiert die Art nur für sich, und Jobs ohne Organisation
+teilen sich einen Zähler für das ganze Deployment.
 
-Die beiden `PREFECT_RUNNER_SERVER_*`-Variablen gehören Prefect, und die
-Compose-Dateien pinnen sie, damit der Container des Runners einen Health-Status
-hat, der etwas bedeutet. Der Runner startet den Runner-Webserver von Prefect,
-dessen `GET /health` mit 503 antwortet, sobald er zwei Abfragen der Prefect-API
-verpasst hat — ein Prozess, der lebt, aber keine Arbeit mehr annimmt, liest sich
-damit als `unhealthy` statt als in Ordnung. Er ist an das Loopback gebunden, weil
-derselbe Webserver auch `POST /shutdown` anbietet; die Probe läuft im Container,
-und nichts außerhalb erreicht eines von beiden. Den Port zu verschieben heißt,
-die Probe in den Compose-Dateien mitzuverschieben.
+**Was ein Job hinterlässt, wird geschlossen, auch wenn das einmal scheitert.**
+Ein Job, der endgültig endet, kann ein Dokument in `processing` oder ein
+Sync-Protokoll in `running` hinterlassen. Der Worker schließt sie, wenn der Job
+endet, und der Rescuer wiederholt ein gescheitertes Schließen - etwa bei
+unerreichbarer Datenbank - einen Tag lang.
 
-In `backend/Dockerfile` gibt es kein `HEALTHCHECK`. Das Image wird als zwei
-verschiedene Prozesse gestartet — die API und dieser Runner —, und eine Probe für
-den einen ist ein Dauerfehlalarm für den anderen, also trägt jede
-Service-Definition ihre eigene.
+Ein Worker, der stirbt, gibt seine Jobs innerhalb von `WORKER_LEASE_SECONDS`
+zurück: Die Rettung eines anderen Workers übernimmt den abgelaufenen Lease und
+schreibt den Job als Tod eines Workers auf. Ein Deploy kostet einen Job keinen
+Versuch - der Worker hört auf abzuholen, lässt laufende Jobs 30 Sekunden lang
+fertig werden und gibt den Rest zurück. Die Compose-Dateien geben ihm 45
+Sekunden, bevor sie ihn beenden.
+
+Der Health-Check des Containers liest `WORKER_HEALTH_FILE`, die der Heartbeat
+nach jedem Schlag berührt, der die Datenbank erreicht hat, sodass ein Worker,
+der lebt, aber von Postgres abgeschnitten ist, als `unhealthy` gilt. Es ist eine
+Datei und kein HTTP-Endpunkt, weil der Worker nichts bedient.
+
+In `backend/Dockerfile` gibt es kein `HEALTHCHECK`. Das Image wird als
+verschiedene Prozesse gestartet - die API, der Worker und die Migrationen -, und
+eine Probe für den einen wäre ein dauerhafter Fehlalarm für den anderen, also
+trägt jede Service-Definition ihre eigene.
 
 ### Ablauf einer Freigabe { #approval-expiry }
 
@@ -552,8 +577,8 @@ Drei Dinge können Runs auf ein Projekt richten, und sie überlagern sich:
 
 - `LOGFIRE_TOKEN` hier instrumentiert Pydantic AI global, jeder Run exportiert
   also in das Projekt des Deployments selbst. Zwei Prozesse konfigurieren es: die
-  API beim Start (`app/main.py`) und ein ausgelöster Run im Prefect-Worker, der
-  sich selbst einrichtet, weil jeder Flow-Run einen eigenen Subprozess bekommt.
+  API beim Start (`app/main.py`) und der Worker, einmal beim Start
+  (`app/worker/__main__.py`), da er den Lifespan der API nie durchläuft.
   Die Spans des Workers tragen `<Dienstname>-worker`, ein Projekt kann einen
   langsamen geplanten Run also von einer langsamen Chat-Runde unterscheiden.
 - Eine [Umgebung](environments.md#tracing-per-environment) kann ein eigenes
@@ -572,6 +597,18 @@ geschrieben oder vom Model mitten im Run erfunden —, erbt den Modus. Eine Gren
 bevor man sich darauf verlässt: das
 Anheften dieser Instrumentierung ist Best Effort, ein Fehlschlag wird
 protokolliert und der Run läuft weiter.
+
+Mit `ENVIRONMENT=production` wird kein Span auf die Konsole geschrieben. Der
+Konsolen-Exporter von Logfire schreibt eine Zeile pro SQL- und Redis-Aufruf, etwa
+vierzig pro Anfrage, in ein Container-Log, das niemand abfragen kann. In der
+Produktion existiert ein Span also nur dort, wohin das Token ihn schickt, und ohne
+Token hinterlässt eine langsame Anfrage gar keine Spur. `agenticos cmd doctor`
+meldet das in seiner Zeile `tracing`. Anderswo schreibt die Konsole weiter Spans
+für den, der den Server beobachtet.
+
+Gib jedem Deployment sein eigenes `LOGFIRE_ENVIRONMENT`, etwa `local` auf dem
+Laptop und `production` auf dem Server. Ein Projekt kann dann beide aufnehmen und
+sie trotzdem auseinanderhalten.
 
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|
@@ -760,7 +797,7 @@ bekommt — die Einstellungen unten gelten also nur für einen containergestütz
 
 | Variable | Standard | Hinweise |
 |---|---|---|
-| `SANDBOX_STATE_MAX_BYTES` | 4 MiB | Pro **gespeichertem** Workspace. Darüber hinaus wird ein Schreibvorgang mit einer Nachricht abgelehnt, die das Modell liest |
+| `SANDBOX_STATE_MAX_BYTES` | 32 MiB | Pro **gespeichertem** Workspace. Darüber hinaus wird ein Schreibvorgang mit einer Nachricht abgelehnt, die das Modell liest |
 | `SANDBOX_INLINE_IMAGE_MAX_BYTES` | 5 MiB | Darüber wird ein angehängtes Bild in den Workspace geschrieben und nicht zusätzlich inline gesendet |
 
 **Der Prozentsatz im Chat sind zwei verschiedene Obergrenzen, und er sagt,
@@ -1178,7 +1215,7 @@ deshalb nicht.
 
 Der Rest ist im Code festgelegt statt konfiguriert: Ein Anruf ist nie länger als
 50 Minuten, Heartbeats laufen alle 15 Sekunden, und der Voice-Sweep läuft jede
-Minute und einmal beim Start, als Prefect-Deployment `voice-call-sweep`.
+Minute, als Zeitplan `reap-voice-calls` des Workers.
 
 ## CORS { #cors }
 
@@ -1345,6 +1382,7 @@ Grenze sicher, aber geteilt.
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|
 | `EVENT_LOOP_WEDGED_AFTER` | `15` | Sekunden, die der Event Loop stillstehen darf, bevor der Worker getötet und ersetzt wird. `0` oder darunter schaltet die Prüfung ab |
+| `UVICORN_WORKER_HEALTHCHECK_TIMEOUT` | `60` | Sekunden, die uvicorns Supervisor auf die Antwort eines Workers auf seinen Ping wartet, bevor er ihn ersetzt — überall, wo `--workers` größer als 1 ist. Gelesen von den Compose-Dateien, nicht von der Anwendung |
 
 Ein Worker, der *lebt, aber nicht antwortet* — verklemmt auf einem Lock, drehend
 in einem synchronen Aufruf, blockiert auf einem Socket, der nie antwortet —, hat
@@ -1393,6 +1431,18 @@ Sie kann einen Prozess nicht sehen, der überhaupt nicht läuft — `kill -STOP`
 eingefrorene cgroup —, weil ein Watchdog in einem angehaltenen Prozess ebenfalls
 angehalten ist. Diesen Fall decken die Supervisoren bereits ab: Der Takt des
 Reload-Supervisors wird schal und der Pipe-Ping der Produktion bleibt unbeantwortet.
+
+Dieser Ping wartet `UVICORN_WORKER_HEALTHCHECK_TIMEOUT` Sekunden, standardmäßig
+60. Uvicorns eigener Standard ist 5, und ein Host, dem CPU fehlt — Steal auf einem
+geteilten VPS, ein Image-Build, ein Rückstau an Flow-Läufen —, verpasst 5 Sekunden
+mit Workern, die leben und bedienen.
+
+Der Supervisor tötet sie dann und tötet ihre
+Nachfolger, bevor sie die Anwendung fertig importiert haben, und jeder Neustart
+legt einen Import auf den Druck, der ihn verursacht hat. Im Log erscheint das als
+`Child process [N] died` ohne Watchdog-Zeile darüber. Da ein blockierter Loop
+Sache des Watchdogs ist, muss der Ping nur einen angehaltenen Prozess bemerken,
+und dafür reicht eine Minute.
 
 ## Docker / Produktion { #docker-production }
 

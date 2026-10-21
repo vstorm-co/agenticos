@@ -54,8 +54,6 @@ replays what is in it. The key is a bearer credential for that thread - see the
 model.
 """
 
-from __future__ import annotations
-
 import asyncio
 import contextlib
 import logging

@@ -5,8 +5,6 @@ each a `WHERE` that must land on the right row, which a mocked session cannot
 show.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager

@@ -1,5 +1,5 @@
 ---
-source_sha: "c73cac16d216"
+source_sha: "1a100cff937c"
 title: "AgenticOS vs Claude"
 seo_title: "AgenticOS vs Claude Team y Enterprise: agents que son tuyos"
 description: "Compara Claude Team y Enterprise con AgenticOS: agents autoalojados con Claude u otro modelo, budgets por agent, aprobaciones, auditoría y sin coste por puesto."
@@ -20,7 +20,7 @@ Mantenido por el equipo de AgenticOS. Fuentes revisadas el 25 de septiembre de 2
 | Unidad de compra | Un puesto por empleado | Un despliegue; sin cuota por usuario |
 | Dónde se ejecuta | La nube de Anthropic | Tu infraestructura |
 | Código fuente | Propietario | Apache-2.0 |
-| Modelos | Solo Claude | 27 providers, Claude incluido, y modelos locales |
+| Modelos | Solo Claude | 28 providers, Claude incluido, y modelos locales |
 | Qué construyes | Projects, skills y plugins para las personas que chatean | Agents publicados, cada uno un spec versionado |
 | Quién lo usa | Empleados con un puesto | Empleados, clientes y sistemas, en ocho superficies |
 | Superficies | Web, escritorio, móvil, Chrome, complementos de Office, Slack en beta | Chat web, widget, página alojada, API HTTP, WebSocket, Slack, Telegram, Mattermost |
@@ -37,7 +37,7 @@ Los Projects de Claude contienen instrucciones y conocimiento para las personas 
 
 ### Cualquier modelo, y la opción de mantenerlo en local { #any-model-and-the-option-to-keep-it-local }
 
-Los planes de Claude usan solo modelos Claude. AgenticOS llega a [27 providers](../models.md#providers), incluidos Anthropic y Bedrock para Claude, además de OpenAI, Google, Mistral, y Ollama o LiteLLM en tu propio hardware. Un [perfil de modelo](../models.md#a-model-profile) con [fallbacks](../models.md#fallbacks) permite que un agent pase a otro modelo u otro provider sin volver a publicar.
+Los planes de Claude usan solo modelos Claude. AgenticOS llega a [28 providers](../models.md#providers), incluidos Anthropic y Bedrock para Claude, además de OpenAI, Google, Mistral, y Ollama o LiteLLM en tu propio hardware. Un [perfil de modelo](../models.md#a-model-profile) con [fallbacks](../models.md#fallbacks) permite que un agent pase a otro modelo u otro provider sin volver a publicar.
 
 ### Aprobación por alguien distinto del solicitante { #approval-by-someone-other-than-the-requester }
 

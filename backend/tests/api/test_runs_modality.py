@@ -1,7 +1,5 @@
 """Run history tells calls from typed runs (#54)."""
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime

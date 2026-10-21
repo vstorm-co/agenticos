@@ -6,8 +6,6 @@ data would be. Nothing here encodes audio, so a test states the length it means
 and a fixture cannot drift from a binary nobody can read.
 """
 
-from __future__ import annotations
-
 import struct
 from collections.abc import Sequence
 

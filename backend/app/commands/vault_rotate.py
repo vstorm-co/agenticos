@@ -20,8 +20,6 @@ meaningful too: it moves a deployment off the old derivation without minting
 a new master key.
 """
 
-from __future__ import annotations
-
 import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass, field

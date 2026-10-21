@@ -7,8 +7,6 @@ imports the toolset, so the shared data type has to sit where the import can
 reach it without a cycle.
 """
 
-from __future__ import annotations
-
 from collections.abc import Sequence
 from dataclasses import dataclass
 

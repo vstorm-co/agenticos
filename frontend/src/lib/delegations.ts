@@ -15,6 +15,7 @@
 
 import { ApiError } from "@/lib/api-error";
 import type {
+  CodingHarness,
   Delegation,
   DelegationStatus,
   SubagentFrame,
@@ -78,6 +79,7 @@ function started(current: Delegation[], frame: SubagentStartFrame): Delegation[]
       // Coerced to null when absent - an older backend, mid-deploy, sends no such
       // field, and `undefined` would read as "promotable" and draw the offer.
       specialist: frame.specialist ?? null,
+      harness: frame.harness ?? null,
       status: "running" as DelegationStatus,
       text: "",
       thinking: "",
@@ -143,7 +145,12 @@ export function applyDelegationFrame(current: Delegation[], frame: SubagentFrame
               ...delegation,
               steps: [
                 ...delegation.steps,
-                { id: frame.tool_call_id, name: frame.tool_name, ok: null },
+                {
+                  id: frame.tool_call_id,
+                  name: frame.tool_name,
+                  ok: null,
+                  title: frame.title ?? null,
+                },
               ],
             },
       );
@@ -285,6 +292,8 @@ export interface DelegateRef {
   name: string;
   has_avatar?: boolean;
   avatar_color?: number | null;
+  /** Set for Claude Code or Codex, which wear their own mark rather than an agent's face. */
+  harness?: CodingHarness;
 }
 
 /**
@@ -295,6 +304,22 @@ export interface DelegateRef {
  * name - `finance-analyst` as *Finance analyst* - and gets the face its slug
  * seeds, which is the face the agent wears when nobody chose one.
  */
+/**
+ * Who did the work: the coding harness when the delegation is one, else the agent.
+ *
+ * Claude Code and Codex are not agents anybody published, so no agent in the
+ * list answers for them; the delegation names its harness instead.
+ */
+export function delegateOf(delegation: Delegation, agents: readonly DelegateRef[]): DelegateRef {
+  if (delegation.harness === null) return delegateNamed(delegation.subagent, agents);
+  return {
+    id: null,
+    slug: delegation.harness,
+    name: delegation.subagent,
+    harness: delegation.harness,
+  };
+}
+
 export function delegateNamed(slug: string, agents: readonly DelegateRef[]): DelegateRef {
   const known = agents.find((agent) => agent.slug === slug);
   if (known) return known;

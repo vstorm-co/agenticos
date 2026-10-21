@@ -124,6 +124,13 @@ class AgentRead(BaseSchema):
     visibility: str
     owner_user_id: UUID | None = None
     current_version_id: UUID | None = None
+    a2a_enabled: bool = Field(
+        default=False,
+        description=(
+            "Whether other systems may reach this agent over A2A: its card at "
+            "/a2a/{id}/.well-known/agent-card.json, its tasks at /a2a/{id} (#2092)."
+        ),
+    )
     has_avatar: bool = Field(
         default=False,
         description=(
@@ -426,7 +433,7 @@ class DelegationTreeNode(BaseSchema):
         default=False,
         description="Has delegates of its own that a run from this root cannot reach.",
     )
-    children: list["DelegationTreeNode"] = Field(default_factory=list)
+    children: list[DelegationTreeNode] = Field(default_factory=list)
 
 
 class DelegationTree(BaseSchema):
@@ -498,6 +505,14 @@ class CapabilityCatalogEntry(BaseSchema):
             "binding decides approval per tool id via tool_approval, and reworks the name "
             "and description the model sees via tool_overrides, both keyed by the id here."
         )
+    )
+    tool_settings: bool = Field(
+        default=True,
+        description=(
+            "Whether the Builder offers per-tool approval and tool text for this "
+            "capability. False where its one tool is the capability itself, so its "
+            "approval is the capability's own."
+        ),
     )
     scopes: list[str]
     voice: Literal["live", "hand_off", "never"] = Field(
@@ -610,15 +625,37 @@ class McpCatalog(BaseSchema):
     )
 
 
+class PlatformMcpTool(BaseSchema):
+    name: str = Field(description="The tool's name on the platform's MCP server")
+    description: str = Field(description="The first line of what the model reads")
+    writes: bool = Field(
+        description="Whether it changes something - held for approval under `approval: writes`"
+    )
+
+
+class PlatformMcpToolList(BaseSchema):
+    items: list[PlatformMcpTool]
+    total: int
+
+
 class CapabilityCatalog(BaseSchema):
     items: list[CapabilityCatalogEntry]
     total: int
 
 
+MAX_RUN_PROMPT_CHARS = 500_000
+"""The longest prompt one run takes: the per-turn text budget a chat turn has
+(`CHAT_TURN_TEXT_MAX_CHARS`). Unbounded, an asynchronous run put whatever the
+proxy let through - tens of megabytes - into a queued job's JSONB."""
+
+MAX_RUN_FILES = 20
+"""Uploads one run may attach."""
+
+
 class AgentRunRequest(BaseSchema):
     """Ask a published agent a question."""
 
-    prompt: str = Field(min_length=1)
+    prompt: str = Field(min_length=1, max_length=MAX_RUN_PROMPT_CHARS)
     conversation_id: UUID | None = Field(
         default=None,
         description=(
@@ -638,6 +675,7 @@ class AgentRunRequest(BaseSchema):
     )
     file_ids: list[UUID] = Field(
         default_factory=list,
+        max_length=MAX_RUN_FILES,
         description=(
             "Files already uploaded through `POST /files/upload`, to attach to this "
             "turn. Where each one goes is the agent's to decide - written into its "
@@ -788,6 +826,28 @@ class AgentRunResult(BaseSchema):
     )
 
 
+RunRequestStatus = Literal["queued", "running", "completed", "failed", "cancelled"]
+
+
+class RunRequestRead(BaseSchema):
+    """An asynchronous run: where it is, and once it has finished, what it answered."""
+
+    id: UUID = Field(description="The request to poll: `GET /api/v1/run-requests/{id}`.")
+    status: RunRequestStatus
+    conversation_id: UUID = Field(
+        description="The conversation the run files under, known from the moment it is queued."
+    )
+    created_at: datetime
+    finished_at: datetime | None = None
+    error: str | None = Field(
+        default=None, description="Why a failed request failed, in the platform's words."
+    )
+    result: AgentRunResult | None = Field(
+        default=None,
+        description="What the synchronous call would have answered, once the run has completed.",
+    )
+
+
 class AgentTemplateRead(BaseSchema):
     """One shipped template as the picker shows it - never the instructions."""
 
@@ -880,3 +940,9 @@ class AgentKnowledgeReach(BaseSchema):
     whole_organization: bool
     groups: list[str] = Field(default_factory=list)
     sources: list[KnowledgeSource] = Field(default_factory=list)
+
+
+class AgentA2ARequest(BaseSchema):
+    """Serve this agent over A2A, or stop (#2092)."""
+
+    enabled: bool

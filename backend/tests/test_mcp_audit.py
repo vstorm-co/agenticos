@@ -5,8 +5,6 @@ so each outcome is reached the way a real server would reach it: a status code,
 a content type, a body. Nothing here dials out.
 """
 
-from __future__ import annotations
-
 import json
 import socket
 from datetime import UTC, datetime

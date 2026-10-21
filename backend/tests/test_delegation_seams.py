@@ -26,8 +26,6 @@ something further out depends on being right:
   object holding nothing from before the park.
 """
 
-from __future__ import annotations
-
 from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4

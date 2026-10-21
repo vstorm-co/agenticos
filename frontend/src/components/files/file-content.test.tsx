@@ -74,6 +74,29 @@ describe("choosing which request to make", () => {
   });
 });
 
+describe("inside a pane that is its own frame", () => {
+  it("rules the shortened note off from the text instead of spacing it", async () => {
+    function Wrapper({ children }: { children: ReactNode }) {
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    }
+    render(
+      <FileContent
+        access={access({
+          readText: () => Promise.resolve({ content: "print(1)", truncated: true }),
+        })}
+        kind="code"
+        name="run.py"
+        bare
+      />,
+      { wrapper: Wrapper },
+    );
+
+    const note = await screen.findByText(/shortened|first part|cut/i);
+    expect(note).toHaveClass("border-t");
+  });
+});
+
 describe("while it is arriving, and when it does not", () => {
   it("says a text file could not be read, and still offers it", async () => {
     const download = vi.fn().mockResolvedValue(undefined);

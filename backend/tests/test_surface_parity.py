@@ -11,8 +11,6 @@ What is compared is what each surface *passes into the runner*, which is where a
 surface's offer actually lives.
 """
 
-from __future__ import annotations
-
 import inspect
 from pathlib import Path
 

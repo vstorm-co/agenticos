@@ -1,5 +1,5 @@
 ---
-source_sha: "f716d62c8038"
+source_sha: "b52b40a93089"
 ---
 
 # Konsola { #the-console }
@@ -86,6 +86,12 @@ powyżej, otwarcie pobiera stronę, na której właśnie jesteś, a nie pięciok
 podgląd — **Load more** cofa cię, stronę po stronie, przez organizację, w
 której właśnie jesteś, plus to, co zaadresowano do całego wdrożenia, aż dojdzie
 do tego, co wypadło z zasięgu.
+
+Każdy wiersz zaczyna się od tego, czego dotyczy: twarzy agenta z plakietką
+mówiącą, jak poszedł jego run, albo ikony rodzaju zdarzenia — zielonej dla
+ukończonego runu albo serwera MCP, który znów działa, czerwonej dla porażki
+albo wyczerpanego budgetu, bursztynowej dla zatwierdzenia albo ostrzeżenia
+o budgecie.
 
 Przełącz organizację, a dzwonek jest jej:
 powiadomienie z organizacji, którą zostawiłeś, nie zniknęło — jest za
@@ -283,12 +289,25 @@ godzinie bez nikogo przy ekranie wciąż trwa, zostaje zatrzymana i dostajesz o 
 informację ([`CHAT_DETACHED_TURN_MINUTES`](configuration.md#a-chat-turn-left-running)).
 Taka, która czeka na zatwierdzenie albo na Twoją odpowiedź na pytanie, powiadamia
 Cię przez nie.
+Gdy wrócisz, zanim odpowiedź się skończy - do rozmowy, z innej karty, po
+odświeżeniu strony - czat podejmie ją tam, gdzie jest, ze wszystkim, co agent już
+zrobił, i dalej rysuje ją na bieżąco.
 
 **Na telefonie** czat działa jak komunikator: pole wpisywania zostaje nad
 klawiaturą, a rozmowa przy ostatniej wiadomości, gdy klawiatura się otwiera,
 Enter zaczyna nową linię, a załącznik i
 dyktowanie są pod jednym **+**. Pola nigdy nie są na tyle małe, żeby iOS je
 przybliżał.
+
+**Rysunki.** Agent z [Wizualizacjami](reference/capabilities.md#visuals) rysuje pod
+swoją wiadomością - diagram, explainer z suwakami, scenę 3D - a ty widzisz, jak powstaje
+w trakcie pisania; jego skrypty startują po zakończeniu. Panel pokazuje cały rysunek,
+dopasowany do rozmowy, z przyciskami do pełnego ekranu, pokazania kodu, pobrania,
+skopiowania SVG jako obrazu, powiększenia i zapisu jako
+[aplikacji](artifacts.md#visuals) z linkiem do udostępnienia. Gdy rysunek zgłosi błąd,
+agent już o nim wie; **Napraw** prosi go ponownie. Na telefonie stuknięcie otwiera go na
+pełnym ekranie. Karta **Ostatnie wizualizacje** na dashboardzie pokazuje najnowsze
+rysunki zrobione dla ciebie, a każdy otwiera rozmowę, w której powstał.
 
 **Oglądanie przeglądania.** Gdy agent z
 [przeglądarką](reference/capabilities.md#browser-automation) zaczyna na stronie, jego
@@ -530,7 +549,7 @@ w tym miesiącu wobec limitu organizacji.
 Sidebar grupuje je. **Build** to Agents, Routines, Apps i Activity;
 **Knowledge** to Knowledge bases, Documents, Skills i Context. Dwie grupy są
 zwinięte do nagłówka, dopóki ich nie otworzysz, bo ustawia się je raz i odwiedza
-rzadko: **Connections** (MCP servers, Channels, Vault, Sandboxes) i
+rzadko: **Connections** (MCP servers, Channels, Remote agents, Vault, Sandboxes) i
 **Organization** (Organizations, Groups). Zwinięta grupa otwiera się sama na
 każdej stronie, która do niej należy, i zostaje tak, jak ją zostawisz.
 
@@ -547,10 +566,11 @@ każdej stronie, która do niej należy, i zostaje tak, jak ją zostawisz.
 | **Sandboxes** | Gdzie agenci uruchamiają kod: hosty, żywe sesje, polityka | [Sandbox](sandbox.md) |
 | **MCP servers** | Połączenia z zewnętrznymi narzędziami, osobiste i na całą organizację | [MCP](mcp.md) |
 | **Channels** | Boty Slacka, Telegrama i Mattermosta, widgety, hostowane strony | [Powierzchnie](channels.md) |
+| **Remote agents** | Agenci innych dostawców, zarejestrowani po ich agent card A2A, do których delegują agenci | [Capabilities](reference/capabilities.md#remote-agents) |
 | **Vault** | Poświadczenia, zapieczętowane per organizacja | [Sekrety](secrets.md) |
 | **Organizations** | Członkowie, role, zaproszenia | [Uprawnienia](permissions.md) |
 | **Settings** | Providerzy, domyślne ustawienia ingestii, powiadomienia, twój własny profil | [Konfiguracja](configuration.md) |
-| **Admin** | Sam deployment: użytkownicy, najemcy, system, ustawienia deploymentu | [Deployment](deployment.md) |
+| **Admin** | Sam deployment: użytkownicy, najemcy, system, zadania w tle, ustawienia deploymentu | [Deployment](deployment.md) |
 
 Katalog **Agents** można filtrować po **category** i **tag** — edytowalnych,
 lokalnych dla organizacji etykietach pokazywanych na karcie każdego agenta.

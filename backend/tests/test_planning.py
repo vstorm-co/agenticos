@@ -8,8 +8,6 @@ all to an agent that does not bind it. The plan-mutation logic and the tail remi
 are the library's and are tested there.
 """
 
-from __future__ import annotations
-
 import pytest
 from pydantic import ValidationError
 from pydantic_ai_harness.planning import InMemoryPlanStore, PlanItem, Planning, TaskStatus

@@ -82,6 +82,22 @@ describe("conversationMessageToChatMessage", () => {
     expect(message.timestamp).toEqual(new Date("2026-07-31T12:00:00Z"));
   });
 
+  it("carries who typed a user turn, and nothing where nobody is named", () => {
+    const anna = { user_id: "u-2", name: "Anna", has_avatar: false, avatar_color: null };
+
+    expect(conversationMessageToChatMessage(raw({ role: "user", sender: anna })).sender).toEqual(
+      anna,
+    );
+    expect(conversationMessageToChatMessage(raw({ sender: null })).sender).toBeUndefined();
+    expect(conversationMessageToChatMessage(raw({ sender_gone: true })).senderGone).toBe(true);
+    expect(
+      conversationMessageToChatMessage(
+        raw({ reply_to: { message_id: "m-0", role: "user", excerpt: "x", sender: null } }),
+      ).replyTo,
+    ).toEqual({ messageId: "m-0", role: "user", excerpt: "x", sender: undefined });
+    expect(conversationMessageToChatMessage(raw({})).senderGone).toBeUndefined();
+  });
+
   it("draws a person's mentions as the chips they picked, never as timeline blocks", () => {
     const user = conversationMessageToChatMessage(
       raw({

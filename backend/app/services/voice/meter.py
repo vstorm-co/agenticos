@@ -17,8 +17,6 @@ responses where another overshoots by one. The per-response budget check in
 the pump is unaffected. Not verified live.
 """
 
-from __future__ import annotations
-
 from copy import deepcopy
 from decimal import Decimal
 

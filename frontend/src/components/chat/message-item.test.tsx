@@ -740,7 +740,9 @@ describe("what a person attached", () => {
     expect(screen.queryByRole("link")).toBeNull();
   });
 
-  it("shows a person's own picture beside their message", () => {
+  it("keeps a person's face beside their message while their picture loads, or if it fails", () => {
+    // jsdom never loads an image, which is what a missing file looks like: a
+    // bare <img> left an empty circle there (#2248).
     useAuthStore.setState({
       user: { id: "u-1", email: "k@example.com", avatar_url: "/api/users/avatar/u-1" } as never,
       avatarVersion: 2,
@@ -748,7 +750,7 @@ describe("what a person attached", () => {
 
     const { container } = item({ role: "user", content: "x" });
 
-    expect(container.querySelector("img")).toBeInTheDocument();
+    expect(container.querySelector("g.mo-root")).toBeInTheDocument();
   });
 
   it("draws a person who uploaded nothing the face generated from their id", () => {
@@ -757,6 +759,59 @@ describe("what a person attached", () => {
     const { container } = item({ role: "user", content: "x" });
 
     expect(container.querySelector("g.mo-root")).toBeInTheDocument();
+  });
+
+  it("names a teammate's turn in a project's chat by them, not as You", () => {
+    useAuthStore.setState({ user: { id: "u-1", email: "k@example.com" } as never });
+    const anna = { user_id: "u-2", name: "Anna", has_avatar: false, avatar_color: null };
+
+    const { unmount } = item({ role: "user", content: "picking this up", sender: anna });
+    expect(screen.getByText("Anna")).toBeInTheDocument();
+    expect(screen.queryByText("You")).toBeNull();
+    unmount();
+
+    // The reader's own turn, signed with their own id, is still theirs.
+    item({ role: "user", content: "x", sender: { ...anna, user_id: "u-1", name: "Kacper" } });
+    expect(screen.getByText("You")).toBeInTheDocument();
+  });
+
+  it("offers Reply on a stored message, and quotes what a reply answers", async () => {
+    useAuthStore.setState({ user: { id: "u-1", email: "k@example.com" } as never });
+    const { unmount } = item({
+      id: "m-2",
+      role: "assistant",
+      content: "Plan:\n step one",
+      conversationId: "c-1",
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Reply" }));
+    expect(useChatStore.getState().replyTo).toEqual({
+      messageId: "m-2",
+      role: "assistant",
+      excerpt: "Plan: step one",
+      sender: undefined,
+      agentId: undefined,
+      agentName: undefined,
+    });
+    unmount();
+
+    item({
+      role: "user",
+      content: "bigger",
+      isTemporaryId: true,
+      replyTo: { messageId: "m-2", role: "assistant", excerpt: "Plan: step one" },
+    });
+    expect(screen.getByText("Plan: step one")).toBeInTheDocument();
+    // Its own id is this tab's: nothing can be addressed to it yet.
+    expect(screen.queryByRole("button", { name: "Reply" })).toBeNull();
+  });
+
+  it("draws a turn whose writer has left as a former member, never as You", () => {
+    useAuthStore.setState({ user: { id: "u-1", email: "k@example.com" } as never });
+
+    item({ role: "user", content: "an old idea", senderGone: true });
+
+    expect(screen.getByText("A former member")).toBeInTheDocument();
+    expect(screen.queryByText("You")).toBeNull();
   });
 
   it("draws the agent's face mid-thought while the turn is still streaming", () => {

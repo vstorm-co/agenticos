@@ -11,8 +11,6 @@ block is shown before it has run, because every surface streams the answer and t
 harness guardrail only reads the finished one (agenticos#1900).
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator, Sequence
 from unittest.mock import MagicMock
 

@@ -8,8 +8,6 @@ delete. The base methods raise `WebhookRegistrationUnavailable`, so a portal is
 at a time - the same shape `app/services/channels/base.py` uses.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Any
 

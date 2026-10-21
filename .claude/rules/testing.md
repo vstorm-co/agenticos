@@ -137,11 +137,9 @@ imported — a test database, and one per pytest process. Leave both halves: the
 suite once emptied a developer's database through a populated `.env`, and a constant
 name meant two runs on one machine dropping each other's tables mid-test (#189).
 
-It seeds Prefect in the same block and for the same reason, because Prefect reads
-`backend/.env` itself: `PREFECT_API_URL` **empty**, so a `@flow` call starts a
-temporary server instead of reaching for the one `make dev` names (#536), and
-`PREFECT_HOME` at a directory of the tests' own, so that server's SQLite database is
-not a developer's `~/.prefect`. `docs/testing.md` has the whole of it.
+The worker's tests need nothing seeded: they run against the real
+`background_jobs` table and real child processes. `docs/testing.md#the-workers-tests`
+has the whole of it.
 
 `tests/integration/conftest.py` creates that database at the start of the session and
 drops it at the end, even when the suite fails, so **two concurrent runs are safe and

@@ -1,5 +1,5 @@
 ---
-source_sha: "a1ac0cd854a3"
+source_sha: "cac21a253ef9"
 ---
 
 # Seguridad { #security }
@@ -53,7 +53,7 @@ cada una es una frontera por la que preguntará la revisión de un cliente.
 |---|---|---|
 | El proveedor de modelos configurado | El prompt, la salida del modelo, los argumentos y resultados de las herramientas | Cada run — salvo que el modelo corra en la infraestructura del propio operador, en cuyo caso no sale nada |
 | El canal configurado (Slack, Telegram, Mattermost) | Las respuestas generadas por el agent — texto, imágenes y adjuntos | Siempre que un agent esté expuesto por ese canal; cada `send_message` publica en el proveedor (`app/services/channels/`) |
-| Logfire | Trazas, que llevan prompts y salidas salvo que el agent diga otra cosa | Dos caminos independientes. Un token de observabilidad por agent traza ese agent, y su modo `content` decide cuánto lleva el span - `none` lo reduce a tiempo, tokens, coste y nombres de herramienta (#1413). Un `LOGFIRE_TOKEN` a nivel de deployment instrumenta **todos** los runs, tanto en la API como en el worker de Prefect (`app/core/logfire_setup.py`), así que con él puesto sale el contenido de todo agent que no haya pedido `none`; el que sí lo pidió queda fijado a una instrumentación sin contenido también en ese tracer (`suppress_content`), de modo que el modo se sostiene en ambos caminos, y un especialista de ese agent lo hereda - escrito inline o inventado a mitad del run. Un hueco que no cubre: una fijación que falla, que se registra y se deja. Ninguno de los dos caminos está activo por defecto. No hay término medio filtrado a propósito - una exportación parcialmente depurada es una garantía que nadie puede auditar ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)) |
+| Logfire | Trazas, que llevan prompts y salidas salvo que el agent diga otra cosa | Dos caminos independientes. Un token de observabilidad por agent traza ese agent, y su modo `content` decide cuánto lleva el span - `none` lo reduce a tiempo, tokens, coste y nombres de herramienta (#1413). Un `LOGFIRE_TOKEN` a nivel de deployment instrumenta **todos** los runs, tanto en la API como en el worker (`app/core/logfire_setup.py`), así que con él puesto sale el contenido de todo agent que no haya pedido `none`; el que sí lo pidió queda fijado a una instrumentación sin contenido también en ese tracer (`suppress_content`), de modo que el modo se sostiene en ambos caminos, y un especialista de ese agent lo hereda - escrito inline o inventado a mitad del run. Un hueco que no cubre: una fijación que falla, que se registra y se deja. Ninguno de los dos caminos está activo por defecto. No hay término medio filtrado a propósito - una exportación parcialmente depurada es una garantía que nadie puede auditar ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)) |
 | Servidores MCP | Llamadas a herramientas y sus argumentos | Solo para las herramientas a las que el agent está ligado |
 | Un proveedor de búsqueda web (Tavily, DuckDuckGo) | La consulta de búsqueda | Solo cuando se concede la capability de búsqueda |
 | Un proveedor de embeddings | El texto del documento, en la ingesta | Solo para una base de conocimiento cuyo proveedor sea remoto |
@@ -116,7 +116,7 @@ agent del que depende el equipo.
 | Tabla | Al borrar | En la exportación | Por qué |
 |---|---|---|---|
 | `users` | Se borra | El perfil, sin el hash de la contraseña | La cuenta misma |
-| `conversations`, `messages`, `tool_calls` | Cascada | Los hilos que iniciaron, con cada turno | Suyos, y una transcripción sin un turno de cada dos no responde a nada |
+| `conversations`, `messages`, `tool_calls` | Cascada, salvo los chats de un proyecto, que se quedan con el equipo | Los hilos que iniciaron, con cada turno; en el chat de un proyecto, dondequiera que escribieron, solo sus turnos y las respuestas a ellos | Suyos, y una transcripción sin un turno de cada dos no responde a nada. El chat de un proyecto es de varias personas, y los turnos de los demás miembros son suyos |
 | `chat_files` | Cascada; los bytes se desvinculan tras el commit | No se enumera | La fila cascadea desde el mensaje y el fichero en disco no, así que las rutas se recogen antes del borrado y se desvinculan tras su commit; de otro modo los bytes sobreviven a la petición que pedía quitarlos: inalcanzables para nada y borrados por nadie. La transcripción del export nombra el adjunto; los bytes se descargan mientras la cuenta exista, no se empaquetan dentro |
 | `message_ratings` | Cascada | Sí | Una opinión que expresaron |
 | `sessions` | Cascada | Dispositivo, dirección y horas — nunca la credencial, que es un hash | Dónde iniciaron sesión |

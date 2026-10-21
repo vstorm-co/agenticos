@@ -5,8 +5,6 @@ they are one function: speech to text checked them in its own settings service
 with its own wording, and a second copy for voice would be the copy that drifts.
 """
 
-from __future__ import annotations
-
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession

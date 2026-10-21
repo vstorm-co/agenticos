@@ -1,5 +1,5 @@
 ---
-source_sha: "3409285bde3b"
+source_sha: "d22e9f561f9c"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -494,8 +494,12 @@ jest nadal wywoływany pod prawdziwą nazwą.
     położyłby każdego agenta, który go wskazuje, łącznie z tymi, które nigdy go
     nie potrzebowały.
 
-    Model odpowiada wtedy **bez** tych narzędzi — słusznie w turze czatu,
-    niesłusznie, jeśli założyłeś, że narzędzie jest tam zawsze.
+    Model odpowiada wtedy **bez** tych narzędzi i wie o tym: instrukcje tury
+    wymieniają serwer, mówią, że nie odpowiedział albo odrzucił połączenie,
+    i każą modelowi powiedzieć, że nie dało się z nim połączyć, zamiast zgłaszać
+    pusty wynik. Dotyczy to także serwera, który odpowiedział chwilę wcześniej
+    i zawodzi, gdy tura się łączy. Słusznie w turze czatu, niesłusznie, jeśli
+    założyłeś, że narzędzie jest tam zawsze.
 
 To świadomy kompromis. Dowiadujesz się o tym przez endpoint `/test`
 i `last_status`, a [ślad audytowy](governance.md#audit) zapisuje, co faktycznie
@@ -992,6 +996,29 @@ tutaj publikuje osoba w konsoli. Podłączone aplikacje są
 widoczne w **Ustawienia → Klienci MCP**, gdzie odłączenie kończy ich dostęp razem
 z każdym tokenem. Wywołania, które coś
 zmieniają, czekają na zatwierdzenie, jak wyjaśnia [sekcja wyżej](#which-calls-wait-for-a-person).
+
+### Udostępnienie go agentowi { #giving-it-to-an-agent }
+
+Ten sam serwer jest też bindingiem MCP, który może mieć każdy agent, więc agent
+odpowie na „co wczoraj padło” albo „którzy agenci używają tej bazy wiedzy” z
+własnych zapisów platformy. W Builderze to pierwsza karta w **Serwerach MCP**,
+nazwana jak to wdrożenie; jej włączenie wiąże go jako
+`mcp_servers: [{account: platform, approval: writes}]`.
+
+- **Działa jako osoba, dla której działa agent.** Run tworzy krótkotrwały klucz z
+  uprawnieniami tej osoby, więc agent Viewera czyta to, co może czytać Viewer, i
+  niczego nie tworzy. Nic nowego nie jest przyznawane, a gdy za runem nikt nie
+  stoi - publiczny widget, harmonogram działający w niczyim imieniu - bindingu nie
+  ma.
+- **Zmiany czekają na zatwierdzenie.** Domyślne `writes` wstrzymuje każde
+  narzędzie, które coś zmienia (`create_agent_draft`, `run_agent`, `invite_member`
+  i pozostałe), do zgody osoby; `all` wstrzymuje też odczyt. `none` nie jest
+  oferowane: te narzędzia działają z uprawnieniami człowieka.
+- **Narzędzia można zawęzić** w ustawieniach karty, które pokazują każde narzędzie
+  i oznaczają te, które coś zmieniają.
+
+Szablon **Claude Code like** wiąże go właśnie tak, więc świeży agent z niego od razu
+sięga do platformy.
 
 ## Czego MCP ci nie daje { #what-mcp-does-not-get-you }
 

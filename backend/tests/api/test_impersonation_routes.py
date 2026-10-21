@@ -7,8 +7,6 @@ run through the real `get_current_user` with real tokens, because the refusal
 lives in the dependency and a test that overrides it tests nothing.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
@@ -51,7 +49,7 @@ class _Account:
 
 
 @pytest.fixture(autouse=True)
-def _clean() -> AsyncGenerator[None, None]:
+def _clean() -> AsyncGenerator[None]:
     yield
     set_impersonator(None)
     module._active.set(None)
@@ -336,7 +334,7 @@ class TestTheWebSocketDoor:
         db = AsyncMock()
 
         @asynccontextmanager
-        async def context() -> AsyncGenerator[AsyncMock, None]:
+        async def context() -> AsyncGenerator[AsyncMock]:
             yield db
 
         websocket = MagicMock()

@@ -173,12 +173,12 @@ const SECRET_KINDS = {
   items: [
     {
       kind: "api_key",
-      label: "API key",
+      name: "API key",
       json_schema: { type: "object", properties: { api_key: { type: "string" } } },
     },
     {
       kind: "github_oauth_app",
-      label: "GitHub OAuth App",
+      name: "GitHub OAuth App",
       json_schema: {
         type: "object",
         properties: { client_id: { type: "string" }, client_secret: { type: "string" } },
@@ -186,7 +186,7 @@ const SECRET_KINDS = {
     },
     {
       kind: "google_oauth_app",
-      label: "Google OAuth client",
+      name: "Google OAuth client",
       json_schema: {
         type: "object",
         properties: { client_id: { type: "string" }, client_secret: { type: "string" } },
@@ -412,6 +412,26 @@ describe("PortalCatalog", () => {
     expect(
       within(screen.getByRole("group", { name: "GitHub" })).getByText(/cannot tell which one/),
     ).toBeVisible();
+  });
+
+  it("names the credential the portal's own flow spends, not GitHub's", async () => {
+    await mount({ org: [], blockedBy: "oauth_app_secret" });
+
+    const card = within(screen.getByRole("group", { name: "GitHub" }));
+
+    expect(card.getByText(/organization's GitHub OAuth App credentials/)).toBeVisible();
+    expect(screen.queryAllByText(/GitHub OAuth App/)).toHaveLength(1);
+  });
+
+  it("asks a Gmail card for the Google client its consent flow spends", async () => {
+    // The sentence was GitHub's on every card: Gmail said it needed the
+    // organization's GitHub OAuth App credentials.
+    await mount({ polled: "oauth_app_secret" });
+
+    const gmail = within(screen.getByRole("group", { name: "Gmail" }));
+
+    expect(gmail.getByText(/organization's Google OAuth client credentials/)).toBeVisible();
+    expect(gmail.queryByText(/GitHub/)).toBeNull();
   });
 
   it("says a polled portal's own prerequisite, not the GitHub one beside it", async () => {

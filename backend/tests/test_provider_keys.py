@@ -1,7 +1,5 @@
 """The one check every level names a provider key through (#1797, #54)."""
 
-from __future__ import annotations
-
 import uuid
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch

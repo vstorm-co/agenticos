@@ -1,5 +1,5 @@
 ---
-source_sha: "586f51917e7c"
+source_sha: "322ecdc03ee2"
 ---
 
 # Ressourcen { #resources }
@@ -81,7 +81,6 @@ erzeugt und steht auf:
 - [Pydantic AI](https://ai.pydantic.dev) — der Agent-Runtime
 - [FastAPI](https://fastapi.tiangolo.com) und [Pydantic](https://docs.pydantic.dev) — dem Backend
 - [pgvector](https://github.com/pgvector/pgvector) — dem Retrieval
-- [Prefect](https://www.prefect.io) — der Hintergrundarbeit
 - [Next.js](https://nextjs.org) — der Konsole
 - [Model Context Protocol](https://modelcontextprotocol.io) — jeder Integration
 

@@ -6,8 +6,6 @@ two billed sessions for one person. A mocked session cannot show a lock
 serialising two transactions; Postgres can.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock

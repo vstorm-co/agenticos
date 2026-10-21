@@ -14,8 +14,6 @@ properties below are the ones whose loss would put it back where it started -
 joining the group it watches, or being able to approve what it found.
 """
 
-from __future__ import annotations
-
 from pathlib import Path
 from typing import Any
 
@@ -140,3 +138,15 @@ class TestItCancelsAndReportsAndNothingElse:
         step = watcher["jobs"]["queue"]["steps"][0]
         assert "STALE_AFTER_HOURS" in step["env"]
         assert "${{" not in step["with"]["script"]
+
+
+class TestTheDeployConnectionOutlivesTheWait:
+    def test_the_ssh_session_keeps_itself_alive(self, deploy: dict[str, Any]) -> None:
+        """`deploy.sh` waits up to twenty minutes for a merge's images and prints
+        nothing meanwhile; an idle session was dropped four minutes in and failed
+        the 1.1.1 deploy with exit 255."""
+        steps = deploy["jobs"]["deploy"]["steps"]
+        script = next(step["run"] for step in steps if step.get("name") == "Deploy")
+
+        assert "ServerAliveInterval=" in script
+        assert "ServerAliveCountMax=" in script

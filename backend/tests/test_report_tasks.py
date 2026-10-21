@@ -14,7 +14,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.agents.spec import AgentSpec, AlertSpec, NotificationSpec
-from app.worker.tasks.report_tasks import _run_agent_reports, _run_reports
+from app.worker.jobs import Tick
+from app.worker.tasks.report_tasks import _run_agent_reports, weekly_usage_report
 
 MODULE = "app.worker.tasks.report_tasks"
 
@@ -169,16 +170,17 @@ async def test_an_agent_whose_spec_declines_the_report_is_not_counted():
 
 class TestWindowStartIsIdempotentAcrossRetries:
     """The dedup key a retried report is caught on is `(subject, period,
-    window_start)` - so two invocations that both fire today, whether a
-    genuine Prefect retry or an accidental second trigger, must compute the
-    identical `window_start` or the constraint has nothing to catch
-    (`.claude/skills/background-task/SKILL.md`'s idempotency rule)."""
+    window_start)` - so every attempt of one scheduled report must compute the
+    identical `window_start` or the constraint has nothing to catch. It comes
+    from the occurrence the schedule fired the job for, which every attempt
+    carries the same, never from the clock (`.claude/skills/background-task/SKILL.md`'s
+    idempotency rule)."""
 
     @asynccontextmanager
     async def _fake_db_context(self):
         yield MagicMock()
 
-    async def _captured_window_starts(self) -> list[datetime]:
+    async def _captured_window_starts(self, scheduled_for: datetime) -> list[datetime]:
         captured: list[datetime] = []
 
         class _Notifications:
@@ -198,34 +200,33 @@ class TestWindowStartIsIdempotentAcrossRetries:
             patch(f"{MODULE}.agent_repo.list_all_published", new=AsyncMock(return_value=[])),
             patch(f"{MODULE}.NotificationService", new=_Notifications),
         ):
-            await _run_reports("weekly")
+            await weekly_usage_report(Tick(scheduled_for=scheduled_for))
         return captured
 
     @pytest.mark.anyio
-    async def test_the_window_start_is_rounded_to_midnight_utc(self):
-        captured = await self._captured_window_starts()
-        window_start = captured[0]
-        assert (window_start.hour, window_start.minute, window_start.second) == (0, 0, 0)
-        assert window_start.microsecond == 0
+    async def test_the_window_start_is_the_occurrences_day_at_midnight_utc(self):
+        captured = await self._captured_window_starts(datetime(2026, 3, 4, 9, 30, 5, tzinfo=UTC))
+        assert captured == [datetime(2026, 3, 4, tzinfo=UTC)]
 
     @pytest.mark.anyio
-    async def test_two_calls_the_same_day_compute_the_same_window(self):
-        first = await self._captured_window_starts()
-        second = await self._captured_window_starts()
-        assert first[0] == second[0]
+    async def test_a_retry_after_midnight_still_reports_the_occurrences_day(self):
+        """Rounding the clock would survive a retry a few seconds later, not one
+        that crosses midnight between attempts; the occurrence does not move."""
+        occurrence = datetime(2026, 3, 4, 23, 59, 59, tzinfo=UTC)
+        first = await self._captured_window_starts(occurrence)
+        second = await self._captured_window_starts(occurrence)
+        assert first == second == [datetime(2026, 3, 4, tzinfo=UTC)]
 
-    @pytest.mark.anyio
-    async def test_a_real_flow_runs_scheduled_time_wins_over_the_midnight_it_straddles(self):
-        """Rounding alone survives a retry landing a few seconds later, not
-        one whose wall clock crosses midnight between attempts. Two
-        attempts of the *same scheduled run* share one `expected_start_time`
-        regardless of when either actually executes - reading it, when a
-        real flow run provides one, is what closes that gap."""
-        expected_start_time = datetime(2026, 3, 4, 23, 59, 59, tzinfo=UTC)
-        flow_run_context = MagicMock()
-        flow_run_context.flow_run.expected_start_time = expected_start_time
 
-        with patch(f"{MODULE}.FlowRunContext.get", return_value=flow_run_context):
-            captured = await self._captured_window_starts()
+def test_a_report_occurrence_is_retried_where_a_sweep_is_not() -> None:
+    """A sweep's next tick is the same work; the next report covers another window,
+    so a report lost to a deploy or an outage would never be sent (Codex, #2248)."""
+    from app.worker.jobs import (
+        CHECK_AGENT_TRIGGERS,
+        MONTHLY_USAGE_REPORT,
+        WEEKLY_USAGE_REPORT,
+    )
 
-        assert captured[0] == datetime(2026, 3, 4, tzinfo=UTC)
+    assert WEEKLY_USAGE_REPORT.max_attempts == 3
+    assert MONTHLY_USAGE_REPORT.max_attempts == 3
+    assert CHECK_AGENT_TRIGGERS.max_attempts == 1

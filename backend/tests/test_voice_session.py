@@ -1,7 +1,5 @@
 """A call lives exactly as long as its socket, and every way out hangs up (#54, Q3)."""
 
-from __future__ import annotations
-
 import asyncio
 import json
 import time

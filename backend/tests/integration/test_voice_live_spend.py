@@ -1,7 +1,5 @@
 """A live call's spend reaches every other run's budget check before the call ends (#54)."""
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal

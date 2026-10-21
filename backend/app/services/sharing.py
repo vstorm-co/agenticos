@@ -6,8 +6,6 @@ because "who gave whom access to what" is the first question asked after an
 incident and the last thing anyone remembers.
 """
 
-from __future__ import annotations
-
 from typing import NamedTuple
 from uuid import UUID
 
@@ -40,6 +38,7 @@ _CONSOLE_PATHS = {
     "secret": "/vault",
     "artifact": "/apps/{id}",
     "mcp_connection": "/mcp-servers",
+    "project": "/projects/{id}",
 }
 """Where the console opens a shared resource of each kind."""
 

@@ -5,8 +5,6 @@
 drifted would have the Architect quote a command the page no longer gives.
 """
 
-from __future__ import annotations
-
 import importlib.util
 from pathlib import Path
 

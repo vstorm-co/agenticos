@@ -13,8 +13,6 @@ Getting that wrong gives a reviewer one proposal per turn instead of one per
 edit.
 """
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import MagicMock
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "30cbf9a8af36"
+source_sha: "4b94f785d6b5"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -990,6 +990,41 @@ zdecyduje.
 Limitowany na wywołującego, a nie na adres — biuro za jednym NAT-em to nie jeden
 wywołujący — wartością `RATE_LIMIT_RUN_PER_MINUTE`.
 
+## Inni agenci, przez A2A { #a2a }
+
+Agent innego systemu może wysyłać agentowi zadania przez
+[protokół Agent2Agent](https://a2a-protocol.org). Dla każdego agenta jest to
+wyłączone, dopóki ktoś, kto może go publikować, nie włączy **Agent2Agent (A2A)** w
+zakładce **Availability**, która pokazuje dwa adresy do przekazania drugiej stronie:
+
+- **agent card** pod `/api/v1/a2a/{agent_id}/.well-known/agent-card.json`, czytelny
+  bez klucza — nazwa agenta, opis, wersja, jego jedna umiejętność i sposób
+  uwierzytelnienia;
+- **endpoint** dla zadań, `POST /api/v1/a2a/{agent_id}`, JSON-RPC 2.0.
+
+Wywołujący wysyła jako bearer token klucz API organizacji albo token dostępu OAuth
+wydany przez ten deployment, który musi mieć prawo uruchamiać agenta: taki, który go
+nie ma, dostaje odmowę HTTP `403`, albo `404`, gdy w ogóle nie widzi agenta, bo A2A
+zostawia autoryzację warstwie transportu. `message/send` przyjmuje tylko części
+tekstowe i odrzuca wiadomość z częścią z danymi albo plikiem kodem `-32005`, zamiast
+uruchomić ją na samym tekście.
+
+`message/send` uruchamia opublikowaną wersję jako zwykły run oznaczony `a2a`, więc
+obowiązują budżet, bramka zatwierdzeń, audit trail i Activity. Id zadania to id
+runa, a jego `contextId` to rozmowa, do której run trafia, więc ponowne wysłanie go
+kontynuuje tę rozmowę. Run zatrzymany na zatwierdzeniu odpowiada `input-required`;
+decyzję podejmuje się w konsoli, a `tasks/get` odczytuje, na czym potem stanął.
+
+Zadanie odczyta ten, kto je wysłał, albo ktoś, kto może czytać wszystkie runy
+(`runs:view`); dla każdego innego jego id jest nieznane. Wiadomość z `taskId` jest
+odrzucana, zamiast uruchamiać się obok czekającego zadania: żeby zapytać o coś
+nowego, wyślij ją bez niego, w tym samym `contextId`.
+
+Odpowiedź jest synchroniczna: `message/stream`, powiadomienia push i `tasks/cancel`
+są odrzucane z nazwy, a karta mówi, że streaming nie jest oferowany. Agent, który
+nie jest udostępniony — wyłączony, nieopublikowany, zarchiwizowany albo innej
+organizacji — odpowiada `404`, zarówno karta, jak i endpoint.
+
 ---
 
 ## Slack { #slack }
@@ -1140,7 +1175,8 @@ edytowanej raz na sekundę. Strumieniowanie wraca do tego trybu także samo, gdy
 Slack odmówi jego rozpoczęcia.
 
 Tabela Markdown w odpowiedzi jest rysowana jako tabela Slacka, a wykres przychodzi
-jako obrazek, jak zawsze. Jeśli gotowa odpowiedź nie jest tym, co zostało
+jako obrazek, jak zawsze. Tak samo [wizual](reference/capabilities.md#visuals), narysowany
+przeglądarką wdrożenia, gdy `VISUAL_RENDER_CDP_URL` ją wskazuje. Jeśli gotowa odpowiedź nie jest tym, co zostało
 wystrumieniowane - guardrail wyjściowy coś zredagował - wiadomość jest przepisywana
 w całości.
 
@@ -1643,7 +1679,7 @@ agent, który dobrze radzi sobie w konsoli, a słabo w Slacku, to pokazuje.
 
         Zanim pojawił się ten przełącznik, bot bez pary był botem, który nie
         transkrybował, a API czyściło parę, żeby wyłączyć transkrypcję. Migracja
-        `0139_bot_transcription_switch.py` przełącza każdego takiego bota na
+        `0151_bot_transcription_switch.py` przełącza każdego takiego bota na
         **off**, więc żaden z nich nie zaczyna po aktualizacji wysyłać audio do
         providera; bot z parą ją zachowuje. Od tej pory klient, który czyści parę,
         dostaje **inherit**, a **off** to `transcribe_voice_notes: false`, co
@@ -1854,6 +1890,12 @@ agent, który dobrze radzi sobie w konsoli, a słabo w Slacku, to pokazuje.
   inny worker od razu otwiera nowe połączenie, a stare zamyka się przy
   najbliższym odnowieniu u jego właściciela. Gdy Redis jest nieosiągalny, łączy
   się każdy worker, jak wcześniej.
+- **Drugi poller Telegrama zostaje zauważony, a nie zwalczany.** Gdy Telegram
+  kończy poll bota, bo inny proces odpytuje ten sam token, worker, który nie
+  trzyma lease'a tego bota, od razu zamyka swoją kopię. Właściciel odpytuje dalej
+  i oznacza bota na stronie kanałów jako niedziałającego: „inny proces odpytuje
+  token tego bota”. Ten proces jest poza wdrożeniem, zwykle to drugie wdrożenie
+  albo skrypt z tym samym tokenem, i zatrzymać go może tylko jego właściciel.
 - **Instrukcje powiązania mogą wołać to, co wie tylko platforma.**
   `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{member_count}`,
   `{member_list}` — wypełniane przy starcie runa, z tych samych wywołań, których
@@ -1949,6 +1991,7 @@ czytelnik faktycznie zobaczył.
 | `@mention` na kanale | To samo, z uchwytem usuniętym z zapisanego promptu |
 | Osadzony widget | To samo. Odwiedzający jest anonimowy; run i tury należą do właściciela widgetu |
 | HTTP API | To samo, gdy wywołanie niesie `conversation_id`. Nic bez niego — nie ma wątku, w który dałoby się wpisać turę, a wiersz runa i tak jest zapisem tego, że się to zdarzyło |
+| A2A | To samo. Każde zadanie trafia do rozmowy: nowej albo tej, którą wskazuje jego `contextId` |
 | Run wznowiony po zatwierdzeniu | Jego kontynuację — odpowiedź i wywołania, które wykonał, a wywołania także wtedy, gdy odpowiedzi nie ma, co ma kontynuacja parkująca ponownie na drugim bramkowanym wywołaniu. Żadnej tury użytkownika: podejmuje pracę przy wywołaniu, na którym stanął, a wymyślenie pytania włożyłoby komuś słowa w usta |
 
 **Zapisywane jest to, co napisał człowiek, a nie prompt złożony wokół tego.**

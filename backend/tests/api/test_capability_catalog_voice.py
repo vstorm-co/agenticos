@@ -1,7 +1,5 @@
 """The capability catalog says which capabilities a call cannot use (#54)."""
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import Iterator
 

@@ -6,8 +6,6 @@ counted - has to come back as `None`, and what the provider is sent has to be
 exactly the samples that were counted.
 """
 
-from __future__ import annotations
-
 import struct
 
 import pytest

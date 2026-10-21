@@ -1,5 +1,5 @@
 ---
-source_sha: "35b4b38a6819"
+source_sha: "67523cafdf32"
 ---
 
 # La API HTTP { #the-http-api }
@@ -66,7 +66,7 @@ Conviene conocer dos rechazos:
 
 - **`403` "API keys are not accepted on this endpoint"**: las claves solo se
   aceptan en la API pública: agents, runs y aprobaciones, bases de conocimiento y
-  RAG, skills, archivos de contexto, aplicaciones, los servicios de ML,
+  RAG, skills, archivos de contexto, proyectos, aplicaciones, los servicios de ML,
   `/me/permissions` y los miembros, invitaciones, grupos y ajustes de una
   organización. Las rutas propias de la consola, tu cuenta, abandonar o traspasar
   una organización y la gestión de claves en sí siguen siendo solo de sesión, para
@@ -188,6 +188,40 @@ lo que costó, para una clave con `runs:view`.
     Ese es el sentido de tener un único runner, y por eso no existe una "vía
     rápida" que se lo salte.
 
+### Sin mantener la conexión { #without-holding-the-connection }
+
+Un run de minutos - una navegación, una cadena larga de herramientas - mantiene
+la petición abierta todo el tiempo, y el tiempo límite de lectura de un proxy
+puede cortarla mientras el run sigue. Envía `Prefer: respond-async` y la llamada
+responde `202` al instante, con una petición de run que consultar:
+
+```bash
+curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Prefer: respond-async" \
+  -H "Idempotency-Key: ticket-4711" \
+  -d '{"prompt": "Summarise this quarter for the board"}'
+# 202, Location: /api/v1/run-requests/{id}, Preference-Applied: respond-async
+
+curl "$BASE/api/v1/run-requests/$REQUEST_ID" -H "Authorization: Bearer $AGENTICOS_KEY"
+```
+
+La petición pasa por `queued`, `running` y después `completed` con `result` -
+el mismo cuerpo con el que responde la llamada síncrona - o `failed` con
+`error`. Su `conversation_id` se conoce desde la primera respuesta, así que se
+puede enviar un mensaje de seguimiento antes de que termine el run. Lo ejecuta
+un worker, con el mismo runner, budget y aprobaciones que cualquier otra
+superficie.
+
+Lo que se puede comprobar al momento se comprueba al momento: una conversación
+o un adjunto desconocidos son un `404` en el `POST`, no un fallo que haya que
+esperar. Los permisos de la clave se vuelven a comprobar cuando el run arranca,
+así que una clave revocada mientras su run esperaba no lo ejecuta. Solo quien lo
+pidió, o una clave suya, puede leer una petición de run; la de otro responde
+`404`. Un run asíncrono tiene un intento: un run que falla queda registrado con
+lo que gastó y no se reintenta para no gastarlo dos veces.
+
 La ruta lleva un **límite de frecuencia en lugar de una puerta de permisos**. El
 permiso se decide dentro del servicio, contra los grants de ese agent concreto —
 una puerta de rol en una ruta por recurso [no puede verlos](permissions.md).
@@ -213,6 +247,33 @@ La respuesta también trae `categories` y
 `tags`: cada etiqueta distinta en los agents que podrías listar, sea cual sea el
 filtro y la página — las opciones que ofrece un menú de filtro. Un agent privado que
 no puedes ver no aporta ninguna.
+## Agents por A2A { #agents-over-a2a }
+
+Un agent que su organización sirve por A2A responde JSON-RPC en
+`POST /api/v1/a2a/{agent_id}`, con las mismas claves que `/run`; su agent card está
+en `GET /api/v1/a2a/{agent_id}/.well-known/agent-card.json` y no necesita ninguna.
+`PUT /api/v1/agents/{id}/a2a` con `{"enabled": true}` lo activa, para quien tenga
+`agents:publish` sobre ese agent.
+
+```bash
+curl -X POST "$BASE/api/v1/a2a/$AGENT_ID" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc": "2.0", "id": 1, "method": "message/send",
+       "params": {"message": {"role": "user", "messageId": "m1",
+                              "parts": [{"kind": "text", "text": "Review clause 7"}]}}}'
+```
+
+La respuesta es una `Task` cuyo id es el del run y cuyo `contextId` continúa la
+conversación. `tasks/get` vuelve a leer una. Los [canales](channels.md#a2a) tienen
+el resto.
+
+Los agents remotos en los que delega esta organización se registran en
+`/api/v1/external-agents`: `GET` los lista (`agents:view`); `POST` con una
+`card_url`, un `slug` opcional y un `secret_id` opcional de una clave API lee la card
+y lo registra, y `POST /{id}/refresh` la vuelve a leer; `DELETE /{id}` elimina uno
+(`agents:edit` para los tres).
+
 ## Los servicios de ML { #the-ml-services }
 
 Cuatro servicios de la plataforma responden por su cuenta, sin conversación y sin
@@ -470,8 +531,9 @@ run nuevo.
 
 ## Reintentos, idempotencia y revisiones { #retries-idempotency-and-revisions }
 
-v1 no tiene cabecera `Idempotency-Key` ni precondiciones de revisión: ni `ETag`
-ni `If-Match`. Una escritura se aplica cuando llega, y gana la última.
+v1 no tiene precondiciones de revisión: ni `ETag` ni `If-Match`. Una escritura
+se aplica cuando llega, y gana la última. `Idempotency-Key` se respeta en una
+ruta, el run asíncrono.
 
 - **`GET`, `PUT` y `DELETE` se pueden repetir sin riesgo.** Leer dos veces lee
   dos veces; borrar lo que ya no está responde `404`, que un reintento puede dar
@@ -484,6 +546,13 @@ ni `If-Match`. Una escritura se aplica cuando llega, y gana la última.
   `GET /api/v1/runs?agent_id=…&surface=api` lista los runs del más reciente al
   más antiguo, y una lectura de la lista encuentra la fila que el primer intento
   sí creó.
+- **Un run asíncrono sí lo es, con un `Idempotency-Key`.** Envía
+  `Prefer: respond-async` y una clave que elijas, de 255 caracteres como mucho,
+  y un reintento con la misma clave y el mismo cuerpo responde la misma petición
+  de run, esté en el estado que esté. La misma clave con otro cuerpo es un `409`,
+  nunca un segundo run. Las claves son por organización. Una llamada síncrona con
+  esa cabecera se rechaza con un `400` en vez de dejar creer que reintentar es
+  seguro.
 - **`429` es el único rechazo que se reintenta**, tras el `Retry-After` que
   lleva. Cualquier otro `4xx` es definitivo para esa petición.
 
@@ -550,6 +619,8 @@ solo avanza.
 - Un script consigue su propia clave **sin navegador** — iniciar sesión, emitir,
   revocar — y `examples/public-api.sh` hace todo ese recorrido.
 - **Solo vale la pena reintentar un `429`**; un `POST` no es idempotente, así que
-  mira antes de repetirlo.
+  mira antes de repetirlo, salvo un run asíncrono enviado con `Idempotency-Key`.
+- **`Prefer: respond-async`** convierte un run en un `202` y una petición de run
+  que consultar, así que un run largo no mantiene una conexión abierta.
 - **La API pública está en `/api/v1/public/openapi.json`** y dentro de v1 solo
   cambia de forma aditiva, con 90 días de deprecación; todavía no hay SDK.

@@ -2,7 +2,7 @@
 title: "AgenticOS vs OpenAI dots"
 seo_title: "AgenticOS vs OpenAI dots: una alternativa autoalojada"
 description: "OpenAI dots son agents siempre activos en ChatGPT, cada uno con un ordenador en la nube. Compáralos con AgenticOS: tus servidores, cualquier modelo, reglas en código."
-source_sha: "8673b6e5689a"
+source_sha: "34248b446a49"
 ---
 
 # AgenticOS vs OpenAI dots { #agenticos-vs-openai-dots }
@@ -20,7 +20,7 @@ Mantenido por el equipo de AgenticOS. Fuentes revisadas el 14 de octubre de 2026
 | Qué obtienes | Agents siempre activos en ChatGPT, cada uno con un ordenador en la nube | Tantos agents como quieras, cada uno un spec versionado |
 | Dónde se ejecuta | La nube de OpenAI | Tu infraestructura, con Docker Compose |
 | Código | Propietario | Apache-2.0 |
-| Modelos | Solo OpenAI | 27 providers, incluidos modelos locales |
+| Modelos | Solo OpenAI | 28 providers, incluidos modelos locales |
 | Herramientas | Más de 4.000 apps conectadas, un navegador y un ordenador por dot | Más de 4.700 servidores MCP en la galería, un navegador, una sandbox de código, tus propias capabilities |
 | Canales | ChatGPT, Slack, Microsoft Teams; SMS anunciado | Chat web, widget, página alojada, API HTTP, WebSocket, Slack, Telegram, Mattermost |
 | Reglas | Reglas propias para permitir, bloquear o pedir aprobación; un modelo revisa las acciones de riesgo | Aprobaciones que la plataforma comprueba antes de que se ejecute una herramienta; listas de herramientas permitidas |
@@ -39,7 +39,7 @@ Los dots se ejecutan en la nube de OpenAI y, al lanzamiento, el plan Pro no se o
 
 ### Cualquier modelo, no el de un solo proveedor { #any-model-not-one-vendors }
 
-Un dot piensa con los modelos de OpenAI. Un agent de AgenticOS usa un [perfil de modelo](../models.md#a-model-profile) sobre 27 providers, con fallbacks, así que un agent puede funcionar con Claude, otro con un modelo local, y cambiar de provider es un solo ajuste.
+Un dot piensa con los modelos de OpenAI. Un agent de AgenticOS usa un [perfil de modelo](../models.md#a-model-profile) sobre 28 providers, con fallbacks, así que un agent puede funcionar con Claude, otro con un modelo local, y cambiar de provider es un solo ajuste.
 
 ### Un registro que puedes auditar { #a-record-you-can-audit }
 

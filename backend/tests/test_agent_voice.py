@@ -1,7 +1,5 @@
 """Voice assembly: what a call can and cannot carry over from an agent (#54)."""
 
-from __future__ import annotations
-
 import json
 import uuid
 from collections.abc import AsyncIterator, Sequence

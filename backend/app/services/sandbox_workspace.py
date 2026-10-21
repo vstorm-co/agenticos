@@ -22,28 +22,29 @@ module exists rather than a helper on the capability:
   applies with somebody else's invoice attached.
 """
 
-from __future__ import annotations
-
 import asyncio
 import base64
 import contextlib
 import contextvars
 import logging
 from binascii import Error as BinasciiError
-from collections.abc import AsyncGenerator, Callable, Coroutine, Sequence
+from collections.abc import AsyncGenerator, Awaitable, Callable, Coroutine, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
+from datetime import UTC, datetime, timedelta
 from functools import partial
 from io import BytesIO
 from pathlib import PurePosixPath
-from typing import Any
+from typing import Any, Literal, cast
 from uuid import UUID
 
+import httpx
 from PIL import Image, ImageOps
 from pydantic_ai.workspaces import Workspace, WorkspaceRef
 from pydantic_ai_backends import FileData, FileInfo, StateBackend
 from pydantic_ai_backends.remote.archive import DEFAULT_TIMEOUT_SECONDS
+from pydantic_ai_backends.remote.wire import MAX_TREES
 from pydantic_ai_backends.workspaces import (
     DaytonaWorkspace,
     SandboxdWorkspace,
@@ -63,15 +64,19 @@ from app.agents.capabilities.sandbox._identity import (
 from app.agents.capabilities.sandbox._recording import RecordingWorkspace
 from app.agents.capabilities.tool_output_limits import OVERFLOW_PREFIX
 from app.agents.spec import AgentSpec
+from app.core.background import spawn_after_commit
 from app.core.blocking import run_blocking
 from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent_workspace import AgentWorkspace
+from app.db.models.project import Project
+from app.db.session import get_db_context
 from app.repositories import agent as agent_repo
 from app.repositories import agent_workspace as workspace_repo
 from app.repositories import conversation as conversation_repo
 from app.repositories import member as member_repo
+from app.repositories import pending_sandbox_destroy as pending_destroy_repo
 from app.services.sandbox_connection import ResolvedConnection, SandboxConnectionService
 from app.services.sandbox_runtimes import runtime_briefing, runtime_parses_documents
 from app.services.skill_workspace import LEGACY_SKILLS_ROOT, RESERVED_SKILL_PREFIXES
@@ -84,7 +89,7 @@ STATE_PROVIDER = "state"
 """`WorkspaceRef.provider` of a stored document, as `StateWorkspace` names it."""
 
 _MAX_LISTED_DEPTH = 6
-"""How deep a workspace listing walks. A directory is a round trip to the host."""
+"""How many levels of a workspace a listing shows, the root being the first."""
 
 _MAX_LISTED_ENTRIES = 2000
 """Where a listing stops. A host holding a `node_modules` must not turn one
@@ -122,6 +127,49 @@ async def _on_host_thread[T](call: Callable[..., T], *args: object) -> T:
     return await asyncio.get_running_loop().run_in_executor(
         _HOST_CALLS, partial(context.run, call, *args)
     )
+
+
+_sandboxd_client: httpx.AsyncClient | None = None
+_sandboxd_loop: asyncio.AbstractEventLoop | None = None
+
+
+def _sandboxd_http() -> httpx.AsyncClient:
+    """The client every `sandboxd` workspace in this process shares.
+
+    Without one, `SandboxdWorkspace` builds a client per request: a new
+    connection, and an SSL context, for every command and every file operation
+    of a run - several milliseconds each, against operations that take four
+    since the service answers file calls itself.
+
+    Rebuilt when the event loop changes, as `model_catalog`'s client is: its
+    connections belong to the loop that opened them, and one process runs
+    requests, tests and jobs on different loops. Unbounded, because a
+    command holds its connection for as long as it runs, and a pool cap would
+    queue the next run's commands behind the last one's. The timeouts ride each
+    request.
+    """
+    global _sandboxd_client, _sandboxd_loop
+    loop = asyncio.get_running_loop()
+    if _sandboxd_client is None or _sandboxd_client.is_closed or _sandboxd_loop is not loop:
+        _sandboxd_client = httpx.AsyncClient(limits=httpx.Limits(max_connections=None))
+        _sandboxd_loop = loop
+    return _sandboxd_client
+
+
+async def close_sandboxd_client() -> None:
+    """Close the shared `sandboxd` client at shutdown.
+
+    A client whose loop has already gone has nothing left to release, and
+    `aclose` says so by raising; dropping the reference is the close then.
+    """
+    global _sandboxd_client, _sandboxd_loop
+    if _sandboxd_client is not None and not _sandboxd_client.is_closed:
+        try:
+            await _sandboxd_client.aclose()
+        except RuntimeError:
+            logger.debug("sandboxd client outlived its event loop; dropping it unclosed")
+    _sandboxd_client = None
+    _sandboxd_loop = None
 
 
 _BROWSE_TIMEOUT_SECONDS = 10.0
@@ -209,29 +257,67 @@ class WorkspaceOverview:
     """
 
 
-NOT_BROWSABLE = (*RESERVED_SKILL_PREFIXES, f"{OVERFLOW_PREFIX}/")
+PLATFORM_DIR = ".agenticos"
+"""Where the platform keeps its own working files in a workspace - a coding task's
+events and session (`app.agents.capabilities.coding_agent._task.WORK_DIR`), a
+project's task files - and so not somewhere a person writes or browses."""
+
+NOT_BROWSABLE = (
+    *RESERVED_SKILL_PREFIXES,
+    f"{OVERFLOW_PREFIX}/",
+    f"{PLATFORM_DIR}/",
+    f"workspace/{PLATFORM_DIR}/",
+)
 """Prefixes the file browser drops, matched after the leading slash.
 
-Both are the platform's own writing rather than the agent's work for a person, and
-both are needed on disk: a skill's resource is a script the shell runs and
-`collect_changes` diffs, and a spill is what a tool's overflowing output was
-written to. A listing of what an agent is keeping is not the place either belongs -
-`/workspaces` was mostly `skills/<name>/SKILL.md` before this (#1064)."""
+All are the platform's own writing rather than the agent's work for a person, and
+all are needed on disk: a skill's resource is a script the shell runs and
+`collect_changes` diffs, a spill is what a tool's overflowing output was written
+to, and `.agenticos/` holds a coding task's events and the session the next task
+continues. A listing of what an agent is keeping is not the place any of them
+belongs - `/workspaces` was mostly `skills/<name>/SKILL.md` before this (#1064),
+and `.agenticos/coding-agent/<id>.exit` once the coding agent ran."""
+
+
+TOOLING_DIRS = frozenset(
+    {
+        ".venv",
+        "venv",
+        "node_modules",
+        "__pycache__",
+        ".pytest_cache",
+        ".mypy_cache",
+        ".ruff_cache",
+        ".tox",
+        ".git",
+        ".next",
+        ".cache",
+    }
+)
+"""Folders a program's tools fill, dropped wherever they sit in a workspace.
+
+A coding agent that sets up a project installs its dependencies and runs its
+tests in the sandbox, and one FastAPI app with a virtualenv is a thousand files -
+`site-packages`, caches, compiled bytecode - which buried the dozen it wrote
+among them on Documents. They stay on disk for the next task; they are not what a
+person comes to the page for."""
 
 
 def browsable(entries: list[FileInfo]) -> list[FileInfo]:
-    """The entries a person is shown, without what the platform put there itself.
+    """The entries a person is shown, without what the platform or a toolchain put there.
 
     The directories too, not only what is in them: a container lists `skills`
     itself beside its files, and with the files dropped it read as an empty
     folder the agent had made for nothing.
     """
 
-    def platform_owned(path: str) -> bool:
+    def hidden(path: str) -> bool:
         relative = path.lstrip("/").rstrip("/")
-        return f"{relative}/".startswith(NOT_BROWSABLE)
+        if f"{relative}/".startswith(NOT_BROWSABLE):
+            return True
+        return any(segment in TOOLING_DIRS for segment in relative.split("/"))
 
-    return [entry for entry in entries if not platform_owned(str(entry.get("path", "")))]
+    return [entry for entry in entries if not hidden(str(entry.get("path", "")))]
 
 
 @dataclass(frozen=True)
@@ -276,6 +362,38 @@ class FlatFileListing:
     workspaces_read: int
     unreadable: int
     truncated: bool
+
+
+SandboxWaitSink = Callable[[bool], Awaitable[None]]
+"""Told `True` when a run's sandbox is still being opened - usually its image
+being built - and `False` once that open is over, opened or failed.
+
+Handed in when the workspace is opened, not attached afterwards: the run's
+preparation already opens the session - it snapshots the workspace before the
+first model request - and that open is where an image build waits (#2222)."""
+
+
+@dataclass
+class _OpeningNotice:
+    """Turns the client's one "still opening" into a start and an end.
+
+    `SandboxdWorkspace` says only that opening is taking a while. The end is the
+    first operation to finish after that, since the session opens inside it -
+    and an end tied to a tool result instead let an unrelated, faster tool clear
+    the notice while the image was still building.
+    """
+
+    sink: SandboxWaitSink
+    announced: bool = False
+
+    async def waiting(self) -> None:
+        self.announced = True
+        await self.sink(True)
+
+    async def settled(self) -> None:
+        if self.announced:
+            self.announced = False
+            await self.sink(False)
 
 
 @dataclass
@@ -326,6 +444,13 @@ class OpenWorkspace:
     container-backed one, which keeps its files on the host rather than here.
     """
 
+    opened_files: dict[str, Any] = field(default_factory=dict)
+    opened_directories: tuple[str, ...] = ()
+    """The document as this run loaded it, which is what tells the flush what the
+    run changed from what somebody else stored in between. A shallow copy: the
+    file entries themselves are shared with the document, never mutated in place.
+    """
+
     document: CappedStateBackend | None = None
     """The stored document a `state` workspace works in, flushed back at close."""
 
@@ -342,6 +467,19 @@ class OpenWorkspace:
     prefix, because concurrent runs share a longer-scoped workspace and a prefix
     sweep would take another run's spills mid-flight.
     """
+
+
+def project_sandbox(project: Project) -> SandboxConfig:
+    """The workspace every run in a project shares, as a sandbox configuration.
+
+    The shell is always on: a project is somewhere work is done, and which agent
+    answered a chat in it should not decide whether its files can be run.
+    """
+    return SandboxConfig(
+        backend=cast("Literal['state', 'service']", project.backend),
+        connection_id=project.sandbox_connection_id,
+        runtime=project.runtime,
+    )
 
 
 def sandbox_config(spec: AgentSpec) -> SandboxConfig | None:
@@ -399,6 +537,26 @@ def _is_legacy_skill(path: str) -> bool:
     return relative == legacy or relative.startswith(f"{legacy}/")
 
 
+def _same_contents(files: dict[str, FileData], opened: dict[str, Any]) -> bool:
+    """Whether a run left every file as it found it, timestamps aside.
+
+    Every run writes its skills into the workspace again, so a file can be new
+    and still say exactly what it said: only its `modified_at` moved. That is
+    not a change worth storing the whole document for.
+    """
+    if files.keys() != opened.keys():
+        return False
+    for path, data in files.items():
+        before = opened[path]
+        if data is before:
+            continue
+        if data.get("content") != before.get("content") or data.get("encoding") != before.get(
+            "encoding"
+        ):
+            return False
+    return True
+
+
 def _under_overflow(path: str) -> bool:
     """Whether this path is a file inside the reserved spill directory.
 
@@ -443,6 +601,9 @@ class SandboxWorkspaceService:
         # query on the one session this service holds - which must not be used by
         # two coroutines at once.
         self._resolving = asyncio.Lock()
+        # Archives kept open for the length of `_sharing_archives`, one per host:
+        # `None` outside it, where each read builds and closes its own.
+        self._shared_archives: dict[UUID, Any] | None = None
 
     async def open(
         self,
@@ -451,6 +612,7 @@ class SandboxWorkspaceService:
         ctx: AuthContext,
         identity: WorkspaceIdentity,
         scope_override: SessionScope | None = None,
+        on_wait: SandboxWaitSink | None = None,
     ) -> OpenWorkspace | None:
         """The workspace this run should use, or `None` when it has no sandbox.
 
@@ -472,8 +634,24 @@ class SandboxWorkspaceService:
         config = sandbox_config(spec)
         if config is None:
             return None
+        return await self._open_config(
+            config,
+            ctx=ctx,
+            identity=identity,
+            scope=scope_override or config.session_scope,
+            on_wait=on_wait,
+        )
 
-        scope = scope_override or config.session_scope
+    async def _open_config(
+        self,
+        config: SandboxConfig,
+        *,
+        ctx: AuthContext,
+        identity: WorkspaceIdentity,
+        scope: SessionScope,
+        on_wait: SandboxWaitSink | None = None,
+    ) -> OpenWorkspace:
+        """`open`, for a configuration already read out of a spec or a project."""
         if config.backend == "state":
             return await self._open_state(
                 config, identity, self._key(identity, scope, "state"), scope
@@ -489,7 +667,7 @@ class SandboxWorkspaceService:
         # a row that names the host it has left.
         resolved = await self.connections.resolve(ctx, config.connection_id)
         key = self._key(identity, scope, "service", resolved.row.id)
-        return await self._open_service(config, identity, key, scope, resolved)
+        return await self._open_service(config, identity, key, scope, resolved, on_wait=on_wait)
 
     @staticmethod
     def _key(
@@ -533,6 +711,8 @@ class SandboxWorkspaceService:
             scope_key=key,
             row_id=row.id if row is not None else None,
             opened_version=row.version if row is not None else None,
+            opened_files=dict(row.files or {}) if row is not None else {},
+            opened_directories=tuple(row.directories or ()) if row is not None else (),
         )
 
     async def _open_service(
@@ -542,6 +722,8 @@ class SandboxWorkspaceService:
         key: str,
         scope: SessionScope,
         resolved: ResolvedConnection,
+        *,
+        on_wait: SandboxWaitSink | None = None,
     ) -> OpenWorkspace:
         """A workspace on one of the organization's registered connections.
 
@@ -565,8 +747,13 @@ class SandboxWorkspaceService:
         """
         briefing: str | None = None
         parses_documents = False
+        notice = _OpeningNotice(on_wait) if on_wait is not None else None
         sandbox = self._service_capability(
-            resolved, key, runtime=config.runtime, tenant=str(identity.organization_id)
+            resolved,
+            key,
+            runtime=config.runtime,
+            tenant=str(identity.organization_id),
+            on_wait=notice.waiting if notice is not None else None,
         )
         if resolved.kind != "daytona":
             alias = config.runtime or resolved.row.default_runtime or None
@@ -591,6 +778,7 @@ class SandboxWorkspaceService:
             session_key=key,
             agent_id=identity.agent_id,
             run_id=identity.run_id,
+            on_settled=notice.settled if notice is not None else None,
         )
         return OpenWorkspace(
             workspace=recorder,
@@ -611,6 +799,7 @@ class SandboxWorkspaceService:
         *,
         runtime: str | None = None,
         tenant: str | None = None,
+        on_wait: Callable[[], Awaitable[None]] | None = None,
     ) -> SandboxdWorkspace | DaytonaWorkspace:
         """What supplies the sandbox named `key` on one of the organization's connections.
 
@@ -651,6 +840,10 @@ class SandboxWorkspaceService:
             # organization occupying the pool of the whole installation.
             tenant=tenant,
             session_name=key,
+            # Opening can build the runtime's image first; this is how the chat
+            # learns to say so instead of sitting silent (#2222).
+            on_wait=on_wait,
+            client=_sandboxd_http(),
         )
 
     async def _row(
@@ -680,7 +873,9 @@ class SandboxWorkspaceService:
         return await workspace_repo.create(
             self.db,
             organization_id=identity.organization_id,
-            agent_id=identity.agent_id,
+            # A project's container is every agent's in it and no one agent's.
+            agent_id=None if scope == "project" else identity.agent_id,
+            project_id=identity.project_id if scope == "project" else None,
             conversation_id=(identity.conversation_id if scope == "conversation" else None),
             owner_ref=identity.user_id if scope == "user" else None,
             scope=scope,
@@ -688,6 +883,70 @@ class SandboxWorkspaceService:
             backend=config.backend,
             connection_id=connection_id,
         )
+
+    async def open_project(self, ctx: AuthContext, project: Project) -> OpenWorkspace:
+        """A project's container, opened outside any run - to add or remove files.
+
+        The caller has already decided the caller may work in the project. The
+        same key a run in the project opens, so a file put here is the file the
+        agent finds, and `close` must follow as it does after a run.
+        """
+        return await self._open_config(
+            project_sandbox(project),
+            ctx=ctx,
+            identity=WorkspaceIdentity(
+                organization_id=ctx.organization_id,
+                agent_id=None,
+                run_id=None,
+                project_id=project.id,
+            ),
+            scope="project",
+        )
+
+    async def project_files(
+        self, ctx: AuthContext, project: Project
+    ) -> tuple[AgentWorkspace, WorkspaceContents] | None:
+        """What a project's container holds, read off the host without starting it.
+
+        `None` before anything has been put in it. The caller has already decided
+        the caller may see the project.
+        """
+        row = await workspace_repo.get_for_project(
+            self.db, organization_id=ctx.organization_id, project_id=project.id
+        )
+        if row is None:
+            return None
+        return row, await self._tiled(ctx, row)
+
+    async def project_bytes(self, ctx: AuthContext, project: Project, *, path: str) -> bytes:
+        """One file of a project's container, as bytes.
+
+        Raises:
+            NotFoundError: If the project holds no files, or no such file.
+            BadRequestError: If the host cannot be read.
+        """
+        row = await workspace_repo.get_for_project(
+            self.db, organization_id=ctx.organization_id, project_id=project.id
+        )
+        if row is None:
+            raise NotFoundError(
+                message="This project holds no files", details={"project_id": str(project.id)}
+            )
+        return await self._bytes_from(ctx, row, await self._browsable(ctx, row), path)
+
+    async def purge_project(self, ctx: AuthContext, project: Project) -> None:
+        """Remove every container a project has had from its host, before the project goes.
+
+        Every one, not the latest: a project moved to another sandbox connection
+        left a container on the first, and the rows naming them go with the
+        project - after which nothing would know to delete that one.
+        """
+        rows = await workspace_repo.list_for_project(
+            self.db, organization_id=ctx.organization_id, project_id=project.id
+        )
+        for row in rows:
+            if row.backend != "state":
+                await self._purge_remote(ctx, row)
 
     async def close(self, workspace: OpenWorkspace | None, *, keep_spills: bool = False) -> None:
         """Persist or release what the run was using.
@@ -720,30 +979,47 @@ class SandboxWorkspaceService:
             logger.exception("workspace_close_failed", extra={"scope_key": workspace.scope_key})
 
     async def _flush_state(self, workspace: OpenWorkspace, *, keep_spills: bool) -> None:
-        # `populate_existing`, so this is a read of what is *committed* rather than
-        # of what this session loaded at `open`. Without it the identity map answers
-        # with the row as it was, and a flush by another run - another person under
-        # `agent` scope, the same person on a second surface - is invisible by
-        # construction. One SELECT per finish is what the detection below costs.
-        row = (
-            None
-            if workspace.row_id is None
-            else await self.db.get(AgentWorkspace, workspace.row_id, populate_existing=True)
-        )
-        if row is None:
-            # The conversation was deleted while the run was in flight. The files
-            # belonged to it, so there is nothing to keep.
-            return
         document = workspace.document
         if document is None:  # pragma: no cover - `open` sets one on every `state` workspace
             raise RuntimeError("A state workspace was opened without its document")
-        self._warn_if_overtaken(workspace, row, document.files)
 
         def dropped(path: str) -> bool:
             return _is_legacy_skill(path) or (not keep_spills and _is_spill(path))
 
         files = {path: data for path, data in document.files.items() if not dropped(path)}
         directories = sorted(path for path in document.directories if not dropped(path))
+        if (
+            workspace.row_id is not None
+            and _same_contents(files, workspace.opened_files)
+            and directories == sorted(workspace.opened_directories)
+        ):
+            # Most turns change nothing. Storing the document anyway rewrote the
+            # whole column - and its WAL - on every message, at whatever size the
+            # workspace had reached, and bumped the version so a concurrent run
+            # merged against a change that was not there.
+            await workspace_repo.mark_used(self.db, workspace_id=workspace.row_id)
+            return
+        # `populate_existing`, so this is a read of what is *committed* rather than
+        # of what this session loaded at `open`. Without it the identity map answers
+        # with the row as it was, and a flush by another run - another person under
+        # `agent` scope, the same person on a second surface - is invisible by
+        # construction. Locked from this read to the commit: two flushes that both
+        # read the same version before either wrote would each skip the merge,
+        # and the later write would erase the earlier. Locked, the second waits,
+        # reads the first's version and merges onto it.
+        row = (
+            None
+            if workspace.row_id is None
+            else await self.db.get(
+                AgentWorkspace, workspace.row_id, populate_existing=True, with_for_update=True
+            )
+        )
+        if row is None:
+            # The conversation was deleted while the run was in flight. The files
+            # belonged to it, so there is nothing to keep.
+            return
+        if workspace.opened_version is not None and row.version != workspace.opened_version:
+            files, directories = self._merged(workspace, row, files, directories)
         await workspace_repo.save_files(
             self.db,
             workspace=row,
@@ -753,33 +1029,54 @@ class SandboxWorkspaceService:
         )
 
     @staticmethod
-    def _warn_if_overtaken(
-        workspace: OpenWorkspace, row: AgentWorkspace, files: dict[str, FileData]
-    ) -> None:
-        """Say so when this flush is about to overwrite somebody else's.
+    def _merged(
+        workspace: OpenWorkspace,
+        row: AgentWorkspace,
+        files: dict[str, FileData],
+        directories: list[str],
+    ) -> tuple[dict[str, FileData], list[str]]:
+        """This run's changes laid over what somebody else stored since it opened.
 
-        The write still happens - see `save_files` for why refusing it would lose
-        the finished turn's work to protect a turn that already finished - so this
-        is the whole of the mechanism, and without it the overwrite was silent.
+        Two runs holding one workspace - a project's teammates, every user of an
+        `agent`-scoped one - each load the document and store it at the end, and
+        storing it whole let the second erase whatever the first had written in
+        between. So only what this run changed from the document it loaded is
+        applied, path by path, over the stored one: a file it wrote or removed
+        is its, and everything else stays as the other run left it.
 
-        The paths it lost are named rather than counted. "A file went missing" is
-        the report that arrives, and the only thing that makes it actionable is
-        knowing which file and which two workspaces.
+        A path both runs changed takes this run's version, the later one, and is
+        logged by name - "a file went missing" is the report that arrives, and
+        only the path and the two versions make it actionable.
         """
-        opened = workspace.opened_version
-        if opened is None or row.version == opened:
-            return
-        overwritten = sorted(set(row.files or {}) - set(files))
-        logger.warning(
-            "workspace_flush_overtaken",
-            extra={
-                "scope_key": workspace.scope_key,
-                "scope": workspace.scope,
-                "opened_version": opened,
-                "found_version": row.version,
-                "paths_lost": overwritten,
-            },
+        base, theirs = workspace.opened_files, dict(row.files or {})
+        merged = dict(theirs)
+        conflicts: list[str] = []
+        for path in set(base) | set(files):
+            mine = files.get(path)
+            if mine == base.get(path):
+                continue
+            if theirs.get(path) != base.get(path) and theirs.get(path) != mine:
+                conflicts.append(path)
+            if mine is None:
+                merged.pop(path, None)
+            else:
+                merged[path] = mine
+        base_dirs, mine_dirs = set(workspace.opened_directories), set(directories)
+        merged_dirs = (set(row.directories or ()) | (mine_dirs - base_dirs)) - (
+            base_dirs - mine_dirs
         )
+        if conflicts:
+            logger.warning(
+                "workspace_flush_conflict",
+                extra={
+                    "scope_key": workspace.scope_key,
+                    "scope": workspace.scope,
+                    "opened_version": workspace.opened_version,
+                    "found_version": row.version,
+                    "paths_overwritten": sorted(conflicts),
+                },
+            )
+        return merged, sorted(merged_dirs)
 
     async def _settle_session(self, workspace: OpenWorkspace) -> bool:
         """Record which session this workspace is now, and whether it was lost.
@@ -909,7 +1206,7 @@ class SandboxWorkspaceService:
         return len(rows)
 
     async def _purge_remote(self, ctx: AuthContext, row: AgentWorkspace) -> None:
-        """Delete the sandbox behind a workspace whose conversation is going.
+        """Delete the sandbox behind a workspace whose conversation or project is going.
 
         Both kinds are reached, and the cloud one matters more. A container has
         `sandboxd`'s TTL behind it, so failing here costs a host some disk until
@@ -917,24 +1214,47 @@ class SandboxWorkspaceService:
         only thing that knows the conversation is gone, and the organization pays
         for the sandbox until somebody deletes it. This used to return early for
         anything that was not Docker, so that was never.
+
+        The sandbox is destroyed once the deletion has committed, never before:
+        a rollback after the destroy would restore rows naming files that no
+        longer exist. Its connection is resolved now, while the transaction can
+        still read the vault, and only the call is deferred.
+
+        A tombstone goes into the same transaction (#2209). The rows naming the
+        sandbox are deleted with it, so a destroy that fails - the provider
+        down, the worker restarted between the commit and the call - used to
+        leave nothing that knew the sandbox existed. The destroy removes the
+        tombstone; `retry_pending_destroys` retries whatever is left.
         """
         if row.connection_id is None:
             return
 
+        ref_id = row.session_id or row.scope_key
+        pending = await pending_destroy_repo.add(
+            self.db,
+            organization_id=row.organization_id,
+            connection_id=row.connection_id,
+            ref_id=ref_id,
+            scope_key=row.scope_key,
+        )
         try:
-            resolved = await self._connection(ctx, row.connection_id)
+            resolved = await self.connections.resolve_for_teardown(ctx, row.connection_id)
             sandbox = self._service_capability(resolved, row.scope_key)
-            # By the name it was opened under; attach-only, so a session already
-            # gone is fine rather than one opened just to delete it.
-            await sandbox.destroy(
-                WorkspaceRef(provider=_provider(sandbox), id=row.session_id or row.scope_key)
-            )
         except Exception:
             # A service that is down must not stop a user deleting their chat.
-            # The workspace TTL is the net under exactly this.
+            # The tombstone is committed with the deletion, and the sweep retries.
             logger.warning(
                 "workspace_purge_failed", extra={"scope_key": row.scope_key}, exc_info=True
             )
+            return
+        # By the name it was opened under; attach-only, so a session already
+        # gone is fine rather than one opened just to delete it.
+        ref = WorkspaceRef(provider=_provider(sandbox), id=ref_id)
+        spawn_after_commit(
+            self.db,
+            _destroy_and_forget(sandbox, ref, row.scope_key, pending.id),
+            name="workspace-purge",
+        )
 
     async def visible_to(self, ctx: AuthContext) -> list[WorkspaceOverview]:
         """The workspaces this caller may see, with what a table needs beside each.
@@ -965,7 +1285,9 @@ class SandboxWorkspaceService:
         if not rows:
             return []
         agents = await agent_repo.get_many(
-            self.db, [row.agent_id for row in rows], organization_id=ctx.organization_id
+            self.db,
+            [row.agent_id for row in rows if row.agent_id is not None],
+            organization_id=ctx.organization_id,
         )
         titles = await conversation_repo.titles_for(
             self.db,
@@ -976,7 +1298,11 @@ class SandboxWorkspaceService:
         # conversation-scoped workspace has exactly one by construction, and
         # counting it would be a query answering a question nobody asked.
         owners = await self._owner_names(rows, organization_id=ctx.organization_id)
-        shared = {row.agent_id for row in rows if row.scope in ("agent", "channel")}
+        shared = {
+            row.agent_id
+            for row in rows
+            if row.scope in ("agent", "channel") and row.agent_id is not None
+        }
         counts = (
             await conversation_repo.count_by_agent(
                 self.db, list(shared), organization_id=ctx.organization_id
@@ -984,39 +1310,34 @@ class SandboxWorkspaceService:
             if shared
             else {}
         )
-        return [
-            WorkspaceOverview(
-                row=row,
-                agent_name=(
-                    agents[row.agent_id].name if row.agent_id in agents else "a deleted agent"
-                ),
-                agent_slug=(agents[row.agent_id].slug if row.agent_id in agents else ""),
-                agent_has_avatar=(
-                    agents[row.agent_id].has_avatar if row.agent_id in agents else False
-                ),
-                conversation_title=(
-                    None
-                    if row.conversation_id is None
-                    else (head.title if (head := titles.get(row.conversation_id)) else None)
-                ),
-                conversation_is_callers=(
-                    row.conversation_id is not None
-                    and (owner := titles.get(row.conversation_id)) is not None
-                    and owner.user_id is not None
-                    and owner.user_id == ctx.user_id
-                ),
-                conversations=(
-                    1
-                    if row.conversation_id is not None
-                    else counts.get(row.agent_id, 0)
-                    if row.scope in ("agent", "channel")
-                    else 0
-                ),
-                access_label=access_label(row),
-                owner_name=owners.get(row.id),
+        overviews: list[WorkspaceOverview] = []
+        for row in rows:
+            agent = agents.get(row.agent_id) if row.agent_id is not None else None
+            head = titles.get(row.conversation_id) if row.conversation_id is not None else None
+            overviews.append(
+                WorkspaceOverview(
+                    row=row,
+                    agent_name=agent.name if agent is not None else "a deleted agent",
+                    agent_slug=agent.slug if agent is not None else "",
+                    agent_has_avatar=agent.has_avatar if agent is not None else False,
+                    conversation_title=head.title if head is not None else None,
+                    conversation_is_callers=(
+                        head is not None
+                        and head.user_id is not None
+                        and head.user_id == ctx.user_id
+                    ),
+                    conversations=(
+                        1
+                        if row.conversation_id is not None
+                        else counts.get(row.agent_id, 0)
+                        if row.scope in ("agent", "channel") and row.agent_id is not None
+                        else 0
+                    ),
+                    access_label=access_label(row),
+                    owner_name=owners.get(row.id),
+                )
             )
-            for row in rows
-        ]
+        return overviews
 
     async def _owner_names(
         self, rows: list[AgentWorkspace], *, organization_id: UUID
@@ -1127,6 +1448,10 @@ class SandboxWorkspaceService:
         readable, and `unreadable` is what stops the shorter list reading as fewer
         files.
         """
+        async with self._sharing_archives():
+            return await self._flat_files(ctx, limit=limit)
+
+    async def _flat_files(self, ctx: AuthContext, *, limit: int) -> FlatFileListing:
         overviews = await self.visible_to(ctx)
         files: list[FlatEntry] = []
         # A budget across the whole request, not per workspace: a host's thumbnail
@@ -1185,7 +1510,74 @@ class SandboxWorkspaceService:
         anything. A host that will not answer still comes back as
         `unreadable_reason`, never as a raise, so one of them cannot fail the rest.
         """
-        return await _concurrently([partial(self._entries, ctx, row) for row in rows])
+        # `list_for_reader` leaves the stored files out; these are the ones read.
+        await workspace_repo.load_files(self.db, rows)
+        hosted: dict[UUID, list[int]] = {}
+        answers: dict[int, WorkspaceContents] = {}
+        for index, row in enumerate(rows):
+            if row.backend == "state" or row.connection_id is None:
+                answers[index] = await self._entries(ctx, row)
+            else:
+                hosted.setdefault(row.connection_id, []).append(index)
+        # One `trees` request per host, where each workspace used to be a
+        # connection and a request of its own - eighteen for one Documents page
+        # on production, p50 2.3 s (#2248).
+        batches = [
+            indexes[start : start + MAX_TREES]
+            for indexes in hosted.values()
+            for start in range(0, len(indexes), MAX_TREES)
+        ]
+        listed = await _concurrently(
+            [partial(self._host_trees, ctx, [rows[i] for i in batch]) for batch in batches]
+        )
+        for batch, contents in zip(batches, listed, strict=True):
+            answers.update(zip(batch, contents, strict=True))
+        return [answers[index] for index in range(len(rows))]
+
+    async def _host_trees(
+        self, ctx: AuthContext, rows: list[AgentWorkspace]
+    ) -> list[WorkspaceContents]:
+        """What each of several workspaces on one host holds, in one request to it.
+
+        A host that cannot be asked at all makes every one of them unreadable,
+        for the reason it gave; a workspace the host could not list is that
+        workspace's own `unreadable_reason`, the rest still listed.
+        """
+        sessions = [row.session_id or row.scope_key for row in rows]
+        try:
+            async with self._archive(ctx, rows[0], timeout=_BROWSE_TIMEOUT_SECONDS) as archive:
+                if archive is None:
+                    return [WorkspaceContents(entries=[]) for _ in rows]
+                trees = await _on_host_thread(
+                    partial(
+                        archive.trees,
+                        sessions,
+                        ".",
+                        max_depth=_MAX_LISTED_DEPTH,
+                        max_entries=_MAX_LISTED_ENTRIES,
+                    )
+                )
+        except Exception as exc:
+            logger.warning(
+                "workspace_listing_failed",
+                extra={"connection_id": str(rows[0].connection_id)},
+                exc_info=True,
+            )
+            reason = _reason(exc)
+            return [WorkspaceContents(entries=[], unreadable_reason=reason) for _ in rows]
+        contents: list[WorkspaceContents] = []
+        for session in sessions:
+            tree = trees[session]
+            if isinstance(tree, Exception):
+                contents.append(WorkspaceContents(entries=[], unreadable_reason=_reason(tree)))
+                continue
+            if tree.truncated:
+                logger.warning(
+                    "workspace_listing_truncated",
+                    extra={"session": session, "listed": len(tree.entries)},
+                )
+            contents.append(WorkspaceContents(entries=list(tree.entries), truncated=tree.truncated))
+        return contents
 
     async def _host_thumbnails(
         self, ctx: AuthContext, row: AgentWorkspace, paths: list[str]
@@ -1254,11 +1646,10 @@ class SandboxWorkspaceService:
     async def _conversation_workspace(
         self, ctx: AuthContext, conversation_id: UUID
     ) -> AgentWorkspace | None:
-        """The workspace a conversation keeps, if it keeps one - see :meth:`listing`."""
-        rows = await workspace_repo.list_for_conversation(
+        """The workspace a conversation works in, if any - see :meth:`listing`."""
+        return await workspace_repo.kept_for_conversation(
             self.db, organization_id=ctx.organization_id, conversation_id=conversation_id
         )
-        return rows[0] if rows else None
 
     async def _browsable(self, ctx: AuthContext, row: AgentWorkspace) -> WorkspaceContents:
         """A workspace's browsable entries, without tiles.
@@ -1326,7 +1717,13 @@ class SandboxWorkspaceService:
         that serves it by id is not access control. The query is reused rather than
         reimplemented for exactly that reason: two copies of "who can see this"
         disagree eventually, and the one that is wrong is the one nobody reads.
+
+        Never a project's, whoever asks: it is read through the project, whose
+        sharing decides who may - `connections:manage` included, since the
+        listing leaves it out for them too.
         """
+        if row.project_id is not None:
+            return False
         if self._sees_every_workspace(ctx):
             return True
         visible = await workspace_repo.list_for_reader(
@@ -1482,17 +1879,16 @@ class SandboxWorkspaceService:
 
         **The archive's `ls` lists one directory.** It was called once, on the root,
         so a workspace whose files are all under `uploads/` reported a single
-        directory entry and nothing else - the folder opened empty in the browser,
-        the file count read zero, and the only place the files appeared was the flat
-        view of a *stored* workspace, where the paths come out of a JSONB column
-        whole.
+        directory entry and nothing else. Walking it with `ls` fixed that at a round
+        trip per directory; `tree` is the same walk done by the service, on its own
+        disk, in one request.
 
-        A directory costs a round trip, so the walk is bounded twice over: by depth,
-        because a workspace three deep is the shape this product produces, and by
-        entries, because a host holding a `node_modules` must not turn a listing into
-        ten thousand of them. `glob` would be one call rather than several, and it is
-        not available here: it needs a running session, and browsing deliberately
-        never starts one.
+        Bounded twice over: by depth, because a workspace three deep is the shape
+        this product produces, and by entries, because a host holding a
+        `node_modules` must not turn a listing into ten thousand of them. A
+        directory below the root that cannot be read is left out and marks the
+        listing truncated; the root's failure is the host's and belongs to the
+        caller, which turns it into `unreadable_reason`.
 
         Off the loop, because `WorkspaceArchive` is a synchronous `httpx.Client`:
         `flat_files` runs this for up to 25 workspaces in one request, so a blocking
@@ -1501,43 +1897,25 @@ class SandboxWorkspaceService:
         take the default executor's threads; see there.
 
         Returns:
-            What was found, and whether either bound stopped it - because a
-            listing that is shorter than the workspace and does not say so is one
-            a person reads as complete.
+            What was found, and whether a bound or an unreadable directory left
+            something out - because a listing that is shorter than the workspace
+            and does not say so is one a person reads as complete.
         """
-        found: list[FileInfo] = []
-        truncated = False
-        queue: list[tuple[str, int]] = [(".", 0)]
-        while queue:
-            path, depth = queue.pop(0)
-            try:
-                entries = await _on_host_thread(archive.ls, session, path)
-            except Exception:
-                # The root's failure is the host's and belongs to the caller, which
-                # turns it into `unreadable_reason`. One directory below it refusing
-                # is not: dropping the whole listing for a subdirectory the agent
-                # made unreadable would report a workspace nobody can read.
-                if depth == 0:
-                    raise
-                logger.warning("workspace_listing_subtree_unreadable", extra={"path": path})
-                continue
-            for entry in entries:
-                found.append(entry)
-                if len(found) >= _MAX_LISTED_ENTRIES:
-                    logger.warning(
-                        "workspace_listing_truncated",
-                        extra={"session": session, "listed": len(found)},
-                    )
-                    return found, True
-                if not entry.get("is_dir"):
-                    continue
-                if depth + 1 < _MAX_LISTED_DEPTH:
-                    queue.append((str(entry.get("path")), depth + 1))
-                else:
-                    # A directory the walk will not open. It is in the listing as a
-                    # folder, so what is missing is everything under it.
-                    truncated = True
-        return found, truncated
+        tree = await _on_host_thread(
+            partial(
+                archive.tree,
+                session,
+                ".",
+                max_depth=_MAX_LISTED_DEPTH,
+                max_entries=_MAX_LISTED_ENTRIES,
+            )
+        )
+        if tree.truncated:
+            logger.warning(
+                "workspace_listing_truncated",
+                extra={"session": session, "listed": len(tree.entries)},
+            )
+        return list(tree.entries), tree.truncated
 
     async def _remote_entries(self, ctx: AuthContext, row: AgentWorkspace) -> WorkspaceContents:
         try:
@@ -1621,13 +1999,28 @@ class SandboxWorkspaceService:
         document = StateBackend(files=dict(row.files or {}), directories=row.directories or ())
         try:
             return document.read_bytes(path)
-        except (FileNotFoundError, IsADirectoryError, NotADirectoryError):
+        except FileNotFoundError, IsADirectoryError, NotADirectoryError:
             return None
+
+    @asynccontextmanager
+    async def _sharing_archives(self) -> AsyncGenerator[None]:
+        """Keep one archive - one HTTP pool - per host open until the block ends.
+
+        A page that lists many workspaces and draws their thumbnails built a
+        client, and so a connection, for every workspace and every image.
+        """
+        self._shared_archives = {}
+        try:
+            yield
+        finally:
+            archives, self._shared_archives = list(self._shared_archives.values()), None
+            for archive in archives:
+                await asyncio.to_thread(archive.close)
 
     @asynccontextmanager
     async def _archive(
         self, ctx: AuthContext, row: AgentWorkspace, *, timeout: float = DEFAULT_TIMEOUT_SECONDS
-    ) -> AsyncGenerator[Any | None, None]:
+    ) -> AsyncGenerator[Any | None]:
         """A reader for the host volume behind a container-backed workspace.
 
         `None` when the workspace has no connection left to ask - the host was
@@ -1650,6 +2043,15 @@ class SandboxWorkspaceService:
         resolved = await self._connection(ctx, row.connection_id)
         if resolved.kind != "docker" or not resolved.row.base_url:
             yield None
+            return
+        if self._shared_archives is not None:
+            shared = self._shared_archives.get(row.connection_id)
+            if shared is None:
+                shared = WorkspaceArchive(
+                    resolved.row.base_url, token=resolved.token, timeout=timeout
+                )
+                self._shared_archives[row.connection_id] = shared
+            yield shared
             return
         archive = WorkspaceArchive(resolved.row.base_url, token=resolved.token, timeout=timeout)
         try:
@@ -1679,6 +2081,91 @@ class SandboxWorkspaceService:
                 cached = await self.connections.resolve(ctx, connection_id)
                 self._connections_by_id[connection_id] = cached
             return cached
+
+
+RETRY_BATCH = 20
+"""Tombstones one sweep tick takes. Each is a call to a provider, held under a row lock."""
+
+RETRY_CAP = timedelta(hours=6)
+"""The longest pause between two attempts at one sandbox."""
+
+
+_RETRY_CAP_EXPONENT = 9
+"""2**9 minutes is past `RETRY_CAP` already, so no larger power is ever needed."""
+
+
+def next_destroy_attempt(attempts: int, now: datetime) -> datetime:
+    """When to try a sandbox again after `attempts` failures: 2, 4, 8 minutes, up to six hours.
+
+    The exponent is capped before the `timedelta` is built (#2250): from about
+    41 attempts `timedelta(minutes=2**attempts)` overflows, the row was never
+    postponed, and as the oldest due row it aborted the sweep every minute for
+    every tenant behind it.
+    """
+    exponent = min(attempts, _RETRY_CAP_EXPONENT)
+    return now + min(timedelta(minutes=2**exponent), RETRY_CAP)
+
+
+async def retry_pending_destroys() -> int:
+    """Destroy the remote sandboxes a deletion could not, and forget each that goes (#2209).
+
+    A sweep tick, run in the worker's process. Each tombstone is retried as the
+    organization it belongs to, with no person behind it: resolving a
+    connection reads that organization's vault and nothing else. A failure is
+    logged and postponed rather than raised, so one provider that is down does
+    not hold back another's sandboxes. Nothing gives up: a sandbox that still
+    exists is still costing somebody. A connection switched off is still
+    resolved for this, and one holding tombstones cannot be deleted.
+
+    Returns:
+        How many sandboxes this tick destroyed.
+    """
+    now = datetime.now(UTC)
+    destroyed = 0
+    async with get_db_context() as db:
+        service = SandboxWorkspaceService(db)
+        for pending in await pending_destroy_repo.claim_due(db, now=now, limit=RETRY_BATCH):
+            ctx = AuthContext(user_id=None, organization_id=pending.organization_id, role="")
+            try:
+                resolved = await service.connections.resolve_for_teardown(
+                    ctx, pending.connection_id
+                )
+                sandbox = service._service_capability(resolved, pending.scope_key)
+                await sandbox.destroy(WorkspaceRef(provider=_provider(sandbox), id=pending.ref_id))
+            except Exception:
+                attempts = pending.attempts + 1
+                logger.warning(
+                    "workspace_purge_retry_failed",
+                    extra={"scope_key": pending.scope_key, "attempts": attempts},
+                    exc_info=True,
+                )
+                await pending_destroy_repo.postpone(
+                    db, pending.id, attempts=attempts, until=next_destroy_attempt(attempts, now)
+                )
+                continue
+            await pending_destroy_repo.remove(db, pending.id)
+            destroyed += 1
+    return destroyed
+
+
+async def _destroy_and_forget(
+    sandbox: SandboxdWorkspace | DaytonaWorkspace,
+    ref: WorkspaceRef,
+    scope_key: str,
+    pending_id: UUID,
+) -> None:
+    """Destroy a sandbox whose rows are gone, and drop its tombstone once it is.
+
+    A host that is down is logged, not raised: the tombstone stays, and the
+    sweep tries again.
+    """
+    try:
+        await sandbox.destroy(ref)
+    except Exception:
+        logger.warning("workspace_purge_failed", extra={"scope_key": scope_key}, exc_info=True)
+        return
+    async with get_db_context() as db:
+        await pending_destroy_repo.remove(db, pending_id)
 
 
 def _absent(row: AgentWorkspace, contents: WorkspaceContents, path: str) -> bool:
@@ -1815,7 +2302,7 @@ def stored_thumbnail(path: str, data: FileData | None) -> str | None:
     content = data.get("content") or []
     try:
         raw = base64.b64decode("".join(str(line) for line in content), validate=True)
-    except (BinasciiError, ValueError):
+    except BinasciiError, ValueError:
         logger.warning("workspace_thumbnail_undecodable", extra={"path": path})
         return None
     return thumbnail_of(path, raw)
@@ -1920,6 +2407,8 @@ def access_label(row: AgentWorkspace) -> str:
         return "Everybody who talks to this agent"
     if row.scope == "channel":
         return "Everybody in that chat"
+    if row.scope == "project":
+        return "Everybody the project is shared with"
     return "Nobody - it is deleted when the run ends"
 
 
@@ -1936,4 +2425,6 @@ def owner_label(row: AgentWorkspace) -> str:
         return "Your files for this agent"
     if row.scope == "agent":
         return "Shared by everyone who uses this agent"
+    if row.scope == "project":
+        return "This project, shared by every chat in it"
     return "This run only"

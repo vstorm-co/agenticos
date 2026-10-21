@@ -112,6 +112,8 @@ class RunSurface(enum.StrEnum):
     SLACK = "slack"
     TELEGRAM = "telegram"
     MATTERMOST = "mattermost"
+    # Another system's agent sent it a task over A2A (#2092).
+    A2A = "a2a"
     # A run nobody typed into: the agent-triggers heartbeat fired it on a
     # schedule. The one member here assigned by a machine rather than a surface a
     # person reached the agent through (agenticos#44).

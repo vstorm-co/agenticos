@@ -1,7 +1,5 @@
 """Variables in an agent's instructions (#2065)."""
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 

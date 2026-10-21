@@ -19,12 +19,11 @@ copies of the same narrowing is exactly how a count comes to disagree with the
 rows under it, which is why the predicates are built once and both take them.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy import inspect as sa_inspect
 
 from app.agents.spec import AgentSpec
 from app.db.models.agent import Agent
@@ -319,3 +318,34 @@ async def test_conversations_opened_over_the_api_can_be_left_out(db) -> None:
     assert {c.title for c in every} == {"console", "script"}
     assert [c.title for c in without] == ["console"]
     assert counted == 1
+
+
+class TestWhatAListingReads:
+    async def test_a_listed_row_carries_none_of_the_runs_working_state(self, db) -> None:
+        """A sidebar reads thirty rows on every refresh; a summary can be 500 KB (#2219).
+
+        Fresh from the database, not the instance this session added, so the
+        columns the listing leaves out are really left out.
+        """
+        organization = await _org(db)
+        owner = await _user(db)
+        db.add(
+            Conversation(
+                id=uuid.uuid4(),
+                organization_id=organization.id,
+                user_id=owner.id,
+                title="long thread",
+                summary_messages=[{"role": "user", "content": "x" * 10_000}],
+                plan_items=[{"title": "step"}],
+            )
+        )
+        await db.flush()
+        db.expunge_all()
+
+        rows = await conversation_repo.get_conversations_by_user(
+            db, owner.id, organization_id=organization.id
+        )
+
+        assert [row.title for row in rows] == ["long thread"]
+        unloaded = sa_inspect(rows[0]).unloaded
+        assert {"summary_messages", "plan_items", "reminder_state"} <= unloaded

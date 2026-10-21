@@ -1,8 +1,6 @@
 """Call rows (#54). Writes flush, never commit; every reader is tenant-scoped
 except :func:`list_unhung` and :func:`claim_unhung`, which belong to the reaper."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal

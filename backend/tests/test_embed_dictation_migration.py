@@ -1,4 +1,4 @@
-"""Migration `0141_embed_dictation`: `allow_voice` rewritten as `dictation`, and back.
+"""Migration `0153_embed_dictation`: `allow_voice` rewritten as `dictation`, and back.
 
 The rewrite lives only in the migration's SQL, and a mistake in it fails
 silently: the config schema ignores unknown keys, so a page whose row kept
@@ -7,8 +7,6 @@ here against real PostgreSQL JSONB - on a scratch database holding only the one
 table they touch, which is all `upgrade()` and `downgrade()` read - rather than
 being trusted to match the `mode="before"` validator they mirror.
 """
-
-from __future__ import annotations
 
 import importlib.util
 import json
@@ -25,7 +23,7 @@ from sqlalchemy import Engine, create_engine, text
 from app.core.config import settings
 
 SCRATCH_DATABASE = f"agenticos_embed_dictation_test_p{os.getpid()}"
-_MIGRATION = Path(__file__).parents[1] / "alembic" / "versions" / "0141_embed_dictation.py"
+_MIGRATION = Path(__file__).parents[1] / "alembic" / "versions" / "0153_embed_dictation.py"
 
 
 def _url(database: str) -> str:

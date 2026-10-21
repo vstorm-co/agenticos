@@ -1,7 +1,5 @@
 """A call's text twin: the `hand_off` tool and what it runs (#54)."""
 
-from __future__ import annotations
-
 import json
 from decimal import Decimal
 from types import SimpleNamespace

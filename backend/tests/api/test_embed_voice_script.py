@@ -5,8 +5,6 @@ is the HTTP shape - a script with both placeholders filled, or a 404 a `<script>
 tag can swallow.
 """
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 

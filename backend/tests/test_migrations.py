@@ -25,8 +25,6 @@ read identically in pytest's output, and only one of them is acceptable on a
 runner; `_demand_a_server` below is where they are told apart.
 """
 
-from __future__ import annotations
-
 import os
 import subprocess
 import sys
@@ -217,7 +215,7 @@ class TestMigrations:
 
 
 class TestBotTranscriptionSwitch:
-    """`0139_bot_transcription_switch.py`: no bot starts transcribing on upgrade.
+    """`0151_bot_transcription_switch.py`: no bot starts transcribing on upgrade.
 
     A bot with no pair used to be a bot that did not transcribe, and a new bot
     with no pair inherits one. The backfill is what keeps the first from turning
@@ -227,7 +225,7 @@ class TestBotTranscriptionSwitch:
 
     def test_a_pairless_bot_is_switched_off_and_a_paired_one_keeps_its_pair(self):
         assert _alembic("downgrade", "base").returncode == 0
-        up = _alembic("upgrade", "0138_org_speech_settings")
+        up = _alembic("upgrade", "0150_org_speech_settings")
         assert up.returncode == 0, up.stderr
 
         org = "00000000-0000-0000-0000-0000000000a1"
@@ -261,7 +259,7 @@ class TestBotTranscriptionSwitch:
                         {"id": bot_id, "org": org, "provider": provider, "model": model},
                     )
 
-            up = _alembic("upgrade", "0139_bot_transcription_switch")
+            up = _alembic("upgrade", "0151_bot_transcription_switch")
             assert up.returncode == 0, up.stderr
 
             with engine.connect() as connection:
@@ -282,7 +280,7 @@ class TestBotTranscriptionSwitch:
         # Half a pair could not transcribe either, and the CHECK now refuses one.
         assert rows[bots["half"][0]] == (False, None, None)
 
-        down = _alembic("downgrade", "0138_org_speech_settings")
+        down = _alembic("downgrade", "0150_org_speech_settings")
         assert down.returncode == 0, down.stderr
 
     def test_a_paired_bot_is_given_the_key_its_profile_lookup_would_have_found(self):
@@ -292,7 +290,7 @@ class TestBotTranscriptionSwitch:
         organization-visible API key for that provider. Anything else leaves
         the key null, which the form shows as "choose a key"."""
         assert _alembic("downgrade", "base").returncode == 0
-        up = _alembic("upgrade", "0138_org_speech_settings")
+        up = _alembic("upgrade", "0150_org_speech_settings")
         assert up.returncode == 0, up.stderr
 
         org, other_org = (
@@ -385,7 +383,7 @@ class TestBotTranscriptionSwitch:
                         {"id": bot_id, "org": org_id, "provider": provider, "model": model},
                     )
 
-            up = _alembic("upgrade", "0139_bot_transcription_switch")
+            up = _alembic("upgrade", "0151_bot_transcription_switch")
             assert up.returncode == 0, up.stderr
 
             with engine.connect() as connection:
@@ -409,5 +407,5 @@ class TestBotTranscriptionSwitch:
         assert keys[bots["elsewhere"][0]] is None
         assert keys[bots["pairless"][0]] is None
 
-        down = _alembic("downgrade", "0138_org_speech_settings")
+        down = _alembic("downgrade", "0150_org_speech_settings")
         assert down.returncode == 0, down.stderr

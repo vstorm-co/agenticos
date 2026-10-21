@@ -1,7 +1,5 @@
 """Guardrails over a call's transcripts: detect, interrupt, log (#54)."""
 
-from __future__ import annotations
-
 from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.services.voice.guard import WITHHELD, TranscriptGuard
 

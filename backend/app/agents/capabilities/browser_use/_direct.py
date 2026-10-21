@@ -13,8 +13,6 @@ direct call opened, so a turn that clicks ten times draws one panel that grows
 rather than ten panels of one step each.
 """
 
-from __future__ import annotations
-
 from contextlib import nullcontext
 from dataclasses import dataclass
 

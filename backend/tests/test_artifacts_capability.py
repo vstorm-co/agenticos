@@ -6,8 +6,6 @@ owner - comes off `ctx.deps`, and the assertions below are on what reaches
 last attempt); a run with nothing to publish under is told so as a result.
 """
 
-from __future__ import annotations
-
 import json
 import uuid
 from typing import Any

@@ -1,7 +1,5 @@
 """Telegram that feels native: formatting, topics, typing and the command menu (#2068)."""
 
-from __future__ import annotations
-
 import contextlib
 import uuid
 from typing import Any

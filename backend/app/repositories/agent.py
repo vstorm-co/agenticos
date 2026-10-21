@@ -18,6 +18,7 @@ from sqlalchemy.sql.elements import ColumnElement
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.agent_run import AgentRun, RunStatus
+from app.db.models.organization_assistant import OrganizationAssistant
 from app.db.models.resource_grant import Visibility
 
 
@@ -65,6 +66,28 @@ async def existing_ids_locked(
 async def get(db: AsyncSession, agent_id: UUID, *, organization_id: UUID) -> Agent | None:
     result = await db.execute(
         select(Agent).where(Agent.id == agent_id, Agent.organization_id == organization_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_served_over_a2a(db: AsyncSession, agent_id: UUID) -> Agent | None:
+    """A published agent its organization chose to serve over A2A, whatever the tenant.
+
+    The one cross-tenant read by id, because an agent card is fetched before any
+    caller is known. What it finds is only what the organization made discoverable -
+    and not an assistant it has switched off, which reads as no agent at all.
+    """
+    switched_off = select(OrganizationAssistant.agent_id).where(
+        OrganizationAssistant.agent_id == agent_id, OrganizationAssistant.enabled.is_(False)
+    )
+    result = await db.execute(
+        select(Agent).where(
+            Agent.id == agent_id,
+            Agent.a2a_enabled.is_(True),
+            Agent.status == AgentStatus.PUBLISHED.value,
+            Agent.current_version_id.is_not(None),
+            Agent.id.not_in(switched_off),
+        )
     )
     return result.scalar_one_or_none()
 

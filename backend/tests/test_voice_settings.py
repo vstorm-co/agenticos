@@ -1,7 +1,5 @@
 """Whether an agent can take a call, and on what (#54)."""
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4

@@ -1,5 +1,5 @@
 ---
-source_sha: "efe226528843"
+source_sha: "4fe91aa6f038"
 ---
 
 # Conceptos { #concepts }
@@ -526,6 +526,12 @@ dentro del spec de otro.
 Así que usa un especialista para trabajo que no debería exigir publicar un agent
 — "resume esto en tres viñetas" — y un delegado para una capacidad que la
 organización posee y reutiliza.
+
+Un tercer tipo está a su lado: un **agent remoto**, el agent de otro proveedor al
+que se llega por A2A y que se registra en la organización por su agent card. Se
+llama igual y se cobra contra el mismo budget, pero aquí no tiene versiones — su
+dueño lo cambia de su lado —, así que una referencia nombra el registro y no una
+versión. Ver [Agents remotos por A2A](reference/capabilities.md#remote-agents).
 
 #### Especialistas dinámicos, y la salida { #dynamic-specialists-and-the-way-out }
 

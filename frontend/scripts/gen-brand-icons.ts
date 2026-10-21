@@ -68,12 +68,16 @@ const SOURCES: Readonly<Partial<Record<IconSet, (slug: string) => string>>> = {
 interface Source {
   readonly set: IconSet;
   readonly slug: string;
+  /** Drawn in the colours the file carries, one per path, rather than in one. */
+  readonly coloured?: true;
 }
 
 const simple = (slug: string): Source => ({ set: "simple", slug });
 const lobehub = (slug: string): Source => ({ set: "lobehub", slug });
 const logos = (slug: string): Source => ({ set: "logos", slug });
 const thesvg = (slug: string): Source => ({ set: "thesvg", slug });
+/** A lobehub `-color` file: the mark in the brand's own colours, path by path. */
+const lobehubColour = (slug: string): Source => ({ set: "lobehub", slug, coloured: true });
 
 /**
  * Service and connector marks, keyed by the name the product uses.
@@ -101,6 +105,8 @@ const BRANDS: Readonly<Record<string, Source>> = {
   // lucide glyph at the call site instead.
   claude: logos("claude-icon"),
   claudecode: lobehub("claudecode"),
+  // The coding agent capability's harness value, the same mark by another key.
+  claude_code: lobehub("claudecode"),
   clerk: logos("clerk-icon"),
   clickup: logos("clickup-icon"),
   codex: lobehub("codex"),
@@ -216,6 +222,7 @@ const PROVIDERS: Readonly<Record<string, Source>> = {
   nebius: lobehub("nebius"),
   ollama: lobehub("ollama"),
   openai: lobehub("openai"),
+  openai_codex: lobehub("codex"),
   openrouter: lobehub("openrouter"),
   ovhcloud: simple("ovh"),
   sambanova: lobehub("sambanova"),
@@ -248,6 +255,7 @@ interface Glyph {
 const MANUAL_COLORS: Readonly<Record<string, string>> = {
   claude: "#D97757",
   claudecode: "#D97757",
+  claude_code: "#D97757",
   exa: "#1F40ED",
   alibaba: "#FF6A00",
   anthropic: "#D97757",
@@ -337,9 +345,10 @@ function stripAll(text: string, pattern: RegExp): string {
  * Deliberately narrow: a `viewBox`, an optional `fill-rule`, and paths. Anything
  * else in the file - a `<g>`, a `<circle>`, a gradient, a literal `fill` colour -
  * throws rather than being dropped, because a mark that silently loses a layer
- * still renders, still looks like a logo, and is the wrong logo.
+ * still renders, still looks like a logo, and is the wrong logo. A `coloured`
+ * source is the one exception to the last: its paths keep their hex colours.
  */
-function parseGlyph(name: string, svg: string): Glyph {
+function parseGlyph(name: string, svg: string, coloured = false): Glyph {
   // The title is dropped because a mark is decorative here - `BrandIcon` adds
   // `role="img"` and a label where a caller wants it announced. A comment is a
   // set's licence banner, which the generated file's header carries for every
@@ -361,11 +370,20 @@ function parseGlyph(name: string, svg: string): Glyph {
     const d = attr("d", tag[0]);
     if (d === undefined) throw new GlyphError(`${name}: a <path> has no d`);
     const fill = attr("fill", tag[0]);
-    if (fill !== undefined && fill !== "currentColor" && fill !== "none") {
+    const hex =
+      fill !== undefined && /^#[0-9A-Fa-f]{6}$/.test(fill) ? fill.toUpperCase() : undefined;
+    if (coloured && hex === undefined) {
+      throw new GlyphError(`${name}: a <path> of a coloured mark has no hex fill`);
+    }
+    if (!coloured && fill !== undefined && fill !== "currentColor" && fill !== "none") {
       throw new GlyphError(`${name}: a <path> is drawn in ${fill}, not currentColor`);
     }
     const opacity = attr("fill-opacity", tag[0]);
-    paths.push(opacity === undefined ? { d } : { d, fillOpacity: Number(opacity) });
+    paths.push({
+      d,
+      ...(opacity === undefined ? {} : { fillOpacity: Number(opacity) }),
+      ...(hex === undefined ? {} : { fill: hex }),
+    });
   }
   if (paths.length === 0) throw new GlyphError(`${name}: no <path> to draw`);
 
@@ -387,7 +405,8 @@ async function fetchGlyph(name: string, source: Source): Promise<Glyph> {
   const url = SOURCES[source.set]!(source.slug);
   const res = await fetch(url, { redirect: "follow" });
   if (!res.ok) throw new GlyphError(`${name}: ${url} answered ${res.status}`);
-  const glyph = parseGlyph(name, await res.text());
+  const glyph = parseGlyph(name, await res.text(), source.coloured);
+  if (source.coloured) return glyph;
   const color = colorFor(name, source);
   return color === undefined ? glyph : { ...glyph, color };
 }
@@ -674,13 +693,26 @@ console.log(
 // `BrandIcon` reads the 89-mark table by dynamic key, which no bundler can
 // tree-shake, so the auth pages get their own tiny module of the marks they
 // draw rather than shipping every mark on the sign-in critical path (#955).
-const authKeys = ["github", "google", "microsoft"] as const;
+//
+// A sign-in button is where a provider's guidelines ask for the full-colour
+// mark - Google's four-colour G, Microsoft's four squares - so those two are
+// fetched in colour here, while the catalogue keeps one colour per mark. GitHub
+// has no colour form; it stays the mark the catalogue draws.
+const AUTH_SOURCES: Readonly<Record<"github" | "google" | "microsoft", Source | null>> = {
+  github: null,
+  google: lobehubColour("google-color"),
+  microsoft: lobehubColour("microsoft-color"),
+};
+const authKeys = Object.keys(AUTH_SOURCES) as (keyof typeof AUTH_SOURCES)[];
 const authGlyphs = new Map(
-  authKeys.map((key) => {
-    const glyph = brands.get(key);
-    if (!glyph) throw new Error(`auth glyph missing from BRANDS: ${key}`);
-    return [key, glyph] as const;
-  }),
+  await Promise.all(
+    authKeys.map(async (key) => {
+      const source = AUTH_SOURCES[key];
+      const glyph = source === null ? brands.get(key) : await fetchGlyph(key, source);
+      if (!glyph) throw new Error(`auth glyph missing from BRANDS: ${key}`);
+      return [key, glyph] as const;
+    }),
+  ),
 );
 const authUnion = authKeys.map((name) => `  | ${JSON.stringify(name)}`).join("\n");
 const authBody =

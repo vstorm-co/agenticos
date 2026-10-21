@@ -5,8 +5,6 @@ The per-call `finally` is the guarantee; this is what makes a SIGTERM run those
 gone. The reaper is the net under both.
 """
 
-from __future__ import annotations
-
 import os
 import socket
 from typing import Protocol

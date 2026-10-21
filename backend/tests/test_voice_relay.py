@@ -3,8 +3,6 @@
 Fakes only: Gemini Live, xAI and Azure are not verified live.
 """
 
-from __future__ import annotations
-
 from unittest.mock import AsyncMock
 
 import pytest

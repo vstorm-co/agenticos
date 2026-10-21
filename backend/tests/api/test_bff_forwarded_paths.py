@@ -25,8 +25,6 @@ to the backend job in full - `frontend/src/app/api/**` is the one path both halv
 share, and it is exempted there for this test.
 """
 
-from __future__ import annotations
-
 import re
 from pathlib import Path
 

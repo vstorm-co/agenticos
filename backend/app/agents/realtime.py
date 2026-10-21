@@ -5,8 +5,6 @@ Azure takes the deployment name as its model and its endpoint and API version
 from the `azure_openai` secret. Gemini, xAI and Azure are not verified live.
 """
 
-from __future__ import annotations
-
 from typing import Literal
 
 from pydantic_ai.realtime import RealtimeModel, RealtimeModelSettings, ReconnectPolicy

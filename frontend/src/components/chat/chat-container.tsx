@@ -3,27 +3,33 @@
 import type { Mentionable } from "@/types/mention";
 import { useEffect, useLayoutEffect, useRef, useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import type { ChatMessageFile } from "@/types";
+import type { ChatMessageFile, ChatPerson } from "@/types";
 import type { PublishedModel } from "@/types/agents";
 import { useAgents, useChat, useConversationWorkspace, useModelProviders } from "@/hooks";
 import type { ChatTesting, SteerDraft } from "@/hooks/use-chat";
 import { AgentPicker } from "./agent-picker";
 import { ChatControls } from "./chat-controls";
 import { ChatEmptyState } from "./chat-empty-state";
+import { ChatRoomBar } from "./chat-room-bar";
+import { TypingIndicator } from "./typing-indicator";
+import { useProjectMentions } from "@/hooks/use-project-mentions";
 import type { PageComment } from "./browser-comment";
 import { ChatInput, type IncomingFiles } from "./chat-input";
 import { ComposerStatus } from "./composer-status";
+import { ProjectChip } from "./project-chip";
 import { UsageMeter } from "./usage-meter";
 import { WorkspaceFiles } from "./workspace-files";
 import { FilePreviewDialog } from "./file-preview-dialog";
 import type { Browse } from "@/lib/browse";
 import { LiveBrowsesProvider } from "./browser-card";
+import { ConversationVisualsProvider } from "./visual-panel";
 import { BrowserPanel } from "./browser-panel";
 import { SourcesPanel } from "./sources-panel";
 import { MessageList } from "./message-list";
 import { TurnRail } from "./turn-rail";
 import { DelegationPanels } from "./delegation-panel";
 import { CompactionNotice } from "./compaction-notice";
+import { SandboxPreparingNotice } from "./sandbox-preparing-notice";
 import { InterruptedNotice } from "./interrupted-notice";
 import { ConnectAccountPrompt } from "./connect-account-prompt";
 import { ConnectServicesCard } from "./connect-services-card";
@@ -180,7 +186,7 @@ export function ChatContainer({
     currentCost,
     isLoading: isConversationLoading,
   } = useConversationStore();
-  const { addMessage: addChatMessage } = useChatStore();
+  const { addMessage: addChatMessage, rereadMessages } = useChatStore();
   // The model override the picker holds, mirrored here because the context gauge
   // is a share of *its* window rather than of the agent's default.
   const [modelProfileId, setModelProfileId] = useState<string | null>(null);
@@ -238,13 +244,22 @@ export function ChatContainer({
     selectAgent(threadAgentId);
   }, [agentFixed, currentConversationId, threadAgentId, selectAgent]);
 
-  // The open conversation is read: when it is opened unread, and when an answer
-  // arrives while it is open and the next listing calls it unread.
-  const openIsUnread =
-    conversations.find((conversation) => conversation.id === currentConversationId)?.unread ===
-    true;
+  // The open conversation is read: once when it is opened, and again when an
+  // answer arrives while it is open and the next listing calls it unread. On
+  // opening whether or not it was unread, because a read is also who has seen
+  // it - a project chat lists its readers - and a teammate's chat is in nobody's
+  // list but its owner's, so it never reads as unread to anyone else.
+  const openConversation = conversations.find(
+    (conversation) => conversation.id === currentConversationId,
+  );
+  const meId = useAuthStore((state) => state.user?.id);
+  const openIsUnread = openConversation?.unread === true;
+  const readOnOpen = useRef<string | null>(null);
   useEffect(() => {
-    if (currentConversationId && openIsUnread) void markRead(currentConversationId);
+    if (!currentConversationId) return;
+    if (!openIsUnread && readOnOpen.current === currentConversationId) return;
+    readOnOpen.current = currentConversationId;
+    void markRead(currentConversationId);
   }, [currentConversationId, openIsUnread, markRead]);
 
   const handleConversationCreated = useCallback(() => {
@@ -328,10 +343,14 @@ export function ChatContainer({
 
   const {
     messages,
+    present,
+    typing,
+    notifyTyping,
     isConnected,
     isProcessing,
     compacting,
     compactionImpossible,
+    sandboxPreparing,
     interrupted,
     detachedTurnPending,
     leftTurnPending,
@@ -357,6 +376,7 @@ export function ChatContainer({
     sendAskUserResponses,
     pendingConnection,
     sendConnectionResponse,
+    reportVisual,
   } = useChat({
     conversationId: currentConversationId,
     onConversationCreated: handleConversationCreated,
@@ -480,7 +500,10 @@ export function ChatContainer({
 
   useEffect(() => {
     if (currentMessages.length > 0) {
-      clearMessages();
+      // Not `clearMessages`: a re-read of this same conversation - a followed
+      // turn ending, a teammate's answer landing - must not drop the reply
+      // somebody is in the middle of writing. A switch has already cleared it.
+      rereadMessages();
       currentMessages.forEach((msg) => {
         const message = conversationMessageToChatMessage(msg);
         addChatMessage({
@@ -494,7 +517,7 @@ export function ChatContainer({
         });
       });
     }
-  }, [currentMessages, addChatMessage, clearMessages]);
+  }, [currentMessages, addChatMessage, rereadMessages]);
 
   // Whether the reader has moved up to read, so the transcript stops following.
   useReaderScrolledUp(scrollContainerRef, userScrolledUpRef);
@@ -598,10 +621,21 @@ export function ChatContainer({
   return (
     <ChatUI
       messages={messages}
+      present={present}
+      typing={typing}
+      onTyping={notifyTyping}
+      // Not a project's chat: who reads one is the project's to say, so a
+      // conversation share would invite nobody - the project's Share does.
+      ownsConversation={
+        openConversation !== undefined &&
+        openConversation.user_id === meId &&
+        !openConversation.project_id
+      }
       isConnected={isConnected}
       isProcessing={isProcessing}
       compacting={compacting}
       compactionImpossible={compactionImpossible}
+      sandboxPreparing={sandboxPreparing}
       interrupted={interrupted}
       detachedTurnPending={detachedTurnPending}
       leftTurnPending={leftTurnPending || answeringElsewhere}
@@ -664,11 +698,14 @@ export function ChatContainer({
       agentFixed={agentFixed}
       testingDraft={testing?.draft ?? false}
       incomingFiles={incomingFiles}
+      onVisualReport={reportVisual}
     />
   );
 }
 
 interface ChatUIProps {
+  /** Tell the running turn how one of its drawings rendered. */
+  onVisualReport?: (toolCallId: string, errors: string[]) => void;
   /** Replaces the generic empty-conversation suggestions. */
   emptyState?: (onPick: (prompt: string) => void) => React.ReactNode;
   agentFixed: boolean;
@@ -682,6 +719,8 @@ interface ChatUIProps {
   compacting: Compaction | null;
   /** A window with no room for a summary, drawn in its place. Null when there is. */
   compactionImpossible: Compaction | null;
+  /** True while the run's sandbox is still being opened. See `SandboxPreparingNotice`. */
+  sandboxPreparing?: boolean;
   /** True while a turn whose socket went away is unresolved. See `InterruptedNotice`. */
   interrupted?: boolean;
   /** True while such a turn's answer is still coming and the reader has moved on. */
@@ -711,6 +750,14 @@ interface ChatUIProps {
   browses: Browse[];
   /** The conversation the file panel reads, or null before one exists. */
   conversationId: string | null;
+  /** Who has the conversation open, the reader included. */
+  present: ChatPerson[];
+  /** Who else is writing a message in it right now. */
+  typing: ChatPerson[];
+  /** The reader typed - for the room to hear. */
+  onTyping: () => void;
+  /** Whether the reader started it, and so may share it. */
+  ownsConversation: boolean;
   /**
    * How many turns have finished. Bumped so the file panel re-reads when the
    * files could have changed, rather than polling for a change it can be told
@@ -764,10 +811,15 @@ interface ChatUIProps {
 
 function ChatUI({
   messages,
+  present,
+  typing,
+  onTyping,
+  ownsConversation,
   isConnected,
   isProcessing,
   compacting,
   compactionImpossible,
+  sandboxPreparing = false,
   interrupted = false,
   detachedTurnPending = false,
   leftTurnPending = false,
@@ -812,6 +864,7 @@ function ChatUI({
   agentFixed,
   testingDraft,
   incomingFiles,
+  onVisualReport,
 }: ChatUIProps) {
   const t = useTranslations("chat");
   const tDictation = useTranslations("chat.dictation");
@@ -908,6 +961,9 @@ function ChatUI({
   const recordingPhase =
     dictationState.phase === "recording" || dictationState.phase === "transcribing";
   const [composerFocused, setComposerFocused] = useState(false);
+  const [projectPickerOpen, setProjectPickerOpen] = useState(false);
+  // Offered by `@` only while the chat can still choose its project, as the `+` is.
+  const projectMentions = useProjectMentions(!agentFixed && conversationId === null);
   // What the composer is handed from outside it: the caller's files, or a
   // comment pointed at the browser's page. The newer wins, and a caller's new
   // files replace a comment the way a comment replaces them.
@@ -996,7 +1052,11 @@ function ChatUI({
         id: message.id,
         author:
           message.role === "user"
-            ? t("rail.you")
+            ? message.sender && message.sender.user_id !== authUser?.id
+              ? message.sender.name
+              : message.senderGone
+                ? t("rail.formerMember")
+                : t("rail.you")
             : ((message.agentId ? agentNames.get(message.agentId)?.name : undefined) ??
               t("rail.agent")),
         preview: (message.content ?? "").trim(),
@@ -1008,7 +1068,9 @@ function ChatUI({
         // A person's face is drawn from their id, an agent's from its own; the
         // rail never has to know which, it just hands over the seed.
         seed:
-          message.role === "user" ? (authUser?.id ?? message.id) : (message.agentId ?? message.id),
+          message.role === "user"
+            ? (message.sender?.user_id ?? authUser?.id ?? message.id)
+            : (message.agentId ?? message.id),
       })),
     [messages, agentNames, authUser, t],
   );
@@ -1084,6 +1146,17 @@ function ChatUI({
               compact ? "px-3 py-3 text-sm" : "mx-auto max-w-5xl px-2 py-4 sm:px-4 sm:py-6",
             )}
           >
+            {/* Who else has this chat open, held at the top while the transcript scrolls:
+                a project's chat is several people's at once. */}
+            {conversationId && !compact && (
+              <ChatRoomBar
+                conversationId={conversationId}
+                present={present}
+                meId={authUser?.id}
+                canShare={ownsConversation}
+                className="sticky top-2 z-20 mb-3"
+              />
+            )}
             {isLoadingConversation ? (
               <ConversationSkeleton />
             ) : messages.length === 0 && voice.call.phase === "idle" ? (
@@ -1096,7 +1169,14 @@ function ChatUI({
               </div>
             ) : (
               <LiveBrowsesProvider value={{ browses, onComment: commentOnPage }}>
-                <MessageList messages={messages} onRegenerate={onRegenerate} pins={pins} />
+                <ConversationVisualsProvider
+                  messages={messages}
+                  conversationId={conversationId}
+                  onReport={onVisualReport}
+                  onCompose={(text) => setIncoming({ id: Date.now(), files: [], text })}
+                >
+                  <MessageList messages={messages} onRegenerate={onRegenerate} pins={pins} />
+                </ConversationVisualsProvider>
               </LiveBrowsesProvider>
             )}
             {/* After the transcript, not inside it: a delegation is a second agent's
@@ -1194,6 +1274,7 @@ function ChatUI({
               onRecheck={onRecheck}
             />
             <CompactionNotice compacting={compacting} impossible={compactionImpossible} />
+            {sandboxPreparing && <SandboxPreparingNotice />}
             {onCancelQueued && (
               <PendingMessages
                 messages={queuedMessages ?? []}
@@ -1208,6 +1289,8 @@ function ChatUI({
                 over the next several: as a step it scrolls away under the work it
                 describes, and what somebody wants is where the agent is now. */}
             <PlanStrip plan={plan} live={isProcessing} />
+            {/* Right over the box the reply is written in, where a messenger says it. */}
+            <TypingIndicator people={typing} />
             {/* What is attached, above the composer rather than inside it. The
                 slot is here because the box below is drawn here; `ChatInput`
                 portals its row into it and keeps the upload state. */}
@@ -1303,6 +1386,9 @@ function ChatUI({
                           commands={slashCommands}
                           attachmentSlot={attachmentSlot}
                           incoming={incoming}
+                          onTyping={onTyping}
+                          projects={projectMentions.items}
+                          onPickProject={projectMentions.pick}
                           mic={mic}
                           dictation={{
                             engine,
@@ -1318,7 +1404,23 @@ function ChatUI({
                           }}
                           // Who answers first and largest: it is the most
                           // consequential choice in the composer.
-                          controlsSlot={agentFixed ? undefined : <AgentPicker />}
+                          controlsSlot={
+                            agentFixed ? undefined : (
+                              <>
+                                <AgentPicker />
+                                <ProjectChip
+                                  conversationId={conversationId}
+                                  pickerOpen={projectPickerOpen}
+                                  onPickerOpenChange={setProjectPickerOpen}
+                                />
+                              </>
+                            )
+                          }
+                          onProject={
+                            agentFixed || conversationId
+                              ? undefined
+                              : () => setProjectPickerOpen(true)
+                          }
                           actionsSlot={
                             <>
                               {/* Wide screens only, as is the panel it opens. */}

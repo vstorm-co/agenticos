@@ -5,8 +5,6 @@ the database refuses stays inside its savepoint - logged, never raised, never a
 commit or a rollback of the caller's transaction.
 """
 
-from __future__ import annotations
-
 import logging
 import uuid
 from typing import Any

@@ -13,8 +13,6 @@ A mocked session cannot be put into an aborted transaction, so the unit tests in
 session survives what is not.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

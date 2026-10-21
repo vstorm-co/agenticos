@@ -1,7 +1,5 @@
 """Reading and writing the ML service usage log."""
 
-from __future__ import annotations
-
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime

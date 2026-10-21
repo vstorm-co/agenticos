@@ -13,8 +13,6 @@ cancellation reap the child rather than orphan it, and does a flooding child not
 deadlock the wait (#1591, §7 findings 3-4).
 """
 
-from __future__ import annotations
-
 import asyncio
 from pathlib import Path
 from typing import Any

@@ -7,8 +7,6 @@ A mocked session cannot show a Postgres advisory lock blocking a second holder;
 this proves the two contend on one collection name and do not on two.
 """
 
-from __future__ import annotations
-
 import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta

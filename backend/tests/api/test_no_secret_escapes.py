@@ -15,8 +15,6 @@ Adding a route that returns a credential should fail here. If it does, the fix
 is the route, not the allowlist.
 """
 
-from __future__ import annotations
-
 import re
 from typing import Any
 

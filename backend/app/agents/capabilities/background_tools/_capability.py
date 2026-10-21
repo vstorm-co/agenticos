@@ -1,7 +1,5 @@
 """`BackgroundTools`, with a background result screened like any other (#2108)."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Any
 

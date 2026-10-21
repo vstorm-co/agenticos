@@ -1,7 +1,5 @@
 """Turning a realtime session's events into what the call view and the transcript need (#54)."""
 
-from __future__ import annotations
-
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock

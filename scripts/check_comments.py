@@ -23,8 +23,6 @@ Usage::
 Exits 1 when a banner is found, 0 when clean.
 """
 
-from __future__ import annotations
-
 import os
 import re
 from collections.abc import Iterator
@@ -46,6 +44,12 @@ SKIP_DIRS = {
     "site",
     ".claude",
 }
+
+# The libraries served to artifacts that keep their package's own layout (three.js
+# imports its core by relative path) sit in directories here. They are vendored byte
+# for byte, so their comments are their authors'; the set's own files beside them
+# are still read.
+VENDORED = REPO_ROOT / "backend" / "app" / "core" / "catalog" / "artifact_lib"
 
 # A line-leading comment marker, then optional space, then a rule of one repeated
 # character (`---`, `====`, `~~~`, `***`). `\1{2,}` ties the run to a single
@@ -71,7 +75,7 @@ def _iter_files(root: Path) -> Iterator[Path]:
         subdirectories[:] = [
             name
             for name in subdirectories
-            if name not in SKIP_DIRS and not _is_nested_checkout(here / name)
+            if name not in SKIP_DIRS and here != VENDORED and not _is_nested_checkout(here / name)
         ]
         for name in sorted(filenames):
             path = here / name

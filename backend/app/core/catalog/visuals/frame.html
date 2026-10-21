@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Visual</title>
+<style>
+:root { color-scheme: light dark; }
+html, body { margin: 0; }
+body { font: 14px/1.5 system-ui, sans-serif; }
+html, body, #stage { height: 100%; }
+#stage > svg { display: block; width: 100%; height: 100%; }
+#stage svg.mermaid-live { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+</style>
+<script src="lib/idiomorph-0.8.0.min.js"></script>
+</head>
+<body>
+<div id="stage"></div>
+<script>
+(function () {
+  "use strict";
+  // Everything here is inside a function on purpose: the finished drawing is
+  // written into this same window, and a top-level `let stage` of ours would
+  // turn the drawing's own `let stage` into a SyntaxError.
+  var MERMAID = "lib/mermaid-12.1.0.min.js";
+  var stage = document.getElementById("stage");
+  var finished = false;
+  var mermaidLoading = null;
+  var mermaidBusy = false;
+  var mermaidPending = null;
+  var mermaidCount = 0;
+
+  function post(message) {
+    try { parent.postMessage(message, "*"); } catch (error) { /* no parent */ }
+  }
+
+  function dark(theme) {
+    if (theme === "dark") return true;
+    if (theme === "light") return false;
+    return matchMedia("(prefers-color-scheme: dark)").matches;
+  }
+
+  // Markup as it is being written, made inert: no script runs and no handler
+  // fires until the drawing is complete, so a half-written scene never starts.
+  function inert(markup) {
+    var cut = markup.lastIndexOf(">");
+    var doc = new DOMParser().parseFromString(cut < 0 ? "" : markup.slice(0, cut + 1), "text/html");
+    var holder = doc.createElement("div");
+    doc.querySelectorAll("head style, head link[rel=stylesheet]").forEach(function (node) {
+      holder.appendChild(node);
+    });
+    while (doc.body.firstChild) holder.appendChild(doc.body.firstChild);
+    holder.querySelectorAll("script, iframe, object, embed").forEach(function (node) { node.remove(); });
+    holder.querySelectorAll("*").forEach(function (node) {
+      for (var i = node.attributes.length - 1; i >= 0; i--) {
+        var name = node.attributes[i].name;
+        if (name.slice(0, 2).toLowerCase() === "on") node.removeAttribute(name);
+      }
+    });
+    return holder;
+  }
+
+  function morph(holder) {
+    if (typeof Idiomorph === "undefined") {
+      stage.replaceChildren.apply(stage, Array.prototype.slice.call(holder.childNodes));
+    } else {
+      Idiomorph.morph(stage, holder, { morphStyle: "innerHTML" });
+    }
+    report();
+  }
+
+  function loadMermaid() {
+    if (mermaidLoading === null) {
+      mermaidLoading = new Promise(function (resolve, reject) {
+        var script = document.createElement("script");
+        script.src = MERMAID;
+        script.onload = function () { resolve(window.mermaid); };
+        script.onerror = function () { reject(new Error("The diagram library did not load.")); };
+        document.head.appendChild(script);
+      });
+    }
+    return mermaidLoading;
+  }
+
+  // Mermaid cannot draw half a statement, so the live diagram is the source up
+  // to its last complete line, and a version that does not parse yet leaves the
+  // previous drawing in place.
+  function streamMermaid(source, theme) {
+    var cut = source.lastIndexOf("\n");
+    if (cut < 0) return;
+    mermaidPending = { source: source.slice(0, cut), theme: theme };
+    if (mermaidBusy) return;
+    mermaidBusy = true;
+    loadMermaid().then(function (mermaid) {
+      function next() {
+        if (mermaidPending === null || finished) { mermaidBusy = false; return; }
+        var job = mermaidPending;
+        mermaidPending = null;
+        mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: dark(job.theme) ? "dark" : "default" });
+        mermaidCount += 1;
+        mermaid.render("live-" + mermaidCount, job.source).then(function (out) {
+          if (!finished) {
+            var holder = document.createElement("div");
+            holder.innerHTML = out.svg;
+            var svg = holder.querySelector("svg");
+            if (svg) svg.classList.add("mermaid-live");
+            morph(holder);
+          }
+        }, function () { /* not parseable yet */ }).then(next);
+      }
+      next();
+    }, function () { mermaidBusy = false; });
+  }
+
+  function report() {
+    post({ type: "agenticos:visual-size", height: Math.ceil(document.documentElement.scrollHeight) });
+  }
+
+  window.addEventListener("message", function (event) {
+    if (event.source !== parent || finished) return;
+    var data = event.data;
+    if (!data || data.type !== "agenticos:visual" || typeof data.content !== "string") return;
+    if (data.phase === "final") {
+      finished = true;
+      // The whole document is replaced rather than morphed: only a parsed
+      // document runs its scripts in order and honours an import map, and the
+      // drawing must behave exactly as the same bytes do once saved as an app.
+      var html = window.__agenticosVisualDocument(data.kind, data.content, data.title);
+      document.open();
+      document.write(html);
+      document.close();
+      return;
+    }
+    if (data.kind === "mermaid") streamMermaid(data.content, data.theme);
+    else morph(inert(data.content));
+  });
+
+  window.addEventListener("resize", report);
+  post({ type: "agenticos:visual-ready" });
+})();
+</script>
+</body>
+</html>

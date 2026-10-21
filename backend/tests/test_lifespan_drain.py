@@ -12,8 +12,6 @@ Startup's heavy collaborators are stubbed so the lifespan runs in-process; what
 is exercised is the real `background.drain()` wiring on the way out.
 """
 
-from __future__ import annotations
-
 import asyncio
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -83,6 +81,7 @@ def _stub_startup(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "app.agents.capabilities.web_research._search.close_http_client", AsyncMock()
     )
+    monkeypatch.setattr("app.services.sandbox_workspace.close_sandboxd_client", AsyncMock())
     monkeypatch.setattr(main, "reset_retrieval_service", MagicMock())
     monkeypatch.setattr(main, "EventLoopWatchdog", lambda *a, **k: MagicMock())
     # Warmup raises, so the embedder is None and no PgVectorStore is built - the

@@ -33,8 +33,6 @@ from whoever consumes the stream until the part is complete, and releases it
 through the same detector the output guardrail runs.
 """
 
-from __future__ import annotations
-
 import logging
 import re
 from collections.abc import AsyncIterable, Callable

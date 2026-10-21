@@ -42,8 +42,6 @@ Builder; `config_schema` is both validation and the source of the form.
 scope is rejected while someone is looking at a form, not mid-conversation.
 """
 
-from __future__ import annotations
-
 import logging
 import re
 from collections.abc import Callable, Iterable, Mapping
@@ -318,12 +316,19 @@ class CapabilityDef:
     text twin, which the call hands a task to (`app/agents/voice.py`): the
     capabilities a realtime session cannot carry - `sandbox` (realtime sets an
     unavailable workspace), `browser_use` (its loop drives the run's own model,
-    which in a call speaks), `subagents`, and `background_tools`, which only
-    sends those away. The Builder's Voice card lists them. `never` is
+    which in a call speaks), `subagents`, `coding_agent` (it works in the
+    sandbox), and `background_tools`, which only sends those away. The Builder's Voice card lists them. `never` is
     `channel_tools`, which a call never has a channel to describe for; no spec
     binds it.
     """
 
+    tool_settings: bool = True
+    """Whether the Builder offers per-tool settings - approval and the text the model reads.
+
+    False for a capability whose one tool is the capability itself: the coding
+    agent's tool *is* "hand this to Claude Code", so its approval is the
+    capability's and there is nothing about the tool to rework apart from it.
+    """
     scopes: frozenset[str] = frozenset()
     # The credential this capability needs, declared as a *kind* - never as an
     # instance. Code says "I need an API key"; configuration says which one.
@@ -420,6 +425,7 @@ def register(
     side_effecting: bool = False,
     selectable: bool = True,
     voice: VoiceSupport = "live",
+    tool_settings: bool = True,
     scopes: Iterable[str] = (),
     secret: SecretRequirement | None = None,
     provider_executed: ProviderExecuted | None = None,
@@ -476,6 +482,7 @@ def register(
             side_effecting=side_effecting,
             selectable=selectable,
             voice=voice,
+            tool_settings=tool_settings,
             scopes=frozenset(scopes),
             secret=secret,
             provider_executed=provider_executed,
@@ -673,6 +680,7 @@ def load_builtins() -> None:
         charts,
         clock,
         code_execution,
+        coding_agent,
         compaction,
         context,
         conversation_search,
@@ -690,6 +698,7 @@ def load_builtins() -> None:
         thinking,
         tool_output_limits,
         tool_search,
+        visuals,
         web_fetch,
         web_research,
     )

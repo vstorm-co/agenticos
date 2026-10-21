@@ -1,5 +1,5 @@
 ---
-source_sha: "f716d62c8038"
+source_sha: "b52b40a93089"
 ---
 
 # Die Konsole { #the-console }
@@ -91,6 +91,12 @@ Fünf-Karten-Vorschau - **Load more** blättert immer weiter zurück durch die
 Organisation, in der Sie gerade sind, plus alles, was an das gesamte
 Deployment adressiert ist, bis es erreicht, was aus dem Aufbewahrungsfenster
 gefallen ist.
+
+Jede Zeile beginnt mit dem, worum es geht: dem Gesicht des Agents mit einem
+Abzeichen dafür, wie sein Run lief, oder einem Symbol für die Art des
+Ereignisses - grün für einen beendeten Run oder einen wieder erreichbaren
+MCP-Server, rot für einen Fehlschlag oder ein aufgebrauchtes Budget, bernsteinfarben
+für eine Freigabe oder eine Budgetwarnung.
 
 Wechseln Sie die Organisation, gehört die Glocke dieser: eine
 Benachrichtigung aus der verlassenen Organisation ist nicht weg, sie liegt
@@ -310,12 +316,27 @@ Stunde ohne Zuschauer noch läuft, wird gestoppt, und Sie erfahren das
 ([`CHAT_DETACHED_TURN_MINUTES`](configuration.md#a-chat-turn-left-running)). Einer,
 der auf eine Freigabe oder auf Ihre Antwort auf eine Frage wartet, meldet sich
 über diese.
+Kommen Sie zurück, solange er noch antwortet - in die Unterhaltung, aus einem
+anderen Tab, nach dem Neuladen -, nimmt der Chat die Antwort dort auf, wo sie
+steht, mit allem, was der Agent bis dahin getan hat, und zeichnet sie weiter, wie
+sie ankommt.
 
 **Auf dem Telefon** verhält sich der Chat wie eine Messenger-App: Das
 Eingabefeld bleibt über der Tastatur und die Unterhaltung bei ihrer letzten
 Nachricht, wenn sie aufgeht, Enter
 beginnt eine neue Zeile, und Anhängen oder Diktieren liegen hinter einem **+**.
 Felder sind nie so klein, dass iOS hineinzoomt.
+
+**Zeichnungen.** Ein Agent mit [Visuals](reference/capabilities.md#visuals)
+zeichnet unter seiner Nachricht - ein Diagramm, eine Erklärung mit Schiebereglern, eine
+3D-Szene - und Sie sehen sie entstehen, während sie geschrieben wird; ihre Skripte
+starten, wenn sie vollständig ist. Das Panel zeigt die ganze Zeichnung, passend zum
+Gespräch, mit Schaltflächen für Vollbild, Code, Herunterladen, Kopieren eines SVG als
+Bild, Zoomen und Speichern als [App](artifacts.md#visuals) mit einem Link zum
+Teilen. Meldet eine Zeichnung einen Fehler, weiß der Agent schon davon; **Beheben**
+fragt erneut. Auf einem Telefon öffnet ein Tippen sie im Vollbild.
+Die Karte **Neueste Visuals** auf dem Dashboard zeigt die zuletzt für Sie
+gezeichneten, jede öffnet das Gespräch, in dem sie entstand.
 
 **Einem Durchlauf zusehen.** Beginnt ein Agent mit dem
 [Webbrowser](reference/capabilities.md#browser-automation) auf einer Seite, erscheint
@@ -579,7 +600,7 @@ Die Seitenleiste gruppiert sie. **Build** enthält Agents, Routines, Apps und
 Activity; **Knowledge** enthält Knowledge bases, Documents, Skills und Context.
 Zwei Gruppen sind bis zum Öffnen auf ihre Überschrift eingeklappt, weil man sie
 einmal einrichtet und selten besucht: **Connections** (MCP servers, Channels,
-Vault, Sandboxes) und **Organization** (Organizations, Groups). Eine eingeklappte
+Remote agents, Vault, Sandboxes) und **Organization** (Organizations, Groups). Eine eingeklappte
 Gruppe öffnet sich auf jeder Seite in ihr von selbst und bleibt, wie Sie sie
 verlassen haben.
 
@@ -596,10 +617,11 @@ verlassen haben.
 | **Sandboxes** | Wo Agents Code ausführen: Hosts, laufende Sessions, Policy | [Die Sandbox](sandbox.md) |
 | **MCP servers** | Verbindungen zu externen Werkzeugen, persönlich und organisationsweit | [MCP](mcp.md) |
 | **Channels** | Slack-, Telegram- und Mattermost-Bots, Widgets, gehostete Seiten | [Oberflächen](channels.md) |
+| **Remote agents** | Agents anderer Anbieter, über ihre A2A Agent Card registriert, an die Agents delegieren | [Capabilities](reference/capabilities.md#remote-agents) |
 | **Vault** | Zugangsdaten, pro Organisation versiegelt | [Secrets](secrets.md) |
 | **Organizations** | Mitglieder, Rollen, Einladungen | [Berechtigungen](permissions.md) |
 | **Settings** | Provider, Ingestion-Vorgaben, Benachrichtigungen, Ihr eigenes Profil | [Konfiguration](configuration.md) |
-| **Admin** | Das Deployment selbst: Nutzer, Tenants, System, Deployment-Einstellungen | [Das Deployment](deployment.md) |
+| **Admin** | Das Deployment selbst: Nutzer, Tenants, System, Hintergrund-Jobs, Deployment-Einstellungen | [Das Deployment](deployment.md) |
 
 Der **Agents**-Katalog lässt sich nach **Category** und **Tag** filtern — den
 editierbaren, organisationslokalen Labels, die auf der Karte jedes Agents

@@ -39,6 +39,7 @@ function eventTrigger(overrides: Partial<Trigger> = {}): Trigger {
     schedule_kind: "interval",
     interval_seconds: null,
     cron_expression: null,
+    overlap: "skip",
     event_source: "github",
     event_config: {},
     prompt: "Triage it",

@@ -1,5 +1,5 @@
 ---
-source_sha: "a1ac0cd854a3"
+source_sha: "cac21a253ef9"
 ---
 
 # Sicherheit { #security }
@@ -55,7 +55,7 @@ fragen wird.
 |---|---|---|
 | Der konfigurierte Modell-Provider | Der Prompt, die Ausgabe des Modells, Tool-Argumente und -Ergebnisse | Jeder Run — außer das Modell läuft auf der eigenen Infrastruktur des Betreibers, dann verlässt nichts das Deployment |
 | Der konfigurierte Kanal (Slack, Telegram, Mattermost) | Die generierten Antworten des Agents — Text, Bilder und Anhänge | Immer wenn ein Agent über diesen Kanal exponiert ist; jedes `send_message` postet beim Provider (`app/services/channels/`) |
-| Logfire | Traces, die Prompts und Ausgaben tragen, sofern der Agent nichts anderes sagt | Zwei unabhängige Pfade. Ein Observability-Token pro Agent traced diesen Agent, und sein `content`-Modus entscheidet, wie viel der Span trägt - `none` reduziert ihn auf Zeit, Tokens, Kosten und Tool-Namen (#1413). Ein deploymentweites `LOGFIRE_TOKEN` instrumentiert **jeden** Run, in der API wie im Prefect-Worker (`app/core/logfire_setup.py`), mit ihm verlässt also der Inhalt jedes Agenten das Deployment, der nicht `none` verlangt hat; ein Agent, der es verlangt hat, wird auch auf diesem Tracer an eine inhaltsfreie Instrumentierung geheftet (`suppress_content`), der Modus hält also auf beiden Pfaden, und ein Spezialist dieses Agenten erbt ihn - inline geschrieben oder mitten im Run erfunden. Eine Lücke, die er nicht abdeckt: ein fehlgeschlagenes Anheften, das protokolliert und belassen wird. Keiner der beiden Pfade ist standardmäßig an. Ein gefiltertes Dazwischen gibt es bewusst nicht - ein teilweise bereinigter Export ist eine Zusicherung, die niemand prüfen kann ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)) |
+| Logfire | Traces, die Prompts und Ausgaben tragen, sofern der Agent nichts anderes sagt | Zwei unabhängige Pfade. Ein Observability-Token pro Agent traced diesen Agent, und sein `content`-Modus entscheidet, wie viel der Span trägt - `none` reduziert ihn auf Zeit, Tokens, Kosten und Tool-Namen (#1413). Ein deploymentweites `LOGFIRE_TOKEN` instrumentiert **jeden** Run, in der API wie im Worker (`app/core/logfire_setup.py`), mit ihm verlässt also der Inhalt jedes Agenten das Deployment, der nicht `none` verlangt hat; ein Agent, der es verlangt hat, wird auch auf diesem Tracer an eine inhaltsfreie Instrumentierung geheftet (`suppress_content`), der Modus hält also auf beiden Pfaden, und ein Spezialist dieses Agenten erbt ihn - inline geschrieben oder mitten im Run erfunden. Eine Lücke, die er nicht abdeckt: ein fehlgeschlagenes Anheften, das protokolliert und belassen wird. Keiner der beiden Pfade ist standardmäßig an. Ein gefiltertes Dazwischen gibt es bewusst nicht - ein teilweise bereinigter Export ist eine Zusicherung, die niemand prüfen kann ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)) |
 | MCP-Server | Tool-Aufrufe und ihre Argumente | Nur für die Tools, an die ein Agent gebunden ist |
 | Ein Websuche-Anbieter (Tavily, DuckDuckGo) | Die Suchanfrage | Nur wenn die Such-Capability gewährt ist |
 | Ein Embedding-Provider | Dokumenttext, beim Ingest | Nur für eine Wissensbasis, deren Provider entfernt ist |
@@ -120,7 +120,7 @@ nicht den Agenten löschen, von dem das Team abhängt.
 | Tabelle | Beim Löschen | Im Export | Warum |
 |---|---|---|---|
 | `users` | Gelöscht | Profil, ohne den Passwort-Hash | Das Konto selbst |
-| `conversations`, `messages`, `tool_calls` | Kaskade | Von ihnen begonnene Threads, mit jeder Runde darin | Ihre eigenen, und ein Transkript ohne jede zweite Runde beantwortet nichts |
+| `conversations`, `messages`, `tool_calls` | Kaskade, außer den Chats eines Projekts, die beim Team bleiben | Von ihnen begonnene Threads, mit jeder Runde darin; im Chat eines Projekts, wo immer sie geschrieben haben, nur ihre Runden und die Antworten darauf | Ihre eigenen, und ein Transkript ohne jede zweite Runde beantwortet nichts. Der Chat eines Projekts gehört mehreren Personen, und die Runden der anderen Mitglieder sind deren |
 | `chat_files` | Kaskade; die Bytes werden nach dem Commit gelöst | Nicht aufgeführt | Die Zeile kaskadiert von der Nachricht, die Datei auf der Platte nicht - also werden die Pfade vor dem Löschen eingesammelt und nach dessen Commit gelöst, sonst überleben die Bytes die Anfrage, die sie entfernen sollte: für nichts erreichbar und von niemandem gelöscht. Das Transkript im Export nennt den Anhang; die Bytes sind herunterladbar, solange das Konto besteht, und werden nicht mit eingepackt |
 | `message_ratings` | Kaskade | Ja | Eine geäußerte Meinung |
 | `sessions` | Kaskade | Gerät, Adresse und Zeiten — nie das Credential, das ein Hash ist | Wo sie sich angemeldet haben |

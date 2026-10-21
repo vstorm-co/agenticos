@@ -58,7 +58,7 @@ Two refusals are worth knowing:
 
 - **`403` "API keys are not accepted on this endpoint"** — keys are accepted on
   the public API only: agents, runs and approvals, knowledge bases and RAG, skills,
-  context files, apps, the ML services, `/me/permissions`, and an
+  context files, projects, apps, the ML services, `/me/permissions`, and an
   organization's members, invitations, groups and settings. The console's own
   routes, your account, leaving or handing over an organization, and key
   management itself stay session-only, so a leaked key cannot mint its successor.
@@ -174,6 +174,39 @@ for a key holding `runs:view`.
     That is the point of one runner, and it is why there is no "fast path" that
     skips it.
 
+### Without holding the connection
+
+A run of minutes - a browse, a long tool chain - holds the request open the
+whole time, and a proxy's read timeout can cut it off while the run goes on.
+Send `Prefer: respond-async` and the call answers `202` at once instead, with a
+run request to poll:
+
+```bash
+curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Prefer: respond-async" \
+  -H "Idempotency-Key: ticket-4711" \
+  -d '{"prompt": "Summarise this quarter for the board"}'
+# 202, Location: /api/v1/run-requests/{id}, Preference-Applied: respond-async
+
+curl "$BASE/api/v1/run-requests/$REQUEST_ID" -H "Authorization: Bearer $AGENTICOS_KEY"
+```
+
+The request reads `queued`, `running`, then `completed` with `result` - the
+same body the synchronous call answers - or `failed` with `error`. Its
+`conversation_id` is known from the first answer, so a follow-up can be sent
+before the run ends. A worker runs it through the same runner, budget and
+approvals as every other surface.
+
+What can be checked at once is checked at once: an unknown conversation or
+attachment is a `404` on the `POST`, not a failure to poll for. The key's
+authority is checked again when the run starts, so a key revoked while its run
+waited does not run it. Only the person who asked, or a key of theirs, can read
+a run request; anyone else's answers `404`. An asynchronous run gets one
+attempt - a run that failed is recorded with what it spent, and is not retried
+into spending it twice.
+
 The route carries a **rate limit rather than a permission gate**. Permission is
 decided inside the service, against that specific agent's grants — a role gate
 on a per-resource route [cannot see them](permissions.md).
@@ -195,6 +228,33 @@ crosses a tenant or a grant boundary.
 The response also carries `categories` and `tags`: every distinct label on the
 agents you could list, whatever the filter and the page — the choices a filter
 menu offers. A private agent you cannot see adds none.
+## Agents over A2A
+
+An agent its organization serves over A2A answers JSON-RPC at
+`POST /api/v1/a2a/{agent_id}`, with the same keys as `/run`; its agent card is at
+`GET /api/v1/a2a/{agent_id}/.well-known/agent-card.json` and needs none.
+`PUT /api/v1/agents/{id}/a2a` with `{"enabled": true}` turns it on, for a caller
+holding `agents:publish` on that agent.
+
+```bash
+curl -X POST "$BASE/api/v1/a2a/$AGENT_ID" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc": "2.0", "id": 1, "method": "message/send",
+       "params": {"message": {"role": "user", "messageId": "m1",
+                              "parts": [{"kind": "text", "text": "Review clause 7"}]}}}'
+```
+
+The answer is a `Task` whose id is the run's and whose `contextId` continues the
+conversation. `tasks/get` reads one again. [Channels](channels.md#a2a) has the
+rest.
+
+Remote agents this organization delegates to are registered at
+`/api/v1/external-agents`: `GET` lists them (`agents:view`); `POST` with a
+`card_url`, an optional `slug` and an optional API key `secret_id` reads the card
+and registers it, and `POST /{id}/refresh` reads it again; `DELETE /{id}` removes
+one (`agents:edit` for all three).
+
 ## The ML services
 
 Four of the platform's services answer on their own, with no conversation and no
@@ -447,8 +507,9 @@ sending the request again starts a new run.
 
 ## Retries, idempotency and revisions
 
-v1 has no `Idempotency-Key` header and no revision preconditions: no `ETag`, no
-`If-Match`. A write is applied when it arrives, and the last one wins.
+v1 has no revision preconditions: no `ETag`, no `If-Match`. A write is applied
+when it arrives, and the last one wins. `Idempotency-Key` is honoured on one
+route, the asynchronous run.
 
 - **`GET`, `PUT` and `DELETE` are safe to repeat.** Reading twice reads twice;
   deleting what is already gone answers `404`, which a retry can treat as done.
@@ -459,6 +520,13 @@ v1 has no `Idempotency-Key` header and no revision preconditions: no `ETag`, no
   dropped connection, look before you retry: `GET /api/v1/runs?agent_id=…&surface=api`
   lists the runs newest first, and a list read finds a row the first attempt did
   create.
+- **An asynchronous run is, with an `Idempotency-Key`.** Send
+  `Prefer: respond-async` and a key of your choosing, at most 255 characters,
+  and a retry with the same key and the same body answers the same run request,
+  in whatever state it is in. The same key with a different body is a `409`,
+  never a second run. Keys are per organization. A synchronous call carrying
+  the header is refused with a `400` rather than letting a caller believe a
+  retry is safe.
 - **`429` is the one refusal to retry**, after the `Retry-After` it carries. Every
   other `4xx` is final for that request.
 
@@ -521,6 +589,8 @@ only moves forward.
 - A script gets its own key **without a browser** — sign in, issue, revoke — and
   `examples/public-api.sh` runs that round trip.
 - **Only `429` is worth retrying**; a `POST` is not idempotent, so look before
-  repeating one.
+  repeating one - except an asynchronous run sent with an `Idempotency-Key`.
+- **`Prefer: respond-async`** turns a run into a `202` and a run request to
+  poll, so a long run does not hold a connection open.
 - **The public API is in `/api/v1/public/openapi.json`** and changes only
   additively within v1, with 90 days' deprecation; there is no SDK yet.

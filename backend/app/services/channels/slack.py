@@ -141,7 +141,7 @@ class SlackAdapter(ChannelAdapter):
         await self._http.aclose()
 
     @staticmethod
-    def _web(bot_token: str) -> "AsyncWebClient":
+    def _web(bot_token: str) -> AsyncWebClient:
         """A Web API client for one bot's token.
 
         The `slack_sdk` import is deferred to the call rather than the module so a
@@ -350,7 +350,7 @@ class SlackAdapter(ChannelAdapter):
         """
         try:
             return datetime.fromtimestamp(float(ts), UTC)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return None
 
     async def channel_details(

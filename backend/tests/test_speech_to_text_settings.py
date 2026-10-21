@@ -7,8 +7,6 @@ others say. And a bot resolves through the agent its exposure serves, at the
 version that exposure runs - the same one the runner would answer with.
 """
 
-from __future__ import annotations
-
 import uuid
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch

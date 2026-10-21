@@ -57,7 +57,7 @@ async def download_file(
     current_user: CurrentUser,
     disposition: str = "inline",
 ) -> Any:
-    """Serve a file. Only the owner can access their files.
+    """Serve a file: the caller's own upload, or an attachment in a chat they may read.
 
     By default the response is `Content-Disposition: inline` so PDFs, images
     and audio/video render directly inside an `<iframe>` / media tag (used
@@ -65,7 +65,7 @@ async def download_file(
     the browser's download dialog (used by the explicit "Download" button).
     """
     try:
-        chat_file = await file_upload_svc.get_user_file(file_id, current_user.id)
+        chat_file = await file_upload_svc.get_readable_file(file_id, user_id=current_user.id)
     except NotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="File not found"
@@ -80,9 +80,9 @@ async def get_file_info(
     file_upload_svc: FileUploadSvc,
     current_user: CurrentUser,
 ) -> Any:
-    """Get file metadata. Only the owner can access."""
+    """Get file metadata, under the same rule as the file itself."""
     try:
-        chat_file = await file_upload_svc.get_user_file(file_id, current_user.id)
+        chat_file = await file_upload_svc.get_readable_file(file_id, user_id=current_user.id)
     except NotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="File not found"
