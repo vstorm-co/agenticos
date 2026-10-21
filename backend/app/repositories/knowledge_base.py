@@ -43,6 +43,21 @@ async def get_by_ids(db: AsyncSession, ids: Sequence[UUID]) -> dict[UUID, Knowle
     return {kb.id: kb for kb in result.scalars()}
 
 
+async def get_in_organization(
+    db: AsyncSession, ids: Sequence[UUID], *, organization_id: UUID
+) -> list[KnowledgeBase]:
+    """The collections among `ids` that belong to this organization, in the order given."""
+    if not ids:
+        return []
+    result = await db.execute(
+        select(KnowledgeBase).where(
+            KnowledgeBase.id.in_(ids), KnowledgeBase.organization_id == organization_id
+        )
+    )
+    found = {kb.id: kb for kb in result.scalars()}
+    return [found[kb_id] for kb_id in ids if kb_id in found]
+
+
 async def get_accessible(
     db: AsyncSession,
     *,

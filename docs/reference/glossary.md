@@ -54,6 +54,20 @@ rename.
 | Guardrails | Checks that redact or block what flows through a run | `guardrails` |
 | Vault | Where keys and tokens are stored, sealed and never shown again | `secret` |
 
+## How it is tested
+
+| In the console | What it is | In the API and spec |
+|---|---|---|
+| Dataset | Versioned test cases an agent's answers are checked against | `dataset` |
+| Case | One question, and what a good answer is tested against | `dataset_case` |
+| Grading | How a dataset's answers are scored: checks, the reference answer and a judge | `scoring` |
+| Judge | An agent that grades answers for evals; only the platform runs it | `kind: judge` |
+| Eval | An agent answering every case of a dataset, scored and compared with a version before it | `eval_run` |
+| Review | Scores waiting for a person to confirm or overrule them | `review_state` |
+| Case generator | The system agent that drafts cases from an agent, its knowledge, real chats and red teaming | `kind: generator` |
+| Proposed case | A drafted case waiting under **Generated** until a person accepts or dismisses it | `case_proposal` |
+| Red teaming | Cases checking that an agent refuses what it must | `red-team` tag |
+
 ## Capabilities
 
 The name the Builder shows, and the id an agent's spec binds. Each is described

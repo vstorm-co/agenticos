@@ -233,6 +233,23 @@ describe("a system agent's page", () => {
       expect(screen.queryByRole("tab", { name })).toBeNull();
     }
   });
+
+  it.each(["judge", "generator"] as const)(
+    "offers a %s neither tools, exposure nor evals",
+    async (kind) => {
+      allowed = new Set([Perm.runsView, Perm.agentsEdit]);
+      page.kind = kind;
+      await mount();
+
+      await screen.findByRole("tab", { name: "History" });
+      const tabs = screen.getAllByRole("tab").map((tab) => tab.getAttribute("data-tour"));
+      expect(tabs).not.toContain("agent-tab-toolbox");
+      expect(tabs).not.toContain("agent-tab-mcp");
+      expect(tabs).not.toContain("agent-tab-availability");
+      expect(tabs).not.toContain("agent-tab-evals");
+      expect(screen.queryByRole("tab", { name: "Datasets" }) !== null).toBe(kind === "judge");
+    },
+  );
 });
 
 describe("a publish asked for by a link", () => {

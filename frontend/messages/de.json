@@ -809,6 +809,8 @@
     "judgeKindHint": "Sie bewerten Eval-Antworten: der Standard-Bewerter und der eigene jedes Datasets.",
     "drafterKind": "{count, plural, =1 {Lücken-Entwerfer (1)} other {Lücken-Entwerfer (#)}}",
     "drafterKindHint": "Er entwirft den Inhalt, der einer Wissenslücke fehlt, wenn jemand um einen Entwurf bittet.",
+    "generatorKind": "{count, plural, =1 {Fallgenerator (1)} other {Fallgeneratoren (#)}}",
+    "generatorKindHint": "Er entwirft Testfälle für ein Dataset aus einem Agent, seiner Wissensbasis, echten Chats und Red Teaming; jeden Entwurf nimmt ein Mensch an oder verwirft ihn.",
     "defaultJudge": "Standard-Bewerter",
     "defaultJudgeHint": "Bewertet jedes Dataset ohne eigenen Bewerter.",
     "judgeUsedBy": "{more, plural, =0 {Genutzt von {names}} other {Genutzt von {names} und # weiteren}}",
@@ -2322,6 +2324,7 @@
           "title": "Noch keine Datasets",
           "description": "Testfälle, die Sie für Evals sammeln, erscheinen hier."
         },
+        "waiting": "{count, plural, =1 {1 zu prüfen} other {# zu prüfen}}",
         "stat": {
           "reference": "{count, plural, =1 {1 Referenz} other {# Referenzen}}",
           "counter": "{count, plural, =1 {1 Gegenbeispiel} other {# Gegenbeispiele}}",
@@ -3929,6 +3932,18 @@
         "title": "Ihre Datasets",
         "body": "Jede Änderung an den Fällen erzeugt eine neue Version, sodass ein Eval-Run immer auf Fragen zeigt, die sich nicht ändern."
       },
+      "datasets-add-case": {
+        "title": "Einen Fall schreiben",
+        "body": "Ein Fall ist eine Frage, die der Agent beantwortet, und wie eine gute Antwort aussieht. Jeder hinzugefügte Fall erzeugt eine neue Version des Datasets."
+      },
+      "datasets-generate": {
+        "title": "Fälle entwerfen lassen",
+        "body": "Der Generator entwirft Fälle aus vier Quellen: den Anweisungen und Tools des Agents, seiner Wissensbasis, echten Chats (nur aus dem Betrieb, nie aus Eval-Runs) und Red Teaming. Die geschätzten Kosten sehen Sie, bevor etwas ausgegeben wird."
+      },
+      "datasets-proposals": {
+        "title": "Über die Entwürfe entscheiden",
+        "body": "Entworfene Fälle warten hier. Nehmen Sie sie unverändert an, bearbeiten Sie sie vorher oder verwerfen Sie sie. Ein Annehmen ist eine neue Version."
+      },
       "flow-dataset-create": {
         "title": "Dataset anlegen",
         "body": "Wählen Sie „Neues Dataset“ - das Formular öffnet sich und wir füllen es gemeinsam aus."
@@ -3984,6 +3999,10 @@
       "flow-dataset-sources": {
         "title": "Woher die nächsten Fälle kommen",
         "body": "Schreiben Sie sie hier, oder importieren Sie über dieses Menü eine CSV- oder JSONL-Datei. Bewerten Sie im Chat eine Antwort positiv oder negativ und fügen Sie sie hinzu - ein Daumen nach oben behält sie als Referenz, einer nach unten als Gegenbeispiel. In der Aktivität fügen Sie einen beliebigen Agent-Zug eines Runs hinzu."
+      },
+      "flow-dataset-generate": {
+        "title": "Oder lassen Sie sie entwerfen",
+        "body": "Wählen Sie einen Agent und die Quellen - den Agent selbst, seine Wissensbasis, echte Chats oder Red Teaming - und der Generator entwirft Fälle zur Prüfung. Nichts gelangt in das Dataset, bevor Sie es annehmen."
       },
       "agent-evals": {
         "title": "Evals",
@@ -6865,7 +6884,7 @@
     "caseCount": "{count, plural, =1 {1 Fall} other {# Fälle}}",
     "version": "Version",
     "newestVersion": "Neueste Version",
-    "versionChange": "v{number} · {count, plural, =1 {1 Fall} other {# Fälle}} {change, select, add {hinzugefügt} edit {bearbeitet} remove {entfernt} import {importiert} other {geändert}}",
+    "versionChange": "v{number} · {count, plural, =1 {1 Fall} other {# Fälle}} {change, select, add {hinzugefügt} edit {bearbeitet} remove {entfernt} import {importiert} generate {aus Entwürfen angenommen} other {geändert}}",
     "importFile": "CSV- oder JSONL-Datei zum Importieren wählen",
     "import": "Importieren",
     "exportCsv": "CSV exportieren",
@@ -6932,6 +6951,56 @@
       "exact": "Genau diese, in dieser Reihenfolge",
       "exactHint": "Der Agent muss genau die erwarteten Aufrufe machen, in der angegebenen Reihenfolge, und keine anderen."
     },
+    "origin": {
+      "agent": "Vom Agent",
+      "knowledge": "Aus dem Wissen",
+      "conversation": "Aus Chats",
+      "red_team": "Red Team"
+    },
+    "sourceHint": {
+      "agent": "Typische Anfragen und Grenzfälle, aus seinen Anweisungen, Skills und Tools",
+      "knowledge": "Fragen, die seine Wissensbasis beantwortet, jede mit dem Dokument, aus dem sie stammt",
+      "conversation": "Schwierigere Varianten dessen, was Menschen ihn gefragt haben, negativ bewertete Antworten zuerst",
+      "red_team": "Anfragen, die er ablehnen muss, jede mit der erwarteten Ablehnung"
+    },
+    "plan": {
+      "agent": "{count, plural, =1 {1 Fall} other {# Fälle}} vom Agent und {material, plural, =1 {1 Tool} other {# Tools}}",
+      "knowledge": "{count, plural, =1 {1 Fall} other {# Fälle}} aus {material, plural, =1 {1 Abschnitt} other {# Abschnitten}} seiner Wissensbasis",
+      "conversation": "{count, plural, =1 {1 Fall} other {# Fälle}} aus {material, plural, =1 {1 gestellten Frage} other {# gestellten Fragen}}",
+      "red_team": "{count, plural, =1 {1 Red-Team-Fall} other {# Red-Team-Fälle}}"
+    },
+    "dismissProposal": "Diesen vorgeschlagenen Fall verwerfen",
+    "editProposal": "Vorgeschlagenen Fall bearbeiten",
+    "acceptProposal": "Diesen vorgeschlagenen Fall annehmen",
+    "dismiss": "Verwerfen",
+    "edit": "Bearbeiten",
+    "accept": "Annehmen",
+    "generatorRun": "Run des Generators öffnen",
+    "generating": "{count, plural, =1 {1 Fall wird} other {# Fälle werden}} entworfen…",
+    "generationFailed": "Die Generierung ist fehlgeschlagen.",
+    "proposedCases": "Vorgeschlagene Fälle",
+    "proposalCount": "{count, plural, =0 {Nichts wartet} =1 {1 Fall wartet auf eine Entscheidung} other {# Fälle warten auf eine Entscheidung}}",
+    "dismissAll": "Alle verwerfen",
+    "acceptAll": "Alle annehmen",
+    "proposalsBody": "Vom Fallgenerator entworfen. Nichts gelangt in das Dataset, bevor Sie es annehmen, und ein Annehmen ist eine neue Version.",
+    "proposalsHidden": "{count, plural, =1 {1 Entwurf aus Chats braucht die Berechtigung, Runs anzusehen} other {# Entwürfe aus Chats brauchen die Berechtigung, Runs anzusehen}}",
+    "editProposalBody": "Beim Annehmen wird der Fall so übernommen, wie Sie ihn hier lassen, als neue Version des Datasets.",
+    "proposalsAccepted": "{count, plural, =1 {1 Fall} other {# Fälle}} als Version {version} hinzugefügt",
+    "proposalsDismissed": "{count, plural, =1 {1 vorgeschlagener Fall} other {# vorgeschlagene Fälle}} verworfen",
+    "estimate": "{count, plural, =1 {1 Fall} other {# Fälle}}, geschätzt {cost, number, ::currency/USD}",
+    "estimateUnpriced": "{count, plural, =1 {1 Fall} other {# Fälle}}. Für das Modell des Generators lassen sich die Kosten nicht schätzen.",
+    "excludedCollections": "{count, plural, =1 {1 Wissensbasis} other {# Wissensbasen}} dieses Agents ausgelassen: Sie haben keinen Lesezugriff.",
+    "generationStarted": "{count, plural, =1 {1 Fall wird} other {# Fälle werden}} entworfen. Sie warten hier auf Ihre Entscheidung.",
+    "generateCases": "Fälle generieren",
+    "generateCasesBody": "Der Fallgenerator entwirft Fälle, die Sie prüfen. Die geschätzten Kosten sehen Sie, bevor etwas ausgegeben wird.",
+    "agent": "Agent",
+    "chooseAgent": "Zu testenden Agent wählen",
+    "sources": "Entwerfen aus",
+    "sourceNeedsRunsView": "Erfordert die Berechtigung, Runs anzusehen",
+    "caseNumber": "Anzahl der Fälle",
+    "caseNumberHint": "Auf die Quellen verteilt, höchstens {max}.",
+    "estimateCost": "Kosten schätzen",
+    "generate": "Generieren",
     "importRowProblem": "Zeile {row}: {message}",
     "importRowFieldProblem": "Zeile {row}, {field}: {message}",
     "checkCount": "{count, plural, =1 {1 Prüfung} other {# Prüfungen}}",
@@ -6942,6 +7011,12 @@
     "detailsSaved": "Gespeichert",
     "olderVersion": "Ältere Version Nr.",
     "findDataset": "Dataset suchen",
+    "generatedTab": "{count, plural, =0 {Generiert} other {Generiert · #}}",
+    "generateIntro": "Der Fallgenerator entwirft Fälle für dieses Dataset aus den gewählten Quellen. Zuerst sehen Sie die geschätzten Kosten, und jeder Entwurf wartet hier, bis Sie ihn annehmen, bearbeiten oder verwerfen.",
+    "generateAiOff": "Fälle zu generieren braucht die KI-Unterstützung, die in dieser Organisation ausgeschaltet ist.",
+    "editGenerator": "Anweisungen des Generators bearbeiten",
+    "generatorNotRunnable": "Sie dürfen den Fallgenerator nicht ausführen. Bitten Sie einen Admin, ihn mit Ihnen zu teilen.",
+    "generateMore": "{count, plural, =1 {Weitere Optionen · 1 Fall} other {Weitere Optionen · # Fälle}}",
     "moreActions": "Weitere Aktionen",
     "share": "Teilen",
     "delete": "Löschen",

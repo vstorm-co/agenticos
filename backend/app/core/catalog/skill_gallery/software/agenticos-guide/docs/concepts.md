@@ -599,6 +599,12 @@ notification. A system agent starts with a small monthly budget of its own, so
 a new organization cannot spend its whole budget on evaluation or drafting by
 accident.
 
+The **case generator** is a system agent too, of the `generator` kind: it drafts
+[dataset cases](datasets.md#generating-cases) and is seeded the same way, with a
+budget of its own. It is listed in the same band, after the drafter, and is
+opened and edited like a judge; a dataset's Generated tab links to it for whoever
+may edit it.
+
 Only the platform runs it. Chat, the API, an embed or a public page, a channel,
 a schedule and delegation from another agent all refuse it, in the service that
 would start the run rather than only in the console.

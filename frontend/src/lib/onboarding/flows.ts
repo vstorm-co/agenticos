@@ -836,7 +836,14 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       {
         id: "flow-dataset-next",
         page: DATASET_DETAIL,
-        target: "datasets-scoring-tab",
+        target: "datasets-grading-tab",
+        permission: Perm.datasetsEdit,
+      },
+      {
+        id: "flow-dataset-generate",
+        page: DATASET_DETAIL,
+        target: "datasets-generate",
+        activate: "datasets-generated-tab",
         permission: Perm.datasetsEdit,
       },
     ],
