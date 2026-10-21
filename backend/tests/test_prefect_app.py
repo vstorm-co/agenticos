@@ -111,6 +111,7 @@ async def test_every_deployment_is_registered_before_the_runner_starts(
         "org-purge-cleanup",
         "sandbox-log-sweep",
         "mcp-connection-sweep",
+        "group-knowledge-gaps",
         "approval-expiry-sweep",
         "invitation-expiry-sweep",
         "stale-run-sweep",
@@ -210,6 +211,7 @@ async def test_the_minute_sweeps_run_in_this_process_beside_the_runner(
         ("notification-delivery-sweep", 60),
         ("rag-sync-check", 60),
         ("sandbox-destroy-retry", 60),
+        ("eval-abandon-sweep", 60),
     ]
     assert sweeps["redis"] is sweeps["client"]
     sweeps["client"].connect.assert_awaited_once()

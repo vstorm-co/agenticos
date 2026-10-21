@@ -43,6 +43,8 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
   });
   const other = useScores(dataset.id, { pending: !pending, ...narrowed, limit: 1 });
   const { can } = usePermissions();
+  // An eval run's page and Activity both refuse a reader without `runs:view`.
+  const linksRuns = can(Perm.runsView);
   const canDecide = dataset.can_edit;
   // Scoring again reads the answer back from its run, which `runs:view` guards.
   const canRescore = can(Perm.datasetsRun) && can(Perm.runsView);
@@ -149,6 +151,7 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
               <ReviewGroupHeading
                 group={group}
                 busy={busy}
+                linksRuns={linksRuns}
                 onWithdraw={
                   canDecide && pending
                     ? () => void withdraw(group.scores.map((score) => score.id))
@@ -161,6 +164,7 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
                   key={score.id}
                   score={score}
                   busy={busy}
+                  linksRuns={linksRuns}
                   onVerdict={canDecide ? (verdict) => void decide(score, verdict) : undefined}
                   onReview={canDecide ? () => void queue(score.id) : undefined}
                   onRescore={canRescore ? () => void rescore([score.id]) : undefined}

@@ -130,15 +130,25 @@ export function organizationInQuery(search: URLSearchParams): string | null {
  * as a switch dropped the queries a freshly loaded page had just started. The
  * seed's "a provider key is stored" caught that: the secret was created and
  * the list that should have shown it never arrived.
+ *
+ * **The tenant is read from the store when the effect runs**, not from the
+ * render. It has to be what requests carry from this commit on: a page whose
+ * URL names an organization has that organization written by the adoption
+ * effect just before this one, which a render-time value cannot see yet - and a
+ * switch made afterwards on the same page leaves the URL naming the old one,
+ * which a URL-derived value would go on reporting while every request carries
+ * the new one. `adopted` is a dependency only so that the effect runs in the
+ * commit the adoption happens in, before the page's own queries start.
  */
-function useTenantCacheReset(activeOrgId: string | null): void {
+function useTenantCacheReset(adopted: string | null): void {
   const queryClient = useQueryClient();
+  const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const { data: orgs } = useOrganizationList();
   const personalId = orgs?.find((org) => org.is_personal)?.id ?? null;
-  const tenant = activeOrgId ?? personalId;
   const cacheBelongsTo = useRef<string | null>(null);
 
   useLayoutEffect(() => {
+    const tenant = useOrgStore.getState().activeOrgId ?? personalId;
     // Nothing has identified the tenant yet - no selection, and no list to
     // resolve the personal organization from. Anything cached now is cached
     // under whoever this turns out to be.
@@ -156,7 +166,7 @@ function useTenantCacheReset(activeOrgId: string | null): void {
       // belongs to the organization just left.
       resetTenantState();
     }
-  }, [tenant, queryClient]);
+  }, [activeOrgId, adopted, personalId, queryClient]);
 }
 
 /**
@@ -249,11 +259,10 @@ export function useActiveOrganizationRecovery(): void {
   }, [adopted, activeOrgId, arrival, setActiveOrgId]);
 
   // Whatever moved the selection - the switcher, the URL above, or the recovery
-  // below - the cache follows it. The URL's organization is passed rather than
-  // the stored one so that a direct load of another organization's page records
-  // *it* as the tenant the cache belongs to: the reset would otherwise fire one
-  // commit later, cancelling the requests the page had already started.
-  useTenantCacheReset(adopted ?? activeOrgId);
+  // below - the cache follows it. Called after the adoption, so a direct load of
+  // another organization's page records *it* as the tenant the cache belongs to
+  // rather than resetting one commit later, under the requests already started.
+  useTenantCacheReset(adopted);
 
   useEffect(() => {
     if (activeOrgId === null || orgs === undefined) return;

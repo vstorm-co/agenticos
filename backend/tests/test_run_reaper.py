@@ -16,7 +16,7 @@ import pytest
 from app.repositories import agent_run_repo, eval_run_repo
 from app.services import run_reaper
 from app.services.run_reaper import RunReaperService
-from app.worker.tasks.run_tasks import stale_run_sweep_flow
+from app.worker.tasks.run_tasks import reap_abandoned_evals, stale_run_sweep_flow
 
 pytestmark = pytest.mark.anyio
 
@@ -74,9 +74,10 @@ class TestWhatTheRowIsTold:
 
 
 class TestTheFlow:
-    async def test_the_sweep_runs_the_reaper_on_a_session_of_its_own(self):
+    @pytest.mark.parametrize("reaped", [3, 0])
+    async def test_the_sweep_runs_the_reaper_on_a_session_of_its_own(self, reaped: int):
         service = MagicMock(
-            reap_stale=AsyncMock(return_value=3), reap_abandoned_evals=AsyncMock(return_value=0)
+            reap_stale=AsyncMock(return_value=reaped), reap_abandoned_evals=AsyncMock()
         )
         with (
             patch("app.worker.tasks.run_tasks.get_worker_db_context") as ctx,
@@ -84,14 +85,17 @@ class TestTheFlow:
         ):
             ctx.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
             ctx.return_value.__aexit__ = AsyncMock(return_value=False)
-            assert await stale_run_sweep_flow() == 3
+            assert await stale_run_sweep_flow() == reaped
 
         service.reap_stale.assert_awaited_once()
+        # Evals hold their organization's slots, so they are not left to an hourly flow.
+        service.reap_abandoned_evals.assert_not_awaited()
 
-    async def test_abandoned_evals_are_failed_by_the_same_sweep(self, caplog):
-        service = MagicMock(
-            reap_stale=AsyncMock(return_value=0), reap_abandoned_evals=AsyncMock(return_value=2)
-        )
+    @pytest.mark.parametrize(("failed", "logged"), [(2, True), (0, False)])
+    async def test_abandoned_evals_are_failed_by_a_sweep_of_their_own(
+        self, caplog, failed: int, logged: bool
+    ):
+        service = MagicMock(reap_abandoned_evals=AsyncMock(return_value=failed))
         with (
             patch("app.worker.tasks.run_tasks.get_worker_db_context") as ctx,
             patch("app.worker.tasks.run_tasks.RunReaperService", return_value=service),
@@ -99,9 +103,10 @@ class TestTheFlow:
         ):
             ctx.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
             ctx.return_value.__aexit__ = AsyncMock(return_value=False)
-            assert await stale_run_sweep_flow() == 0
+            assert await reap_abandoned_evals() == failed
 
-        assert any("2 abandoned eval run(s)" in r.message for r in caplog.records)
+        said = any(f"{failed} eval run(s) failed" in r.message for r in caplog.records)
+        assert said is logged
 
 
 class TestAbandonedEvals:

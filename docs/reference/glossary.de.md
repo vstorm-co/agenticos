@@ -1,5 +1,5 @@
 ---
-source_sha: "c1a088854770"
+source_sha: "81e0dc8654df"
 ---
 
 # Glossar { #glossary }
@@ -25,8 +25,10 @@ nicht bricht.
 | Skill | Einmal aufgeschriebenes Know-how, das jeder Agent liest, der es braucht | `skill` |
 | Kontext | Dauerhaftes Wissen, das ein Agent immer hat, etwa ein Glossar oder eine Richtlinie | `context` |
 | Wissensdatenbank | Dokumente, die ein Agent durchsucht und zitiert | `collection` |
+| Wissenslücke | Ein Thema aus Fragen, die eine Wissensdatenbank nicht beantworten konnte, nach Bedeutung gruppiert | `knowledge_gap_topic` |
 | App | Eine Seite, die ein Agent veröffentlicht, etwa ein Bericht oder ein kleines Dashboard | `artifact` |
 | Architekt | Der Assistent in der Ecke jeder Seite, der mit dir Agents bauen kann | `platform-assistant` |
+| System-Agent | Ein Agent, den die Plattform selbst ausführt, etwa ein Bewerter oder der Lücken-Entwerfer; getrennt aufgeführt unter **System-Agents** | `kind` außer `agent` |
 
 ## Wo es läuft { #where-it-runs }
 

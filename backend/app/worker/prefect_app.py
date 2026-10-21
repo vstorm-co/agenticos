@@ -38,6 +38,7 @@ from app.worker.sweeps import Sweep, run_sweeps
 from app.worker.tasks.approval_tasks import approval_expiry_sweep_flow
 from app.worker.tasks.eval_tasks import run_eval_flow
 from app.worker.tasks.invitation_tasks import invitation_expiry_sweep_flow
+from app.worker.tasks.knowledge_gap_tasks import group_knowledge_gaps_flow
 from app.worker.tasks.mcp_tasks import mcp_connection_sweep_flow
 from app.worker.tasks.notification_tasks import (
     deliver_due_notifications,
@@ -55,7 +56,7 @@ from app.worker.tasks.report_tasks import (
     monthly_usage_report_flow,
     weekly_usage_report_flow,
 )
-from app.worker.tasks.run_tasks import stale_run_sweep_flow
+from app.worker.tasks.run_tasks import reap_abandoned_evals, stale_run_sweep_flow
 from app.worker.tasks.teardown_tasks import (
     external_state_cleanup_flow,
     teardown_reservation_sweep_flow,
@@ -84,6 +85,8 @@ SWEEPS = (
     # Destroy the remote sandboxes a deleted conversation or project left behind
     # (#2209). Each tombstone carries its own backoff, so most ticks find none due.
     Sweep("sandbox-destroy-retry", 60, retry_pending_destroys),
+    # Fail the eval runs whose worker went silent, freeing the eval slots they hold.
+    Sweep("eval-abandon-sweep", 60, reap_abandoned_evals),
 )
 """The minute-scale work, in this process - see `app/worker/sweeps.py`."""
 
@@ -213,6 +216,15 @@ async def main() -> None:
     deployments.append(
         await mcp_connection_sweep_flow.ato_deployment(
             name="mcp-connection-sweep",
+            schedules=[_every(900)],
+            concurrency_limit=_ONE_AT_A_TIME,
+        )
+    )
+    # Every 15 minutes: a gap is read by a person deciding what to write, so a
+    # quarter-hour's delay costs nothing. A knowledge base with no new misses embeds nothing.
+    deployments.append(
+        await group_knowledge_gaps_flow.ato_deployment(
+            name="group-knowledge-gaps",
             schedules=[_every(900)],
             concurrency_limit=_ONE_AT_A_TIME,
         )

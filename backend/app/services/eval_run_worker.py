@@ -134,7 +134,18 @@ class EvalRunWorker:
         self.heartbeat = settings.EVAL_HEARTBEAT_SECONDS if heartbeat is None else heartbeat
 
     async def run(self) -> None:
-        """Answer every case, confirm the flips, and close the run."""
+        """Answer every case, confirm the flips, and close the run.
+
+        A run the worker cannot finish ends `failed` here, as an agent run's
+        does, rather than live until the sweep finds it silent.
+        """
+        try:
+            await self._work()
+        except Exception:
+            await self._give_up()
+            raise
+
+    async def _work(self) -> None:
         ctx = await self._begin()
         if ctx is None:
             return
@@ -150,21 +161,45 @@ class EvalRunWorker:
             with suppress(asyncio.CancelledError):
                 await beating
 
+    async def _give_up(self) -> None:
+        """Fail the run and what it had not finished, if it is still live."""
+        try:
+            async with self.sessions() as db:
+                await eval_run_repo.fail_live(
+                    db,
+                    self.eval_run_id,
+                    organization_id=self.organization_id,
+                    now=datetime.now(UTC),
+                    error="This eval stopped on an error before it finished. Run it again.",
+                )
+        except Exception:
+            # The database that failed the run may refuse this as well; the
+            # abandoned-eval sweep is the ceiling for that run.
+            logger.exception("eval_run_not_closed", extra={"eval_run_id": str(self.eval_run_id)})
+
     async def _beat(self) -> None:
         """Say the run is alive every `heartbeat` seconds, for as long as it works.
 
         A case can outlast the sweep's window, and a full organization can hold
         every attempt back; neither moves an attempt, and only this tells them
-        from a worker that died.
+        from a worker that died. A beat that fails is not the last: a worker
+        that went silent over one dropped connection would be reaped mid-run.
         """
         while True:
             await asyncio.sleep(self.heartbeat)
-            async with self.sessions() as db:
-                await eval_run_repo.heartbeat(
-                    db,
-                    self.eval_run_id,
-                    organization_id=self.organization_id,
-                    now=datetime.now(UTC),
+            try:
+                async with self.sessions() as db:
+                    await eval_run_repo.heartbeat(
+                        db,
+                        self.eval_run_id,
+                        organization_id=self.organization_id,
+                        now=datetime.now(UTC),
+                    )
+            except Exception:
+                logger.warning(
+                    "eval_heartbeat_failed",
+                    extra={"eval_run_id": str(self.eval_run_id)},
+                    exc_info=True,
                 )
 
     async def _begin(self) -> AuthContext | None:
@@ -221,8 +256,18 @@ class EvalRunWorker:
         )
 
     async def _wave(self, ctx: AuthContext) -> None:
-        drainers = [self._drain(ctx) for _ in range(max(1, settings.EVAL_RUN_CONCURRENCY))]
-        await asyncio.gather(*drainers)
+        drainers = [
+            asyncio.create_task(self._drain(ctx))
+            for _ in range(max(1, settings.EVAL_RUN_CONCURRENCY))
+        ]
+        try:
+            await asyncio.gather(*drainers)
+        finally:
+            # gather leaves the others running when one raises; they must stop
+            # before the run is failed, or they write answers to failed attempts.
+            for drainer in drainers:
+                drainer.cancel()
+            await asyncio.gather(*drainers, return_exceptions=True)
 
     async def _drain(self, ctx: AuthContext) -> None:
         """Claim and answer attempts until none is left, or the run stops."""

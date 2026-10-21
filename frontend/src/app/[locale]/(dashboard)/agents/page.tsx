@@ -7,7 +7,7 @@ import { Bot, Library, Plus } from "lucide-react";
 
 import { AgentCard } from "@/components/agents/agent-card";
 import { CatalogSection } from "@/components/agents/catalog-section";
-import { JudgesSection } from "@/components/agents/judges-section";
+import { SystemAgentsSection } from "@/components/agents/system-agents-section";
 import { AgentTemplateDialog } from "@/components/agents/agent-template-dialog";
 import { CreateAgentDialog } from "@/components/agents/create-agent-dialog";
 import { LabelFilter } from "@/components/agents/label-filter";
@@ -294,7 +294,7 @@ export default function AgentsPage() {
         )}
       </CatalogSection>
 
-      <JudgesSection query={query} agentsMatched={visible.length > 0} />
+      <SystemAgentsSection query={query} agentsMatched={visible.length > 0} />
 
       <AgentTemplateDialog open={templatesOpen} onOpenChange={setTemplatesOpen} />
       <CreateAgentDialog

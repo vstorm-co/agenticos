@@ -190,6 +190,22 @@ describe("ReviewPanel", () => {
     expect(screen.queryByRole("button", { name: /from the queue/ })).toBeNull();
   });
 
+  it("links no eval run or Activity run to a reader without runs:view", () => {
+    state.canViewRuns = false;
+    state.answer = {
+      scores: [
+        caseScore({ id: "a", eval_run_id: "e1", agent_id: "x", agent_name: "Support" }),
+        caseScore({ id: "b", eval_run_id: null, run_id: "run-1" }),
+      ],
+      total: 2,
+    };
+    render(<ReviewPanel dataset={dataset()} />);
+
+    expect(screen.getAllByRole("heading", { level: 3 })).toHaveLength(2);
+    expect(screen.queryByRole("link", { name: "Eval run ↗" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Scored run" })).toBeNull();
+  });
+
   it("takes a group out of the queue undecided, and says so", async () => {
     state.answer = {
       scores: [caseScore({ id: "a" }), caseScore({ id: "b" })],
