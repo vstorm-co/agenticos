@@ -66,6 +66,7 @@ function dataset(overrides: Partial<Dataset> = {}): Dataset {
     case_count: 2,
     can_edit: true,
     can_run: true,
+    pending_proposals: 0,
     scoring: DEFAULT_SCORING,
     judge_name: "Eval judge",
     stats: {

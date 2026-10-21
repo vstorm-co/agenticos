@@ -1,5 +1,5 @@
 ---
-source_sha: "8a6ce582650b"
+source_sha: "837d9c8b79a2"
 ---
 
 # Koncepcje { #concepts }
@@ -620,6 +620,12 @@ Jego runy są sprawdzane względem budżetu i zapisywane jak każde inne, i nie
 wysyłają powiadomienia o runie. Agent systemowy startuje z niewielkim własnym
 miesięcznym budżetem, żeby nowa organizacja nie mogła przypadkiem wydać całego
 swojego budżetu na ewaluację albo szkice.
+
+Agentem systemowym jest też **generator przypadków**, rodzaju `generator`:
+przygotowuje [przypadki do datasetów](datasets.md#generating-cases) i jest
+tworzony tak samo, z własnym budżetem. Jest w tym samym pasie, po drafterze, i
+otwiera się go i edytuje tak jak sędziego; zakładka Generated datasetu prowadzi
+do niego każdego, kto może go edytować.
 
 Uruchamia go tylko platforma. Czat, API, embed albo publiczna strona, kanał,
 harmonogram i delegowanie z innego agenta odmawiają go w usłudze, która

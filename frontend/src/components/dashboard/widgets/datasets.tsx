@@ -6,6 +6,7 @@ import { FlaskConical, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { CreateDatasetDialog } from "@/components/datasets/create-dataset-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useDatasets } from "@/hooks/use-datasets";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -59,8 +60,9 @@ function Breakdown({ dataset }: { dataset: Dataset }) {
 /**
  * The datasets changed most recently: how many cases each holds at which
  * version, and what those cases test against - good answers, bad ones, tool
- * calls, checks - and where they came from. The same listing the Datasets page
- * reads, first page only; the counts ride on it.
+ * calls, checks - and where they came from, and how many drafted cases wait for
+ * a decision. The same listing the Datasets page reads, first page only; the
+ * counts ride on it.
  */
 export function DatasetsWidget({ title, hint, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.datasets");
@@ -93,13 +95,20 @@ export function DatasetsWidget({ title, hint, seeAll, options }: DashboardWidget
         <ul className="divide-border divide-y">
           {datasets.map((dataset) => (
             <li key={dataset.id}>
+              {/* Drafts waiting are what this card asks of its reader, so the row
+                  opens on them. */}
               <Link
-                href={`${ROUTES.DATASETS}/${dataset.id}`}
+                href={`${ROUTES.DATASETS}/${dataset.id}${dataset.pending_proposals > 0 ? "?tab=generated" : ""}`}
                 className="hover:bg-accent/40 flex flex-col gap-1 rounded-md px-1 py-2"
               >
                 <span className="flex items-center justify-between gap-3">
                   <span className="text-foreground truncate text-sm">{dataset.name}</span>
-                  <span className="text-muted-foreground shrink-0 text-xs">
+                  <span className="text-muted-foreground flex shrink-0 items-center gap-2 text-xs">
+                    {dataset.pending_proposals > 0 && (
+                      <Badge variant="secondary">
+                        {t("waiting", { count: dataset.pending_proposals })}
+                      </Badge>
+                    )}
                     {t("cases", { count: dataset.case_count, version: dataset.latest_version })}
                   </span>
                 </span>

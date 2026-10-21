@@ -87,7 +87,11 @@ describe("useSystemAgents", () => {
     const { result } = renderHook(() => useSystemAgents(), { wrapper });
 
     await waitFor(() => expect(result.current.total).toBe(1));
-    expect(result.current.groups.map((group) => group.kind)).toEqual(["judge", "drafter"]);
+    expect(result.current.groups.map((group) => group.kind)).toEqual([
+      "judge",
+      "drafter",
+      "generator",
+    ]);
     expect(result.current.groups[0]?.agents[0]?.name).toBe("Eval judge");
     expect(result.current.groups[1]?.agents).toEqual([]);
     expect(apiClient.get).toHaveBeenCalledWith("/agents", {
