@@ -30,9 +30,10 @@ export interface VerifyFinding {
 export interface AuthoringRequest {
   id: string;
   kind: AuthoringKind;
-  target: "agent" | "skill";
+  target: "agent" | "skill" | "context";
   agent_id: string | null;
   skill_id: string | null;
+  context_id?: string | null;
   status: AuthoringStatus;
   error: string | null;
   estimate_usd: string;
@@ -56,9 +57,24 @@ export interface EvidenceItem {
   quote: string | null;
 }
 
+/** A JSON value a field change reads or writes. */
+export type FieldValue =
+  string | number | boolean | null | FieldValue[] | { [key: string]: FieldValue };
+
+/** What a field change is expected to do, measured on recent runs. */
+export interface FieldEffect {
+  /** For a change of model: what one recent run would cost on each, as decimals. */
+  runs?: number;
+  rough?: boolean;
+  cost_per_run_before?: string | null;
+  cost_per_run_after?: string | null;
+  /** Tools the change makes reachable that write; an eval holds them back. */
+  writes?: string[];
+}
+
 export interface Hunk {
   id: string;
-  kind: "instructions" | "tool_override";
+  kind: "instructions" | "tool_override" | "spec_field";
   origin: AuthoringKind;
   status: HunkStatus;
   old_text: string;
@@ -72,6 +88,18 @@ export interface Hunk {
   base_description: string | null;
   new_name: string | null;
   new_description: string | null;
+  /** A field change: its path in the spec, and what it does there. */
+  path: string | null;
+  op: "set" | "add" | "remove" | null;
+  base_value: FieldValue;
+  new_value: FieldValue;
+  accepted_value: FieldValue;
+  effect: FieldEffect | null;
+  /** Names of the models, collections, context files and servers it refers to. */
+  names: Record<string, string>;
+  /** Why Accept is refused for now: `check_first`, `inconclusive` or `regression`. */
+  blocked: "check_first" | "inconclusive" | "regression" | null;
+  expected_effect: string;
   rationale: string;
   evidence: EvidenceItem[];
   evidence_dropped: number;
@@ -100,6 +128,8 @@ export interface AgentAuthoring {
 export interface HunkDecision {
   action: "accept" | "dismiss" | "undo";
   text?: string;
+  /** A field change's value, edited before accepting. */
+  value?: FieldValue;
 }
 
 /** A check names a dataset, or an eval suite whose dataset and environment it runs. */
@@ -113,6 +143,43 @@ export interface ProposalCheck {
 }
 
 export interface AuthoringWaiting {
-  agents: { agent_id: string; name: string; instructions: number; tools: number }[];
+  agents: {
+    agent_id: string;
+    name: string;
+    instructions: number;
+    tools: number;
+    fields?: number;
+  }[];
   skills: number;
+  contexts?: number;
+}
+
+/** A context file change the assistant proposed, beside the file as it stands. */
+export interface ContextChange {
+  id: string;
+  context_id: string;
+  context_name: string;
+  description: string | null;
+  content: string;
+  current_description: string | null;
+  current_content: string;
+  status: "pending" | "applied" | "discarded";
+  decided_by_user_id: string | null;
+  decided_at: string | null;
+  /** The file changed since the proposal was written; Apply refuses it. */
+  stale: boolean;
+  rationale: string;
+  evidence: EvidenceItem[];
+  evidence_dropped: number;
+  expected_effect: string;
+  authoring_request_id: string | null;
+  /** The agents that read the file, as far as the reader may see them. */
+  used_by: { id: string; name: string }[];
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface ContextChangeList {
+  items: ContextChange[];
+  total: number;
 }

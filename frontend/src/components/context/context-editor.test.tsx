@@ -34,6 +34,12 @@ vi.mock("@/components/chat/markdown-content", () => ({
   ),
 }));
 
+vi.mock("@/components/authoring/improve-skill-button", () => ({
+  ImproveContextButton: ({ contextId }: { contextId: string }) => (
+    <button>{`improve ${contextId}`}</button>
+  ),
+}));
+
 function mount(props: Partial<React.ComponentProps<typeof ContextEditor>> = {}) {
   const onSave = vi.fn();
   const onCancel = vi.fn();
@@ -55,6 +61,11 @@ const openSource = () => userEvent.click(screen.getByRole("button", { name: "Sou
 const body = () => screen.getByLabelText("glossary.md source");
 
 describe("ContextEditor", () => {
+  it("offers the assistant to somebody who may edit the file, and only to them", () => {
+    mount();
+    expect(screen.getByRole("button", { name: "improve c1" })).toBeInTheDocument();
+  });
+
   it("names the file with the format it is stored in, so the body renders as one", () => {
     // The name carries no extension and the format is a separate field, but the
     // renderer is chosen from a filename - so `glossary` alone read as plain
@@ -180,6 +191,7 @@ describe("ContextEditor", () => {
     mount({ canEdit: false });
 
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "improve c1" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
     await openSource();
     expect(body()).toHaveAttribute("readonly");

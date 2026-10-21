@@ -143,6 +143,10 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
         <Link href={ROUTES.SKILLS} className="text-sm underline">
           {t("backToSkillChange")}
         </Link>
+      ) : (candidate?.context_ids?.length ?? 0) > 0 ? (
+        <Link href={ROUTES.CONTEXT} className="text-sm underline">
+          {t("backToContextChange")}
+        </Link>
       ) : (
         candidate?.source === "explicit" && (
           <Link href={`${ROUTES.AGENTS}/${agentId}?tab=build`} className="text-sm underline">

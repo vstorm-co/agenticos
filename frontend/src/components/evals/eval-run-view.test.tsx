@@ -302,6 +302,18 @@ describe("EvalRunView", () => {
     expect(screen.queryByRole("link", { name: "Back to the suggestions" })).toBeNull();
   });
 
+  it("leads a context file change's check back to Context, where the change waits", () => {
+    state.run = {
+      ...(state.run as object),
+      run: evalRun({ arms: [arm({ source: "version", context_ids: ["ctx-1"] })] }),
+    };
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.getByRole("link", { name: "Back to the context file change" })).toHaveAttribute(
+      "href",
+      "/context",
+    );
+  });
+
   it("says when the verdict could not be read, and reads it again", async () => {
     const refetch = vi.fn();
     state.refetchComparison = refetch;

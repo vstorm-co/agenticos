@@ -2430,13 +2430,14 @@
       },
       "suggestions": {
         "title": "Wartende Vorschläge",
-        "description": "Was der Authoring-Assistent für Ihre Agents und Skills vorgeschlagen hat und auf Ihre Entscheidung wartet.",
+        "description": "Was der Authoring-Assistent für Ihre Agents, Skills und Kontextdateien vorgeschlagen hat und auf Ihre Entscheidung wartet.",
         "empty": {
           "title": "Nichts wartet",
           "description": "Bitten Sie den Assistenten auf dem Build-Tab eines Agents um Verbesserungen."
         },
-        "counts": "{instructions, plural, =0 {} =1 {1 Änderung an Anweisungen} other {# Änderungen an Anweisungen}}{tools, plural, =0 {} other { · {tools, plural, =1 {1 Tool-Änderung} other {# Tool-Änderungen}}}}",
-        "skills": "{count, plural, =1 {1 Skill-Änderung} other {# Skill-Änderungen}} zu prüfen"
+        "counts": "{instructions, plural, =0 {} =1 {1 Änderung an Anweisungen} other {# Änderungen an Anweisungen}}{tools, plural, =0 {} other { · {tools, plural, =1 {1 Tool-Änderung} other {# Tool-Änderungen}}}}{fields, plural, =0 {} other { · {fields, plural, =1 {1 Einstellungsänderung} other {# Einstellungsänderungen}}}}",
+        "skills": "{count, plural, =1 {1 Skill-Änderung} other {# Skill-Änderungen}} zu prüfen",
+        "contexts": "{count, plural, =1 {1 Änderung an einer Kontextdatei} other {# Änderungen an Kontextdateien}} zu prüfen"
       }
     },
     "edit": {
@@ -8633,7 +8634,8 @@
     },
     "excludedEvidence": "{count, plural, =1 {1 Case wurde} other {# Cases wurden}} weggelassen: sie stammen aus den Gesprächen, aus denen die geprüfte Änderung abgeleitet wurde.",
     "backToSuggestions": "Zurück zu den Vorschlägen",
-    "backToSkillChange": "Zurück zur Skill-Änderung"
+    "backToSkillChange": "Zurück zur Skill-Änderung",
+    "backToContextChange": "Zurück zur Änderung der Kontextdatei"
   },
   "remoteAgents": {
     "title": "Remote Agents",
@@ -8777,6 +8779,45 @@
       "dismiss": "Verwerfen",
       "undo": "Rückgängig"
     },
+    "field": {
+      "editLabel": "Dein Wert",
+      "yes": "Ja",
+      "no": "Nein",
+      "description": "Beschreibung",
+      "model": "Modell",
+      "maxSteps": "Schrittlimit",
+      "setting": {
+        "temperature": "Temperatur",
+        "top_p": "Top p",
+        "max_tokens": "Höchstens Ausgabe-Token",
+        "timeout": "Zeitlimit",
+        "parallel_tool_calls": "Parallele Tool-Aufrufe"
+      },
+      "capabilityAdd": "Capability {name} hinzufügen",
+      "capabilityRemove": "Capability {name} entfernen",
+      "collectionAdd": "Wissensbasis {name} hinzufügen",
+      "collectionRemove": "Wissensbasis {name} entfernen",
+      "contextAdd": "Kontextdatei {name} hinzufügen",
+      "contextRemove": "Kontextdatei {name} entfernen",
+      "mcpTools": "MCP-Tools von {name}",
+      "specialist": "Beschreibung des Spezialisten {name}",
+      "capabilityConfig": "Einstellungen von {name}",
+      "approval": "Freigabe für {name}",
+      "toolApproval": "Freigabe für das Tool {name}",
+      "unset": "Nicht gesetzt",
+      "adds": "Fügt hinzu",
+      "removes": "Entfernt",
+      "cost": "Ein Run kostet jetzt etwa ${before} und auf dem vorgeschlagenen Modell ${after}, berechnet auf {runs, plural, =1 {1 aktuellem Run} other {# aktuellen Runs}}.",
+      "unpriced": "Was ein Run kosten würde, lässt sich für eines der Modelle nicht berechnen.",
+      "rough": "Eine grobe Schätzung aus {runs, plural, =0 {keinem Run} =1 {1 Run} other {# Runs}}.",
+      "writes": "Erreicht Tools, die etwas verändern: {tools}. Ein Eval hält sie zurück, also misst eine Prüfung ihre Wirkung nicht.",
+      "expects": "Erwartet: {effect}",
+      "blocked": {
+        "check_first": "Ein Modellwechsel wird angenommen, wenn er sich auszahlt. Führe zuerst Mit Evals prüfen für diese Vorschläge aus.",
+        "inconclusive": "Die letzte Prüfung dieses Modells hat nichts entschieden. Bewerte die offenen Antworten oder prüfe erneut.",
+        "regression": "Die letzte Prüfung dieses Modells hat Fälle gebrochen, die vorher bestanden. Korrigiere die Vorschläge oder verwirf diesen."
+      }
+    },
     "evidence": {
       "none": "Keine Belege, die sich prüfen ließen.",
       "run": "Run {id}",
@@ -8821,7 +8862,9 @@
       "title": "Mit Evals prüfen",
       "body": "Führt ein Dataset gegen den Draft aus, wie er mit allen wartenden Vorschlägen wäre, neben der veröffentlichten Version. Cases aus den Gesprächen, aus denen die Vorschläge stammen, werden weggelassen. Durch die Prüfung wird nichts angenommen.",
       "skillBody": "Führt ein Dataset auf einem Agent aus, der den Skill nutzt: auf beiden Seiten seine veröffentlichte Version, nur der Inhalt des Skills unterscheidet sich. Cases aus den Gesprächen, aus denen die Änderung stammt, werden weggelassen. Durch die Prüfung wird nichts angewendet.",
+      "contextBody": "Führt ein Dataset auf einem Agent aus, der die Datei nutzt: auf beiden Seiten seine veröffentlichte Version, nur der Inhalt der Datei unterscheidet sich. Cases aus den Gesprächen, aus denen die Änderung stammt, werden weggelassen. Durch die Prüfung wird nichts angewendet.",
       "agent": "Agent, der den Skill nutzt",
+      "contextAgent": "Agent, der die Datei nutzt",
       "agentPlaceholder": "Agent wählen",
       "target": "Prüfen gegen",
       "targetPlaceholder": "Suite oder Dataset wählen",
@@ -8840,6 +8883,31 @@
       "working": "Lese die Runs…",
       "aiOff": "KI-Unterstützung ist für diese Organisation ausgeschaltet",
       "check": "Mit Evals prüfen"
+    },
+    "context": {
+      "improve": "Mit dem Assistenten verbessern",
+      "working": "Lese die Runs…",
+      "aiOff": "KI-Unterstützung ist für diese Organisation aus",
+      "check": "Mit Evals prüfen"
+    },
+    "contextChanges": {
+      "title": "Vom Assistenten vorgeschlagene Änderungen",
+      "waiting": "{count, plural, =1 {1 Änderung wartet} other {# Änderungen warten}}. Anwenden wirkt sofort für jeden Agent, der die Datei liest.",
+      "stale": "Datei seitdem geändert",
+      "staleHint": "Jemand hat die Datei nach dem Vorschlag bearbeitet. Vergleiche beide Fassungen und bearbeite die Datei von Hand oder frag den Assistenten erneut.",
+      "usedBy": "Gelesen von {agents}",
+      "usedByNobody": "Kein Agent, den du siehst, liest diese Datei",
+      "show": "Zeige, was sich in {name} ändert",
+      "hide": "Ausblenden",
+      "review": "Prüfen",
+      "discard": "Verwerfen",
+      "discardTo": "Änderung an {name} verwerfen",
+      "apply": "Anwenden",
+      "applyTo": "Änderung an {name} anwenden",
+      "liveHint": "Anwenden wirkt sofort: Jeder Agent, der die Datei liest, liest den neuen Inhalt beim nächsten Run.",
+      "expects": "Erwartet: {effect}",
+      "applied": "Änderung an {name} angewendet",
+      "discarded": "Änderung an {name} verworfen"
     },
     "describe": {
       "label": "Oder beschreiben Sie ihn, und {name} entwirft ihn mit Ihnen",

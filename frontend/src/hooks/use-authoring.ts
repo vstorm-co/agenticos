@@ -96,42 +96,50 @@ export function useAgentAuthoring(agentId: string, { enabled = true } = {}) {
   };
 }
 
-/** The assistant on one skill: its latest requests, and starting another. */
-export function useSkillAuthoring(skillId: string, { enabled = true } = {}) {
+/**
+ * The assistant on one organization resource whose change waits whole - a skill
+ * or a context file: its latest requests, starting another, and checking a change.
+ *
+ * The change it proposes is written when the request finishes, not when it is
+ * queued, so the waiting changes are read again once the one being worked on ends.
+ */
+function useResourceAuthoring(
+  base: string,
+  queryKey: readonly unknown[],
+  changes: readonly unknown[],
+  { enabled = true } = {},
+) {
   const queryClient = useQueryClient();
   const query = useQuery({
-    queryKey: qk.authoring.skill(skillId),
-    queryFn: () => apiClient.get<AuthoringRequest[]>(`/skills/${skillId}/authoring`),
+    queryKey,
+    queryFn: () => apiClient.get<AuthoringRequest[]>(`${base}/authoring`),
     enabled,
     refetchInterval: (current) => (working(current.state.data?.[0]) ? AUTHORING_POLL_MS : false),
   });
-  // The change it proposes is written when the request finishes, not when it is
-  // queued, so the waiting changes are read again once the one being worked on ends.
   const latest = query.data?.[0];
   const workingOn = latest !== undefined && working(latest) ? latest.id : null;
   const watched = useRef<string | null>(null);
   useEffect(() => {
     if (watched.current !== null && watched.current !== workingOn) {
-      void queryClient.invalidateQueries({ queryKey: qk.skillChanges.all() });
+      void queryClient.invalidateQueries({ queryKey: changes });
     }
     watched.current = workingOn;
-  }, [workingOn, queryClient]);
+  }, [workingOn, queryClient, changes]);
   const estimate = useMutation({
     mutationFn: (body: AuthoringStart) =>
-      apiClient.post<AuthoringEstimate>(`/skills/${skillId}/authoring/estimate`, body),
+      apiClient.post<AuthoringEstimate>(`${base}/authoring/estimate`, body),
   });
   const start = useMutation({
     mutationFn: (body: AuthoringStart) =>
-      apiClient.post<AuthoringRequest>(`/skills/${skillId}/authoring`, body),
+      apiClient.post<AuthoringRequest>(`${base}/authoring`, body),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.authoring.all() }),
   });
   const checkEstimate = useMutation({
     mutationFn: (body: ProposalCheck) =>
-      apiClient.post<EvalRunEstimate>(`/skills/${skillId}/authoring/check/estimate`, body),
+      apiClient.post<EvalRunEstimate>(`${base}/authoring/check/estimate`, body),
   });
   const check = useMutation({
-    mutationFn: (body: ProposalCheck) =>
-      apiClient.post<EvalRun>(`/skills/${skillId}/authoring/check`, body),
+    mutationFn: (body: ProposalCheck) => apiClient.post<EvalRun>(`${base}/authoring/check`, body),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.evalRuns.all() }),
   });
   return {
@@ -142,6 +150,26 @@ export function useSkillAuthoring(skillId: string, { enabled = true } = {}) {
     checkEstimate,
     check,
   };
+}
+
+/** The assistant on one skill. */
+export function useSkillAuthoring(skillId: string, options: { enabled?: boolean } = {}) {
+  return useResourceAuthoring(
+    `/skills/${skillId}`,
+    qk.authoring.skill(skillId),
+    qk.skillChanges.all(),
+    options,
+  );
+}
+
+/** The assistant on one context file. */
+export function useContextAuthoring(contextId: string, options: { enabled?: boolean } = {}) {
+  return useResourceAuthoring(
+    `/context/${contextId}`,
+    qk.authoring.context(contextId),
+    qk.contextChanges.all(),
+    options,
+  );
 }
 
 /** What the assistant proposed that the caller may decide, for the dashboard. */

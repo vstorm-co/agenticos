@@ -10,6 +10,7 @@ import { agentAuthoring, authoringRequest } from "@/test-utils/authoring";
 import {
   AUTHORING_POLL_MS,
   useAgentAuthoring,
+  useContextAuthoring,
   useSkillAuthoring,
   useWaitingSuggestions,
 } from "./use-authoring";
@@ -123,6 +124,35 @@ describe("useSkillAuthoring", () => {
     });
     expect(result.current.requests).toEqual([]);
     expect(result.current.latest).toBeNull();
+  });
+});
+
+describe("useContextAuthoring", () => {
+  it("works through the context file's routes, and reads its changes when one finishes", async () => {
+    const running = authoringRequest({ id: "r-1", status: "running", target: "context" });
+    vi.mocked(apiClient.get).mockResolvedValue([running]);
+    vi.mocked(apiClient.post).mockResolvedValue({});
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    const { result } = renderHook(() => useContextAuthoring("ctx-1"), { wrapper });
+    await waitFor(() => expect(result.current.latest?.status).toBe("running"));
+    expect(apiClient.get).toHaveBeenCalledWith("/context/ctx-1/authoring");
+
+    await act(async () => {
+      await result.current.start.mutateAsync({ kind: "improve", window_days: 30 });
+      await result.current.check.mutateAsync({ dataset_id: "ds", proposal_id: "p" });
+    });
+    expect(vi.mocked(apiClient.post).mock.calls.map(([url]) => url)).toEqual([
+      "/context/ctx-1/authoring",
+      "/context/ctx-1/authoring/check",
+    ]);
+
+    vi.mocked(apiClient.get).mockResolvedValue([{ ...running, status: "completed" }]);
+    await act(async () => {
+      await client.refetchQueries({ queryKey: qk.authoring.context("ctx-1") });
+    });
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.contextChanges.all() }),
+    );
   });
 });
 

@@ -5,8 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { authoringRequest } from "@/test-utils/authoring";
 import type { AuthoringRequest } from "@/types/authoring";
 import { DescribeWithArchitect } from "./describe-with-architect";
-import { ImproveSkillButton } from "./improve-skill-button";
-import { SkillCheckButton } from "./skill-check-button";
+import { ImproveContextButton, ImproveSkillButton } from "./improve-skill-button";
+import { ContextCheckButton, SkillCheckButton } from "./skill-check-button";
 
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
@@ -39,8 +39,8 @@ vi.mock("@/hooks/use-eval-runs", () => ({
   useEveryAgent: () => ({ agents: [{ id: "agent-2", name: "Clerk" }] }),
 }));
 vi.mock("@/components/evals/estimate-summary", () => ({ EstimateSummary: () => <p>priced</p> }));
-vi.mock("@/hooks/use-authoring", () => ({
-  useSkillAuthoring: () => ({
+vi.mock("@/hooks/use-authoring", () => {
+  const assistant = () => ({
     latest: state.latest,
     estimate: {
       mutateAsync: vi.fn().mockResolvedValue({
@@ -57,8 +57,9 @@ vi.mock("@/hooks/use-authoring", () => ({
       mutateAsync: () => Promise.resolve({ total_usd: "0.10", affordable: true }),
     },
     check: { mutateAsync: () => Promise.resolve({ id: "eval-3", agent_id: "agent-2" }) },
-  }),
-}));
+  });
+  return { useSkillAuthoring: assistant, useContextAuthoring: assistant };
+});
 
 beforeEach(() => {
   state.runsView = true;
@@ -97,6 +98,40 @@ describe("SkillCheckButton", () => {
     await userEvent.click(screen.getByRole("button", { name: "Check with evals" }));
     await userEvent.click(
       await screen.findByRole("combobox", { name: "Agent that uses the skill" }),
+    );
+    await userEvent.click(await screen.findByRole("option", { name: "Clerk" }));
+    await userEvent.click(screen.getByRole("combobox", { name: "Check against" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Refund cases" }));
+    await screen.findByText("priced");
+    await userEvent.click(screen.getByRole("button", { name: "Start the check" }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/agents/agent-2/evals/eval-3"));
+  });
+});
+
+describe("the context file buttons", () => {
+  it("ask before improving a context file", async () => {
+    render(<ImproveContextButton contextId="ctx-1" />);
+    await userEvent.click(screen.getByRole("button", { name: "Improve with the assistant" }));
+    expect(await screen.findByText(/It will read 2 runs/)).toBeInTheDocument();
+  });
+
+  it("are absent for somebody who may not read runs", () => {
+    state.runsView = false;
+    const { container } = render(
+      <>
+        <ImproveContextButton contextId="ctx-1" />
+        <ContextCheckButton contextId="ctx-1" proposalId="change-1" />
+      </>,
+    );
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("check a context file change on an agent that reads the file", async () => {
+    render(<ContextCheckButton contextId="ctx-1" proposalId="change-1" />);
+    await userEvent.click(screen.getByRole("button", { name: "Check with evals" }));
+    expect(screen.getByText(/only the file's body different/)).toBeInTheDocument();
+    await userEvent.click(
+      await screen.findByRole("combobox", { name: "Agent that uses the file" }),
     );
     await userEvent.click(await screen.findByRole("option", { name: "Clerk" }));
     await userEvent.click(screen.getByRole("combobox", { name: "Check against" }));
