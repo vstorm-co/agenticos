@@ -731,6 +731,16 @@ file storage above; these bound them and say where they are served from. See
 | `ARTIFACT_MAX_VERSIONS` | `20` | Versions kept per app. The oldest is removed when a newer one lands, unless the public link is pinned to it |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | How long a signed content address opens, at most 3600. Also how long an open page outlives a revoked grant or link |
 | `ARTIFACT_ORIGIN` | (empty) | Where content is served from - the pages, their [library set](artifacts.md#the-library-set) and the embed document. Empty serves it from `PUBLIC_BASE_URL`, isolated by its `sandbox` policy. Set it to a host on a separate registrable domain, routed to this API, to also put the page on another site |
+| `VISUAL_MAP_TILES` | (empty) | The one tile server a [visual](artifacts.md#visuals) or an app may draw a map on: `openstreetmap`, `usgs-topo`, or a `https://` URL template with `{z}`, `{x}` and `{y}` once each. Every page's policy then admits images from that server's tile path and nothing else remote. Empty draws a map as an outline of its stops. A value that cannot be served is refused at startup |
+| `VISUAL_MAP_TILES_ATTRIBUTION` | (empty) | The credit shown under a map on a tile server of your own, e.g. `© OpenStreetMap contributors`. Required with a URL template; a preset brings its own |
+
+**Map tiles are loaded by the reader's browser, not by the deployment.** Each
+reader's browser asks the tile server for the tiles it shows, with the content
+origin as its referrer and never a page's address. A template's key is visible
+to anyone who can open a map, so use a key the provider restricts, and mind the
+provider's terms: OpenStreetMap's public tiles are for light use, and a busy
+deployment should run its own server or pay a provider. *Admin → System* shows
+whether the server answers.
 
 **`ARTIFACT_ORIGIN` is read twice, and both have to see it.** The backend signs
 content addresses on it, and the frontend adds it to the console's `frame-src`.

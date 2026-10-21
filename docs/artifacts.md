@@ -121,6 +121,8 @@ keeps working if the deployment later moves its content to another origin:
 | `lib/agenticos-1.css` | The first version of the look, kept for the pages published against it |
 | `lib/three-0.186.0/three.module.js` | three.js 0.186.0 as an ES module, with `addons/controls/OrbitControls.js` beside it - map `three` and `three/addons/` to them with an import map |
 | `lib/mermaid-12.1.0.min.js` | Mermaid 12.1.0, as `window.mermaid` |
+| `lib/leaflet-1.9.4/leaflet.js`, `leaflet.css` | Leaflet 1.9.4, as `window.L` - draws on the deployment's [map tiles](#visuals), when it has any |
+| `lib/agenticos-map-1.js` | `window.AOMap.itinerary`: numbered pins dropped in order, a line joining them, pause and replay, and cards for the stops - on map tiles, or as an outline of the stops without them |
 
 Every name carries its version and is cached for a year. The files answer
 `Access-Control-Allow-Origin: *`, because a module script is fetched in CORS mode
@@ -156,15 +158,48 @@ it writes the whole document so its scripts run, exactly as the saved page will.
 The frame reports its size, its errors and a heartbeat; a drawing that stops
 beating is taken down rather than left to hold the tab.
 
-**In the chat.** The panel shows the drawing whole - an SVG fitted by its
-`viewBox`, a page laid out at the panel's width and shrunk past 560 pixels -
-under its title, framed as the agent's message, never the console's. Full screen
-shows it at its own size; on a phone the preview opens full screen at a tap. Zoom
-sits in the drawing's bottom right corner while the pointer is on it, in the
-preview and full screen: an SVG is drawn larger, a page is scaled, and the box
-scrolls once the drawing outgrows it. *Show code*, *Download* (`.svg`, `.html`,
-or the Mermaid source) and *Copy as image* for an SVG are above it, and an error
-the drawing reports comes with *Fix it*, which asks the agent.
+**In the chat.** A drawing sits in the conversation itself, with no card around
+it, from the left edge of the message's text: an SVG is fitted by its `viewBox`
+and shrunk past 560 pixels, a page is laid out at the column's width and shrunk
+past 900. A quiet line under it names it and says whether it is still being
+drawn; *Show code*, *Download* (`.svg`, `.html`, or the Mermaid source), *Copy
+as image* for an SVG, *Save to Apps* and *Full screen* appear on that line when
+the pointer is over the drawing, and always on a touch screen. While it streams,
+the drawing keeps the height its call declared, on a faint shade, so the
+conversation does not move under the reader. Full screen shows it at its own
+size; on a phone the preview opens full screen at a tap. Zoom sits in the
+drawing's bottom right corner while the pointer is on it: an SVG is drawn
+larger, a page is scaled, and the box scrolls once the drawing outgrows it. An
+error the drawing reports comes with *Fix it*, which asks the agent.
+
+**Follow-ups.** A control in a drawing can hand the person's choice back to the
+conversation - *Plan this stop*, *Use these numbers* - by calling
+`agenticos.followUp(text)`. The drawing only asks. The console shows the exact
+text under the drawing with *Send*, *Edit* and *Dismiss*, and it becomes the
+person's message only when they click *Send*, a click the drawing cannot make
+for them. A request arriving with no user interaction behind it - on load, on a
+timer - is dropped, as is one over 2,000 characters, and while one waits a
+second cannot replace it. Follow-ups are offered only in the chat:
+`agenticos.canFollowUp()` is false in a shared thread, the widget and an app,
+where `followUp` does nothing and returns `false`, so a saved drawing keeps
+working.
+
+**Maps.** With [`VISUAL_MAP_TILES`](configuration.md#published-artifacts) set, a
+drawing or an app may load map tiles from that one server, and
+`agenticos.map` names it; the map kit draws an itinerary on it with the server's
+credit underneath. Without it, the same call draws an outline of the stops -
+pins and the line between them, no streets - and so does a map whose tiles do
+not load. A chat app's picture of a drawing is always the outline: the browser
+that renders it answers no tile request.
+
+**Choosing the form.** The `visual-design` skill tells the agent when a drawing
+is the right answer at all: text for a fact or advice, a Markdown table for
+exact values, `create_chart` for numbers to see - so "now chart it" turns a
+table into a native chart - and a drawing to explain how something moves, to
+make a tool for the moment, or to follow places on a map. Its templates are a
+diagram, an explainer with sliders, a 3D aircraft with pitch, roll and yaw, a
+calculator and an itinerary. An empty chat with an agent that draws opens on
+one starter for each. Switching Visuals on in the Builder binds Charts too.
 
 **Downloading one.** A file opened from disk has no frame around it, so the
 download carries what the frame enforced. An SVG keeps the drawing and loses
@@ -278,7 +313,11 @@ the person looking at it:
   somebody opens the content address on its own.
 - The same policy sets `default-src 'none'` and `connect-src 'none'`. The only
   remote source it names is the library set's own path on the content origin,
-  for scripts, styles and fonts. `frame-ancestors` names only the console - and,
+  for scripts, styles and fonts - and, on a deployment that sets
+  `VISUAL_MAP_TILES`, images from that tile server's tile path, so a map has a
+  background. An image request carries its own address, so a page could spell
+  what it shows into a tile's path; what it reaches is the one server the
+  operator chose, which is why there is one and it is off by default. `frame-ancestors` names only the console - and,
   for a page with a public link and embedding sites, the embed document and
   those sites. The frame in the console carries the same `sandbox` list as a
   second lock.
@@ -290,7 +329,9 @@ the person looking at it:
   new tab only when the person agrees; the embed document does the same in a bar
   under the page. The page could send that message itself, so it is a request and
   never a permission - the person reading the address is what stands between a
-  prompt-injected page and the address it would send its numbers to.
+  prompt-injected page and the address it would send its numbers to. A
+  [follow-up](#visuals) is the same kind of request: the console shows the text
+  and a person sends it.
 - One signed address loads its page a few times a minute at most, counted per
   address before anything is read. The console and the public page mint a
   fresh address each time they draw the frame, and minting one through a public

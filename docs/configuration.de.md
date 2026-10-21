@@ -1,5 +1,5 @@
 ---
-source_sha: "14553222ac64"
+source_sha: "f400fb789774"
 ---
 
 # Konfiguration { #configuration }
@@ -781,6 +781,17 @@ sie ausgeliefert werden. Siehe [Apps](artifacts.md).
 | `ARTIFACT_MAX_VERSIONS` | `20` | Pro App behaltene Versionen. Die älteste wird entfernt, wenn eine neuere hinzukommt, außer der öffentliche Link ist an sie angeheftet |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Wie lange sich eine signierte Inhaltsadresse öffnen lässt, höchstens 3600. Auch, wie lange eine offene Seite einen entzogenen Grant oder Link überdauert |
 | `ARTIFACT_ORIGIN` | (empty) | Von wo Inhalte ausgeliefert werden - die Seiten, ihr [Bibliothekssatz](artifacts.md#the-library-set) und das Einbettungsdokument. Leer liefert sie von `PUBLIC_BASE_URL` aus, isoliert durch ihre `sandbox`-Policy. Setzen Sie ihn auf einen Host auf einer separaten registrierbaren Domain, auf diese API geroutet, um die Seite zusätzlich auf eine andere Site zu legen |
+| `VISUAL_MAP_TILES` | (empty) | Der eine Kachelserver, auf dem ein [Visual](artifacts.md#visuals) oder eine App eine Karte zeichnen darf: `openstreetmap`, `usgs-topo` oder eine `https://`-URL-Vorlage mit `{z}`, `{x}` und `{y}` je einmal. Die Policy jeder Seite lässt dann Bilder aus dem Kachelpfad dieses Servers zu und nichts anderes Entferntes. Leer zeichnet eine Karte als Umriss ihrer Stopps. Ein Wert, der sich nicht ausliefern lässt, wird beim Start abgewiesen |
+| `VISUAL_MAP_TILES_ATTRIBUTION` | (empty) | Die Quellenangabe unter einer Karte auf einem eigenen Kachelserver, z. B. `© OpenStreetMap contributors`. Pflicht bei einer URL-Vorlage; ein Preset bringt seine eigene mit |
+
+**Kartenkacheln lädt der Browser des Lesers, nicht das Deployment.** Der Browser
+jedes Lesers fragt den Kachelserver nach den Kacheln, die er zeigt, mit dem
+Inhalts-Origin als Referrer und nie mit der Adresse einer Seite. Einen Schlüssel in
+der Vorlage sieht jeder, der eine Karte öffnen kann, also nehmen Sie einen, den der
+Anbieter einschränkt, und beachten Sie seine Bedingungen: die öffentlichen Kacheln
+von OpenStreetMap sind für leichte Nutzung, und ein viel genutztes Deployment sollte
+einen eigenen Server betreiben oder einen Anbieter bezahlen. *Admin → System* zeigt,
+ob der Server antwortet.
 
 **`ARTIFACT_ORIGIN` wird zweimal gelesen, und beide Stellen müssen ihn sehen.**
 Das Backend signiert Inhaltsadressen darauf, und das Frontend fügt ihn zum

@@ -1,5 +1,5 @@
 ---
-source_sha: "06f8c1ff3994"
+source_sha: "66e1fc8a7b5f"
 ---
 
 # Aplikacje { #artifacts }
@@ -130,6 +130,8 @@ jeśli wdrożenie przeniesie później treść do innego originu:
 | `lib/agenticos-1.css` | Pierwsza wersja wyglądu, zostawiona dla stron opublikowanych z nią |
 | `lib/three-0.186.0/three.module.js` | three.js 0.186.0 jako moduł ES, z `addons/controls/OrbitControls.js` obok - zmapuj `three` i `three/addons/` mapą importów |
 | `lib/mermaid-12.1.0.min.js` | Mermaid 12.1.0, jako `window.mermaid` |
+| `lib/leaflet-1.9.4/leaflet.js`, `leaflet.css` | Leaflet 1.9.4, jako `window.L` - rysuje na [kafelkach map](#visuals) deploymentu, jeśli je ma |
+| `lib/agenticos-map-1.js` | `window.AOMap.itinerary`: ponumerowane pinezki wbijane po kolei, linia między nimi, pauza i powtórka oraz karty przystanków - na kafelkach map albo, bez nich, jako zarys przystanków |
 
 Każda nazwa niesie swoją wersję i jest cache'owana przez rok. Aktualizacja dodaje
 nowy plik obok starego, więc strona opublikowana z jedną wersją dalej ją dostaje.
@@ -164,14 +166,47 @@ skryptów i atrybutów `on*`; po zakończeniu zapisuje cały dokument, żeby jeg
 ruszyły, dokładnie tak jak na zapisanej stronie. Ramka zgłasza swój rozmiar, błędy i
 sygnał życia; rysunek, który przestaje go wysyłać, jest zamykany, zamiast blokować kartę.
 
-**W czacie.** Panel pokazuje cały rysunek - SVG dopasowane po `viewBox`, stronę ułożoną
-w szerokości panelu i zmniejszoną powyżej 560 pikseli - pod tytułem, w wiadomości
-agenta, nigdy jako część konsoli. Pełny ekran pokazuje go w jego rozmiarze; na telefonie
-podgląd otwiera pełny ekran po stuknięciu. Powiększenie pojawia się w prawym dolnym rogu
-rysunku, gdy kursor jest na karcie, w podglądzie i na pełnym ekranie: SVG jest rysowane
-większe, strona skalowana, a ramka przewija się, gdy rysunek z niej wyrośnie. Nad nim są
-*Pokaż kod*, *Pobierz* (`.svg`, `.html` albo źródło Mermaid) i *Kopiuj jako obraz* dla
-SVG, a błąd zgłoszony przez rysunek przychodzi z *Napraw*, które prosi agenta.
+**W czacie.** Rysunek stoi w samej rozmowie, bez karty wokół, od lewej krawędzi
+tekstu wiadomości: SVG jest dopasowane po `viewBox` i zmniejszane powyżej 560 pikseli,
+strona jest układana w szerokości kolumny i zmniejszana powyżej 900. Cicha linia pod
+nim podaje jego nazwę i mówi, czy wciąż jest rysowany; *Pokaż kod*, *Pobierz*
+(`.svg`, `.html` albo źródło Mermaid), *Kopiuj jako obraz* dla SVG, *Zapisz w
+aplikacjach* i *Pełny ekran* pojawiają się w tej linii, gdy kursor jest nad
+rysunkiem, a na ekranie dotykowym zawsze. Podczas streamingu rysunek trzyma
+wysokość zadeklarowaną w wywołaniu, na delikatnym tle, więc rozmowa nie przesuwa
+się pod czytelnikiem. Pełny ekran pokazuje go w jego rozmiarze; na telefonie podgląd
+otwiera pełny ekran po stuknięciu. Powiększenie pojawia się w prawym dolnym rogu
+rysunku, gdy jest na nim kursor: SVG jest rysowane większe, strona skalowana, a
+ramka przewija się, gdy rysunek z niej wyrośnie. Błąd zgłoszony przez rysunek
+przychodzi z *Napraw*, które prosi agenta.
+
+**Dalsze pytania (follow-upy).** Kontrolka w rysunku może oddać wybór osoby do
+rozmowy - *Zaplanuj ten przystanek*, *Użyj tych liczb* - wywołując
+`agenticos.followUp(text)`. Rysunek tylko prosi. Konsola pokazuje dokładny tekst
+pod rysunkiem z *Wyślij*, *Edytuj* i *Odrzuć*, a wiadomością osoby staje się on
+dopiero, gdy kliknie *Wyślij* - tego kliknięcia rysunek nie wykona za nią. Prośba,
+za którą nie stoi interakcja użytkownika - przy ładowaniu, z timera - jest
+odrzucana, podobnie jak dłuższa niż 2000 znaków, a gdy jedna czeka, druga nie może
+jej zastąpić. Follow-upy są dostępne tylko w czacie: `agenticos.canFollowUp()` jest
+fałszywe w udostępnionym wątku, w widżecie i w aplikacji, gdzie `followUp` nic nie
+robi i zwraca `false`, więc zapisany rysunek nadal działa.
+
+**Mapy.** Gdy ustawione jest
+[`VISUAL_MAP_TILES`](configuration.md#published-artifacts), rysunek albo aplikacja
+mogą ładować kafelki map z tego jednego serwera, a `agenticos.map` go nazywa; kit
+map rysuje na nim trasę z atrybucją serwera pod spodem. Bez tego to samo
+wywołanie rysuje zarys przystanków - pinezki i linię między nimi, bez ulic - i tak
+samo mapa, której kafelki się nie ładują. Obraz rysunku w aplikacji czatowej to
+zawsze zarys: przeglądarka, która go renderuje, nie odpowiada na żądania kafelków.
+
+**Wybór formy.** Skill `visual-design` mówi agentowi, kiedy rysunek w ogóle jest
+właściwą odpowiedzią: tekst dla faktu albo rady, tabela Markdown dla dokładnych
+wartości, `create_chart` dla liczb do obejrzenia - więc „teraz zrób wykres” zamienia
+tabelę w natywny wykres - a rysunek, by wyjaśnić, jak coś działa, zrobić narzędzie
+na chwilę albo śledzić miejsca na mapie. Jego szablony to diagram, objaśnienie z
+suwakami, samolot 3D z pochyleniem, przechyleniem i odchyleniem, kalkulator i
+plan podróży. Pusty czat z agentem, który rysuje, otwiera się z jednym starterem na
+każdy z nich. Włączenie Wizualizacji w Builderze podpina też Wykresy (Charts).
 
 **Pobieranie.** Plik otwarty z dysku nie ma wokół siebie ramki, więc pobrany plik
 niesie to, co wymuszała ramka. SVG zachowuje rysunek i traci to, co mogłoby się
@@ -286,7 +321,7 @@ ani osoby, która ją ogląda:
   bezpośrednio.
 - Ta sama polityka ustawia `default-src 'none'` i `connect-src 'none'`. Jedynym
   zdalnym źródłem, jakie wymienia, jest własna ścieżka zestawu bibliotek w
-  originie treści, dla skryptów, stylów i fontów. `frame-ancestors` wymienia tylko
+  originie treści, dla skryptów, stylów i fontów. Na deploymencie, który ustawia `VISUAL_MAP_TILES`, dochodzą obrazy ze ścieżki kafelków tego serwera, żeby mapa miała tło. Żądanie obrazu niesie własny adres, więc strona mogłaby zapisać w ścieżce kafelka to, co pokazuje; trafia ono jednak tylko do jednego serwera wybranego przez operatora - dlatego jest jeden i domyślnie jest wyłączony. `frame-ancestors` wymienia tylko
   konsolę — a dla strony z publicznym linkiem i witrynami do osadzania także
   dokument osadzenia i te witryny. Ramka w konsoli niesie tę samą listę `sandbox`
   jako drugi zamek.
@@ -298,7 +333,7 @@ ani osoby, która ją ogląda:
   otwierają go w nowej karcie tylko wtedy, gdy człowiek się zgodzi; dokument
   osadzenia robi to samo w pasku pod stroną. Strona mogłaby wysłać tę wiadomość
   sama, więc jest ona prośbą, a nigdy zgodą — to człowiek czytający adres stoi
-  między stroną po prompt injection a adresem, pod który wysłałaby swoje liczby.
+  między stroną po prompt injection a adresem, pod który wysłałaby swoje liczby. [Follow-up](#visuals) to prośba tego samego rodzaju: konsola pokazuje tekst, a wysyła go człowiek.
 - Jeden podpisany adres ładuje swoją stronę najwyżej kilka razy na minutę, licząc
   per adres, zanim cokolwiek zostanie odczytane. Konsola i strona publiczna
   wydają świeży adres za każdym razem, gdy rysują ramkę, a wydanie go przez

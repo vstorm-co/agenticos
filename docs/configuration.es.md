@@ -1,5 +1,5 @@
 ---
-source_sha: "14553222ac64"
+source_sha: "f400fb789774"
 ---
 
 # Configuración { #configuration }
@@ -760,6 +760,16 @@ dónde se sirven. Consulta [Aplicaciones](artifacts.md).
 | `ARTIFACT_MAX_VERSIONS` | `20` | Versiones conservadas por aplicación. La más antigua se elimina cuando llega una más nueva, salvo que el enlace público esté fijado a ella |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Cuánto tiempo abre una dirección de contenido firmada, como máximo 3600. También cuánto sobrevive una página abierta a un grant o un enlace revocado |
 | `ARTIFACT_ORIGIN` | (vacío) | Desde dónde se sirve el contenido: las páginas, su [conjunto de bibliotecas](artifacts.md#the-library-set) y el documento para incrustar. Vacío lo sirve desde `PUBLIC_BASE_URL`, aislado por su política `sandbox`. Fíjalo en un host de un dominio registrable aparte, enrutado a esta API, para poner además la página en otro sitio |
+| `VISUAL_MAP_TILES` | (vacío) | El único servidor de teselas sobre el que un [visual](artifacts.md#visuals) o una app puede dibujar un mapa: `openstreetmap`, `usgs-topo` o una plantilla de URL `https://` con `{z}`, `{x}` y `{y}` una vez cada uno. La política de cada página admite entonces imágenes de la ruta de teselas de ese servidor y nada más remoto. Vacío dibuja un mapa como un contorno de sus paradas. Un valor que no se puede servir se rechaza al arrancar |
+| `VISUAL_MAP_TILES_ATTRIBUTION` | (vacío) | El crédito que se muestra bajo un mapa en un servidor de teselas propio, p. ej. `© OpenStreetMap contributors`. Obligatorio con una plantilla de URL; un preset trae el suyo |
+
+**Las teselas las carga el navegador del lector, no el despliegue.** El navegador
+de cada lector pide al servidor de teselas las que muestra, con el origen del
+contenido como referer y nunca con la dirección de una página. Una clave en la
+plantilla la ve cualquiera que pueda abrir un mapa, así que use una clave que el
+proveedor restrinja y respete sus condiciones: las teselas públicas de OpenStreetMap
+son para un uso ligero, y un despliegue con mucho tráfico debería tener su propio
+servidor o pagar a un proveedor. *Admin → System* muestra si el servidor responde.
 
 **`ARTIFACT_ORIGIN` se lee dos veces, y ambas tienen que verlo.** El backend firma
 las direcciones de contenido sobre él, y el frontend lo añade al `frame-src` de la
