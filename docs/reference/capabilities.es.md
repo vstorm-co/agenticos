@@ -1,5 +1,5 @@
 ---
-source_sha: "d3b4c372db43"
+source_sha: "392047a3f11d"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1116,7 +1116,7 @@ reproductor y se escribe en `output/` cuando hay un workspace abierto (#2259).
 | `model` | `gpt-4o-mini-tts` | Los modelos de ese provider, de `app/core/catalog/text_to_speech_models.json` |
 | `voice` | la primera del modelo | Una voz del catálogo para OpenAI y Gemini; un id de tu propia biblioteca de voces para ElevenLabs |
 | `output_format` | el primero del provider | `mp3`, `wav` (Gemini solo devuelve `wav`) |
-| `max_characters` | `5000` | 1–100 000; el máximo de texto que puede decir una llamada |
+| `max_characters` | `5000` | 1–10 000; el máximo de texto que puede decir una llamada |
 
 **Providers, modelos, voces y precios son datos**, en el fichero del catálogo. Un
 provider es un [propósito de secreto](../secrets.md) con una clave de API simple -

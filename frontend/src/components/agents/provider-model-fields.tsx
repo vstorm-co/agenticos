@@ -181,3 +181,31 @@ export function withoutFields(schema: JsonSchema, drawn: readonly string[]): Jso
   );
   return { ...schema, properties };
 }
+
+/**
+ * What publish refused about the fields a panel draws itself.
+ *
+ * The generated form shows a refusal beside its own field, and a hand-drawn
+ * control has no such slot - so a refused model, voice or resolution was the
+ * banner's "Invalid configuration" and nothing on the card (#2265). Listed under
+ * the controls, in the order the panel draws them.
+ */
+export function DrawnFieldErrors({
+  errors,
+  fields,
+}: {
+  errors: Readonly<Record<string, string>>;
+  fields: readonly string[];
+}) {
+  const refused = fields.filter((field) => errors[field] !== undefined);
+  if (refused.length === 0) return null;
+  return (
+    <div className="space-y-1">
+      {refused.map((field) => (
+        <p key={field} className="text-destructive text-xs">
+          {errors[field]}
+        </p>
+      ))}
+    </div>
+  );
+}
