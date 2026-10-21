@@ -18,8 +18,6 @@ to a storage host. A provider's response body is logged where it is received
 and never put in the exception.
 """
 
-from __future__ import annotations
-
 import asyncio
 import base64
 import binascii
