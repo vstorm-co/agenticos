@@ -75,6 +75,7 @@ import { PublishState } from "@/components/agents/publish-state";
 import { ModelSettingsForm } from "@/components/agents/model-settings-form";
 import { ThinkingSetting } from "@/components/agents/thinking-setting";
 import { EnvironmentsPanel } from "@/components/agents/environments-panel";
+import { useGuardedPromotion } from "@/components/agents/promotion-dialog";
 import { DraftEvalNote } from "@/components/evals/draft-eval-note";
 import { EvalsPanel } from "@/components/evals/evals-panel";
 import { EvalSuitesCard } from "@/components/evals/suites/eval-suites-card";
@@ -240,7 +241,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
     setAvatar,
     setColor,
   } = useAgent(id);
-  const { environments, promote } = useAgentEnvironments(id);
+  const { environments } = useAgentEnvironments(id);
+  const promotion = useGuardedPromotion(id, environments);
   const { agents, clone, archive, unarchive, remove } = useAgents();
   const { capabilities } = useCapabilityCatalog();
   const { variables: promptVariables } = usePromptVariables();
@@ -1873,6 +1875,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 <CardDescription>{t("eachPublishFreezesSpec")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-2">
+                {promotion.dialog}
                 <VersionHistory
                   agentId={id}
                   currentVersionId={agent.current_version_id}
@@ -1885,10 +1888,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   }
                   restoring={rollback.isPending}
                   environments={environments}
-                  onPromote={(environmentId, versionId) =>
-                    promote.mutate({ environmentId, versionId })
-                  }
-                  promoting={promote.isPending}
+                  onPromote={promotion.request}
+                  promoting={promotion.promoting}
                   compareFrom={compareFrom}
                   compareTo={compareTo}
                   testedSpec={testedSpec ? { spec: testedSpec, label: t("draftAsTested") } : null}

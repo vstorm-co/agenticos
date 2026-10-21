@@ -863,7 +863,11 @@
     "platformAllHint": "Jeder Aufruf wartet auf Freigabe, auch Lesen.",
     "platformTools": "Werkzeuge, die dieser Agent aufrufen darf",
     "platformWritesBadge": "ändert etwas",
-    "platformRemove": "Aus diesem Agent entfernen"
+    "platformRemove": "Aus diesem Agent entfernen",
+    "guardsSaved": "Wächter gespeichert",
+    "failedGuards": "Die Wächter konnten nicht gespeichert werden",
+    "guardsStarted": "{count, plural, =0 {Nichts zu starten - jeder Wächter hat bestanden oder prüft schon} =1 {1 Eval-Suite gestartet} other {# Eval-Suites gestartet}}",
+    "failedGuardsRun": "Die Wächter konnten nicht gestartet werden"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -4148,6 +4152,10 @@
       "agent-eval-suites": {
         "title": "Suites",
         "body": "Miss den Agent an einem Dataset, ohne daran denken zu müssen: jede Nacht, bei jeder Veröffentlichung oder Promotion, oder wenn sich ein Skill oder eine Wissensbasis ändert, die er liest. Du wirst benachrichtigt, wenn ein Fall bricht."
+      },
+      "agent-environment-guards": {
+        "title": "Wächter",
+        "body": "Nennen Sie die Eval-Suites, die eine Umgebung auf einer Version bestanden sehen will, bevor sie sie übernimmt. Eine Version, die sie nicht bestanden hat, wird zurückgehalten, und ein Übergehen braucht eine Begründung und die Berechtigung dazu."
       }
     },
     "chooseLanguage": "Sprache"
@@ -5265,7 +5273,9 @@
       "prefMcpServerRecovered": "MCP-Server antwortet wieder",
       "prefMcpServerRecoveredTrigger": "Ein Server, der nicht mehr antwortete, ist zurück, und die daran gebundenen Agents haben seine Tools wieder.",
       "prefEvalSuiteFailed": "Eine Eval-Suite hat nicht bestanden",
-      "prefEvalSuiteFailedTrigger": "Eine Suite, die dir gehört, fiel unter ihre Schwelle oder konnte nicht laufen. Einmal pro Serie von Fehlschlägen auf einer Version, mit den gebrochenen Fällen."
+      "prefEvalSuiteFailedTrigger": "Eine Suite, die dir gehört, fiel unter ihre Schwelle oder konnte nicht laufen. Einmal pro Serie von Fehlschlägen auf einer Version, mit den gebrochenen Fällen.",
+      "prefPromotionOverridden": "Eine Promotion ging an ihren Evals vorbei",
+      "prefPromotionOverriddenTrigger": "Eine Version kam in eine Umgebung, vorbei an einer Ihrer Eval-Suites, die auf ihr nicht bestanden hatte. Nennt die Suites und die Begründung."
     },
     "skills": {
       "agentsBoundSkillWill": "An diesen Skill gebundene Agents laufen ab ihrem nächsten Run ohne ihn. Das lässt sich nicht rückgängig machen.",
@@ -8508,7 +8518,7 @@
       "resultsCouldNotBeRead": "Die Ergebnisse konnten nicht gelesen werden.",
       "noResults": "Noch keine Ergebnisse. Ein Ergebnis erscheint beim nächsten Lauf der Suite.",
       "resultCount": "{count, plural, =1 {1 Ergebnis} other {# Ergebnisse}}",
-      "resultMeta": "{trigger, select, schedule {Geplant} publish {Bei Veröffentlichung} promotion {Bei Promotion} dependency {Nach einer Änderung} other {Von Hand}}{version, select, none {} other { · v{version}}} · {date}",
+      "resultMeta": "{trigger, select, schedule {Geplant} publish {Bei Veröffentlichung} promotion {Bei Promotion} dependency {Nach einer Änderung} gate {Vor der Promotion} other {Von Hand}}{version, select, none {} other { · v{version}}} · {date}",
       "openRun": "Run öffnen",
       "passRate": "Bestehensquote {rate} über {cases, plural, =1 {1 Fall} other {# Fälle}} · {regressions, plural, =0 {keine bestätigten Regressionen} =1 {1 bestätigte Regression} other {# bestätigte Regressionen}}",
       "enableAi": "KI-Unterstützung einschalten",
@@ -8715,5 +8725,48 @@
     "noFilesYet": "Noch nichts in diesem Projekt",
     "noFilesHint": "Legen Sie Dateien oder einen ganzen Ordner hier ab, oder laden Sie sie hoch. Jeder Chat im Projekt liest sie und arbeitet damit.",
     "noFilesViewer": "Dateien, die dem Projekt hinzugefügt werden, erscheinen hier."
+  },
+  "promotionGate": {
+    "title": "v{version} nach {name} promoten",
+    "body": "{name} übernimmt eine Version erst, wenn die Eval-Suites, die es bewachen, auf dieser Version bestanden haben.",
+    "state": {
+      "passed": "Bestanden",
+      "failed": "Nicht bestanden",
+      "inconclusive": "Ohne Ergebnis",
+      "skipped": "Nicht gelaufen",
+      "error": "Fehler",
+      "checking": "Prüft",
+      "stale": "Veraltet",
+      "unchecked": "Nicht geprüft",
+      "paused": "Pausiert"
+    },
+    "hint": {
+      "passed": "Auf dieser Version bestanden.",
+      "failed": "Auf dieser Version unter der Schwelle.",
+      "inconclusive": "Auf dieser Version nicht entschieden.",
+      "skipped": "Auf dieser Version nicht gelaufen.",
+      "error": "Auf dieser Version ohne Urteil beendet.",
+      "checking": "Ein Run auf dieser Version wartet oder läuft.",
+      "stale": "Ihr letztes Ergebnis las andere Fälle oder eine andere Schwelle, als die Suite jetzt hat.",
+      "unchecked": "Ist auf dieser Version noch nicht gelaufen."
+    },
+    "passing": "Jeder Wächter hat auf v{version} bestanden.",
+    "overrideTitle": "Trotzdem promoten",
+    "overrideBody": "Ihre Begründung landet im Audit-Log und an der Version, und die Eigentümer der Suites werden benachrichtigt.",
+    "overrideReason": "Warum",
+    "overridePlaceholder": "Warum diese Version ohne bestandene Evals sicher promotet werden kann",
+    "overrideSubmit": "An den Evals vorbei promoten",
+    "run": "Evals auf v{version} laufen lassen",
+    "promote": "Promoten",
+    "noSuites": "Dieser Agent hat noch keine Eval-Suites. Legen Sie im Tab Evals eine an, um damit eine Umgebung zu bewachen.",
+    "guardsHelp": "Suites, die auf einer Version bestehen müssen, bevor {name} sie übernimmt.",
+    "storeGuards": "Wächter speichern",
+    "guardsReadOnly": "Zum Ändern braucht es die Berechtigung, Promotionen zu übergehen.",
+    "guardedBy": "{count, plural, =1 {Von 1 Suite bewacht} other {Von # Suites bewacht}}",
+    "waiting": "Wartet auf seine Evals auf v{version}",
+    "guardsFor": "Eval-Suites, die {name} bewachen",
+    "overriddenOn": "Auf {name} übergangen",
+    "overrideDetail": "{who} hat sie an {suites} vorbei promotet: {reason}",
+    "someoneWhoLeft": "Jemand, der gegangen ist"
   }
 }

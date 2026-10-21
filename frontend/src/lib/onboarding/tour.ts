@@ -344,6 +344,17 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.agentsPublish,
     optional: true,
   },
+  // On the first environment's guard toggle: which eval suites a version has to
+  // pass before that environment takes it. Read by any publisher, changed only
+  // with the override permission, so the stop needs only what the toggle does.
+  {
+    id: "agent-environment-guards",
+    page: AGENT_BUILDER,
+    target: "environment-guards",
+    activate: "agent-tab-history",
+    permission: Perm.agentsPublish,
+    optional: true,
+  },
   // Beside "Draft differs from vN", which only a changed draft shows. Gated as
   // the Evals tab is: the run it starts is read there.
   {

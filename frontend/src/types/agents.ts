@@ -7,6 +7,7 @@
  * backend will reject at publish.
  */
 
+import type { PromotionOverride } from "@/types/promotion-gate";
 import type { SecretRequirement } from "./secrets";
 import type { Visibility } from "./sharing";
 
@@ -589,6 +590,8 @@ export interface AgentEnvironment {
   service_name: string | null;
   /** Bindings this environment answers with test systems. Empty on the default. */
   connections: EnvironmentConnection[];
+  /** The eval suites that must pass on a version before this environment takes it. */
+  guard_suite_ids: string[];
   created_at: string;
 }
 
@@ -611,6 +614,8 @@ export interface AgentVersion {
    */
   published_by_email?: string | null;
   created_at?: string;
+  /** Each promotion of this version past eval suites that had not passed on it. */
+  overrides?: PromotionOverride[];
 }
 
 /** One version with the spec it froze - what a diff is read from. */

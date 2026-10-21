@@ -58,6 +58,7 @@ export const Perm = {
   projectsUse: "projects:use",
   projectsEdit: "projects:edit",
   approvalsDecide: "approvals:decide",
+  promotionsOverride: "promotions:override",
   connectionsView: "connections:view",
   connectionsManage: "connections:manage",
   secretsView: "secrets:view",

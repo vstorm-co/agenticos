@@ -14,6 +14,7 @@ type Environment = {
   tracks_latest: boolean;
   behind_by: number;
   connections: { kind: "mcp" | "secret"; production_id: string; test_id: string | null }[];
+  guard_suite_ids: string[];
 };
 
 const state = {
@@ -25,6 +26,7 @@ const state = {
   rename: { mutateAsync: vi.fn(), isPending: false },
   remove: { mutate: vi.fn(), isPending: false },
   setConnections: { mutate: vi.fn(), isPending: false },
+  setGuards: { mutate: vi.fn(), isPending: false },
 };
 
 const versionsState = {
@@ -38,6 +40,7 @@ vi.mock("@/hooks", () => ({
   useAllAgentVersions: () => versionsState,
   useOrgMcpConnections: () => ({ connections: [{ id: "crm", name: "crm" }] }),
   useSecrets: () => ({ secrets: [] }),
+  usePermissions: () => ({ can: () => true }),
 }));
 
 function environment(
@@ -55,6 +58,7 @@ function environment(
     tracks_latest: false,
     behind_by: 0,
     connections: [],
+    guard_suite_ids: [],
     ...extra,
   };
 }
@@ -228,6 +232,7 @@ describe("the environments panel", () => {
         tracks_latest: false,
         behind_by: 0,
         connections: [],
+        guard_suite_ids: [],
       },
     ];
     render(<EnvironmentsPanel agentId="a1" canManage />);

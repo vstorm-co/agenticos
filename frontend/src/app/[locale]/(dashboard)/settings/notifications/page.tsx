@@ -10,6 +10,7 @@ import {
   Hand,
   KeyRound,
   ListChecks,
+  ShieldAlert,
   Mail,
   Megaphone,
   PieChart,
@@ -136,6 +137,12 @@ const PREFERENCE_EVENTS: readonly PreferenceEvent[] = [
     eventType: "eval_suite_failed",
     words: "prefEvalSuiteFailed",
     icon: ListChecks,
+    channels: ["in_app", "email"],
+  },
+  {
+    eventType: "promotion_overridden",
+    words: "prefPromotionOverridden",
+    icon: ShieldAlert,
     channels: ["in_app", "email"],
   },
   {
