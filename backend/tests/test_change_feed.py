@@ -154,15 +154,11 @@ class TestDatasets:
             assert (change.resource, change.id, change.action) == ("dataset", dataset_id, "updated")
         assert (removed.id, removed.action) == (dataset_id, "deleted")
 
-    def test_estimating_a_generation_changes_nothing(self) -> None:
+    @pytest.mark.parametrize("read", ["generations/estimate", "cases/twins"])
+    def test_a_read_posted_under_a_dataset_changes_nothing(self, read: str) -> None:
         dataset_id = str(uuid.uuid4())
 
-        assert (
-            _change(
-                "POST", f"/datasets/{dataset_id}/generations/estimate", {"dataset_id": dataset_id}
-            )
-            is None
-        )
+        assert _change("POST", f"/datasets/{dataset_id}/{read}", {"dataset_id": dataset_id}) is None
 
     async def test_a_finished_generation_is_announced_as_its_dataset(self, redis: Any) -> None:
         organization_id, dataset_id, actor = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()

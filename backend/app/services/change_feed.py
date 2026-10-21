@@ -157,8 +157,10 @@ _FEEDS = (
     _Feed("/kb", "knowledge_base", "kb_id"),
     _shared("/skills", "skill"),
     _Feed("/skills", "skill", "skill_id"),
-    # Estimating a generation spends and writes nothing.
+    # Estimating a generation spends and writes nothing, and finding a case's
+    # twins is a read that posts its question in the body.
     _Feed("/datasets/{dataset_id}/generations/estimate", None),
+    _Feed("/datasets/{dataset_id}/cases/twins", None),
     _shared("/datasets", "dataset"),
     _Feed("/datasets", "dataset", "dataset_id"),
     _shared("/secrets", "secret"),
