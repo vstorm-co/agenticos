@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { AddToAgentPrompt } from "@/components/agents/add-to-agent";
 import { AssistantWidget } from "@/components/assistant/assistant-widget";
 import { DeploymentGate } from "@/components/branding/deployment-gate";
+import { DesktopBridge } from "@/components/desktop/desktop-bridge";
 import { CustomIconsProvider } from "@/components/icons/custom-icons";
 import { MobileHeader, Sidebar } from "@/components/layout";
 import { ActiveOrgGuard } from "@/components/layout/active-org-guard";
@@ -26,6 +27,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <ActiveOrgGuard />
       {/* Changes made through the API, MCP or the assistant reach open pages. */}
       <LiveUpdates />
+      {/* Inside the desktop app: the badge, native notifications and the menu's navigation. */}
+      <DesktopBridge />
       {/* It reads the search params, which a prerendered page only has in the browser. */}
       <Suspense fallback={null}>
         <NavigationProgress />
@@ -80,6 +83,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   maintenance window still leaves the navigation and the account
                   menu, because the administrator who has to end it reaches the
                   settings page through them. */}
+              {/* The desktop app's window is dragged by the top of its content,
+                  as by a toolbar; nothing in a browser (`desktop.css`). */}
+              <div aria-hidden className="window-drag-strip" data-tauri-drag-region />
               <DeploymentGate>
                 <PageTransition>{children}</PageTransition>
               </DeploymentGate>

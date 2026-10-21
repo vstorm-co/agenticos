@@ -1,7 +1,9 @@
-import { render } from "@testing-library/react";
+import { act, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ThemeProvider } from "./theme-provider";
+import * as commands from "@/lib/desktop/commands";
+import * as shell from "@/lib/desktop/shell";
 import { useThemeStore } from "@/stores/theme-store";
 
 /**
@@ -56,7 +58,7 @@ beforeEach(() => {
   // The motion preference is a mock that outlives the test that set it.
   reducedMotion(false);
   root().classList.remove("light", "dark");
-  useThemeStore.setState({ theme: "light" });
+  useThemeStore.setState({ theme: "light", look: "standard" });
 });
 
 afterEach(() => {
@@ -141,5 +143,110 @@ describe("the animated theme switch", () => {
 
     expect(transition).not.toHaveBeenCalled();
     expect(root().classList.contains("light")).toBe(true);
+  });
+});
+
+describe("the look", () => {
+  afterEach(() => {
+    root().removeAttribute("data-look");
+    delete window.__AGENTICOS_SHELL__;
+    vi.restoreAllMocks();
+  });
+
+  it("puts a look on the root, and the standard one as no attribute", () => {
+    useThemeStore.setState({ look: "paper" });
+    render(<ThemeProvider>{null}</ThemeProvider>);
+    expect(root().getAttribute("data-look")).toBe("paper");
+
+    act(() => useThemeStore.setState({ look: "standard" }));
+    expect(root().hasAttribute("data-look")).toBe(false);
+  });
+
+  it("tells the desktop app's console window, so its material and its next launch follow", () => {
+    window.__AGENTICOS_SHELL__ = {
+      platform: "macos",
+      version: "0.2.0",
+      window: "main",
+      vibrancy: true,
+    };
+    const set = vi.spyOn(commands, "setAppearance").mockResolvedValue();
+    useThemeStore.setState({ look: "glass", theme: "dark" });
+    render(<ThemeProvider>{null}</ThemeProvider>);
+    expect(set).toHaveBeenLastCalledWith({ look: "glass", mode: "dark" });
+  });
+
+  it("reports a window that would not change, and leaves blobby and browsers out of it", async () => {
+    window.__AGENTICOS_SHELL__ = {
+      platform: "macos",
+      version: "0.2.0",
+      window: "main",
+      vibrancy: true,
+    };
+    const refusal = new Error("refused");
+    vi.spyOn(commands, "setAppearance").mockRejectedValue(refusal);
+    const report = vi.spyOn(shell, "reportShellFailure").mockImplementation(() => {});
+    render(<ThemeProvider>{null}</ThemeProvider>);
+    await vi.waitFor(() => expect(report).toHaveBeenCalledWith(expect.any(String), refusal));
+
+    window.__AGENTICOS_SHELL__ = {
+      platform: "macos",
+      version: "0.2.0",
+      window: "blobby",
+      vibrancy: true,
+    };
+    const quiet = vi.spyOn(commands, "setAppearance").mockResolvedValue();
+    quiet.mockClear();
+    render(<ThemeProvider>{null}</ThemeProvider>);
+    expect(quiet).not.toHaveBeenCalled();
+  });
+
+  it("follows a choice made in another window of the same origin", () => {
+    const rehydrate = vi.spyOn(useThemeStore.persist, "rehydrate").mockResolvedValue();
+    const { unmount } = render(<ThemeProvider>{null}</ThemeProvider>);
+    window.dispatchEvent(new StorageEvent("storage", { key: "motion-storage" }));
+    expect(rehydrate).not.toHaveBeenCalled();
+    window.dispatchEvent(new StorageEvent("storage", { key: "theme-storage" }));
+    expect(rehydrate).toHaveBeenCalledTimes(1);
+    unmount();
+  });
+});
+
+describe("following the system", () => {
+  it("changes with the operating system under System, and stops listening when it is left", () => {
+    let listener: (() => void) | undefined;
+    const query = {
+      matches: true,
+      addEventListener: vi.fn((_type: string, handler: () => void) => (listener = handler)),
+      removeEventListener: vi.fn(),
+    };
+    vi.mocked(window.matchMedia).mockImplementation(() => query as unknown as MediaQueryList);
+    useThemeStore.setState({ theme: "system" });
+    const { unmount } = render(<ThemeProvider>{null}</ThemeProvider>);
+    act(() => listener?.());
+    expect(root().classList.contains("dark")).toBe(true);
+    query.matches = false;
+    act(() => listener?.());
+    expect(root().classList.contains("light")).toBe(true);
+    unmount();
+    expect(query.removeEventListener).toHaveBeenCalled();
+  });
+});
+
+describe("a skipped sweep", () => {
+  it("is caught, so a browser skipping the transition is not an unhandled rejection", async () => {
+    const ready = Promise.reject(new Error("skipped"));
+    Object.defineProperty(document, "startViewTransition", {
+      configurable: true,
+      writable: true,
+      value: (update: () => void) => {
+        update();
+        return { ready, finished: Promise.resolve() };
+      },
+    });
+    root().classList.add("light");
+    useThemeStore.setState({ theme: "dark" });
+    render(<ThemeProvider>{null}</ThemeProvider>);
+    await expect(ready.catch(() => "handled")).resolves.toBe("handled");
+    expect(root().classList.contains("dark")).toBe(true);
   });
 });

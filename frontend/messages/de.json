@@ -8083,6 +8083,30 @@
     "system": "System",
     "reduce": "Reduziert",
     "full": "Voll",
-    "motionHint": "System folgt der Einstellung Ihres Betriebssystems. Reduziert schaltet die Diktieranimation und Gleitanimationen aus."
+    "motionHint": "System folgt der Einstellung Ihres Betriebssystems. Reduziert schaltet die Diktieranimation und Gleitanimationen aus.",
+    "look": "Stil",
+    "lookHint": "Jeder Stil hat eine helle und eine dunkle Seite; das Design oben wählt sie. In der Desktop-App lässt Glass den Schreibtisch durchscheinen.",
+    "looks": {
+      "standard": {
+        "name": "Standard",
+        "hint": "Neutral, die Voreinstellung"
+      },
+      "glass": {
+        "name": "Glas",
+        "hint": "Durchscheinende Ebenen"
+      },
+      "graphite": {
+        "name": "Graphit",
+        "hint": "Warmes Grau"
+      },
+      "midnight": {
+        "name": "Mitternacht",
+        "hint": "Tiefes Blauschwarz"
+      },
+      "paper": {
+        "name": "Papier",
+        "hint": "Warm, zum Lesen"
+      }
+    }
   }
 }

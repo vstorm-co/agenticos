@@ -41,4 +41,29 @@ describe("PageTabs", () => {
 
     expect(screen.getByRole("navigation").scrollLeft).toBe(0);
   });
+
+  it("shows the desktop app's tabs only inside the app", () => {
+    const tabs = [...TABS, { labelKey: "blobby", href: "/settings/blobby", shellOnly: true }];
+    const { unmount } = render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <PageTabs tabs={tabs} />
+      </NextIntlClientProvider>,
+    );
+    expect(screen.queryByRole("link", { name: "Blobby" })).toBeNull();
+    unmount();
+
+    window.__AGENTICOS_SHELL__ = {
+      platform: "macos",
+      version: "0.2.0",
+      window: "main",
+      vibrancy: true,
+    };
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <PageTabs tabs={tabs} />
+      </NextIntlClientProvider>,
+    );
+    expect(screen.getByRole("link", { name: "Blobby" })).toBeInTheDocument();
+    delete window.__AGENTICOS_SHELL__;
+  });
 });

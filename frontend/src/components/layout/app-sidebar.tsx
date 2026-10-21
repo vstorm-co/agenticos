@@ -239,6 +239,7 @@ export function AppSidebar() {
     // deepest of the four surfaces in both themes, and a deployment can
     // retheme it.
     <aside
+      data-collapsed={collapsed ? "" : undefined}
       className={cn(
         "bg-sidebar hidden shrink-0 border-r md:flex md:flex-col",
         mounted && "transition-[width] duration-200",
@@ -251,7 +252,13 @@ export function AppSidebar() {
           on the column's own title bar - where every editor and console with a
           collapsible panel puts one. Search and the bell are actions and live
           with the account at the foot, where a hand rests. */}
+      {/* In the desktop app this row is also the window's title bar: it holds
+          the traffic lights on macOS (`desktop.css`) and the window is dragged
+          by it. "deep", so its empty space drags and its controls still click -
+          Tauri's drag script skips buttons and links on its own. */}
       <div
+        data-titlebar
+        data-tauri-drag-region="deep"
         className={cn(
           "flex h-14 shrink-0 items-center border-b",
           collapsed ? "justify-center px-2" : "gap-1 px-3",

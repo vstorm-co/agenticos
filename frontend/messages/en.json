@@ -3750,7 +3750,10 @@
     "projects": "Projects",
     "allProjects": "All projects",
     "backgroundJobs": "Background jobs",
-    "loadingPage": "Opening the page"
+    "loadingPage": "Opening the page",
+    "blobby": "Blobby",
+    "desktopApp": "Desktop app",
+    "shortcuts": "Shortcuts"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -8200,6 +8203,174 @@
     "system": "System",
     "reduce": "Reduce",
     "full": "Full",
-    "motionHint": "System follows your operating system's setting. Reduce turns off the voice glow and slide animations."
+    "motionHint": "System follows your operating system's setting. Reduce turns off the voice glow and slide animations.",
+    "look": "Style",
+    "lookHint": "Each style has a light and a dark side; the theme above picks which. In the desktop app Glass is see-through to your desktop.",
+    "looks": {
+      "standard": {
+        "name": "Standard",
+        "hint": "Neutral, the default"
+      },
+      "glass": {
+        "name": "Glass",
+        "hint": "Translucent layers"
+      },
+      "graphite": {
+        "name": "Graphite",
+        "hint": "Warm grey"
+      },
+      "midnight": {
+        "name": "Midnight",
+        "hint": "Deep blue-black"
+      },
+      "paper": {
+        "name": "Paper",
+        "hint": "Warm, for reading"
+      }
+    }
+  },
+  "desktop": {
+    "changeFailed": "The desktop app did not take that change.",
+    "blobby": {
+      "label": "Blobby. Drag to move, click to wave, double-click to open the console, right-click for its menu.",
+      "newChat": "New chat",
+      "signedOut": "Sign in in the console and I'll keep you posted.",
+      "approvals": "{count, plural, =1 {An approval is waiting for you} other {# approvals are waiting for you}}",
+      "unread": "{count, plural, =1 {One new notification} other {# new notifications}}",
+      "running": "{count, plural, =1 {Your agent is working on it} other {Your agents are on # runs}}",
+      "lines": {
+        "pebble": {
+          "0": "Smooth as a published spec.",
+          "1": "Rolling along.",
+          "2": "Same version everywhere.",
+          "3": "Hi."
+        },
+        "mochi": {
+          "0": "Squish me.",
+          "1": "Soft on the outside, typed inside.",
+          "2": "Snack break?",
+          "3": "Hello!"
+        },
+        "byte": {
+          "0": ">_",
+          "1": "Exit code 0.",
+          "2": "Segfault? Never met one.",
+          "3": "Ready."
+        },
+        "nimbus": {
+          "0": "Floating by.",
+          "1": "Self-hosted, never cloudy.",
+          "2": "Drifting.",
+          "3": "Hm?"
+        },
+        "sprig": {
+          "0": "Growing.",
+          "1": "Water me with tokens.",
+          "2": "Photosynthesising.",
+          "3": "Spring soon."
+        },
+        "sunny": {
+          "0": "Good morning!",
+          "1": "Everything's green.",
+          "2": "Shine on.",
+          "3": "What a day."
+        },
+        "anyone": {
+          "0": "Hi there.",
+          "1": "Need anything?",
+          "2": "I'm here.",
+          "3": "All quiet."
+        }
+      }
+    },
+    "settings": {
+      "onlyInApp": "These settings belong to the AgenticOS desktop app.",
+      "onlyInAppHint": "Open the console in the desktop app to configure blobby, the window and the global shortcuts.",
+      "aboutTheApp": "About the desktop app",
+      "unreadable": "The desktop app did not say what its settings are. Restart it, or update it if it is older than this console.",
+      "blobby": {
+        "heading": "Blobby",
+        "headingHint": "The creature on your desktop that keeps an eye on your agents.",
+        "title": "On your desktop",
+        "description": "Drag it anywhere. Click it to wave, double-click to open the console, right-click for its menu.",
+        "shown": "Show blobby",
+        "shownHint": "It stays on top of every window and on every desktop.",
+        "who": "Who it is",
+        "whoHint": "One of the cast, the face of one of your agents, or a face of your own.",
+        "kinds": {
+          "cast": "The cast",
+          "agent": "One of my agents",
+          "custom": "My own"
+        },
+        "noAgents": "No agents you can see yet.",
+        "seed": "Name",
+        "seedPlaceholder": "Anything at all",
+        "seedHint": "Every name draws its own creature, the same one every time.",
+        "behaviour": "Behaviour",
+        "talk": "Talks",
+        "talkHint": "How often it says something of its own accord.",
+        "chatter": {
+          "quiet": "Rarely",
+          "normal": "Now and then",
+          "chatty": "Often"
+        },
+        "activity": "Tells you what your agents are doing",
+        "activityHint": "An approval waiting, something new in your inbox, your runs in progress. A click on the bubble opens it.",
+        "roams": "Strolls",
+        "roamsHint": "Walks along the bottom of the screen when idle. Off, it stays where you put it."
+      },
+      "window": {
+        "heading": "Desktop app",
+        "headingHint": "How AgenticOS behaves as an application on this computer.",
+        "title": "Window",
+        "description": "The style and theme of the console are under Profile, Appearance.",
+        "launch_at_login": {
+          "label": "Open at login",
+          "hint": "Start AgenticOS when you sign in to this computer."
+        },
+        "keep_running": {
+          "label": "Keep running when the window is closed",
+          "hint": "Blobby, quick ask and notifications keep working; the app stays in the menu bar or tray."
+        },
+        "badge": {
+          "label": "Count what is waiting",
+          "hint": "Approvals and unread notifications on the app icon and beside the tray icon."
+        }
+      },
+      "shortcuts": {
+        "heading": "Shortcuts",
+        "headingHint": "Global: they work whichever application is in front.",
+        "title": "Global shortcuts",
+        "description": "Click a field, then hold the modifiers and press a key. Escape cancels; a combination needs at least one modifier.",
+        "quick_ask": {
+          "label": "Quick ask",
+          "hint": "A floating panel to ask any agent, over whatever you are doing."
+        },
+        "screenshot_chat": {
+          "label": "Screenshot to a new chat",
+          "hint": "Pick a region of the screen; it lands attached to a fresh chat."
+        },
+        "press": "Press a combination",
+        "notBound": "Not bound",
+        "save": "Save",
+        "clear": "Clear",
+        "taken": "{accelerator} could not be bound: another application holds it. Pick another combination."
+      }
+    },
+    "quickAsk": {
+      "placeholder": "Ask anything",
+      "signedOut": "Sign in in the console to ask your agents",
+      "openConsole": "Open the console",
+      "thinking": "Thinking",
+      "close": "<kbd>esc</kbd> to close",
+      "continueInConsole": "Continue in the console"
+    },
+    "notifications": {
+      "approvalTitle": "{agent} wants to run {tool}",
+      "anAgent": "An agent",
+      "approve": "Approve",
+      "reject": "Reject",
+      "inboxTitle": "AgenticOS"
+    }
   }
 }

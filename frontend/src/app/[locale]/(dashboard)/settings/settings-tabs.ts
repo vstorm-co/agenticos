@@ -1,4 +1,17 @@
-import { Bell, Bot, Brain, Globe, KeyRound, Plug, Shield, Slash, UserCircle } from "lucide-react";
+import {
+  AppWindow,
+  Bell,
+  Bot,
+  Brain,
+  Globe,
+  Keyboard,
+  KeyRound,
+  Plug,
+  Shield,
+  Slash,
+  Smile,
+  UserCircle,
+} from "lucide-react";
 
 import type { PageTab } from "@/components/dashboard/page-tabs";
 import { ROUTES } from "@/lib/constants";
@@ -37,4 +50,9 @@ export const SETTINGS_TABS: readonly PageTab[] = [
   { labelKey: "api", href: ROUTES.SETTINGS_API_KEYS, icon: KeyRound },
   { labelKey: "mcpClients", href: ROUTES.SETTINGS_MCP, icon: Plug },
   { labelKey: "assistant", href: ROUTES.SETTINGS_ASSISTANT, icon: Bot },
+  // The desktop app's own settings, last and only inside the app: a browser has
+  // no blobby, no window and no global shortcut to configure.
+  { labelKey: "blobby", href: ROUTES.SETTINGS_BLOBBY, icon: Smile, shellOnly: true },
+  { labelKey: "desktopApp", href: ROUTES.SETTINGS_DESKTOP, icon: AppWindow, shellOnly: true },
+  { labelKey: "shortcuts", href: ROUTES.SETTINGS_SHORTCUTS, icon: Keyboard, shellOnly: true },
 ];

@@ -138,6 +138,13 @@ export default defineConfig({
         "src/components/ui/voice-glow.tsx",
         "src/components/layout/account-preferences.tsx",
         "src/components/settings/appearance-settings.tsx",
+        // The desktop app's pages and the console's half of it (#2305): blobby,
+        // quick ask, the desktop settings tabs, the notification bridge - and
+        // the looks, with what applies them before the first paint.
+        "src/components/desktop/**/*.tsx",
+        "src/components/settings/look-picker.tsx",
+        "src/components/theme/appearance-script.tsx",
+        "src/components/theme/theme-provider.tsx",
         "src/components/settings/choice-group.tsx",
         "src/components/theme/motion-provider.tsx",
         "src/components/theme/motion-script.tsx",

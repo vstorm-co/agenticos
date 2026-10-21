@@ -1,4 +1,7 @@
 @import "tailwindcss";
+/* The looks beyond the standard one, and the console inside the desktop app. */
+@import "./looks.css";
+@import "./desktop.css";
 
 /* A device with no pointer that can hover - a phone, a tablet.
  *

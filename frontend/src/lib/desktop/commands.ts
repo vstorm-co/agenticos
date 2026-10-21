@@ -1,0 +1,250 @@
+/**
+ * The shell's commands, typed, and what they answer, checked.
+ *
+ * Each function is one command from `console.rs`. What comes back crosses a
+ * process boundary from a binary that may be older or newer than this page, so
+ * it is decoded here rather than cast: a shape this console does not know is a
+ * `ShellError`, not a settings page drawn from `undefined`.
+ */
+
+import { isLook, type Look } from "@/lib/appearance";
+import { invokeShell, ShellError } from "@/lib/desktop/shell";
+import type { Theme } from "@/stores/theme-store";
+
+export interface Appearance {
+  look: Look;
+  mode: Theme;
+}
+
+export type BlobbyCharacter =
+  | { kind: "cast"; id: string }
+  | { kind: "agent"; agent_id: string; slug: string; name: string; color_slot: number | null }
+  | { kind: "custom"; seed: string; color_slot: number | null };
+
+export const CHATTER = ["quiet", "normal", "chatty"] as const;
+export type Chatter = (typeof CHATTER)[number];
+
+export interface BlobbySettings {
+  enabled: boolean;
+  character: BlobbyCharacter;
+  chatter: Chatter;
+  /** Bubbles about runs, approvals and questions. */
+  activity: boolean;
+  /** Strolls along the bottom of the screen when idle. */
+  roams: boolean;
+  position: { x: number; y: number } | null;
+}
+
+export const SHORTCUT_ACTIONS = ["quick_ask", "screenshot_chat"] as const;
+export type ShortcutAction = (typeof SHORTCUT_ACTIONS)[number];
+
+export interface ShortcutBinding {
+  action: ShortcutAction;
+  accelerator: string | null;
+  /** Set when the binding could not be taken, because another application holds it. */
+  problem: string | null;
+}
+
+export interface WindowPreferences {
+  keep_running: boolean;
+  badge: boolean;
+  launch_at_login: boolean;
+}
+
+export interface DesktopState {
+  appearance: Appearance;
+  blobby: BlobbySettings;
+  shortcuts: ShortcutBinding[];
+  window: WindowPreferences;
+}
+
+export type Notice =
+  | { kind: "inbox"; title: string; body: string; path: string }
+  | {
+      kind: "approval";
+      title: string;
+      body: string;
+      path: string;
+      approval_id: string;
+      approve_label: string;
+      reject_label: string;
+    };
+
+export interface ApprovalDecision {
+  approval_id: string;
+  approved: boolean;
+}
+
+type Fields = Record<string, unknown>;
+
+function record(value: unknown, what: string): Fields {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new ShellError("malformed", what);
+  }
+  return value as Fields;
+}
+
+function field<T>(fields: Fields, key: string, guard: (value: unknown) => value is T): T {
+  const value = fields[key];
+  if (!guard(value)) throw new ShellError("malformed", key);
+  return value;
+}
+
+const isString = (value: unknown): value is string => typeof value === "string";
+const isBoolean = (value: unknown): value is boolean => typeof value === "boolean";
+const isNumber = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value);
+const isSlot = (value: unknown): value is number | null => value === null || isNumber(value);
+const isMode = (value: unknown): value is Theme =>
+  value === "light" || value === "dark" || value === "system";
+const isChatter = (value: unknown): value is Chatter =>
+  (CHATTER as readonly unknown[]).includes(value);
+const isAction = (value: unknown): value is ShortcutAction =>
+  (SHORTCUT_ACTIONS as readonly unknown[]).includes(value);
+const isNullableString = (value: unknown): value is string | null =>
+  value === null || isString(value);
+
+function parseCharacter(value: unknown): BlobbyCharacter {
+  const fields = record(value, "a character");
+  switch (fields.kind) {
+    case "cast":
+      return { kind: "cast", id: field(fields, "id", isString) };
+    case "agent":
+      return {
+        kind: "agent",
+        agent_id: field(fields, "agent_id", isString),
+        slug: field(fields, "slug", isString),
+        name: field(fields, "name", isString),
+        color_slot: field(fields, "color_slot", isSlot),
+      };
+    case "custom":
+      return {
+        kind: "custom",
+        seed: field(fields, "seed", isString),
+        color_slot: field(fields, "color_slot", isSlot),
+      };
+    default:
+      throw new ShellError("malformed", "character");
+  }
+}
+
+function parsePosition(value: unknown): BlobbySettings["position"] {
+  if (value === null) return null;
+  const fields = record(value, "a position");
+  return { x: field(fields, "x", isNumber), y: field(fields, "y", isNumber) };
+}
+
+export function parseBlobbySettings(value: unknown): BlobbySettings {
+  const fields = record(value, "blobby's settings");
+  return {
+    enabled: field(fields, "enabled", isBoolean),
+    character: parseCharacter(fields.character),
+    chatter: field(fields, "chatter", isChatter),
+    activity: field(fields, "activity", isBoolean),
+    roams: field(fields, "roams", isBoolean),
+    position: parsePosition(fields.position ?? null),
+  };
+}
+
+function parseBinding(value: unknown): ShortcutBinding {
+  const fields = record(value, "a shortcut");
+  return {
+    action: field(fields, "action", isAction),
+    accelerator: field(fields, "accelerator", isNullableString),
+    problem: field(fields, "problem", isNullableString),
+  };
+}
+
+export function parseDesktopState(value: unknown): DesktopState {
+  const fields = record(value, "its state");
+  const appearance = record(fields.appearance, "an appearance");
+  const window = record(fields.window, "window preferences");
+  if (!Array.isArray(fields.shortcuts)) throw new ShellError("malformed", "shortcuts");
+  return {
+    appearance: {
+      look: field(appearance, "look", isLook),
+      mode: field(appearance, "mode", isMode),
+    },
+    blobby: parseBlobbySettings(fields.blobby),
+    // An action this console does not know - a newer shell's - is left out
+    // rather than failing the whole page.
+    shortcuts: fields.shortcuts
+      .filter((binding: unknown) => isAction(record(binding, "a shortcut").action))
+      .map(parseBinding),
+    window: {
+      keep_running: field(window, "keep_running", isBoolean),
+      badge: field(window, "badge", isBoolean),
+      launch_at_login: field(window, "launch_at_login", isBoolean),
+    },
+  };
+}
+
+export function parseApprovalDecision(value: unknown): ApprovalDecision {
+  const fields = record(value, "a decision");
+  return {
+    approval_id: field(fields, "approval_id", isString),
+    approved: field(fields, "approved", isBoolean),
+  };
+}
+
+export async function getDesktopState(): Promise<DesktopState> {
+  return parseDesktopState(await invokeShell("desktop_state"));
+}
+
+export async function setAppearance(appearance: Appearance): Promise<void> {
+  await invokeShell("set_appearance", { appearance });
+}
+
+export async function setBlobby(blobby: BlobbySettings): Promise<void> {
+  await invokeShell("set_blobby", { blobby });
+}
+
+/** Rebind a shortcut, or switch it off with `null`. Resolves to what is now bound. */
+export async function setShortcut(
+  action: ShortcutAction,
+  accelerator: string | null,
+): Promise<string | null> {
+  const bound = await invokeShell("set_shortcut", { action, accelerator });
+  if (!isNullableString(bound)) throw new ShellError("malformed", "binding");
+  return bound;
+}
+
+export async function setWindowPreferences(preferences: WindowPreferences): Promise<void> {
+  await invokeShell("set_window_preferences", { preferences });
+}
+
+export async function notify(notice: Notice): Promise<void> {
+  await invokeShell("notify", { notice });
+}
+
+export async function setBadge(count: number): Promise<void> {
+  await invokeShell("set_badge", { count: Math.max(0, Math.floor(count)) });
+}
+
+export async function openInConsole(path: string): Promise<void> {
+  await invokeShell("open_in_console", { path });
+}
+
+export async function openChat(): Promise<void> {
+  await invokeShell("open_chat");
+}
+
+export async function showConsole(): Promise<void> {
+  await invokeShell("show_console");
+}
+
+export async function saveBlobbyPosition(x: number, y: number): Promise<void> {
+  await invokeShell("save_blobby_position", { x, y });
+}
+
+export async function showBlobbyMenu(): Promise<void> {
+  await invokeShell("blobby_menu");
+}
+
+export async function resizeQuickAsk(height: number): Promise<void> {
+  await invokeShell("resize_quick_ask", { height });
+}
+
+export async function hideQuickAsk(): Promise<void> {
+  await invokeShell("hide_quick_ask");
+}

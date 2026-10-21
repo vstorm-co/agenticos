@@ -19,6 +19,30 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **The desktop app looks and behaves like an application** (#2305). On macOS
+  the console's sidebar holds the traffic lights and drags the window, the
+  window remembers its size and place, closing it keeps the app in the menu
+  bar, and the menu bar has File, Edit, View, Go (⌘1-⌘5, ⌘[ and ⌘]) and Window
+  menus. A tray menu does the same on Windows and Linux.
+- **Styles for the console**: Glass, Graphite, Midnight and Paper beside the
+  standard look, each with a light and a dark side, under Profile, Appearance.
+  In the desktop app on macOS and Windows, Glass is drawn over the window's own
+  translucent material; in a browser it brings its own backdrop.
+- **Blobby replaces the pixel pets**: a creature in the agents' avatar style -
+  one of a cast of six, the face of one of your agents, or a face of your own -
+  that says when an approval is waiting, something new is in your inbox or your
+  runs are in progress, and opens it on a click. Configured on a new Blobby tab
+  in Settings, shown only in the desktop app beside Desktop app (open at login,
+  keep running, the badge) and Shortcuts.
+- **Quick ask** (`⌥Space`, rebindable): a floating panel to ask any agent from
+  anywhere, with the answer streamed under the question and ⌘↩ to carry the
+  conversation into the console.
+- **Native notifications** for new approvals, with Approve and Reject on the
+  notification, and for new inbox rows, plus a count on the Dock icon and
+  beside the tray icon.
+
 ### Changed
 
 - **The comparison guides are checked again, on 21 October 2026, against

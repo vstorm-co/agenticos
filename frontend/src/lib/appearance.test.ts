@@ -1,0 +1,95 @@
+import { afterEach, describe, expect, it } from "vitest";
+
+import {
+  APPEARANCE_BOOTSTRAP_SCRIPT,
+  isLook,
+  LOOK_ATTRIBUTE,
+  SHELL_ATTRIBUTE,
+  SHELL_WINDOW_ATTRIBUTE,
+  THEME_STORAGE_KEY,
+  VIBRANCY_ATTRIBUTE,
+} from "./appearance";
+
+/** Run the pre-paint script as the browser would, inline, against this document. */
+function boot() {
+  new Function(APPEARANCE_BOOTSTRAP_SCRIPT)();
+}
+
+const root = () => document.documentElement;
+
+afterEach(() => {
+  localStorage.clear();
+  delete window.__AGENTICOS_SHELL__;
+  for (const attribute of [
+    LOOK_ATTRIBUTE,
+    SHELL_ATTRIBUTE,
+    SHELL_WINDOW_ATTRIBUTE,
+    VIBRANCY_ATTRIBUTE,
+  ]) {
+    root().removeAttribute(attribute);
+  }
+});
+
+describe("isLook", () => {
+  it("knows the five looks and nothing else", () => {
+    expect(isLook("glass")).toBe(true);
+    expect(isLook("standard")).toBe(true);
+    expect(isLook("neon")).toBe(false);
+    expect(isLook(3)).toBe(false);
+  });
+});
+
+describe("the appearance bootstrap", () => {
+  it("puts the stored look on <html> before the theme provider runs", () => {
+    localStorage.setItem(
+      THEME_STORAGE_KEY,
+      JSON.stringify({ state: { theme: "dark", look: "midnight" } }),
+    );
+    boot();
+    expect(root().getAttribute(LOOK_ATTRIBUTE)).toBe("midnight");
+  });
+
+  it("leaves the standard look, an unknown one and an empty store as no attribute", () => {
+    for (const stored of [{ state: { look: "standard" } }, { state: { look: "neon" } }, {}]) {
+      localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify(stored));
+      boot();
+      expect(root().hasAttribute(LOOK_ATTRIBUTE)).toBe(false);
+    }
+  });
+
+  it("survives a store that does not parse", () => {
+    localStorage.setItem(THEME_STORAGE_KEY, "{not json");
+    expect(boot).not.toThrow();
+    expect(root().hasAttribute(LOOK_ATTRIBUTE)).toBe(false);
+  });
+
+  it("marks the page as the desktop app's, its window, and a window with a material", () => {
+    window.__AGENTICOS_SHELL__ = {
+      platform: "macos",
+      version: "0.2.0",
+      window: "main",
+      vibrancy: true,
+    };
+    boot();
+    expect(root().getAttribute(SHELL_ATTRIBUTE)).toBe("macos");
+    expect(root().getAttribute(SHELL_WINDOW_ATTRIBUTE)).toBe("main");
+    expect(root().hasAttribute(VIBRANCY_ATTRIBUTE)).toBe(true);
+  });
+
+  it("draws no material where the window has none, and nothing at all in a browser", () => {
+    window.__AGENTICOS_SHELL__ = {
+      platform: "linux",
+      version: "0.2.0",
+      window: "blobby",
+      vibrancy: false,
+    };
+    boot();
+    expect(root().getAttribute(SHELL_ATTRIBUTE)).toBe("linux");
+    expect(root().hasAttribute(VIBRANCY_ATTRIBUTE)).toBe(false);
+
+    root().removeAttribute(SHELL_ATTRIBUTE);
+    delete window.__AGENTICOS_SHELL__;
+    boot();
+    expect(root().hasAttribute(SHELL_ATTRIBUTE)).toBe(false);
+  });
+});

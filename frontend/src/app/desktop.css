@@ -1,0 +1,266 @@
+/* =========================================================================
+   Glass, and the console inside the desktop app.
+
+   Two sets of rules keyed off attributes the root layout's pre-paint script
+   sets (`lib/appearance.ts`):
+
+   - `data-look="glass"` paints what the translucent tokens of `looks.css` sit
+     on. In the desktop app with a material (`data-vibrancy`) that is the
+     window's own - the page is transparent and macOS blurs the desktop behind
+     it. In a browser, or on Linux, it is a soft backdrop of the console's own
+     with the blur done here.
+   - `data-shell` is the console behaving like an application rather than a
+     page: an inset title bar, a window dragged by its headers, no rubber band,
+     no I-beam over chrome.
+   ========================================================================= */
+
+/* --- Glass over the window's material ----------------------------------- */
+:root[data-look="glass"][data-vibrancy],
+:root[data-look="glass"][data-vibrancy] body {
+  background: transparent;
+}
+
+/* The content pane sits over the sidebar's material a step more opaque, the
+   way Finder's and Mail's do: the column is the material, the page is paper. */
+:root[data-look="glass"][data-vibrancy] #main {
+  background: var(--color-background);
+}
+
+/* --- Glass in a browser: a backdrop, and the blur the window would do ----- */
+:root[data-look="glass"]:not([data-vibrancy]) body {
+  background:
+    radial-gradient(60rem 40rem at 10% 0%, oklch(86% 0.06 var(--brand-h) / 0.55), transparent 70%),
+    radial-gradient(50rem 36rem at 95% 15%, oklch(88% 0.05 200 / 0.5), transparent 70%),
+    radial-gradient(56rem 40rem at 60% 100%, oklch(90% 0.05 320 / 0.45), transparent 70%),
+    oklch(96% 0.004 265);
+  background-attachment: fixed;
+}
+
+:root.dark[data-look="glass"]:not([data-vibrancy]) body {
+  background:
+    radial-gradient(60rem 40rem at 10% 0%, oklch(36% 0.08 var(--brand-h) / 0.55), transparent 70%),
+    radial-gradient(50rem 36rem at 95% 15%, oklch(34% 0.06 200 / 0.5), transparent 70%),
+    radial-gradient(56rem 40rem at 60% 100%, oklch(32% 0.07 320 / 0.45), transparent 70%),
+    oklch(17% 0.006 265);
+  background-attachment: fixed;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light)[data-look="glass"]:not([data-vibrancy]) body {
+    background:
+      radial-gradient(
+        60rem 40rem at 10% 0%,
+        oklch(36% 0.08 var(--brand-h) / 0.55),
+        transparent 70%
+      ),
+      radial-gradient(50rem 36rem at 95% 15%, oklch(34% 0.06 200 / 0.5), transparent 70%),
+      oklch(17% 0.006 265);
+    background-attachment: fixed;
+  }
+}
+
+/* The blur, on the surfaces that float. Not on every card of a long list -
+   each is a compositor layer - only on the column, the page and what opens over
+   them. */
+:root[data-look="glass"]:not([data-vibrancy])
+  :is(aside, #main, [role="dialog"], [role="menu"], [data-radix-popper-content-wrapper] > *) {
+  backdrop-filter: blur(28px) saturate(1.6);
+  -webkit-backdrop-filter: blur(28px) saturate(1.6);
+}
+
+/* Over a material the page itself is not blurred, but what opens over the page
+   still is: a menu over a card over the material reads as three panes. */
+:root[data-look="glass"][data-vibrancy]
+  :is([role="dialog"], [role="menu"], [data-radix-popper-content-wrapper] > *) {
+  backdrop-filter: blur(24px) saturate(1.5);
+  -webkit-backdrop-filter: blur(24px) saturate(1.5);
+}
+
+/* --- The console as an application --------------------------------------- */
+
+/* No rubber band: an application window does not bounce its whole contents
+   past their edge. Scrolling regions still bounce inside themselves. */
+:root[data-shell],
+:root[data-shell] body {
+  overscroll-behavior: none;
+}
+
+/* Chrome is not text. A sidebar row, a tab or a button that can be
+   selected like a paragraph is the tell of a page pretending to be an app. */
+:root[data-shell] :is(aside, nav, [role="tablist"], button, [data-titlebar]) {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* The arrow over navigation, as on every native sidebar; links in content keep
+   the hand, because they are links. */
+:root[data-shell] :is(aside, nav) a {
+  cursor: default;
+}
+
+/* The title bar: on macOS the window's traffic lights sit inside the sidebar's
+   header, so the header leaves them room, and the rail widens just enough to
+   hold them when collapsed. The shell places the lights at (18, 22). */
+:root[data-shell="macos"][data-shell-window="main"] [data-titlebar] {
+  padding-inline-start: 5.25rem;
+}
+
+:root[data-shell="macos"][data-shell-window="main"] aside[data-collapsed] {
+  width: 5.25rem;
+}
+
+:root[data-shell="macos"][data-shell-window="main"] aside[data-collapsed] [data-titlebar] {
+  height: auto;
+  min-height: 3.5rem;
+  padding-block: 2.75rem 0.5rem;
+  padding-inline: 0;
+}
+
+/* A strip along the top of the content the window is dragged by, as a
+   toolbar would be; shown only in the shell, invisible, under nothing. */
+.window-drag-strip {
+  display: none;
+}
+
+/* Sticky inside `#main`, which is the scroll container, and pulled up into its
+   top padding (`sm:pt-8`, always in effect: the window is never narrower than
+   900px) and out to its side padding, so it spans the top edge of the content
+   and takes no room of its own. It stays on top of whatever scrolls under it,
+   which is what a toolbar does. */
+:root[data-shell][data-shell-window="main"] .window-drag-strip {
+  display: block;
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 20;
+  flex-shrink: 0;
+  block-size: 1.75rem;
+  margin-block: -2rem 0.25rem;
+  margin-inline: -1.5rem;
+}
+
+/* --- Blobby and quick ask: pages that are a window's whole content -------- */
+:root[data-shell-window="blobby"],
+:root[data-shell-window="blobby"] body {
+  background: transparent;
+  overflow: hidden;
+}
+
+:root[data-shell-window="quick-ask"],
+:root[data-shell-window="quick-ask"] body {
+  background: transparent;
+  overflow: hidden;
+}
+
+/* Blobby's bubble and button: drawn in the console's ink and paper whatever the
+   look, with a soft shadow, since they float over anybody's wallpaper. */
+.blobby-bubble,
+.blobby-new-chat {
+  background: var(--color-popover);
+  color: var(--color-popover-foreground);
+  box-shadow:
+    0 1px 2px oklch(0% 0 0 / 0.18),
+    0 4px 14px oklch(0% 0 0 / 0.14);
+}
+
+.blobby-new-chat {
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
+}
+
+/* The bubble's tail, pointing at the creature below it. */
+.blobby-bubble::after {
+  content: "";
+  position: absolute;
+  inset-block-end: -5px;
+  inset-inline-start: 50%;
+  translate: -50% 0;
+  border: 5px solid transparent;
+  border-block-start-color: var(--color-popover);
+  border-block-end: 0;
+}
+
+/* The body's reactions; the face's expressions are blobatar's own. */
+.blobby-body {
+  transform-origin: 50% 100%;
+}
+
+.blobby-body[data-state="hop"] {
+  animation: blobby-hop 0.75s var(--ease-spring);
+}
+
+.blobby-body[data-state="wave"] {
+  animation: blobby-wave 0.8s ease-in-out 2;
+}
+
+.blobby-body[data-state="happy"] {
+  animation: blobby-squish 0.5s ease-in-out 4;
+}
+
+.blobby-body[data-state="stroll"] {
+  animation: blobby-waddle 0.45s ease-in-out infinite alternate;
+}
+
+[data-motion="reduce"] .blobby-body {
+  animation: none;
+}
+
+@keyframes blobby-hop {
+  0%,
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+  20% {
+    transform: translateY(0) scale(1.08, 0.9);
+  }
+  50% {
+    transform: translateY(-22px) scale(0.94, 1.06);
+  }
+  80% {
+    transform: translateY(0) scale(1.06, 0.94);
+  }
+}
+
+@keyframes blobby-wave {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-8deg);
+  }
+  75% {
+    transform: rotate(8deg);
+  }
+}
+
+@keyframes blobby-squish {
+  0%,
+  100% {
+    transform: scale(1, 1);
+  }
+  50% {
+    transform: scale(1.07, 0.93);
+  }
+}
+
+@keyframes blobby-waddle {
+  from {
+    transform: rotate(-4deg) translateY(0);
+  }
+  to {
+    transform: rotate(4deg) translateY(-3px);
+  }
+}
+
+/* Quick ask's panel: over the window's material a thin veil of the console's
+   own surface, so text keeps its contrast over any wallpaper; without a
+   material, the console's popover, rounded like the window it pretends to be. */
+.quick-ask-panel {
+  background: var(--color-popover);
+  color: var(--color-popover-foreground);
+  border-radius: 16px;
+}
+
+:root[data-vibrancy] .quick-ask-panel {
+  background: color-mix(in oklab, var(--color-popover) 45%, transparent);
+}

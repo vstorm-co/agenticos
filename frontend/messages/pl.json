@@ -3520,7 +3520,10 @@
     "projects": "Projekty",
     "allProjects": "Wszystkie projekty",
     "backgroundJobs": "Zadania w tle",
-    "loadingPage": "Otwieranie strony"
+    "loadingPage": "Otwieranie strony",
+    "blobby": "Blobby",
+    "desktopApp": "Aplikacja desktopowa",
+    "shortcuts": "Skróty"
   },
   "navigation": {
     "dashboard": "Panel",
@@ -7985,6 +7988,174 @@
     "system": "Systemowe",
     "reduce": "Ograniczone",
     "full": "Pełne",
-    "motionHint": "„Systemowe” stosuje ustawienie systemu operacyjnego. „Ograniczone” wyłącza animację dyktowania i animacje przesuwania."
+    "motionHint": "„Systemowe” stosuje ustawienie systemu operacyjnego. „Ograniczone” wyłącza animację dyktowania i animacje przesuwania.",
+    "look": "Styl",
+    "lookHint": "Każdy styl ma jasną i ciemną wersję; wybiera ją motyw powyżej. W aplikacji desktopowej Glass prześwituje do pulpitu.",
+    "looks": {
+      "standard": {
+        "name": "Standardowy",
+        "hint": "Neutralny, domyślny"
+      },
+      "glass": {
+        "name": "Glass",
+        "hint": "Półprzezroczyste warstwy"
+      },
+      "graphite": {
+        "name": "Grafit",
+        "hint": "Ciepła szarość"
+      },
+      "midnight": {
+        "name": "Północ",
+        "hint": "Głęboki granat"
+      },
+      "paper": {
+        "name": "Papier",
+        "hint": "Ciepły, do czytania"
+      }
+    }
+  },
+  "desktop": {
+    "changeFailed": "Aplikacja desktopowa nie przyjęła tej zmiany.",
+    "blobby": {
+      "label": "Blobby. Przeciągnij, żeby przenieść, kliknij, żeby pomachał, kliknij dwukrotnie, żeby otworzyć konsolę, prawy przycisk otwiera menu.",
+      "newChat": "Nowy czat",
+      "signedOut": "Zaloguj się w konsoli, a będę dawać znać, co się dzieje.",
+      "approvals": "{count, plural, one {Czeka na ciebie akceptacja} few {Czekają na ciebie # akceptacje} many {Czeka na ciebie # akceptacji} other {Czeka na ciebie # akceptacji}}",
+      "unread": "{count, plural, one {Jedno nowe powiadomienie} few {# nowe powiadomienia} many {# nowych powiadomień} other {# nowych powiadomień}}",
+      "running": "{count, plural, one {Twój agent nad tym pracuje} few {Twoi agenci mają # runy w toku} many {Twoi agenci mają # runów w toku} other {Twoi agenci mają # runów w toku}}",
+      "lines": {
+        "pebble": {
+          "0": "Gładki jak opublikowany spec.",
+          "1": "Toczę się dalej.",
+          "2": "Wszędzie ta sama wersja.",
+          "3": "Cześć."
+        },
+        "mochi": {
+          "0": "Ściśnij mnie.",
+          "1": "Miękki z zewnątrz, otypowany w środku.",
+          "2": "Przerwa na przekąskę?",
+          "3": "Hej!"
+        },
+        "byte": {
+          "0": ">_",
+          "1": "Kod wyjścia 0.",
+          "2": "Segfault? Nie znam gościa.",
+          "3": "Gotowy."
+        },
+        "nimbus": {
+          "0": "Przepływam obok.",
+          "1": "Self-hosted, bez chmur.",
+          "2": "Dryfuję.",
+          "3": "Hm?"
+        },
+        "sprig": {
+          "0": "Rosnę.",
+          "1": "Podlej mnie tokenami.",
+          "2": "Fotosyntetyzuję.",
+          "3": "Zaraz wiosna."
+        },
+        "sunny": {
+          "0": "Dzień dobry!",
+          "1": "Wszystko na zielono.",
+          "2": "Świecę dalej.",
+          "3": "Co za dzień."
+        },
+        "anyone": {
+          "0": "Cześć.",
+          "1": "Potrzebujesz czegoś?",
+          "2": "Jestem tu.",
+          "3": "Spokojnie dziś."
+        }
+      }
+    },
+    "settings": {
+      "onlyInApp": "Te ustawienia należą do aplikacji desktopowej AgenticOS.",
+      "onlyInAppHint": "Otwórz konsolę w aplikacji desktopowej, żeby skonfigurować blobby, okno i skróty globalne.",
+      "aboutTheApp": "O aplikacji desktopowej",
+      "unreadable": "Aplikacja desktopowa nie podała swoich ustawień. Uruchom ją ponownie albo zaktualizuj, jeśli jest starsza niż ta konsola.",
+      "blobby": {
+        "heading": "Blobby",
+        "headingHint": "Stworek na pulpicie, który pilnuje twoich agentów.",
+        "title": "Na pulpicie",
+        "description": "Przeciągnij go, gdzie chcesz. Kliknij, żeby pomachał, kliknij dwukrotnie, żeby otworzyć konsolę, prawy przycisk otwiera menu.",
+        "shown": "Pokazuj blobby",
+        "shownHint": "Zostaje nad wszystkimi oknami i na każdym pulpicie.",
+        "who": "Kim jest",
+        "whoHint": "Ktoś z obsady, twarz jednego z twoich agentów albo własna twarz.",
+        "kinds": {
+          "cast": "Obsada",
+          "agent": "Mój agent",
+          "custom": "Własny"
+        },
+        "noAgents": "Nie widzisz jeszcze żadnych agentów.",
+        "seed": "Imię",
+        "seedPlaceholder": "Cokolwiek",
+        "seedHint": "Każde imię rysuje własnego stworka, zawsze tego samego.",
+        "behaviour": "Zachowanie",
+        "talk": "Mówi",
+        "talkHint": "Jak często odzywa się sam z siebie.",
+        "chatter": {
+          "quiet": "Rzadko",
+          "normal": "Czasem",
+          "chatty": "Często"
+        },
+        "activity": "Mówi, co robią twoi agenci",
+        "activityHint": "Czekająca akceptacja, coś nowego w skrzynce, twoje runy w toku. Kliknięcie dymka to otwiera.",
+        "roams": "Spaceruje",
+        "roamsHint": "Chodzi wzdłuż dołu ekranu, kiedy nic się nie dzieje. Wyłączony zostaje tam, gdzie go postawisz."
+      },
+      "window": {
+        "heading": "Aplikacja desktopowa",
+        "headingHint": "Jak AgenticOS zachowuje się jako aplikacja na tym komputerze.",
+        "title": "Okno",
+        "description": "Styl i motyw konsoli są w Profilu, w sekcji Wygląd.",
+        "launch_at_login": {
+          "label": "Otwieraj przy logowaniu",
+          "hint": "Uruchamiaj AgenticOS po zalogowaniu się na tym komputerze."
+        },
+        "keep_running": {
+          "label": "Działaj po zamknięciu okna",
+          "hint": "Blobby, quick ask i powiadomienia dalej działają; aplikacja zostaje na pasku menu lub w zasobniku."
+        },
+        "badge": {
+          "label": "Licz, co czeka",
+          "hint": "Akceptacje i nieprzeczytane powiadomienia na ikonie aplikacji i obok ikony w zasobniku."
+        }
+      },
+      "shortcuts": {
+        "heading": "Skróty",
+        "headingHint": "Globalne: działają niezależnie od tego, która aplikacja jest z przodu.",
+        "title": "Skróty globalne",
+        "description": "Kliknij pole, przytrzymaj modyfikatory i naciśnij klawisz. Escape anuluje; kombinacja wymaga co najmniej jednego modyfikatora.",
+        "quick_ask": {
+          "label": "Quick ask",
+          "hint": "Pływający panel, w którym zapytasz dowolnego agenta, nad czymkolwiek właśnie robisz."
+        },
+        "screenshot_chat": {
+          "label": "Zrzut ekranu do nowego czatu",
+          "hint": "Zaznacz fragment ekranu; trafi jako załącznik do nowego czatu."
+        },
+        "press": "Naciśnij kombinację",
+        "notBound": "Nieprzypisany",
+        "save": "Zapisz",
+        "clear": "Wyczyść",
+        "taken": "Nie udało się przypisać {accelerator}: zajmuje go inna aplikacja. Wybierz inną kombinację."
+      }
+    },
+    "quickAsk": {
+      "placeholder": "Zapytaj o cokolwiek",
+      "signedOut": "Zaloguj się w konsoli, żeby pytać swoich agentów",
+      "openConsole": "Otwórz konsolę",
+      "thinking": "Myśli",
+      "close": "<kbd>esc</kbd> zamyka",
+      "continueInConsole": "Kontynuuj w konsoli"
+    },
+    "notifications": {
+      "approvalTitle": "{agent} chce uruchomić {tool}",
+      "anAgent": "Agent",
+      "approve": "Zatwierdź",
+      "reject": "Odrzuć",
+      "inboxTitle": "AgenticOS"
+    }
   }
 }
