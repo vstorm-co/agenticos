@@ -1,5 +1,5 @@
 ---
-source_sha: "d6d426e89602"
+source_sha: "3abca69da21c"
 ---
 
 # Słownik { #glossary }
@@ -24,8 +24,10 @@ skrypt napisany pod nie nie przestał działać po zmianie nazwy.
 | Skill | Wiedza praktyczna zapisana raz i czytana przez każdego agenta, który jej potrzebuje | `skill` |
 | Kontekst | Stała wiedza, którą agent zawsze ma, np. słownik albo polityka | `context` |
 | Baza wiedzy | Dokumenty, które agent przeszukuje i cytuje | `collection` |
+| Luka w wiedzy | Temat pytań, na które baza wiedzy nie znała odpowiedzi, pogrupowanych według znaczenia | `knowledge_gap_topic` |
 | Aplikacja | Strona, którą publikuje agent, np. raport albo mały dashboard | `artifact` |
 | Architekt | Asystent w rogu każdej strony, który może budować z tobą agentów | `platform-assistant` |
+| Agent systemowy | Agent, którego uruchamia sama platforma, na przykład sędzia albo autor szkiców luk; wymieniony osobno w sekcji **Agenci systemowi** | `kind` inny niż `agent` |
 | Asystent tworzenia | Sugeruje zmiany w agencie albo skillu na podstawie negatywnie ocenionych odpowiedzi; o każdej decyduje człowiek | `authoring` |
 | Sugestia | Jedna proponowana zmiana w drafcie, przyjmowana, edytowana albo odrzucana osobno | `spec_proposal_hunk` |
 

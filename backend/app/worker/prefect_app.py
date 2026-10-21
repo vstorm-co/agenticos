@@ -39,6 +39,7 @@ from app.worker.tasks.approval_tasks import approval_expiry_sweep_flow
 from app.worker.tasks.authoring_tasks import run_authoring_flow
 from app.worker.tasks.eval_tasks import run_eval_flow
 from app.worker.tasks.invitation_tasks import invitation_expiry_sweep_flow
+from app.worker.tasks.knowledge_gap_tasks import group_knowledge_gaps_flow
 from app.worker.tasks.mcp_tasks import mcp_connection_sweep_flow
 from app.worker.tasks.notification_tasks import (
     deliver_due_notifications,
@@ -217,6 +218,15 @@ async def main() -> None:
     deployments.append(
         await mcp_connection_sweep_flow.ato_deployment(
             name="mcp-connection-sweep",
+            schedules=[_every(900)],
+            concurrency_limit=_ONE_AT_A_TIME,
+        )
+    )
+    # Every 15 minutes: a gap is read by a person deciding what to write, so a
+    # quarter-hour's delay costs nothing. A knowledge base with no new misses embeds nothing.
+    deployments.append(
+        await group_knowledge_gaps_flow.ato_deployment(
+            name="group-knowledge-gaps",
             schedules=[_every(900)],
             concurrency_limit=_ONE_AT_A_TIME,
         )

@@ -54,7 +54,7 @@ export function useCreateJudge(datasetId: string) {
     mutationFn: (judge: NewJudge) => apiClient.post<Dataset>(`/datasets/${datasetId}/judge`, judge),
     onSuccess: async (dataset) => {
       queryClient.setQueryData(qk.datasets.detail(datasetId), dataset);
-      await queryClient.invalidateQueries({ queryKey: qk.agents.judges() });
+      await queryClient.invalidateQueries({ queryKey: qk.agents.ofKind("judge") });
     },
   });
 }

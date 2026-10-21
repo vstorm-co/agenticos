@@ -172,6 +172,16 @@ class TestRrfFusesAnyNumberOfLists:
         # A copy, so the store's own result keeps the score it was ranked by.
         assert first[0].score == 0.9
 
+    def test_fusion_keeps_the_cosine_similarity_it_replaces_the_score_of(self):
+        """A fused score is a reciprocal rank, so whether anything relevant was
+        found is read from the similarity, which fusion must carry through."""
+        first = [SearchResult(content="a", score=0.42, similarity=0.42, parent_doc_id="d1")]
+
+        fused = RetrievalService._rrf_fuse([first, [_hit("b", "d2")]])
+
+        assert fused[0].score == pytest.approx(1.0 / 61)
+        assert fused[0].similarity == 0.42
+
 
 class _Expanded(SearchResult):
     expanded_content: str | None = None

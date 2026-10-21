@@ -17,7 +17,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Select, and_, func, or_, select, update
+from sqlalchemy import ColumnElement, Select, and_, func, or_, select, update
 from sqlalchemy import delete as sa_delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,6 +31,7 @@ from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.dataset import DatasetCase
+from app.db.models.knowledge_gap import KnowledgeSearch
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.message_rating import MessageRating
 from app.db.models.notification import Notification
@@ -196,6 +197,48 @@ async def runs_started_by(db: AsyncSession, user_id: UUID) -> list[AgentRun]:
         select(AgentRun).where(AgentRun.user_id == user_id).order_by(AgentRun.created_at.desc())
     )
     return list(result.scalars().all())
+
+
+def _their_searches(user_id: UUID) -> ColumnElement[bool]:
+    """Searches of runs they started.
+
+    By the run, never the conversation: a project chat is continued by other
+    members, whose questions are in it too.
+    """
+    return KnowledgeSearch.run_id.in_(_runs_they_started(user_id))
+
+
+async def knowledge_searches_of(db: AsyncSession, user_id: UUID) -> list[KnowledgeSearch]:
+    """What agents searched their knowledge bases for while answering them.
+
+    Unscoped by organization on purpose, like the rest of an export: it answers
+    for one person in every organization they were in.
+    """
+    result = await db.execute(
+        select(KnowledgeSearch)
+        .where(_their_searches(user_id))
+        .order_by(KnowledgeSearch.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+async def purge_knowledge_searches_of(db: AsyncSession, user_id: UUID) -> int:
+    """Remove the searches made while answering this person, in every organization.
+
+    Unscoped by organization on purpose: an erasure is about one person. A
+    search goes with its run or its conversation, and neither goes with the
+    account: `agent_runs.user_id` is `SET NULL` because the run is the
+    organization's record of what it spent, and a project chat is kept for the
+    team.
+
+    Returns:
+        How many searches were removed.
+    """
+    result = await db.execute(sa_delete(KnowledgeSearch).where(_their_searches(user_id)))
+    await db.flush()
+    # `execute` is typed to return `Result`, which has no `rowcount`; a DML
+    # statement actually returns a `CursorResult`, which does (see `resource_grant`).
+    return result.rowcount or 0  # ty: ignore[unresolved-attribute]
 
 
 async def memory_about(db: AsyncSession, owner_key: str) -> list[AgentMemoryFile]:

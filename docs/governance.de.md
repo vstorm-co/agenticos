@@ -1,5 +1,5 @@
 ---
-source_sha: "0684ff5eaa67"
+source_sha: "e52195064ce8"
 ---
 
 # Governance { #governance }
@@ -1660,12 +1660,14 @@ bereits geendet hat, darf nicht noch einmal scheitern, weil SMTP ausgefallen war
 Ein Schalter in den Einstellungen der Organisation auf ihrer Mitgliederseite
 entscheidet, ob Modelle die Evals und das Authoring der Organisation
 unterstützen: den Eval-Judge, der [Dataset-Scores](datasets.md#judge) bewertet,
-und den Fall-Generator, den Authoring-Assistenten und die Entwürfe zu
-Wissenslücken, die nach ihm kommen. Er ist standardmäßig aus, für eine
-Organisation, die es vor dem Schalter gab, wie für eine neue: Ob Modelle
-bewerten und entwerfen, entscheidet die Organisation, und wer `org:settings`
-hat, schaltet ihn ein. Jede Änderung wird im [Audit-Trail](#audit) als
-`organization.ai_assistance` festgehalten, mit dem, der sie vorgenommen hat.
+den Entwerfer, der den Inhalt schreibt, der einer
+[Wissenslücke](knowledge-gaps.md#drafting-the-missing-content) fehlt, und den
+Fall-Generator und den Authoring-Assistenten, die nach ihnen kommen. Er ist
+standardmäßig aus, für eine Organisation, die es vor dem Schalter gab, wie für
+eine neue: Ob Modelle bewerten und entwerfen, entscheidet die Organisation, und
+wer `org:settings` hat, schaltet ihn ein. Jede Änderung wird im
+[Audit-Trail](#audit) als `organization.ai_assistance` festgehalten, mit dem,
+der sie vorgenommen hat.
 
 Ist er aus, lehnt der Service, der einen solchen Run starten würde, ihn ab,
 gleich welcher Client fragt - ein ausgeblendetes Bedienelement ist nicht die

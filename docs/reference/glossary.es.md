@@ -1,5 +1,5 @@
 ---
-source_sha: "d6d426e89602"
+source_sha: "3abca69da21c"
 ---
 
 # Glosario { #glossary }
@@ -26,8 +26,10 @@ tal como se ven en pantalla.
 | Skill | Saber hacer escrito una vez y leído por cualquier agent que lo necesite | `skill` |
 | Context file | Conocimiento fijo que un agent siempre tiene, como un glosario o una política | `context` |
 | Knowledge base | Documentos que un agent busca y cita | `collection` |
+| Knowledge gap | Un tema de preguntas que una knowledge base no pudo responder, agrupadas por significado | `knowledge_gap_topic` |
 | App | Una página que publica un agent, como un informe o un pequeño panel | `artifact` |
 | Architect | El asistente en la esquina de cada página, que puede construir agents contigo | `platform-assistant` |
+| System agent | Un agent que ejecuta la propia plataforma, como un juez o el gap drafter; aparece aparte en **System agents** | `kind` distinto de `agent` |
 | Asistente de autoría | Sugiere cambios a un agent o un skill a partir de respuestas valoradas negativamente; una persona decide cada uno | `authoring` |
 | Sugerencia | Un cambio propuesto al draft, que se acepta, edita o descarta por separado | `spec_proposal_hunk` |
 

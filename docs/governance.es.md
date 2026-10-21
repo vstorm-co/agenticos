@@ -1,5 +1,5 @@
 ---
-source_sha: "0684ff5eaa67"
+source_sha: "e52195064ce8"
 ---
 
 # Governance { #governance }
@@ -1538,12 +1538,13 @@ debe fallar otra vez porque SMTP estuviera caído.
 
 Un interruptor, en los ajustes de la organización en su página de miembros,
 decide si los modelos asisten en las evals y la autoría de la organización: el
-juez de evals que califica las [puntuaciones de datasets](datasets.md#judge), y
-el generador de casos, el asistente de autoría y los borradores de lagunas de
-conocimiento que vienen después. Está desactivado por defecto, tanto en una
-organización que existía antes del interruptor como en una nueva: si los
-modelos califican y redactan es una decisión de la organización, y lo activa
-quien tenga `org:settings`. Cada cambio queda registrado en el
+juez de evals que califica las [puntuaciones de datasets](datasets.md#judge), el
+redactor que escribe el contenido que le falta a una [laguna de
+conocimiento](knowledge-gaps.md#drafting-the-missing-content), y el generador de
+casos y el asistente de autoría que vienen después. Está desactivado por
+defecto, tanto en una organización que existía antes del interruptor como en una
+nueva: si los modelos califican y redactan es una decisión de la organización, y
+lo activa quien tenga `org:settings`. Cada cambio queda registrado en el
 [registro de auditoría](#audit) como `organization.ai_assistance`, con quién lo
 hizo.
 

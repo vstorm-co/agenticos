@@ -338,6 +338,22 @@ CALLS: tuple[Call, ...] = (
     ),
     Call("GET", "/datasets", Perm.DATASETS_VIEW),
     Call("POST", "/datasets", Perm.DATASETS_EDIT, body={"name": "refund questions"}),
+    # A knowledge gap is made of people's questions, so every route reads them
+    # only with runs:view; which collection, agent and dataset is the service's.
+    Call("GET", "/knowledge-gaps", Perm.RUNS_VIEW),
+    Call("GET", "/knowledge-gaps/collections/{knowledge_base_id}", Perm.RUNS_VIEW),
+    Call("POST", "/knowledge-gaps/collections/{knowledge_base_id}/regroup", Perm.RUNS_VIEW),
+    Call("GET", "/knowledge-gaps/agents/{agent_id}", Perm.RUNS_VIEW),
+    Call("GET", "/knowledge-gaps/{topic_id}", Perm.RUNS_VIEW),
+    Call("POST", "/knowledge-gaps/{topic_id}/dismiss", Perm.RUNS_VIEW),
+    Call("POST", "/knowledge-gaps/{topic_id}/reopen", Perm.RUNS_VIEW),
+    Call("POST", "/knowledge-gaps/{topic_id}/draft", Perm.RUNS_VIEW),
+    Call(
+        "POST",
+        "/knowledge-gaps/{topic_id}/dataset",
+        Perm.RUNS_VIEW,
+        body={"dataset_id": "00000000-0000-0000-0000-000000000001"},
+    ),
     Call("GET", "/datasets/review-queue", Perm.DATASETS_VIEW),
     Call("GET", "/eval-runs/recent", Perm.RUNS_VIEW),
     Call(
@@ -786,6 +802,7 @@ _PLATFORM_PREFIXES = (
     # Datasets, the same shape: collection routes gate on datasets:view/edit,
     # the per-dataset routes - cases, versions, import, export - in the service.
     "/datasets",
+    "/knowledge-gaps",
     # Eval runs resolve the agent's and the dataset's grants in the service; the
     # organization-wide recent list gates on runs:view.
     "/eval-runs",
@@ -941,6 +958,9 @@ RESOURCE_AWARE_SERVICES = (
     # A dataset is a shared resource like a context file: who may read its cases,
     # change them, import or export them is its grants' answer, in the service.
     deps.get_dataset_service,
+    # A knowledge gap belongs to a collection: reading one resolves the caller's
+    # access to that knowledge base, and adding it to a dataset to that dataset.
+    deps.get_knowledge_gap_service,
     # Scoring acts on one dataset: configuring it, scoring against it and
     # recording a verdict resolve the dataset's grants in the service.
     deps.get_scoring_service,

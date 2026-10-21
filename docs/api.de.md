@@ -1,5 +1,5 @@
 ---
-source_sha: "29cf0b5c3b94"
+source_sha: "1fcff23b562a"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -369,7 +369,10 @@ genauso authentifiziert, mit der Organisation in `?organization_id=`, sendet er
 pro erfolgreichem Schreibvorgang über die öffentliche API in dieser Organisation
 einen JSON-Frame — `resource`, `id`, `action` (`created`, `updated` oder
 `deleted`), `surface` (`console`, `api_key`, `mcp` oder `assistant`) und wer ihn
-ausgeführt hat — und nur für Zeilen, die der Aufrufer lesen darf.
+ausgeführt hat — und nur für Zeilen, die der Aufrufer lesen darf. Änderungen,
+die niemand geschrieben hat, kommen genauso an: `run` für einen Run, der seine
+Zustände durchläuft, und `system` für die eigene geplante Arbeit der Plattform,
+etwa einen Gruppierungslauf der Wissenslücken.
 
 ## Fehler { #errors }
 

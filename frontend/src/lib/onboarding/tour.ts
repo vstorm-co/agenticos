@@ -220,8 +220,8 @@ export const TOUR_STEPS: readonly TourStep[] = [
   },
   { id: "agents-filters", page: ROUTES.AGENTS, target: "agents-filters" },
   // The band's toggle rather than its cards: it renders only while the
-  // organization holds a judge, and folded it is one bounded line.
-  { id: "agents-judges", page: ROUTES.AGENTS, target: "agents-judges", optional: true },
+  // organization holds a system agent, and folded it is one bounded line.
+  { id: "agents-system", page: ROUTES.AGENTS, target: "agents-system", optional: true },
 
   // The builder, entered from the Agents list. The engine opens an example agent
   // (the seeded "Claude Code like", or the first one there is), switches to the
@@ -370,6 +370,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     page: AGENT_BUILDER,
     target: "agent-share",
     permission: Perm.agentsView,
+  },
+  {
+    id: "agent-gaps",
+    page: AGENT_BUILDER,
+    target: "agent-gaps",
+    activate: "agent-tab-gaps",
+    permission: Perm.runsView,
   },
   {
     id: "agent-publish",
@@ -615,6 +622,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "kb-sync",
     activate: "kb-tab-sync",
     permission: Perm.collectionsView,
+  },
+  {
+    id: "kb-gaps",
+    page: KB_DETAIL,
+    target: "kb-gaps",
+    activate: "kb-tab-gaps",
+    permission: Perm.runsView,
   },
 
   // Each tab stop selects its own tab; the review stop anchors on the review filter

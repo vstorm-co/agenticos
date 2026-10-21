@@ -232,6 +232,7 @@ retranslated is how a stale translation stops being visible.
 | Eval runs — estimate, isolation, baselines, confirmed regressions, model comparison | `docs/evals.md` |
 | Authoring assistant — suggestions from evidence, decisions, checking with evals | `docs/authoring.md` |
 | Projects: shared files, instructions and chats | `docs/projects.md` |
+| Knowledge gaps — questions the knowledge base could not answer, grouped into topics | `docs/knowledge-gaps.md` |
 | Named environments, promotion, per-environment tracing, test connections, isolated (eval) runs | `docs/environments.md` |
 | Surfaces: widget, WebSocket, Slack, Telegram | `docs/channels.md` |
 | Published pages: artifacts, versions, public links, isolation | `docs/artifacts.md` |

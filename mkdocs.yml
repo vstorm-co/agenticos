@@ -328,6 +328,7 @@ nav:
           - datasets.md
           - evals.md
           - authoring.md
+          - knowledge-gaps.md
           - file-processing.md
           - mcp.md
           - sandbox.md
