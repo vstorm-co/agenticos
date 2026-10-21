@@ -33,6 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.knowledge._log import MAX_QUERY_CHARS
 from app.agents.system_agents import KNOWLEDGE_GAP_CLASSIFIER, KNOWLEDGE_GAP_DRAFTER
+from app.core.audit import current_impersonator
 from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.exceptions import AuthorizationError, NotFoundError
@@ -796,13 +797,24 @@ class KnowledgeGapService:
         against budgets and listed in Activity - :data:`CLASSIFY_BATCH` answers a
         run and at most :data:`CLASSIFY_PER_REQUEST` a request.
 
+        It runs later with the caller's role rather than this request's
+        limits, so it is started only by the caller in person: not through an
+        API key, whose scopes the worker would not carry, nor by an
+        administrator impersonating them.
+
         Raises:
-            AuthorizationError: For a caller without `runs:view` across the organization.
+            AuthorizationError: For a caller without `runs:view` across the
+                organization, or one asking through an API key or impersonation.
             NotFoundError: For a knowledge base the caller may not change.
             AiAssistanceDisabledError: The organization switched AI assistance off.
             SystemAgentUnavailableError: The classifier cannot run for this caller.
         """
         _require_runs_view(ctx)
+        if ctx.api_key_id is not None or current_impersonator() is not None:
+            raise AuthorizationError(
+                message="Checking answers runs as you, so start it signed in as yourself",
+                details={"knowledge_base_id": knowledge_base_id},
+            )
         kb = await self._knowledge_base(ctx, knowledge_base_id, edit=True)
         await SystemAgentRunner(self.db).require_runnable(ctx, key=KNOWLEDGE_GAP_CLASSIFIER.key)
         # Imported here: the flow module imports this service.

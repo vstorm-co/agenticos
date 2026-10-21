@@ -1,5 +1,5 @@
 ---
-source_sha: "b0c3775cb0c7"
+source_sha: "c6b52e964f09"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, o respondió sin saber, agrupadas por tema, para saber qué documento falta."
 ---
@@ -44,7 +44,8 @@ búsquedas por debajo del ajuste actual.
 Solo se registran las búsquedas que un agent hace mientras ejecuta un run, y
 solo para preguntas que hicieron personas: una búsqueda a través de
 `/rag/search` de la HTTP API, una vista previa en la página de la base de conocimiento y
-una búsqueda de un run de eval no se registran. Se guardan los primeros 1.000
+una búsqueda de un run de eval y una de la prueba de un borrador en el builder no
+se registran. Se guardan los primeros 1.000
 caracteres de una consulta.
 
 ## Respuestas y comentarios { #answers-and-comments }
@@ -79,7 +80,8 @@ conocimiento y encontró algo, o fue valorado negativamente con un comentario y
 funciona con una versión del agent vinculada a la base de conocimiento. Un run
 cuya búsqueda ya falló cuenta una vez, como ese fallo. Los runs por la API HTTP
 no guardan respuesta, y los runs de eval, cuyas preguntas se reproducen o se
-generan, nunca se leen. Tampoco los runs delegados.
+generan, nunca se leen. Tampoco las pruebas de un borrador en el builder ni los
+runs delegados.
 
 Una revisión lee hasta 100 respuestas, 20 por run del clasificador. Cada run se
 comprueba contra el presupuesto del clasificador y el de la organización antes
@@ -201,6 +203,10 @@ miembro sin él no ve la pestaña ni el widget, y la API se lo deniega.
 | Añadir un tema a un dataset | `runs:view` y `datasets:edit` en el dataset |
 | Redactar el contenido que falta | `runs:view`, `collections:edit` en la base de conocimiento y `agents:run` en el Knowledge gap drafter |
 | Revisar respuestas | `runs:view`, `collections:edit` en la base de conocimiento y `agents:run` en el Knowledge gap classifier |
+
+Una revisión de respuestas se ejecuta después con tu rol, así que solo se inicia
+en persona: no a través de una clave de API ni mientras un administrador te
+suplanta.
 
 Una base de conocimiento, un agent, un tema o un dataset al que no tienes acceso responde
 «no encontrado», igual que uno de otra organización. Consulta

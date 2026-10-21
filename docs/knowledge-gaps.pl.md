@@ -1,5 +1,5 @@
 ---
-source_sha: "b0c3775cb0c7"
+source_sha: "c6b52e964f09"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego albo odpowiedział, że nie wie, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -42,8 +42,8 @@ wyszukiwania poniżej bieżącego ustawienia.
 
 Zapisywane są tylko wyszukiwania, które agent wykonuje w trakcie runa, i tylko
 dla pytań zadanych przez ludzi: wyszukiwanie przez `/rag/search` w HTTP API,
-podgląd na stronie bazy wiedzy ani wyszukiwanie wykonane przez run evala nie są
-zapisywane. Z zapytania zachowywane jest pierwsze 1000 znaków.
+podgląd na stronie bazy wiedzy, wyszukiwanie wykonane przez run evala ani
+wyszukiwanie z testu draftu w builderze nie są zapisywane. Z zapytania zachowywane jest pierwsze 1000 znaków.
 
 ## Odpowiedzi i komentarze { #answers-and-comments }
 
@@ -76,7 +76,7 @@ coś znalazł albo został oceniony łapką w dół z komentarzem i działa na w
 agenta powiązanej z bazą wiedzy. Run, którego wyszukiwanie już było chybione,
 liczy się raz, jako to chybienie. Runy przez HTTP API nie zachowują odpowiedzi,
 a runy ewaluacji, których pytania są odtwarzane albo generowane, nie są nigdy
-czytane. Runy delegowane też nie.
+czytane. Testy draftu w builderze i runy delegowane też nie.
 
 Sprawdzenie czyta do 100 odpowiedzi, po 20 na run klasyfikatora. Każdy run jest
 sprawdzany względem budżetu klasyfikatora i organizacji, zanim zostanie
@@ -189,6 +189,10 @@ bez niego nie widzi karty ani widżetu, a API mu odmawia.
 | Dodać temat do datasetu | `runs:view` i `datasets:edit` na datasecie |
 | Napisać szkic brakującej treści | `runs:view`, `collections:edit` na bazie wiedzy i `agents:run` na Knowledge gap drafter |
 | Sprawdzić odpowiedzi | `runs:view`, `collections:edit` na bazie wiedzy i `agents:run` na Knowledge gap classifier |
+
+Sprawdzenie odpowiedzi działa później na twojej roli, więc uruchamia się je tylko
+osobiście: nie przez klucz API i nie wtedy, gdy administrator się pod ciebie
+podszywa.
 
 Baza wiedzy, agent, temat albo dataset, do którego nie masz dostępu, odpowiada „nie
 znaleziono”; tak samo ten z innej organizacji. Zobacz

@@ -40,8 +40,9 @@ searches that fall below the current setting.
 
 Only searches an agent makes while it runs are recorded, and only for
 questions people asked: a search through the HTTP API's `/rag/search`, a
-preview on the knowledge base's page, and a search made by an eval run are not. The
-first 1,000 characters of a query are kept.
+preview on the knowledge base's page, a search made by an eval run, and one
+made by a builder testing a draft are not. The first 1,000 characters of a
+query are kept.
 
 ## Answers and comments { #answers-and-comments }
 
@@ -72,8 +73,8 @@ An answer is read when its run, in the last 30 days, searched the knowledge
 base and found something, or was rated down with a comment and runs on an agent
 version bound to the knowledge base. A run whose search already missed is
 counted once, as that miss. Runs over the HTTP API keep no answer, and eval
-runs, whose questions are replayed or generated, are never read. Nor are
-delegated runs.
+runs, whose questions are replayed or generated, are never read. Nor are a
+builder's tests of a draft or delegated runs.
 
 A check reads up to 100 answers, 20 to a run of the classifier. Each run is
 checked against the classifier's budget and the organization's before the model
@@ -186,6 +187,9 @@ without it does not see the tab or the widget, and the API refuses them.
 | Add a topic to a dataset | `runs:view` and `datasets:edit` on the dataset |
 | Draft the missing content | `runs:view`, `collections:edit` on the knowledge base, and `agents:run` on the Knowledge gap drafter |
 | Check answers | `runs:view`, `collections:edit` on the knowledge base, and `agents:run` on the Knowledge gap classifier |
+
+A check of answers runs later on your role, so it is started only in person:
+not through an API key, and not while an administrator impersonates you.
 
 A knowledge base, agent, topic or dataset you may not reach answers "not found",
 and so does one in another organization. See [Permissions](permissions.md).

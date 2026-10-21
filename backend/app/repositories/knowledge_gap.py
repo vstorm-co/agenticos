@@ -628,7 +628,8 @@ def _candidates(
     """The runs and their last answers that are candidates for one knowledge base.
 
     An answer is a candidate when its run is a person's - never an eval's,
-    whose questions were replayed or generated, nor a delegate's - has a kept
+    whose questions were replayed or generated, nor a builder's test of a
+    draft, nor a delegate's - has a kept
     conversation, and either searched the knowledge base without missing or
     was rated down with a comment by an agent version that binds it. A run that
     already missed on the base is counted, so it is left out. An answer read
@@ -664,6 +665,7 @@ def _candidates(
     conditions = (
         AgentRun.organization_id == organization_id,
         AgentRun.surface != RunSurface.EVAL.value,
+        AgentRun.is_test.is_(False),
         AgentRun.parent_run_id.is_(None),
         AgentRun.conversation_id.is_not(None),
         AgentRun.started_at >= since,

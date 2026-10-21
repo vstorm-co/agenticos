@@ -9,6 +9,7 @@ what is remembered, and who may ask for it at all.
 
 from __future__ import annotations
 
+import dataclasses
 import re
 import uuid
 from collections.abc import Iterator
@@ -20,6 +21,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from sqlalchemy import select
 
+from app.core.audit import set_impersonator
 from app.core.exceptions import AiAssistanceDisabledError, AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent, AgentVersion
@@ -84,6 +86,7 @@ async def _asked(
     question: str,
     answer: str,
     surface: str = "web",
+    is_test: bool = False,
     parent: AgentRun | None = None,
     version: AgentVersion | None = None,
 ) -> tuple[AgentRun, Message]:
@@ -101,6 +104,7 @@ async def _asked(
         conversation_id=conversation.id,
         status="completed",
         surface=surface,
+        is_test=is_test,
         parent_run_id=None if parent is None else parent.id,
         agent_version_id=None if version is None else version.id,
         started_at=datetime.now(UTC) - timedelta(hours=1),
@@ -283,9 +287,10 @@ async def test_a_run_whose_search_missed_is_already_counted_and_is_not_read(db) 
 
 
 @pytest.mark.security
-async def test_evals_delegates_and_other_organizations_are_never_read(db) -> None:
+async def test_evals_tests_delegates_and_other_organizations_are_never_read(db) -> None:
     """An eval replays or generates its questions, so reading its answers would feed
-    a dataset back into itself; another organization's answers are not ours to read."""
+    a dataset back into itself, and a builder testing a draft is not asking; another
+    organization's answers are not ours to read."""
     ctx = await _owner(db)
     kb = await _knowledge_base(db, ctx)
     agent = await _agent(db, ctx)
@@ -296,11 +301,14 @@ async def test_evals_delegates_and_other_organizations_are_never_read(db) -> Non
     delegated, _ = await _asked(
         db, ctx, agent, question="delegated", answer="I don't know.", parent=ours
     )
+    tested, _ = await _asked(
+        db, ctx, agent, question="tested", answer="I don't know.", is_test=True
+    )
     other = await _owner(db)
     foreign, _ = await _asked(
         db, other, await _agent(db, other), question="foreign", answer="I don't know."
     )
-    for run in (ours, replayed, delegated, foreign):
+    for run in (ours, replayed, delegated, tested, foreign):
         await _searched(
             db, ctx if run is not foreign else other, run, kb, query="q", top_similarity=0.9
         )
@@ -311,7 +319,9 @@ async def test_evals_delegates_and_other_organizations_are_never_read(db) -> Non
     prompt = run_it.await_args.kwargs["prompt"]
     assert read == 1
     assert "ours" in prompt
-    assert not {"replayed", "delegated", "foreign"} & set(re.findall(r"Asked: (\w+)", prompt))
+    assert not {"replayed", "delegated", "tested", "foreign"} & set(
+        re.findall(r"Asked: (\w+)", prompt)
+    )
     with pytest.raises(NotFoundError):
         await KnowledgeGapService(db).classify(other, kb.id)
 
@@ -437,6 +447,27 @@ async def test_only_whoever_may_change_the_knowledge_base_and_reads_every_run_ma
             await service.classify_batch(operator, kb.id)
         with pytest.raises(AuthorizationError):
             await service.classify(member, kb.id)
+
+    spawn.assert_not_called()
+
+
+@pytest.mark.security
+async def test_a_check_is_started_only_in_person(db) -> None:
+    """It runs later on the caller's role, so neither an API key's narrower scopes
+    nor an administrator acting as somebody else may start one."""
+    ctx = await _owner(db)
+    kb = await _knowledge_base(db, ctx)
+    keyed = dataclasses.replace(ctx, api_key_id=uuid.uuid4())
+
+    with patch("app.services.knowledge_gaps.spawn_after_commit") as spawn:
+        with pytest.raises(AuthorizationError):
+            await KnowledgeGapService(db).classify(keyed, kb.id)
+        set_impersonator(uuid.uuid4())
+        try:
+            with pytest.raises(AuthorizationError):
+                await KnowledgeGapService(db).classify(ctx, kb.id)
+        finally:
+            set_impersonator(None)
 
     spawn.assert_not_called()
 

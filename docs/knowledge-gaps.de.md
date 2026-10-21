@@ -1,5 +1,5 @@
 ---
-source_sha: "b0c3775cb0c7"
+source_sha: "c6b52e964f09"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden oder ohne Wissen geantwortet hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -44,8 +44,8 @@ Lücken, die du liest, sind immer die Suchen unter der aktuellen Einstellung.
 
 Gespeichert werden nur Suchen, die ein Agent während seines Runs macht, und nur
 zu Fragen, die Menschen gestellt haben: Eine Suche über `/rag/search` der HTTP
-API, eine Vorschau auf der Seite der Wissensdatenbank und eine Suche eines Eval-Runs
-werden nicht gespeichert. Von einer Anfrage werden die ersten 1.000 Zeichen
+API, eine Vorschau auf der Seite der Wissensdatenbank, eine Suche eines Eval-Runs
+und eine aus dem Test eines Entwurfs im Builder werden nicht gespeichert. Von einer Anfrage werden die ersten 1.000 Zeichen
 behalten.
 
 ## Antworten und Kommentare { #answers-and-comments }
@@ -79,8 +79,8 @@ Wissensbasis durchsucht und etwas gefunden hat oder mit einem Kommentar negativ
 bewertet wurde und auf einer Agent-Version läuft, die an die Wissensbasis
 gebunden ist. Ein Run, dessen Suche schon ein Fehltreffer war, zählt einmal, als
 dieser Fehltreffer. Runs über die HTTP-API behalten keine Antwort, und Eval-Runs,
-deren Fragen wiederholt oder erzeugt sind, werden nie gelesen. Delegierte Runs
-ebenso wenig.
+deren Fragen wiederholt oder erzeugt sind, werden nie gelesen. Tests eines Entwurfs im
+Builder und delegierte Runs ebenso wenig.
 
 Eine Prüfung liest bis zu 100 Antworten, 20 je Run des Klassifizierers. Jeder
 Run wird gegen das Budget des Klassifizierers und der Organisation geprüft,
@@ -202,6 +202,10 @@ und die API verweigert ihm den Zugriff.
 | Ein Thema zu einem Dataset hinzuzufügen | `runs:view` und `datasets:edit` auf dem Dataset |
 | Den fehlenden Inhalt zu entwerfen | `runs:view`, `collections:edit` auf der Wissensdatenbank und `agents:run` auf dem Knowledge gap drafter |
 | Antworten zu prüfen | `runs:view`, `collections:edit` auf der Wissensdatenbank und `agents:run` auf dem Knowledge gap classifier |
+
+Eine Prüfung der Antworten läuft später mit deiner Rolle, also startest du sie
+nur persönlich: nicht über einen API-Schlüssel und nicht, während ein
+Administrator dich impersoniert.
 
 Eine Wissensdatenbank, ein Agent, ein Thema oder ein Dataset, auf das du keinen
 Zugriff hast, antwortet mit „nicht gefunden“, ebenso eines aus einer anderen
