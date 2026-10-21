@@ -111,6 +111,7 @@ async def test_every_deployment_is_registered_before_the_runner_starts(
         "org-purge-cleanup",
         "sandbox-log-sweep",
         "mcp-connection-sweep",
+        "group-knowledge-gaps",
         "approval-expiry-sweep",
         "invitation-expiry-sweep",
         "stale-run-sweep",

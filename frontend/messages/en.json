@@ -686,8 +686,12 @@
     "testConnectionsSaved": "Test connections saved",
     "failedTestConnections": "The test connections could not be saved",
     "testDraft": "Test draft",
-    "judgesCount": "{count, plural, =1 {Judges (1)} other {Judges (#)}}",
-    "judgesHint": "Judges grade eval answers: the default one, and each dataset's own. The platform runs them, so nobody chats with one, puts it on a channel, schedules it or delegates to it; open one to change its instructions, model or budget.",
+    "systemAgentsCount": "{count, plural, =1 {System agents (1)} other {System agents (#)}}",
+    "systemAgentsHint": "The platform runs these agents itself, so nobody chats with one, puts it on a channel, schedules it or delegates to it. Open one to change its instructions, model or budget.",
+    "judgeKind": "{count, plural, =1 {Judges (1)} other {Judges (#)}}",
+    "judgeKindHint": "They grade eval answers: the default one, and each dataset's own.",
+    "drafterKind": "{count, plural, =1 {Gap drafter (1)} other {Gap drafters (#)}}",
+    "drafterKindHint": "It drafts the content a knowledge gap is missing, when somebody asks for a draft.",
     "defaultJudge": "Default judge",
     "defaultJudgeHint": "Grades every dataset that has no judge of its own.",
     "judgeUsedBy": "{more, plural, =0 {Used by {names}} other {Used by {names} and # more}}",
@@ -2330,6 +2334,17 @@
           "manual": "{count} by hand",
           "synthetic": "{count} generated"
         }
+      },
+      "knowledge-gaps": {
+        "title": "Knowledge gaps",
+        "description": "The questions agents most often found nothing for in their knowledge bases.",
+        "asked": "{count, plural, =1 {asked once} other {asked # times}}",
+        "empty": {
+          "title": "No knowledge gaps yet",
+          "description": "When an agent searches a knowledge base and finds nothing close to the question, the question lands here, grouped with others like it. Gaps are grouped every 15 minutes."
+        },
+        "breakdown": "Topics per knowledge base",
+        "perCollection": "{name} · {count}"
       },
       "department-spend": {
         "title": "Spend by department",
@@ -4044,6 +4059,14 @@
         "title": "Create it",
         "body": "Choose Create. We'll move on the moment it's saved."
       },
+      "kb-gaps": {
+        "title": "What it could not answer",
+        "body": "Questions agents searched this collection for and found nothing relevant to, grouped by topic. Add the missing document, or dismiss a topic that needs none."
+      },
+      "agent-gaps": {
+        "title": "What it went looking for",
+        "body": "The questions this agent searched a knowledge base for and found nothing. Each one links to the run it came from."
+      },
       "flow-dataset-open": {
         "title": "Open your dataset",
         "body": "It is the first card - the one changed last. Open it to add its first case."
@@ -4121,9 +4144,9 @@
         "title": "Review",
         "body": "The graded answers waiting for a person's decision. Decide the ones the judge was not sure of; its opinion stays on record."
       },
-      "agents-judges": {
-        "title": "Judges",
-        "body": "The agents that grade eval answers: the default judge, and each one a dataset made for itself. Open one to change how strictly it grades, its model or its budget; a dataset picks its judge on its Grading tab."
+      "agents-system": {
+        "title": "System agents",
+        "body": "The agents the platform runs itself, grouped by what they do: the judges that grade eval answers and the drafter that writes what a knowledge gap is missing. Open one to change its instructions, model or budget; a dataset picks its judge on its Grading tab."
       },
       "dataset-judge": {
         "title": "The judge",
@@ -7106,6 +7129,66 @@
     "newDatasetHere": "You have no dataset to add to yet, so this answer starts one, visible to the whole organization.",
     "newDatasetFromActivity": "Answers from Activity",
     "backToDataset": "Back to {name}"
+  },
+  "knowledgeGaps": {
+    "tab": "Knowledge gaps",
+    "title": "Knowledge gaps",
+    "topicCount": "{count, plural, =0 {No topics} =1 {1 topic} other {# topics}}",
+    "descriptionCollection": "Questions agents searched this knowledge base for and found nothing relevant to, grouped by topic.",
+    "descriptionAgent": "Questions this agent searched its knowledge bases for and found nothing relevant to, grouped by topic.",
+    "nothingAutomatic": "Nothing is added to a knowledge base automatically. When a topic needs a document, a person adds it.",
+    "statusFilter": "Show topics",
+    "statusOpen": "Open",
+    "statusDismissed": "Dismissed",
+    "moreActions": "More actions for this topic",
+    "regroup": "Group now",
+    "regroupStarted": "Grouping started. New topics appear in a minute or two.",
+    "ungrouped": "{count, plural, =1 {1 question is} other {# questions are}} waiting to be grouped. Grouping runs every 15 minutes.",
+    "questionCount": "{count, plural, =1 {Asked once} other {Asked # times}}",
+    "lastAsked": "Last asked {ago}",
+    "emptyOpen": "No open knowledge gaps",
+    "emptyOpenBody": "When an agent searches and finds nothing relevant, the question appears here, grouped with others like it.",
+    "emptyDismissed": "No dismissed topics",
+    "emptyDismissedBody": "Topics marked as needing no document appear here.",
+    "loadFailed": "Knowledge gaps could not be loaded",
+    "loadTopicFailed": "This topic could not be loaded",
+    "loadFailedBody": "This is not an empty list: the request failed. Try again.",
+    "retry": "Try again",
+    "topic": "Topic",
+    "topicSummary": "{count, plural, =1 {Asked once} other {Asked # times}} in {knowledgeBase}",
+    "questions": "Questions",
+    "noConversation": "No conversation is kept for this run, so only the search is known.",
+    "searchedFor": "Searched for: {query}",
+    "noResults": "No results",
+    "closestMatch": "{count, plural, =1 {1 result} other {# results}}, closest match {similarity}",
+    "openRun": "Open the run",
+    "ratedDown": "Rated down: {comment}",
+    "dismiss": "Dismiss",
+    "reopen": "Reopen",
+    "dismissedToast": "Topic dismissed",
+    "reopenedToast": "Topic reopened",
+    "addToDataset": "Add to dataset",
+    "addToDatasetBody": "Each question becomes a case, with the answer the agent gave. Questions with no answer you can read are skipped.",
+    "noDatasetToAddTo": "There is no dataset you can add to. <link>Create one</link> first.",
+    "dataset": "Dataset",
+    "cancel": "Cancel",
+    "add": "Add",
+    "casesAdded": "{added, plural, =0 {No case added} =1 {1 case added} other {# cases added}} to {name}{skipped, plural, =0 {} =1 {, 1 question skipped} other {, # questions skipped}}",
+    "draftContent": "Draft the missing content",
+    "draftAgain": "Draft again",
+    "drafting": "Drafting…",
+    "draftReady": "Draft ready - check it before you add it",
+    "draftNotice": "Written by a model from the questions above. Check every fact and fill in the placeholders before you add it to the knowledge base - nothing is added for you.",
+    "draftSources": "What it rests on",
+    "openDraftRun": "Open the run",
+    "editDrafter": "Edit the drafter's instructions",
+    "downloadDraft": "Download .md",
+    "hasDraft": "Draft",
+    "draftLabel": "Draft — verify before adding",
+    "draftUnverified": "{count, plural, =1 {One source it named could not be verified and was left out.} other {# sources it named could not be verified and were left out.}}",
+    "aiOff": "AI assistance is off in this organization, so no draft can be written. Finding and grouping gaps still works.",
+    "enableAi": "Enable AI assistance",
+    "askAdmin": "Ask an admin to turn it on."
   },
   "apiKeys": {
     "title": "API keys",

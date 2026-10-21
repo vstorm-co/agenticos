@@ -19,6 +19,7 @@ import { DepartmentSpendWidget } from "./department-spend";
 import { ConversationsWidget } from "./conversations";
 import { HealthWidget } from "./health";
 import { KnowledgeFreshnessWidget } from "./knowledge-freshness";
+import { KnowledgeGapsWidget } from "./knowledge-gaps";
 import { LatencyWidget } from "./latency";
 import { McpHealthWidget } from "./mcp-health";
 import { MembersWidget } from "./members";
@@ -95,6 +96,7 @@ export const WIDGET_COMPONENTS: Record<WidgetId, ComponentType<DashboardWidgetPr
   "shared-with-you": SharedWithYouWidget,
   artifacts: ArtifactsWidget,
   datasets: DatasetsWidget,
+  "knowledge-gaps": KnowledgeGapsWidget,
   "review-queue": ReviewQueueWidget,
   "eval-runs": EvalRunsWidget,
   "eval-suites": EvalSuitesWidget,

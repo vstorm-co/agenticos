@@ -80,6 +80,8 @@ export default defineConfig({
         "src/components/dashboard/widgets/eval-suites.tsx",
         "src/components/evals/**/*.{ts,tsx}",
         "src/components/datasets/**/*.{ts,tsx}",
+        "src/components/dashboard/widgets/knowledge-gaps.tsx",
+        "src/components/knowledge-gaps/**/*.tsx",
         "src/components/dashboard/widgets/projects.tsx",
         // Department budgets (#2072): the dashboard card and the group page's.
         "src/components/dashboard/widgets/department-spend.tsx",

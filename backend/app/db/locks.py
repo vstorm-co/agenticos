@@ -59,6 +59,10 @@ class LockScope(IntEnum):
     #: How many eval cases one organization runs at once: two workers counting
     #: together would otherwise both start one past the limit.
     EVAL_CASES_PER_ORGANIZATION = 9
+    #: One knowledge base's grouping pass: it reads the misses no topic holds
+    #: and then places them, so two passes at once would put a question in two
+    #: topics.
+    KNOWLEDGE_GAPS_PER_KNOWLEDGE_BASE = 10
 
 
 def _key(subject: UUID) -> int:

@@ -40,6 +40,8 @@ const STALE: Record<ChangeResource, (orgId: string) => QueryKey[]> = {
   run: () => [qk.runs.all(), qk.conversations.list()],
   // A suite's result names the eval run behind it, so the runs move with it.
   eval_suite: () => [qk.evalSuites.all(), qk.evalRuns.all()],
+  // A topic dismissed or drafted, or a grouping pass that placed new questions.
+  knowledge_gap: () => [qk.knowledgeGaps.all()],
 };
 
 export function staleQueries(event: ChangeEvent): QueryKey[] {

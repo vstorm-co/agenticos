@@ -52,6 +52,9 @@ class PersonalDataExport(BaseModel):
         description="Where and when they signed in. Never the credential; the row holds a hash."
     )
     runs: list[dict[str, Any]] = Field(description="Runs they started, and what each cost.")
+    knowledge_searches: list[dict[str, Any]] = Field(
+        description="What agents searched their knowledge bases for while answering them."
+    )
     memory: list[dict[str, Any]] = Field(
         description="What agents have written down about them, in every organization."
     )
@@ -101,6 +104,9 @@ class PersonalDataPurge(BaseModel):
     )
     dataset_cases: int = Field(
         description="Dataset cases taken from their conversations, kept but unlinked from them."
+    )
+    knowledge_searches: int = Field(
+        description="Knowledge searches made while answering them, including API runs."
     )
     scored_answers: int = Field(
         description="Eval scores of their runs, kept but without the answer they scored."

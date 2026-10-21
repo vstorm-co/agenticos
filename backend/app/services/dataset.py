@@ -46,6 +46,7 @@ from app.repositories import (
 )
 from app.schemas.dataset import (
     MAX_HISTORY_TURNS,
+    AnswerAs,
     DatasetCaseContent,
     DatasetCaseFromMessage,
     DatasetCaseList,
@@ -871,10 +872,22 @@ class DatasetService:
                 case made from this answer.
         """
         dataset = await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
-        missing = NotFoundError(
-            message="Message not found", details={"message_id": data.message_id}
+        content, provenance = await self._case_from_message(
+            ctx, dataset, data.message_id, data.answer_as
         )
-        message = await conversation_repo.get_message_by_id(self.db, data.message_id)
+        return await self._add(
+            ctx, dataset_id, content, source=CaseSource.CONVERSATION, **provenance
+        )
+
+    async def _case_from_message(
+        self, ctx: AuthContext, dataset: Dataset, message_id: UUID, answer_as: AnswerAs
+    ) -> tuple[DatasetCaseContent, dict[str, UUID | None]]:
+        """The case an agent's answer makes, and the links back to where it came from.
+
+        Raises as :meth:`add_from_message` documents.
+        """
+        missing = NotFoundError(message="Message not found", details={"message_id": message_id})
+        message = await conversation_repo.get_message_by_id(self.db, message_id)
         if message is None:
             raise missing
         reads_every_run = ctx.scope_for(Perm.RUNS_VIEW) >= Scope.ALL
@@ -916,7 +929,7 @@ class DatasetService:
         ]
         last = reply[-1]
         answer = "\n\n".join(turn.content.strip() for turn in reply if turn.content.strip())
-        keeps_good = data.answer_as == "reference_answer"
+        keeps_good = answer_as == "reference_answer"
         calls = (
             await self._expected_calls(ctx, last.run_id or message.run_id, reply)
             if keeps_good
@@ -979,15 +992,73 @@ class DatasetService:
                 message="This conversation is too long to keep as a case",
                 details={"fields": field_problems(exc.errors(), root="message_id")},
             ) from None
-        return await self._add(
+        return content, {
+            "source_run_id": last.run_id or message.run_id,
+            "source_conversation_id": conversation.id,
+            "source_message_id": last.id,
+        }
+
+    async def add_from_messages(
+        self,
+        ctx: AuthContext,
+        dataset_id: UUID,
+        message_ids: list[UUID],
+        *,
+        answer_as: AnswerAs = "counter_example",
+    ) -> tuple[DatasetVersionRead | None, int]:
+        """Add several agents' answers as cases, in one new version.
+
+        Each answer is built and checked as :meth:`add_from_message` builds and
+        checks one. An answer the caller may not read - absent, in another
+        organization or in a conversation they cannot open, all counted alike -
+        or one with no question before it, is skipped rather than refusing the
+        rest, as is a reply the dataset already holds or the batch named twice. Measured against the ceiling and redacted before the dataset is
+        locked, as :meth:`import_cases` is.
+
+        Returns:
+            The version the cases were added in - `None` when none could be -
+            and how many answers were skipped.
+
+        Raises:
+            NotFoundError: For a dataset the caller may not edit.
+            BadRequestError: When the cases would take the dataset past
+                :data:`MAX_CASES`.
+        """
+        current = await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+        built: list[tuple[DatasetCaseContent, dict[str, UUID | None]]] = []
+        replies: set[UUID | None] = set()
+        for message_id in message_ids:
+            try:
+                case = await self._case_from_message(ctx, current, message_id, answer_as)
+            except (NotFoundError, BadRequestError, AlreadyExistsError):
+                continue
+            if case[1]["source_message_id"] in replies:
+                continue
+            replies.add(case[1]["source_message_id"])
+            built.append(case)
+        skipped = len(message_ids) - len(built)
+        if not built:
+            return None, skipped
+        _refuse_past_ceiling(current.case_count, len(built))
+        revisions: list[DatasetCase] = []
+        redacted = 0
+        for content, provenance in built:
+            fields, found = _redacted(content)
+            redacted += found
+            revisions.append(
+                self._revision(ctx, current, fields, source=CaseSource.CONVERSATION, **provenance)
+            )
+        dataset = await self._locked(ctx, dataset_id)
+        previous = await self._version(ctx, dataset, None)
+        version = await self._mint(
             ctx,
-            dataset_id,
-            content,
-            source=CaseSource.CONVERSATION,
-            source_run_id=last.run_id or message.run_id,
-            source_conversation_id=conversation.id,
-            source_message_id=last.id,
+            dataset,
+            change=DatasetChange.ADD,
+            previous=previous,
+            added=revisions,
+            redacted=redacted,
         )
+        return _version_read(version), skipped
 
     async def _expected_calls(
         self, ctx: AuthContext, run_id: UUID | None, reply: list[Message]

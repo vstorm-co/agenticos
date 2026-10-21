@@ -116,6 +116,25 @@ class TestThreadingScopeAndFiltersToTheStore:
         # The removed probe means get_documents is never consulted.
         assert not store.get_documents.called
 
+    async def test_a_hybrid_result_keeps_the_vector_similarity_of_its_chunk(self):
+        store = MagicMock()
+        store.search = AsyncMock(
+            return_value=[
+                SearchResult(content="term here", score=0.37, similarity=0.37),
+                SearchResult(content="something else", score=0.31, similarity=0.31),
+                SearchResult(content="unrelated text", score=0.30, similarity=0.30),
+            ]
+        )
+
+        results = await _retrieval_over(store, hybrid=True).retrieve(
+            query="term",
+            collection_name="handbook",
+            scope=TenantScope(organization_id=uuid4()),
+        )
+
+        assert results[0].score != pytest.approx(0.37)
+        assert results[0].similarity == 0.37
+
     async def test_retrieve_multi_carries_scope_to_every_collection(self):
         store = MagicMock()
         store.search = AsyncMock(return_value=[])
