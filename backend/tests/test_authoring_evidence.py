@@ -168,10 +168,6 @@ class TestService:
     async def test_a_skills_evidence_is_the_rated_runs_that_opened_it(
         self, monkeypatch, mock_db_session
     ):
-        loaded = [uuid.uuid4()]
-        monkeypatch.setattr(
-            authoring_repo, "runs_that_loaded_skill", AsyncMock(return_value=loaded)
-        )
         reads = AsyncMock(return_value=[_row(rating=1)])
         monkeypatch.setattr(authoring_repo, "evidence_runs", reads)
         monkeypatch.setattr(conversation_repo, "get_messages_by_run", AsyncMock(return_value=[]))
@@ -179,16 +175,5 @@ class TestService:
 
         pack = await EvidenceService(mock_db_session).for_skill(ctx, "refunds", window_days=7)
 
-        assert reads.await_args.kwargs["run_ids"] == loaded
+        assert reads.await_args.kwargs["skill_name"] == "refunds"
         assert pack.runs[0].prompt == "" and pack.runs[0].rating == 1
-
-    async def test_a_skill_nobody_opened_has_no_evidence(self, monkeypatch, mock_db_session):
-        monkeypatch.setattr(authoring_repo, "runs_that_loaded_skill", AsyncMock(return_value=[]))
-        reads = AsyncMock()
-        monkeypatch.setattr(authoring_repo, "evidence_runs", reads)
-        ctx = SimpleNamespace(organization_id=uuid.uuid4())
-
-        pack = await EvidenceService(mock_db_session).for_skill(ctx, "refunds", window_days=7)
-
-        assert pack.runs == []
-        reads.assert_not_awaited()

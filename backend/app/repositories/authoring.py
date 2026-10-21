@@ -379,7 +379,7 @@ async def evidence_runs(
     *,
     organization_id: UUID,
     agent_id: UUID | None = None,
-    run_ids: Sequence[UUID] | None = None,
+    skill_name: str | None = None,
     since: datetime,
     limit: int,
 ) -> list[EvidenceRun]:
@@ -387,8 +387,12 @@ async def evidence_runs(
 
     Down-rated runs with a comment, then other down-rated runs, then failures,
     then up-rated runs as the contrast, newest first within each; unrated runs
-    that succeeded are not evidence of anything. Either `agent_id` or `run_ids`
-    narrows the runs.
+    that succeeded are not evidence of anything. `agent_id` narrows the runs to
+    one agent's, `skill_name` to those whose model opened that skill.
+
+    A skill reaches a run as a deferred capability the model loads with
+    `load_capability`, a framework tool no binding can rename, so the call's
+    name and its `id` argument identify the skill on every run.
     """
     rating = (
         select(
@@ -429,36 +433,20 @@ async def evidence_runs(
     )
     if agent_id is not None:
         statement = statement.where(AgentRun.agent_id == agent_id)
-    if run_ids is not None:
-        statement = statement.where(AgentRun.id.in_(list(run_ids)))
+    if skill_name is not None:
+        loaded = (
+            select(ToolCall.id)
+            .join(Message, Message.id == ToolCall.message_id)
+            .where(
+                Message.run_id == AgentRun.id,
+                ToolCall.tool_name == "load_capability",
+                ToolCall.args["id"].astext == skill_name,
+            )
+        )
+        statement = statement.where(loaded.exists())
     result = await db.execute(statement.order_by(rank, AgentRun.started_at.desc()).limit(limit))
     rows: list[EvidenceRun] = []
     for run, worst_value, best_value, comments in result.all():
         value = -1 if (worst_value or 0) < 0 else (1 if (best_value or 0) > 0 else 0)
         rows.append(EvidenceRun(run=run, rating=value, comments=list(comments or [])))
     return rows
-
-
-async def runs_that_loaded_skill(
-    db: AsyncSession, *, organization_id: UUID, skill_name: str, since: datetime, limit: int
-) -> list[UUID]:
-    """Runs whose model opened the skill, newest first.
-
-    A skill reaches a run as a deferred capability the model loads with
-    `load_capability`, a framework tool no binding can rename, so the call's
-    name and its `id` argument identify the skill on every run.
-    """
-    result = await db.execute(
-        select(AgentRun.id)
-        .join(Message, Message.run_id == AgentRun.id)
-        .join(ToolCall, ToolCall.message_id == Message.id)
-        .where(*_readable_runs(organization_id=organization_id, since=since))
-        .where(
-            ToolCall.tool_name == "load_capability",
-            ToolCall.args["id"].astext == skill_name,
-        )
-        .group_by(AgentRun.id)
-        .order_by(func.max(AgentRun.started_at).desc())
-        .limit(limit)
-    )
-    return list(result.scalars().all())

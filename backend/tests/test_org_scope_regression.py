@@ -54,7 +54,6 @@ TENANT_REQUIRED = [
     (authoring_repo, "decide_hunk"),
     (authoring_repo, "pending_counts"),
     (authoring_repo, "evidence_runs"),
-    (authoring_repo, "runs_that_loaded_skill"),
     (authoring_repo, "agents_with_pending"),
     (authoring_repo, "count_pending_skill_proposals"),
     (channel_bot_repo, "get_for_org"),

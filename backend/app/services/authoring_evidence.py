@@ -196,21 +196,11 @@ class EvidenceService:
         self, ctx: AuthContext, skill_name: str, *, window_days: int
     ) -> EvidencePack:
         """The runs, of any agent, whose model opened the skill and was then rated or failed."""
-        since = self._since(window_days)
-        run_ids = await authoring_repo.runs_that_loaded_skill(
-            self.db,
-            organization_id=ctx.organization_id,
-            skill_name=skill_name,
-            since=since,
-            limit=MAX_EVIDENCE_RUNS * 5,
-        )
-        if not run_ids:
-            return EvidencePack()
         rows = await authoring_repo.evidence_runs(
             self.db,
             organization_id=ctx.organization_id,
-            run_ids=run_ids,
-            since=since,
+            skill_name=skill_name,
+            since=self._since(window_days),
             limit=MAX_EVIDENCE_RUNS,
         )
         return await self._pack(rows)
