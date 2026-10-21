@@ -1,5 +1,5 @@
 ---
-source_sha: "f3d9346aa399"
+source_sha: "4c451cd217e6"
 ---
 
 # Workflows { #workflows }
@@ -103,7 +103,10 @@ está configurado para hacer - una condición, una URL, el número de campos map
 o si no, el grupo al que pertenece, como **Slack** o **Tables**. Un paso con más de una
 salida nombra sus puertos: **true** y **false**, **Each item** y **Done**, y un
 puerto **Error** rojo en un paso que gestiona sus errores. Un paso que bloquea la
-publicación lleva una marca roja. Un trackpad o la rueda del ratón mueve el lienzo, y
+publicación lleva una marca roja: al pasar el ratón por encima lista los primeros
+problemas, y un clic abre el paso.
+
+Un trackpad o la rueda del ratón mueve el lienzo, y
 un pellizco - o Ctrl o Cmd con la rueda - lo amplía; sus controles están en la esquina.
 
 Los pasos se eligen en el **selector de pasos**. Muestra secciones - **Start**, **AI**,
@@ -132,6 +135,12 @@ hondo como permite la publicación.
 Un clic derecho en un paso ofrece **Open settings**, **Duplicate**, **Switch off** y
 **Delete step**. Con varios pasos seleccionados, una barra abajo los borra juntos.
 
+**View only**, en la cabecera, enseña a quien puede editar el workflow lo que ve un
+lector: nada en el lienzo se mueve, se conecta ni se borra, un paso se abre en solo
+lectura con un clic, y **Run** y **Publish** desaparecen. **Edit** lo devuelve a la
+edición, y el editor siempre se abre en modo de edición. Un guardado aún en curso
+termina en ambos casos.
+
 !!! note "El catálogo de pasos crece con el tiempo"
 
     El selector se alimenta de los nodos registrados en el despliegue, no de una lista
@@ -142,8 +151,8 @@ Un clic derecho en un paso ofrece **Open settings**, **Duplicate**, **Switch off
 
 **Add a note** bajo el selector que abre un clic derecho pone una nota junto a los pasos:
 markdown, escrita con doble clic o con su lápiz, movida arrastrando y redimensionada
-desde sus esquinas; seleccionada, muestra muestras de color - gris, amarillo, verde,
-azul, morado o rojo - para que un aviso se distinga de una tarea. Una nota se guarda en el grafo, así que las versiones, las
+desde sus esquinas; seleccionada, su botón de paleta despliega muestras de color para
+teñirla - gris, amarillo, verde, azul, morado o rojo - para que un aviso se distinga de una tarea. Una nota se guarda en el grafo, así que las versiones, las
 restauraciones y las copias del workflow la conservan, pero nada la ejecuta ni la
 comprueba. Seleccionar una conexión ofrece un **+** que pone el siguiente paso elegido
 en su mitad, conectado por ambos lados donde los puertos encajan. **Tidy up** en la
@@ -157,18 +166,29 @@ Ninguno actúa mientras escribes en un campo.
 Qué hace cada nodo, con qué se configura y qué significan sus fallos está en la
 [referencia de nodos](reference/workflow-nodes.md).
 
-Un clic selecciona un paso y un doble clic lo abre en un diálogo sobre el lienzo (en
-una versión publicada basta un clic): arriba su nombre y lo que hace, y debajo, con palabras sencillas, cualquier problema que impida publicar -
-**Not connected yet** para un paso al que nada lleva. **Parameters** es aquello con lo
+Un clic selecciona un paso y un doble clic lo abre en un diálogo sobre el lienzo (donde
+no se puede seleccionar nada - una versión publicada, **View only** - basta un clic):
+arriba su nombre y lo que hace, y debajo, con palabras sencillas, cada problema que
+impide publicar - **Not connected yet** para un paso al que nada lleva, y el problema
+de un campo tras el nombre del campo, que te lleva hasta él.
+
+**Parameters** es aquello con lo
 que trabaja el paso y lo que debe hacer, en una sola lista, con la lista sobre la que
 trabaja primero: los **Items** de Filter antes de su **Condition**. **Settings** es cómo
 se ejecuta. Cada cambio se guarda en el draft al hacerlo, así que **Done** solo cierra
-el diálogo, y **Delete step** elimina el paso.
+el diálogo, y **Delete step** elimina el paso. Un diálogo de solo lectura muestra cada
+ajuste, desactivado, con su valor.
 
 Un parámetro que toma texto es una sola caja para texto escrito y valores de pasos
 anteriores a la vez, como `New lead: {{Form.payload.name}} from {{Form.payload.company}}`.
 **Data**, a su lado, inserta un valor en el cursor, y lo mismo hace un campo arrastrado
-desde **Input**. Un marcador nombra un paso y una ruta en su salida, se comprueba al
+desde **Input**. Escribir `{{` lista esos mismos valores y, dentro del payload de un
+trigger o del elemento de un bucle, los campos que vio allí la última ejecución de
+prueba; lo que escribes a continuación acota la lista, y `Enter` o `Tab` escribe el
+marcador.
+
+Un marcador nombra un paso y una ruta en su salida, se colorea en la caja - en rojo, al
+salir de ella, cuando no nombra nada que este paso pueda leer -, se comprueba al
 publicar como cualquier valor leído de un paso y sigue al paso cuando se renombra. Con
 los datos de una ejecución de prueba, el resultado se previsualiza debajo.
 
@@ -220,8 +240,9 @@ en el grafo, así que las versiones los conservan.
 ### Los datos de un paso, datos de prueba y probar un paso { #a-steps-data-pinning-and-testing-one-step }
 
 Al editar, el diálogo pone los parámetros de un paso entre dos paneles. **Input** muestra
-lo que entregó cada paso del que lee, bajo el nombre y el icono de ese paso, y
-**Output** lo que entregó el propio paso, ambos de la última ejecución de prueba
+lo que entregó un paso anterior, el más cercano primero; cuando hay más, su encabezado
+permite elegir cualquier paso del que este pueda leer. **Output** muestra lo que entregó
+el propio paso, ambos de la última ejecución de prueba
 iniciada en el editor, o de la más reciente al abrirlo. **Table** dispone los datos en
 filas, una lista de registros con una fila por registro. **JSON** los muestra tal cual,
 y **Fields** lista cada campo por su ruta con una palabra sencilla para lo que contiene -
@@ -235,10 +256,13 @@ celda recortada a su columna muestra el valor entero al pasar el ratón.
 Una columna o un campo de **Input** se puede arrastrar sobre un parámetro, que entonces
 lo lee de ese paso, como si se hubiera elegido en **Data** - en un texto, como marcador.
 Un campo que no encaja se rechaza con el motivo: un tipo que el parámetro no acepta, o
-un paso que no siempre se ejecuta antes que este. Dentro de un valor sin forma
+un paso que no siempre se ejecuta antes que este.
+
+Dentro de un valor sin forma
 declarada, como los `values` de un mapeo o el `payload` de un trigger, el tipo es el que
 mostró la ejecución. **Data** ofrece esos valores a cualquier parámetro, con **Field
-inside it** para la ruta.
+inside it** para la ruta. Mantener un campo arrastrado cerca del borde superior o
+inferior del formulario lo desplaza, para poder alcanzar un parámetro fuera de la vista.
 
 **Keep as test data** conserva la salida en el paso, y **Set test data** escribe una como
 objeto JSON de 64.000 bytes como máximo. Una ejecución de prueba entrega los datos de
@@ -253,8 +277,11 @@ datos. La ejecución conserva solo el paso y los pasos que llevan a él, y cada 
 salida conocida, de datos de prueba o de la última ejecución de prueba, la entrega en
 lugar de ejecutarse. El resto se ejecuta, y nada después del paso. Un paso que escribe
 pregunta primero, porque la prueba escribe de verdad. Un paso dentro de un bucle no se
-puede probar solo, porque se ejecuta una vez por elemento, así que prueba el bucle. Por
-la API, `step` en `POST /api/v1/workflow-runs` hace lo mismo.
+puede probar solo, porque se ejecuta una vez por elemento, así que prueba el bucle.
+
+Mientras la prueba se ejecuta, el cuadrado junto a **Test step** la detiene. Cuando termina sin
+ejecutar el paso - detenida, enviada por otra rama o terminada antes de llegar a él -,
+una señal de advertencia ahí indica el motivo. Por la API, `step` en `POST /api/v1/workflow-runs` hace lo mismo.
 
 ### Selectores de recursos { #resource-pickers }
 
@@ -336,7 +363,8 @@ el valor.
 
 Dibujas una arista conectando el puerto de salida de un nodo con el puerto de entrada
 de otro nodo. El editor rechaza una conexión entre puertos que llevan formas distintas
-antes de dibujarla, así que un cable incompatible nunca aterriza en el lienzo.
+antes de dibujarla, así que un cable incompatible nunca aterriza en el lienzo, y
+dibujar una conexión que ya existe no hace nada.
 
 Una arista fija el orden en que se ejecutan los pasos; no mueve ningún dato. Los valores
 que lee un paso son sus **bindings**, descritos en [Configurar un nodo](#configuring-a-node).
@@ -353,7 +381,7 @@ nada más, y eliges cada fuente tú mismo con **Data**. Undo (`Ctrl`/`Cmd` + `Z`
 conexión junto con sus bindings, y borrar una arista más tarde deja sus bindings donde
 estaban, así que quítalos o vuelve a enlazarlos en los ajustes del paso.
 
-Para borrar una conexión, selecciónala: haz clic en el cable y se dibuja más grueso y aparece sobre él un botón **Delete connection**. Pulsa el botón o `Backspace` y la conexión desaparece, mientras los dos
+Para borrar una conexión, selecciónala: haz clic en el cable y se dibuja más grueso y aparece sobre él un botón **Delete connection**. Pulsa el botón, o `Delete` o `Backspace`, y la conexión desaparece, mientras los dos
 pasos se quedan. Las conexiones de una versión publicada no se pueden seleccionar, así
 que no se pueden borrar.
 
@@ -376,8 +404,9 @@ El editor comprueba el grafo mientras editas y muestra qué está mal donde est�
 
 Los ajustes de un paso se mantienen cortos. Lo que el paso necesita, y lo que ya
 estableciste, se ve de inmediato; los ajustes opcionales aún en sus valores
-predeterminados esperan bajo **More options**, y cómo se ejecuta el paso espera bajo
-**Settings**.
+predeterminados esperan tras un botón que los cuenta - **3 more options** -, que los
+despliega encima de sí mismo hasta **Fewer options**, y cómo se ejecuta el paso espera
+bajo **Settings**.
 
 Un valor obligatorio que aún no has
 dado no se señala junto a su campo hasta que dejas ese campo o intentas ejecutar o
@@ -490,10 +519,19 @@ Por la API, `PUT /api/v1/workflows/{id}/settings` los reemplaza.
 
 **Run**, en la cabecera del editor, prueba el draft al momento - `Ctrl`/`Cmd` +
 `Enter` también -, pidiendo antes los campos que declara un trigger Manual o API. El
-run aparece luego en el lienzo mientras ocurre: cada paso toma su estado, sus
-intentos y su error, una conexión dice cuántos elementos pasaron por ella cuando el
-paso anterior entregó una lista, y una barra abajo dice cómo va el run, con **Open
-run** para su página. La siguiente edición lo oculta y deja una barra que dice que el
+run aparece luego en el lienzo mientras ocurre.
+
+Una píldora en la esquina de cada
+paso dice en qué punto está - **Pending**, **Starting**, **Running** con un contador
+de tiempo en marcha, **Waiting**, **Failed**, **Needs attention**, **Skipped** o **Not
+reached** -, y un paso que salió bien muestra cuánto tardó. El cable que entra en un
+paso en ejecución se mueve, el camino recorrido se vuelve verde y una rama que el run
+no tomó se atenúa. Un paso fallido muestra su error bajo su tarjeta y se sacude una vez.
+
+Una conexión dice cuántos elementos pasaron por ella cuando el paso anterior entregó
+una lista, y una barra abajo dice cómo va el run, con **Open run** para su página.
+Mientras el run sigue, el cuadrado junto a **Run** lo detiene, sin preguntar nada. El
+lienzo conserva el run cuando termina; la siguiente edición lo oculta y deja una barra que dice que el
 grafo cambió desde entonces, aún con **Open run**. Un paso que esperó y siguió cuenta
 un intento, no dos. **Run** espera mientras un cambio se sigue
 guardando, y dice por qué no puede ejecutarse mientras el draft tenga problemas.
@@ -520,9 +558,10 @@ un paso que necesita atención -, empezaran cuando empezaran. Por la API es
 `GET /api/v1/workflows/summary?from=2026-10-01&to=2026-10-31`.
 
 Un run se abre con su duración, su coste y cuántos pasos dio, y luego con el error
-con el que terminó, si lo hubo. Junto a ellos está el grafo que ejecutó, con cada
-paso marcado por lo que el run hizo con él, sus intentos y su error, y los pasos a los
-que nunca llegó atenuados. **Open loop body** muestra las iteraciones de un bucle de
+con el que terminó, si lo hubo. Junto a ellos está el grafo que ejecutó, dibujado
+como el editor dibuja un run: la píldora de cada paso, sus intentos y su error, y los
+pasos a los que nunca llegó atenuados. Solo se mueve una página abierta mientras el run
+seguía; una abierta después queda quieta. **Open loop body** muestra las iteraciones de un bucle de
 la misma manera.
 
 La respuesta del run - su texto, su resultado estructurado, los pasajes en que se
@@ -807,17 +846,21 @@ que nunca roban una tecla a un campo en otra parte de la página:
 
 | Teclas | Hace |
 |---|---|
+| `Tab` | Abrir el selector de pasos |
+| `Ctrl`/`Cmd` + `Enter` | Lanzar una ejecución de prueba del draft, esté donde esté el foco en la página |
 | `Ctrl`/`Cmd` + `Z` | Deshacer |
 | `Ctrl`/`Cmd` + `Shift` + `Z`, o `Ctrl`/`Cmd` + `Y` | Rehacer |
 | `Ctrl`/`Cmd` + `C` | Copiar la selección |
 | `Ctrl`/`Cmd` + `X` | Cortar la selección |
 | `Ctrl`/`Cmd` + `V` | Pegar, desplazado para no cubrir el original |
+| `Delete` o `Backspace` | Borrar la selección |
 | `Escape` | Cancelar una conexión en curso |
+| `?` | Mostrar estos atajos |
 
 Un pegado obtiene ids nuevas y reasigna los bindings entre los pasos copiados, así que
 los pasos pegados leen unos de otros y no de los originales. Cada atajo de edición es
-inerte mientras ves una versión publicada, que es de solo lectura; `Escape` sigue
-cancelando una conexión perdida.
+inerte mientras el editor es de solo lectura - una versión publicada, o **View only** -;
+`Escape` sigue cancelando una conexión perdida, y `?` sigue mostrando los atajos.
 
 Copiar y pegar tienen tres límites:
 
@@ -849,7 +892,7 @@ Copiar y pegar tienen tres límites:
   servidor; las versiones anteriores quedan visibles en solo lectura, y **Restore to
   draft** vuelve a convertir una de ellas en el draft.
 - Cada acción tiene una **ruta de teclado**, y los atajos de edición son inertes en una
-  versión publicada de solo lectura.
+  versión publicada de solo lectura o en **View only**.
 - Un workflow empieza por un nodo **trigger** - a mano o por la API, un mensaje del
   chat, un **webhook** firmado, una **programación** o un registro nuevo de tabla -,
   y **publicar** lo enciende, ejecutándose como el miembro que publicó.

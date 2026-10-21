@@ -90,7 +90,8 @@ is set up to do - a condition, a URL, the number of mapped fields - or else the
 group it belongs to, such as **Slack** or **Tables**. A step with more than one way
 out lists its ports by name: **true** and **false**, **Each item** and **Done**,
 and a red **Error** port on a step that handles its errors. A step that stops a
-publish carries a red mark.
+publish carries a red mark: hovering it lists the first problems, and clicking it
+opens the step.
 
 A trackpad or a mouse wheel moves the canvas, and a
 pinch - or Ctrl or Cmd with the wheel - zooms it; its controls sit in the corner.
@@ -120,6 +121,11 @@ loop's body, and a loop until loops are nested as deep as publishing allows.
 Right-clicking a step offers **Open settings**, **Duplicate**, **Switch off** and
 **Delete step**. With several steps selected, a bar at the bottom deletes them together.
 
+**View only** in the header shows someone who may edit the workflow what a reader
+sees: nothing on the canvas moves, connects or is deleted, a step opens read-only
+on one click, and **Run** and **Publish** are gone. **Edit** turns it back, and the
+editor always opens in edit mode. A save still under way finishes either way.
+
 !!! note "The step catalog grows over time"
 
     The picker is fed by the deployment's registered nodes, not a fixed list. A
@@ -130,8 +136,8 @@ Right-clicking a step offers **Open settings**, **Duplicate**, **Switch off** an
 
 **Add a note** under the picker a right click opens puts a note beside the steps:
 markdown, written on a double-click or with its pencil, moved by dragging and resized
-from its corners; selected, it shows swatches to tint it - grey, yellow, green, blue,
-purple or red - so a warning reads apart from a to-do. A note is kept in the graph, so versions, restores and copies of the
+from its corners; selected, its palette button rolls out swatches to tint it - grey,
+yellow, green, blue, purple or red - so a warning reads apart from a to-do. A note is kept in the graph, so versions, restores and copies of the
 workflow keep it, but nothing runs or checks it. Selecting a connection offers a **+**
 that puts the next step picked into its middle, wired on both sides where the ports fit.
 The toolbar's **Tidy up** lines the steps in view up left to right as one undoable edit,
@@ -143,19 +149,29 @@ shortcut; **Tab** opens the step picker. None of them fires while you type in a 
 What each node does, what it is configured with and what its failures mean is in
 the [node reference](reference/workflow-nodes.md).
 
-A click selects a step; a double click opens it in a dialog over the canvas (in a published version, where nothing is selected, one click does): its name and what it does at
-the top, and under them, in plain words, any problem that stops a publish - **Not
-connected yet**, for a step nothing leads to. **Parameters** is what the step works
+A click selects a step; a double click opens it in a dialog over the canvas (where
+nothing can be selected - a published version, **View only** - one click does): its
+name and what it does at the top, and under them, in plain words, every problem that
+stops a publish - **Not connected yet**, for a step nothing leads to, and a field's
+problem after the field's name, which takes you to the field.
+
+**Parameters** is what the step works
 on and is set to do, in one list, with the list a step works on first: Filter's
 **Items** before its **Condition**. **Settings** is how it runs. Every edit is saved
 to the draft as you make it, so **Done** only closes the dialog, and **Delete step**
-removes the step.
+removes the step. A read-only dialog shows every setting, disabled, at its value.
 
 A parameter that takes text is one box for typed text and values from earlier steps
 together, such as `New lead: {{Form.payload.name}} from {{Form.payload.company}}`.
 **Data** beside it inserts a value at the cursor, and so does a field dragged from
-**Input**. A placeholder names a step and a path into its output, is checked at
-publish like any value read from a step, and follows the step when it is renamed.
+**Input**. Typing `{{` lists the same values, and inside a trigger's payload or a
+loop's item, the fields the last test run saw there; what you type next narrows the
+list, and `Enter` or `Tab` writes the placeholder.
+
+A placeholder names a step and a
+path into its output, coloured in the box - red, once you leave the box, when it names
+nothing this step can read - is checked at publish like any value read from a step, and follows the step
+when it is renamed.
 With a test run's data, the result is previewed beneath. Nothing is evaluated: when
 the step runs, each placeholder becomes its value's text, JSON for a list or an
 object, and one with nothing behind it fails the step with `INVALID_BINDING`,
@@ -206,8 +222,9 @@ which it then hands on. All three are saved in the graph, so versions keep them.
 ### A step's data, test data and testing one step { #a-steps-data-pinning-and-testing-one-step }
 
 Editing a workflow, the dialog puts a step's parameters between two panes. **Input**
-shows what each step it reads from handed on, under that step's name and icon, and
-**Output** what the step itself handed on, both from the last test run started in
+shows what one earlier step handed on, the nearest first; when there are more, its
+heading picks any step this one may read from. **Output** shows what the step itself
+handed on, both from the last test run started in
 the editor, or the latest one when it opens. **Table** lays the data out as rows, a
 list of records as one row each. **JSON** shows it as it is, and **Fields** lists
 every field by path with a plain word for what it holds - text, number, list, ID:
@@ -221,10 +238,13 @@ column shows the whole value on hover.
 A column or a field of **Input** can be dragged onto a parameter, which then reads
 it from that step, as if it were picked from **Data** - into text, as a placeholder.
 A field that does not fit is refused with the reason: a type the parameter does not
-take, or a step that does not always run before this one. Inside a free-form value,
+take, or a step that does not always run before this one.
+
+Inside a free-form value,
 such as a mapping's `values` or a trigger's `payload`, the type is the one the run
 showed. **Data** offers free-form values to any parameter too, with **Field inside
-it** for the path.
+it** for the path. Holding a dragged field near the top or bottom of the form scrolls
+it, so a parameter out of view can be reached.
 
 **Keep as test data** keeps the output on the step, and **Set test data** types some
 in as a JSON object of at most 64,000 bytes. A test run hands test data on instead of
@@ -238,8 +258,10 @@ data yet. The run keeps only the step and the steps leading to it, and each of t
 with known output, test data or from the last test run, hands that on instead of
 running. The rest run, and nothing after the step does. A step that writes asks
 first, since the test really writes. A step inside a loop cannot be tested alone,
-because it runs once per item, so test the loop. Over the API, `step` on
-`POST /api/v1/workflow-runs` does the same.
+because it runs once per item, so test the loop. While the test runs, the square
+beside **Test step** stops it. When it ends without running the step - stopped, sent
+down another branch, or ended before it - a warning sign there says which. Over the
+API, `step` on `POST /api/v1/workflow-runs` does the same.
 
 ### Resource pickers { #resource-pickers }
 
@@ -317,7 +339,8 @@ when the step is dispatched, since only the run knows what the value holds.
 
 You draw an edge by connecting one node's output port to another node's input
 port. The editor refuses a connection between ports that carry different shapes
-before it draws it, so an incompatible wire never lands on the canvas.
+before it draws it, so an incompatible wire never lands on the canvas, and drawing a
+connection that is already there does nothing.
 
 An edge sets the order the steps run in; it does not move any data. The values a
 step reads are its **bindings**, described under
@@ -335,7 +358,7 @@ and you pick each source yourself with **Data**. Undo (`Ctrl`/`Cmd` + `Z`) takes
 back the connection and its bindings together, and deleting an edge later leaves
 its bindings in place, so remove or rebind them in the step's settings.
 
-To delete a connection, select it: click the wire, and it is drawn heavier and a **Delete connection** button appears on it. Press the button, or press `Backspace`, and the connection goes while the two
+To delete a connection, select it: click the wire, and it is drawn heavier and a **Delete connection** button appears on it. Press the button, or press `Delete` or `Backspace`, and the connection goes while the two
 steps stay. The connections of a published version cannot be selected, so they
 cannot be deleted.
 
@@ -357,8 +380,9 @@ The editor checks the graph as you edit and shows what is wrong where it is
 wrong. Every step with a problem carries a red mark on the canvas and says it under its name when opened, and a field with a problem shows its message inline. The status at the canvas's top right reads **No problems**, or counts the problems and lists them, each under the name of its step and field; choosing one opens that step's settings.
 
 A step's settings stay short. What the step needs, and whatever you already set, show
-at once; optional settings still at their defaults wait under **More options**, and
-how the step runs waits under **Settings**.
+at once; optional settings still at their defaults wait behind a button that counts
+them - **3 more options** - which brings them out above itself until **Fewer
+options**, and how the step runs waits under **Settings**.
 A required value you have not given yet is not flagged beside its field until you
 leave that field or try to run or publish: the step's mark on the canvas says it
 from the start. A description that only repeats its field's
@@ -465,11 +489,16 @@ Over the API, `PUT /api/v1/workflows/{id}/settings` replaces them.
 
 **Run** in the editor's header tests the draft at once - `Ctrl`/`Cmd` + `Enter` does
 too - first asking for the fields a Manual or API trigger declares. The run then
-shows on the canvas as it happens: every step takes its status, tries and error, a
-connection says how many items went along it when the step before handed on a list,
-and a bar at the bottom says how the run stands, with **Open run** for its page. The
-next edit hides it and leaves a bar saying the graph changed since, still with
-**Open run**. A step that waited and went on counts one try, not two. **Run** waits while an edit is still saving, and says why it cannot
+shows on the canvas as it happens. A pill on each step's corner says where it is -
+**Pending**, **Starting**, **Running** with a ticking time, **Waiting**, **Failed**,
+**Needs attention**, **Skipped** or **Not reached** - and a step that succeeded shows
+how long it took. The wire into a running step moves, the path taken turns green,
+and a branch the run did not take fades. A failed step shows its error under its
+card and shakes once. A connection says how many items went along it when the step
+before handed on a list, and a bar at the bottom says how the run stands, with
+**Open run** for its page. While the run goes on, the square beside **Run** stops
+it, with no question asked. The canvas keeps the run once it ends; the next edit
+hides it and leaves a bar saying the graph changed since, still with **Open run**. A step that waited and went on counts one try, not two. **Run** waits while an edit is still saving, and says why it cannot
 run while the draft has problems.
 
 **Runs** in the editor's header, and the runs icon on a workflow's card, open its
@@ -494,9 +523,9 @@ step that needs attention - whenever they started. Over the API it is
 `GET /api/v1/workflows/summary?from=2026-10-01&to=2026-10-31`.
 
 A run opens on its duration, its cost and how many steps it took, then the error it
-ended with, if any. Beside them is the graph it executed, with each step marked by
-what the run did with it, its tries and its error, and the steps it never reached
-faded. **Open loop body** shows a loop's iterations the same way.
+ended with, if any. Beside them is the graph it executed, drawn as the editor draws
+a run: each step's pill, its tries and its error, and the steps it never reached
+faded. Only a page open while the run went on moves; one opened later is still. **Open loop body** shows a loop's iterations the same way.
 
 The run's answer - its text, its structured result, the passages it drew on and how
 many files it made, with the JSON itself under **Raw output** - and every step it
@@ -764,17 +793,21 @@ never steal a key from a field elsewhere on the page:
 
 | Keys | Does |
 |---|---|
+| `Tab` | Open the step picker |
+| `Ctrl`/`Cmd` + `Enter` | Test run the draft, wherever the focus is on the page |
 | `Ctrl`/`Cmd` + `Z` | Undo |
 | `Ctrl`/`Cmd` + `Shift` + `Z`, or `Ctrl`/`Cmd` + `Y` | Redo |
 | `Ctrl`/`Cmd` + `C` | Copy the selection |
 | `Ctrl`/`Cmd` + `X` | Cut the selection |
 | `Ctrl`/`Cmd` + `V` | Paste, offset so it does not cover the original |
+| `Delete` or `Backspace` | Delete the selection |
 | `Escape` | Cancel a connection in progress |
+| `?` | Show these shortcuts |
 
 A paste gets fresh ids and remaps the bindings among the copied steps, so pasted
 steps read from each other rather than from the originals. Every edit shortcut is
-inert while you are viewing a published version, which is read-only; `Escape`
-still cancels a stray connection.
+inert while the editor is read-only - a published version, or **View only**;
+`Escape` still cancels a stray connection, and `?` still shows the shortcuts.
 
 Copy and paste have three limits:
 
@@ -806,7 +839,7 @@ Copy and paste have three limits:
   past versions stay viewable read-only, and **Restore to draft** makes one the
   draft again.
 - Every action has a **keyboard path**, and the edit shortcuts are inert on a
-  read-only published version.
+  read-only published version or in **View only**.
 - A workflow starts from one **trigger** node - **Manual**, an **API request**, a chat
   message, a signed **webhook**, a **schedule** or a new table record - and
   **publishing** switches it on, running as the member who published.

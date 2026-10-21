@@ -19,6 +19,25 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **A workflow run reads on the canvas.** Each step carries a pill on its
+  corner - Pending, Starting, Running with a ticking time, Waiting, Failed,
+  Needs attention, Skipped, Not reached, or the time a step that succeeded took -
+  the wire into a running step moves, a branch the run did not take fades,
+  and a failed step shows its error under its card. The editor gets a Stop
+  beside **Run**, and **Test step** a Stop of its own and a warning when the
+  tested step did not run. A run's page draws the same, still once the run
+  has ended.
+
+- **Workflow editor additions.** Typing `{{` in a text parameter suggests
+  values from earlier steps, including the fields a test run saw inside a
+  payload, and placeholders are coloured, red once the box is left when one
+  names nothing. The **Input** pane picks any earlier step to read from.
+  Hovering a step's problem mark lists its first problems and clicking it
+  opens the step, whose dialog lists every problem, a field's leading to the
+  field. **View only** shows an editor the read-only editor, whose dialogs
+  now show every setting. `Delete` deletes the selection, and a dragged field
+  scrolls the form at its edge.
+
 - **A Workflows card on the dashboard.** Real runs, failures and cost over the
   dashboard's period across every workflow the reader can see, the five
   busiest, and how many runs wait for a person now -
