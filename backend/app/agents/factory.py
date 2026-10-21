@@ -35,7 +35,9 @@ from app.agents.audience import RunAudience
 from app.agents.capabilities import build as build_capabilities
 from app.agents.capabilities.approval import (
     ApprovalGate,
+    approval_describers,
     approval_required_tools,
+    approval_tool_ids,
     refuse_ungateable_approvals,
 )
 from app.agents.capabilities.artifacts import ARTIFACTS_CAPABILITY_ID
@@ -384,6 +386,8 @@ def build_agent(
         ApprovalGate(
             required_tool_names=approval_required,
             gate_every_tool=gate_every_tool,
+            describers=approval_describers(spec),
+            tool_ids=approval_tool_ids(spec),
             asking_tool_names=(
                 frozenset({CONNECT_ACCOUNT})
                 if any(isinstance(extra, ConnectOnUse) for extra in extra_capabilities)

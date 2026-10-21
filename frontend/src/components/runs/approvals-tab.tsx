@@ -19,6 +19,7 @@ import {
 } from "@/components/ui";
 import { useApprovalHistory, useApprovals } from "@/hooks";
 import { periodEnd, periodStart, type Period } from "@/lib/dashboard/period";
+import { approvalSummary } from "@/lib/agent-step-captions";
 import { formatDate } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 import type { ToolApproval } from "@/types/runs";
@@ -69,6 +70,7 @@ export function ApprovalsTab({
   onFocusRun: (runId: string | null) => void;
 }) {
   const t = useTranslations("pages.runs");
+  const tTools = useTranslations("chat.tools");
   const locale = useLocale();
   const range = { from: periodStart(period), to: periodEnd(period) };
   // Which page of the queue. Not keyed on the window the way the history below
@@ -94,33 +96,39 @@ export function ApprovalsTab({
       key: "tool",
       header: t("toolColumn"),
       className: "pl-5",
-      cell: (approval) => (
-        <div className="max-w-xl space-y-2">
-          <div className="space-y-1">
-            <span className="block font-mono text-xs">{approval.tool_id}</span>
-            <ApprovalDelegate approval={approval} />
-          </div>
-          {approval.status === "pending" ? (
-            <pre className="bg-muted/40 overflow-x-auto rounded p-2 text-xs">
-              {JSON.stringify(approval.tool_args, null, 2)}
-            </pre>
-          ) : (
-            <details>
-              {/* Toggling the disclosure must not also open the run the row
-                  would - the reader asked to see the arguments, not to leave. */}
-              <summary
-                onClick={(event) => event.stopPropagation()}
-                className="text-muted-foreground cursor-pointer text-xs select-none"
-              >
-                {t("showArguments")}
-              </summary>
-              <pre className="bg-muted/40 mt-1 overflow-x-auto rounded p-2 text-xs">
+      cell: (approval) => {
+        const summary = approvalSummary(approval.capability_tool_id, approval.context, tTools);
+        return (
+          <div className="max-w-xl space-y-2">
+            <div className="space-y-1">
+              <span className="block font-mono text-xs">{approval.tool_id}</span>
+              <ApprovalDelegate approval={approval} />
+            </div>
+            {/* The call in names, above the ids it was made with - the arguments
+              stay below, because they are what runs. */}
+            {summary !== null && <p className="text-sm">{summary}</p>}
+            {approval.status === "pending" ? (
+              <pre className="bg-muted/40 overflow-x-auto rounded p-2 text-xs">
                 {JSON.stringify(approval.tool_args, null, 2)}
               </pre>
-            </details>
-          )}
-        </div>
-      ),
+            ) : (
+              <details>
+                {/* Toggling the disclosure must not also open the run the row
+                  would - the reader asked to see the arguments, not to leave. */}
+                <summary
+                  onClick={(event) => event.stopPropagation()}
+                  className="text-muted-foreground cursor-pointer text-xs select-none"
+                >
+                  {t("showArguments")}
+                </summary>
+                <pre className="bg-muted/40 mt-1 overflow-x-auto rounded p-2 text-xs">
+                  {JSON.stringify(approval.tool_args, null, 2)}
+                </pre>
+              </details>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: "decision",

@@ -1,5 +1,5 @@
 ---
-source_sha: "b16c932217ac"
+source_sha: "11c9ebdbd803"
 ---
 
 # Governance { #governance }
@@ -1083,6 +1083,20 @@ Vier Eigenschaften, die man kennen sollte:
   Agent, der so gelaufen ist, hört auf, mit einer Nachricht, die sagt, was zu
   ändern ist. Was aufhört, ist ein Agent, dessen Betreiber um eine Freigabe bat,
   um die nie jemand gebeten wurde.
+- **Ein geparkter Aufruf kann nennen, wofür seine IDs stehen.** Ein Tool kann
+  seinen eigenen Aufruf beschreiben: `share_view` nennt die Namen der Ansicht und
+  der Tabelle, und die Schreibvorgänge in Tabellen nennen den Namen der Tabelle.
+  Ein Datensatz wird nie genannt, denn das Label eines Datensatzes ist der Text
+  einer seiner Zellen, und die Freigabe bewahrt es auf. Die Namen werden als die
+  Person des Runs aufgelöst, wenn der Aufruf parkt, sodass nichts genannt wird,
+  was diese Person nicht sehen darf, und an der Freigabe als `context`
+  gespeichert. Die Karte im Chat und die Seite Approvals beginnen mit einem daraus
+  gebauten Satz, etwa „Share the view Closed tickets of Support with everyone who
+  may read the table“, über den Argumenten, die weiterhin das sind, was ausgeführt
+  wird. Der Satz wird über die stabile ID des Tools gefunden, sodass ein Tool, das
+  ein Binding umbenannt hat, ihn behält. Eine fehlgeschlagene oder langsame
+  Beschreibung parkt den Aufruf ohne sie, und ein Aufruf, den ein fortgesetzter
+  Run bereits entschieden hat, wird nicht erneut beschrieben.
 - **Ein Modellschritt kann mehrere Aufrufe parken.** Ein Modell, das mit zwei
   nebenwirkungsbehafteten Aufrufen zugleich antwortet — „mail den Kunden und den
   Kundenbetreuer an" — parkt beide, jeder mit einer eigenen Freigabe-Zeile, die

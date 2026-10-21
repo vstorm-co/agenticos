@@ -399,6 +399,16 @@ class ToolApproval(Base, TimestampMixin):
     )
     tool_id: Mapped[str] = mapped_column(String(64), nullable=False)
     tool_args: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default="{}")
+    # The stable id the capability declares the tool under. `tool_id` is the name the
+    # model called, which a binding may have renamed, so a surface that words the
+    # call by tool reads this one. Null for a tool no capability owns, and on rows
+    # parked before it was stored.
+    capability_tool_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # The ids in `tool_args` as names - `{"view": "Closed tickets"}` - resolved by
+    # the tool's describer as the run's person when the call was parked, so the
+    # card and the queue can say what is being approved in words. Null when the
+    # tool has no describer or describing it failed; the arguments stay the record.
+    context: Mapped[dict[str, str] | None] = mapped_column(JSONB, nullable=True)
 
     # Which delegate asked, when the ask came from inside a delegation. `agent_id`
     # above is the agent whose *run* this is - the one the queue is scoped by and

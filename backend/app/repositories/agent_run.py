@@ -1527,6 +1527,8 @@ async def create_approval(
     agent_id: UUID,
     tool_id: str,
     tool_args: dict,
+    capability_tool_id: str | None = None,
+    context: dict[str, str] | None = None,
     subagent_name: str | None = None,
     subagent_agent_id: UUID | None = None,
     standing_consent_by: UUID | None = None,
@@ -1546,6 +1548,8 @@ async def create_approval(
         agent_id=agent_id,
         tool_id=tool_id,
         tool_args=tool_args,
+        capability_tool_id=capability_tool_id,
+        context=context,
         subagent_name=subagent_name,
         subagent_agent_id=subagent_agent_id,
         status=ApprovalStatus.APPROVED.value if standing else ApprovalStatus.PENDING.value,
@@ -1621,6 +1625,8 @@ class ApprovalRow:
     agent_name: str
     tool_id: str
     tool_args: dict[str, Any]
+    capability_tool_id: str | None
+    context: dict[str, str] | None
     subagent_name: str | None
     subagent_agent_id: UUID | None
     status: str
@@ -1731,6 +1737,8 @@ async def list_approvals(
             agent_name=agent_name,
             tool_id=approval.tool_id,
             tool_args=approval.tool_args,
+            capability_tool_id=approval.capability_tool_id,
+            context=approval.context,
             subagent_name=approval.subagent_name,
             subagent_agent_id=approval.subagent_agent_id,
             status=approval.status,

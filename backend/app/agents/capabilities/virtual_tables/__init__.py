@@ -12,6 +12,7 @@ from app.agents.capabilities.virtual_tables._capability import (
     VirtualTablesConfig,
     table_grants_of,
 )
+from app.agents.capabilities.virtual_tables._describe import APPROVAL_DESCRIBERS
 
 __all__ = [
     "TABLE_GRANTS_RESOURCE",
@@ -65,6 +66,9 @@ def _writes(tool_id: str, description: str) -> CapabilityToolInfo:
     ),
     config_schema=VirtualTablesConfig,
     scopes=("tables:read",),
+    # Names for the ids a gated write or `share_view` carries, so its approval card
+    # reads "Share the view Closed tickets of Support" rather than a UUID.
+    describers=APPROVAL_DESCRIBERS,
 )
 def _build(ctx: CapabilityBuildContext) -> VirtualTables | None:
     """Build the capability, or nothing when it grants no table and may create none.

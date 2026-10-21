@@ -24,14 +24,18 @@ happen instead of the run dying with a stack trace.
 
 from __future__ import annotations
 
+import asyncio
 import logging
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from functools import partial
 from typing import Any
 
 from pydantic_ai import ApprovalRequired, RunContext
 from pydantic_ai.capabilities import AbstractCapability, WrapToolExecuteHandler
 from pydantic_ai.messages import ToolCallPart
 from pydantic_ai.tools import ToolDefinition
+from pydantic_core import to_jsonable_python
 
 from app.agents.approval import (
     ApprovalPending,
@@ -39,10 +43,15 @@ from app.agents.approval import (
     ApprovalRequest,
     refusal,
 )
-from app.agents.capabilities._registry import FRAMEWORK_TOOL_NAMES
+from app.agents.capabilities._registry import FRAMEWORK_TOOL_NAMES, ApprovalDescriber
 from app.agents.deps import AgentDeps
 
 logger = logging.getLogger(__name__)
+
+# How long a describer may take before the call is parked without its context.
+# Its queries are a few primary-key reads; a database slow enough to miss this is
+# one the approval must not wait on.
+DESCRIBE_TIMEOUT_SECONDS = 5.0
 
 
 @dataclass
@@ -78,6 +87,38 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
     # nobody can be asked. Named by the factory for the tools it attached, never
     # read off tool metadata, which an MCP server writes.
     asking_tool_names: frozenset[str] = frozenset()
+    # Effective tool name to the capability's describer for it, resolved from the
+    # spec by `approval_describers` - a renamed tool keeps its describer.
+    describers: Mapping[str, ApprovalDescriber] = field(default_factory=dict)
+    # Effective tool name to the stable id its capability declares it under, from
+    # `approval_tool_ids`, so the request names the tool the way a surface words it.
+    tool_ids: Mapping[str, str] = field(default_factory=dict)
+
+    @staticmethod
+    async def _describe(
+        ctx: RunContext[AgentDeps],
+        tool_def: ToolDefinition,
+        describe: ApprovalDescriber,
+        args: dict[str, Any],
+    ) -> dict[str, str] | None:
+        """The call's ids as names for the person deciding, or `None`.
+
+        Never raises: a description is a courtesy on the card, and a failure here
+        must not stop the call from being asked about - a call nobody can be asked
+        about is refused, which would make a broken lookup a broken tool.
+        """
+        try:
+            async with asyncio.timeout(DESCRIBE_TIMEOUT_SECONDS):
+                described = await describe(ctx.deps, args)
+        except Exception:
+            logger.warning(
+                "Could not describe %s for approval on run %s; parking it without context",
+                tool_def.name,
+                ctx.deps.run_id,
+                exc_info=True,
+            )
+            return None
+        return described or None
 
     async def wrap_tool_execute(
         self,
@@ -115,12 +156,29 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
             )
             return refusal(tool_def.name, "this surface cannot ask anyone to approve it")
 
+        # As JSON, which is how the queue stores them and a person reads them: a tool
+        # taking a `UUID` - `share_view`, every table write - otherwise failed to be
+        # asked about at all.
+        asked = to_jsonable_python(args)
+        # Only a capability's own tool is named or described, so an MCP tool sharing
+        # a name with one under `ASK_ALL` is never handed a describer written for
+        # another tool.
+        owned = capability_id is not None
+        describer = self.describers.get(tool_def.name) if owned else None
         decision = await ask(
             ApprovalRequest(
                 capability_id=capability_id,
                 tool_name=tool_def.name,
                 tool_call_id=call.tool_call_id,
-                tool_args=args,
+                tool_args=asked,
+                capability_tool_id=self.tool_ids.get(tool_def.name) if owned else None,
+                # Handed over unawaited: the channel runs it only for a call it is
+                # about to record, never for one a resumed run already decided.
+                describe=(
+                    None
+                    if describer is None
+                    else partial(self._describe, ctx, tool_def, describer, args)
+                ),
             )
         )
         if isinstance(decision, ApprovalPending):
@@ -129,4 +187,7 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
             raise ApprovalRequired()
         if isinstance(decision, ApprovalRejected):
             return refusal(tool_def.name, decision.note or "a reviewer rejected it")
-        return await handler(decision.tool_args)
+        # The arguments approved are what runs. When they are this call's own, run
+        # them as the tool validated them, so an id is a `UUID` again and not its text.
+        approved = decision.tool_args
+        return await handler(args if approved == asked else approved)

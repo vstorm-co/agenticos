@@ -72,22 +72,127 @@ describe("the tool approval dialog", () => {
     expect(screen.getByText("linear_create_issue")).toBeVisible();
   });
 
-  it("shows a single string argument as itself, not as escaped JSON", () => {
+  it("shows a string argument as itself, not as escaped JSON", () => {
     // A gated call is nearly always one string that matters, and
     // `{"command": "python - <<'PY'\nimport …"}` hides it: the newlines that make
     // a script readable arrive as `\n`.
     mount([action("a-1", { tool_name: "execute", args: { command: "ls -la\ncat x.txt" } })]);
 
-    // The literal text, newline and all - not `{"command": "ls -la\ncat x.txt"}`.
-    // Read off the element rather than matched, because the matcher normalises the
-    // whitespace this test is about.
-    expect(document.querySelector("pre")?.textContent).toBe("ls -la\ncat x.txt");
+    // The literal text, newline and all. Read off the element rather than matched,
+    // because the matcher normalises the whitespace this test is about.
+    expect(document.querySelector("dd")?.textContent).toBe("ls -la\ncat x.txt");
   });
 
-  it("shows anything else as indented JSON", () => {
+  it("lists each argument by name, with the exact JSON one click away", () => {
     mount([action("a-1")]);
 
-    expect(screen.getByText(/"to": "customer@example\.com"/)).toBeVisible();
+    expect(screen.getByText("to", { selector: "dt" })).toBeVisible();
+    expect(screen.getByText("customer@example.com", { selector: "dd" })).toBeVisible();
+    expect(screen.getByText("Exact JSON sent to the tool")).toBeInTheDocument();
+    expect(document.querySelector("details pre")?.textContent).toContain(
+      '"to": "customer@example.com"',
+    );
+  });
+
+  it("says why the agent asks before what it would run", () => {
+    mount([
+      action("a-1", {
+        tool_name: "share_view",
+        args: { view_id: "v-1", reason: "So everyone who opens the page sees its records." },
+      }),
+    ]);
+
+    expect(screen.getByText("So everyone who opens the page sees its records.")).toBeVisible();
+    // The reason is the sentence on top, not one more row.
+    expect(screen.queryByText("reason", { selector: "dt" })).toBeNull();
+    expect(screen.getByText("v-1", { selector: "dd" })).toBeVisible();
+  });
+
+  it("says what the call will do in names, under the reason and over the ids", () => {
+    mount([
+      action("a-1", {
+        tool_name: "share_view",
+        args: { view_id: "v-1", reason: "So the page reads it." },
+        capability_tool_id: "share_view",
+        context: { view: "Closed tickets", table: "E2E Live Tickets" },
+      }),
+    ]);
+
+    const sentence = screen.getByText(
+      "Share the view Closed tickets of E2E Live Tickets with everyone who may read the table",
+    );
+    expect(sentence).toBeVisible();
+    // After the agent's own reason, and the ids it names are still there below.
+    expect(screen.getByText("So the page reads it.").compareDocumentPosition(sentence)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(screen.getByText("v-1", { selector: "dd" })).toBeVisible();
+  });
+
+  it("names the table a record is written to, never the record", () => {
+    mount([
+      action("a-1", {
+        tool_name: "delete_record",
+        args: { table_id: "t-1", record_id: "r-1", expected_revision: 2 },
+        capability_tool_id: "delete_record",
+        context: { table: "Orders" },
+      }),
+      action("a-2", {
+        tool_name: "create_record",
+        args: { table_id: "t-1", values: { Quantity: 2 } },
+        capability_tool_id: "create_record",
+        context: { table: "Orders" },
+      }),
+    ]);
+
+    expect(screen.getByText("Delete a record from Orders")).toBeVisible();
+    expect(screen.getByText("Add a record to Orders")).toBeVisible();
+  });
+
+  it("finds the sentence for a renamed tool by its stable id, not its name", () => {
+    mount([
+      action("a-1", {
+        tool_name: "publish_saved_view",
+        args: { view_id: "v-1" },
+        capability_tool_id: "share_view",
+        context: { view: "Closed tickets", table: "Orders" },
+      }),
+      // The name of a described tool, with no stable id: an MCP server's tool under
+      // "ask about everything" is not the capability's tool and gets no sentence.
+      action("a-2", {
+        tool_name: "share_view",
+        args: { view_id: "v-2" },
+        context: { view: "Open tickets", table: "Orders" },
+      }),
+    ]);
+
+    expect(
+      screen.getByText(
+        "Share the view Closed tickets of Orders with everyone who may read the table",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText(/Open tickets/)).toBeNull();
+  });
+
+  it("draws the plain card when the call came with no names, or not the ones it needs", () => {
+    mount([
+      action("a-1", {
+        tool_name: "share_view",
+        args: { view_id: "v-1" },
+        capability_tool_id: "share_view",
+      }),
+      action("a-2", {
+        tool_name: "share_view",
+        args: { view_id: "v-2" },
+        capability_tool_id: "share_view",
+        context: { table: "Orders" },
+      }),
+      action("a-3", { context: { recipient: "Ops" } }),
+    ]);
+
+    expect(screen.queryByText(/Share the view/)).toBeNull();
+    expect(screen.getByText("v-1", { selector: "dd" })).toBeVisible();
+    expect(screen.getByText("v-2", { selector: "dd" })).toBeVisible();
   });
 
   it("approves every call it is showing", async () => {

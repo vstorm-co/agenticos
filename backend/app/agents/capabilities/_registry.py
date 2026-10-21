@@ -46,9 +46,9 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from pydantic import (
@@ -65,6 +65,9 @@ from app.agents.capabilities._overrides import ToolOverrides
 from app.core.exceptions import BadRequestError
 from app.core.field_errors import field_problems
 from app.core.secret_kinds import SecretRequirement, StorableSecret
+
+if TYPE_CHECKING:
+    from app.agents.deps import AgentDeps
 
 logger = logging.getLogger(__name__)
 
@@ -240,6 +243,27 @@ class CapabilityToolInfo(BaseModel):
         return data
 
 
+type ApprovalDescriber = Callable[[AgentDeps, Mapping[str, Any]], Awaitable[dict[str, str] | None]]
+"""How one tool describes a parked call of its own to the person deciding it.
+
+Given the run's deps and the call's validated arguments, it answers the ids in
+them as names - `{"view": "Closed tickets", "table": "Support"}` - which the
+approval card and the queue put into a sentence above the raw arguments. A
+`share_view` card that says only `view_id: 6f1c…` asks a person to approve
+something they cannot read.
+
+Two rules the gate relies on. It resolves as `deps.run_person`, through the same
+service checks a console read takes, and answers `None` rather than a name that
+person may not see. And it may fail: the gate treats any error, or a slow answer,
+as "no context" and parks the call regardless, because a description is a
+courtesy and the approval is not.
+
+Declared per capability on :func:`register`, keyed by tool id, rather than on
+:class:`CapabilityToolInfo`: that model is served in the catalog, and a callable
+is not something a catalog can carry.
+"""
+
+
 class ProviderExecuted(BaseModel):
     """Which of a capability's tools the model provider runs itself, and when.
 
@@ -312,6 +336,8 @@ class CapabilityDef:
     # instance. Code says "I need an API key"; configuration says which one.
     secret: SecretRequirement | None = None
     provider_executed: ProviderExecuted | None = None
+    describers: Mapping[str, ApprovalDescriber] = field(default_factory=dict)
+    """Tool id to the :data:`ApprovalDescriber` that names a parked call's ids."""
 
     def needs_secret(self, config: BaseModel | None) -> bool:
         """Whether a binding with this configuration must name a secret.
@@ -405,6 +431,7 @@ def register(
     scopes: Iterable[str] = (),
     secret: SecretRequirement | None = None,
     provider_executed: ProviderExecuted | None = None,
+    describers: Mapping[str, ApprovalDescriber] | None = None,
 ) -> Callable[[CapabilityBuilder], CapabilityBuilder]:
     """Register a capability builder.
 
@@ -444,7 +471,14 @@ def register(
     owning it adds it unconditionally and nothing here can reach it - names that
     tool in `DECLARED_AND_NOT_OFFERED` in the same test, where the reason can be a
     sentence.
+
+    `describers` maps a tool id to the :data:`ApprovalDescriber` that names the
+    ids in a parked call of it. A key that is not one of `tools` is a
+    `RuntimeError`: it would describe a tool that cannot be parked under that id.
     """
+    declared_tools = tuple(tools)
+    if stray := sorted(set(describers or {}) - {tool.id for tool in declared_tools}):
+        raise RuntimeError(f"Capability '{id}' describes tools it does not declare: {stray}")
 
     def decorator(builder: CapabilityBuilder) -> CapabilityBuilder:
         definition = CapabilityDef(
@@ -453,13 +487,14 @@ def register(
             category=category,
             description=description,
             builder=builder,
-            tools=tuple(tools),
+            tools=declared_tools,
             config_schema=config_schema,
             side_effecting=side_effecting,
             selectable=selectable,
             scopes=frozenset(scopes),
             secret=secret,
             provider_executed=provider_executed,
+            describers=dict(describers or {}),
         )
         existing = REGISTRY.get(definition.id)
         if existing is not None and existing is not definition:

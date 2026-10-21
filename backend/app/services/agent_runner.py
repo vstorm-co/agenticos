@@ -707,6 +707,14 @@ class ParkedApproval:
     tool_name: str
     tool_args: dict[str, Any]
 
+    capability_tool_id: str | None = None
+    """The stable id of the tool behind `tool_name`, which a binding may have
+    renamed - see :attr:`app.agents.approval.ApprovalRequest.capability_tool_id`."""
+
+    context: dict[str, str] | None = None
+    """The arguments' ids as names, from the tool's describer - see
+    :attr:`app.agents.approval.ApprovalRequest.describe`."""
+
     subagent: str | None = None
     """Which delegate asked, or `None` for the run's own agent."""
 
@@ -759,7 +767,9 @@ class ApprovalChannel:
     shares and which is not concurrency-safe; two inserts on it at once do not
     produce a slow query, they corrupt the session and take the parent run row and
     the conversation with it (agenticos#169). With the write deferred, `__call__`
-    never awaits, so the two calls cannot interleave inside it.
+    never awaits the run's session, so the two calls cannot interleave on it. The
+    one thing it does await is the request's describer, which opens a session of
+    its own, and it awaits that before touching any of the state below.
     """
 
     organization_id: UUID
@@ -794,6 +804,9 @@ class ApprovalChannel:
         decision = self.decided.pop(request.tool_call_id, None)
         if decision is not None:
             return decision
+        # Described only now that a row will be written - parked, or recorded under
+        # standing consent - and never for a call the resume already decided.
+        context = None if request.describe is None else await request.describe()
 
         # Which delegate is asking, if the ask came from inside a delegation. Read
         # from the delegation in flight rather than carried on the request, because
@@ -805,7 +818,7 @@ class ApprovalChannel:
         delegate = acting_delegate()
         # Allocated here, not by the database, because the row is written after the
         # run ends. Everything below is synchronous - a `uuid4`, a dict set and a
-        # list append, each atomic under the GIL - so with no `await` in the body
+        # list append, each atomic under the GIL - so with no `await` past the describer
         # two concurrent gated calls cannot interleave and race the shared session.
         approval_id = uuid4()
         # Standing consent is recorded, not skipped: the row is the difference
@@ -820,6 +833,8 @@ class ApprovalChannel:
                 tool_call_id=request.tool_call_id,
                 tool_name=request.tool_name,
                 tool_args=request.tool_args,
+                capability_tool_id=request.capability_tool_id,
+                context=context,
                 standing=self.standing_consent_by is not None,
                 subagent=None if delegate is None else delegate.name,
                 # The delegate's own agent, which is *not* `self.agent_id`: that one
@@ -3458,6 +3473,8 @@ class AgentRunnerService:
                 # approver is looking at "send_email", not at "email".
                 tool_id=parked.tool_name,
                 tool_args=parked.tool_args,
+                capability_tool_id=parked.capability_tool_id,
+                context=parked.context,
                 subagent_name=parked.subagent,
                 # Null when the delegate's agent was deleted after the call was
                 # parked: the record of what it was authorised to do outlives it.
@@ -3925,6 +3942,8 @@ class AgentRunnerService:
                 tool_call_id=by_approval.get(str(approval.id)),
                 tool_name=approval.tool_id,
                 tool_args=approval.tool_args or {},
+                capability_tool_id=approval.capability_tool_id,
+                context=approval.context,
             )
             for approval in approvals
             if approval.status == ApprovalStatus.PENDING.value

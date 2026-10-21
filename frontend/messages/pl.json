@@ -277,6 +277,11 @@
       "recordsUpserting": "Zapisuję rekord",
       "recordsUpdating": "Zmieniam rekord",
       "recordsDeleting": "Usuwam rekord",
+      "approveShareView": "Udostępnij widok {view} tabeli {table} wszystkim, którzy mogą czytać tę tabelę",
+      "approveCreateRecord": "Dodaj rekord do tabeli {table}",
+      "approveUpsertRecord": "Utwórz albo zaktualizuj rekord w tabeli {table}",
+      "approveUpdateRecord": "Zmień rekord w tabeli {table}",
+      "approveDeleteRecord": "Usuń rekord z tabeli {table}",
       "workflowsListing": "Sprawdza, które workflow może uruchomić",
       "workflowRunning": "Uruchamia workflow",
       "workflowRunReading": "Sprawdza przebieg workflow"
@@ -332,7 +337,8 @@
     "workflowRun": {
       "unnamed": "Workflow",
       "viewSteps": "Zobacz jego kroki"
-    }
+    },
+    "approvalExactJson": "Dokładny JSON przekazany narzędziu"
   },
   "errors": {
     "authorizationFailed": "Autoryzacja nie powiodła się",

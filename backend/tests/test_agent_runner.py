@@ -1119,7 +1119,7 @@ class TestWhatAParkedCallRecords:
             run_id=uuid.uuid4(),
         )
         request = MagicMock(
-            tool_call_id="tc-1", tool_name="write_file", tool_args={"path": "/a.txt"}
+            tool_call_id="tc-1", tool_name="write_file", tool_args={"path": "/a.txt"}, describe=None
         )
 
         await channel(request)
@@ -3154,7 +3154,12 @@ class TestResume:
         )
         decided = MagicMock(id=uuid.uuid4(), status="approved", tool_id="execute", tool_args={})
         pending = MagicMock(
-            id=approval_id, status="pending", tool_id="execute", tool_args={"command": "ls"}
+            id=approval_id,
+            status="pending",
+            tool_id="execute",
+            tool_args={"command": "ls"},
+            capability_tool_id="execute",
+            context=None,
         )
         with patch(
             "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
@@ -3184,7 +3189,14 @@ class TestResume:
         """`tool_call_id` is a step a surface cannot mark, not a call it cannot decide."""
         service = AgentRunnerService(_db())
         run = _parked_run(paused_state={"messages": []})
-        pending = MagicMock(id=uuid.uuid4(), status="pending", tool_id="execute", tool_args={})
+        pending = MagicMock(
+            id=uuid.uuid4(),
+            status="pending",
+            tool_id="execute",
+            tool_args={},
+            capability_tool_id=None,
+            context=None,
+        )
         with patch(
             "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
             new=AsyncMock(return_value=[pending]),

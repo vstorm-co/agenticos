@@ -1105,6 +1105,7 @@
     "tokensDetail": "{input, number} input · {output, number} output tokens",
     "tokensDetailPartial": "{input, number} input · {output, number} output tokens — a floor: some model in this run had no price",
     "toolApprovalRequired": "Tool approval required",
+    "approvalExactJson": "Exact JSON sent to the tool",
     "tools": {
       "activeTasks": "Active Tasks",
       "addStep": "Add Step",
@@ -1249,6 +1250,11 @@
       "recordsUpserting": "Saving a record",
       "recordsUpdating": "Updating a record",
       "recordsDeleting": "Deleting a record",
+      "approveShareView": "Share the view {view} of {table} with everyone who may read the table",
+      "approveCreateRecord": "Add a record to {table}",
+      "approveUpsertRecord": "Create or update a record in {table}",
+      "approveUpdateRecord": "Change a record in {table}",
+      "approveDeleteRecord": "Delete a record from {table}",
       "workflowsListing": "Checking which workflows it can start",
       "workflowRunning": "Running a workflow",
       "workflowRunReading": "Checking on a workflow run"
