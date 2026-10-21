@@ -412,9 +412,11 @@ class EvalRunService:
                 model_profile_id=profile_id,
                 environment_id=request.environment_id,
             )
+            # A skill's stored body is live rather than versioned, so a cached
+            # baseline may have read an older one than the body being replaced.
             cached = (
                 None
-                if excluded
+                if excluded or candidate_skills
                 else await self._cached(
                     ctx,
                     agent=agent,

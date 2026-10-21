@@ -47,7 +47,7 @@ from app.db.models.case_score import CaseScore
 from app.db.models.conversation import Conversation
 from app.db.models.credential import ModelProfile
 from app.db.models.dataset import Dataset, DatasetCase
-from app.db.models.eval_run import EvalRun, EvalRunArm, EvalRunCase, EvalRunStatus
+from app.db.models.eval_run import EvalRun, EvalRunArm, EvalRunCase, EvalRunPurpose, EvalRunStatus
 from app.db.models.intercepted_tool_call import InterceptedToolCall
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
@@ -2222,3 +2222,58 @@ async def test_a_proposed_skill_body_reaches_every_candidate_answer(db) -> None:
         str(skill_id): {"description": "Refunds", "content": "Say 30 days."}
     }
     assert candidate.spec_hash != baseline.spec_hash
+
+
+async def test_a_published_version_can_carry_a_proposed_skill_body(db) -> None:
+    """Checking a skill change runs the published version on both sides - nothing
+    unpublished to validate - and serves the proposed body on the candidate only."""
+    from app.agents.capabilities.skills import SkillBody
+
+    ctx = await _owner(db)
+    agent, versions = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    skill_id = uuid.uuid4()
+    body = SkillBody(description="Refunds", content="Say 30 days.")
+    model = Model(db)
+
+    started = await EvalRunService(db).start(
+        ctx,
+        agent.id,
+        EvalRunRequest(dataset_id=dataset.id, version=7, baseline_version=7),
+        purpose=EvalRunPurpose.GATE,
+        candidate_skills={skill_id: body},
+    )
+    await _run_to_end(db, model, started.id, ctx)
+
+    candidates = [call["candidate"] for call in model.calls]
+    assert {type(c) for c in candidates} == {PublishedCandidate}
+    assert {c.version_id for c in candidates} == {versions[7].id}
+    assert sorted(len(c.skill_bodies) for c in candidates) == [0, 1]
+
+
+async def test_a_skill_change_is_never_measured_against_a_cached_baseline(db) -> None:
+    """A skill's stored body is not versioned with the agent, so a baseline cached
+    before the skill changed would have read a body the change is not replacing."""
+    from app.agents.capabilities.skills import SkillBody
+
+    ctx = await _owner(db)
+    agent, versions = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    service = EvalRunService(db)
+    request = EvalRunRequest(dataset_id=dataset.id, candidate="draft", paired_baseline=True)
+    await _run_to_end(db, Model(db), (await service.start(ctx, agent.id, request)).id, ctx)
+    assert {arm.role: arm.basis for arm in (await service.estimate(ctx, agent.id, request)).arms}[
+        "baseline"
+    ] == "cached"
+
+    estimate = await service.estimate(
+        ctx,
+        agent.id,
+        EvalRunRequest(dataset_id=dataset.id, paired_baseline=True),
+        candidate_spec=AgentSpec.model_validate(versions[7].spec),
+        candidate_skills={uuid.uuid4(): SkillBody(description="Refunds", content="Say 30 days.")},
+    )
+
+    baseline = next(arm for arm in estimate.arms if arm.role == "baseline")
+    assert baseline.basis != "cached"
+    assert baseline.cached_from_run_id is None

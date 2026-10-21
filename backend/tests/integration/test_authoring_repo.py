@@ -169,10 +169,10 @@ class TestEvidence:
         await _run(db, other, foreign, other_user, rating=-1)
 
         rows = await authoring_repo.evidence_runs(
-            db, organization_id=org.id, run_ids=None, since=_LONG_AGO, limit=10
+            db, organization_id=org.id, since=_LONG_AGO, limit=10
         )
         limited = await authoring_repo.evidence_runs(
-            db, organization_id=org.id, run_ids=[recent.id], since=_LONG_AGO, limit=1
+            db, organization_id=org.id, agent_id=agent.id, since=_LONG_AGO, limit=1
         )
 
         assert [row.run.id for row in rows] == [recent.id]
@@ -181,22 +181,35 @@ class TestEvidence:
     async def test_the_runs_that_opened_a_skill_are_found_by_its_load_call(self, db: AsyncSession):
         org, user = await _org(db)
         agent = await _agent(db, org, user)
-        loaded = await _run(db, org, agent, user, tool=("load_capability", {"id": "refunds"}))
-        await _run(db, org, agent, user, tool=("load_capability", {"id": "shipping"}))
+        loaded = await _run(
+            db,
+            org,
+            agent,
+            user,
+            rating=-1,
+            tool=("load_capability", {"id": "refunds"}),
+            started_at=datetime.now(UTC) - timedelta(days=5),
+        )
+        # Newer runs that opened the skill rank below the rated-down one rather
+        # than crowding it out of the limit.
+        for _ in range(3):
+            await _run(db, org, agent, user, rating=1, tool=("load_capability", {"id": "refunds"}))
+        await _run(db, org, agent, user, rating=-1, tool=("load_capability", {"id": "shipping"}))
         await _run(
             db,
             org,
             agent,
             user,
+            rating=-1,
             surface=RunSurface.EVAL,
             tool=("load_capability", {"id": "refunds"}),
         )
 
-        found = await authoring_repo.runs_that_loaded_skill(
-            db, organization_id=org.id, skill_name="refunds", since=_LONG_AGO, limit=10
+        found = await authoring_repo.evidence_runs(
+            db, organization_id=org.id, skill_name="refunds", since=_LONG_AGO, limit=1
         )
 
-        assert found == [loaded.id]
+        assert [row.run.id for row in found] == [loaded.id]
 
 
 class TestProposals:

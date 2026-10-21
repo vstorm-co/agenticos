@@ -68,9 +68,12 @@ class InstructionChange(BaseModel):
 class ToolChange(BaseModel):
     capability_id: str = Field(description="The capability the tool belongs to, as listed.")
     tool_id: str = Field(description="The tool's stable id, as listed - not its name.")
-    name: str | None = Field(default=None, description="A new name, or null to keep it.")
+    name: str | None = Field(
+        default=None, description="A new name of at most 64 characters, or null to keep it."
+    )
     description: str | None = Field(
-        default=None, description="A new description, or null to keep it."
+        default=None,
+        description="A new description of at most 1024 characters, or null to keep it.",
     )
     rationale: str
     evidence: list[EvidenceQuote] = Field(default_factory=list)

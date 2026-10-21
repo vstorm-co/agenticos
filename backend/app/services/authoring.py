@@ -13,11 +13,12 @@ improver, which also refuses while AI assistance is switched off. Deciding needs
 edit access to the agent and nothing more: a decision is not a model call, so it
 stays possible with the switch off.
 
-**A decision is one transaction with what it writes.** It locks the batch row
-first, so a decision and a newer request superseding the batch serialize; then
-it moves the hunk with a compare-and-set, so of two people deciding the same
-hunk one wins; then it writes the draft. A failure anywhere leaves all three as
-they were.
+**A decision is one transaction with what it writes.** It locks the agent row
+and reads its draft afresh, so two decisions on one draft serialize instead of
+the second writing over the first; then it locks the batch row, so a decision
+and a newer request superseding the batch serialize; then it moves the hunk
+with a compare-and-set, so of two people deciding the same hunk one wins; then
+it writes the draft. A failure anywhere leaves all of it as it was.
 
 "Check with evals" runs a dataset against the draft as it would be with every
 pending hunk accepted - a projection, never stored - and leaves out the cases
@@ -64,7 +65,13 @@ from app.db.models.authoring import (
 )
 from app.db.models.eval_run import EvalRunPurpose
 from app.db.models.skill_proposal import ProposalStatus
-from app.repositories import agent_run_repo, authoring_repo, organization_repo, skill_proposal_repo
+from app.repositories import (
+    agent_repo,
+    agent_run_repo,
+    authoring_repo,
+    organization_repo,
+    skill_proposal_repo,
+)
 from app.schemas.authoring import (
     AgentAuthoringRead,
     AgentWaiting,
@@ -94,6 +101,13 @@ logger = logging.getLogger(__name__)
 
 STALE_AFTER = timedelta(minutes=20)
 """A request still marked running this long after it was last heard from has stopped."""
+
+QUEUED_STALE_AFTER = timedelta(hours=24)
+"""A request still waiting this long for a worker was lost rather than delayed.
+
+Far longer than :data:`STALE_AFTER`: a queue backed up behind long eval runs is
+slow, not broken, and a request it has not reached yet is still going to run.
+"""
 
 _OUTPUT_TOKENS = 1_500
 _PROMPT_TOKENS = 1_500
@@ -332,8 +346,12 @@ class AuthoringService:
         """The request, marked failed when the worker stopped without saying so."""
         if request.status not in (AuthoringStatus.QUEUED.value, AuthoringStatus.RUNNING.value):
             return request
-        heard = request.heartbeat_at or request.started_at or request.created_at
-        if datetime.now(UTC) - heard < STALE_AFTER:
+        if request.status == AuthoringStatus.QUEUED.value:
+            heard, after = request.created_at, QUEUED_STALE_AFTER
+        else:
+            heard = request.heartbeat_at or request.started_at or request.created_at
+            after = STALE_AFTER
+        if datetime.now(UTC) - heard < after:
             return request
         return await authoring_repo.update_request(
             self.db,
@@ -410,11 +428,28 @@ class AuthoringService:
             ),
             None,
         )
+        quotes = ctx.has(Perm.RUNS_VIEW)
         return AgentAuthoringRead(
             batch=None if batch is None else await self._batch(ctx, agent, batch),
-            latest=None if not requests else AuthoringRequestRead.model_validate(requests[0]),
-            verify=None if verify is None else AuthoringRequestRead.model_validate(verify),
+            latest=None if not requests else self._request(requests[0], quotes=quotes),
+            verify=None if verify is None else self._request(verify, quotes=quotes),
         )
+
+    @staticmethod
+    def _request(request: AuthoringRequest, *, quotes: bool) -> AuthoringRequestRead:
+        """A request as a reader sees it - a verify's quotes only for a reader of runs."""
+        read = AuthoringRequestRead.model_validate(request)
+        findings = None if read.report is None else read.report.get("findings")
+        if quotes or read.report is None or not isinstance(findings, list):
+            return read
+        redacted = [
+            {
+                **finding,
+                "evidence": [{"run_id": item["run_id"]} for item in finding.get("evidence", [])],
+            }
+            for finding in findings
+        ]
+        return read.model_copy(update={"report": {**read.report, "findings": redacted}})
 
     async def _batch(self, ctx: AuthContext, agent: Agent, batch: SpecProposalBatch) -> BatchRead:
         spec = AgentSpec.model_validate(agent.draft_spec)
@@ -464,6 +499,13 @@ class AuthoringService:
             decided_at=hunk.decided_at,
         )
 
+    async def _locked(self, ctx: AuthContext, agent: Agent) -> Agent:
+        """The agent locked for this transaction, so its draft is the one a decision writes over."""
+        locked = await agent_repo.lock(self.db, agent.id, organization_id=ctx.organization_id)
+        if locked is None:
+            raise NotFoundError(message="Agent not found", details={"agent_id": agent.id})
+        return locked
+
     async def _open_batch_of(
         self, ctx: AuthContext, agent: Agent, batch_id: UUID
     ) -> SpecProposalBatch:
@@ -493,7 +535,7 @@ class AuthoringService:
             BadRequestError: The hunk is stale - its passage or the tool's override
                 moved on - or Undo would reverse a later manual edit.
         """
-        agent = await self._editable(ctx, agent_id)
+        agent = await self._locked(ctx, await self._editable(ctx, agent_id))
         hunk = await authoring_repo.get_hunk(self.db, hunk_id, organization_id=ctx.organization_id)
         if hunk is None:
             raise NotFoundError(message="Suggestion not found", details={"hunk_id": hunk_id})
@@ -641,9 +683,19 @@ class AuthoringService:
                 message="No suggestion is waiting to be checked",
                 details={"agent_id": agent.id},
             )
-        projected, _ = authoring_hunks.projection(
+        projected, skipped = authoring_hunks.projection(
             AgentSpec.model_validate(agent.draft_spec), pending
         )
+        if skipped:
+            # A check that silently left suggestions out would be read as having measured them.
+            raise BadRequestError(
+                message=(
+                    f"{len(skipped)} of the {len(pending)} waiting suggestions no longer fit the "
+                    "draft, or clash with another. Accept or dismiss them first, so the check "
+                    "measures exactly what is waiting."
+                ),
+                details={"hunk_ids": [hunk.id for hunk in skipped]},
+            )
         return agent, batch, projected
 
     @staticmethod
@@ -671,8 +723,12 @@ class AuthoringService:
 
     async def _skill_check(
         self, ctx: AuthContext, skill_id: UUID, body: ProposalCheck
-    ) -> tuple[Agent, AgentSpec, dict[UUID, SkillBody], list[UUID]]:
-        """The agent a skill change is checked on, its published spec, the body, and what to leave out.
+    ) -> tuple[Agent, EvalRunRequest, dict[UUID, SkillBody], list[UUID]]:
+        """The agent a skill change is checked on, the run that checks it, the body, and what to leave out.
+
+        Both sides run the agent's published version - frozen and already
+        validated at publish - so checking needs only `agents:run` on it, and
+        the skill's body is the one difference.
 
         Raises:
             NotFoundError: No such pending change to this skill.
@@ -700,8 +756,12 @@ class AuthoringService:
                 details={"skill_id": skill.id},
             )
         agent = await self.registry.get(ctx, body.agent_id, perm=Perm.AGENTS_RUN)
-        published = await self._published(ctx, agent)
-        if published is None or skill.id not in published.skill_ids:
+        version = (
+            None
+            if agent.current_version_id is None
+            else await self.registry.get_version(ctx, agent.id, agent.current_version_id)
+        )
+        if version is None or skill.id not in AgentSpec.model_validate(version.spec).skill_ids:
             raise BadRequestError(
                 message=f"'{agent.name}' does not use '{skill.name}' in its published version",
                 details={"agent_id": agent.id, "skill_id": skill.id},
@@ -715,19 +775,21 @@ class AuthoringService:
         )
         evidence = [] if request is None else request.evidence.get("conversation_ids", [])
         bodies = {skill.id: SkillBody(description=proposal.description, content=proposal.content)}
-        return agent, published, bodies, [UUID(str(conversation)) for conversation in evidence]
+        request = self._check_request(body).model_copy(
+            update={"version": version.version, "baseline_version": version.version}
+        )
+        return agent, request, bodies, [UUID(str(conversation)) for conversation in evidence]
 
     async def estimate_skill_check(
         self, ctx: AuthContext, skill_id: UUID, body: ProposalCheck
     ) -> EvalRunEstimate:
         """What checking a pending skill change on one agent would cost."""
-        agent, published, bodies, evidence = await self._skill_check(ctx, skill_id, body)
+        agent, request, bodies, evidence = await self._skill_check(ctx, skill_id, body)
         return await EvalRunService(self.db).estimate(
             ctx,
             agent.id,
-            self._check_request(body),
+            request,
             purpose=EvalRunPurpose.GATE,
-            candidate_spec=published,
             candidate_skills=bodies,
             exclude_conversations=evidence,
         )
@@ -741,13 +803,12 @@ class AuthoringService:
         comparison measures the skill change alone. Applying the change is live
         for every agent bound to the skill, which is why it is checked before.
         """
-        agent, published, bodies, evidence = await self._skill_check(ctx, skill_id, body)
+        agent, request, bodies, evidence = await self._skill_check(ctx, skill_id, body)
         return await EvalRunService(self.db).start(
             ctx,
             agent.id,
-            self._check_request(body),
+            request,
             purpose=EvalRunPurpose.GATE,
-            candidate_spec=published,
             candidate_skills=bodies,
             exclude_conversations=evidence,
         )

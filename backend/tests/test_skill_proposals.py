@@ -27,7 +27,7 @@ import pytest
 from app.core.exceptions import AlreadyExistsError, ConcurrentChangeError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
-from app.repositories import skill_proposal_repo
+from app.repositories import skill_proposal_repo, skill_repo
 from app.services.skill_proposal import SkillProposalService
 from app.services.skill_workspace import SkillChange
 
@@ -159,6 +159,7 @@ class TestApplying:
         proposal = _proposal(base_version=3)
         monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
         service.skills.get = AsyncMock(return_value=MagicMock(version=3))
+        monkeypatch.setattr(skill_repo, "lock", AsyncMock())
 
         decided = await service.apply(_ctx(), proposal.id)
 
@@ -170,12 +171,32 @@ class TestApplying:
         proposal = _proposal(base_version=3)
         monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
         service.skills.get = AsyncMock(return_value=MagicMock(version=4))
+        monkeypatch.setattr(skill_repo, "lock", AsyncMock())
 
         with pytest.raises(ConcurrentChangeError, match="changed since"):
             await service.apply(_ctx(), proposal.id)
 
         service.skills.update.assert_not_called()
         assert proposal.status == ProposalStatus.PENDING.value
+
+    async def test_an_edit_committed_while_waiting_for_the_lock_is_seen(self, monkeypatch):
+        """The version is compared after the lock re-reads the row, not before."""
+        service = _service(monkeypatch)
+        proposal = _proposal(base_version=3)
+        monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
+        skill = MagicMock(version=3)
+        service.skills.get = AsyncMock(return_value=skill)
+
+        async def edited_meanwhile(_db: object, _skill_id: object) -> MagicMock:
+            skill.version = 4
+            return skill
+
+        monkeypatch.setattr(skill_repo, "lock", edited_meanwhile)
+
+        with pytest.raises(ConcurrentChangeError, match="now v4"):
+            await service.apply(_ctx(), proposal.id)
+
+        service.skills.update.assert_not_called()
 
     async def test_the_resources_are_written_too(self, monkeypatch):
         """A skill whose script did not come with it is a skill that no longer

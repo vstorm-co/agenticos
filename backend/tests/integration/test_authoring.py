@@ -28,7 +28,7 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.system_agents import IMPROVER
@@ -46,6 +46,7 @@ from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.authoring import AuthoringRequest, SpecProposalBatch
 from app.db.models.conversation import Conversation, Message
 from app.db.models.dataset import DatasetCase
+from app.db.models.eval_run import EvalRunArm
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.skill import Skill
@@ -423,6 +424,34 @@ class TestImprove:
         await db.refresh(agent)
         assert agent.draft_spec["capabilities"][0]["tool_overrides"] == {}
 
+    async def test_a_decision_writes_over_the_draft_as_committed_not_as_first_read(self, db):
+        """Two people accepting different hunks at once: the second must build on the
+        draft the first wrote, not on the copy it loaded before waiting for the lock."""
+        ctx, agent, _ = await _setup(db)
+        await _improve(db, ctx, agent, Improver(db))
+        service = AuthoringService(db)
+        batch = (await service.for_agent(ctx, agent.id)).batch
+        assert batch is not None
+        instruction, tool = batch.hunks
+        written_elsewhere = {
+            **agent.draft_spec,
+            "instructions": INSTRUCTIONS.replace("Be brief.", "Be brief. Refunds take 30 days."),
+        }
+        await db.execute(
+            update(Agent)
+            .where(Agent.id == agent.id)
+            .values(draft_spec=written_elsewhere)
+            .execution_options(synchronize_session=False)
+        )
+
+        decided = await service.decide(ctx, agent.id, tool.id, HunkDecision(action="accept"))
+
+        assert decided.draft_spec["instructions"] == written_elsewhere["instructions"]
+        assert decided.draft_spec["capabilities"][0]["tool_overrides"]["create_chart"] == {
+            "description": "Read the time before quoting a deadline."
+        }
+        assert instruction.status == "pending"
+
     async def test_an_edit_is_accepted_as_written_and_a_later_hand_edit_blocks_undo(self, db):
         ctx, agent, _ = await _setup(db)
         await _improve(db, ctx, agent, Improver(db))
@@ -558,6 +587,18 @@ class TestVerify:
         assert read.batch is not None and read.batch.id == waiting.id
         assert [hunk.origin for hunk in read.batch.hunks] == ["improve", "improve", "verify"]
         assert read.verify is not None and read.verify.id == request.id
+        assert read.verify.report is not None
+        assert read.verify.report["findings"][0]["evidence"][0]["quote"] == "You have 90 days."
+
+        member = await _member(db, ctx, OrgRoleName.MEMBER)
+        hidden = await service.for_agent(member, agent.id)
+        assert hidden.verify is not None and hidden.verify.report is not None
+        assert hidden.latest is not None and hidden.latest.report == hidden.verify.report
+        (finding,) = hidden.verify.report["findings"]
+        assert finding["evidence"] == [
+            {"run_id": request.report["findings"][0]["evidence"][0]["run_id"]}
+        ]
+        assert finding["text"] == "Dropped the brevity rule"
 
     async def test_verify_with_nothing_waiting_opens_a_batch(self, db):
         ctx, agent, _ = await _setup(db)
@@ -627,6 +668,23 @@ class TestCheck:
 
         with pytest.raises(BadRequestError, match="No suggestion is waiting"):
             await AuthoringService(db).check(ctx, agent.id, ProposalCheck(dataset_id=uuid.uuid4()))
+
+    async def test_a_suggestion_that_no_longer_fits_is_never_silently_left_out(self, db):
+        ctx, agent, _ = await _setup(db)
+        await _improve(db, ctx, agent, Improver(db))
+        agent.draft_spec = {**agent.draft_spec, "instructions": "Rewritten by hand."}
+        await db.flush()
+        service = AuthoringService(db)
+
+        with pytest.raises(BadRequestError, match="1 of the 2 waiting suggestions"):
+            await service.check(ctx, agent.id, ProposalCheck(dataset_id=uuid.uuid4()))
+
+        batch = (await service.for_agent(ctx, agent.id)).batch
+        assert batch is not None
+        stale = next(hunk for hunk in batch.hunks if not hunk.applies)
+        await service.decide(ctx, agent.id, stale.id, HunkDecision(action="dismiss"))
+        with pytest.raises(NotFoundError):
+            await service.check(ctx, agent.id, ProposalCheck(dataset_id=uuid.uuid4()))
 
 
 class TestSkills:
@@ -776,6 +834,7 @@ class TestWorker:
                 user_id=ctx.user_id,
                 surface="eval",
                 status="completed",
+                cost_usd=Decimal("0.03"),
                 started_at=datetime.now(UTC),
             )
             db.add(run)
@@ -795,6 +854,36 @@ class TestWorker:
             request = await db.get(AuthoringRequest, started.id)
             assert request is not None and request.status == "failed"
             assert request.error is not None and reason in request.error
+            if execute is unreadable:
+                # The call was made and paid for, so the request owns its cost.
+                assert len(request.run_ids) == 1
+                assert request.cost_usd == Decimal("0.03")
+
+    async def test_authority_lost_while_queued_stops_the_request_before_a_run_is_read(self, db):
+        ctx, agent, _ = await _setup(db)
+        membership = (
+            await db.execute(
+                select(OrganizationMember).where(OrganizationMember.user_id == ctx.user_id)
+            )
+        ).scalar_one()
+        model = Improver(db)
+
+        for role, reason in (
+            (OrgRoleName.MEMBER, "may no longer read runs"),
+            (OrgRoleName.OPERATOR, "may no longer edit the agent"),
+        ):
+            membership.role = OrgRoleName.OWNER.value
+            await db.flush()
+            started = await AuthoringService(db).start_agent(ctx, agent.id, AuthoringStart())
+            membership.role = role.value
+            await db.flush()
+            with _answering(model):
+                await AuthoringWorker(started.id, ctx.organization_id, sessions=_sessions(db)).run()
+
+            request = await db.get(AuthoringRequest, started.id)
+            assert request is not None and request.status == "failed"
+            assert request.error is not None and reason in request.error
+        assert model.prompts == []
 
     async def test_a_gone_target_or_no_evidence_left_fails_the_request(self, db):
         ctx, agent, run = await _setup(db)
@@ -816,6 +905,24 @@ class TestWorker:
         row = await db.get(AuthoringRequest, started.id)
         assert row is not None
         row.created_at = datetime.now(UTC) - timedelta(hours=1)
+        await db.flush()
+
+        queued = await service.for_agent(ctx, agent.id)
+        assert queued.latest is not None and queued.latest.status == "queued"
+
+        row.status = "running"
+        row.heartbeat_at = datetime.now(UTC) - timedelta(minutes=30)
+        await db.flush()
+        read = await service.for_agent(ctx, agent.id)
+        assert read.latest is not None and read.latest.status == "failed"
+
+    async def test_a_request_no_worker_reached_for_a_day_is_reported_failed(self, db):
+        ctx, agent, _ = await _setup(db)
+        service = AuthoringService(db)
+        started = await service.start_agent(ctx, agent.id, AuthoringStart())
+        row = await db.get(AuthoringRequest, started.id)
+        assert row is not None
+        row.created_at = datetime.now(UTC) - timedelta(hours=25)
         await db.flush()
 
         read = await service.for_agent(ctx, agent.id)
@@ -889,6 +996,12 @@ class TestEdges:
             await service.decide(ctx, other.id, batch.hunks[0].id, HunkDecision(action="dismiss"))
         with pytest.raises(NotFoundError):
             await service.decide(ctx, agent.id, uuid.uuid4(), HunkDecision(action="dismiss"))
+        # Deleted between the access check and the lock.
+        with (
+            patch("app.services.authoring.agent_repo.lock", new=AsyncMock(return_value=None)),
+            pytest.raises(NotFoundError, match="Agent not found"),
+        ):
+            await service.decide(ctx, agent.id, batch.hunks[0].id, HunkDecision(action="dismiss"))
 
     async def test_dismissing_all_leaves_accepted_suggestions_and_needs_a_batch(self, db):
         ctx, agent, _ = await _setup(db)
@@ -920,6 +1033,12 @@ class TestEdges:
                         "capability_id": "charts",
                         "tool_id": "create_chart",
                         "name": "not a valid name!",
+                        "rationale": "r",
+                    },
+                    {
+                        "capability_id": "charts",
+                        "tool_id": "create_chart",
+                        "description": "x" * 1025,
                         "rationale": "r",
                     },
                     {"capability_id": "charts", "tool_id": "create_chart", "rationale": "r"},
@@ -998,6 +1117,21 @@ class TestWorkerTargets:
         request = await db.get(AuthoringRequest, started.id)
         assert request is not None and request.error == "The skill is gone."
 
+        started = await AuthoringService(db).start_skill(ctx, skill.id, AuthoringStart())
+        membership = (
+            await db.execute(
+                select(OrganizationMember).where(OrganizationMember.user_id == ctx.user_id)
+            )
+        ).scalar_one()
+        membership.role = OrgRoleName.OPERATOR.value
+        await db.flush()
+
+        await AuthoringWorker(started.id, ctx.organization_id, sessions=_sessions(db)).run()
+
+        request = await db.get(AuthoringRequest, started.id)
+        assert request is not None
+        assert request.error == "Whoever started this may no longer edit the skill."
+
 
 async def test_an_agent_never_published_has_nothing_to_verify_against(db):
     ctx, agent, _ = await _setup(db)
@@ -1072,7 +1206,20 @@ class TestSkillCheck:
         started = await service.check_skill(setup.ctx, skill.id, body)
 
         assert estimate.cases == 1
-        assert started.paired and started.arms[0].source == "explicit"
+        # The published version on both sides: frozen and validated at publish,
+        # so a checker who may only run the agent is not refused its bindings.
+        assert started.paired
+        assert {arm.source for arm in started.arms} == {"version"}
+        assert len({arm.agent_version_id for arm in started.arms}) == 1
+        arms = (
+            (await db.execute(select(EvalRunArm).where(EvalRunArm.eval_run_id == started.id)))
+            .scalars()
+            .all()
+        )
+        assert {arm.role: bool(arm.skill_bodies) for arm in arms} == {
+            "candidate": True,
+            "baseline": False,
+        }
         await db.refresh(skill)
         assert skill.content == "Refunds take 90 days."
 

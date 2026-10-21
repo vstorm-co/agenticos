@@ -251,7 +251,6 @@ from app.services.agent_registry import (
     DELEGATION_CAPABILITY_ID,
     AgentRegistryService,
     Candidate,
-    UnpublishedCandidate,
     delegation_binding,
 )
 from app.services.api_key import mint_for_run
@@ -2650,7 +2649,7 @@ class AgentRunnerService:
             agent, spec, version_id = await self.registry.get_candidate_spec(
                 ctx, agent_id, candidate, environment_id=effective_environment_id
             )
-        skill_bodies = candidate.skill_bodies if isinstance(candidate, UnpublishedCandidate) else {}
+        skill_bodies = {} if candidate is None else candidate.skill_bodies
         spec = await self._with_environment_observability(
             ctx, spec, environment_id=effective_environment_id
         )
@@ -3182,7 +3181,9 @@ class AgentRunnerService:
             # agent and the proposal flow use them, and not in a browser about what
             # an agent is keeping *for a person*. `browsable` is where they are
             # dropped instead (#1064).
-            materialised = await materialise_skills(workspace.workspace, resources["skills"])
+            materialised = await materialise_skills(
+                workspace.workspace, resources["skills"], resources[SKILL_BODIES_RESOURCE]
+            )
             if materialised.written:
                 spec = _with_skills_briefing(spec)
             # After the skills are written, so materialising them does not read as
