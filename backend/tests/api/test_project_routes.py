@@ -6,8 +6,6 @@ the service is reached, each handler answers its status and shape, and a file
 listing reads as a project's even before its container exists.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager

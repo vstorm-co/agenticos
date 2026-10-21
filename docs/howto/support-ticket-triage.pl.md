@@ -1,5 +1,5 @@
 ---
-source_sha: "9121fc5ca757"
+source_sha: "716cdf4abccd"
 title: "Segreguj zgłoszenia wsparcia z własnej aplikacji"
 description: "Uruchamiaj agenta z własnego backendu podpisanym webhookiem i niech klasyfikuje zgłoszenia, przygotowuje szkic odpowiedzi i oznacza zgłoszenia bezpieczeństwa."
 ---
@@ -87,7 +87,7 @@ Powtórz dla T-1002 i T-1003. Każda przyjęta dostawa odpowiada `202`, czyli �
 ## Gdy coś pójdzie nie tak { #when-it-goes-wrong }
 
 - **Każda dostawa wraca jako `403`.** Podpis obejmuje *dokładne* wysłane bajty. `echo` dodaje końcowy znak nowej linii, który może, ale nie musi zgadzać się z tym, co podpisano. Użyj `printf '%s'` i `curl --data-raw` i nigdy nie pozwól klientowi przekodować słownika po podpisaniu tekstu.
-- **`202`, ale run się nie pojawia.** To znaczy „przyjęto”, a nie „zakończono”: run wykonuje flow Prefecta w workerze. Daj mu kilka sekund i sprawdź Activity z filtrem na tego agenta.
+- **`202`, ale run się nie pojawia.** To znaczy „przyjęto”, a nie „zakończono”: run wykonuje zadanie w workerze. Daj mu kilka sekund i sprawdź Activity z filtrem na tego agenta; jeśli nic się nie pojawia, poszukaj zadania `fire-trigger` na stronie Background jobs.
 - **Oznaczenie bezpieczeństwa nie zadziałało.** Oznaczenie wynika z instrukcji, a nie z wbudowanego klasyfikatora. Przeczytaj ponownie prompt triggera i doprecyzuj, co liczy się jako zgłoszenie bezpieczeństwa, jeśli umyka syntetyczny przypadek jak T-1003.
 - **Chcesz przetestować tylko prompt, a nie ścieżkę dostawy.** Najpierw użyj **Run now** na triggerze. Uruchamia podstawowy prompt agenta bez kontekstu dostawy, bez podpisu i bez webhooka. Nie sprawdzi klasyfikacji, bo nie ma JSON-a ze zgłoszeniem do sklasyfikowania, ale potwierdzi, że agent, jego budżet i stan publikacji działają.
 - **Zapier albo Make zamiast skryptu.** Żadne z nich nie ma wbudowanej akcji HMAC. Zaplanuj godzinę na krok z kodem, który podpisze treść, a nie pięć minut klikania. Zobacz [triggery](../triggers.md#zapier-and-make-cannot-do-this-without-a-code-step).

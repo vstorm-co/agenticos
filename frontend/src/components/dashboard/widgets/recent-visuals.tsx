@@ -5,6 +5,7 @@ import { Code2, GitBranch, Shapes } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 
+import { ArtifactThumbnail } from "@/components/artifacts/artifact-thumbnail";
 import { useRecentVisuals } from "@/hooks/use-recent-visuals";
 import { ROUTES } from "@/lib/constants";
 import { timeAgo } from "@/lib/utils";
@@ -56,20 +57,34 @@ function VisualTile({ visual }: { visual: VisualListItem }) {
   const t = useTranslations("dashboard.widgets.recent-visuals");
   const tTime = useTranslations("time");
   const locale = useLocale();
-  // A thumbnail the server cannot give - not made yet, or gone - falls back to
-  // the kind's mark rather than a broken image. A page's is asked for even when
-  // none is kept: asking is what has the deployment's browser draw it, and the
-  // console cannot.
+  // A kept thumbnail first, being the cheapest. A page published as an app with
+  // none is shown live instead, the way the apps listing shows it: the page's own
+  // HTML from its isolated address, shrunk, which needs no browser on the server
+  // and was a bare mark wherever the deployment has none. Any other page is still
+  // asked for, since asking is what has the deployment's browser draw one, and a
+  // thumbnail the server cannot give falls back to the kind's mark rather than a
+  // broken image.
   const [broken, setBroken] = useState(false);
   const Icon = KIND_ICON[visual.kind];
-  const pictured = visual.has_thumbnail || visual.kind === "html";
+  const live = !visual.has_thumbnail && visual.artifact_id !== null;
+  const pictured = !live && (visual.has_thumbnail || visual.kind === "html");
   return (
     <Link
       href={`${ROUTES.CHAT}?id=${visual.conversation_id}`}
       className="group hover:bg-accent/40 flex min-w-0 flex-col gap-1.5 rounded-xl p-1.5"
     >
+      {/* Named above the picture: under it, a picture taller than the card's row
+          took the name and the date past the card's edge. */}
+      <span className="flex min-w-0 items-baseline justify-between gap-2">
+        <span className="text-foreground truncate text-sm font-medium">{visual.title}</span>
+        <span className="text-muted-foreground shrink-0 text-xs">
+          {timeAgo(visual.created_at, tTime, locale)}
+        </span>
+      </span>
       <span className="bg-foreground/[0.04] relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg">
-        {pictured && !broken ? (
+        {live && visual.artifact_id !== null ? (
+          <ArtifactThumbnail artifactId={visual.artifact_id} title={visual.title} />
+        ) : pictured && !broken ? (
           // A same-origin address behind the console's session, which `next/image`
           // would only fetch a second time.
           // eslint-disable-next-line @next/next/no-img-element
@@ -87,10 +102,6 @@ function VisualTile({ visual }: { visual: VisualListItem }) {
             {t("app")}
           </span>
         )}
-      </span>
-      <span className="text-foreground truncate text-sm font-medium">{visual.title}</span>
-      <span className="text-muted-foreground text-xs">
-        {timeAgo(visual.created_at, tTime, locale)}
       </span>
     </Link>
   );

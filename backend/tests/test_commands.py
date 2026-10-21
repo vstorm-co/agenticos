@@ -158,7 +158,7 @@ class TestRagSourceSyncWaitsForItsWork:
                 return SimpleNamespace(id=uuid4())
 
         @asynccontextmanager
-        async def session() -> AsyncGenerator[object, None]:
+        async def session() -> AsyncGenerator[object]:
             yield object()
 
         monkeypatch.setattr(rag_command, "get_db_context", session)
@@ -223,7 +223,7 @@ class TestRagSourceAddRefusesWhatItCannotOwn:
                 return SimpleNamespace(name=data.name, id=uuid4())
 
         @asynccontextmanager
-        async def session() -> AsyncGenerator[object, None]:
+        async def session() -> AsyncGenerator[object]:
             yield object()
 
         monkeypatch.setattr(rag_command, "get_db_context", session)
@@ -418,7 +418,7 @@ class TestSeedSkillsSurvivesARacingListing:
         )
 
         @asynccontextmanager
-        async def session() -> AsyncGenerator[object, None]:
+        async def session() -> AsyncGenerator[object]:
             yield db
 
         monkeypatch.setattr(seed_command, "get_db_context", session)
@@ -467,7 +467,7 @@ class TestSeedSkillsSaysWhatItDoes:
         )
 
         @asynccontextmanager
-        async def session() -> AsyncGenerator[object, None]:
+        async def session() -> AsyncGenerator[object]:
             yield MagicMock()
 
         monkeypatch.setattr(seed_command, "get_db_context", session)

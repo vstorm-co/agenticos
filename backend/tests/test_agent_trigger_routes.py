@@ -8,8 +8,6 @@ routes are authorized at all, and by resolving `agents:run` per row rather than 
 role gate, is proven through the real app in `tests/api/test_platform_routes.py`.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -31,7 +29,7 @@ from app.api.routes.v1.agent_triggers import (
 from app.api.routes.v1.trigger_webhooks import ingest_trigger_event
 from app.core.permissions import AuthContext, OrgRoleName
 from app.schemas.agent_trigger import TriggerCreate, TriggerCreateRead, TriggerRead, TriggerUpdate
-from app.services.agent_trigger import AgentTriggerService, EventFireDecision
+from app.services.agent_trigger import AgentTriggerService
 
 pytestmark = pytest.mark.anyio
 
@@ -174,60 +172,22 @@ def _request(body: bytes, headers: dict[str, str]) -> MagicMock:
 async def test_a_webhook_hands_the_raw_body_and_headers_to_the_service():
     """The signature covers the exact bytes, so the route must pass the raw body
     through untouched - not a re-parsed and re-serialized copy."""
-    service = MagicMock(prepare_event_fire=AsyncMock(return_value=None))
+    service = MagicMock(queue_event_fire=AsyncMock(return_value=True))
     body = b'{"action": "opened"}'
+    trigger_id = uuid.uuid4()
     request = _request(body, {"x-hub-signature-256": "sha256=abc"})
-    await ingest_trigger_event("github", uuid.uuid4(), request, service)
-    assert service.prepare_event_fire.call_args.kwargs["body"] == body
-    assert service.prepare_event_fire.call_args.kwargs["headers"] == {
-        "x-hub-signature-256": "sha256=abc"
-    }
-
-
-async def test_a_webhook_with_nothing_to_do_accepts_without_firing():
-    service = MagicMock(prepare_event_fire=AsyncMock(return_value=None))
-    with patch("app.worker.tasks.trigger_tasks.dispatch_trigger_fire") as fired:
-        response = await ingest_trigger_event("github", uuid.uuid4(), _request(b"{}", {}), service)
+    response = await ingest_trigger_event("github", trigger_id, request, service)
     assert response.status_code == 202
-    fired.assert_not_called()
+    service.queue_event_fire.assert_awaited_once_with(
+        "github", trigger_id, body=body, headers={"x-hub-signature-256": "sha256=abc"}
+    )
 
 
-async def test_a_webhook_that_matches_submits_the_fire_as_a_capped_flow():
-    """The fire is submitted as its own `run-scheduled-trigger` flow, not run in
-    this process, so a burst of deliveries cannot start concurrent agent runs on
-    the API's event loop. The rendered context rides along to the flow."""
-    decision = EventFireDecision(trigger_id=uuid.uuid4(), event_context="ISSUE #7")
-    service = MagicMock(prepare_event_fire=AsyncMock(return_value=decision))
-    fired = AsyncMock()
-    with patch("app.worker.tasks.trigger_tasks.dispatch_trigger_fire", fired):
-        response = await ingest_trigger_event(
-            "github", decision.trigger_id, _request(b'{"action": "opened"}', {}), service
-        )
+async def test_a_webhook_with_nothing_to_do_answers_exactly_as_a_fired_one():
+    """A caller holding the secret cannot tell an existing trigger from a missing one."""
+    service = MagicMock(queue_event_fire=AsyncMock(return_value=False))
+    response = await ingest_trigger_event("github", uuid.uuid4(), _request(b"{}", {}), service)
     assert response.status_code == 202
-    fired.assert_awaited_once_with(str(decision.trigger_id), event_context="ISSUE #7")
-
-
-async def test_a_dispatch_failure_keeps_the_dedupe_claim_and_surfaces():
-    """A raise out of the hand-off is ambiguous - `run_deployment` can enqueue the
-    flow and then lose the response - so the delivery's claim is deliberately kept:
-    released, the provider's retry of this 500 would start a second run on top of
-    an accepted one. The 500 must still surface for the operator."""
-    decision = EventFireDecision(trigger_id=uuid.uuid4(), event_context="x")
-    service = MagicMock(prepare_event_fire=AsyncMock(return_value=decision))
-    boom = AsyncMock(side_effect=RuntimeError("prefect unreachable"))
-    with (
-        patch("app.worker.tasks.trigger_tasks.dispatch_trigger_fire", boom),
-        pytest.raises(RuntimeError),
-    ):
-        await ingest_trigger_event(
-            "github",
-            decision.trigger_id,
-            _request(b"{}", {"x-github-delivery": "d"}),
-            service,
-        )
-    # The route asked the service only to prepare the fire - nothing gave the
-    # delivery's claim back on the way out.
-    assert [name for name, *_ in service.mock_calls] == ["prepare_event_fire"]
 
 
 async def test_portal_targets_maps_the_adapters_answer():

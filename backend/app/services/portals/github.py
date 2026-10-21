@@ -8,8 +8,6 @@ GitHub signs each delivery with it under `X-Hub-Signature-256`, which the delive
 layer already verifies.
 """
 
-from __future__ import annotations
-
 import logging
 import re
 from urllib.parse import quote

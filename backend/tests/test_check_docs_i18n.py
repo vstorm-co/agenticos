@@ -12,8 +12,6 @@ the same fact, and the failure when they disagree is silent in the worst
 direction: a locale the site publishes and the guard never asks about.
 """
 
-from __future__ import annotations
-
 import importlib.util
 import sys
 from pathlib import Path

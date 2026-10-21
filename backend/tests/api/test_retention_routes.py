@@ -6,8 +6,6 @@ reaches the caller as a refusal rather than as a 500 - because a settings page
 that 500s on a period it is not allowed to set teaches nobody which period it may.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch

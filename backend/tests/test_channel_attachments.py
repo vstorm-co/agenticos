@@ -10,8 +10,6 @@ attachment was delivered will tell the user the same, so anything a reply cannot
 carry is named in it.
 """
 
-from __future__ import annotations
-
 import contextlib
 import uuid
 from collections.abc import Iterator, Sequence

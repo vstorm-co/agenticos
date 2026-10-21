@@ -2,31 +2,24 @@
 
 Two halves (see `docs/design/heartbeat-triggers-plan.md`, sections 3 and 4):
 
-* `check_agent_triggers` is the heartbeat, one of the worker's in-process sweeps
-  (`app/worker/sweeps.py`), every minute. Each tick claims the triggers due now -
-  `FOR UPDATE SKIP LOCKED`, so a tick that outruns its own minute cannot be
-  double-claimed by the next - and submits one run per claimed trigger through
-  `run_deployment` without awaiting it, so a slow agent run never holds the tick
-  open.
-* `run_scheduled_trigger_flow` is one fired run, as its own flow run so it is
-  capped by `PREFECT_RUNNER_LIMIT` and isolated from the tick that scheduled it.
+* `check_agent_triggers` is the heartbeat, the `check-agent-triggers` schedule
+  (`app/worker/schedules.py`), every minute. Each tick claims the triggers due
+  now - `FOR UPDATE SKIP LOCKED`, so a tick that outruns its own minute cannot
+  be double-claimed by the next - and queues one `fire-trigger` job per claimed
+  trigger in the claim's own transaction, so a slow agent run never holds the
+  tick open and no claim is ever left without its fire.
+* `fire_trigger` is one fired run, as its own job on the agent pool so it is
+  capped by the pool's concurrency and isolated from the tick that scheduled it.
   The work is `AgentTriggerService.fire`, which runs the agent as the trigger's
   creator through the ordinary run path.
 """
 
-from __future__ import annotations
-
 import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
-from uuid import UUID
 
-from prefect import flow
-from prefect.deployments import run_deployment
-
-from app.core.logfire_setup import setup_worker_observability
-from app.core.logging import setup_logging
 from app.db.session import get_worker_db_context
+from app.worker.jobs import FireTrigger
 
 if TYPE_CHECKING:  # pragma: no cover - imported for typing only
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -35,100 +28,27 @@ if TYPE_CHECKING:  # pragma: no cover - imported for typing only
 
 logger = logging.getLogger(__name__)
 
-# The heartbeat submits each due trigger's run as this deployment, addressed by
-# its "<flow-name>/<deployment-name>" handle. Both halves are registered together
-# in `app/worker/prefect_app.py`; they match by design.
-_RUN_TRIGGER_DEPLOYMENT = "run-scheduled-trigger/run-scheduled-trigger"
-
-
-async def dispatch_trigger_fire(
-    trigger_id: str,
-    *,
-    event_context: str | None = None,
-    claimed_at: datetime | None = None,
-) -> None:
-    """Submit one trigger's run as its own flow run, and return.
-
-    `timeout=0` is what makes this submit-and-return: `run_deployment` enqueues
-    the run and does not wait for it, so a caller's cost is one API call rather
-    than the run it starts. A separate flow run is also what keeps each fired
-    agent run capped by `PREFECT_RUNNER_LIMIT` and isolated from whatever
-    dispatched it.
-
-    Both doors reach the fire through here: the scheduled heartbeat below (with no
-    `event_context`) and an inbound event delivery (`trigger_webhooks`, carrying
-    the rendered context). Routing the event path through the same capped flow is
-    why a burst of deliveries - five issues opened in a minute - starts capped
-    worker flow runs rather than that many concurrent agent runs inside the API
-    process, competing with request handling for its event loop.
-
-    `claimed_at` is the `fire_in_flight_since` the scheduled claim stamped, handed
-    to the fire as its claim ticket so it clears only the marker its own claim set -
-    the guard against a fire that outran the lease clearing a newer claim's marker.
-    Only the scheduled heartbeat sets it; an event delivery has no claim behind it.
-    It rides across the Prefect boundary as an ISO string, the shape a flow
-    parameter takes.
-    """
-    # `run_deployment` is sync-compatible: its stub unions the coroutine it
-    # returns in an async context with the `FlowRun` a sync caller gets, and ty
-    # cannot tell which applies. Awaiting it is correct here.
-    await run_deployment(  # ty: ignore[invalid-await]
-        name=_RUN_TRIGGER_DEPLOYMENT,
-        parameters={
-            "trigger_id": trigger_id,
-            "event_context": event_context,
-            "claimed_at": None if claimed_at is None else claimed_at.isoformat(),
-        },
-        timeout=0,
-    )
-
 
 async def check_agent_triggers() -> None:
-    """Heartbeat: claim the triggers due now and submit a run for each.
+    """Heartbeat: claim the triggers due now and queue a fire for each.
 
-    A sweep in the worker's own process rather than a Prefect deployment: a
-    deployment is a new Python process per tick that imports the whole
-    application, which on the production host took longer than the minute
-    between ticks (#2213).
+    The claim, the advance of each trigger's `next_fire_at` and the queued fires
+    commit together: a submit that raised after the claim used to leave it
+    unclear whether the run had started (#589), and that question no longer has
+    a moment to arise in.
     """
     from app.services.agent_trigger import AgentTriggerService
 
-    # The one clock for the whole tick: `claim_and_advance` stamps every claimed
-    # trigger's `fire_in_flight_since` with exactly this `now`, so it is each fire's
-    # claim ticket - handed back as `claimed_at` so the fire clears only the marker
-    # its own claim set.
-    now = datetime.now(UTC)
     async with get_worker_db_context() as db:
-        triggers = await AgentTriggerService(db).claim_and_advance(now=now)
-    # Dispatched after the claim's transaction commits, so every submitted run
-    # sees the advanced `next_fire_at` and the tick's own work is durable before
-    # any of it is handed on.
-    dispatched = 0
-    for trigger in triggers:
-        try:
-            await dispatch_trigger_fire(str(trigger.id), claimed_at=now)
-        except Exception:
-            # Isolate each dispatch so a single failed `run_deployment` (a transient
-            # Prefect API error) does not abort the loop and cost the rest of the
-            # batch their fire too. The marker is deliberately left set: a submit that
-            # raised may still have created the child flow - `run_deployment` can
-            # enqueue the run on the Prefect API and then lose or time out the
-            # response - so clearing it here would let the next tick submit a second
-            # fire on top of an accepted-but-queued one, duplicating the spend and its
-            # side effects (#589). Leaving it set means `FIRE_LEASE`, not this loop,
-            # governs re-dispatch: a genuinely lost submit waits out the lease rather
-            # than risking a double fire.
-            logger.exception("agent_trigger_dispatch_failed", extra={"trigger_id": str(trigger.id)})
-        else:
-            dispatched += 1
-    logger.info("agent_triggers_check", extra={"dispatched": dispatched, "claimed": len(triggers)})
+        triggers = await AgentTriggerService(db).claim_and_advance(now=datetime.now(UTC))
+    logger.info("agent_triggers_check", extra={"queued": len(triggers)})
 
 
 async def _poll_one_grant(db: AsyncSession, grant: McpConnection, source: str) -> int:
-    """Read one connected account, fire what arrived, and record where it got to.
+    """Read one connected account, queue a fire for what arrived, and record where it got to.
 
-    Extracted so the tick can isolate a grant rather than only a dispatch: see the
-    caller. Answers how many fires were submitted.
+    Extracted so the tick can isolate a grant: see the caller. Answers how many
+    fires were queued.
     """
     from app.services.agent_trigger import AgentTriggerService
     from app.services.mcp_connection import McpConnectionService
@@ -142,42 +62,25 @@ async def _poll_one_grant(db: AsyncSession, grant: McpConnection, source: str) -
         event_source=source,
         events=read.events,
     )
-    dispatched = 0
-    every_fire_enqueued = True
+    service = AgentTriggerService(db)
     for decision in decisions:
-        try:
-            await dispatch_trigger_fire(
-                str(decision.trigger_id), event_context=decision.event_context
-            )
-        except Exception:
-            # Isolated like the scheduled loop's, and for the same reason: a
-            # transient Prefect error on one fire must not cost the rest of the
-            # batch theirs. The delivery claim is left standing - a submit that
-            # raised may still have enqueued the run.
-            every_fire_enqueued = False
-            logger.exception(
-                "portal_poll_dispatch_failed",
-                extra={"trigger_id": str(decision.trigger_id)},
-            )
-        else:
-            dispatched += 1
-    # Last, and only for a poll whose every fire was enqueued: in the other order
-    # a crash between the two loses every message the poll read - and unlike a
-    # webhook there is no provider to resend a polled message, so committing the
-    # cursor over a *failed* dispatch would silently drop that event for ever.
-    # The retained claims suppress the fires that did enqueue while a later poll
-    # re-reads the window.
-    if every_fire_enqueued:
-        await McpConnectionService(db).store_poll_cursor(grant, cursor=read.cursor)
-    else:
-        logger.warning("portal_poll_cursor_retained", extra={"grant_id": str(grant.id)})
-    return dispatched
+        await service.queue_fire(
+            decision.trigger_id,
+            organization_id=grant.organization_id,
+            event_context=decision.event_context,
+        )
+    # In the fires' own transaction: the cursor moves exactly when the fires for
+    # what it read are queued, so a crash re-reads the window - which the
+    # delivery-id claim then dedups - rather than dropping a polled message that,
+    # unlike a webhook, no provider will ever resend.
+    await McpConnectionService(db).store_poll_cursor(grant, cursor=read.cursor)
+    return len(decisions)
 
 
 async def poll_portal_grants() -> None:
     """Heartbeat: read the connected accounts nobody pushes to, and fire what arrived.
 
-    A sweep in the worker's own process, beside `check_agent_triggers`, and the one
+    The `poll-portal-grants` schedule, beside `check_agent_triggers`, and the one
     that makes a polled portal a delivery mechanism
     rather than a second kind of trigger. Gmail pushes nothing without a Cloud
     Pub/Sub topic and a registration that expires weekly, so this asks - once a
@@ -187,18 +90,14 @@ async def poll_portal_grants() -> None:
     The shape is the sibling heartbeat's, for the same reasons: grants are claimed
     `FOR UPDATE SKIP LOCKED` with `polled_at` advanced under the lock, so a tick
     that outruns its own minute cannot be double-claimed by the next; and each
-    fire is submitted through `run_deployment` without being awaited, so one slow
-    agent run never holds the tick open.
+    fire is queued as a job rather than run, so one slow agent run never holds the
+    tick open.
 
-    **The cursor advances only after every fire was dispatched, in the same
-    transaction.** In the other order a crash between the two loses every message
-    the poll read - the cursor says they were handled and nothing handled them.
-    Advancing after means a crash *re-reads* them, which the delivery-id claim then
-    dedups: at-least-once, with the duplicate suppressed, rather than at-most-once
-    with a silent hole. A *failed* dispatch keeps the cursor too: unlike a
-    webhook there is no provider to resend a polled message, so committing the
-    cursor over one would silently drop that event for ever - the retained claims
-    suppress the fires that did enqueue while a later poll re-reads the rest.
+    **The cursor advances in the transaction that queues the fires.** In any
+    other order a crash between the two either loses every message the poll
+    read - the cursor says they were handled and nothing handled them - or fires
+    them twice. Together, a crash re-reads them, which the delivery-id claim then
+    dedups: at-least-once, with the duplicate suppressed, never a silent hole.
     """
     from app.services.mcp_connection import McpConnectionService
     from app.services.portal_catalog import CATALOG, DeliveryMode
@@ -210,7 +109,7 @@ async def poll_portal_grants() -> None:
     # the API lifespan configures its module - a different process. Unconfigured it
     # fails open, which here is exactly the duplicate spend it exists to stop.
     await _ensure_trigger_dedupe()
-    dispatched = 0
+    queued = 0
     async with get_worker_db_context() as db:
         grants = await McpConnectionService(db).claim_grants_to_poll(portal_keys=polled_keys)
         for grant in grants:
@@ -218,7 +117,7 @@ async def poll_portal_grants() -> None:
             if source is None:
                 continue
             try:
-                dispatched += await _poll_one_grant(db, grant, source)
+                queued += await _poll_one_grant(db, grant, source)
             except Exception:
                 # One mailbox is one tenant. `poll_grant` already answers `None` for
                 # every recoverable provider failure, so anything arriving here is a
@@ -233,16 +132,16 @@ async def poll_portal_grants() -> None:
                     "portal_poll_grant_failed",
                     extra={"portal_key": grant.portal_key, "connection_id": str(grant.id)},
                 )
-    logger.info("portal_poll", extra={"dispatched": dispatched})
+    logger.info("portal_poll", extra={"queued": queued})
 
 
 async def _ensure_trigger_dedupe() -> None:
     """Hand the delivery dedupe a Redis in this worker process, once.
 
-    Flow runs execute outside the API process, so the lifespan's `configure`
-    never reached them and every claim failed open - a rolled-back poll or a
-    worker death after dispatch then re-fired the same message on the next tick.
-    The client lives for the worker process.
+    The worker is not the API process, so the lifespan's `configure` never
+    reaches it, and an unconfigured claim fails open - a rolled-back poll would
+    then re-fire the same message on the next tick. The client lives for the
+    worker process.
     """
     from app.clients.redis import RedisClient
     from app.services import trigger_dedupe
@@ -254,8 +153,7 @@ async def _ensure_trigger_dedupe() -> None:
     trigger_dedupe.configure(client)
 
 
-@flow(name="sandbox-log-sweep", log_prints=True)
-async def sweep_sandbox_operations_flow() -> None:
+async def sweep_sandbox_operations() -> None:
     """Drop sandbox operations older than the retention window.
 
     A sandbox is reaped half an hour after it goes idle and its files may be swept
@@ -287,42 +185,23 @@ def _polled_source(portal_key: str | None) -> str | None:
     return None if portal is None else portal.event_source
 
 
-@flow(name="run-scheduled-trigger", log_prints=True)
-async def run_scheduled_trigger_flow(
-    trigger_id: str, event_context: str | None = None, claimed_at: str | None = None
-) -> None:
+async def fire_trigger(fire: FireTrigger) -> None:
     """One fired run: run the agent this trigger fires, as its creator.
 
-    Reached by the heartbeat with no `event_context` (a scheduled fire) and by an
-    inbound event delivery with the rendered context (an event fire), so both kinds
-    run in this one capped, isolated flow rather than the event kind running in the
-    API process.
+    Reached from every door - the scheduled check with no `event_context`, an
+    inbound event or a polled portal with the rendered context, the run-now
+    button - so every kind runs in this one capped, isolated job on the agent
+    pool rather than the event kind running in the API process.
 
     `claimed_at` is the `fire_in_flight_since` the scheduled claim stamped,
-    round-tripped as an ISO string and handed back to `fire` as this fire's claim
-    ticket, so the marker is cleared only while it still belongs to this claim - a
-    fire that outran the lease must not clear the marker a newer claim set. Only the
-    scheduled path sets it; an event or manually triggered fire has none and leaves
-    any marker for the lease.
+    handed back to `fire` as this fire's claim ticket, so the marker is cleared
+    only while it still belongs to this claim - a fire that outran the lease must
+    not clear the marker a newer claim set. Only the scheduled path sets it; an
+    event or manually triggered fire has none and leaves any marker for the lease.
     """
-    from app.services import browse_plans, change_feed, live_browse
     from app.services.agent_trigger import AgentTriggerService
 
-    # This is an agent run in a process that ran none of the API's startup:
-    # `serve()` gives each flow run its own subprocess. Without the first line a
-    # run's own logs reach the aggregator unredacted (#440); without the second
-    # the deployment's `LOGFIRE_TOKEN` traces every interactive run and no fired
-    # one, and this run's `logfire_trace_id` is null (#1700).
-    setup_logging()
-    setup_worker_observability()
-    # So the run this fires reaches an Activity page that is open (#2099).
-    await change_feed.connect_in_worker()
-    # And a browse it starts can be watched and taken over from the console (#2128).
-    await live_browse.connect_in_worker()
-    # And a routine that browses replays the steps its person's last run took.
-    await browse_plans.connect_in_worker()
-    parsed = None if claimed_at is None else datetime.fromisoformat(claimed_at)
     async with get_worker_db_context() as db:
         await AgentTriggerService(db).fire(
-            UUID(trigger_id), event_context=event_context, claimed_at=parsed
+            fire.trigger_id, event_context=fire.event_context, claimed_at=fire.claimed_at
         )

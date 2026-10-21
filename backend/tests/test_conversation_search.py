@@ -12,8 +12,6 @@ comes back is prompt, and a transcript that loses who spoke is a transcript a
 model attributes to the wrong person.
 """
 
-from __future__ import annotations
-
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 from uuid import UUID, uuid4

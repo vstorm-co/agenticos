@@ -14,8 +14,6 @@ capability never queries for them. It holds a detached copy of each so nothing
 here depends on a session that closed when the run began.
 """
 
-from __future__ import annotations
-
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 

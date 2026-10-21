@@ -6,8 +6,6 @@ is something a mocked session is happy to pretend it did. Storage is a real
 local directory, so a version's bytes can be seen to land and to leave.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta

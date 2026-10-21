@@ -1,7 +1,5 @@
 """Giving an agent a camera: a description in, a short video out."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 from typing import Any
 

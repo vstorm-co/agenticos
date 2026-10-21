@@ -10,8 +10,6 @@ the auth context, and there is no argument through which a caller could name
 another one.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch

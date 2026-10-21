@@ -1,5 +1,5 @@
 ---
-source_sha: "5e7cbb840c77"
+source_sha: "0925d704b4b2"
 ---
 
 # Comandos { #commands }
@@ -156,16 +156,20 @@ los avisos.
 | `make user-create` | Crea un usuario nuevo (interactivo) |
 | `make user-list` | Lista todos los usuarios |
 
-### Prefect { #prefect }
+### Jobs en segundo plano { #background-jobs }
 
-Prefect corre como dos contenedores en la pila de desarrollo; arrancan solos con `make dev`:
+El worker se ejecuta en el stack de desarrollo como un contenedor y arranca con
+`make dev`:
 
-- **`prefect-server`** — la API de orquestación + la interfaz web en <http://localhost:4200>
-- **`prefect-runner`** — registra los deployments programados y sondea si hay trabajo
+- **`worker`** — `python -m app.worker`, desde la imagen del backend. Recoge jobs
+  de la tabla `background_jobs`, ejecuta el pool de ingesta en procesos hijos y
+  dispara las programaciones del despliegue.
 
-El runner es `python -m app.worker.prefect_app`; los flows viven en `app/worker/tasks/`.
-Abre la interfaz para ver las ejecuciones de los flows, inspeccionar logs y lanzar deployments a mano.
-Autoalojado por defecto: fija `PREFECT_API_KEY` (y una `PREFECT_API_URL` de Cloud) para usar Prefect Cloud en su lugar.
+Los tipos de job se declaran en `app/worker/jobs.py`, sus handlers están en
+`app/worker/tasks/` y se enlazan en `app/worker/handlers.py`, y las
+programaciones en `app/worker/schedules.py`. Observa, reintenta, cancela y
+reanuda en la página **Admin → Background jobs** de la consola, como
+propietario del despliegue.
 
 ### Docker (desarrollo) { #docker-development }
 
@@ -334,9 +338,9 @@ uv run agenticos cmd bootstrap --org "Acme"
 # Can this deployment actually run an agent? Database, vault, a usable model,
 # and every registered sandbox connection - probed one by one, credential
 # included, because `/healthz` is unauthenticated and answers for a service
-# holding the wrong token. Then whether scheduled jobs run: a trigger heartbeat
-# that has not completed for five intervals fails it, whatever Prefect's own
-# health endpoint says.
+# holding the wrong token. Then whether background work runs: no worker heard
+# from in two minutes, a minute schedule that has not fired for five intervals,
+# or a kind of job paused by its circuit breaker fails it.
 uv run agenticos cmd doctor
 
 # Lo mismo más una segunda hoja: una fila por control de un perfil de seguridad,

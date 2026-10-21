@@ -137,7 +137,7 @@ export function McpBindingDialog({
     // Carried over: the tools are chosen for the agent, and the account it
     // speaks through is a different question.
     allowed_tools: from?.allowed_tools ?? null,
-    ...(from?.approval ? { approval: from.approval } : {}),
+    approval: from?.approval ?? "none",
   });
   const personalRef = (from?: AccountRef): AccountRef | null =>
     catalogKey === null
@@ -146,7 +146,7 @@ export function McpBindingDialog({
           account: "personal",
           catalog_key: catalogKey,
           allowed_tools: from?.allowed_tools ?? null,
-          ...(from?.approval ? { approval: from.approval } : {}),
+          approval: from?.approval ?? "none",
         };
   // Only ever called with something bound: an unused server is switched on, not rebound.
   const rebindPrimary = (next: AccountRef) =>

@@ -18,8 +18,6 @@ The transport (streamable HTTP or SSE) is inferred from each server's URL, so
 SSE-only servers such as Atlassian/Jira work alongside streamable-HTTP ones.
 """
 
-from __future__ import annotations
-
 import asyncio
 import hashlib
 import importlib
@@ -27,12 +25,17 @@ import json
 import logging
 import re
 import time
-from collections.abc import AsyncGenerator, Iterable
+from collections.abc import AsyncGenerator, Iterable, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
 from typing import Any
 from uuid import UUID
 
+# At import, not on the first turn: `pydantic_ai.mcp` brings in fastmcp's client,
+# and lazily that was a few hundred milliseconds - seconds on a host short of CPU -
+# inside the first chat turn each process served, before the model was asked.
+from pydantic_ai.mcp import MCPToolset, infer_transport_type_from_url
+from pydantic_ai.messages import InstructionPart
 from pydantic_ai.tools import RunContext, ToolDefinition
 from pydantic_ai.toolsets import WrapperToolset
 from pydantic_ai.toolsets.abstract import ToolsetTool
@@ -142,7 +145,7 @@ class McpServerSpec:
 @asynccontextmanager
 async def _mcp_transport(
     url: str, headers: dict[str, str] | None
-) -> AsyncGenerator[tuple[Any, Any], None]:
+) -> AsyncGenerator[tuple[Any, Any]]:
     """Open the right client transport for *url*, yielding `(read, write)`.
 
     The transport is inferred from the URL exactly as the toolset layer does it
@@ -157,8 +160,6 @@ async def _mcp_transport(
     into the client `create_mcp_http_client` builds, and the client is owned
     here so it closes with the transport (#1820).
     """
-    from pydantic_ai.mcp import infer_transport_type_from_url
-
     if infer_transport_type_from_url(url) == "sse":
         from mcp.client.sse import sse_client
 
@@ -274,8 +275,6 @@ def _make_toolset(spec: McpServerSpec) -> Any:
     model reading the refusal could have fixed the query or said it could not.
     Repeats stay bounded by the run's step limit.
     """
-    from pydantic_ai.mcp import MCPToolset
-
     # The in-process client carries the headers itself: the two are exclusive.
     server: Any = MCPToolset(
         spec.url,
@@ -423,6 +422,31 @@ class ToolOrigins(WrapperToolset[Any]):
         return tools
 
 
+def unreachable_briefing(server: str, *, binding: str | None, held_by: str | None = None) -> str:
+    """What the model is told about a bound server that did not answer this turn.
+
+    Told nothing, the model reads the missing tools as an empty answer and
+    reports "no data". The failure may be a timeout, a refused token or a
+    protocol error, so the text promises neither that a retry works nor that it
+    does not. `held_by` is another binding attached under the same prefix.
+    """
+    named = f"{server} server ({binding})" if binding else f"{server} server"
+    prefix = tool_prefix(server)
+    attached = (
+        f"so none of its {prefix}_* tools are attached"
+        if held_by is None
+        else f"so it is not attached; the {prefix}_* tools that are attached belong to "
+        f"{held_by}, and what they return comes from that account, not this one"
+    )
+    return (
+        f"The {named} is not available this turn: it did not answer, or refused the "
+        f"connection, when the turn started, {attached}. If asked for anything that "
+        f"needs it, say it could not be reached just now - trying again may work, and "
+        "if it keeps failing the connection needs checking. Do not answer as though it "
+        "returned nothing, and do not guess what it would have said."
+    )
+
+
 @dataclass
 class AnsweredRecently(WrapperToolset[Any]):
     """A server attached on a recent probe's word, left out of the turn if it is down now.
@@ -430,6 +454,8 @@ class AnsweredRecently(WrapperToolset[Any]):
     Entering is where pydantic-ai connects, so a server that stopped answering
     since its probe fails here; the turn goes on without its tools, as it would
     have had the probe run, and the memo is dropped so the next turn probes again.
+    The probe's own failure is briefed by the turn that ran it; this one happens
+    after that briefing was written, so the toolset briefs it itself.
     """
 
     name: str = ""
@@ -460,6 +486,13 @@ class AnsweredRecently(WrapperToolset[Any]):
         if self.down:
             return {}
         return await super().get_tools(ctx)
+
+    async def get_instructions(
+        self, ctx: RunContext[Any]
+    ) -> str | InstructionPart | Sequence[str | InstructionPart] | None:
+        if self.down:
+            return unreachable_briefing(self.name, binding=None)
+        return await super().get_instructions(ctx)
 
 
 PLATFORM_MCP_NAME = "agenticos"

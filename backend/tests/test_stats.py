@@ -8,8 +8,6 @@ arithmetic, the zero-filled day series, and the rule that org scope demands
 runs:view while own scope demands only a caller.
 """
 
-from __future__ import annotations
-
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock

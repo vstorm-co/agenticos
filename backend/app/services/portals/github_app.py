@@ -27,8 +27,6 @@ by installation, repository and event. `app/services/agent_trigger.py` does the
 routing; this module is the credential half.
 """
 
-from __future__ import annotations
-
 import logging
 import time
 from dataclasses import dataclass

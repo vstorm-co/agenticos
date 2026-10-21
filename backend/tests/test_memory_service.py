@@ -9,8 +9,6 @@ finding out later that mem0 still remembers has been told something false, so a
 mem0 failure must reach them rather than be logged and counted as success.
 """
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 

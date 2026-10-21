@@ -14,8 +14,6 @@ deployment hosts many organizations, so a summary that stopped at the first
 healthy one would hide the broken second.
 """
 
-from __future__ import annotations
-
 import uuid
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock

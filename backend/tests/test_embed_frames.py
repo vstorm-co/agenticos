@@ -17,8 +17,6 @@ this surface is the operator's placement note and the supplied block above what
 the visitor typed.
 """
 
-from __future__ import annotations
-
 import asyncio
 import uuid
 from collections.abc import AsyncIterator

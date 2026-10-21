@@ -10,8 +10,6 @@ producer or default audience, which are decided at each producer's own call
 site as later phases wire them in.
 """
 
-from __future__ import annotations
-
 import enum
 
 from app.db.models.notification import NotificationEventType
@@ -52,19 +50,26 @@ CONTENT_GATE: dict[NotificationEventType, ContentGate] = {
     NotificationEventType.INGESTION_FAILED: ContentGate.COLLECTIONS_VIEW,
     NotificationEventType.SECURITY_EVENT: ContentGate.ORG_ADMIN_OR_APP_ADMIN,
     NotificationEventType.CONFIGURATION_CHANGED: ContentGate.APP_ADMIN,
+    NotificationEventType.BACKGROUND_TASK_PAUSED: ContentGate.APP_ADMIN,
     NotificationEventType.ANNOUNCEMENT: ContentGate.ANNOUNCEMENT_AUDIENCE,
     NotificationEventType.ARTIFACT_VERSION_PUBLISHED: ContentGate.ARTIFACTS_VIEW,
 }
 
-# `security_event` and `configuration_changed` bypass preference entirely on
-# both channels (Decision 4) - the same shape the deployment already applies
+# `security_event`, `configuration_changed` and `background_task_paused` bypass
+# preference entirely on both channels (Decision 4) - the same shape the deployment already applies
 # to the impersonation notice and the organization's own budget cap. The write
 # helper also consults `services/rate_limit.py` before a write for one of
 # these, keyed on `(actor_user_id, event_type)` (Decision 1's rate-limit note):
 # an ordinary write access must not become an unmetered fan-out against every
 # admin in an organization.
 MANDATORY_EVENT_TYPES: frozenset[NotificationEventType] = frozenset(
-    {NotificationEventType.SECURITY_EVENT, NotificationEventType.CONFIGURATION_CHANGED}
+    {
+        NotificationEventType.SECURITY_EVENT,
+        NotificationEventType.CONFIGURATION_CHANGED,
+        # A kind of background job stopped until somebody resumes it: work is
+        # piling up behind it, and nobody may have opted out of hearing so.
+        NotificationEventType.BACKGROUND_TASK_PAUSED,
+    }
 )
 
 

@@ -1,19 +1,17 @@
 """Agent trigger repository (PostgreSQL async)."""
 
-from __future__ import annotations
-
 from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import false, func, or_, select
+from sqlalchemy import and_, false, func, or_, select, true
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunStatus
-from app.db.models.agent_trigger import AgentTrigger
+from app.db.models.agent_trigger import AgentTrigger, TriggerOverlap
 from app.db.models.resource_grant import Visibility
 
 # A run in one of these has not finished, so its trigger must not fire again on
@@ -198,6 +196,7 @@ async def create(
     portal_key: str | None = None,
     delivery_mode: str | None = None,
     runs_as_creator: bool = False,
+    overlap: str = TriggerOverlap.SKIP.value,
 ) -> AgentTrigger:
     trigger = AgentTrigger(
         organization_id=organization_id,
@@ -219,6 +218,7 @@ async def create(
         portal_key=portal_key,
         delivery_mode=delivery_mode,
         runs_as_creator=runs_as_creator,
+        overlap=overlap,
     )
     db.add(trigger)
     await db.flush()
@@ -297,15 +297,21 @@ async def clear_fire_marker(db: AsyncSession, *, trigger_id: UUID, claimed_at: d
     await db.flush()
 
 
-async def claim_due(db: AsyncSession, *, now: datetime, limit: int = 100) -> list[AgentTrigger]:
-    """The triggers due to fire, locked so a second heartbeat takes none of them.
+async def claim_due(
+    db: AsyncSession, *, now: datetime, limit: int = 100
+) -> list[tuple[AgentTrigger, bool]]:
+    """The triggers due to fire, each with whether its previous fire is still busy.
+
+    Locked so a second heartbeat takes none of them.
 
     `FOR UPDATE SKIP LOCKED` is the whole of the no-double-fire guard: two
     concurrent heartbeats each take a disjoint set of rows rather than both
     seeing one due trigger. `of=AgentTrigger` keeps the lock off the joined
     `agent_runs` row, which this only reads.
 
-    Four filters decide "due":
+    Two filters decide "due", and three more decide "busy" - a busy trigger is
+    claimed all the same unless its `overlap` is `queue`, since `skip` must
+    still advance past the occurrence and `allow` fires over it (#2219):
 
     * `is_active` and `next_fire_at <= now` - the schedule says so. A null creator
       is deliberately *not* filtered out here: an orphaned schedule (its creator's
@@ -314,20 +320,23 @@ async def claim_due(db: AsyncSession, *, now: datetime, limit: int = 100) -> lis
       never reaching the one place that disables it. `claim_and_advance` now claims
       it and disables it instead, so the cleanup happens rather than being filtered
       away.
-    * no fire is in flight: `fire_in_flight_since` is null, or older than
+
+    Busy is any of:
+
+    * a fire is in flight: `fire_in_flight_since` is set and younger than
       `FIRE_LEASE`. The claim sets this marker in the same UPDATE that advances
       `next_fire_at`, and the fired run clears it in a `finally` - so a run slower
       than its interval is not fired on top of itself, and a run that died without
       clearing un-wedges once the lease lapses. This is the guard `last_run_id`
       cannot be: `last_run_id` is written only when `execute` returns, so it names
       the previous run for the whole time the current one executes.
-    * the previous run, reached through `last_run_id`, has reached a terminal
-      status (or there is none). This still bites after the marker clears: a run
+    * the previous run, reached through `last_run_id`, has not reached a
+      terminal status. This still bites after the marker clears: a run
       that parks `AWAITING_APPROVAL` returns from `execute` (clearing the marker)
       yet is not terminal, so it keeps the schedule from piling runs behind an
       undecided gate. The caller advances `next_fire_at` under the same
       transaction, so the common case never reaches this join.
-    * no non-terminal top-level run sits in the trigger's own run-log
+    * a non-terminal top-level run sits in the trigger's own run-log
       conversation. The `last_run_id` join is a fast, indexed check on the *linked*
       previous run, but the link and the run are written in two steps: `_run`
       commits its row, and only then does `fire` stamp `last_run_id` against it. A
@@ -361,22 +370,28 @@ async def claim_due(db: AsyncSession, *, now: datetime, limit: int = 100) -> lis
         .correlate(AgentTrigger)
         .exists()
     )
+    # Written as the negation of "free" so a dangling `last_run_id`, whose
+    # joined status is NULL, reads as busy - the safe reading - rather than NULL.
+    free = and_(
+        (AgentTrigger.last_run_id.is_(None)) | (AgentRun.status.not_in(_NON_TERMINAL_STATUSES)),
+        ~has_run_in_flight,
+        (AgentTrigger.fire_in_flight_since.is_(None))
+        | (AgentTrigger.fire_in_flight_since <= now - FIRE_LEASE),
+    )
+    busy = func.coalesce(~free, true())
     result = await db.execute(
-        select(AgentTrigger)
+        select(AgentTrigger, busy)
         .outerjoin(AgentRun, AgentRun.id == AgentTrigger.last_run_id)
         .where(
             AgentTrigger.is_active.is_(True),
             AgentTrigger.next_fire_at <= now,
-            (AgentTrigger.last_run_id.is_(None)) | (AgentRun.status.not_in(_NON_TERMINAL_STATUSES)),
-            ~has_run_in_flight,
-            (AgentTrigger.fire_in_flight_since.is_(None))
-            | (AgentTrigger.fire_in_flight_since <= now - FIRE_LEASE),
+            (AgentTrigger.overlap != TriggerOverlap.QUEUE.value) | ~busy,
         )
         .order_by(AgentTrigger.next_fire_at.asc())
         .limit(limit)
         .with_for_update(skip_locked=True, of=AgentTrigger)
     )
-    return list(result.scalars().all())
+    return [(trigger, bool(is_busy)) for trigger, is_busy in result.tuples().all()]
 
 
 async def withdraw_creator_consent(

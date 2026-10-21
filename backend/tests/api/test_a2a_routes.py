@@ -5,8 +5,6 @@ route - that only a request which runs the agent is charged against the
 caller's run allowance, so a client polling its task does not run out.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import Iterator
 from unittest.mock import AsyncMock, MagicMock, patch

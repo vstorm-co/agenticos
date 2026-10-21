@@ -5,8 +5,6 @@ on a subscriber's channel only if it was published after the subscription - so
 the seam between the replayed trace and the live channel is tested as it runs.
 """
 
-from __future__ import annotations
-
 import asyncio
 import json
 from collections.abc import AsyncIterator, Callable, Iterator
@@ -784,6 +782,43 @@ class TestTheRoom:
                 ],
             }
         ]
+
+    async def test_alone_in_a_room_names_nobody_from_the_database(self) -> None:
+        """The socket knows its own person; a query to name them was per room entry (#2248)."""
+        session = _session()
+        room = self._room(here=[session.user.id])
+        looked_up = AsyncMock(return_value={})
+
+        with patch("app.services.agent_session.conversation_repo.users_by_id", looked_up):
+            await self._enter_without_people(session, CONVERSATION, room)
+
+        looked_up.assert_not_awaited()
+        (presence,) = [data for kind, data in _sent_events(session) if kind == "presence"]
+        assert [person["user_id"] for person in presence["people"]] == [str(session.user.id)]
+
+    async def test_with_others_in_the_room_only_they_are_looked_up(self) -> None:
+        session = _session()
+        anna = MagicMock(
+            id=uuid4(), full_name="Anna", email="anna@acme.test", avatar_url=None, avatar_color=None
+        )
+        room = self._room(here=[session.user.id, anna.id])
+        looked_up = AsyncMock(return_value={anna.id: anna})
+
+        with patch("app.services.agent_session.conversation_repo.users_by_id", looked_up):
+            await self._enter_without_people(session, CONVERSATION, room)
+
+        assert list(looked_up.await_args.args[1]) == [anna.id]
+        (presence,) = [data for kind, data in _sent_events(session) if kind == "presence"]
+        assert {person["name"] for person in presence["people"]} == {"Anna", "Kacper"}
+
+    async def _enter_without_people(self, session: Any, conversation: object, room: dict[str, Any]):
+        with (
+            patch.object(session, "_still_reads", AsyncMock(return_value=True)),
+            patch.multiple("app.services.agent_session.chat_room", **room),
+        ):
+            await TestFollowingFromAnotherSocket()._attach(session, conversation)
+            if session._room_task is not None:
+                await asyncio.gather(session._room_task, return_exceptions=True)
 
     async def test_somebody_else_typing_is_said_and_this_persons_own_is_not(self) -> None:
         """Like a messenger's "Anna is typing": the others hear it, the typist does

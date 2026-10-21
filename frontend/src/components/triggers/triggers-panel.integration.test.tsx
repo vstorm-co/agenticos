@@ -48,6 +48,7 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
     schedule_kind: "interval",
     interval_seconds: 900,
     cron_expression: null,
+    overlap: "skip",
     event_source: null,
     event_config: {},
     prompt: "Summarise the day",
@@ -215,6 +216,7 @@ describe("TriggersPanel", () => {
       name: null,
       trigger_type: "schedule",
       environment_id: null,
+      overlap: "skip",
       schedule_kind: "interval",
       // Two hours, in seconds.
       interval_seconds: 7200,
@@ -481,6 +483,7 @@ describe("TriggersPanel", () => {
       name: null,
       trigger_type: "schedule",
       environment_id: null,
+      overlap: "skip",
       schedule_kind: "interval",
       interval_seconds: 172800,
     });
@@ -507,6 +510,46 @@ describe("TriggersPanel", () => {
     });
   });
 
+  it("creates a schedule that queues behind a run still going", async () => {
+    const user = userEvent.setup();
+    serve([]);
+    vi.mocked(apiClient.post).mockResolvedValue(trigger());
+    await mount();
+
+    await user.click(await screen.findByRole("button", { name: "New schedule" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    await user.type(within(dialog).getByLabelText("Message"), "Nightly sync");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    expect(within(dialog).getByText(/waits for its next time/)).toBeInTheDocument();
+    await user.click(within(dialog).getByLabelText("If the previous run is still going"));
+    await user.click(await screen.findByRole("option", { name: "Run when it finishes" }));
+    expect(within(dialog).getByText(/once the previous run ends/)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Create" }));
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      `/agents/${AGENT_ID}/triggers`,
+      expect.objectContaining({ prompt: "Nightly sync", overlap: "queue" }),
+    );
+  });
+
+  it("sends a changed overlap policy, and only that", async () => {
+    const user = userEvent.setup();
+    serve([trigger()]);
+    vi.mocked(apiClient.patch).mockResolvedValue(trigger({ overlap: "allow" }));
+    await mount();
+
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByLabelText("If the previous run is still going"));
+    await user.click(await screen.findByRole("option", { name: "Run anyway" }));
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers/t1`, {
+      overlap: "allow",
+    });
+  });
+
   it("creates a cron schedule from the set-time tab", async () => {
     const user = userEvent.setup();
     serve([]);
@@ -528,6 +571,7 @@ describe("TriggersPanel", () => {
       name: null,
       trigger_type: "schedule",
       environment_id: null,
+      overlap: "skip",
       schedule_kind: "cron",
       cron_expression: "0 9 * * *",
     });
@@ -555,6 +599,7 @@ describe("TriggersPanel", () => {
       name: null,
       trigger_type: "schedule",
       environment_id: null,
+      overlap: "skip",
       schedule_kind: "cron",
       cron_expression: "0 9 * * 1,2,3,4,5",
     });
@@ -587,6 +632,7 @@ describe("TriggersPanel", () => {
       name: null,
       trigger_type: "schedule",
       environment_id: null,
+      overlap: "skip",
       schedule_kind: "interval",
       // Eight hours, in seconds - the hand edit, not the preset's six.
       interval_seconds: 28800,

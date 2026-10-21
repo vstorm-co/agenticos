@@ -13,6 +13,8 @@ export interface GlyphPath {
   readonly d: string;
   /** Set where the mark layers one shape over another - Azure's three sheets. */
   readonly fillOpacity?: number;
+  /** This shape's own colour, in a mark drawn in several - Google's four. */
+  readonly fill?: string;
 }
 
 /** A brand mark, drawn at whatever size the caller asks for. */

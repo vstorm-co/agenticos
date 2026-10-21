@@ -84,6 +84,7 @@ describe("New-schedule template picker", () => {
       name: "Daily standup",
       trigger_type: "schedule",
       environment_id: null,
+      overlap: "skip",
       schedule_kind: "interval",
       interval_seconds: 86400,
     });
@@ -105,6 +106,7 @@ describe("New-schedule template picker", () => {
       name: "Weekly report",
       trigger_type: "schedule",
       environment_id: null,
+      overlap: "skip",
       schedule_kind: "cron",
       cron_expression: "0 9 * * 1",
     });

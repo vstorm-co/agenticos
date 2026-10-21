@@ -6,8 +6,6 @@ refusal made before a document upload is the same `BudgetExceeded` a stopped
 run raises, for the same reason.
 """
 
-from __future__ import annotations
-
 import uuid
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch

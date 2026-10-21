@@ -1,5 +1,5 @@
 ---
-source_sha: "3c3d227eb5e7"
+source_sha: "6b3fe7395da4"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -34,6 +34,23 @@ Ganze von einem Laptop aus testen.
     Takt vor. Ein Event-Template — "triagiere das neue Issue", "entwirf eine Antwort
     auf die E-Mail" — füllt den Prompt am Nachrichtenschritt seiner eigenen Quelle
     vor. Keines beginnt bei einem leeren Feld.
+
+## Ein Zeitplan, dessen letzter Run noch läuft { #a-schedule-whose-last-run-is-still-going }
+
+Ein Zeitplan kann fällig werden, während der Run, den er beim letzten Mal
+ausgelöst hat, noch läuft - ein nächtlicher Sync, der länger dauert als eine
+Nacht, oder einer, der an einer Freigabe hängt, über die niemand entschieden
+hat. **If the previous run is still going** im Formular des Zeitplans,
+`overlap` in der API, entscheidet, was geschieht:
+
+| Option | `overlap` | Was es tut |
+|---|---|---|
+| Skip this run | `skip` (Standard) | Das Vorkommen verfällt, und der Zeitplan wartet auf seinen nächsten Termin. Ein langsamer Agent läuft so oft, wie er fertig wird |
+| Run when it finishes | `queue` | Er löst einmal aus, sobald der vorige Run endet, egal wie viele Vorkommen vergangen sind |
+| Run anyway | `allow` | Er löst pünktlich aus, in dasselbe Run-Log, zwei Runs überlappen sich also, und beide werden bezahlt |
+
+Ein Event-Trigger hat keine solche Einstellung: Jede Zustellung ist ein eigenes
+Auslösen.
 
 Alles Weitere unten gilt dem Event-Fall.
 
@@ -78,7 +95,7 @@ flowchart TD
     J -->|no| R400["400"]
     J -->|yes| F{trigger active,<br/>filter matches?}
     F -->|no| R202["202 - nothing to do"]
-    F -->|yes| SUB["submit a capped Prefect flow"]
+    F -->|yes| SUB["queue a fire-trigger job"]
     SUB --> R202b["202 - accepted, not finished"]
     SUB -.->|later, in the worker| RUN[the agent runs, spending the org's budget]
 ```
@@ -131,9 +148,9 @@ nicht in der URL auf.
 
 !!! info "Die `202` bedeutet angenommen, nicht fertig"
 
-    Eine passende Zustellung wird als eigener `run-scheduled-trigger`-Flow
-    eingereicht, und der Agent läuft im Worker, der Provider bekommt seine Antwort
-    also in einem schnellen Prefect-Aufruf, statt ein Modell abzuwarten. Lesen Sie
+    Eine passende Zustellung wird in der eigenen Transaktion der Anfrage als
+    `fire-trigger`-Job eingereiht, und der Agent läuft im Worker, der Provider
+    bekommt seine Antwort also nach einem Insert, statt ein Modell abzuwarten. Lesen Sie
     eine `202` nicht als "der Agent hat geantwortet" - lesen Sie dafür den Run in
     Activity.
 

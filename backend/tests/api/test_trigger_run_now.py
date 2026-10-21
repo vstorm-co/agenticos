@@ -7,8 +7,6 @@ invisible. It says the fire was accepted, not that it finished - the run starts
 once the request's transaction commits (#658).
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime

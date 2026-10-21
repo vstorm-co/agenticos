@@ -13,8 +13,6 @@ file that was never kept. Refusing at the call site gives the model an error it
 can read and act on: the console tools report an `OSError` as the call's error.
 """
 
-from __future__ import annotations
-
 import errno
 import json
 from collections.abc import Iterable

@@ -5,8 +5,6 @@ says the model can make, sets the deadline, and turns a transport failure into
 the same refusal a provider's own error would be.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 

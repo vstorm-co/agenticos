@@ -28,20 +28,29 @@ import {
 } from "@/lib/branding";
 import { backendFetch } from "@/lib/server-api";
 
+/** The data-cache tag the branding read is kept under; a settings save expires it. */
+export const BRANDING_TAG = "branding";
+
+/** How long a cached read may stand when nothing expired it. */
+const BRANDING_REVALIDATE_SECONDS = 300;
+
 /**
  * Memoized per request by `React.cache`, which is what makes it safe to call from
  * wherever the answer is needed. The root layout already asks twice - once for its
  * metadata and once for the body it wraps - and every page's `generateMetadata`
  * asks again for the title template's brand. Without this that is a request per
- * caller, on an endpoint deliberately marked `no-store`.
+ * caller.
  */
 export const readBranding = cache(async (): Promise<Branding> => {
   try {
     const data = await backendFetch<BrandingResponse>("/api/v1/branding", {
-      // Never cached: an administrator renaming the deployment expects the next
-      // page load to show it, and Next would otherwise reuse this for the whole
-      // lifetime of the build.
-      cache: "no-store",
+      // Kept in Next's data cache rather than read on every render: it is the
+      // same answer for every visitor, and asking for it put a backend round trip
+      // - 2.3 s at p95 on a contended host - in front of every page (#2219). An
+      // administrator's save through `/api/admin/settings` expires the tag, so a
+      // rename still shows on the next page load; the time bound covers a change
+      // made some other way, through the API or on another frontend instance.
+      next: { revalidate: BRANDING_REVALIDATE_SECONDS, tags: [BRANDING_TAG] },
     });
     return resolveBranding(data);
   } catch (error) {

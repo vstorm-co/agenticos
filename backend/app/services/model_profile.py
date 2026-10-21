@@ -4,8 +4,6 @@ The one place that unseals a provider credential. Everything above it deals in
 profile ids; everything below deals in ciphertext.
 """
 
-from __future__ import annotations
-
 import logging
 from dataclasses import replace
 from urllib.parse import urlparse

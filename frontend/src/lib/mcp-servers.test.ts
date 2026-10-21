@@ -481,25 +481,29 @@ describe("mcpToolCount", () => {
 
   it("counts a binding's allowlist over everything its server listed", () => {
     const refs: McpServerRef[] = [
-      { account: "organization", connection_id: "o1", allowed_tools: ["a", "b"] },
+      { account: "organization", connection_id: "o1", allowed_tools: ["a", "b"], approval: "none" },
     ];
 
     expect(mcpToolCount(refs, [organization({ last_tools: tools(40) })], [])).toBe(2);
   });
 
   it("counts the platform's own server at what it serves, or at the tools narrowed to", () => {
-    expect(mcpToolCount([{ account: "platform", approval: "writes" }], [], [], 18)).toBe(18);
+    expect(
+      mcpToolCount([{ account: "platform", allowed_tools: null, approval: "writes" }], [], [], 18),
+    ).toBe(18);
     expect(
       mcpToolCount([{ account: "platform", approval: "writes", allowed_tools: ["a"] }], [], [], 18),
     ).toBe(1);
     // Nothing told about the platform: nothing counted for it.
-    expect(mcpToolCount([{ account: "platform", approval: "writes" }], [], [])).toBe(0);
+    expect(
+      mcpToolCount([{ account: "platform", allowed_tools: null, approval: "writes" }], [], []),
+    ).toBe(0);
   });
 
   it("counts what each binding's own connection listed at its last check", () => {
     const refs: McpServerRef[] = [
-      { account: "organization", connection_id: "o1", allowed_tools: null },
-      { account: "personal", catalog_key: "notion", allowed_tools: null },
+      { account: "organization", connection_id: "o1", allowed_tools: null, approval: "none" },
+      { account: "personal", catalog_key: "notion", allowed_tools: null, approval: "none" },
     ];
     const notion = personal({ catalog_key: "notion", last_tools: tools(12) });
 
@@ -509,9 +513,9 @@ describe("mcpToolCount", () => {
   it("counts nothing it cannot know", () => {
     // The platform's own server, a connection nobody checked, a reader with no account.
     const refs: McpServerRef[] = [
-      { account: "platform" },
-      { account: "organization", connection_id: "o1", allowed_tools: null },
-      { account: "personal", catalog_key: "notion", allowed_tools: null },
+      { account: "platform", allowed_tools: null, approval: "writes" },
+      { account: "organization", connection_id: "o1", allowed_tools: null, approval: "none" },
+      { account: "personal", catalog_key: "notion", allowed_tools: null, approval: "none" },
     ];
 
     expect(mcpToolCount(refs, [organization()], [])).toBe(0);

@@ -13,8 +13,6 @@ real rows: the claims query, the session and bot joins, the same predicate
 reaching the count as well as the page.
 """
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import AsyncMock
 

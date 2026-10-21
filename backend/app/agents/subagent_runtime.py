@@ -19,8 +19,6 @@ the config allows. A capability walking it at run time would need a session per
 delegation, on a shared `AsyncSession` that is not concurrency-safe.
 """
 
-from __future__ import annotations
-
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime

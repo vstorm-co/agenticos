@@ -7,8 +7,6 @@ the clip kept where an image is kept, and each failure answered by whoever can
 fix it.
 """
 
-from __future__ import annotations
-
 from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal

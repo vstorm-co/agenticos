@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Calendar, Cog, Copy, KeyRound, Plus, Plug } from "lucide-react";
+import { Copy, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -72,14 +72,14 @@ type Mode = "new" | "clone";
 type Step = "source" | "configure" | "credential" | "schedule";
 
 /** Each step's word is in the catalog; `words` names the key. */
-const STEPS: { id: Step; words: string; icon: typeof Plug }[] = [
-  { id: "source", words: "stepSource", icon: Plug },
-  { id: "configure", words: "stepConfigure", icon: Cog },
+const STEPS: { id: Step; words: string }[] = [
+  { id: "source", words: "stepSource" },
+  { id: "configure", words: "stepConfigure" },
   // Between the configuration and the schedule, because it is the one thing a
   // source needs that is not configuration: the credential is a vault secret it
   // references, not a field it carries (#937).
-  { id: "credential", words: "stepCredential", icon: KeyRound },
-  { id: "schedule", words: "stepSchedule", icon: Calendar },
+  { id: "credential", words: "stepCredential" },
+  { id: "schedule", words: "stepSchedule" },
 ];
 
 /** One spelling of "nothing is wrong with this config", for all three places. */
@@ -355,7 +355,7 @@ export function SyncSourceWizard({
           {/* Step indicator - only for new mode */}
           {mode === "new" && (
             <WizardSteps
-              steps={STEPS.map((s) => ({ id: s.id, label: t(s.words), icon: s.icon }))}
+              steps={STEPS.map((s) => ({ id: s.id, label: t(s.words) }))}
               current={step}
             />
           )}

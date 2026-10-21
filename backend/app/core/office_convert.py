@@ -40,8 +40,6 @@ the LibreOffice deployment this serves. Only the branch that signals is
 platform-specific, the same line `app/core/watchdog.py` draws.
 """
 
-from __future__ import annotations
-
 import asyncio
 import contextlib
 import logging
@@ -166,7 +164,7 @@ class Slot:
 
 
 @asynccontextmanager
-async def reserve(timeout_seconds: float, *, what: str) -> AsyncGenerator[Slot, None]:
+async def reserve(timeout_seconds: float, *, what: str) -> AsyncGenerator[Slot]:
     """Hold a converter slot for the body, refusing if none frees up in time.
 
     `timeout_seconds` is the ceiling on everything inside, the wait included:

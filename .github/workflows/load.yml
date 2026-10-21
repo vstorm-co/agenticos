@@ -1,0 +1,112 @@
+# The load and resilience suite (`loadtest/`, docs/load-testing.md), from a cold
+# start: migrate, bootstrap, seed through the upload API, drive the scenario,
+# judge it against the proposed thresholds.
+#
+# Not one of the required checks, on purpose. A shared runner's CPU is shared,
+# so a p95 measured on one is a number about that runner as much as about this
+# code - the thresholds are generous enough to catch a regression of a different
+# order (a request that started taking seconds), not a slower afternoon. It runs
+# every night on `main`, on demand, and on a pull request labelled `load-test`;
+# the report is the job's summary and an artifact, so two runs can be compared.
+name: Load
+
+on:
+  schedule:
+    - cron: '30 3 * * *'
+  workflow_dispatch:
+    inputs:
+      scale:
+        description: "Multiply every phase's length (1 is the full six-minute run)"
+        default: "1"
+        required: false
+  pull_request:
+    types: [labeled, synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: load-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  load:
+    if: >-
+      github.event_name != 'pull_request'
+      || contains(github.event.pull_request.labels.*.name, 'load-test')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        # pgvector, not stock postgres: the seeded collection is a vector table.
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: agenticos_load
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: valkey/valkey:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "valkey-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: agenticos_load
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      # Throwaway values for a database that lives as long as this job.
+      SECRET_KEY: load-test-secret-key-for-a-throwaway-runner-only
+      VAULT_MASTER_KEY: bG9hZC10ZXN0LXZhdWx0LWtleS10aHJvd2F3YXktMDA=
+      LOAD_SCALE: ${{ inputs.scale || '1' }}
+      LOAD_REPORT: ${{ github.workspace }}/load-report.md
+      LOAD_LOGS: ${{ github.workspace }}/load-logs
+      LOAD_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/agenticos_load
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.15
+
+      - name: Install dependencies
+        run: uv sync --directory backend
+
+      - name: Run the scenario from a cold start
+        run: make load-cold
+
+      - name: Publish the report
+        if: ${{ !cancelled() }}
+        run: |
+          if [ -f "$LOAD_REPORT" ]; then cat "$LOAD_REPORT" >> "$GITHUB_STEP_SUMMARY"; fi
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ !cancelled() }}
+        with:
+          name: load-report
+          path: |
+            load-report.md
+            load-logs/
+          retention-days: 30

@@ -10,8 +10,6 @@ The practical rule when adding a tool: if the model should not be able to choose
 it, it belongs here, not in the signature.
 """
 
-from __future__ import annotations
-
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any

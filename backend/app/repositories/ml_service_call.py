@@ -1,7 +1,5 @@
 """Reading and writing the ML service usage log."""
 
-from __future__ import annotations
-
 from uuid import UUID
 
 from sqlalchemy import func, select

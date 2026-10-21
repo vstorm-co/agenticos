@@ -7,8 +7,6 @@ parsed token refuses a compliant provider for supplying nothing, one request
 short of a valid, verified identity.
 """
 
-from __future__ import annotations
-
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest

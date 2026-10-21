@@ -9,8 +9,6 @@ one, and that a logo nobody uploaded is absent rather than a 500.
 open, with the reason written beside them.
 """
 
-from __future__ import annotations
-
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest

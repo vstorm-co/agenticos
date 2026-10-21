@@ -255,73 +255,63 @@ deliberately leaves alone.
 
 ### Dispatching background work from a request
 
-**Work that will read a row this request wrote is handed over with
-`spawn_after_commit`, never `spawn`** (both in `app/core/background.py`):
+**Work that must happen is a job, queued in the request's own transaction.**
+`app.services.background_jobs.enqueue` writes the job's row on the request's
+session, so it commits with the rows it names or not at all:
 
 ```python
-from app.core.background import spawn_after_commit
+from app.services.background_jobs import enqueue
+from app.worker.jobs import FIRE_TRIGGER, FireTrigger
 
-spawn_after_commit(self.db, ingest_document_flow(rag_document_id=str(doc.id)), name=...)
+await enqueue(self.db, FIRE_TRIGGER, FireTrigger(trigger_id=trigger.id), organization_id=org_id)
 ```
 
-`spawn` creates the task immediately, and the loop starts it at the next
-suspension point — which is step 1 or 2 above, before the commit. The flow opens
-a session of its own, correctly, so under `READ COMMITTED` it cannot see a row
-this request has not committed: it looks for the document it was given the id
-of, finds nothing, and stops. That is [#417][417], and its visible shape is an
-upload answered `{"status": "processing"}` that stays that way forever.
+A rolled-back request queues nothing, and a committed one wakes the pool's
+workers through `NOTIFY`, which PostgreSQL delivers only on commit - so no worker
+can claim a job before the row it reads exists. That closes [#417][417] by
+construction: an upload answered `{"status": "processing"}` that stayed that way,
+because the work had started before the commit and its own session could not see
+the document. An upload, a sync somebody started, every trigger fire - scheduled,
+delivered or "run now" - an asynchronous API run and a delete's cleanup of what
+lives outside the database are all handed over this way.
 
-`spawn_after_commit` queues the coroutine on the session instead. Nothing starts
-it until step 3, two statements after `commit()` returns, so a flow dispatched
-this way reads a row the database has already agreed to. It is how a document
-upload, a sync somebody started, a channel connection's stream and a trigger's
-manual "run now" are all handed over. The ordering is proved against a real
-database in `tests/integration/test_flow_starts_after_commit.py`.
-
-At the other end of the process's life, the application lifespan closes the loop:
-after intake stops and serving has drained, it `await`s `background.drain()` for
-whatever `spawn` handed off and is still in flight, **before** disposing the
-vector store, Redis and the session those tasks read. Without it a shutdown
-mid-ingestion cancelled the flow and left the document in `processing` — the same
-stuck row as [#417][417], reached from the other end.
-
-The trigger's manual fire is there for a second reason worth naming, because it
-is the other half of why a request hands work over at all: `POST
+The trigger's manual fire is there for a second reason worth naming: `POST
 /agents/{id}/triggers/{id}/run` used to *await* the run it started, so an agent
 slower than a proxy's read timeout answered 504 while the run carried on and
-committed — a failure reported for something that was working, and an invitation
-to press the button again and fire the schedule twice ([#658][658]). The route
-answers `202` and the fire starts after the commit.
+committed - a failure reported for something that was working, and an invitation
+to press the button again ([#658][658]). The route answers `202` once the job is
+queued.
 
-!!! warning "It is not a queue that survives the process"
+**A delete whose input its own commit destroys queues its cleanup in that
+commit.** An organization purge hands on the storage paths and collection names
+its transaction removes the last record of, so `queue_external_state_cleanup`
+writes them into cleanup jobs on the same session: a crash between the commit and
+the cleanup loses nothing, and the job is retried until the files and vector
+collections are gone.
 
-    `spawn_after_commit` runs the work only if the process lives long enough to
-    start it. That is fine for work a later request can reproduce, and not fine
-    for work whose *input* the commit just destroyed - an organization purge
-    hands on the paths and collection names that its own commit removed the last
-    record of, so a crash between the two loses them for good.
+**Work that may be lost uses `spawn_after_commit`** (`app/core/background.py`):
+short, best-effort work on the API's own loop, such as recording an MCP server's
+reachability or unlinking files an artifact no longer references. It queues the
+coroutine on the session and starts it two statements after `commit()`; the
+ordering is proved against a real database in
+`tests/integration/test_flow_starts_after_commit.py`. At shutdown the lifespan
+`await`s `background.drain()` before disposing what those tasks read.
 
-    Where that applies, the intent is written as a row in the same transaction
-    and the hand-off becomes an optimisation: `teardown_intents` names what is
-    left to release, the flow deletes the row once it has, and a sweep
-    re-dispatches whatever nothing finished. The row's absence is the
-    completion, so an empty table means nothing is outstanding.
+Two things follow from where that queue lives:
 
-Two things follow from where the queue lives:
+- **It belongs to the session, not to the request.** A service handing work over
+  does not need to know whether it was called from a route, a WebSocket handler,
+  the CLI or a worker - which is why this is not FastAPI's `BackgroundTasks`,
+  whose guarantee is about the response and which those other three callers do
+  not have.
+- **A rolled-back transaction dispatches nothing.** The queued coroutines are
+  closed, because running work whose row was thrown away only moves the failure
+  somewhere less explicable.
 
-- **It belongs to the session, not to the request.** A service dispatching a
-  flow does not need to know whether it was called from a route, a WebSocket
-  handler, the CLI or a worker — which is why this is not FastAPI's
-  `BackgroundTasks`, whose guarantee is about the response and which those other
-  three callers do not have.
-- **A rolled-back transaction dispatches nothing.** Step 3 is skipped and the
-  queued coroutines are closed, because running work whose row was thrown away
-  only moves the failure somewhere less explicable.
-
-`spawn` remains right for work that owns everything it needs — the notification
-emails in `app/services/notifications.py` carry their own context and touch no
-row. Neither is a job queue: anything that must survive a restart is a Prefect
-deployment.
+`spawn` remains right for work that owns everything it needs and touches no row
+- the channel webhooks hand each delivery to it so the provider is answered at
+once. None of these survives a restart; a job does. See
+[Add a background task](howto/add-background-task.md).
 
 [3]: https://github.com/vstorm-co/agenticos/issues/3
 [12]: https://github.com/vstorm-co/agenticos/issues/12
@@ -912,7 +902,8 @@ add one, and `docs/howto/add-sync-connector.md` for a worked example.
   again in the terminal `finally`; `SessionService.detect_refresh_reuse` commits
   the session it just revoked and the entry recording why, because its caller
   raises a 401 immediately afterwards and the rollback would undo both.
-- Background work that reads a row this request wrote is handed over with
-  **`spawn_after_commit`**, never `spawn`.
+- Background work that must happen is a **job queued in the request's
+  transaction** (`enqueue`); best-effort work that reads a row this request wrote
+  is handed over with **`spawn_after_commit`**, never `spawn`.
 - A thin domain is a module; a thick one is a subpackage with a facade, and nothing
   outside it imports its sub-modules.

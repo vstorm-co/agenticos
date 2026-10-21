@@ -13,8 +13,6 @@ so the part that decides what the model may pick is tested without a browser.
 only module in this package that needs one.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 
 MAX_LABEL = 80

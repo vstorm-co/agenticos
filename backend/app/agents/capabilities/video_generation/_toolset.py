@@ -21,8 +21,6 @@ is down. A refused key, a spent budget and a job past the binding's time limit a
 returned: the model cannot fix them, and a retry of a slow job is a second bill.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -119,7 +117,7 @@ async def _frame_bytes(ctx: RunContext[AgentDeps], source: str) -> bytes | str:
                 if entry.size is not None and entry.size > MAX_FRAME_BYTES:
                     return _too_large(source)
                 return await ctx.workspace.read_bytes(path)
-            except (FileNotFoundError, IsADirectoryError, NotADirectoryError):
+            except FileNotFoundError, IsADirectoryError, NotADirectoryError:
                 continue
             except PermissionError:
                 return f"Reading {source!r} from your workspace was refused."

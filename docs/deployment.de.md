@@ -1,5 +1,5 @@
 ---
-source_sha: "11e8f02699df"
+source_sha: "62f20297dde0"
 ---
 
 # Das Deployment selbst { #the-deployment-itself }
@@ -594,6 +594,40 @@ FastAPI 0.141 legt `_IncludedRouter`-Objekte in diese Liste, und die haben keine
 in dem Zweig bereits verwendet, den es abgesichert hat. Upstream ist das ab 0.65b0
 weiterhin nicht behoben, und `tests/test_otel_route_details.py` schlägt fehl, wenn
 es behoben ist, was der Zeitpunkt ist, an dem das Modul verschwindet.
+
+## Hintergrund-Jobs { #background-jobs }
+
+**Admin → Background jobs** (`/admin/background-jobs`) ist die Queue, wie der
+Eigentümer des Deployments sie sieht, und nur ein App-Admin kann sie öffnen: Die
+Queue gehört dem Deployment, der Eigentümer einer Organisation wird also
+abgewiesen. Der Kopf zählt die Jobs in jedem Zustand, nennt jede pausierte Art
+und den Grund, listet die lebenden Worker und den nächsten Termin jedes
+Zeitplans. Darunter stehen die Jobs, neueste zuerst, gefiltert nach Zustand und
+Pool, jeder mit seinen Versuchen und dem Fehler, mit dem er zuletzt endete.
+
+Unter den Zählern zeigt **Activity** als Diagramm, was in den letzten 24
+Stunden oder 7 Tagen beendet wurde, gestapelt danach, wie es endete, daneben
+die längste Wartezeit eines jetzt fälligen Jobs. **By kind** nennt für jede
+Art die Menge, die Toten, die Laufzeit im Median und im 95. Perzentil und wie
+lange ihre Jobs auf einen Worker warteten: Eine wachsende Wartezeit sagt, dass
+einem Pool Worker fehlen. Das Dashboard des Deployments zeigt denselben Tag als
+Karte.
+
+Drei Aktionen, jede mit dem Handelnden auditiert:
+
+- **Retry** gibt einem toten Job eine neue Reihe von Versuchen.
+- **Cancel** zieht einen Job zurück, den noch niemand begonnen hat.
+- **Resume** lässt die Worker eine pausierte Art wieder abholen.
+
+Eine Art pausiert der Schutzschalter des Workers: Ihre Jobs haben ihren Worker
+`WORKER_BREAKER_DEATHS`-mal in Folge umgebracht, meist ein Dokument, dessen
+Parsen den Speicher sprengt. Jeder Eigentümer erfährt es in der App und per
+E-Mail, und die Benachrichtigung lässt sich nicht abschalten - Arbeit dieser Art
+staut sich, bis einer von ihnen sie fortsetzt. Eine Pause nennt die
+Organisation, deren Jobs sie ausgelöst haben, und für alle anderen läuft die Art
+weiter. Versuchen Sie die toten Jobs erst
+erneut, wenn die Ursache behoben ist, sonst sterben sie auf dieselbe Weise. Die
+Einstellungen stehen unter [Konfiguration](configuration.md#background-work).
 
 ## Zusammenfassung { #recap }
 

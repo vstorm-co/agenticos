@@ -1,5 +1,5 @@
 ---
-source_sha: "4c7d4614d816"
+source_sha: "79b06939c535"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -416,11 +416,12 @@ der Arbeit des Flows.**
 **Ein Loop besitzt die Pools des Prozesses, und alles andere baut seine eigene
 Engine.** Die Lifespan der API beansprucht sie beim Start: sie bedient jede
 Anfrage und verwirft sie beim Herunterfahren, sie ist also der eine Loop, dessen
-Verbindungen sie zwischenspeichern dürfen. Außerhalb dieses Loops verhält sich
-`get_db_context` wie `get_worker_db_context` — eine `NullPool`-Engine für den
-Aufruf, am Ende verworfen — denn es wird aus Prefect-Flows erreicht (der Bericht,
-die MCP-Aktualisierung, Einladungs- und Freigabeaufgaben, die Kanal-Loops) und
-aus dem Embedding-Resolver eines Agents, jeweils auf einem eigenen Loop
+Verbindungen sie zwischenspeichern dürfen. Der Worker beansprucht sie ebenso für
+seinen einen Loop, und jeder Ingestion-Kindprozess für seinen eigenen. Außerhalb
+des besitzenden Loops verhält sich `get_db_context` wie `get_worker_db_context` —
+eine `NullPool`-Engine für den Aufruf, am Ende verworfen — denn es wird aus den
+Kanal-Loops und aus dem Embedding-Resolver eines Agents erreicht, jeweils auf
+einem eigenen Loop
 ([#1079](https://github.com/vstorm-co/agenticos/issues/1079)).
 
 Die Wissenssuche eines Agents folgt derselben Regel für ihren Vektorspeicher: der
@@ -646,7 +647,7 @@ Ablehnung rät also nie zu einer Variablen.
 
 Diese Verschlechterung wird angekündigt statt angenommen. Die Auflösung trägt
 mit, auf welcher der fünf Quellen sie gelandet ist, und die Ingestion schreibt
-jeden verschlechterten Fall in das Log des Prefect-Runs, eine Collection, die
+jeden verschlechterten Fall in das Log des Workers, eine Collection, die
 schlicht keinen Schlüssel benennt, eingeschlossen. Vor Issue #306 war der
 Ingestion-Worker der eine Aufrufer, der den Resolver überhaupt nie fragte, jedes
 hochgeladene Dokument wurde also mit dem Model des Deployments und einem
@@ -1091,11 +1092,14 @@ Provider-SDK, `httpx`, `boto3` und der Google-Drive-Client legen alle die Anfrag
 die sie gerade machten, in ihre Ausnahmemeldung, und das heißt regelmäßig ein
 Endpunkt, ein interner Host, ein Bucket oder eine URL mit einem Schlüssel im
 Query-String — und anders als ein HTTP-Fehlerkörper wird eine Spalte Wochen später
-erneut gelesen, von jedem, der das gescheiterte Dokument öffnet. Dieser Text ist
-nicht verloren: jede dieser Aufrufstellen protokolliert ihn mit
-`logger.exception`, das Worker-Log hat also Meldung und Traceback, und ein
-Prefect-Flow, der erneut wirft, hat beides in seinem Run.
-`app/services/rag/failures.py` ist die Stelle, an der die beiden getrennt werden.
+erneut gelesen, von jedem, der das gescheiterte Dokument öffnet.
+
+Dieser Text ist nicht verloren: jede dieser Aufrufstellen protokolliert ihn mit
+`logger.exception`, das Worker-Log hat also Meldung und Traceback, und ein Job, der
+erneut wirft, hat Typ, Meldung und letzte Frames in seiner Zeile in
+`background_jobs`, wo nur der Eigentümer des Deployments sie liest.
+`app/services/rag/failures.py` ist die Stelle, an der Spalte und Log getrennt
+werden.
 
 Das Log ist ein kleineres Publikum als die Spalte, kein sicheres — behandeln Sie
 ein Worker-Log als etwas, das nur Betreiber lesen, und siehe [#440] dafür, warum

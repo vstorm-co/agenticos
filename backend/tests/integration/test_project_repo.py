@@ -6,8 +6,6 @@ deleting it leaves its chats as ordinary ones and takes its container's row with
 it; and a project's container belongs to no agent.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

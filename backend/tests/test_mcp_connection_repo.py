@@ -17,8 +17,6 @@ be answered by a database, and is asserted in
 `tests/integration/test_platform_flows.py`.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from typing import Any

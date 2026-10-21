@@ -24,8 +24,6 @@ not trigger produces no evidence at all, and a bound is only exercised by the
 incident it exists to shorten.
 """
 
-from __future__ import annotations
-
 from pathlib import Path
 from typing import Any
 

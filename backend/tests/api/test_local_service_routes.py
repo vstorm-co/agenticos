@@ -5,8 +5,6 @@ route test is the shape - the listing envelope, the 201, the 204 - and that a
 refusal the service raises reaches the client as the field problem a form marks.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch

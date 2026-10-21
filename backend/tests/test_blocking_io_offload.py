@@ -7,8 +7,6 @@ offload to a thread now; each test asserts the blocking call lands on a thread
 other than the event loop's, which fails if the `asyncio.to_thread` is removed.
 """
 
-from __future__ import annotations
-
 import threading
 from pathlib import Path
 

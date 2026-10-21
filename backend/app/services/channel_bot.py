@@ -7,8 +7,6 @@ happily - the token itself is what talks to Slack or Telegram as that
 organization, so that was a tenant boundary with nothing behind it.
 """
 
-from __future__ import annotations
-
 import logging
 import secrets
 from typing import Any

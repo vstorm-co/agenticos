@@ -5,8 +5,6 @@ departments counts in both: each is measured against its own cap, the way the
 budget guard measures it, so these figures are not a split of the bill.
 """
 
-from __future__ import annotations
-
 from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID

@@ -7,8 +7,6 @@ there is a workspace throws away the point of having one; referencing when there
 is not leaves the model told about a file it has no tool to open.
 """
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4

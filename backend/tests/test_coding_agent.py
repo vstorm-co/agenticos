@@ -7,8 +7,6 @@ the sandbox, so the command line, the polling, the live frames, the parsing, the
 booking, the session and the clean-up all run as they would.
 """
 
-from __future__ import annotations
-
 import base64
 import contextlib
 import json

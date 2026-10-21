@@ -23,8 +23,6 @@ optional field, added by somebody who never read the issue:
    the shape this replaced.
 """
 
-from __future__ import annotations
-
 import importlib
 import pkgutil
 import re

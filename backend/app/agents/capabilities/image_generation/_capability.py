@@ -1,7 +1,5 @@
 """Giving an agent the ability to draw an image, not just describe one."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 from typing import Any
 

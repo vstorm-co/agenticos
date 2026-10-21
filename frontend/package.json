@@ -1,6 +1,6 @@
 {
   "name": "agenticos-frontend",
-  "version": "1.8.3",
+  "version": "1.9.1",
   "private": true,
   "license": "Apache-2.0",
   "scripts": {
@@ -28,6 +28,7 @@
     "gen:brand-icons": "bun run scripts/gen-brand-icons.ts",
     "collect:licenses": "bun run scripts/collect-licenses.ts",
     "gen:mcp-logos": "bun run scripts/gen-mcp-logos.ts",
+    "gen:connector-logos": "bun run scripts/gen-connector-logos.ts",
     "gen:logo": "bun run scripts/gen-logo.ts",
     "check:i18n": "bun run scripts/check-i18n.ts"
   },
@@ -59,7 +60,7 @@
     "lowlight": "3.3.0",
     "lucide-react": "^1.46.0",
     "motion": "^13.4.0",
-    "next": "^16.3.8",
+    "next": "^16.4.2",
     "next-intl": "^4.14.5",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
@@ -89,7 +90,7 @@
     "@vitest/coverage-v8": "^4.1.11",
     "@vitest/ui": "^4.1.11",
     "eslint": "^9.39.5",
-    "eslint-config-next": "^16.3.8",
+    "eslint-config-next": "^16.4.2",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "husky": "^9.1.7",
@@ -105,7 +106,8 @@
   },
   "overrides": {
     "nanoid": "^3.3.18",
-    "js-yaml": "^4.3.2"
+    "js-yaml": "^4.3.2",
+    "vite": "~8.2.4"
   },
   "lint-staged": {
     "*.{js,ts,jsx,tsx,mdx}": [

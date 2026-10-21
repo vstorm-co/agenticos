@@ -16,8 +16,6 @@ What this service refuses is as deliberate as what it allows:
   surface get" into two hands, and they would eventually disagree.
 """
 
-from __future__ import annotations
-
 import logging
 from uuid import UUID
 

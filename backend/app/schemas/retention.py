@@ -7,8 +7,6 @@ displays is not the period somebody typed - which is the whole of the confusion 
 ceiling creates.
 """
 
-from __future__ import annotations
-
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.retention import (

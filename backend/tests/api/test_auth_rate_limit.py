@@ -7,8 +7,6 @@ that has an account saturates a worker's event loop with no credentials at all
 the module: `test_rate_limit.py` covers the limiter itself.
 """
 
-from __future__ import annotations
-
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest

@@ -18,18 +18,17 @@ same questions differently - two implementations of "is this healthy" is how a
 dashboard says green while a terminal says red.
 """
 
-from __future__ import annotations
-
 import asyncio
-import contextlib
 from typing import TYPE_CHECKING
 
 import click
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.commands import command, error, info, success, warning
 from app.core.config import settings
 from app.db.session import get_db_context
+from app.schemas.health import SystemCheck
 from app.services.health import (
     probe_database,
     probe_model_access,
@@ -42,7 +41,6 @@ if TYPE_CHECKING:
 
     from app.db.models.organization_secret import OrganizationSecret
     from app.db.models.sandbox_connection import SandboxConnection
-    from app.schemas.health import SystemCheck
 
 # What each outcome prints. `unconfigured` is deliberately not a failure: a
 # deployment that never ingests a document and never runs an agent is installed
@@ -109,19 +107,18 @@ async def _redis_reachable() -> tuple[str, str]:
 
 
 async def _scheduler() -> SystemCheck:
-    """`probe_scheduler`, on a Redis connection of its own - see `_redis_reachable`.
+    """`probe_scheduler`, on a session of its own: it reads the background job tables.
 
-    One that cannot connect leaves the probe to report Redis as what failed.
+    A database that cannot be reached is reported here as what failed, rather
+    than as a doctor that crashed before saying anything about the rest.
     """
-    from app.clients.redis import RedisClient
-
-    redis = RedisClient()
     try:
-        with contextlib.suppress(Exception):
-            await redis.connect()
-        return await probe_scheduler(redis)
-    finally:
-        await redis.close()
+        async with get_db_context() as db:
+            return await probe_scheduler(db)
+    except (OSError, SQLAlchemyError) as exc:
+        return SystemCheck(
+            key="scheduler", status="unhealthy", detail=f"the database did not answer: {exc}"
+        )
 
 
 async def _postgres_tls(db: AsyncSession) -> tuple[str, str]:

@@ -34,7 +34,9 @@ export function SharedWithYouWidget({ title, hint, seeAll, options }: DashboardW
           description={t("empty.description")}
         />
       ) : (
-        <div className="grid flex-1 grid-cols-3 content-center gap-4">
+        // From the top, as the figure beside it in its row is: centred, the three
+        // numbers sat halfway down the card while their neighbour's sat at its head.
+        <div className="grid flex-1 grid-cols-3 content-start gap-4">
           {(
             [
               ["agents", counts.agents],

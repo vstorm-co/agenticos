@@ -13,8 +13,6 @@ it is a network round trip per sign-in, and the providers that need it are the
 minority.
 """
 
-from __future__ import annotations
-
 import logging
 from typing import Any
 

@@ -5,8 +5,6 @@ second turn's call is `call_0` again; a model scripted to do exactly that shows
 the later call renamed and the earlier one untouched.
 """
 
-from __future__ import annotations
-
 import pytest
 from pydantic_ai import Agent
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart

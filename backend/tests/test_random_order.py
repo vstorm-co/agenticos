@@ -20,8 +20,6 @@ uninstalling it, so both assertions below still hold - and a guard that turned i
 red would be telling people to stop using it.
 """
 
-from __future__ import annotations
-
 import tomllib
 from importlib.util import find_spec
 from pathlib import Path

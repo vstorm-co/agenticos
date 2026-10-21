@@ -1905,6 +1905,9 @@ export function useChat(options: UseChatOptions = {}) {
     setPendingConnection(null);
     awaitingConnectionRef.current = false;
     setDelegations(closeOpenDelegations);
+    // A dropped socket can no longer bring `sandbox_ready`, and the next turn
+    // on the open sandbox sends no preparation frames to clear it (#2251).
+    setSandboxPreparing(false);
   }, [updateMessage, abandonOpenCalls, setCurrentMessageId]);
 
   const stopGeneration = useCallback(() => {

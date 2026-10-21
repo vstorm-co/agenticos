@@ -1,7 +1,5 @@
 """Data access for user-scoped slash command settings (PostgreSQL async)."""
 
-from __future__ import annotations
-
 from typing import Any
 from uuid import UUID
 

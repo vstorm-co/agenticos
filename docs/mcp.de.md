@@ -1,5 +1,5 @@
 ---
-source_sha: "1eecb93af547"
+source_sha: "d22e9f561f9c"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -514,8 +514,13 @@ Server wird weiterhin unter seinem echten Namen aufgerufen.
     Connection legte jeden Agent lahm, der sie benennt, auch die, die sie nie
     gebraucht haben.
 
-    Das Modell antwortet dann **ohne** diese Tools — richtig für einen Chat-Zug,
-    falsch, wenn Sie angenommen haben, ein Tool sei immer da.
+    Das Modell antwortet dann **ohne** diese Tools und erfährt das: Die
+    Anweisungen des Zugs nennen den Server, sagen, dass er nicht geantwortet oder
+    die Verbindung abgelehnt hat, und bitten das Modell zu sagen, dass er gerade
+    nicht erreichbar war, statt ein leeres Ergebnis zu melden. Das gilt auch für
+    einen Server, der eben noch geantwortet hat und beim Verbinden des Zugs
+    scheitert. Richtig für einen Chat-Zug, falsch, wenn Sie angenommen haben, ein
+    Tool sei immer da.
 
 Das ist ein bewusster Kompromiss. Der `/test`-Endpunkt und `last_status` sind der
 Weg, es herauszufinden, und der [Audit-Trail](governance.md#audit) hält fest, was

@@ -5,8 +5,6 @@ which row is a join and is proved against Postgres in
 `tests/integration/test_browser_sign_ins.py`.
 """
 
-from __future__ import annotations
-
 import uuid
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock

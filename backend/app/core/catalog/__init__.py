@@ -20,8 +20,6 @@ is rendered as a `currentColor` silhouette, so the console's monochrome
 register holds by construction. `icons/README.md` states the contract.
 """
 
-from __future__ import annotations
-
 import re
 from pathlib import Path
 

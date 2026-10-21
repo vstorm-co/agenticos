@@ -334,14 +334,16 @@ const ME_SECTIONS: SectionDef[] = [
       { widget: "my-quality", span: "s6", rows: "r3" },
       { widget: "shared-with-you", span: "s6", rows: "r3" },
       // What agents drew for them lately, as pictures: the one card here that is
-      // something to look at rather than a list to read.
-      { widget: "recent-visuals", span: "s12", rows: "r3" },
+      // something to look at rather than a list to read. Four rows, so a
+      // thumbnail is big enough to tell one drawing from another.
+      { widget: "recent-visuals", span: "s12", rows: "r4" },
     ],
   },
   {
     id: "attention",
     titleKey: "attention",
-    entries: [{ widget: "notifications", span: "s12", rows: "r2" }],
+    // Three rows: at two, the third notification was cut through by the card's edge.
+    entries: [{ widget: "notifications", span: "s12", rows: "r3" }],
   },
 ];
 
@@ -384,6 +386,7 @@ const DEPLOYMENT_SECTIONS: SectionDef[] = [
     entries: [
       { widget: "platform", span: "s6", rows: "r2" },
       { widget: "health", span: "s6", rows: "r2" },
+      { widget: "background-jobs", span: "s12", rows: "r3" },
       { widget: "top-orgs", span: "s6", rows: "r3" },
       { widget: "platform-ratings", span: "s6", rows: "r3" },
     ],

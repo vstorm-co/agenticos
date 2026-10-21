@@ -8,8 +8,6 @@ here so the two cannot drift apart, and a third export starts from them rather
 than from a copy.
 """
 
-from __future__ import annotations
-
 import csv
 import io
 import json

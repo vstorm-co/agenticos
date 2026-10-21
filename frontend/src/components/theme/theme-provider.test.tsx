@@ -17,18 +17,23 @@ function root() {
   return document.documentElement;
 }
 
-/** A startViewTransition stub that records the call and runs the mutation. */
+/**
+ * A startViewTransition stub that records the call and runs the mutation. Its
+ * `ready` is returned, so a test can see whether a rejection - a browser skipping
+ * the transition - has a handler.
+ */
 function stubViewTransition() {
+  const ready = { catch: vi.fn() };
   const spy = vi.fn((update: () => void) => {
     update();
-    return { finished: Promise.resolve() };
+    return { ready, finished: Promise.resolve() };
   });
   Object.defineProperty(document, "startViewTransition", {
     configurable: true,
     writable: true,
     value: spy,
   });
-  return spy;
+  return Object.assign(spy, { ready });
 }
 
 function reducedMotion(matches: boolean) {
@@ -48,12 +53,15 @@ function reducedMotion(matches: boolean) {
 }
 
 beforeEach(() => {
+  // The motion preference is a mock that outlives the test that set it.
+  reducedMotion(false);
   root().classList.remove("light", "dark");
   useThemeStore.setState({ theme: "light" });
 });
 
 afterEach(() => {
   Reflect.deleteProperty(document, "startViewTransition");
+  Reflect.deleteProperty(document, "visibilityState");
 });
 
 describe("the animated theme switch", () => {
@@ -96,6 +104,31 @@ describe("the animated theme switch", () => {
     render(<ThemeProvider>{null}</ThemeProvider>);
 
     expect(transition).not.toHaveBeenCalled();
+    expect(root().classList.contains("dark")).toBe(true);
+  });
+
+  it("changes without the sweep in a tab that is not on screen", () => {
+    const transition = stubViewTransition();
+    Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
+    root().classList.add("light");
+
+    useThemeStore.setState({ theme: "dark" });
+    render(<ThemeProvider>{null}</ThemeProvider>);
+
+    expect(transition).not.toHaveBeenCalled();
+    expect(root().classList.contains("dark")).toBe(true);
+  });
+
+  it("handles the browser skipping the sweep, which still applies the theme", () => {
+    // A tab hidden mid-transition is skipped and its `ready` rejects; unhandled,
+    // that surfaced as "Skipped ViewTransition due to document being hidden".
+    const transition = stubViewTransition();
+    root().classList.add("light");
+
+    useThemeStore.setState({ theme: "dark" });
+    render(<ThemeProvider>{null}</ThemeProvider>);
+
+    expect(transition.ready.catch).toHaveBeenCalledTimes(1);
     expect(root().classList.contains("dark")).toBe(true);
   });
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "df313b9bcff6"
+source_sha: "5f2679674e19"
 ---
 
 # Wzorce w kodzie { #code-patterns }
@@ -287,7 +287,9 @@ kolejkuje korutynę na sesji, więc nic się nie zaczyna, dopóki transakcja, od
 której ta praca zależy, nie wyląduje — flow czytający własny wiersz po id inaczej
 uruchomiłby się na bazie, która go jeszcze nie ma
 ([#417](https://github.com/vstorm-co/agenticos/issues/417)). Żaden z nich nie
-przeżywa restartu; praca, która musi, należy do deploymentu Prefect.
+przeżywa restartu; praca, która musi, jest zadaniem kolejkowanym przez
+`app.services.background_jobs.enqueue` w tej samej transakcji - zob.
+[Dodaj zadanie w tle](howto/add-background-task.md).
 
 ## Wzorzec konektora (synchronizacja RAG) { #connector-pattern-rag-sync }
 

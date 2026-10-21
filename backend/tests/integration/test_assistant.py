@@ -1,7 +1,5 @@
 """The AI Architect, installed for every organization on first look (#2063)."""
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

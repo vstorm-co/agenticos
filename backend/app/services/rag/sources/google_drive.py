@@ -14,13 +14,12 @@ import logging
 from pathlib import Path
 
 from app.core.config import settings
+from app.services.rag.drive_api import DriveClient
 from app.services.rag.filters import Source
 from app.services.rag.remote_names import checked_drive_folder_id, destination_within
 from app.services.rag.sources.base import BaseDocumentSource, SourceFile
 
 logger = logging.getLogger(__name__)
-
-SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
 
 GOOGLE_DOCS_EXPORT = {
     "application/vnd.google-apps.document": ("application/pdf", ".pdf"),
@@ -51,11 +50,7 @@ class GoogleDriveSource(BaseDocumentSource):
                 f"Google Drive credentials file not found: {creds_file}. "
                 "Set GOOGLE_DRIVE_CREDENTIALS_FILE to the path of your service account JSON key."
             )
-        from google.oauth2.service_account import Credentials
-        from googleapiclient.discovery import build
-
-        creds = Credentials.from_service_account_file(creds_file, scopes=SCOPES)
-        self.service = build("drive", "v3", credentials=creds)
+        self.service = DriveClient.from_service_account_file(creds_file)
 
     async def list_files(
         self, path: str = "", extensions: list[str] | None = None
@@ -84,20 +79,14 @@ class GoogleDriveSource(BaseDocumentSource):
         query_parts.append("mimeType != 'application/vnd.google-apps.folder'")
         query = " and ".join(query_parts)
 
-        results = (
-            self.service.files()
-            .list(
-                q=query,
-                fields="files(id, name, mimeType, size)",
-                pageSize=1000,
-            )
-            .execute()
+        page = self.service.list_page(
+            q=query, fields="files(id, name, mimeType, size)", page_size=1000, page_token=None
         )
 
         files = []
-        for f in results.get("files", []):
-            mime = f.get("mimeType", "")
-            name = f.get("name", "")
+        for f in page.files:
+            mime = f.mime_type
+            name = f.name
 
             if mime in GOOGLE_DOCS_EXPORT:
                 _, ext = GOOGLE_DOCS_EXPORT[mime]
@@ -110,11 +99,11 @@ class GoogleDriveSource(BaseDocumentSource):
 
             files.append(
                 SourceFile(
-                    id=f["id"],
+                    id=f.id,
                     name=name,
                     mime_type=mime,
-                    size=int(f.get("size", 0)),
-                    path=f"gdrive://{f['id']}",
+                    size=f.size,
+                    path=f"gdrive://{f.id}",
                 )
             )
 
@@ -136,26 +125,21 @@ class GoogleDriveSource(BaseDocumentSource):
         Raises:
             BadRequestError: the Drive name does not name a file inside `dest_dir`.
         """
-        meta = self.service.files().get(fileId=file_id, fields="name, mimeType").execute()
-        mime = meta.get("mimeType", "")
-        name = meta.get("name", "download")
+        meta = self.service.metadata(file_id, fields="name, mimeType")
+        mime = meta.mime_type
+        name = meta.name or "download"
 
+        export_mime = None
         if mime in GOOGLE_DOCS_EXPORT:
             export_mime, ext = GOOGLE_DOCS_EXPORT[mime]
             if not name.endswith(ext):
                 name = f"{name}{ext}"
-            request = self.service.files().export_media(fileId=file_id, mimeType=export_mime)
-        else:
-            request = self.service.files().get_media(fileId=file_id)
 
         dest_path = destination_within(dest_dir, name)
-        from googleapiclient.http import MediaIoBaseDownload
-
-        with open(dest_path, "wb") as f:
-            downloader = MediaIoBaseDownload(f, request)
-            done = False
-            while not done:
-                _, done = downloader.next_chunk()
+        if export_mime is None:
+            self.service.download(file_id, dest_path)
+        else:
+            self.service.export(file_id, export_mime, dest_path)
 
         logger.info("Downloaded %s from Google Drive (%d bytes)", name, dest_path.stat().st_size)
         return dest_path

@@ -11,8 +11,6 @@ The service is the real one; only the session and Redis are mocked. Validation
 refuses before any row is read, so nothing here reaches the database.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager

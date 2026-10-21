@@ -29,8 +29,6 @@ turns it into the one memory store a run may touch, and the conversation-search
 toolset turns it into a corpus or a refusal.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Literal
 from uuid import UUID

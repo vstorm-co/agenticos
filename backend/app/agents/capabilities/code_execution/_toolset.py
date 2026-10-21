@@ -5,8 +5,6 @@ model. Kept apart for the same reason across this package: the tool's name and
 description are prompt, and prompt lives where an author can find it.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 from pydantic_ai.tools import RunContext

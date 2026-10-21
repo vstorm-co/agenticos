@@ -13,8 +13,6 @@ right, each of which is a wrong answer somebody could act on:
   row in `docs/security.md` describes, so it must not read as healthy.
 """
 
-from __future__ import annotations
-
 import pytest
 
 from app.commands.doctor import _file_storage

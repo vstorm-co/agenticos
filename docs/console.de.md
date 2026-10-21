@@ -1,5 +1,5 @@
 ---
-source_sha: "feaf26c4bab8"
+source_sha: "b52b40a93089"
 ---
 
 # Die Konsole { #the-console }
@@ -403,7 +403,7 @@ verlassen haben.
 | **Vault** | Zugangsdaten, pro Organisation versiegelt | [Secrets](secrets.md) |
 | **Organizations** | Mitglieder, Rollen, Einladungen | [Berechtigungen](permissions.md) |
 | **Settings** | Provider, Ingestion-Vorgaben, Benachrichtigungen, Ihr eigenes Profil | [Konfiguration](configuration.md) |
-| **Admin** | Das Deployment selbst: Nutzer, Tenants, System, Deployment-Einstellungen | [Das Deployment](deployment.md) |
+| **Admin** | Das Deployment selbst: Nutzer, Tenants, System, Hintergrund-Jobs, Deployment-Einstellungen | [Das Deployment](deployment.md) |
 
 Der **Agents**-Katalog lässt sich nach **Category** und **Tag** filtern — den
 editierbaren, organisationslokalen Labels, die auf der Karte jedes Agents

@@ -215,9 +215,33 @@ prepare_sandbox_runtimes() {
   fi
 }
 
+# Services a release removed from the compose file. Compose leaves a container
+# whose service left the file running as an "orphan", and for Prefect that is a
+# scheduler still dispatching the old periodic work beside the worker that
+# replaced it (#2219). Removed by name rather than with `--remove-orphans`, which
+# would take anything else a host still runs under this project with it, and
+# before the API starts, so the old scheduler and the new worker never overlap.
+# Matched on the project's working directory, the label every compose container
+# carries, so another stack on the host keeps its own.
+RETIRED_SERVICES=(prefect-server prefect-runner)
+retire_services() {
+  local service ids
+  for service in "${RETIRED_SERVICES[@]}"; do
+    ids=$(docker ps -aq \
+      --filter "label=com.docker.compose.project.working_dir=$APP_DIR" \
+      --filter "label=com.docker.compose.service=$service")
+    if [ -n "$ids" ]; then
+      say "Removing the retired $service"
+      # Unquoted: one id per word, and there may be several.
+      docker rm -f $ids >/dev/null
+    fi
+  done
+}
+
 say "Pulling and starting the API"
 compose "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}" pull --quiet
 prepare_sandbox_runtimes "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}"
+retire_services
 compose_up "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}"
 
 say "Pulling and starting the frontend"

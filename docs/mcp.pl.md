@@ -1,5 +1,5 @@
 ---
-source_sha: "1eecb93af547"
+source_sha: "d22e9f561f9c"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -494,8 +494,12 @@ jest nadal wywoływany pod prawdziwą nazwą.
     położyłby każdego agenta, który go wskazuje, łącznie z tymi, które nigdy go
     nie potrzebowały.
 
-    Model odpowiada wtedy **bez** tych narzędzi — słusznie w turze czatu,
-    niesłusznie, jeśli założyłeś, że narzędzie jest tam zawsze.
+    Model odpowiada wtedy **bez** tych narzędzi i wie o tym: instrukcje tury
+    wymieniają serwer, mówią, że nie odpowiedział albo odrzucił połączenie,
+    i każą modelowi powiedzieć, że nie dało się z nim połączyć, zamiast zgłaszać
+    pusty wynik. Dotyczy to także serwera, który odpowiedział chwilę wcześniej
+    i zawodzi, gdy tura się łączy. Słusznie w turze czatu, niesłusznie, jeśli
+    założyłeś, że narzędzie jest tam zawsze.
 
 To świadomy kompromis. Dowiadujesz się o tym przez endpoint `/test`
 i `last_status`, a [ślad audytowy](governance.md#audit) zapisuje, co faktycznie

@@ -4,8 +4,6 @@ The harness owns the tool; what is ours is reaching the run's own question
 channel from inside the call, and answering as a decline where there is none.
 """
 
-from __future__ import annotations
-
 import json
 
 import pytest
