@@ -45,7 +45,7 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
   const { can } = usePermissions();
   const canDecide = dataset.can_edit;
   // Scoring again reads the answer back from its run, which `runs:view` guards.
-  const canRescore = can(Perm.datasetsRun) && can(Perm.runsView);
+  const canRescore = dataset.can_run && can(Perm.runsView);
   const toCriterion = useNoteToCriterion(dataset);
   const pageCount = Math.max(1, Math.ceil(scores.total / PAGE_SIZE));
   // A decision takes the last score off the last page of the queue; step back to

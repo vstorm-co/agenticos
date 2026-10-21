@@ -48,6 +48,7 @@ let allowed: Set<Permission>;
 const page = vi.hoisted(() => ({
   params: "",
   validate: (() => undefined) as unknown,
+  agent: undefined as unknown,
 }));
 
 vi.mock("next/navigation", async (importOriginal) => ({
@@ -64,7 +65,7 @@ vi.mock("@/hooks", async () => {
   return {
     useUrlState,
     useAgent: () => ({
-      agent: AGENT,
+      agent: page.agent,
       isLoading: false,
       saveDraft: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
       validate: page.validate,
@@ -119,7 +120,10 @@ vi.mock("@/hooks", async () => {
 });
 
 // The page's eval parts read their own queries; this test is not about them.
-vi.mock("@/hooks/use-eval-runs", () => ({ useEvalArmSpec: () => ({ spec: undefined }) }));
+vi.mock("@/hooks/use-eval-runs", () => ({
+  useEvalArmSpec: () => ({ spec: undefined }),
+  useEveryDataset: () => ({ datasets: [] }),
+}));
 vi.mock("@/components/evals/draft-eval-note", () => ({ DraftEvalNote: () => null }));
 vi.mock("@/components/evals/evals-panel", () => ({ EvalsPanel: () => null }));
 vi.mock("@/components/evals/start-eval-dialog", () => ({ StartEvalDialog: () => null }));
@@ -165,6 +169,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   page.params = "";
   page.validate = vi.fn().mockResolvedValue({ problems: [], fields: [] });
+  page.agent = { ...AGENT, can_edit: true, can_publish: true };
 });
 
 describe("the detail page's Evals tab gate", () => {
@@ -205,13 +210,22 @@ describe("a publish asked for by a link", () => {
     expect(page.validate).toHaveBeenCalledTimes(1);
   });
 
-  it("is not offered to who may not publish", async () => {
-    allowed = new Set([Perm.agentsEdit]);
+  it("is not offered to who may not publish this agent, whatever the role says", async () => {
+    allowed = new Set([Perm.agentsEdit, Perm.agentsPublish]);
+    page.agent = { ...AGENT, can_edit: true, can_publish: false };
     page.params = "tab=build&publish=1";
     await mount();
 
     await screen.findByText("Instructions");
     expect(page.validate).not.toHaveBeenCalled();
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("is offered to who may publish this agent through a grant alone", async () => {
+    allowed = new Set();
+    page.params = "tab=build&publish=1";
+    await mount();
+
+    expect(await screen.findByRole("dialog", { name: "Publish v1?" })).toBeInTheDocument();
   });
 });

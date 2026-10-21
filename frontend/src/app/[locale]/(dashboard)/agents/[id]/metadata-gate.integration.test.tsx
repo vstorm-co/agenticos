@@ -11,10 +11,11 @@ import type { Permission } from "@/types/permissions";
 /**
  * The categories/tags editor on the agent detail page.
  *
- * It hangs off the same role-level `canEdit` every editing control on the page
- * does - the avatar precedent it copies. So the contract is "no `agents:edit`
- * role, no editor", the same one the gallery card holds, and it is proven the
- * way the frontend rule wants: a mocked API, an assertion on what renders.
+ * It hangs off the same `canEdit` every editing control on the page does - the
+ * avatar precedent it copies - which is this caller's access to this agent: a
+ * grant widens what the role allows, and a role that may edit agents may still
+ * not reach this one. Proven the way the frontend rule wants: a mocked API, an
+ * assertion on what renders.
  */
 
 const AGENT: AgentDetail = {
@@ -44,6 +45,7 @@ const AGENT: AgentDetail = {
     budget: null,
   },
 };
+const EDITABLE: AgentDetail = { ...AGENT, can_edit: true };
 
 const mutation = () => ({
   mutate: vi.fn(),
@@ -54,6 +56,7 @@ const mutation = () => ({
 });
 
 let allowed: Set<Permission>;
+let agent: AgentDetail = EDITABLE;
 
 vi.mock("@/hooks", async () => {
   // The real one: the Builder keeps its tab in `?tab=`, as local state here.
@@ -62,7 +65,7 @@ vi.mock("@/hooks", async () => {
   return {
     useUrlState,
     useAgent: () => ({
-      agent: AGENT,
+      agent,
       isLoading: false,
       saveDraft: mutation(),
       validate: vi.fn().mockResolvedValue({ problems: [], fields: [] }),
@@ -148,10 +151,13 @@ async function mount() {
 }
 
 describe("the detail page's metadata editor gate", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    agent = EDITABLE;
+  });
 
-  it("shows the editor to a caller who may edit the agent", async () => {
-    allowed = new Set([Perm.agentsEdit]);
+  it("shows the editor to a caller who may edit the agent, by a grant alone", async () => {
+    allowed = new Set();
     await mount();
 
     expect(await screen.findByRole("textbox", { name: "Add a category" })).toBeInTheDocument();
@@ -182,8 +188,9 @@ describe("the detail page's metadata editor gate", () => {
     searchParams = new URLSearchParams();
   });
 
-  it("hides the editor from a caller who may not edit", async () => {
-    allowed = new Set();
+  it("hides the editor from a caller who may not edit this agent, whatever the role says", async () => {
+    allowed = new Set([Perm.agentsEdit]);
+    agent = AGENT;
     await mount();
 
     // The instructions card renders for everyone; the editor does not.
