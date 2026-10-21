@@ -1,5 +1,5 @@
 ---
-source_sha: "0dc46f479226"
+source_sha: "4d597d189a74"
 ---
 
 # Über einen Host hinaus skalieren { #scale-beyond-one-host }
@@ -145,6 +145,8 @@ So viele Worker-Prozesse betreiben, wie die Arbeit braucht, auf beliebigen
 Hosts. Sie holen Jobs mit `SKIP LOCKED`, also laufen nie zwei denselben Job, und
 jeder von ihnen kann einen fälligen Zeitplan auslösen. Ein Worker, der stirbt,
 gibt seine Jobs innerhalb von `WORKER_LEASE_SECONDS` zurück.
+Warum die Warteschlange aus Zeilen in Postgres besteht, gemessen an neun anderen
+Engines, steht im [Benchmark der Hintergrund-Jobs](task-queue-benchmark.md).
 
 Die Pools trennen, wenn Parsen mit Agenten-Läufen konkurriert.
 `WORKER_POOLS=agent,system` auf einer Gruppe von Prozessen und
