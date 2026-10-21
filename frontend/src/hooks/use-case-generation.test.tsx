@@ -142,6 +142,6 @@ describe("useGenerateCases", () => {
 
     await act(() => result.current.start.mutateAsync(REQUEST));
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["agents", "generators"] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["agents", "kind", "generator"] });
   });
 });

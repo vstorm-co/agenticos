@@ -46,8 +46,8 @@ const AGENT: AgentDetail = {
 
 let allowed: Set<Permission>;
 const page = vi.hoisted(() => ({
+  kind: "agent" as AgentDetail["kind"],
   params: "",
-  kind: "agent" as "agent" | "judge" | "generator",
   validate: (() => undefined) as unknown,
 }));
 
@@ -124,6 +124,9 @@ vi.mock("@/hooks/use-eval-runs", () => ({ useEvalArmSpec: () => ({ spec: undefin
 vi.mock("@/components/evals/draft-eval-note", () => ({ DraftEvalNote: () => null }));
 vi.mock("@/components/evals/evals-panel", () => ({ EvalsPanel: () => null }));
 vi.mock("@/components/evals/start-eval-dialog", () => ({ StartEvalDialog: () => null }));
+vi.mock("@/components/knowledge-gaps/knowledge-gaps-panel", () => ({
+  KnowledgeGapsPanel: () => null,
+}));
 vi.mock("@/hooks/use-context", () => ({
   useContextFiles: () => ({ files: [], total: 0 }),
 }));
@@ -197,7 +200,35 @@ describe("the detail page's Evals tab gate", () => {
   });
 });
 
+describe("the detail page's Knowledge gaps tab", () => {
+  it("opens when a link names it for a caller who may read runs", async () => {
+    allowed = new Set([Perm.runsView]);
+    page.params = "tab=gaps";
+    await mount();
+
+    expect(await screen.findByRole("tab", { name: "Knowledge gaps" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
+});
+
 describe("a system agent's page", () => {
+  it("holds what changes how it works, and nothing else", async () => {
+    allowed = new Set([Perm.runsView, Perm.agentsEdit]);
+    page.kind = "drafter";
+    page.params = "tab=gaps";
+    await mount();
+
+    expect(await screen.findByRole("tab", { name: "Build" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    for (const name of ["Toolbox", "Availability", "Evals", "Knowledge gaps"]) {
+      expect(screen.queryByRole("tab", { name })).toBeNull();
+    }
+  });
+
   it.each(["judge", "generator"] as const)(
     "offers a %s neither tools, exposure nor evals",
     async (kind) => {

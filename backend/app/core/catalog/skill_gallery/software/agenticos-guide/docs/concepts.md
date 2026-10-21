@@ -568,47 +568,56 @@ delegate to what.
 
 ---
 
-## Judges { #system-agents }
+## System agents { #system-agents }
 
 Some agents are started by the platform rather than by a person: **judges**,
-which grade answers for [dataset grading](datasets.md#judge). An agent's kind
-says which it is - `agent` for the ones people use, `judge` for these. Every
-organization gets the default **Eval judge** when it is created, an organization
-created earlier gets it the first time something needs it, and a dataset may get
-a judge of its own.
+which grade answers for [dataset grading](datasets.md#judge), and the
+**Knowledge gap drafter**, which drafts the passage a
+[knowledge gap](knowledge-gaps.md#drafting-the-missing-content) is missing.
+These are **system agents**. An agent's kind says which it is - `agent` for the
+ones people use, `judge` and `drafter` for these. Every organization gets the
+default **Eval judge** and the drafter when it is created, an organization
+created earlier gets each the first time something needs it, and a dataset may
+get a judge of its own.
 
-A judge is the platform's to run, not an agent people use. Agents lists judges
-apart, in a folded **System agents** band under **Agents**, each card saying which
-datasets it grades and the seeded one marked **Default judge**; agent pickers
-leave them out. Whoever holds `agents:edit` opens one to change its
-instructions, model and budget - its page holds those, its limits, its history
+A system agent is the platform's to run, not an agent people use. Agents lists
+them apart, in a folded **System agents** band under **Agents**, grouped by
+kind: **Judges**, each card saying which datasets it grades and the seeded one
+marked **Default judge**, then the **Gap drafter**. Agent pickers leave them
+out.
+
+Whoever holds `agents:edit` opens one to change its instructions, model and
+budget, from the band or, for the drafter, from **Edit the drafter's
+instructions** on a draft. A judge's page holds those, its limits, its history
 and the datasets that picked it, grading or not - each opening on its latest
 grades there and the eval runs they came from - with how often people agreed
-with it on the results it graded and they decided, and nothing else.
+with it on the results it graded and they decided, and nothing else. The
+drafter's holds the same without the datasets.
 
 Its runs are budget-checked and recorded like any other, and send no run
-notification. A judge starts with a small monthly budget of its own, so a new
-organization cannot spend its whole budget on evaluation by accident.
+notification. A system agent starts with a small monthly budget of its own, so
+a new organization cannot spend its whole budget on evaluation or drafting by
+accident.
 
 The **case generator** is a system agent too, of the `generator` kind: it drafts
 [dataset cases](datasets.md#generating-cases) and is seeded the same way, with a
-budget of its own. It is listed in the same band, after the judges, and is
-opened and edited like one; a dataset's Generated tab links to it for whoever
+budget of its own. It is listed in the same band, after the drafter, and is
+opened and edited like a judge; a dataset's Generated tab links to it for whoever
 may edit it.
 
 Only the platform runs it. Chat, the API, an embed or a public page, a channel,
 a schedule and delegation from another agent all refuse it, in the service that
 would start the run rather than only in the console.
 
-When the organization already has a model profile, a judge is published on the
-oldest one, or on the one picked when it was created. Without one, it is
-created as a draft. The seeded Eval judge is published on the organization's
-first model as soon as one is added; a dataset's own judge waits for a person
-to pick its model and publish it, and the features that use it say so until
-then.
+When the organization already has a model profile, a system agent is published
+on the oldest one, or on the one picked when it was created. Without one, it is
+created as a draft. The seeded Eval judge and drafter are published on the
+organization's first model as soon as one is added; a dataset's own judge waits
+for a person to pick its model and publish it, and the features that use it say
+so until then.
 
 The organization's [AI assistance switch](governance.md#ai-assistance) decides
-whether judges run at all.
+whether system agents run at all.
 
 ## Model profiles
 

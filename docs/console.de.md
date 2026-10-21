@@ -1,5 +1,5 @@
 ---
-source_sha: "6ffd6407de27"
+source_sha: "b055cbfab1cd"
 ---
 
 # Die Konsole { #the-console }
@@ -236,6 +236,10 @@ Bewertung, ein Score oder eine Review-Entscheidung und Entwürfe, die der
 [Fallgenerator](datasets.md#generating-cases) im Hintergrund fertigstellt - sie
 erscheinen ohne Neuladen im Tab Generated eines offenen Datasets.
 
+Wissenslücken werden ebenso gemeldet: Ein Thema, das in einem Tab verworfen oder
+entworfen wurde, und die Fragen, die ein Gruppierungslauf alle 15 Minuten
+einordnet, erscheinen auf einem offenen Tab Wissenslücken ohne Neuladen.
+
 Die Ausnahme ist der Builder, weil er Ihren Entwurf beim Tippen speichert. Ändert
 sich der Agent, den Sie bearbeiten, anderswo, hört er auf zu speichern und holt
 die neue Version. Ohne ungespeicherte Änderungen übernimmt er sie einfach; mit
@@ -247,7 +251,8 @@ Sie erfahren nur, was Sie lesen dürfen: Eine Änderung an einem Agent, einem
 Skill, einer Wissensbasis, einer Kontextdatei, einer Seite, einem Schlüssel,
 einem MCP-Server oder einem Dataset, die Sie nicht sehen, erreicht Ihre Konsole nie, und eine
 Löschung erreicht nur Rollen, die jede Zeile dieser Art sehen. Runs erreichen die
-Rollen, die den Run-Verlauf lesen oder über Freigaben entscheiden, Kanal-Bots die
+Rollen, die den Run-Verlauf lesen oder über Freigaben entscheiden, Wissenslücken
+die Rollen, die jeden Run lesen, Kanal-Bots die
 Rollen, die sie verwalten, und Ihre Benachrichtigungen nur Sie. Bricht die Verbindung ab, arbeitet die Konsole wie
 bisher und verbindet sich selbst wieder.
 

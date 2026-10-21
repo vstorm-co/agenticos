@@ -513,6 +513,21 @@ def _retrieval_conjuncts(query_filter: RetrievalQuery) -> tuple[list[str], dict[
     return conjuncts, params
 
 
+def embedder_for(collection_name: str, resolved: ResolvedEmbeddings) -> EmbeddingService:
+    """An embedder on one collection's model, provider and credential."""
+    return EmbeddingService(
+        settings=RAGSettings(embeddings_config=EmbeddingsConfig(model=resolved.model)),
+        api_key=resolved.api_key,
+        expected_dim=resolved.dim,
+        # So a resolution that ended on an empty key says which key it tried, for
+        # which collection, instead of advising an operator to set a variable they
+        # may already have set.
+        key_origin=resolved.describe(collection_name),
+        base_url=resolved.base_url,
+        keyless=resolved.key_source is EmbeddingKeySource.KEYLESS,
+    )
+
+
 class PgVectorStore(BaseVectorStore):
     """PostgreSQL + pgvector implementation.
 
@@ -604,23 +619,12 @@ class PgVectorStore(BaseVectorStore):
         resolved = await self._resolver(name, organization_id)
         if resolved is None:
             return self.embedder, self.dim
+        # A collection moved to another provider must not be answered by a client
+        # built for the old one, so the provider is part of the key.
         cache_key = (name, resolved.model, resolved.api_key, resolved.base_url)
         service = self._services.get(cache_key)
         if service is None:
-            service = EmbeddingService(
-                settings=RAGSettings(embeddings_config=EmbeddingsConfig(model=resolved.model)),
-                api_key=resolved.api_key,
-                expected_dim=resolved.dim,
-                # So a resolution that ended on an empty key says which key it
-                # tried, for which collection, instead of advising an operator
-                # to set a variable they may already have set.
-                key_origin=resolved.describe(name),
-                # The collection's provider. In the cache key beside the model and
-                # the key, because moving a collection to another provider must
-                # not be answered by a client already built for the old one.
-                base_url=resolved.base_url,
-                keyless=resolved.key_source is EmbeddingKeySource.KEYLESS,
-            )
+            service = embedder_for(name, resolved)
             self._services[cache_key] = service
         return service, resolved.dim
 
@@ -881,6 +885,7 @@ class PgVectorStore(BaseVectorStore):
             SearchResult(
                 content=row[0],
                 score=float(row[3]),
+                similarity=float(row[3]),
                 metadata=row[2] if isinstance(row[2], dict) else json.loads(row[2]),
                 parent_doc_id=row[1],
             )

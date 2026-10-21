@@ -82,6 +82,7 @@ import { StartEvalDialog } from "@/components/evals/start-eval-dialog";
 import { TestPanel } from "@/components/agents/test-panel/test-panel";
 import { useTestShortcut } from "@/components/agents/test-panel/use-test-shortcut";
 import { VersionHistory } from "@/components/agents/version-history";
+import { KnowledgeGapsPanel } from "@/components/knowledge-gaps/knowledge-gaps-panel";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
 import {
@@ -157,6 +158,7 @@ import { useAgentSelectionStore, useConversationStore } from "@/stores";
 import { cn } from "@/lib/utils";
 import type { AgentSpec, CapabilityBindingSpec, McpServerRef } from "@/types/agents";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
+import { isSystemAgent } from "@/lib/system-agents";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -211,6 +213,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const tSharing = useTranslations("sharing");
   const tAgents = useTranslations("agents");
   const tErrors = useTranslations("errors");
+  const tGaps = useTranslations("knowledgeGaps");
   const { id } = use(params);
   // A link from an eval run lands on the tab it names: its Evals, the History
   // comparing the two versions it measured, or Build with the publish asked for.
@@ -351,8 +354,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const canPublish = can(Perm.agentsPublish);
   // Only the platform runs a system agent - nobody chats with it, gives it tools
   // or exposes it - so its page holds what changes how it works, and nothing else.
+  const isSystem = isSystemAgent(agent?.kind);
   const isJudge = agent?.kind === "judge";
-  const isSystem = agent?.kind !== undefined && agent.kind !== "agent";
   const canViewRuns = can(Perm.runsView);
   // The Builder's tabs, as `?tab=` names them, for this caller and this agent; a
   // link naming one they lack - Evals without runs:view, a judge's Toolbox -
@@ -364,6 +367,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
     "limits",
     ...(canViewRuns && !isSystem ? ["evals"] : []),
     "history",
+    ...(canViewRuns && !isSystem ? ["gaps"] : []),
   ];
   const tab = tabParam !== null && tabs.includes(tabParam) ? tabParam : "build";
   // Testing the draft runs it - the editors' work in progress - on a dataset.
@@ -1385,6 +1389,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
               {t("history")}
             </TabsTrigger>
             {isJudge && <TabsTrigger value="datasets">{t("judgeDatasets")}</TabsTrigger>}
+            {canViewRuns && !isSystem && (
+              <TabsTrigger value="gaps" data-tour="agent-tab-gaps">
+                {tGaps("tab")}
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="build" className="mt-6 space-y-6">
@@ -1872,6 +1881,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
           {isJudge && (
             <TabsContent value="datasets" className="mt-6 space-y-6">
               <JudgeDatasetsCard judgeId={id} />
+            </TabsContent>
+          )}
+          {canViewRuns && !isSystem && (
+            <TabsContent value="gaps" className="mt-6">
+              <div data-tour="agent-gaps">
+                <KnowledgeGapsPanel scope={{ kind: "agent", id }} />
+              </div>
             </TabsContent>
           )}
         </Tabs>

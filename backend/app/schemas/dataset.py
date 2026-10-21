@@ -335,11 +335,15 @@ class DatasetVersionList(BaseSchema):
     total: int
 
 
+AnswerAs = Literal["counter_example", "reference_answer"]
+"""Whether an answer taken from a conversation shows what a good answer is not, or is."""
+
+
 class DatasetCaseFromMessage(BaseSchema):
     """An answer from a conversation or from Activity, to be added as a case."""
 
     message_id: UUID = Field(description="The assistant message to turn into a case")
-    answer_as: Literal["counter_example", "reference_answer"] = Field(
+    answer_as: AnswerAs = Field(
         default="counter_example",
         description="Keep the answer as what a good answer is not, or as what it is",
     )

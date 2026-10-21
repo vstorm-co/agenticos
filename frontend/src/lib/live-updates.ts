@@ -40,6 +40,8 @@ const STALE: Record<ChangeResource, (orgId: string) => QueryKey[]> = {
   run: () => [qk.runs.all(), qk.conversations.list()],
   // A dataset's cases, versions, grading, scores and drafts all live under it.
   dataset: () => [qk.datasets.all(), qk.sharing.all()],
+  // A topic dismissed or drafted, or a grouping pass that placed new questions.
+  knowledge_gap: () => [qk.knowledgeGaps.all()],
 };
 
 export function staleQueries(event: ChangeEvent): QueryKey[] {

@@ -21,8 +21,10 @@ rename.
 | Skill | Know-how written once and read by any agent that needs it | `skill` |
 | Context file | Standing knowledge an agent always has, such as a glossary or a policy | `context` |
 | Knowledge base | Documents an agent searches and cites | `collection` |
+| Knowledge gap | A topic of questions a knowledge base could not answer, grouped by meaning | `knowledge_gap_topic` |
 | App | A page an agent publishes, such as a report or a small dashboard | `artifact` |
 | Architect | The assistant in the corner of every page, which can build agents with you | `platform-assistant` |
+| System agent | An agent the platform runs itself, such as a judge or the gap drafter; listed apart under **System agents** | `kind` other than `agent` |
 
 ## Where it runs
 

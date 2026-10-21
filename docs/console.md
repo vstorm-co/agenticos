@@ -206,6 +206,10 @@ review decision, and drafts the [case generator](datasets.md#generating-cases)
 finishes in the background, which appear in an open dataset's Generated tab
 without a reload.
 
+Knowledge gaps are announced the same way: a topic dismissed or drafted in one
+tab, and the questions a grouping pass places every 15 minutes, appear on an
+open Knowledge gaps tab without a reload.
+
 The Builder is the exception, because it saves your draft as you type. When the
 agent you are editing changes elsewhere it stops saving and fetches the new
 version. With nothing unsaved it simply takes it; with unsaved edits it tells you
@@ -215,8 +219,9 @@ version) or **Keep my changes** (yours, saved over theirs).
 You only hear about what you could read: a change to an agent, skill, knowledge
 base, context file, page, key, MCP server or dataset you cannot see never reaches your
 console, and a deletion reaches only roles that see every row of its kind. Runs
-reach the roles that read run history or decide approvals, channel bots the roles
-that manage them, and your notifications only you. When the connection
+reach the roles that read run history or decide approvals, knowledge gaps the
+roles that read every run, channel bots the roles that manage them, and your
+notifications only you. When the connection
 drops the console works as before and reconnects on its own.
 
 ## Chat

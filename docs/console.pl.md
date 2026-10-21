@@ -1,5 +1,5 @@
 ---
-source_sha: "6ffd6407de27"
+source_sha: "b055cbfab1cd"
 ---
 
 # Konsola { #the-console }
@@ -218,6 +218,10 @@ wynik albo decyzja przeglądu, a także propozycje, które
 [generator przypadków](datasets.md#generating-cases) kończy w tle - pojawiają się
 w zakładce Generated otwartego datasetu bez przeładowania.
 
+Tak samo ogłaszane są luki w wiedzy: temat odrzucony albo z nowym szkicem w
+jednej karcie i pytania, które co 15 minut umieszcza przejście grupujące,
+pojawiają się na otwartej karcie Luki w wiedzy bez przeładowania.
+
 Wyjątkiem jest Builder, bo zapisuje draft w trakcie pisania. Gdy edytowany agent
 zmieni się gdzie indziej, Builder przestaje zapisywać i pobiera nową wersję. Bez
 niezapisanych zmian po prostu ją przyjmuje; z niezapisanymi zmianami mówi, kto i
@@ -228,7 +232,8 @@ Słyszysz tylko o tym, co możesz odczytać: zmiana agenta, skilla, bazy wiedzy,
 pliku kontekstu, strony, klucza, serwera MCP albo datasetu, których nie widzisz, nigdy nie
 trafia do twojej konsoli, a usunięcie trafia tylko do ról, które widzą każdy
 wiersz danego rodzaju. Runy trafiają do ról, które czytają historię runów albo
-decydują o zatwierdzeniach, boty kanałów do ról, które nimi zarządzają, a twoje
+decydują o zatwierdzeniach, luki w wiedzy do ról, które czytają każdy run, boty
+kanałów do ról, które nimi zarządzają, a twoje
 powiadomienia tylko do ciebie.
 Gdy połączenie zostanie zerwane, konsola działa jak dotąd i sama się ponownie łączy.
 

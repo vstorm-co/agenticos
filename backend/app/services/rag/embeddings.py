@@ -194,6 +194,15 @@ class EmbeddingService:
             )
         return result
 
+    def embed_queries(self, queries: list[str]) -> list[list[float]]:
+        results = self.provider.embed_queries(queries)
+        if results and len(results[0]) != self.expected_dim:
+            raise ValueError(
+                f"Embedding dimension mismatch: expected {self.expected_dim}, "
+                f"got {len(results[0])}. Check your embedding model configuration."
+            )
+        return results
+
     def embed_document(self, document: Document) -> list[list[float]]:
         results = self.provider.embed_document(document)
         if results and len(results[0]) != self.expected_dim:

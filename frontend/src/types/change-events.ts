@@ -16,7 +16,8 @@ export type ChangeResource =
   | "secret"
   | "mcp_connection"
   | "run"
-  | "dataset";
+  | "dataset"
+  | "knowledge_gap";
 
 export type ChangeAction = "created" | "updated" | "deleted";
 
@@ -53,4 +54,12 @@ export interface RunChange extends ChangeEventBase {
   actor_name: null;
 }
 
-export type ChangeEvent = MadeChange | RunChange;
+/** Work the platform does on its own schedule, such as a grouping pass placing questions. */
+export interface SystemChange extends ChangeEventBase {
+  resource: "knowledge_gap";
+  surface: "system";
+  actor_user_id: null;
+  actor_name: null;
+}
+
+export type ChangeEvent = MadeChange | RunChange | SystemChange;

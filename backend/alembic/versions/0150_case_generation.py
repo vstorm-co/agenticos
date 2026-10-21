@@ -21,7 +21,7 @@ its `system_key`, kept with its runs and spend rather than deleted, so the
 narrower `ck_agent_kind` holds and an upgrade again seeds a generator afresh.
 
 Revision ID: 0150_case_generation
-Revises: 0148_eval_runs
+Revises: 0149_knowledge_gaps
 Create Date: 2026-10-13
 """
 
@@ -33,9 +33,12 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 revision: str = "0150_case_generation"
-down_revision: str | None = "0148_eval_runs"
+down_revision: str | None = "0149_knowledge_gaps"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
+
+_KINDS_BEFORE = "kind IN ('agent', 'judge', 'drafter')"
+_KINDS = "kind IN ('agent', 'judge', 'drafter', 'generator')"
 
 
 def upgrade() -> None:
@@ -248,15 +251,13 @@ def upgrade() -> None:
     )
 
     op.drop_constraint("ck_agent_kind", "agents", type_="check")
-    op.create_check_constraint(
-        "ck_agent_kind", "agents", "kind IN ('agent', 'judge', 'drafter', 'generator')"
-    )
+    op.create_check_constraint("ck_agent_kind", "agents", _KINDS)
 
 
 def downgrade() -> None:
     op.execute("UPDATE agents SET kind = 'agent', system_key = NULL WHERE kind = 'generator'")
     op.drop_constraint("ck_agent_kind", "agents", type_="check")
-    op.create_check_constraint("ck_agent_kind", "agents", "kind IN ('agent', 'judge', 'drafter')")
+    op.create_check_constraint("ck_agent_kind", "agents", _KINDS_BEFORE)
 
     op.execute("UPDATE dataset_versions SET change = 'add' WHERE change = 'generate'")
     op.drop_constraint(

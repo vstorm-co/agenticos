@@ -128,7 +128,7 @@ export function useGenerateCases(datasetId: string) {
     onSuccess: () =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: qk.datasets.generations(datasetId) }),
-        queryClient.invalidateQueries({ queryKey: qk.agents.generators() }),
+        queryClient.invalidateQueries({ queryKey: qk.agents.ofKind("generator") }),
       ]),
   });
   return { estimate, start };
