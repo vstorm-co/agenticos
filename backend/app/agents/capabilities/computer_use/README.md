@@ -1,9 +1,10 @@
 # Computer use (`computer_use`)
 
-Two tools, `computer_screenshot` and `computer_act`. The model looks at a
+Three tools. With `computer_screenshot` and `computer_act` the model looks at a
 desktop, sends a few mouse and keyboard actions in that screenshot's pixels and
-gets a new screenshot back. Unlike `browser_use`, the desktop can run any application, not only a
-web page. #2094 is the issue.
+gets a new screenshot back. `computer_save_screenshot` keeps one for the user.
+Unlike `browser_use`, the desktop can run any application, not only a web page.
+#2094 is the issue.
 
 ## Where the desktop is
 
@@ -50,6 +51,16 @@ names (`browseCalls` in `frontend/src/components/chat/turn-parts.tsx`). Every
 later call draws there, so a session is one window rather than one per call.
 `ComputerToolset` counts the run's entries, as `BrowserToolset` does, and sends
 `browser_finished` once, on the last exit.
+
+**The user's screenshot is a tool of its own.** What the model looks at is
+scaled down, re-encoded as JPEG and taken dozens of times a run; keeping every
+one would bury the chat. `computer_save_screenshot` is the deliberate one: the
+PNG as the backend took it, stored organization-scoped through
+`app/services/generated_media.py` (a platform service, so image generation
+need not be bound) and returned as a `desktop_screenshot` payload the chat draws
+(`tool-results/desktop-screenshot.tsx`). With a workspace open it is written to
+`output/` too, which is what a channel reply posts and what a testing agent's
+report can link. It changes nothing on the desktop, so it is not side-effecting.
 
 **Limits:** `max_actions_per_call` bounds one batch. `max_actions` bounds a run;
 past it the tool tells the model to stop and report what is left. A `type`

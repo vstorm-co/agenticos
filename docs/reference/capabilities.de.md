@@ -1,5 +1,5 @@
 ---
-source_sha: "f5fecbf47228"
+source_sha: "edee98ed294f"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -60,7 +60,7 @@ hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installati
 | `web_research` | Websuche | research | `web_search` | `web:read` | für kostenpflichtige Dienste |
 | `web_fetch` | Webseiten lesen | research | `web_fetch` | `web:fetch` | — |
 | `browser_use` | Webbrowser | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | über das Extra `browser` |
-| `computer_use` | Computer-Bedienung | research | `computer_screenshot`, `computer_act` | `computer:use` | für E2B, über das Extra `computer` |
+| `computer_use` | Computer-Bedienung | research | `computer_screenshot`, `computer_act`, `computer_save_screenshot` | `computer:use` | für E2B, über das Extra `computer` |
 | `code_execution` | Berechnungen | analysis | `run_python` | `code:execute` | — |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | für Daytona |
 | `charts` | Diagramme | analysis | `create_chart` | — | — |
@@ -871,6 +871,8 @@ entfallen.
 
 `computer_act` — *Act on the desktop: click, type, press keys, scroll, drag or wait.*
 
+`computer_save_screenshot` — *Save a screenshot of the desktop for the user: shown in the chat and kept.*
+
 Der Agent bedient einen ganzen Desktop und kann so jede Anwendung nutzen, nicht
 nur eine Webseite. Er sieht sich einen Screenshot an und sendet einige Maus- und
 Tastaturaktionen in den Pixeln dieses Screenshots. Jede Antwort von
@@ -915,6 +917,16 @@ Der Chat zeichnet den Desktop in einem Fenster unter der Nachricht, während der
 Agent arbeitet: ein Fenster pro Run, geöffnet vom ersten Screenshot, mit einem
 Bild nach jedem Aufruf und einer Zeile pro Aktion. Text, den
 das Modell tippt, ist dort so zu sehen, wie er getippt wurde.
+
+**Ein Screenshot, den der Nutzer behält.** `computer_screenshot` ist für das
+Modell, und nichts bewahrt ihn auf. Will der Nutzer den Bildschirm sehen oder
+soll das Ergebnis eines Schritts als Nachweis bleiben, ruft der Agent
+`computer_save_screenshot` auf. Es speichert den Bildschirm in voller Auflösung
+für die Organisation und zeigt ihn im Chat, verlinkt auf die Datei in voller
+Größe. Hat der Agent einen Workspace, schreibt es die Datei auch nach `output/`,
+sodass eine Antwort im Kanal sie mitbringt und ein späterer Schritt sie in einen
+Bericht aufnehmen kann. Es ändert nichts auf dem Desktop, und die Freigabe hält
+es nur an, wenn der Besitzer das verlangt.
 
 !!! warning "Text auf dem Bildschirm ist nicht vertrauenswürdig"
 

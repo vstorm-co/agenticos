@@ -60,6 +60,7 @@ export type ToolRenderer =
   | "artifact"
   | "chart"
   | "generated-image"
+  | "desktop-screenshot"
   | "web-search"
   | "rag"
   | "run-python"
@@ -264,6 +265,15 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     render: "generic",
     captionKey: "usingComputer",
     displayNameKey: "useComputer",
+  },
+  // The screenshot kept for the user rather than looked at: the picture is the answer.
+  computer_save_screenshot: {
+    kind: "image",
+    render: "desktop-screenshot",
+    captionKey: "savingScreenshot",
+    displayNameKey: "savedScreenshot",
+    opensWhenDone: true,
+    opensOnSight: true,
   },
 
   // channel_tools - only ever called on a Slack, Telegram or Mattermost run, so these

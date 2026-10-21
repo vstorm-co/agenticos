@@ -12,7 +12,7 @@ import types
 from collections.abc import MutableSequence, Sequence
 from dataclasses import replace
 from typing import Any, Literal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
 import pytest
@@ -22,6 +22,8 @@ from pydantic_ai import BinaryContent, ModelRetry
 from pydantic_ai._run_context import RunContext
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RunUsage
+from pydantic_ai.workspaces import Workspace
+from pydantic_ai_backends import StateBackend
 
 from app.agents.browser_events import BrowserEvent
 from app.agents.capabilities import CapabilityBinding, CapabilityBuildContext, get
@@ -59,7 +61,9 @@ from app.agents.capabilities.computer_use._backends import (
     xdotool,
 )
 from app.agents.capabilities.computer_use._toolset import (
+    OUTPUT_DIR,
     ComputerToolset,
+    SavedScreenshot,
     ToolPolicy,
     build_toolset,
     fit,
@@ -71,6 +75,8 @@ from app.core.config import settings
 from app.core.sanitize import UrlRefusedError
 from app.core.secret_kinds import ApiKeySecret
 from app.services.agent_registry import DEFAULT_GRANTED_SCOPES, _computer_use_problems
+from app.services.generated_media import load_generated_image
+from tests.workspaces import ShellFailing, document_workspace
 
 pytestmark = pytest.mark.anyio
 
@@ -664,6 +670,81 @@ class TestTheTools:
         assert frames.events == []
 
 
+class TestSavingAScreenshot:
+    """The screenshot the user keeps, as against the one the model looks at."""
+
+    @pytest.fixture(autouse=True)
+    def _media(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> None:
+        monkeypatch.setattr(settings, "MEDIA_DIR", tmp_path)
+
+    @staticmethod
+    def _ctx(
+        organization_id: UUID | None, workspace: Workspace | None = None
+    ) -> RunContext[AgentDeps]:
+        ctx = RunContext(
+            deps=AgentDeps(organization_id=organization_id), model=TestModel(), usage=RunUsage()
+        )
+        if workspace is not None:
+            ctx.workspace = workspace
+        return ctx
+
+    @staticmethod
+    async def _save(desktop: Any, ctx: RunContext[AgentDeps]) -> str:
+        return await _tools(desktop)["computer_save_screenshot"](
+            ctx, caption="The page after the click"
+        )
+
+    async def test_it_is_kept_at_full_resolution_and_drawn_in_the_chat(self):
+        organization_id = uuid4()
+        desktop = _Desktop()
+
+        saved = SavedScreenshot.model_validate_json(
+            await self._save(desktop, self._ctx(organization_id))
+        )
+
+        # The bytes as the desktop took them - 2560x1600, not the model's 1280x800.
+        assert saved.filename is not None
+        assert await load_generated_image(organization_id, saved.filename) == desktop.image
+        assert saved.url == f"/api/v1/generated/{saved.filename}"
+        assert (saved.kind, saved.width, saved.height) == ("desktop_screenshot", 2560, 1600)
+        assert saved.caption == "The page after the click"
+        assert saved.workspace_path is None
+
+    async def test_it_is_written_into_an_open_workspace(self):
+        document = StateBackend()
+        desktop = _Desktop()
+
+        saved = SavedScreenshot.model_validate_json(
+            await self._save(desktop, self._ctx(uuid4(), document_workspace(document)))
+        )
+
+        assert saved.workspace_path == f"{OUTPUT_DIR}/{saved.filename}"
+        assert document.read_bytes(saved.workspace_path) == desktop.image
+
+    async def test_without_an_organization_only_the_workspace_has_it(self):
+        document = StateBackend()
+
+        saved = SavedScreenshot.model_validate_json(
+            await self._save(_Desktop(), self._ctx(None, document_workspace(document)))
+        )
+
+        assert (saved.filename, saved.url) == (None, None)
+        assert saved.workspace_path is not None
+        assert saved.workspace_path.startswith(f"{OUTPUT_DIR}/screenshot-")
+
+    async def test_a_workspace_that_cannot_take_it_names_no_path(self):
+        saved = SavedScreenshot.model_validate_json(
+            await self._save(_Desktop(), self._ctx(uuid4(), ShellFailing(document_workspace())))
+        )
+
+        assert saved.url is not None
+        assert saved.workspace_path is None
+
+    async def test_a_desktop_that_cannot_be_captured_is_a_sentence(self):
+        answer = await self._save(_Desktop(blind=True), self._ctx(uuid4()))
+        assert answer == "The desktop did not return a screenshot."
+
+
 class TestTheCapability:
     async def test_without_a_url_the_daemon_backend_says_what_to_set(self):
         with pytest.raises(ComputerError, match="daemon_url"):
@@ -737,7 +818,11 @@ class TestRegistration:
         flags = {tool.id: tool.side_effecting for tool in definition.tools}
 
         # `computer_act` declares nothing of its own, so it takes the capability's flag.
-        assert flags == {"computer_screenshot": False, "computer_act": None}
+        assert flags == {
+            "computer_screenshot": False,
+            "computer_act": None,
+            "computer_save_screenshot": False,
+        }
         assert definition.side_effecting
         assert definition.scopes <= DEFAULT_GRANTED_SCOPES
 

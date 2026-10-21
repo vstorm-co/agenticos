@@ -37,6 +37,7 @@ describe("the tool catalog", () => {
       .map(([id]) => id);
 
     expect(opens.sort()).toEqual([
+      "computer_save_screenshot",
       "create_chart",
       "edit_file",
       "generate_image",

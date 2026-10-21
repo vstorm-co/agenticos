@@ -1,5 +1,5 @@
 ---
-source_sha: "f5fecbf47228"
+source_sha: "edee98ed294f"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -60,7 +60,7 @@ Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
 | `web_research` | Wyszukiwanie w internecie | badania | `web_search` | `web:read` | dla usług płatnych |
 | `web_fetch` | Czytanie stron | badania | `web_fetch` | `web:fetch` | — |
 | `browser_use` | Przeglądarka | badania | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | przez dodatek `browser` |
-| `computer_use` | Obsługa komputera | badania | `computer_screenshot`, `computer_act` | `computer:use` | dla E2B, przez dodatek `computer` |
+| `computer_use` | Obsługa komputera | badania | `computer_screenshot`, `computer_act`, `computer_save_screenshot` | `computer:use` | dla E2B, przez dodatek `computer` |
 | `code_execution` | Obliczenia | analiza | `run_python` | `code:execute` | — |
 | `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | dla Daytony |
 | `charts` | Wykresy | analiza | `create_chart` | — | — |
@@ -822,6 +822,8 @@ są usuwane.
 
 `computer_act` — *Act on the desktop: click, type, press keys, scroll, drag or wait.*
 
+`computer_save_screenshot` — *Save a screenshot of the desktop for the user: shown in the chat and kept.*
+
 Agent obsługuje cały pulpit, więc może używać dowolnej aplikacji, nie tylko
 strony WWW. Patrzy na zrzut ekranu i wysyła kilka akcji myszy i klawiatury w
 pikselach tego zrzutu. Każda odpowiedź `computer_act` zawiera świeży zrzut
@@ -864,6 +866,15 @@ Czat rysuje pulpit w oknie pod wiadomością, gdy agent pracuje: jedno okno na
 run, otwarte przez pierwszy zrzut ekranu, z klatką po każdym wywołaniu i linią
 na akcję. Tekst wpisywany przez model
 jest tam widoczny tak, jak został wpisany.
+
+**Zrzut ekranu, który zostaje u użytkownika.** `computer_screenshot` jest dla
+modelu i nic go nie przechowuje. Gdy użytkownik chce zobaczyć ekran albo wynik
+kroku ma zostać zachowany jako dowód, agent wywołuje `computer_save_screenshot`.
+Zapisuje on ekran w pełnej rozdzielczości dla organizacji i pokazuje go w czacie
+z linkiem do pliku w pełnym rozmiarze. Gdy agent ma workspace, zapisuje też plik
+w `output/`, więc odpowiedź na kanale go zawiera, a kolejny krok może dołączyć go
+do raportu. Niczego na pulpicie nie zmienia i nie czeka na akceptację, chyba że
+właściciel o nią poprosi.
 
 !!! warning "Tekst na ekranie jest niezaufany"
 

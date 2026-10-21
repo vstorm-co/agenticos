@@ -1,4 +1,4 @@
-"""The two tools: look at the desktop, and act on it.
+"""The tools: look at the desktop, act on it, and keep a screenshot of it.
 
 Split in two on purpose. Looking changes nothing, while acting clicks and types
 on a real machine - so an agent that gates `computer_act` behind approval still
@@ -8,21 +8,28 @@ approving a batch of clicks approves it against a screen both of them have seen.
 Every answer carries a fresh screenshot. The model needs the screen *after* its
 actions to choose the next ones, and taking it here saves the round trip of a
 separate `computer_screenshot` call per step.
+
+Those screenshots are the model's, and nobody keeps them. `computer_save_screenshot`
+is the one for the user: the screen at full resolution, stored for the
+organization and drawn in the chat, and written into the run's workspace when it
+has one - evidence a test can point at, and a file a channel posts back.
 """
 
 import base64
 import io
+import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 import anyio
 from PIL import Image
-from pydantic import TypeAdapter
+from pydantic import BaseModel, TypeAdapter
 from pydantic_ai import RunContext
 from pydantic_ai.messages import BinaryContent
 from pydantic_ai.toolsets import FunctionToolset
+from pydantic_ai.workspaces import WorkspaceError
 
 from app.agents.browser_events import BrowserEvent, BrowserEventSink
 from app.agents.capabilities._failures import steer
@@ -39,13 +46,40 @@ from app.agents.capabilities.computer_use._backends import (
     ComputerError,
     ComputerFactory,
     NativeAction,
+    png_size,
 )
+from app.services.generated_media import generated_image_url, save_generated_image
+
+logger = logging.getLogger(__name__)
 
 _BATCH: TypeAdapter[list[Action]] = TypeAdapter(list[Action])
 """What `computer_act` is handed after approval: the batch as JSON, from the approval row."""
 
 JPEG_QUALITY = 75
 """Legible text at a third of a PNG's size; the model is billed by pixels, not bytes."""
+
+OUTPUT_DIR = "output"
+"""Where a saved screenshot lands in the run's workspace, beside what other tools make.
+
+Relative, as every tool's output directory is: an absolute path resolves outside
+the workspace, where neither the agent's shell nor a channel's reply finds it.
+"""
+
+
+class SavedScreenshot(BaseModel):
+    """What `computer_save_screenshot` returns - where the image is, not its bytes.
+
+    The chat draws the image from `url`. `filename` and `url` are absent only on
+    a run with no organization to store it for (a preview, a test).
+    """
+
+    kind: Literal["desktop_screenshot"] = "desktop_screenshot"
+    filename: str | None = None
+    url: str | None = None
+    caption: str
+    width: int
+    height: int
+    workspace_path: str | None = None
 
 
 @dataclass(frozen=True)
@@ -104,7 +138,7 @@ class _Session:
 
 
 class ComputerToolset(FunctionToolset[Any]):
-    """The two tools, and the live window a run draws its desktop in.
+    """The tools, and the live window a run draws its desktop in.
 
     Entered by the run, so it is the thing that knows when the run is over and
     the window can stop showing a desktop being worked. Entries are counted, as
@@ -145,7 +179,7 @@ def fit(capture: Capture, max_width: int, max_height: int) -> tuple[bytes, Scree
 
 
 def build_toolset(factory: ComputerFactory, policy: ToolPolicy) -> ComputerToolset:
-    """The `computer_screenshot` and `computer_act` tools, sharing one desktop per run."""
+    """The computer use tools, sharing one desktop per run."""
     session = _Session(factory=factory)
 
     async def look(ctx: RunContext[Any], computer: Computer) -> tuple[bytes, Screen, str]:
@@ -284,6 +318,56 @@ def build_toolset(factory: ComputerFactory, policy: ToolPolicy) -> ComputerTools
         session.failure = failure
         return answer(_summary(done, len(actions), failure), image, latest)
 
+    async def computer_save_screenshot(ctx: RunContext[Any], caption: str) -> str:
+        """Save a screenshot of the desktop for the user: shown in the chat and kept.
+
+        `computer_screenshot` is for you to look at, and nobody keeps it. Use this
+        when the user asks to see the screen, or to record what a step left behind
+        - a test's result, the state before and after a change - as evidence. It is
+        saved at the screen's full resolution and changes nothing on the desktop.
+
+        Args:
+            caption: One line on what the screenshot shows, displayed under it.
+
+        Returns:
+            JSON referencing the saved image, with the workspace path it was also
+            written to if this run has a workspace. Leave the JSON alone and say in
+            one line what you saved.
+        """
+        try:
+            capture = await (await session.desktop()).capture()
+        except ComputerError as exc:
+            return str(exc)
+        # Every backend answers with a PNG; it is kept as taken, not scaled down
+        # the way the model's copy is.
+        width, height = png_size(capture.image)
+        organization_id = getattr(ctx.deps, "organization_id", None)
+        filename: str | None = None
+        url: str | None = None
+        if organization_id is not None:
+            filename = await save_generated_image(
+                organization_id, capture.image, image_format="png"
+            )
+            url = generated_image_url(filename)
+        workspace_path: str | None = None
+        if ctx.workspace.attached:
+            path = f"{OUTPUT_DIR}/{filename or f'screenshot-{uuid4()}.png'}"
+            try:
+                await ctx.workspace.write_bytes(path, capture.image)
+                workspace_path = path
+            except OSError, WorkspaceError:
+                # A full workspace: stored and linked all the same, and a path
+                # holding nothing would send the model to read it.
+                logger.info("computer_screenshot_not_written", extra={"path": path})
+        return SavedScreenshot(
+            filename=filename,
+            url=url,
+            caption=caption,
+            width=width,
+            height=height,
+            workspace_path=workspace_path,
+        ).model_dump_json()
+
     async def _perform(
         desktop: Computer, actions: Sequence[NativeAction], screen: Screen, call_id: str
     ) -> tuple[int, str | None]:
@@ -311,6 +395,7 @@ def build_toolset(factory: ComputerFactory, policy: ToolPolicy) -> ComputerTools
     toolset = ComputerToolset(session)
     toolset.add_function(computer_screenshot, takes_ctx=True)
     toolset.add_function(computer_act, takes_ctx=True)
+    toolset.add_function(computer_save_screenshot, takes_ctx=True)
     return toolset
 
 

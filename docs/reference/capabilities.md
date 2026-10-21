@@ -53,7 +53,7 @@ browser is pointed at the deployment's browser service
 | `web_research` | Web search | research | `web_search` | `web:read` | for paid services |
 | `web_fetch` | Read web pages | research | `web_fetch` | `web:fetch` | — |
 | `browser_use` | Web browser | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | via the `browser` extra |
-| `computer_use` | Computer use | research | `computer_screenshot`, `computer_act` | `computer:use` | for E2B, via the `computer` extra |
+| `computer_use` | Computer use | research | `computer_screenshot`, `computer_act`, `computer_save_screenshot` | `computer:use` | for E2B, via the `computer` extra |
 | `code_execution` | Calculations | analysis | `run_python` | `code:execute` | — |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona |
 | `charts` | Charts | analysis | `create_chart` | — | — |
@@ -779,6 +779,8 @@ Specs written before version 13 that bound the step-by-step browser
 
 `computer_act` — *Act on the desktop: click, type, press keys, scroll, drag or wait.*
 
+`computer_save_screenshot` — *Save a screenshot of the desktop for the user: shown in the chat and kept.*
+
 The agent operates a whole desktop, so it can use any application, not only a
 web page. It looks at a screenshot and sends a few mouse and keyboard actions in
 that screenshot's pixels. Each `computer_act` answer includes a fresh
@@ -819,6 +821,15 @@ expires on E2B's own idle timeout.
 The chat draws the desktop in a window under the message while the agent
 works: one window per run, opened by its first screenshot, with a frame after
 every call and a line per action. Text the model types is shown there as typed.
+
+**A screenshot the user keeps.** `computer_screenshot` is for the model, and
+nothing keeps it. When the user asks to see the screen, or a step's result
+should be kept as evidence, the agent calls `computer_save_screenshot`. It
+stores the screen at full resolution for the organization and shows it in the
+chat, linked to the full-size file. When the agent has a workspace, it also
+writes the file to `output/`, so a channel reply carries it and a later step can
+put it in a report. It changes nothing on the desktop, and approval does not
+hold it unless the owner asks.
 
 !!! warning "Screen text is untrusted"
 

@@ -29,7 +29,9 @@ Two things are versioned separately from this file and worth knowing about:
   (`deploy/computer/`) or on a Mac's own screen, on a host that
   `COMPUTER_DAEMON_ALLOWED_HOSTS` allows; or an E2B cloud desktop, one per
   conversation, using the organization's own key from the vault. The chat
-  draws it live in a window under the message (#2094).
+  draws it live in a window under the message, and `computer_save_screenshot`
+  keeps a full-resolution screenshot in the chat and the workspace, for a user
+  who wants to see the screen or a test that needs evidence (#2094).
 
 ### Fixed
 

@@ -422,6 +422,22 @@ describe("a tool call in the transcript", () => {
     );
   });
 
+  it("opens a kept desktop screenshot on sight, as it does a generated image", () => {
+    card({
+      name: "computer_save_screenshot",
+      result: JSON.stringify({
+        kind: "desktop_screenshot",
+        filename: "x_image.png",
+        caption: "The login form",
+      }),
+    });
+
+    expect(screen.getByRole("img", { name: "The login form" })).toHaveAttribute(
+      "src",
+      "/api/generated/x_image.png",
+    );
+  });
+
   it("keeps a published page to one line, its card being under the answer", async () => {
     // The card sits under the reply, so the step does not open over the work -
     // which is what lets a turn that published an app fold away like any other.

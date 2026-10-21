@@ -167,6 +167,11 @@ def _session(organization: object, conversation: object) -> str:
             id="computer_act",
             description="Act on the desktop: click, type, press keys, scroll, drag or wait.",
         ),
+        CapabilityToolInfo(
+            id="computer_save_screenshot",
+            description="Save a screenshot of the desktop for the user: shown in the chat and kept.",
+            side_effecting=False,
+        ),
     ),
     config_schema=ComputerUseConfig,
     side_effecting=True,
