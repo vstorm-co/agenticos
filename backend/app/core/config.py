@@ -8,6 +8,8 @@ from typing import Literal
 from pydantic import Field, computed_field, field_validator, model_validator, ValidationInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.map_tiles import MapTiles, resolve as resolve_map_tiles
+
 SmtpTlsMode = Literal["auto", "implicit", "starttls"]
 """How an encrypted SMTP connection is opened: chosen by the port, or forced."""
 
@@ -800,6 +802,25 @@ class Settings(BaseSettings):
     # request it makes is answered by the deployment or refused. Empty sends a
     # drawing's title instead of its picture.
     VISUAL_RENDER_CDP_URL: str = ""
+
+    # The tile server a drawing's map is drawn on (#2302): a preset -
+    # `openstreetmap`, `usgs-topo` - or a https URL template with {z}, {x} and
+    # {y}, which then needs VISUAL_MAP_TILES_ATTRIBUTION. Every visual and
+    # published page may then load images from that server's tile path, and
+    # nothing else remote. Empty draws a map as a plain outline. See
+    # `app/core/map_tiles.py`.
+    VISUAL_MAP_TILES: str = ""
+    VISUAL_MAP_TILES_ATTRIBUTION: str = ""
+
+    def map_tiles(self) -> MapTiles | None:
+        """The tile server a drawing's map uses, or `None` when the deployment names none."""
+        return resolve_map_tiles(self.VISUAL_MAP_TILES, self.VISUAL_MAP_TILES_ATTRIBUTION)
+
+    @model_validator(mode="after")
+    def validate_map_tiles(self) -> Settings:
+        """A tile setting that cannot be served is refused at startup, not at the first map."""
+        self.map_tiles()
+        return self
 
     # The proxy the deployment's own browser reaches every site through - the
     # compose `browser-egress` service, `http://browser-egress:3128`, which refuses

@@ -48,7 +48,7 @@ from app.repositories.conversation import ToolCallArgs
 from app.schemas.visual import VisualList, VisualListItem, VisualPublish, VisualPublished
 from app.services import artifact as artifacts
 from app.services.access import AGENT, resolve_access
-from app.services.artifact import PLATFORM_SCRIPT
+from app.services.artifact import platform_script
 from app.services.conversation import ConversationService
 from app.services.file_storage import get_file_storage
 
@@ -855,7 +855,7 @@ def _composer() -> str:
         {
             "svg": _SVG_PAGE,
             "mermaid": _MERMAID_PAGE,
-            "runtime": PLATFORM_SCRIPT + VISUAL_RUNTIME,
+            "runtime": platform_script() + VISUAL_RUNTIME,
         }
     ).replace("</", "<\\/")
     return f"""<script>(function () {{

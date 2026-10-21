@@ -66,11 +66,16 @@ def library_prefix() -> str:
 
 
 def rendered_document(kind: VisualKind, content: str, *, title: str) -> str:
-    """The drawing as the frame would write it, with the runtime that says it rendered."""
+    """The drawing as the frame would write it, with the runtime that says it rendered.
+
+    The platform script too, so a drawing that reads `agenticos.map` or offers a
+    follow-up draws here as it does in the chat - without the follow-up, since
+    nobody answers its hello.
+    """
     page = visual_document(kind, content, title=title)
     lead = _LEAD.match(page)
     cut = lead.end() if lead else 0
-    return page[:cut] + VISUAL_RUNTIME + page[cut:]
+    return page[:cut] + artifacts.platform_script() + VISUAL_RUNTIME + page[cut:]
 
 
 async def answer(url: str, document: bytes) -> Answer:

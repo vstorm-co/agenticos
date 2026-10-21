@@ -2,10 +2,13 @@
 
 import {
   AppWindow,
+  ArrowUp,
   Code2,
+  CornerDownRight,
   Copy,
   Download,
   Maximize2,
+  Pencil,
   RotateCw,
   Shapes,
   TriangleAlert,
@@ -24,7 +27,14 @@ import {
 } from "react";
 import { toast } from "sonner";
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle, IconButton } from "@/components/ui";
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  IconButton,
+} from "@/components/ui";
 import { DIALOG_WINDOW } from "@/lib/dialog-sizes";
 import { partialArgs, type PartialField } from "@/lib/partial-args";
 import { cn } from "@/lib/utils";
@@ -69,6 +79,12 @@ interface ConversationVisualsValue {
   onReport?: (callId: string, errors: string[]) => void;
   /** Put a message in the composer, for the person to finish and send. */
   onCompose?: (text: string) => void;
+  /**
+   * Send a message as the person, the way the composer does - for a follow-up a
+   * drawing asked for and the person confirmed. Absent where nobody can send:
+   * a shared thread, the widget. Without it a drawing offers no follow-ups.
+   */
+  onSend?: (text: string) => void;
 }
 
 const ConversationVisuals = createContext<ConversationVisualsValue>({
@@ -81,12 +97,14 @@ export function ConversationVisualsProvider({
   conversationId,
   onReport,
   onCompose,
+  onSend,
   children,
 }: {
   messages: readonly ChatMessage[];
   conversationId: string | null;
   onReport?: (callId: string, errors: string[]) => void;
   onCompose?: (text: string) => void;
+  onSend?: (text: string) => void;
   children: React.ReactNode;
 }) {
   const known = useMemo(() => {
@@ -99,8 +117,8 @@ export function ConversationVisualsProvider({
     return calls;
   }, [messages]);
   const value = useMemo(
-    () => ({ known, conversationId, onReport, onCompose }),
-    [known, conversationId, onReport, onCompose],
+    () => ({ known, conversationId, onReport, onCompose, onSend }),
+    [known, conversationId, onReport, onCompose, onSend],
   );
   // Another thread on screen: the visual stores are keyed by the provider's call
   // id, which that thread may reuse. Not on a new thread learning its id
@@ -298,14 +316,14 @@ function SaveToApps({ update, onSave }: { update: boolean; onSave: () => void })
   const label = update ? t("updateApp") : t("saveToApps");
   return (
     <IconButton aria-label={label} title={label} onClick={onSave}>
-      <AppWindow className="size-4" />
+      <AppWindow className="size-3.5" />
     </IconButton>
   );
 }
 
 function VisualPanel({ call }: { call: ToolCall }) {
   const t = useTranslations("chat.visuals");
-  const { known, conversationId, onReport, onCompose } = useContext(ConversationVisuals);
+  const { known, conversationId, onReport, onCompose, onSend } = useContext(ConversationVisuals);
   const { artifactUrl } = usePublicConfig();
   const shown = useShown(call, known);
   const nested = useSyncExternalStore(subscribeToNothing, framedElsewhere, () => false);
@@ -323,6 +341,7 @@ function VisualPanel({ call }: { call: ToolCall }) {
   const [errors, setErrors] = useState<string[]>([]);
   const [stalled, setStalled] = useState(false);
   const [frameKey, setFrameKey] = useState(0);
+  const [followUp, setFollowUp] = useState<string | null>(null);
   // Read when the frame says it has rendered, which can be the same tick as the
   // last error - so a ref, not the state that has not re-rendered yet.
   const errorsSeen = useRef<string[]>([]);
@@ -391,6 +410,12 @@ function VisualPanel({ call }: { call: ToolCall }) {
     thumbnailed.current = true;
     keepThumbnail(conversationId, call.id, shown.kind === "svg" ? content : markup);
   };
+  // The first request stands until the person sends or dismisses it: a drawing
+  // that could swap the text a moment before the click on Send would be choosing
+  // what the person says.
+  const offerFollowUp = onSend
+    ? (text: string) => setFollowUp((current) => current ?? text)
+    : undefined;
   const copyImage = async () => {
     try {
       await copySvgImage(content);
@@ -400,79 +425,60 @@ function VisualPanel({ call }: { call: ToolCall }) {
     }
   };
 
+  const actions = (
+    <>
+      <IconButton
+        aria-label={code ? t("showVisual") : t("showCode")}
+        title={code ? t("showVisual") : t("showCode")}
+        onClick={() => setCode((value) => !value)}
+      >
+        {code ? <Shapes className="size-3.5" /> : <Code2 className="size-3.5" />}
+      </IconButton>
+      {done && shown.kind === "svg" && (
+        <IconButton aria-label={t("copyImage")} title={t("copyImage")} onClick={copyImage}>
+          <Copy className="size-3.5" />
+        </IconButton>
+      )}
+      {done && (
+        <IconButton
+          aria-label={t("download")}
+          title={t("download")}
+          onClick={() =>
+            downloadVisual(
+              shown.title,
+              shown.kind,
+              content,
+              new URL(visualContentBase(artifactUrl), window.location.href).href,
+            )
+          }
+        >
+          <Download className="size-3.5" />
+        </IconButton>
+      )}
+      {done && conversationId !== null && (
+        <SaveToApps update={app !== undefined} onSave={() => setSaving(true)} />
+      )}
+      <IconButton
+        aria-label={t("fullScreen")}
+        title={t("fullScreen")}
+        onClick={() => setFull(true)}
+      >
+        <Maximize2 className="size-3.5" />
+      </IconButton>
+    </>
+  );
+
   return (
-    <div
-      data-tour="chat-visual"
-      className="group/visual border-border bg-background w-full max-w-2xl min-w-0 overflow-hidden rounded-2xl border shadow-sm"
-    >
-      <div className="border-border flex min-w-0 items-center gap-2 border-b py-1.5 pr-1.5 pl-3">
-        <Shapes className="text-muted-foreground size-4 shrink-0" aria-hidden />
-        <span className="text-foreground min-w-0 truncate text-sm font-medium">{shown.title}</span>
-        {label !== null && (
-          <span
-            className={cn(
-              "text-muted-foreground min-w-0 truncate text-xs",
-              !shown.done && !unfinished && "shimmer-text",
-            )}
-          >
-            {label}
-          </span>
-        )}
-        {savedHere && (
-          <Link
-            href={savedHere.url}
-            className="bg-foreground/[0.06] text-foreground hover:bg-foreground/10 shrink-0 rounded-full px-2 py-0.5 text-xs font-medium"
-          >
-            {t("savedBadge", { version: savedHere.version })}
-          </Link>
-        )}
-        <div className="ml-auto flex shrink-0 items-center">
-          <IconButton
-            aria-label={code ? t("showVisual") : t("showCode")}
-            title={code ? t("showVisual") : t("showCode")}
-            onClick={() => setCode((value) => !value)}
-          >
-            {code ? <Shapes className="size-4" /> : <Code2 className="size-4" />}
-          </IconButton>
-          {done && shown.kind === "svg" && (
-            <IconButton aria-label={t("copyImage")} title={t("copyImage")} onClick={copyImage}>
-              <Copy className="size-4" />
-            </IconButton>
-          )}
-          {done && (
-            <IconButton
-              aria-label={t("download")}
-              title={t("download")}
-              onClick={() =>
-                downloadVisual(
-                  shown.title,
-                  shown.kind,
-                  content,
-                  new URL(visualContentBase(artifactUrl), window.location.href).href,
-                )
-              }
-            >
-              <Download className="size-4" />
-            </IconButton>
-          )}
-          {done && conversationId !== null && (
-            <SaveToApps update={app !== undefined} onSave={() => setSaving(true)} />
-          )}
-          <IconButton
-            aria-label={t("fullScreen")}
-            title={t("fullScreen")}
-            onClick={() => setFull(true)}
-          >
-            <Maximize2 className="size-4" />
-          </IconButton>
-        </div>
-      </div>
+    // No card around it (#2302): a drawing is part of the answer, so it sits in
+    // the transcript the way a paragraph does, and what names it - the title,
+    // its state, what can be done with it - is a quiet line underneath.
+    <div data-tour="chat-visual" className="group/visual w-full max-w-3xl min-w-0">
       {code ? (
-        <pre className="bg-foreground/[0.03] max-h-[32rem] scrollbar-thin overflow-auto p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap">
+        <pre className="bg-foreground/[0.04] max-h-[32rem] scrollbar-thin overflow-auto rounded-xl p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap">
           {shown.content}
         </pre>
       ) : stalled ? (
-        <div className="text-muted-foreground flex flex-col items-center gap-2 px-3 py-10 text-sm">
+        <div className="bg-foreground/[0.04] text-muted-foreground flex flex-col items-center gap-2 rounded-xl px-3 py-10 text-sm">
           {t("stalled")}
           <button
             type="button"
@@ -498,6 +504,7 @@ function VisualPanel({ call }: { call: ToolCall }) {
             onRendered={onRendered}
             onSvg={onSvg}
             onStall={() => setStalled(true)}
+            onFollowUp={offerFollowUp}
           />
           {/* On a phone the preview is a picture: a drag on a canvas would take
               the scroll of the conversation with it, so a tap opens it full
@@ -514,7 +521,7 @@ function VisualPanel({ call }: { call: ToolCall }) {
         </div>
       )}
       {errors.length > 0 && (
-        <div className="border-border flex items-start gap-2 border-t px-3 py-2 text-xs">
+        <div className="bg-destructive/[0.06] mt-2 flex items-start gap-2 rounded-xl px-3 py-2 text-xs">
           <TriangleAlert className="text-destructive mt-0.5 size-3.5 shrink-0" aria-hidden />
           <div className="min-w-0 flex-1">
             <p className="text-foreground font-medium">{t("renderError")}</p>
@@ -540,12 +547,52 @@ function VisualPanel({ call }: { call: ToolCall }) {
           )}
         </div>
       )}
+      {followUp !== null && (
+        <FollowUpRequest
+          text={followUp}
+          onSend={() => {
+            onSend?.(followUp);
+            setFollowUp(null);
+          }}
+          onEdit={
+            onCompose
+              ? () => {
+                  onCompose(followUp);
+                  setFollowUp(null);
+                }
+              : undefined
+          }
+          onDismiss={() => setFollowUp(null)}
+        />
+      )}
+      <div className="text-muted-foreground mt-1.5 flex min-h-8 min-w-0 items-center gap-1.5 text-xs">
+        <Shapes className="size-3.5 shrink-0" aria-hidden />
+        <span className="text-foreground/80 min-w-0 truncate font-medium">{shown.title}</span>
+        {label !== null && (
+          <span className={cn("min-w-0 truncate", !shown.done && !unfinished && "shimmer-text")}>
+            {label}
+          </span>
+        )}
+        {savedHere && (
+          <Link
+            href={savedHere.url}
+            className="bg-foreground/[0.06] text-foreground hover:bg-foreground/10 shrink-0 rounded-full px-2 py-0.5 font-medium"
+          >
+            {t("savedBadge", { version: savedHere.version })}
+          </Link>
+        )}
+        {/* Shown on hover and focus where there is a pointer to hover with;
+            always on a touch screen, where there is not. */}
+        <div className="ml-auto flex shrink-0 items-center transition-opacity focus-within:opacity-100 md:opacity-0 md:group-hover/visual:opacity-100">
+          {actions}
+        </div>
+      </div>
       <Dialog open={full} onOpenChange={setFull}>
         <DialogContent className={DIALOG_WINDOW} aria-describedby={undefined}>
           <DialogHeader className="gap-0 pr-10">
             <DialogTitle className="truncate text-base">{shown.title}</DialogTitle>
           </DialogHeader>
-          <div className="group/visual border-border relative min-h-0 flex-1 overflow-hidden rounded-xl border">
+          <div className="group/visual relative min-h-0 flex-1 overflow-hidden rounded-xl">
             {full && (
               <VisualFrame
                 kind={shown.kind}
@@ -555,6 +602,15 @@ function VisualPanel({ call }: { call: ToolCall }) {
                 height={shown.height}
                 zoom={fullZoom}
                 fill
+                onFollowUp={
+                  offerFollowUp &&
+                  ((text) => {
+                    // The request is shown under the drawing in the conversation,
+                    // which the full-screen window covers.
+                    setFull(false);
+                    offerFollowUp(text);
+                  })
+                }
               />
             )}
             <VisualZoom zoom={fullZoom} onZoom={setFullZoom} className={ZOOM_CORNER} />
@@ -571,6 +627,58 @@ function VisualPanel({ call }: { call: ToolCall }) {
           updates={app?.name ?? null}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * What a drawing asked to send, waiting for the person (#2302).
+ *
+ * The drawing's script runs and may have read hostile input, so a control in it
+ * can only ask: the words are shown here, outside its frame, and go to the
+ * conversation as the person's message only when they click Send - a click the
+ * frame cannot make for them. Edit hands the words to the composer instead.
+ */
+export function FollowUpRequest({
+  text,
+  onSend,
+  onEdit,
+  onDismiss,
+}: {
+  text: string;
+  onSend: () => void;
+  onEdit?: () => void;
+  onDismiss: () => void;
+}) {
+  const t = useTranslations("chat.visuals");
+  return (
+    <div
+      role="group"
+      aria-label={t("followUpLabel")}
+      className="bg-foreground/[0.05] mt-2 rounded-2xl px-3 py-2.5"
+    >
+      <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+        <CornerDownRight className="size-3.5 shrink-0" aria-hidden />
+        {t("followUpAsks")}
+      </p>
+      <p className="text-foreground mt-1 line-clamp-6 text-sm break-words whitespace-pre-wrap">
+        {text}
+      </p>
+      <div className="mt-2 flex flex-wrap justify-end gap-1.5">
+        <Button variant="ghost" size="sm" onClick={onDismiss}>
+          {t("followUpDismiss")}
+        </Button>
+        {onEdit && (
+          <Button variant="outline" size="sm" onClick={onEdit}>
+            <Pencil aria-hidden />
+            {t("followUpEdit")}
+          </Button>
+        )}
+        <Button size="sm" onClick={onSend}>
+          <ArrowUp aria-hidden />
+          {t("followUpSend")}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -617,7 +725,7 @@ function VisualCard({
 
 function DrawingPlaceholder({ label }: { label: string }) {
   return (
-    <div className="border-border bg-background flex h-32 w-full max-w-2xl items-center justify-center rounded-2xl border">
+    <div className="bg-foreground/[0.04] flex h-32 w-full max-w-3xl items-center justify-center rounded-xl">
       <span className="shimmer-text text-muted-foreground text-sm">{label}</span>
     </div>
   );

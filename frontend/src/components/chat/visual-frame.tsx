@@ -34,6 +34,30 @@ const PREVIEW_MAX_HEIGHT = 560;
 /** A ceiling on a page's measured height, past which it is not worth laying out. */
 const MAX_NATURAL = 6000;
 
+/** The longest follow-up a drawing may ask to send - the backend's `FOLLOW_UP_MAX_CHARS`. */
+export const FOLLOW_UP_MAX_CHARS = 2000;
+
+/**
+ * The text of a follow-up request, or null when the message is not one to show.
+ *
+ * Refused unless a person has just interacted with the page: a click inside the
+ * frame gives this window transient activation too, and a drawing asking on
+ * load, on a timer or in a loop has none. That is not what makes it safe - a
+ * script can piggyback on any click, a slider drag included - which is why the
+ * request is only ever shown, and sent by a click in the console's own DOM.
+ * Where the browser cannot say (`userActivation` is missing), the click on Send
+ * is the whole guard.
+ */
+export function followUpText(message: { text?: unknown }): string | null {
+  const activation = (navigator as Navigator & { userActivation?: { isActive: boolean } })
+    .userActivation;
+  if (activation !== undefined && !activation.isActive) return null;
+  if (typeof message.text !== "string") return null;
+  const text = message.text.trim();
+  if (text === "" || text.length > FOLLOW_UP_MAX_CHARS) return null;
+  return text;
+}
+
 export interface VisualFrameProps {
   kind: VisualKind;
   title: string;
@@ -54,6 +78,12 @@ export interface VisualFrameProps {
   /** The SVG the drawing ended up as, for a thumbnail - a Mermaid diagram's above all. */
   onSvg?: (markup: string) => void;
   onStall?: () => void;
+  /**
+   * A control in the finished drawing asked to continue the conversation with
+   * this text, after a person clicked it. Present only where the chat can take a
+   * follow-up: the drawing is told so, and shows its follow-up buttons.
+   */
+  onFollowUp?: (text: string) => void;
 }
 
 /**
@@ -79,6 +109,7 @@ export function VisualFrame({
   onRendered,
   onSvg,
   onStall,
+  onFollowUp,
 }: VisualFrameProps) {
   const { artifactUrl } = usePublicConfig();
   const theme = getResolvedTheme(useThemeStore((state) => state.theme));
@@ -91,9 +122,12 @@ export function VisualFrame({
   const [pending, setPending] = useLinkRequests(frame);
   const box = useRef<HTMLDivElement>(null);
   const [boxWidth, setBoxWidth] = useState(0);
-  const handlers = useRef({ onError, onRendered, onSvg, onStall });
+  const handlers = useRef({ onError, onRendered, onSvg, onStall, onFollowUp });
+  // Read by the message listener, which is set up once.
+  const finished = useRef(done);
   useEffect(() => {
-    handlers.current = { onError, onRendered, onSvg, onStall };
+    handlers.current = { onError, onRendered, onSvg, onStall, onFollowUp };
+    finished.current = done;
   });
 
   useEffect(() => {
@@ -106,13 +140,26 @@ export function VisualFrame({
         height?: unknown;
         message?: unknown;
         markup?: unknown;
+        text?: unknown;
       };
       if (message.type === "agenticos:visual-ready") setReady(true);
-      else if (message.type === "agenticos:visual-rendered") handlers.current.onRendered?.();
+      else if (message.type === "agenticos:hello") {
+        // The finished drawing's platform script, asking what its host offers.
+        if (handlers.current.onFollowUp !== undefined) {
+          frame.current.contentWindow?.postMessage({ type: "agenticos:host", followUp: true }, "*");
+        }
+      } else if (message.type === "agenticos:follow-up") {
+        const text = followUpText(message);
+        if (text !== null) handlers.current.onFollowUp?.(text);
+      } else if (message.type === "agenticos:visual-rendered") handlers.current.onRendered?.();
       else if (message.type === "agenticos:visual-svg" && typeof message.markup === "string") {
         handlers.current.onSvg?.(message.markup);
       } else if (message.type === "agenticos:visual-alive") alive.current = Date.now();
       else if (message.type === "agenticos:visual-size" && typeof message.height === "number") {
+        // While it streams the drawing keeps the height it declared, so the
+        // conversation does not move under the reader as markup arrives; it is
+        // fitted to what it measures once it is finished.
+        if (!finished.current) return;
         const next = message.height;
         setReported((current) => {
           // A page sized to its own viewport (`100vh` plus a margin) grows the
@@ -237,7 +284,10 @@ export function VisualFrame({
       ) : (
         <div
           ref={box}
-          className={cn("w-full", zoom > 1 ? "scrollbar-thin overflow-auto" : "overflow-hidden")}
+          className={cn(
+            "w-full transition-[height] duration-200 ease-out motion-reduce:transition-none",
+            zoom > 1 ? "scrollbar-thin overflow-auto" : "overflow-hidden",
+          )}
           style={{ height: Math.round(boxHeight) }}
         >
           <div

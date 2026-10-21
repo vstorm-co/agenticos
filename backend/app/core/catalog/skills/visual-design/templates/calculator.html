@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bill splitter</title>
+  <link rel="stylesheet" href="lib/agenticos-2.css">
+  <script src="lib/agenticos-2.js"></script>
+  <style>
+    html, body { margin: 0; background: transparent; }
+    .wrap { display: grid; gap: 16px; padding: 4px 0 8px; max-width: 640px; }
+    .inputs { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px 16px; }
+    .field { display: grid; gap: 4px; font-size: 13px; }
+    .field input, .field select {
+      font: inherit; font-size: 15px; padding: 8px 10px; border-radius: 10px;
+      border: 1px solid var(--ao-border-strong); background: var(--ao-card); color: var(--ao-fg);
+    }
+    .field input[aria-invalid="true"] { border-color: var(--ao-danger); }
+    .error { color: var(--ao-danger); font-size: 13px; min-height: 1.2em; margin: 0; }
+    .results { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+    .result { background: var(--ao-muted); border-radius: 12px; padding: 12px 14px; }
+    .result span { display: block; font-size: 12px; color: var(--ao-muted-fg); }
+    .result strong { font-size: 22px; font-variant-numeric: tabular-nums; }
+    .assumption { font-size: 12px; color: var(--ao-muted-fg); margin: 0; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .ask[hidden] { display: none; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <form class="inputs" id="form" novalidate>
+      <label class="field">Bill total
+        <input id="total" type="number" inputmode="decimal" min="0" max="1000000" step="0.01" value="186.40">
+      </label>
+      <label class="field">Tip, %
+        <input id="tip" type="number" inputmode="decimal" min="0" max="100" step="1" value="12">
+      </label>
+      <label class="field">People
+        <input id="people" type="number" inputmode="numeric" min="1" max="100" step="1" value="4">
+      </label>
+      <label class="field">Round each share
+        <select id="round">
+          <option value="0.01">To the cent</option>
+          <option value="1" selected>Up to a whole unit</option>
+          <option value="5">Up to 5</option>
+        </select>
+      </label>
+    </form>
+    <p class="error" id="error" role="alert"></p>
+
+    <section class="results" aria-live="polite" aria-label="Result">
+      <div class="result"><span>Each person pays</span><strong id="share">-</strong></div>
+      <div class="result"><span>Tip</span><strong id="tip-amount">-</strong></div>
+      <div class="result"><span>Collected</span><strong id="collected">-</strong></div>
+    </section>
+    <p class="assumption" id="assumption"></p>
+
+    <div class="actions">
+      <button class="ao-button" type="button" id="reset">Reset</button>
+      <button class="ao-button ask" type="button" id="ask" hidden>Use these numbers</button>
+    </div>
+  </main>
+
+  <script>
+    const DEFAULTS = { total: "186.40", tip: "12", people: "4", round: "1" };
+    const CURRENCY = "EUR";
+    const money = (value) => AO.format.currency(value, CURRENCY);
+    const fields = ["total", "tip", "people"].map((id) => document.getElementById(id));
+    let current = null;
+
+    // Every input is checked before anything is computed: a blank, a negative or
+    // zero people shows a sentence, never NaN or last time's answer.
+    function read() {
+      const total = fields[0].valueAsNumber;
+      const tip = fields[1].valueAsNumber;
+      const people = fields[2].valueAsNumber;
+      const problems = [
+        [fields[0], Number.isFinite(total) && total >= 0 && total <= 1000000, "Enter a bill total from 0 to 1,000,000."],
+        [fields[1], Number.isFinite(tip) && tip >= 0 && tip <= 100, "Enter a tip from 0 to 100%."],
+        [fields[2], Number.isInteger(people) && people >= 1 && people <= 100, "Enter 1 to 100 people."],
+      ];
+      let message = "";
+      for (const [input, ok, text] of problems) {
+        input.setAttribute("aria-invalid", ok ? "false" : "true");
+        if (!ok && !message) message = text;
+      }
+      document.getElementById("error").textContent = message;
+      return message ? null : { total, tip, people, step: Number(document.getElementById("round").value) };
+    }
+
+    function render() {
+      const input = read();
+      const out = (id, text) => { document.getElementById(id).textContent = text; };
+      current = null;
+      if (input === null) {
+        ["share", "tip-amount", "collected"].forEach((id) => out(id, "-"));
+        out("assumption", "");
+        return;
+      }
+      const tipAmount = input.total * (input.tip / 100);
+      const exact = (input.total + tipAmount) / input.people;
+      const share = Math.ceil(exact / input.step - 1e-9) * input.step;
+      const collected = share * input.people;
+      current = { ...input, share, collected };
+      out("share", money(share));
+      out("tip-amount", money(tipAmount));
+      out("collected", money(collected));
+      out("assumption", `Tip on the bill before rounding; ${money(collected - input.total - tipAmount)} left over after rounding.`);
+    }
+
+    document.getElementById("form").addEventListener("input", render);
+    document.getElementById("round").addEventListener("change", render);
+    document.getElementById("reset").addEventListener("click", () => {
+      for (const [id, value] of Object.entries(DEFAULTS)) document.getElementById(id).value = value;
+      render();
+    });
+
+    const ask = document.getElementById("ask");
+    const offer = () => { ask.hidden = !(window.agenticos && agenticos.canFollowUp()); };
+    offer();
+    addEventListener("agenticos:host", offer);
+    ask.addEventListener("click", () => {
+      if (current === null) return;
+      agenticos.followUp(
+        `Bill ${money(current.total)}, tip ${current.tip}%, ${current.people} people: each pays ${money(current.share)}, ${money(current.collected)} collected.`,
+      );
+    });
+
+    render();
+  </script>
+</body>
+</html>

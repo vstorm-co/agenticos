@@ -1,14 +1,40 @@
 ---
 name: visual-design
-description: How to draw with the draw tool - which kind to pick, the size and layout the chat shows best, light and dark, writing in an order that streams well, diagram craft, interactive explainers, three.js scenes, Mermaid, and fixing a drawing. Three templates.
+description: How to answer with the draw tool - when to answer in text, a table or a chart instead, and how to draw the four interactive answers (explain, compare, make a tool, follow a trip on a map); which kind to pick, size and layout, light and dark, streaming order, follow-ups to the conversation, diagram craft, three.js, Mermaid, and fixing a drawing. Five templates.
 category: design
 ---
 
 # Drawing in the conversation
 
-A visual sits under your message and is read in a few seconds, at the width of
-a chat column, often on a phone. It answers one question better than a paragraph
-would. If it needs a caption to be understood, it is not finished.
+A visual sits in the conversation, between your words, and is read in a few
+seconds at the width of a chat column, often on a phone. It answers one question
+better than a paragraph would. If it needs a caption to be understood, it is not
+finished.
+
+## Choose the form of the answer first
+
+Decide per request, not per conversation. Most answers are still text.
+
+| The person wants | Answer with | Why |
+|---|---|---|
+| A fact, advice, writing, code, a decision | Text | Nothing to look at or play with |
+| Exact values side by side | A Markdown table | Every number readable and copyable; the chat renders it |
+| A trend, a ranking, a share of a whole | `create_chart`, when you have it | The console draws it natively, in its own style, and a chat app gets a picture |
+| To **understand** how something works or moves | `draw` - an explainer with controls, or a 3D model | The person changes one thing and sees what follows |
+| To **compare** options | A table first; a chart on a follow-up | "Now chart it" turns your table into a `create_chart` of the same numbers - no drawing needed |
+| A **tool for the moment** - split a bill, size a loan, convert units | `draw` - a working calculator | Inputs, a result that recalculates, and a reset |
+| To **follow a trip** or see where things are | `draw` - a map with numbered pins | Order and distance are spatial |
+
+Do not turn every answer into a dashboard, and do not draw what a sentence says.
+Text around a drawing is short: what it shows and what to try, never a
+description of the drawing itself. One request can need two forms - a table and
+then a calculator - in one answer.
+
+**Be truthful in the drawing.** Label numbers you assumed as assumptions, inside
+the drawing, not only in chat. Coordinates, prices and times you know from
+memory are approximate: say so. A line between two map pins is not a route, a
+distance or a travel time unless you looked one up. Never invent sources, live
+data or a saved state.
 
 ## Pick the kind
 
@@ -40,9 +66,16 @@ should look designed rather than generated.
   A page that is one screen tall reads best; for a scene, fill the frame
   (`html, body { height: 100% }`) and size the canvas to it.
 
-## Light and dark
+## Light, dark and the background
 
-The person may be in either. Never leave text black on a transparent background.
+The drawing sits on the conversation itself, with no box around it, so **leave
+its page background transparent** (`html, body { background: transparent }`,
+after `agenticos-2.css`) and do not frame the whole drawing in a bordered card.
+A scene or a map draws its own area with a soft fill and rounded corners; a
+diagram draws no background rectangle at all. A poster with its own background (a
+cream sheet, a night sky) may keep it: it is a picture, not a page.
+
+The person may be in either theme. Never leave text black on a transparent background.
 
 In SVG, put the colours in a `<style>` with variables and switch them:
 
@@ -58,8 +91,7 @@ In SVG, put the colours in a `<style>` with variables and switch them:
 ```
 
 In HTML, load `lib/agenticos-2.css` - it follows the theme - or use
-`prefers-color-scheme` the same way. A poster with its own background (a cream
-sheet, a night sky) may keep it in both themes: it is a picture, not a page.
+`prefers-color-scheme` the same way.
 
 ## Pictures
 
@@ -100,10 +132,12 @@ The drawing appears while you write it, so the order is the animation:
 4. connectors, then labels;
 5. the legend and footnotes last.
 
-In HTML: styles in the `<head>`, then the markup, then one `<script>` at the end.
-Nothing runs until you finish, so do not write half a page that depends on a
-script to look like anything - write the static structure as markup and let the
-script fill in the values.
+In HTML: **all the styles first**, in one `<style>` in the `<head>`, then the
+markup, then the scripts at the end. The person sees nothing until the styles
+are closed, then the markup as you write it; scripts run once you finish. So do
+not write half a page that depends on a script to look like anything - write the
+static structure as markup and let the script fill in the values. Set `height`
+to about the finished height, so the conversation does not jump while you write.
 
 ## Diagram craft
 
@@ -127,18 +161,94 @@ script fill in the values.
 
 Start from `templates/architecture.svg`.
 
-## Interactive explainers
+## Explain: controls that show cause and effect
+
+The person should change one thing and see what follows: a slider for each
+variable that matters, its value beside it, a Play that runs the interesting
+case, and a Reset to where you started. Start on a state that already shows the
+point. Name the moving parts the way the person would.
 
 - Every control has a visible label and its current value; changing it updates
   the result at once (`input` events, not `change`).
 - Put the result where the eye already is - next to the controls or right under.
-- Use `lib/agenticos-2.css` for the controls and cards and Chart.js through
-  `AO.chart` for charts (it follows the theme). Keep the data in one object at
-  the top of the script.
-- Start from a state that already shows the point: the interesting case, not
-  zeros.
+- Use `lib/agenticos-2.css` for the controls and `AO.chart` for charts (it follows
+  the theme). Keep the data in one object at the top of the script.
+- Keyboard works: real `<button>`s and `<label>`led inputs, a visible focus.
+  Respect `prefers-reduced-motion` and never autoplay forever.
 
-Start from `templates/explainer.html`.
+Start from `templates/explainer.html` (sliders and a chart) or
+`templates/scene.html` (a 3D aircraft with pitch, roll and yaw).
+
+## Make a tool: a calculator that is right
+
+- Real inputs with labels and units, defaults that already give an answer, and a
+  Reset that restores both the inputs and the result.
+- Check every input before computing - `valueAsNumber`, `Number.isFinite`, the
+  domain's limits, a zero divisor - and show a sentence instead of `NaN`,
+  `Infinity` or the last answer. `min` and `max` on an input do not stop typing.
+- Keep full precision inside; format only the output (`AO.format`). Say the
+  formula or the assumption that matters - "tip on the bill before rounding".
+- Never `eval` what the person typed.
+
+Start from `templates/calculator.html`.
+
+## Compare: a table, then a chart
+
+Write the comparison as a Markdown table with the criteria as rows or columns,
+units in the header and a line under it on what you assumed. When the person
+asks to see it ("chart it", "which is cheapest over five years"), call
+`create_chart` with the same numbers - the table stays above, the chart answers
+the follow-up. Draw a comparison only when the person needs to weigh it
+themselves: sliders for the weights, the ranking recalculated.
+
+## Follow a trip: a map
+
+Load Leaflet and the map kit, then hand it the stops:
+
+```html
+<link rel="stylesheet" href="lib/leaflet-1.9.4/leaflet.css">
+<script src="lib/leaflet-1.9.4/leaflet.js"></script>
+<script src="lib/agenticos-map-1.js"></script>
+<div id="trip"></div>
+<script>
+  AOMap.itinerary("#trip", {
+    stops: [{ name: "Tokyo", lat: 35.68, lng: 139.77, day: "Days 1-2", note: "Asakusa, Shibuya" }],
+    followUp: { label: "Plan this stop", text: (stop) => `Plan ${stop.day} in ${stop.name}.` },
+    labels: { pause: "Pause", resume: "Resume", replay: "Replay" },
+  });
+</script>
+```
+
+It drops numbered pins in order, joins them with a dashed line, offers Pause and
+Replay, and lays the stops out as cards under the map; clicking a pin or a card
+jumps to it. Your instructions say whether this deployment has map tiles: with
+them it is a real map with its credit under it, without them an outline of the
+stops - say so if the person expects streets. Pass `labels` in the person's
+language. A stop may carry `image` (`{{image:NAME}}` from `images`), `imageAlt`,
+and the photo's `credit` and `creditUrl` - show the author and the licence for
+every photo you did not make. Two to twelve stops read best.
+
+Start from `templates/itinerary.html`.
+
+## Continue the conversation from a drawing
+
+A control in a drawing can hand the person's choice back to you:
+
+```js
+const ask = document.getElementById("ask");
+const offer = () => { ask.hidden = !(window.agenticos && agenticos.canFollowUp()); };
+offer();
+addEventListener("agenticos:host", offer);
+ask.addEventListener("click", () => agenticos.followUp(`Plan day 3 in Kyoto, budget ${budget} EUR`));
+```
+
+The console shows the text under the drawing and sends it only when the person
+clicks Send, so write it as a message they would send: the values they chose
+and the question, in their language, under 2,000 characters. Label the button
+as the action ("Plan this stop", "Use these numbers"). Call it only from a
+click - never on load, on a timer or while a slider moves. Hide the button while
+`canFollowUp()` is false: outside the chat, in a saved app, nobody would receive
+it. Sliders, filters and calculations stay local and send nothing.
 
 ## 3D scenes
 
@@ -164,7 +274,10 @@ three.js is served as ES modules. The import map must come before your module:
   code (`CapsuleGeometry`, `CylinderGeometry`, `TorusGeometry`, groups).
 - Animate with `renderer.setAnimationLoop`, and stop moving when
   `matchMedia("(prefers-reduced-motion: reduce)")` matches.
-- Model with groups so parts move together (a rotor on a hub on a body).
+- Model with groups so parts move together (a rotor on a hub on a body), and
+  colour the part a control moves.
+- Size it to a box in the page (a `ResizeObserver` on the stage), not to the
+  window, so controls fit under it.
 
 Start from `templates/scene.html`.
 

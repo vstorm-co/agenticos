@@ -16,6 +16,7 @@ from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 
+import httpx
 import pytest
 
 from app.services import health
@@ -556,8 +557,94 @@ class TestSchedulerProbe:
         assert "the background job tables" in check.detail
 
 
+def _tile_server(
+    monkeypatch: pytest.MonkeyPatch, answer: httpx.Response | Exception
+) -> list[httpx.Request]:
+    """Point the map tiles probe at a server that answers this, and record what it asked."""
+    monkeypatch.setattr(
+        health.settings, "VISUAL_MAP_TILES", "https://t.example/{z}/{x}/{y}.png?key=secret"
+    )
+    monkeypatch.setattr(health.settings, "VISUAL_MAP_TILES_ATTRIBUTION", "© Example")
+    asked: list[httpx.Request] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        asked.append(request)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    real = httpx.AsyncClient
+
+    def client(**kwargs: Any) -> httpx.AsyncClient:
+        return real(transport=httpx.MockTransport(handle), **kwargs)
+
+    monkeypatch.setattr(health.httpx, "AsyncClient", client)
+    return asked
+
+
+class TestMapTilesProbe:
+    async def test_no_server_is_unconfigured_not_broken(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(health.settings, "VISUAL_MAP_TILES", "")
+        check = await health.probe_map_tiles()
+        assert check.status == "unconfigured"
+        assert "outline" in check.detail
+
+    async def test_a_server_that_serves_its_first_tile_is_healthy(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        asked = _tile_server(
+            monkeypatch, httpx.Response(200, headers={"content-type": "image/png"}, content=b"png")
+        )
+        check = await health.probe_map_tiles()
+
+        assert check.status == "healthy"
+        assert check.latency_ms is not None
+        assert str(asked[0].url) == "https://t.example/0/0/0.png?key=secret"
+        assert asked[0].headers["user-agent"] == health.MAP_TILES_USER_AGENT
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "answer",
+        [
+            httpx.Response(403, headers={"content-type": "text/html"}, content=b"no"),
+            httpx.Response(200, headers={"content-type": "text/html"}, content=b"<html>"),
+            httpx.Response(200, content=b""),
+        ],
+    )
+    async def test_a_server_that_does_not_serve_an_image_is_unhealthy_and_its_key_unsaid(
+        self, monkeypatch: pytest.MonkeyPatch, answer: httpx.Response
+    ) -> None:
+        _tile_server(monkeypatch, answer)
+        check = await health.probe_map_tiles()
+
+        assert check.status == "unhealthy"
+        assert "t.example" in check.detail
+        assert "secret" not in check.detail
+
+    async def test_a_server_that_cannot_be_reached_is_unhealthy(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _tile_server(monkeypatch, httpx.ConnectError("refused"))
+        check = await health.probe_map_tiles()
+        assert check.status == "unhealthy"
+        assert "ConnectError" in check.detail
+
+    async def test_a_server_that_does_not_answer_in_time_is_unhealthy(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _tile_server(monkeypatch, httpx.ReadTimeout("slow"))
+        check = await health.probe_map_tiles()
+        assert check.status == "unhealthy"
+        assert "did not answer" in check.detail
+
+
 class TestSystemHealth:
-    async def test_it_reports_every_check_an_operator_can_act_on(self, heartbeat_ok: None) -> None:
+    async def test_it_reports_every_check_an_operator_can_act_on(
+        self, heartbeat_ok: None, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(health.settings, "VISUAL_MAP_TILES", "")
         report = await health.system_health(
             db=_Session(1, _capable(), "0.8.0", 2, (1, 1)),  # type: ignore[arg-type]
             redis=_Redis(),  # type: ignore[arg-type]
@@ -569,8 +656,10 @@ class TestSystemHealth:
             "vector_store",
             "model_access",
             "scheduler",
+            "map_tiles",
         ]
-        assert all(check.status == "healthy" for check in report.checks)
+        assert all(check.status == "healthy" for check in report.checks[:-1])
+        assert report.checks[-1].status == "unconfigured"
         assert all(check.detail for check in report.checks)
 
     async def test_a_dead_database_does_not_produce_three_broken_services(

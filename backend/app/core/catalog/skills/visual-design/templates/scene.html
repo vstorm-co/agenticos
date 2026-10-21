@@ -3,14 +3,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Wind turbine</title>
+  <title>How a plane turns</title>
+  <link rel="stylesheet" href="lib/agenticos-2.css">
   <style>
-    :root { color-scheme: light dark; }
-    html, body { margin: 0; height: 100%; overflow: hidden; }
-    body { background: #e4e4e7; }
-    @media (prefers-color-scheme: dark) { body { background: #18181b; } }
-    canvas { display: block; }
-    .hint { position: fixed; left: 12px; bottom: 10px; font: 12px system-ui, sans-serif; opacity: .6; color: CanvasText; }
+    html, body { margin: 0; background: transparent; }
+    .wrap { display: grid; gap: 12px; padding: 4px 0 8px; }
+    .stage { position: relative; height: 340px; border-radius: 12px; overflow: hidden; background: var(--ao-muted); }
+    .stage canvas { display: block; width: 100%; height: 100%; }
+    .hint { position: absolute; left: 12px; bottom: 8px; font-size: 12px; color: var(--ao-muted-fg); }
+    .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px 16px; }
+    .control { display: grid; gap: 4px; }
+    .control-head { display: flex; justify-content: space-between; font-size: 13px; }
+    .control-head output { font-weight: 600; font-variant-numeric: tabular-nums; }
+    .control small { color: var(--ao-muted-fg); }
+    input[type="range"] { width: 100%; accent-color: currentColor; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .ask[hidden] { display: none; }
   </style>
   <script type="importmap">
     { "imports": { "three": "./lib/three-0.186.0/three.module.js",
@@ -18,69 +26,159 @@
   </script>
 </head>
 <body>
-  <div class="hint">Drag to turn, scroll to zoom</div>
+  <main class="wrap">
+    <div class="stage" id="stage">
+      <span class="hint">Drag to look around</span>
+    </div>
+
+    <section class="controls" aria-label="Attitude">
+      <label class="control">
+        <span class="control-head"><span>Pitch - elevator</span><output id="pitch-out"></output></span>
+        <input id="pitch" type="range" min="-30" max="30" step="1" value="10">
+        <small>Nose up or down</small>
+      </label>
+      <label class="control">
+        <span class="control-head"><span>Roll - ailerons</span><output id="roll-out"></output></span>
+        <input id="roll" type="range" min="-60" max="60" step="1" value="-25">
+        <small>Bank into a turn</small>
+      </label>
+      <label class="control">
+        <span class="control-head"><span>Yaw - rudder</span><output id="yaw-out"></output></span>
+        <input id="yaw" type="range" min="-30" max="30" step="1" value="0">
+        <small>Nose left or right</small>
+      </label>
+    </section>
+
+    <div class="actions">
+      <button class="ao-button" type="button" id="play">Play a turn</button>
+      <button class="ao-button" type="button" id="reset">Reset</button>
+      <!-- Continues the conversation with what the person set, after they click. -->
+      <button class="ao-button ask" type="button" id="ask" hidden>Ask why a bank turns the plane</button>
+    </div>
+  </main>
+
   <script type="module">
     import * as THREE from "three";
     import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
-    const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+    const START = { pitch: 10, roll: -25, yaw: 0 };
+    const state = { ...START };
     const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const stage = document.getElementById("stage");
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-    renderer.setSize(innerWidth, innerHeight);
-    document.body.appendChild(renderer.domElement);
+    stage.prepend(renderer.domElement);
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 200);
-    camera.position.set(13, 8, 17);
-
+    const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+    camera.position.set(7, 4, 9);
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.target.set(0, 5, 0);
+    controls.enableZoom = false;
 
-    scene.add(new THREE.HemisphereLight(0xffffff, dark ? 0x222233 : 0x8899aa, 1.6));
-    const sun = new THREE.DirectionalLight(0xffffff, 2.2);
-    sun.position.set(6, 12, 8);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x8899aa, 1.8));
+    const sun = new THREE.DirectionalLight(0xffffff, 2);
+    sun.position.set(5, 10, 6);
     scene.add(sun);
 
-    const white = new THREE.MeshStandardMaterial({ color: 0xf4f4f5, roughness: 0.5 });
-    const grass = new THREE.MeshStandardMaterial({ color: dark ? 0x3f6b4a : 0x7fb069, roughness: 0.9 });
+    const body = new THREE.MeshStandardMaterial({ color: 0xf4f4f5, roughness: 0.45 });
+    const accent = new THREE.MeshStandardMaterial({ color: 0x3f3f46, roughness: 0.6 });
+    const moving = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.5 });
 
-    const ground = new THREE.Mesh(new THREE.CylinderGeometry(7, 7, 0.4, 48), grass);
-    ground.position.y = -0.2;
-    scene.add(ground);
+    // One group per axis, so each slider turns the plane about its own axis.
+    const plane = new THREE.Group();
+    scene.add(plane);
+    plane.add(new THREE.Mesh(new THREE.CapsuleGeometry(0.35, 4, 8, 24).rotateZ(Math.PI / 2), body));
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.08, 6), body);
+    plane.add(wing);
+    const tailplane = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.06, 2.2), body);
+    tailplane.position.set(-2.1, 0.1, 0);
+    plane.add(tailplane);
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1, 0.06), body);
+    fin.position.set(-2.1, 0.6, 0);
+    plane.add(fin);
+    const cockpit = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 12), accent);
+    cockpit.position.set(1.2, 0.3, 0);
+    plane.add(cockpit);
 
-    const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.35, 8, 24), white);
-    tower.position.y = 4;
-    scene.add(tower);
+    // The control surfaces, coloured, so a slider shows what moves on the airframe.
+    const aileronL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 1.6), moving);
+    aileronL.position.set(-0.6, 0, 2.1);
+    const aileronR = aileronL.clone();
+    aileronR.position.z = -2.1;
+    const elevator = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.05, 2.1), moving);
+    elevator.position.set(-2.5, 0.1, 0);
+    const rudder = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.9, 0.05), moving);
+    rudder.position.set(-2.5, 0.6, 0);
+    plane.add(aileronL, aileronR, elevator, rudder);
 
-    const nacelle = new THREE.Group();
-    nacelle.position.set(0, 8.1, 0);
-    scene.add(nacelle);
-    nacelle.add(new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 0.9, 6, 16).rotateZ(Math.PI / 2), white));
-
-    const rotor = new THREE.Group();
-    rotor.position.set(0.75, 0, 0);
-    nacelle.add(rotor);
-    rotor.add(new THREE.Mesh(new THREE.SphereGeometry(0.25, 24, 16), white));
-    for (let i = 0; i < 3; i += 1) {
-      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.06, 3.6, 0.3), white);
-      blade.position.y = 1.9;
-      const arm = new THREE.Group();
-      arm.rotation.x = (i * Math.PI * 2) / 3;
-      arm.add(blade);
-      rotor.add(arm);
+    const rad = THREE.MathUtils.degToRad;
+    function pose() {
+      plane.rotation.set(rad(state.roll), rad(-state.yaw), rad(state.pitch), "YZX");
+      aileronL.rotation.z = rad(state.roll / 2);
+      aileronR.rotation.z = rad(-state.roll / 2);
+      elevator.rotation.z = rad(state.pitch);
+      rudder.rotation.y = rad(state.yaw);
+      for (const key of Object.keys(state)) {
+        document.getElementById(key).value = state[key];
+        document.getElementById(`${key}-out`).textContent = `${Math.round(state[key])}°`;
+      }
     }
 
-    addEventListener("resize", () => {
-      camera.aspect = innerWidth / innerHeight;
+    function resize() {
+      const { clientWidth: width, clientHeight: height } = stage;
+      renderer.setSize(width, height, false);
+      camera.aspect = width / height;
       camera.updateProjectionMatrix();
-      renderer.setSize(innerWidth, innerHeight);
+    }
+    new ResizeObserver(resize).observe(stage);
+
+    let playing = null;
+    function play() {
+      if (still) {
+        Object.assign(state, { pitch: 5, roll: -35, yaw: 4 });
+        pose();
+        return;
+      }
+      const started = performance.now();
+      playing = (now) => {
+        const t = Math.min(1, (now - started) / 3000);
+        const wave = Math.sin(t * Math.PI);
+        Object.assign(state, { pitch: 8 * wave, roll: -40 * wave, yaw: 6 * wave });
+        pose();
+        if (t >= 1) playing = null;
+      };
+    }
+
+    for (const key of Object.keys(state)) {
+      document.getElementById(key).addEventListener("input", (event) => {
+        playing = null;
+        state[key] = Number(event.target.value);
+        pose();
+      });
+    }
+    document.getElementById("play").addEventListener("click", play);
+    document.getElementById("reset").addEventListener("click", () => {
+      playing = null;
+      Object.assign(state, START);
+      pose();
     });
 
-    renderer.setAnimationLoop(() => {
-      if (!still) rotor.rotation.x += 0.03;
+    const ask = document.getElementById("ask");
+    const offer = () => { ask.hidden = !(window.agenticos && agenticos.canFollowUp()); };
+    offer();
+    addEventListener("agenticos:host", offer);
+    ask.addEventListener("click", () => {
+      agenticos.followUp(
+        `With pitch ${state.pitch}°, roll ${state.roll}° and yaw ${state.yaw}°, why does banking turn the plane?`,
+      );
+    });
+
+    pose();
+    resize();
+    renderer.setAnimationLoop((now) => {
+      if (playing) playing(now);
       controls.update();
       renderer.render(scene, camera);
     });

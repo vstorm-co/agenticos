@@ -1164,7 +1164,15 @@
       "slashCommands": "slash commands",
       "emailTitle": "Draft an email",
       "emailPrompt": "Draft a short, friendly email asking a client to confirm next week's meeting.",
-      "unpin": "Unpin {prompt}"
+      "unpin": "Unpin {prompt}",
+      "visualExplainTitle": "Explain it in 3D",
+      "visualExplainPrompt": "Show me in 3D how a plane turns, with sliders for pitch, roll and yaw, a play button and a reset.",
+      "visualCompareTitle": "Compare, then chart it",
+      "visualComparePrompt": "Compare the five largest EU economies by population, GDP and GDP per person in a table.",
+      "visualToolTitle": "Make a calculator",
+      "visualToolPrompt": "Make me a bill splitter: the total, the tip and how many people, recalculated as I type.",
+      "visualMapTitle": "Plan a trip on a map",
+      "visualMapPrompt": "Plan five days in Japan on a map: numbered stops in order, and what to do at each."
     },
     "failedArchiveConversation": "Failed to archive conversation",
     "failedCreateConversation": "Failed to create conversation",
@@ -1724,7 +1732,12 @@
       "savedUnchanged": "The app already has exactly this version",
       "savedBadge": "Saved · v{version}",
       "openApp": "Open",
-      "openInConsole": "Shown in AgenticOS"
+      "openInConsole": "Shown in AgenticOS",
+      "followUpLabel": "A follow-up from the drawing",
+      "followUpAsks": "The drawing asks to send this as your message:",
+      "followUpSend": "Send",
+      "followUpEdit": "Edit",
+      "followUpDismiss": "Dismiss"
     },
     "dictation": {
       "cancel": "Cancel dictation",
@@ -4615,7 +4628,9 @@
       "monthlyBudgetUsd": "Monthly budget (USD)",
       "noBudget": "No budget",
       "noMembers": "No members",
-      "membersTruncated": "Showing the first {shown} of {total} members"
+      "membersTruncated": "Showing the first {shown} of {total} members",
+      "serviceMapTiles": "Map tiles",
+      "serviceMapTilesDetail": "Where maps in visuals get their background"
     },
     "agentDetail": {
       "perMonth": "${amount} per month"

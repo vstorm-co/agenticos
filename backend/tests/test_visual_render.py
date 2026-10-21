@@ -47,7 +47,10 @@ class TestWhichBrowser:
 class TestWhatTheBrowserIsGiven:
     def test_the_drawing_gets_the_runtime_after_its_doctype(self) -> None:
         page = visual_render.rendered_document("html", "<!doctype html><p>x</p>", title="T")
-        assert page.startswith('<!doctype html><script data-agenticos="visual">')
+        # The platform script first, so a drawing reading `agenticos.map` draws
+        # here as it does in the chat.
+        assert page.startswith('<!doctype html><script data-agenticos="platform">')
+        assert '<script data-agenticos="visual">' in page
         assert page.endswith("<p>x</p>")
 
     async def test_the_page_address_is_answered_with_the_drawing_under_the_sandbox(self) -> None:
