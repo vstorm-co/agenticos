@@ -1,5 +1,5 @@
 ---
-source_sha: "101671079304"
+source_sha: "46d6bfcea5d0"
 ---
 
 # Umgebungen { #environments }
@@ -59,8 +59,43 @@ noch ausführbar.
 
 Eine [Eval-Suite](evals.md#suites), die bei Promotion läuft, prüft jede auf ihre
 Umgebung promotete Version gegen die Version, die sie ersetzt, und benachrichtigt
-ihren Eigentümer, wenn das Ergebnis nicht besteht. Sie meldet; sie hält die
-Promotion nicht auf.
+ihren Eigentümer, wenn das Ergebnis nicht besteht. Allein meldet sie nur; eine
+Umgebung, die sie als [Wächter](#guarding-a-promotion-with-evals) nennt, wartet,
+bis sie besteht.
+
+## Eine Promotion mit Evals bewachen { #guarding-a-promotion-with-evals }
+
+Eine Umgebung kann die [Eval-Suites](evals.md#suites) nennen, die sie
+**bewachen**. Dann übernimmt sie eine Version erst, wenn jeder Wächter auf genau
+dieser Version bestanden hat, über die Dataset-Version, die die Suite jetzt
+liest, und unter der Schwelle, die sie jetzt hat - ein Bestehen von vor neuen
+Fällen oder vor einer angehobenen Schwelle zählt nicht. Eine Promotion, die das
+nicht erfüllt, wird abgelehnt (`409`, `PROMOTION_BLOCKED`), und die Ablehnung
+nennt jeden Wächter und seinen Stand: nicht bestanden, ohne Ergebnis, nicht
+gelaufen und warum, prüft noch, veraltet, nicht geprüft oder pausiert.
+
+Der Promotion-Dialog zeigt dasselbe und lässt die Wächter laufen, die auf der
+Version nicht bestanden haben, jeden neben der Version, die die Umgebung jetzt
+ausliefert (`POST /api/v1/agents/{id}/environments/{env}/gate/run`;
+`GET …/gate?version_id=` liest das Gate). Ein Wächter, der den Judge braucht,
+während die [KI-Unterstützung](governance.md#ai-assistance) aus ist, sagt das,
+statt ohne Grund zu blockieren.
+
+Ein **Übergehen** promotet trotzdem an den Wächtern vorbei. Es braucht
+`promotions:override` - Owner und Admins haben es - und eine Begründung von
+mindestens zehn Zeichen, gegeben von einer Person, die als sie selbst angemeldet
+ist, nicht über einen API-Schlüssel. Das Übergehen, wer es tat, und das Ergebnis
+jedes Wächters landen im Audit-Log und an der Version in der Historie, und der
+Eigentümer jedes nicht bestandenen Wächters wird benachrichtigt. Welche Suites
+eine Umgebung bewachen, zu ändern, braucht dieselbe Berechtigung, weil ein
+abgenommener Wächter durchlässt, was er aufgehalten hätte; eine Suite, die
+bewacht, lässt sich erst löschen, wenn sie abgenommen ist.
+
+Eine bewachte Umgebung mit **tracks latest** folgt einer Veröffentlichung nicht
+sofort: Die Veröffentlichung lässt ihre Wächter auf der neuen Version laufen,
+und die Umgebung zieht nach, wenn alle bestehen, verzeichnet als Promotion durch
+das Gate. Eine, deren Wächter nicht bestehen, bleibt, wo sie ist, und ihre Zeile
+sagt, dass sie wartet.
 
 ## `tracks_latest`, und warum es aus ist { #tracks_latest-and-why-it-is-off }
 
@@ -240,6 +275,9 @@ Kunde einer Version begegnet, die niemand ausgeliefert hat.
   öffentliches Widget verschiedene Versionen eines Agents ausliefern können.
 - **Ein Rollback ist ein Umhängen**, weil alte Versionen lesbar und ausführbar
   bleiben.
+- Eine Umgebung kann von **Eval-Suites bewacht** werden: Eine Version kommt
+  erst darauf, wenn sie auf ihr bestehen, oder an ihnen vorbei mit Begründung
+  und `promotions:override`.
 - Eine benannte Umgebung kann Bindings durch **Testverbindungen** ersetzen; ein
   Binding ohne eine ist dort aus, nie die Produktion. In einem Eval wird ein
   schreibendes Tool ohne Testverbindung **aufgezeichnet, nicht ausgeführt**.

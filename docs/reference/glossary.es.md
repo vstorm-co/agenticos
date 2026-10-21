@@ -1,5 +1,5 @@
 ---
-source_sha: "cfb1c420009c"
+source_sha: "bbab1238f7ff"
 ---
 
 # Glosario { #glossary }
@@ -41,6 +41,8 @@ tal como se ven en pantalla.
 | Suite de evals | Un dataset con el que se mide un agent, ejecutado con un horario, al publicar o promocionar, o tras un cambio | `eval_suite` |
 | Run | Una vez que un agent respondió, con su coste y sus pasos | `agent_run` |
 | Environment | Una etapa con nombre, como producción, que apunta a una versión | `environment` |
+| Guardiana | Una suite de evals que un entorno exige que pase en una versión antes de aceptarla | `guard_suite_ids` |
+| Excepción | Una promoción por encima de guardianas que no pasaron, con un motivo | `override_reason` |
 | MCP server | Un servidor de herramientas externo al que llaman los agents, conectado una vez | `mcp_connection` |
 | Remote agent | El agent de otro proveedor, al que se llega por A2A y en el que delegan los agents | `external_agent` |
 | Agent2Agent (A2A) | El protocolo con el que los agents de otros sistemas envían tareas a un agent | `a2a_enabled` |

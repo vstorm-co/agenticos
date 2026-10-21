@@ -51,7 +51,41 @@ that worked. The old version is still there, still readable, still runnable.
 
 An [eval suite](evals.md#suites) set to run on promotion checks each version
 promoted onto its environment against the one it replaced, and tells its owner
-when the result fails. It reports; it does not stop the promotion.
+when the result fails. On its own it reports; an environment that names it as a
+[guard](#guarding-a-promotion-with-evals) waits for it to pass.
+
+## Guarding a promotion with evals { #guarding-a-promotion-with-evals }
+
+An environment can name the [eval suites](evals.md#suites) that **guard** it.
+It then takes a version only once each guard has passed on that exact version,
+over the dataset version the suite reads now and under the threshold it holds
+now - a pass from before cases were added, or before the bar was raised, does
+not count. A promotion that does not meet that is refused (`409`,
+`PROMOTION_BLOCKED`), and the refusal names each guard and where it stands:
+failed, inconclusive, did not run and why, still checking, out of date, not
+checked, or paused.
+
+The promotion dialog shows the same, and runs the guards that have not passed
+on the version, each beside the version the environment serves now
+(`POST /api/v1/agents/{id}/environments/{env}/gate/run`;
+`GET …/gate?version_id=` reads the gate). A guard that needs the judge while
+[AI assistance](governance.md#ai-assistance) is off says so, rather than
+blocking without a reason.
+
+An **override** promotes past the guards anyway. It needs
+`promotions:override` - owners and admins hold it - and a reason of at least
+ten characters, given by a person signed in as themselves, not through an API
+key. The override, who
+made it and each guard's result go to the audit log and onto the version in
+the history, and each failing guard's owner is told. Changing which suites
+guard an environment needs the same permission, since taking a guard off lets
+through what it would have stopped; a suite that guards cannot be deleted until
+it is taken off.
+
+A guarded environment with **tracks latest** on does not follow a publish at
+once: the publish runs its guards on the new version, and the environment moves
+when all of them pass, recorded as promoted by the gate. One whose guards fail
+stays where it is, and its row says it is waiting.
 
 ## `tracks_latest`, and why it is off
 
@@ -212,6 +246,9 @@ released.
   serve different versions of one agent.
 - **Rolling back is repointing**, because old versions stay readable and
   runnable.
+- An environment can be **guarded by eval suites**: a version goes onto it only
+  once they pass on that version, or past them with a reason and
+  `promotions:override`.
 - A named environment can answer bindings with **test connections**; a binding
   without one is off there, never production. In an eval, a tool that writes
   with no test connection is **recorded, not run**.

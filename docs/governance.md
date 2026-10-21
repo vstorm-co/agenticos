@@ -1475,6 +1475,19 @@ attached to it, no agent can delegate to it, and a run of it on any surface but
 `eval` is refused. Its spend therefore stays the platform's own, started only by
 the features above.
 
+## Promotion overrides { #promotion-overrides }
+
+An environment [guarded by eval suites](environments.md#guarding-a-promotion-with-evals)
+takes a version only once they pass on it. Promoting past them is an
+**override**: it needs `promotions:override` - held by owners and admins, and
+grantable to a custom role - from a person signed in as themselves, not an API
+key or an administrator impersonating them, and a reason of at least ten
+characters. It is recorded in the [audit trail](#audit) as
+`agent.environment_promotion_overridden`, with the reason and each guard's
+result, shown on the version in the history, and sent to the owner of each
+guard that had not passed. Changing which suites guard an environment needs
+the same permission and is recorded as `agent.environment_guards_changed`.
+
 ## Audit
 
 Actions that change access or spend money are recorded with an actor, and a context
@@ -1726,6 +1739,8 @@ Worth stating, because a governance page implies otherwise:
   and another tenant's reads as absent.
 - **Silence is meaningful.** An alert that did not arrive means the thing did not
   happen, which is only true because nothing is best-effort here.
+- **A promotion past its evals is an override**, with a reason, a permission of
+  its own and a record on the version.
 
 ## Reference
 

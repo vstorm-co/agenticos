@@ -1,5 +1,5 @@
 ---
-source_sha: "101671079304"
+source_sha: "46d6bfcea5d0"
 ---
 
 # Entornos { #environments }
@@ -57,8 +57,42 @@ sigue siendo ejecutable.
 
 Una [suite de evals](evals.md#suites) configurada para ejecutarse en cada
 promoción comprueba cada versión promocionada a su entorno frente a la que
-sustituyó, y avisa a su propietario cuando el resultado no pasa. Informa; no
-detiene la promoción.
+sustituyó, y avisa a su propietario cuando el resultado no pasa. Por sí sola
+solo informa; un entorno que la nombra como
+[guardiana](#guarding-a-promotion-with-evals) espera a que pase.
+
+## Guardar una promoción con evals { #guarding-a-promotion-with-evals }
+
+Un entorno puede nombrar las [suites de evals](evals.md#suites) que lo
+**guardan**. Entonces acepta una versión solo cuando cada guardiana ha pasado en
+esa misma versión, sobre la versión del dataset que la suite lee ahora y con el
+umbral que tiene ahora: un aprobado de antes de añadir casos, o de antes de subir
+el listón, no cuenta. Una promoción que no lo cumple se rechaza (`409`,
+`PROMOTION_BLOCKED`), y el rechazo nombra cada guardiana y en qué estado está:
+no pasó, sin conclusión, no se ejecutó y por qué, comprobando todavía,
+desactualizada, sin comprobar o en pausa.
+
+El diálogo de promoción muestra lo mismo y ejecuta las guardianas que no han
+pasado en la versión, cada una al lado de la versión que el entorno sirve ahora
+(`POST /api/v1/agents/{id}/environments/{env}/gate/run`;
+`GET …/gate?version_id=` lee la puerta). Una guardiana que necesita el juez
+mientras la [asistencia de IA](governance.md#ai-assistance) está desactivada lo
+dice, en lugar de bloquear sin motivo.
+
+Una **excepción** promociona igualmente, pasando por encima de las guardianas.
+Necesita `promotions:override` - lo tienen owners y admins - y un motivo de al
+menos diez caracteres, dado por una persona que ha iniciado sesión como ella
+misma, no mediante una clave de API. La excepción, quién la hizo y el resultado
+de cada guardiana quedan en el registro de auditoría y en la versión del
+historial, y se avisa al propietario de cada guardiana que no pasó. Cambiar qué
+suites guardan un entorno necesita el mismo permiso, porque quitar una guardiana
+deja pasar lo que habría detenido; una suite que guarda no se puede borrar hasta
+quitarla.
+
+Un entorno guardado con **tracks latest** no sigue una publicación enseguida:
+la publicación ejecuta sus guardianas en la nueva versión, y el entorno avanza
+cuando todas pasan, registrado como promocionado por la puerta. Uno cuyas
+guardianas no pasan se queda donde está, y su fila dice que está esperando.
 
 ## `tracks_latest`, y por qué está desactivado { #tracks_latest-and-why-it-is-off }
 
@@ -226,6 +260,9 @@ encuentra con una versión que nadie lanzó.
   widget público pueden servir versiones distintas de un mismo agent.
 - **Volver atrás es reapuntar**, porque las versiones antiguas siguen siendo
   legibles y ejecutables.
+- Un entorno puede estar **guardado por suites de evals**: una versión entra en
+  él solo cuando pasan en esa versión, o por encima de ellas con un motivo y
+  `promotions:override`.
 - Un entorno con nombre puede sustituir bindings por **conexiones de prueba**; un
   binding sin ella queda desactivado allí, nunca va a producción. En un eval, una
   herramienta que escribe sin conexión de prueba **se registra, no se ejecuta**.

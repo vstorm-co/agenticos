@@ -1,5 +1,5 @@
 ---
-source_sha: "cfb1c420009c"
+source_sha: "bbab1238f7ff"
 ---
 
 # Słownik { #glossary }
@@ -39,6 +39,8 @@ skrypt napisany pod nie nie przestał działać po zmianie nazwy.
 | Suita evali | Dataset, na którym sprawdzany jest agent, uruchamiany według harmonogramu, po publikacji albo promocji, albo po zmianie | `eval_suite` |
 | Run | Jedna odpowiedź agenta, z jej kosztem i krokami | `agent_run` |
 | Środowisko | Nazwany etap, np. produkcja, wskazujący jedną wersję | `environment` |
+| Strażnik | Suita evali, która musi przejść na wersji, zanim środowisko ją przyjmie | `guard_suite_ids` |
+| Pominięcie | Promocja z pominięciem strażników, którzy nie przeszli, z podanym powodem | `override_reason` |
 | Serwer MCP | Zewnętrzny serwer narzędzi, z którego korzystają agenci, podłączony raz | `mcp_connection` |
 | Zdalny agent | Agent innego dostawcy, osiągalny przez A2A, do którego delegują agenci | `external_agent` |
 | Agent2Agent (A2A) | Protokół, przez który agenci innych systemów wysyłają agentowi zadania | `a2a_enabled` |

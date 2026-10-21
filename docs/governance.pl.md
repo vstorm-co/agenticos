@@ -1,5 +1,5 @@
 ---
-source_sha: "f3140bb4c970"
+source_sha: "f2420f6ed96c"
 ---
 
 # Governance { #governance }
@@ -1590,6 +1590,19 @@ embedu, publicznej strony ani harmonogramu, żaden agent nie może do niego
 delegować, a run na jakiejkolwiek powierzchni poza `eval` jest odrzucany. Jego
 wydatki pochodzą więc tylko z funkcji opisanych wyżej.
 
+## Pominięcia promocji { #promotion-overrides }
+
+Środowisko [strzeżone przez suity evali](environments.md#guarding-a-promotion-with-evals)
+przyjmuje wersję dopiero, gdy przejdą na niej. Promocja z ich pominięciem to
+**pominięcie**: wymaga `promotions:override` - mają je owner i admin, a można je
+dać roli własnej - od osoby zalogowanej jako ona sama, nie od klucza API ani
+administratora, który się pod nią podszywa, oraz powodu o długości co najmniej
+dziesięciu znaków. Trafia do [audit logu](#audit) jako
+`agent.environment_promotion_overridden`, z powodem i wynikiem każdego
+strażnika, widać je na wersji w historii, a właściciel każdego strażnika, który
+nie przeszedł, dostaje wiadomość. Zmiana listy strażników środowiska wymaga tego
+samego uprawnienia i jest zapisywana jako `agent.environment_guards_changed`.
+
 ## Audyt { #audit }
 
 Działania, które zmieniają dostęp albo wydają pieniądze, są zapisywane z aktorem,
@@ -1843,6 +1856,8 @@ Warto to powiedzieć, bo strona o governance sugeruje coś innego:
 - **Cisza coś znaczy.** Alert, który nie przyszedł, oznacza, że dana rzecz się
   nie wydarzyła, co jest prawdą tylko dlatego, że nic tutaj nie działa w trybie
   „w miarę możliwości”.
+- **Promocja z pominięciem evali to pominięcie** - z powodem, własnym
+  uprawnieniem i zapisem na wersji.
 
 ## Materiały { #reference }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "f3140bb4c970"
+source_sha: "f2420f6ed96c"
 ---
 
 # Governance { #governance }
@@ -1566,6 +1566,21 @@ embed, una página pública ni una programación, ningún agent puede delegar en
 él, y un run suyo en cualquier superficie que no sea `eval` se rechaza. Su gasto
 solo lo inician las funciones descritas arriba.
 
+## Excepciones de promoción { #promotion-overrides }
+
+Un entorno [guardado por suites de evals](environments.md#guarding-a-promotion-with-evals)
+acepta una versión solo cuando pasan en ella. Promocionar por encima de ellas es
+una **excepción**: necesita `promotions:override` - lo tienen owners y admins, y
+se puede dar a un rol propio - de una persona que ha iniciado sesión como ella
+misma, no de una clave de API ni de un administrador que la suplanta, y un
+motivo de al menos diez caracteres. Se registra en la
+[auditoría](#audit) como `agent.environment_promotion_overridden`, con el motivo
+y el resultado de cada guardiana, se muestra en la versión del historial y se
+envía al propietario de cada guardiana que no pasó.
+
+Cambiar qué suites guardan un entorno necesita el mismo permiso y se registra
+como `agent.environment_guards_changed`.
+
 ## Auditoría { #audit }
 
 Las acciones que cambian accesos o gastan dinero se registran con un actor, y un
@@ -1822,6 +1837,8 @@ Vale la pena decirlo, porque una página de governance da a entender lo contrari
   colega, y el de otro tenant se lee como ausente.
 - **El silencio significa algo.** Una alerta que no llegó significa que la cosa no
   ocurrió, lo cual solo es cierto porque aquí nada es de mejor esfuerzo.
+- **Una promoción por encima de sus evals es una excepción**, con un motivo, un
+  permiso propio y un registro en la versión.
 
 ## Referencias { #reference }
 
