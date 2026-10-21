@@ -131,6 +131,9 @@ _PERIOD_DAYS: dict[ReportPeriod, int] = {"weekly": 7, "monthly": 30}
 BUDGET_WARNING_SHARE = Decimal("0.8")
 """How much of a department's month is spent before its lead hears about it."""
 
+ROUTINE_EXCERPT_CHARS = 200
+"""How much of a routine's answer its notification carries - enough to decide to open it."""
+
 
 class NotificationService:
     """Resolves who hears about a run, and writes the notification (#1598).
@@ -377,6 +380,97 @@ class NotificationService:
                 "run_url": absolute_context_url(run_path),
             },
             organization_id=run.organization_id,
+            use_savepoint=True,
+        )
+
+    async def routine_finished(
+        self,
+        run: AgentRun,
+        *,
+        agent: Agent,
+        routine_name: str | None,
+        creator_id: UUID | None,
+        answer: str,
+    ) -> None:
+        """A routine finished, told to whoever set it up with the start of what it said (#2301).
+
+        `run_completed` names the agent and nothing else, which for a routine is
+        the one fact the person already knew: they asked for it every Monday. The
+        first lines of the answer are what makes the notification worth opening,
+        and the creator is told whether or not the routine fires as them - a
+        routine that runs as nobody still belongs to the person who made it.
+        """
+        if creator_id is None:
+            return
+        recipients = await member_repo.list_member_ids_for(
+            self.db, organization_id=run.organization_id, user_ids=[creator_id]
+        )
+        if not recipients:
+            return
+        name = routine_name or agent.name
+        excerpt = " ".join(answer.split())
+        if len(excerpt) > ROUTINE_EXCERPT_CHARS:
+            excerpt = excerpt[: ROUTINE_EXCERPT_CHARS - 1].rstrip() + "…"
+        path = self._link("/routines", run.organization_id)
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id=str(run.id),
+            summary=f"{name}: {excerpt}" if excerpt else f"{name} finished.",
+            context_url=path,
+            render_context={
+                "agent_name": agent.name,
+                "routine_name": name,
+                "excerpt": excerpt,
+                **agent_face(agent),
+                "app_name": settings.PROJECT_NAME,
+                "run_url": absolute_context_url(path),
+            },
+            organization_id=run.organization_id,
+            use_savepoint=True,
+        )
+
+    async def capability_requested(
+        self,
+        *,
+        agent: Agent,
+        capability_name: str,
+        capability_id: str,
+        reason: str,
+        requester_id: UUID,
+        requester_name: str,
+    ) -> None:
+        """Somebody asked for a capability one of the owner's agents lacks (#2301).
+
+        To the agent's owner, who decides; one occurrence per agent, capability
+        and asker, so asking twice tells the owner once. The link opens the
+        agent's Toolbox, where switching it on is one click.
+        """
+        if agent.owner_user_id is None or agent.owner_user_id == requester_id:
+            return
+        recipients = await member_repo.list_member_ids_for(
+            self.db, organization_id=agent.organization_id, user_ids=[agent.owner_user_id]
+        )
+        if not recipients:
+            return
+        path = self._link(f"/agents/{agent.id}?highlight=agent-capabilities", agent.organization_id)
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.CAPABILITY_REQUESTED,
+            occurrence_id=f"{agent.id}:{capability_id}:{requester_id}",
+            summary=f"{requester_name} asked for {capability_name} in {agent.name}: {reason}",
+            context_url=path,
+            render_context={
+                "agent_name": agent.name,
+                **agent_face(agent),
+                "capability_name": capability_name,
+                "reason": reason,
+                "requester_name": requester_name,
+                "app_name": settings.PROJECT_NAME,
+                "run_url": absolute_context_url(path),
+            },
+            organization_id=agent.organization_id,
+            actor_user_id=requester_id,
             use_savepoint=True,
         )
 

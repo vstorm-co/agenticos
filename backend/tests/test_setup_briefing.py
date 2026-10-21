@@ -1,8 +1,11 @@
 """What an agent is told about its own setup (#2301)."""
 
+import json
 import uuid
+from unittest.mock import MagicMock
 
 import pytest
+from pydantic_ai import ModelRetry
 
 from app.agents.capabilities import all_capabilities
 from app.agents.factory import build_agent
@@ -34,8 +37,9 @@ class TestWhatItSays:
     def test_what_is_not_bound_is_listed_as_what_it_cannot_do_here(self) -> None:
         _has, missing = _halves(setup_briefing(_spec("clock"), agent_id=None))
 
-        assert "- **Web search**:" in missing
-        assert "- **Sandbox**:" in missing
+        # With its id, which is what the card is asked for by.
+        assert "- **Web search** (`web_research`):" in missing
+        assert "- **Sandbox** (`sandbox`):" in missing
 
     def test_a_switched_off_binding_is_something_it_cannot_do(self) -> None:
         spec = AgentSpec(name="Helper", capabilities=[{"id": "web_research", "enabled": False}])
@@ -43,7 +47,7 @@ class TestWhatItSays:
         has, missing = _halves(setup_briefing(spec, agent_id=None))
 
         assert "Web search" not in has
-        assert "- **Web search**:" in missing
+        assert "- **Web search** (`web_research`):" in missing
 
     def test_plumbing_is_neither_an_ability_nor_a_gap(self) -> None:
         text = setup_briefing(_spec("thinking", "compaction"), agent_id=None)
@@ -82,17 +86,53 @@ class TestWhatItSays:
         assert "- **Connected services**:" in text
         assert "**Knowledge**" not in setup_briefing(_spec(), agent_id=None)
 
-    def test_it_points_at_its_own_capabilities_when_it_knows_its_id(self) -> None:
-        agent_id = uuid.uuid4()
-
-        linked = setup_briefing(_spec(), agent_id=agent_id)
+    def test_an_agent_that_knows_its_id_offers_the_card(self) -> None:
+        linked = setup_briefing(_spec(), agent_id=uuid.uuid4())
         unlinked = setup_briefing(_spec(), agent_id=None)
 
-        assert f"(/agents/{agent_id}?highlight=agent-capabilities)" in linked
+        assert "call `request_capability` with its id" in linked
         assert unlinked.endswith("switch it on in the Builder.")
 
     def test_the_capability_hands_the_text_over_unchanged(self) -> None:
         assert SetupBriefing("# Your setup").get_instructions() == "# Your setup"
+
+
+class TestTheCard:
+    """`request_capability`: the card an agent shows for what it lacks."""
+
+    @staticmethod
+    def _tool(spec: AgentSpec, agent_id: uuid.UUID | None):
+        return SetupBriefing.for_spec(spec, agent_id=agent_id).get_toolset()
+
+    def test_it_names_the_agent_the_capability_and_why(self) -> None:
+        agent_id = uuid.uuid4()
+        toolset = self._tool(_spec("clock"), agent_id)
+        assert toolset is not None
+
+        card = json.loads(
+            toolset.request_capability(MagicMock(), "web_research", "  to check   today's prices ")
+        )
+
+        assert card == {
+            "agent_id": str(agent_id),
+            "capability_id": "web_research",
+            "name": "Web search",
+            "reason": "to check today's prices",
+        }
+
+    def test_one_it_already_has_is_steered_back_to_the_list(self) -> None:
+        toolset = self._tool(_spec("web_research"), uuid.uuid4())
+        assert toolset is not None
+        ctx = MagicMock(last_attempt=False)
+
+        with pytest.raises(ModelRetry, match="not one you lack"):
+            toolset.request_capability(ctx, "web_research", "search")
+
+    def test_no_card_without_an_agent_to_name_or_anything_to_ask_for(self) -> None:
+        everything = [c.id for c in all_capabilities() if c.selectable]
+
+        assert self._tool(_spec(), None) is None
+        assert self._tool(_spec(*everything), uuid.uuid4()) is None
 
 
 def _model() -> ModelRequestSpec:
@@ -123,6 +163,8 @@ class TestEveryAgentIsBriefed:
         (briefing,) = _briefings(_spec("clock"), agent_id=agent_id)
 
         assert briefing.text == setup_briefing(_spec("clock"), agent_id=agent_id)
+        assert briefing.agent_id == agent_id
+        assert "web_research" in briefing.missing
 
     def test_a_voice_call_is_not(self) -> None:
         async def deny(_request: object) -> object:  # pragma: no cover - never called

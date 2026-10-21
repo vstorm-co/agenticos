@@ -175,7 +175,14 @@ class TestTheRunnersFacts:
         from app.db.models.agent_run import RunSurface
         from app.services.agent_runner import AgentRunnerService
 
-        person = MagicMock(full_name=None, email="ada@example.com")
+        person = MagicMock(
+            full_name=None,
+            email="ada@example.com",
+            locale=None,
+            time_zone=None,
+            job_title=None,
+            about=None,
+        )
         ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="member")
         with (
             patch(
@@ -199,7 +206,52 @@ class TestTheRunnersFacts:
             _spec("{{user_name}} {{user_email}} {{channel}} {{groups}}", time_zone="user")
         )
         assert spec.instructions == (
-            "ada@example.com ada@example.com the AgenticOS console Finance, Sales"
+            "ada@example.com ada@example.com the AgenticOS console Finance, Sales\n\n"
+            "# The person you are talking to\n\n"
+            "- Their time zone is Europe/Warsaw; read and state times in it."
+        )
+
+    async def test_a_person_is_described_from_their_account(self) -> None:
+        """Language, role and work from the account, and its zone when the surface sent none (#2301)."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from app.db.models.agent_run import RunSurface
+        from app.services.agent_runner import AgentRunnerService
+
+        person = MagicMock(
+            full_name="Ada",
+            email="ada@example.com",
+            locale="pl",
+            time_zone="America/New_York",
+            job_title="Head of sales",
+            about="Nordic deals",
+        )
+        ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="member")
+        with (
+            patch(
+                "app.services.agent_runner.user_repo.get_by_id",
+                new=AsyncMock(return_value=person),
+            ),
+            patch(
+                "app.services.agent_runner.group_repo.names_for_member",
+                new=AsyncMock(return_value=[]),
+            ),
+        ):
+            render_for_run = await AgentRunnerService(MagicMock())._variable_renderer(
+                ctx,
+                organization_name=None,
+                surface=RunSurface.SCHEDULE,
+                user_name=None,
+                person_time_zone=None,
+            )
+
+        spec = render_for_run(_spec("Help."))
+        assert spec.instructions == (
+            "Help.\n\n# The person you are talking to\n\n"
+            "- Their console is in Polish: answer in Polish unless they write in another language.\n"
+            "- Their time zone is America/New_York; read and state times in it.\n"
+            "- Their role: Head of sales.\n"
+            "- What they work on: Nordic deals"
         )
 
     @pytest.mark.security

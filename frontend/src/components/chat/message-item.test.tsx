@@ -44,6 +44,12 @@ vi.mock("./tool-call-card", () => ({
     </div>
   ),
 }));
+// The shortcuts are tested on their own; here it only matters where they are offered.
+vi.mock("./turn-shortcuts", () => ({
+  TurnShortcuts: ({ request, agentId }: { request: string; agentId: string | null }) => (
+    <div data-testid="turn-shortcuts" data-agent={agentId ?? ""} data-request={request} />
+  ),
+}));
 // Ratings own their own fetch; this file cares only that they are offered.
 vi.mock("./rating-buttons", () => ({
   RatingButtons: ({
@@ -216,6 +222,26 @@ describe("a turn in the transcript", () => {
   it("offers no pin outside the test panel, nor on an answer", () => {
     item({ role: "user", content: "Refunds?" });
     expect(screen.queryByRole("button", { name: /Pin to ask again/ })).toBeNull();
+  });
+
+  it("offers to keep a person's request, but not an answer, nor in the test panel", () => {
+    const { rerender } = item(
+      { role: "user", content: "Refunds?" },
+      { agent: { id: "a-1", slug: "support", name: "Support" } as Agent },
+    );
+    expect(screen.getByTestId("turn-shortcuts")).toHaveAttribute("data-agent", "a-1");
+    expect(screen.getByTestId("turn-shortcuts")).toHaveAttribute("data-request", "Refunds?");
+
+    rerender(<MessageItem message={message({ content: "Here they are" })} />);
+    expect(screen.queryByTestId("turn-shortcuts")).toBeNull();
+
+    rerender(
+      <MessageItem
+        message={message({ role: "user", content: "Refunds?" })}
+        pins={{ pinned: [], toggle: vi.fn() }}
+      />,
+    );
+    expect(screen.queryByTestId("turn-shortcuts")).toBeNull();
   });
 
   it("names the agent that answered, and the version that did", () => {
@@ -977,6 +1003,18 @@ describe("the runs a turn is made of", () => {
 
     expect(runs.map((run) => run.kind)).toEqual(["tools", "other", "tools"]);
     expect(runs.at(-1)?.isLast).toBe(true);
+  });
+
+  it("leaves out a call drawn under the answer instead, without splitting the run around it", () => {
+    const offer = {
+      id: "s",
+      type: "tool" as const,
+      toolCall: { id: "tc-s", name: "suggest_next_steps", args: {}, status: "completed" as const },
+    };
+    const runs = runsOf([tool("a"), offer, tool("b")]);
+
+    expect(runs).toHaveLength(1);
+    expect(runs[0]?.kind === "tools" && runs[0].parts.map((part) => part.id)).toEqual(["a", "b"]);
   });
 
   it("drops an empty text or thinking part rather than drawing an empty bubble", () => {

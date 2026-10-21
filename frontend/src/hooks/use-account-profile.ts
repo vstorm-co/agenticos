@@ -1,0 +1,31 @@
+"use client";
+
+import { useCallback } from "react";
+
+import { apiClient } from "@/lib/api-client";
+import { useAuthStore } from "@/stores";
+import type { User } from "@/types";
+
+/** What every agent is told about the person (#2301), as the account keeps it. */
+export interface AgentContext {
+  job_title?: string | null;
+  about?: string | null;
+  time_zone?: string | null;
+}
+
+/**
+ * Save what agents know about the signed-in person, and keep the session's copy
+ * of the account in step with the answer. Throws what the request threw, for the
+ * caller to say.
+ */
+export function useSaveAgentContext(): (changes: AgentContext) => Promise<User> {
+  const setUser = useAuthStore((state) => state.setUser);
+  return useCallback(
+    async (changes: AgentContext) => {
+      const updated = await apiClient.patch<User>("/users/me", changes);
+      setUser(updated);
+      return updated;
+    },
+    [setUser],
+  );
+}

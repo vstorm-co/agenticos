@@ -17,6 +17,24 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock("@/hooks", () => ({ useAgents: () => ({ agents: state.agents }) }));
+// The extras are tested on their own; the list decides which answer may offer next steps.
+vi.mock("./turn-extras", () => ({
+  TurnExtras: ({
+    message,
+    agentName,
+    onFollowUp,
+  }: {
+    message: ChatMessage;
+    agentName?: string;
+    onFollowUp?: (step: string) => void;
+  }) => (
+    <div
+      data-testid={`extras-${message.id}`}
+      data-agent={agentName ?? ""}
+      data-offers={String(onFollowUp !== undefined)}
+    />
+  ),
+}));
 
 // The item is tested on its own; what this asserts is what the list decides to
 // hand it - which agent, where in a group, and whether it may be regenerated.
@@ -494,5 +512,26 @@ describe("where the transcript crosses into another day", () => {
       />,
     );
     expect(screen.getAllByRole("separator").map((pill) => pill.textContent)).toEqual(["Yesterday"]);
+  });
+});
+
+describe("the next steps under an answer", () => {
+  it("are offered on the latest answer only, named by the agent that gave it", () => {
+    state.agents = [{ id: "a-1", slug: "helper", name: "Helper" }];
+    render(
+      <MessageList
+        messages={[
+          message({ id: "m-1", agentId: "a-1" }),
+          message({ id: "m-2", role: "user", content: "and?" }),
+          message({ id: "m-3", agentId: "a-1" }),
+        ]}
+        onFollowUp={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("extras-m-1")).toHaveAttribute("data-offers", "false");
+    expect(screen.getByTestId("extras-m-3")).toHaveAttribute("data-offers", "true");
+    expect(screen.getByTestId("extras-m-3")).toHaveAttribute("data-agent", "Helper");
+    expect(screen.getByTestId("extras-m-2")).toHaveAttribute("data-agent", "");
   });
 });

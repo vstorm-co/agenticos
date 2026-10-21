@@ -1,5 +1,5 @@
 ---
-source_sha: "6d848482dac9"
+source_sha: "2945ea172195"
 ---
 
 # Glossar { #glossary }
@@ -75,6 +75,7 @@ Jede ist unter [Capabilities](capabilities.md) beschrieben.
 | Lange Gespräche | `compaction` |
 | Kontext | `context` |
 | Frühere Gespräche | `conversation_search` |
+| Nächste Schritte | `follow_ups` |
 | Schutzregeln | `guardrails` |
 | Bilderzeugung | `image_generation` |
 | Wissenssuche | `knowledge` |

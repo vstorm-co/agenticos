@@ -91,6 +91,7 @@ from app.services.access import AGENT, resolve_access, visible_resource_ids
 from app.services.agent_registry import AgentRegistryService
 from app.services.background_jobs import enqueue
 from app.services.mcp_connection import McpConnectionService
+from app.services.notifications import NotificationService
 from app.services.portal_catalog import DeliveryMode
 from app.services.portals.github_app import GitHubAppPortalAdapter
 from app.worker.jobs import FIRE_TRIGGER, FireTrigger
@@ -1766,8 +1767,11 @@ class AgentTriggerService:
         runner = AgentRunnerService(self.db)
         if ctx.fired_as_creator is not None:
             set_acting_trigger(trigger.id, ctx.subject_id)
+        # Empty unless the run answered: a fire recovered from an error below has
+        # nothing to tell its creator.
+        answer = ""
         try:
-            _answer, run = await runner.execute(
+            answer, run = await runner.execute(
                 ctx,
                 trigger.agent_id,
                 message,
@@ -1846,6 +1850,14 @@ class AgentTriggerService:
         # runs it made, because only `claim_and_advance` used to set it.
         trigger.last_fired_at = datetime.now(UTC)
         await self.db.flush()
+        if run.status == RunStatus.COMPLETED.value:
+            await NotificationService(self.db).routine_finished(
+                run,
+                agent=agent,
+                routine_name=trigger.name,
+                creator_id=trigger.created_by_user_id,
+                answer=answer,
+            )
         logger.info(
             "trigger_fired",
             extra={"trigger_id": str(trigger.id), "run_id": str(run.id), "status": run.status},

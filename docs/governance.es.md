@@ -1,5 +1,5 @@
 ---
-source_sha: "5931b7688a5d"
+source_sha: "023fa6d893b4"
 ---
 
 # Governance { #governance }
@@ -1363,9 +1363,13 @@ un relay SMTP caído — sin que el otro se entere jamás.
 
 Los dos canales se activan por separado, evento a evento, en **Settings →
 Notifications** — una persona puede conservar la fila en la aplicación para
-las aprobaciones y apagar su correo, o al revés. La misma página lleva además
+las aprobaciones y apagar su correo, o al revés.
+
+La misma página lleva además
 cada uno de los demás eventos que entrega el buzón: un run que termina o falla
-desatendido, la ingesta de un documento que **falla**, la cifra propia de un
+desatendido - el final de una rutina con su nombre y el comienzo de su
+respuesta, para quien la configuró -, la petición de activar una capability,
+para el propietario del agent, la ingesta de un documento que **falla**, la cifra propia de un
 ciclo completo de sincronización de un conector, y el propio
 anuncio de un app admin - `POST /admin/announcements`, todavía sin página en
 la consola - dirigido por organización y, opcionalmente, por rol, y

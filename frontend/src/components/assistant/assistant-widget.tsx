@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { usePathname } from "next/navigation";
 
@@ -19,6 +19,7 @@ import {
 } from "@/lib/assistant-bubbles";
 import { useRouter } from "@/lib/locale-navigation";
 import { ChatScope, useOrgStore } from "@/stores";
+import { useArchitectAskStore } from "@/stores/architect-ask-store";
 import type { AssistantState } from "@/types/assistant";
 
 import { AssistantBubble } from "./assistant-bubble";
@@ -187,6 +188,19 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
     openWindow();
     setPrompt((last) => ({ id: (last?.id ?? 0) + 1, text }));
   };
+
+  // Asked from elsewhere in the console - "Make an agent of this" in a chat. Each
+  // ask once: taken out of the store so a widget mounted later does not repeat
+  // it, and the ref for an effect that runs twice before the store has caught up.
+  const asked = useArchitectAskStore((state) => state.request);
+  const answered = useArchitectAskStore((state) => state.answered);
+  const answeredAsk = useRef<number | null>(null);
+  useEffect(() => {
+    if (asked === null || asked.id === answeredAsk.current) return;
+    answeredAsk.current = asked.id;
+    ask(asked.text);
+    answered(asked.id);
+  });
 
   const followLink = (link: ConsoleLink) => {
     // On a phone the full-screen window steps aside so the page can be seen.

@@ -151,5 +151,16 @@
     "prompt": "A webhook just delivered a payload - it is in this message. Say what happened in plain words, decide whether it needs action, and if it does, take it with the tools you have or spell out exactly what a person should do.",
     "trigger_type": "event",
     "event_source": "webhook"
+  },
+  {
+    "key": "weekly_tips",
+    "label": "Weekly tips",
+    "description": "What your agents did this week, and one thing in AgenticOS you have not tried yet.",
+    "prompt": "Write my weekly AgenticOS note, in my language. First, in three to five lines, what my agents and routines did this week - the runs, what they cost and anything that failed - using the platform tools you can reach. Then suggest one feature I have not used yet that fits my work, in two sentences with a concrete first step, and do not repeat a suggestion I declined before. Keep it short enough to read in a minute.",
+    "trigger_type": "schedule",
+    "suggested_cadence": {
+      "schedule_kind": "cron",
+      "cron_expression": "0 8 * * 1"
+    }
   }
 ]

@@ -1,5 +1,5 @@
 ---
-source_sha: "6c5ee025f646"
+source_sha: "f0c0faf6fb72"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -46,6 +46,15 @@ Mit welchen Capabilities ein Agent auch endet: Jeder Run erfährt in seinen
 Instruktionen unter **Your setup**, welche er hat und welche nicht - so beschreibt
 er nur, was er kann, und sagt, was für den Rest eingeschaltet werden müsste.
 
+Braucht eine Anfrage eine Capability, die dem Agent fehlt, zeigt er im Chat eine
+Karte dafür, mit seinem Grund. Wer den Agent bearbeiten darf, schaltet sie auf der
+Karte ein - gebunden, wie der Starter-Agent sie bindet, und geprüft, wie eine
+Veröffentlichung prüft. Sofort veröffentlicht wird nur, wenn der Entwurf nichts
+Unveröffentlichtes enthielt und die Person veröffentlichen darf; sonst wartet sie
+im Entwurf auf den Builder. Alle anderen bitten auf der Karte den Besitzer des
+Agents, und der Besitzer erhält eine Benachrichtigung, die die Toolbox des Agents
+öffnet.
+
 Zwei davon hängen davon ab, was die Installation betreibt. Der Arbeitsbereich ist
 ein Container auf dem eigenen Sandbox-Dienst der Installation, den Bootstrap und
 die erste Veröffentlichung als Standard der Organisation registrieren; ohne ihn
@@ -84,6 +93,7 @@ hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installati
 | `artifacts` | Apps | utility | `publish_artifact`, `read_artifact` | — | — | unverändert |
 | `channel_tools` | Infos zum Chat-Kanal | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — | nicht verfügbar |
 | `ask_user` | Rückfragen | utility | `ask_user_question` | — | — | auf dem Bildschirm |
+| `follow_ups` | Nächste Schritte | utility | `suggest_next_steps` | — | — | nicht verfügbar |
 
 Sieben davon haben absichtlich keine Tools. `thinking` verändert, wie das Modell
 arbeitet, statt was es erreichen kann, `clock` schreibt das Datum in die
@@ -117,7 +127,8 @@ Builder listet diese für einen Agent auf, der sie hat, ebenso das Arbeiten
 während Tools laufen, das ein übergebenes Tool nur in den Hintergrund schickt.
 *Auf dem Bildschirm* stellt seine Fragen auf der Karte der Anrufansicht in
 `/chat`. Die Chat-Kanal-Abfrage ist *nicht verfügbar*, weil ein Anruf nie über
-einen Kanal geführt wird. *Ohne Wirkung* kennzeichnet drei,
+einen Kanal geführt wird, und ebenso wenig Nächste Schritte, deren Schaltflächen
+ein Anruf nirgends zeigen kann. *Ohne Wirkung* kennzeichnet drei,
 die auf den Modellanfragen eines Text-Runs und deren gespeicherter Historie
 arbeiten, die ein Anruf nicht sendet.
 
@@ -2415,6 +2426,19 @@ stehen blieb. Antworten kann nur die gefragte Person, über
 zurück. Nach einem Tag (`QUESTION_EXPIRY_HOURS`, 24) endet der Run als
 abgebrochen, und der Schritt hält fest, dass die Person nicht rechtzeitig
 geantwortet hat.
+
+## Nächste Schritte { #follow-ups }
+
+Am Ende einer Antwort bietet `suggest_next_steps` darunter bis zu drei nächste
+Schritte als Schaltflächen an, jeder höchstens 80 Zeichen lang und so formuliert,
+wie die Person ihn sagen würde: „Mach eine Tabelle daraus“, „Mach das jeden Montag
+um 9:00“. Ein Klick sendet den Schritt als ihre nächste Nachricht. Nur die neueste
+Antwort bietet sie an, und keine, solange ein Durchgang läuft. Nach Smalltalk oder
+einer eigenen Frage lässt der Agent sie weg, und er wiederholt die Schritte nicht
+in seiner Antwort.
+
+Sie ist im Starter-Agent und im Architect eingeschaltet, und ein Autor kann sie
+abschalten. Ein Sprachanruf lässt sie weg.
 
 ## Was eine Bindung ändern darf { #what-a-binding-may-change }
 

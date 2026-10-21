@@ -45,6 +45,12 @@ departments, invite a teammate and - for whoever may - put an agent in a chat
 app. Each step is ticked from what exists, wherever it was done; closing the card
 hides it in that browser.
 
+Your own view opens with **Your first steps** until each is done: tell agents
+about yourself, start a conversation, set up a routine, connect a service with
+your own account, and build an agent - that one is a question to the Architect,
+which builds it with you. Each is ticked from what you have done, not from a
+click on the card.
+
 Your own view also shows **Discover AgenticOS**: one tile each for what is easy to
 miss - this deployment's own MCP server for Claude Code, Codex or Cursor,
 subagents, sandboxes, apps, routines, chat apps, the web browser, knowledge bases
@@ -272,6 +278,18 @@ skill - and `/`; they are gone the moment you click into it. Above it, the cards
 are the agent's own **first messages**, set under its instructions in the
 Builder; an agent with none offers the chat's own four, two of them to ask what it
 can do and to set up a routine.
+
+**Under an answer.** An agent with [Follow-ups](reference/capabilities.md#follow-ups)
+offers up to three next steps as buttons under its latest answer, and a click
+sends one. A line says what it noted about you, or forgot, with **Manage** for
+[the notes themselves](reference/capabilities.md#memory-files) - ask it to forget
+something and it does. When a request needs a capability the agent lacks, a card
+asks to switch it on, or to ask the agent's owner
+([how](reference/capabilities.md)).
+
+**Keeping a request that worked.** Hover your own message: the calendar turns it
+into a routine - the same prompt, weekly by default, on the agent that answered -
+and the robot asks the Architect to build an agent that does it.
 
 **While the agent works**, what you send waits for its answer, as in any chat:
 it sits in a queue above the composer and goes out when the run ends. Drag a
@@ -554,8 +572,15 @@ pages, which stay in English. The walkthrough's first card offers the three, and
 the account menu changes the language at any time; the choice is kept on your
 account, so the console opens in it on every device you sign in on. You can also
 ask an agent - "switch to English" - and the page changes as it answers, without a
-reload. Product words - agent, skill, run, budget, MCP and the rest of the
-list in [translating](howto/translate.md) - stay English in every language.
+reload. Every agent answers in it unless you write in another language. Product
+words - agent, skill, run, budget, MCP and the rest of the list in
+[translating](howto/translate.md) - stay English in every language.
+
+The same card asks what you do, and **Settings → Profile** keeps the rest of what
+agents know about you: your role, what you work on and your time zone. Every agent
+reads them at the start of a run, so you never repeat them in a chat; "every Monday
+at 9" is your 9. The time zone is taken from your browser the first time you sign
+in, until you choose one.
 
 ## The next step
 

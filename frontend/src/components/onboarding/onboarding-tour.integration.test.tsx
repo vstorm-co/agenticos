@@ -171,6 +171,47 @@ describe("OnboardingTour", () => {
     expect(shownStep().popover?.onPopoverRender).toBeUndefined();
   });
 
+  it("asks the reader's role on the welcome card and keeps it on their account (#2301)", async () => {
+    servePermissions(OWNER);
+    vi.mocked(apiClient.patch).mockResolvedValue(user({ job_title: "Sales" }));
+    useAuthStore.setState({ user: user({ job_title: "Finance" }) });
+    render(<OnboardingTour />, { wrapper });
+    await waitFor(() => expect(shownStep().popover?.title).toBe("Welcome to AgenticOS"));
+
+    const description = document.createElement("div");
+    shownStep().popover?.onPopoverRender?.({ description } as never, {} as never);
+    const roles = description.querySelector(
+      '[aria-label="What do you do? Your agents will know."]',
+    );
+    const buttons = Array.from(roles?.querySelectorAll("button") ?? []);
+    expect(buttons.find((b) => b.getAttribute("aria-pressed") === "true")?.textContent).toBe(
+      "Finance",
+    );
+    buttons.find((b) => b.textContent === "Sales")?.click();
+
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith("/users/me", { job_title: "Sales" }),
+    );
+    await waitFor(() => expect(useAuthStore.getState().user?.job_title).toBe("Sales"));
+  });
+
+  it("lets a role that could not be saved go quietly, for Settings to hold", async () => {
+    servePermissions(OWNER);
+    vi.mocked(apiClient.patch).mockRejectedValue(new Error("offline"));
+    render(<OnboardingTour />, { wrapper });
+    await waitFor(() => expect(shownStep().popover?.title).toBe("Welcome to AgenticOS"));
+
+    const description = document.createElement("div");
+    shownStep().popover?.onPopoverRender?.({ description } as never, {} as never);
+    const roles = description.querySelector(
+      '[aria-label="What do you do? Your agents will know."]',
+    );
+    Array.from(roles?.querySelectorAll("button") ?? [])[0]?.click();
+
+    await waitFor(() => expect(apiClient.patch).toHaveBeenCalled());
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
   it("advances to the next highlight when Next is clicked", async () => {
     // The bug this replaces: a click on Next did nothing once a spotlight was up.
     servePermissions(OWNER);

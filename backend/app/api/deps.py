@@ -1002,27 +1002,6 @@ def key_needs(perm: Perm) -> Callable[..., Awaitable[None]]:
     return dependency
 
 
-def key_needs_on_own_account(perm: Perm) -> Callable[..., Awaitable[None]]:
-    """`key_needs` for a public route about the caller's own account (#2301).
-
-    `/me/mcp-connections` and `/users/me/locale` belong to the person rather than
-    to an organization, so a session reaches them with none active and `Auth`
-    cannot be asked. A key is admitted only when it was issued for `perm`: the
-    credential an agent run is minted holds what its person holds, and a key
-    issued for something narrower reads nobody's connections.
-    """
-
-    async def dependency(request: Request, _user: CurrentUser) -> None:
-        caller = _key_caller(request)
-        if caller is not None and not caller.context.key_allows(perm):
-            raise AuthorizationError(
-                message=f"This API key was not issued for {perm.value}",
-                details={"permission": perm.value},
-            )
-
-    return dependency
-
-
 def _limit_caller(ctx: AuthContext) -> str:
     """Who a per-caller limit counts: the key when one is used, so each script an
     issuer runs has its own share instead of draining the issuer's."""

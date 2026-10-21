@@ -1,5 +1,5 @@
 ---
-source_sha: "1c7fac017d79"
+source_sha: "f3bfbd97d90e"
 ---
 
 # Napisz instrukcje agenta { #write-an-agents-instructions }
@@ -21,6 +21,7 @@ source_sha: "1c7fac017d79"
 | Instrukcje wbudowanego specjalisty | `InlineSpecialistSpec.instructions`, w tym samym specu | Ten sam |
 | Tekst startowy, który dostaje nowy agent | Szablon AgenticOS, `backend/app/core/catalog/agent_templates/general/agenticos/AGENT.md` | Deploy — to jest wyobrażenie tego deploymentu o asystencie |
 | Co agent słyszy o tym, co potrafi, a czego nie | Składane z jego capabilities przy każdym runie, pod **Your setup** | Nikt — przełączenie capability to zmienia |
+| Co agent słyszy o osobie | Jej język, strefa czasowa, rola i praca z jej konta, po instrukcjach przy każdym runie | Ta osoba, w **Ustawienia → Profil (Settings → Profile)** |
 | Procedura współdzielona przez wiele agentów | [Skill](../skills.md), wiersz w bazie danych | Lider wsparcia, we wtorek po południu, bez żadnego deployu |
 
 Ostatni wiersz to ten, po który warto sięgać. Dwadzieścia procedur w jednym polu

@@ -1550,7 +1550,11 @@
       "readingVisual": "Liest ein Visual",
       "readVisual": "Hat ein Visual gelesen",
       "workingInText": "Arbeitet im Textmodus daran",
-      "workedInText": "Im Textmodus bearbeitet"
+      "workedInText": "Im Textmodus bearbeitet",
+      "suggestingNextSteps": "Schlägt nächste Schritte vor",
+      "nextSteps": "Nächste Schritte",
+      "requestingCapability": "Bittet um eine Capability",
+      "capabilityRequest": "Bitte um eine Capability"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -1934,6 +1938,23 @@
       },
       "openBuilder": "Im Agent Builder öffnen",
       "askEditor": "Bitten Sie jemanden, der diesen Agent bearbeiten darf, ihn einzurichten."
+    },
+    "extras": {
+      "remembered": "Gemerkt: {note}",
+      "forgot": "Vergessen: {note}",
+      "manageMemory": "Verwalten",
+      "capabilityNeeded": "{agent} braucht dafür: {name}",
+      "thisAgent": "Dieser Agent",
+      "switchOn": "{name} einschalten",
+      "askOwner": "Den Owner des Agents fragen",
+      "capabilityOn": "{name} ist an. Fragen Sie noch einmal, dann wird es genutzt.",
+      "capabilityDrafted": "{name} steht im Entwurf des Agents - veröffentlichen Sie ihn im Builder, damit es wirkt.",
+      "capabilityAsked": "Der Owner wurde gefragt.",
+      "nextSteps": "Nächste Schritte",
+      "runOnSchedule": "Das nach Zeitplan ausführen",
+      "routineFromChat": "Aus einem Gespräch",
+      "makeAgent": "Einen Agent daraus machen",
+      "makeAgentAsk": "Bau mir einen Agent, der das erledigt, damit ich nicht jedes Mal im Chat fragen muss: {request}"
     }
   },
   "common": {
@@ -2608,6 +2629,38 @@
           "description": "Minuten erscheinen hier, sobald Mitglieder oder Besucher einen Agent anrufen."
         },
         "deletedAgent": "Gelöschter Agent"
+      },
+      "getting-started": {
+        "title": "Ihre ersten Schritte",
+        "description": "Was sich hier als Nächstes lohnt - abgehakt, sobald Sie es getan haben.",
+        "progress": "{done} von {total} erledigt",
+        "agentAsk": "Helfen Sie mir, meinen ersten Agent zu bauen. Fragen Sie mich, was er tun soll.",
+        "done": {
+          "title": "Alles eingerichtet",
+          "description": "Jeder erste Schritt ist erledigt. Entfernen Sie diese Karte vom Dashboard, wann immer Sie möchten."
+        },
+        "steps": {
+          "profile": {
+            "title": "Erzählen Sie Agents von sich",
+            "body": "Ihre Rolle und Arbeit, damit Antworten zu Ihnen passen."
+          },
+          "chat": {
+            "title": "Ein Gespräch beginnen",
+            "body": "Fragen Sie AgenticOS alles zu Ihrer Arbeit."
+          },
+          "routine": {
+            "title": "Eine Routine einrichten",
+            "body": "Ein Agent erledigt eine Aufgabe nach Zeitplan."
+          },
+          "connection": {
+            "title": "Einen Dienst verbinden",
+            "body": "Mail, Kalender oder Dateien, mit Ihrem eigenen Konto."
+          },
+          "agent": {
+            "title": "Einen Agent bauen",
+            "body": "Der Architect baut ihn mit Ihnen."
+          }
+        }
       }
     },
     "edit": {
@@ -4289,7 +4342,18 @@
         "body": "Was der Chat jemandem anbietet, der diesen Agent öffnet, bevor etwas gesagt wurde. Wer neu ist, erfährt daraus mehr darüber, wofür der Agent da ist, als aus seiner Beschreibung - machen Sie also jede zu einer echten Frage, die er gut beantwortet."
       }
     },
-    "chooseLanguage": "Sprache"
+    "chooseLanguage": "Sprache",
+    "chooseRole": "Was machen Sie? Ihre Agents werden es wissen.",
+    "roles": {
+      "leadership": "Geschäftsführung",
+      "sales": "Vertrieb",
+      "marketing": "Marketing",
+      "support": "Kundenservice",
+      "operations": "Operations",
+      "finance": "Finanzen",
+      "people": "HR",
+      "engineering": "Entwicklung"
+    }
   },
   "organizations": {
     "accessLost": "Sie haben keinen Zugriff mehr auf diese Organisation.",
@@ -5408,7 +5472,18 @@
       "prefMcpServerDown": "MCP-Server antwortet nicht",
       "prefMcpServerDownTrigger": "Ein MCP-Server der Organisation hat auf eine Prüfung oder in einem Run nicht mehr geantwortet. Einmal pro Ausfall an Administratoren und an die Eigentümer der daran gebundenen Agents.",
       "prefMcpServerRecovered": "MCP-Server antwortet wieder",
-      "prefMcpServerRecoveredTrigger": "Ein Server, der nicht mehr antwortete, ist zurück, und die daran gebundenen Agents haben seine Tools wieder."
+      "prefMcpServerRecoveredTrigger": "Ein Server, der nicht mehr antwortete, ist zurück, und die daran gebundenen Agents haben seine Tools wieder.",
+      "agentContext": {
+        "title": "Was Ihre Agents über Sie wissen",
+        "description": "Jeder Agent liest das zu Beginn eines Gesprächs, damit Sie es im Chat nie wiederholen müssen.",
+        "role": "Ihre Rolle",
+        "rolePlaceholder": "Vertriebsleitung",
+        "about": "Woran Sie arbeiten",
+        "aboutPlaceholder": "Großkunden in Skandinavien; wöchentlicher Pipeline-Review mit dem CFO.",
+        "timeZone": "Zeitzone",
+        "save": "Speichern",
+        "saved": "Gespeichert - Ihre Agents wissen es ab der nächsten Nachricht."
+      }
     },
     "skills": {
       "agentsBoundSkillWill": "An diesen Skill gebundene Agents laufen ab ihrem nächsten Run ohne ihn. Das lässt sich nicht rückgängig machen.",
@@ -7414,6 +7489,14 @@
       "example2": "Ein 3D-Modell des Lagers zum Drehen",
       "needs": "Nichts weiter. Der Skill visual-design lässt die Zeichnungen gestaltet aussehen.",
       "never": "Greift nie aufs Netz zu - eine Zeichnung läuft abgeschottet, wie die Seite einer App."
+    },
+    "follow_ups": {
+      "name": "Nächste Schritte",
+      "does": "Bietet unter einer Antwort bis zu drei nächste Schritte als Buttons an, sodass die nächste Frage einen Klick entfernt ist.",
+      "example1": "Mach daraus eine Tabelle",
+      "example2": "Mach das jeden Montag um 9:00",
+      "needs": "Nichts weiter. Die Buttons erscheinen im Web-Chat, im Widget und auf der gehosteten Seite.",
+      "never": "Sendet nie etwas von selbst - ein Schritt geht erst nach einem Klick raus."
     }
   },
   "capabilityCategories": {

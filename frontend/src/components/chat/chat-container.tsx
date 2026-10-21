@@ -1189,7 +1189,12 @@ function ChatUI({
                   onReport={onVisualReport}
                   onCompose={(text) => setIncoming({ id: Date.now(), files: [], text })}
                 >
-                  <MessageList messages={messages} onRegenerate={onRegenerate} pins={pins} />
+                  <MessageList
+                    messages={messages}
+                    onRegenerate={onRegenerate}
+                    pins={pins}
+                    onFollowUp={isProcessing ? undefined : (step) => sendMessage(step)}
+                  />
                 </ConversationVisualsProvider>
               </LiveBrowsesProvider>
             )}

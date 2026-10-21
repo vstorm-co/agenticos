@@ -35,6 +35,12 @@ export interface User {
    * asking an agent. Null until they choose, and the cookie decides as before.
    */
   locale?: Locale | null;
+  /** The IANA zone agents read the person's times in; taken from the browser when unset. */
+  time_zone?: string | null;
+  /** The person's role, as every agent is told it. */
+  job_title?: string | null;
+  /** What the person works on, as every agent is told it. */
+  about?: string | null;
   /**
    * Set while an administrator is acting as this account, and what the banner
    * is drawn from. Absent - not merely null - on a persisted store that predates

@@ -1,5 +1,5 @@
 ---
-source_sha: "6c5ee025f646"
+source_sha: "f0c0faf6fb72"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -46,6 +46,14 @@ Niezależnie od tego, z jakimi capabilities agent skończy, każdy run dostaje w
 instrukcjach, pod **Your setup**, listę tych, które ma, i tych, których nie ma -
 więc opisuje tylko to, co potrafi, i mówi, co trzeba by włączyć do reszty.
 
+Gdy prośba wymaga capability, której agent nie ma, pokazuje w czacie kartę z
+nią i z powodem. Ktoś, kto może edytować agenta, włącza ją z karty - powiązaną
+tak, jak wiąże ją agent startowy, i sprawdzoną tak, jak sprawdza publikacja.
+Publikuje się od razu tylko wtedy, gdy w szkicu nie było nic nieopublikowanego,
+a ta osoba może publikować; inaczej czeka w szkicu na Builder. Każdy inny prosi
+z karty właściciela agenta, a właściciel dostaje powiadomienie, które otwiera
+Toolbox agenta.
+
 Dwie z nich zależą od tego, co uruchamia wdrożenie. Przestrzeń robocza to
 kontener w usłudze sandbox samego wdrożenia, którą bootstrap i pierwsza publikacja
 rejestrują jako domyślną dla organizacji; bez niej przechowuje tylko pliki.
@@ -84,6 +92,7 @@ Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
 | `artifacts` | Aplikacje | użytkowe | `publish_artifact`, `read_artifact` | — | — | bez zmian |
 | `channel_tools` | Informacje o kanale czatu | kanały | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — | niedostępna |
 | `ask_user` | Pytania do użytkownika | narzędzia | `ask_user_question` | — | — | na ekranie |
+| `follow_ups` | Następne kroki | narzędzia | `suggest_next_steps` | — | — | niedostępna |
 
 Siedem z nich celowo nie ma narzędzi. `thinking` zmienia sposób, w jaki model
 pracuje, a nie to, do czego sięga, `clock` wstawia datę do instrukcji,
@@ -116,7 +125,8 @@ agenta, któremu rozmowa przekazuje zadanie
 Builderze wymienia je dla agenta, który je ma, tak jak pracę w trakcie narzędzi,
 która tylko wysyła przekazane narzędzie w tło. *Na ekranie* zadaje pytania na
 karcie w widoku rozmowy w `/chat`. Podgląd kanału czatu jest *niedostępny*, bo
-rozmowy nigdy nie prowadzi się w kanale. *Bez efektu* oznacza trzy capability, które działają na żądaniach
+rozmowy nigdy nie prowadzi się w kanale, i tak samo Następne kroki - rozmowa
+głosowa nie ma gdzie pokazać ich przycisków. *Bez efektu* oznacza trzy capability, które działają na żądaniach
 do modelu w tekstowym runie i na ich zapisanej historii, a tych rozmowa nie
 wysyła.
 
@@ -2245,6 +2255,18 @@ może tylko osoba, której zadano pytanie, przez `POST /runs/{run_id}/answers`;
 `GET /runs/{run_id}/questions` odczytuje kartę. Po dobie
 (`QUESTION_EXPIRY_HOURS`, 24) run kończy się jako anulowany, a krok zapisuje, że
 osoba nie odpowiedziała na czas.
+
+## Następne kroki { #follow-ups }
+
+Na końcu odpowiedzi `suggest_next_steps` proponuje pod nią do trzech następnych
+kroków jako przyciski, każdy najwyżej 80 znaków i sformułowany tak, jak
+powiedziałaby to osoba: „Zrób z tego tabelę”, „Rób to w każdy poniedziałek o
+9:00”. Kliknięcie wysyła krok jako jej następną wiadomość. Proponuje je tylko
+najnowsza odpowiedź, a w trakcie tury żadna. Agent pomija je po small talku albo
+po własnym pytaniu i nie powtarza kroków w odpowiedzi.
+
+Jest włączona w agencie startowym i w Architekcie, a autor może ją wyłączyć.
+Rozmowa głosowa jej nie używa.
 
 ## Co może zmienić powiązanie { #what-a-binding-may-change }
 

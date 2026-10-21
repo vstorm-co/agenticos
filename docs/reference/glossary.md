@@ -71,6 +71,7 @@ in [Capabilities](capabilities.md).
 | Long conversations | `compaction` |
 | Context | `context` |
 | Past conversations | `conversation_search` |
+| Follow-ups | `follow_ups` |
 | Guardrails | `guardrails` |
 | Image generation | `image_generation` |
 | Knowledge search | `knowledge` |

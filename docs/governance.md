@@ -1283,9 +1283,13 @@ the same write, which is why one can fail - a bounced address, a down SMTP relay
 
 Both channels are switched independently, per event, at **Settings →
 Notifications** - a person can keep the in-app row for approvals and turn its
-email off, or the other way round. The same page also carries every other
-event the inbox delivers: a run finishing or failing unattended, a document's
-ingestion **failing**, a connector sync's own whole-attempt figure, and an app
+email off, or the other way round.
+
+The same page also carries every other
+event the inbox delivers: a run finishing or failing unattended - a routine's
+finish named after the routine and opening with the start of its answer, told to
+whoever set it up - an ask to switch a capability on, for the agent's owner, a
+document's ingestion **failing**, a connector sync's own whole-attempt figure, and an app
 admin's own broadcast - `POST /admin/announcements`, not yet a console page -
 addressed by organization and, optionally, role, and restricted to one or both
 channels.

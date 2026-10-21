@@ -3,6 +3,7 @@
 from datetime import datetime
 from typing import Literal
 from uuid import UUID
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import EmailStr, Field, field_validator
 
@@ -79,11 +80,34 @@ class UserUpdate(BaseSchema):
         default=None,
         description="The console's language for me, on every device.",
     )
+    time_zone: str | None = Field(
+        default=None,
+        max_length=64,
+        description="My IANA time zone, e.g. Europe/Warsaw - what agents read my times in.",
+    )
+    job_title: str | None = Field(
+        default=None, max_length=120, description="My role, as every agent is told it."
+    )
+    about: str | None = Field(
+        default=None, max_length=500, description="What I work on, as every agent is told it."
+    )
 
     @field_validator("email")
     @classmethod
     def normalize_email(cls, v: str | None) -> str | None:
         return v.lower() if v is not None else None
+
+    @field_validator("time_zone")
+    @classmethod
+    def _a_zone_that_exists(cls, value: str | None) -> str | None:
+        """Refused here rather than at a run, where a typo would read every time wrong."""
+        if value is None:
+            return None
+        try:
+            ZoneInfo(value)
+        except ZoneInfoNotFoundError, ValueError:
+            raise ValueError("Not an IANA time zone, such as Europe/Warsaw") from None
+        return value
 
 
 class UserRead(UserBase, TimestampSchema):
@@ -107,6 +131,9 @@ class UserRead(UserBase, TimestampSchema):
     notify_approval_requests: bool = True
     notify_usage_reports: bool = True
     locale: ConsoleLocale | None = None
+    time_zone: str | None = None
+    job_title: str | None = None
+    about: str | None = None
 
 
 class UserLocale(BaseSchema):

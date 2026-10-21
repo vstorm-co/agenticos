@@ -1,5 +1,5 @@
 ---
-source_sha: "bf5deb5feff0"
+source_sha: "2c3ba1b9f219"
 ---
 
 # Die Konsole { #the-console }
@@ -50,6 +50,13 @@ Wissensbasis geben, Abteilungen hinzufügen, jemanden aus dem Team einladen und 
 wer darf - einen Agent in eine Chat-App bringen. Jeder Schritt wird nach dem
 abgehakt, was existiert, wo auch immer er erledigt wurde; wer die Karte schließt,
 blendet sie in diesem Browser aus.
+
+Ihre eigene Ansicht öffnet mit **Ihre ersten Schritte (Your first steps)**, bis
+jeder erledigt ist: Agents etwas über sich erzählen, ein Gespräch beginnen, eine
+Routine einrichten, einen Dienst mit dem eigenen Konto verbinden und einen Agent
+bauen - Letzteres ist eine Frage an den Architect, der ihn mit Ihnen baut. Jeder
+Schritt wird an dem abgehakt, was Sie getan haben, nicht an einem Klick auf die
+Karte.
 
 Ihre eigene Ansicht zeigt außerdem **AgenticOS entdecken**: je eine Kachel für das,
 was leicht übersehen wird - den eigenen MCP-Server dieses Deployments für Claude
@@ -307,6 +314,20 @@ hineinklicken. Darüber sind die Karten die eigenen **ersten Nachrichten** des
 Agents, im Builder unter seinen Instruktionen gesetzt; ein Agent ohne sie bietet
 die vier des Chats an, darunter eine, die fragt, was er kann, und eine, die eine
 Routine einrichtet.
+
+**Unter einer Antwort.** Ein Agent mit
+[Nächsten Schritten](reference/capabilities.md#follow-ups) bietet unter seiner
+neuesten Antwort bis zu drei nächste Schritte als Schaltflächen an, und ein Klick
+sendet einen. Eine Zeile sagt, was er sich über Sie notiert oder vergessen hat,
+mit **Verwalten (Manage)** zu [den Notizen selbst](reference/capabilities.md#memory-files)
+- bitten Sie ihn, etwas zu vergessen, und er tut es. Braucht eine Anfrage eine
+Capability, die dem Agent fehlt, bietet eine Karte an, sie einzuschalten oder den
+Besitzer des Agents darum zu bitten ([wie](reference/capabilities.md)).
+
+**Eine Anfrage behalten, die funktioniert hat.** Fahren Sie über Ihre eigene
+Nachricht: Der Kalender macht daraus eine Routine - derselbe Prompt, standardmäßig
+wöchentlich, auf dem Agent, der geantwortet hat -, und der Roboter bittet den
+Architect, einen Agent zu bauen, der das erledigt.
 
 **Während der Agent arbeitet**, wartet das, was Sie senden, auf seine Antwort, wie
 in jedem Chat: Es steht in einer Warteschlange über dem Eingabefeld und geht
@@ -623,8 +644,15 @@ rechtlichen Seiten, die Englisch bleiben. Die erste Karte des Rundgangs bietet d
 drei an, und das Kontomenü wechselt die Sprache jederzeit; die Wahl wird in Ihrem
 Konto gespeichert, sodass die Konsole auf jedem Gerät, auf dem Sie sich anmelden,
 in ihr öffnet. Sie können auch einen Agent bitten - "auf Englisch umstellen" -, und
-die Seite wechselt, während er antwortet, ohne Neuladen. Produktwörter - Agent, Skill, Run, Budget, MCP und der Rest der Liste
+die Seite wechselt, während er antwortet, ohne Neuladen. Jeder Agent antwortet in
+ihr, außer Sie schreiben in einer anderen Sprache. Produktwörter - Agent, Skill, Run, Budget, MCP und der Rest der Liste
 unter [Übersetzen](howto/translate.md) - bleiben in jeder Sprache Englisch.
+
+Dieselbe Karte fragt, was Sie tun, und **Einstellungen → Profil (Settings →
+Profile)** hält den Rest dessen, was Agents über Sie wissen: Ihre Rolle, woran Sie
+arbeiten und Ihre Zeitzone. Jeder Agent liest sie zu Beginn eines Runs, sodass Sie
+sie in keinem Chat wiederholen; „jeden Montag um 9“ ist Ihre 9. Die Zeitzone wird
+bei der ersten Anmeldung aus Ihrem Browser übernommen, bis Sie eine wählen.
 
 ## Der nächste Schritt { #the-next-step }
 

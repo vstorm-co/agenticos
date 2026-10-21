@@ -79,9 +79,9 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
   const { create, categoryOptions, tagOptions } = useAgents();
   // A new agent starts with what the starter agent has - the AgenticOS
   // template - so it can ask, plan, search, work in a sandbox and delegate from
-  // its first run; its author switches off what it should not do. The server
-  // fills in the rest of the starter - its instructions, skills, the
-  // platform's own tools and its budget - for a spec that leaves them empty.
+  // its first run; its author switches off what it should not do. With
+  // `from_starter` the server fills in the rest of the starter - its
+  // instructions, skills, the platform's own tools and its budget.
   const { capabilities: catalog, isLoading: catalogLoading } = useCapabilityCatalog();
   const starter = catalog.flatMap((entry) =>
     entry.recommended ? [{ ...entry.recommended, enabled: true }] : [],
@@ -124,6 +124,7 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
         ...audiencePayload(audience),
         categories,
         tags,
+        from_starter: true,
       });
       setName("");
       setDescription("");

@@ -1,5 +1,5 @@
 ---
-source_sha: "bf5deb5feff0"
+source_sha: "2c3ba1b9f219"
 ---
 
 # La consola { #the-console }
@@ -50,6 +50,12 @@ completar cada paso: crear un agent, publicarlo, darle una base de conocimiento,
 añadir departamentos, invitar a alguien del equipo y - quien pueda - poner un agent
 en una app de chat. Cada paso se marca a partir de lo que existe, se haya hecho
 donde se haya hecho; cerrar la tarjeta la oculta en ese navegador.
+
+Tu propia vista se abre con **Your first steps** hasta que haces cada uno:
+contarles a los agents sobre ti, empezar una conversación, configurar una rutina,
+conectar un servicio con tu propia cuenta y crear un agent - este último es una
+pregunta al Architect, que lo crea contigo. Cada paso se marca a partir de lo que
+has hecho, no de un clic en la tarjeta.
 
 Tu propia vista muestra además **Discover AgenticOS**: una tarjeta por cada cosa
 fácil de pasar por alto - el servidor MCP propio de este despliegue para Claude
@@ -287,6 +293,20 @@ capability, un delegado, un skill - y `/`; desaparecen en cuanto haces clic en �
 Encima, las tarjetas son los **primeros mensajes** propios del agent, definidos en
 el Builder bajo sus instrucciones; un agent sin ellos ofrece los cuatro del chat,
 entre ellos uno para preguntar qué puede hacer y otro para configurar una rutina.
+
+**Debajo de una respuesta.** Un agent con
+[Follow-ups](reference/capabilities.md#follow-ups) ofrece debajo de su respuesta
+más reciente hasta tres pasos siguientes como botones, y un clic envía uno. Una
+línea dice qué anotó sobre ti, u olvidó, con **Manage** para
+[las notas mismas](reference/capabilities.md#memory-files) - pídele que olvide
+algo y lo hará. Cuando una petición necesita una capability que el agent no
+tiene, una tarjeta propone activarla o pedírselo a su propietario
+([cómo](reference/capabilities.md)).
+
+**Guardar una petición que funcionó.** Pasa el cursor por tu propio mensaje: el
+calendario lo convierte en una rutina - el mismo prompt, semanal por defecto, en
+el agent que respondió - y el robot le pide al Architect que cree un agent que lo
+haga.
 
 **Mientras el agent trabaja**, lo que envías espera su respuesta, como en
 cualquier chat: queda en una cola encima del cuadro de texto y sale cuando termina
@@ -583,9 +603,18 @@ legales, que siguen en inglés. La primera tarjeta del recorrido ofrece los tres
 el menú de la cuenta cambia el idioma en cualquier momento; la elección se guarda
 en tu cuenta, así que la consola se abre en él en cada dispositivo en el que
 inicias sesión. También puedes pedírselo a un agent - "cambia a inglés" - y la
-página cambia mientras responde, sin recargar. Las palabras del producto - agent, skill, run, budget, MCP y el
+página cambia mientras responde, sin recargar. Todos los agents responden en él
+salvo que escribas en otro idioma.
+
+Las palabras del producto - agent, skill, run, budget, MCP y el
 resto de la lista de [traducir](howto/translate.md) - siguen en inglés en todos
 los idiomas.
+
+La misma tarjeta pregunta a qué te dedicas, y **Settings → Profile** guarda el
+resto de lo que los agents saben de ti: tu rol, en qué trabajas y tu zona horaria.
+Cada agent los lee al empezar un run, así que nunca los repites en un chat; «cada
+lunes a las 9» son tus 9. La zona horaria se toma de tu navegador la primera vez
+que inicias sesión, hasta que eliges una.
 
 ## El siguiente paso { #the-next-step }
 

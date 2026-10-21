@@ -263,6 +263,15 @@ class AgentCreate(AudienceChoice):
     """Create an agent from a spec. The handle is derived from the name."""
 
     spec: AgentSpec
+    from_starter: bool = Field(
+        default=False,
+        description=(
+            "Start as the AgenticOS agent does: whatever of its instructions, "
+            "capabilities, skills, platform tools, first messages and budget the spec "
+            "leaves empty is filled from it - what the console's New agent sends. "
+            "Without it, a spec with no instructions gets only the starter's instructions"
+        ),
+    )
     # Discovery labels, folded the same way `AgentMetadataRequest` folds them.
     # They are not spec, and they are offered here because the catalog a new
     # agent joins is the moment somebody knows what to call it - the detail page
@@ -311,6 +320,24 @@ class AgentMetadataRequest(BaseSchema):
     @classmethod
     def _normalize(cls, v: list[str]) -> list[str]:
         return normalize_labels_strict(v)
+
+
+class CapabilityEnabled(BaseSchema):
+    """What switching a capability on from an agent's card did (#2301)."""
+
+    published: bool = Field(
+        description=(
+            "Whether the agent answers with it now. False when the draft held other "
+            "unpublished changes, or the caller may edit but not publish: the "
+            "capability is in the draft, for the Builder's Publish"
+        )
+    )
+
+
+class CapabilityRequest(BaseSchema):
+    """Asking an agent's owner to switch a capability on (#2301)."""
+
+    reason: str = Field(min_length=1, max_length=300, description="What it was needed for")
 
 
 class AgentPublish(BaseSchema):

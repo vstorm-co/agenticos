@@ -1,5 +1,5 @@
 ---
-source_sha: "5931b7688a5d"
+source_sha: "023fa6d893b4"
 ---
 
 # Governance { #governance }
@@ -1477,9 +1477,13 @@ ausgefallenes SMTP-Relay - ohne dass der andere je davon erfährt.
 
 Beide Kanäle werden unabhängig voneinander geschaltet, je Ereignis, unter
 **Settings → Notifications** - eine Person kann die In-App-Zeile für
-Freigaben behalten und ihre E-Mail abschalten, oder umgekehrt. Dieselbe Seite
+Freigaben behalten und ihre E-Mail abschalten, oder umgekehrt.
+
+Dieselbe Seite
 trägt auch jedes andere Ereignis, das das Postfach zustellt: einen Run, der
-unbeaufsichtigt fertig wird oder scheitert, die Ingestion eines Dokuments, die
+unbeaufsichtigt fertig wird oder scheitert - das Ende einer Routine nach ihr
+benannt und mit dem Anfang ihrer Antwort, für die Person, die sie eingerichtet
+hat -, die Bitte, eine Capability einzuschalten, für den Besitzer des Agents, die Ingestion eines Dokuments, die
 **scheitert**, die eigene Gesamtzahl eines Konnektor-Laufs, und die eigene
 Ankündigung eines App-Admins - `POST /admin/announcements`, noch keine
 Console-Seite - adressiert nach Organisation und, optional, nach Rolle, und

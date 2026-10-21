@@ -11,7 +11,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.agents.mcp_oauth import OAuthError
-from app.api.deps import CurrentUser, McpConnectionSvc, key_needs_on_own_account
+from app.api.deps import CurrentUser, McpConnectionSvc, key_needs
 from app.api.public_api import PUBLIC
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
@@ -36,7 +36,7 @@ router = APIRouter()
 @router.get(
     "",
     response_model=McpConnectionList,
-    dependencies=[PUBLIC, Depends(key_needs_on_own_account(Perm.AGENTS_RUN))],
+    dependencies=[PUBLIC, Depends(key_needs(Perm.AGENTS_RUN))],
 )
 async def list_mcp_connections(service: McpConnectionSvc, user: CurrentUser) -> Any:
     """List the current user's MCP server connections.

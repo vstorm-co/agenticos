@@ -86,6 +86,12 @@ class User(Base, TimestampMixin):
     # agent asked to switch it. Null until they choose: the console then keeps
     # whatever the browser's cookie or the URL says, as it always did.
     locale: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    # What every agent is told about the person (#2301): the zone "every Monday
+    # at 9" is read in, taken from their browser, and their role and work, which
+    # they write once rather than in every conversation.
+    time_zone: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    job_title: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    about: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     sessions: Mapped[list[Session]] = relationship(
         "Session",

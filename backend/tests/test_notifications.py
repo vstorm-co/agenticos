@@ -36,7 +36,7 @@ from app.agents.spec import AgentSpec, AlertAudience, AlertSpec, NotificationSpe
 from app.core.config import settings
 from app.db.models.notification import NotificationEventType
 from app.services.notification_center import NotificationCenterService
-from app.services.notifications import NotificationService
+from app.services.notifications import ROUTINE_EXCERPT_CHARS, NotificationService
 
 MODULE = "app.services.notifications"
 
@@ -1801,3 +1801,127 @@ class TestMcpServerOutages:
         assert call["event_type"] is NotificationEventType.MCP_SERVER_RECOVERED
         assert call["occurrence_id"] == f"{server.id}:{began.isoformat()}"
         assert call["summary"] == "The MCP server linear is answering again."
+
+
+class TestRoutineFinished:
+    """#2301: a routine's creator is told what it said, not only that it ran."""
+
+    @pytest.mark.anyio
+    async def test_the_creator_reads_the_start_of_the_answer(self, written):
+        creator = uuid.uuid4()
+        run = _run()
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(creator)):
+            await NotificationService(MagicMock()).routine_finished(
+                run,
+                agent=_agent(),
+                routine_name="Monday digest",
+                creator_id=creator,
+                answer="Three new\n\ntickets  overnight.",
+            )
+
+        call = written.calls[0]
+        assert call["event_type"] is NotificationEventType.RUN_COMPLETED
+        assert call["recipients"] == [creator]
+        assert call["occurrence_id"] == str(run.id)
+        assert call["summary"] == "Monday digest: Three new tickets overnight."
+        assert call["render_context"]["routine_name"] == "Monday digest"
+
+    @pytest.mark.anyio
+    async def test_a_long_answer_is_cut_and_an_unnamed_routine_takes_the_agents_name(self, written):
+        creator = uuid.uuid4()
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(creator)):
+            await NotificationService(MagicMock()).routine_finished(
+                _run(),
+                agent=_agent(name="Support"),
+                routine_name=None,
+                creator_id=creator,
+                answer="word " * 100,
+            )
+
+        excerpt = written.calls[0]["render_context"]["excerpt"]
+        assert len(excerpt) == ROUTINE_EXCERPT_CHARS
+        assert excerpt.endswith("…")
+        assert written.calls[0]["summary"].startswith("Support: word word")
+
+    @pytest.mark.anyio
+    async def test_an_empty_answer_still_says_it_finished(self, written):
+        creator = uuid.uuid4()
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(creator)):
+            await NotificationService(MagicMock()).routine_finished(
+                _run(), agent=_agent(), routine_name="Digest", creator_id=creator, answer="  "
+            )
+
+        assert written.calls[0]["summary"] == "Digest finished."
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("creator_left", [False, True])
+    async def test_nobody_is_told_without_a_creator_who_is_still_a_member(
+        self, written, creator_left
+    ):
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members()) as lookup:
+            await NotificationService(MagicMock()).routine_finished(
+                _run(),
+                agent=_agent(),
+                routine_name="Digest",
+                creator_id=uuid.uuid4() if creator_left else None,
+                answer="done",
+            )
+
+        assert written.calls == []
+        assert lookup.await_count == (1 if creator_left else 0)
+
+
+class TestCapabilityRequested:
+    """#2301: somebody who cannot edit an agent asks its owner to switch a capability on."""
+
+    @pytest.mark.anyio
+    async def test_the_owner_is_told_who_asked_for_what_and_why(self, written):
+        owner, asker = uuid.uuid4(), uuid.uuid4()
+        agent = _agent(owner_user_id=owner)
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(owner)):
+            await NotificationService(MagicMock()).capability_requested(
+                agent=agent,
+                capability_name="Web search",
+                capability_id="web_search",
+                reason="to check the news",
+                requester_id=asker,
+                requester_name="Ada",
+            )
+
+        call = written.calls[0]
+        assert call["event_type"] is NotificationEventType.CAPABILITY_REQUESTED
+        assert call["recipients"] == [owner]
+        assert call["actor_user_id"] == asker
+        # Asking twice tells the owner once.
+        assert call["occurrence_id"] == f"{agent.id}:web_search:{asker}"
+        assert call["summary"] == "Ada asked for Web search in Support: to check the news"
+        assert "highlight=agent-capabilities" in call["context_url"]
+
+    @pytest.mark.anyio
+    async def test_an_agent_nobody_owns_or_an_owner_asking_themselves_tells_nobody(self, written):
+        owner = uuid.uuid4()
+        for agent, asker in ((_agent(), uuid.uuid4()), (_agent(owner_user_id=owner), owner)):
+            await NotificationService(MagicMock()).capability_requested(
+                agent=agent,
+                capability_name="Web search",
+                capability_id="web_search",
+                reason="r",
+                requester_id=asker,
+                requester_name="Ada",
+            )
+
+        assert written.calls == []
+
+    @pytest.mark.anyio
+    async def test_an_owner_who_left_the_organization_is_told_nothing(self, written):
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members()):
+            await NotificationService(MagicMock()).capability_requested(
+                agent=_agent(owner_user_id=uuid.uuid4()),
+                capability_name="Web search",
+                capability_id="web_search",
+                reason="r",
+                requester_id=uuid.uuid4(),
+                requester_name="Ada",
+            )
+
+        assert written.calls == []

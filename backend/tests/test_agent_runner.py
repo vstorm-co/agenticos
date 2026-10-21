@@ -258,6 +258,10 @@ class TestPrepare:
                 service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
             ) as resolve,
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            # Nobody the account describes, so the spec reaches the run as written.
+            patch(
+                "app.services.agent_runner.user_repo.get_by_id", new=AsyncMock(return_value=None)
+            ),
             patch(
                 "app.services.agent_runner.agent_run_repo.create_run",
                 new=AsyncMock(return_value=run),

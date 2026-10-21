@@ -1172,12 +1172,6 @@ class TestMayRun:
 
 
 class TestCreate:
-    @pytest.fixture(autouse=True)
-    def _starter_skills_installed(self):
-        """A spec with no instructions is made the starter; its skills are not the point here."""
-        with patch.object(AgentRegistryService, "template_skills", new=AsyncMock(return_value=[])):
-            yield
-
     @pytest.mark.anyio
     async def test_a_new_agent_starts_as_a_draft_holding_the_submitted_spec(self):
         ctx = _ctx()
@@ -3124,12 +3118,6 @@ def _uncapped():
 
 
 class TestClone:
-    @pytest.fixture(autouse=True)
-    def _starter_skills_installed(self):
-        """A spec with no instructions is made the starter; its skills are not the point here."""
-        with patch.object(AgentRegistryService, "template_skills", new=AsyncMock(return_value=[])):
-            yield
-
     @pytest.mark.anyio
     async def test_a_clone_copies_the_draft_and_starts_over(self):
         """The spec is what carries over. Everything else is a statement about
@@ -3541,12 +3529,14 @@ class TestWhatANewAgentOpensWith:
 
     An agent with no instructions still answers - as whatever the underlying model
     is by default, which is a different product on every provider and changes when
-    the model is upgraded. So a new one starts as AgenticOS does, and its author
-    edits from there.
+    the model is upgraded. So a new one opens with AgenticOS's prompt, and one made
+    with the console's New agent starts as AgenticOS does, settings and all.
     """
 
     @staticmethod
-    async def _created(spec: AgentSpec, *, skill_id: uuid.UUID | None = None) -> dict:
+    async def _created(
+        spec: AgentSpec, *, from_starter: bool = False, skill_id: uuid.UUID | None = None
+    ) -> dict:
         skills = [] if skill_id is None else [MagicMock(id=skill_id)]
         with (
             patch(f"{REGISTRY_PATH}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)),
@@ -3557,16 +3547,21 @@ class TestWhatANewAgentOpensWith:
                 AgentRegistryService, "template_skills", new=AsyncMock(return_value=skills)
             ),
         ):
-            await AgentRegistryService(_db()).create(_ctx(), spec)
+            await AgentRegistryService(_db()).create(_ctx(), spec, from_starter=from_starter)
         return create.call_args.kwargs["draft_spec"]
 
-    @pytest.mark.anyio
-    async def test_a_new_agent_is_made_the_starter_agent(self):
+    @staticmethod
+    def _starter():
         starter = agent_templates.get(agent_templates.STARTER_TEMPLATE)
         assert starter is not None
+        return starter
+
+    @pytest.mark.anyio
+    async def test_new_agent_makes_it_the_starter_agent(self):
+        starter = self._starter()
         skill_id = uuid.uuid4()
 
-        written = await self._created(_spec("Support"), skill_id=skill_id)
+        written = await self._created(_spec("Support"), from_starter=True, skill_id=skill_id)
 
         assert written["name"] == "Support"
         assert written["instructions"] == starter.instructions
@@ -3587,14 +3582,17 @@ class TestWhatANewAgentOpensWith:
         written = await self._created(
             _spec(
                 "Support",
+                instructions="Answer refunds.",
                 capabilities=[{"id": "clock"}],
                 budget={"monthly_usd": 5},
                 mcp_servers=[{"account": "platform", "approval": "all"}],
                 skill_ids=[skill_id],
                 starters=["Where is my order?"],
-            )
+            ),
+            from_starter=True,
         )
 
+        assert written["instructions"] == "Answer refunds."
         assert [binding["id"] for binding in written["capabilities"]] == ["clock"]
         assert written["budget"]["monthly_usd"] == 5
         assert written["mcp_servers"][0]["approval"] == "all"
@@ -3602,20 +3600,27 @@ class TestWhatANewAgentOpensWith:
         assert written["starters"] == ["Where is my order?"]
 
     @pytest.mark.anyio
+    async def test_a_bare_spec_gets_the_prompt_and_nothing_else(self):
+        """An integration creating an agent over the API asked for no sandbox,
+        no platform tools and no budget - only an empty box is replaced."""
+        written = await self._created(_spec("Support"))
+
+        assert written["instructions"] == self._starter().instructions
+        assert written["capabilities"] == []
+        assert written["mcp_servers"] == []
+        assert written["budget"] is None
+
+    @pytest.mark.anyio
     async def test_a_prompt_somebody_wrote_is_left_alone(self):
         written = await self._created(_spec("Support", instructions="Answer only in Polish."))
 
         assert written["instructions"] == "Answer only in Polish."
-        assert written["mcp_servers"] == []
 
     @pytest.mark.anyio
     async def test_a_prompt_of_only_whitespace_is_not_a_prompt(self):
-        starter = agent_templates.get(agent_templates.STARTER_TEMPLATE)
-        assert starter is not None
-
         written = await self._created(_spec("Support", instructions="   \n"))
 
-        assert written["instructions"] == starter.instructions
+        assert written["instructions"] == self._starter().instructions
 
 
 class TestWorkspaceConfigurationsRefusedAtPublish:
@@ -4033,12 +4038,6 @@ class TestASharedWorkspaceIsAnswerableAfterwards:
 
 
 class TestACapabilityAgentsMayNotBind:
-    @pytest.fixture(autouse=True)
-    def _starter_skills_installed(self):
-        """A spec with no instructions is made the starter; its skills are not the point here."""
-        with patch.object(AgentRegistryService, "template_skills", new=AsyncMock(return_value=[])):
-            yield
-
     """`channel_tools` is granted per bound bot, and the Toolbox does not offer it.
 
     What the product *can* still do is send it back: a browser holding a draft
@@ -4656,3 +4655,188 @@ class TestUndoingADraft:
         await AgentRegistryService(db).delete(ctx, agent.id, draft_only=True)
 
         delete.assert_awaited_once_with(db, agent)
+
+
+class TestSwitchingOnACapabilityFromTheChat:
+    """#2301: the card an agent shows for a capability it lacks, answered."""
+
+    @staticmethod
+    def _service(agent, *, published_spec=None, may_publish=True):
+        service = AgentRegistryService(_db())
+        service.get = AsyncMock(return_value=agent)
+        service.validate_spec = AsyncMock()
+        service.save_draft = AsyncMock()
+        service.publish = AsyncMock()
+        version = None
+        if published_spec is not None:
+            version = MagicMock()
+            version.spec = published_spec
+        patches = (
+            patch(f"{REGISTRY_PATH}.agent_repo.get_version", new=AsyncMock(return_value=version)),
+            patch(f"{REGISTRY_PATH}.resolve_access", new=AsyncMock(return_value=may_publish)),
+        )
+        return service, patches
+
+    @pytest.mark.anyio
+    async def test_a_published_agent_with_no_unpublished_edits_answers_with_it_at_once(self):
+        ctx = _ctx()
+        draft = _spec().model_dump(mode="json")
+        agent = _agent(ctx, draft_spec=draft, current_version_id=uuid.uuid4())
+        service, (version_p, access_p) = self._service(agent, published_spec=draft)
+
+        with version_p, access_p:
+            answer = await service.enable_capability(ctx, agent.id, "web_research")
+
+        assert answer.published is True
+        saved = service.save_draft.await_args.args[2]
+        # Bound as the starter binds it, config and all.
+        recommended = agent_templates.starter_capabilities()["web_research"]
+        assert saved.capabilities == [CapabilityBindingSpec.model_validate(recommended)]
+        service.validate_spec.assert_awaited_once()
+        assert service.publish.await_args.kwargs["note"].startswith("Switched on")
+
+    @pytest.mark.anyio
+    async def test_a_draft_holding_unpublished_edits_is_saved_and_not_made_live(self):
+        """Somebody's unfinished work is not published by a click in a chat."""
+        ctx = _ctx()
+        agent = _agent(
+            ctx,
+            draft_spec=_spec(instructions="half done").model_dump(mode="json"),
+            current_version_id=uuid.uuid4(),
+        )
+        service, (version_p, access_p) = self._service(
+            agent, published_spec=_spec().model_dump(mode="json")
+        )
+
+        with version_p, access_p:
+            answer = await service.enable_capability(ctx, agent.id, "web_research")
+
+        assert answer.published is False
+        service.save_draft.assert_awaited_once()
+        service.publish.assert_not_awaited()
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("case", ["never_published", "version_gone", "may_not_publish"])
+    async def test_it_waits_in_the_draft_when_it_cannot_go_live(self, case):
+        ctx = _ctx()
+        draft = _spec().model_dump(mode="json")
+        agent = _agent(
+            ctx,
+            draft_spec=draft,
+            current_version_id=None if case == "never_published" else uuid.uuid4(),
+        )
+        service, (version_p, access_p) = self._service(
+            agent,
+            published_spec=None if case == "version_gone" else draft,
+            may_publish=case != "may_not_publish",
+        )
+
+        with version_p, access_p:
+            answer = await service.enable_capability(ctx, agent.id, "web_research")
+
+        assert answer.published is False
+        service.publish.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_binding_switched_off_is_switched_on_where_it_is_with_its_config(self):
+        ctx = _ctx()
+        draft = _spec(
+            capabilities=[
+                {"id": "clock"},
+                {"id": "web_fetch", "enabled": False, "config": {"max_chars": 1234}},
+                {"id": "charts"},
+            ]
+        ).model_dump(mode="json")
+        agent = _agent(ctx, draft_spec=draft)
+        service, (version_p, access_p) = self._service(agent)
+
+        with version_p, access_p:
+            await service.enable_capability(ctx, agent.id, "web_fetch")
+
+        saved = service.save_draft.await_args.args[2]
+        assert [binding.id for binding in saved.capabilities] == ["clock", "web_fetch", "charts"]
+        assert saved.capabilities[1].enabled is True
+        assert saved.capabilities[1].config == {"max_chars": 1234}
+
+    @pytest.mark.anyio
+    async def test_a_capability_without_a_starter_binding_is_bound_bare(self):
+        ctx = _ctx()
+        agent = _agent(ctx)
+        service, (version_p, access_p) = self._service(agent)
+
+        with version_p, access_p:
+            await service.enable_capability(ctx, agent.id, "code_execution")
+
+        saved = service.save_draft.await_args.args[2]
+        assert saved.capabilities == [CapabilityBindingSpec(id="code_execution")]
+
+    @pytest.mark.anyio
+    async def test_a_capability_no_agent_may_bind_is_refused_before_anything_is_written(self):
+        ctx = _ctx()
+        service, (version_p, access_p) = self._service(_agent(ctx))
+
+        with version_p, access_p, pytest.raises(BadRequestError):
+            await service.enable_capability(ctx, uuid.uuid4(), "channel_tools")
+
+        service.save_draft.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_draft_that_would_not_publish_is_left_alone(self):
+        ctx = _ctx()
+        service, (version_p, access_p) = self._service(_agent(ctx))
+        service.validate_spec = AsyncMock(side_effect=BadRequestError(message="needs a key"))
+
+        with version_p, access_p, pytest.raises(BadRequestError):
+            await service.enable_capability(ctx, uuid.uuid4(), "web_research")
+
+        service.save_draft.assert_not_awaited()
+
+
+class TestAskingTheOwnerForACapability:
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("requester", "named"),
+        [
+            (MagicMock(full_name="Ada Lovelace", email="ada@example.com"), "Ada Lovelace"),
+            (MagicMock(full_name=None, email="ada@example.com"), "ada@example.com"),
+            (None, "Somebody"),
+        ],
+    )
+    async def test_the_owner_is_told_who_asked_and_why(self, requester, named):
+        ctx = _ctx(OrgRoleName.MEMBER)
+        agent = _agent(_ctx())
+        service = AgentRegistryService(_db())
+        service.get = AsyncMock(return_value=agent)
+        notices = MagicMock(capability_requested=AsyncMock())
+
+        with (
+            patch(f"{REGISTRY_PATH}.user_repo.get_by_id", new=AsyncMock(return_value=requester)),
+            patch(f"{REGISTRY_PATH}.NotificationService", return_value=notices),
+        ):
+            await service.ask_for_capability(ctx, agent.id, "web_research", reason="the news")
+
+        assert service.get.await_args.kwargs["perm"] is Perm.AGENTS_RUN
+        kwargs = notices.capability_requested.await_args.kwargs
+        assert kwargs["agent"] is agent
+        assert kwargs["capability_id"] == "web_research"
+        assert kwargs["reason"] == "the news"
+        assert kwargs["requester_id"] == ctx.user_id
+        assert kwargs["requester_name"] == named
+
+    @pytest.mark.anyio
+    async def test_a_capability_no_agent_may_bind_is_not_asked_for(self):
+        ctx = _ctx(OrgRoleName.MEMBER)
+        service = AgentRegistryService(_db())
+        service.get = AsyncMock(return_value=_agent(_ctx()))
+
+        with pytest.raises(BadRequestError):
+            await service.ask_for_capability(ctx, uuid.uuid4(), "channel_tools", reason="r")
+
+    @pytest.mark.anyio
+    async def test_nobody_signed_in_has_nobody_to_name(self):
+        ctx = AuthContext(user_id=None, organization_id=uuid.uuid4(), role=OrgRoleName.MEMBER)
+
+        with pytest.raises(AuthorizationError):
+            await AgentRegistryService(_db()).ask_for_capability(
+                ctx, uuid.uuid4(), "web_research", reason="r"
+            )

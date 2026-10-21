@@ -1,5 +1,5 @@
 ---
-source_sha: "b7df86ff6f95"
+source_sha: "ab0e013250f0"
 ---
 
 # API HTTP { #the-http-api }
@@ -167,7 +167,12 @@ Klucz sięga też do rutyn agenta - `GET /api/v1/triggers` oraz `GET`, `POST`,
 pod `GET /api/v1/providers/model-profiles`. Dwie ścieżki działają na samym
 wystawcy: `GET /api/v1/me/mcp-connections` wymienia usługi, które połączył własnym
 kontem, a `PUT /api/v1/users/me/locale` ustawia mu język konsoli na każdym
-urządzeniu.
+urządzeniu. Obie wymagają klucza wydanego na `agents:run`.
+
+`POST /api/v1/agents` tworzy agenta ze speca w treści i zostawia puste pole
+puste. Z `"from_starter": true` uzupełnia to, czego spec nie podaje -
+instrukcje, skille, własne narzędzia platformy i budżet - z agenta startowego
+AgenticOS, tak jak robi to **New agent** w konsoli.
 
 **Run kontynuuje rozmowę.** Wywołanie bez `conversation_id` otwiera nową rozmowę
 dla wystawcy klucza i zwraca jej identyfikator jako `conversation_id`; wyślij go

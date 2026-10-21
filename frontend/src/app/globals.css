@@ -1486,6 +1486,13 @@
   margin-top: 0.75rem;
 }
 
+/* The role row's question, under the languages (#2301). */
+.driver-popover.tour-popover .tour-role-label {
+  margin-top: 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--color-muted-foreground);
+}
+
 .driver-popover.tour-popover .tour-language button {
   border-radius: 9999px;
   border: 1px solid var(--color-border);

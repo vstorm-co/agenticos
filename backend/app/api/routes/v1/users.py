@@ -13,7 +13,7 @@ from app.api.deps import (
     DBSession,
     DeploymentSettingsSvc,
     UserSvc,
-    key_needs_on_own_account,
+    key_needs,
 )
 from app.api.public_api import PUBLIC
 from app.api.routes.v1._stored_bytes import stored_image_response
@@ -91,7 +91,7 @@ async def update_current_user(
 @router.put(
     "/me/locale",
     response_model=UserLocale,
-    dependencies=[PUBLIC, Depends(key_needs_on_own_account(Perm.AGENTS_RUN))],
+    dependencies=[PUBLIC, Depends(key_needs(Perm.AGENTS_RUN))],
 )
 async def set_current_user_locale(
     data: UserLocale, current_user: CurrentUser, user_service: UserSvc

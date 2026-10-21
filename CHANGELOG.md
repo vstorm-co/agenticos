@@ -32,11 +32,13 @@ Two things are versioned separately from this file and worth knowing about:
   should it do" to a tested, published agent, one decision at a time: it proposes
   the capabilities, knowledge and model, explains each choice in a line, tries the
   draft on your own questions and publishes it when you approve.
-- **A new agent starts as AgenticOS.** An agent created from scratch gets the
+- **A new agent starts as AgenticOS.** An agent made with **New agent** gets the
   starter's instructions - opening with its own `{{agent_name}}` - and whatever of
   its capabilities, skills, platform tools, first messages and budget the creator
-  left empty. `backend/app/agents/default_instructions.py` is gone; the template is
-  the one source.
+  left empty; `POST /agents` does the same with `"from_starter": true`, and
+  otherwise fills in only the instructions of a spec that has none.
+  `backend/app/agents/default_instructions.py` is gone; the template is the one
+  source.
 - **Every agent knows its own setup.** Each text run's instructions carry a
   **Your setup** section assembled from the spec: the capabilities the agent has,
   in the Toolbox's words, and the ones it has not, so "what can you do?" is
@@ -51,8 +53,35 @@ Two things are versioned separately from this file and worth knowing about:
   says so.
 - **The console's language is kept on the account.** Chosen in the account menu or
   through an agent, it holds on every device, and the open console switches the
-  moment an agent's `set_my_language` call answers. Migration `0159_user_locale`
-  adds a nullable `users.locale`; nobody's language changes until they choose one.
+  moment an agent's `set_my_language` call answers. Every agent answers in it.
+- **What agents know about you.** The walkthrough's first card asks your role, and
+  **Settings → Profile** keeps it with what you work on and your time zone, which
+  is taken from the browser until you choose one. Every run is told them after its
+  instructions, so "every Monday at 9" is the person's 9 and nobody repeats their
+  role in a chat. Migration `0159_user_profile` adds nullable `users.locale`,
+  `time_zone`, `job_title` and `about`; nothing changes for anybody until they set
+  one.
+- **Next steps as buttons.** The new `follow_ups` capability's
+  `suggest_next_steps` puts up to three next steps under the latest answer, and a
+  click sends one. On in AgenticOS and the Architect; left out of voice calls.
+- **A capability an agent lacks, switched on from the chat.** When a request needs
+  one, the agent shows a card. Someone who may edit it switches it on -
+  published at once when the draft held nothing else, otherwise saved to it - and
+  anyone else asks the owner, who is notified
+  (`POST /agents/{id}/capabilities/{capability_id}/enable` and `/request`, console
+  only). Migration `0160_capability_requested` adds the `capability_requested`
+  event.
+- **Keeping a request that worked.** Under your own message, one click makes it a
+  weekly routine on the agent that answered, another asks the Architect to build
+  an agent that does it. A line under an answer says what the agent remembered or
+  forgot about you, with a link to manage it.
+- **A routine's finish says what it found.** Its creator's notification names the
+  routine and opens with the start of the answer, instead of the generic "run
+  completed" one. AgenticOS offers a **Weekly tips** routine once, from the new
+  `weekly_tips` template.
+- **Your first steps.** A card at the top of your own dashboard, ticked from what
+  you have done: telling agents about yourself, a first conversation, a routine, a
+  service connected with your own account, and an agent of your own.
 - **First messages.** `AgentSpec.starters`, up to four, set under the instructions
   in the Builder, are the cards an empty chat offers; an agent with none shows the
   chat's own, now including "What can you do?" and "Set up a routine". The

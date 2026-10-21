@@ -173,6 +173,7 @@ from app.agents.manifest import RunRecorder, as_payload, carried_over, fit
 from app.agents.mcp import PLATFORM_MCP_PREFIX, unreachable_briefing
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.observability import current_trace_id
+from app.agents.person_briefing import Person, with_person
 from app.agents.spec import (
     AgentSpec,
     CapabilityBindingSpec,
@@ -2462,8 +2463,22 @@ class AgentRunnerService:
             groups=tuple(groups),
         )
 
+        # The account's own zone when the surface did not send one - a schedule, a
+        # channel - so "9:00" in a routine is still the person's 9:00 (#2301).
+        zone = person_time_zone or (person.time_zone if person is not None else None)
+        about = (
+            Person(
+                locale=person.locale,
+                time_zone=zone,
+                job_title=person.job_title,
+                about=person.about,
+            )
+            if person is not None
+            else None
+        )
+
         def render(spec: AgentSpec) -> AgentSpec:
-            return prompt_variables.render(spec, facts, person_zone=person_time_zone)
+            return with_person(prompt_variables.render(spec, facts, person_zone=zone), about)
 
         return render
 
@@ -4747,7 +4762,9 @@ class AgentRunnerService:
             # A chat user watching `WEB` already sees a completion or a
             # failure on screen; every other surface is exactly the "stops
             # silently" gap this module's own docstring names.
-            if status is RunStatus.COMPLETED:
+            # A routine's own finish is told by the routine, with its name and the
+            # start of its answer, which this point does not have (#2301).
+            if status is RunStatus.COMPLETED and RunSurface(run.surface) is not RunSurface.SCHEDULE:
                 await notifications.run_completed(run, agent=agent)
             elif status in (RunStatus.FAILED, RunStatus.LOOP_STOPPED):
                 # A run stopped for looping produced nothing either, and says why.

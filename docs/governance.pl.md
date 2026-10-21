@@ -1,5 +1,5 @@
 ---
-source_sha: "5931b7688a5d"
+source_sha: "023fa6d893b4"
 ---
 
 # Governance { #governance }
@@ -1382,9 +1382,13 @@ SMTP — a drugi nigdy się o tym nie dowie.
 
 Oba kanały przełącza się niezależnie, dla każdego zdarzenia osobno, w
 **Settings → Notifications** — dana osoba może zostawić wiersz w aplikacji dla
-zatwierdzeń, a wyłączyć jego e-mail, albo odwrotnie. Ta sama strona niesie też
+zatwierdzeń, a wyłączyć jego e-mail, albo odwrotnie.
+
+Ta sama strona niesie też
 każde inne zdarzenie, które dostarcza skrzynka: nienadzorowane zakończenie albo
-błąd runa, **błąd** ingestii dokumentu, własną zbiorczą liczbę z przebiegu
+błąd runa - koniec rutyny nazwany jej imieniem i zaczynający się początkiem jej
+odpowiedzi, dla osoby, która ją ustawiła - prośbę o włączenie capability, dla
+właściciela agenta, **błąd** ingestii dokumentu, własną zbiorczą liczbę z przebiegu
 konektora oraz własne ogłoszenie administratora aplikacji -
 `POST /admin/announcements`, jeszcze bez strony w konsoli - adresowane do
 organizacji i, opcjonalnie, do roli, oraz ograniczone do jednego albo obu

@@ -19,6 +19,7 @@ import { PersonFace } from "./person-face";
 import { ReplyQuote, replyExcerpt } from "./reply-quote";
 import { YouFace } from "./you-face";
 import { TURN_ACTION } from "./turn-action";
+import { TurnShortcuts } from "./turn-shortcuts";
 import { RatingButtons } from "./rating-buttons";
 import { useChatStore, useFilePreviewStore } from "@/stores";
 import { useMcpToolServers } from "@/hooks";
@@ -408,6 +409,10 @@ export function MessageItem({
             )}
             {isUser && pins && message.content && (
               <PinButton pins={pins} prompt={message.content} />
+            )}
+            {/* What was asked, kept: on a schedule, or as an agent of its own (#2301). */}
+            {isUser && !pins && !message.isTemporaryId && message.content && (
+              <TurnShortcuts request={message.content} agentId={agent?.id ?? null} />
             )}
             {/* Stored messages only: a reply names the row it answers, and a
                 message still on this tab's own id has none yet. */}

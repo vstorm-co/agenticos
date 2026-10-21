@@ -17,6 +17,7 @@
 | An inline specialist's instructions | `InlineSpecialistSpec.instructions`, in the same spec | Same |
 | The starting text a new agent gets | The AgenticOS template, `backend/app/core/catalog/agent_templates/general/agenticos/AGENT.md` | A deploy — it is this deployment's idea of an assistant |
 | What the agent is told it can and cannot do | Assembled from its capabilities on every run, under **Your setup** | Nobody — switching a capability changes it |
+| What the agent is told about the person | Their language, time zone, role and work, from their account, after the instructions on every run | The person, in **Settings → Profile** |
 | A procedure many agents share | A [skill](../skills.md), a row in the database | A support lead, on a Tuesday afternoon, with no deploy |
 
 The last row is the one worth reaching for. Twenty procedures in one

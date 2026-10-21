@@ -39,6 +39,14 @@ Whichever capabilities an agent ends up with, every run is told which it has and
 which it has not, under **Your setup** in its instructions - so it describes only
 what it can do, and says what would have to be switched on for the rest.
 
+When a request needs one it lacks, the agent shows a card for it in the chat,
+with its reason. Someone who may edit the agent switches it on from the card,
+bound as the starter binds it and checked as a publish checks it. It is published
+at once only when the draft held nothing unpublished and they may publish;
+otherwise it waits in the draft for the Builder. Anyone else asks the agent's
+owner from the card, and the owner gets a notification that opens the agent's
+Toolbox.
+
 Two of them depend on what the deployment runs. The workspace is a container on
 the deployment's own sandbox service, which bootstrap and the first publish
 register as the organization's default; without one it keeps files only. The web
@@ -77,6 +85,7 @@ browser is pointed at the deployment's browser service
 | `artifacts` | Apps | utility | `publish_artifact`, `read_artifact` | — | — | as-is |
 | `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — | not available |
 | `ask_user` | Ask the user | utility | `ask_user_question` | — | — | on screen |
+| `follow_ups` | Follow-ups | utility | `suggest_next_steps` | — | — | not available |
 
 Seven of those have no tools on purpose. `thinking` changes how the model runs
 rather than what it can reach, `clock` puts the date in the instructions,
@@ -106,7 +115,8 @@ agent's own text model, which the call hands a task to
 lists those for an agent that has them, and so does Work while tools run, which
 only sends a handed-off tool to the background. *On screen* asks its questions on
 the call view's card in `/chat`. Chat channel lookup is *not available*, because
-a call is never made on a channel. *No effect* marks three that work on a text
+a call is never made on a channel, and neither is Follow-ups, whose buttons a call
+has nowhere to show. *No effect* marks three that work on a text
 run's model requests and their stored history, which a call does not send.
 
 Guardrails screen the call's transcripts. A tool's result is screened, and
@@ -2141,6 +2151,18 @@ asked can answer, through `POST /runs/{run_id}/answers`; `GET
 /runs/{run_id}/questions` reads the card back. After a day
 (`QUESTION_EXPIRY_HOURS`, 24) the run ends as cancelled and the step records that
 the person did not answer in time.
+
+## Follow-ups { #follow-ups }
+
+At the end of an answer, `suggest_next_steps` offers up to three next steps as
+buttons under it, each at most 80 characters and phrased as the person would say
+it: "Make it a table", "Do this every Monday at 9:00". A click sends the step as
+their next message. Only the latest answer offers them, and none while a turn is
+running. The agent skips them after small talk or a question of its own, and
+does not repeat the steps in its answer.
+
+It is on in the starter agent and in the Architect, and an author can switch it
+off. A voice call leaves it out.
 
 ## What a binding may change
 

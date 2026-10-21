@@ -1,5 +1,5 @@
 ---
-source_sha: "1c7fac017d79"
+source_sha: "f3bfbd97d90e"
 ---
 
 # Die Anweisungen eines Agents schreiben { #write-an-agents-instructions }
@@ -22,6 +22,7 @@ source_sha: "1c7fac017d79"
 | Die Anweisungen eines Inline-Spezialisten | `InlineSpecialistSpec.instructions`, im selben Spec | Dieselben |
 | Der Starttext, den ein neuer Agent bekommt | Die Vorlage AgenticOS, `backend/app/core/catalog/agent_templates/general/agenticos/AGENT.md` | Ein Deploy — es ist die Vorstellung dieses Deployments von einem Assistenten |
 | Was dem Agent über sein Können und seine Lücken gesagt wird | Bei jedem Run aus seinen Capabilities zusammengesetzt, unter **Your setup** | Niemand — eine Capability umzuschalten ändert es |
+| Was dem Agent über die Person gesagt wird | Ihre Sprache, Zeitzone, Rolle und Arbeit aus ihrem Konto, bei jedem Run nach den Instruktionen | Die Person selbst, unter **Einstellungen → Profil (Settings → Profile)** |
 | Ein Ablauf, den viele Agents teilen | Ein [Skill](../skills.md), eine Zeile in der Datenbank | Eine Support-Leitung, an einem Dienstagnachmittag, ohne Deploy |
 
 Die letzte Zeile ist die, nach der zu greifen sich lohnt. Zwanzig Abläufe in

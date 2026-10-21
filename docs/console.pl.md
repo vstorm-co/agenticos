@@ -1,5 +1,5 @@
 ---
-source_sha: "bf5deb5feff0"
+source_sha: "2c3ba1b9f219"
 ---
 
 # Konsola { #the-console }
@@ -49,6 +49,12 @@ wykona wszystkich jej kroków: utworzyć agenta, opublikować go, dać mu bazę
 wiedzy, dodać działy, zaprosić kogoś z zespołu i - jeśli może - wstawić agenta do
 komunikatora. Każdy krok jest odhaczany na podstawie tego, co istnieje, gdziekolwiek
 go zrobiono; zamknięcie karty ukrywa ją w tej przeglądarce.
+
+Twój własny widok otwiera się kartą **Twoje pierwsze kroki (Your first steps)**,
+dopóki nie zrobisz każdego z nich: opowiedzieć agentom o sobie, zacząć rozmowę,
+ustawić rutynę, podłączyć usługę własnym kontem i zbudować agenta - to ostatnie
+jest pytaniem do Architekta, który buduje go razem z tobą. Każdy krok odhacza się
+z tego, co zrobiłeś, a nie z kliknięcia na karcie.
 
 Twój własny widok pokazuje też **Odkryj AgenticOS**: po jednym kafelku na to, co
 łatwo przeoczyć - własny serwer MCP tego wdrożenia dla Claude Code, Codex albo
@@ -281,6 +287,19 @@ delegata, skilla - oraz `/`; znikają, gdy tylko w nie klikniesz. Nad nim karty
 to własne **pierwsze wiadomości** agenta, ustawiane w Builderze pod jego
 instrukcjami; agent bez nich proponuje cztery własne wiadomości czatu, w tym jedną
 z pytaniem, co potrafi, i jedną z ustawieniem rutyny.
+
+**Pod odpowiedzią.** Agent z [Następnymi krokami](reference/capabilities.md#follow-ups)
+proponuje pod najnowszą odpowiedzią do trzech następnych kroków jako przyciski, a
+kliknięcie wysyła jeden z nich. Linijka mówi, co zanotował o tobie albo co
+zapomniał, z **Zarządzaj (Manage)** prowadzącym do
+[samych notatek](reference/capabilities.md#memory-files) - poproś, żeby coś
+zapomniał, a zapomni. Gdy prośba wymaga capability, której agent nie ma, karta
+proponuje ją włączyć albo poprosić o to właściciela agenta
+([jak](reference/capabilities.md)).
+
+**Zachowanie prośby, która zadziałała.** Najedź na własną wiadomość: kalendarz
+zamienia ją w rutynę - ten sam prompt, domyślnie co tydzień, na agencie, który
+odpowiedział - a robot prosi Architekta, żeby zbudował agenta, który to robi.
 
 **Gdy agent pracuje**, to, co wysyłasz, czeka na jego odpowiedź, jak w każdym
 czacie: stoi w kolejce nad kompozytorem i wychodzi, gdy run się skończy.
@@ -571,8 +590,16 @@ prawnymi, które zostają po angielsku. Pierwsza karta przewodnika proponuje te 
 języki, a menu konta zmienia język w każdej chwili; wybór jest zapisywany na twoim
 koncie, więc konsola otwiera się w nim na każdym urządzeniu, na którym się
 logujesz. Możesz też poprosić agenta - "przełącz na angielski" - a strona zmieni
-się, gdy odpowie, bez przeładowania. Słowa produktu - agent, skill, run, budget, MCP i reszta listy z
+się, gdy odpowie, bez przeładowania. Każdy agent odpowiada w nim, chyba że
+napiszesz w innym języku. Słowa produktu - agent, skill, run, budget, MCP i reszta listy z
 [tłumaczenia](howto/translate.md) - zostają angielskie w każdym języku.
+
+Ta sama karta pyta, czym się zajmujesz, a **Ustawienia → Profil (Settings →
+Profile)** trzymają resztę tego, co agenci o tobie wiedzą: twoją rolę, nad czym
+pracujesz i twoją strefę czasową. Każdy agent czyta je na początku runu, więc
+nigdy nie powtarzasz ich w czacie; „w każdy poniedziałek o 9” to twoja 9. Strefa
+czasowa jest brana z przeglądarki przy pierwszym logowaniu, dopóki nie wybierzesz
+własnej.
 
 ## Następny krok { #the-next-step }
 

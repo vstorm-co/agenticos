@@ -1,5 +1,5 @@
 ---
-source_sha: "6d848482dac9"
+source_sha: "2945ea172195"
 ---
 
 # Glosario { #glossary }
@@ -76,6 +76,7 @@ se describe en [Capabilities](capabilities.md).
 | Long conversations | `compaction` |
 | Context | `context` |
 | Past conversations | `conversation_search` |
+| Follow-ups | `follow_ups` |
 | Guardrails | `guardrails` |
 | Image generation | `image_generation` |
 | Knowledge search | `knowledge` |

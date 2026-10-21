@@ -1,5 +1,5 @@
 ---
-source_sha: "6c5ee025f646"
+source_sha: "f0c0faf6fb72"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -46,6 +46,14 @@ Acabe con las capabilities que acabe, cada run recibe en sus instrucciones, bajo
 **Your setup**, cuáles tiene y cuáles no - así describe solo lo que puede hacer y
 dice qué habría que activar para el resto.
 
+Cuando una petición necesita una que el agent no tiene, muestra en el chat una
+tarjeta con ella y su motivo. Quien puede editar el agent la activa desde la
+tarjeta, vinculada como la vincula el agent inicial y comprobada como comprueba
+una publicación. Se publica en el acto solo si el borrador no tenía nada sin
+publicar y esa persona puede publicar; si no, espera en el borrador al Builder.
+Cualquier otra persona se lo pide desde la tarjeta al propietario del agent, que
+recibe una notificación que abre el Toolbox del agent.
+
 Dos de ellas dependen de lo que ejecuta el despliegue. El espacio de trabajo es un
 contenedor en el servicio de sandbox del propio despliegue, que el bootstrap y la
 primera publicación registran como predeterminado de la organización; sin él solo
@@ -84,6 +92,7 @@ guarda archivos. El navegador web apunta al servicio de navegador del despliegue
 | `artifacts` | Aplicaciones | utility | `publish_artifact`, `read_artifact` | — | — | tal cual |
 | `channel_tools` | Información del canal de chat | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — | no disponible |
 | `ask_user` | Preguntar al usuario | utility | `ask_user_question` | — | — | en pantalla |
+| `follow_ups` | Follow-ups | utility | `suggest_next_steps` | — | — | no disponible |
 
 Siete de ellas no tienen herramientas a propósito. `thinking` cambia cómo trabaja
 el modelo, no qué puede alcanzar, `clock` pone la fecha en las instrucciones,
@@ -117,7 +126,8 @@ las enumera para un agent que las tiene, igual que trabajar mientras corren
 herramientas, que solo manda al fondo una herramienta delegada. *En pantalla*
 hace sus preguntas en la tarjeta de la vista de la llamada en `/chat`. La
 consulta del canal de chat *no está disponible*, porque una llamada nunca se
-hace en un canal. *Sin efecto* marca tres que
+hace en un canal, y tampoco Follow-ups, cuyos botones una llamada no tiene dónde
+mostrar. *Sin efecto* marca tres que
 actúan sobre las peticiones al modelo de un run de texto y sobre su historial
 almacenado, que una llamada no envía.
 
@@ -2294,6 +2304,18 @@ detuvo. Solo la persona a quien se preguntó puede responder, mediante
 `POST /runs/{run_id}/answers`; `GET /runs/{run_id}/questions` vuelve a leer la
 tarjeta. Pasado un día (`QUESTION_EXPIRY_HOURS`, 24) el run termina como
 cancelado y el paso registra que la persona no respondió a tiempo.
+
+## Follow-ups { #follow-ups }
+
+Al final de una respuesta, `suggest_next_steps` ofrece debajo hasta tres pasos
+siguientes como botones, cada uno de 80 caracteres como mucho y dicho como lo
+diría la persona: «Hazlo una tabla», «Haz esto cada lunes a las 9:00». Un clic
+envía el paso como su siguiente mensaje. Solo la respuesta más reciente los
+ofrece, y ninguna mientras un turno está en marcha. El agent los omite tras una
+charla trivial o una pregunta suya, y no repite los pasos en su respuesta.
+
+Está activa en el agent inicial y en el Architect, y un autor puede desactivarla.
+Una llamada de voz la deja fuera.
 
 ## Qué puede cambiar una vinculación { #what-a-binding-may-change }
 

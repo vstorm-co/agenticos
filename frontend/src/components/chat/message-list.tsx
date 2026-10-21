@@ -8,12 +8,15 @@ import { dayLabel, startsADay } from "@/lib/day-separator";
 import type { ChatMessage, TurnUsage } from "@/types";
 import type { PinnedPrompts } from "./chat-container";
 import { MessageItem } from "./message-item";
+import { TurnExtras } from "./turn-extras";
 
 interface MessageListProps {
   messages: ChatMessage[];
   onRegenerate?: (messageId: string) => void;
   /** The test panel's pinned questions; a question here can be pinned or taken off. */
   pins?: PinnedPrompts;
+  /** Send a next step the latest answer offered; absent while a turn runs. */
+  onFollowUp?: (step: string) => void;
 }
 
 /**
@@ -101,7 +104,7 @@ export function turnUsage(messages: ChatMessage[], index: number): TurnUsage | u
   return messages[at]?.usage;
 }
 
-export function MessageList({ messages, onRegenerate, pins }: MessageListProps) {
+export function MessageList({ messages, onRegenerate, pins, onFollowUp }: MessageListProps) {
   // Agents are resolved here rather than stamped onto the message, so a renamed
   // agent is labelled by its current name and a new picture appears on old
   // turns. The query is the one the agent picker already made, so this costs a
@@ -159,6 +162,11 @@ export function MessageList({ messages, onRegenerate, pins }: MessageListProps) 
                 ? () => onRegenerate(message.id)
                 : undefined
             }
+          />
+          <TurnExtras
+            message={message}
+            agentName={message.agentId ? byId.get(message.agentId)?.name : undefined}
+            onFollowUp={index === lastAssistantIndex ? onFollowUp : undefined}
           />
         </Fragment>
       ))}

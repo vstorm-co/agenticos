@@ -89,6 +89,7 @@ from app.repositories import (
     resource_grant_repo,
     sandbox_connection_repo,
     skill_repo,
+    user_repo,
 )
 from app.schemas.agent import (
     MAX_CATEGORIES,
@@ -97,6 +98,7 @@ from app.schemas.agent import (
     AgentTemplateCatalog,
     AgentTemplateRead,
     AgentVersionRead,
+    CapabilityEnabled,
     DelegationTree,
     DelegationTreeNode,
     PublishedModel,
@@ -131,6 +133,7 @@ from app.services.file_storage import (
     avatar_filename,
     get_file_storage,
 )
+from app.services.notifications import NotificationService
 from app.services.resource_usage import groups_sharing
 from app.services.sandbox_connection import SandboxConnectionService
 from app.services.sandbox_workspace import sandbox_config
@@ -497,6 +500,21 @@ class _DelegationStep:
     """The names from the agent being published down to this delegate's caller."""
     ancestors: frozenset[UUID]
     """Which agents are already in that chain - reaching one again is the cycle."""
+
+
+def _with_starter_instructions(spec: AgentSpec) -> AgentSpec:
+    """A spec with no instructions, given the starter agent's.
+
+    An agent with no instructions still answers - as whatever the underlying
+    model is by default, which is a different product on every provider and
+    changes when the model is upgraded - so a new one opens with the starter's
+    prompt rather than an empty box. Applied at creation rather than as a field
+    default, because a spec imported with an empty prompt means an empty prompt.
+    """
+    template = agent_templates.get(agent_templates.STARTER_TEMPLATE)
+    if template is None:  # pragma: no cover - the template ships with the image
+        return spec
+    return spec.model_copy(update={"instructions": template.instructions})
 
 
 def _without_unselectable(spec: AgentSpec) -> AgentSpec:
@@ -1122,22 +1140,24 @@ class AgentRegistryService:
         ]
 
     async def _from_the_starter(self, ctx: AuthContext, spec: AgentSpec) -> AgentSpec:
-        """A new agent with no instructions, made what the starter agent is (#2301).
+        """A new agent made what the starter agent is, for the console's New agent (#2301).
 
-        An agent with no instructions still answers - as whatever the underlying
-        model is by default, which is a different product on every provider and
-        changes when the model is upgraded. So a new agent starts as the
-        organization's own AgenticOS agent does: its instructions, which lead with
-        the agent's own `{{agent_name}}`, and whatever of its capabilities, skills,
-        platform tools, starters and budget the caller left empty. The author
-        then edits the first paragraph and switches off what this agent should
-        not do. Applied at creation rather than as field defaults, because a spec
-        imported with an empty prompt means an empty prompt.
+        It starts as the organization's own AgenticOS agent does: its
+        instructions, which lead with the agent's own `{{agent_name}}`, and
+        whatever of its capabilities, skills, platform tools, starters and budget
+        the caller left empty. The author then edits the first paragraph and
+        switches off what this agent should not do. Asked for rather than implied
+        by an empty spec: an integration creating a bare agent over the API is
+        not asking for a sandbox, the platform's tools and a budget.
         """
         template = agent_templates.get(agent_templates.STARTER_TEMPLATE)
         if template is None:  # pragma: no cover - the template ships with the image
             return spec
-        update: dict[str, Any] = {"instructions": template.instructions}
+        update: dict[str, Any] = {
+            "instructions": spec.instructions
+            if spec.instructions.strip()
+            else template.instructions
+        }
         if not spec.capabilities:
             update["capabilities"] = agent_templates.for_this_deployment(template.capabilities)
         if not spec.mcp_servers:
@@ -1230,6 +1250,7 @@ class AgentRegistryService:
         tags: list[str] | None = None,
         group_ids: list[UUID] | None = None,
         user_ids: list[UUID] | None = None,
+        from_starter: bool = False,
     ) -> Agent:
         """Create an agent in draft.
 
@@ -1250,8 +1271,10 @@ class AgentRegistryService:
                 `DeploymentSettings.max_agents_per_organization`.
         """
         await self._refuse_past_the_ceiling(ctx)
-        if not spec.instructions.strip():
+        if from_starter:
             spec = await self._from_the_starter(ctx, spec)
+        elif not spec.instructions.strip():
+            spec = _with_starter_instructions(spec)
         spec = _without_unselectable(spec)
 
         slug = slugify(spec.name)
@@ -2968,6 +2991,101 @@ class AgentRegistryService:
         spec = AgentSpec.model_validate(agent.draft_spec)
         await self.validate_spec(ctx, spec, agent_id=agent.id)
         return agent, spec
+
+    async def enable_capability(
+        self, ctx: AuthContext, agent_id: UUID, capability_id: str
+    ) -> CapabilityEnabled:
+        """Switch a capability on from the card an agent showed for it (#2301).
+
+        Bound as the starter agent binds it, where it does, so it arrives
+        configured as the Toolbox would recommend. Checked the way a publish
+        checks it before anything is written, so a capability that needs a key
+        nobody stored is refused with the reason and the draft is left alone.
+        Published only when the draft was exactly the published version and the
+        caller may publish: a draft holding somebody's unfinished edits is not
+        made live as a side effect of a click in a chat.
+
+        Raises:
+            NotFoundError: If the caller may not edit this agent.
+            BadRequestError: If no agent may bind such a capability, or the
+                agent would not publish with it.
+        """
+        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
+        definition = get_capability(capability_id)
+        if not definition.selectable:
+            raise refused_field(
+                "capability_id", f"{definition.name} is not something an agent can be given"
+            )
+        draft = AgentSpec.model_validate(agent.draft_spec)
+        unchanged = await self._is_published_as_is(agent)
+        recommended = agent_templates.starter_capabilities().get(
+            capability_id, {"id": capability_id}
+        )
+        # A binding switched off keeps its place and its config; only a missing one is added.
+        if any(binding.id == capability_id for binding in draft.capabilities):
+            bindings = [
+                binding.model_copy(update={"enabled": True})
+                if binding.id == capability_id
+                else binding
+                for binding in draft.capabilities
+            ]
+        else:
+            bindings = [*draft.capabilities, CapabilityBindingSpec.model_validate(recommended)]
+        spec = draft.model_copy(update={"capabilities": bindings})
+        await self.validate_spec(ctx, spec, agent_id=agent.id)
+        await self.save_draft(ctx, agent.id, spec)
+        may_publish = await resolve_access(
+            self.db, ctx, agent, Perm.AGENTS_PUBLISH, resource_type=AGENT
+        )
+        if not (unchanged and may_publish):
+            return CapabilityEnabled(published=False)
+        await self.publish(ctx, agent.id, note=f"Switched on {definition.name}")
+        return CapabilityEnabled(published=True)
+
+    async def _is_published_as_is(self, agent: Agent) -> bool:
+        """Whether the draft is exactly the version that runs - nothing unpublished in it."""
+        if agent.current_version_id is None:
+            return False
+        version = await agent_repo.get_version(
+            self.db, agent.current_version_id, organization_id=agent.organization_id
+        )
+        return version is not None and version.spec == agent.draft_spec
+
+    async def ask_for_capability(
+        self, ctx: AuthContext, agent_id: UUID, capability_id: str, *, reason: str
+    ) -> None:
+        """Ask an agent's owner to switch a capability on, from its card (#2301).
+
+        Anyone who may talk to the agent may ask; the owner decides. The ask is
+        the person's own words beside the capability's name, and the owner is
+        told once however often it is clicked.
+
+        Raises:
+            AuthorizationError: If no person is signed in to be named as asking.
+            NotFoundError: If the caller may not run this agent.
+            BadRequestError: If no agent may bind such a capability.
+        """
+        if ctx.user_id is None:
+            raise AuthorizationError(
+                message="Only a signed-in person can ask an agent's owner",
+                details={"agent_id": agent_id},
+            )
+        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
+        definition = get_capability(capability_id)
+        if not definition.selectable:
+            raise refused_field(
+                "capability_id", f"{definition.name} is not something an agent can be given"
+            )
+        requester = await user_repo.get_by_id(self.db, ctx.user_id)
+        name = (requester.full_name or requester.email) if requester is not None else "Somebody"
+        await NotificationService(self.db).capability_requested(
+            agent=agent,
+            capability_name=definition.name,
+            capability_id=definition.id,
+            reason=reason,
+            requester_id=ctx.user_id,
+            requester_name=name,
+        )
 
     async def get_runnable_spec(
         self, ctx: AuthContext, agent_id: UUID, *, environment_id: UUID | None = None

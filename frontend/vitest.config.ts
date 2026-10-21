@@ -63,6 +63,7 @@ export default defineConfig({
         "src/components/dashboard/widgets/sandbox-*.tsx",
         // The routines card, held to the gate by #594's own "done when".
         "src/components/dashboard/widgets/routines.tsx",
+        "src/components/dashboard/widgets/getting-started.tsx",
         "src/components/dashboard/widgets/recent-visuals.tsx",
         "src/components/dashboard/widgets/recent-failures.tsx",
         // The notifications card (#1598).
@@ -138,7 +139,12 @@ export default defineConfig({
         "src/components/ui/voice-glow.tsx",
         "src/components/layout/account-preferences.tsx",
         "src/components/layout/account-locale.tsx",
+        "src/components/layout/account-time-zone.tsx",
         "src/components/settings/appearance-settings.tsx",
+        "src/components/settings/agent-context-settings.tsx",
+        "src/components/chat/turn-extras.tsx",
+        "src/components/chat/turn-shortcuts.tsx",
+        "src/components/chat/chat-empty-state.tsx",
         "src/components/settings/choice-group.tsx",
         "src/components/theme/motion-provider.tsx",
         "src/components/theme/motion-script.tsx",

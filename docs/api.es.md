@@ -1,5 +1,5 @@
 ---
-source_sha: "b7df86ff6f95"
+source_sha: "ab0e013250f0"
 ---
 
 # La API HTTP { #the-http-api }
@@ -172,7 +172,13 @@ Una clave también llega a las rutinas de un agent - `GET /api/v1/triggers` y
 organización en `GET /api/v1/providers/model-profiles`. Dos rutas actúan sobre el
 propio emisor: `GET /api/v1/me/mcp-connections` lista los servicios que conectó con
 su propia cuenta, y `PUT /api/v1/users/me/locale` le fija el idioma de la consola
-en cada dispositivo.
+en cada dispositivo. Las dos necesitan una clave emitida para `agents:run`.
+
+`POST /api/v1/agents` crea un agent a partir del spec del cuerpo y deja vacío un
+campo vacío. Con `"from_starter": true` rellena lo que el spec omite - las
+instrucciones, los skills, las herramientas propias de la plataforma y el
+presupuesto - desde el agent inicial AgenticOS, como hace **New agent** en la
+consola.
 
 **Un run continúa una conversación.** Una llamada sin `conversation_id` abre una
 conversación nueva para quien emitió la clave y devuelve su id como

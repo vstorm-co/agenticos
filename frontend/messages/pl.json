@@ -1550,7 +1550,11 @@
       "readingVisual": "Czyta wizual",
       "readVisual": "Przeczytał wizual",
       "workingInText": "Pracuje nad tym w trybie tekstowym",
-      "workedInText": "Popracował nad tym w trybie tekstowym"
+      "workedInText": "Popracował nad tym w trybie tekstowym",
+      "suggestingNextSteps": "Proponuje następne kroki",
+      "nextSteps": "Następne kroki",
+      "requestingCapability": "Prosi o capability",
+      "capabilityRequest": "Prośba o capability"
     },
     "turnWasStopped": "zatrzymano",
     "unfavourite": "Usuń z ulubionych",
@@ -1934,6 +1938,23 @@
       },
       "openBuilder": "Otwórz w Agent Builderze",
       "askEditor": "Poproś kogoś, kto może edytować tego agenta, o konfigurację."
+    },
+    "extras": {
+      "remembered": "Zapamiętane: {note}",
+      "forgot": "Zapomniane: {note}",
+      "manageMemory": "Zarządzaj",
+      "capabilityNeeded": "{agent} potrzebuje do tego: {name}",
+      "thisAgent": "Ten agent",
+      "switchOn": "Włącz: {name}",
+      "askOwner": "Poproś właściciela agenta",
+      "capabilityOn": "{name}: włączone. Zapytaj jeszcze raz, a zostanie użyte.",
+      "capabilityDrafted": "{name}: jest w drafcie agenta - opublikuj go w Builderze, żeby działało.",
+      "capabilityAsked": "Właściciel dostał prośbę.",
+      "nextSteps": "Następne kroki",
+      "runOnSchedule": "Uruchamiaj to według harmonogramu",
+      "routineFromChat": "Z rozmowy",
+      "makeAgent": "Zrób z tego agenta",
+      "makeAgentAsk": "Zbuduj mi agenta, który robi to, żebym nie musiał za każdym razem prosić w czacie: {request}"
     }
   },
   "common": {
@@ -2608,6 +2629,38 @@
           "description": "Minuty pojawią się tutaj, gdy członkowie lub odwiedzający zadzwonią do agenta."
         },
         "deletedAgent": "Usunięty agent"
+      },
+      "getting-started": {
+        "title": "Twoje pierwsze kroki",
+        "description": "Co warto tu zrobić w następnej kolejności - odhacza się samo, gdy to zrobisz.",
+        "progress": "Zrobione: {done} z {total}",
+        "agentAsk": "Pomóż mi zbudować pierwszego agenta. Zapytaj, co ma robić.",
+        "done": {
+          "title": "Wszystko gotowe",
+          "description": "Każdy pierwszy krok jest zrobiony. Możesz usunąć tę kartę z dashboardu, kiedy chcesz."
+        },
+        "steps": {
+          "profile": {
+            "title": "Opowiedz agentom o sobie",
+            "body": "Twoja rola i praca, żeby odpowiedzi do ciebie pasowały."
+          },
+          "chat": {
+            "title": "Zacznij rozmowę",
+            "body": "Zapytaj AgenticOS o cokolwiek w twojej pracy."
+          },
+          "routine": {
+            "title": "Ustaw rutynę",
+            "body": "Niech agent robi zadanie według harmonogramu."
+          },
+          "connection": {
+            "title": "Podłącz usługę",
+            "body": "Poczta, kalendarz albo pliki - na twoim własnym koncie."
+          },
+          "agent": {
+            "title": "Zbuduj agenta",
+            "body": "Architect zbuduje go razem z tobą."
+          }
+        }
       }
     },
     "edit": {
@@ -4177,7 +4230,18 @@
         "body": "To, co czat proponuje komuś, kto otwiera tego agenta, zanim cokolwiek napisze. Nowa osoba dowiaduje się z nich, do czego jest agent, bardziej niż z opisu, więc niech każda będzie prawdziwym pytaniem, na które agent dobrze odpowiada."
       }
     },
-    "chooseLanguage": "Język"
+    "chooseLanguage": "Język",
+    "chooseRole": "Czym się zajmujesz? Twoi agenci będą to wiedzieć.",
+    "roles": {
+      "leadership": "Zarząd",
+      "sales": "Sprzedaż",
+      "marketing": "Marketing",
+      "support": "Obsługa klienta",
+      "operations": "Operacje",
+      "finance": "Finanse",
+      "people": "HR",
+      "engineering": "IT i inżynieria"
+    }
   },
   "organizations": {
     "accessLost": "Nie masz już dostępu do tej organizacji.",
@@ -5297,7 +5361,18 @@
       "prefMcpServerDown": "Serwer MCP nie odpowiada",
       "prefMcpServerDownTrigger": "Serwer MCP organizacji przestał odpowiadać na sprawdzenie lub w trakcie runu. Wysyłane raz na awarię administratorom i właścicielom agentów, którzy z niego korzystają.",
       "prefMcpServerRecovered": "Serwer MCP znów odpowiada",
-      "prefMcpServerRecoveredTrigger": "Serwer, który przestał odpowiadać, wrócił, a agenci, którzy z niego korzystają, znów mają jego narzędzia."
+      "prefMcpServerRecoveredTrigger": "Serwer, który przestał odpowiadać, wrócił, a agenci, którzy z niego korzystają, znów mają jego narzędzia.",
+      "agentContext": {
+        "title": "Co twoi agenci o tobie wiedzą",
+        "description": "Każdy agent czyta to na początku rozmowy, więc nie musisz tego powtarzać w czacie.",
+        "role": "Twoja rola",
+        "rolePlaceholder": "Szef sprzedaży",
+        "about": "Nad czym pracujesz",
+        "aboutPlaceholder": "Duzi klienci w Skandynawii; cotygodniowy przegląd lejka z CFO.",
+        "timeZone": "Strefa czasowa",
+        "save": "Zapisz",
+        "saved": "Zapisane - agenci wiedzą to od następnej wiadomości."
+      }
     },
     "skills": {
       "agentsBoundSkillWill": "Agenci związani z tym skillem będą od następnego runu działać bez niego. Tego nie da się cofnąć.",
@@ -7306,6 +7381,14 @@
       "example2": "Model 3D magazynu, który można obracać",
       "needs": "Nic dodatkowego. Skill visual-design sprawia, że rysunki wyglądają na zaprojektowane.",
       "never": "Nigdy nie łączy się z siecią - rysunek działa odcięty, jak strona aplikacji."
+    },
+    "follow_ups": {
+      "name": "Następne kroki",
+      "does": "Pod odpowiedzią proponuje do trzech następnych kroków jako przyciski, więc o co zapytać dalej, jest o jedno kliknięcie.",
+      "example1": "Zrób z tego tabelę",
+      "example2": "Rób to w każdy poniedziałek o 9:00",
+      "needs": "Nic dodatkowego. Przyciski widać w czacie, widżecie i na stronie hostowanej.",
+      "never": "Nigdy nie wysyła niczego sam - krok idzie dopiero po kliknięciu."
     }
   },
   "capabilityCategories": {

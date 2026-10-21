@@ -1550,7 +1550,11 @@
       "readingVisual": "Reading a visual",
       "readVisual": "Read a visual",
       "workingInText": "Working on it in text",
-      "workedInText": "Worked on it in text"
+      "workedInText": "Worked on it in text",
+      "suggestingNextSteps": "Suggesting next steps",
+      "nextSteps": "Next steps",
+      "requestingCapability": "Asking for a capability",
+      "capabilityRequest": "Capability request"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -1934,6 +1938,23 @@
       },
       "openBuilder": "Open in the Agent Builder",
       "askEditor": "Ask someone who can edit this agent to set it up."
+    },
+    "extras": {
+      "remembered": "Remembered: {note}",
+      "forgot": "Forgot: {note}",
+      "manageMemory": "Manage",
+      "capabilityNeeded": "{agent} needs {name} for this",
+      "thisAgent": "This agent",
+      "switchOn": "Switch on {name}",
+      "askOwner": "Ask the agent's owner",
+      "capabilityOn": "{name} is on. Ask again and it will be used.",
+      "capabilityDrafted": "{name} is in the agent's draft - publish it in the Builder to use it.",
+      "capabilityAsked": "The owner has been asked.",
+      "nextSteps": "Next steps",
+      "runOnSchedule": "Run this on a schedule",
+      "routineFromChat": "From a conversation",
+      "makeAgent": "Make an agent of this",
+      "makeAgentAsk": "Build me an agent that does this, so I do not have to ask in a chat each time: {request}"
     }
   },
   "common": {
@@ -2608,6 +2629,38 @@
           "description": "Minutes appear here once members or visitors call an agent."
         },
         "deletedAgent": "Deleted agent"
+      },
+      "getting-started": {
+        "title": "Your first steps",
+        "description": "The next things worth doing here, ticked off as you do them.",
+        "progress": "{done} of {total} done",
+        "agentAsk": "Help me build my first agent. Ask me what I want it to do.",
+        "done": {
+          "title": "You are set up",
+          "description": "Every first step is done. Remove this card from the dashboard whenever you like."
+        },
+        "steps": {
+          "profile": {
+            "title": "Tell agents about you",
+            "body": "Your role and work, so answers fit you."
+          },
+          "chat": {
+            "title": "Start a conversation",
+            "body": "Ask AgenticOS anything about your work."
+          },
+          "routine": {
+            "title": "Set up a routine",
+            "body": "Let an agent do a task on a schedule."
+          },
+          "connection": {
+            "title": "Connect a service",
+            "body": "Your mail, calendar or files, with your own account."
+          },
+          "agent": {
+            "title": "Build an agent",
+            "body": "The Architect builds one with you."
+          }
+        }
       }
     },
     "edit": {
@@ -4407,7 +4460,18 @@
         "body": "What the chat offers somebody opening this agent with nothing said yet. A newcomer learns what the agent is for from these more than from its description, so make each one a real question it answers well."
       }
     },
-    "chooseLanguage": "Language"
+    "chooseLanguage": "Language",
+    "chooseRole": "What do you do? Your agents will know.",
+    "roles": {
+      "leadership": "Leadership",
+      "sales": "Sales",
+      "marketing": "Marketing",
+      "support": "Customer support",
+      "operations": "Operations",
+      "finance": "Finance",
+      "people": "HR",
+      "engineering": "Engineering"
+    }
   },
   "organizations": {
     "accessLost": "You no longer have access to that organization.",
@@ -5526,7 +5590,18 @@
       "prefMcpServerDown": "MCP server not answering",
       "prefMcpServerDownTrigger": "An organization MCP server stopped answering its check or a run. Sent once per outage to administrators and to the owners of agents bound to it.",
       "prefMcpServerRecovered": "MCP server answering again",
-      "prefMcpServerRecoveredTrigger": "A server that stopped answering is back, and agents bound to it have its tools again."
+      "prefMcpServerRecoveredTrigger": "A server that stopped answering is back, and agents bound to it have its tools again.",
+      "agentContext": {
+        "title": "What your agents know about you",
+        "description": "Every agent reads this at the start of a conversation, so you never have to repeat it in a chat.",
+        "role": "Your role",
+        "rolePlaceholder": "Head of sales",
+        "about": "What you work on",
+        "aboutPlaceholder": "Enterprise deals in the Nordics; weekly pipeline reviews with the CFO.",
+        "timeZone": "Time zone",
+        "save": "Save",
+        "saved": "Saved - your agents know it from the next message."
+      }
     },
     "skills": {
       "agentsBoundSkillWill": "Agents bound to this skill will run without it from their next run. This cannot be undone.",
@@ -7531,6 +7606,14 @@
       "example2": "A 3D model of the warehouse you can turn",
       "needs": "Nothing extra. The visual-design skill makes the drawings look designed.",
       "never": "Never reaches the network - a drawing runs sealed off, like an app's page."
+    },
+    "follow_ups": {
+      "name": "Follow-ups",
+      "does": "Offers up to three next steps as buttons under an answer, so what to ask next is one click away.",
+      "example1": "Make this a table",
+      "example2": "Do this every Monday at 9:00",
+      "needs": "Nothing extra. The buttons show in the web chat, the widget and the hosted page.",
+      "never": "Never sends anything on its own - a step goes out only when someone clicks it."
     }
   },
   "capabilityCategories": {
