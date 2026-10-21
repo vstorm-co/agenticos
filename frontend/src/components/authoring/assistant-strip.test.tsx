@@ -19,6 +19,8 @@ const state = vi.hoisted(() => ({
   published: undefined as { spec: unknown } | undefined,
   decide: vi.fn(),
   dismissAll: vi.fn(),
+  isLoading: false,
+  error: null as Error | null,
 }));
 vi.mock("@/hooks/use-organizations", () => ({
   useAiAssistance: () => ({ orgId: "org-1", enabled: state.enabled }),
@@ -35,6 +37,8 @@ vi.mock("@/components/evals/estimate-summary", () => ({ EstimateSummary: () => <
 vi.mock("@/hooks/use-authoring", () => ({
   useAgentAuthoring: () => ({
     authoring: state.authoring,
+    isLoading: state.isLoading,
+    error: state.error,
     estimate: {
       mutateAsync: vi.fn().mockResolvedValue({
         runs: 1,
@@ -78,6 +82,8 @@ beforeEach(() => {
   state.published = { spec: DRAFT };
   state.decide = vi.fn();
   state.dismissAll = vi.fn();
+  state.isLoading = false;
+  state.error = null;
   push.mockReset();
   toastError.mockReset();
 });
@@ -139,6 +145,28 @@ describe("AssistantStrip", () => {
     expect(state.dismissAll).toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "Check with evals" }));
     expect(await screen.findByRole("heading", { name: "Check with evals" })).toBeInTheDocument();
+  });
+
+  it("offers no new request until it knows whether one is already at work", () => {
+    state.published = { spec: { ...DRAFT, instructions: "Old." } };
+    state.isLoading = true;
+    const { unmount } = render(
+      <AssistantStrip
+        agentId="agent-1"
+        currentVersionId="v1"
+        storedDraft={DRAFT}
+        persist={vi.fn()}
+        onDraft={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Improve" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Verify my edits" })).toBeDisabled();
+    unmount();
+
+    state.isLoading = false;
+    state.error = new Error("502");
+    strip();
+    expect(screen.getByRole("button", { name: "Improve" })).toBeDisabled();
   });
 
   it("is visibly off, with the way to turn it on, while AI assistance is", () => {

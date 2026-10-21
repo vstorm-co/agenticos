@@ -68,6 +68,8 @@ export function AssistantStrip({
   const pending =
     batch?.status === "open" ? batch.hunks.filter((hunk) => hunk.status === "pending") : [];
   const working = latest?.status === "queued" || latest?.status === "running";
+  // Until the latest request is known, a click could start a second one beside it.
+  const unknown = assistant.isLoading || assistant.error !== null;
   const off = enabled === false;
 
   async function onDecide(hunk: Hunk, decision: HunkDecision) {
@@ -96,7 +98,11 @@ export function AssistantStrip({
         )}
         <div className="flex flex-wrap gap-2">
           {canAsk && (
-            <Button size="sm" disabled={off || working} onClick={() => setAsking("improve")}>
+            <Button
+              size="sm"
+              disabled={off || working || unknown}
+              onClick={() => setAsking("improve")}
+            >
               {working ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
               {working ? t("working") : t("improve")}
             </Button>
@@ -105,7 +111,7 @@ export function AssistantStrip({
             <Button
               size="sm"
               variant="outline"
-              disabled={off || working}
+              disabled={off || working || unknown}
               onClick={() => setAsking("verify")}
             >
               {t("verify")}
