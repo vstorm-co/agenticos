@@ -16,8 +16,9 @@ now admits beside the knowledge gap `drafter`.
 
 The downgrade drops both tables and the column, and rewrites `generate` versions
 as `add` before restoring the narrower CHECK - what those versions did is still
-true, only the label is lost. A generator agent becomes a plain `agent`, kept
-with its runs rather than deleted.
+true, only the label is lost. A generator agent becomes a plain `agent` without
+its `system_key`, kept with its runs and spend rather than deleted, so the
+narrower `ck_agent_kind` holds and an upgrade again seeds a generator afresh.
 
 Revision ID: 0150_case_generation
 Revises: 0148_eval_runs
@@ -253,7 +254,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute("UPDATE agents SET kind = 'agent' WHERE kind = 'generator'")
+    op.execute("UPDATE agents SET kind = 'agent', system_key = NULL WHERE kind = 'generator'")
     op.drop_constraint("ck_agent_kind", "agents", type_="check")
     op.create_check_constraint("ck_agent_kind", "agents", "kind IN ('agent', 'judge', 'drafter')")
 
