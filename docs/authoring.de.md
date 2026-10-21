@@ -1,5 +1,5 @@
 ---
-source_sha: "5c8792f5bfe9"
+source_sha: "6acca3221f40"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -124,7 +124,7 @@ sich bezieht, nie eine Kennung.
 | Modell | Das Modellprofil wechseln |
 | Modelleinstellungen | Temperatur, Top-p, maximale Tokens, Timeout oder parallele Tool-Aufrufe setzen |
 | Schrittlimit | `max_steps` setzen |
-| Capabilities | Eine hinzufügen oder entfernen oder ihre Einstellungen ändern. Eine Schutzmaßnahme - Guardrails - lässt sich nur hinzufügen: nie entfernen oder umkonfigurieren |
+| Capabilities | Eine hinzufügen oder entfernen oder ihre Einstellungen ändern - nur dort, wo die Einstellungen allein die Qualität betreffen, etwa wie viel Wissen abgerufen oder wann kompaktiert wird; Einstellungen, die eine URL, eine Domain, eine Verbindung, einen Anbieter oder personenbezogene Daten erreichen, ändern sich nie, und Subagents werden nie hinzugefügt oder umkonfiguriert. Eine Schutzmaßnahme - Guardrails - lässt sich nur hinzufügen: nie entfernen oder umkonfigurieren |
 | Freigabe | Eine Capability oder eines ihrer Tools zuerst fragen lassen |
 | Spezialisten | Die Beschreibung eines eingebetteten [Spezialisten](reference/capabilities.md#delegation) umschreiben |
 | Wissensbasen | Eine binden oder lösen |

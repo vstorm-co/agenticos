@@ -1,5 +1,5 @@
 ---
-source_sha: "5c8792f5bfe9"
+source_sha: "6acca3221f40"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -119,7 +119,7 @@ refiere, nunca un identificador.
 | Modelo | Cambiar el perfil de modelo |
 | Ajustes del modelo | Fijar la temperatura, top-p, el máximo de tokens, el timeout o las llamadas paralelas a herramientas |
 | Límite de pasos | Fijar `max_steps` |
-| Capabilities | Añadir o quitar una, o cambiar sus ajustes. Una salvaguarda - Guardrails - solo se puede añadir: nunca quitar ni reconfigurar |
+| Capabilities | Añadir o quitar una, o cambiar sus ajustes - solo donde los ajustes tratan únicamente de calidad, como cuánto conocimiento recuperar o cuándo compactar; los ajustes que llegan a una URL, un dominio, una conexión, un proveedor o datos personales nunca cambian, y Subagents nunca se añade ni se reconfigura. Una salvaguarda - Guardrails - solo se puede añadir: nunca quitar ni reconfigurar |
 | Aprobación | Hacer que una capability o una de sus herramientas pregunte antes |
 | Especialistas | Reescribir la descripción de un [especialista](reference/capabilities.md#delegation) integrado |
 | Bases de conocimiento | Vincular o desvincular una |

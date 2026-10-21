@@ -1,5 +1,5 @@
 ---
-source_sha: "5c8792f5bfe9"
+source_sha: "6acca3221f40"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -115,7 +115,7 @@ serwera MCP, do którego się odnosi, nigdy przez identyfikator.
 | Model | Zmienić profil modelu |
 | Ustawienia modelu | Ustawić temperaturę, top-p, maksymalną liczbę tokenów, timeout albo równoległe wywołania narzędzi |
 | Limit kroków | Ustawić `max_steps` |
-| Capabilities | Dodać albo usunąć jedną albo zmienić jej ustawienia. Zabezpieczenie - Guardrails - można tylko dodać: nigdy usunąć ani zmienić jego ustawień |
+| Capabilities | Dodać albo usunąć jedną albo zmienić jej ustawienia - tylko tam, gdzie ustawienia dotyczą wyłącznie jakości, na przykład ile wiedzy pobrać albo kiedy kompaktować; ustawienia, które sięgają do URL-a, domeny, połączenia, dostawcy albo danych osobowych, nigdy się nie zmieniają, a Subagents nigdy nie są dodawane ani przekonfigurowywane. Zabezpieczenie - Guardrails - można tylko dodać: nigdy usunąć ani zmienić jego ustawień |
 | Zatwierdzanie | Sprawić, że capability albo jedno z jej narzędzi najpierw pyta |
 | Specjaliści | Przepisać opis wbudowanego [specjalisty](reference/capabilities.md#delegation) |
 | Bazy wiedzy | Podpiąć albo odpiąć jedną |
