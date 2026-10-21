@@ -113,7 +113,10 @@ Two things are versioned separately from this file and worth knowing about:
   read as Ogg and `audio/m4a` as MP4. The provider is sent `voice.<ext>` named
   from the type, and a voice note posted in a thread before the bot joined is
   named in the reply rather than transcribed. A bot whose agent is archived or
-  has nothing published transcribes nothing, since its turn is refused anyway. See
+  has nothing published transcribes nothing, since its turn is refused anyway. A
+  voice note longer than the organization's longest dictation, or whose length
+  neither its file (Ogg, WebM, MP4, WAV, MP3) nor its platform states, is
+  refused before any provider is paid. See
   [the voice message notes](docs/channels.md#what-every-channel-shares).
 - **Every transcription is recorded with its length and attribution (#1797).**
   `ml_service_calls` gains the provider and model, the key, the surface (`chat`,

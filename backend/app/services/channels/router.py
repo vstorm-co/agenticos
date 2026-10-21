@@ -1032,16 +1032,21 @@ class ChannelMessageRouter:
             # limit counts messages, not minutes (Codex on #2204). Read off the
             # file where its container says, else as the platform reported it.
             seconds = measure_audio_seconds(content) or recording.duration_seconds
-            if (
-                settings.max_seconds is not None
-                and seconds is not None
-                and seconds > settings.max_seconds
-            ):
-                refusals.append(
-                    f"{recording.filename}: too long to transcribe (the limit is "
-                    f"{settings.max_seconds} seconds)."
-                )
-                continue
+            if settings.max_seconds is not None:
+                # A length nobody can state is refused, not taken as short: on a
+                # public surface it is exactly the file a byte cap does not bound.
+                if seconds is None:
+                    refusals.append(
+                        f"{recording.filename}: its length could not be read, so it "
+                        "was not transcribed."
+                    )
+                    continue
+                if seconds > settings.max_seconds:
+                    refusals.append(
+                        f"{recording.filename}: too long to transcribe (the limit is "
+                        f"{settings.max_seconds} seconds)."
+                    )
+                    continue
             call = TranscriptionCall(
                 organization_id=bot.organization_id,
                 surface="channel",
@@ -1068,7 +1073,7 @@ class ChannelMessageRouter:
                     db,
                     call,
                     input_bytes=len(content),
-                    audio_seconds=recording.duration_seconds,
+                    audio_seconds=seconds,
                     duration_ms=int((time.monotonic() - started) * 1000),
                     failure=exc,
                 )
@@ -1080,10 +1085,10 @@ class ChannelMessageRouter:
                 db,
                 call,
                 input_bytes=len(content),
+                # The provider's figure, else the one measured above - read off
+                # the file or reported by the platform.
                 audio_seconds=(
-                    result.audio_seconds
-                    if result.audio_seconds is not None
-                    else recording.duration_seconds
+                    result.audio_seconds if result.audio_seconds is not None else seconds
                 ),
                 duration_ms=int((time.monotonic() - started) * 1000),
             )

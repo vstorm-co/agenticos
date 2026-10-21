@@ -21,7 +21,9 @@ from tests.recordings import (
     ftyp,
     full_box,
     header_box,
+    id3,
     moof,
+    mp3_frame,
     mvex,
     ogg_opus,
     ogg_page,
@@ -42,7 +44,7 @@ from tests.recordings import (
 
 
 def test_an_unknown_container_has_no_length() -> None:
-    assert measure(b"ID3\x04\x00" + b"\x00" * 64) is None
+    assert measure(b"fLaC" + b"\x00" * 64) is None
     assert measure(b"") is None
 
 
@@ -289,6 +291,77 @@ def test_box_sizes_of_one_and_zero_are_the_large_and_the_open_ended() -> None:
     ],
 )
 def test_an_mp4_without_a_readable_length_is_unknown(recording: bytes) -> None:
+    assert measure(recording) is None
+
+
+# -- MP3 ----------------------------------------------------------------------
+
+
+def test_an_mp3_is_its_frames_samples_at_their_rate() -> None:
+    """A Mattermost voice note: MPEG-1 Layer III, where the platform states no length."""
+    assert measure(mp3_frame(417) * 100) == pytest.approx(100 * 1152 / 44_100)
+
+
+def test_an_mp3_reads_each_frames_padding_and_bitrate() -> None:
+    """Walked, not estimated from the first frame: a loud 320 kbit/s frame then
+    quiet 32 kbit/s ones is still every frame's length."""
+    recording = (
+        mp3_frame(1044, bitrate=14) + mp3_frame(418, padding=1) + mp3_frame(104, bitrate=1) * 50
+    )
+    assert measure(recording) == pytest.approx(52 * 1152 / 44_100)
+
+
+@pytest.mark.parametrize(
+    ("frame", "seconds"),
+    [
+        (mp3_frame(276, layer=3, bitrate=8), 384 / 44_100),
+        (mp3_frame(384, layer=2, bitrate=8, rate=1), 1152 / 48_000),
+        (mp3_frame(208, version=2, bitrate=8), 576 / 22_050),
+        (mp3_frame(288, version=0, bitrate=4, rate=2), 576 / 8_000),
+    ],
+    ids=["layer-1", "layer-2", "mpeg-2-layer-3", "mpeg-2.5-layer-3"],
+)
+def test_every_layer_and_version_counts_its_own_samples(frame: bytes, seconds: float) -> None:
+    assert measure(frame * 10) == pytest.approx(10 * seconds)
+
+
+@pytest.mark.parametrize("footer", [False, True])
+def test_an_id3_tag_before_the_frames_is_stepped_over(footer: bool) -> None:
+    assert measure(id3(300, footer=footer) + mp3_frame(417) * 4) == pytest.approx(4 * 1152 / 44_100)
+
+
+def test_a_tag_after_the_last_frame_is_allowed() -> None:
+    assert measure(mp3_frame(417) * 4 + b"TAG" + bytes(125)) == pytest.approx(4 * 1152 / 44_100)
+
+
+def test_more_than_a_tag_after_the_last_frame_is_an_unknown_length() -> None:
+    """A decoder resynchronises past junk, so audio hidden behind it would be
+    transcribed and not counted."""
+    assert measure(mp3_frame(417) * 4 + b"\x00" * 5000 + mp3_frame(417) * 1000) is None
+
+
+@pytest.mark.parametrize(
+    "recording",
+    [
+        mp3_frame(417, version=1),
+        mp3_frame(417, layer=0),
+        mp3_frame(417, bitrate=0),
+        mp3_frame(417, bitrate=15),
+        mp3_frame(417, rate=3),
+        mp3_frame(417) + mp3_frame(417, bitrate=15),
+    ],
+    ids=["reserved-version", "reserved-layer", "free-format", "bad-bitrate", "bad-rate", "later"],
+)
+def test_a_header_no_encoder_writes_is_an_unknown_length(recording: bytes) -> None:
+    assert measure(recording) is None
+
+
+@pytest.mark.parametrize(
+    "recording",
+    [b"ID3\x04\x00\x00", id3(64), id3(64) + b"\x00" * 100],
+    ids=["truncated-tag", "tag-only", "no-frame-after-the-tag"],
+)
+def test_an_mp3_without_a_frame_is_unknown(recording: bytes) -> None:
     assert measure(recording) is None
 
 

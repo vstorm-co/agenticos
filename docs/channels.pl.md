@@ -1,5 +1,5 @@
 ---
-source_sha: "1e12e09b4e84"
+source_sha: "192f01a91cab"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1666,10 +1666,13 @@ agent, który dobrze radzi sobie w konsoli, a słabo w Slacku, to pokazuje.
 
     **Notatka głosowa podlega najdłuższemu dyktowaniu organizacji**, zanim
     jakikolwiek provider dostanie zapłatę: jej długość jest odczytywana z pliku,
-    gdy pozwala na to kontener (Ogg, WebM, MP4, WAV), a w przeciwnym razie tak,
-    jak podała ją platforma, a dłuższa notatka jest odrzucana z linią, która to
-    mówi. Same bajty jej nie ograniczają - 25 MB dźwięku o niskiej przepływności
-    to godziny - a limit nadawcy liczy wiadomości, nie minuty.
+    gdy pozwala na to kontener (Ogg, WebM, MP4, WAV, MP3), a w przeciwnym razie
+    tak, jak podała ją platforma. Dłuższa notatka jest odrzucana z linią, która
+    to mówi, podobnie jak taka, której długości nie podaje ani plik, ani
+    platforma - na przykład MP3 z Mattermosta z czymś więcej niż tagiem po
+    ostatniej ramce. Same bajty jej nie ograniczają - 25 MB dźwięku o niskiej
+    przepływności to godziny - a limit nadawcy liczy wiadomości, nie minuty.
+    Zużycie zapisuje długość podaną przez providera, a bez niej tę zmierzoną tutaj.
 
     Bot, który nie może słuchać, mówi to zamiast porzucać nagranie, bo notatka
     głosowa, która nie wywołuje żadnej reakcji, jest nie do odróżnienia od

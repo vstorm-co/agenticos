@@ -35,8 +35,11 @@ def _heard(text: str, seconds: float | None = None) -> TranscriptionResult:
     return TranscriptionResult(text=text, audio_seconds=seconds)
 
 
-def _voice(name: str = "voice.ogg") -> IncomingAttachment:
-    return IncomingAttachment(filename=name, mime_type="audio/ogg", size=2048, handle="h")
+def _voice(name: str = "voice.ogg", seconds: float | None = 3.0) -> IncomingAttachment:
+    """A voice note with the length its platform reported - Telegram always says."""
+    return IncomingAttachment(
+        filename=name, mime_type="audio/ogg", size=2048, handle="h", duration_seconds=seconds
+    )
 
 
 def _document() -> IncomingAttachment:
@@ -57,6 +60,9 @@ def _incoming(*attachments: IncomingAttachment, text: str = "") -> IncomingMessa
         attachments=list(attachments),
     )
 
+
+_MP3_FRAME = b"\xff\xfb\x90\x00" + bytes(413)
+"""One MPEG-1 Layer III frame at 128 kbit/s and 44.1 kHz: 417 bytes, 26 ms."""
 
 _BOT_KEY = uuid4()
 _ORG_KEY = uuid4()
@@ -388,12 +394,36 @@ class TestWhenItCannotListen:
 
         assert (transcripts, refusals) == (["five minutes"], [])
 
+    async def test_a_voice_note_whose_length_nobody_can_state_is_not_paid_for(self, usage):
+        """Codex on #2204: no length from the file or the platform was taken as short,
+        which is exactly the file a byte cap does not bound."""
+        adapter = MagicMock()
+        adapter.download_attachment = AsyncMock(return_value=b"not a container")
+        transcribe = AsyncMock(return_value=_heard("never"))
+
+        with (
+            patch("app.services.channels.router.get_adapter", return_value=adapter),
+            patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
+            patch("app.services.channels.router.TranscriptionService.transcribe", transcribe),
+        ):
+            transcripts, refusals = await ChannelMessageRouter()._transcribe(
+                MagicMock(), _bot(), [_voice("memo.ogg", seconds=None)], requested_by=None
+            )
+
+        transcribe.assert_not_awaited()
+        usage.assert_not_awaited()
+        assert refusals == ["memo.ogg: its length could not be read, so it was not transcribed."]
+
     async def test_a_recording_at_the_limit_is_still_fetched(self):
         """The cap is a ceiling, not a margin."""
         adapter = MagicMock()
         adapter.download_attachment = AsyncMock(return_value=b"ogg")
         edge = IncomingAttachment(
-            filename="edge.ogg", mime_type="audio/ogg", size=TRANSCRIPTION_MAX_BYTES, handle="h"
+            filename="edge.ogg",
+            mime_type="audio/ogg",
+            size=TRANSCRIPTION_MAX_BYTES,
+            handle="h",
+            duration_seconds=60.0,
         )
 
         with (
@@ -466,10 +496,11 @@ class TestTheUsageRowAVoiceNoteLeaves:
         transcribe: AsyncMock,
         *,
         requested_by: object = None,
+        content: bytes = b"ogg-bytes",
     ) -> tuple[SimpleNamespace, list[str], list[str]]:
         bot = _bot(provider="groq", model="whisper-large-v3-turbo")
         adapter = MagicMock()
-        adapter.download_attachment = AsyncMock(return_value=b"ogg-bytes")
+        adapter.download_attachment = AsyncMock(return_value=content)
         db = MagicMock()
         with (
             patch("app.services.channels.router.get_adapter", return_value=adapter),
@@ -538,6 +569,24 @@ class TestTheUsageRowAVoiceNoteLeaves:
         assert usage.await_args.kwargs["failure"] is failure
         assert usage.await_args.kwargs["audio_seconds"] == 4
         assert usage.await_args.args[1].requested_by_user_id is None
+
+    @pytest.mark.parametrize(
+        "transcribe",
+        [
+            AsyncMock(return_value=_heard("hi")),
+            AsyncMock(side_effect=ExternalServiceError(message="x", details={})),
+        ],
+        ids=["heard", "failed"],
+    )
+    async def test_the_length_read_off_the_file_is_what_is_recorded(
+        self, world: SimpleNamespace, usage: AsyncMock, transcribe: AsyncMock
+    ):
+        """A Mattermost note states no length and the provider may not either: the
+        figure that let it through the limit is the one its usage carries."""
+        untimed = _voice("voice.mp3", seconds=None)
+        await self._send(world, untimed, transcribe, content=_MP3_FRAME * 10)
+
+        assert usage.await_args.kwargs["audio_seconds"] == pytest.approx(10 * 1152 / 44_100)
 
     async def test_nothing_is_recorded_when_nothing_was_attempted(
         self, world: SimpleNamespace, usage: AsyncMock
@@ -719,7 +768,9 @@ class TestAVoiceNoteFromSlackOrMattermost:
         bot = _bot(provider=None, model=None)
         bot.platform = platform
         adapter = MagicMock()
-        adapter.download_attachment = AsyncMock(return_value=b"audio")
+        # One real MP3 frame (MPEG-1 Layer III, 128 kbit/s): Mattermost states no
+        # length, so the router reads it off the file.
+        adapter.download_attachment = AsyncMock(return_value=_MP3_FRAME)
         transcribe = AsyncMock(return_value=_heard("the invoice is late"))
 
         with (

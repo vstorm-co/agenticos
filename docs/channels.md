@@ -1612,10 +1612,12 @@ agent that does well in the console and badly in Slack shows it.
 
     **A voice note is held to the organization's longest dictation** before any
     provider is paid: its length is read off the file where the container says
-    (Ogg, WebM, MP4, WAV), else as the platform reported it, and a longer note is
-    refused with a line saying so. Bytes alone do not bound it - 25 MB of
-    low-bitrate audio is hours - and the sender's limit counts messages, not
-    minutes.
+    (Ogg, WebM, MP4, WAV, MP3), else as the platform reported it. A longer note
+    is refused with a line saying so, and so is one whose length neither states -
+    a Mattermost MP3 with more than a tag after its last frame, say. Bytes alone
+    do not bound it - 25 MB of low-bitrate audio is hours - and the sender's
+    limit counts messages, not minutes. Its usage records the provider's length,
+    else the one measured here.
 
     A bot that cannot listen says so rather than dropping the recording, because
     a voice note that produces no reaction is indistinguishable from a broken

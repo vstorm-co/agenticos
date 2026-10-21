@@ -1,5 +1,5 @@
 ---
-source_sha: "1e12e09b4e84"
+source_sha: "192f01a91cab"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1781,11 +1781,13 @@ schlecht abschneidet, zeigt es.
 
     **Eine Sprachnachricht ist an das längste Diktat der Organisation gebunden**,
     bevor irgendein Provider bezahlt wird: Ihre Länge wird aus der Datei gelesen,
-    wo der Container es sagt (Ogg, WebM, MP4, WAV), sonst so, wie die Plattform
-    sie gemeldet hat, und eine längere Nachricht wird mit einer Zeile abgelehnt,
-    die das sagt. Bytes allein begrenzen sie nicht - 25 MB Audio mit niedriger
-    Bitrate sind Stunden -, und das Limit des Absenders zählt Nachrichten, keine
-    Minuten.
+    wo der Container es sagt (Ogg, WebM, MP4, WAV, MP3), sonst so, wie die
+    Plattform sie gemeldet hat. Eine längere Nachricht wird mit einer Zeile
+    abgelehnt, die das sagt, ebenso eine, deren Länge keiner von beiden angibt -
+    etwa ein MP3 aus Mattermost mit mehr als einem Tag nach dem letzten Frame.
+    Bytes allein begrenzen sie nicht - 25 MB Audio mit niedriger Bitrate sind
+    Stunden -, und das Limit des Absenders zählt Nachrichten, keine Minuten. Die
+    Nutzung verbucht die Länge des Providers, sonst die hier gemessene.
 
     Ein Bot, der nicht zuhören kann, sagt das, statt die Aufnahme fallen zu
     lassen, denn eine Sprachnotiz, die keine Reaktion erzeugt, ist von einem

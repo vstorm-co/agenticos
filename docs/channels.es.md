@@ -1,5 +1,5 @@
 ---
-source_sha: "1e12e09b4e84"
+source_sha: "192f01a91cab"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1694,10 +1694,13 @@ Slack lo muestra.
 
     **Una nota de voz se ajusta al dictado más largo de la organización** antes
     de pagar a ningún provider: su duración se lee del archivo cuando el
-    contenedor lo dice (Ogg, WebM, MP4, WAV), y si no, tal como la informó la
-    plataforma, y una nota más larga se rechaza con una línea que lo dice. Los
-    bytes no la acotan por sí solos - 25 MB de audio de baja tasa de bits son
-    horas - y el límite del remitente cuenta mensajes, no minutos.
+    contenedor lo dice (Ogg, WebM, MP4, WAV, MP3), y si no, tal como la informó
+    la plataforma. Una nota más larga se rechaza con una línea que lo dice, y
+    también una cuya duración no indica ninguno de los dos - un MP3 de Mattermost
+    con algo más que una etiqueta tras su último frame, por ejemplo. Los bytes no
+    la acotan por sí solos - 25 MB de audio de baja tasa de bits son horas - y el
+    límite del remitente cuenta mensajes, no minutos. El uso registra la duración
+    del provider, y si no, la medida aquí.
 
     Un bot que no puede escuchar lo dice en vez de descartar la grabación, porque
     una nota de voz que no produce ninguna reacción es indistinguible de un bot roto

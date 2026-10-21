@@ -23,6 +23,11 @@ and nothing new is installed:
   duration the movie extends to, and the end of the last fragment. Safari's
   `MediaRecorder` writes a fragmented file whose movie header says 0, so the
   fragments are what carry its length.
+- **MP3** - every frame's samples at its own rate, walked header to header past
+  an ID3v2 tag. A Mattermost voice note is MP3, and the platform states no length
+  for it (Codex on #2204). Anything after the last frame longer than a trailing
+  tag is an unknown length: a decoder resynchronises past junk, so audio behind
+  it would be heard and not counted.
 
 **The container is sniffed, not taken from the declared type.** The type a
 caller sends is a claim; the bytes are what a provider decodes. An unrecognised
@@ -79,6 +84,23 @@ _DESCEND = frozenset({_SEGMENT, _CLUSTER, _BLOCK_GROUP})
 segment and each cluster with an unknown size, so their children are simply
 what follows."""
 
+_MP3_BITRATES = {
+    (1, 3): (0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448),
+    (1, 2): (0, 32, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384),
+    (1, 1): (0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320),
+    (2, 3): (0, 32, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 224, 256),
+    (2, 2): (0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160),
+    (2, 1): (0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160),
+}
+"""kbit/s by (MPEG-1 or 2/2.5, layer bits) and the header's bitrate index; 0 is free format."""
+
+_MP3_RATES = {3: (44_100, 48_000, 32_000), 2: (22_050, 24_000, 16_000), 0: (11_025, 12_000, 8_000)}
+"""Sample rates by the header's version bits: MPEG-1, MPEG-2 and MPEG-2.5."""
+
+_MP3_TRAILER = 4096
+"""What may follow the last frame and still be a tag (ID3v1 is 128 bytes, an APE
+tag a few hundred) rather than audio a decoder would find by resynchronising."""
+
 _TRACK_RUN = b"trun"  # codespell:ignore trun
 """ISO-BMFF's track fragment run box, which lists a fragment's samples."""
 
@@ -118,6 +140,8 @@ def measure(content: bytes) -> float | None:
         reader = _matroska
     elif content[4:8] == b"ftyp":
         reader = _mp4
+    elif content.startswith(b"ID3") or _mp3_sync(content, 0):
+        reader = _mp3
     else:
         return None
     try:
@@ -125,6 +149,57 @@ def measure(content: bytes) -> float | None:
     except _Malformed, struct.error, IndexError:
         return None
     if seconds is None or not math.isfinite(seconds) or seconds < 0:
+        return None
+    return seconds
+
+
+def _mp3_sync(content: bytes, position: int) -> bool:
+    return (
+        position + 4 <= len(content)
+        and content[position] == 0xFF
+        and content[position + 1] & 0xE0 == 0xE0
+    )
+
+
+def _mp3(content: bytes, budget: _Budget) -> float | None:
+    """Every frame's samples at its own rate, from the first frame to the last.
+
+    Walked rather than estimated from one frame's bitrate or a Xing header: a
+    file whose first frame claims 320 kbit/s and whose others carry 8 would be
+    measured at a fortieth of its length.
+    """
+    position = 0
+    if content.startswith(b"ID3"):
+        if len(content) < 10:
+            raise _Malformed("truncated ID3 tag")
+        size = 0
+        for byte in content[6:10]:
+            size = (size << 7) | (byte & 0x7F)
+        footer = 10 if content[5] & 0x10 else 0
+        position = 10 + size + footer
+    seconds = 0.0
+    frames = 0
+    while _mp3_sync(content, position):
+        budget.spend()
+        version = (content[position + 1] >> 3) & 0x3
+        layer = (content[position + 1] >> 1) & 0x3
+        bitrate_index = content[position + 2] >> 4
+        rate_index = (content[position + 2] >> 2) & 0x3
+        padding = (content[position + 2] >> 1) & 0x1
+        if version == 1 or layer == 0 or bitrate_index in (0, 15) or rate_index == 3:
+            raise _Malformed("not an MP3 frame header")
+        bitrate = _MP3_BITRATES[(1 if version == 3 else 2, layer)][bitrate_index] * 1000
+        rate = _MP3_RATES[version][rate_index]
+        if layer == 3:  # Layer I
+            samples, length = 384, (12 * bitrate // rate + padding) * 4
+        elif layer == 2 or version == 3:  # Layer II, or Layer III of MPEG-1
+            samples, length = 1152, 144 * bitrate // rate + padding
+        else:  # Layer III of MPEG-2 and 2.5
+            samples, length = 576, 72 * bitrate // rate + padding
+        seconds += samples / rate
+        frames += 1
+        position += length
+    if frames == 0 or len(content) - position > _MP3_TRAILER:
         return None
     return seconds
 

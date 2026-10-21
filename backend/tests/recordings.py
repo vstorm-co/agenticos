@@ -189,3 +189,34 @@ def moof(*traf_children: bytes) -> bytes:
     return box(
         b"moof", full_box(b"mfhd", struct.pack(">I", 1)) + box(b"traf", b"".join(traf_children))
     )
+
+
+# -- MP3 ----------------------------------------------------------------------
+
+
+def mp3_frame(
+    length: int,
+    *,
+    version: int = 3,
+    layer: int = 1,
+    bitrate: int = 9,
+    rate: int = 0,
+    padding: int = 0,
+) -> bytes:
+    """A frame header in the bits it is written in, then zeros to `length` bytes.
+
+    Version bits 3/2/0 are MPEG-1/2/2.5 and layer bits 3/2/1 are Layers I/II/III;
+    `bitrate` and `rate` are the header's indexes, not values. The defaults are
+    MPEG-1 Layer III at 128 kbit/s and 44.1 kHz, whose frame is 417 bytes. The
+    length is the caller's to state, from the format, so a builder computing it
+    cannot agree with the reader for the wrong reason.
+    """
+    flags = (0xE0 | version << 3 | layer << 1 | 1, bitrate << 4 | rate << 2 | padding << 1)
+    return bytes((0xFF, *flags, 0)) + bytes(length - 4)
+
+
+def id3(size: int, *, footer: bool = False) -> bytes:
+    """An ID3v2.4 tag of `size` bytes of frames, its size written seven bits a byte."""
+    synchsafe = bytes((size >> shift) & 0x7F for shift in (21, 14, 7, 0))
+    flags = bytes((0x10 if footer else 0,))
+    return b"ID3\x04\x00" + flags + synchsafe + bytes(size) + (b"3DI" + bytes(7) if footer else b"")
