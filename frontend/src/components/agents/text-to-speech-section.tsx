@@ -24,7 +24,7 @@ import type { CapabilityBindingSpec, CapabilityCatalogEntry } from "@/types/agen
 import { useTranslations } from "next-intl";
 
 /** The fields this panel draws itself; the rest is the generated form. */
-const HAND_ROLLED = ["provider", "model", "voice"];
+const HAND_ROLLED = ["provider", "model", "voice", "output_format"];
 
 interface TextToSpeechSectionProps {
   definition: CapabilityCatalogEntry | undefined;
@@ -73,15 +73,20 @@ export function TextToSpeechSection({
   const setConfig = (patch: Record<string, unknown>) =>
     onChange({ ...binding, config: { ...binding.config, ...patch } });
 
-  /** A voice or a format chosen for one provider means nothing on another. */
+  /**
+   * A voice or a format chosen for one provider means nothing on another, and a
+   * voice one model speaks in may be one the next does not - OpenAI's `tts-1` has
+   * nine of its thirteen. Kept only where the new choice still offers it.
+   */
   const chooseOffering = (patch: { provider?: string; model: string }) => {
-    if (patch.provider === undefined) {
-      setConfig(patch);
-      return;
-    }
+    const next = resolveOffering(providers, { ...binding.config, ...patch });
+    const offered = next.selected?.voices.map((entry) => entry.id) ?? [];
+    const keepVoice = patch.provider === undefined && offered.includes(storedVoice);
     const kept = Object.fromEntries(
       Object.entries(binding.config).filter(
-        ([name]) => name !== "voice" && name !== "output_format",
+        ([name]) =>
+          (name !== "voice" || keepVoice) &&
+          (name !== "output_format" || patch.provider === undefined),
       ),
     );
     onChange({ ...binding, config: { ...kept, ...patch } });
@@ -140,6 +145,34 @@ export function TextToSpeechSection({
               ? t("speechAccountVoiceDetail", { provider: resolved.current.name })
               : t("speechVoiceDetail")}
           </p>
+        </div>
+      )}
+
+      {resolved.current !== undefined && (
+        <div className="space-y-1.5">
+          <Label htmlFor="speech-format">{t("speechFormat")}</Label>
+          <Select
+            value={
+              typeof binding.config.output_format === "string" &&
+              resolved.current.formats.includes(binding.config.output_format)
+                ? binding.config.output_format
+                : resolved.current.formats[0]
+            }
+            disabled={disabled || resolved.current.formats.length < 2}
+            onValueChange={(next) => setConfig({ output_format: next })}
+          >
+            <SelectTrigger id="speech-format">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {resolved.current.formats.map((entry) => (
+                <SelectItem key={entry} value={entry}>
+                  {entry}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-muted-foreground text-xs">{t("speechFormatDetail")}</p>
         </div>
       )}
 

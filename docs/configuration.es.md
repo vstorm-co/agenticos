@@ -1,5 +1,5 @@
 ---
-source_sha: "07546cc9dfde"
+source_sha: "fee74730c9d4"
 ---
 
 # Configuración { #configuration }
@@ -926,7 +926,8 @@ el lector puede ver: la pregunta de "quién tiene una copia de ese CSV" que la p
 por workspace no responde.
 
 **Al hacer clic en un archivo se abre en un visor, y es el mismo visor del panel del
-chat.** Una imagen es una imagen, un PDF es la vista PDF propia del navegador,
+chat.** Una imagen es una imagen, un PDF es la vista PDF propia del navegador, el audio y
+el vídeo suenan en el reproductor propio del navegador,
 markdown ofrece *Preview* y *Source* —ambos son el archivo, y un `#` que se convirtió
 en silencio en letra grande es como alguien no llega a notar que su agent escribe
 markdown dentro de algo que nada lee como markdown— y cualquier otra cosa es su
@@ -942,9 +943,12 @@ conversación se llega obteniendo la conversación, así que alguien con quien s
 *compartió* un chat conserva el acceso— y un solo módulo decide qué se puede mostrar,
 para que la respuesta no pueda variar según la superficie.
 
-Casi todo se sirve como adjunto. **Las imágenes ráster y los PDF** se sirven para
-mostrarse: la ráster porque no puede ejecutarse, el PDF porque el navegador lo
-renderiza en su propio visor, que nunca recibe el DOM de la página.
+Casi todo se sirve como adjunto. **Las imágenes ráster, los PDF, el audio y el
+vídeo** (MP3, WAV, Ogg, Opus, M4A, MP4, WebM) se sirven para mostrarse: la ráster
+porque no puede ejecutarse, el PDF porque el navegador lo renderiza en su propio
+visor, que nunca recibe el DOM de la página, y el audio y el vídeo porque el
+navegador los entrega a su reproductor, que los reproduce y no ejecuta nada en la
+página.
 
 !!! danger "SVG y HTML se pueden descargar y nunca mostrar"
 

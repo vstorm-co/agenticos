@@ -1,5 +1,5 @@
 ---
-source_sha: "18c9648216d7"
+source_sha: "1d480494f842"
 ---
 
 # Ochrona danych { #data-protection }
@@ -130,7 +130,7 @@ lista celów, wraz z konfiguracją, która o każdym decyduje.
 | mem0 | Wspomnienia zapisane dla osoby albo czatu | `base_url` capability `memory_mem0`, który musi być w `MEM0_ALLOWED_HOSTS` | Hosta mem0, na który pozwalasz |
 | Logfire | Spany każdego żądania i runu | `LOGFIRE_TOKEN` na poziomie wdrożenia; token `observability` w specu albo `logfire_token_secret_id` na środowisku przekierowuje te runy do innego projektu. `LOGFIRE_BASE_URL` wybiera wdrożenie w USA albo w UE. Nieustawione wszędzie — nic nie jest wysyłane | Pydantic, USA albo UE |
 | Mowa na tekst, generowanie obrazów | Notatka głosowa; prompt | Profil dla `groq`, `mistral` albo `openai`; profil dla `google` albo `openai` | Providera |
-| Zamiana tekstu na mowę | Tekst do wypowiedzenia | `provider` capability `text_to_speech`: `openai`, `elevenlabs` albo `google`, z kluczem bindingu | Providera |
+| Zamiana tekstu na mowę | Tekst do wypowiedzenia i ewentualna wskazówka, jak go wypowiedzieć | `provider` capability `text_to_speech`: `openai`, `elevenlabs` albo `google`, z kluczem bindingu | Providera |
 | Slack, Telegram, Mattermost | Odpowiedzi agenta | Wiersz `channel_bots` z tokenem w vaulcie | Dostawca komunikatora i tak ma już ten czat |
 | Logowanie Google | Nic wychodzącego; Google zwraca e-mail, imię, zdjęcie i id konta | `GOOGLE_CLIENT_ID` | Google |
 | Twój relay SMTP | Poczta wymieniona wyżej | `SMTP_HOST`, `SMTP_TLS` | Twoja |

@@ -1,5 +1,5 @@
 ---
-source_sha: "18c9648216d7"
+source_sha: "1d480494f842"
 ---
 
 # Protección de datos { #data-protection }
@@ -133,7 +133,7 @@ lista completa de destinos, con la configuración que decide cada uno.
 | mem0 | Los recuerdos escritos para una persona o un chat | La `base_url` de la capability `memory_mem0`, que tiene que estar en `MEM0_ALLOWED_HOSTS` | La del host de mem0 que permitas |
 | Logfire | Spans de cada petición y cada run | `LOGFIRE_TOKEN` a nivel de deployment; un token `observability` en un spec, o `logfire_token_secret_id` en un entorno, redirige esos runs a otro proyecto. `LOGFIRE_BASE_URL` elige el deployment de EE. UU. o el de la UE. Sin definir en ninguna parte, no se envía nada | La de Pydantic, EE. UU. o UE |
 | Voz a texto, generación de imágenes | La nota de voz; el prompt | Un perfil para `groq`, `mistral` u `openai`; un perfil para `google` u `openai` | La del provider |
-| Texto a voz | El texto que se va a decir | El `provider` de la capability `text_to_speech`: `openai`, `elevenlabs` o `google`, con la clave del binding | La del provider |
+| Texto a voz | El texto que se va a decir y cualquier indicación sobre cómo decirlo | El `provider` de la capability `text_to_speech`: `openai`, `elevenlabs` o `google`, con la clave del binding | La del provider |
 | Slack, Telegram, Mattermost | Las respuestas del agent | Una fila `channel_bots` con su token en el vault | El proveedor de mensajería ya tiene el chat |
 | Inicio de sesión con Google | Nada hacia fuera; Google devuelve el correo, el nombre, la foto y el id de la cuenta | `GOOGLE_CLIENT_ID` | La de Google |
 | Tu relay SMTP | El correo de arriba | `SMTP_HOST`, `SMTP_TLS` | La tuya |

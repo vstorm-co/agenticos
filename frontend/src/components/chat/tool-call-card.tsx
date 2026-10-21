@@ -11,10 +11,7 @@ import { RAGSearchResults } from "./tool-results/rag";
 import { WebSearchResults, parseWebSearch } from "./tool-results/web-search";
 import { parsePublishedArtifact, PublishedArtifactResult } from "./tool-results/artifact";
 import { GeneratedImageResult, parseGeneratedImage } from "./tool-results/generated-image";
-import {
-  GeneratedSpeechResult,
-  parseGeneratedSpeech,
-} from "@/components/chat/tool-results/generated-speech";
+import { GeneratedSpeechResult, parseGeneratedSpeech } from "./tool-results/generated-speech";
 import { LoadSkillResult, LoadedSkillResult } from "./tool-results/skills";
 import { ContextListResult, SkillListResult } from "./tool-results/catalogs";
 import { PlanToolResult } from "./tool-results/plan";

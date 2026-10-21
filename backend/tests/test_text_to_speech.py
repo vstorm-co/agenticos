@@ -129,19 +129,24 @@ class TestEachProvidersRequest:
         assert KEY not in str(request.url)
         assert json.loads(request.content) == {"text": "Hello.", "model_id": "eleven_v4_turbo"}
 
-    async def test_an_elevenlabs_voice_id_cannot_reach_another_endpoint(self):
-        """The id comes from a binding's configuration and lands in the path."""
-        with _answering(lambda _: httpx.Response(200, content=b"mp3")) as seen:
+    @pytest.mark.parametrize("voice", ["../../user", ".", "..", "a/b", ""])
+    async def test_an_elevenlabs_voice_id_cannot_reach_another_endpoint(self, voice):
+        """The id comes from a binding's configuration and lands in the path, where
+        `.` and `..` would be resolved away and send the key elsewhere."""
+        with (
+            _answering(lambda _: httpx.Response(200, content=b"mp3")) as seen,
+            pytest.raises(ValueError),
+        ):
             await synthesize(
                 _provider("elevenlabs"),
                 model="eleven_v4_turbo",
-                voice="../../user",
+                voice=voice,
                 text="Hello.",
                 audio_format="mp3",
                 api_key=KEY,
             )
 
-        assert seen[0].url.raw_path.startswith(b"/v1/text-to-speech/..%2F..%2Fuser")
+        assert seen == []
 
     async def test_gemini_is_asked_for_pcm_and_given_the_direction_as_a_style(self):
         with _answering(lambda _: _gemini_answer(b"\x01\x00\x02\x00")) as seen:
@@ -255,11 +260,83 @@ class TestALongText:
     def test_a_word_longer_than_the_limit_is_cut_rather_than_refused(self):
         assert split_text("x" * 25, 10) == ["x" * 10, "x" * 10, "x" * 5]
 
+    def test_chinese_and_japanese_are_cut_after_a_sentence(self):
+        """They end a sentence with no space after it, so the ASCII marks never match."""
+        assert split_text("这是一个句子。" * 3, 15) == [
+            "这是一个句子。这是一个句子。",
+            "这是一个句子。",
+        ]
+
+    async def test_mp3_pieces_after_the_first_lose_their_id3_tag(self):
+        tag = b"ID3\x04\x00\x00\x00\x00\x00\x02ab"
+        pieces = iter([tag + b"frame1", tag + b"frame2"])
+        with _answering(lambda _: httpx.Response(200, content=next(pieces))):
+            speech = await synthesize(
+                _provider("elevenlabs"),
+                model="eleven_v4_turbo",
+                voice="v",
+                text="word " * 2500,
+                audio_format="mp3",
+                api_key=KEY,
+            )
+
+        assert speech.data == tag + b"frame1" + b"frame2"
+
     def test_text_within_the_limit_is_one_piece(self):
         assert split_text("  Short.  ", 100) == ["Short."]
 
 
 class TestAFailedCall:
+    @pytest.mark.parametrize(
+        ("status", "body", "failure"),
+        [
+            (
+                400,
+                '{"error":{"details":[{"reason":"API_KEY_INVALID"}]}}',
+                SpeechFailure.CREDENTIALS,
+            ),
+            (401, '{"detail":{"status":"quota_exceeded"}}', SpeechFailure.RATE_LIMITED),
+            (408, "slow", SpeechFailure.UNAVAILABLE),
+        ],
+        ids=["gemini bad key", "elevenlabs quota", "request timeout"],
+    )
+    async def test_the_providers_reason_outranks_its_status(self, status, body, failure):
+        """Gemini answers a bad key 400 and ElevenLabs a spent quota 401; by status
+        alone the model would rephrase fine text and the operator replace a working key."""
+        with (
+            _answering(lambda _: httpx.Response(status, text=body)),
+            pytest.raises(SpeechProviderError) as caught,
+        ):
+            await synthesize(
+                _provider("openai"),
+                model="gpt-4o-mini-tts",
+                voice="marin",
+                text="Hello.",
+                audio_format="mp3",
+                api_key=KEY,
+            )
+
+        assert caught.value.failure is failure
+
+    @pytest.mark.parametrize(
+        ("body", "audio_format"), [(b"", "mp3"), (b"\x01\x00\x02", "wav")], ids=["empty", "odd PCM"]
+    )
+    async def test_an_answer_that_cannot_be_a_clip_is_unavailable(self, body, audio_format):
+        with (
+            _answering(lambda _: httpx.Response(200, content=body)),
+            pytest.raises(SpeechProviderError) as caught,
+        ):
+            await synthesize(
+                _provider("openai"),
+                model="gpt-4o-mini-tts",
+                voice="marin",
+                text="Hello.",
+                audio_format=audio_format,
+                api_key=KEY,
+            )
+
+        assert caught.value.failure is SpeechFailure.UNAVAILABLE
+
     @pytest.mark.parametrize(
         ("status", "failure"),
         [
@@ -295,11 +372,12 @@ class TestAFailedCall:
         assert KEY not in caught.value.message
         assert KEY not in json.dumps(caught.value.details)
 
-    async def test_a_failure_halfway_through_counts_what_was_already_spoken(self):
-        """The clip is discarded; what the first piece cost is not, so it is
-        reported for the caller to book."""
+    async def test_each_piece_is_reported_as_soon_as_it_is_spoken(self):
+        """The clip is discarded on a failure; what the first piece cost is not, and
+        the caller has already been told of it - a cancelled run likewise."""
+        spoken: list[int] = []
         answers = iter([httpx.Response(200, content=b"\x01\x00"), httpx.Response(500)])
-        with _answering(lambda _: next(answers)), pytest.raises(SpeechProviderError) as caught:
+        with _answering(lambda _: next(answers)), pytest.raises(SpeechProviderError):
             await synthesize(
                 _provider("openai"),
                 model="gpt-4o-mini-tts",
@@ -307,10 +385,11 @@ class TestAFailedCall:
                 text="word " * 1000,
                 audio_format="wav",
                 api_key=KEY,
+                on_spoken=spoken.append,
             )
 
         first_piece = split_text(("word " * 1000).strip(), 4096)[0]
-        assert caught.value.spoken_characters == len(first_piece)
+        assert spoken == [len(first_piece)]
 
     async def test_a_timeout_is_unavailable(self):
         def time_out(request: httpx.Request) -> httpx.Response:
@@ -355,6 +434,20 @@ class TestWhatTheCallerMustRefuseFirst:
 
         assert seen == []
 
+    async def test_a_voice_the_model_does_not_speak_in_is_refused_before_any_request(self):
+        """`tts-1` speaks in nine of OpenAI's voices, and `marin` is not one of them."""
+        with _answering(lambda _: httpx.Response(200)) as seen, pytest.raises(ValueError):
+            await synthesize(
+                _provider("openai"),
+                model="tts-1",
+                voice="marin",
+                text="Hi.",
+                audio_format="mp3",
+                api_key=KEY,
+            )
+
+        assert seen == []
+
     async def test_blank_text_is_refused_before_any_request(self):
         with _answering(lambda _: httpx.Response(200)) as seen, pytest.raises(ValueError):
             await synthesize(
@@ -378,3 +471,12 @@ def test_the_wav_header_describes_24khz_mono_16_bit_pcm():
     assert (riff, wave, fmt, data) == (b"RIFF", b"WAVE", b"fmt ", b"data")
     assert (pcm, channels, rate, bits) == (1, 1, 24_000, 16)
     assert (size, length) == (44, 8)
+
+
+def test_every_api_shape_the_catalog_accepts_has_a_client():
+    """`synthesize` looks the client up by the catalog's shape; one without a client
+    would be a KeyError mid-run rather than an entry dropped from the picker."""
+    from app.services.text_to_speech.clients import CLIENTS
+    from app.services.text_to_speech_models import SUPPORTED_APIS
+
+    assert frozenset(CLIENTS) == SUPPORTED_APIS

@@ -276,7 +276,7 @@ const TEXT_KINDS: ReadonlySet<FileKind> = new Set<FileKind>([
  *
  * It decides which *request* is made and nothing else. Whether what came back can
  * be displayed is the server's answer, read off the response's type: the API decides
- * what may be shown inline - raster images and PDFs, never SVG or HTML, because
+ * what may be shown inline - raster images, PDFs, audio and video, never SVG or HTML, because
  * either served inline from this origin is stored XSS with the agent as its author -
  * and a second list of suffixes making that call here would be a second answer that
  * drifts the first time either moves.
