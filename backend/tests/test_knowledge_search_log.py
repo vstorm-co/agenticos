@@ -32,6 +32,7 @@ from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.core.permissions import AuthContext, OrgRoleName
 from app.services.agent_runner import AgentRunnerService, PreparedRun
 from app.services.rag.models import SearchResult
+from app.services.rag.retrieval import RetrievalService
 
 pytestmark = pytest.mark.anyio
 
@@ -69,6 +70,24 @@ class TestTheLog:
         assert record.query == "refund window"
         assert record.result_count == 2
         assert record.top_similarity == 0.58
+
+    def test_fusion_keeps_the_closest_match_any_query_variant_found(self):
+        """A passage one variant matched poorly and another matched well is not a miss."""
+        first = SearchResult(content="passage", score=0.5, similarity=0.31)
+        second = SearchResult(content="passage", score=0.9, similarity=0.82)
+        unscored = SearchResult(content="passage", score=0.4)
+
+        [fused] = RetrievalService._rrf_fuse([[first], [unscored], [second]])
+
+        assert fused.similarity == 0.82
+
+    def test_fusion_takes_a_similarity_a_later_list_has_when_the_first_had_none(self):
+        bm25 = SearchResult(content="passage", score=3.1)
+        vector = SearchResult(content="passage", score=0.9, similarity=0.64)
+
+        [fused] = RetrievalService._rrf_fuse([[bm25], [vector]])
+
+        assert fused.similarity == 0.64
 
     def test_a_runaway_query_is_kept_to_its_first_thousand_characters(self):
         log = _log()

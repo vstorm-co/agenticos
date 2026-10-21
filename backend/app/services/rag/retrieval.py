@@ -89,10 +89,14 @@ class RetrievalService(BaseRetrievalService):
         appears in provides its representative - which for the hybrid case is the
         vector leg, exactly as before this generalised past two lists.
 
-        The representative is copied with only its score replaced, so every other
-        field a store or a later stage put on the result survives fusion.
+        The representative is copied with its score replaced and its similarity
+        raised to the closest any list found the row at, so every other field a
+        store or a later stage put on the result survives fusion, and a row one
+        query variant matched well is not judged by a variant that matched it
+        poorly.
         """
         scores: dict[str, float] = {}
+        similarities: dict[str, float | None] = {}
         result_map: dict[str, SearchResult] = {}
 
         for results in result_lists:
@@ -101,9 +105,18 @@ class RetrievalService(BaseRetrievalService):
                 scores[key] = scores.get(key, 0) + 1.0 / (k + rank + 1)
                 if key not in result_map:
                     result_map[key] = r
+                    similarities[key] = r.similarity
+                elif r.similarity is not None:
+                    best = similarities[key]
+                    similarities[key] = r.similarity if best is None else max(best, r.similarity)
 
         sorted_keys = sorted(scores, key=lambda x: scores[x], reverse=True)
-        return [result_map[key].model_copy(update={"score": scores[key]}) for key in sorted_keys]
+        return [
+            result_map[key].model_copy(
+                update={"score": scores[key], "similarity": similarities[key]}
+            )
+            for key in sorted_keys
+        ]
 
     async def _bm25_search(
         self, query: str, collection_name: str, limit: int, query_filter: RetrievalQuery
