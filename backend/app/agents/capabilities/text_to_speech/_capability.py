@@ -9,7 +9,7 @@ from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.tools import AgentDepsT
 from pydantic_ai.toolsets import AbstractToolset
 
-from app.agents.capabilities.text_to_speech._toolset import build_speech_toolset
+from app.agents.capabilities.text_to_speech._toolset import OfferedVoice, build_speech_toolset
 
 
 @dataclass
@@ -25,6 +25,7 @@ class TextToSpeech(AbstractCapability[AgentDepsT]):
     provider: str
     model: str
     voice: str
+    voices: tuple[OfferedVoice, ...]
     audio_format: str
     max_characters: int
     # Unsealed from the vault by the factory. `repr=False` because a dataclass
@@ -42,6 +43,7 @@ class TextToSpeech(AbstractCapability[AgentDepsT]):
                 provider=self.provider,
                 model=self.model,
                 voice=self.voice,
+                voices=self.voices,
                 audio_format=self.audio_format,
                 max_characters=self.max_characters,
                 api_key=self.api_key,

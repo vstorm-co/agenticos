@@ -27,6 +27,7 @@ price list, where the provider states none - so a scheduled change lands on its
 date.
 """
 
+import re
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -158,3 +159,33 @@ def price_per_second(model: VideoModel, resolution: str, *, on: date) -> Decimal
     if not current:
         return None
     return max(current, key=lambda price: price.since).usd_per_second.get(resolution)
+
+
+_LINES = re.compile(r"(?P<lines>[0-9]+)p|(?P<k>[0-9]+)k", re.IGNORECASE)
+
+
+def resolution_lines(resolution: str) -> int:
+    """How tall a resolution is, so two of them can be compared.
+
+    The catalog lists a model's resolutions default first, not in order, and the
+    names are the providers' own: `720p` is 720 lines, `4k` is 2160. Raises
+    `ValueError` for a name of neither shape - a test holds every catalog entry
+    to one, so a new spelling fails there rather than in a binding.
+    """
+    match = _LINES.fullmatch(resolution.strip())
+    if match is None:
+        raise ValueError(f"{resolution!r} names no resolution")
+    if match["lines"] is not None:
+        return int(match["lines"])
+    return int(match["k"]) * 540
+
+
+def up_to(model: VideoModel, highest: str) -> tuple[str, ...]:
+    """The model's resolutions no taller than `highest`, shortest first."""
+    ceiling = resolution_lines(highest)
+    return tuple(
+        sorted(
+            (option for option in model.resolutions if resolution_lines(option) <= ceiling),
+            key=resolution_lines,
+        )
+    )

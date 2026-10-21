@@ -1046,6 +1046,7 @@ and written under `output/` when a workspace is open (#2259).
 | `provider` | `openai` | `openai`, `elevenlabs`, `google` |
 | `model` | `gpt-4o-mini-tts` | That provider's models, from `app/core/catalog/text_to_speech_models.json` |
 | `voice` | the model's first | A catalog voice for OpenAI and Gemini; an id from your own voice library for ElevenLabs |
+| `voices` | none | Up to 20 other voices the agent may choose per clip, each an `id` and, for an account voice, a `note` of up to 120 characters saying who it is |
 | `output_format` | the provider's first | `mp3`, `wav` (Gemini returns `wav` only) |
 | `max_characters` | `5000` | 1–100 000; the most text one call may speak |
 
@@ -1059,6 +1060,15 @@ voices are listed per model.
 **ElevenLabs voices belong to the account.** Its shared default voices expire on
 2026-12-31, so the catalog lists none and a binding names one of the account's own
 voices by id; publishing without one is refused.
+
+**The agent may choose among the voices the author lists.** `voice` is the one it
+speaks in unless it asks for another; `voices` adds the others, for a dialogue or
+a narrator and a character. They reach the model as an `enum` on the tool's
+`voice` parameter, with the catalog's description of each or, for an account
+voice, the author's note - an id says nothing about who it sounds like. A
+binding listing no others offers no `voice` parameter at all, so the tool reads
+as it did before the choice existed. A voice the model is not offered is refused
+at publish, as `voice` is, and steered back to the model at call time.
 
 **The key picker shows the chosen provider's keys.** The secret is required for
 every provider, and declared as required *when* `provider` is one of them, which
@@ -1109,6 +1119,7 @@ the run must have made the image itself.
 | `provider` | `google` | `google`, `byteplus`, `xai`, `alibaba` |
 | `model` | `gemini-omni-1.1-flash` | That provider's models, from `app/core/catalog/video_models.json` |
 | `resolution` | the model's first | The resolutions the model renders |
+| `max_resolution` | none | The highest the agent may ask for, at or above `resolution` |
 | `aspect_ratio` | the model's first | The aspect ratios the model renders |
 | `seconds` | 5, or the nearest the model makes | Within the model's range; refused for Gemini Omni, which decides its own |
 | `max_seconds` | the model's longest | The longest clip the agent may ask for; refused for Gemini Omni |
@@ -1121,6 +1132,15 @@ starts from an image, and the Builder offers only those. BytePlus is a
 [secret purpose](../secrets.md) in the vault; Google, xAI and Alibaba Cloud are
 model providers already. OpenAI is absent: its video API was shut down on
 2026-09-24.
+
+**The agent may choose the shape and, up to a ceiling, the resolution.** The
+aspect ratios are the model's own, and `resolution` is the usual one. With
+`max_resolution` set, the agent may ask for any resolution the model renders up
+to it - lower for a draft, higher for a shot someone wants sharp; without it,
+every clip is made at `resolution`. Resolution is what a second costs, so the
+author sets the ceiling and the budget is asked with the chosen resolution's
+price. Both reach the model as an `enum` on the tool's parameters, and a
+parameter with one value is not offered.
 
 **A clip is a job, waited for like a picture.** Gemini answers in the request;
 BytePlus, xAI and Alibaba take a job that is polled. Either way the call waits,

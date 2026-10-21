@@ -9,6 +9,12 @@ where they would have seen the picture, and a later step finds it under `output/
 organization generated - the `filename` `generate_image` returned - or a path in
 the run's workspace. That is what lets "draw a logo, then animate it" be two calls.
 
+**The author bounds what the model may choose.** The shapes are the model's own;
+the resolutions are the usual one alone, or every one up to the highest the
+binding allows. Both are offered as an `enum` in the tool's schema
+(:mod:`app.agents.capabilities._choices`), and a parameter with one value is not
+offered at all.
+
 **The budget is asked before the job is submitted, with the clip's price.** Video
 is sold per second at a rate set by the resolution, so a clip's cost is known in
 advance - at the model's longest where the model decides its own length - and a
@@ -33,6 +39,7 @@ from pydantic_ai.tools import RunContext
 from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai.workspaces import WorkspaceError
 
+from app.agents.capabilities._choices import Choice, schema_for
 from app.agents.capabilities._failures import steer
 from app.agents.capabilities._generated import WORKSPACE_OUTPUT_DIR, store_generated
 from app.agents.capabilities.budget import can_afford_ambient_call, record_ambient_cost
@@ -62,7 +69,14 @@ class VideoSettings:
     provider: str
     model: str
     resolution: str
+    resolutions: tuple[str, ...]
+    """What the model may ask for, shortest first; `resolution` alone where the
+    author allowed no other."""
+
     aspect_ratio: str
+    aspect_ratios: tuple[str, ...]
+    """The shapes the model renders, which the model may ask for."""
+
     seconds: int
     max_seconds: int
     audio: bool | None
@@ -82,6 +96,7 @@ class GeneratedVideo(BaseModel):
     media_type: str = "video/mp4"
     prompt: str
     seconds: float | None = None
+    resolution: str | None = None
     workspace_path: str | None = None
 
 
@@ -159,7 +174,7 @@ def build_video_toolset(
     """A `generate_video` tool bound to one provider, model, resolution and key.
 
     The model chooses what the clip shows and, within the binding's limits, how
-    long it runs, its shape, and the image it starts from.
+    long it runs, its shape, its resolution, and the image it starts from.
     """
     ledger_name = f"{settings.provider}:{settings.model}"
 
@@ -168,6 +183,7 @@ def build_video_toolset(
         prompt: str,
         seconds: int | None = None,
         aspect_ratio: str | None = None,
+        resolution: str | None = None,
         first_frame: str | None = None,
     ) -> str:
         """Make a short video from a written description.
@@ -187,6 +203,9 @@ def build_video_toolset(
                 a model that decides its own length ignores it.
             aspect_ratio: The shape, such as "16:9" or "9:16". Left out, the
                 agent's usual shape.
+            resolution: How sharp, such as "720p". Higher costs more per second,
+                so ask for more only when the user wants it. Left out, the
+                agent's usual resolution.
             first_frame: An image to start from - the `filename` generate_image
                 returned in this run, or a path in your workspace (where a
                 generated image is also kept, under `output/`). PNG, JPEG or
@@ -218,8 +237,20 @@ def build_video_toolset(
                     "agent's video model.",
                 )
         shape = aspect_ratio or settings.aspect_ratio
-        if shape not in model.aspect_ratios:
-            return steer(ctx, f"`aspect_ratio` must be one of {', '.join(model.aspect_ratios)}.")
+        if shape not in settings.aspect_ratios:
+            return steer(ctx, f"`aspect_ratio` must be one of {', '.join(settings.aspect_ratios)}.")
+        sharpness = resolution or settings.resolution
+        if sharpness not in settings.resolutions:
+            if len(settings.resolutions) == 1:
+                return steer(
+                    ctx,
+                    f"This agent makes every clip at {settings.resolution}; leave `resolution` out.",
+                )
+            return steer(
+                ctx,
+                f"`resolution` must be one of {', '.join(settings.resolutions)}; this agent "
+                "may use nothing higher.",
+            )
         frame: FirstFrame | None = None
         if first_frame:
             if not model.first_frame:
@@ -229,7 +260,7 @@ def build_video_toolset(
                 return steer(ctx, read)
             frame = read
 
-        price = price_per_second(model, settings.resolution, on=datetime.now(UTC).date())
+        price = price_per_second(model, sharpness, on=datetime.now(UTC).date())
         priced_seconds = duration if duration is not None else model.max_seconds
         estimate = None if price is None else price * priced_seconds
         if not await can_afford_ambient_call(estimate or Decimal(0)):
@@ -245,7 +276,7 @@ def build_video_toolset(
                 entry,
                 model=settings.model,
                 prompt=prompt,
-                resolution=settings.resolution,
+                resolution=sharpness,
                 aspect_ratio=shape,
                 api_key=api_key,
                 timeout_seconds=settings.timeout_seconds,
@@ -285,6 +316,7 @@ def build_video_toolset(
             url=stored.url,
             prompt=prompt,
             seconds=clip.seconds,
+            resolution=sharpness,
             workspace_path=stored.workspace_path,
         ).model_dump_json()
 
@@ -292,6 +324,15 @@ def build_video_toolset(
     # One clip at a time: the budget is asked with a clip's price and reserves
     # nothing, so two clips priced at once could each fit and together pass a cap.
     toolset.add_function(
-        generate_video_tool, name="generate_video", takes_ctx=True, sequential=True
+        generate_video_tool,
+        name="generate_video",
+        takes_ctx=True,
+        sequential=True,
+        prepare=schema_for(
+            {
+                "aspect_ratio": Choice(settings.aspect_ratios),
+                "resolution": Choice(settings.resolutions),
+            }
+        ),
     )
     return toolset

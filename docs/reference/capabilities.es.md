@@ -1,5 +1,5 @@
 ---
-source_sha: "e2ff0b27c4e5"
+source_sha: "b5ef25abc0be"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1116,6 +1116,7 @@ reproductor y se escribe en `output/` cuando hay un workspace abierto (#2259).
 | `provider` | `openai` | `openai`, `elevenlabs`, `google` |
 | `model` | `gpt-4o-mini-tts` | Los modelos de ese provider, de `app/core/catalog/text_to_speech_models.json` |
 | `voice` | la primera del modelo | Una voz del catálogo para OpenAI y Gemini; un id de tu propia biblioteca de voces para ElevenLabs |
+| `voices` | ninguna | Hasta 20 voces más que el agente puede elegir en cada clip, cada una con un `id` y, para una voz de la cuenta, una `note` de hasta 120 caracteres que dice quién es |
 | `output_format` | el primero del provider | `mp3`, `wav` (Gemini solo devuelve `wav`) |
 | `max_characters` | `5000` | 1–100 000; el máximo de texto que puede decir una llamada |
 
@@ -1130,6 +1131,15 @@ de sus trece voces, por eso las voces se listan por modelo.
 compartidas caducan el 31-12-2026, así que el catálogo no lista ninguna y un
 binding nombra una de las voces propias de la cuenta por su id; publicar sin ella
 se rechaza.
+
+**El agente puede elegir entre las voces que indica el autor.** `voice` es la voz
+con la que habla mientras no pida otra; `voices` añade las demás, para un diálogo
+o para un narrador y un personaje. Llegan al modelo como un `enum` en el
+parámetro `voice` de la herramienta, con la descripción de cada una del catálogo
+o, para una voz de la cuenta, la nota del autor: un id no dice cómo suena. Un
+binding sin otras voces no ofrece el parámetro `voice`, así que la herramienta se
+ve como antes de que existiera la elección. Una voz que el modelo no ofrece se
+rechaza al publicar, como `voice`, y se devuelve al modelo en la llamada.
 
 **El selector de claves muestra las claves del provider elegido.** El secreto es
 obligatorio para todos los providers y se declara obligatorio *cuando* `provider`
@@ -1185,6 +1195,7 @@ haber hecho la imagen.
 | `provider` | `google` | `google`, `byteplus`, `xai`, `alibaba` |
 | `model` | `gemini-omni-1.1-flash` | Los modelos de ese provider, de `app/core/catalog/video_models.json` |
 | `resolution` | la primera del modelo | Las resoluciones que renderiza el modelo |
+| `max_resolution` | ninguna | La más alta que el agente puede pedir, no inferior a `resolution` |
 | `aspect_ratio` | la primera del modelo | Las proporciones que renderiza el modelo |
 | `seconds` | 5, o la más cercana del modelo | Dentro del rango del modelo; se rechaza para Gemini Omni, que decide su duración |
 | `max_seconds` | el clip más largo del modelo | El clip más largo que puede pedir el agente; se rechaza para Gemini Omni |
@@ -1197,6 +1208,16 @@ sonido y si puede empezar desde una imagen, y el Builder solo ofrece eso. BytePl
 es un [propósito de secreto](../secrets.md) en el vault; Google, xAI y Alibaba
 Cloud ya son providers de modelos. Falta OpenAI: su API de vídeo se cerró el
 24-09-2026.
+
+**El agente puede elegir la proporción y, hasta un techo, la resolución.** Las
+proporciones son las del modelo, y `resolution` es la habitual. Con
+`max_resolution`, el agente puede pedir cualquier resolución que el modelo
+renderice hasta ella: más baja para un borrador, más alta para una toma que
+alguien quiere nítida; sin ella, cada clip se hace en `resolution`. La
+resolución es lo que cuesta un segundo, así que el autor fija el techo y el
+presupuesto se consulta con el precio de la resolución elegida. Ambas llegan al
+modelo como un `enum` en los parámetros de la herramienta, y un parámetro con un
+solo valor no se ofrece.
 
 **Un clip es un trabajo que se espera como una imagen.** Gemini responde en la
 propia petición; BytePlus, xAI y Alibaba aceptan un trabajo que se consulta. En

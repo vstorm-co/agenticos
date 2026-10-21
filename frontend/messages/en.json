@@ -839,6 +839,13 @@
     "speechVoiceDetail": "The voices this model can speak in.",
     "speechVoiceIdPlaceholder": "Voice id",
     "speechAccountVoiceDetail": "{provider} voices belong to your account. Paste the id of one from your voice library.",
+    "speechOtherVoices": "Other voices",
+    "speechOtherVoicesDetail": "Voices the agent may choose instead of the usual one, clip by clip - for a dialogue, or a narrator and a character. None ticked, it always speaks in the usual one.",
+    "speechOtherVoiceId": "Voice id {position}",
+    "speechOtherVoiceNote": "What voice {position} is for",
+    "speechOtherVoiceNotePlaceholder": "Who it is, e.g. Anna, the narrator",
+    "speechOtherVoiceRemove": "Remove voice {position}",
+    "speechOtherVoiceAdd": "Add a voice",
     "speechProvidersLoading": "Reading what each provider offers…",
     "speechProvidersUnavailable": "The list of providers could not be read. The model above is still what will be used.",
     "videoProvider": "Provider",
@@ -850,6 +857,9 @@
     "videoModelUnknownProvider": "This binding names {provider}, which cannot make video. Pick a provider above.",
     "videoResolution": "Resolution",
     "videoResolutionDetail": "The resolutions this model renders. Higher costs more per second.",
+    "videoMaxResolution": "Highest resolution",
+    "videoMaxResolutionNone": "Only the resolution above",
+    "videoMaxResolutionDetail": "The agent may ask for any resolution up to this one per clip, for a sharper shot when someone wants it. A second at a higher resolution costs more.",
     "videoAspectRatio": "Aspect ratio",
     "videoLengthRange": "This model makes clips of {min} to {max} seconds.",
     "videoLengthDecided": "This model decides its own length, {min} to {max} seconds.",
@@ -7255,6 +7265,10 @@
         "title": "Voice",
         "description": "Which voice speaks; left empty, the model's first. ElevenLabs voices belong to your account, so for ElevenLabs paste the voice id from your voice library."
       },
+      "voices": {
+        "title": "Other voices",
+        "description": "Voices the agent may choose instead of the one above, per clip - for a dialogue, or a narrator and a character. Left empty, it always speaks in the one above."
+      },
       "output_format": {
         "title": "File format",
         "description": "mp3 is smaller, wav is uncompressed. Left empty, the provider's first format - Gemini returns wav only."
@@ -7276,6 +7290,10 @@
       "resolution": {
         "title": "Resolution",
         "description": "Left empty, the model's first. Higher costs more per second."
+      },
+      "max_resolution": {
+        "title": "Highest resolution",
+        "description": "The highest resolution the agent may ask for, which caps what a second can cost; it may also ask for any lower one. Left empty, every clip is made at the resolution above."
       },
       "aspect_ratio": {
         "title": "Aspect ratio",

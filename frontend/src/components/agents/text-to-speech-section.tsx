@@ -8,6 +8,7 @@ import {
   withoutFields,
 } from "@/components/agents/provider-model-fields";
 import { SchemaForm } from "@/components/agents/schema-form";
+import { SpeechVoiceChoices, storedVoices } from "@/components/agents/speech-voice-choices";
 import {
   Input,
   Label,
@@ -24,7 +25,7 @@ import type { CapabilityBindingSpec, CapabilityCatalogEntry } from "@/types/agen
 import { useTranslations } from "next-intl";
 
 /** The fields this panel draws itself; the rest is the generated form. */
-const HAND_ROLLED = ["provider", "model", "voice", "output_format"];
+const HAND_ROLLED = ["provider", "model", "voice", "voices", "output_format"];
 
 interface TextToSpeechSectionProps {
   definition: CapabilityCatalogEntry | undefined;
@@ -78,22 +79,32 @@ export function TextToSpeechSection({
    * voice one model speaks in may be one the next does not - OpenAI's `tts-1` has
    * nine of its thirteen. Kept only where the new choice still offers it - or,
    * on a provider whose voices belong to the account, on any of its models,
-   * since the catalog lists none and the id is the author's own.
+   * since the catalog lists none and the id is the author's own. The other
+   * voices the agent may choose follow the same rule, one by one.
    */
   const chooseOffering = (patch: { provider?: string; model: string }) => {
     const next = resolveOffering(providers, { ...binding.config, ...patch });
     const offered = next.selected?.voices.map((entry) => entry.id) ?? [];
-    const keepVoice =
-      patch.provider === undefined &&
-      (next.current?.account_voices === true || offered.includes(storedVoice));
+    const sameProvider = patch.provider === undefined;
+    const accountVoices = next.current?.account_voices === true;
+    const keepVoice = sameProvider && (accountVoices || offered.includes(storedVoice));
+    const others = sameProvider
+      ? storedVoices(binding.config.voices).filter(
+          (entry) => accountVoices || offered.includes(entry.id),
+        )
+      : [];
     const kept = Object.fromEntries(
       Object.entries(binding.config).filter(
         ([name]) =>
           (name !== "voice" || keepVoice) &&
-          (name !== "output_format" || patch.provider === undefined),
+          name !== "voices" &&
+          (name !== "output_format" || sameProvider),
       ),
     );
-    onChange({ ...binding, config: { ...kept, ...patch } });
+    onChange({
+      ...binding,
+      config: { ...kept, ...(others.length > 0 ? { voices: others } : {}), ...patch },
+    });
   };
 
   const controls = (
@@ -150,6 +161,22 @@ export function TextToSpeechSection({
               : t("speechVoiceDetail")}
           </p>
         </div>
+      )}
+
+      {resolved.current !== undefined && (
+        <SpeechVoiceChoices
+          provider={resolved.current}
+          offered={voices}
+          usualVoice={resolved.current.account_voices ? storedVoice : voice}
+          value={storedVoices(binding.config.voices)}
+          disabled={disabled}
+          onChange={(voices) => {
+            const rest = Object.fromEntries(
+              Object.entries(binding.config).filter(([name]) => name !== "voices"),
+            );
+            onChange({ ...binding, config: voices.length > 0 ? { ...rest, voices } : rest });
+          }}
+        />
       )}
 
       {resolved.current !== undefined && (

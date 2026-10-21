@@ -839,6 +839,13 @@
     "speechVoiceDetail": "Die Stimmen, in denen dieses Modell sprechen kann.",
     "speechVoiceIdPlaceholder": "Stimmen-ID",
     "speechAccountVoiceDetail": "{provider}-Stimmen gehören zu Ihrem Konto. Fügen Sie die ID einer Stimme aus Ihrer Stimmenbibliothek ein.",
+    "speechOtherVoices": "Weitere Stimmen",
+    "speechOtherVoicesDetail": "Stimmen, die der Agent statt der üblichen wählen darf, Clip für Clip - für einen Dialog oder für Erzähler und Figur. Ist keine angehakt, spricht er immer mit der üblichen.",
+    "speechOtherVoiceId": "Stimmen-ID {position}",
+    "speechOtherVoiceNote": "Wofür Stimme {position} ist",
+    "speechOtherVoiceNotePlaceholder": "Wer es ist, z. B. Anna, die Erzählerin",
+    "speechOtherVoiceRemove": "Stimme {position} entfernen",
+    "speechOtherVoiceAdd": "Stimme hinzufügen",
     "speechProvidersLoading": "Lese, was jeder Provider anbietet…",
     "speechProvidersUnavailable": "Die Liste der Provider konnte nicht gelesen werden. Das Modell oben wird trotzdem verwendet.",
     "videoProvider": "Provider",
@@ -850,6 +857,9 @@
     "videoModelUnknownProvider": "Dieses Binding nennt {provider}, der keine Videos erzeugen kann. Wählen Sie oben einen Provider.",
     "videoResolution": "Auflösung",
     "videoResolutionDetail": "Die Auflösungen, die dieses Modell rendert. Höher kostet mehr pro Sekunde.",
+    "videoMaxResolution": "Höchste Auflösung",
+    "videoMaxResolutionNone": "Nur die Auflösung oben",
+    "videoMaxResolutionDetail": "Der Agent darf pro Clip jede Auflösung bis zu dieser verlangen, für eine schärfere Aufnahme, wenn jemand sie möchte. Eine Sekunde in höherer Auflösung kostet mehr.",
     "videoAspectRatio": "Seitenverhältnis",
     "videoLengthRange": "Dieses Modell erzeugt Clips von {min} bis {max} Sekunden.",
     "videoLengthDecided": "Dieses Modell bestimmt seine Länge selbst, {min} bis {max} Sekunden.",
@@ -7138,6 +7148,10 @@
         "title": "Stimme",
         "description": "Welche Stimme spricht; leer bedeutet die erste Stimme des Modells. ElevenLabs-Stimmen gehören zu Ihrem Konto, also fügen Sie für ElevenLabs die Stimmen-ID aus Ihrer Stimmenbibliothek ein."
       },
+      "voices": {
+        "title": "Weitere Stimmen",
+        "description": "Stimmen, die der Agent statt der obigen wählen darf, für jeden Clip einzeln - für einen Dialog oder für Erzähler und Figur. Leer bedeutet, dass er immer mit der Stimme oben spricht."
+      },
       "output_format": {
         "title": "Dateiformat",
         "description": "mp3 ist kleiner, wav unkomprimiert. Leer bedeutet das erste Format des Anbieters - Gemini liefert nur wav."
@@ -7159,6 +7173,10 @@
       "resolution": {
         "title": "Auflösung",
         "description": "Leer bedeutet die erste Auflösung des Modells. Höher kostet mehr pro Sekunde."
+      },
+      "max_resolution": {
+        "title": "Höchste Auflösung",
+        "description": "Die höchste Auflösung, die der Agent verlangen darf, was die Kosten einer Sekunde begrenzt; er darf auch jede niedrigere verlangen. Leer bedeutet, dass jeder Clip in der Auflösung oben entsteht."
       },
       "aspect_ratio": {
         "title": "Seitenverhältnis",

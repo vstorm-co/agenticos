@@ -21,7 +21,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.core.secret_kinds import SecretKind
 from app.main import app
 from app.services import video_models
-from app.services.video_models import VideoPrice, price_per_second
+from app.services.video_models import VideoPrice, price_per_second, resolution_lines, up_to
 
 
 def _provider(provider_id: str) -> video_models.VideoProvider:
@@ -57,6 +57,34 @@ class TestWhatTheCatalogOffers:
 
     def test_an_unlisted_model_id_is_not_a_model(self):
         assert _provider("xai").model("grok-imagine-video-9") is None
+
+
+class TestComparingResolutions:
+    def test_every_catalog_resolution_has_a_height(self):
+        """The catalog's names are the providers' own; a new spelling would make
+        the highest resolution an author sets impossible to compare against."""
+        for entry in video_models.providers():
+            for model in entry.models:
+                for resolution in model.resolutions:
+                    assert resolution_lines(resolution) >= 240
+
+    @pytest.mark.parametrize(
+        ("name", "lines"), [("480p", 480), ("1080P", 1080), ("4k", 2160), (" 720p ", 720)]
+    )
+    def test_both_spellings_read_as_lines(self, name, lines):
+        assert resolution_lines(name) == lines
+
+    @pytest.mark.parametrize("name", ["HD", "", "p720", "1080i"])
+    def test_a_name_of_neither_shape_is_refused(self, name):
+        with pytest.raises(ValueError, match="names no resolution"):
+            resolution_lines(name)
+
+    def test_up_to_is_the_models_resolutions_under_a_ceiling_shortest_first(self):
+        seedance = _provider("byteplus").model("dreamina-seedance-2-0-260128")
+        assert seedance is not None
+
+        assert up_to(seedance, "1080p") == ("480p", "720p", "1080p")
+        assert up_to(seedance, "480p") == ("480p",)
 
 
 class TestWhatIsDropped:

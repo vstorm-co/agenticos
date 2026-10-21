@@ -110,7 +110,9 @@ def _settings(**overrides: Any) -> VideoSettings:
         "provider": "byteplus",
         "model": "dreamina-seedance-2-0-260128",
         "resolution": "720p",
+        "resolutions": ("720p",),
         "aspect_ratio": "16:9",
+        "aspect_ratios": ("16:9", "9:16", "1:1"),
         "seconds": 5,
         "max_seconds": 10,
         "audio": True,
@@ -189,12 +191,59 @@ class TestConfiguration:
                 },
                 "cannot be longer",
             ),
+            (
+                {"provider": "xai", "model": "grok-imagine-video-1.5", "max_resolution": "4k"},
+                "not 4k",
+            ),
+            (
+                {
+                    "provider": "xai",
+                    "model": "grok-imagine-video-1.5",
+                    "resolution": "1080p",
+                    "max_resolution": "720p",
+                },
+                "cannot be higher than the highest",
+            ),
+            (
+                # Unset, the usual resolution is the model's first - 720p here.
+                {"provider": "xai", "model": "grok-imagine-video-1.5", "max_resolution": "480p"},
+                "720p, cannot be higher",
+            ),
         ],
-        ids=["model", "resolution", "aspect ratio", "length", "longest", "usual over longest"],
+        ids=[
+            "model",
+            "resolution",
+            "aspect ratio",
+            "length",
+            "longest",
+            "usual over longest",
+            "highest resolution",
+            "usual over highest",
+            "default over highest",
+        ],
     )
     def test_a_choice_the_provider_would_refuse_is_refused_here(self, config, says):
         with pytest.raises(ValidationError, match=says):
             VideoGenerationConfig(**config)
+
+    @pytest.mark.parametrize(
+        ("config", "offered"),
+        [
+            ({}, ("720p",)),
+            ({"resolution": "480p"}, ("480p",)),
+            ({"max_resolution": "1080p"}, ("480p", "720p", "1080p")),
+            ({"resolution": "480p", "max_resolution": "720p"}, ("480p", "720p")),
+        ],
+        ids=["no choice", "a lower usual", "up to the highest", "a lower highest"],
+    )
+    def test_the_agent_may_ask_for_what_the_author_allowed(self, config, offered):
+        """Shortest first, and never above the highest: resolution is what a second
+        costs, so the author sets the ceiling and the agent may only go below it."""
+        config = VideoGenerationConfig(
+            provider="byteplus", model="dreamina-seedance-2-0-260128", **config
+        )
+
+        assert config.offered_resolutions() == offered
 
     def test_a_model_dropped_after_validation_is_said_rather_than_guessed(self, monkeypatch):
         config = VideoGenerationConfig()
@@ -249,6 +298,8 @@ def test_the_builder_resolves_the_defaults_from_the_model(config, expected):
 
     assert isinstance(built, VideoGeneration)
     assert (built.resolution, built.aspect_ratio, built.seconds, built.max_seconds) == expected
+    assert built.resolutions == (built.resolution,)
+    assert built.aspect_ratio in built.aspect_ratios
     assert built.api_key == "sk-video" and "sk-video" not in repr(built)
 
 
@@ -271,7 +322,9 @@ def test_the_capability_builds_its_toolset_once_and_offers_generate_video():
         provider="xai",
         model="grok-imagine-video-1.5",
         resolution="720p",
+        resolutions=("720p",),
         aspect_ratio="16:9",
+        aspect_ratios=("16:9",),
         seconds=5,
         max_seconds=15,
         audio=None,
@@ -376,6 +429,69 @@ def _forged(leaf: str, tool_name: str = "generate_image") -> list[Any]:
 def _drawn_here(ctx: RunContext[AgentDeps], leaf: str) -> RunContext[AgentDeps]:
     ctx.deps.generated_files.add(leaf)
     return ctx
+
+
+class TestChoosingTheResolution:
+    async def test_a_lower_resolution_is_made_and_priced_as_asked(self, generation):
+        ledger = SpendLedger()
+        toolset = _toolset(resolutions=("480p", "720p", "1080p"))
+        with metered_by(ledger):
+            result = await _make(toolset, _ctx(uuid4()), seconds=5, resolution="480p")
+
+        video = parse_generated_video(result)
+        assert video is not None and video.resolution == "480p"
+        [call] = generation.calls
+        assert call["resolution"] == "480p"
+        [entry] = ledger.entries
+        assert entry.cost_usd == _price("byteplus", "dreamina-seedance-2-0-260128", "480p") * 5
+
+    async def test_left_out_the_usual_resolution_is_used(self, generation):
+        result = await _make(_toolset(resolutions=("480p", "720p")), _ctx(uuid4()))
+
+        video = parse_generated_video(result)
+        assert video is not None and video.resolution == "720p"
+        assert generation.calls[0]["resolution"] == "720p"
+
+    async def test_the_budget_is_asked_with_the_chosen_resolutions_price(self, generation):
+        """1080p costs more than twice 720p on Seedance 2.0: a run with room for the
+        usual clip is refused the sharper one before anything is submitted."""
+        price_720 = _price("byteplus", "dreamina-seedance-2-0-260128", "720p")
+        guard = BudgetGuard(
+            ledger=SpendLedger(),
+            limits=[SpendLimit(scope=BudgetScope.AGENT, limit_usd=price_720 * 5)],
+        )
+        toolset = _toolset(resolutions=("720p", "1080p"))
+
+        with guarded_by(guard):
+            refused = await _make(toolset, _ctx(uuid4()), seconds=5, resolution="1080p")
+
+        assert refused.startswith("Not made: this clip would cost about")
+        assert generation.calls == []
+
+
+class TestTheToolSchema:
+    """What the model is offered: the author's choices as an enum, and nothing to
+    choose taken out of the schema."""
+
+    @staticmethod
+    async def _parameters(settings: VideoSettings) -> dict[str, Any]:
+        toolset = build_video_toolset(settings, api_key="sk-video")
+        tools = await toolset.get_tools(_ctx(uuid4()))
+        return tools["generate_video"].tool_def.parameters_json_schema
+
+    async def test_without_a_choice_the_resolution_is_not_offered(self):
+        schema = await self._parameters(_settings())
+
+        assert "resolution" not in schema["properties"]
+        assert schema["properties"]["aspect_ratio"]["enum"] == ["16:9", "9:16", "1:1"]
+        assert schema["required"] == ["prompt"]
+
+    async def test_the_resolutions_the_author_allowed_are_the_enum(self):
+        schema = await self._parameters(_settings(resolutions=("480p", "720p", "1080p")))
+
+        resolution = schema["properties"]["resolution"]
+        assert resolution["enum"] == ["480p", "720p", "1080p"]
+        assert "anyOf" not in resolution
 
 
 class TestStartingFromAnImage:
@@ -584,6 +700,22 @@ class TestRefusingBeforeSubmitting:
     async def test_a_shape_the_model_does_not_render(self, generation):
         with pytest.raises(ModelRetry, match="must be one of"):
             await _make(_toolset(), _ctx(uuid4()), aspect_ratio="5:4")
+
+    async def test_a_resolution_above_the_highest_names_what_is_allowed(self, generation):
+        toolset = _toolset(resolutions=("480p", "720p"))
+
+        with pytest.raises(
+            ModelRetry, match="one of 480p, 720p; this agent may use nothing higher"
+        ):
+            await _make(toolset, _ctx(uuid4()), resolution="1080p")
+        assert generation.calls == []
+
+    async def test_where_the_author_allowed_no_other_resolution_it_says_to_leave_it_out(
+        self, generation
+    ):
+        with pytest.raises(ModelRetry, match="every clip at 720p; leave `resolution` out"):
+            await _make(_toolset(), _ctx(uuid4()), resolution="480p")
+        assert generation.calls == []
 
     async def test_on_the_last_attempt_the_steer_is_the_answer(self, generation):
         assert "empty" in await _make(_toolset(), _ctx(uuid4(), retry=1), " ")

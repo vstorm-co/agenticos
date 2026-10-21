@@ -25,7 +25,9 @@ class VideoGeneration(AbstractCapability[AgentDepsT]):
     provider: str
     model: str
     resolution: str
+    resolutions: tuple[str, ...]
     aspect_ratio: str
+    aspect_ratios: tuple[str, ...]
     seconds: int
     max_seconds: int
     audio: bool | None
@@ -46,7 +48,9 @@ class VideoGeneration(AbstractCapability[AgentDepsT]):
                     provider=self.provider,
                     model=self.model,
                     resolution=self.resolution,
+                    resolutions=self.resolutions,
                     aspect_ratio=self.aspect_ratio,
+                    aspect_ratios=self.aspect_ratios,
                     seconds=self.seconds,
                     max_seconds=self.max_seconds,
                     audio=self.audio,

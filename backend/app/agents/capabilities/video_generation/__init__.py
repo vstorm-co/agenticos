@@ -9,7 +9,14 @@ from app.agents.capabilities._registry import (
 )
 from app.agents.capabilities.video_generation._capability import VideoGeneration
 from app.core.secret_kinds import ApiKeySecret, SecretCondition, SecretKind, SecretRequirement
-from app.services.video_models import VideoModel, by_provider, default_choice, providers
+from app.services.video_models import (
+    VideoModel,
+    by_provider,
+    default_choice,
+    providers,
+    resolution_lines,
+    up_to,
+)
 
 __all__ = ["VideoGeneration", "VideoGenerationConfig"]
 
@@ -46,6 +53,15 @@ class VideoGenerationConfig(BaseModel):
         title="Resolution",
         default=None,
         description="Left empty, the model's first. Higher costs more per second.",
+    )
+    max_resolution: str | None = Field(
+        title="Highest resolution",
+        default=None,
+        description=(
+            "The highest resolution the agent may ask for, which caps what a second can "
+            "cost; it may also ask for any lower one. Left empty, every clip is made at "
+            "the resolution above."
+        ),
     )
     aspect_ratio: str | None = Field(
         title="Aspect ratio",
@@ -104,6 +120,18 @@ class VideoGenerationConfig(BaseModel):
             raise ValueError(
                 f"{self.model} renders {', '.join(model.resolutions)}, not {self.resolution}."
             )
+        if self.max_resolution is not None:
+            if self.max_resolution not in model.resolutions:
+                raise ValueError(
+                    f"{self.model} renders {', '.join(model.resolutions)}, "
+                    f"not {self.max_resolution}."
+                )
+            usual = self.resolution or model.resolutions[0]
+            if resolution_lines(usual) > resolution_lines(self.max_resolution):
+                raise ValueError(
+                    f"The usual resolution, {usual}, cannot be higher than the highest, "
+                    f"{self.max_resolution}."
+                )
         if self.aspect_ratio is not None and self.aspect_ratio not in model.aspect_ratios:
             raise ValueError(
                 f"{self.model} renders {', '.join(model.aspect_ratios)}, not {self.aspect_ratio}."
@@ -138,6 +166,13 @@ class VideoGenerationConfig(BaseModel):
         if model is None:
             raise ValueError(f"{self.provider}/{self.model} is no longer offered for video")
         return model
+
+    def offered_resolutions(self) -> tuple[str, ...]:
+        """What the agent may ask for, shortest first: the usual one alone, or every
+        one up to the highest."""
+        model = self.chosen_model()
+        usual = self.resolution or model.resolutions[0]
+        return up_to(model, self.max_resolution) if self.max_resolution else (usual,)
 
 
 @register(
@@ -177,7 +212,9 @@ def _build(ctx: CapabilityBuildContext) -> VideoGeneration:
         provider=config.provider,
         model=config.model,
         resolution=config.resolution or model.resolutions[0],
+        resolutions=config.offered_resolutions(),
         aspect_ratio=config.aspect_ratio or model.aspect_ratios[0],
+        aspect_ratios=model.aspect_ratios,
         seconds=config.seconds
         or min(max(USUAL_SECONDS, model.min_seconds), config.max_seconds or model.max_seconds),
         max_seconds=config.max_seconds or model.max_seconds,

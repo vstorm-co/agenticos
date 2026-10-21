@@ -1,5 +1,5 @@
 ---
-source_sha: "e2ff0b27c4e5"
+source_sha: "b5ef25abc0be"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1168,6 +1168,7 @@ gezeigt und unter `output/` abgelegt, wenn ein Workspace offen ist (#2259).
 | `provider` | `openai` | `openai`, `elevenlabs`, `google` |
 | `model` | `gpt-4o-mini-tts` | Die Modelle dieses Providers aus `app/core/catalog/text_to_speech_models.json` |
 | `voice` | die erste des Modells | Eine Katalogstimme für OpenAI und Gemini; eine ID aus Ihrer eigenen Stimmenbibliothek für ElevenLabs |
+| `voices` | keine | Bis zu 20 weitere Stimmen, die der Agent pro Clip wählen darf, jede als `id` und, für eine Kontostimme, eine `note` mit bis zu 120 Zeichen, die sagt, wer es ist |
 | `output_format` | das erste des Providers | `mp3`, `wav` (Gemini liefert nur `wav`) |
 | `max_characters` | `5000` | 1–100 000; der meiste Text, den ein Aufruf sprechen darf |
 
@@ -1181,6 +1182,16 @@ dreizehn Stimmen, deshalb werden Stimmen pro Modell aufgeführt.
 **ElevenLabs-Stimmen gehören zum Konto.** Die gemeinsamen Standardstimmen laufen am
 31.12.2026 ab, also führt der Katalog keine auf, und ein Binding nennt eine der
 eigenen Stimmen des Kontos per ID; Veröffentlichen ohne sie wird abgelehnt.
+
+**Der Agent darf unter den Stimmen wählen, die der Autor auflistet.** `voice` ist
+die Stimme, mit der er spricht, solange er keine andere verlangt; `voices` fügt
+die übrigen hinzu, für einen Dialog oder für Erzähler und Figur. Sie erreichen das
+Modell als `enum` am Parameter `voice` des Tools, mit der Beschreibung jeder Stimme
+aus dem Katalog oder, für eine Kontostimme, der Notiz des Autors - eine ID sagt
+nichts darüber, wie die Stimme klingt. Ein Binding ohne weitere Stimmen bietet
+keinen Parameter `voice` an, sodass das Tool so aussieht wie vor der Wahl. Eine
+Stimme, die das Modell nicht anbietet, wird beim Veröffentlichen abgelehnt, wie
+`voice`, und beim Aufruf an das Modell zurückgelenkt.
 
 **Die Schlüsselauswahl zeigt die Schlüssel des gewählten Providers.** Das Secret
 ist für jeden Provider erforderlich und als erforderlich deklariert, *wenn*
@@ -1237,6 +1248,7 @@ gemacht haben.
 | `provider` | `google` | `google`, `byteplus`, `xai`, `alibaba` |
 | `model` | `gemini-omni-1.1-flash` | Die Modelle dieses Providers aus `app/core/catalog/video_models.json` |
 | `resolution` | die erste des Modells | Die Auflösungen, die das Modell rendert |
+| `max_resolution` | keine | Die höchste, die der Agent verlangen darf, mindestens `resolution` |
 | `aspect_ratio` | das erste des Modells | Die Seitenverhältnisse, die das Modell rendert |
 | `seconds` | 5 oder der nächste Wert des Modells | Im Bereich des Modells; für Gemini Omni abgelehnt, das selbst entscheidet |
 | `max_seconds` | der längste Clip des Modells | Der längste Clip, den der Agent verlangen darf; für Gemini Omni abgelehnt |
@@ -1249,6 +1261,16 @@ Ton haben und ob es mit einem Bild beginnen kann, und der Builder bietet nur das
 an. BytePlus ist ein [Secret-Zweck](../secrets.md) im Vault; Google, xAI und
 Alibaba Cloud sind bereits Modell-Provider. OpenAI fehlt: Seine Video-API wurde
 am 24.09.2026 abgeschaltet.
+
+**Der Agent darf das Seitenverhältnis und, bis zu einer Obergrenze, die Auflösung
+wählen.** Die Seitenverhältnisse sind die des Modells, und `resolution` ist die
+übliche Auflösung. Ist `max_resolution` gesetzt, darf der Agent jede Auflösung
+verlangen, die das Modell bis zu ihr rendert - eine niedrigere für einen Entwurf,
+eine höhere für eine Aufnahme, die jemand scharf haben will; ohne sie entsteht
+jeder Clip in `resolution`. Die Auflösung bestimmt den Preis einer Sekunde, also
+setzt der Autor die Obergrenze, und das Budget wird mit dem Preis der gewählten
+Auflösung geprüft. Beide erreichen das Modell als `enum` an den Parametern des
+Tools, und ein Parameter mit nur einem Wert wird nicht angeboten.
 
 **Ein Clip ist ein Job, auf den gewartet wird wie auf ein Bild.** Gemini antwortet
 in der Anfrage selbst; BytePlus, xAI und Alibaba nehmen einen Job an, der abgefragt

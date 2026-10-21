@@ -18,12 +18,16 @@ import {
 } from "@/components/ui";
 import { useVideoProviders } from "@/hooks/use-model-providers";
 import { capabilityConfigErrors } from "@/lib/agent-spec";
+import { resolutionLines, resolutionsAbove } from "@/lib/video-resolutions";
 import type { FieldProblem } from "@/lib/api-error";
 import type { CapabilityBindingSpec, CapabilityCatalogEntry } from "@/types/agents";
 import { useTranslations } from "next-intl";
 
 /** The fields this panel draws itself; the rest is the generated form. */
-const HAND_ROLLED = ["provider", "model", "resolution", "aspect_ratio", "audio"];
+const HAND_ROLLED = ["provider", "model", "resolution", "max_resolution", "aspect_ratio", "audio"];
+
+/** The highest-resolution select's value for "no other resolution", stored as no value. */
+const ONLY_USUAL = "only-usual";
 
 /** What a model that decides its own length would ignore, so it is not offered. */
 const LENGTH_FIELDS = ["seconds", "max_seconds"];
@@ -36,7 +40,14 @@ const AUDIO_CHOICES = {
 } as const;
 
 /** What a model decides for itself, which means nothing on another model. */
-const MODEL_SPECIFIC = ["resolution", "aspect_ratio", "seconds", "max_seconds", "audio"];
+const MODEL_SPECIFIC = [
+  "resolution",
+  "max_resolution",
+  "aspect_ratio",
+  "seconds",
+  "max_seconds",
+  "audio",
+];
 
 interface VideoGenerationSectionProps {
   definition: CapabilityCatalogEntry | undefined;
@@ -86,6 +97,28 @@ export function VideoGenerationSection({
   const setConfig = (patch: Record<string, unknown>) =>
     onChange({ ...binding, config: { ...binding.config, ...patch } });
 
+  /** Every config but `field`, for a setting whose default is no value stored. */
+  const without = (field: string) =>
+    Object.fromEntries(Object.entries(binding.config).filter(([name]) => name !== field));
+
+  const usual = model === undefined ? "" : shown("resolution", model.resolutions);
+  const ceilings = model === undefined ? [] : resolutionsAbove(model.resolutions, usual);
+  const storedCeiling =
+    typeof binding.config.max_resolution === "string" &&
+    ceilings.includes(binding.config.max_resolution)
+      ? binding.config.max_resolution
+      : ONLY_USUAL;
+
+  /** A usual resolution at or above the ceiling leaves the ceiling nothing to allow. */
+  const chooseResolution = (next: string) => {
+    const ceiling = binding.config.max_resolution;
+    const stale = typeof ceiling === "string" && resolutionLines(ceiling) <= resolutionLines(next);
+    onChange({
+      ...binding,
+      config: { ...(stale ? without("max_resolution") : binding.config), resolution: next },
+    });
+  };
+
   /** A resolution, a length or a shape chosen for one model means nothing on another. */
   const chooseOffering = (patch: { provider?: string; model: string }) => {
     const kept = Object.fromEntries(
@@ -117,11 +150,7 @@ export function VideoGenerationSection({
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="video-resolution">{t("videoResolution")}</Label>
-            <Select
-              value={shown("resolution", model.resolutions)}
-              disabled={disabled}
-              onValueChange={(next) => setConfig({ resolution: next })}
-            >
+            <Select value={usual} disabled={disabled} onValueChange={chooseResolution}>
               <SelectTrigger id="video-resolution">
                 <SelectValue />
               </SelectTrigger>
@@ -158,6 +187,38 @@ export function VideoGenerationSection({
         </div>
       )}
 
+      {ceilings.length > 0 && (
+        <div className="space-y-1.5">
+          <Label htmlFor="video-max-resolution">{t("videoMaxResolution")}</Label>
+          <Select
+            value={storedCeiling}
+            disabled={disabled}
+            onValueChange={(next) =>
+              onChange({
+                ...binding,
+                config:
+                  next === ONLY_USUAL
+                    ? without("max_resolution")
+                    : { ...binding.config, max_resolution: next },
+              })
+            }
+          >
+            <SelectTrigger id="video-max-resolution">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ONLY_USUAL}>{t("videoMaxResolutionNone")}</SelectItem>
+              {ceilings.map((entry) => (
+                <SelectItem key={entry} value={entry}>
+                  {entry}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-muted-foreground text-xs">{t("videoMaxResolutionDetail")}</p>
+        </div>
+      )}
+
       {model !== undefined && model.audio === "optional" && (
         <div className="space-y-1.5">
           <Label htmlFor="video-audio">{t("videoAudio")}</Label>
@@ -171,9 +232,7 @@ export function VideoGenerationSection({
             }
             disabled={disabled}
             onValueChange={(next) => {
-              const rest = Object.fromEntries(
-                Object.entries(binding.config).filter(([name]) => name !== "audio"),
-              );
+              const rest = without("audio");
               onChange({
                 ...binding,
                 config: next === "default" ? rest : { ...rest, audio: next === "on" },

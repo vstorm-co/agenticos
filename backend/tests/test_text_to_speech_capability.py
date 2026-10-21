@@ -36,6 +36,7 @@ from app.agents.capabilities.budget import (
 from app.agents.capabilities.text_to_speech import TextToSpeech, TextToSpeechConfig
 from app.agents.capabilities.text_to_speech import _toolset as toolset_module
 from app.agents.capabilities.text_to_speech._toolset import (
+    OfferedVoice,
     build_speech_toolset,
     parse_generated_speech,
 )
@@ -103,6 +104,7 @@ def _toolset(**overrides: Any) -> Any:
         "provider": "openai",
         "model": "gpt-4o-mini-tts",
         "voice": "marin",
+        "voices": (OfferedVoice("marin"),),
         "audio_format": "mp3",
         "max_characters": 100,
         "api_key": "sk-speech",
@@ -158,6 +160,35 @@ class TestConfiguration:
             ({"provider": "elevenlabs", "model": "eleven_v4", "voice": ".."}, "is not a voice id"),
             ({"provider": "openai", "model": "tts-1", "voice": "marin"}, "has no voice"),
             (
+                {"provider": "openai", "model": "tts-1", "voices": [{"id": "marin"}]},
+                "has no voice 'marin'",
+            ),
+            (
+                {
+                    "provider": "elevenlabs",
+                    "model": "eleven_v4",
+                    "voice": "abc123",
+                    "voices": [{"id": "a b"}],
+                },
+                "is not a voice id",
+            ),
+            (
+                {
+                    "provider": "openai",
+                    "model": "gpt-4o-mini-tts",
+                    "voices": [{"id": "cedar"}] * 21,
+                },
+                "at most 20",
+            ),
+            (
+                {
+                    "provider": "openai",
+                    "model": "gpt-4o-mini-tts",
+                    "voices": [{"id": "cedar", "note": "x" * 121}],
+                },
+                "at most 120",
+            ),
+            (
                 {"provider": "google", "model": "gemini-3.8-flash-tts", "output_format": "mp3"},
                 "not mp3",
             ),
@@ -169,12 +200,51 @@ class TestConfiguration:
             "blank voice",
             "dots for a voice id",
             "voice the model lacks",
+            "other voice the model lacks",
+            "other voice not an id",
+            "too many voices",
+            "a note past a few words",
             "format",
         ],
     )
     def test_a_choice_the_provider_would_refuse_is_refused_here(self, config, says):
         with pytest.raises(ValidationError, match=says):
             TextToSpeechConfig(**config)
+
+    def test_with_no_other_voices_only_the_usual_one_is_offered(self):
+        config = TextToSpeechConfig(provider="openai", model="tts-1")
+
+        assert config.offered_voices() == (OfferedVoice("alloy", "Alloy"),)
+
+    def test_catalog_voices_are_described_by_the_catalog_and_listed_once(self):
+        """The usual voice first, a repeat of it dropped, and a note on a catalog
+        voice ignored - the catalog already says what it is."""
+        config = TextToSpeechConfig(
+            provider="openai",
+            model="gpt-4o-mini-tts",
+            voice="cedar",
+            voices=[{"id": "alloy", "note": "ignored"}, {"id": "cedar"}, {"id": "marin"}],
+        )
+
+        assert config.offered_voices() == (
+            OfferedVoice("cedar", "Cedar, OpenAI's recommendation for the best quality."),
+            OfferedVoice("alloy", "Alloy"),
+            OfferedVoice("marin", "Marin, OpenAI's recommendation for the best quality."),
+        )
+
+    def test_an_account_voice_is_described_only_by_its_authors_note(self):
+        config = TextToSpeechConfig(
+            provider="elevenlabs",
+            model="eleven_v4",
+            voice="narrator1",
+            voices=[{"id": " villain2 ", "note": "Igor, the villain"}, {"id": "extra3"}],
+        )
+
+        assert config.offered_voices() == (
+            OfferedVoice("narrator1"),
+            OfferedVoice("villain2", "Igor, the villain"),
+            OfferedVoice("extra3"),
+        )
 
     def test_a_provider_dropped_after_validation_is_said_rather_than_guessed(self, monkeypatch):
         config = TextToSpeechConfig()
@@ -222,6 +292,7 @@ def test_the_builder_reads_the_key_and_resolves_voice_and_format():
 
     assert isinstance(built, TextToSpeech)
     assert (built.provider, built.voice, built.audio_format) == ("google", "Kore", "wav")
+    assert [offered.id for offered in built.voices] == ["Kore"]
     assert built.api_key == "sk-gemini"
     assert "sk-gemini" not in repr(built)
 
@@ -254,6 +325,7 @@ def test_the_capability_builds_its_toolset_once_and_offers_generate_speech():
         provider="openai",
         model="gpt-4o-mini-tts",
         voice="marin",
+        voices=(OfferedVoice("marin"),),
         audio_format="mp3",
         max_characters=10,
     )
@@ -324,6 +396,44 @@ class TestSpeaking:
 
 
 @pytest.mark.security
+class TestChoosingTheVoice:
+    VOICES = (OfferedVoice("marin", "Marin, the narrator"), OfferedVoice("cedar"))
+
+    async def test_another_offered_voice_speaks_and_is_said(self, synthesis):
+        result = await _speak(_toolset(voices=self.VOICES), _ctx(uuid4()), voice="cedar")
+
+        speech = parse_generated_speech(result)
+        assert speech is not None and speech.voice == "cedar"
+        assert synthesis.calls[0]["voice"] == "cedar"
+
+    async def test_left_out_the_usual_voice_speaks(self, synthesis):
+        await _speak(_toolset(voices=self.VOICES), _ctx(uuid4()))
+
+        assert synthesis.calls[0]["voice"] == "marin"
+
+    async def test_a_voice_the_author_did_not_offer_names_those_it_did(self, synthesis):
+        with pytest.raises(ModelRetry, match="must be one of marin, cedar"):
+            await _speak(_toolset(voices=self.VOICES), _ctx(uuid4()), voice="alloy")
+        assert synthesis.calls == []
+
+    async def test_with_one_voice_it_says_to_leave_the_voice_out(self, synthesis):
+        with pytest.raises(ModelRetry, match="only in marin; leave `voice` out"):
+            await _speak(_toolset(), _ctx(uuid4()), voice="cedar")
+        assert synthesis.calls == []
+
+    async def test_the_schema_offers_the_voices_with_what_each_is_for(self):
+        tools = await _toolset(voices=self.VOICES).get_tools(_ctx(uuid4()))
+
+        voice = tools["generate_speech"].tool_def.parameters_json_schema["properties"]["voice"]
+        assert voice["enum"] == ["marin", "cedar"]
+        assert voice["description"].endswith("Offered: marin: Marin, the narrator.")
+
+    async def test_with_one_voice_the_schema_offers_no_choice(self):
+        tools = await _toolset().get_tools(_ctx(uuid4()))
+
+        assert "voice" not in tools["generate_speech"].tool_def.parameters_json_schema["properties"]
+
+
 class TestRefusingBeforeSpending:
     async def test_without_a_key(self, synthesis):
         with pytest.raises(ModelRetry, match="no API key"):

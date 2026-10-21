@@ -359,3 +359,105 @@ describe("the key it renders with", () => {
     );
   });
 });
+
+describe("the highest resolution the agent may ask for", () => {
+  it("offers only what is taller than the usual resolution, and none as the default", async () => {
+    mount({ provider: "xai", model: "grok-imagine-video-1.5", resolution: "480p" });
+
+    expect(screen.getByLabelText("Highest resolution")).toHaveTextContent(
+      "Only the resolution above",
+    );
+    await userEvent.click(screen.getByLabelText("Highest resolution"));
+
+    const options = await screen.findAllByRole("option");
+    expect(options.map((option) => option.textContent)).toEqual([
+      "Only the resolution above",
+      "720p",
+      "1080p",
+    ]);
+  });
+
+  it("is not offered where nothing is taller than the usual resolution", () => {
+    mount({ provider: "xai", model: "grok-imagine-video-1.5", resolution: "1080p" });
+
+    expect(screen.queryByLabelText("Highest resolution")).toBeNull();
+  });
+
+  it("stores a ceiling, and clears it again", async () => {
+    const onChange = mount({ provider: "xai", model: "grok-imagine-video-1.5" });
+
+    await userEvent.click(screen.getByLabelText("Highest resolution"));
+    await userEvent.click(await screen.findByRole("option", { name: "1080p" }));
+
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        config: { provider: "xai", model: "grok-imagine-video-1.5", max_resolution: "1080p" },
+      }),
+    );
+  });
+
+  it("drops the ceiling when it is chosen back to the usual resolution alone", async () => {
+    const onChange = mount({
+      provider: "xai",
+      model: "grok-imagine-video-1.5",
+      max_resolution: "1080p",
+    });
+
+    expect(screen.getByLabelText("Highest resolution")).toHaveTextContent("1080p");
+    await userEvent.click(screen.getByLabelText("Highest resolution"));
+    await userEvent.click(await screen.findByRole("option", { name: "Only the resolution above" }));
+
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ config: { provider: "xai", model: "grok-imagine-video-1.5" } }),
+    );
+  });
+
+  it("drops a ceiling the new usual resolution reaches", async () => {
+    // The server refuses a usual resolution above the highest: the ceiling goes
+    // rather than leaving a binding that cannot be published.
+    const onChange = mount({
+      provider: "xai",
+      model: "grok-imagine-video-1.5",
+      resolution: "480p",
+      max_resolution: "720p",
+    });
+
+    await userEvent.click(screen.getByLabelText("Resolution"));
+    await userEvent.click(await screen.findByRole("option", { name: "1080p" }));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        config: { provider: "xai", model: "grok-imagine-video-1.5", resolution: "1080p" },
+      }),
+    );
+  });
+
+  it("keeps a ceiling still above the new usual resolution", async () => {
+    const onChange = mount({
+      provider: "xai",
+      model: "grok-imagine-video-1.5",
+      resolution: "480p",
+      max_resolution: "1080p",
+    });
+
+    await userEvent.click(screen.getByLabelText("Resolution"));
+    await userEvent.click(await screen.findByRole("option", { name: "720p" }));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        config: expect.objectContaining({ resolution: "720p", max_resolution: "1080p" }),
+      }),
+    );
+  });
+
+  it("does not carry a ceiling onto another model", async () => {
+    const onChange = mount({
+      provider: "xai",
+      model: "grok-imagine-video-1.5",
+      max_resolution: "1080p",
+    });
+
+    await userEvent.click(screen.getByLabelText("Provider"));
+    await userEvent.click(await screen.findByRole("option", { name: /Google Gemini/ }));
+
+    expect(onChange.mock.lastCall?.[0].config).not.toHaveProperty("max_resolution");
+  });
+});

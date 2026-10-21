@@ -5,6 +5,11 @@ The clip is made by the provider the binding chose, through
 kept (:mod:`app.agents.capabilities._generated`) - so a person hears it where they
 would have seen the picture, and a later step finds it under `output/`.
 
+**The author bounds which voices the model may choose.** The usual voice, and
+any others the binding lists, are offered as an `enum` in the tool's schema with
+what each is for (:mod:`app.agents.capabilities._choices`); a binding with one
+voice offers no choice at all.
+
 **The budget is asked before the call, with the call's price.** Speech is sold per
 character, so what a clip costs is known before it is made, and a run is refused
 a clip that would carry it past a cap rather than only the call after the cap is
@@ -22,6 +27,7 @@ they are the author's or the operator's - so they are returned as the result.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Literal
@@ -30,6 +36,7 @@ from pydantic import BaseModel, ValidationError
 from pydantic_ai.tools import RunContext
 from pydantic_ai.toolsets import FunctionToolset
 
+from app.agents.capabilities._choices import Choice, schema_for
 from app.agents.capabilities._failures import steer
 from app.agents.capabilities._generated import store_generated
 from app.agents.capabilities.budget import can_afford_ambient_call, record_ambient_cost
@@ -42,6 +49,14 @@ MEDIA_TYPES = {"mp3": "audio/mpeg", "wav": "audio/wav"}
 MAX_INSTRUCTIONS = 1000
 """The longest direction on how to speak. It goes to the provider with every piece
 of a long text and is not priced, so it is kept to a direction rather than a text."""
+
+
+@dataclass(frozen=True)
+class OfferedVoice:
+    """A voice the model may choose, and what it reads about it."""
+
+    id: str
+    note: str | None = None
 
 
 class GeneratedSpeech(BaseModel):
@@ -80,19 +95,26 @@ def build_speech_toolset(
     provider: str,
     model: str,
     voice: str,
+    voices: tuple[OfferedVoice, ...],
     audio_format: str,
     max_characters: int,
     api_key: str | None,
 ) -> FunctionToolset[AgentDeps]:
-    """A `generate_speech` tool bound to one provider, model, voice and key.
+    """A `generate_speech` tool bound to one provider, model and key.
 
-    Everything the model must not choose is closed over. It chooses the words and,
-    where the model reads one, a direction on how to say them.
+    Everything the model must not choose is closed over. It chooses the words,
+    one of the voices the author offered, and - where the model reads one - a
+    direction on how to say them.
     """
     ledger_name = f"{provider}:{model}"
+    usual_voice = voice
+    voice_ids = tuple(offered.id for offered in voices)
 
     async def generate_speech(
-        ctx: RunContext[AgentDeps], text: str, instructions: str | None = None
+        ctx: RunContext[AgentDeps],
+        text: str,
+        voice: str | None = None,
+        instructions: str | None = None,
     ) -> str:
         """Speak a text aloud as an audio clip.
 
@@ -107,6 +129,8 @@ def build_speech_toolset(
         Args:
             text: The words to speak. A text over this agent's limit is refused
                 with the limit stated; split it into several calls.
+            voice: Who speaks - for a dialogue, a voice per speaker, one call each.
+                Left out, the agent's usual voice.
             instructions: How to say it - tone, pace, emotion, accent, e.g.
                 "warm and unhurried". Ignored by voices that take no direction.
 
@@ -135,6 +159,12 @@ def build_speech_toolset(
                 "characters. Shorten it.",
             )
 
+        speaker = voice or usual_voice
+        if speaker not in voice_ids:
+            if len(voice_ids) == 1:
+                return steer(ctx, f"This agent speaks only in {usual_voice}; leave `voice` out.")
+            return steer(ctx, f"`voice` must be one of {', '.join(voice_ids)}.")
+
         entry = by_provider(provider)
         chosen = entry.model(model) if entry is not None else None
         if entry is None or chosen is None:
@@ -158,7 +188,7 @@ def build_speech_toolset(
             speech = await synthesize(
                 entry,
                 model=model,
-                voice=voice,
+                voice=speaker,
                 text=spoken,
                 audio_format=audio_format,
                 api_key=api_key,
@@ -196,7 +226,7 @@ def build_speech_toolset(
             filename=stored.filename,
             url=stored.url,
             media_type=MEDIA_TYPES[speech.audio_format],
-            voice=voice,
+            voice=speaker,
             characters=speech.characters,
             workspace_path=stored.workspace_path,
         ).model_dump_json()
@@ -204,5 +234,16 @@ def build_speech_toolset(
     toolset: FunctionToolset[AgentDeps] = FunctionToolset()
     # One clip at a time: the budget is asked with a clip's price and reserves
     # nothing, so two clips priced at once could each fit and together pass a cap.
-    toolset.add_function(generate_speech, takes_ctx=True, sequential=True)
+    toolset.add_function(
+        generate_speech,
+        takes_ctx=True,
+        sequential=True,
+        prepare=schema_for(
+            {
+                "voice": Choice(
+                    voice_ids, notes={offered.id: offered.note or "" for offered in voices}
+                )
+            }
+        ),
+    )
     return toolset

@@ -839,6 +839,13 @@
     "speechVoiceDetail": "Głosy, którymi może mówić ten model.",
     "speechVoiceIdPlaceholder": "Id głosu",
     "speechAccountVoiceDetail": "Głosy {provider} należą do Twojego konta. Wklej id jednego z nich ze swojej biblioteki głosów.",
+    "speechOtherVoices": "Inne głosy",
+    "speechOtherVoicesDetail": "Głosy, które agent może wybrać zamiast zwykłego, osobno dla każdego klipu - do dialogu albo dla narratora i postaci. Gdy żaden nie jest zaznaczony, zawsze mówi zwykłym głosem.",
+    "speechOtherVoiceId": "Id głosu {position}",
+    "speechOtherVoiceNote": "Do czego służy głos {position}",
+    "speechOtherVoiceNotePlaceholder": "Kto to jest, np. Anna, narratorka",
+    "speechOtherVoiceRemove": "Usuń głos {position}",
+    "speechOtherVoiceAdd": "Dodaj głos",
     "speechProvidersLoading": "Sprawdzam, co oferuje każdy provider…",
     "speechProvidersUnavailable": "Nie udało się odczytać listy providerów. Model powyżej nadal zostanie użyty.",
     "videoProvider": "Provider",
@@ -850,6 +857,9 @@
     "videoModelUnknownProvider": "Ten binding wskazuje {provider}, który nie potrafi tworzyć wideo. Wybierz providera powyżej.",
     "videoResolution": "Rozdzielczość",
     "videoResolutionDetail": "Rozdzielczości, które renderuje ten model. Wyższa kosztuje więcej za sekundę.",
+    "videoMaxResolution": "Najwyższa rozdzielczość",
+    "videoMaxResolutionNone": "Tylko rozdzielczość powyżej",
+    "videoMaxResolutionDetail": "Agent może poprosić o każdą rozdzielczość do tej włącznie, osobno dla każdego klipu, gdy ktoś chce ostrzejszego ujęcia. Sekunda w wyższej rozdzielczości kosztuje więcej.",
     "videoAspectRatio": "Proporcje obrazu",
     "videoLengthRange": "Ten model tworzy klipy od {min} do {max} sekund.",
     "videoLengthDecided": "Ten model sam decyduje o długości, od {min} do {max} sekund.",
@@ -7039,6 +7049,10 @@
         "title": "Głos",
         "description": "Który głos mówi; puste oznacza pierwszy głos modelu. Głosy ElevenLabs należą do Twojego konta, więc dla ElevenLabs wklej id głosu ze swojej biblioteki głosów."
       },
+      "voices": {
+        "title": "Inne głosy",
+        "description": "Głosy, które agent może wybrać zamiast powyższego, osobno dla każdego klipu - do dialogu albo dla narratora i postaci. Puste oznacza, że zawsze mówi głosem powyżej."
+      },
       "output_format": {
         "title": "Format pliku",
         "description": "mp3 jest mniejszy, wav nieskompresowany. Puste oznacza pierwszy format providera - Gemini zwraca tylko wav."
@@ -7060,6 +7074,10 @@
       "resolution": {
         "title": "Rozdzielczość",
         "description": "Puste oznacza pierwszą rozdzielczość modelu. Wyższa kosztuje więcej za sekundę."
+      },
+      "max_resolution": {
+        "title": "Najwyższa rozdzielczość",
+        "description": "Najwyższa rozdzielczość, o jaką może poprosić agent, co ogranicza koszt sekundy; może też poprosić o każdą niższą. Puste oznacza, że każdy klip powstaje w rozdzielczości powyżej."
       },
       "aspect_ratio": {
         "title": "Proporcje obrazu",

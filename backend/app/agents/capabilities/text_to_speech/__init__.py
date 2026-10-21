@@ -10,16 +10,41 @@ from app.agents.capabilities._registry import (
     register,
 )
 from app.agents.capabilities.text_to_speech._capability import TextToSpeech
+from app.agents.capabilities.text_to_speech._toolset import OfferedVoice
 from app.core.secret_kinds import ApiKeySecret, SecretCondition, SecretKind, SecretRequirement
 from app.services.text_to_speech import ACCOUNT_VOICE_ID
 from app.services.text_to_speech_models import (
+    SpeechModel,
     TextToSpeechProvider,
     by_provider,
     default_choice,
     providers,
 )
 
-__all__ = ["TextToSpeech", "TextToSpeechConfig"]
+__all__ = ["TextToSpeech", "TextToSpeechConfig", "VoiceChoice"]
+
+MAX_VOICES = 20
+"""The most other voices one agent may be offered. Each is a line in the tool's
+schema the model reads on every turn, so a library's worth is a cost, not a choice."""
+
+
+class VoiceChoice(BaseModel):
+    """One more voice the agent may speak in, and what it is for."""
+
+    id: str = Field(
+        title="Voice",
+        min_length=1,
+        description="A voice the model offers, or - for ElevenLabs - a voice id from your library.",
+    )
+    note: str | None = Field(
+        title="What it is for",
+        default=None,
+        max_length=120,
+        description=(
+            "A few words the agent reads to tell this voice from the others, such as "
+            "'Anna, the narrator'. Catalog voices are described already."
+        ),
+    )
 
 
 class TextToSpeechConfig(BaseModel):
@@ -55,6 +80,16 @@ class TextToSpeechConfig(BaseModel):
             "your account, so for ElevenLabs paste the voice id from your voice library."
         ),
     )
+    voices: list[VoiceChoice] = Field(
+        title="Other voices",
+        default_factory=list,
+        max_length=MAX_VOICES,
+        description=(
+            "Voices the agent may choose instead of the one above, per clip - for a "
+            "dialogue, or a narrator and a character. Left empty, it always speaks in "
+            "the one above."
+        ),
+    )
     output_format: Literal["mp3", "wav"] | None = Field(
         title="File format",
         default=None,
@@ -88,19 +123,13 @@ class TextToSpeechConfig(BaseModel):
                 for candidate in providers()
             )
             raise ValueError(f"{self.provider}/{self.model} cannot speak. Offered: {offered}.")
-        if entry.account_voices:
-            chosen_voice = (self.voice or "").strip()
-            if not chosen_voice:
-                raise ValueError(
-                    f"{entry.name} voices belong to your account: name one by its voice id."
-                )
-            if not ACCOUNT_VOICE_ID.fullmatch(chosen_voice):
-                raise ValueError(
-                    f"{self.voice!r} is not a voice id: letters, digits, '-' and '_' only."
-                )
-        elif self.voice is not None and self.voice not in {v.id for v in entry.voices_for(model)}:
-            voices = ", ".join(voice.id for voice in entry.voices_for(model))
-            raise ValueError(f"{self.model} has no voice {self.voice!r}. Offered: {voices}.")
+        if entry.account_voices and not (self.voice or "").strip():
+            raise ValueError(
+                f"{entry.name} voices belong to your account: name one by its voice id."
+            )
+        for voice in [self.voice, *(choice.id for choice in self.voices)]:
+            if voice is not None:
+                _check_voice(entry, model, voice)
         if self.output_format is not None and self.output_format not in entry.formats:
             raise ValueError(
                 f"{entry.name} returns {', '.join(entry.formats)}, not {self.output_format}."
@@ -114,19 +143,50 @@ class TextToSpeechConfig(BaseModel):
             raise ValueError(f"{self.provider} is no longer offered for speech")
         return entry
 
+    def chosen_model(self) -> SpeechModel:
+        """The catalog's model this configuration was validated against."""
+        model = self.offering().model(self.model)
+        if model is None:
+            raise ValueError(f"{self.model} is no longer offered for speech")
+        return model
+
     def resolved_voice(self) -> str:
         """The voice to speak in: the one chosen, or the model's first."""
         if self.voice:
             return self.voice.strip()
-        entry = self.offering()
-        model = entry.model(self.model)
-        if model is None:
-            raise ValueError(f"{self.model} is no longer offered for speech")
-        return entry.voices_for(model)[0].id
+        return self.offering().voices_for(self.chosen_model())[0].id
+
+    def offered_voices(self) -> tuple[OfferedVoice, ...]:
+        """Every voice the agent may speak in: the usual one first, then the others.
+
+        A catalog voice is described by the catalog; an account voice only by the
+        note its author wrote, since an id says nothing about who it sounds like.
+        """
+        catalog = {voice.id: voice for voice in self.offering().voices_for(self.chosen_model())}
+        notes = {choice.id.strip(): choice.note for choice in self.voices}
+        offered: list[OfferedVoice] = []
+        for voice_id in dict.fromkeys([self.resolved_voice(), *notes]):
+            known = catalog.get(voice_id)
+            if known is not None:
+                note = f"{known.name}, {known.description}" if known.description else known.name
+            else:
+                note = notes.get(voice_id)
+            offered.append(OfferedVoice(id=voice_id, note=note or None))
+        return tuple(offered)
 
     def resolved_format(self) -> str:
         """The format to return: the one chosen, or the provider's first."""
         return self.output_format or self.offering().formats[0]
+
+
+def _check_voice(entry: TextToSpeechProvider, model: SpeechModel, voice: str) -> None:
+    """Refuse a voice the provider would refuse: not an id, or not the model's."""
+    if entry.account_voices:
+        if not ACCOUNT_VOICE_ID.fullmatch(voice.strip()):
+            raise ValueError(f"{voice!r} is not a voice id: letters, digits, '-' and '_' only.")
+    elif voice not in {offered.id for offered in entry.voices_for(model)}:
+        voices = ", ".join(offered.id for offered in entry.voices_for(model))
+        raise ValueError(f"{model.id} has no voice {voice!r}. Offered: {voices}.")
 
 
 @register(
@@ -166,6 +226,7 @@ def _build(ctx: CapabilityBuildContext) -> TextToSpeech:
         provider=config.provider,
         model=config.model,
         voice=config.resolved_voice(),
+        voices=config.offered_voices(),
         audio_format=config.resolved_format(),
         max_characters=config.max_characters,
         api_key=api_key,

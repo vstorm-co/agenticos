@@ -31,6 +31,21 @@ binding's choice from a catalog, and the key is one vault secret; the Builder
 offers the keys whose purpose is the chosen provider. Publish does not yet refuse a
 key stored for another provider - that is #2258, for every media capability.
 
+## The voices the agent may choose
+
+`voice` is the author's: the one the agent speaks in. `voices` lists others it may
+choose per clip - a dialogue, a narrator and a character - and nothing else. It is
+the author's list rather than the provider's because a provider's voices are its
+brand's sound, and on ElevenLabs an id may be somebody's cloned voice, which an
+agent picking freely from the account would use without anyone having decided to.
+
+The list reaches the model as an `enum` on the tool's `voice` parameter
+(`_choices.py`), with what each voice is for: the catalog's description, or for an
+account voice the author's `note`, since an id says nothing about who it sounds
+like. With no others listed the parameter is not in the schema at all, so an agent
+published before the choice existed sees the same tool. Capped at 20: every entry
+is a line the model reads on every turn.
+
 ## Cost
 
 Speech is sold per character, so a clip's price is known before it is made. The

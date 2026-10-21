@@ -381,3 +381,126 @@ describe("the key it speaks with", () => {
     expect(screen.getByLabelText("Secret")).toHaveTextContent("No api_key secret in the vault");
   });
 });
+
+describe("the other voices the agent may choose", () => {
+  it("offers the model's voices but the usual one, and stores the ticked ones", async () => {
+    const onChange = mount({ provider: "openai", model: "gpt-4o-mini-tts", voice: "marin" });
+
+    expect(screen.queryByRole("checkbox", { name: "Marin" })).toBeNull();
+    await userEvent.click(screen.getByRole("checkbox", { name: "Alloy" }));
+
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        config: expect.objectContaining({ voices: [{ id: "alloy" }] }),
+      }),
+    );
+  });
+
+  it("unticking the last one stores no list at all", async () => {
+    const onChange = mount({
+      provider: "openai",
+      model: "gpt-4o-mini-tts",
+      voices: [{ id: "alloy" }],
+    });
+
+    expect(screen.getByRole("checkbox", { name: "Alloy" })).toBeChecked();
+    await userEvent.click(screen.getByRole("checkbox", { name: "Alloy" }));
+
+    expect(onChange.mock.lastCall?.[0].config).toEqual({
+      provider: "openai",
+      model: "gpt-4o-mini-tts",
+    });
+  });
+
+  it("keeps the voices the next model still speaks in, and drops the rest", async () => {
+    // `tts-1` has Alloy but not Marin, so only Alloy can stay on offer.
+    const onChange = mount({
+      provider: "openai",
+      model: "gpt-4o-mini-tts",
+      voice: "alloy",
+      voices: [{ id: "marin" }, { id: "alloy" }, "junk"],
+    });
+
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(await screen.findByRole("option", { name: /TTS-1/ }));
+
+    expect(onChange.mock.lastCall?.[0].config).toEqual({
+      provider: "openai",
+      model: "tts-1",
+      voice: "alloy",
+      voices: [{ id: "alloy" }],
+    });
+  });
+
+  it("drops every other voice with the provider", async () => {
+    const onChange = mount({
+      provider: "openai",
+      model: "gpt-4o-mini-tts",
+      voices: [{ id: "alloy" }],
+    });
+
+    await userEvent.click(screen.getByLabelText("Provider"));
+    await userEvent.click(await screen.findByRole("option", { name: /ElevenLabs/ }));
+
+    expect(onChange.mock.lastCall?.[0].config).not.toHaveProperty("voices");
+  });
+
+  describe("on a provider whose voices belong to the account", () => {
+    const account = (voices: unknown[] = []) =>
+      mount({ provider: "elevenlabs", model: "eleven_v4_turbo", voice: "narrator1", voices });
+
+    it("adds a row to type a voice id into", async () => {
+      const onChange = account();
+
+      await userEvent.click(screen.getByRole("button", { name: "Add a voice" }));
+
+      expect(onChange.mock.lastCall?.[0].config.voices).toEqual([{ id: "" }]);
+    });
+
+    it("stores the id and the note each row holds", async () => {
+      const onChange = account([{ id: "villain2", note: "Igor" }, { id: "extra3" }]);
+
+      await userEvent.type(screen.getByLabelText("Voice id 1"), "x");
+      expect(onChange.mock.lastCall?.[0].config.voices).toEqual([
+        { id: "villain2x", note: "Igor" },
+        { id: "extra3" },
+      ]);
+
+      await userEvent.clear(screen.getByLabelText("What voice 1 is for"));
+      expect(onChange.mock.lastCall?.[0].config.voices).toEqual([
+        { id: "villain2", note: null },
+        { id: "extra3" },
+      ]);
+    });
+
+    it("removes a row", async () => {
+      const onChange = account([{ id: "villain2" }, { id: "extra3" }]);
+
+      await userEvent.click(screen.getByRole("button", { name: "Remove voice 1" }));
+
+      expect(onChange.mock.lastCall?.[0].config.voices).toEqual([{ id: "extra3" }]);
+    });
+
+    it("stops adding at the most one agent may be offered", () => {
+      account(Array.from({ length: 20 }, (_, at) => ({ id: `voice${at}` })));
+
+      expect(screen.getByRole("button", { name: "Add a voice" })).toBeDisabled();
+    });
+
+    it("keeps every other voice across the provider's models", async () => {
+      // The catalog lists no account voices, so none can be known to be missing.
+      const flash = { ...ELEVENLABS.models[0], id: "eleven_flash_v2_5", name: "Eleven Flash" };
+      providers.mockReturnValue({
+        providers: [OPENAI, { ...ELEVENLABS, models: [...ELEVENLABS.models, flash] }],
+        isLoading: false,
+        isError: false,
+      });
+      const onChange = account([{ id: "villain2" }]);
+
+      await userEvent.click(screen.getByLabelText("Model"));
+      await userEvent.click(await screen.findByRole("option", { name: /Eleven Flash/ }));
+
+      expect(onChange.mock.lastCall?.[0].config.voices).toEqual([{ id: "villain2" }]);
+    });
+  });
+});
