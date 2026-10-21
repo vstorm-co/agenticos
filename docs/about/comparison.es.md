@@ -1,5 +1,5 @@
 ---
-source_sha: "fb8ad2ea1b90"
+source_sha: "275dc49bc45f"
 title: "Compara AgenticOS"
 seo_title: "Comparativas de AgenticOS: capa soberana de agents de IA"
 description: "Compara AgenticOS, capa soberana de agents de IA open source, con Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n y agents de código."
@@ -18,7 +18,7 @@ Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026
 | Un asistente de chat para la empresa, o agents propiedad de tu organización | Claude Team y Enterprise, ChatGPT Business y Enterprise | [Claude](claude-apps.md) · [ChatGPT](chatgpt.md) |
 | Un builder dentro de la suite en la nube de un proveedor | Microsoft Copilot Studio, Google Gemini Enterprise | [Copilot Studio](copilot-studio.md) · [Gemini Enterprise](gemini-enterprise.md) |
 | Un builder o una herramienta de automatización autoalojados | Dify, n8n | [Dify](dify.md) · [n8n](n8n.md) |
-| Un compañero de IA siempre activo con su propio ordenador | OpenAI dots, Grok Bot, Viktor | [dots](openai-dots.md) · [Grok Bot](grok-bot.md) · [Viktor](viktor.md) |
+| Un compañero de IA siempre activo con su propio ordenador | OpenAI dots, Grok Bot, Viktor, Sauna | [dots](openai-dots.md) · [Grok Bot](grok-bot.md) · [Viktor](viktor.md) · [Sauna](sauna.md) |
 | La plataforma o el plano de control de un proveedor para los agents de una empresa | OpenAI Frontier, Microsoft Agent 365 | [Frontier](openai-frontier.md) · [Agent 365](microsoft-agent-365.md) |
 | Un entorno alojado de agents para desarrolladores | Claude Managed Agents | [Managed Agents](claude-managed-agents.md) |
 | Un agent personal de código abierto | OpenClaw, NVIDIA NemoClaw | [OpenClaw](openclaw.md) |
@@ -37,6 +37,7 @@ Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026
 | Dify | Un builder visual de apps LLM y workflows | Autoalojado o Dify Cloud | Apache 2.0 modificada con condiciones | Muchos, incluido Ollama |
 | n8n | Automatización de workflows con nodos de agent de IA | Autoalojado o n8n Cloud | Sustainable Use License | Muchos, incluido Ollama |
 | Viktor | Un compañero de equipo de IA por cada workspace de Slack o Teams | La nube de Viktor | Propietario | OpenAI, Anthropic, Google, xAI |
+| Sauna | Un asistente de IA proactivo por persona, con memoria | La nube de Sauna | Propietario | Su propio modelo Lite, o todos los modelos desde el plan Basic |
 | OpenAI dots | Agents siempre activos en ChatGPT, cada uno con un ordenador en la nube | La nube de OpenAI | Propietario | Solo OpenAI |
 | Grok Bot | Compañeros con nombre en un ordenador compartido en la nube | La nube de xAI | Propietario | Solo Grok |
 | OpenAI Frontier | Una plataforma para gestionar compañeros de IA de empresa | En local, tu nube o la de OpenAI | Propietario | OpenAI |
@@ -64,6 +65,7 @@ Aquí la soberanía significa cuatro cosas que decides tú: dónde se ejecuta el
 | Dify | Autoalojado o Dify Cloud | Muchos, incluido Ollama | Apache 2.0 con condiciones: un servicio multiinquilino necesita permiso por escrito y el logotipo no se puede cambiar | Inicio de sesión: email; SSO en Enterprise · Auditoría: Enterprise · Gasto: facturación del provider o créditos de mensajes en Cloud |
 | n8n | Autoalojado o n8n Cloud en Fráncfort | Muchos, incluido Ollama | Sustainable Use License: uso empresarial interno, no comercial o personal; las funciones de pago necesitan una clave de licencia que contacta a diario con el servidor de licencias de n8n | Inicio de sesión: SSO en planes de pago · Auditoría: streaming de logs en Enterprise · Gasto: cuotas de ejecuciones por plan |
 | Viktor | La nube de Viktor, alojada en EE. UU. por defecto | Modelos de OpenAI, Anthropic, Google y xAI, o tu propia clave de OpenRouter | Propietaria | Inicio de sesión: SSO SAML · Auditoría: registros de auditoría en Enterprise · Gasto: bolsa de créditos con un tope mensual de recargas, límites por usuario en Enterprise |
+| Sauna | La nube de Sauna; infraestructura en EE. UU. para clientes de EE. UU. | Su propio modelo Lite, o todos los modelos desde el plan Basic | Propietaria | Inicio de sesión: correo electrónico o Google · Auditoría: no indicada · Gasto: créditos por plan |
 | OpenAI dots | La nube de OpenAI; el plan Pro no se ofreció al lanzamiento en el EEE, Suiza ni Reino Unido | Solo OpenAI | Propietaria | Inicio de sesión: cuentas de ChatGPT · Auditoría: no indicada para dots · Gasto: incluido en el plan |
 | Grok Bot | La nube de xAI | Solo Grok | Propietaria | Inicio de sesión: cuentas de xAI o Cursor · Auditoría: anunciada · Gasto: precio del plan, sin tope indicado |
 | OpenAI Frontier | En local, tu nube o la de OpenAI | OpenAI | Propietaria | Inicio de sesión, auditoría y gasto: no indicados públicamente; anunciados permisos por agent y paneles |

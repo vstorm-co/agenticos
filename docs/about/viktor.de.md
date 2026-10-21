@@ -1,5 +1,5 @@
 ---
-source_sha: "5f8a5a14154b"
+source_sha: "bf18f8d902e6"
 title: "AgenticOS vs Viktor"
 seo_title: "AgenticOS vs Viktor: selbst gehostete Teammate-Alternative"
 description: "Viktor ist ein KI-Teammate pro Slack- oder Teams-Workspace. AgenticOS bietet viele kontrollierte Agents, jedes Modell und Budgets pro Agent auf Ihren Servern."
@@ -57,7 +57,7 @@ Viktor lernt aus Konversationen und verbundenen Werkzeugen. AgenticOS ergänzt v
 ## Wann Viktor genügt { #when-viktor-is-enough }
 
 - Sie möchten einen Assistenten in Slack oder Teams, ohne Infrastruktur betreiben zu müssen.
-- Sein Katalog von mehr als 3.200 OAuth-Integrationen und seine Code-Sandbox decken Ihre Aufgaben ab.
+- Sein Katalog von mehr als 9.800 Tools und seine Code-Sandbox decken Ihre Aufgaben ab.
 - Credit-Abrechnung und Hosting in den USA erfüllen Ihre Anforderungen.
 - Sie brauchen heute Microsoft Teams, Sprache oder ein E-Mail-Postfach. AgenticOS hat noch keinen Konversationskanal für Teams, Sprache oder E-Mail.
 

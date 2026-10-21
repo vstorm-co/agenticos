@@ -1,5 +1,5 @@
 ---
-source_sha: "5f8a5a14154b"
+source_sha: "bf18f8d902e6"
 title: "AgenticOS vs Viktor"
 seo_title: "AgenticOS vs Viktor: alternativa autoalojada a un colega IA"
 description: "Viktor: un colega de IA por workspace de Slack o Teams. Compáralo con AgenticOS: muchos agents gobernados, cualquier modelo y budgets por agent en tu servidor."
@@ -57,7 +57,7 @@ Viktor aprende de las conversaciones y de las herramientas conectadas. AgenticOS
 ## Cuándo basta con Viktor { #when-viktor-is-enough }
 
 - Quieres un asistente en Slack o Teams sin infraestructura que operar.
-- Su catálogo de más de 3.200 integraciones OAuth y su sandbox de código cubren tus tareas.
+- Su catálogo de más de 9.800 herramientas y su sandbox de código cubren tus tareas.
 - La facturación por créditos y el alojamiento en EE. UU. cumplen tus requisitos.
 - Necesitas Microsoft Teams, voz o una bandeja de correo hoy. AgenticOS todavía no tiene canal de conversación para Teams, voz ni correo electrónico.
 

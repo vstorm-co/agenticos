@@ -17,7 +17,7 @@ Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS bas
 | A company chat assistant, or agents your organization owns | Claude Team and Enterprise, ChatGPT Business and Enterprise | [Claude](claude-apps.md) · [ChatGPT](chatgpt.md) |
 | A builder inside a vendor's cloud suite | Microsoft Copilot Studio, Google Gemini Enterprise | [Copilot Studio](copilot-studio.md) · [Gemini Enterprise](gemini-enterprise.md) |
 | A self-hosted builder or automation tool | Dify, n8n | [Dify](dify.md) · [n8n](n8n.md) |
-| An always-on AI teammate with its own computer | OpenAI dots, Grok Bot, Viktor | [dots](openai-dots.md) · [Grok Bot](grok-bot.md) · [Viktor](viktor.md) |
+| An always-on AI teammate with its own computer | OpenAI dots, Grok Bot, Viktor, Sauna | [dots](openai-dots.md) · [Grok Bot](grok-bot.md) · [Viktor](viktor.md) · [Sauna](sauna.md) |
 | A vendor's platform or control plane for company agents | OpenAI Frontier, Microsoft Agent 365 | [Frontier](openai-frontier.md) · [Agent 365](microsoft-agent-365.md) |
 | A hosted agent runtime for developers | Claude Managed Agents | [Managed Agents](claude-managed-agents.md) |
 | An open-source personal agent | OpenClaw, NVIDIA NemoClaw | [OpenClaw](openclaw.md) |
@@ -36,6 +36,7 @@ Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS bas
 | Dify | A visual LLM app and workflow builder | Self-hosted or Dify Cloud | Modified Apache 2.0 with conditions | Many, including Ollama |
 | n8n | Workflow automation with AI agent nodes | Self-hosted or n8n Cloud | Sustainable Use License | Many, including Ollama |
 | Viktor | One AI teammate per Slack or Teams workspace | Viktor's cloud | Proprietary | OpenAI, Anthropic, Google, xAI |
+| Sauna | A proactive AI assistant per person, with memory | Sauna's cloud | Proprietary | Its own Lite model, or all models from the Basic plan |
 | OpenAI dots | Always-on agents in ChatGPT, each with a cloud computer | OpenAI's cloud | Proprietary | OpenAI only |
 | Grok Bot | Named teammates on a shared cloud computer | xAI's cloud | Proprietary | Grok only |
 | OpenAI Frontier | A platform to manage enterprise AI coworkers | Locally, your cloud or OpenAI's | Proprietary | OpenAI |
@@ -63,6 +64,7 @@ Sovereignty here means four things you decide: where the product runs, which mod
 | Dify | Self-hosted or Dify Cloud | Many, including Ollama | Apache 2.0 with conditions: a multi-tenant service needs written permission, and the logo may not be changed | Sign-in: email; SSO on Enterprise · Audit: Enterprise · Spend: provider billing or Cloud message credits |
 | n8n | Self-hosted or n8n Cloud in Frankfurt | Many, including Ollama | Sustainable Use License: internal business, non-commercial or personal use; paid features need a licence key that contacts n8n's licence server daily | Sign-in: SSO on paid plans · Audit: log streaming on Enterprise · Spend: execution quotas per plan |
 | Viktor | Viktor's cloud, US-hosted by default | OpenAI, Anthropic, Google and xAI models, or your own OpenRouter key | Proprietary | Sign-in: SAML SSO · Audit: audit logs on Enterprise · Spend: credit pool with a monthly top-up cap, per-user caps on Enterprise |
+| Sauna | Sauna's cloud; US infrastructure for US customers | Its own Lite model, or all models from the Basic plan | Proprietary | Sign-in: email or Google · Audit: not stated · Spend: credits per plan |
 | OpenAI dots | OpenAI's cloud; the Pro plan was not offered in the EEA, Switzerland or the UK at launch | OpenAI only | Proprietary | Sign-in: ChatGPT accounts · Audit: not stated for dots · Spend: included in the plan |
 | Grok Bot | xAI's cloud | Grok only | Proprietary | Sign-in: xAI or Cursor accounts · Audit: announced as coming · Spend: plan price, no stated cap |
 | OpenAI Frontier | Locally, your cloud or OpenAI's | OpenAI | Proprietary | Sign-in, audit and spend: not stated publicly; per-agent permissions and dashboards announced |

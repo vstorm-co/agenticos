@@ -30,6 +30,10 @@ Two things are versioned separately from this file and worth knowing about:
   The guides also say what AgenticOS gained since 0.0.504: the coding agent
   that hands work to Claude Code or Codex, the MCP server, A2A, projects, an
   approval policy per MCP connection, 33 permissions and the scaling guide.
+- **AgenticOS vs Sauna**, a new comparison with Sauna, a proactive AI
+  assistant per person: where it runs and processes data, models per plan,
+  sharing, autonomy and pricing, from its public pricing, security and privacy
+  pages.
 
 ## [1.9.1] - 2026-10-21
 

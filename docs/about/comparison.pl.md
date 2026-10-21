@@ -1,5 +1,5 @@
 ---
-source_sha: "fb8ad2ea1b90"
+source_sha: "275dc49bc45f"
 title: "Porównaj AgenticOS"
 seo_title: "Porównania AgenticOS: suwerenna warstwa agentów AI"
 description: "Porównaj AgenticOS, suwerenną warstwę agentów AI open source, z Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n i agentami do kodowania."
@@ -18,7 +18,7 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja
 | Firmowego asystenta czatu albo agentów, których właścicielem jest twoja organizacja | Claude Team i Enterprise, ChatGPT Business i Enterprise | [Claude](claude-apps.md) · [ChatGPT](chatgpt.md) |
 | Builder w pakiecie chmurowym producenta | Microsoft Copilot Studio, Google Gemini Enterprise | [Copilot Studio](copilot-studio.md) · [Gemini Enterprise](gemini-enterprise.md) |
 | Samodzielnie hostowany builder albo narzędzie do automatyzacji | Dify, n8n | [Dify](dify.md) · [n8n](n8n.md) |
-| Współpracownika AI działającego bez przerwy, z własnym komputerem | OpenAI dots, Grok Bot, Viktor | [dots](openai-dots.md) · [Grok Bot](grok-bot.md) · [Viktor](viktor.md) |
+| Współpracownika AI działającego bez przerwy, z własnym komputerem | OpenAI dots, Grok Bot, Viktor, Sauna | [dots](openai-dots.md) · [Grok Bot](grok-bot.md) · [Viktor](viktor.md) · [Sauna](sauna.md) |
 | Platformę albo płaszczyznę kontroli dostawcy dla agentów firmy | OpenAI Frontier, Microsoft Agent 365 | [Frontier](openai-frontier.md) · [Agent 365](microsoft-agent-365.md) |
 | Hostowany runtime agentów dla deweloperów | Claude Managed Agents | [Managed Agents](claude-managed-agents.md) |
 | Osobistego agenta open source | OpenClaw, NVIDIA NemoClaw | [OpenClaw](openclaw.md) |
@@ -37,6 +37,7 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja
 | Dify | Wizualny builder aplikacji LLM i workflow | Hostowany samodzielnie albo Dify Cloud | Zmodyfikowana Apache 2.0 z warunkami | Wiele, w tym Ollama |
 | n8n | Automatyzacja workflow z węzłami agentów AI | Hostowany samodzielnie albo n8n Cloud | Sustainable Use License | Wiele, w tym Ollama |
 | Viktor | Jeden wirtualny współpracownik AI na workspace Slacka lub Teams | Chmura Viktor | Własnościowa | OpenAI, Anthropic, Google, xAI |
+| Sauna | Proaktywny asystent AI dla każdej osoby, z pamięcią | Chmura Sauny | Własnościowa | Własny model Lite albo wszystkie modele od planu Basic |
 | OpenAI dots | Agenci działający bez przerwy w ChatGPT, każdy z komputerem w chmurze | Chmura OpenAI | Własnościowa | Tylko OpenAI |
 | Grok Bot | Nazwani współpracownicy na wspólnym komputerze w chmurze | Chmura xAI | Własnościowa | Tylko Grok |
 | OpenAI Frontier | Platforma do zarządzania firmowymi współpracownikami AI | Lokalnie, twoja chmura albo chmura OpenAI | Własnościowa | OpenAI |
@@ -64,6 +65,7 @@ Suwerenność oznacza tu cztery rzeczy, o których decydujesz: gdzie produkt dzi
 | Dify | Self-hosted albo Dify Cloud | Wiele, w tym Ollama | Apache 2.0 z warunkami: usługa wielodostępna wymaga pisemnej zgody, a logo nie wolno zmieniać | Logowanie: e-mail; SSO w Enterprise · Audyt: Enterprise · Wydatki: rozliczenie u providera albo kredyty wiadomości w Cloud |
 | n8n | Self-hosted albo n8n Cloud we Frankfurcie | Wiele, w tym Ollama | Sustainable Use License: wewnętrzne cele firmy, użytek niekomercyjny lub osobisty; płatne funkcje wymagają klucza licencji, który codziennie łączy się z serwerem licencji n8n | Logowanie: SSO w płatnych planach · Audyt: strumieniowanie logów w Enterprise · Wydatki: limity wykonań per plan |
 | Viktor | Chmura Viktora, domyślnie hostowana w USA | Modele OpenAI, Anthropic, Google i xAI albo własny klucz OpenRouter | Własnościowa | Logowanie: SAML SSO · Audyt: logi audytowe w Enterprise · Wydatki: pula kredytów z miesięcznym limitem doładowań, limity per użytkownik w Enterprise |
+| Sauna | Chmura Sauny; infrastruktura w USA dla klientów z USA | Własny model Lite albo wszystkie modele od planu Basic | Własnościowa | Logowanie: e-mail albo Google · Audyt: nie podano · Wydatki: kredyty w planie |
 | OpenAI dots | Chmura OpenAI; plan Pro na starcie niedostępny w EOG, Szwajcarii i Wielkiej Brytanii | Tylko OpenAI | Własnościowa | Logowanie: konta ChatGPT · Audyt: nie podano dla dots · Wydatki: w cenie planu |
 | Grok Bot | Chmura xAI | Tylko Grok | Własnościowa | Logowanie: konta xAI albo Cursor · Audyt: zapowiedziany · Wydatki: cena planu, bez podanego limitu |
 | OpenAI Frontier | Lokalnie, twoja chmura albo chmura OpenAI | OpenAI | Własnościowa | Logowanie, audyt i wydatki: nie podano publicznie; zapowiedziane uprawnienia per agent i dashboardy |

@@ -56,7 +56,7 @@ Viktor learns from conversations and connected tools. AgenticOS adds managed doc
 ## When Viktor is enough
 
 - You want one assistant in Slack or Teams with no infrastructure to run.
-- Its catalog of more than 3,200 OAuth integrations and its code sandbox cover your tasks.
+- Its catalog of more than 9,800 tools and its code sandbox cover your tasks.
 - Credit billing and US hosting meet your requirements.
 - You need Microsoft Teams, voice or an email inbox today. AgenticOS has no Teams, voice or email conversation channel yet.
 

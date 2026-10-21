@@ -1,5 +1,5 @@
 ---
-source_sha: "fb8ad2ea1b90"
+source_sha: "275dc49bc45f"
 title: "AgenticOS vergleichen"
 seo_title: "AgenticOS im Vergleich: souveräne Schicht für KI-Agents"
 description: "Die souveräne, selbst gehostete Open-Source-Schicht AgenticOS im Vergleich mit Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n und Coding-Agents."
@@ -18,7 +18,7 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. Agenti
 | Einen Chat-Assistenten für das Unternehmen oder Agents, die Ihrer Organisation gehören | Claude Team und Enterprise, ChatGPT Business und Enterprise | [Claude](claude-apps.md) · [ChatGPT](chatgpt.md) |
 | Einen Builder in der Cloud-Suite eines Anbieters | Microsoft Copilot Studio, Google Gemini Enterprise | [Copilot Studio](copilot-studio.md) · [Gemini Enterprise](gemini-enterprise.md) |
 | Einen selbst gehosteten Builder oder ein Automatisierungswerkzeug | Dify, n8n | [Dify](dify.md) · [n8n](n8n.md) |
-| Ein dauerhaft laufendes KI-Teammate mit eigenem Computer | OpenAI dots, Grok Bot, Viktor | [dots](openai-dots.md) · [Grok Bot](grok-bot.md) · [Viktor](viktor.md) |
+| Ein dauerhaft laufendes KI-Teammate mit eigenem Computer | OpenAI dots, Grok Bot, Viktor, Sauna | [dots](openai-dots.md) · [Grok Bot](grok-bot.md) · [Viktor](viktor.md) · [Sauna](sauna.md) |
 | Eine Plattform oder Steuerungsebene eines Anbieters für Unternehmens-Agents | OpenAI Frontier, Microsoft Agent 365 | [Frontier](openai-frontier.md) · [Agent 365](microsoft-agent-365.md) |
 | Eine gehostete Agent-Laufzeit für Entwickler | Claude Managed Agents | [Managed Agents](claude-managed-agents.md) |
 | Einen persönlichen Open-Source-Agent | OpenClaw, NVIDIA NemoClaw | [OpenClaw](openclaw.md) |
@@ -37,6 +37,7 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. Agenti
 | Dify | Ein visueller Builder für LLM-Apps und Workflows | Selbst gehostet oder Dify Cloud | Modifizierte Apache 2.0 mit Bedingungen | Viele, darunter Ollama |
 | n8n | Workflow-Automatisierung mit KI-Agent-Knoten | Selbst gehostet oder n8n Cloud | Sustainable Use License | Viele, darunter Ollama |
 | Viktor | Ein KI-Teammate pro Slack- oder Teams-Workspace | Die Cloud von Viktor | Proprietär | OpenAI, Anthropic, Google, xAI |
+| Sauna | Ein proaktiver KI-Assistent pro Person, mit Gedächtnis | Die Cloud von Sauna | Proprietär | Das eigene Lite-Modell oder alle Modelle ab dem Tarif Basic |
 | OpenAI dots | Dauerhaft laufende Agents in ChatGPT, jeder mit einem Cloud-Computer | Die Cloud von OpenAI | Proprietär | Nur OpenAI |
 | Grok Bot | Benannte Teammates auf einem gemeinsamen Cloud-Computer | Die Cloud von xAI | Proprietär | Nur Grok |
 | OpenAI Frontier | Eine Plattform zur Verwaltung von KI-Kollegen im Unternehmen | Lokal, Ihre Cloud oder OpenAI | Proprietär | OpenAI |
@@ -64,6 +65,7 @@ Souveränität bedeutet hier vier Dinge, die Sie entscheiden: wo das Produkt lä
 | Dify | Selbst gehostet oder Dify Cloud | Viele, darunter Ollama | Apache 2.0 mit Bedingungen: ein mandantenfähiger Dienst braucht eine schriftliche Erlaubnis, und das Logo darf nicht geändert werden | Anmeldung: E-Mail; SSO in Enterprise · Audit: Enterprise · Ausgaben: Abrechnung beim Provider oder Nachrichten-Credits in der Cloud |
 | n8n | Selbst gehostet oder n8n Cloud in Frankfurt | Viele, darunter Ollama | Sustainable Use License: interne Geschäftszwecke, nicht kommerzielle oder private Nutzung; kostenpflichtige Funktionen brauchen einen Lizenzschlüssel, der täglich den Lizenzserver von n8n kontaktiert | Anmeldung: SSO in kostenpflichtigen Plänen · Audit: Log-Streaming in Enterprise · Ausgaben: Ausführungskontingente pro Plan |
 | Viktor | Cloud von Viktor, standardmäßig in den USA gehostet | Modelle von OpenAI, Anthropic, Google und xAI oder ein eigener OpenRouter-Schlüssel | Proprietär | Anmeldung: SAML-SSO · Audit: Audit-Logs in Enterprise · Ausgaben: Credit-Pool mit monatlicher Obergrenze für Aufladungen, Limits pro Nutzer in Enterprise |
+| Sauna | Cloud von Sauna; US-Infrastruktur für US-Kunden | Das eigene Lite-Modell oder alle Modelle ab dem Tarif Basic | Proprietär | Anmeldung: E-Mail oder Google · Audit: nicht angegeben · Ausgaben: Credits pro Tarif |
 | OpenAI dots | Cloud von OpenAI; der Pro-Tarif war zum Start nicht im EWR, in der Schweiz und im Vereinigten Königreich verfügbar | Nur OpenAI | Proprietär | Anmeldung: ChatGPT-Konten · Audit: für dots nicht angegeben · Ausgaben: im Tarif enthalten |
 | Grok Bot | Cloud von xAI | Nur Grok | Proprietär | Anmeldung: xAI- oder Cursor-Konten · Audit: angekündigt · Ausgaben: Tarifpreis, kein genanntes Limit |
 | OpenAI Frontier | Lokal, Ihre Cloud oder OpenAI | OpenAI | Proprietär | Anmeldung, Audit und Ausgaben: nicht öffentlich angegeben; Berechtigungen pro Agent und Dashboards angekündigt |
