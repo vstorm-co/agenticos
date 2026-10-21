@@ -299,7 +299,8 @@ function VoiceField({
       htmlFor="agent-voice-call-voice"
       description={t("voiceConversationVoiceHint")}
     >
-      <div className="flex items-center gap-2">
+      {/* An id of its own, so `FormField` leaves the label on the trigger below. */}
+      <div id="agent-voice-call-voice-row" className="flex items-center gap-2">
         <Select
           value={block.voice ?? model.default_voice}
           disabled={disabled}

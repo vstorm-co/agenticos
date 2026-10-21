@@ -376,6 +376,9 @@ describe("the chat container - following the transcript", () => {
   it("leaves a reader who scrolled up where they are when the dock grows", async () => {
     const observers = observeSizes();
     const { dock, scroller } = await scrollerAndDock();
+    // From the foot, then up: a scroll up is what lets go.
+    scroller.scrollTop = 1500;
+    fireEvent.scroll(scroller);
     scroller.scrollTop = 200;
     fireEvent.scroll(scroller);
 
