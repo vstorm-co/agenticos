@@ -1860,6 +1860,27 @@ class TestAVisitorsDictation:
         assert refused.value.details == {"retry_after_seconds": 60}
         transcribe.assert_not_awaited()
 
+    @pytest.mark.anyio
+    async def test_the_links_minute_is_spent_only_once_the_visitor_is_admitted(self):
+        """Codex on #2204: spent before the token was checked, anybody holding the
+        public key could exhaust it for every signed-in visitor."""
+        with (
+            patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=_published_agent())),
+            patch(
+                f"{MODULE}.rate_limit.embed_dictation_link_allowed",
+                new=AsyncMock(return_value=Decision(allowed=False, retry_after_seconds=30)),
+            ) as link,
+            patch(f"{MODULE}.MLService.transcribe_dictation", new=AsyncMock()) as transcribe,
+            pytest.raises(RateLimitError) as refused,
+        ):
+            await _service().dictate(
+                self._admission(), content=b"a", mime_type="audio/webm", reported_seconds=None
+            )
+
+        assert link.await_args.kwargs["public_key"] == self._admission().embed.public_key
+        assert refused.value.details == {"retry_after_seconds": 30}
+        transcribe.assert_not_awaited()
+
 
 def _faced_agent(*, avatar_url: str | None = None, slot: int | None = 4) -> MagicMock:
     agent = _agent(avatar_url)

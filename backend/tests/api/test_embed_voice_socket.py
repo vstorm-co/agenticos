@@ -146,3 +146,36 @@ async def test_a_signed_in_visitor_within_their_calls_is_put_through():
 
     socket.close.assert_not_awaited()
     session_cls.return_value.run.assert_awaited_once()
+
+
+async def test_a_refused_token_spends_nothing_of_the_links_minute():
+    """Codex on #2204: counted before admission, anybody with the public key could
+    spend the link's calls for every signed-in visitor without a valid token."""
+    socket = _socket()
+    link = AsyncMock()
+    with (
+        patch(f"{_R}.get_db_context", _db),
+        patch(f"{_R}.AgentEmbedService.admit_voice", AsyncMock(side_effect=EmbedDenied("bad"))),
+        patch(f"{_R}.rate_limit.embed_voice_link_allowed", link),
+    ):
+        await embed_voice_socket(socket, public_key="k", token="forged", visitor=None)
+
+    assert socket.close.await_args.kwargs["code"] == 4003
+    link.assert_not_awaited()
+
+
+async def test_an_admitted_visitor_past_the_links_minute_is_closed_4029():
+    socket = _socket()
+    admission = SimpleNamespace(embed=SimpleNamespace(kind="page"), visitor=None)
+    link = AsyncMock(return_value=SimpleNamespace(allowed=False))
+    with (
+        patch(f"{_R}.get_db_context", _db),
+        patch(f"{_R}.AgentEmbedService.admit_voice", AsyncMock(return_value=admission)),
+        patch(f"{_R}.rate_limit.embed_voice_link_allowed", link),
+        patch(f"{_R}.VoiceCallSession") as session_cls,
+    ):
+        await embed_voice_socket(socket, public_key="k", token=None, visitor=None)
+
+    assert link.await_args.kwargs == {"public_key": "k"}
+    assert socket.close.await_args.kwargs["code"] == 4029
+    session_cls.assert_not_called()

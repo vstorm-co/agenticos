@@ -790,6 +790,14 @@ class AgentEmbedService:
                     message="Too many dictations in the last minute. Wait and try again.",
                     details={"retry_after_seconds": decision.retry_after_seconds},
                 )
+        # The link's ceiling once admitted, so nobody without a valid token can
+        # spend it for the visitors who have one (Codex on #2204).
+        decision = await rate_limit.embed_dictation_link_allowed(public_key=embed.public_key)
+        if not decision.allowed:
+            raise RateLimitError(
+                message="Too many dictations in the last minute. Wait and try again.",
+                details={"retry_after_seconds": decision.retry_after_seconds},
+            )
         organization = await organization_repo.get_by_id(self.db, embed.organization_id)
         return await MLService(self.db).transcribe_dictation(
             TranscriptionCall(

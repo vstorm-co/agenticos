@@ -197,16 +197,22 @@ async def test_a_rate_limited_caller_can_read_the_limit_from_any_site(
     service.admit_dictation.assert_not_awaited()
 
 
-async def test_an_allowed_caller_is_counted_against_the_key_in_the_path(
+async def test_before_admission_only_the_callers_address_is_counted(
     client: AsyncClient, service: MagicMock
 ) -> None:
+    """The link's minute is the service's to spend, once the visitor is admitted
+    (Codex on #2204): spent here, a stranger with no token could exhaust it."""
     del service
     app.dependency_overrides.pop(deps.limit_embed_dictation)
-    with patch(
-        "app.services.rate_limit.embed_dictation_allowed",
-        new=AsyncMock(return_value=Decision(allowed=True, retry_after_seconds=0)),
-    ) as allowed:
+    with (
+        patch(
+            "app.services.rate_limit.embed_dictation_allowed",
+            new=AsyncMock(return_value=Decision(allowed=True, retry_after_seconds=0)),
+        ) as allowed,
+        patch("app.services.rate_limit.embed_dictation_link_allowed", new=AsyncMock()) as link,
+    ):
         response = await client.post(_URL, files=_AUDIO, headers={"Origin": _SITE})
 
     assert response.status_code == 200
-    assert allowed.await_args.kwargs["public_key"] == "key-123"
+    allowed.assert_awaited_once()
+    link.assert_not_awaited()

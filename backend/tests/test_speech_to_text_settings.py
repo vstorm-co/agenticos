@@ -42,6 +42,7 @@ def _org(
         speech_to_text_model=model,
         speech_to_text_secret_id=secret_id if provider else None,
         speech_to_text_language=language,
+        dictation_max_seconds=300,
     )
 
 

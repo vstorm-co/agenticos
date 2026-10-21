@@ -1229,15 +1229,15 @@ async def limit_embed_upload(
     )
 
 
-async def limit_embed_dictation(request: Request, public_key: str) -> None:
+async def limit_embed_dictation(request: Request) -> None:
     """Refuse a caller sending recordings to a hosted page or a widget too fast.
 
-    Per address and then per link, both before the key is looked up - see
-    `rate_limit.embed_dictation_allowed`, which also says why the link has a
-    ceiling of its own. A refusal is readable by the site that asked: it runs
-    before admission and says the same to every origin (`app.api.embed_cors`).
+    Per address, before the key is looked up; the link's own ceiling is spent
+    once the visitor is admitted (`rate_limit.embed_dictation_link_allowed`). A
+    refusal is readable by the site that asked: it runs before admission and says
+    the same to every origin (`app.api.embed_cors`).
     """
-    decision = await rate_limit.embed_dictation_allowed(request, public_key=public_key)
+    decision = await rate_limit.embed_dictation_allowed(request)
     if not decision.allowed:
         allow_embed_origin(request, request.headers.get("origin"))
     _refuse_if_over(decision, "Too many dictations in the last minute. Wait and try again.")

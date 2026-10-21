@@ -1,5 +1,5 @@
 ---
-source_sha: "75367be9f30d"
+source_sha: "14553222ac64"
 ---
 
 # Konfiguration { #configuration }
@@ -1249,9 +1249,9 @@ sollte, ist eine eigene Entscheidung und nicht diese.
 | `RATE_LIMIT_DICTATION_PER_MINUTE` | `10` | [Diktieren im Chat](ml-services.md#dictation-in-chat), pro Person, auf einem eigenen Zähler, damit Diktieren und eine Integration, die die ML-Dienste aufruft, einander nicht das Kontingent verbrauchen. Jedes Diktat ist ein Aufruf beim kostenpflichtigen Provider der Organisation |
 | `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` | `6` | [Eine Stimme anhören](voice.md#turn-it-on) im Builder, pro Person. Jede Vorschau außerhalb des Caches ist eine kurze kostenpflichtige Sitzung beim Realtime-Provider des Agents, außerhalb aller Modellbudgets; eine einmal gehörte Stimme bleibt eine Woche im Cache |
 | `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` | `6` | [Diktat in einem Widget oder auf einer Hosted Page](channels.md#dictation-on-a-widget-or-a-hosted-page), pro Adresse und bei einem `jwt`-Widget pro besuchender Person. Jedes Diktat ist ein Aufruf beim kostenpflichtigen Provider der Organisation, außerhalb jedes Modell-Budgets |
-| `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` | `10` | Dasselbe, pro Seite oder Widget, von allen Besuchenden zusammen - die Obergrenze dessen, was ein geleakter Link kostet: so viele Aufnahmen pro Minute, jede bis zum längsten Diktat der Organisation |
-| `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` | `3` | [Sprachanrufe](channels.md#voice-calls-on-a-widget-or-a-hosted-page), die in einem Widget oder auf einer Hosted Page gestartet werden, pro Adresse und bei einem `jwt`-Widget pro Token-Subject der besuchenden Person. Gezählt, bevor der Schlüssel nachgeschlagen wird; jeder Anruf ist eine kostenpflichtige Realtime-Session |
-| `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` | `6` | Dasselbe, pro Seite oder Widget, von allen Besuchenden zusammen. Zusammen mit `VOICE_MAX_CALLS_PER_EMBED` oben die Obergrenze dessen, was ein geleakter Link kostet |
+| `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` | `10` | Dasselbe, pro Seite oder Widget, von allen Besuchenden zusammen - die Obergrenze dessen, was ein geleakter Link kostet: so viele Aufnahmen pro Minute, jede bis zum längsten Diktat der Organisation. Erst verbraucht, wenn ein Besucher zugelassen ist |
+| `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` | `3` | [Sprachanrufe](channels.md#voice-calls-on-a-widget-or-a-hosted-page), die in einem Widget oder auf einer Hosted Page gestartet werden, pro Adresse und bei einem `jwt`-Widget pro Token-Subject der besuchenden Person. Die Adresse wird gezählt, bevor der Schlüssel nachgeschlagen wird; jeder Anruf ist eine kostenpflichtige Realtime-Session |
+| `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` | `6` | Dasselbe, pro Seite oder Widget, von allen Besuchenden zusammen, erst verbraucht, wenn ein Besucher zugelassen ist. Zusammen mit `VOICE_MAX_CALLS_PER_EMBED` oben die Obergrenze dessen, was ein geleakter Link kostet |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Ob `X-Forwarded-For` die aufrufende Seite benennt |
 
 **Was eine abgelehnte aufrufende Seite bekommt**, ist der eigene Fehlerumschlag

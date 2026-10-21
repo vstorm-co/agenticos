@@ -63,6 +63,7 @@ from app.services.channels.mentions import (
 from app.services.channels.prompts import ChannelPrompts
 from app.services.channels.steering import InFlight, answering_aside, aside_question, steerable
 from app.services.conversation import ConversationService
+from app.services.ml import measure_audio_seconds
 from app.services.rate_limit import Limit
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
 from app.services.transcription import MAX_BYTES as TRANSCRIPTION_MAX_BYTES
@@ -1025,6 +1026,21 @@ class ChannelMessageRouter:
             except Exception:
                 logger.warning("Could not fetch a voice message: bot=%s", bot.id, exc_info=True)
                 refusals.append(f"{recording.filename}: could not be downloaded.")
+                continue
+            # Held to the organization's longest dictation before any provider is
+            # paid: 25 MB of low-bitrate audio is hours of it, and the sender's
+            # limit counts messages, not minutes (Codex on #2204). Read off the
+            # file where its container says, else as the platform reported it.
+            seconds = measure_audio_seconds(content) or recording.duration_seconds
+            if (
+                settings.max_seconds is not None
+                and seconds is not None
+                and seconds > settings.max_seconds
+            ):
+                refusals.append(
+                    f"{recording.filename}: too long to transcribe (the limit is "
+                    f"{settings.max_seconds} seconds)."
+                )
                 continue
             call = TranscriptionCall(
                 organization_id=bot.organization_id,

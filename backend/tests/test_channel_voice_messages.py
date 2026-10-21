@@ -110,6 +110,7 @@ def world() -> Iterator[SimpleNamespace]:
             speech_to_text_model=None,
             speech_to_text_secret_id=_ORG_KEY,
             speech_to_text_language=None,
+            dictation_max_seconds=300,
         ),
         spec={"name": "Support"},
     )
@@ -330,6 +331,62 @@ class TestWhenItCannotListen:
         adapter.download_attachment.assert_not_awaited()
         assert transcripts == []
         assert "too large to transcribe" in refusals[0]
+
+    @pytest.mark.parametrize(
+        ("measured", "reported"),
+        [(301.0, None), (None, 301.0)],
+        ids=["read-off-the-file", "as-the-platform-reported"],
+    )
+    async def test_a_voice_note_longer_than_the_longest_dictation_is_never_paid_for(
+        self, usage: AsyncMock, measured: float | None, reported: float | None
+    ):
+        """Codex on #2204: 25 MB of low-bitrate audio is hours of it, and the sender's
+        limit counts messages - so the length is held to the organization's longest
+        dictation before any provider is called."""
+        adapter = MagicMock()
+        adapter.download_attachment = AsyncMock(return_value=b"OggS...")
+        note = IncomingAttachment(
+            filename="long.ogg",
+            mime_type="audio/ogg",
+            size=2048,
+            handle="h",
+            duration_seconds=reported,
+        )
+        transcribe = AsyncMock(return_value=_heard("never"))
+
+        with (
+            patch("app.services.channels.router.get_adapter", return_value=adapter),
+            patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
+            patch("app.services.channels.router.measure_audio_seconds", return_value=measured),
+            patch("app.services.channels.router.TranscriptionService.transcribe", transcribe),
+        ):
+            transcripts, refusals = await ChannelMessageRouter()._transcribe(
+                MagicMock(), _bot(), [note], requested_by=None
+            )
+
+        transcribe.assert_not_awaited()
+        usage.assert_not_awaited()
+        assert transcripts == []
+        assert refusals == ["long.ogg: too long to transcribe (the limit is 300 seconds)."]
+
+    async def test_a_voice_note_within_the_longest_dictation_is_transcribed(self):
+        adapter = MagicMock()
+        adapter.download_attachment = AsyncMock(return_value=b"OggS...")
+
+        with (
+            patch("app.services.channels.router.get_adapter", return_value=adapter),
+            patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
+            patch("app.services.channels.router.measure_audio_seconds", return_value=300.0),
+            patch(
+                "app.services.channels.router.TranscriptionService.transcribe",
+                AsyncMock(return_value=_heard("five minutes")),
+            ),
+        ):
+            transcripts, refusals = await ChannelMessageRouter()._transcribe(
+                MagicMock(), _bot(), [_voice()], requested_by=None
+            )
+
+        assert (transcripts, refusals) == (["five minutes"], [])
 
     async def test_a_recording_at_the_limit_is_still_fetched(self):
         """The cap is a ceiling, not a margin."""

@@ -1,5 +1,5 @@
 ---
-source_sha: "a71f2915fd7d"
+source_sha: "1e12e09b4e84"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -805,12 +805,13 @@ token. Cada página o widget acepta `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MIN
 por minuto (10 por defecto) de todos a la vez, por muchas direcciones que vaya
 rotando un script.
 
-Los dos contadores se gastan antes de buscar el enlace o admitir al visitante,
-así que una petición rechazada también cuenta: cualquiera que tenga el enlace
-puede agotar sus diez por minuto y dejar a los visitantes de la página
-rechazados el resto de ese minuto. A la organización no le cuesta nada, porque
-no se llama a ningún provider, pero es una forma de hacer fallar el micrófono
-de una página.
+La dirección se cuenta antes de buscar el enlace, así que una petición
+rechazada gasta el minuto de su dirección. Las diez grabaciones del enlace solo
+se gastan cuando el visitante ha sido admitido, así que alguien sin un token
+`jwt` válido no puede agotarlas a los visitantes que sí lo tienen. En una página
+alojada o un widget público se admite a todos, así que cualquiera con el enlace
+puede seguir gastando su minuto; a la organización le cuesta como mucho esas
+diez grabaciones.
 
 Mientras el Redis del despliegue no está disponible, estos límites **no se
 abren**: cada worker cuenta las mismas cuotas en su propia memoria hasta que
@@ -952,8 +953,8 @@ con su motivo.
 ### Lo que cuesta una llamada a un enlace público { #what-a-call-costs-a-public-link }
 
 Las llamadas están dentro de los budgets: cada una es un run, medido en los
-budgets del agent y de la organización, y contado contra los minutos de llamada
-mensuales de la organización. Además, un enlace público tiene límites propios:
+budgets del agent y de la organización, y dura como mucho la llamada más larga
+del agent. Además, un enlace público tiene límites propios:
 
 | Límite | Por defecto | Qué cuenta |
 |---|---|---|
@@ -962,8 +963,9 @@ mensuales de la organización. Además, un enlace público tiene límites propio
 | `VOICE_MAX_CALLS_PER_EMBED` | 3 | Llamadas abiertas a la vez en un embed; el siguiente que llama se rechaza como `line_busy` |
 
 El propio `rate_limit_per_minute` del embed cuenta **mensajes**, no inicios de
-llamada, así que no limita las llamadas. Los contadores de inicio se gastan
-antes de buscar la clave, así que un inicio rechazado también cuenta. El límite
+llamada, así que no limita las llamadas. La dirección se cuenta antes de buscar
+la clave, así que un inicio rechazado gasta el minuto de su dirección; los
+inicios del enlace solo se gastan una vez admitido el visitante. El límite
 por sujeto `jwt` es una tasa de inicios, no un tope de llamadas abiertas; las
 llamadas abiertas quedan limitadas, junto con las de todos, por el del embed.
 
@@ -1689,6 +1691,13 @@ Slack lo muestra.
     el agent ni en la organización no se transcribe nada, así que gastar el crédito
     de provider de la organización sigue siendo decisión de la organización. Un bot
     registrado desde la CLI, o por un cliente que no envía el interruptor, hereda.
+
+    **Una nota de voz se ajusta al dictado más largo de la organización** antes
+    de pagar a ningún provider: su duración se lee del archivo cuando el
+    contenedor lo dice (Ogg, WebM, MP4, WAV), y si no, tal como la informó la
+    plataforma, y una nota más larga se rechaza con una línea que lo dice. Los
+    bytes no la acotan por sí solos - 25 MB de audio de baja tasa de bits son
+    horas - y el límite del remitente cuenta mensajes, no minutos.
 
     Un bot que no puede escuchar lo dice en vez de descartar la grabación, porque
     una nota de voz que no produce ninguna reacción es indistinguible de un bot roto

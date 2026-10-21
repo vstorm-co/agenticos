@@ -1,5 +1,5 @@
 ---
-source_sha: "a71f2915fd7d"
+source_sha: "1e12e09b4e84"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -799,11 +799,12 @@ samo każdy odwiedzający widgetu `jwt`, według subjectu tokena. Każda strona 
 widget przyjmuje `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` na minutę
 (domyślnie 10) od wszystkich razem, przez ile adresów by skrypt nie rotował.
 
-Oba liczniki są zużywane, zanim link zostanie odnaleziony, a odwiedzający
-wpuszczony, więc odrzucone żądanie też się liczy: każdy, kto ma link, może
-wyczerpać jego dziesięć na minutę i zostawić odwiedzających stronę z odmową do
-końca tej minuty. Organizację nic to nie kosztuje, bo żaden provider nie jest
-wywoływany, ale to sposób, żeby mikrofon na stronie przestał działać.
+Adres jest liczony, zanim link zostanie odnaleziony, więc odrzucone żądanie
+zużywa minutę swojego adresu. Dziesięć nagrań linku jest zużywanych dopiero
+wtedy, gdy odwiedzający zostanie wpuszczony, więc ktoś bez ważnego tokena `jwt`
+nie może ich wyczerpać za odwiedzających, którzy go mają. Na hostowanej stronie
+albo w publicznym widżecie wpuszczany jest każdy, więc każdy, kto ma link, nadal
+może zużyć jego minutę; organizację kosztuje to najwyżej te dziesięć nagrań.
 
 Gdy Redis wdrożenia jest nieosiągalny, te limity **nie znikają**: każdy
 worker liczy te same limity we własnej pamięci, dopóki Redis nie wróci. Pułap
@@ -939,7 +940,7 @@ z powodem.
 ### Ile rozmowa kosztuje publiczny link { #what-a-call-costs-a-public-link }
 
 Rozmowy mieszczą się w budżetach: każda jest runem, liczonym w budżecie agenta
-i organizacji, i wliczanym do miesięcznych minut rozmów organizacji. Do tego
+i organizacji, i trwa najwyżej tyle, ile najdłuższa rozmowa agenta. Do tego
 publiczny link ma własne limity:
 
 | Limit | Domyślnie | Co jest liczone |
@@ -949,8 +950,9 @@ publiczny link ma własne limity:
 | `VOICE_MAX_CALLS_PER_EMBED` | 3 | Rozmowy otwarte jednocześnie w jednym embedzie; następny dzwoniący jest odrzucany jako `line_busy` |
 
 Własny `rate_limit_per_minute` embeda liczy **wiadomości**, a nie rozpoczęcia
-rozmów, więc nie ogranicza rozmów. Liczniki rozpoczęć są zużywane, zanim klucz
-zostanie odnaleziony, więc odrzucone rozpoczęcie też się liczy. Limit na subject
+rozmów, więc nie ogranicza rozmów. Adres jest liczony, zanim klucz zostanie
+odnaleziony, więc odrzucone rozpoczęcie zużywa minutę swojego adresu; rozpoczęcia
+linku są zużywane dopiero po wpuszczeniu odwiedzającego. Limit na subject
 `jwt` to tempo rozpoczęć, a nie limit otwartych rozmów; otwarte rozmowy
 ogranicza, razem z rozmowami wszystkich, limit embeda.
 
@@ -1661,6 +1663,13 @@ agent, który dobrze radzi sobie w konsoli, a słabo w Slacku, to pokazuje.
     wydawanie kredytu providera organizacji pozostaje decyzją organizacji. Bot
     zarejestrowany z CLI albo przez klienta, który nie wysyła przełącznika,
     dziedziczy.
+
+    **Notatka głosowa podlega najdłuższemu dyktowaniu organizacji**, zanim
+    jakikolwiek provider dostanie zapłatę: jej długość jest odczytywana z pliku,
+    gdy pozwala na to kontener (Ogg, WebM, MP4, WAV), a w przeciwnym razie tak,
+    jak podała ją platforma, a dłuższa notatka jest odrzucana z linią, która to
+    mówi. Same bajty jej nie ograniczają - 25 MB dźwięku o niskiej przepływności
+    to godziny - a limit nadawcy liczy wiadomości, nie minuty.
 
     Bot, który nie może słuchać, mówi to zamiast porzucać nagranie, bo notatka
     głosowa, która nie wywołuje żadnej reakcji, jest nie do odróżnienia od

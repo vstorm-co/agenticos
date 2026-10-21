@@ -1,5 +1,5 @@
 ---
-source_sha: "a71f2915fd7d"
+source_sha: "1e12e09b4e84"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -850,12 +850,13 @@ Subject seines Tokens. Jede Seite und jedes Widget nimmt
 `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` pro Minute an (standardmäßig 10),
 von allen zusammen, durch wie viele Adressen ein Skript auch rotiert.
 
-Beide Zähler werden verbraucht, bevor der Link nachgeschlagen oder der Besucher
-zugelassen wird, also zählt auch eine abgelehnte Anfrage: Wer den Link hat, kann
-seine zehn pro Minute aufbrauchen, und die Besucher der Seite werden für den
-Rest dieser Minute abgewiesen. Die Organisation kostet das nichts, weil kein
-Provider aufgerufen wird, aber es ist ein Weg, das Mikrofon einer Seite
-scheitern zu lassen.
+Die Adresse wird gezählt, bevor der Link nachgeschlagen wird, also verbraucht
+eine abgelehnte Anfrage die Minute ihrer Adresse. Die zehn Aufnahmen des Links
+werden erst verbraucht, wenn der Besucher zugelassen ist, also kann jemand ohne
+gültiges `jwt`-Token sie nicht für die Besucher aufbrauchen, die eines haben.
+Auf einer Hosted Page oder in einem öffentlichen Widget wird jeder zugelassen,
+also kann jeder mit dem Link seine Minute weiterhin verbrauchen; die
+Organisation kostet das höchstens diese zehn Aufnahmen.
 
 Ist das Redis des Deployments nicht erreichbar, **fallen diese Limits nicht
 weg**: Jeder Worker zählt dieselben Kontingente im eigenen Speicher, bis Redis
@@ -1001,8 +1002,8 @@ Alles nach der Zulassung ist die eigene Ablehnung des Anrufs, gesendet als
 ### Was ein Anruf einen öffentlichen Link kostet { #what-a-call-costs-a-public-link }
 
 Anrufe liegen innerhalb der Budgets: Jeder ist ein Run, wird auf die Budgets des
-Agents und der Organisation abgerechnet und auf die monatlichen Anrufminuten der
-Organisation angerechnet. Darüber hinaus hat ein öffentlicher Link eigene
+Agents und der Organisation abgerechnet und dauert höchstens so lange wie der
+längste Anruf des Agents. Darüber hinaus hat ein öffentlicher Link eigene
 Limits:
 
 | Limit | Standard | Gezählt |
@@ -1012,9 +1013,10 @@ Limits:
 | `VOICE_MAX_CALLS_PER_EMBED` | 3 | Gleichzeitig offene Anrufe auf einem Embed; der nächste Anrufer wird als `line_busy` abgelehnt |
 
 Das eigene `rate_limit_per_minute` des Embeds zählt **Nachrichten**, nicht
-Anrufstarts, und begrenzt Anrufe deshalb nicht. Die Startzähler werden
-verbraucht, bevor der Schlüssel nachgeschlagen wird, also zählt auch ein
-abgelehnter Start. Das Limit pro `jwt`-Subject ist eine Startrate, keine Obergrenze
+Anrufstarts, und begrenzt Anrufe deshalb nicht. Die Adresse wird gezählt, bevor
+der Schlüssel nachgeschlagen wird, also verbraucht ein abgelehnter Start die
+Minute seiner Adresse; die Starts des Links werden erst verbraucht, wenn der
+Besucher zugelassen ist. Das Limit pro `jwt`-Subject ist eine Startrate, keine Obergrenze
 für offene Anrufe; die offenen Anrufe begrenzt das Limit des Embeds, zusammen
 mit denen aller anderen.
 
@@ -1776,6 +1778,14 @@ schlecht abschneidet, zeigt es.
     das Provider-Guthaben der Organisation auszugeben bleibt die Entscheidung der
     Organisation. Ein Bot, der über die CLI oder von einem Client ohne Schalter
     registriert wird, erbt.
+
+    **Eine Sprachnachricht ist an das längste Diktat der Organisation gebunden**,
+    bevor irgendein Provider bezahlt wird: Ihre Länge wird aus der Datei gelesen,
+    wo der Container es sagt (Ogg, WebM, MP4, WAV), sonst so, wie die Plattform
+    sie gemeldet hat, und eine längere Nachricht wird mit einer Zeile abgelehnt,
+    die das sagt. Bytes allein begrenzen sie nicht - 25 MB Audio mit niedriger
+    Bitrate sind Stunden -, und das Limit des Absenders zählt Nachrichten, keine
+    Minuten.
 
     Ein Bot, der nicht zuhören kann, sagt das, statt die Aufnahme fallen zu
     lassen, denn eine Sprachnotiz, die keine Reaktion erzeugt, ist von einem

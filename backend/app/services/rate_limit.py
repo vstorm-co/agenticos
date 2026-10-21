@@ -411,38 +411,39 @@ async def embed_upload_allowed(
     )
 
 
-async def embed_dictation_allowed(connection: HTTPConnection, *, public_key: str) -> Decision:
-    """Whether this caller may send another dictation to this page or widget now.
+async def embed_dictation_allowed(connection: HTTPConnection) -> Decision:
+    """Whether this address may send another dictation to a page or widget now.
 
     **Every dictation is a paid call** to the organization's speech-to-text
-    provider, and it is not part of any model budget - so this is the whole of
-    what bounds a stranger's spend on it. Two counters, both before the key is
-    looked up, and both have to allow it.
+    provider, and it is not part of any model budget - so the counters here and
+    in `embed_dictation_link_allowed` are the whole of what bounds a stranger's
+    spend on it. The address is counted before the key is looked up, because it
+    is the one a stranger cannot vary for free.
 
-    The address first, because it is the one a stranger cannot vary for free.
-    Then the link, which no visitor can vary at all: whatever addresses a script
-    rotates through, one page or widget accepts at most
-    `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` recordings a minute from
-    everybody together, and that number times the organization's longest
-    dictation is the worst a leaked link can cost - `docs/channels.md` works it
-    through. A `jwt` widget also counts per visitor once the token is verified
-    (`embed_dictation_visitor_allowed`), so one signed-in visitor can take at
-    most `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` of the link's allowance (6 of
-    10 by default) - fewer than all of it, not none of it.
-
-    Both counters are spent here, before the key is looked up or the visitor
-    admitted, so a refused request spends the link's allowance too: anybody
-    with the link can exhaust its minute for everybody else. That costs the
-    organization nothing - no provider is called - and is the price of
-    counting before the database read rather than after it.
+    The link's own ceiling is spent only once the visitor is admitted
+    (`embed_dictation_link_allowed`): spent before, anybody holding a `jwt`
+    widget's public key could exhaust its minute for every signed-in visitor
+    without a valid token (Codex on #2204).
     """
-    by_address = await consume_floored(
+    return await consume_floored(
         surface="embed_dictation",
         caller=f"ip:{caller_ip(connection)}",
         limit=Limit(attempts=settings.RATE_LIMIT_EMBED_DICTATION_PER_MINUTE),
     )
-    if not by_address.allowed:
-        return by_address
+
+
+async def embed_dictation_link_allowed(*, public_key: str) -> Decision:
+    """Whether an admitted visitor's dictation fits the link's minute.
+
+    The ceiling no visitor can vary: whatever addresses a script rotates
+    through, one page or widget accepts at most
+    `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` recordings a minute from
+    everybody together, and that number times the organization's longest
+    dictation is the worst a leaked link can cost - `docs/channels.md` works it
+    through. A `jwt` widget's visitor is counted on their own first
+    (`embed_dictation_visitor_allowed`), so one of them takes at most
+    `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` of it.
+    """
     return await consume_floored(
         surface="embed_dictation",
         caller=f"key:{public_key}",
@@ -464,28 +465,30 @@ async def embed_dictation_visitor_allowed(*, public_key: str, visitor: str) -> D
     )
 
 
-async def embed_voice_allowed(connection: HTTPConnection, *, public_key: str) -> Decision:
-    """Whether this caller may start another voice call on this page or widget now (#54).
+async def embed_voice_allowed(connection: HTTPConnection) -> Decision:
+    """Whether this address may start another voice call on a page or widget now (#54).
 
-    **Every call is a paid realtime session**, so this is the `embed_dictation_allowed`
-    shape with counters of its own: the address first, because a stranger cannot vary
-    it for free, then the link, which no visitor can vary at all. Whatever addresses a
-    script rotates through, one page or widget starts at most
-    `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` calls a minute, and that number times
-    the organization's call cap - all of it inside the organization's monthly minutes
-    and the agent's budget - is the worst a leaked link can cost.
-
-    Both counters are spent before the key is looked up, so a refused handshake spends
-    the link's allowance too; that costs the organization nothing, since no provider
-    is called.
+    **Every call is a paid realtime session**, so this is the
+    `embed_dictation_allowed` shape with counters of its own: the address before
+    the key is looked up, and the link's ceiling (`embed_voice_link_allowed`) only
+    once the visitor is admitted, so nobody without a valid `jwt` token can spend
+    it for the visitors who have one.
     """
-    by_address = await consume_floored(
+    return await consume_floored(
         surface="embed_voice",
         caller=f"ip:{caller_ip(connection)}",
         limit=Limit(attempts=settings.RATE_LIMIT_EMBED_VOICE_PER_MINUTE),
     )
-    if not by_address.allowed:
-        return by_address
+
+
+async def embed_voice_link_allowed(*, public_key: str) -> Decision:
+    """Whether an admitted visitor's call fits the link's minute (#54).
+
+    Whatever addresses a script rotates through, one page or widget starts at
+    most `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` calls a minute, and that
+    number times the agent's longest call - inside the agent's and the
+    organization's budgets - is the worst a leaked link can cost.
+    """
     return await consume_floored(
         surface="embed_voice",
         caller=f"key:{public_key}",

@@ -774,11 +774,12 @@ widget accepts `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` a minute (10 by
 default) from everybody together, however many addresses a script rotates
 through.
 
-Both counters are spent before the link is looked up or the visitor admitted,
-so a refused request counts as well: anybody holding the link can use up its
-ten a minute and leave the page's visitors refused for the rest of that minute.
-That costs the organization nothing, since no provider is called, but it is a
-way to make a page's microphone fail.
+The address is counted before the link is looked up, so a refused request
+spends its own address's minute. The link's ten are spent only once the visitor
+is admitted, so a caller with no valid `jwt` token cannot use them up for the
+visitors who have one. On a hosted page or a public widget everybody is
+admitted, so anybody holding the link can still spend its minute; that costs
+the organization nothing beyond those ten recordings.
 
 While the deployment's Redis cannot be reached, these limits **do not open**:
 each worker counts the same allowances in its own memory until Redis is back.
@@ -902,8 +903,8 @@ call's own refusal, sent as an `ended` frame with its reason.
 ### What a call costs a public link
 
 Calls are inside the budgets: each is a run, metered on the agent's and the
-organization's budgets, and counted against the organization's monthly call
-minutes. On top of that, a public link has limits of its own:
+organization's budgets, and at most the agent's longest call. On top of that, a
+public link has limits of its own:
 
 | Limit | Default | Counted |
 |---|---|---|
@@ -912,9 +913,10 @@ minutes. On top of that, a public link has limits of its own:
 | `VOICE_MAX_CALLS_PER_EMBED` | 3 | Calls open on one embed at once; the next caller is refused as `line_busy` |
 
 The embed's own `rate_limit_per_minute` counts **messages**, not call starts, so
-it does not bound calls. Start counters are spent before the key is looked up,
-so a refused start counts too. The `jwt` subject limit is a start rate, not a
-cap on open calls; the open calls are bounded with everybody's by the embed's.
+it does not bound calls. The address is counted before the key is looked up, so
+a refused start spends its address's minute; the link's starts are spent only
+once the visitor is admitted. The `jwt` subject limit is a start rate, not a cap
+on open calls; the open calls are bounded with everybody's by the embed's.
 
 !!! danger "The worst case for a leaked link"
 
@@ -1607,6 +1609,13 @@ agent that does well in the console and badly in Slack shows it.
     agent or the organization, nothing is transcribed, so spending the
     organization's provider credit stays the organization's decision. A bot
     registered from the CLI, or by a client that sends no switch, inherits.
+
+    **A voice note is held to the organization's longest dictation** before any
+    provider is paid: its length is read off the file where the container says
+    (Ogg, WebM, MP4, WAV), else as the platform reported it, and a longer note is
+    refused with a line saying so. Bytes alone do not bound it - 25 MB of
+    low-bitrate audio is hours - and the sender's limit counts messages, not
+    minutes.
 
     A bot that cannot listen says so rather than dropping the recording, because
     a voice note that produces no reaction is indistinguishable from a broken

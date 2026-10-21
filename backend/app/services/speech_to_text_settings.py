@@ -96,6 +96,10 @@ class BotSpeechToText:
     resolved: ResolvedSpeechToText | None
     agent_id: UUID | None = None
     """The agent the bot serves, which a voice note's usage row is attributed to."""
+    max_seconds: int | None = None
+    """The organization's longest dictation, which a voice note is held to as well:
+    a paid recording on a public surface, bounded by its length rather than only
+    by its bytes, which a low bitrate stretches into hours."""
 
 
 def resolve(
@@ -215,7 +219,11 @@ class SpeechToTextSettingsService:
             bot=None if inherited else bot,
         )
         return BotSpeechToText(
-            exposed=True, agent_name=agent.name, agent_id=agent.id, resolved=resolved
+            exposed=True,
+            agent_name=agent.name,
+            agent_id=agent.id,
+            resolved=resolved,
+            max_seconds=organization.dictation_max_seconds,
         )
 
     async def key_problem(

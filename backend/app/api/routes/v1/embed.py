@@ -532,16 +532,16 @@ async def embed_voice_socket(
     speaks them (`app.schemas.voice`).
 
     **Every call is a paid realtime session**, so starting one is counted per
-    address and per link before the key is looked up (`rate_limit.embed_voice_allowed`,
-    `4029` past it, and per visitor for a `jwt` widget once the token is verified),
+    address before the key is looked up (`rate_limit.embed_voice_allowed`, `4029` past
+    it), then per visitor for a `jwt` widget and per link once the visitor is admitted,
     at most `VOICE_MAX_CALLS_PER_EMBED` calls are open on one embed at once
     (refused on the socket as `line_busy`), and each call is bounded by the
-    organization's call cap, its monthly minutes and the agent's budget. The
+    agent's longest call and the budgets. The
     embed's own `rate_limit_per_minute` counts messages, not calls. A visitor cannot approve anything:
     tools that need an approval are left out of their calls. Refusals about the
     embed all close with `4003`, without saying which.
     """
-    if not (await rate_limit.embed_voice_allowed(websocket, public_key=public_key)).allowed:
+    if not (await rate_limit.embed_voice_allowed(websocket)).allowed:
         await websocket.accept()
         await websocket.close(code=WS_TOO_MANY, reason="Too many calls. Try again shortly.")
         return
@@ -558,13 +558,19 @@ async def embed_voice_socket(
             await websocket.accept()
             await websocket.close(code=WS_DENIED, reason="Calls are not available here")
             return
-        if (
+        visitor_over = (
             admission.visitor is not None
             and not (
                 await rate_limit.embed_voice_visitor_allowed(
                     public_key=public_key, visitor=admission.visitor
                 )
             ).allowed
+        )
+        # The link's ceiling only once admitted: a stranger with no valid token
+        # must not be able to spend it for the visitors who have one.
+        if (
+            visitor_over
+            or not (await rate_limit.embed_voice_link_allowed(public_key=public_key)).allowed
         ):
             await websocket.accept()
             await websocket.close(code=WS_TOO_MANY, reason="Too many calls. Try again shortly.")

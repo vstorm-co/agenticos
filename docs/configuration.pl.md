@@ -1,5 +1,5 @@
 ---
-source_sha: "75367be9f30d"
+source_sha: "14553222ac64"
 ---
 
 # Konfiguracja { #configuration }
@@ -1172,9 +1172,9 @@ osobna decyzja, nie ta.
 | `RATE_LIMIT_DICTATION_PER_MINUTE` | `10` | [Dyktowanie w czacie](ml-services.md#dictation-in-chat), na osobę, na osobnym liczniku, żeby dyktowanie i integracja wywołująca usługi ML nie zużywały sobie nawzajem limitu. Każde dyktowanie to wywołanie płatnego providera organizacji |
 | `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` | `6` | [Odsłuchanie głosu](voice.md#turn-it-on) w Builderze, na osobę. Każdy podgląd spoza cache to krótka płatna sesja u providera realtime agenta, poza wszystkimi budżetami modelu; raz odsłuchany głos jest trzymany w cache przez tydzień |
 | `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` | `6` | [Dyktowanie w widżecie lub na hostowanej stronie](channels.md#dictation-on-a-widget-or-a-hosted-page), na adres, a w widżecie `jwt` także na odwiedzającego. Każde dyktowanie to wywołanie płatnego providera organizacji, poza każdym budżetem modelu |
-| `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` | `10` | To samo, na stronę albo widżet, od wszystkich odwiedzających razem — sufit tego, ile kosztuje wyciekły link: tyle nagrań na minutę, każde do najdłuższego dyktowania organizacji |
-| `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` | `3` | [Rozmowy głosowe](channels.md#voice-calls-on-a-widget-or-a-hosted-page) rozpoczynane w widżecie albo na hostowanej stronie, na adres, a w widżecie `jwt` także na subject tokena odwiedzającego. Liczone, zanim klucz zostanie odnaleziony; każda rozmowa to płatna sesja realtime |
-| `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` | `6` | To samo, na stronę albo widżet, od wszystkich odwiedzających razem. Razem z `VOICE_MAX_CALLS_PER_EMBED` wyżej — sufit tego, ile kosztuje wyciekły link |
+| `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` | `10` | To samo, na stronę albo widżet, od wszystkich odwiedzających razem — sufit tego, ile kosztuje wyciekły link: tyle nagrań na minutę, każde do najdłuższego dyktowania organizacji. Zużywane dopiero po wpuszczeniu odwiedzającego |
+| `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` | `3` | [Rozmowy głosowe](channels.md#voice-calls-on-a-widget-or-a-hosted-page) rozpoczynane w widżecie albo na hostowanej stronie, na adres, a w widżecie `jwt` także na subject tokena odwiedzającego. Adres jest liczony, zanim klucz zostanie odnaleziony; każda rozmowa to płatna sesja realtime |
+| `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` | `6` | To samo, na stronę albo widżet, od wszystkich odwiedzających razem, zużywane dopiero po wpuszczeniu odwiedzającego. Razem z `VOICE_MAX_CALLS_PER_EMBED` wyżej — sufit tego, ile kosztuje wyciekły link |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Czy `X-Forwarded-For` nazywa wołającego |
 
 **Co dostaje odrzucony wołający** to własna koperta błędu tego API z
