@@ -12,8 +12,6 @@ store needed is gone with it - as is the `origin` column and the trust tier it
 carried. Both went with the store that made them necessary (#1470).
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 

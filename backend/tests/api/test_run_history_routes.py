@@ -12,8 +12,6 @@ columns, so an unvalidated `?status=complete` would return an empty page - and a
 empty page is what "nothing went wrong this week" looks like.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from decimal import Decimal

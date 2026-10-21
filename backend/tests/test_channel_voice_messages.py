@@ -13,8 +13,6 @@ reaction is indistinguishable from a broken bot, so a deployment that cannot
 listen says so once rather than dropping the recording.
 """
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4

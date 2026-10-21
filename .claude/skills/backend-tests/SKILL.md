@@ -58,13 +58,18 @@ The conftest also sets `POSTGRES_DB` to `<base>_p<pid>` *before* anything import
 checkout with a populated `.env` used to empty the development database, and a constant
 name meant two runs on one machine dropping each other's tables (#189).
 
-The same block seeds Prefect, which reads `backend/.env` on its own account:
-`PREFECT_API_URL` **empty** so that calling a `@flow` starts a temporary server rather
-than reaching for the one `make dev` names (#536), and `PREFECT_HOME` at a directory
-belonging to the tests so that server's SQLite database is not a developer's
-`~/.prefect`. `tests/test_prefect_test_environment.py` pins both, and
-`docs/testing.md#prefect-and-why-no-test-reaches-a-server` explains why an empty
-assignment is the shape that works.
+The worker needs no server and no variable of its own. Its guarantees are tested
+against the real `background_jobs` table and real child processes, with the
+misbehaving kinds in `tests/worker_handlers.py`; a service that queues a job is
+unit-tested by patching `enqueue` where it is imported (the `queued_fires`
+fixture in `tests/test_agent_triggers.py`).
+`docs/testing.md#the-workers-tests` has which file covers what.
+
+When listing files for one pytest run, keep the `tests/integration/` files
+together: an integration file, then a plain `tests/` file, then another
+integration file loses `tests/integration/conftest.py` for the last one and it
+errors with `fixture 'db' not found`. Whole directories, as CI runs them, are
+unaffected.
 
 `tests/integration/conftest.py` **creates that database for the session and drops it
 afterwards**, so two concurrent runs need nothing passed to them — `make test` and

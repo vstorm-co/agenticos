@@ -32,22 +32,20 @@ request that has to answer when the database has stopped answering, and a probe
 that times out at the kubelet is indistinguishable from a wedged pod.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from time import perf_counter
 from typing import Any
 
 from sqlalchemy import distinct, func, select, text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.clients.redis import RedisClient
 from app.core.config import settings
 from app.db.models.credential import ModelProfile
 from app.schemas.health import SystemCheck, SystemHealthResponse
-from app.services import worker_heartbeat
 
 logger = logging.getLogger(__name__)
 
@@ -351,140 +349,100 @@ async def probe_model_access(db: AsyncSession) -> SystemCheck:
     )
 
 
-_SWEEP_SECONDS = 60
-"""The sweeps' interval in `app/worker/prefect_app.py`.
-
-Every sweep is checked, not one standing for the rest: each runs as its own task
-and fails on its own - a mailbox poll that hangs leaves the trigger heartbeat
-ticking.
-"""
-
-_PREFECT_DEPLOYMENT = "mcp-connection-sweep"
-"""The most frequent deployment Prefect still schedules, as `prefect_app` registers it.
-
-It stands for every interval deployment there: one scheduler service creates all
-their runs and one runner executes them, so when this one stops completing, the
-others have stopped with it.
-"""
-
-_PREFECT_SECONDS = 900
-"""That deployment's declared interval in `app/worker/prefect_app.py`."""
-
 _MISSED_HEARTBEATS = 5
-"""How many intervals may pass without a completed tick before it is a failure.
+"""How many intervals may pass without a fired schedule before it is a failure.
 
-One missed tick is a slow run or a worker restart; five is something stopped.
+One missed tick is a slow worker or a restart; five is something stopped.
 """
 
-_WHAT_STOPS = "scheduled triggers, notification emails and sweeps are not running"
+_WORKER_SILENT_AFTER = timedelta(minutes=2)
+"""A worker that has not beaten for this long is not counted as alive (its heartbeat is every 15s)."""
+
+_WHAT_STOPS = "scheduled triggers, notification emails, ingestion and sweeps are not running"
 
 
-async def _last_prefect_run() -> datetime | None:
-    """When the Prefect heartbeat deployment last completed a run - or never.
+async def probe_scheduler(db: AsyncSession) -> SystemCheck:
+    """Whether background work is actually running, judged by what the workers last did.
 
-    Imported here rather than at the top: the API process otherwise loads Prefect
-    only when it dispatches a run, and this module is imported at start-up.
+    Three facts, all read from the queue's own tables (#2219): that a worker has
+    said it is alive within two minutes; that every minute schedule fired within
+    five of its intervals - a schedule fires only when a worker is up, its
+    database works and its scheduler loop runs, so its age is the check that
+    needs all three; and that no kind of job is paused by the circuit breaker,
+    which stays paused until somebody resumes it.
     """
-    from prefect.client.orchestration import get_client
-    from prefect.client.schemas.filters import (
-        DeploymentFilter,
-        DeploymentFilterName,
-        FlowRunFilter,
-        FlowRunFilterState,
-        FlowRunFilterStateType,
-    )
-    from prefect.client.schemas.objects import StateType
-    from prefect.client.schemas.sorting import FlowRunSort
+    from app.repositories import background_schedule as schedule_repo
+    from app.repositories import background_task_kind as kind_repo
+    from app.repositories import background_worker as worker_repo
+    from app.worker.jobs import Pool
 
-    async with get_client() as client:
-        runs = await client.read_flow_runs(
-            deployment_filter=DeploymentFilter(
-                name=DeploymentFilterName(any_=[_PREFECT_DEPLOYMENT])
-            ),
-            flow_run_filter=FlowRunFilter(
-                state=FlowRunFilterState(type=FlowRunFilterStateType(any_=[StateType.COMPLETED]))
-            ),
-            sort=FlowRunSort.END_TIME_DESC,
-            limit=1,
-        )
-    return runs[0].end_time if runs else None
-
-
-def _stale(what: str, completed_at: datetime | None, interval: int) -> str | None:
-    """Why `what` reads as stopped, or `None` while it keeps time."""
-    if completed_at is None:
-        return f"{what} has never completed, so {_WHAT_STOPS}"
-    age = (datetime.now(UTC) - completed_at).total_seconds()
-    if age > interval * _MISSED_HEARTBEATS:
-        return (
-            f"{what} last completed {age / 60:.0f} min ago (expected every {interval}s), "
-            f"so {_WHAT_STOPS}"
-        )
-    return None
-
-
-async def probe_scheduler(redis: RedisClient) -> SystemCheck:
-    """Whether scheduled work is actually running, judged by what last completed.
-
-    Two halves, because they stop for different reasons. The minute-scale sweeps
-    run in the worker's own process and leave a heartbeat in Redis - their age says
-    whether the worker is up and ticking. Everything slower is a Prefect deployment,
-    and the Prefect server's own health says nothing about that: from 2026-09-28 to
-    2026-10-09 its scheduler failed on every tick (PrefectHQ/prefect#23199) and
-    created no runs, while `/api/health` answered and every deployment read
-    `READY`. A completed run is the one fact that needs the scheduler, the runner
-    and the database all working, so its age is the other check.
-
-    The Prefect threshold honours `WORKER_MIN_INTERVAL_SECONDS` the way the
-    deployment does, or a development machine that slows its ticks would always
-    read failed. The sweeps do not take the floor, so neither does their check.
-    """
     start = perf_counter()
+    now = datetime.now(UTC)
     try:
         async with asyncio.timeout(PROBE_TIMEOUT_SECONDS):
-            swept = {
-                sweep: await worker_heartbeat.last(redis, sweep)
-                for sweep in worker_heartbeat.SWEEPS
-            }
-            ran_at = await _last_prefect_run()
+            workers = await worker_repo.list_seen_since(db, since=now - _WORKER_SILENT_AFTER)
+            schedules = await schedule_repo.list_all(db)
+            paused = [
+                kind.kind if name is None else f"{kind.kind} ({name})"
+                for kind, name in await kind_repo.list_all(db)
+                if kind.paused_at
+            ]
     except TimeoutError:
-        return _timed_out("scheduler", "Redis or the Prefect API")
-    except Exception as exc:
+        await _abandon_the_transaction(db)
+        return _timed_out("scheduler", "the background job tables")
+    except SQLAlchemyError as exc:
         logger.warning("scheduler health probe failed", exc_info=True)
+        await _abandon_the_transaction(db)
         return SystemCheck(
             key="scheduler",
             status="unhealthy",
-            detail=f"reading the last completed runs failed: {exc}",
+            detail=f"reading the background job tables failed: {type(exc).__name__}",
         )
     latency = _elapsed_ms(start)
-    prefect_interval = max(_PREFECT_SECONDS, settings.WORKER_MIN_INTERVAL_SECONDS)
-    problems = [
-        problem
-        for sweep, swept_at in swept.items()
-        if (problem := _stale(f"the worker's {sweep} sweep", swept_at, _SWEEP_SECONDS))
-    ]
-    if problem := _stale(f"Prefect's {_PREFECT_DEPLOYMENT} deployment", ran_at, prefect_interval):
-        problems.append(problem)
-    times = [at for at in swept.values() if at is not None]
-    # `_stale` answers a problem for a missing time, so past this every time is set.
-    if problems or ran_at is None or len(times) < len(swept):
+    problems: list[str] = []
+    if not workers:
+        problems.append(f"no worker has said it is alive in two minutes, so {_WHAT_STOPS}")
+    else:
+        # A split deployment runs a pool per worker: a live `agent,system` worker
+        # keeps every schedule firing while the dead `ingest` one leaves uploads
+        # queued for ever, so one live worker is not enough to call it healthy.
+        served = {pool for worker in workers for pool in worker.pools}
+        unserved = [pool.value for pool in Pool if pool.value not in served]
+        if unserved:
+            problems.append(
+                f"no live worker serves the {', '.join(unserved)} pool(s), "
+                "so jobs queued there are not running"
+            )
+    for schedule in schedules:
+        if schedule.interval_seconds > 60:
+            continue
+        if schedule.last_fired_at is None:
+            problems.append(f"the {schedule.name} schedule has never fired")
+            continue
+        age = (now - schedule.last_fired_at).total_seconds()
+        if age > schedule.interval_seconds * _MISSED_HEARTBEATS:
+            problems.append(
+                f"the {schedule.name} schedule last fired {age / 60:.0f} min ago "
+                f"(expected every {schedule.interval_seconds}s)"
+            )
+    if paused:
+        problems.append(
+            f"paused after repeated worker deaths: {', '.join(paused)} - resume on the "
+            "Background jobs page once the cause is fixed"
+        )
+    if problems:
         return SystemCheck(
             key="scheduler",
             status="unhealthy",
-            detail=(
-                f"{'; '.join(problems)}; check that the worker is up, its log for the "
-                "sweep's errors, and the Prefect server log for scheduler errors"
-            ),
+            detail=f"{'; '.join(problems)}; check the worker's log",
             latency_ms=latency,
         )
-    now = datetime.now(UTC)
     return SystemCheck(
         key="scheduler",
         status="healthy",
         detail=(
-            f"all {len(times)} sweeps ticked within "
-            f"{(now - min(times)).total_seconds():.0f}s, and "
-            f"{_PREFECT_DEPLOYMENT} completed {(now - ran_at).total_seconds() / 60:.0f} min ago"
+            f"{len(workers)} worker(s) alive; every minute schedule fired within "
+            f"{_MISSED_HEARTBEATS} intervals"
         ),
         latency_ms=latency,
     )
@@ -513,20 +471,20 @@ async def readiness(*, db: AsyncSession, redis: RedisClient) -> tuple[bool, dict
 async def system_health(*, db: AsyncSession, redis: RedisClient) -> SystemHealthResponse:
     """Every check this deployment can perform, for an operator who is signed in.
 
-    The database probe gates the two that read through it. Not for speed - a
+    The database probe gates the three that read through it. Not for speed - a
     timed-out query leaves the session unusable, and the cascade of driver errors
     that follows reports three broken things when one is. `not_checked` names
     the reason instead.
     """
-    database, redis_check, scheduler = await asyncio.gather(
-        probe_database(db), probe_redis(redis), probe_scheduler(redis)
-    )
+    database, redis_check = await asyncio.gather(probe_database(db), probe_redis(redis))
     if database.status == "healthy":
         vector_store = await probe_vector_store(db)
         model_access = await probe_model_access(db)
+        scheduler = await probe_scheduler(db)
     else:
         vector_store = _not_checked("vector_store", "the database probe failed")
         model_access = _not_checked("model_access", "the database probe failed")
+        scheduler = _not_checked("scheduler", "the database probe failed")
 
     return SystemHealthResponse(
         checked_at=datetime.now(UTC),

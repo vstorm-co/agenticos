@@ -374,10 +374,11 @@ flow's work.**
 **One loop owns the process's pools, and everything else builds its own
 engine.** The API's lifespan claims them at startup: it serves every request and
 disposes them at shutdown, so it is the one loop whose connections they may
-cache. Off that loop `get_db_context` behaves like `get_worker_db_context` — a
-`NullPool` engine for the call, disposed at the end — because it is reached from
-Prefect flows (the report, MCP refresh, invitation and approval tasks, the
-channel loops) and from an agent's embedding resolver, each on a loop of its own
+cache. The worker claims them the same way for its one loop, and so does each
+ingestion child for its own. Off the owning loop `get_db_context` behaves like
+`get_worker_db_context` — a `NullPool` engine for the call, disposed at the end —
+because it is reached from the channel loops and from an agent's embedding
+resolver, each on a loop of its own
 ([#1079](https://github.com/vstorm-co/agenticos/issues/1079)).
 
 An agent's knowledge search follows the same rule for its vector store: the
@@ -581,7 +582,7 @@ variable.
 
 That degradation is announced rather than assumed. The resolution carries which
 of the five sources it landed on, and ingestion writes every degraded one into
-the Prefect run's log, a collection that simply names no key included. Before
+the worker's log, a collection that simply names no key included. Before
 issue #306 the ingestion worker was the one caller that never asked the resolver
 at all, so every uploaded document was embedded with the deployment's model and a
 deployment-wide key whatever its collection had chosen; that key is gone.
@@ -964,14 +965,16 @@ credential is configured for this collection"*, *"Organization monthly budget
 exhausted: $40.15 spent of $40.00 limit"*.
 
 What is **not** stored is the failing client's own text. A provider SDK, `httpx`,
-`boto3` and the Google Drive client all put the request they were making into
-their exception message, which routinely means an endpoint, an internal host, a
-bucket, or a URL with a key in its query string — and unlike an HTTP error body,
-a column is read again weeks later by anyone who opens the failed document. That
-text is not lost: every one of these call sites logs it with `logger.exception`,
-so the worker log has the message and the traceback, and a Prefect flow that
-re-raises has both in its run. `app/services/rag/failures.py` is where the two
-are separated.
+`boto3` and the Google Drive client all put the request they were making into their
+exception message, which routinely means an endpoint, an internal host, a bucket, or
+a URL with a key in its query string — and unlike an HTTP error body, a column is
+read again weeks later by anyone who opens the failed document.
+
+That text is not lost: every one of these call sites logs it with
+`logger.exception`, so the worker log has the message and the traceback, and a job
+that re-raises has its type, message and last frames on its row in
+`background_jobs`, where only the deployment's owner reads them.
+`app/services/rag/failures.py` is where the column and the log are separated.
 
 The log is a smaller audience than the column, not a safe one — treat a worker
 log as something only operators read, and see [#440] for why the redaction

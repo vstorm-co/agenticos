@@ -115,12 +115,12 @@ class Organization(Base, TimestampMixin):
     # defaults, its ceiling and the audit floor, and no other place resolves it.
     retention_days: Mapped[dict[str, int | None] | None] = mapped_column(JSONB, nullable=True)
 
-    members: Mapped[list["OrganizationMember"]] = relationship(
+    members: Mapped[list[OrganizationMember]] = relationship(
         "OrganizationMember",
         back_populates="organization",
         cascade="all, delete-orphan",
     )
-    invitations: Mapped[list["Invitation"]] = relationship(
+    invitations: Mapped[list[Invitation]] = relationship(
         "Invitation",
         back_populates="organization",
         cascade="all, delete-orphan",
@@ -178,7 +178,7 @@ class OrganizationMember(Base):
         server_default=MembershipSource.MANUAL.value,
     )
 
-    organization: Mapped["Organization"] = relationship("Organization", back_populates="members")
+    organization: Mapped[Organization] = relationship("Organization", back_populates="members")
 
     __table_args__ = (
         UniqueConstraint("organization_id", "user_id", name="uq_org_member"),
@@ -253,9 +253,7 @@ class Invitation(Base):
         nullable=True,
     )
 
-    organization: Mapped["Organization"] = relationship(
-        "Organization", back_populates="invitations"
-    )
+    organization: Mapped[Organization] = relationship("Organization", back_populates="invitations")
 
     __table_args__ = (
         Index(

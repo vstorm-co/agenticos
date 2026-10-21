@@ -12,8 +12,6 @@ the assertions are about what the route returns rather than about a stub echoing
 its input.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager

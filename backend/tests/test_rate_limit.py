@@ -12,8 +12,6 @@ not trusted by default, and that a Redis nobody can reach degrades to no limit
 rather than to no service.
 """
 
-from __future__ import annotations
-
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest

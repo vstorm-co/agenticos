@@ -9,8 +9,6 @@ it. Neither edge is exercised by the tests that only read a working capability's
 contract, so they get their own file.
 """
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 

@@ -1,7 +1,5 @@
 """Responses are compressed on the way out, and the bodies that must not be are not."""
 
-from __future__ import annotations
-
 import json
 
 import pytest

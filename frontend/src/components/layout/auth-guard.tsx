@@ -3,8 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores";
-import { apiClient } from "@/lib/api-client";
-import { useAdoptSession } from "@/hooks/use-auth";
+import { readSession, useAdoptSession } from "@/hooks/use-auth";
 import { ROUTES } from "@/lib/constants";
 import { invitationTokenFrom, pendingLandingFor } from "@/lib/invitation-links";
 import { stageInvitation } from "@/lib/invitation-staging";
@@ -53,9 +52,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
     const verify = async () => {
       try {
-        const { access_token, ...user } = await apiClient.get<User & { access_token?: string }>(
-          "/auth/me",
-        );
+        const { access_token, ...user } = await readSession();
         adoptSession(user as User, access_token ?? null);
       } catch {
         // Off `window.location`, not the navigation hooks: a hook here would

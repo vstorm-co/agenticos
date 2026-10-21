@@ -8,8 +8,6 @@ inside the same session that then refreshes the skill, which is the shape that
 once answered a resource delete with a 500 (`remove_resource`).
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

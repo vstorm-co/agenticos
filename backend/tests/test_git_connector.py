@@ -13,8 +13,6 @@ address the rewrite never dials. Everything else in the environment is the
 connector's own.
 """
 
-from __future__ import annotations
-
 import asyncio
 import base64
 import os

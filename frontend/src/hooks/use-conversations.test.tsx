@@ -12,6 +12,7 @@ import {
   useChatStore,
   useConversationStore,
   useOrgStore,
+  useLiveFeedStore,
   useWorkingStore,
 } from "@/stores";
 
@@ -113,6 +114,24 @@ describe("the conversation list", () => {
     // Nothing at work now, so no further read comes.
     await act(async () => vi.advanceTimersByTimeAsync(8_000));
     expect(lists()).toBe(first + 1);
+    vi.useRealTimers();
+  });
+
+  it("asks only now and then while the live-update socket carries the run's end", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    useLiveFeedStore.setState({ connected: true });
+    serve({ items: [conversation("c-1", { running_since: "2026-10-13T12:00:00Z" })] });
+    await hook();
+    const lists = () =>
+      vi.mocked(apiClient.get).mock.calls.filter(([path]) => !String(path).includes("/messages"))
+        .length;
+    const first = lists();
+
+    await act(async () => vi.advanceTimersByTimeAsync(8_000));
+    expect(lists()).toBe(first);
+    await act(async () => vi.advanceTimersByTimeAsync(30_000));
+    await waitFor(() => expect(lists()).toBe(first + 1));
+    useLiveFeedStore.setState({ connected: false });
     vi.useRealTimers();
   });
 

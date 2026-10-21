@@ -5,8 +5,6 @@ MCP call with the token, refresh rotation, and the two thefts RFC 9700 asks a
 server to answer: a reused code and a reused refresh token each revoke the grant.
 """
 
-from __future__ import annotations
-
 import base64
 import hashlib
 import secrets

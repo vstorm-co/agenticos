@@ -1,6 +1,5 @@
-"""Background tasks.
+"""The work each kind of background job does, grouped by area (#2219).
 
-Nothing is re-exported here on purpose. A Prefect flow run imports the module its
-flow is defined in, and this package's `__init__` with it: re-exporting every flow
-made each run import all of them (#2213).
+Bound to job kinds in `app/worker/handlers.py`; nothing is re-exported here,
+so importing one area does not import the rest.
 """

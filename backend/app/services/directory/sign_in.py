@@ -17,8 +17,6 @@ it only stops waiting for it, and nothing is written for a sign-in that did not
 finish.
 """
 
-from __future__ import annotations
-
 import asyncio
 
 from sqlalchemy.ext.asyncio import AsyncSession

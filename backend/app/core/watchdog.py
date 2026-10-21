@@ -83,8 +83,6 @@ number switches off both judges rather than leaving this one to kill the
 debugging session the other was told to allow.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 import os

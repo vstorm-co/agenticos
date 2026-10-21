@@ -21,8 +21,6 @@ have been retired since, and the frontend drops what its registry no longer
 knows rather than the backend refusing to return the row.
 """
 
-from __future__ import annotations
-
 import uuid
 from typing import Any
 

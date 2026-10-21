@@ -43,11 +43,11 @@ class MessageRating(Base, TimestampMixin):
     rating: Mapped[int] = mapped_column(Integer, nullable=False)  # 1 or -1
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    message: Mapped["Message"] = relationship(
+    message: Mapped[Message] = relationship(
         "Message",
         foreign_keys="MessageRating.message_id",
     )
-    user: Mapped["User"] = relationship(
+    user: Mapped[User] = relationship(
         "User",
         foreign_keys="MessageRating.user_id",
     )

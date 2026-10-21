@@ -7,8 +7,6 @@ so it takes `agents:edit`; reading the list takes `agents:view`, which is what
 picking one as a delegate needs.
 """
 
-from __future__ import annotations
-
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 from uuid import UUID

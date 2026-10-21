@@ -31,7 +31,11 @@ describe("staleQueries", () => {
   });
 
   it("refreshes the sharing panels with every row somebody can share", () => {
-    expect(staleQueries(change("agent"))).toEqual([qk.agents.all(), qk.sharing.all()]);
+    expect(staleQueries(change("agent"))).toEqual([
+      qk.agents.all(),
+      qk.sharing.all(),
+      qk.runs.assistantSignals(ORG),
+    ]);
     expect(staleQueries(change("skill"))).toEqual([qk.skills.all(), qk.sharing.all()]);
     expect(staleQueries(change("context"))).toEqual([qk.context.all(), qk.sharing.all()]);
     expect(staleQueries(change("knowledge_base"))).toEqual([qk.kb.all(), qk.sharing.all()]);
@@ -41,6 +45,12 @@ describe("staleQueries", () => {
       qk.mcpConnections.all(),
       qk.sharing.all(),
     ]);
+  });
+
+  it("refreshes what the Architect may raise with runs and with agents", () => {
+    // Under `runs`, so a run or an approval event reaches it through that family.
+    expect(qk.runs.assistantSignals(ORG).slice(0, 1)).toEqual(qk.runs.all());
+    expect(staleQueries(change("agent"))).toContainEqual(qk.runs.assistantSignals(ORG));
   });
 
   it("refreshes the surfaces an agent is exposed on with the channel bots", () => {

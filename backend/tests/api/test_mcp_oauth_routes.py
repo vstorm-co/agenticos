@@ -1,7 +1,5 @@
 """The console's half of MCP OAuth: consent and connected applications (#2059)."""
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import Iterator
 from datetime import UTC, datetime

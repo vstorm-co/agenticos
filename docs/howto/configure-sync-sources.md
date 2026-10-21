@@ -205,12 +205,13 @@ automatically:
 | `120` | Every 2 hours |
 | `1440` | Once per day |
 
-!!! warning "A schedule needs the Prefect runner"
+!!! warning "A schedule needs the worker"
 
-    `check_scheduled_syncs_flow` is a Prefect deployment that wakes every 60
-    seconds and fires whatever is due, so `schedule_minutes` does nothing without
-    the `prefect-server` and `prefect-runner` containers `make dev` starts. With
-    neither running, only a manual trigger (CLI, API or the UI) syncs anything.
+    The `dispatch-due-syncs` schedule wakes every 60 seconds and queues a sync
+    for each source that has come due, so `schedule_minutes` does nothing without
+    the `worker` container `make dev` starts. Without it, a manual trigger (CLI,
+    API or the UI) queues its sync too, and the sync waits for a worker as well.
+    A source never has two syncs running at once.
 
 ## Google Drive setup
 

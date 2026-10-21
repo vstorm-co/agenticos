@@ -205,8 +205,17 @@ export async function updateSandboxConnection(
   return apiClient.patch<SandboxConnectionRecord>(`${ROOT}/${id}`, patch);
 }
 
-export async function deleteSandboxConnection(id: string): Promise<void> {
-  await apiClient.delete(`${ROOT}/${id}`);
+/**
+ * `forgetPendingDestroys` says the sandboxes the platform could not remove were
+ * deleted on the provider by hand: their records go with the connection (#2250).
+ */
+export async function deleteSandboxConnection(
+  id: string,
+  { forgetPendingDestroys = false }: { forgetPendingDestroys?: boolean } = {},
+): Promise<void> {
+  await apiClient.delete(`${ROOT}/${id}`, {
+    params: forgetPendingDestroys ? { forget_pending_destroys: "true" } : undefined,
+  });
 }
 
 /** What this deployment ships. Static — nothing is contacted to answer it. */

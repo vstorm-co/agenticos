@@ -171,8 +171,8 @@ PROD_FILES := -f docker-compose-prod.yml $(if $(filter traefik,$(PROXY)),-f dock
 # name from the directory, so both invocations were `agenticos` - and the
 # frontend one then reported the five backend containers as **orphans**, with
 # compose's own suggestion to "run this command with the --remove-orphans flag to
-# clean it up". Following that advice takes the API, the database, Redis and both
-# Prefect services down. The volumes survive; nothing else does.
+# clean it up". Following that advice takes the API, the database, Redis and the
+# worker down. The volumes survive; nothing else does.
 PROD_FRONTEND_FILES := -p agenticos-frontend -f docker-compose-prod.frontend.yml $(if $(filter traefik,$(PROXY)),-f docker-compose-prod.frontend.traefik.yml)
 PROD_PROXY_NOTE := $(if $(filter traefik,$(PROXY)),Traefik routes it once the certificate is issued,configure your nginx host with nginx/nginx.conf)
 
@@ -645,6 +645,13 @@ load-seed:
 	uv run --directory backend python ../loadtest/seed.py \
 		--stub-url $(LOAD_STUB_URL) --documents $(LOAD_DOCUMENTS)
 
+# The whole run from an empty database - migrate, bootstrap, stub, API, worker,
+# seed, scenario - and the thresholds as its exit status. What
+# `.github/workflows/load.yml` runs; `LOAD_SCALE`, `LOAD_REPORT` and the rest are
+# in `loadtest/cold_run.sh`.
+load-cold:
+	bash loadtest/cold_run.sh
+
 # `API_PID` and `DATABASE_URL` are optional; without them the run measures
 # requests and says which probes it could not take.
 load-test:
@@ -961,7 +968,8 @@ help:
 	@echo "  make format        Auto-format code (ruff + prettier)"
 	@echo "  make check         Every CI job except e2e - before opening a pull request"
 	@echo ""
-	@echo "Load and resilience (NFA-004, never in CI - see docs/load-testing.md):"
+	@echo "Load and resilience (NFA-004, nightly in CI - see docs/load-testing.md):"
+	@echo "  make load-cold        The whole run from an empty database, thresholds as exit status"
 	@echo "  make load-stub-model  The slow-on-purpose model the suite measures against"
 	@echo "  make load-seed        Build the fixture: an agent, a collection, a routine"
 	@echo "  make load-test        Offer the workload and print the report"

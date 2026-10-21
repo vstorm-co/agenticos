@@ -6,8 +6,6 @@ across facets, case-insensitive, tenant-safe - are asserted here rather than
 against a mock. The write round-trip proves the folded values survive a reload.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import Sequence
 

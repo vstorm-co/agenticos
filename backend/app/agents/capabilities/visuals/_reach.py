@@ -7,8 +7,6 @@ would itself be allowed to reach - an author's `allowed_domains` or
 `blocked_domains` on `web_fetch` or `browser_use` bounds the pictures too.
 """
 
-from __future__ import annotations
-
 from collections.abc import Iterable
 from dataclasses import dataclass
 from fnmatch import fnmatch

@@ -22,8 +22,6 @@ a row that is really gone - a rolled-back registration must not leave a
 connection behind talking to somebody's Mattermost.
 """
 
-from __future__ import annotations
-
 import logging
 
 from app.services.channels import connection_state, get_adapter, stream_lease

@@ -1004,6 +1004,40 @@ class TestConversationServiceListConversations:
             )
 
     @pytest.mark.anyio
+    async def test_the_requests_context_spares_a_second_membership_read(
+        self, service: ConversationService
+    ):
+        reader = uuid4()
+        ctx = AuthContext(user_id=reader, organization_id=TEST_ORG_ID, role="owner")
+        project = uuid4()
+
+        with (
+            patch("app.services.conversation.member_repo") as members,
+            patch("app.services.conversation.project_repo") as projects,
+        ):
+            members.get = AsyncMock()
+            projects.visible_ids = AsyncMock(return_value=[project])
+
+            found = await service.visible_project_ids(reader, TEST_ORG_ID, reader=ctx)
+
+        assert found == [project]
+        members.get.assert_not_awaited()
+        assert projects.visible_ids.call_args.kwargs["see_all"] is True
+
+    @pytest.mark.anyio
+    async def test_a_context_without_a_role_reaches_no_project(self, service: ConversationService):
+        """An app administrator outside the organization has a context but no role."""
+        reader = uuid4()
+        ctx = AuthContext(user_id=reader, organization_id=TEST_ORG_ID, role="", is_app_admin=True)
+
+        with patch("app.services.conversation.project_repo") as projects:
+            projects.visible_ids = AsyncMock()
+
+            assert await service.visible_project_ids(reader, TEST_ORG_ID, reader=ctx) == []
+
+        projects.visible_ids.assert_not_awaited()
+
+    @pytest.mark.anyio
     async def test_an_unnarrowed_listing_never_asks_the_platform(
         self, service: ConversationService
     ):

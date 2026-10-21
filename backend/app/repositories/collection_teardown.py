@@ -1,7 +1,5 @@
 """Data access for collection-teardown tombstones (#1362)."""
 
-from __future__ import annotations
-
 from collections.abc import Sequence
 from datetime import datetime
 
@@ -51,8 +49,8 @@ async def list_stale(db: AsyncSession, *, older_than: datetime) -> Sequence[Coll
 
     A reservation is committed with its delete and released the instant the durable
     drop runs, so a row that outlives the cutoff is one whose cleanup failed for good
-    (Prefect retries exhausted) or was lost in the commit-to-dispatch gap, leaving the
-    name blocked with nothing left to reattempt it. The sweep drops their tables and
+    (the job's attempts exhausted), leaving the name blocked with nothing left to
+    reattempt it. The sweep drops their tables and
     releases them (#1364).
     """
     result = await db.execute(

@@ -7,8 +7,6 @@ of the change: before it, the token was good for its hour whatever anybody did
 (#1044).
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta

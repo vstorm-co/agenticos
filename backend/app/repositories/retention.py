@@ -14,8 +14,6 @@ removes nothing - which also makes a sweep that is killed halfway simply resume,
 rather than start again.
 """
 
-from __future__ import annotations
-
 from datetime import datetime
 from decimal import Decimal
 from typing import Any, cast

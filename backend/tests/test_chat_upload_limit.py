@@ -16,8 +16,6 @@ an agent with no workspace is pasted whole into the prompt
 so each carries its own ceiling and both are published.
 """
 
-from __future__ import annotations
-
 import pytest
 
 from app.core.config import settings

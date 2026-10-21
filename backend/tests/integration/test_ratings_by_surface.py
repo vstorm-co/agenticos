@@ -5,8 +5,6 @@ nobody - a channel conversation has no user - so "the ratings I gave" can no
 longer be read as "the ratings in my conversations".
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 

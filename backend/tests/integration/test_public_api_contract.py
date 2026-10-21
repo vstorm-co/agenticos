@@ -8,8 +8,6 @@ document publishes for it, on success and on refusal, so a client generated from
 the document parses what the server sends.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator
 from typing import Any

@@ -40,8 +40,6 @@ control - a channel bot's `rate_limit_rpm` - can keep a per-process floor under
 the caller for as long as the outage lasts rather than none at all.
 """
 
-from __future__ import annotations
-
 import hashlib
 import logging
 from dataclasses import dataclass

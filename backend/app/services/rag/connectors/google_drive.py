@@ -18,14 +18,11 @@ Setup:
    each Drive source at it
 """
 
-from __future__ import annotations
-
 import asyncio
 import json as _json
 import logging
-from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar
+from typing import ClassVar
 
 from pydantic import BaseModel, Field
 
@@ -38,14 +35,10 @@ from app.services.rag.connectors import (
     RemoteFile,
     RemoteListing,
 )
+from app.services.rag.drive_api import DriveClient
 from app.services.rag.remote_names import checked_drive_folder_id
 
-if TYPE_CHECKING:
-    from googleapiclient.discovery import Resource
-
 logger = logging.getLogger(__name__)
-
-SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
 
 
 class GoogleDriveConfig(BaseModel):
@@ -90,7 +83,7 @@ class GoogleDriveConnector(BaseSyncConnector):
     SECRET_KIND: ClassVar[SecretKind] = SecretKind.GCP_SERVICE_ACCOUNT
     CONFIG_MODEL: ClassVar[type[BaseModel]] = GoogleDriveConfig
 
-    def _get_drive_service(self, credential: StorableSecret | None) -> Resource:
+    def _get_drive_service(self, credential: StorableSecret | None) -> DriveClient:
         """Build an authenticated Drive client from the vault secret the source names.
 
         **There is no deployment-wide fallback.** A `GOOGLE_DRIVE_CREDENTIALS_FILE`
@@ -123,14 +116,8 @@ class GoogleDriveConnector(BaseSyncConnector):
                     "the one it names is not one."
                 )
             )
-        # The Google SDK is imported where it is used: every API worker and flow run
-        # imports this module, and only Drive sources need the SDK (#2225).
-        from google.oauth2.service_account import Credentials
-        from googleapiclient.discovery import build
-
         info = _json.loads(credential.service_account_json.get_secret_value())
-        creds = Credentials.from_service_account_info(info, scopes=SCOPES)
-        return build("drive", "v3", credentials=creds)
+        return DriveClient.from_service_account_info(info)
 
     async def validate_config(self, config: ConnectorConfig) -> ConfigRefusal | None:
         """Validate required fields and the shape of the folder id.
@@ -155,7 +142,7 @@ class GoogleDriveConnector(BaseSyncConnector):
         return None
 
     def _list_folder(
-        self, service: Resource, folder_id: str, include_subfolders: bool
+        self, service: DriveClient, folder_id: str, include_subfolders: bool
     ) -> list[RemoteFile]:
         """Recursively list files in a Google Drive folder (sync, runs in thread).
 
@@ -170,30 +157,22 @@ class GoogleDriveConnector(BaseSyncConnector):
         page_token = None
 
         while True:
-            # `Resource` is built at runtime from Google's discovery document, so
-            # `files` and every other resource method are attached dynamically
-            # rather than declared on the class - there is no stub that can see
-            # them. The four sites below in this file take the same ignore.
-            response = (
-                service.files()  # ty: ignore[unresolved-attribute]
-                .list(
-                    q=query,
-                    pageSize=100,
-                    fields="nextPageToken, files(id, name, mimeType, size, modifiedTime)",
-                    pageToken=page_token,
-                )
-                .execute()
+            page = service.list_page(
+                q=query,
+                fields="nextPageToken, files(id, name, mimeType, size, modifiedTime)",
+                page_size=100,
+                page_token=page_token,
             )
 
-            for f in response.get("files", []):
-                mime = f.get("mimeType", "")
+            for f in page.files:
+                mime = f.mime_type
 
                 if mime == "application/vnd.google-apps.folder":
                     if include_subfolders:
-                        files.extend(self._list_folder(service, f["id"], include_subfolders))
+                        files.extend(self._list_folder(service, f.id, include_subfolders))
                     continue
 
-                name = f.get("name", "")
+                name = f.name
 
                 if mime in GOOGLE_DOCS_EXPORT:
                     export_mime, ext = GOOGLE_DOCS_EXPORT[mime]
@@ -201,22 +180,18 @@ class GoogleDriveConnector(BaseSyncConnector):
                         name = f"{name}{ext}"
                     mime = export_mime
 
-                modified_at = None
-                if f.get("modifiedTime"):
-                    modified_at = datetime.fromisoformat(f["modifiedTime"].replace("Z", "+00:00"))
-
                 files.append(
                     RemoteFile(
-                        id=f["id"],
+                        id=f.id,
                         name=name,
                         mime_type=mime,
-                        size=int(f.get("size", 0)),
-                        modified_at=modified_at,
-                        source_path=f"gdrive://{f['id']}",
+                        size=f.size,
+                        modified_at=f.modified_time,
+                        source_path=f"gdrive://{f.id}",
                     )
                 )
 
-            page_token = response.get("nextPageToken")
+            page_token = page.next_page_token
             if not page_token:
                 break
 
@@ -230,8 +205,8 @@ class GoogleDriveConnector(BaseSyncConnector):
         include_subfolders = config.get("include_subfolders", True)
 
         def _list() -> list[RemoteFile]:
-            service = self._get_drive_service(credential)
-            return self._list_folder(service, folder_id, include_subfolders)
+            with self._get_drive_service(credential) as service:
+                return self._list_folder(service, folder_id, include_subfolders)
 
         return RemoteListing(files=await asyncio.to_thread(_list))
 
@@ -249,28 +224,13 @@ class GoogleDriveConnector(BaseSyncConnector):
         """
 
         def _download() -> None:
-            service = self._get_drive_service(credential)
-
-            # `Resource` is built at runtime from Google's discovery document - see
-            # the same ignore in `_list_folder` above for why.
-            meta = service.files().get(fileId=file.id, fields="mimeType").execute()  # ty: ignore[unresolved-attribute]
-            original_mime = meta.get("mimeType", "")
-
-            if original_mime in GOOGLE_DOCS_EXPORT:
-                export_mime, ext = GOOGLE_DOCS_EXPORT[original_mime]
-                request = service.files().export_media(  # ty: ignore[unresolved-attribute]
-                    fileId=file.id, mimeType=export_mime
-                )
-            else:
-                request = service.files().get_media(fileId=file.id)  # ty: ignore[unresolved-attribute]
-
-            from googleapiclient.http import MediaIoBaseDownload
-
-            with open(dest_path, "wb") as fh:
-                downloader = MediaIoBaseDownload(fh, request)
-                done = False
-                while not done:
-                    _, done = downloader.next_chunk()
+            with self._get_drive_service(credential) as service:
+                original_mime = service.metadata(file.id, fields="mimeType").mime_type
+                if original_mime in GOOGLE_DOCS_EXPORT:
+                    export_mime, _ = GOOGLE_DOCS_EXPORT[original_mime]
+                    service.export(file.id, export_mime, dest_path)
+                else:
+                    service.download(file.id, dest_path)
 
             logger.info(
                 "Downloaded %s from Google Drive (%d bytes)", file.id, dest_path.stat().st_size

@@ -15,8 +15,6 @@ The count is kept per run, so run history - and the per-model breakdown beside
 it - shows which models needed it. The repair's span carries no arguments.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 
 from pydantic_ai import RunContext

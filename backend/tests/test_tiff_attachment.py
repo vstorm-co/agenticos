@@ -6,8 +6,6 @@ to a cap, and the guards do not trust attacker-controlled pixel counts or walk t
 whole IFD chain to bound the pages (#1591, §2.4/§7 finding 5).
 """
 
-from __future__ import annotations
-
 import io
 
 import pytest

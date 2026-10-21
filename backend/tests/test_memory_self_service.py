@@ -15,8 +15,6 @@ Three questions, and the refusals are the point of two of them:
   "deactivated" has to mean to be worth offering.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from types import SimpleNamespace

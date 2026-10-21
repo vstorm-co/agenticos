@@ -6,8 +6,6 @@ but that the line reaching the model is correct, is in the caller's timezone,
 and is rebuilt for each request rather than frozen when the agent was built.
 """
 
-from __future__ import annotations
-
 from datetime import UTC, datetime
 from unittest.mock import MagicMock
 from zoneinfo import ZoneInfo

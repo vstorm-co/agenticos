@@ -327,7 +327,7 @@ class BaseVectorStore(ABC):
 
     def _build_chunk_metadata(
         self,
-        chunk: "DocumentPageChunk",
+        chunk: DocumentPageChunk,
         document: Document,
         tenant: UUID | None = None,
     ) -> dict[str, Any]:
@@ -527,20 +527,20 @@ class PgVectorStore(BaseVectorStore):
     absent - and a worker flow that forgot to dispose its own walked into
     Postgres `max_connections` at around two hundred uploads (#948, #12).
     Injection puts each of those decisions where it can be seen: the API and
-    the CLI pass the process engine and dispose nothing, and a worker flow
-    builds an engine for the flow and disposes it with the flow's own work.
+    the CLI pass the process engine and dispose nothing, and a background job
+    builds an engine for the job and disposes it with the job's own work.
 
-    A pool is still worth having *within* a flow: `insert_document` writes a
-    document's chunks over one connection each, and a flow runs in one event
-    loop. Across flows an engine is not shared, for the reason
-    `get_worker_db_context` gives about cross-loop connections.
+    A pool is still worth having *within* a job: `insert_document` writes a
+    document's chunks over one connection each, and a job runs in one event
+    loop. Across jobs an engine is not shared, so its pool is bounded by the job
+    that opened it.
     """
 
     def __init__(
         self,
         settings: RAGSettings,
         embedding_service: EmbeddingService,
-        resolver: "EmbeddingResolver",
+        resolver: EmbeddingResolver,
         *,
         engine: AsyncEngine,
     ):
@@ -805,7 +805,9 @@ class PgVectorStore(BaseVectorStore):
             ON CONFLICT (id) DO UPDATE SET content = :content, embedding = :embedding, metadata = :metadata
         """)
         async with self.async_session() as session:
-            for batch in batched(enumerate(document.chunked_pages), _CHUNK_INSERT_BATCH):
+            for batch in batched(
+                enumerate(document.chunked_pages), _CHUNK_INSERT_BATCH, strict=False
+            ):
                 await session.execute(
                     statement,
                     [
@@ -1368,9 +1370,9 @@ def unpooled_vector_store(
     The same construction as `process_vector_store` and the same resolver, on
     `agent_vector_engine` rather than the process's vector pool. For a caller
     that does not own its event loop and cannot be given one: an agent's
-    knowledge search runs on the API's loop in one process and on a Prefect
-    flow's loop in another, and a pooled store shared between two loops in one
-    worker process hands the second a connection the first opened (#1079).
+    knowledge search runs on the API's loop in one process and on the worker's
+    loop in another, and a pooled store shared between two loops in one process
+    hands the second a connection the first opened (#1079).
     `NullPool` keeps no connection to hand over, so one store serves every loop.
     """
     return PgVectorStore(

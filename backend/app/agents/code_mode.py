@@ -22,8 +22,6 @@ call it made on the run's manifest, so a reviewer sees what the agent actually d
 rather than one opaque `run_code` step.
 """
 
-from __future__ import annotations
-
 import asyncio
 import json
 from collections.abc import Awaitable, Callable

@@ -1,5 +1,5 @@
 ---
-source_sha: "feaf26c4bab8"
+source_sha: "b52b40a93089"
 ---
 
 # Konsola { #the-console }
@@ -372,7 +372,7 @@ każdej stronie, która do niej należy, i zostaje tak, jak ją zostawisz.
 | **Vault** | Poświadczenia, zapieczętowane per organizacja | [Sekrety](secrets.md) |
 | **Organizations** | Członkowie, role, zaproszenia | [Uprawnienia](permissions.md) |
 | **Settings** | Providerzy, domyślne ustawienia ingestii, powiadomienia, twój własny profil | [Konfiguracja](configuration.md) |
-| **Admin** | Sam deployment: użytkownicy, najemcy, system, ustawienia deploymentu | [Deployment](deployment.md) |
+| **Admin** | Sam deployment: użytkownicy, najemcy, system, zadania w tle, ustawienia deploymentu | [Deployment](deployment.md) |
 
 Katalog **Agents** można filtrować po **category** i **tag** — edytowalnych,
 lokalnych dla organizacji etykietach pokazywanych na karcie każdego agenta.

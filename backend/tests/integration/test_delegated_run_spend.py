@@ -20,8 +20,6 @@ A mock cannot tell you which rows a `WHERE` actually returned, and it certainly
 cannot tell you what `ON DELETE SET NULL` does to the arithmetic afterwards.
 """
 
-from __future__ import annotations
-
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta

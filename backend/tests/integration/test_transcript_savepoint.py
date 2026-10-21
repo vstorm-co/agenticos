@@ -18,8 +18,6 @@ second half of the same reason: the unit tests prove the id reaching the
 repository, and only a database says the column actually holds it afterwards.
 """
 
-from __future__ import annotations
-
 import uuid
 from types import SimpleNamespace
 

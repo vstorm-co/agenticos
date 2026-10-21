@@ -1,7 +1,5 @@
 """Base class for RAG document source connectors."""
 
-from __future__ import annotations
-
 import logging
 import tempfile
 from typing import TYPE_CHECKING, ClassVar

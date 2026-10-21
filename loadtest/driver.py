@@ -15,8 +15,6 @@ subtracted from both the numerator and the denominator, which is how an error
 rate reaches zero by losing its errors.
 """
 
-from __future__ import annotations
-
 import asyncio
 import contextlib
 import hashlib

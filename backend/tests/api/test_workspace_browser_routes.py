@@ -10,8 +10,6 @@ says what it left out, because a shorter list is otherwise indistinguishable fro
 fewer files.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager

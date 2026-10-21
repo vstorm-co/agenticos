@@ -14,8 +14,6 @@ what makes the refusal test exercise the real resolution rather than a mock's
 return value.
 """
 
-from __future__ import annotations
-
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4

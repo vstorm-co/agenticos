@@ -7,8 +7,6 @@ dispatches to, and that a version comparison without an agent is refused
 rather than answered for some agent the caller never named.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import date

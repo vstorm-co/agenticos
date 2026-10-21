@@ -12,8 +12,6 @@ staged column, the unique constraint that decides who gets a contested address,
 and the row lock that stops one staging being confirmed twice.
 """
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import AsyncMock
 

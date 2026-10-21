@@ -16,8 +16,6 @@ about the next store.
 only correct if a stored source syncs exactly the way it did before it.
 """
 
-from __future__ import annotations
-
 import datetime
 import inspect
 from pathlib import Path

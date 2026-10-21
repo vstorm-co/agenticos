@@ -5,8 +5,6 @@ A portal absent here has no auto-registration - the create flow reads `None` as
 one-line entry, and a portal never needs one to work.
 """
 
-from __future__ import annotations
-
 from app.services.portals.base import PortalAdapter
 from app.services.portals.github import GitHubPortalAdapter
 from app.services.portals.github_app import GitHubAppPortalAdapter

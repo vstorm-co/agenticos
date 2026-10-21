@@ -10,8 +10,6 @@ The store and the database are replaced; `IngestionService` stays real apart
 from the vector delete, whose answer is what decides whether a row goes.
 """
 
-from __future__ import annotations
-
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path

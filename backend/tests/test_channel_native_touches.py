@@ -1,7 +1,5 @@
 """The platform side of #2084: streamed answers, thumbs, reactions and `/agent`."""
 
-from __future__ import annotations
-
 import json
 import uuid
 from typing import Any

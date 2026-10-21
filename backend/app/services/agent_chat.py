@@ -20,8 +20,6 @@ its cost, its budget check, its approval gate and its capabilities - stamped
 the run and forwards events, because only the caller knows what a frame is.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable, Mapping, Sequence

@@ -145,16 +145,18 @@ advisories.
 | `make user-create` | Create new user (interactive) |
 | `make user-list` | List all users |
 
-### Prefect
+### Background jobs
 
-Prefect runs as two containers in the dev stack — they start automatically with `make dev`:
+The worker runs as one container in the dev stack and starts with `make dev`:
 
-- **`prefect-server`** — orchestration API + web UI at <http://localhost:4200>
-- **`prefect-runner`** — registers the scheduled deployments and polls for work
+- **`worker`** — `python -m app.worker`, from the backend image. It claims jobs
+  from the `background_jobs` table, runs the ingest pool in child processes,
+  and fires the deployment's schedules.
 
-The runner is `python -m app.worker.prefect_app`; flows live in `app/worker/tasks/`.
-Open the UI to watch flow runs, inspect logs, and trigger deployments manually.
-Self-hosted by default — set `PREFECT_API_KEY` (and a Cloud `PREFECT_API_URL`) to use Prefect Cloud instead.
+Job kinds are declared in `app/worker/jobs.py`, their handlers live in
+`app/worker/tasks/` and are bound in `app/worker/handlers.py`, and the
+schedules are in `app/worker/schedules.py`. Watch, retry, cancel and resume on
+the console's **Admin → Background jobs** page, as the deployment's owner.
 
 ### Docker (development)
 
@@ -318,9 +320,9 @@ uv run agenticos cmd bootstrap --org "Acme"
 # Can this deployment actually run an agent? Database, vault, a usable model,
 # and every registered sandbox connection - probed one by one, credential
 # included, because `/healthz` is unauthenticated and answers for a service
-# holding the wrong token. Then whether scheduled jobs run: a trigger heartbeat
-# that has not completed for five intervals fails it, whatever Prefect's own
-# health endpoint says.
+# holding the wrong token. Then whether background work runs: no worker heard
+# from in two minutes, a minute schedule that has not fired for five intervals,
+# or a kind of job paused by its circuit breaker fails it.
 uv run agenticos cmd doctor
 
 # The same, plus a second sheet: one row per control of a security profile,

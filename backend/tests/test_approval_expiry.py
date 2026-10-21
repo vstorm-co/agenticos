@@ -7,8 +7,6 @@ tests are about. What it writes has to be a denial by timeout on the *run*, in
 the row's own organization, saying plainly that nobody decided.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -21,7 +19,7 @@ from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import ApprovalStatus, RunStatus
 from app.services.approvals import ApprovalService
-from app.worker.tasks.approval_tasks import approval_expiry_sweep_flow
+from app.worker.tasks.approval_tasks import expire_approvals
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
@@ -316,7 +314,7 @@ class TestASweptRowIsDecided:
 
 class TestTheScheduledSweep:
     """The flow around the service. Thin on purpose - what it must not do is
-    swallow the count, since that is all a Prefect run reports."""
+    swallow the count, since that is all a sweep reports."""
 
     @pytest.mark.parametrize("unanswered", [0, 2])
     async def test_the_flow_answers_with_what_it_expired(self, unanswered: int):
@@ -331,7 +329,7 @@ class TestTheScheduledSweep:
             db_context.return_value.__aenter__ = AsyncMock(return_value=_db())
             db_context.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            assert await approval_expiry_sweep_flow() == 3
+            assert await expire_approvals() == 3
 
         # The unanswered questions are swept in the same pass (#2064).
         service.expire_unanswered.assert_awaited_once()

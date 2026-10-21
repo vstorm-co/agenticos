@@ -20,8 +20,6 @@ is a confidential one whose secret this server holds, and changing a working
 sign-in is not this issue's to do.
 """
 
-from __future__ import annotations
-
 from collections.abc import Mapping
 from typing import Any
 

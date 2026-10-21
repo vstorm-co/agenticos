@@ -13,8 +13,6 @@ again; a surface with no `subagent_events` - a channel, the API - simply hears
 nothing while the harness works.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 from typing import Any, Literal
 

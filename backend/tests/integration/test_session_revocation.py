@@ -10,8 +10,6 @@ is refused. Both are asserted here through the real routes and the real
 repositories.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock

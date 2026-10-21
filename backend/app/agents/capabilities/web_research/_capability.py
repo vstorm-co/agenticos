@@ -12,8 +12,6 @@ support it: Pydantic AI raises for those that do not, so the choice is refused
 where it cannot work rather than silently doing nothing.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 from typing import Any
 

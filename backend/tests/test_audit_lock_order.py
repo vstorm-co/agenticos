@@ -27,8 +27,6 @@ two concurrent transactions and a deadlock to observe, and would pass vacuously
 whenever it did not get one.
 """
 
-from __future__ import annotations
-
 import ast
 from functools import cache
 from pathlib import Path

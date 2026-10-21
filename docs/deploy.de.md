@@ -1,5 +1,5 @@
 ---
-source_sha: "64fce98b00b5"
+source_sha: "ecc5b8b8c62c"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
@@ -15,6 +15,9 @@ einer kann eigene Container starten, und einer ist ein Postgres, das pgvector
 haben muss - was bereits mehr ist, als ein `git push`-Deploy-Ziel abbildet, und
 eine Anleitung, die etwas anderes vorgäbe, würde ein Deployment beschreiben, das
 niemand betrieben hat.
+
+Über einen Host hinaus - ein verwaltetes Postgres, mehrere API-Hosts, mehrere
+Deployments - führt [Über einen Host hinaus skalieren](scaling.md).
 
 !!! tip "Lesen Sie zuerst die [Produktions-Checkliste](configuration.md#production-checklist)"
 
@@ -33,8 +36,9 @@ niemand betrieben hat.
 | **Einen Reverse Proxy** | [Traefik](#option-a-traefik) oder [Nginx](#option-b-nginx). Er terminiert TLS |
 | **Keinen Provider-Key** | Chat-Modelle und Embeds werden beide pro Organisation im Vault des Produkts hinterlegt. Die Umgebung hält für keines von beiden Zugangsdaten — siehe [Datenschutz](data-protection.md#nothing-leaves-by-default) |
 
-Der Host braucht außerdem die Ports 80 und 443 offen, und sonst nichts. Postgres,
-Redis und die Prefect-API sind auf keiner Schnittstelle veröffentlicht.
+Der Host braucht außerdem die Ports 80 und 443 offen, und sonst nichts. Postgres
+und Redis sind auf keiner Schnittstelle veröffentlicht, und der Worker bedient
+nichts.
 
 ### Warum zwei Hostnamen { #why-two-hostnames }
 
@@ -55,8 +59,7 @@ Auf einem im Leerlauf befindlichen Deployment gemessen, nicht geschätzt:
 |---|---|---|
 | `app` (2 uvicorn workers) | ~1,0 GB | 2,5 GB bei den standardmäßigen 4 Workern |
 | `db` | ~1,3 GB mit dem Tuning unten | 2 GB |
-| `prefect-runner` | 241 MiB | 1,5 GB |
-| `prefect-server` | 245 MiB | 768 MB |
+| `worker` (ein Ingest-Kindprozess) | 387 MiB | 2,5 GB (`WORKER_MEMORY_LIMIT`) |
 | `frontend` | ~300 MB | 1 GB |
 | `redis` | 9 MiB | 512 MB |
 
@@ -98,6 +101,13 @@ Zwei Einstellungen halten ein langsames Deployment diagnostizierbar:
     ein paralleler Scan über die Vektoren einer Collection erschöpft, mit der Meldung
     `could not resize shared memory segment`. Verschieben Sie das Limit, verschieben
     Sie das Tuning mit; sie stehen aus diesem Grund nebeneinander.
+
+    Außerdem setzt sie `max_connections=200`, denn die Pools können mehr
+    öffnen als die 100 von Postgres ab Werk: zwei Pools zu 15 je uvicorn-Worker,
+    also 120 bei den standardmäßigen vier, und 30 weitere für den
+    Hintergrund-Worker. Erhöhen Sie den Wert mit `UVICORN_WORKERS` oder
+    `DB_POOL_SIZE`, sonst lehnt Postgres Verbindungen mit „too many clients“ ab,
+    bevor ein Pool sie einreihen oder die Last abwerfen kann.
 
 ## Die Namen auf den Host zeigen lassen { #point-the-names-at-the-host }
 
@@ -148,7 +158,7 @@ veröffentlicht.
 
 | | |
 |---|---|
-| `ghcr.io/vstorm-co/agenticos-backend` | Die API, der Prefect-Runner und die Migrationen - ein Image, drei Kommandos |
+| `ghcr.io/vstorm-co/agenticos-backend` | Die API, der Worker und die Migrationen - ein Image, drei Kommandos |
 | `ghcr.io/vstorm-co/agenticos-frontend` | Die Konsole |
 
 Beide werden von `.github/workflows/images.yml` für `linux/amd64` und
@@ -250,7 +260,7 @@ annahm.
 
     Es ist die eine Einstellung in `traefik/traefik.yml`, die es sich zu lesen lohnt,
     bevor Sie ihn betreiben. Nur `app` und `frontend` tragen `traefik.enable=true`,
-    also sind Postgres, Redis, der Prefect-Server und der Sandbox-Daemon von nichts
+    also sind Postgres, Redis, der Worker und der Sandbox-Daemon von nichts
     außerhalb des Hosts erreichbar — und das ist eine Eigenschaft davon, *nicht
     gelabelt zu sein*, sie überlebt also, dass jemand einen Dienst hinzufügt, ohne an
     den Proxy zu denken.
@@ -288,7 +298,7 @@ terminiert.
     `agenticos` — und das Hochfahren des Frontends meldete dann die fünf
     Backend-Container als **Waisen**, mit Composes eigenem Vorschlag, das Kommando
     erneut mit `--remove-orphans` auszuführen. Diesem Rat zu folgen stoppt die API,
-    die Datenbank, Redis und beide Prefect-Dienste. Die `make`-Targets und
+    die Datenbank, Redis und den Worker. Die `make`-Targets und
     `scripts/deploy.sh` übergeben `-p agenticos-frontend`, die Warnung ist damit weg.
     Die Compose-Dateien legen auch keine Containernamen fest - jedes Projekt benennt
     seine eigenen, zwei Stacks auf einem Host können einander also nicht die
@@ -497,7 +507,6 @@ Ein Volume zählt, und welches, ist nicht offensichtlich:
 |---|---|---|
 | `postgres_data` | alles — Agents, Unterhaltungen, versiegelte Zugangsdaten | **ja** |
 | `media_data` | hochgeladene Dateien, vor der Ingestion | ja |
-| `prefect_data` | die Datenbank von Prefect: Deployments, Run-Historie, wartende Runs | nein |
 
 Der Cache hat überhaupt kein Volume mehr. Rate-Limit-Buckets, Dedupe-Claims der
 Kanäle und Mitgliedschaftsantworten tragen alle eine TTL und bauen sich selbst

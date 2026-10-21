@@ -14,8 +14,6 @@ machinery, so the delivery layers - which only ever parse a result someone else
 produced - can read the format without pulling a toolset in behind it.
 """
 
-from __future__ import annotations
-
 import json
 from typing import Any, Literal
 
@@ -119,7 +117,7 @@ def parse_chart_spec(result: str) -> ChartSpec | None:
     """
     try:
         payload = json.loads(result)
-    except (json.JSONDecodeError, TypeError):
+    except json.JSONDecodeError, TypeError:
         return None
     if not isinstance(payload, dict) or payload.get("kind") != "chart":
         return None

@@ -45,6 +45,10 @@ from app.db.models.run_manifest import RunManifest
 from app.db.models.ingestion_spend import IngestionSpend
 from app.db.models.ml_service_call import MLCallStatus, MLServiceCall
 from app.db.models.pending_sandbox_destroy import PendingSandboxDestroy
+from app.db.models.background_job import BackgroundJob
+from app.db.models.background_schedule import BackgroundSchedule
+from app.db.models.background_task_kind import BackgroundTaskKind
+from app.db.models.background_worker import BackgroundWorker
 from app.db.models.purged_run_spend import PurgedRunSpend
 from app.db.models.credential import ModelProfile
 from app.db.models.organization_secret import OrganizationSecret
@@ -155,6 +159,10 @@ __all__ = [
     "ModelProfile",
     "OrganizationSecret",
     "PendingSandboxDestroy",
+    "BackgroundJob",
+    "BackgroundSchedule",
+    "BackgroundTaskKind",
+    "BackgroundWorker",
     "Project",
     "ContextFile",
     "ContextMode",

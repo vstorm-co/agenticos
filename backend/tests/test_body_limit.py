@@ -11,8 +11,6 @@ never asked for - a test that only checked the status would pass over a middlewa
 that read the request and then refused it.
 """
 
-from __future__ import annotations
-
 import pytest
 from httpx import ASGITransport, AsyncClient
 

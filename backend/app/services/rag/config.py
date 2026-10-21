@@ -167,7 +167,7 @@ class EmbeddingsConfig(BaseModel):
     dim: int = 3072
 
     @model_validator(mode="after")
-    def set_dim_from_model(self) -> "EmbeddingsConfig":
+    def set_dim_from_model(self) -> EmbeddingsConfig:
         if self.model in EMBEDDING_DIMENSIONS:
             self.dim = EMBEDDING_DIMENSIONS[self.model]
         return self

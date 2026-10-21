@@ -38,8 +38,6 @@ different the two URLs were. A failure therefore goes through
 for one, the same message as the result once there is not.
 """
 
-from __future__ import annotations
-
 from typing import Literal
 from urllib.parse import urlparse
 

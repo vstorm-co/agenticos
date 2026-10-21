@@ -14,8 +14,6 @@ and the card says so: a run that stops for a person comes back `input-required`
 and is continued in the console, and `tasks/get` reads where it stands since.
 """
 
-from __future__ import annotations
-
 import logging
 import uuid
 from typing import Any

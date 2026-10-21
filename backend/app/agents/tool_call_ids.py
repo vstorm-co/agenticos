@@ -14,8 +14,6 @@ did not stream and for a part a later delta reverted. Both pick the same new id
 for the same history, so the console and the transcript agree on it.
 """
 
-from __future__ import annotations
-
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING

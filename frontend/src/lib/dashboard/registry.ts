@@ -24,6 +24,7 @@ export type WidgetId =
   | "summary"
   | "platform"
   | "health"
+  | "background-jobs"
   | "top-orgs"
   | "platform-ratings"
   | "runs"
@@ -292,6 +293,14 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     // The people behind the counts. It pointed at `/admin`, which rendered
     // these same figures a second time and now redirects here anyway (#922).
     seeAll: ROUTES.ADMIN_USERS,
+  },
+  "background-jobs": {
+    id: "background-jobs",
+    gate: adminOnly,
+    defaultSpan: "s12",
+    defaultRows: "r3",
+    category: "platform",
+    seeAll: ROUTES.ADMIN_BACKGROUND_JOBS,
   },
   health: {
     id: "health",

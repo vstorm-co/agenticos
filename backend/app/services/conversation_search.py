@@ -17,8 +17,6 @@ Everything returned is data. How a transcript is written out for a model - the
 the thing that knows it is writing a prompt.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID

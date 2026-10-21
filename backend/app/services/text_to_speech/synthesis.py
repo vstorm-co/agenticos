@@ -11,8 +11,6 @@ rate-limits per key, and the key is the organization's; a chapter fanned out int
 ten parallel requests is ten chances to be refused halfway through.
 """
 
-from __future__ import annotations
-
 import logging
 import re
 import struct

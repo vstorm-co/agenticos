@@ -14,8 +14,6 @@ and only a real `DELETE ... WHERE` answers whether the predicate keeps them
 apart.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

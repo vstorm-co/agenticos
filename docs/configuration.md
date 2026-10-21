@@ -293,7 +293,7 @@ with `KERBEROS_DISPLAY_NAME` (default `Kerberos`).
 | `POSTGRES_SSLMODE` | (empty) | Encrypt the connection: `require`, `verify-ca` or `verify-full`. Empty is plaintext. See [Encrypted connections](#encrypted-connections-tls) |
 | `DB_POOL_SIZE` | `5` | Connection pool size |
 | `DB_MAX_OVERFLOW` | `10` | Max overflow connections |
-| `DB_POOL_TIMEOUT` | `30` | Pool timeout in seconds |
+| `DB_POOL_TIMEOUT` | `5` | Seconds a request waits for a free connection before it is answered `503` with `Retry-After`. Short on purpose: a request that waited 30 s was lost anyway, and the queue of waiters kept the pool full after a burst had passed |
 
 Computed properties:
 - `DATABASE_URL` -- async connection string (`postgresql+asyncpg://...`)
@@ -353,7 +353,7 @@ the URL itself, rather than leaving both to redis-py's defaults.
 
 !!! note "Every service that opens a store connection needs the change"
 
-    `app`, `migrate` and `prefect-runner` each connect to Postgres and Redis, and
+    `app`, `migrate` and `worker` each connect to Postgres and Redis, and
     the shipped compose files pin `POSTGRES_HOST=db` and `REDIS_HOST=redis` in
     each one's `environment`, which wins over an env file. So a managed store is
     an override file that reaches all three, not a line in `.env`.
@@ -375,7 +375,7 @@ x-managed: &managed
 services:
   app: *managed
   migrate: *managed
-  prefect-runner: *managed
+  worker: *managed
 ```
 
 The bundled `db` and `redis` services keep starting, unused; `agenticos cmd
@@ -418,41 +418,63 @@ them announcing itself:
     needs `SMTP_TLS_MODE=implicit`, because `auto` would offer it a plaintext
     handshake and every send would fail. `starttls` is the mirror case.
 
-## Background work (Prefect)
+## Background work
+
+Jobs queue in PostgreSQL and run in a worker, `python -m app.worker`, from the
+same image as the API. There is no server to point it at and no key: the worker
+reaches the database the API does. Every setting below is per worker process.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PREFECT_API_URL` | `http://localhost:4200/api` | The self-hosted server, or a Prefect Cloud workspace URL |
-| `PREFECT_API_KEY` | (none) | Prefect Cloud only |
-| `PREFECT_RUNNER_LIMIT` | `5` | How many flow runs execute at once; the rest queue |
-| `PREFECT_RUNNER_SERVER_HOST` | `127.0.0.1` in compose | Interface the runner serves its own health endpoint on |
-| `PREFECT_RUNNER_SERVER_PORT` | `8080` | Port for the same |
+| `WORKER_POOLS` | `agent,ingest,system` | The pools this process serves. Run a second worker with `ingest` to put parsing on a host of its own |
+| `WORKER_AGENT_CONCURRENCY` | `10` | Agent runs and trigger fires at once |
+| `WORKER_SYSTEM_CONCURRENCY` | `4` | Sweeps, cleanups and reports at once |
+| `WORKER_INGEST_CHILDREN` | `2` (`1` in the shipped compose files) | Child processes for parsing and embedding, one job each at a time |
+| `WORKER_INGEST_MEMORY_MB` | `1536` | What one child may hold, with whatever it started, before the watchdog stops it |
+| `WORKER_INGEST_MAX_JOBS` | `100` | Jobs a child runs before it is replaced |
+| `WORKER_LEASE_SECONDS` | `60` | How long a claimed job is held without a heartbeat |
+| `WORKER_BREAKER_DEATHS` | `5` | Worker deaths in a row, across one kind's jobs, that pause the kind |
+| `WORKER_HEALTH_FILE` | `/tmp/agenticos-worker-alive` | The file the container probe reads |
+| `WORKER_MEMORY_LIMIT` | `4g`, `2560M` in production compose | The container's own memory limit - a compose variable, not a setting |
+| `BACKGROUND_JOB_RETENTION_DAYS` | `14` | Finished jobs kept for the Background jobs page |
 
-`PREFECT_RUNNER_LIMIT` is a memory ceiling, not a throughput dial. Each run is a
-separate process that imports the whole application — roughly 120 MB — and the
-number that matters is not the steady state but the restart: the runner comes up,
-finds every run that was scheduled while it was down, and starts as many as the
-limit allows. Uncapped, three days of downtime was 71 processes and 6 GiB. Raise
-it if ingestion queues behind syncs on a machine with memory to spare; lower it on
-a small host.
+**Size memory from the children, not from the job count.** A worker holds
+about 450 MB for its imported application, and each ingest child as much again
+plus the document it is parsing. `WORKER_INGEST_MEMORY_MB` sits below the
+container's limit on purpose: the watchdog stops a child that outgrows it and
+writes why on the job, where the kernel's out-of-memory killer would only leave
+a dead process. Raise `WORKER_INGEST_CHILDREN` on a host with memory to spare,
+and the container limit with it.
 
-Scheduled sweeps add little to that backlog: each runs one tick at a time, and
-the server refuses the rest of its overdue ticks before the runner starts a
-process for them. The usage reports are the exception, since each run covers a
-period of its own.
+**A job that kills its process cannot loop.** Its attempt is counted when it is
+claimed, so a child the kernel kills mid-parse has spent one, and after
+`max_attempts` the job is dead. A kind whose jobs kill their worker
+`WORKER_BREAKER_DEATHS` times in a row is paused, and every owner of the
+deployment is told; nothing claims it until one of them resumes it on the
+Background jobs page. The count is kept per organization: one tenant whose jobs
+keep killing their worker pauses the kind for itself alone, and jobs that belong
+to no organization share one count for the whole deployment.
 
-The two `PREFECT_RUNNER_SERVER_*` variables are Prefect's, and the compose files
-pin them so the runner's container has a health status that means something. The
-runner starts Prefect's runner webserver, whose `GET /health` answers 503 once it
-has missed two polls of the Prefect API — so a process that is alive but no longer
-picking up work reads `unhealthy` rather than fine. It is bound to the loopback
-because the same webserver also exposes `POST /shutdown`; the probe runs inside
-the container, and nothing outside it can reach either. Moving the port means
-moving the probe in the compose files with it.
+**What a job leaves behind is closed even when that fails once.** A job that
+ends for good can leave a document `processing` or a sync log `running`. The
+worker closes them as the job ends, and the rescuer retries a close that failed -
+the database down at the time - for a day.
 
-There is no `HEALTHCHECK` in `backend/Dockerfile`. The image is started as two
-different processes — the API and this runner — and a probe for one is a
-permanent false alarm on the other, so each service definition carries its own.
+A worker that dies gives its jobs back within `WORKER_LEASE_SECONDS`: another
+worker's rescue takes the expired lease and writes the job down as a worker
+death. A deploy does not cost a job an attempt - the worker stops claiming,
+lets running jobs finish for 30 seconds, and gives the rest back. The compose
+files allow 45 seconds before they kill it.
+
+The container's health check reads `WORKER_HEALTH_FILE`, which the heartbeat
+touches after every beat that reached the database, so a worker that is alive
+but cut off from Postgres reads `unhealthy`. It is a file rather than an HTTP
+endpoint because the worker serves nothing.
+
+There is no `HEALTHCHECK` in `backend/Dockerfile`. The image is started as
+different processes - the API, the worker and the migrations - and a probe for
+one is a permanent false alarm on another, so each service definition carries
+its own.
 
 ### Approval expiry
 
@@ -519,10 +541,10 @@ Three things can point runs at a project, and they stack:
 
 - `LOGFIRE_TOKEN` here instruments Pydantic AI globally, so every run exports
   into the deployment's own project. Two processes configure it: the API at
-  startup (`app/main.py`), and a fired run in the Prefect worker, which sets
-  itself up because each flow run gets a subprocess of its own. The worker's
-  spans carry `<service name>-worker`, so one project can tell a slow scheduled
-  run from a slow chat turn.
+  startup (`app/main.py`), and the worker, once on start
+  (`app/worker/__main__.py`), since it never runs the API's lifespan. The
+  worker's spans carry `<service name>-worker`, so one project can tell a slow
+  scheduled run from a slow chat turn.
 - An [environment](environments.md#tracing-per-environment) can carry its own
   write token, sealed in the vault, which redirects the runs bound to it.
 - An agent's [`observability`](reference/spec.md#observability) block names a

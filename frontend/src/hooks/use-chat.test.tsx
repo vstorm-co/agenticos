@@ -1194,6 +1194,23 @@ describe("useChat - a sandbox still being opened", () => {
 
     expect(result.current.sandboxPreparing).toBe(false);
   });
+
+  it("stops saying so when the socket drops mid-preparation", () => {
+    // The lost socket can bring no `sandbox_ready`, and the next turn on the
+    // open sandbox sends no preparation frames to clear it (#2251).
+    const { result, rerender } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("run the analysis"));
+    receive("sandbox_preparing", {});
+    expect(result.current.sandboxPreparing).toBe(true);
+
+    socket.isConnected = false;
+    rerender();
+    socket.isConnected = true;
+    rerender();
+
+    expect(result.current.isProcessing).toBe(false);
+    expect(result.current.sandboxPreparing).toBe(false);
+  });
 });
 
 describe("useChat - the summary of its own history", () => {

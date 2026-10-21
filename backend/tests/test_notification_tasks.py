@@ -8,7 +8,7 @@ across all of them - the reason the claim's own guarantee survives a crash
 mid-send - and that its outcome counts add up. Modelled on
 `tests/test_run_reaper.py`'s `TestTheFlow`: the `@flow`-decorated function is
 awaited directly, with `get_worker_db_context` and the service it opens
-patched, never through Prefect's own machinery.
+patched.
 """
 
 import asyncio
@@ -21,7 +21,7 @@ import pytest
 from app.worker.tasks.notification_tasks import (
     _CONCURRENT_SENDS,
     deliver_due_notifications,
-    notification_retention_sweep_flow,
+    sweep_notifications,
 )
 
 MODULE = "app.worker.tasks.notification_tasks"
@@ -146,7 +146,7 @@ class TestTheRetentionSweep:
             patch(f"{MODULE}.get_worker_db_context", return_value=_worker_db_context()),
             patch(f"{MODULE}.notification_repo.delete_expired", AsyncMock(return_value=7)) as sweep,
         ):
-            removed = await notification_retention_sweep_flow()
+            removed = await sweep_notifications()
 
         assert removed == 7
         read_cutoff = sweep.await_args.kwargs["read_cutoff"]

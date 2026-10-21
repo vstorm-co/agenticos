@@ -11,8 +11,6 @@ a `metadata->>'organization_id'` predicate, and only a real database carrying th
 values proves the predicate isolates real rows.
 """
 
-from __future__ import annotations
-
 import json
 import uuid
 from collections.abc import AsyncGenerator
@@ -90,7 +88,7 @@ async def _insert(
 
 
 @pytest.fixture(autouse=True)
-async def _clean_runtime_table(engine: AsyncEngine) -> AsyncGenerator[None, None]:
+async def _clean_runtime_table(engine: AsyncEngine) -> AsyncGenerator[None]:
     async with engine.begin() as conn:
         await conn.execute(text(f"DROP TABLE IF EXISTS {TABLE}"))
     yield

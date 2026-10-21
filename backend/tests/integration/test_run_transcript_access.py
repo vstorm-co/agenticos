@@ -14,8 +14,6 @@ on and which tenant a read is bounded to, so a mocked session cannot make them:
   wrong thing.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 

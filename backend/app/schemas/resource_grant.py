@@ -52,7 +52,7 @@ class ResourceGrantRead(BaseSchema):
         *,
         emails: Mapping[UUID, str | None],
         group_names: Mapping[UUID, str],
-    ) -> "ResourceGrantRead":
+    ) -> ResourceGrantRead:
         """One grant row as the API shows it, with its subject's name resolved."""
         user_id: UUID | None = grant.subject_user_id
         group_id: UUID | None = grant.subject_group_id
@@ -79,7 +79,7 @@ class ResourceGrantUpsert(BaseSchema):
     )
 
     @model_validator(mode="after")
-    def one_subject(self) -> "ResourceGrantUpsert":
+    def one_subject(self) -> ResourceGrantUpsert:
         """A share has one subject: a person or a group, named by exactly one field."""
         if (self.subject_user_id is None) == (self.subject_group_id is None):
             raise ValueError("Name exactly one of subject_user_id and subject_group_id")
@@ -104,7 +104,7 @@ class ResourceSharing(BaseSchema):
         grants: Sequence[Any],
         emails: Mapping[UUID, str | None],
         group_names: Mapping[UUID, str],
-    ) -> "ResourceSharing":
+    ) -> ResourceSharing:
         """Assemble the response from a row, its grants and the looked-up names.
 
         On the schema rather than in the route module: turning rows into the

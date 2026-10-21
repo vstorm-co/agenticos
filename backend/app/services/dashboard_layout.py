@@ -7,8 +7,6 @@ user and active organization, so there is no path that reads or writes anybody
 else's — the tenant boundary is the composite key, enforced in the repository.
 """
 
-from __future__ import annotations
-
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession

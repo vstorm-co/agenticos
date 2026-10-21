@@ -4,7 +4,6 @@ import codecs
 import io
 import logging
 import re
-import zipfile
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from typing import Any
@@ -39,6 +38,7 @@ from app.services.file_storage import (
 # The web-safe raster images: no ZIP/OLE/TIFF container, but each has a cheap
 # magic-number signature the byte phase can still check (#1654 review).
 _WEB_SAFE_IMAGE_MIMES = frozenset({"image/jpeg", "image/png", "image/gif", "image/webp"})
+from app.services.office_archive import safe_unzip
 from app.services.office_convert import libreoffice_convert
 
 logger = logging.getLogger(__name__)
@@ -54,8 +54,6 @@ reader: the file itself is one click away in the preview panel.
 PREVIEW_CHARS = 240
 """A second bound, for a file whose three lines are one long line each."""
 
-_ARCHIVE_CHUNK = 1024 * 1024
-"""How much of a ZIP member is read at a time when measuring its real size."""
 
 _ODS_MAX_CELLS = 1_000_000
 """How many cells one OpenDocument spreadsheet may expand to across all sheets.
@@ -190,7 +188,7 @@ def _decode_declared(data: bytes) -> str | None:
     if match:
         try:
             return data.decode(match.group(1).decode("ascii"))
-        except (LookupError, UnicodeDecodeError):
+        except LookupError, UnicodeDecodeError:
             return None
     return None
 
@@ -210,34 +208,6 @@ def _charset_param(content_type: str | None) -> str | None:
         if key.strip().lower() == "charset":
             return value.strip().strip('"').lower() or None
     return None
-
-
-def safe_unzip(data: bytes) -> io.BytesIO:
-    """Validate a ZIP-backed office file's decompression, then hand back a stream.
-
-    ODF and OOXML are ZIP+XML, and a small upload can decompress to a huge amount of
-    memory. Every member is read through a bounded stream — never trusting the
-    forgeable `ZipInfo.file_size` in the central directory — and the member count and
-    running total are capped. Returns a fresh stream over the *validated* bytes for
-    the parser to open; raises `ValueError` when a bound is exceeded, which each
-    parser turns into a caught `None`.
-    """
-    with zipfile.ZipFile(io.BytesIO(data)) as archive:
-        names = archive.namelist()
-        if len(names) > settings.CHAT_ARCHIVE_MAX_MEMBERS:
-            raise ValueError("archive has too many members")
-        total = 0
-        for name in names:
-            member_total = 0
-            with archive.open(name) as member:
-                while chunk := member.read(_ARCHIVE_CHUNK):
-                    member_total += len(chunk)
-                    if member_total > settings.CHAT_ARCHIVE_MEMBER_MAX_BYTES:
-                        raise ValueError("archive member too large")
-                    total += len(chunk)
-                    if total > settings.CHAT_ARCHIVE_TOTAL_MAX_BYTES:
-                        raise ValueError("archive too large")
-    return io.BytesIO(data)
 
 
 def _clamp_odf_space_runs(node: Any, budget: int) -> int:
@@ -556,7 +526,7 @@ class DocumentText:
             if charset:
                 try:
                     return data.decode(charset)
-                except (LookupError, UnicodeDecodeError):
+                except LookupError, UnicodeDecodeError:
                     return None
             return None
 

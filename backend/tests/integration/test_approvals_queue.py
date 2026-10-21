@@ -12,8 +12,6 @@ beside it is a queue people approve blind, which is the failure this feature
 exists to prevent.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 

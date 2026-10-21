@@ -13,8 +13,6 @@ cap and the invoice need. `app/services/spend.py` adds it to the live sum, and
 that is the only place the two meet.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import datetime
 from decimal import Decimal

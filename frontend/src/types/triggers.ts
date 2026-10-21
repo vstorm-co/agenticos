@@ -14,6 +14,13 @@ export type TriggerType = "schedule" | "event";
 /** How a schedule decides it is due. Mirrors the backend's `ScheduleKind`. */
 export type ScheduleKind = "interval" | "cron";
 
+/**
+ * What a due schedule does while its previous fire still runs. Mirrors the
+ * backend's `TriggerOverlap`: `skip` lets the occurrence pass, `queue` fires once
+ * the run ends, `allow` fires on top of it.
+ */
+export type TriggerOverlap = "skip" | "queue" | "allow";
+
 /** Where an event trigger's fire comes from. Mirrors the backend's `EventSource`. */
 export type EventSource = "github" | "gmail" | "webhook";
 
@@ -51,6 +58,8 @@ export interface Trigger {
   schedule_kind: ScheduleKind;
   interval_seconds: number | null;
   cron_expression: string | null;
+  /** A schedule's overlap policy; an event trigger carries `skip` and ignores it. */
+  overlap: TriggerOverlap;
   event_source: EventSource | null;
   /** The per-source filter (which actions, which sender); `{}` on a schedule. */
   event_config: Record<string, unknown>;
@@ -107,6 +116,8 @@ export interface TriggerCreate {
   schedule_kind?: ScheduleKind;
   interval_seconds?: number | null;
   cron_expression?: string | null;
+  /** Schedules only; the server stores `skip` when omitted. */
+  overlap?: TriggerOverlap;
   event_source?: EventSource | null;
   event_config?: Record<string, unknown> | null;
   event_secret?: string | null;
@@ -152,6 +163,7 @@ export interface TriggerUpdate {
   schedule_kind?: ScheduleKind;
   interval_seconds?: number | null;
   cron_expression?: string | null;
+  overlap?: TriggerOverlap;
   is_active?: boolean;
   environment_id?: string | null;
   runs_as_creator?: boolean;

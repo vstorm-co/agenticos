@@ -5,8 +5,6 @@ run that wrote more than that answered with something it said early on. Turn
 order is the database's identity column, which only a real database allocates.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest
