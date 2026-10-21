@@ -50,13 +50,31 @@ class SpeechCall:
 Client = Callable[[httpx.AsyncClient, SpeechCall], Awaitable[bytes]]
 
 
-def _failure_for(status: int) -> SpeechFailure:
+_KEY_REFUSED = "api_key_invalid"
+"""Google's reason for a bad key, which it answers 400 rather than 401."""
+
+_QUOTA_SPENT = "quota_exceeded"
+"""ElevenLabs' reason for a spent quota, which it answers 401 rather than 429."""
+
+
+def _failure_for(status: int, body: str) -> SpeechFailure:
+    """What kind of failure this was, from the status and the provider's reason.
+
+    The reason is read and never repeated: Gemini answers a bad key with 400 and
+    ElevenLabs a spent quota with 401, so the status alone would tell the model to
+    rephrase text that was fine and the operator to replace a key that works.
+    """
+    lowered = body.lower()
+    if _KEY_REFUSED in lowered:
+        return SpeechFailure.CREDENTIALS
+    if status == 429 or _QUOTA_SPENT in lowered:
+        return SpeechFailure.RATE_LIMITED
     if status in (401, 403):
         return SpeechFailure.CREDENTIALS
     if status == 404:
         return SpeechFailure.NOT_FOUND
-    if status == 429:
-        return SpeechFailure.RATE_LIMITED
+    if status == 408:
+        return SpeechFailure.UNAVAILABLE
     if 400 <= status < 500:
         return SpeechFailure.REJECTED
     return SpeechFailure.UNAVAILABLE
@@ -66,16 +84,34 @@ def _raise_for(call: SpeechCall, response: httpx.Response) -> None:
     """Refuse a non-2xx answer, logging what the provider said and keeping it out."""
     if response.is_success:
         return
+    body = response.text[:2000]
     logger.warning(
         "Speech request to %s for model %s failed (%s): %s",
         call.provider,
         call.model,
         response.status_code,
-        response.text[:2000],
+        body,
     )
     raise SpeechProviderError(
-        _failure_for(response.status_code), provider=call.provider, status=response.status_code
+        _failure_for(response.status_code, body),
+        provider=call.provider,
+        status=response.status_code,
     )
+
+
+def _audio(call: SpeechCall, data: bytes) -> bytes:
+    """The audio a provider answered with, refusing what cannot be a clip.
+
+    An empty body is a clip of nothing that would be stored and billed as one, and
+    an odd number of PCM bytes would shift every later sample of the joined WAV
+    by one byte - noise from that piece on.
+    """
+    if not data or (call.encoding == "pcm" and len(data) % 2):
+        logger.warning(
+            "Speech answer from %s for model %s was not audio", call.provider, call.model
+        )
+        raise SpeechProviderError(SpeechFailure.UNAVAILABLE, provider=call.provider)
+    return data
 
 
 async def openai_speech(client: httpx.AsyncClient, call: SpeechCall) -> bytes:
@@ -94,7 +130,7 @@ async def openai_speech(client: httpx.AsyncClient, call: SpeechCall) -> bytes:
         json=body,
     )
     _raise_for(call, response)
-    return response.content
+    return _audio(call, response.content)
 
 
 async def elevenlabs(client: httpx.AsyncClient, call: SpeechCall) -> bytes:
@@ -112,7 +148,7 @@ async def elevenlabs(client: httpx.AsyncClient, call: SpeechCall) -> bytes:
         json={"text": call.text, "model_id": call.model},
     )
     _raise_for(call, response)
-    return response.content
+    return _audio(call, response.content)
 
 
 async def gemini_interactions(client: httpx.AsyncClient, call: SpeechCall) -> bytes:
@@ -154,10 +190,11 @@ def _gemini_audio(call: SpeechCall, response: httpx.Response) -> bytes:
             for content in step.get("content", [])
             if content.get("type") == "audio"
         ]
-        return base64.b64decode(blocks[-1], validate=True)
+        audio = base64.b64decode(blocks[-1], validate=True)
     except (ValueError, KeyError, IndexError, AttributeError, TypeError, binascii.Error):
         logger.warning("Gemini returned no audio for model %s", call.model, exc_info=True)
         raise SpeechProviderError(SpeechFailure.UNAVAILABLE, provider=call.provider) from None
+    return _audio(call, audio)
 
 
 CLIENTS: dict[str, Client] = {

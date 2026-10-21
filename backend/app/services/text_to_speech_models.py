@@ -160,16 +160,6 @@ def by_provider(provider: str) -> TextToSpeechProvider | None:
     return next((entry for entry in providers() if entry.provider == provider), None)
 
 
-def is_offered(provider: str, model: str) -> bool:
-    """Whether this provider can speak and the catalog lists this model.
-
-    Both halves, so a value outside the catalog is refused at the form rather than
-    mid-run, where the person who made the typo is not the one waiting.
-    """
-    entry = by_provider(provider)
-    return entry is not None and entry.model(model) is not None
-
-
 def default_choice() -> tuple[str, str]:
     """The provider and model a binding starts on: the catalog's first of each.
 

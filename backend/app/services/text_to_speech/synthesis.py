@@ -14,6 +14,7 @@ ten parallel requests is ten chances to be refused halfway through.
 from __future__ import annotations
 
 import logging
+import re
 import struct
 from dataclasses import dataclass
 
@@ -26,11 +27,33 @@ from app.services.text_to_speech_models import TextToSpeechProvider
 logger = logging.getLogger(__name__)
 
 TIMEOUT_SECONDS = 120.0
-"""How long one request may take. A few thousand characters is under a minute of
-work for every provider here; twice that covers a cold model on a busy endpoint."""
+"""The longest wait for any one phase of a request - connecting, sending, or the
+gap between two chunks of the answer. A few thousand characters is under a minute
+of work for every provider here; twice that covers a cold model on a busy
+endpoint."""
 
-_BOUNDARIES = ("\n\n", "\n", ". ", "! ", "? ", "; ", ", ", " ")
-"""Where a text is best cut, most natural first."""
+_BOUNDARIES = (
+    "\n\n",
+    "\n",
+    ". ",
+    "! ",
+    "? ",
+    "。",
+    "\uff01",  # fullwidth !
+    "\uff1f",  # fullwidth ?
+    "; ",
+    "\uff1b",  # fullwidth ;
+    ", ",
+    "\uff0c",  # fullwidth ,
+    "、",
+    " ",
+)
+"""Where a text is best cut, most natural first. Chinese and Japanese end a
+sentence with no space after it, so their marks are listed without one."""
+
+_ACCOUNT_VOICE = re.compile(r"[A-Za-z0-9_-]+")
+"""What an account's own voice id may be. It goes into a URL path, and `.` or `..`
+there would be resolved away and send the key to another endpoint."""
 
 
 @dataclass(frozen=True)
@@ -72,6 +95,18 @@ def _cut(text: str, limit: int) -> int:
         if at >= limit // 2:
             return at + len(boundary)
     return limit
+
+
+def _without_id3(mp3: bytes) -> bytes:
+    """An MP3 with a leading ID3v2 tag taken off, so it can follow another piece.
+
+    The tag's size is four 7-bit bytes after its 10-byte header. A tag left in the
+    middle of a joined clip is skipped by most players and read as noise by some.
+    """
+    if len(mp3) < 10 or not mp3.startswith(b"ID3"):
+        return mp3
+    size = (mp3[6] << 21) | (mp3[7] << 14) | (mp3[8] << 7) | mp3[9]
+    return mp3[10 + size :]
 
 
 def wav(pcm: bytes) -> bytes:
@@ -122,13 +157,18 @@ async def synthesize(
     Raises:
         SpeechProviderError: A request failed, timed out, or returned no audio.
             Pieces already spoken are discarded: half a clip is not an answer.
-        ValueError: The model or format is not one the entry offers - a
+        ValueError: The model, voice or format is not one the entry offers - a
             configuration the binding's validation should have refused - or
             the text is blank, which the caller should have refused first.
     """
     chosen = provider.model(model)
     if chosen is None or audio_format not in provider.formats:
         raise ValueError(f"{provider.provider} does not offer {model} as {audio_format}")
+    if provider.account_voices:
+        if _ACCOUNT_VOICE.fullmatch(voice) is None:
+            raise ValueError(f"{voice!r} is not a voice id")
+    elif voice not in {offered.id for offered in provider.voices_for(chosen)}:
+        raise ValueError(f"{model} has no voice {voice!r}")
     pieces = split_text(text, chosen.max_characters)
     if not pieces:
         raise ValueError("There is no text to speak")
@@ -151,7 +191,11 @@ async def synthesize(
     except httpx.HTTPError:
         logger.warning("Speech request to %s failed in transit", provider.provider, exc_info=True)
         raise SpeechProviderError(SpeechFailure.UNAVAILABLE, provider=provider.provider) from None
-    joined = b"".join(audio)
+    joined = (
+        b"".join([audio[0], *(_without_id3(piece) for piece in audio[1:])])
+        if audio_format == "mp3"
+        else b"".join(audio)
+    )
     return Speech(
         data=joined if audio_format == "mp3" else wav(joined),
         audio_format=audio_format,
