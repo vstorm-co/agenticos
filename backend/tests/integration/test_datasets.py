@@ -35,7 +35,7 @@ from app.db.models.message_rating import MessageRating
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
 from app.db.models.user import User
-from app.repositories import dataset_repo
+from app.repositories import dataset_repo, project_repo
 from app.repositories._visibility import reached_by_scope
 from app.schemas.dataset import (
     DatasetCaseCreate,
@@ -50,6 +50,7 @@ from app.services.access import _scope_allows
 from app.services.conversation import ConversationService
 from app.services.dataset import DatasetService
 from app.services.dataset_files import COLUMNS
+from app.services.project import ProjectService
 from app.services.user import UserService
 
 pytestmark = pytest.mark.anyio
@@ -1320,6 +1321,35 @@ async def test_deleting_the_conversation_keeps_the_case_but_not_where_it_came_fr
     )
 
     await _unlinked(db, revision_id)
+
+
+@pytest.mark.security
+async def test_deleting_a_project_keeps_a_case_from_a_chat_it_takes_but_not_the_link(db) -> None:
+    """A project takes the chats nobody else can reach, and their run outlives them."""
+    owner, _, revision_id = await _case_from_someone(db)
+    stored = await db.get(DatasetCase, revision_id)
+    assert stored is not None and stored.source_conversation_id is not None
+    project = await project_repo.create(
+        db,
+        organization_id=owner.organization_id,
+        owner_user_id=owner.user_id,
+        name="Refunds",
+        description="",
+        instructions="",
+        default_agent_id=None,
+        backend="state",
+        visibility="org",
+    )
+    chat = await db.get(Conversation, stored.source_conversation_id)
+    assert chat is not None
+    # Its starter's account is gone, so the project is the chat's only way in.
+    chat.project_id, chat.user_id = project.id, None
+    await db.flush()
+
+    await ProjectService(db).delete(owner, project.id)
+
+    await _unlinked(db, revision_id)
+    assert await db.get(Conversation, chat.id) is None
 
 
 @pytest.mark.security
