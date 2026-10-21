@@ -21,6 +21,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **A navigation shows it is on its way.** A click on a link inside the
+  console starts a thin bar along the top edge, shown after 120 ms and
+  finished when the page arrives, and the sidebar entry clicked turns its icon
+  into a spinner, so a slow page no longer looks like a click that did nothing.
+- **The composer offers the same controls for every agent.** The call button
+  shows for an agent with no voice too, saying calls are off and linking an
+  editor to the agent's Voice card in the Builder; browser dictation says when
+  the agent's Dictation switch is off and links there too; the files button and
+  the usage meter appear in a new chat, saying what will show once it runs.
 - **Voice conversations with agents (#54).** A member can call a published
   agent and talk to it, with barge-in; the agent keeps its tools, knowledge,
   in-call approvals (the exact arguments shown, 60 seconds to decide, only the
