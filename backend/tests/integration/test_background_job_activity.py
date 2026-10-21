@@ -72,7 +72,13 @@ async def test_each_finish_lands_in_its_slice_counted_by_outcome(db) -> None:
     await _finished(db, kind, status="cancelled", ago=timedelta(minutes=1))
     await _finished(db, kind, ago=timedelta(hours=30))
 
-    current = (await BackgroundJobService(db).activity("day")).buckets[-1]
+    activity = await BackgroundJobService(db).activity("day")
+    # The slice the three finishes are in, not the last one: a minute ago is the
+    # previous hour for a test that starts a few seconds past one, as a CI run at
+    # 09:00:13 did.
+    finished = datetime.now(UTC) - timedelta(minutes=1)
+    width = timedelta(seconds=activity.bucket_seconds)
+    current = next(b for b in activity.buckets if b.start <= finished < b.start + width)
 
     assert current.succeeded >= 1
     assert current.dead >= 1
