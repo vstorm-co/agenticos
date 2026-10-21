@@ -534,6 +534,7 @@ class TestAnyAccountVoice:
         assert voice["description"].endswith("The usual one is marin.")
 
 
+@pytest.mark.security
 class TestRefusingBeforeSpending:
     async def test_without_a_key(self, synthesis):
         with pytest.raises(ModelRetry, match="no API key"):

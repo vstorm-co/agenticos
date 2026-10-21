@@ -504,6 +504,7 @@ class TestChoosingTheResolution:
         assert video is not None and video.resolution == "720p"
         assert generation.calls[0]["resolution"] == "720p"
 
+    @pytest.mark.security
     async def test_the_budget_is_asked_with_the_chosen_resolutions_price(self, generation):
         """1080p costs more than twice 720p on Seedance 2.0: a run with room for the
         usual clip is refused the sharper one before anything is submitted."""
