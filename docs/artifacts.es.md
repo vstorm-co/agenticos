@@ -1,5 +1,5 @@
 ---
-source_sha: "06f8c1ff3994"
+source_sha: "c820451e5c9f"
 ---
 
 # Aplicaciones { #artifacts }
@@ -136,6 +136,8 @@ contenido a otro origen:
 | `lib/agenticos-1.css` | La primera versión del aspecto, conservada para las páginas publicadas con ella |
 | `lib/three-0.186.0/three.module.js` | three.js 0.186.0 como módulo ES, con `addons/controls/OrbitControls.js` al lado - asigne `three` y `three/addons/` con un import map |
 | `lib/mermaid-12.1.0.min.js` | Mermaid 12.1.0, como `window.mermaid` |
+| `lib/leaflet-1.9.4/leaflet.js`, `leaflet.css` | Leaflet 1.9.4, como `window.L` - dibuja sobre las [teselas de mapa](#visuals) del despliegue, cuando las tiene |
+| `lib/agenticos-map-1.js` | `window.AOMap.itinerary`: chinchetas numeradas que caen en orden, una línea entre ellas, pausa y repetición, y tarjetas para las paradas - sobre teselas de mapa, o sin ellas como un contorno de las paradas |
 
 Cada nombre lleva su versión y se guarda en caché un año. Una actualización añade
 un archivo nuevo junto al antiguo, así que una página publicada con una versión
@@ -173,16 +175,51 @@ que sus scripts se ejecuten, exactamente como en la página guardada. El marco i
 su tamaño, sus errores y un latido; un dibujo que deja de latir se cierra en lugar de
 bloquear la pestaña.
 
-**En el chat.** El panel muestra el dibujo entero - un SVG ajustado por su `viewBox`,
-una página maquetada al ancho del panel y reducida por encima de 560 píxeles - con su
-título, en el mensaje del agente, nunca como parte de la consola. La pantalla completa
-lo muestra a su propio tamaño; en un teléfono, un toque abre la pantalla completa. El
-zoom aparece en la esquina inferior derecha del dibujo mientras el puntero está sobre
-la tarjeta, en la vista previa y a pantalla completa: un SVG se dibuja más grande, una
-página se escala y el marco se desplaza cuando el dibujo lo supera. Encima están
-*Mostrar código*, *Descargar* (`.svg`, `.html` o el código Mermaid) y *Copiar como
-imagen* para un SVG, y un error que informa el dibujo viene con *Corregir*, que se lo
-pide al agente.
+**En el chat.** Un dibujo está en la propia conversación, sin tarjeta alrededor,
+desde el borde izquierdo del texto del mensaje: un SVG se ajusta por su `viewBox` y
+se reduce por encima de 560 píxeles, una página se compone al ancho de la columna y
+se reduce por encima de 900. Una línea discreta debajo lo nombra y dice si todavía
+se está dibujando; *Mostrar código*, *Descargar* (`.svg`, `.html` o la fuente
+Mermaid), *Copiar como imagen* para un SVG, *Guardar en Apps* y *Pantalla
+completa* aparecen en esa línea cuando el puntero está sobre el dibujo, y siempre
+en una pantalla táctil. Mientras se transmite, el dibujo conserva la altura que
+declaró su llamada, sobre un tono suave, para que la conversación no se mueva bajo
+el lector. La pantalla completa lo muestra a su propio tamaño; en un teléfono, un
+toque abre la vista previa a pantalla completa. El zoom está en la esquina
+inferior derecha del dibujo mientras el puntero está encima: un SVG se dibuja más
+grande, una página se escala, y el marco se desplaza cuando el dibujo lo supera.
+Un error que el dibujo informa llega con *Arreglarlo*, que se lo pide al agent.
+
+**Mensajes de seguimiento.** Un control de un dibujo puede devolver la elección de
+la persona a la conversación - *Planificar esta parada*, *Usar estas cifras* -
+llamando a `agenticos.followUp(text)`. El dibujo solo lo pide. La consola muestra
+el texto exacto bajo el dibujo con *Enviar*, *Editar* y *Descartar*, y se convierte
+en el mensaje de la persona solo cuando hace clic en *Enviar*, un clic que el
+dibujo no puede hacer por ella. Una petición sin interacción del usuario detrás -
+al cargar, con un temporizador - se descarta, igual que una de más de 2.000
+caracteres, y mientras una espera, otra no puede sustituirla. Los seguimientos solo
+se ofrecen en el chat: `agenticos.canFollowUp()` es falso en un hilo compartido, en
+el widget y en una app, donde `followUp` no hace nada y devuelve `false`, así que un
+dibujo guardado sigue funcionando.
+
+**Mapas.** Con [`VISUAL_MAP_TILES`](configuration.md#published-artifacts)
+definido, un dibujo o una app pueden dibujar sobre teselas de mapa reales: el
+despliegue trae cada tesela de ese servidor y la sirve desde su propia ruta de
+teselas, `agenticos.map` dice dónde, y el kit de mapas dibuja sobre ella un
+itinerario con el crédito del servidor debajo. Sin él, la misma llamada dibuja un
+contorno de las paradas - chinchetas y la línea entre ellas, sin calles - y lo mismo
+hace un mapa cuyas teselas no cargan. La imagen de un mapa en una app de chat se
+dibuja terminada, con todas las chinchetas en su sitio.
+
+**Elegir la forma.** El skill `visual-design` le dice al agent cuándo un dibujo es
+siquiera la respuesta correcta: texto para un dato o un consejo, una tabla Markdown
+para valores exactos, `create_chart` para cifras que ver - así «ahora en gráfico»
+convierte una tabla en un gráfico nativo - y un dibujo para explicar cómo se mueve
+algo, hacer una herramienta para el momento o seguir lugares en un mapa. Sus
+plantillas son un diagrama, una explicación con controles deslizantes, un avión 3D
+con cabeceo, alabeo y guiñada, una calculadora y un itinerario. Un chat vacío con
+un agent que dibuja se abre con un iniciador para cada uno. Activar Visuals en el
+Builder vincula también Charts.
 
 **Descargarlo.** Un archivo abierto desde el disco no tiene marco alrededor, así que
 la descarga lleva lo que imponía el marco. Un SVG conserva el dibujo y pierde lo que
@@ -302,7 +339,7 @@ consola ni a la persona que la mira:
   sola.
 - La misma política fija `default-src 'none'` y `connect-src 'none'`. El único
   origen remoto que nombra es la ruta propia del conjunto de bibliotecas en el
-  origen del contenido, para scripts, estilos y fuentes. `frame-ancestors` nombra
+  origen del contenido, para scripts, estilos y fuentes. En un despliegue que define `VISUAL_MAP_TILES`, se suman las imágenes de su propia ruta de teselas, `/api/v1/artifact-content/tiles/{z}/{x}/{y}`. Esa ruta toma tres números, cada uno comprobado contra el zoom en el que puede existir, y trae la tesela ella misma, así que una página nunca conoce la dirección ni la clave del servidor de teselas y no puede enviarle nada que haya elegido. `frame-ancestors` nombra
   solo la consola — y, para una página con enlace público y sitios que la
   incrustan, el documento de incrustación y esos sitios. El frame de la consola
   lleva la misma lista `sandbox` como segundo cerrojo.
@@ -316,7 +353,7 @@ consola ni a la persona que la mira:
   página. La página podría enviar ese mensaje por sí misma, así que es una
   petición y nunca un permiso: la persona que lee la dirección es lo que se
   interpone entre una página manipulada por prompt injection y la dirección a la
-  que enviaría sus cifras.
+  que enviaría sus cifras. Un [mensaje de seguimiento](#visuals) es el mismo tipo de petición: la consola muestra el texto y lo envía una persona.
 - Una dirección firmada carga su página unas pocas veces por minuto como mucho,
   contadas por dirección antes de leer nada. La consola y la página pública
   emiten una dirección nueva cada vez que dibujan el frame, y emitirla a través

@@ -38,6 +38,7 @@ from datetime import UTC, datetime, timedelta
 from time import perf_counter
 from typing import Any
 
+import httpx
 from sqlalchemy import distinct, func, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -46,6 +47,7 @@ from app.clients.redis import RedisClient
 from app.core.config import settings
 from app.db.models.credential import ModelProfile
 from app.schemas.health import SystemCheck, SystemHealthResponse
+from app.services import tile_proxy
 
 logger = logging.getLogger(__name__)
 
@@ -448,6 +450,53 @@ async def probe_scheduler(db: AsyncSession) -> SystemCheck:
     )
 
 
+async def probe_map_tiles() -> SystemCheck:
+    """Whether the tile server visuals draw maps on answers, when the deployment names one.
+
+    It is the reader's browser that loads the tiles, not this server, so a
+    healthy answer here says the server is up and serves images - a network
+    between a reader and it can still refuse them. The detail names the server
+    and never its address, which may carry the operator's key.
+    """
+    tiles = settings.map_tiles()
+    if tiles is None:
+        return SystemCheck(
+            key="map_tiles",
+            status="unconfigured",
+            detail="VISUAL_MAP_TILES is not set, so maps in visuals are drawn as an outline",
+        )
+    url = tiles.url.replace("{z}", "0").replace("{x}", "0").replace("{y}", "0")
+    start = perf_counter()
+    try:
+        async with httpx.AsyncClient(
+            timeout=PROBE_TIMEOUT_SECONDS, headers={"User-Agent": tile_proxy.USER_AGENT}
+        ) as client:
+            response = await client.get(url)
+    except httpx.TimeoutException:
+        return _timed_out("map_tiles", f"the {tiles.name} tile server")
+    except httpx.HTTPError as exc:
+        return SystemCheck(
+            key="map_tiles",
+            status="unhealthy",
+            detail=f"fetching a tile from {tiles.name} failed: {type(exc).__name__}",
+        )
+    latency = _elapsed_ms(start)
+    kind = response.headers.get("content-type", "")
+    if response.status_code != 200 or not kind.startswith("image/"):
+        return SystemCheck(
+            key="map_tiles",
+            status="unhealthy",
+            detail=f"{tiles.name} answered {response.status_code} ({kind or 'no type'}) for the first tile",
+            latency_ms=latency,
+        )
+    return SystemCheck(
+        key="map_tiles",
+        status="healthy",
+        detail=f"{tiles.name} served the first tile; readers' browsers load the rest themselves",
+        latency_ms=latency,
+    )
+
+
 async def readiness(*, db: AsyncSession, redis: RedisClient) -> tuple[bool, dict[str, Any]]:
     """The Kubernetes answer: is this instance fit to serve traffic.
 
@@ -476,7 +525,9 @@ async def system_health(*, db: AsyncSession, redis: RedisClient) -> SystemHealth
     that follows reports three broken things when one is. `not_checked` names
     the reason instead.
     """
-    database, redis_check = await asyncio.gather(probe_database(db), probe_redis(redis))
+    database, redis_check, map_tiles = await asyncio.gather(
+        probe_database(db), probe_redis(redis), probe_map_tiles()
+    )
     if database.status == "healthy":
         vector_store = await probe_vector_store(db)
         model_access = await probe_model_access(db)
@@ -488,5 +539,5 @@ async def system_health(*, db: AsyncSession, redis: RedisClient) -> SystemHealth
 
     return SystemHealthResponse(
         checked_at=datetime.now(UTC),
-        checks=[database, redis_check, vector_store, model_access, scheduler],
+        checks=[database, redis_check, vector_store, model_access, scheduler, map_tiles],
     )
