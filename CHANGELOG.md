@@ -44,6 +44,15 @@ Two things are versioned separately from this file and worth knowing about:
   app need to play video. This is groundwork for speech and video generation, which store their clips the same
   way as generated images (#2259).
 
+### Security
+
+- **`virtualenv` moves to 21.14.5.** 21.14.1 carried four advisories published
+  on 2026-10-21, and every pull request failed the Security Scan on them; 21.14.5
+  fixes three. The fourth, GHSA-vxj4-q4g9-crj7, is fixed only in 21.14.7, which
+  needs `packaging` 26 while `xai-sdk` pins `packaging` below 26, so `make audit`
+  accepts it by name with the reason beside it. `virtualenv` is a development
+  dependency of `pre-commit` and is not in the image.
+
 ## [1.9.1] - 2026-10-21
 
 ### Fixed
