@@ -66,6 +66,15 @@ Two things are versioned separately from this file and worth knowing about:
   not the built console, and the advisory is Windows-only. 8.2.4 brings
   `rolldown` 1.2.14 with it, and only the frontend lockfile changes.
 
+### Fixed
+
+- **A generated image is no longer lost when the sandbox will not open.** An
+  agent with the sandbox capability also copies what it generates into its
+  workspace. When the sandbox service refused to open a session, that copy
+  failed the whole turn, although the image had been made, paid for and stored.
+  The image is now handed back without a workspace path, as it already was for
+  a full workspace, and the same holds for speech (#2259).
+
 ## [1.8.3] - 2026-10-20
 
 ### Fixed

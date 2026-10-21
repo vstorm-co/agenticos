@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
+import httpx
 from pydantic_ai.tools import RunContext
 from pydantic_ai.workspaces import WorkspaceError
 
@@ -72,10 +73,15 @@ async def store_generated(ctx: RunContext[AgentDeps], data: bytes, *, filename: 
         try:
             await ctx.workspace.write_bytes(f"{WORKSPACE_OUTPUT_DIR}/{leaf}", data)
             workspace_path = f"{WORKSPACE_OUTPUT_DIR}/{leaf}"
-        except (OSError, WorkspaceError):
+        except (OSError, WorkspaceError, httpx.HTTPError) as exc:
             # A full workspace - a `state` document past its ceiling raises
-            # `OSError`, a container's shell `WorkspaceError` - the file is still
-            # stored and linked above, and naming a path that holds nothing would
-            # send the model to it.
-            logger.info("generated_media_not_written", extra={"leaf": leaf})
+            # `OSError`, a container's shell `WorkspaceError` - or a sandbox
+            # service that would not open a session, whose client raises its HTTP
+            # error unmapped. The file was generated, paid for, and is stored and
+            # linked above; naming a path that holds nothing would send the model
+            # to it, and failing the call would lose the file with the turn.
+            logger.warning(
+                "generated_media_not_written",
+                extra={"leaf": leaf, "error": exc.__class__.__name__},
+            )
     return StoredMedia(filename=stored, url=url, workspace_path=workspace_path)
