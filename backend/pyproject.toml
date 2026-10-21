@@ -925,6 +925,10 @@ include = [
     "app/services/eval_suite_threshold.py",
     "app/services/eval_suite.py",
     "app/api/routes/v1/eval_suites.py",
+    "app/db/models/promotion_gate.py",
+    "app/repositories/promotion_gate.py",
+    "app/schemas/promotion_gate.py",
+    "app/services/promotion_gate.py",
     # The authoring assistant: what it reads, what it proposes and how a person
     # decides. Its evidence reads are the boundary that keeps it blind to evals.
     "app/db/models/authoring.py",
@@ -1455,6 +1459,10 @@ include = [
     "app/services/eval_suite_threshold.py",
     "app/services/eval_suite.py",
     "app/api/routes/v1/eval_suites.py",
+    "app/db/models/promotion_gate.py",
+    "app/repositories/promotion_gate.py",
+    "app/schemas/promotion_gate.py",
+    "app/services/promotion_gate.py",
     # The authoring assistant: what it reads, what it proposes and how a person
     # decides. Its evidence reads are the boundary that keeps it blind to evals.
     "app/db/models/authoring.py",

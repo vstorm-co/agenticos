@@ -87,8 +87,13 @@ Two kinds of permission, and they behave differently.
 
 **Global** permissions are binary and org-wide: `members:view`, `members:manage`, `roles:manage`,
 `org:settings`, `org:delete`, `budgets:manage`, `approvals:decide`,
-`connections:view`, `connections:manage`, `channels:manage`,
+`promotions:override`, `connections:view`, `connections:manage`, `channels:manage`,
 `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`.
+
+`promotions:override` promotes a version onto an
+[environment its eval suites guard](environments.md#guarding-a-promotion-with-evals)
+although they have not passed on it, and changes which suites guard one. Owners
+and admins hold it; promoting at all is still `agents:publish` on the agent.
 
 `api_keys:create` lets a member issue [API keys](api.md#organization-api-keys)
 for themselves; `api_keys:manage` lists and revokes everybody's. A key holds a

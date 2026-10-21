@@ -95,6 +95,25 @@ class EnvironmentUpdate(BaseSchema):
         max_length=64,
         description="The whole set of overrides, replacing the current one. Omit to keep it.",
     )
+    guard_suite_ids: list[UUID] | None = Field(
+        default=None,
+        max_length=20,
+        description=(
+            "The agent's eval suites this environment requires to pass on a version "
+            "before it takes it - the whole set, replacing the current one. Empty "
+            "unguards it; omit to keep it. Changing it needs `promotions:override`."
+        ),
+    )
+    override_reason: str | None = Field(
+        default=None,
+        min_length=10,
+        max_length=2000,
+        description=(
+            "Why this version is promoted although its guards have not passed on it. "
+            "Needs `promotions:override`, and is recorded in the audit log and on the "
+            "version. Ignored when every guard passed."
+        ),
+    )
 
 
 class EnvironmentRead(BaseSchema):
@@ -120,6 +139,10 @@ class EnvironmentRead(BaseSchema):
     logfire_token_secret_id: UUID | None = None
     service_name: str | None = None
     connections: list[EnvironmentConnectionRead] = Field(default_factory=list)
+    guard_suite_ids: list[UUID] = Field(
+        default_factory=list,
+        description="The eval suites that must pass on a version before this environment takes it",
+    )
     created_at: datetime
 
 

@@ -6,6 +6,7 @@ import {
   Database,
   KeyRound,
   ListChecks,
+  ShieldAlert,
   Megaphone,
   PanelsTopLeft,
   Plug,
@@ -48,6 +49,7 @@ const KINDS: Record<string, { icon: LucideIcon; tone: string }> = {
   mcp_server_down: { icon: PlugZap, tone: BAD },
   mcp_server_recovered: { icon: Plug, tone: GOOD },
   eval_suite_failed: { icon: ListChecks, tone: BAD },
+  promotion_overridden: { icon: ShieldAlert, tone: BAD },
 };
 
 /** A kind this console has not met yet: a bell, rather than nothing. */

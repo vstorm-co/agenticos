@@ -867,7 +867,11 @@
     "platformAllHint": "Każde wywołanie czeka na zgodę, także odczyt.",
     "platformTools": "Narzędzia, które agent może wywołać",
     "platformWritesBadge": "zmienia coś",
-    "platformRemove": "Usuń z tego agenta"
+    "platformRemove": "Usuń z tego agenta",
+    "guardsSaved": "Strażnicy zapisani",
+    "failedGuards": "Nie udało się zapisać strażników",
+    "guardsStarted": "{count, plural, =0 {Nie ma czego uruchamiać - każdy strażnik przeszedł albo już sprawdza} one {Uruchomiono 1 suitę evali} few {Uruchomiono # suity evali} other {Uruchomiono # suit evali}}",
+    "failedGuardsRun": "Nie udało się uruchomić strażników"
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",
@@ -4057,6 +4061,10 @@
       "agent-assistant-strip": {
         "title": "Asystent tworzenia",
         "body": "Poproś go o ulepszenie agenta na podstawie negatywnie ocenionych odpowiedzi albo o sprawdzenie Twoich zmian. Każda sugestia czeka, aż przyjmiesz ją do draftu."
+      },
+      "agent-environment-guards": {
+        "title": "Strażnicy",
+        "body": "Wskaż suity evali, które muszą przejść na wersji, zanim środowisko ją przyjmie. Wersja, która ich nie przeszła, zostaje wstrzymana, a pominięcie wymaga powodu i uprawnienia."
       }
     },
     "chooseLanguage": "Język"
@@ -5173,7 +5181,9 @@
       "prefMcpServerRecovered": "Serwer MCP znów odpowiada",
       "prefMcpServerRecoveredTrigger": "Serwer, który przestał odpowiadać, wrócił, a agenci, którzy z niego korzystają, znów mają jego narzędzia.",
       "prefEvalSuiteFailed": "Suita evali nie przeszła",
-      "prefEvalSuiteFailedTrigger": "Twoja suita spadła poniżej progu albo nie mogła się uruchomić. Wysyłane raz na serię niepowodzeń na danej wersji, z nazwami przypadków, które się zepsuły."
+      "prefEvalSuiteFailedTrigger": "Twoja suita spadła poniżej progu albo nie mogła się uruchomić. Wysyłane raz na serię niepowodzeń na danej wersji, z nazwami przypadków, które się zepsuły.",
+      "prefPromotionOverridden": "Promocja pominęła evale",
+      "prefPromotionOverriddenTrigger": "Wersja trafiła do środowiska z pominięciem Twojej suity evali, która na niej nie przeszła. Podaje suity i podany powód."
     },
     "skills": {
       "agentsBoundSkillWill": "Agenci związani z tym skillem będą od następnego runu działać bez niego. Tego nie da się cofnąć.",
@@ -8740,5 +8750,50 @@
       "send": "Opisz go Architektowi",
       "prompt": "Przygotuj dla mnie draft agenta: {description}"
     }
+  },
+  "promotionGate": {
+    "title": "Promuj v{version} do {name}",
+    "body": "{name} przyjmuje wersję dopiero wtedy, gdy strzegące go suity evali przeszły na tej wersji.",
+    "state": {
+      "passed": "Przeszła",
+      "failed": "Nie przeszła",
+      "inconclusive": "Bez rozstrzygnięcia",
+      "skipped": "Nie uruchomiona",
+      "error": "Błąd",
+      "checking": "Sprawdza",
+      "stale": "Nieaktualna",
+      "unchecked": "Niesprawdzona",
+      "paused": "Wstrzymana"
+    },
+    "hint": {
+      "passed": "Przeszła na tej wersji.",
+      "failed": "Nie spełniła progu na tej wersji.",
+      "inconclusive": "Nie rozstrzygnęła na tej wersji.",
+      "skipped": "Nie uruchomiła się na tej wersji.",
+      "error": "Skończyła się bez werdyktu na tej wersji.",
+      "checking": "Run na tej wersji czeka albo trwa.",
+      "stale": "Jej ostatni wynik dotyczył innych case'ów albo innego progu, niż suita ma teraz.",
+      "unchecked": "Jeszcze nie działała na tej wersji."
+    },
+    "passing": "Każdy strażnik przeszedł na v{version}.",
+    "overrideTitle": "Promuj mimo to",
+    "overrideBody": "Twój powód trafi do audit logu i na wersję, a właściciele suit dostaną wiadomość.",
+    "overrideReason": "Dlaczego",
+    "overridePlaceholder": "Dlaczego tę wersję można bezpiecznie promować bez zaliczonych evali",
+    "overrideSubmit": "Promuj z pominięciem evali",
+    "run": "Uruchom evale na v{version}",
+    "promote": "Promuj",
+    "noSuites": "Ten agent nie ma jeszcze suit evali. Ustaw jedną w zakładce Evale, żeby strzegła środowiska.",
+    "guardsHelp": "Suity, które muszą przejść na wersji, zanim {name} ją przyjmie.",
+    "storeGuards": "Zapisz strażników",
+    "guardsReadOnly": "Zmiana wymaga uprawnienia do pomijania bramki promocji.",
+    "guardedBy": "{count, plural, one {Strzeżone przez 1 suitę} few {Strzeżone przez # suity} other {Strzeżone przez # suit}}",
+    "waiting": "Czeka na evale na v{version}",
+    "guardsFor": "Suity evali strzegące {name}",
+    "overriddenOn": "Pominięto evale na {name}",
+    "overrideDetail": "{who} wypromował(a) ją z pominięciem {suites}: {reason}",
+    "someoneWhoLeft": "Osoba, która odeszła",
+    "readFailed": "Nie udało się odczytać evali strzegących tego środowiska.",
+    "retry": "Spróbuj ponownie"
   }
 }

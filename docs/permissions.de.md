@@ -1,5 +1,5 @@
 ---
-source_sha: "c1a9d4c2f45f"
+source_sha: "58c124e02871"
 ---
 
 # Berechtigungen { #permissions }
@@ -98,8 +98,14 @@ Zwei Arten von Berechtigung, und sie verhalten sich unterschiedlich.
 
 **Globale** Berechtigungen sind binär und organisationsweit: `members:view`, `members:manage`,
 `roles:manage`, `org:settings`, `org:delete`, `budgets:manage`,
-`approvals:decide`, `connections:view`, `connections:manage`,
+`approvals:decide`, `promotions:override`, `connections:view`, `connections:manage`,
 `channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`.
+
+`promotions:override` promotet eine Version auf eine
+[Umgebung, die ihre Eval-Suites bewachen](environments.md#guarding-a-promotion-with-evals),
+obwohl sie auf ihr nicht bestanden haben, und ändert, welche Suites eine
+bewachen. Owner und Admins haben es; überhaupt zu promoten bleibt
+`agents:publish` auf dem Agent.
 
 `api_keys:create` erlaubt einem Mitglied,
 [API-Schlüssel](api.md#organization-api-keys) für sich auszustellen;

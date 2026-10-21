@@ -1,9 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Check, FlaskConical, Pencil, Plus, Trash2, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  FlaskConical,
+  Pencil,
+  Plus,
+  ShieldCheck,
+  Trash2,
+  X,
+} from "lucide-react";
 
 import { EnvironmentConnections } from "@/components/agents/environment-connections";
+import { EnvironmentGuards } from "@/components/agents/environment-guards";
+import { useGuardedPromotion } from "@/components/agents/promotion-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,9 +27,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useAgentEnvironments, useAllAgentVersions } from "@/hooks";
+import { useAgentEnvironments, useAllAgentVersions, usePermissions } from "@/hooks";
 import { VERSION_HISTORY_LIMIT } from "@/lib/agent-spec";
 import type { AgentEnvironment, AgentVersion } from "@/types/agents";
+import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 
 /** The backend's slug rule, checked before the request leaves. */
@@ -101,13 +113,18 @@ export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; can
     environments,
     isLoading,
     create,
-    promote,
     setReleaseMode,
     rename,
     remove,
     setConnections,
+    setGuards,
   } = useAgentEnvironments(agentId);
   const { versions } = useAllAgentVersions(agentId);
+  const { can } = usePermissions();
+  const tGate = useTranslations("promotionGate");
+  const newest = versions[0];
+  const promotion = useGuardedPromotion(agentId, environments);
+  const [guarding, setGuarding] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
   const [testing, setTesting] = useState<string | null>(null);
@@ -138,6 +155,7 @@ export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; can
 
   return (
     <div className="space-y-3">
+      {promotion.dialog}
       <div className="space-y-2">
         {environments.map((environment) => (
           <div key={environment.id} className="space-y-3 rounded-md border p-3">
@@ -193,6 +211,26 @@ export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; can
                       {t("behindBy", { count: environment.behind_by })}
                     </span>
                   )}
+                  {environment.guard_suite_ids.length > 0 && (
+                    <span className="inline-flex items-center gap-1">
+                      <ShieldCheck className="h-3 w-3" aria-hidden />
+                      {tGate("guardedBy", { count: environment.guard_suite_ids.length })}
+                    </span>
+                  )}
+                  {/* A guarded environment that follows publishes waits for its
+                    evals on the newest version rather than taking it. */}
+                  {environment.tracks_latest &&
+                    environment.guard_suite_ids.length > 0 &&
+                    environment.behind_by > 0 &&
+                    newest && (
+                      <button
+                        type="button"
+                        className="text-warning underline underline-offset-2"
+                        onClick={() => promotion.request(environment.id, newest.id)}
+                      >
+                        {tGate("waiting", { version: newest.version })}
+                      </button>
+                    )}
                 </div>
               </div>
               {/* The release mode, on the row it governs rather than in a
@@ -220,10 +258,8 @@ export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; can
                 <VersionPin
                   environment={environment}
                   versions={versions}
-                  promoting={promote.isPending}
-                  onPromote={(versionId) =>
-                    promote.mutate({ environmentId: environment.id, versionId })
-                  }
+                  promoting={promotion.promoting}
+                  onPromote={(versionId) => promotion.request(environment.id, versionId)}
                 />
               )}
               {environment.is_default && <Badge variant="secondary">{t("default2")}</Badge>}
@@ -236,6 +272,21 @@ export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; can
                   onClick={() => setRenaming({ id: environment.id, name: environment.name })}
                 >
                   <Pencil className="h-4 w-4" />
+                </Button>
+              )}
+              {canManage && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  data-tour={
+                    environment.id === environments[0]?.id ? "environment-guards" : undefined
+                  }
+                  aria-expanded={guarding === environment.id}
+                  aria-label={tGate("guardsFor", { name: environment.name })}
+                  onClick={() => setGuarding(guarding === environment.id ? null : environment.id)}
+                >
+                  <ShieldCheck className="h-4 w-4" />
+                  {environment.guard_suite_ids.length > 0 && environment.guard_suite_ids.length}
                 </Button>
               )}
               {/* The default is production, which runs what the spec binds. */}
@@ -268,6 +319,15 @@ export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; can
                 </Button>
               )}
             </div>
+            {guarding === environment.id && (
+              <EnvironmentGuards
+                agentId={agentId}
+                environment={environment}
+                canEdit={can(Perm.promotionsOverride)}
+                saving={setGuards.isPending}
+                onSave={(suiteIds) => setGuards.mutate({ environmentId: environment.id, suiteIds })}
+              />
+            )}
             {testing === environment.id && (
               <EnvironmentConnections
                 environment={environment}

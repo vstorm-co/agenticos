@@ -1,5 +1,5 @@
 ---
-source_sha: "c1a9d4c2f45f"
+source_sha: "58c124e02871"
 ---
 
 # Permisos { #permissions }
@@ -97,8 +97,14 @@ Dos clases de permiso, y se comportan de forma distinta.
 
 Los permisos **globales** son binarios y valen para toda la organización:
 `members:view`, `members:manage`, `roles:manage`, `org:settings`, `org:delete`,
-`budgets:manage`, `approvals:decide`, `connections:view`, `connections:manage`,
+`budgets:manage`, `approvals:decide`, `promotions:override`, `connections:view`,
+`connections:manage`,
 `channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`.
+
+`promotions:override` promociona una versión a un
+[entorno que guardan sus suites de evals](environments.md#guarding-a-promotion-with-evals)
+aunque no hayan pasado en ella, y cambia qué suites guardan uno. Lo tienen
+owners y admins; promocionar en sí sigue siendo `agents:publish` sobre el agent.
 
 `api_keys:create` permite a un miembro emitir [claves de
 API](api.md#organization-api-keys) para sí mismo; `api_keys:manage` lista y

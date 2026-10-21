@@ -424,6 +424,9 @@ export const qk = {
     visible: () => ["eval-suites", "visible"] as const,
     results: (agentId: string, suiteId: string, query: { skip: number; limit: number }) =>
       ["eval-suites", "agent", agentId, suiteId, "results", query] as const,
+    /** Under the suites, so a result settling refreshes the gate it decides. */
+    gate: (agentId: string, environmentId: string, versionId: string) =>
+      ["eval-suites", "gate", agentId, environmentId, versionId] as const,
   },
   context: {
     all: () => ["context"] as const,

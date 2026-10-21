@@ -79,6 +79,17 @@ def _no_suites(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def _no_guards(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No environment here names a guard; `integration/test_promotion_gate` covers them."""
+    monkeypatch.setattr(
+        "app.services.agent_registry.promotion_gate_repo.guards_for", AsyncMock(return_value={})
+    )
+    monkeypatch.setattr(
+        "app.services.promotion_gate.PromotionGateService.overrides", AsyncMock(return_value={})
+    )
+
+
+@pytest.fixture(autouse=True)
 def _builtins_loaded():
     load_builtins()
 
