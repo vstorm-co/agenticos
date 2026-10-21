@@ -470,13 +470,15 @@ class KnowledgeGapService:
         against the drafter's and the organization's budgets, and listed in
         Activity. It is shown the topic's newest questions, the answers they got,
         what each search returned and what readers said. What it writes is kept
-        on the topic as a draft for a person; nothing is added to the collection.
+        on the topic as a draft for a person; nothing is added to the knowledge
+        base. It replaces the topic's draft, so it takes what dismissing does: a
+        caller who may change the topic's knowledge base.
 
         Raises:
             AuthorizationError: For a caller without `runs:view` across the organization.
             AiAssistanceDisabledError: The organization switched AI assistance off.
-            NotFoundError: For a topic the caller may not read, or one with no
-                questions left.
+            NotFoundError: For a topic in a knowledge base the caller may not
+                change, or one with no questions left.
             SystemAgentUnavailableError: The drafter cannot run for this caller.
             SystemAgentRunError: The run ended without an answer, as a budget
                 refusal does; it is recorded.
@@ -484,7 +486,7 @@ class KnowledgeGapService:
                 be read.
         """
         _require_runs_view(ctx)
-        topic = await self._topic(ctx, topic_id)
+        topic = await self._topic(ctx, topic_id, edit=True)
         material = await knowledge_gap_repo.drafting_material(
             self.db,
             topic.id,
@@ -494,7 +496,7 @@ class KnowledgeGapService:
         )
         if not material:
             raise NotFoundError(message="Topic not found", details={"topic_id": topic_id})
-        kb = await self._knowledge_base(ctx, topic.knowledge_base_id)
+        kb = await self._knowledge_base(ctx, topic.knowledge_base_id, edit=True)
         documents = await knowledge_gap_repo.documents_named(
             self.db,
             kb.id,
@@ -548,10 +550,10 @@ class KnowledgeGapService:
 
         Raises:
             AuthorizationError: For a caller without `runs:view` across the organization.
-            NotFoundError: For a topic the caller may not read.
+            NotFoundError: For a topic in a knowledge base the caller may not change.
         """
         _require_runs_view(ctx)
-        topic = await self._topic(ctx, report.topic_id)
+        topic = await self._topic(ctx, report.topic_id, edit=True)
         named = list(dict.fromkeys((source.kind, source.id) for source in report.sources))
         questions = await knowledge_gap_repo.member_queries(
             self.db, topic.id, organization_id=ctx.organization_id

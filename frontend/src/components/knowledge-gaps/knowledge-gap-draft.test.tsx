@@ -39,7 +39,7 @@ const TOPIC: KnowledgeGapTopicDetail = {
   agents: [],
   dismissed_at: null,
   has_draft: false,
-  can_edit: false,
+  can_edit: true,
   questions: [],
   draft: null,
 };
@@ -68,6 +68,13 @@ describe("KnowledgeGapDraftPanel", () => {
   it("offers no drafting to a caller who may not run agents", () => {
     render(<KnowledgeGapDraftPanel topic={TOPIC} />);
     expect(screen.queryByRole("button", { name: "Draft the missing content" })).toBeNull();
+  });
+
+  it("offers no drafting on a topic whose knowledge base the caller may not change", () => {
+    state.granted = [Perm.agentsRun];
+    render(<KnowledgeGapDraftPanel topic={{ ...DRAFTED, can_edit: false }} />);
+    expect(screen.queryByRole("button", { name: "Draft again" })).toBeNull();
+    expect(screen.getByText("card Parental leave")).toBeInTheDocument();
   });
 
   it("asks for a draft of a topic that has none", async () => {

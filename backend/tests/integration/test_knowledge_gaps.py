@@ -993,6 +993,33 @@ async def test_another_organizations_topic_cannot_be_drafted_or_reported_on(db) 
         )
 
 
+@pytest.mark.security
+async def test_a_reader_of_the_knowledge_base_cannot_replace_its_topic_s_draft(db) -> None:
+    ctx = await _owner(db)
+    _, _, topic_id = await _a_topic(db, ctx)
+    service = KnowledgeGapService(db)
+    await service.record_draft(
+        ctx, KnowledgeGapReport(topic_id=topic_id, title="Parking", content="Level [n].")
+    )
+    operator = await _member(db, ctx, OrgRoleName.OPERATOR)
+    run_it = AsyncMock()
+
+    with (
+        patch("app.services.knowledge_gaps.SystemAgentRunner.run", new=run_it),
+        pytest.raises(NotFoundError),
+    ):
+        await service.draft(operator, topic_id)
+    with pytest.raises(NotFoundError):
+        await service.record_draft(
+            operator, KnowledgeGapReport(topic_id=topic_id, title="Mine", content="Mine.")
+        )
+
+    run_it.assert_not_awaited()
+    topic = await db.get(KnowledgeGapTopic, topic_id)
+    assert topic is not None
+    assert (topic.draft_title, topic.drafted_by_user_id) == ("Parking", ctx.user_id)
+
+
 async def test_a_report_keeps_only_sources_it_can_verify(db) -> None:
     ctx = await _owner(db)
     stranger = await _owner(db)

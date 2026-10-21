@@ -18,7 +18,8 @@ import { KnowledgeGapDraftCard } from "./knowledge-gap-draft-card";
  *
  * Off by default: while the organization has AI assistance switched off there is
  * no control, only why - with the way to the switch for somebody who may turn it
- * on. A draft written earlier stays readable either way.
+ * on. A draft replaces the topic's, so only somebody who may change its
+ * knowledge base is offered one. A draft written earlier stays readable either way.
  */
 export function KnowledgeGapDraftPanel({ topic }: { topic: KnowledgeGapTopicDetail }) {
   const t = useTranslations("knowledgeGaps");
@@ -42,6 +43,7 @@ export function KnowledgeGapDraftPanel({ topic }: { topic: KnowledgeGapTopicDeta
         </p>
       ) : (
         aiOn &&
+        topic.can_edit &&
         can(Perm.agentsRun) && (
           <Button
             variant="outline"
