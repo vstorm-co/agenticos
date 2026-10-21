@@ -1,5 +1,5 @@
 ---
-source_sha: "101671079304"
+source_sha: "e9419e47f507"
 ---
 
 # Środowiska { #environments }
@@ -56,8 +56,51 @@ działała. Stara wersja wciąż tam jest, wciąż da się ją odczytać i uruch
 
 [Suita evali](evals.md#suites) ustawiona na promocję sprawdza każdą wersję
 wypromowaną na jej środowisko względem wersji, którą zastąpiła, i daje znać
-właścicielowi, gdy wynik nie przechodzi. Informuje, ale nie zatrzymuje
-promocji.
+właścicielowi, gdy wynik nie przechodzi. Sama tylko informuje; środowisko,
+które wskazuje ją jako [strażnika](#guarding-a-promotion-with-evals), czeka, aż
+przejdzie.
+
+## Strażnicy promocji z evali { #guarding-a-promotion-with-evals }
+
+Środowisko może wskazać [suity evali](evals.md#suites), które go **strzegą**.
+Wtedy przyjmuje wersję dopiero, gdy każdy strażnik przeszedł na dokładnie tej
+wersji, na wersji datasetu, którą suita czyta teraz, i przy progu, który ma
+teraz - zaliczenie sprzed dodania case'ów albo sprzed podniesienia progu się nie
+liczy. Promocja, która tego nie spełnia, jest odrzucana (`409`,
+`PROMOTION_BLOCKED`), a odmowa wymienia każdego strażnika i jego stan: nie
+przeszedł, bez rozstrzygnięcia, nie uruchomił się i dlaczego, jeszcze sprawdza,
+nieaktualny, niesprawdzony albo wstrzymany.
+
+Zaliczenie liczy się dla środowiska, obok którego zostało uruchomione: względem
+wersji, którą to środowisko serwuje teraz, i przy scoringu, który jego dataset
+ma teraz - zaliczenie obok wersji stagingu nic nie mówi o zastąpieniu wersji
+produkcji. Wstrzymany strażnik zatrzymuje wersję niezależnie od tego, co znalazł
+przed wstrzymaniem.
+
+Dialog promocji pokazuje to samo i uruchamia strażników, którzy nie przeszli na
+tej wersji, każdego obok wersji, którą środowisko serwuje teraz
+(`POST /api/v1/agents/{id}/environments/{env}/gate/run`;
+`GET …/gate?version_id=` czyta bramkę). Strażnik, który potrzebuje sędziego,
+gdy [wsparcie AI](governance.md#ai-assistance) jest wyłączone, mówi to wprost,
+zamiast blokować bez powodu.
+
+**Pominięcie** promuje mimo strażników. Wymaga uprawnienia
+`promotions:override` - mają je owner i admin - oraz powodu o długości co
+najmniej dziesięciu znaków, podanego przez osobę zalogowaną jako ona sama, nie
+przez klucz API. Pominięcie, kto je zrobił i wynik każdego strażnika trafiają
+do audit logu i na wersję w historii, a właściciel każdego strażnika, który nie
+przeszedł, dostaje wiadomość.
+
+Zmiana listy strażników wymaga tego samego uprawnienia, bo zdjęcie strażnika
+przepuszcza to, co by zatrzymał, i tak samo zmiana tego, co strażnik sprawdza -
+jego progu, datasetu, środowiska albo połączeń testowych tego środowiska. Suity, która strzeże, ani datasetu, który
+taka suita sprawdza, nie da się usunąć, dopóki nie zostanie zdjęta.
+
+Strzeżone środowisko z włączonym **tracks latest** nie podąża za publikacją od
+razu: publikacja uruchamia jego strażników na nowej wersji, a środowisko
+przesuwa się, gdy wszyscy przejdą, zapisane jako promocja przez bramkę.
+Środowisko, którego strażnicy nie przeszli, zostaje na miejscu, a jego wiersz
+mówi, że czeka.
 
 ## `tracks_latest` i dlaczego jest wyłączone { #tracks_latest-and-why-it-is-off }
 
@@ -228,6 +271,9 @@ spotykający wersję, której nikt nie wydał.
   publiczny widget mogą serwować różne wersje jednego agenta.
 - **Rollback to przekierowanie**, bo stare wersje pozostają czytelne i
   uruchamialne.
+- Środowisko może być **strzeżone przez suity evali**: wersja trafia na nie
+  dopiero, gdy przejdą na tej wersji, albo z ich pominięciem - z powodem i
+  uprawnieniem `promotions:override`.
 - Nazwane środowisko może zastąpić bindingi **połączeniami testowymi**; binding
   bez takiego połączenia jest tam wyłączony, nigdy nie trafia na produkcję. W evalu
   narzędzie, które zapisuje i nie ma połączenia testowego, jest **zapisywane, a nie

@@ -1,5 +1,5 @@
 ---
-source_sha: "ed8f0bf377ed"
+source_sha: "2d16b5486721"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -427,6 +427,13 @@ wersji, więc publikacja, a po niej promocja tej wersji, to jeden run. Suita
 prowadzi jeden eval run naraz; zmiana, która przyjdzie w trakcie, czeka na
 następny. Wstrzymana suita nie uruchamia się ani z żadnego triggera, ani
 ręcznie.
+
+Suita, która **strzeże środowiska**, uruchamia się też przed promocją na nie -
+na wersji, która ma zostać wypromowana, obok tej, którą środowisko serwuje - a
+promocja czeka, aż przejdzie; zob.
+[Strażnicy promocji z evali](environments.md#guarding-a-promotion-with-evals).
+Jej wyniki noszą oznaczenie *Przed promocją* (`gate`). Suity, która strzeże
+środowiska, nie da się usunąć, dopóki nie zostanie tam zdjęta.
 
 ### Co musi spełnić wynik { #what-a-result-must-meet }
 

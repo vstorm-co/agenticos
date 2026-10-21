@@ -58,6 +58,19 @@ def _no_suites(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("app.services.eval_suite.EvalSuiteService.environment_removed", AsyncMock())
 
 
+@pytest.fixture(autouse=True)
+def _no_guards(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No environment here names a guard; `integration/test_promotion_gate` covers them."""
+    monkeypatch.setattr(
+        "app.services.agent_environment.promotion_gate_repo.guards_for", AsyncMock(return_value={})
+    )
+    monkeypatch.setattr(
+        "app.services.agent_environment.promotion_gate_repo.guarding_through",
+        AsyncMock(return_value=[]),
+    )
+    monkeypatch.setattr("app.services.promotion_gate.PromotionGateService.enforce", AsyncMock())
+
+
 def _ctx(role: str = OrgRoleName.OWNER) -> AuthContext:
     return AuthContext(user_id=_CALLER, organization_id=_ORG, role=role)
 

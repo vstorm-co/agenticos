@@ -55,6 +55,7 @@ CONTENT_GATE: dict[NotificationEventType, ContentGate] = {
     NotificationEventType.ANNOUNCEMENT: ContentGate.ANNOUNCEMENT_AUDIENCE,
     NotificationEventType.ARTIFACT_VERSION_PUBLISHED: ContentGate.ARTIFACTS_VIEW,
     NotificationEventType.EVAL_SUITE_FAILED: ContentGate.RUNS_VIEW,
+    NotificationEventType.PROMOTION_OVERRIDDEN: ContentGate.RUNS_VIEW,
 }
 
 # `security_event` and `configuration_changed` bypass preference entirely on

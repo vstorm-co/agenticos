@@ -11,7 +11,9 @@ import type { ChangeEvent, ChangeResource } from "@/types/change-events";
  * tab is the audience another tab is showing.
  */
 const STALE: Record<ChangeResource, (orgId: string) => QueryKey[]> = {
-  agent: () => [qk.agents.all(), qk.sharing.all()],
+  // An agent's environments live under it too: one moved by its eval suites
+  // passing is announced as a change to the agent.
+  agent: () => [qk.agents.all(), qk.sharing.all(), qk.environments.all()],
   skill: () => [qk.skills.all(), qk.sharing.all()],
   context: () => [qk.context.all(), qk.sharing.all()],
   knowledge_base: () => [qk.kb.all(), qk.sharing.all()],

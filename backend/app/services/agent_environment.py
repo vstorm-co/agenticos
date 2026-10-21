@@ -30,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.audit import record_audit
 from app.core.exceptions import (
     AlreadyExistsError,
+    AuthorizationError,
     BadRequestError,
     ConcurrentChangeError,
     NotFoundError,
@@ -50,6 +51,7 @@ from app.repositories import (
     eval_run_repo,
     mcp_connection_repo,
     organization_secret_repo,
+    promotion_gate_repo,
 )
 from app.schemas.agent_environment import (
     EnvironmentConnectionRead,
@@ -60,6 +62,7 @@ from app.schemas.agent_environment import (
 )
 from app.services.access import SECRET, resolve_access
 from app.services.agent_registry import AgentRegistryService
+from app.services.promotion_gate import PromotionGateService
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +86,11 @@ class AgentEnvironmentService:
             self.db, agent_id=agent.id, organization_id=ctx.organization_id
         )
         numbers = await self._version_numbers(ctx, environments)
+        guards = await promotion_gate_repo.guards_for(
+            self.db,
+            [environment.id for environment in environments],
+            organization_id=ctx.organization_id,
+        )
         # What "pinned" costs, counted once for the whole listing: an environment
         # three versions behind is a decision somebody made or a thing somebody
         # forgot, and the panel cannot say which without the number.
@@ -115,6 +123,7 @@ class AgentEnvironmentService:
                 logfire_token_secret_id=environment.logfire_token_secret_id,
                 service_name=environment.service_name,
                 connections=overrides.get(environment.id, []),
+                guard_suite_ids=guards.get(environment.id, []),
                 created_at=environment.created_at,
             )
             for environment in environments
@@ -145,7 +154,7 @@ class AgentEnvironmentService:
                 message=f"'{agent.name}' already has an environment named '{data.name}'",
                 details={"agent_id": str(agent.id), "name": data.name},
             )
-        version = await self._version_of(ctx, agent, data.version_id or agent.current_version_id)
+        version = await self.version_of(ctx, agent, data.version_id or agent.current_version_id)
         if data.logfire_token_secret_id is not None:
             await self._check_logfire_secret(ctx, data.logfire_token_secret_id)
         connections = await self._checked_connections(ctx, data.connections)
@@ -200,8 +209,12 @@ class AgentEnvironmentService:
                 renamed - its name is part of the publish contract - or the
                 update names nothing to change.
             AlreadyExistsError: If the new name is taken on this agent.
+            PromotionBlockedError: If the environment's eval suites have not all
+                passed on the version, and the caller did not override them.
+            AuthorizationError: If the guards change and the caller may not
+                override promotions.
         """
-        agent, environment = await self._get(ctx, agent_id, environment_id)
+        agent, environment = await self.get_environment(ctx, agent_id, environment_id)
         # Before `writable`, which drops it: an environment is always pinned, so
         # `version_id: null` is a request to refuse rather than a value to write -
         # and dropping it first turned that refusal into "Nothing to change", which
@@ -211,8 +224,12 @@ class AgentEnvironmentService:
                 message="An environment is always pinned - point it at a version.",
                 details={"environment_id": str(environment.id)},
             )
-        changes = writable(data, over=AgentEnvironment, exclude={"connections"})
-        if not changes and data.connections is None:
+        changes = writable(
+            data,
+            over=AgentEnvironment,
+            exclude={"connections", "guard_suite_ids", "override_reason"},
+        )
+        if not changes and data.connections is None and data.guard_suite_ids is None:
             raise BadRequestError(message="Nothing to change", details={})
         if data.connections and environment.is_default:
             raise BadRequestError(
@@ -227,6 +244,8 @@ class AgentEnvironmentService:
             if data.connections is None
             else await self._checked_connections(ctx, data.connections)
         )
+        if connections is not None:
+            await self._check_guarding_connections(ctx, agent, environment)
 
         if changes.get("logfire_token_secret_id") is not None:
             await self._check_logfire_secret(ctx, changes["logfire_token_secret_id"])
@@ -251,7 +270,7 @@ class AgentEnvironmentService:
         replaced_version_id = environment.version_id
         version: AgentVersion | None = None
         if "version_id" in changes:
-            version = await self._version_of(ctx, agent, changes["version_id"])
+            version = await self.version_of(ctx, agent, changes["version_id"])
         elif changes.get("tracks_latest") is True and agent.current_version_id is not None:
             # Switching an environment to "follows latest" adopts the newest
             # version now rather than at the next publish. The alternative is a
@@ -265,6 +284,20 @@ class AgentEnvironmentService:
                 changes["version_id"] = newest.id
                 version = newest
 
+        gate = PromotionGateService(self.db)
+        if data.guard_suite_ids is not None:
+            await gate.set_guards(
+                ctx, agent=agent, environment=environment, suite_ids=data.guard_suite_ids
+            )
+        if version is not None and version.id != replaced_version_id:
+            await gate.enforce(
+                ctx,
+                agent=agent,
+                environment=environment,
+                version=version,
+                replaced_version_id=replaced_version_id,
+                override_reason=data.override_reason,
+            )
         if changes:
             environment = await agent_environment_repo.update(
                 self.db, environment=environment, update_data=changes
@@ -282,7 +315,6 @@ class AgentEnvironmentService:
             from app.services.eval_suite import EvalSuiteService
 
             await EvalSuiteService(self.db).environment_promoted(
-                ctx,
                 agent=agent,
                 environment=environment,
                 version=version,
@@ -312,6 +344,44 @@ class AgentEnvironmentService:
         )
         return environment
 
+    async def _check_guarding_connections(
+        self, ctx: AuthContext, agent: Agent, environment: AgentEnvironment
+    ) -> None:
+        """Refuse new test connections under a guard, unless the caller may override.
+
+        A guarding suite run against this environment answers from these
+        systems, so pointing them elsewhere changes what the guard checks.
+        """
+        guarding = await promotion_gate_repo.guarding_through(
+            self.db, environment.id, organization_id=ctx.organization_id
+        )
+        if not guarding:
+            return
+        names = ", ".join(suite.name for suite in guarding)
+        if not PromotionGateService.may_override(ctx):
+            raise AuthorizationError(
+                message=(
+                    f"{names} guard{'s' if len(guarding) == 1 else ''} a promotion through "
+                    f"{environment.name}'s test connections. Changing them needs "
+                    "permission to override promotions."
+                ),
+                details={"environment_id": environment.id},
+            )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="agent.environment_guards_changed",
+            target_type="agent",
+            target_id=str(agent.id),
+            details={
+                "environment_id": str(environment.id),
+                "name": environment.name,
+                "suites": [str(suite.id) for suite in guarding],
+                "fields": ["connections"],
+            },
+        )
+
     async def delete(self, ctx: AuthContext, agent_id: UUID, environment_id: UUID) -> None:
         """Remove a named environment.
 
@@ -334,7 +404,7 @@ class AgentEnvironmentService:
                 run would go on against production's connections. It is refused
                 until the run ends.
         """
-        agent, environment = await self._get(ctx, agent_id, environment_id)
+        agent, environment = await self.get_environment(ctx, agent_id, environment_id)
         if environment.is_default:
             raise BadRequestError(
                 message="The default environment cannot be removed - it is what "
@@ -383,7 +453,7 @@ class AgentEnvironmentService:
             details={"environment_id": str(environment_id), "name": name},
         )
 
-    async def _get(
+    async def get_environment(
         self, ctx: AuthContext, agent_id: UUID, environment_id: UUID
     ) -> tuple[Agent, AgentEnvironment]:
         """The agent and one of its environments, or "not found".
@@ -522,7 +592,7 @@ class AgentEnvironmentService:
                 details={"purpose": row.purpose},
             )
 
-    async def _version_of(self, ctx: AuthContext, agent: Agent, version_id: UUID) -> AgentVersion:
+    async def version_of(self, ctx: AuthContext, agent: Agent, version_id: UUID) -> AgentVersion:
         """One of *this agent's* versions, or "not found"."""
         version = await agent_repo.get_version(
             self.db, version_id, organization_id=ctx.organization_id

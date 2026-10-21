@@ -57,12 +57,13 @@ from app.agents.capabilities.budget import BudgetScope
 from app.agents.spec import AgentSpec, AlertAudience, AlertSpec
 from app.core.config import settings
 from app.core.permissions import OrgRoleName
-from app.db.models.agent import Agent
+from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, ToolApproval
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.eval_suite import EvalSuite, EvalSuiteResult, EvalSuiteResultStatus
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.notification import NotificationEventType
+from app.db.models.promotion_gate import PromotionOverride
 from app.db.models.rag_document import RAGDocument
 from app.repositories import agent as agent_repo
 from app.repositories import agent_run as agent_run_repo
@@ -767,6 +768,50 @@ class NotificationService:
             use_savepoint=True,
         )
 
+    async def promotion_overridden(
+        self,
+        override: PromotionOverride,
+        *,
+        agent: Agent,
+        version: AgentVersion,
+        owners: list[UUID],
+    ) -> None:
+        """A version was promoted onto an environment past eval suites that had not passed.
+
+        The owners of those suites hear it - they set the bar that was waved
+        aside - and the occurrence is the override, so a retried write is a
+        no-op.
+        """
+        recipients = await member_repo.list_member_ids_for(
+            self.db, organization_id=override.organization_id, user_ids=owners
+        )
+        if not recipients:
+            return
+        overridden = [guard["suite_name"] for guard in override.gate if guard["state"] != "passed"]
+        path = f"/agents/{agent.id}?tab=history"
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.PROMOTION_OVERRIDDEN,
+            occurrence_id=str(override.id),
+            summary=(
+                f"v{version.version} of {agent.name} went to {override.environment_name} "
+                f"without passing {', '.join(overridden)}: {_clip(override.reason)}"
+            ),
+            context_url=self._link(path, override.organization_id),
+            render_context={
+                "agent_name": agent.name,
+                **agent_face(agent),
+                "environment_name": override.environment_name,
+                "version": version.version,
+                "suites": overridden,
+                "reason": override.reason,
+                "app_name": settings.PROJECT_NAME,
+                "run_url": absolute_context_url(self._link(path, override.organization_id)),
+            },
+            organization_id=override.organization_id,
+            use_savepoint=True,
+        )
+
     async def _mcp_audience(self, connection: McpConnection, organization_id: UUID) -> set[UUID]:
         """Whoever manages the organization's servers, and whoever owns an agent bound to this one.
 
@@ -1221,6 +1266,12 @@ class NotificationService:
 
 
 _SHOWN_CASES = 5
+
+
+def _clip(text: str, limit: int = 200) -> str:
+    """One line of a person's text, short enough for a notification's summary."""
+    line = " ".join(text.split())
+    return line if len(line) <= limit else f"{line[: limit - 1]}…"
 
 
 def _suite_summary(

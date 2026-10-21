@@ -50,6 +50,7 @@ from app.core.exceptions import (
     AppException,
     AuthorizationError,
     BadRequestError,
+    EvalSuiteInUseError,
     EvalSuiteNotRunnableError,
     NotFoundError,
     PaymentRequiredError,
@@ -71,6 +72,7 @@ from app.repositories import (
     eval_run_repo,
     eval_suite_repo,
     member_repo,
+    promotion_gate_repo,
 )
 from app.schemas.change_event import ChangeEvent
 from app.schemas.eval_run import (
@@ -162,7 +164,8 @@ def fires_per_month(schedule: EvalSuiteSchedule, *, now: datetime) -> int:
     )
 
 
-def _threshold(suite: EvalSuite) -> EvalSuiteThreshold:
+def threshold_of(suite: EvalSuite) -> EvalSuiteThreshold:
+    """The threshold a suite holds now, as a result freezes it."""
     return EvalSuiteThreshold(
         min_pass_rate=float(suite.min_pass_rate) if suite.min_pass_rate is not None else None,
         max_confirmed_regressions=suite.max_confirmed_regressions,
@@ -234,17 +237,15 @@ class EvalSuiteService:
         rows, total = await eval_suite_repo.list_results(
             self.db, suite.id, organization_id=ctx.organization_id, skip=skip, limit=limit
         )
-        readable = await self._readable_datasets(
+        readable = await self.readable_datasets(
             ctx, [row.dataset_id for row in rows if row.dataset_id is not None]
         )
         return EvalSuiteResultList(
-            items=[
-                self._result_read(row, cases_visible=row.dataset_id in readable) for row in rows
-            ],
+            items=[self.result_read(row, cases_visible=row.dataset_id in readable) for row in rows],
             total=total,
         )
 
-    async def _readable_datasets(self, ctx: AuthContext, dataset_ids: list[UUID]) -> set[UUID]:
+    async def readable_datasets(self, ctx: AuthContext, dataset_ids: list[UUID]) -> set[UUID]:
         """Which of these datasets the reader may open - and so read the cases of."""
         datasets = await eval_run_repo.datasets(
             self.db, sorted(set(dataset_ids)), organization_id=ctx.organization_id
@@ -278,7 +279,7 @@ class EvalSuiteService:
             for result in (*latest.values(), *current.values())
             if result.dataset_id is not None
         ]
-        readable = await self._readable_datasets(ctx, [*datasets, *checked])
+        readable = await self.readable_datasets(ctx, [*datasets, *checked])
         environments: dict[UUID, AgentEnvironment] = {}
         for agent_id in agents:
             for environment in await agent_environment_repo.list_for_agent(
@@ -312,7 +313,7 @@ class EvalSuiteService:
                     description=suite.description,
                     is_active=suite.is_active,
                     paused_reason=suite.paused_reason,
-                    threshold=_threshold(suite),
+                    threshold=threshold_of(suite),
                     on_publish=suite.on_publish,
                     on_promotion=suite.on_promotion,
                     on_dependency_change=suite.on_dependency_change,
@@ -320,12 +321,12 @@ class EvalSuiteService:
                     next_fire_at=suite.next_fire_at,
                     max_run_usd=suite.max_run_usd,
                     last_result=(
-                        self._result_read(last, cases_visible=last.dataset_id in readable)
+                        self.result_read(last, cases_visible=last.dataset_id in readable)
                         if last
                         else None
                     ),
                     open_result=(
-                        self._result_read(now, cases_visible=now.dataset_id in readable)
+                        self.result_read(now, cases_visible=now.dataset_id in readable)
                         if now
                         else None
                     ),
@@ -336,7 +337,7 @@ class EvalSuiteService:
         return reads
 
     @staticmethod
-    def _result_read(result: EvalSuiteResult, *, cases_visible: bool) -> EvalSuiteResultRead:
+    def result_read(result: EvalSuiteResult, *, cases_visible: bool) -> EvalSuiteResultRead:
         """A result as a reader sees it: the failing cases' questions only for one who
         may open the dataset they come from."""
         summary = (
@@ -499,6 +500,7 @@ class EvalSuiteService:
         if "schedule" in fields or resuming:
             schedule = data.schedule if "schedule" in fields else _schedule(suite)
             values.update(self._schedule_columns(schedule, now=now))
+        await self._guarding_change(ctx, suite, data=data, values=values)
         if "dataset_id" in values or "environment_id" in values:
             # A waiting result was queued for the version and cases as they were set
             # up; run against the new ones it would record a check nobody asked for.
@@ -518,10 +520,77 @@ class EvalSuiteService:
         await self._audit(ctx, suite, action, {"fields": sorted(fields)})
         return (await self._reads(ctx, [suite]))[0]
 
+    async def _guarding_change(
+        self, ctx: AuthContext, suite: EvalSuite, *, data: EvalSuiteUpdate, values: dict[str, Any]
+    ) -> None:
+        """Refuse a change to what a guarding suite checks, unless the caller may override.
+
+        A lower bar, an easier dataset or another environment's connections is
+        a guard taken off by another road, so it needs what taking one off needs,
+        and is recorded the same way. Pausing is not: a paused guard holds a
+        promotion back.
+        """
+        changed = sorted(
+            field
+            for field, moved in (
+                ("threshold", data.threshold is not None and data.threshold != threshold_of(suite)),
+                ("dataset_id", "dataset_id" in values),
+                ("environment_id", "environment_id" in values),
+            )
+            if moved
+        )
+        if not changed:
+            return
+        guarded = await promotion_gate_repo.guarded_by(
+            self.db, suite.id, organization_id=ctx.organization_id
+        )
+        if not guarded:
+            return
+        from app.services.promotion_gate import PromotionGateService
+
+        names = ", ".join(environment.name for environment in guarded)
+        if not PromotionGateService.may_override(ctx):
+            raise AuthorizationError(
+                message=(
+                    f"'{suite.name}' guards {names}. Changing what it checks needs "
+                    "permission to override promotions."
+                ),
+                details={"suite_id": suite.id, "permission": Perm.PROMOTIONS_OVERRIDE.value},
+            )
+        for environment in guarded:
+            await record_audit(
+                self.db,
+                actor_user_id=ctx.subject_id,
+                organization_id=ctx.organization_id,
+                action="agent.environment_guards_changed",
+                target_type="agent",
+                target_id=str(suite.agent_id),
+                details={
+                    "environment_id": str(environment.id),
+                    "name": environment.name,
+                    "suite_id": str(suite.id),
+                    "fields": changed,
+                },
+            )
+
     async def delete(self, ctx: AuthContext, agent_id: UUID, suite_id: UUID) -> None:
-        """Remove a suite and its results. The eval runs it started stay."""
+        """Remove a suite and its results. The eval runs it started stay.
+
+        Raises:
+            EvalSuiteInUseError: The suite guards an environment - removing it would
+                unguard that environment without anybody deciding to.
+        """
         agent = await self._editable(ctx, agent_id)
         suite = await self._suite(ctx, agent.id, suite_id)
+        guarded = await promotion_gate_repo.guarded_by(
+            self.db, suite.id, organization_id=ctx.organization_id
+        )
+        if guarded:
+            names = ", ".join(environment.name for environment in guarded)
+            raise EvalSuiteInUseError(
+                message=f"'{suite.name}' guards {names}. Take it off there before deleting it.",
+                details={"suite_id": suite.id, "environments": [e.id for e in guarded]},
+            )
         await self._audit(ctx, suite, "eval_suite.deleted", {"name": suite.name})
         await eval_suite_repo.delete_suite(self.db, suite=suite)
 
@@ -616,6 +685,54 @@ class EvalSuiteService:
         """
         agent = await self._editable(ctx, agent_id)
         suite = await self._suite(ctx, agent.id, suite_id)
+        version = await self._served(
+            agent, suite.environment_id, organization_id=ctx.organization_id
+        )
+        if version is None:
+            raise BadRequestError(
+                message=f"'{agent.name}' has no published version to check yet",
+                details={"agent_id": agent.id},
+            )
+        result = await self._run_by_hand(
+            ctx, agent, suite, version, trigger=EvalSuiteTrigger.MANUAL, baseline_version=None
+        )
+        return self.result_read(result, cases_visible=True)
+
+    async def run_on_version(
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        suite_id: UUID,
+        *,
+        version: AgentVersion,
+        baseline_version: int | None,
+    ) -> EvalSuiteResult:
+        """Run a suite now, as the caller, on a version an environment may take,
+        beside the version it would replace.
+
+        Raises the same refusals as `run_now`.
+        """
+        agent = await self._editable(ctx, agent_id)
+        suite = await self._suite(ctx, agent.id, suite_id)
+        return await self._run_by_hand(
+            ctx,
+            agent,
+            suite,
+            version,
+            trigger=EvalSuiteTrigger.GATE,
+            baseline_version=baseline_version if baseline_version != version.version else None,
+        )
+
+    async def _run_by_hand(
+        self,
+        ctx: AuthContext,
+        agent: Agent,
+        suite: EvalSuite,
+        version: AgentVersion,
+        *,
+        trigger: EvalSuiteTrigger,
+        baseline_version: int | None,
+    ) -> EvalSuiteResult:
         # Held until this request commits, so a second press or the sweep starting
         # this suite waits and then sees the run this one started.
         await eval_suite_repo.lock(self.db, suite.id, organization_id=ctx.organization_id)
@@ -631,29 +748,29 @@ class EvalSuiteService:
                 message=f"'{suite.name}' is already running.",
                 details={"suite_id": suite.id, "reason": "running"},
             )
-        version = await self._served(
-            agent, suite.environment_id, organization_id=ctx.organization_id
-        )
-        if version is None:
-            raise BadRequestError(
-                message=f"'{agent.name}' has no published version to check yet",
-                details={"agent_id": agent.id},
-            )
         now = datetime.now(UTC)
         values = self._result_values(
-            suite, trigger=EvalSuiteTrigger.MANUAL, version=version, due_at=now
+            suite,
+            trigger=trigger,
+            version=version,
+            due_at=now,
+            baseline_version=baseline_version,
         )
-        baseline = await self._earlier_run(suite, version.id, now=now)
+        baseline = (
+            None
+            if baseline_version is not None
+            else await self._earlier_run(suite, version.id, now=now)
+        )
         request = self._request(
-            suite, version.version, baseline_version=None, baseline_run=baseline
+            suite, version.version, baseline_version=baseline_version, baseline_run=baseline
         )
         try:
             await self._within_cap(ctx, suite, request)
         except _OverCap as over:
             raise BadRequestError(
                 message=(
-                    f"This run is estimated at ${over.estimate:.2f}, over the suite's "
-                    f"${over.cap:.2f} ceiling. Raise the ceiling to run it."
+                    f"A run of '{suite.name}' is estimated at ${over.estimate:.2f}, over "
+                    f"the suite's ${over.cap:.2f} ceiling. Raise the ceiling to run it."
                 ),
                 details={
                     "suite_id": suite.id,
@@ -678,7 +795,7 @@ class EvalSuiteService:
         )
         assert result is not None, "a running result never conflicts with a waiting one"
         self._announce(suite)
-        return self._result_read(result, cases_visible=True)
+        return result
 
     async def _within_cap(
         self, ctx: AuthContext, suite: EvalSuite, request: EvalRunRequest
@@ -712,6 +829,26 @@ class EvalSuiteService:
         environments = await agent_environment_repo.list_for_agent(
             self.db, agent_id=agent.id, organization_id=org
         )
+        guarded = await promotion_gate_repo.guards_for(
+            self.db,
+            [env.id for env in environments if env.tracks_latest],
+            organization_id=org,
+        )
+        for environment in environments:
+            for suite_id in guarded.get(environment.id, []):
+                suite = await eval_suite_repo.get(self.db, suite_id, organization_id=org)
+                assert suite is not None, "a suite that guards cannot be deleted"
+                serving = await agent_repo.get_version(
+                    self.db, environment.version_id, organization_id=org
+                )
+                if suite.is_active:
+                    await self._enqueue(
+                        suite,
+                        trigger=EvalSuiteTrigger.GATE,
+                        version=version,
+                        due_at=now,
+                        baseline_version=serving.version if serving else None,
+                    )
         moved = {env.id for env in environments if env.version_id == version.id}
         default = next((env.id for env in environments if env.is_default), None)
         for suite in await eval_suite_repo.list_watching(
@@ -728,7 +865,6 @@ class EvalSuiteService:
 
     async def environment_promoted(
         self,
-        ctx: AuthContext,
         *,
         agent: Agent,
         environment: AgentEnvironment,
@@ -738,11 +874,11 @@ class EvalSuiteService:
         """Queue the suites watching promotions onto this environment, each measured
         against the version the promotion replaced."""
         replaced = await agent_repo.get_version(
-            self.db, replaced_version_id, organization_id=ctx.organization_id
+            self.db, replaced_version_id, organization_id=agent.organization_id
         )
         now = datetime.now(UTC)
         for suite in await eval_suite_repo.list_watching(
-            self.db, organization_id=ctx.organization_id, flag="on_promotion", agent_id=agent.id
+            self.db, organization_id=agent.organization_id, flag="on_promotion", agent_id=agent.id
         ):
             watched = suite.environment_id or (environment.id if environment.is_default else None)
             if watched != environment.id:
@@ -835,7 +971,7 @@ class EvalSuiteService:
             "environment_id": suite.environment_id,
             "status": EvalSuiteResultStatus.PENDING.value,
             "due_at": due_at,
-            "threshold": _threshold(suite).model_dump(mode="json"),
+            "threshold": threshold_of(suite).model_dump(mode="json"),
         }
 
     async def _enqueue(
@@ -1227,7 +1363,7 @@ class EvalSuiteService:
                 "environment_id": suite.environment_id,
                 "status": EvalSuiteResultStatus.PENDING.value,
                 "due_at": now,
-                "threshold": _threshold(suite).model_dump(mode="json"),
+                "threshold": threshold_of(suite).model_dump(mode="json"),
             },
         )
         assert result is not None, "a result naming no version never coalesces"
@@ -1280,6 +1416,8 @@ class EvalSuiteService:
             self.db, result.suite_id, organization_id=result.organization_id
         )
         assert suite is not None, "a result goes with its suite"
+        if status is EvalSuiteResultStatus.PASSED and result.agent_version_id is not None:
+            await self._follow(suite, result)
         if alerting_since is not None and alerting_since == result.id:
             from app.services.notifications import NotificationService
 
@@ -1290,6 +1428,31 @@ class EvalSuiteService:
             await NotificationService(self.db).eval_suite_failed(suite, result, agent=agent)
             await eval_suite_repo.update_result(self.db, result=result, values={"notified_at": now})
         self._announce(suite)
+
+    async def _follow(self, suite: EvalSuite, result: EvalSuiteResult) -> None:
+        """Move the environments this pass lets through, apart from the pass.
+
+        A promotion that fails here must not turn a real pass into an error: it
+        rolls back alone, and the sweep's reconcile step tries it again.
+        """
+        from app.services.promotion_gate import PromotionGateService
+
+        assert result.agent_version_id is not None, "a passed result checked a version"
+        try:
+            async with self.db.begin_nested():
+                await PromotionGateService(self.db).follow(
+                    organization_id=result.organization_id,
+                    agent_id=suite.agent_id,
+                    version_id=result.agent_version_id,
+                )
+        except Exception:
+            logger.exception("promotion_gate_follow_failed", extra={"result_id": str(result.id)})
+
+    async def reconcile_followers(self) -> int:
+        """The sweep's look at guarded environments that follow publishes."""
+        from app.services.promotion_gate import PromotionGateService
+
+        return await PromotionGateService(self.db).reconcile()
 
     async def _pause_for_owner(self, result: EvalSuiteResult, *, reason: str) -> None:
         """Pause the suite when the member a result ran as is still its owner.

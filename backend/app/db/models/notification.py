@@ -51,6 +51,7 @@ class NotificationEventType(enum.StrEnum):
     MCP_SERVER_DOWN = "mcp_server_down"
     MCP_SERVER_RECOVERED = "mcp_server_recovered"
     EVAL_SUITE_FAILED = "eval_suite_failed"
+    PROMOTION_OVERRIDDEN = "promotion_overridden"
 
 
 class NotificationChannel(enum.StrEnum):
@@ -144,7 +145,7 @@ class Notification(Base, TimestampMixin):
             "'agent_usage_report', 'security_event', 'configuration_changed', "
             "'announcement', 'artifact_version_published', 'resource_shared', "
             "'budget_warning', 'mcp_server_down', 'mcp_server_recovered', "
-            "'eval_suite_failed')",
+            "'eval_suite_failed', 'promotion_overridden')",
             name="ck_notifications_event_type",
         ),
         # The dedup guarantee (Decision 2): a retried trigger for the same fact,

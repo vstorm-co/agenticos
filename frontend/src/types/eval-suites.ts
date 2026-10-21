@@ -7,7 +7,8 @@
 
 import type { EvalRunEstimate, Overall, Verdict } from "./eval-runs";
 
-export type EvalSuiteTrigger = "schedule" | "publish" | "promotion" | "dependency" | "manual";
+export type EvalSuiteTrigger =
+  "schedule" | "publish" | "promotion" | "dependency" | "manual" | "gate";
 export type EvalSuiteResultStatus =
   "pending" | "running" | "passed" | "failed" | "inconclusive" | "skipped" | "error";
 export type ThresholdReasonCode =

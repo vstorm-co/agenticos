@@ -1,5 +1,5 @@
 ---
-source_sha: "ed8f0bf377ed"
+source_sha: "2d16b5486721"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -449,6 +449,13 @@ Trigger für dieselbe Version auf, sodass eine Veröffentlichung und die
 Promotion dieser Version danach ein Lauf sind. Eine Suite führt einen Eval-Run
 zur Zeit aus; eine Änderung, die währenddessen kommt, wartet auf den nächsten.
 Eine pausierte Suite läuft nicht, weder durch einen Trigger noch von Hand.
+
+Eine Suite, die **eine Umgebung bewacht**, läuft auch vor einer Promotion
+darauf - auf der Version, die promotet werden soll, neben der, die die Umgebung
+ausliefert -, und die Promotion wartet, bis sie besteht; siehe
+[Eine Promotion mit Evals bewachen](environments.md#guarding-a-promotion-with-evals).
+Ihre Ergebnisse heißen *Vor der Promotion* (`gate`). Eine Suite, die eine
+Umgebung bewacht, lässt sich erst löschen, wenn sie dort abgenommen ist.
 
 ### Was ein Ergebnis erfüllen muss { #what-a-result-must-meet }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "5c26c6a43469"
+source_sha: "c6c861b18c14"
 ---
 
 # Glossar { #glossary }
@@ -42,6 +42,8 @@ nicht bricht.
 | Eval-Suite | Ein Dataset, an dem ein Agent gemessen wird, nach Zeitplan, bei Veröffentlichung oder Promotion oder nach einer Änderung | `eval_suite` |
 | Run | Ein Mal, dass ein Agent geantwortet hat, mit Kosten und Schritten | `agent_run` |
 | Environment | Eine benannte Stufe, etwa Produktion, die auf eine Version zeigt | `environment` |
+| Wächter | Eine Eval-Suite, die eine Umgebung auf einer Version bestanden sehen will, bevor sie sie übernimmt | `guard_suite_ids` |
+| Übergehen | Eine Promotion an nicht bestandenen Wächtern vorbei, mit Begründung | `override_reason` |
 | MCP-Server | Ein externer Tool-Server, den Agents aufrufen, einmal verbunden | `mcp_connection` |
 | Remote Agent | Der Agent eines anderen Anbieters, über A2A erreichbar, an den Agents delegieren | `external_agent` |
 | Agent2Agent (A2A) | Das Protokoll, über das Agents anderer Systeme einem Agent Aufgaben senden | `a2a_enabled` |

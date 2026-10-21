@@ -33,7 +33,11 @@ describe("staleQueries", () => {
   });
 
   it("refreshes the sharing panels with every row somebody can share", () => {
-    expect(staleQueries(change("agent"))).toEqual([qk.agents.all(), qk.sharing.all()]);
+    expect(staleQueries(change("agent"))).toEqual([
+      qk.agents.all(),
+      qk.sharing.all(),
+      qk.environments.all(),
+    ]);
     expect(staleQueries(change("skill"))).toEqual([qk.skills.all(), qk.sharing.all()]);
     expect(staleQueries(change("context"))).toEqual([qk.context.all(), qk.sharing.all()]);
     expect(staleQueries(change("knowledge_base"))).toEqual([qk.kb.all(), qk.sharing.all()]);

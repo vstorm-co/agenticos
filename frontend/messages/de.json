@@ -867,7 +867,11 @@
     "platformAllHint": "Jeder Aufruf wartet auf Freigabe, auch Lesen.",
     "platformTools": "Werkzeuge, die dieser Agent aufrufen darf",
     "platformWritesBadge": "ändert etwas",
-    "platformRemove": "Aus diesem Agent entfernen"
+    "platformRemove": "Aus diesem Agent entfernen",
+    "guardsSaved": "Wächter gespeichert",
+    "failedGuards": "Die Wächter konnten nicht gespeichert werden",
+    "guardsStarted": "{count, plural, =0 {Nichts zu starten - jeder Wächter hat bestanden oder prüft schon} =1 {1 Eval-Suite gestartet} other {# Eval-Suites gestartet}}",
+    "failedGuardsRun": "Die Wächter konnten nicht gestartet werden"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -4170,6 +4174,10 @@
       "agent-assistant-strip": {
         "title": "Der Authoring-Assistent",
         "body": "Lassen Sie ihn den Agent anhand negativ bewerteter Antworten verbessern oder Ihre eigenen Änderungen prüfen. Jeder Vorschlag wartet, bis Sie ihn in den Draft übernehmen."
+      },
+      "agent-environment-guards": {
+        "title": "Wächter",
+        "body": "Nennen Sie die Eval-Suites, die eine Umgebung auf einer Version bestanden sehen will, bevor sie sie übernimmt. Eine Version, die sie nicht bestanden hat, wird zurückgehalten, und ein Übergehen braucht eine Begründung und die Berechtigung dazu."
       }
     },
     "chooseLanguage": "Sprache"
@@ -5287,7 +5295,9 @@
       "prefMcpServerRecovered": "MCP-Server antwortet wieder",
       "prefMcpServerRecoveredTrigger": "Ein Server, der nicht mehr antwortete, ist zurück, und die daran gebundenen Agents haben seine Tools wieder.",
       "prefEvalSuiteFailed": "Eine Eval-Suite hat nicht bestanden",
-      "prefEvalSuiteFailedTrigger": "Eine Suite, die dir gehört, fiel unter ihre Schwelle oder konnte nicht laufen. Einmal pro Serie von Fehlschlägen auf einer Version, mit den gebrochenen Fällen."
+      "prefEvalSuiteFailedTrigger": "Eine Suite, die dir gehört, fiel unter ihre Schwelle oder konnte nicht laufen. Einmal pro Serie von Fehlschlägen auf einer Version, mit den gebrochenen Fällen.",
+      "prefPromotionOverridden": "Eine Promotion ging an ihren Evals vorbei",
+      "prefPromotionOverriddenTrigger": "Eine Version kam in eine Umgebung, vorbei an einer Ihrer Eval-Suites, die auf ihr nicht bestanden hatte. Nennt die Suites und die Begründung."
     },
     "skills": {
       "agentsBoundSkillWill": "An diesen Skill gebundene Agents laufen ab ihrem nächsten Run ohne ihn. Das lässt sich nicht rückgängig machen.",
@@ -8847,5 +8857,50 @@
       "send": "Dem Architekten beschreiben",
       "prompt": "Entwirf mir einen Agent: {description}"
     }
+  },
+  "promotionGate": {
+    "title": "v{version} nach {name} promoten",
+    "body": "{name} übernimmt eine Version erst, wenn die Eval-Suites, die es bewachen, auf dieser Version bestanden haben.",
+    "state": {
+      "passed": "Bestanden",
+      "failed": "Nicht bestanden",
+      "inconclusive": "Ohne Ergebnis",
+      "skipped": "Nicht gelaufen",
+      "error": "Fehler",
+      "checking": "Prüft",
+      "stale": "Veraltet",
+      "unchecked": "Nicht geprüft",
+      "paused": "Pausiert"
+    },
+    "hint": {
+      "passed": "Auf dieser Version bestanden.",
+      "failed": "Auf dieser Version unter der Schwelle.",
+      "inconclusive": "Auf dieser Version nicht entschieden.",
+      "skipped": "Auf dieser Version nicht gelaufen.",
+      "error": "Auf dieser Version ohne Urteil beendet.",
+      "checking": "Ein Run auf dieser Version wartet oder läuft.",
+      "stale": "Ihr letztes Ergebnis las andere Fälle oder eine andere Schwelle, als die Suite jetzt hat.",
+      "unchecked": "Ist auf dieser Version noch nicht gelaufen."
+    },
+    "passing": "Jeder Wächter hat auf v{version} bestanden.",
+    "overrideTitle": "Trotzdem promoten",
+    "overrideBody": "Ihre Begründung landet im Audit-Log und an der Version, und die Eigentümer der Suites werden benachrichtigt.",
+    "overrideReason": "Warum",
+    "overridePlaceholder": "Warum diese Version ohne bestandene Evals sicher promotet werden kann",
+    "overrideSubmit": "An den Evals vorbei promoten",
+    "run": "Evals auf v{version} laufen lassen",
+    "promote": "Promoten",
+    "noSuites": "Dieser Agent hat noch keine Eval-Suites. Legen Sie im Tab Evals eine an, um damit eine Umgebung zu bewachen.",
+    "guardsHelp": "Suites, die auf einer Version bestehen müssen, bevor {name} sie übernimmt.",
+    "storeGuards": "Wächter speichern",
+    "guardsReadOnly": "Zum Ändern braucht es die Berechtigung, Promotionen zu übergehen.",
+    "guardedBy": "{count, plural, =1 {Von 1 Suite bewacht} other {Von # Suites bewacht}}",
+    "waiting": "Wartet auf seine Evals auf v{version}",
+    "guardsFor": "Eval-Suites, die {name} bewachen",
+    "overriddenOn": "Auf {name} übergangen",
+    "overrideDetail": "{who} hat sie an {suites} vorbei promotet: {reason}",
+    "someoneWhoLeft": "Jemand, der gegangen ist",
+    "readFailed": "Die Evals, die diese Umgebung bewachen, konnten nicht gelesen werden.",
+    "retry": "Erneut versuchen"
   }
 }
