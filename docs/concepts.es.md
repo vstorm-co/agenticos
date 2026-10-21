@@ -1,5 +1,5 @@
 ---
-source_sha: "8a6ce582650b"
+source_sha: "226eae780efc"
 ---
 
 # Conceptos { #concepts }
@@ -598,12 +598,16 @@ puede delegar en qué.
 ## System agents { #system-agents }
 
 Algunos agents los inicia la plataforma y no una persona: los **jueces**, que
-califican respuestas para la [calificación de datasets](datasets.md#judge), y el
+califican respuestas para la [calificación de datasets](datasets.md#judge), el
 **Knowledge gap drafter**, que redacta el fragmento que le falta a una
-[laguna de conocimiento](knowledge-gaps.md#drafting-the-missing-content). Son
-**agents del sistema**. El tipo de un agent dice cuál es: `agent` para los que
-usan las personas, `judge` y `drafter` para estos. Cada organización recibe el
-**Eval judge** por defecto y el drafter al crearse, una organización creada
+[laguna de conocimiento](knowledge-gaps.md#drafting-the-missing-content), y el
+**Knowledge gap classifier**, que lee respuestas en busca de
+[preguntas que una base de conocimiento no pudo responder](knowledge-gaps.md#answers-and-comments).
+Son **agents del sistema**. El tipo de un agent dice cuál es: `agent` para los
+que usan las personas, `judge`, `drafter` y `classifier` para estos.
+
+Cada organización recibe el **Eval judge** por defecto, el drafter y el clasificador
+al crearse, una organización creada
 antes recibe cada uno la primera vez que algo lo necesita, y un dataset puede
 tener un juez propio.
 
@@ -611,7 +615,7 @@ Un agent del sistema lo ejecuta la plataforma; no es un agent que usen las
 personas. Agents los muestra aparte, en una banda plegada **System agents** bajo
 **Agents**, agrupados por tipo: primero **Judges**, cada tarjeta diciendo qué
 datasets califica y el sembrado con **Default judge**, y después el **Gap
-drafter**. Los selectores de agents los dejan fuera.
+drafter** y el **Gap classifier**. Los selectores de agents los dejan fuera.
 
 Quien tiene `agents:edit` abre uno para cambiar sus instrucciones, su modelo y
 su budget, desde la banda o, para el drafter, desde **Edit the drafter's
@@ -619,12 +623,13 @@ instructions** en un borrador. La página de un juez contiene eso, sus límites,
 su historial y los datasets que lo eligieron, califiquen o no (cada uno se abre
 en sus últimas calificaciones allí y los runs de eval de los que salieron), con
 cuántas veces las personas coincidieron con él en los resultados que calificó y
-ellas decidieron, y nada más. La del drafter contiene lo mismo sin los datasets.
+ellas decidieron, y nada más. Las del drafter y del clasificador contienen lo
+mismo sin los datasets.
 
 Sus runs se comprueban contra el budget y se registran como cualquier otro, sin
 notificación de run. Un agent del sistema empieza con un budget mensual pequeño
 propio, para que una organización nueva no gaste por accidente todo su budget en
-evaluación o en borradores.
+evaluación, en borradores o en revisar respuestas.
 
 Solo la plataforma lo ejecuta. El chat, la API, un embed o una página pública,
 un canal, una programación y la delegación desde otro agent lo rechazan, en el
@@ -632,7 +637,7 @@ servicio que iniciaría el run y no solo en la consola.
 
 Cuando la organización ya tiene un perfil de modelo, un agent del sistema se
 publica sobre el más antiguo, o sobre el que se eligió al crearlo. Sin ninguno,
-se crea como borrador. El Eval judge y el drafter que trae la plataforma se
+se crea como borrador. El Eval judge, el drafter y el clasificador que trae la plataforma se
 publican sobre el primer modelo de la organización en cuanto se añade uno; el
 juez propio de un dataset espera a que una persona elija su modelo y lo
 publique, y hasta entonces las funciones que lo usan lo indican.

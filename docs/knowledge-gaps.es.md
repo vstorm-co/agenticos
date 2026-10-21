@@ -1,7 +1,7 @@
 ---
-source_sha: "0ba5c5cdec1b"
+source_sha: "b0c3775cb0c7"
 title: "Lagunas de conocimiento"
-description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, agrupadas por tema, para saber qué documento falta."
+description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, o respondió sin saber, agrupadas por tema, para saber qué documento falta."
 ---
 
 # Lagunas de conocimiento { #knowledge-gaps }
@@ -10,7 +10,7 @@ Muchas respuestas malas no son un problema de las instrucciones del agent. La
 base de conocimiento no contiene la respuesta, y ningún cambio en el prompt lo
 arregla. Las **lagunas de conocimiento** muestran esas preguntas: aquellas para
 las que un agent buscó en su [base de conocimiento](file-processing.md) y no
-encontró nada relevante, agrupadas por tema, con cuántas veces se hizo cada una
+encontró nada relevante, o respondió sin saber, agrupadas por tema, con cuántas veces se hizo cada una
 y qué agents la hicieron.
 
 Una laguna dice qué falta. Nunca añade nada a una base de conocimiento por sí misma. Una
@@ -46,6 +46,51 @@ solo para preguntas que hicieron personas: una búsqueda a través de
 `/rag/search` de la HTTP API, una vista previa en la página de la base de conocimiento y
 una búsqueda de un run de eval no se registran. Se guardan los primeros 1.000
 caracteres de una consulta.
+
+## Respuestas y comentarios { #answers-and-comments }
+
+Una búsqueda puede encontrar un fragmento y el agent aun así no saber la
+respuesta, y un lector puede valorar negativamente una respuesta porque faltaba
+algo. La búsqueda sola no ve ninguna de las dos cosas. **Revisar N respuestas**,
+en la pestaña Lagunas de conocimiento de la base de conocimiento, pide a un
+modelo que lea sus respuestas recientes en busca de ellas. Se ofrece mientras la
+[asistencia de IA](governance.md#ai-assistance) está activada, y cuenta las
+respuestas aún sin leer. Mientras el interruptor está apagado, la pestaña dice
+cuántas respuestas esperan, con un enlace al interruptor para quien puede
+cambiarlo.
+
+El modelo es el **Knowledge gap classifier**, un
+[agent del sistema](concepts.md#system-agents) que tiene cada organización. Lee
+cada respuesta con su pregunta y los comentarios de quien la valoró
+negativamente, y decide una de tres cosas:
+
+| Veredicto | Cuándo |
+|---|---|
+| El agent no lo sabía | La respuesta dice, con cualquier palabra o idioma, que el agent no lo sabía o no encontró la información |
+| Faltaba información | Un comentario de una valoración negativa dice que faltaba información, estaba desactualizada o incompleta |
+| Sin laguna | Todo lo demás: una respuesta correcta, el rechazo de una pregunta para la que el agent no está, un comentario sobre el tono, la longitud o un error |
+
+Una respuesta con cualquiera de los dos primeros veredictos se convierte en una
+pregunta en los temas de la base de conocimiento, agrupada como una búsqueda
+fallida. En el tema dice cuál de los dos es, en lugar de nombrar una búsqueda.
+
+Una respuesta se lee cuando su run, de los últimos 30 días, buscó en la base de
+conocimiento y encontró algo, o fue valorado negativamente con un comentario y
+funciona con una versión del agent vinculada a la base de conocimiento. Un run
+cuya búsqueda ya falló cuenta una vez, como ese fallo. Los runs por la API HTTP
+no guardan respuesta, y los runs de eval, cuyas preguntas se reproducen o se
+generan, nunca se leen. Tampoco los runs delegados.
+
+Una revisión lee hasta 100 respuestas, 20 por run del clasificador. Cada run se
+comprueba contra el presupuesto del clasificador y el de la organización antes
+de llamar al modelo, y aparece en Actividad bajo la persona que lo pidió: elige
+**Todas las superficies, evals incluidas** para verlo.
+
+Cada respuesta leída se recuerda, sea cual sea el veredicto, así que ninguna se paga dos veces. Una leída
+como sin laguna se vuelve a leer solo tras una nueva valoración negativa con
+comentario. Una revisión se detiene en un run que termina sin respuesta, como
+uno que deniega un presupuesto agotado, y conserva lo que leyó. Cada base de
+conocimiento tiene una sola revisión a la vez.
 
 ## Temas { #topics }
 
@@ -90,7 +135,8 @@ Un tema muestra cuántas veces se preguntó, cuándo fue la última vez, qué ag
 lo preguntaron y hasta tres de sus preguntas. Ábrelo para ver las preguntas más
 recientes: qué preguntó la persona, qué buscó el agent, lo cerca que estaba el
 fragmento más cercano y el comentario de quien valoró negativamente la
-respuesta.
+respuesta. Una pregunta leída de una respuesta dice si el agent no lo sabía o si
+un lector escribió que faltaba información.
 
 ## Qué hacer con una laguna { #acting-on-a-gap }
 
@@ -154,6 +200,7 @@ miembro sin él no ve la pestaña ni el widget, y la API se lo deniega.
 | Descartar, reabrir o reagrupar | `runs:view` y `collections:edit` en la base de conocimiento, por tu rol o por un grant de edición sobre ella |
 | Añadir un tema a un dataset | `runs:view` y `datasets:edit` en el dataset |
 | Redactar el contenido que falta | `runs:view`, `collections:edit` en la base de conocimiento y `agents:run` en el Knowledge gap drafter |
+| Revisar respuestas | `runs:view`, `collections:edit` en la base de conocimiento y `agents:run` en el Knowledge gap classifier |
 
 Una base de conocimiento, un agent, un tema o un dataset al que no tienes acceso responde
 «no encontrado», igual que uno de otra organización. Consulta
@@ -181,11 +228,16 @@ envía las preguntas, respuestas y comentarios al proveedor del modelo del
 redactor. Consulta
 [Protección de datos](data-protection.md#where-personal-data-lives).
 
+Una pregunta leída de una respuesta se guarda igual que una búsqueda: contiene
+la pregunta de la persona y se va con su run y su conversación. Revisar
+respuestas envía preguntas, respuestas y comentarios de valoraciones negativas
+al proveedor del modelo del clasificador. De cada respuesta leída solo se
+recuerda su veredicto y el run del clasificador, sin texto.
+
 ## Lo que las lagunas aún no detectan { #limits }
 
-Las lagunas provienen solo de la búsqueda. Una respuesta en la que el agent dijo
-que no lo sabía, o una respuesta valorada negativamente con un comentario sobre
-información que falta, no se detecta por sí sola. Detectarlas requiere un modelo
-y se sigue en [#2135](https://github.com/vstorm-co/agenticos/issues/2135).
-Cuando una respuesta valorada negativamente pertenece a un run cuya búsqueda fue
-un fallo, su comentario se muestra junto a la pregunta.
+Las respuestas solo se leen cuando alguien las revisa, y solo de los últimos 30
+días. Los runs por la API HTTP no guardan respuesta, así que una pregunta hecha
+allí se convierte en laguna solo cuando su búsqueda falló. Una respuesta
+valorada negativamente sin comentario se lee por lo que dijo el agent, no por la
+valoración.

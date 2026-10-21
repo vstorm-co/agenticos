@@ -1,5 +1,5 @@
 ---
-source_sha: "8a6ce582650b"
+source_sha: "226eae780efc"
 ---
 
 # Begriffe { #concepts }
@@ -629,11 +629,14 @@ wer an was delegieren darf.
 
 Manche Agents werden von der Plattform gestartet und nicht von einem Menschen:
 **Bewerter**, die Antworten für die [Bewertung von Datasets](datasets.md#judge)
-benoten, und der **Knowledge gap drafter**, der die Passage entwirft, die einer
-[Wissenslücke](knowledge-gaps.md#drafting-the-missing-content) fehlt. Das sind
-**System-Agents**. Die Art eines Agents sagt, welcher er ist - `agent` für die,
-die Menschen benutzen, `judge` und `drafter` für diese. Jede Organisation erhält
-bei ihrer Erstellung den Standard-Bewerter **Eval judge** und den Drafter, eine
+benoten, der **Knowledge gap drafter**, der die Passage entwirft, die einer
+[Wissenslücke](knowledge-gaps.md#drafting-the-missing-content) fehlt, und der
+**Knowledge gap classifier**, der Antworten auf
+[Fragen liest, die eine Wissensbasis nicht beantworten konnte](knowledge-gaps.md#answers-and-comments).
+Das sind **System-Agents**. Die Art eines Agents sagt, welcher er ist - `agent`
+für die, die Menschen benutzen, `judge`, `drafter` und `classifier` für diese.
+Jede Organisation erhält bei ihrer Erstellung den Standard-Bewerter
+**Eval judge**, den Drafter und den Klassifizierer, eine
 früher erstellte Organisation erhält jeden davon, sobald etwas ihn zum ersten
 Mal braucht, und ein Dataset kann einen eigenen Bewerter bekommen.
 
@@ -642,7 +645,8 @@ Menschen benutzen. Agents führt sie getrennt, in einem eingeklappten Band
 **System-Agents** unter **Agents**, nach Art gruppiert: zuerst die **Bewerter**
 - jede Karte sagt, welche Datasets er bewertet, und der von der Plattform
 angelegte ist als **Standard-Bewerter** markiert -, dann der
-**Lücken-Entwerfer**. Agent-Auswahlen lassen sie weg.
+**Lücken-Entwerfer** und der **Lücken-Klassifizierer**. Agent-Auswahlen lassen
+sie weg.
 
 Wer `agents:edit` hat, öffnet einen, um Instruktionen, Modell und Budget zu
 ändern, aus dem Band oder, beim Drafter, über **Anweisungen des Drafters
@@ -651,12 +655,13 @@ Limits, seinen Verlauf und die Datasets, die ihn gewählt haben, mit Bewertung
 oder ohne - jedes klappt seine letzten Bewertungen dort und die Eval-Runs auf,
 aus denen sie stammen - samt der Angabe, wie oft Menschen ihm bei den von ihm
 bewerteten und von ihnen entschiedenen Ergebnissen zustimmten, und sonst nichts.
-Die des Drafters enthält dasselbe ohne die Datasets.
+Die des Drafters und des Klassifizierers enthalten dasselbe ohne die Datasets.
 
 Seine Runs werden wie alle anderen gegen das Budget geprüft und aufgezeichnet
 und senden keine Run-Benachrichtigung. Ein System-Agent startet mit einem
 eigenen kleinen Monatsbudget, damit eine neue Organisation nicht versehentlich
-ihr ganzes Budget für Evaluierung oder Entwürfe ausgibt.
+ihr ganzes Budget für Evaluierung, Entwürfe oder das Prüfen von Antworten
+ausgibt.
 
 Nur die Plattform führt ihn aus. Chat, API, ein Embed oder eine öffentliche
 Seite, ein Kanal, ein Zeitplan und die Delegation durch einen anderen Agent
@@ -664,8 +669,9 @@ lehnen ihn ab, im Service, der den Run starten würde, nicht nur in der Konsole.
 
 Hat die Organisation bereits ein Model-Profil, wird ein System-Agent auf dem
 ältesten veröffentlicht oder auf dem, das bei seiner Erstellung gewählt wurde.
-Ohne eines wird er als Draft angelegt. Der mitgelieferte Eval judge und der
-Drafter werden auf dem ersten Modell der Organisation veröffentlicht, sobald
+Ohne eines wird er als Draft angelegt. Der mitgelieferte Eval judge, der
+Drafter und der Klassifizierer werden auf dem ersten Modell der Organisation
+veröffentlicht, sobald
 eines hinzugefügt wird; der eigene Bewerter eines Datasets wartet, bis ein
 Mensch sein Modell wählt und ihn veröffentlicht, und bis dahin sagen das die
 Funktionen, die ihn verwenden.

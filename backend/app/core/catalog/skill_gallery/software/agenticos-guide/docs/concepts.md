@@ -571,20 +571,22 @@ delegate to what.
 ## System agents { #system-agents }
 
 Some agents are started by the platform rather than by a person: **judges**,
-which grade answers for [dataset grading](datasets.md#judge), and the
+which grade answers for [dataset grading](datasets.md#judge), the
 **Knowledge gap drafter**, which drafts the passage a
-[knowledge gap](knowledge-gaps.md#drafting-the-missing-content) is missing.
+[knowledge gap](knowledge-gaps.md#drafting-the-missing-content) is missing, and
+the **Knowledge gap classifier**, which reads answers for the
+[questions a knowledge base could not answer](knowledge-gaps.md#answers-and-comments).
 These are **system agents**. An agent's kind says which it is - `agent` for the
-ones people use, `judge` and `drafter` for these. Every organization gets the
-default **Eval judge** and the drafter when it is created, an organization
-created earlier gets each the first time something needs it, and a dataset may
-get a judge of its own.
+ones people use, `judge`, `drafter` and `classifier` for these. Every
+organization gets the default **Eval judge**, the drafter and the classifier
+when it is created, an organization created earlier gets each the first time
+something needs it, and a dataset may get a judge of its own.
 
 A system agent is the platform's to run, not an agent people use. Agents lists
 them apart, in a folded **System agents** band under **Agents**, grouped by
 kind: **Judges**, each card saying which datasets it grades and the seeded one
-marked **Default judge**, then the **Gap drafter**. Agent pickers leave them
-out.
+marked **Default judge**, then the **Gap drafter** and the **Gap classifier**.
+Agent pickers leave them out.
 
 Whoever holds `agents:edit` opens one to change its instructions, model and
 budget, from the band or, for the drafter, from **Edit the drafter's
@@ -592,12 +594,12 @@ instructions** on a draft. A judge's page holds those, its limits, its history
 and the datasets that picked it, grading or not - each opening on its latest
 grades there and the eval runs they came from - with how often people agreed
 with it on the results it graded and they decided, and nothing else. The
-drafter's holds the same without the datasets.
+drafter's and the classifier's hold the same without the datasets.
 
 Its runs are budget-checked and recorded like any other, and send no run
 notification. A system agent starts with a small monthly budget of its own, so
-a new organization cannot spend its whole budget on evaluation or drafting by
-accident.
+a new organization cannot spend its whole budget on evaluation, drafting or
+checking answers by accident.
 
 Only the platform runs it. Chat, the API, an embed or a public page, a channel,
 a schedule and delegation from another agent all refuse it, in the service that
@@ -605,10 +607,10 @@ would start the run rather than only in the console.
 
 When the organization already has a model profile, a system agent is published
 on the oldest one, or on the one picked when it was created. Without one, it is
-created as a draft. The seeded Eval judge and drafter are published on the
-organization's first model as soon as one is added; a dataset's own judge waits
-for a person to pick its model and publish it, and the features that use it say
-so until then.
+created as a draft. The seeded Eval judge, drafter and classifier are published
+on the organization's first model as soon as one is added; a dataset's own
+judge waits for a person to pick its model and publish it, and the features that
+use it say so until then.
 
 The organization's [AI assistance switch](governance.md#ai-assistance) decides
 whether system agents run at all.

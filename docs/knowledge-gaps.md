@@ -1,6 +1,6 @@
 ---
 title: "Knowledge gaps"
-description: "Knowledge gaps show the questions an agent searched its knowledge base for and found nothing relevant, grouped by topic, so you know which document to add."
+description: "Knowledge gaps show the questions an agent searched its knowledge base for and found nothing relevant, or answered without knowing, grouped by topic, so you know which document to add."
 ---
 
 # Knowledge gaps
@@ -8,8 +8,9 @@ description: "Knowledge gaps show the questions an agent searched its knowledge 
 Many bad answers are not a problem with the agent's instructions. The
 knowledge base does not contain the answer, and no change to the prompt fixes
 that. **Knowledge gaps** show those questions: the ones an agent searched its
-[knowledge base](file-processing.md) for and found nothing relevant to,
-grouped by topic, with how often each was asked and by which agents.
+[knowledge base](file-processing.md) for and found nothing relevant to, or
+answered without knowing, grouped by topic, with how often each was asked and
+by which agents.
 
 A gap tells you what is missing. It never adds anything to a knowledge base by
 itself. A person writes or finds the missing document - a model can draft it -
@@ -41,6 +42,47 @@ Only searches an agent makes while it runs are recorded, and only for
 questions people asked: a search through the HTTP API's `/rag/search`, a
 preview on the knowledge base's page, and a search made by an eval run are not. The
 first 1,000 characters of a query are kept.
+
+## Answers and comments { #answers-and-comments }
+
+A search can find a passage and the agent still not know the answer, and a
+reader can rate an answer down because something was missing. Retrieval alone
+sees neither. **Check N answers**, on the knowledge base's Knowledge gaps tab,
+asks a model to read the knowledge base's recent answers for them. It is
+offered while [AI assistance](governance.md#ai-assistance) is on, and counts
+the answers not read yet. While the switch is off, the tab says how many
+answers wait, with a link to the switch for whoever may change it.
+
+The model is the **Knowledge gap classifier**, a
+[system agent](concepts.md#system-agents) every organization has. It reads each
+answer with its question and the comments of anyone who rated it down, and
+decides one of three things:
+
+| Verdict | When |
+|---|---|
+| The agent did not know | The answer says, in any words or language, that the agent did not know or could not find the information |
+| Information was missing | A thumbs-down comment says information was missing, outdated or incomplete |
+| No gap | Anything else: a correct answer, a refusal of a question the agent is not for, a comment about tone, length or a mistake |
+
+An answer of either of the first two becomes a question in the knowledge base's
+topics, grouped like a search that missed. In the topic it says which of the
+two it is, instead of naming a search.
+
+An answer is read when its run, in the last 30 days, searched the knowledge
+base and found something, or was rated down with a comment and runs on an agent
+version bound to the knowledge base. A run whose search already missed is
+counted once, as that miss. Runs over the HTTP API keep no answer, and eval
+runs, whose questions are replayed or generated, are never read. Nor are
+delegated runs.
+
+A check reads up to 100 answers, 20 to a run of the classifier. Each run is
+checked against the classifier's budget and the organization's before the model
+is called, and is listed in Activity under the person who asked: choose
+**Every surface, evals included** to see it. Every answer read is remembered,
+whatever the verdict, so none is paid for twice. One read as no gap is read
+again only after a new thumbs-down with a comment. A check stops at a run that
+ends without an answer, such as one a spent budget refuses, and keeps what it
+read. One check of a knowledge base runs at a time.
 
 ## Topics { #topics }
 
@@ -81,7 +123,8 @@ A topic shows how many times it was asked, when it was last asked, which
 agents asked it, and up to three of its questions. Open it to see the most
 recent questions: what the person asked, what the agent searched for, how
 close the closest passage was, and the comment of anyone who rated the answer
-down.
+down. A question read from an answer says whether the agent did not know or a
+reader said information was missing.
 
 ## Acting on a gap { #acting-on-a-gap }
 
@@ -142,6 +185,7 @@ without it does not see the tab or the widget, and the API refuses them.
 | Dismiss, reopen or regroup | `runs:view` and `collections:edit` on the knowledge base, from your role or an edit grant on it |
 | Add a topic to a dataset | `runs:view` and `datasets:edit` on the dataset |
 | Draft the missing content | `runs:view`, `collections:edit` on the knowledge base, and `agents:run` on the Knowledge gap drafter |
+| Check answers | `runs:view`, `collections:edit` on the knowledge base, and `agents:run` on the Knowledge gap classifier |
 
 A knowledge base, agent, topic or dataset you may not reach answers "not found",
 and so does one in another organization. See [Permissions](permissions.md).
@@ -167,11 +211,15 @@ it is stored. Drafting sends the questions, answers and comments to the
 drafter's model provider. See
 [Data protection](data-protection.md#where-personal-data-lives).
 
+A question read from an answer is kept the same way as a search: it holds the
+person's question and goes with its run and its conversation. Checking answers
+sends questions, answers and thumbs-down comments to the classifier's model
+provider. What is remembered of every answer read is its verdict and the
+classifier's run, and no text.
+
 ## What gaps do not detect yet { #limits }
 
-Gaps come from retrieval only. An answer in which the agent said it did not
-know, or an answer rated down with a comment about missing information, is
-not detected on its own. Detecting those needs a model and is tracked in
-[#2135](https://github.com/vstorm-co/agenticos/issues/2135). When a rated-down
-answer belongs to a run whose search was a miss, its comment is shown with the
-question.
+Answers are read only when somebody checks them, and only from the last 30
+days. Runs over the HTTP API keep no answer, so a question asked there becomes
+a gap only when its search missed. An answer rated down without a comment is
+read for what the agent said, not for the rating.
