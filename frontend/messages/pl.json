@@ -858,7 +858,9 @@
     "videoAudio": "Dźwięk",
     "videoAudioDefault": "Domyślnie u providera",
     "videoAudioOn": "Włączony",
-    "videoAudioOff": "Wyłączony"
+    "videoAudioOff": "Wyłączony",
+    "speechFormat": "Format pliku",
+    "speechFormatDetail": "Formaty, które zwraca ten provider. mp3 jest mniejszy, wav nieskompresowany."
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",
@@ -7065,11 +7067,11 @@
       },
       "seconds": {
         "title": "Długość",
-        "description": "Ile sekund trwa klip, chyba że agent poprosi o inną długość; puste oznacza pięć albo najbliższą wartość, jaką robi model. Pomijane przez model, który sam decyduje o długości."
+        "description": "Ile sekund trwa klip, chyba że agent poprosi o inną długość; puste oznacza pięć albo najbliższą wartość, jaką robi model. Nie dla modelu, który sam decyduje o długości."
       },
       "max_seconds": {
         "title": "Najdłuższy klip",
-        "description": "Najdłuższy klip, o jaki może poprosić agent, co ogranicza koszt jednego wywołania; puste oznacza własny limit modelu."
+        "description": "Najdłuższy klip, o jaki może poprosić agent, co ogranicza koszt jednego wywołania; puste oznacza własny limit modelu. Nie dla modelu, który sam decyduje o długości."
       },
       "audio": {
         "title": "Dźwięk",

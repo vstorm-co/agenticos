@@ -18,9 +18,13 @@ export async function GET(
     // dialog; the default renders the image inline in the chat.
     const qs = request.nextUrl.searchParams.toString();
     const url = `${BACKEND_URL}/api/v1/generated/${encodeURIComponent(filename)}${qs ? `?${qs}` : ""}`;
+    // A player asks for byte ranges, and WebKit - Safari, and the desktop app -
+    // plays an MP4 only from ranged answers, so the range travels both ways.
+    const range = request.headers.get("range");
     const response = await fetch(url, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
+        ...(range ? { Range: range } : {}),
       },
     });
 
@@ -32,8 +36,12 @@ export async function GET(
     const contentType = response.headers.get("content-type") || "application/octet-stream";
     const disposition = response.headers.get("content-disposition") || "";
 
+    const contentRange = response.headers.get("content-range");
     return new NextResponse(data, {
+      status: response.status,
       headers: {
+        "Accept-Ranges": "bytes",
+        ...(contentRange ? { "Content-Range": contentRange } : {}),
         "Content-Type": contentType,
         "Content-Disposition": disposition,
         "Cache-Control": "private, max-age=3600",

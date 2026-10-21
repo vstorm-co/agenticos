@@ -119,14 +119,7 @@ class TestWhatIsDropped:
 
 
 class TestChoosingOne:
-    def test_a_catalogued_model_is_offered(self):
-        assert text_to_speech_models.is_offered("elevenlabs", "eleven_v4_turbo")
-
-    def test_a_model_the_catalog_does_not_list_is_not(self):
-        assert not text_to_speech_models.is_offered("elevenlabs", "eleven_v9")
-
-    def test_a_provider_that_cannot_speak_is_not(self):
-        assert not text_to_speech_models.is_offered("anthropic", "gpt-4o-mini-tts")
+    def test_a_provider_that_cannot_speak_is_not_offered(self):
         assert text_to_speech_models.by_provider("anthropic") is None
 
     def test_the_default_follows_the_catalog_rather_than_a_constant(self):

@@ -1,5 +1,6 @@
 """Text to speech capability - speak a text aloud as an audio clip."""
 
+import re
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
@@ -19,6 +20,10 @@ from app.services.text_to_speech_models import (
 )
 
 __all__ = ["TextToSpeech", "TextToSpeechConfig"]
+
+_VOICE_ID = re.compile(r"[A-Za-z0-9_-]+")
+"""An account's voice id, which goes into the provider's URL path - where `.` or
+`..` would be resolved away and send the key to another endpoint."""
 
 
 class TextToSpeechConfig(BaseModel):
@@ -88,9 +93,14 @@ class TextToSpeechConfig(BaseModel):
             )
             raise ValueError(f"{self.provider}/{self.model} cannot speak. Offered: {offered}.")
         if entry.account_voices:
-            if not (self.voice or "").strip():
+            chosen_voice = (self.voice or "").strip()
+            if not chosen_voice:
                 raise ValueError(
                     f"{entry.name} voices belong to your account: name one by its voice id."
+                )
+            if not _VOICE_ID.fullmatch(chosen_voice):
+                raise ValueError(
+                    f"{self.voice!r} is not a voice id: letters, digits, '-' and '_' only."
                 )
         elif self.voice is not None and self.voice not in {v.id for v in entry.voices_for(model)}:
             voices = ", ".join(voice.id for voice in entry.voices_for(model))

@@ -26,7 +26,7 @@ import binascii
 import logging
 import re
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
@@ -42,14 +42,28 @@ past it is a provider answering with something that is not one clip."""
 POLL_SECONDS = {
     "byteplus_tasks": 5.0,
     "xai_videos": 5.0,
-    "dashscope_tasks": 10.0,
+    "dashscope_tasks": 15.0,
     "gemini_files": 3.0,
 }
 """How long to wait between polls, per API. Alibaba asks for no more than one
 poll in fifteen seconds of a long job; the others take a status read every few."""
 
+POLL_REQUEST_SECONDS = 30.0
+"""The longest one status read may take; never past the job's own deadline."""
+
+DOWNLOAD_GRACE_SECONDS = 120.0
+"""How far past the job's deadline the download of a finished clip may run. A clip
+done at the last moment is worth fetching; one trickling in for ever is not."""
+
+MAX_REDIRECTS = 5
+
 _POLICY_MARKERS = ("sensitive", "policyviolation", "datainspection", "ipinfringement", "moderation")
 """Fragments of a provider's error code that mean its content policy refused."""
+
+_KEY_MARKERS = ("api_key_invalid", "invalid api key", "invalidapikey")
+"""Fragments that mean the key was refused, whatever the status. Gemini answers a
+bad key with 400 and `API_KEY_INVALID`, which by status alone reads as a request
+the model should try again."""
 
 
 @dataclass(frozen=True)
@@ -69,7 +83,8 @@ class VideoCall:
 
     provider: str
     base_url: str
-    api_key: str
+    # A dataclass repr ends up in log lines and traceback frames.
+    api_key: str = field(repr=False)
     model: str
     prompt: str
     resolution: str
@@ -101,12 +116,14 @@ async def _pause(seconds: float) -> None:
 
 
 def _failure_for(status: int, body: str) -> VideoFailure:
-    if status in (401, 403):
+    lowered = body.lower()
+    if status in (401, 403) or any(marker in lowered for marker in _KEY_MARKERS):
         return VideoFailure.CREDENTIALS
     if status == 429:
         return VideoFailure.RATE_LIMITED
+    if status == 408:
+        return VideoFailure.UNAVAILABLE
     if 400 <= status < 500:
-        lowered = body.lower()
         if any(marker in lowered for marker in _POLICY_MARKERS):
             return VideoFailure.POLICY
         return VideoFailure.REJECTED
@@ -132,6 +149,37 @@ def _raise_for(call: VideoCall, response: httpx.Response) -> None:
     )
 
 
+def _dict(call: VideoCall, value: object) -> dict[str, Any]:
+    """A nested object of a provider's answer, or a refusal where it is not one."""
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise _unusable(call)
+    return value
+
+
+def _dicts(call: VideoCall, value: object) -> list[dict[str, Any]]:
+    """A nested list of objects, keeping the objects; a refusal where it is no list."""
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise _unusable(call)
+    return [item for item in value if isinstance(item, dict)]
+
+
+def _storage_url(call: VideoCall, value: object) -> httpx.URL:
+    """A clip's address, which must be https: it came from a provider's answer."""
+    if not isinstance(value, str) or not value:
+        raise _unusable(call)
+    try:
+        url = httpx.URL(value)
+    except httpx.InvalidURL:
+        raise _unusable(call) from None
+    if url.scheme != "https" or not url.host:
+        raise _unusable(call)
+    return url
+
+
 def _job_failure(call: VideoCall, code: object) -> VideoProviderError:
     """A job the provider marked failed, by the error code it gave."""
     logger.warning("Video job at %s for model %s failed: %s", call.provider, call.model, code)
@@ -151,21 +199,64 @@ def _unusable(call: VideoCall) -> VideoProviderError:
 
 
 async def _download(
-    client: httpx.AsyncClient, call: VideoCall, url: str, headers: dict[str, str] | None = None
+    client: httpx.AsyncClient,
+    call: VideoCall,
+    url: httpx.URL,
+    deadline: float,
+    headers: dict[str, str] | None = None,
 ) -> bytes:
-    """Fetch the finished clip, refusing a body past :data:`MAX_BYTES`."""
-    async with client.stream("GET", url, headers=headers or {}, follow_redirects=True) as response:
-        if not response.is_success:
-            await response.aread()
-            _raise_for(call, response)
-        chunks: list[bytes] = []
-        size = 0
-        async for chunk in response.aiter_bytes():
-            size += len(chunk)
-            if size > MAX_BYTES:
-                raise _unusable(call)
-            chunks.append(chunk)
-    return b"".join(chunks)
+    """Fetch the finished clip, refusing a body past :data:`MAX_BYTES`.
+
+    Redirects are followed here rather than by httpx, which strips only an
+    `Authorization` header on the way to another host: Gemini's key travels as
+    `x-goog-api-key`, so it would reach whatever storage host the download
+    redirects to. The key goes to the first address only, every hop must be https,
+    and the whole fetch ends a grace period after the job's own deadline.
+    """
+    sent = headers or {}
+    loop = asyncio.get_running_loop()
+    ends = deadline + DOWNLOAD_GRACE_SECONDS
+
+    def overdue() -> None:
+        if loop.time() > ends:
+            raise TimeoutError
+
+    try:
+        # The timeout catches a host that stops answering; the checks below, one
+        # that keeps trickling bytes or redirecting.
+        async with asyncio.timeout_at(ends):
+            for _ in range(MAX_REDIRECTS + 1):
+                overdue()
+                async with client.stream("GET", url, headers=sent) as response:
+                    if response.is_redirect:
+                        url = _storage_url(
+                            call, str(url.join(response.headers.get("location", "")))
+                        )
+                        sent = {}
+                        continue
+                    if not response.is_success:
+                        # A signed address that expired or is refused says nothing
+                        # about the key: the storage host never saw it.
+                        logger.warning(
+                            "Video download from %s failed (%s)",
+                            call.provider,
+                            response.status_code,
+                        )
+                        raise VideoProviderError(
+                            VideoFailure.UNAVAILABLE,
+                            provider=call.provider,
+                            status=response.status_code,
+                        )
+                    data = bytearray()
+                    async for chunk in response.aiter_bytes():
+                        data.extend(chunk)
+                        if len(data) > MAX_BYTES:
+                            raise _unusable(call)
+                        overdue()
+                    return bytes(data)
+    except TimeoutError:
+        raise VideoProviderError(VideoFailure.TIMED_OUT, provider=call.provider) from None
+    raise _unusable(call)
 
 
 async def _poll(
@@ -179,19 +270,41 @@ async def _poll(
     settled: Callable[[dict[str, Any]], bool],
     cancel: Callable[[], Awaitable[None]] | None = None,
 ) -> dict[str, Any]:
-    """Read a job's status until it settles, or cancel it once the deadline passes."""
+    """Read a job's status until it settles, or cancel it once the deadline passes.
+
+    A status read that times out, cannot connect, or is answered 5xx or 429 says
+    nothing about the job, which is still running and billed: it is read again
+    until the deadline rather than abandoned - abandoning it would tell the model
+    to start a second, billed job. A read the provider refuses for another reason
+    ends the poll.
+    """
     loop = asyncio.get_running_loop()
     while True:
-        response = await client.get(url, headers=headers)
-        _raise_for(call, response)
-        payload = _json(call, response)
-        if settled(payload):
-            return payload
-        if loop.time() + every > deadline:
+        remaining = deadline - loop.time()
+        try:
+            response = await client.get(
+                url, headers=headers, timeout=max(min(POLL_REQUEST_SECONDS, remaining), 1.0)
+            )
+        except httpx.TransportError:
+            logger.info("Status read at %s failed in transit; reading again", call.provider)
+        else:
+            if response.status_code == 429 or response.status_code >= 500:
+                logger.info(
+                    "Status read at %s answered %s; reading again",
+                    call.provider,
+                    response.status_code,
+                )
+            else:
+                _raise_for(call, response)
+                payload = _json(call, response)
+                if settled(payload):
+                    return payload
+        remaining = deadline - loop.time()
+        if remaining <= 0:
             if cancel is not None:
                 await cancel()
             raise VideoProviderError(VideoFailure.TIMED_OUT, provider=call.provider)
-        await _pause(every)
+        await _pause(min(every, remaining))
 
 
 def _json(call: VideoCall, response: httpx.Response) -> dict[str, Any]:
@@ -245,10 +358,10 @@ async def gemini_interactions(client: httpx.AsyncClient, call: VideoCall, deadli
     video = next(
         (
             content
-            for step in _json(call, response).get("steps", [])
-            if isinstance(step, dict) and step.get("type") == "model_output"
-            for content in step.get("content", [])
-            if isinstance(content, dict) and content.get("type") == "video"
+            for step in _dicts(call, _json(call, response).get("steps"))
+            if step.get("type") == "model_output"
+            for content in _dicts(call, step.get("content"))
+            if content.get("type") == "video"
         ),
         None,
     )
@@ -275,7 +388,10 @@ async def gemini_interactions(client: httpx.AsyncClient, call: VideoCall, deadli
     if ready.get("state") == "FAILED":
         raise _job_failure(call, "")
     return Clip(
-        data=await _download(client, call, f"{file_url}:download?alt=media", headers), seconds=None
+        data=await _download(
+            client, call, _storage_url(call, f"{file_url}:download?alt=media"), deadline, headers
+        ),
+        seconds=None,
     )
 
 
@@ -340,12 +456,10 @@ async def byteplus_tasks(client: httpx.AsyncClient, call: VideoCall, deadline: f
     if task.get("status") != "succeeded":
         error = task.get("error")
         raise _job_failure(call, error.get("code") if isinstance(error, dict) else "")
-    url = (task.get("content") or {}).get("video_url")
-    if not isinstance(url, str) or not url:
-        raise _unusable(call)
+    url = _storage_url(call, _dict(call, task.get("content")).get("video_url"))
     duration = task.get("duration")
     return Clip(
-        data=await _download(client, call, url),
+        data=await _download(client, call, url, deadline),
         seconds=float(duration) if isinstance(duration, int | float) else None,
     )
 
@@ -385,15 +499,15 @@ async def xai_videos(client: httpx.AsyncClient, call: VideoCall, deadline: float
     if job.get("status") != "done":
         error = job.get("error")
         raise _job_failure(call, error.get("code") if isinstance(error, dict) else "")
-    video = job.get("video") or {}
-    url = video.get("url")
-    if not url:
+    video = _dict(call, job.get("video"))
+    if not video.get("url"):
         # `respect_moderation: false` comes back done with an empty address: the
         # clip was made and withheld by xAI's own moderation.
         raise VideoProviderError(VideoFailure.POLICY, provider=call.provider)
+    url = _storage_url(call, video.get("url"))
     duration = video.get("duration")
     return Clip(
-        data=await _download(client, call, str(url)),
+        data=await _download(client, call, url, deadline),
         seconds=float(duration) if isinstance(duration, int | float) else None,
     )
 
@@ -423,7 +537,7 @@ async def dashscope_tasks(client: httpx.AsyncClient, call: VideoCall, deadline: 
         json={"model": call.model, "input": request_input, "parameters": parameters},
     )
     _raise_for(call, response)
-    task_id = (_json(call, response).get("output") or {}).get("task_id")
+    task_id = _dict(call, _json(call, response).get("output")).get("task_id")
     if not isinstance(task_id, str):
         raise _unusable(call)
     task = await _poll(
@@ -433,19 +547,19 @@ async def dashscope_tasks(client: httpx.AsyncClient, call: VideoCall, deadline: 
         url=f"{call.base_url}/tasks/{task_id}",
         headers=headers,
         every=POLL_SECONDS["dashscope_tasks"],
+        # An `output` that is no object settles the poll, to be refused below.
         settled=lambda job: (
-            (job.get("output") or {}).get("task_status") not in {"PENDING", "RUNNING"}
+            not isinstance(job.get("output"), dict)
+            or job["output"].get("task_status") not in {"PENDING", "RUNNING"}
         ),
     )
-    output = task.get("output") or {}
+    output = _dict(call, task.get("output"))
     if output.get("task_status") != "SUCCEEDED":
         raise _job_failure(call, output.get("code"))
-    url = output.get("video_url")
-    if not isinstance(url, str) or not url:
-        raise _unusable(call)
-    seconds = (task.get("usage") or {}).get("output_video_duration")
+    url = _storage_url(call, output.get("video_url"))
+    seconds = _dict(call, task.get("usage")).get("output_video_duration")
     return Clip(
-        data=await _download(client, call, url),
+        data=await _download(client, call, url, deadline),
         seconds=float(seconds) if isinstance(seconds, int | float) else None,
     )
 

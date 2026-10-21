@@ -858,7 +858,9 @@
     "videoAudio": "Ton",
     "videoAudioDefault": "Voreinstellung des Providers",
     "videoAudioOn": "An",
-    "videoAudioOff": "Aus"
+    "videoAudioOff": "Aus",
+    "speechFormat": "Dateiformat",
+    "speechFormatDetail": "Die Formate, die dieser Provider liefert. mp3 ist kleiner, wav unkomprimiert."
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -7164,11 +7166,11 @@
       },
       "seconds": {
         "title": "Länge",
-        "description": "Wie viele Sekunden ein Clip läuft, sofern der Agent keine andere Länge verlangt; leer bedeutet fünf oder den nächsten Wert, den das Modell erzeugt. Von einem Modell, das seine Länge selbst bestimmt, ignoriert."
+        "description": "Wie viele Sekunden ein Clip läuft, sofern der Agent keine andere Länge verlangt; leer bedeutet fünf oder den nächsten Wert, den das Modell erzeugt. Nicht für ein Modell, das seine Länge selbst bestimmt."
       },
       "max_seconds": {
         "title": "Längster Clip",
-        "description": "Der längste Clip, den der Agent verlangen darf, was die Kosten eines Aufrufs begrenzt; leer bedeutet das eigene Limit des Modells."
+        "description": "Der längste Clip, den der Agent verlangen darf, was die Kosten eines Aufrufs begrenzt; leer bedeutet das eigene Limit des Modells. Nicht für ein Modell, das seine Länge selbst bestimmt."
       },
       "audio": {
         "title": "Ton",

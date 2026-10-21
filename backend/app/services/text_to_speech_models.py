@@ -32,6 +32,7 @@ would let a run spend twice what its cap says.
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import TypeAdapter
 
@@ -83,8 +84,9 @@ class TextToSpeechEntry:
     base_url: str
     """Where the provider serves its endpoint, which no other table records."""
 
-    formats: tuple[str, ...]
-    """Audio formats the provider returns, named by file extension."""
+    formats: tuple[Literal["mp3", "wav"], ...]
+    """Audio formats the provider returns, named by file extension. Only the two
+    whose pieces join - an entry naming another is refused when the file loads."""
 
     models: tuple[SpeechModel, ...]
     voices: tuple[SpeechVoice, ...] = ()
@@ -106,7 +108,7 @@ class TextToSpeechProvider:
     name: str
     api: str
     base_url: str
-    formats: tuple[str, ...]
+    formats: tuple[Literal["mp3", "wav"], ...]
     models: tuple[SpeechModel, ...]
     voices: tuple[SpeechVoice, ...]
 
@@ -158,16 +160,6 @@ def providers() -> tuple[TextToSpeechProvider, ...]:
 def by_provider(provider: str) -> TextToSpeechProvider | None:
     """The offering for one provider id, or None where it cannot speak."""
     return next((entry for entry in providers() if entry.provider == provider), None)
-
-
-def is_offered(provider: str, model: str) -> bool:
-    """Whether this provider can speak and the catalog lists this model.
-
-    Both halves, so a value outside the catalog is refused at the form rather than
-    mid-run, where the person who made the typo is not the one waiting.
-    """
-    entry = by_provider(provider)
-    return entry is not None and entry.model(model) is not None
 
 
 def default_choice() -> tuple[str, str]:

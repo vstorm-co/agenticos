@@ -1,5 +1,5 @@
 ---
-source_sha: "07546cc9dfde"
+source_sha: "fee74730c9d4"
 ---
 
 # Konfiguration { #configuration }
@@ -966,7 +966,7 @@ die Seite je Workspace nicht beantworten kann.
 
 **Ein Klick auf eine Datei öffnet sie in einem Viewer, und es ist derselbe Viewer
 wie im Chat-Panel.** Ein Bild ist ein Bild, ein PDF ist die PDF-Ansicht des
-Browsers, Markdown bietet *Preview* und *Source* — beides ist die Datei, und ein
+Browsers, Audio und Video spielen im eigenen Player des Browsers, Markdown bietet *Preview* und *Source* — beides ist die Datei, und ein
 `#`, aus dem still große Schrift wurde, ist die Art, wie jemand nicht bemerkt,
 dass sein Agent Markdown in etwas schreibt, das nichts als Markdown liest —, und
 alles andere ist sein Text. Der Download ist immer da, auch für das, was sich gar
@@ -983,10 +983,12 @@ jemand, mit dem ein Chat *geteilt* wurde, den Zugriff behält — und weil ein M
 entscheidet, was angezeigt werden darf, damit die Antwort nicht je Oberfläche
 abweichen kann.
 
-Fast alles wird als Anhang ausgeliefert. **Rasterbilder und PDFs** werden zur
-Anzeige ausgeliefert: ein Raster, weil es nichts ausführen kann, ein PDF, weil
-der Browser es in seinem eigenen Viewer rendert, der nie das DOM der Seite
-bekommt.
+Fast alles wird als Anhang ausgeliefert. **Rasterbilder, PDFs, Audio und Video**
+(MP3, WAV, Ogg, Opus, M4A, MP4, WebM) werden zur Anzeige ausgeliefert: ein Raster,
+weil es nichts ausführen kann, ein PDF, weil der Browser es in seinem eigenen
+Viewer rendert, der nie das DOM der Seite bekommt, und Audio und Video, weil der
+Browser sie seiner Medienwiedergabe übergibt, die sie abspielt und nichts in der
+Seite ausführt.
 
 !!! danger "SVG und HTML sind herunterladbar und nie anzeigbar"
 

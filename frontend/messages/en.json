@@ -858,7 +858,9 @@
     "videoAudio": "Sound",
     "videoAudioDefault": "Provider default",
     "videoAudioOn": "On",
-    "videoAudioOff": "Off"
+    "videoAudioOff": "Off",
+    "speechFormat": "File format",
+    "speechFormatDetail": "The formats this provider returns. mp3 is smaller, wav is uncompressed."
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -7281,11 +7283,11 @@
       },
       "seconds": {
         "title": "Length",
-        "description": "Seconds a clip runs unless the agent asks for another length; left empty, five, or the nearest the model makes. Ignored by a model that decides its own length."
+        "description": "Seconds a clip runs unless the agent asks for another length; left empty, five, or the nearest the model makes. Not for a model that decides its own length."
       },
       "max_seconds": {
         "title": "Longest clip",
-        "description": "The longest clip the agent may ask for, which caps what one call can cost; left empty, the model's own limit."
+        "description": "The longest clip the agent may ask for, which caps what one call can cost; left empty, the model's own limit. Not for a model that decides its own length."
       },
       "audio": {
         "title": "Sound",

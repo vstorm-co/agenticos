@@ -87,8 +87,15 @@ async def generate_video(
         async with httpx.AsyncClient(timeout=REQUEST_SECONDS) as client:
             return await CLIENTS[provider.api](client, call, deadline)
     except httpx.TimeoutException:
+        # One slow request before the job's deadline is a provider having a bad
+        # moment, not the job running past the time it was given.
         logger.warning("Video request to %s timed out", provider.provider, exc_info=True)
-        raise VideoProviderError(VideoFailure.TIMED_OUT, provider=provider.provider) from None
+        failure = (
+            VideoFailure.TIMED_OUT
+            if asyncio.get_running_loop().time() >= deadline
+            else VideoFailure.UNAVAILABLE
+        )
+        raise VideoProviderError(failure, provider=provider.provider) from None
     except httpx.HTTPError:
         logger.warning("Video request to %s failed in transit", provider.provider, exc_info=True)
         raise VideoProviderError(VideoFailure.UNAVAILABLE, provider=provider.provider) from None
