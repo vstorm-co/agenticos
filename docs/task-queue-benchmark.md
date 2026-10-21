@@ -3,11 +3,11 @@
 Until 1.9.0, every background job in AgenticOS ran on Prefect, which started a
 new Python process for each run. On 18 October 2026 about 1,650 late runs piled
 up on a host that was already losing CPU to steal, and the site went down. Before
-replacing Prefect we ran ten engines, in eighteen configurations, through the
+replacing Prefect we ran ten engines, in seventeen configurations, through the
 same workloads, measured the same way. This page covers what was measured,
 what decided the choice and what the numbers do not show. The harness is
-`experiments/task-queues` on the `spike/task-queue-benchmark` branch, and every
-run's raw events are there too.
+`experiments/task-queues` at commit `a239dfdd7` on the `spike/task-queue-benchmark`
+branch, and every run's raw events are there too.
 
 ## What was compared { #what-was-compared }
 
@@ -146,8 +146,11 @@ returns without a delivery limit, or the job is lost silently.
 
 1.9.0 replaced Prefect with the plain Postgres queue (`pgqueue`) and long-lived
 asyncio workers. It counts an attempt when a job is claimed, not when it
-finishes. A rescuer outside the worker records a death, and a lease expires
-however the worker died. Oban, River and Solid Queue use the same rule.
+finishes. Every worker also runs a rescuer: when one dies, the next to rescue -
+a surviving worker, or the dead one restarted - finds its expired lease and
+records the death, however the worker died. Oban, River and Solid Queue use the
+same rule.
+
 Ingestion also runs in child processes under a memory watchdog, so one heavy
 document does not take its worker down. [Dispatching background work from a
 request](architecture.md#dispatching-background-work-from-a-request) shows how
@@ -177,7 +180,8 @@ against 10.1 s), without its duplicates.
 ## Run it again { #run-it-again }
 
 ```bash
-# From the repository root, on the spike/task-queue-benchmark branch.
+# From the repository root, at the measured commit.
+git switch --detach a239dfdd7
 docker build -f backend/Dockerfile -t agenticos-backend:bench-base .
 cd experiments/task-queues
 docker build -t tqbench:latest .

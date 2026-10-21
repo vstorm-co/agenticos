@@ -1,5 +1,5 @@
 ---
-source_sha: "63c344022086"
+source_sha: "2d65da37dcb6"
 ---
 
 # Der Benchmark der Hintergrund-Jobs { #the-background-job-benchmark }
@@ -7,11 +7,12 @@ source_sha: "63c344022086"
 Bis 1.9.0 lief jeder Hintergrund-Job in AgenticOS auf Prefect, das für jeden Run
 einen neuen Python-Prozess startete. Am 18. Oktober 2026 stauten sich rund 1.650
 verspätete Runs auf einem Host, der ohnehin CPU durch Steal verlor, und die
-Website fiel aus. Bevor wir Prefect ersetzten, haben wir zehn Engines in achtzehn
+Website fiel aus. Bevor wir Prefect ersetzten, haben wir zehn Engines in siebzehn
 Konfigurationen durch dieselben Lasten geschickt und gleich gemessen. Diese Seite
 beschreibt, was gemessen wurde, was die Wahl entschied und was die Zahlen nicht
 zeigen. Der Harness ist `experiments/task-queues` auf dem Branch
-`spike/task-queue-benchmark`; dort liegen auch die Rohereignisse jedes Laufs.
+`spike/task-queue-benchmark` im Commit `a239dfdd7`; dort liegen auch die
+Rohereignisse jedes Laufs.
 
 ## Was verglichen wurde { #what-was-compared }
 
@@ -155,9 +156,13 @@ verloren.
 
 1.9.0 ersetzte Prefect durch die einfache Warteschlange in Postgres (`pgqueue`)
 und langlebige asyncio-Worker. Sie zählt einen Versuch, wenn ein Job abgeholt
-wird, nicht wenn er endet. Ein Rescuer außerhalb des Workers hält einen Tod fest,
-und ein Lease läuft ab, egal wie der Worker gestorben ist. Oban, River und Solid
-Queue folgen derselben Regel. Die Ingestion läuft außerdem in Kindprozessen unter
+wird, nicht wenn er endet. Jeder Worker führt außerdem einen Rescuer aus: Stirbt einer,
+findet der nächste Rescuer - in einem überlebenden Worker oder im neu gestarteten
+selbst - seinen abgelaufenen Lease und hält den Tod fest, egal wie der Worker
+gestorben ist. Oban, River und Solid
+Queue folgen derselben Regel.
+
+Die Ingestion läuft außerdem in Kindprozessen unter
 einer Speicherüberwachung, damit ein schweres Dokument seinen Worker nicht
 mitreißt. [Hintergrundarbeit aus einem Request
 übergeben](architecture.md#dispatching-background-work-from-a-request) zeigt, wie
@@ -189,7 +194,8 @@ Abholen der Reihe nach (11,1 s gegenüber 10,1 s), ohne seine Duplikate.
 ## Erneut ausführen { #run-it-again }
 
 ```bash
-# Aus dem Wurzelverzeichnis des Repositorys, auf dem Branch spike/task-queue-benchmark.
+# Aus dem Wurzelverzeichnis des Repositorys, im gemessenen Commit.
+git switch --detach a239dfdd7
 docker build -f backend/Dockerfile -t agenticos-backend:bench-base .
 cd experiments/task-queues
 docker build -t tqbench:latest .

@@ -1,5 +1,5 @@
 ---
-source_sha: "63c344022086"
+source_sha: "2d65da37dcb6"
 ---
 
 # Benchmark zadań w tle { #the-background-job-benchmark }
@@ -8,10 +8,11 @@ Do wersji 1.9.0 każde zadanie w tle w AgenticOS działało na Prefekcie, który
 każdego runu uruchamiał nowy proces Pythona. 18 października 2026 na hoście,
 który już tracił CPU przez steal, zebrało się około 1650 spóźnionych runów i
 strona przestała działać. Zanim zastąpiliśmy Prefecta, przepuściliśmy dziesięć
-silników, w osiemnastu konfiguracjach, przez te same obciążenia, mierzone w ten
+silników, w siedemnastu konfiguracjach, przez te same obciążenia, mierzone w ten
 sam sposób. Ta strona opisuje, co zmierzyliśmy, co przesądziło o wyborze i czego
 liczby nie pokazują. Harness to `experiments/task-queues` na gałęzi
-`spike/task-queue-benchmark`; są tam też surowe zdarzenia każdego przebiegu.
+`spike/task-queue-benchmark` w commicie `a239dfdd7`; są tam też surowe zdarzenia
+każdego przebiegu.
 
 ## Co porównaliśmy { #what-was-compared }
 
@@ -152,9 +153,12 @@ wraca bez limitu doręczeń albo zadanie ginie po cichu.
 
 Wersja 1.9.0 zastąpiła Prefecta zwykłą kolejką w Postgresie (`pgqueue`) i długo
 żyjącymi workerami asyncio. Kolejka liczy próbę, gdy zadanie zostaje pobrane, a
-nie gdy się kończy. Śmierć zapisuje rescuer spoza workera, a lease wygasa
-niezależnie od tego, jak worker umarł. Tę samą zasadę stosują Oban, River i
-Solid Queue. Ingestion działa do tego w procesach potomnych pod nadzorem pamięci,
+nie gdy się kończy. Każdy worker uruchamia też rescuera: gdy któryś umrze,
+następny rescuer - z żyjącego workera albo z tego samego po restarcie - znajduje
+jego wygasły lease i zapisuje śmierć, niezależnie od tego, jak worker umarł. Tę samą zasadę stosują Oban, River i
+Solid Queue.
+
+Ingestion działa do tego w procesach potomnych pod nadzorem pamięci,
 więc jeden ciężki dokument nie kładzie workera. [Przekazywanie pracy w tle z
 requestu](architecture.md#dispatching-background-work-from-a-request) pokazuje,
 jak kod kolejkuje zadanie, a [Skalowanie poza jeden
@@ -185,7 +189,8 @@ po kolei (11,1 s wobec 10,1 s), bez jego duplikatów.
 ## Jak to powtórzyć { #run-it-again }
 
 ```bash
-# Z katalogu głównego repozytorium, na gałęzi spike/task-queue-benchmark.
+# Z katalogu głównego repozytorium, w zmierzonym commicie.
+git switch --detach a239dfdd7
 docker build -f backend/Dockerfile -t agenticos-backend:bench-base .
 cd experiments/task-queues
 docker build -t tqbench:latest .

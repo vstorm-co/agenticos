@@ -1,5 +1,5 @@
 ---
-source_sha: "63c344022086"
+source_sha: "2d65da37dcb6"
 ---
 
 # El benchmark de jobs en segundo plano { #the-background-job-benchmark }
@@ -7,11 +7,12 @@ source_sha: "63c344022086"
 Hasta la 1.9.0, cada job en segundo plano de AgenticOS se ejecutaba en Prefect,
 que arrancaba un proceso de Python nuevo para cada run. El 18 de octubre de 2026
 se acumularon unos 1.650 runs atrasados en un host que ya perdía CPU por steal, y
-el sitio se cayó. Antes de sustituir Prefect, pasamos diez motores, en dieciocho
+el sitio se cayó. Antes de sustituir Prefect, pasamos diez motores, en diecisiete
 configuraciones, por las mismas cargas, medidas de la misma forma. Esta página
 explica qué se midió, qué decidió la elección y qué no muestran los números. El
-harness es `experiments/task-queues` en la rama `spike/task-queue-benchmark`;
-allí están también los eventos en bruto de cada ejecución.
+harness es `experiments/task-queues` en el commit `a239dfdd7` de la rama
+`spike/task-queue-benchmark`; allí están también los eventos en bruto de cada
+ejecución.
 
 ## Qué se comparó { #what-was-compared }
 
@@ -152,9 +153,12 @@ fallos: un mensaje vuelve sin límite de entregas, o el job se pierde en silenci
 
 La 1.9.0 sustituyó Prefect por la cola simple en Postgres (`pgqueue`) y workers
 asyncio de larga duración. Cuenta un intento cuando se toma un job, no cuando
-termina. Un rescuer fuera del worker registra la muerte, y un lease caduca sin
-importar cómo murió el worker. Oban, River y Solid Queue siguen la misma regla. La
-ingestion se ejecuta además en procesos hijos vigilados por memoria, así que un
+termina. Cada worker ejecuta además un rescuer: cuando uno muere, el
+siguiente rescuer - en un worker que sigue vivo o en el mismo tras reiniciarse -
+encuentra su lease caducado y registra la muerte, sin importar cómo murió el
+worker. Oban, River y Solid Queue siguen la misma regla.
+
+La ingestion se ejecuta además en procesos hijos vigilados por memoria, así que un
 documento pesado no tumba a su worker. [Delegar trabajo en segundo plano desde
 una petición](architecture.md#dispatching-background-work-from-a-request)
 muestra cómo el código encola un job, y [Escalar más allá de un
@@ -185,7 +189,8 @@ a 10,1 s), sin sus duplicados.
 ## Volver a ejecutarlo { #run-it-again }
 
 ```bash
-# Desde la raíz del repositorio, en la rama spike/task-queue-benchmark.
+# Desde la raíz del repositorio, en el commit medido.
+git switch --detach a239dfdd7
 docker build -f backend/Dockerfile -t agenticos-backend:bench-base .
 cd experiments/task-queues
 docker build -t tqbench:latest .

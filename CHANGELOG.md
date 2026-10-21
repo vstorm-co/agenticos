@@ -22,7 +22,7 @@ Two things are versioned separately from this file and worth knowing about:
 ### Added
 
 - **The background-job benchmark, as a docs page.** Why the job queue is rows
-  in Postgres: ten engines in eighteen configurations, from Prefect, Celery and
+  in Postgres: ten engines in seventeen configurations, from Prefect, Celery and
   Taskiq to PgQueuer, DBOS and Hatchet, through four scenarios. One of them is a
   job that runs its worker out of memory, which started three times on the
   shipped queue and eight on PgQueuer. The page gives the tables, what shipped in
