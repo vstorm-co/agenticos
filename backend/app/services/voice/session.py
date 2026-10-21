@@ -91,6 +91,11 @@ end: a reason of its own would need the `voice_calls` CHECK constraint widened."
 NOTICE_WAIT_SECONDS = 8.0
 """How long a spoken limit notice may take before the call is ended anyway."""
 
+CONNECT_SECONDS = 60.0
+"""How long setting a call up may take, from the history to the provider session
+open: past it the call fails rather than leaving the caller on a call that never
+connects. Above `OFFER_SECONDS`, which it contains, and a long thread's summary."""
+
 OFFER_SECONDS = 30.0
 """How long answering a browser's offer may take. It is shielded - cut off midway
 it could leave a provider call nobody knows the id of - so it gets a bound of its
@@ -141,11 +146,15 @@ async def still_allowed(
     voice switch on, and still on this agent - pausing the page, switching calls
     off or pointing it at another agent ends calls on it - and runs under the publisher's role as it stands now (`publisher_context`).
     """
+    # Read again with the session: an app administrator revoked mid-call loses
+    # every permission the flag granted at the next heartbeat, not at hang-up.
+    is_app_admin = caller.ctx.is_app_admin
     if caller.auth_token is not None:
         try:
-            await authenticate_socket_token(db, caller.auth_token, allow_expired=True)
+            user = await authenticate_socket_token(db, caller.auth_token, allow_expired=True)
         except AuthenticationError:
             return None
+        is_app_admin = user.is_app_admin
     organization_id = caller.ctx.organization_id
     ctx = caller.ctx
     if caller.user_id is not None and not caller.anonymous:
@@ -158,7 +167,7 @@ async def still_allowed(
             user_id=caller.user_id,
             organization_id=organization_id,
             role=membership.role,
-            is_app_admin=caller.ctx.is_app_admin,
+            is_app_admin=is_app_admin,
         )
     if caller.embed_id is not None:
         embed = await agent_embed_repo.get(db, caller.embed_id, organization_id=organization_id)
@@ -271,6 +280,7 @@ class VoiceCallSession:
         heartbeat_seconds: float = HEARTBEAT_SECONDS,
         first_frame_seconds: float = 10.0,
         notice_seconds: float = NOTICE_WAIT_SECONDS,
+        connect_seconds: float = CONNECT_SECONDS,
     ) -> None:
         self._ws = websocket
         self._notice_seconds = notice_seconds
@@ -279,6 +289,8 @@ class VoiceCallSession:
         self._reauthorize = reauthorize
         self._heartbeat_seconds = heartbeat_seconds
         self._first_frame_seconds = first_frame_seconds
+        self._connect_seconds = connect_seconds
+        self._connect_timed_out = False
         self._reason: VoiceEndReason | None = None
         self._message: str | None = None
         self._scope: anyio.CancelScope | None = None
@@ -405,15 +417,23 @@ class VoiceCallSession:
             # read meanwhile too: an End or a closed tab cancels the setup, and
             # the provider session is never opened for a caller who has gone.
             answer = None
-            async with anyio.create_task_group() as setup:
-                self._scope = setup.cancel_scope
+            # One group for the whole call, so the watchers that guard its setup -
+            # an End or a closed tab, the row's heartbeat, the connect deadline -
+            # are still running while the provider session is opened, and `ready`
+            # goes only once it is. A relay's upstream connection is opened by
+            # entering the session: entered after `ready`, a stalled connection
+            # read as a live call nobody could end.
+            watching = anyio.CancelScope()
+            connecting = anyio.CancelScope()
+            async with anyio.create_task_group() as call:
+                self._scope = call.cancel_scope
                 # An end asked for before there was a scope to cancel - shutdown
                 # while the starter still ran - is honoured here, before any
                 # provider is called.
                 if self._reason is not None:
-                    setup.cancel_scope.cancel()
-                setup.start_soon(self._keep_alive, started)
-                setup.start_soon(self._watch_setup)
+                    call.cancel_scope.cancel()
+                call.start_soon(self._guard_setup, started, watching)
+                call.start_soon(self._connect_deadline, connecting, call.cancel_scope)
                 async with self._sessions() as own:
                     history = await seed_history(
                         own,
@@ -445,53 +465,23 @@ class VoiceCallSession:
                             await voice_call_repo.set_provider_call_id(
                                 own, started.call_id, provider_call_id=provider_call_id
                             )
-                setup.cancel_scope.cancel()
-            if self._reason is not None:
-                # Ended while it was set up: the teardown hangs up an answered offer.
-                return
-            provider_session = None
-            if answer is not None:
-                await self._send(AnswerFrame(type="answer", sdp=answer.sdp))
-                provider_session = answer.session
-            ready = ReadyFrame(
-                type="ready",
-                call_id=started.call_id,
-                conversation_id=started.conversation_id,
-                transport=started.resolved.entry.transport,
-                input_sample_rate=started.resolved.entry.input_sample_rate,
-                output_sample_rate=started.resolved.entry.output_sample_rate,
-                # Whole seconds, rounded down: the caller's timer counts them and
-                # must never show more time than the server will hold the call.
-                cap_seconds=int(started.cap_seconds),
-                resume_token=started.resume_token,
-            )
-            if not self._caller.anonymous:
-                # Not a visitor's: nothing on a public page reads it, and a text
-                # embed does not send it either.
-                ready.run_id = started.prepared.run.id
-            await self._send(ready)
-            # The call's clock starts once `ready` has gone, as its caller's timer
-            # does on receiving it: never before, so the call cannot end ahead of
-            # the timer the caller sees, even by the time `started_at` takes to write.
-            at, self._started_at = datetime.now(UTC), time.monotonic()
-            async with self._sessions() as own:
-                await voice_call_repo.start_clock(own, started.call_id, at=at)
-            async with (
-                started.prepared.realtime_session(
+                # Ended while the offer was answered: taken here, so neither the
+                # answer nor the session goes ahead, and the teardown hangs up.
+                await anyio.lowlevel.checkpoint()
+                provider_session = None
+                if answer is not None:
+                    await self._send(AnswerFrame(type="answer", sdp=answer.sdp))
+                    provider_session = answer.session
+                async with started.prepared.realtime_session(
                     realtime, provider_session=provider_session
-                ) as session,
-                anyio.create_task_group() as group,
-            ):
-                self._scope = group.cancel_scope
-                self._session = session
-                started.meter.attach(session.usage)
-                self._group = group
-                if self._reason is not None:
-                    group.cancel_scope.cancel()
-                group.start_soon(self._events, pump, session)
-                group.start_soon(self._socket, started, session, relay)
-                group.start_soon(self._heartbeat, started, pump, session)
-                group.start_soon(self._cap, started, pump, session)
+                ) as session:
+                    connecting.cancel()
+                    watching.cancel()
+                    await self._go_live(started, pump, session, relay)
+            if self._connect_timed_out:
+                logger.warning("voice_connect_timeout", extra={"call_id": str(started.call_id)})
+                self._reason = self._reason or VoiceEndReason.ERROR
+                error = "The call failed."
         except anyio.get_cancelled_exc_class():
             # Cancelled from outside - a shutdown the registry did not reach first.
             self._reason = self._reason or VoiceEndReason.SHUTDOWN
@@ -608,6 +598,63 @@ class VoiceCallSession:
             if not affordable:
                 await self._end_with_notice(pump, session, VoiceEndReason.BUDGET)
                 return
+
+    async def _go_live(
+        self,
+        started: StartedCall,
+        pump: EventPump,
+        session: RealtimeSession,
+        relay: AudioRelay | None,
+    ) -> None:
+        """Tell the caller the call is ready, start its clock, and run it to its end."""
+        ready = ReadyFrame(
+            type="ready",
+            call_id=started.call_id,
+            conversation_id=started.conversation_id,
+            transport=started.resolved.entry.transport,
+            input_sample_rate=started.resolved.entry.input_sample_rate,
+            output_sample_rate=started.resolved.entry.output_sample_rate,
+            # Whole seconds, rounded down: the caller's timer counts them and
+            # must never show more time than the server will hold the call.
+            cap_seconds=int(started.cap_seconds),
+            resume_token=started.resume_token,
+        )
+        if not self._caller.anonymous:
+            # Not a visitor's: nothing on a public page reads it, and a text
+            # embed does not send it either.
+            ready.run_id = started.prepared.run.id
+        await self._send(ready)
+        # The call's clock starts once `ready` has gone, as its caller's timer
+        # does on receiving it: never before, so the call cannot end ahead of
+        # the timer the caller sees, even by the time `started_at` takes to write.
+        at, self._started_at = datetime.now(UTC), time.monotonic()
+        async with self._sessions() as own:
+            await voice_call_repo.start_clock(own, started.call_id, at=at)
+        async with anyio.create_task_group() as group:
+            self._scope = group.cancel_scope
+            self._session = session
+            started.meter.attach(session.usage)
+            self._group = group
+            if self._reason is not None:
+                group.cancel_scope.cancel()
+            group.start_soon(self._events, pump, session)
+            group.start_soon(self._socket, started, session, relay)
+            group.start_soon(self._heartbeat, started, pump, session)
+            group.start_soon(self._cap, started, pump, session)
+
+    async def _guard_setup(self, started: StartedCall, scope: anyio.CancelScope) -> None:
+        """The setup's watchers - the row's heartbeat and the socket - until `scope` is cancelled."""
+        with scope:
+            async with anyio.create_task_group() as guards:
+                guards.start_soon(self._keep_alive, started)
+                guards.start_soon(self._watch_setup)
+
+    async def _connect_deadline(self, scope: anyio.CancelScope, call: anyio.CancelScope) -> None:
+        """End a setup whose provider session has not opened within `CONNECT_SECONDS`."""
+        with scope:
+            await anyio.sleep(self._connect_seconds)
+            self._connect_timed_out = True
+            call.cancel()
 
     async def _watch_setup(self) -> None:
         """Read the socket while the call is set up, for the caller hanging up.

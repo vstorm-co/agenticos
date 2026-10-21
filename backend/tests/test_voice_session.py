@@ -200,6 +200,7 @@ async def _run(
     expire=None,
     start_clock=None,
     during_start=None,
+    connect_seconds=60.0,
 ):
     held: list[VoiceCallSession] = []
 
@@ -234,6 +235,7 @@ async def _run(
             reauthorize=reauthorize,
             heartbeat_seconds=heartbeat,
             notice_seconds=notice_seconds,
+            connect_seconds=connect_seconds,
         )
         held.append(session)
         await asyncio.wait_for(session.run(), timeout=5)
@@ -376,7 +378,7 @@ def _allowed_world(monkeypatch, broken: str | None):
         config={"kind": "page", "voice_conversation": True},
         owner_user_id=uuid4(),
     )
-    auth = AsyncMock()
+    auth = AsyncMock(return_value=SimpleNamespace(is_app_admin=False))
     access = AsyncMock(return_value=broken != "grant")
     if broken == "token":
         auth.side_effect = AuthenticationError(message="Session revoked")
@@ -424,6 +426,21 @@ async def test_an_aged_token_on_a_live_session_still_allows_the_call(monkeypatch
     auth.assert_awaited_once_with(ANY, "t", allow_expired=True)
     # The role as it stands now, not the one the call started with.
     assert ctx is not None and ctx.role == "member" and ctx.user_id == caller.user_id
+
+
+async def test_an_app_admin_revoked_mid_call_loses_the_flag_at_the_next_heartbeat(monkeypatch):
+    """Codex on #2204: the flag from the handshake granted every permission until hang-up."""
+    from dataclasses import replace
+
+    from app.services.voice.session import still_allowed
+
+    _allowed_world(monkeypatch, None)
+    caller = _caller()
+    caller = replace(caller, ctx=replace(caller.ctx, is_app_admin=True))
+
+    ctx = await still_allowed(MagicMock(), caller, agent_id=uuid4())
+
+    assert ctx is not None and ctx.is_app_admin is False
 
 
 async def test_reaching_the_time_cap_speaks_a_notice_and_ends():
@@ -551,6 +568,41 @@ async def test_a_relay_call_has_no_offer_to_answer_and_nothing_to_hang_up_by_id(
     started.prepared.answer_offer.assert_not_awaited()
     assert [frame["type"] for frame in socket.sent][:1] == ["ready"]
     assert hung.await_args.args[0].provider_call_id is None
+
+
+def _stalling_relay() -> SimpleNamespace:
+    """A relay call whose upstream connection never opens."""
+    started = _started(FakeRealtime(hold=True), transport="relay")
+
+    @asynccontextmanager
+    async def realtime_session(rt, *, provider_session):
+        await anyio.sleep_forever()
+        yield FakeRealtime(hold=True)
+
+    started.prepared.realtime_session = realtime_session
+    return started
+
+
+async def test_a_relay_call_is_not_ready_until_its_connection_opens_and_can_be_ended_meanwhile():
+    """Codex on #2204: entered after `ready`, a stalled relay read as a live call nobody
+    could end, with no heartbeat - the setup's watchers now guard the connection too."""
+    socket = FakeSocket([_START, 0.05, json.dumps({"type": "end"})])
+
+    _, repo = await _run(socket, _stalling_relay())
+
+    assert "ready" not in [frame["type"] for frame in socket.sent]
+    assert repo.end.await_args.kwargs["reason"] is VoiceEndReason.USER
+    assert socket.sent[-1]["type"] == "ended"
+
+
+async def test_a_relay_connection_that_never_opens_fails_the_call_at_the_deadline():
+    socket = FakeSocket([_START])
+
+    _, repo = await _run(socket, _stalling_relay(), connect_seconds=0.05)
+
+    assert [frame["type"] for frame in socket.sent] == ["ended"]
+    assert socket.sent[-1]["reason"] == "error"
+    assert repo.end.await_args.kwargs["reason"] is VoiceEndReason.ERROR
 
 
 async def test_an_end_asked_for_before_the_call_connects_is_honoured():
