@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The home-screen widget in the console's neutral palette: no accent hue,
+     strong text, a quieter second line. -->
+<resources>
+    <color name="widget_surface">#FFFFFFFF</color>
+    <color name="widget_text">#FF18181B</color>
+    <color name="widget_muted">#FF71717A</color>
+    <color name="widget_tile">#FFF4F4F5</color>
+</resources>

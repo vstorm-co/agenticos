@@ -11,4 +11,17 @@
     <string name="shortcut_approvals">Approvals</string>
     <string name="shortcut_approvals_long">Approvals waiting for you</string>
     <string name="tile_ask">Ask AgenticOS</string>
+    <string name="widget_description">What is waiting for you and what is running</string>
+    <string name="widget_never">Open AgenticOS</string>
+    <!-- What the widget picker shows before any count. -->
+    <string name="widget_approvals_preview">waiting for you</string>
+    <string name="widget_running_preview">running</string>
+    <plurals name="widget_approvals">
+        <item quantity="one">waiting for you</item>
+        <item quantity="other">waiting for you</item>
+    </plurals>
+    <plurals name="widget_running">
+        <item quantity="one">running</item>
+        <item quantity="other">running</item>
+    </plurals>
 </resources>

@@ -67,6 +67,10 @@ Two things are versioned separately from this file and worth knowing about:
   AgenticOS. Text, links, photos and files (up to 20 MB each) land in a new
   message in the chat; what cannot be read is named in a notice. Nothing is
   attached while the app is locked.
+- **A home-screen widget** (#2097) on Android: approvals waiting for you and
+  your runs in flight, with the time they were counted; a tap opens the queue
+  or the runs. The counts are the console's, so they refresh while the app is
+  open; push will refresh them while it is closed.
 - **Quick ask** (`⌥Space`, rebindable): a floating panel to ask any agent from
   anywhere, with the answer streamed under the question and ⌘↩ to carry the
   conversation into the console.

@@ -16,6 +16,7 @@
 
 mod live;
 mod share;
+mod widget;
 
 use std::fs;
 use std::io::ErrorKind;
@@ -227,7 +228,8 @@ fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow>
 }
 
 /// What the console - a remote page - may ask of the app: the unlock prompt
-/// again, and its live activities. Granted for the configured server's origin
+/// again, its live activities, what was shared with the app, and the widget's
+/// counts. Granted for the configured server's origin
 /// only, as the desktop shell grants its console's commands.
 fn grant_console(app: &AppHandle, server: &Url) -> Result<(), String> {
     let pattern = format!("{}/*", server.origin().ascii_serialization());
@@ -239,6 +241,7 @@ fn grant_console(app: &AppHandle, server: &Url) -> Result<(), String> {
             .permission("allow-unlock")
             .permission("allow-show-activity")
             .permission("allow-end-activity")
+            .permission("allow-update-widget")
             .permission("allow-take-activity-action")
             .permission("allow-take-shared")
             .permission("core:event:allow-listen")
@@ -461,7 +464,8 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_biometric::init())
         .plugin(live::init())
-        .plugin(share::init());
+        .plugin(share::init())
+        .plugin(widget::init());
     // The camera scanner is a phone's; the same app on a laptop types the address.
     #[cfg(mobile)]
     let builder = builder.plugin(tauri_plugin_barcode_scanner::init());
@@ -474,7 +478,8 @@ pub fn run() {
             take_activity_action,
             take_shared,
             live::show_activity,
-            live::end_activity
+            live::end_activity,
+            widget::update_widget
         ])
         .manage(PendingSignIn::default())
         .manage(Lock::default())

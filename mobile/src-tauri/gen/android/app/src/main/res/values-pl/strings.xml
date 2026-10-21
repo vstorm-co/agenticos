@@ -8,4 +8,21 @@
     <string name="shortcut_approvals">Akceptacje</string>
     <string name="shortcut_approvals_long">Akceptacje czekające na Ciebie</string>
     <string name="tile_ask">Zapytaj AgenticOS</string>
+    <string name="widget_description">Co czeka na Ciebie i co jest w toku</string>
+    <string name="widget_never">Otwórz AgenticOS</string>
+    <!-- What the widget picker shows before any count. -->
+    <string name="widget_approvals_preview">czeka na Ciebie</string>
+    <string name="widget_running_preview">w toku</string>
+    <plurals name="widget_approvals">
+        <item quantity="one">czeka na Ciebie</item>
+        <item quantity="few">czekają na Ciebie</item>
+        <item quantity="many">czeka na Ciebie</item>
+        <item quantity="other">czeka na Ciebie</item>
+    </plurals>
+    <plurals name="widget_running">
+        <item quantity="one">w toku</item>
+        <item quantity="few">w toku</item>
+        <item quantity="many">w toku</item>
+        <item quantity="other">w toku</item>
+    </plurals>
 </resources>

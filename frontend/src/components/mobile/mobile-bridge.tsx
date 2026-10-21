@@ -20,6 +20,7 @@ import {
   type LiveActivity,
 } from "@/lib/mobile/live-activities";
 import { takeShared } from "@/lib/mobile/shared";
+import { updateWidget } from "@/lib/mobile/widget";
 import { useAuthStore, useComposerIntentStore } from "@/stores";
 import { Perm } from "@/types/permissions";
 
@@ -54,8 +55,19 @@ function Bridge() {
   const { can } = usePermissions();
   const canDecide = can(Perm.approvalsDecide);
   const userId = useAuthStore((state) => state.user?.id);
-  const { approvals, decide } = useApprovals({ enabled: canDecide });
-  const { runs } = useRuns(undefined, {
+  const {
+    approvals,
+    total: waiting,
+    isLoading: approvalsLoading,
+    error: approvalsError,
+    decide,
+  } = useApprovals({ enabled: canDecide });
+  const {
+    runs,
+    total: running,
+    isLoading: runsLoading,
+    error: runsError,
+  } = useRuns(undefined, {
     enabled: can(Perm.runsView) && userId !== undefined,
     statuses: ["running"],
     userId,
@@ -108,6 +120,17 @@ function Bridge() {
       );
     }
   }, [live]);
+
+  // The widget's counts, once both are read: a zero before the first answer,
+  // or in place of a failed one, would be kept on the home screen as a fact.
+  // The widget keeps its last good counts, with the time they were counted.
+  const counted = !approvalsLoading && !runsLoading && !approvalsError && !runsError;
+  useEffect(() => {
+    if (!counted) return;
+    updateWidget({ approvals: waiting, running }).catch((error: unknown) =>
+      reportShellFailure("could not update the widget", error),
+    );
+  }, [counted, waiting, running]);
 
   // Signed out, or the console gone: nothing it showed is live any more.
   useEffect(() => {

@@ -26,14 +26,23 @@ const env = vi.hoisted(() => ({
   share: vi.fn(),
   takeShared: vi.fn(async (): Promise<unknown> => null),
   warning: vi.fn(),
+  loading: false,
+  failed: null as unknown,
+  updateWidget: vi.fn(async (_glance: unknown) => {}),
 }));
 vi.mock("@/hooks/use-shell", () => ({ useShell: () => env.shell }));
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => env.can }) }));
 vi.mock("@/hooks/use-runs", () => ({
-  useApprovals: () => ({ approvals: env.approvals, decide: env.decide }),
+  useApprovals: () => ({
+    approvals: env.approvals,
+    total: env.approvals.length,
+    isLoading: env.loading,
+    error: env.failed,
+    decide: env.decide,
+  }),
   useRuns: (_agent: unknown, options: unknown) => {
     env.runsQuery = options;
-    return { runs: env.runs };
+    return { runs: env.runs, total: env.runs.length, isLoading: env.loading, error: null };
   },
 }));
 vi.mock("@/hooks/use-agents", () => ({ useAgents: () => ({ agents: env.agents }) }));
@@ -54,6 +63,7 @@ vi.mock("@/lib/mobile/live-activities", async (original) => ({
   takeActivityAction: env.take,
 }));
 vi.mock("@/lib/mobile/shared", () => ({ takeShared: env.takeShared }));
+vi.mock("@/lib/mobile/widget", () => ({ updateWidget: env.updateWidget }));
 vi.mock("sonner", () => ({ toast: { warning: env.warning } }));
 vi.mock("@/lib/desktop/shell", async (original) => ({
   ...(await original<typeof import("@/lib/desktop/shell")>()),
@@ -83,6 +93,8 @@ beforeEach(() => {
     approvals: [],
     runs: [],
     agents: [{ id: "a", name: "Support" }],
+    loading: false,
+    failed: null,
   });
   env.listeners.clear();
   vi.clearAllMocks();
@@ -138,6 +150,23 @@ describe("MobileBridge", () => {
         path: "/runs?run=r2",
       },
     ]);
+  });
+
+  it("keeps the widget's counts once both are read", () => {
+    env.loading = true;
+    env.approvals = [approval("ap1")];
+    const view = mount();
+    expect(env.updateWidget).not.toHaveBeenCalled();
+    env.loading = false;
+    env.runs = [run("r1"), run("r2")];
+    view.again();
+    expect(env.updateWidget).toHaveBeenCalledWith({ approvals: 1, running: 2 });
+  });
+
+  it("leaves the widget's last counts alone when a read fails", () => {
+    env.failed = new Error("500");
+    mount();
+    expect(env.updateWidget).not.toHaveBeenCalled();
   });
 
   it("keeps at most three runs live", () => {
@@ -258,18 +287,20 @@ describe("MobileBridge", () => {
     env.show.mockRejectedValueOnce(new Error("no"));
     env.take.mockRejectedValueOnce(new Error("no"));
     env.takeShared.mockRejectedValueOnce(new Error("no"));
+    env.updateWidget.mockRejectedValueOnce(new Error("no"));
     const view = mount();
     env.approvals = [];
     env.end.mockRejectedValue(new Error("no"));
     view.again();
     view.unmount();
-    await waitFor(() => expect(env.report).toHaveBeenCalledTimes(5));
-    expect(env.report.mock.calls.map(([what]) => what)).toEqual([
-      "could not show a live activity",
+    await waitFor(() => expect(env.report).toHaveBeenCalledTimes(6));
+    expect(env.report.mock.calls.map(([what]) => what).sort()).toEqual([
       "could not end a live activity",
       "could not end a live activity",
       "could not read an activity's action",
       "could not read what was shared",
+      "could not show a live activity",
+      "could not update the widget",
     ]);
     env.end.mockReset();
   });

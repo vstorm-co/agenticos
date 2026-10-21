@@ -8,4 +8,17 @@
     <string name="shortcut_approvals">Freigaben</string>
     <string name="shortcut_approvals_long">Freigaben, die auf dich warten</string>
     <string name="tile_ask">AgenticOS fragen</string>
+    <string name="widget_description">Was auf dich wartet und was läuft</string>
+    <string name="widget_never">AgenticOS öffnen</string>
+    <!-- What the widget picker shows before any count. -->
+    <string name="widget_approvals_preview">wartet auf dich</string>
+    <string name="widget_running_preview">läuft</string>
+    <plurals name="widget_approvals">
+        <item quantity="one">wartet auf dich</item>
+        <item quantity="other">warten auf dich</item>
+    </plurals>
+    <plurals name="widget_running">
+        <item quantity="one">läuft</item>
+        <item quantity="other">laufen</item>
+    </plurals>
 </resources>
