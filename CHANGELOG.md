@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-10-21
+
 ### Added
 
 - **A navigation shows it is on its way.** A click on a link inside the
