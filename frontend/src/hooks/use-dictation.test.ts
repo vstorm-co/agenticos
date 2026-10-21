@@ -400,6 +400,23 @@ describe("useDictation", () => {
     expect(view.result.current.state.remaining).toBe(25);
   });
 
+  it("tells a subscriber when the level moves, and nothing once it unsubscribes", async () => {
+    const view = setup();
+    await record(view);
+    const heard = vi.fn();
+    const unsubscribe = view.result.current.state.meter.subscribe(heard);
+
+    audio.level = 0.2;
+    await wait(100);
+    expect(heard).toHaveBeenCalled();
+
+    unsubscribe();
+    heard.mockClear();
+    audio.level = 0.6;
+    await wait(100);
+    expect(heard).not.toHaveBeenCalled();
+  });
+
   it("says the room is silent after five quiet seconds, and stops saying it on one sound", async () => {
     const view = setup();
     await record(view);

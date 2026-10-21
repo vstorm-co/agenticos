@@ -1124,6 +1124,22 @@ describe("useVoiceSession", () => {
     expect(FakeSocket.last().sent.at(-1)).toEqual({ type: "approval", id: "a9", decision: "deny" });
   });
 
+  it("sends the caller's answers to the agent's questions", async () => {
+    const { result } = renderHook(() => useVoiceSession(), { wrapper });
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
+    act(() => FakeSocket.last().open());
+    const answers = [{ question: "Which report?", answer: "Q3" }] as never;
+    act(() => result.current.answer("q1", answers));
+    expect(FakeSocket.last().sent.at(-1)).toEqual({ type: "answers", id: "q1", answers });
+  });
+
   it("dismisses an approval the caller cannot give", async () => {
     const { result } = renderHook(() => useVoiceSession(), { wrapper });
     await act(() =>
