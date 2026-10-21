@@ -7,7 +7,9 @@ is decided here rather than twice: the second copy is where `.svg` would have st
 displayable.
 """
 
+import re
 from pathlib import PurePosixPath
+from typing import Literal
 
 from fastapi import Response
 
@@ -46,7 +48,35 @@ wrote it" is not a trust boundary.
 """
 
 
-def file_response(data: bytes, *, path: str, download: bool) -> Response:
+_BYTE_RANGE = re.compile(r"bytes=(\d*)-(\d*)")
+
+
+def _byte_range(header: str | None, size: int) -> tuple[int, int] | Literal[False] | None:
+    """The single byte range a `Range` header asks for, inclusive.
+
+    `None` where there is no header or it is not one plain byte range - a
+    multi-range or another unit is answered whole, which RFC 9110 allows - and
+    `False` where the range lies past the end, which is answered 416.
+    """
+    if header is None:
+        return None
+    match = _BYTE_RANGE.fullmatch(header.strip())
+    if match is None or match.group(1) == match.group(2) == "":
+        return None
+    first, last = match.group(1), match.group(2)
+    if first == "":
+        # A suffix range: the last N bytes.
+        start, end = max(size - int(last), 0), size - 1
+    else:
+        start, end = int(first), min(int(last), size - 1) if last else size - 1
+    if start >= size or start > end:
+        return False
+    return start, end
+
+
+def file_response(
+    data: bytes, *, path: str, download: bool, byte_range: str | None = None
+) -> Response:
     """One workspace file as an HTTP response.
 
     Args:
@@ -54,14 +84,28 @@ def file_response(data: bytes, *, path: str, download: bool) -> Response:
         path: Its path inside the workspace, which names the download.
         download: Force an attachment even for a type that could be displayed,
             which is what a Download control asks for.
+        byte_range: The request's `Range` header. Answered `206` with that
+            slice, because a `<video>` in Safari - and in the desktop app,
+            which is WebKit - plays an MP4 only from ranged responses.
     """
     name = PurePosixPath(path).name or "file"
     suffix = PurePosixPath(path).suffix.lower()
     inline = not download and suffix in INLINE_TYPES
+    span = _byte_range(byte_range, len(data))
+    if span is False:
+        return Response(status_code=416, headers={"Content-Range": f"bytes */{len(data)}"})
+    status, ranged = 200, {}
+    if span is not None:
+        start, end = span
+        ranged = {"Content-Range": f"bytes {start}-{end}/{len(data)}"}
+        status, data = 206, data[start : end + 1]
     return Response(
         content=data,
+        status_code=status,
         media_type=INLINE_TYPES[suffix] if inline else "application/octet-stream",
         headers={
+            "Accept-Ranges": "bytes",
+            **ranged,
             "Content-Disposition": content_disposition("inline" if inline else "attachment", name),
             # Everything off the list above is typed `application/octet-stream`, and
             # this is what stops a browser deciding such a body is HTML after all -
