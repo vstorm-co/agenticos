@@ -397,7 +397,9 @@ A result whose comparison is [invalid](#a-different-judge-invalidates-the-compar
 or in which any case could not be graded, is **inconclusive** - never passed -
 unless something failed outright, and it names the cases nobody graded.
 Republishing the judge changes how answers are graded, so the next result of
-every suite it grades for is inconclusive once, and its owner is told.
+every suite it grades for is inconclusive once, and its owner is told. A pass
+rate below the minimum fails a result whatever its comparison: the minimum
+needs no baseline.
 
 A result **did not run** when it would cost more than a budget has left or more than the suite's own ceiling, when only
 the judge could grade it and AI assistance is off, or when there is no
@@ -406,7 +408,10 @@ published version to check.
 Scheduled and dependency runs are compared with
 the suite's last passing run of the same version - the last state known to be
 good, so a case that broke stays broken until it is fixed - and so measure
-drift; a publish or a promotion runs its baseline in the same run.
+drift; a publish or a promotion runs its baseline in the same run. After a
+result that could not be compared with that run, the next one has no baseline:
+it is held to its own numbers and, passing, becomes the run the ones after it
+are compared with.
 
 ### Who it runs as, and who is told { #who-it-runs-as-and-who-is-told }
 
@@ -416,7 +421,8 @@ so saving a suite is agreeing to its spend, and the form prices one run and a
 month of the schedule first. Somebody else who changes the suite takes it
 over. A suite whose owner leaves the organization, or can no longer run it,
 pauses with the reason and says so - as does one whose environment is removed,
-rather than quietly checking another version.
+paused already or not, rather than quietly checking another version. It resumes
+once somebody chooses an environment for it again.
 
 The owner is told when a result fails, is inconclusive or does not run - once
 per run of such results on a version, naming the cases that broke or went

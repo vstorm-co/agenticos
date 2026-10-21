@@ -1,5 +1,5 @@
 ---
-source_sha: "0492e120d8bd"
+source_sha: "7d204fe63485"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -428,7 +428,8 @@ udało się ocenić choćby jednego przypadku, jest **bez rozstrzygnięcia** -
 nigdy zaliczony - chyba że coś wprost nie przeszło, i podaje przypadki, których
 nikt nie ocenił. Ponowna publikacja sędziego zmienia sposób oceniania, więc
 następny wynik każdej suity, którą ocenia, będzie raz bez rozstrzygnięcia, a jej
-właściciel dostanie wiadomość.
+właściciel dostanie wiadomość. Odsetek zaliczonych poniżej minimum oblewa
+wynik niezależnie od porównania: minimum nie potrzebuje baseline'u.
 
 Wynik **nie został uruchomiony**, gdy
 kosztowałby więcej, niż zostało w budżecie albo niż własny limit suity, gdy
@@ -439,7 +440,9 @@ Runy z harmonogramu i po zmianie
 zależności porównuje się z ostatnim zaliczonym runem suity na tej samej
 wersji - ostatnim stanem znanym jako dobry, więc przypadek, który się zepsuł,
 pozostaje zepsuty, dopóki ktoś go nie naprawi - i dzięki temu mierzą dryf;
-publikacja i promocja uruchamiają baseline w tym samym runie.
+publikacja i promocja uruchamiają baseline w tym samym runie. Po wyniku,
+którego nie dało się porównać z tym runem, następny nie ma baseline'u: liczą
+się tylko jego własne wyniki, a jeśli przejdzie, z nim porównuje się kolejne.
 
 ### Jako kto działa i kto dostaje wiadomość { #who-it-runs-as-and-who-is-told }
 
@@ -449,8 +452,9 @@ startuje run z harmonogramu, więc zapisanie suity to zgoda na jej koszt, a
 formularz najpierw pokazuje cenę jednego runa i miesiąca harmonogramu. Ktoś
 inny, kto zmieni suitę, przejmuje ją. Suita, której właściciel opuści
 organizację albo nie może jej już uruchomić, zostaje wstrzymana z podanym
-powodem - tak samo jak suita, której środowisko usunięto, zamiast po cichu
-sprawdzać inną wersję.
+powodem - tak samo jak suita, której środowisko usunięto, także już
+wstrzymana, zamiast po cichu sprawdzać inną wersję. Wznowić ją można dopiero
+po ponownym wybraniu środowiska.
 
 Właściciel dostaje wiadomość, gdy wynik nie przechodzi, jest bez
 rozstrzygnięcia albo się nie uruchamia - raz na serię takich wyników na danej

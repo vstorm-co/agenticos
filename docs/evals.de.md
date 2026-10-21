@@ -1,5 +1,5 @@
 ---
-source_sha: "0492e120d8bd"
+source_sha: "7d204fe63485"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -448,7 +448,9 @@ nur ein Fall nicht bewertet werden konnte, ist **ohne Ergebnis** - nie
 bestanden -, es sei denn, etwas ist klar durchgefallen, und es nennt die Fälle,
 die niemand bewertet hat. Den Judge neu zu veröffentlichen ändert, wie Antworten
 bewertet werden, daher ist das nächste Ergebnis jeder Suite, die er bewertet,
-einmal ohne Ergebnis, und ihr Eigentümer wird benachrichtigt.
+einmal ohne Ergebnis, und ihr Eigentümer wird benachrichtigt. Eine
+Bestehensquote unter dem Minimum lässt ein Ergebnis unabhängig vom Vergleich
+durchfallen: Das Minimum braucht keine Baseline.
 
 Ein Ergebnis **ist nicht gelaufen**, wenn es mehr
 kosten würde, als ein Budget oder die eigene Grenze der Suite hergibt, wenn nur
@@ -460,7 +462,9 @@ einer Abhängigkeit werden mit dem letzten bestandenen Lauf der Suite auf
 derselben Version verglichen - dem letzten als gut bekannten Stand, sodass ein
 gebrochener Fall gebrochen bleibt, bis ihn jemand behebt - und messen so die
 Drift; eine Veröffentlichung oder Promotion lässt ihre Baseline im selben Run
-laufen.
+laufen. Nach einem Ergebnis, das sich mit diesem Lauf nicht vergleichen ließ,
+hat der nächste keine Baseline: Er wird an seinen eigenen Zahlen gemessen und
+ist, wenn er besteht, der Lauf, mit dem die folgenden verglichen werden.
 
 ### Als wer sie läuft, und wer benachrichtigt wird { #who-it-runs-as-and-who-is-told }
 
@@ -470,8 +474,9 @@ einem geplanten Lauf beim Start zu, also stimmt, wer eine Suite speichert,
 ihren Kosten zu, und das Formular nennt vorher den Preis eines Laufs und eines
 Monats des Zeitplans. Wer die Suite sonst ändert, übernimmt sie. Eine Suite,
 deren Eigentümer die Organisation verlässt oder sie nicht mehr ausführen kann,
-pausiert mit dem Grund - ebenso eine, deren Umgebung entfernt wird, statt still
-eine andere Version zu prüfen.
+pausiert mit dem Grund - ebenso eine, deren Umgebung entfernt wird, ob schon
+pausiert oder nicht, statt still eine andere Version zu prüfen. Sie lässt sich
+erst fortsetzen, wenn jemand wieder eine Umgebung für sie wählt.
 
 Der Eigentümer wird benachrichtigt, wenn ein Ergebnis nicht besteht, ohne
 Ergebnis bleibt oder nicht läuft - einmal pro Serie solcher Ergebnisse auf einer

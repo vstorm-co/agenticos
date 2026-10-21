@@ -1,5 +1,5 @@
 ---
-source_sha: "0492e120d8bd"
+source_sha: "7d204fe63485"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -427,7 +427,8 @@ pudo puntuar algún caso, queda **sin conclusión** - nunca aprobado - salvo que
 algo haya fallado claramente, y nombra los casos que nadie puntuó. Volver a
 publicar el juez cambia cómo se puntúan las respuestas, así que el siguiente
 resultado de cada suite que puntúa queda una vez sin conclusión, y se avisa a su
-propietario.
+propietario. Una tasa de aprobados por debajo del mínimo suspende el resultado
+sea cual sea su comparación: el mínimo no necesita baseline.
 
 Un resultado **no se ejecutó** cuando costaría
 más de lo que le queda a un presupuesto o más que el límite propio de la
@@ -439,7 +440,9 @@ ejecuciones por horario y por dependencia se comparan con la última ejecución
 aprobada de la suite sobre la misma versión - el último estado que se sabe
 bueno, así que un caso que se rompió sigue roto hasta que alguien lo arregla -
 y así miden la deriva; una publicación o una promoción ejecutan su baseline en
-el mismo run.
+el mismo run. Tras un resultado que no se pudo comparar con esa ejecución, la
+siguiente no tiene baseline: se mide por sus propios números y, si aprueba, es
+la ejecución con la que se comparan las siguientes.
 
 ### Como quién se ejecuta y a quién se avisa { #who-it-runs-as-and-who-is-told }
 
@@ -449,8 +452,9 @@ cómo arranca una ejecución programada, así que guardar una suite es aceptar s
 gasto, y el formulario muestra antes el precio de una ejecución y de un mes de
 horario. Otra persona que cambie la suite pasa a ser su propietaria. Una suite
 cuyo propietario deja la organización, o ya no puede ejecutarla, queda en pausa
-con el motivo, igual que una cuyo entorno se elimina, en lugar de comprobar en
-silencio otra versión.
+con el motivo, igual que una cuyo entorno se elimina, ya en pausa o no, en lugar
+de comprobar en silencio otra versión. Se reanuda solo cuando alguien vuelve a
+elegirle un entorno.
 
 Al propietario se le avisa cuando un resultado no pasa, queda sin conclusión o
 no se ejecuta - una vez por serie de esos resultados sobre una versión, con los
