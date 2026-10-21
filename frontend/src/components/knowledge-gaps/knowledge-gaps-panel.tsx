@@ -16,6 +16,7 @@ import { useKnowledgeGaps, type KnowledgeGapPanelScope } from "@/hooks/use-knowl
 import type { KnowledgeGapStatus } from "@/types/knowledge-gaps";
 import { KnowledgeGapDialog } from "./knowledge-gap-dialog";
 import { KnowledgeGapRow } from "./knowledge-gap-row";
+import { CheckAnswersAiOff } from "./knowledge-gaps-check";
 import { KnowledgeGapsToolbar } from "./knowledge-gaps-toolbar";
 
 /**
@@ -29,14 +30,12 @@ export function KnowledgeGapsPanel({ scope }: { scope: KnowledgeGapPanelScope })
   const [status, setStatus] = useState<KnowledgeGapStatus>("open");
   const [page, setPage] = useState(0);
   const [openTopic, setOpenTopic] = useState<string | null>(null);
-  const { topics, total, ungrouped, canRegroup, isLoading, error, refetch } = useKnowledgeGaps(
-    scope,
-    {
+  const { topics, total, ungrouped, canRegroup, unchecked, isLoading, error, refetch } =
+    useKnowledgeGaps(scope, {
       status,
       skip: page * PAGE_SIZE,
       limit: PAGE_SIZE,
-    },
-  );
+    });
 
   return (
     <>
@@ -47,6 +46,7 @@ export function KnowledgeGapsPanel({ scope }: { scope: KnowledgeGapPanelScope })
           <KnowledgeGapsToolbar
             scope={scope}
             canRegroup={canRegroup}
+            unchecked={unchecked}
             status={status}
             onStatus={(next) => {
               setStatus(next);
@@ -60,6 +60,7 @@ export function KnowledgeGapsPanel({ scope }: { scope: KnowledgeGapPanelScope })
           {scope.kind === "collection" ? t("descriptionCollection") : t("descriptionAgent")}{" "}
           {t("nothingAutomatic")}
         </p>
+        {canRegroup && <CheckAnswersAiOff unchecked={unchecked} />}
         {ungrouped > 0 && (
           <p className="border-border bg-muted/40 text-muted-foreground border-b px-4 py-2 text-xs sm:px-5">
             {t("ungrouped", { count: ungrouped })}
