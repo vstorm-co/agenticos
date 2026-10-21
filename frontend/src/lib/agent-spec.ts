@@ -463,6 +463,7 @@ export function withResource(spec: AgentSpec, resource: AgentResourceRef): Agent
       account: "organization",
       connection_id: resource.id,
       allowed_tools: null,
+      approval: "none",
     };
     return { ...spec, mcp_servers: [...spec.mcp_servers, bound] };
   }
