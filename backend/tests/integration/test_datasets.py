@@ -1071,6 +1071,38 @@ async def test_the_editable_listing_reaches_a_granted_dataset_however_old(db) ->
     assert (await service.list_readable(admin, editable=True, limit=1)).total == 105
 
 
+@pytest.mark.security
+async def test_the_runnable_datasets_are_the_ones_the_caller_may_run_with_a_case(db) -> None:
+    """What decides Test draft, Start and Score against a case: one row, not every dataset."""
+    owner = await _owner(db)
+    service = DatasetService(db)
+    case = DatasetCaseCreate(input="q", reference_answer="a")
+    granted = await service.create(owner, DatasetCreate(name="granted", visibility="private"))
+    await service.add_case(owner, granted.id, case)
+    kept = await service.create(owner, DatasetCreate(name="not granted", visibility="private"))
+    await service.add_case(owner, kept.id, case)
+    await service.create(owner, DatasetCreate(name="empty"))
+    viewer = await _member(db, Organization(id=owner.organization_id), OrgRoleName.VIEWER)
+    db.add(
+        ResourceGrant(
+            organization_id=owner.organization_id,
+            subject_user_id=viewer.user_id,
+            resource_type="dataset",
+            resource_id=granted.id,
+            level=GrantLevel.USE.value,
+        )
+    )
+    await db.flush()
+
+    for_viewer = await service.list_readable(viewer, runnable=True, limit=1)
+    for_owner = await service.list_readable(owner, runnable=True, sort="name")
+
+    # A Viewer's role runs nothing; the grant on one dataset is the whole answer.
+    assert ([item.name for item in for_viewer.items], for_viewer.total) == (["granted"], 1)
+    # The owner runs every dataset - except one with no case to run.
+    assert [item.name for item in for_owner.items] == ["granted", "not granted"]
+
+
 @pytest.mark.parametrize("scope", list(Scope))
 async def test_the_editable_predicate_admits_exactly_what_resolve_access_does(
     db, scope: Scope
