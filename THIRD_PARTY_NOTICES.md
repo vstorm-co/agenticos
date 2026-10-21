@@ -23,7 +23,7 @@ names no author is in the evidence column below.
 
 | Licence | Backend | Frontend |
 |---|---:|---:|
-| MIT | 105 | 241 |
+| MIT | 105 | 242 |
 | Apache-2.0 | 64 | 24 |
 | BSD-3-Clause | 24 | 4 |
 | ISC | 3 | 16 |
@@ -279,7 +279,7 @@ names no author is in the evidence column below.
 
 ## Frontend image (npm)
 
-292 distributions.
+293 distributions.
 
 | Component | Version | Licence | Source | Evidence |
 |---|---|---|---|---|
@@ -564,6 +564,7 @@ names no author is in the evidence column below.
 | unist-util-stringify-position | 4.0.0 | MIT | https://github.com/syntax-tree/unist-util-stringify-position | package.json license |
 | unist-util-visit | 5.1.0 | MIT | https://github.com/syntax-tree/unist-util-visit | package.json license |
 | unist-util-visit-parents | 6.0.2 | MIT | https://github.com/syntax-tree/unist-util-visit-parents | package.json license |
+| uqr | 0.1.3 | MIT | https://github.com/unjs/uqr | package.json license |
 | use-callback-ref | 1.3.3 | MIT | https://github.com/theKashey/use-callback-ref/ | package.json license |
 | use-intl | 4.14.5 | MIT | https://github.com/amannn/next-intl | package.json license |
 | use-sidecar | 1.1.3 | MIT | https://github.com/theKashey/use-sidecar | package.json license |
