@@ -11,6 +11,7 @@ import { DatasetHeader } from "@/components/datasets/dataset-header";
 import { DatasetShareDialog } from "@/components/datasets/dataset-share-dialog";
 import { EditDatasetDialog } from "@/components/datasets/edit-dataset-dialog";
 import { EmptyCases } from "@/components/datasets/empty-cases";
+import { GeneratePanel } from "@/components/datasets/generate-panel";
 import { ReviewPanel } from "@/components/datasets/review-panel";
 import { GradingPanel } from "@/components/datasets/grading-panel";
 import { VersionSelect } from "@/components/datasets/version-select";
@@ -43,7 +44,7 @@ interface PageProps {
 }
 
 /** The tabs `?tab=` may open, in the order they are drawn. */
-const TABS = ["cases", "grading", "evals", "review"];
+const TABS = ["cases", "generated", "grading", "evals", "review"];
 
 /** What the case dialog is showing: a new case, or one from the list. */
 type Editing = { draft: CaseDraft; item: DatasetCase | null } | null;
@@ -71,6 +72,7 @@ export default function DatasetPage({ params }: PageProps) {
   const [editing, setEditing] = useState<Editing>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [gradingUnsaved, setGradingUnsaved] = useState(false);
+  const [tab, setTab] = useState(asked !== null && TABS.includes(asked) ? asked : "cases");
   const { dataset, error: datasetError, update, remove } = useDataset(id);
   // Every read behind the Evals tab and the run it starts takes runs:view.
   const canViewRuns = usePermissions().can(Perm.runsView);
@@ -97,6 +99,9 @@ export default function DatasetPage({ params }: PageProps) {
   }
 
   const editable = dataset.can_edit && version === null;
+  // A link reaches a reader too, who may have no such tab.
+  const shown =
+    (tab === "generated" && !dataset.can_edit) || (tab === "evals" && !canViewRuns) ? "cases" : tab;
   const save = (content: DatasetCaseContent) =>
     editing?.item
       ? cases.update.mutateAsync({ caseId: editing.item.case_id, content })
@@ -119,16 +124,14 @@ export default function DatasetPage({ params }: PageProps) {
         }
       />
 
-      <Tabs
-        defaultValue={
-          asked !== null && TABS.includes(asked) && (asked !== "evals" || canViewRuns)
-            ? asked
-            : "cases"
-        }
-        className="space-y-4"
-      >
+      <Tabs value={shown} onValueChange={setTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="cases">{t("cases")}</TabsTrigger>
+          {dataset.can_edit && (
+            <TabsTrigger value="generated" data-tour="datasets-generated-tab">
+              {t("generatedTab", { count: dataset.pending_proposals })}
+            </TabsTrigger>
+          )}
           <TabsTrigger value="grading" data-tour="datasets-grading-tab">
             {t("scoring.title")}
             {gradingUnsaved && (
@@ -185,6 +188,7 @@ export default function DatasetPage({ params }: PageProps) {
                   editable ? () => setEditing({ draft: EMPTY_DRAFT, item: null }) : undefined
                 }
                 onImport={editable ? (file) => cases.importFile.mutateAsync(file) : undefined}
+                onGenerate={editable ? () => setTab("generated") : undefined}
               />
             ) : (
               <div className="space-y-4">
@@ -210,6 +214,11 @@ export default function DatasetPage({ params }: PageProps) {
             )}
           </ListCard>
         </TabsContent>
+        {dataset.can_edit && (
+          <TabsContent value="generated">
+            <GeneratePanel datasetId={id} />
+          </TabsContent>
+        )}
         {/* Kept mounted while another tab is open, so a card's unsaved change
             survives looking at the cases it is about. */}
         <TabsContent value="grading" forceMount className="data-[state=inactive]:hidden">

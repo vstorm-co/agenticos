@@ -87,6 +87,15 @@ export function useSystemAgents() {
 }
 
 /**
+ * The organization's case generator, the system agent that drafts dataset cases;
+ * null where the caller cannot see it. Every other agent list leaves it out.
+ */
+export function useCaseGenerator({ enabled = true } = {}) {
+  const { agents } = useAgentsOfKind("generator", { enabled });
+  return agents.find((agent) => agent.system_key === "case_generator") ?? null;
+}
+
+/**
  * The agent registry.
  *
  * Mutations invalidate rather than patch the cache. An agent's status and

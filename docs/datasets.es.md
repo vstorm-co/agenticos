@@ -1,5 +1,5 @@
 ---
-source_sha: "39877587ca0f"
+source_sha: "da763475f799"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -11,9 +11,10 @@ cada comprobación de si un cambio mejoró al agent consiste en que alguien prue
 unos cuantos prompts a mano e intenta recordar cómo era la última respuesta.
 
 Cada pregunta es un **caso**: el mensaje que responde el agent y cómo es una
-buena respuesta. Los casos vienen de tres sitios: escritos en la consola,
-importados de un archivo o tomados de una conversación real en la que alguien
-valoró la respuesta con un pulgar abajo. Este último suele ser el más útil,
+buena respuesta. Los casos vienen de cuatro sitios: escritos en la consola,
+importados de un archivo, tomados de una conversación real en la que alguien
+valoró la respuesta con un pulgar abajo, o redactados por el generador de casos
+y aceptados por una persona. Este último suele ser el más útil,
 porque es una pregunta que una persona hizo de verdad y una respuesta que de
 verdad la decepcionó.
 
@@ -55,8 +56,8 @@ Los adjuntos no forman parte de un caso en esta versión. Un caso es texto.
 
 ## Cada cambio es una versión nueva { #versions }
 
-Añadir, editar o eliminar un caso, e importar un archivo, crean cada uno una
-nueva **versión** del dataset, numerada desde 1. Una versión nunca cambia
+Añadir, editar o eliminar un caso, importar un archivo y aceptar casos generados
+crean cada uno una nueva **versión** del dataset, numerada desde 1. Una versión nunca cambia
 después de crearse. Un caso editado se guarda como una revisión nueva, y la
 versión anterior a la edición sigue conteniendo la antigua.
 
@@ -182,6 +183,70 @@ abrir la conversación. Un mensaje de otra organización se rechaza como si no
 existiera, y una respuesta que ya es un caso de la versión más reciente del
 dataset se rechaza en lugar de añadirse dos veces.
 
+### Generados por el generador de casos { #generating-cases }
+
+Escribir cien buenos casos a mano es la razón por la que la mayoría de los
+equipos no tiene ninguno. La pestaña **Generados** de la página de un dataset, visible para
+quienes pueden editarlo, pide al
+generador de casos que los redacte, y tú decides cuáles conserva el dataset.
+Elige el agent que prueban los casos, las fuentes y cuántos casos quieres: como
+máximo 50 y al menos uno por fuente, repartidos por igual entre las fuentes.
+
+| Fuente | Qué redacta el generador | Qué se le muestra |
+|---|---|---|
+| Del agent | Peticiones típicas y casos límite, con las llamadas a herramientas que cambian algo que hace una buena respuesta; una herramienta que solo lee nunca se espera, como en un caso añadido desde una respuesta | Las instrucciones del agent, aquellas de sus skills que puedes ver y sus herramientas, con los nombres que el agent les da |
+| Del conocimiento | Preguntas que responde su base de conocimiento. Cada caso enlaza con el documento del que procede su fragmento, guarda el fragmento como respuesta de referencia y lleva una comprobación `judge` de que la respuesta concuerda con el fragmento | Fragmentos de hasta 12 documentos indexados de las bases de conocimiento que usa el agent y que tú puedes leer |
+| De chats | Paráfrasis y variantes más difíciles de lo que la gente preguntó al agent, primero las respuestas valoradas negativamente. Cada caso enlaza con la pregunta que varía | Hasta 60 preguntas que se hicieron al agent en esta organización, con el comentario dejado en una respuesta valorada negativamente. Solo tráfico de producción: los runs de eval y los runs aislados respondieron a una prueba, no a una persona, y se dejan fuera |
+| Red team | Peticiones fuera de su ámbito, inyecciones de prompt, intentos de obtener datos personales e intentos de saltarse las políticas del agent. Cada caso lleva las etiquetas `red-team` y `red-team:<categoría>` y una comprobación `judge` de que el agent se niega | Las instrucciones del agent, aquellas de sus skills que puedes ver y sus herramientas |
+
+**Primero, el coste estimado.** El diálogo muestra cuántos casos se pedirán a
+cada fuente, de cuánto material dispone cada una y una estimación del coste,
+antes de gastar nada. Es una estimación: el presupuesto del generador se
+comprueba cuando se ejecuta, como el de cualquier agent. Cambiar el agent, las
+fuentes o el número descarta la estimación.
+
+**Nada llega al dataset hasta que lo aceptas.** Los borradores esperan en
+**Casos propuestos**, en la pestaña Generados. Acepta uno tal cual, edítalo
+antes o descártalo, de uno en uno o una página entera. Un Aceptar es una versión
+nueva, lleve lo que lleve, y sus casos tienen la fuente `synthetic`. Un borrador
+descartado se elimina y no deja nada en el dataset. Uno aceptado también
+desaparece de los borradores: la versión es su registro. Un borrador de chats
+parafrasea lo que alguien preguntó, así que solo lo lee y decide quien puede ver
+runs; el resto de quienes editan el dataset ve cuántos esperan.
+
+**El generador es un agent.** Es un agent de sistema creado en cada
+organización, así que sus runs cuentan contra su propio presupuesto y el de la
+organización, y cada generación es un run que puedes abrir en
+[Actividad](console.md). No tiene herramientas: todo lo que lee se reúne para él
+con tus propios permisos y se le entrega en el prompt, de modo que un documento
+o una conversación que intente darle instrucciones solo puede cambiar el texto
+de un borrador que tú revisas. Un borrador que no cumple la regla de su fuente
+(un caso de conocimiento sin un fragmento que se le mostró, un caso de
+conversación sin una pregunta que se le mostró, un caso de red team sin
+categoría, un caso que no espera nada, un caso cuya respuesta de referencia
+repite su contraejemplo y por tanto fallaría ella misma) se descarta antes de
+que lo veas.
+
+**Cada fuente tiene su propia barrera**, y una fuente que no puedes usar se
+rechaza por su nombre en lugar de omitirse en silencio:
+
+- toda generación necesita `datasets:edit` en el dataset, `agents:view` en el
+  agent que se prueba y `agents:run` en el generador de casos, porque gasta el
+  dinero de la organización;
+- el conocimiento solo lee las bases de conocimiento que puedes leer; el diálogo
+  dice cuántas de las del agent se dejaron fuera;
+- las conversaciones necesitan `runs:view`, el permiso con el que Actividad lee
+  cada run;
+- la asistencia de IA está desactivada en cada organización hasta que un Owner
+  o un Admin la activa en los ajustes de la organización, y mientras está
+  desactivada no empieza ninguna generación; la pestaña lo dice y dice quién
+  puede cambiarlo. Los borradores que ya esperan se pueden seguir aceptando o
+  descartando, porque decidirlos no llama a ningún modelo.
+
+Solo los miembros que pueden editar el dataset ven sus borradores. Un borrador
+tomado de una conversación es texto que los demás lectores del dataset no han
+visto; una vez aceptado, es un caso como cualquier otro.
+
 ## Las credenciales se ocultan { #credentials }
 
 El texto de los casos se copia de conversaciones y de archivos que la gente
@@ -189,8 +254,10 @@ sube, y después se exporta y se entrega a modelos. Antes de guardar un caso, la
 plataforma sustituye cualquier clave de API o token que reconoce por un
 marcador como `[redacted:github_token]`. Esto se aplica a cada campo que lee un
 modelo o que lleva una exportación, incluidos los argumentos de una llamada a
-herramienta esperada, y a cada forma de añadir un caso. La entrada de auditoría
-del cambio registra cuántos valores se ocultaron, nunca los valores.
+herramienta esperada, y a cada forma de añadir un caso. Una generación también
+oculta las credenciales de las preguntas y los fragmentos que entrega al
+generador, antes de que salgan hacia el modelo. La entrada de auditoría del
+cambio registra cuántos valores se ocultaron, nunca los valores.
 
 ## Calificación { #scoring }
 
@@ -525,3 +592,13 @@ persona de cuyo run se trata, y se borra cuando se borra a esa persona. Cuando
 se elimina el run que puntuó, la puntuación se queda sin el vínculo con él, y
 cuando se borra a la persona que la pidió o la decidió, su nombre se quita de
 ella. El motivo de un juez puede citar la respuesta que calificó.
+
+Un caso generado que aún espera una decisión no se conserva así. Cuando se
+borra la conversación de la que se redactó, o se borra a la persona que hizo la
+pregunta, el borrador se elimina con ella: nadie decidió conservarlo. La
+exportación de datos de una persona incluye los borradores tomados de sus
+preguntas y conversaciones. Generar
+desde conversaciones envía las preguntas que hizo la gente, con las credenciales
+ocultas, al provider del modelo del generador de casos, y generar desde el
+conocimiento envía fragmentos de los documentos; consulta
+[qué sale del deployment](data-protection.md#what-leaves-the-deployment).

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from itertools import takewhile
 from typing import Any
@@ -33,12 +34,14 @@ from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundErr
 from app.core.exceptions import ValidationError as InvalidCaseError
 from app.core.field_errors import field_problems, refused_field
 from app.core.permissions import AuthContext, Perm, Scope
+from app.db.models.case_generation import CaseOrigin
 from app.db.models.conversation import Message
 from app.db.models.dataset import CaseSource, Dataset, DatasetCase, DatasetChange, DatasetVersion
 from app.db.updates import writable
 from app.repositories import (
     agent_repo,
     agent_run_repo,
+    case_generation_repo,
     conversation_repo,
     dataset_repo,
     message_rating_repo,
@@ -102,6 +105,17 @@ def _refuse_past_ceiling(held: int, adding: int) -> None:
         )
 
 
+@dataclass(frozen=True)
+class GeneratedCase:
+    """A generated case on its way into a dataset, with what it was drafted from."""
+
+    content: DatasetCaseContent
+    source_document_id: UUID | None = None
+    source_run_id: UUID | None = None
+    source_conversation_id: UUID | None = None
+    source_message_id: UUID | None = None
+
+
 def _refuse_past_storage(used: int, adding: int) -> None:
     """Refuse a version that would take the organization past its stored case rows.
 
@@ -122,7 +136,16 @@ def _refuse_past_storage(used: int, adding: int) -> None:
         )
 
 
-def _redact(text: str | None) -> tuple[str | None, int]:
+def proposals_hidden_from(ctx: AuthContext) -> str | None:
+    """The origin of the proposed cases this caller may not read, if any.
+
+    A draft from chats paraphrases what somebody else asked an agent, which only
+    a reader of runs may see - the same gate drafting from chats takes.
+    """
+    return None if ctx.has(Perm.RUNS_VIEW) else CaseOrigin.CONVERSATION.value
+
+
+def redact_credentials(text: str | None) -> tuple[str | None, int]:
     """The text with any credential replaced by a placeholder, and how many were."""
     if not text:
         return text, 0
@@ -134,7 +157,7 @@ def _redact(text: str | None) -> tuple[str | None, int]:
 
 def _redact_json(value: JsonValue) -> tuple[JsonValue, int]:
     if isinstance(value, str):
-        cleaned, found = _redact(value)
+        cleaned, found = redact_credentials(value)
         return cleaned, found
     if isinstance(value, list):
         items = [_redact_json(item) for item in value]
@@ -147,7 +170,7 @@ def _redact_json(value: JsonValue) -> tuple[JsonValue, int]:
     return value, 0
 
 
-def _redacted(content: DatasetCaseContent) -> tuple[dict[str, Any], int]:
+def redacted_case(content: DatasetCaseContent) -> tuple[dict[str, Any], int]:
     """A case's fields ready for its row, with every credential in them redacted.
 
     Everything a model is later handed or a person exports: the turns, the
@@ -158,10 +181,10 @@ def _redacted(content: DatasetCaseContent) -> tuple[dict[str, Any], int]:
     data = content.model_dump(mode="json")
     found = 0
     for field in ("input", "reference_answer", "counter_example", "note"):
-        data[field], count = _redact(data[field])
+        data[field], count = redact_credentials(data[field])
         found += count
     for turn in data["history"]:
-        turn["content"], count = _redact(turn["content"])
+        turn["content"], count = redact_credentials(turn["content"])
         found += count
     for call in data["expected_tool_calls"]:
         call["args"], count = _redact_json(call["args"])
@@ -190,6 +213,7 @@ def _dataset_read(
     can_run: bool,
     judge_name: str | None,
     stats: DatasetStats | None = None,
+    pending: int = 0,
 ) -> DatasetRead:
     return DatasetRead(
         stats=stats or DatasetStats(),
@@ -203,6 +227,7 @@ def _dataset_read(
         case_count=dataset.case_count,
         can_edit=can_edit,
         can_run=can_run,
+        pending_proposals=pending if can_edit else 0,
         scoring=DatasetScoring.model_validate(dataset.scoring),
         created_at=dataset.created_at,
         updated_at=dataset.updated_at,
@@ -236,6 +261,14 @@ class DatasetService:
     async def _can_edit(self, ctx: AuthContext, dataset: Dataset) -> bool:
         return await resolve_access(
             self.db, ctx, dataset, Perm.DATASETS_EDIT, resource_type=DATASET
+        )
+
+    async def _pending(self, ctx: AuthContext, dataset_ids: list[UUID]) -> dict[UUID, int]:
+        return await case_generation_repo.count_pending(
+            self.db,
+            dataset_ids,
+            organization_id=ctx.organization_id,
+            without_origin=proposals_hidden_from(ctx),
         )
 
     async def _stats(self, ctx: AuthContext, datasets: list[Dataset]) -> dict[UUID, DatasetStats]:
@@ -272,16 +305,19 @@ class DatasetService:
 
     async def read(self, ctx: AuthContext, dataset_id: UUID) -> DatasetRead:
         dataset = await self.get(ctx, dataset_id)
+        can_edit = await self._can_edit(ctx, dataset)
+        pending = (await self._pending(ctx, [dataset.id])).get(dataset.id, 0) if can_edit else 0
         stats = await self._stats(ctx, [dataset])
         judges = await self._judge_names(ctx, [dataset])
         return _dataset_read(
             dataset,
-            can_edit=await self._can_edit(ctx, dataset),
+            can_edit=can_edit,
             can_run=await resolve_access(
                 self.db, ctx, dataset, Perm.DATASETS_RUN, resource_type=DATASET
             ),
             judge_name=judges.get(dataset.id),
             stats=stats.get(dataset.id),
+            pending=pending,
         )
 
     async def list_readable(
@@ -356,6 +392,7 @@ class DatasetService:
         may_run = await accessible_ids(
             self.db, ctx, items, Perm.DATASETS_RUN, resource_type=DATASET
         )
+        pending = await self._pending(ctx, [item.id for item in items if item.id in may_edit])
         stats = await self._stats(ctx, items)
         judges = await self._judge_names(ctx, items)
         return DatasetList(
@@ -366,6 +403,7 @@ class DatasetService:
                     can_run=item.id in may_run,
                     judge_name=judges.get(item.id),
                     stats=stats.get(item.id),
+                    pending=pending.get(item.id, 0),
                 )
                 for item in items
             ],
@@ -653,7 +691,7 @@ class DatasetService:
     ) -> DatasetCaseRead:
         dataset = await self._locked(ctx, dataset_id)
         previous = await self._version(ctx, dataset, None)
-        fields, redacted = _redacted(content)
+        fields, redacted = redacted_case(content)
         case = self._revision(ctx, dataset, fields, source=source, **provenance)
         await self._mint(
             ctx,
@@ -670,6 +708,53 @@ class DatasetService:
     ) -> DatasetCaseRead:
         """Add a case written by hand, as a new version."""
         return await self._add(ctx, dataset_id, data, source=CaseSource.MANUAL)
+
+    async def lock_for_edit(self, ctx: AuthContext, dataset_id: UUID) -> Dataset:
+        """The dataset, locked until the transaction ends, for a caller who may edit it.
+
+        For work that must read something under the same lock a version is
+        minted under, before handing what it read to :meth:`add_generated`.
+
+        Raises:
+            NotFoundError: As :meth:`get` does, for a dataset the caller may not edit.
+        """
+        return await self._locked(ctx, dataset_id)
+
+    async def add_generated(
+        self, ctx: AuthContext, dataset: Dataset, cases: list[GeneratedCase]
+    ) -> DatasetVersionRead:
+        """Add generated cases a person accepted, as one new version.
+
+        `dataset` comes from :meth:`lock_for_edit` in this transaction. Every case
+        is redacted again on the way in, because a reviewer may have edited it.
+        """
+        previous = await self._version(ctx, dataset, None)
+        revisions: list[DatasetCase] = []
+        redacted = 0
+        for case in cases:
+            fields, found = redacted_case(case.content)
+            redacted += found
+            revisions.append(
+                self._revision(
+                    ctx,
+                    dataset,
+                    fields,
+                    source=CaseSource.SYNTHETIC,
+                    source_document_id=case.source_document_id,
+                    source_run_id=case.source_run_id,
+                    source_conversation_id=case.source_conversation_id,
+                    source_message_id=case.source_message_id,
+                )
+            )
+        version = await self._mint(
+            ctx,
+            dataset,
+            change=DatasetChange.GENERATE,
+            previous=previous,
+            added=revisions,
+            redacted=redacted,
+        )
+        return _version_read(version)
 
     async def _held_case(
         self, ctx: AuthContext, dataset: Dataset, case_id: UUID
@@ -746,11 +831,12 @@ class DatasetService:
                 message="This edit leaves a case that is not valid",
                 details={"fields": field_problems(exc.errors(), root="")},
             ) from None
-        fields, redacted = _redacted(content)
+        fields, redacted = redacted_case(content)
         provenance = {
             "source_run_id": current.source_run_id,
             "source_conversation_id": current.source_conversation_id,
             "source_message_id": current.source_message_id,
+            "source_document_id": current.source_document_id,
         }
         revision = self._revision(
             ctx,
@@ -800,7 +886,7 @@ class DatasetService:
         revisions: list[DatasetCase] = []
         redacted = 0
         for case in cases:
-            fields, found = _redacted(case)
+            fields, found = redacted_case(case)
             redacted += found
             revisions.append(self._revision(ctx, current, fields, source=CaseSource.IMPORT))
         dataset = await self._locked(ctx, dataset_id)
@@ -1053,7 +1139,7 @@ class DatasetService:
         revisions: list[DatasetCase] = []
         redacted = 0
         for content, provenance in built:
-            fields, found = _redacted(content)
+            fields, found = redacted_case(content)
             redacted += found
             revisions.append(
                 self._revision(ctx, current, fields, source=CaseSource.CONVERSATION, **provenance)
