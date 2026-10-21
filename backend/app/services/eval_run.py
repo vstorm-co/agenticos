@@ -1264,6 +1264,7 @@ class EvalRunService:
                         model_label=arm.model_label,
                         reused_from_arm_id=arm.reused_from_arm_id,
                         spec_hash=arm.spec_hash,
+                        skill_ids=[UUID(skill_id) for skill_id in arm.skill_bodies or {}],
                         summary=_summary_read(summary),
                         by_tag={tag: _summary_read(s) for tag, s in summary.by_tag.items()},
                         ungraded_cases=[

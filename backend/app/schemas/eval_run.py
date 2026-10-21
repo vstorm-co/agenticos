@@ -156,6 +156,10 @@ class EvalRunArmRead(BaseSchema):
     model_label: str
     reused_from_arm_id: UUID | None
     spec_hash: str = Field(description="A fingerprint of the spec that answered")
+    skill_ids: list[UUID] = Field(
+        default_factory=list,
+        description="The skills this side served a proposed body for instead of the stored one",
+    )
     summary: ArmSummaryRead
     by_tag: dict[str, ArmSummaryRead]
     ungraded_cases: list[EvalUngradedCaseRead] = Field(
