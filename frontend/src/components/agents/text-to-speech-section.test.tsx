@@ -15,6 +15,14 @@ vi.mock("@/hooks/use-model-providers", () => ({
   useTextToSpeechProviders: () => providers(),
 }));
 
+/** The vault, as the key picker reads it. */
+const secrets = vi.fn();
+vi.mock("@/hooks", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks")>()),
+  useSecrets: () => secrets(),
+  usePermissions: () => ({ can: () => false }),
+}));
+
 const OPENAI = {
   provider: "openai",
   name: "OpenAI",
@@ -82,11 +90,14 @@ const DEFINITION: CapabilityCatalogEntry = {
   requires_secret: null,
 };
 
-function mount(config: Record<string, unknown> = { provider: "openai", model: "gpt-4o-mini-tts" }) {
+function mount(
+  config: Record<string, unknown> = { provider: "openai", model: "gpt-4o-mini-tts" },
+  definition: CapabilityCatalogEntry = DEFINITION,
+) {
   const onChange = vi.fn();
   render(
     <TextToSpeechSection
-      definition={DEFINITION}
+      definition={definition}
       binding={
         {
           id: "text_to_speech",
@@ -106,6 +117,7 @@ function mount(config: Record<string, unknown> = { provider: "openai", model: "g
 
 beforeEach(() => {
   providers.mockReturnValue({ providers: [OPENAI, ELEVENLABS], isLoading: false, isError: false });
+  secrets.mockReturnValue({ secrets: [], isLoading: false, listError: null, create: vi.fn() });
 });
 
 describe("choosing what speaks", () => {
@@ -316,5 +328,56 @@ describe("what the panel says about the catalog", () => {
     );
 
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe("the key it speaks with", () => {
+  /** As the server declares it: every provider needs a key of its own purpose. */
+  const KEYED: CapabilityCatalogEntry = {
+    ...DEFINITION,
+    requires_secret: {
+      kind: "api_key",
+      description: "The API key for the chosen speech provider",
+      required_when: { field: "provider", equals: ["openai", "elevenlabs"] },
+      purpose: null,
+    },
+  };
+  const key = (id: string, purpose: string) => ({
+    id,
+    name: `${purpose} key`,
+    description: null,
+    kind: "api_key",
+    hint: "abcd",
+    purpose,
+  });
+
+  it("asks for the default provider's key before any provider is picked", async () => {
+    // `config: {}` is what switching the capability on stores, and the server
+    // resolves it to the catalog's first provider - which needs a key. Reading the
+    // condition against the stored config hid the picker while publish refused
+    // the spec for the key it gave no way to choose.
+    secrets.mockReturnValue({
+      secrets: [key("sec-openai", "openai"), key("sec-eleven", "elevenlabs")],
+      isLoading: false,
+      listError: null,
+      create: vi.fn(),
+    });
+    const onChange = mount({}, KEYED);
+
+    await userEvent.click(screen.getByLabelText("Secret"));
+
+    expect(screen.queryByRole("option", { name: /elevenlabs key/ })).toBeNull();
+    await userEvent.click(screen.getByRole("option", { name: /openai key/ }));
+    // The provider the key is for is stored with it, so a catalog reordered later
+    // cannot move this key onto another provider's API.
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ secret_id: "sec-openai", config: { provider: "openai" } }),
+    );
+  });
+
+  it("leaves a provider somebody stored alone", async () => {
+    mount({ provider: "elevenlabs", model: "eleven_v4_turbo" }, KEYED);
+
+    expect(screen.getByLabelText("Secret")).toHaveTextContent("No api_key secret in the vault");
   });
 });
