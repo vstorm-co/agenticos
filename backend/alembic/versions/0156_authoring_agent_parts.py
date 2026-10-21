@@ -17,7 +17,7 @@ context proposal before narrowing the checks they would break, then drops the
 columns and the table.
 
 Revision ID: 0156_authoring_agent_parts
-Revises: 0154_dataset_version_spans
+Revises: 0155_promotion_gate
 Create Date: 2026-10-22
 """
 
@@ -29,7 +29,7 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 revision: str = "0156_authoring_agent_parts"
-down_revision: str | None = "0154_dataset_version_spans"
+down_revision: str | None = "0155_promotion_gate"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

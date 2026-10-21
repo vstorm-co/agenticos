@@ -1,5 +1,5 @@
 ---
-source_sha: "ed8f0bf377ed"
+source_sha: "2d16b5486721"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -427,6 +427,13 @@ esa misma versión, así que una publicación seguida de la promoción de esa
 versión es una sola ejecución. Una suite ejecuta un eval run a la vez; un
 cambio que llega mientras tanto espera al siguiente. Una suite en pausa no se
 ejecuta, ni por un disparador ni a mano.
+
+Una suite que **guarda un entorno** también se ejecuta antes de una promoción a
+él - en la versión a punto de promocionarse, al lado de la que el entorno sirve -
+y la promoción espera a que pase; véase
+[Guardar una promoción con evals](environments.md#guarding-a-promotion-with-evals).
+Sus resultados se leen *Antes de la promoción* (`gate`). Una suite que guarda un
+entorno no se puede borrar hasta quitarla de allí.
 
 ### Qué debe cumplir un resultado { #what-a-result-must-meet }
 

@@ -867,7 +867,11 @@
     "platformAllHint": "Every call waits for approval, reading included.",
     "platformTools": "Tools this agent may call",
     "platformWritesBadge": "changes something",
-    "platformRemove": "Remove from this agent"
+    "platformRemove": "Remove from this agent",
+    "guardsSaved": "Guards saved",
+    "failedGuards": "Failed to save the guards",
+    "guardsStarted": "{count, plural, =0 {Nothing to run - every guard has passed or is already checking} =1 {Started 1 eval suite} other {Started # eval suites}}",
+    "failedGuardsRun": "Failed to run the guards"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -4289,6 +4293,10 @@
       "agent-assistant-strip": {
         "title": "The authoring assistant",
         "body": "Ask it to improve the agent from rated-down answers, or to check your own edits. Each suggestion waits for you to accept it into the draft."
+      },
+      "agent-environment-guards": {
+        "title": "Guards",
+        "body": "Name the eval suites an environment needs to pass on a version before it takes it. A version that has not passed them is held back, and an override needs a reason and the permission to give one."
       }
     },
     "chooseLanguage": "Language"
@@ -5406,7 +5414,9 @@
       "prefMcpServerRecovered": "MCP server answering again",
       "prefMcpServerRecoveredTrigger": "A server that stopped answering is back, and agents bound to it have its tools again.",
       "prefEvalSuiteFailed": "An eval suite failed",
-      "prefEvalSuiteFailedTrigger": "A suite you own fell below its threshold or could not run. Sent once per run of failures on a version, naming the cases that broke."
+      "prefEvalSuiteFailedTrigger": "A suite you own fell below its threshold or could not run. Sent once per run of failures on a version, naming the cases that broke.",
+      "prefPromotionOverridden": "A promotion went past its evals",
+      "prefPromotionOverriddenTrigger": "A version went to an environment past an eval suite you own that had not passed on it. Names the suites and the reason given."
     },
     "skills": {
       "agentsBoundSkillWill": "Agents bound to this skill will run without it from their next run. This cannot be undone.",
@@ -9032,5 +9042,50 @@
       "send": "Describe it to the Architect",
       "prompt": "Draft an agent for me: {description}"
     }
+  },
+  "promotionGate": {
+    "title": "Promote v{version} to {name}",
+    "body": "{name} takes a version only once the eval suites guarding it have passed on that version.",
+    "state": {
+      "passed": "Passed",
+      "failed": "Failed",
+      "inconclusive": "Inconclusive",
+      "skipped": "Did not run",
+      "error": "Error",
+      "checking": "Checking",
+      "stale": "Out of date",
+      "unchecked": "Not checked",
+      "paused": "Paused"
+    },
+    "hint": {
+      "passed": "Passed on this version.",
+      "failed": "Fell short on this version.",
+      "inconclusive": "Could not decide on this version.",
+      "skipped": "Did not run on this version.",
+      "error": "Ended without a verdict on this version.",
+      "checking": "A run on this version is waiting or going.",
+      "stale": "Its last result read other cases or another threshold than the suite holds now.",
+      "unchecked": "Has not run on this version yet."
+    },
+    "passing": "Every guard passed on v{version}.",
+    "overrideTitle": "Promote anyway",
+    "overrideBody": "Your reason goes to the audit log and onto the version, and the suites' owners are told.",
+    "overrideReason": "Why",
+    "overridePlaceholder": "What makes this version safe to promote without passing its evals",
+    "overrideSubmit": "Promote past the evals",
+    "run": "Run the evals on v{version}",
+    "promote": "Promote",
+    "noSuites": "This agent has no eval suites yet. Set one up on the Evals tab to guard an environment with it.",
+    "guardsHelp": "Suites {name} requires to pass on a version before it takes it.",
+    "storeGuards": "Save guards",
+    "guardsReadOnly": "Changing these needs permission to override promotions.",
+    "guardedBy": "{count, plural, =1 {Guarded by 1 suite} other {Guarded by # suites}}",
+    "waiting": "Waiting for its evals on v{version}",
+    "guardsFor": "Eval suites guarding {name}",
+    "overriddenOn": "Overridden on {name}",
+    "overrideDetail": "{who} promoted it past {suites}: {reason}",
+    "someoneWhoLeft": "Someone who has left",
+    "readFailed": "Could not read the evals guarding this environment.",
+    "retry": "Try again"
   }
 }

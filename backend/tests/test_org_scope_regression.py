@@ -38,6 +38,7 @@ from app.repositories import (
     knowledge_base_repo,
     knowledge_gap_repo,
     personal_data_repo,
+    promotion_gate_repo,
     rag_document_repo,
 )
 from app.services.conversation import ConversationService
@@ -175,6 +176,16 @@ TENANT_REQUIRED = [
     (eval_suite_repo, "latest_results"),
     (eval_suite_repo, "open_results"),
     (eval_suite_repo, "started_runs"),
+    (eval_suite_repo, "settled_on_version"),
+    (eval_suite_repo, "open_on_version"),
+    (promotion_gate_repo, "guards_for"),
+    (promotion_gate_repo, "replace_guards"),
+    (promotion_gate_repo, "guarded_by"),
+    (promotion_gate_repo, "guarded_by_dataset"),
+    (promotion_gate_repo, "guarding_through"),
+    (promotion_gate_repo, "guarded_following_latest"),
+    (promotion_gate_repo, "add_override"),
+    (promotion_gate_repo, "overrides_for_versions"),
 ]
 
 # Deliberately unscoped, each documented at its definition.
@@ -193,6 +204,7 @@ CROSS_TENANT_BY_DESIGN = [
     (eval_suite_repo, "claim_due_schedules"),
     (eval_suite_repo, "claim_pending"),
     (eval_suite_repo, "claim_finished"),
+    (promotion_gate_repo, "guarded_followers"),
 ]
 
 

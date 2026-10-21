@@ -1,5 +1,5 @@
 ---
-source_sha: "a2a5b8893b6f"
+source_sha: "360ebba0a084"
 ---
 
 # Governance { #governance }
@@ -1695,6 +1695,21 @@ Ein Bewerter wird nie bereitgestellt: Kein Kanal, kein Embed, keine
 an ihn delegieren, und ein Run auf einer anderen Oberfläche als `eval` wird
 abgelehnt. Seine Ausgaben entstehen daher nur durch die Funktionen oben.
 
+## Übergangene Promotionen { #promotion-overrides }
+
+Eine Umgebung, die von [Eval-Suites bewacht](environments.md#guarding-a-promotion-with-evals)
+wird, übernimmt eine Version erst, wenn sie auf ihr bestehen. An ihnen vorbei zu
+promoten ist ein **Übergehen**: Es braucht `promotions:override` - Owner und
+Admins haben es, und eine eigene Rolle kann es bekommen - von einer Person, die
+als sie selbst angemeldet ist, nicht von einem API-Schlüssel oder einem
+Administrator, der sie imitiert, und eine Begründung von mindestens zehn
+Zeichen. Es wird im [Audit-Trail](#audit) als
+`agent.environment_promotion_overridden` verzeichnet, mit der Begründung und
+dem Ergebnis jedes Wächters, an der Version in der Historie gezeigt und an den
+Eigentümer jedes nicht bestandenen Wächters geschickt. Zu ändern, welche Suites
+eine Umgebung bewachen, braucht dieselbe Berechtigung und wird als
+`agent.environment_guards_changed` verzeichnet.
+
 ## Audit { #audit }
 
 Aktionen, die den Zugriff ändern oder Geld ausgeben, werden mit einem Akteur
@@ -1970,6 +1985,8 @@ Es ist wert, gesagt zu werden, weil eine Governance-Seite anderes nahelegt:
 - **Stille bedeutet etwas.** Ein Alert, der nicht ankam, heißt, dass die Sache
   nicht passiert ist, und das stimmt nur, weil hier nichts nach bestem Bemühen
   läuft.
+- **Eine Promotion an ihren Evals vorbei ist ein Übergehen**, mit Begründung,
+  eigener Berechtigung und einem Eintrag an der Version.
 
 ## Referenz { #reference }
 

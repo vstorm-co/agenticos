@@ -51,6 +51,7 @@ const BUILDER_STEPS = [
   "agent-eval-suites",
   "agent-history",
   "agent-test-connections",
+  "agent-environment-guards",
   "agent-test-draft",
   "agent-test",
   "agent-share",
@@ -285,8 +286,8 @@ describe("stepsForPage", () => {
         (step) => step.id,
       ),
     ).toEqual(
-      // agents:publish publishes and manages an environment's test connections;
-      // trying the agent beside the Builder and asking the assistant take
+      // agents:publish publishes and manages an environment's test connections and
+      // guards; trying the agent beside the Builder and asking the assistant take
       // agents:edit; the Evals tab, testing the draft and the knowledge gaps
       // are runs:view.
       BUILDER_STEPS.filter(
@@ -294,6 +295,7 @@ describe("stepsForPage", () => {
           id !== "agent-assistant-strip" &&
           id !== "agent-publish" &&
           id !== "agent-test-connections" &&
+          id !== "agent-environment-guards" &&
           id !== "agent-test" &&
           id !== "agent-evals" &&
           id !== "agent-eval-suites" &&

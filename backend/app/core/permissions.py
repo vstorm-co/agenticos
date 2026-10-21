@@ -73,6 +73,9 @@ class Perm(StrEnum):
     PROJECTS_EDIT = "projects:edit"
 
     APPROVALS_DECIDE = "approvals:decide"
+    # Promoting past an environment's eval suites, with a reason the audit log keeps.
+    # Apart from `agents:publish`, so whoever promotes is not who waves the evals aside.
+    PROMOTIONS_OVERRIDE = "promotions:override"
     # Watching a host and managing one are separate authorities. Reading a
     # connection's session list, its activity log and the ceilings its service
     # enforces answers "why did that agent get a 429", which is the question an

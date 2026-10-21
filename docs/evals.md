@@ -399,6 +399,13 @@ version, so a publish followed by the promotion of that version is one run. A
 suite runs one eval run at a time; a change that arrives while it runs waits
 for the next one. A paused suite does not run, by any trigger or by hand.
 
+A suite that **guards an environment** also runs before a promotion onto it -
+on the version about to be promoted, beside the one the environment serves -
+and the promotion waits for it to pass; see
+[Guarding a promotion with evals](environments.md#guarding-a-promotion-with-evals).
+Its results read *Before promotion* (`gate`). A suite that guards an
+environment cannot be deleted until it is taken off there.
+
 ### What a result must meet { #what-a-result-must-meet }
 
 A result **fails** when more cases break reproducibly against the baseline

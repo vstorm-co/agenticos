@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { GitCompare, Undo2 } from "lucide-react";
+import { GitCompare, ShieldAlert, Undo2 } from "lucide-react";
 import { stringify } from "yaml";
 
 import {
@@ -28,6 +28,7 @@ import { useOrgStore } from "@/stores";
 import { collapseUnchanged, diffLines, diffStat } from "@/lib/diff";
 import { cn, formatDate, timeAgo } from "@/lib/utils";
 import type { AgentEnvironment, AgentSpec, AgentVersion } from "@/types/agents";
+import type { PromotionOverride } from "@/types/promotion-gate";
 import { useLocale, useTranslations } from "next-intl";
 
 interface VersionHistoryProps {
@@ -111,6 +112,32 @@ function Publisher({
       />
       {displayName(member)}
     </span>
+  );
+}
+
+/**
+ * A promotion made past eval suites that had not passed, on the version it put
+ * in front of users - who did it and why, one hover away.
+ */
+function OverrideBadge({ override }: { override: PromotionOverride }) {
+  const t = useTranslations("promotionGate");
+  const locale = useLocale();
+  const suites = new Intl.ListFormat(locale, { type: "conjunction" }).format(
+    override.guards.filter((guard) => guard.state !== "passed").map((guard) => guard.suite_name),
+  );
+  return (
+    <Badge
+      variant="warning"
+      className="shrink-0 gap-1"
+      title={t("overrideDetail", {
+        who: override.user_email ?? t("someoneWhoLeft"),
+        suites,
+        reason: override.reason,
+      })}
+    >
+      <ShieldAlert className="h-3 w-3" aria-hidden />
+      {t("overriddenOn", { name: override.environment_name })}
+    </Badge>
   );
 }
 
@@ -323,6 +350,9 @@ export function VersionHistory({
                 <Badge key={environment.id} variant="secondary" className="shrink-0 font-mono">
                   {environment.name}
                 </Badge>
+              ))}
+              {version.overrides?.map((override) => (
+                <OverrideBadge key={override.id} override={override} />
               ))}
               {live && <Badge className="shrink-0">{t("live")}</Badge>}
               <div className="flex shrink-0 items-center gap-1">

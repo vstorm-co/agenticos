@@ -207,6 +207,39 @@ describe("the version timeline", () => {
   });
 });
 
+describe("a promotion past the evals", () => {
+  it("is shown on the version it promoted, saying who, past what and why", () => {
+    const override = {
+      id: "o-1",
+      environment_id: "production-id",
+      environment_name: "production",
+      user_id: "u-2",
+      reason: "Hotfix for the refund outage.",
+      created_at: "2026-10-21T10:00:00Z",
+      guards: [
+        { suite_id: "s1", suite_name: "Refunds", state: "failed" as const, result_id: "r1" },
+        { suite_id: "s2", suite_name: "Tone", state: "passed" as const, result_id: "r2" },
+      ],
+    };
+    mount({
+      versions: [
+        version(2, { overrides: [{ ...override, user_email: "admin@example.com" }] }),
+        version(1, { overrides: [{ ...override, id: "o-2", user_email: null }] }),
+      ],
+    });
+
+    const [newest, older] = screen.getAllByText("Overridden on production");
+    expect(newest).toHaveAttribute(
+      "title",
+      "admin@example.com promoted it past Refunds: Hotfix for the refund outage.",
+    );
+    expect(older).toHaveAttribute(
+      "title",
+      "Someone who has left promoted it past Refunds: Hotfix for the refund outage.",
+    );
+  });
+});
+
 describe("restoring", () => {
   it("is not offered for the version already running", () => {
     // A publish that changes nothing.

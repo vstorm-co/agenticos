@@ -32,6 +32,7 @@ function environment(
     logfire_token_secret_id: null,
     service_name: null,
     connections: [],
+    guard_suite_ids: [],
     created_at: "2026-07-30T10:00:00Z",
   };
 }

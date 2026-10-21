@@ -51,6 +51,8 @@ class EvalSuiteTrigger(StrEnum):
     """A skill or knowledge base the checked version binds changed."""
 
     MANUAL = "manual"
+    GATE = "gate"
+    """Run on a version before it is promoted onto an environment these suites guard."""
 
 
 class EvalSuiteResultStatus(StrEnum):
@@ -241,7 +243,7 @@ class EvalSuiteResult(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "trigger IN ('schedule', 'publish', 'promotion', 'dependency', 'manual')",
+            "trigger IN ('schedule', 'publish', 'promotion', 'dependency', 'manual', 'gate')",
             name="ck_eval_suite_result_trigger",
         ),
         CheckConstraint(
@@ -251,10 +253,13 @@ class EvalSuiteResult(Base):
         ),
         # A burst of triggers for one version is one run; a running result does not
         # count, so a change that lands mid-run is checked by the next run.
+        # The baseline is part of what is waiting: a gate run on a version beside
+        # staging's and one beside production's are two different checks.
         Index(
             "uq_eval_suite_results_pending",
             "suite_id",
             "agent_version_id",
+            text("coalesce(baseline_version_number, -1)"),
             unique=True,
             postgresql_where=text("status = 'pending'"),
         ),
