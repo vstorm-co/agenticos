@@ -174,6 +174,30 @@ class TestConfiguration:
         with pytest.raises(ValidationError, match=says):
             TextToSpeechConfig(**config)
 
+    @pytest.mark.parametrize(
+        ("config", "field"),
+        [
+            ({"provider": "openai", "model": "tts-9"}, "model"),
+            ({"provider": "elevenlabs", "model": "eleven_v4"}, "voice"),
+            ({"provider": "openai", "model": "tts-1", "voice": "marin"}, "voice"),
+            (
+                {"provider": "google", "model": "gemini-3.8-flash-tts", "output_format": "mp3"},
+                "output_format",
+            ),
+        ],
+        ids=["model", "account voice missing", "voice", "format"],
+    )
+    def test_a_refusal_names_the_field_it_is_about(self, config, field):
+        """Unlocated, publish named only `config` and the Builder marked nothing."""
+        with pytest.raises(ValidationError) as refused:
+            TextToSpeechConfig(**config)
+
+        assert [error["loc"] for error in refused.value.errors()] == [(field,)]
+
+    def test_the_longest_text_is_bounded_by_what_a_clip_may_buffer(self):
+        with pytest.raises(ValidationError, match="less than or equal to 10000"):
+            TextToSpeechConfig(max_characters=10_001)
+
     def test_a_provider_dropped_after_validation_is_said_rather_than_guessed(self, monkeypatch):
         config = TextToSpeechConfig()
         monkeypatch.setattr(text_to_speech_models, "CATALOG", ())
