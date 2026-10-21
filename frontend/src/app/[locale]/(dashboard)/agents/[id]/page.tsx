@@ -1383,7 +1383,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </TabsList>
 
           <TabsContent value="build" className="mt-6 space-y-6">
-            {canEdit && (agent.kind ?? "agent") === "agent" && (
+            {agent.can_edit === true && (agent.kind ?? "agent") === "agent" && (
               <AssistantStrip
                 agentId={id}
                 currentVersionId={agent.current_version_id}

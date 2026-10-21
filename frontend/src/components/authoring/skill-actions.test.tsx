@@ -11,6 +11,7 @@ import { SkillCheckButton } from "./skill-check-button";
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 const state = vi.hoisted(() => ({
+  runsView: true,
   latest: null as AuthoringRequest | null,
   enabled: true as boolean | null,
   assistant: { can_use: true, agent_id: "architect", name: "Architect" } as {
@@ -19,6 +20,9 @@ const state = vi.hoisted(() => ({
     name: string;
   } | null,
   ask: vi.fn(),
+}));
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({ can: () => state.runsView }),
 }));
 vi.mock("@/hooks/use-organizations", () => ({
   useAiAssistance: () => ({ orgId: "org-1", enabled: state.enabled }),
@@ -55,6 +59,7 @@ vi.mock("@/hooks/use-authoring", () => ({
 }));
 
 beforeEach(() => {
+  state.runsView = true;
   state.latest = null;
   state.enabled = true;
   state.assistant = { can_use: true, agent_id: "architect", name: "Architect" };

@@ -7,6 +7,8 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import { useSkillAuthoring } from "@/hooks/use-authoring";
 import { useAiAssistance } from "@/hooks/use-organizations";
+import { usePermissions } from "@/hooks/use-permissions";
+import { Perm } from "@/types/permissions";
 import { ImproveDialog } from "./improve-dialog";
 
 /**
@@ -21,6 +23,8 @@ export function ImproveSkillButton({ skillId }: { skillId: string }) {
   const assistant = useSkillAuthoring(skillId);
   const [asking, setAsking] = useState(false);
   const working = assistant.latest?.status === "queued" || assistant.latest?.status === "running";
+  // The assistant reads the runs that opened the skill, which takes runs:view.
+  if (!usePermissions().can(Perm.runsView)) return null;
 
   return (
     <>

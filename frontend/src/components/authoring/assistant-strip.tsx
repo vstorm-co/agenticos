@@ -11,10 +11,12 @@ import { specText } from "@/components/agents/version-history";
 import { useAgentVersion } from "@/hooks";
 import { useAgentAuthoring } from "@/hooks/use-authoring";
 import { useAiAssistance } from "@/hooks/use-organizations";
+import { usePermissions } from "@/hooks/use-permissions";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import type { AgentSpec } from "@/types/agents";
 import type { AuthoringKind, Hunk, HunkDecision } from "@/types/authoring";
+import { Perm } from "@/types/permissions";
 import { AiOffNotice } from "./ai-off-notice";
 import { CheckDialog } from "./check-dialog";
 import { ImproveDialog } from "./improve-dialog";
@@ -49,6 +51,9 @@ export function AssistantStrip({
   const tErrors = useTranslations("errors");
   const router = useRouter();
   const { orgId, enabled } = useAiAssistance();
+  // The assistant reads runs, and checking runs an eval whose results are runs:
+  // without runs:view, a person decides what waits but cannot ask for more.
+  const canAsk = usePermissions().can(Perm.runsView);
   const assistant = useAgentAuthoring(agentId);
   const [asking, setAsking] = useState<AuthoringKind | null>(null);
   const [checking, setChecking] = useState(false);
@@ -90,11 +95,13 @@ export function AssistantStrip({
           </Badge>
         )}
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" disabled={off || working} onClick={() => setAsking("improve")}>
-            {working ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
-            {working ? t("working") : t("improve")}
-          </Button>
-          {draftDiffers && (
+          {canAsk && (
+            <Button size="sm" disabled={off || working} onClick={() => setAsking("improve")}>
+              {working ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
+              {working ? t("working") : t("improve")}
+            </Button>
+          )}
+          {canAsk && draftDiffers && (
             <Button
               size="sm"
               variant="outline"
@@ -106,9 +113,11 @@ export function AssistantStrip({
           )}
           {pending.length > 0 && (
             <>
-              <Button size="sm" variant="outline" onClick={() => setChecking(true)}>
-                {t("check")}
-              </Button>
+              {canAsk && (
+                <Button size="sm" variant="outline" onClick={() => setChecking(true)}>
+                  {t("check")}
+                </Button>
+              )}
               <Button
                 size="sm"
                 variant="ghost"
