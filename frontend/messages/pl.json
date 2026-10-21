@@ -5299,7 +5299,23 @@
       "prefMcpServerDown": "Serwer MCP nie odpowiada",
       "prefMcpServerDownTrigger": "Serwer MCP organizacji przestał odpowiadać na sprawdzenie lub w trakcie runu. Wysyłane raz na awarię administratorom i właścicielom agentów, którzy z niego korzystają.",
       "prefMcpServerRecovered": "Serwer MCP znów odpowiada",
-      "prefMcpServerRecoveredTrigger": "Serwer, który przestał odpowiadać, wrócił, a agenci, którzy z niego korzystają, znów mają jego narzędzia."
+      "prefMcpServerRecoveredTrigger": "Serwer, który przestał odpowiadać, wrócił, a agenci, którzy z niego korzystają, znów mają jego narzędzia.",
+      "pushChannel": "Push",
+      "push": {
+        "title": "Powiadomienia push w tej przeglądarce",
+        "state": {
+          "unsupported": "Ta przeglądarka nie odbiera powiadomień push. Na iPhonie najpierw dodaj AgenticOS do ekranu początkowego i otwórz go stamtąd.",
+          "blocked": "Ta przeglądarka blokuje powiadomienia od AgenticOS. Zezwól na nie w ustawieniach witryny i wróć tutaj.",
+          "off": "Dostawaj tu powiadomienie, gdy agent Cię potrzebuje, nawet przy zamkniętym AgenticOS. Które zdarzenia do Ciebie trafiają, ustawisz niżej.",
+          "on": "Włączone w tej przeglądarce. Które zdarzenia do Ciebie trafiają, ustawisz niżej, w kolumnie Push."
+        },
+        "turnOn": "Włącz",
+        "turnOff": "Wyłącz w tej przeglądarce",
+        "test": "Wyślij test",
+        "testSent": "Wysłane. Powinno pojawić się za chwilę.",
+        "testNotSent": "Usługa push nie przyjęła testu. Wyłącz i włącz push w tej przeglądarce.",
+        "failed": "Nie udało się zmienić ustawienia push w tej przeglądarce."
+      }
     },
     "skills": {
       "agentsBoundSkillWill": "Agenci związani z tym skillem będą od następnego runu działać bez niego. Tego nie da się cofnąć.",

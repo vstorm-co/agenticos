@@ -5406,7 +5406,23 @@
       "prefMcpServerDown": "MCP-Server antwortet nicht",
       "prefMcpServerDownTrigger": "Ein MCP-Server der Organisation hat auf eine Prüfung oder in einem Run nicht mehr geantwortet. Einmal pro Ausfall an Administratoren und an die Eigentümer der daran gebundenen Agents.",
       "prefMcpServerRecovered": "MCP-Server antwortet wieder",
-      "prefMcpServerRecoveredTrigger": "Ein Server, der nicht mehr antwortete, ist zurück, und die daran gebundenen Agents haben seine Tools wieder."
+      "prefMcpServerRecoveredTrigger": "Ein Server, der nicht mehr antwortete, ist zurück, und die daran gebundenen Agents haben seine Tools wieder.",
+      "pushChannel": "Push",
+      "push": {
+        "title": "Push-Benachrichtigungen in diesem Browser",
+        "state": {
+          "unsupported": "Dieser Browser kann keine Push-Benachrichtigungen empfangen. Auf dem iPhone füge AgenticOS zuerst zum Home-Bildschirm hinzu und öffne es von dort.",
+          "blocked": "Dieser Browser blockiert Benachrichtigungen von AgenticOS. Erlaube sie in den Website-Einstellungen und komm dann hierher zurück.",
+          "off": "Werde hier benachrichtigt, wenn ein Agent dich braucht, auch wenn AgenticOS geschlossen ist. Welche Ereignisse dich erreichen, legst du unten fest.",
+          "on": "In diesem Browser an. Welche Ereignisse dich erreichen, legst du unten unter Push fest."
+        },
+        "turnOn": "Einschalten",
+        "turnOff": "In diesem Browser ausschalten",
+        "test": "Test senden",
+        "testSent": "Gesendet. Er sollte gleich erscheinen.",
+        "testNotSent": "Der Push-Dienst hat den Test nicht angenommen. Schalte Push in diesem Browser aus und wieder ein.",
+        "failed": "Push konnte in diesem Browser nicht geändert werden."
+      }
     },
     "skills": {
       "agentsBoundSkillWill": "An diesen Skill gebundene Agents laufen ab ihrem nächsten Run ohne ihn. Das lässt sich nicht rückgängig machen.",

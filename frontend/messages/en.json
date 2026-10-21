@@ -5528,7 +5528,23 @@
       "prefMcpServerDown": "MCP server not answering",
       "prefMcpServerDownTrigger": "An organization MCP server stopped answering its check or a run. Sent once per outage to administrators and to the owners of agents bound to it.",
       "prefMcpServerRecovered": "MCP server answering again",
-      "prefMcpServerRecoveredTrigger": "A server that stopped answering is back, and agents bound to it have its tools again."
+      "prefMcpServerRecoveredTrigger": "A server that stopped answering is back, and agents bound to it have its tools again.",
+      "pushChannel": "Push",
+      "push": {
+        "title": "Push notifications in this browser",
+        "state": {
+          "unsupported": "This browser cannot receive push notifications. On an iPhone, add AgenticOS to the Home Screen first and open it from there.",
+          "blocked": "This browser blocks notifications from AgenticOS. Allow them in the site settings, then come back here.",
+          "off": "Get notified here when an agent needs you, even with AgenticOS closed. Which events reach you is set below.",
+          "on": "On in this browser. Which events reach you is set below, under Push."
+        },
+        "turnOn": "Turn on",
+        "turnOff": "Turn off in this browser",
+        "test": "Send a test",
+        "testSent": "Sent. It should appear in a moment.",
+        "testNotSent": "The push service did not take the test. Turn push off and on again in this browser.",
+        "failed": "Push could not be changed in this browser."
+      }
     },
     "skills": {
       "agentsBoundSkillWill": "Agents bound to this skill will run without it from their next run. This cannot be undone.",

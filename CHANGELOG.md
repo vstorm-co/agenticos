@@ -101,6 +101,14 @@ Two things are versioned separately from this file and worth knowing about:
   Windows, `/etc/agenticos/managed.json` on Linux, managed configurations on
   Android. A policy that cannot be read is ignored rather than locking anybody
   out.
+- **Push notifications in the browser** (#2097): Settings → Notifications turns
+  push on for this browser - or for AgenticOS added to a phone's home screen -
+  sends a test, and adds a Push column to the per-event choices, on by default
+  like email. Notifications arrive with AgenticOS closed. Nothing to configure:
+  the deployment's signing key is made on first use and kept in the vault.
+  `GET /api/v1/push/key`, `POST`/`DELETE /api/v1/push/subscriptions`,
+  `POST /api/v1/push/test`; migration `0161_web_push`; the console's CSP gains
+  `worker-src 'self'` for its service worker.
 - **Native notifications** for new approvals, with Approve and Reject on the
   notification, and for new inbox rows, plus a count on the Dock icon and
   beside the tray icon.
