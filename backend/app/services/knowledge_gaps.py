@@ -829,12 +829,7 @@ class KnowledgeGapService:
         )
         if membership is None:
             return None
-        return AuthContext(
-            user_id=user_id,
-            organization_id=organization_id,
-            role=membership.role,
-            subject_is_publisher_fallback=True,
-        )
+        return AuthContext(user_id=user_id, organization_id=organization_id, role=membership.role)
 
     async def classify_batch(self, ctx: AuthContext, knowledge_base_id: UUID) -> tuple[int, int]:
         """Read the next :data:`CLASSIFY_BATCH` answers in one run, and record its verdicts.
