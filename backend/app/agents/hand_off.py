@@ -15,6 +15,9 @@ at a time: each continues from what the previous one did, so a call can say
 
 import logging
 from collections.abc import AsyncIterable, Awaitable, Callable, Sequence
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from uuid import uuid4
 
 import anyio
 from pydantic_ai.exceptions import AgentRunError, ToolFailed, UsageLimitExceeded
@@ -23,7 +26,7 @@ from pydantic_ai.tools import DeferredToolRequests, RunContext
 from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai.workspaces import Workspace
 
-from app.agents.capabilities.budget import BudgetExceeded
+from app.agents.capabilities.budget import BudgetExceeded, SpendShare, booked_to
 from app.agents.deps import AgentDeps
 from app.agents.factory import BuiltAgent
 from app.core.exceptions import AppException
@@ -56,6 +59,25 @@ WorkerEvents = Callable[[AgentStreamEvent], Awaitable[None]]
 """Where the twin's events go while it works: the call's event pump."""
 
 
+@dataclass(frozen=True)
+class HandOffSpend:
+    """What one hand-off spent on the text model, for its own row.
+
+    The twin shares the call's ledger and guard, so its money is on the call's
+    run either way; a row of its own puts that money under the text model's
+    provider and key rather than the realtime key's, as a delegation's row does.
+    """
+
+    task_id: str
+    share: SpendShare
+    started_at: datetime
+    ended_at: datetime
+    error: str | None
+
+
+HandOffReport = Callable[[HandOffSpend], None]
+
+
 class CallWorker:
     """The text twin of one call's agent, and the `hand_off` tool that reaches it.
 
@@ -70,10 +92,12 @@ class CallWorker:
         *,
         workspace: Workspace | None,
         capability_names: Sequence[str],
+        report: HandOffReport | None = None,
     ) -> None:
         self._build = build
         self._workspace = workspace
         self._names = capability_names
+        self._report = report
         self._built: BuiltAgent | None = None
         self._history: list[ModelMessage] = []
         self._lock = anyio.Lock()
@@ -104,19 +128,35 @@ class CallWorker:
             # The call's question card, which the twin's `ask_user` reaches and
             # which its delegates inherit from these deps.
             built.deps.ask_questions = ctx.deps.ask_questions
+            task_id = f"hand-off-{uuid4().hex[:12]}"
+            started_at = datetime.now(UTC)
+            error: str | None = None
             try:
-                result = await built.agent.run(
-                    task,
-                    instructions=WORKER_STYLE,
-                    deps=built.deps,
-                    message_history=self._history,
-                    usage_limits=built.usage_limits,
-                    workspace=self._workspace,
-                    event_stream_handler=self._forward,
-                )
+                with booked_to(task_id, has_own_row=True):
+                    result = await built.agent.run(
+                        task,
+                        instructions=WORKER_STYLE,
+                        deps=built.deps,
+                        message_history=self._history,
+                        usage_limits=built.usage_limits,
+                        workspace=self._workspace,
+                        event_stream_handler=self._forward,
+                    )
             except (AgentRunError, AppException, BudgetExceeded) as exc:
                 logger.exception("voice_hand_off_failed")
-                raise ToolFailed(HAND_OFF_FAILED.format(reason=_reason(exc))) from exc
+                error = _reason(exc)
+                raise ToolFailed(HAND_OFF_FAILED.format(reason=error)) from exc
+            finally:
+                if self._report is not None:
+                    self._report(
+                        HandOffSpend(
+                            task_id=task_id,
+                            share=built.budget.ledger.billed_share_of(task_id),
+                            started_at=started_at,
+                            ended_at=datetime.now(UTC),
+                            error=error,
+                        )
+                    )
             self._history = result.all_messages()
             if isinstance(result.output, DeferredToolRequests):
                 # Approvals and questions are settled inline in a call, so only a

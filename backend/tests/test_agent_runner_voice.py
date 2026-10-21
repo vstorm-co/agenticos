@@ -247,6 +247,75 @@ async def test_the_twin_is_the_agents_text_run_settling_approvals_with_the_calle
 
 
 @pytest.mark.anyio
+async def test_a_hand_off_is_a_row_of_its_own_on_the_text_model_and_key(runner_with_mocks):
+    """Codex on #2204: the twin's spend was attributed to the realtime provider and key."""
+    from datetime import UTC, datetime
+    from decimal import Decimal
+
+    from app.agents.capabilities.budget import SpendShare
+    from app.agents.hand_off import HandOffSpend
+    from app.db.models.agent_run import RunStatus
+
+    agent = _runnable(runner_with_mocks, "sandbox")
+    prepared = await runner_with_mocks.service.prepare(_ctx(), agent.id, voice=_voice())
+    assert prepared.hand_off is not None and prepared.hand_off._report is not None
+    now = datetime.now(UTC)
+
+    prepared.hand_off._report(
+        HandOffSpend(
+            task_id="hand-off-1",
+            share=SpendShare(cost_usd=Decimal("0.03"), input_tokens=10, output_tokens=5),
+            started_at=now,
+            ended_at=now,
+            error=None,
+        )
+    )
+    prepared.hand_off._report(
+        HandOffSpend(
+            task_id="hand-off-2",
+            share=SpendShare(),
+            started_at=now,
+            ended_at=now,
+            error="the model failed",
+        )
+    )
+
+    done, failed = prepared.delegations
+    model = runner_with_mocks.build_agent.call_args.args[1]
+    assert (done.task_id, done.cost_usd, done.status) == (
+        "hand-off-1",
+        Decimal("0.03"),
+        RunStatus.COMPLETED,
+    )
+    assert (done.provider, done.secret_id, done.agent_id) == (
+        model.provider,
+        model.secret_id,
+        agent.id,
+    )
+    assert failed.status is RunStatus.FAILED and failed.error == "the model failed"
+
+
+@pytest.mark.anyio
+async def test_a_hand_off_on_a_run_with_no_version_stays_on_the_calls_row(runner_with_mocks):
+    from datetime import UTC, datetime
+
+    from app.agents.capabilities.budget import SpendShare
+    from app.agents.hand_off import HandOffSpend
+
+    agent = _runnable(runner_with_mocks, "sandbox")
+    prepared = await runner_with_mocks.service.prepare(_ctx(), agent.id, voice=_voice())
+    assert prepared.hand_off is not None and prepared.hand_off._report is not None
+    prepared.run.agent_version_id = None
+    now = datetime.now(UTC)
+
+    prepared.hand_off._report(
+        HandOffSpend(task_id="h", share=SpendShare(), started_at=now, ended_at=now, error=None)
+    )
+
+    assert prepared.delegations == []
+
+
+@pytest.mark.anyio
 async def test_a_call_with_nothing_to_hand_off_has_no_twin(runner_with_mocks):
     agent = _runnable(runner_with_mocks, "clock")
 

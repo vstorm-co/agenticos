@@ -167,7 +167,7 @@ from app.agents.connect_on_use import (
 from app.agents.deps import AgentDeps, CompactionSink
 from app.agents.factory import BuiltAgent, build_agent
 from app.agents.failures import run_failure_summary
-from app.agents.hand_off import CallWorker
+from app.agents.hand_off import CallWorker, HandOffSpend
 from app.agents.loop_guard import ToolLoopStopped
 from app.agents.manifest import RunRecorder, as_payload, carried_over, fit
 from app.agents.mcp import PLATFORM_MCP_PREFIX, unreachable_briefing
@@ -3337,10 +3337,41 @@ class AgentRunnerService:
                     answering_call=call,
                 )
 
+            def report_hand_off(spent: HandOffSpend) -> None:
+                # A row of its own, as a delegation's: the twin spends on the text
+                # model and key, which the call's row - the realtime key's - would
+                # otherwise carry on the Spend card (Codex on #2204). A call runs a
+                # published version; without one the money stays on the call's row.
+                version_id = run.agent_version_id
+                if version_id is None:
+                    return
+                delegations.append(
+                    RecordedDelegation(
+                        id=uuid4(),
+                        agent_id=agent.id,
+                        agent_version_id=version_id,
+                        task_id=spent.task_id,
+                        status=RunStatus.FAILED if spent.error else RunStatus.COMPLETED,
+                        model_label=model_spec.label,
+                        provider=model_spec.provider,
+                        secret_id=model_spec.secret_id,
+                        input_tokens=spent.share.input_tokens,
+                        output_tokens=spent.share.output_tokens,
+                        cache_read_tokens=spent.share.cache_read_tokens,
+                        cache_write_tokens=spent.share.cache_write_tokens,
+                        cost_usd=spent.share.cost_usd,
+                        cost_is_partial=spent.share.has_unpriced_models,
+                        started_at=spent.started_at,
+                        ended_at=spent.ended_at,
+                        error=spent.error,
+                    )
+                )
+
             hand_off = CallWorker(
                 build_twin,
                 workspace=None if workspace is None else workspace.workspace,
                 capability_names=[capability_def(capability_id).name for capability_id in handed],
+                report=report_hand_off,
             )
         built = build_agent(
             spoken_spec if voice is not None else spec,

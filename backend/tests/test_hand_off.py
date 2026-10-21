@@ -168,3 +168,52 @@ async def test_the_tool_names_what_the_call_hands_off():
     tool = worker.toolset().tools[HAND_OFF_TOOL]
 
     assert "Sandbox, Browser" in (tool.description or "")
+
+
+async def test_each_hand_off_is_booked_to_a_share_of_its_own_and_reported():
+    """Codex on #2204: the twin's text-model spend went onto the call's row, under the
+    realtime provider and key. Booked to a share of its own, it gets a row as a
+    delegation does, and the call's row keeps only what the call spent."""
+    from app.agents.capabilities.budget import SpendShare
+    from app.agents.capabilities.budget._capability import _billed_to
+
+    booked: list[str | None] = []
+
+    def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        booked.append(_billed_to.get())
+        return ModelResponse(parts=[TextPart("Done.")])
+
+    twin = _twin(respond)
+    share = SpendShare(cost_usd=Decimal("0.02"), input_tokens=120, output_tokens=30)
+    ledger = MagicMock(billed_share_of=MagicMock(return_value=share))
+    twin.budget = SimpleNamespace(ledger=ledger)
+    reports: list[object] = []
+    worker = CallWorker(
+        lambda: twin, workspace=None, capability_names=["Sandbox"], report=reports.append
+    )
+
+    await worker.hand_off(_call(), "Write the draft")
+
+    (spent,) = reports
+    assert booked and booked[0] == spent.task_id
+    ledger.billed_share_of.assert_called_once_with(spent.task_id)
+    assert spent.share is share and spent.error is None
+    assert spent.started_at <= spent.ended_at
+
+
+async def test_a_failed_hand_off_is_reported_with_its_reason():
+    def fails(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        raise ModelHTTPError(status_code=500, model_name="m", body="boom")
+
+    twin = _twin(fails)
+    twin.budget = SimpleNamespace(ledger=MagicMock(billed_share_of=MagicMock()))
+    reports: list[object] = []
+    worker = CallWorker(
+        lambda: twin, workspace=None, capability_names=["Sandbox"], report=reports.append
+    )
+
+    with pytest.raises(ToolFailed):
+        await worker.hand_off(_call(), "Write the draft")
+
+    (spent,) = reports
+    assert spent.error
