@@ -47,12 +47,13 @@ from app.db.models.authoring import AuthoringRequest, SpecProposalBatch
 from app.db.models.conversation import Conversation, Message
 from app.db.models.dataset import DatasetCase
 from app.db.models.eval_run import EvalRunArm
+from app.db.models.eval_suite import EvalSuite
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.skill import Skill
 from app.db.models.skill_proposal import SkillProposal
 from app.db.models.user import User
-from app.repositories import authoring_repo
+from app.repositories import authoring_repo, eval_suite_repo
 from app.schemas.authoring import AuthoringStart, HunkDecision, ProposalCheck
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
 from app.services.agent_registry import AgentRegistryService
@@ -662,6 +663,28 @@ class TestCheck:
         assert agent.draft_spec == before
         read = await service.for_agent(ctx, agent.id)
         assert read.batch is not None and read.batch.check_eval_run_ids == [started.id]
+
+        # An eval suite of the agent names the dataset in its place; another agent's does not.
+        suite = await eval_suite_repo.create(
+            db,
+            organization_id=ctx.organization_id,
+            suite=EvalSuite(
+                agent_id=agent.id, dataset_id=dataset.id, owner_user_id=ctx.user_id, name="nightly"
+            ),
+        )
+        through_suite = await service.check(ctx, agent.id, ProposalCheck(suite_id=suite.id))
+        assert through_suite.dataset_id == dataset.id
+        assert through_suite.excluded_case_ids == [first.case_id]
+        other = await _clerk(db, ctx)
+        foreign = await eval_suite_repo.create(
+            db,
+            organization_id=ctx.organization_id,
+            suite=EvalSuite(
+                agent_id=other.id, dataset_id=dataset.id, owner_user_id=ctx.user_id, name="other"
+            ),
+        )
+        with pytest.raises(NotFoundError, match="Eval suite not found"):
+            await service.check(ctx, agent.id, ProposalCheck(suite_id=foreign.id))
 
     async def test_nothing_waiting_has_nothing_to_check(self, db):
         ctx, agent, _ = await _setup(db)

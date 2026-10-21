@@ -12,7 +12,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.schemas.base import BaseSchema
 
@@ -257,9 +257,16 @@ class HunkDecision(BaseSchema):
 
 
 class ProposalCheck(BaseSchema):
-    """Run a dataset against the draft as it would be with the pending changes."""
+    """Run a dataset - or an eval suite's - against the draft as it would be with the pending changes."""
 
-    dataset_id: UUID
+    dataset_id: UUID | None = None
+    suite_id: UUID | None = Field(
+        default=None,
+        description=(
+            "An eval suite of the agent the check runs on: its dataset and environment are "
+            "used in place of `dataset_id` and `environment_id`."
+        ),
+    )
     dataset_version: int | None = Field(default=None, ge=1)
     environment_id: UUID | None = None
     agent_id: UUID | None = Field(
@@ -269,6 +276,12 @@ class ProposalCheck(BaseSchema):
     proposal_id: UUID | None = Field(
         default=None, description="For a skill change: the pending change to check."
     )
+
+    @model_validator(mode="after")
+    def _one_source(self) -> ProposalCheck:
+        if (self.dataset_id is None) == (self.suite_id is None):
+            raise ValueError("Name a dataset or an eval suite to check against, not both")
+        return self
 
 
 class AgentWaiting(BaseSchema):
