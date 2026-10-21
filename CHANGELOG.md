@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.9.1] - 2026-10-21
+
 ### Fixed
 
 - **An MCP server that does not answer is named to the model, not left out in
