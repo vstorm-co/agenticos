@@ -159,14 +159,15 @@
           "3:4",
           "3:2",
           "2:3",
-          "21:9"
+          "21:9",
+          "5:2"
         ],
         "resolutions": [
           "720p",
           "480p",
           "1080p"
         ],
-        "audio": "always",
+        "audio": "optional",
         "first_frame": true,
         "prices": [
           {
@@ -193,14 +194,15 @@
           "3:4",
           "3:2",
           "2:3",
-          "21:9"
+          "21:9",
+          "5:2"
         ],
         "resolutions": [
           "720p",
           "480p",
           "1080p"
         ],
-        "audio": "always",
+        "audio": "optional",
         "first_frame": true,
         "prices": [
           {
