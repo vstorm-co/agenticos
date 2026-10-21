@@ -1,5 +1,5 @@
 ---
-source_sha: "f3d9346aa399"
+source_sha: "4c451cd217e6"
 ---
 
 # Workflows { #workflows }
@@ -105,7 +105,10 @@ Felder - oder sonst die Gruppe, zu der er gehört, etwa **Slack** oder **Tables*
 Schritt mit mehr als einem Ausgang nennt seine Ports beim Namen: **true** und
 **false**, **Each item** und **Done** und einen roten **Error**-Port an einem
 Schritt, der seine Fehler behandelt. Ein Schritt, der das Veröffentlichen blockiert,
-trägt eine rote Markierung. Ein Trackpad oder ein Mausrad bewegt die Zeichenfläche,
+trägt eine rote Markierung: Fahren Sie darüber, listet sie die ersten Probleme auf, und
+ein Klick darauf öffnet den Schritt.
+
+Ein Trackpad oder ein Mausrad bewegt die Zeichenfläche,
 und eine Pinch-Geste - oder Strg bzw. Cmd mit dem Rad - zoomt sie; ihre Steuerung
 sitzt in der Ecke.
 
@@ -140,6 +143,13 @@ Ein Rechtsklick auf einen Schritt bietet **Open settings**, **Duplicate**, **Swi
 off** und **Delete step**. Sind mehrere Schritte ausgewählt, löscht eine
 Leiste unten sie zusammen.
 
+**View only** in der Kopfzeile zeigt jemandem, der den Workflow bearbeiten darf, was
+ein Leser sieht: Auf der Zeichenfläche lässt sich nichts verschieben, verbinden oder
+löschen, ein Schritt öffnet sich mit einem Klick schreibgeschützt, und **Run** und
+**Publish** sind verschwunden. **Edit** schaltet zurück, und der Editor
+öffnet immer im Bearbeitungsmodus. Eine Speicherung, die noch läuft, wird in beiden
+Fällen abgeschlossen.
+
 !!! note "Der Schrittkatalog wächst mit der Zeit"
 
     Die Auswahl speist sich aus den registrierten Knoten der Bereitstellung, nicht
@@ -150,8 +160,8 @@ Leiste unten sie zusammen.
 
 **Add a note** unter der Auswahl, die ein Rechtsklick öffnet, setzt eine Notiz neben die
 Schritte: Markdown, per Doppelklick oder Stift geschrieben, durch Ziehen verschoben und
-an den Ecken in der Größe geändert; ausgewählt zeigt sie Farbfelder - Grau, Gelb,
-Grün, Blau, Lila oder Rot -, damit sich eine Warnung von einer Aufgabe abhebt. Eine
+an den Ecken in der Größe geändert; ausgewählt klappt ihre Palettenschaltfläche
+Farbfelder zum Einfärben aus - Grau, Gelb, Grün, Blau, Lila oder Rot -, damit sich eine Warnung von einer Aufgabe abhebt. Eine
 Notiz wird im Graphen gespeichert, sodass
 Versionen, Wiederherstellungen und Kopien des Workflows sie behalten, aber nichts führt
 sie aus oder prüft sie. Eine ausgewählte Verbindung bietet ein **+**, das den nächsten
@@ -166,21 +176,32 @@ Schrittauswahl. Keines davon greift, während Sie in einem Feld schreiben.
 Was jeder Knoten tut, womit er konfiguriert wird und was seine Fehler bedeuten, steht
 in der [Knotenreferenz](reference/workflow-nodes.md).
 
-Ein Klick wählt einen Schritt aus, ein Doppelklick öffnet ihn in einem Dialog über der Zeichenfläche (in einer veröffentlichten Version, in der nichts ausgewählt wird, genügt ein Klick): oben sein
-Name und was er tut, darunter in einfachen Worten jedes Problem, das eine
-Veröffentlichung verhindert - **Not connected yet** für einen Schritt, zu dem nichts
-führt. **Parameters** ist, womit der Schritt arbeitet und was er tun soll, in einer
+Ein Klick wählt einen Schritt aus, ein Doppelklick öffnet ihn in einem Dialog über der
+Zeichenfläche (wo sich nichts auswählen lässt - in einer veröffentlichten Version oder
+im Modus **View only** -, genügt ein Klick): oben sein Name und was er tut, darunter in
+einfachen Worten jedes Problem, das eine Veröffentlichung verhindert - **Not connected
+yet** für einen Schritt, zu dem nichts führt, und das Problem eines Felds hinter
+dessen Namen, der Sie zu dem Feld bringt.
+
+**Parameters** ist, womit der Schritt arbeitet und was er tun soll, in einer
 Liste, die Liste, mit der ein Schritt arbeitet, zuerst: **Items** von Filter vor seiner
 **Condition**. **Settings** ist, wie er läuft. Jede Änderung wird sofort im Draft
 gespeichert, daher schließt **Done** nur den Dialog, und **Delete step** entfernt den
-Schritt.
+Schritt. Ein schreibgeschützter Dialog zeigt jede Einstellung deaktiviert mit ihrem
+Wert.
 
 Ein Parameter, der Text nimmt, ist ein Feld für eingegebenen Text und Werte aus früheren
 Schritten zugleich, etwa `New lead: {{Form.payload.name}} from {{Form.payload.company}}`.
 **Data** daneben fügt einen Wert an der Cursorposition ein, ebenso ein aus **Input**
-gezogenes Feld. Ein Platzhalter nennt einen Schritt und einen Pfad in dessen Ausgabe,
-wird bei der Veröffentlichung wie jeder aus einem Schritt gelesene Wert geprüft und folgt
-dem Schritt, wenn er umbenannt wird. Mit den Daten eines Testlaufs erscheint das
+gezogenes Feld. Tippen Sie `{{`, erscheinen dieselben Werte als Liste, und innerhalb des
+Payloads eines Triggers oder des Elements einer Schleife die Felder, die der letzte
+Testlauf dort gesehen hat; was Sie weiter tippen, grenzt die Liste ein, und `Enter` oder
+`Tab` schreibt den Platzhalter.
+
+Ein Platzhalter nennt einen Schritt und einen Pfad in dessen Ausgabe, ist im Feld
+farbig hervorgehoben - rot, sobald Sie das Feld verlassen, wenn er nichts nennt, was
+dieser Schritt lesen kann -, wird bei der Veröffentlichung wie jeder aus einem Schritt
+gelesene Wert geprüft und folgt dem Schritt, wenn er umbenannt wird. Mit den Daten eines Testlaufs erscheint das
 Ergebnis als Vorschau darunter. Nichts wird ausgewertet: Läuft der Schritt, wird jeder
 Platzhalter zum Text seines Werts, zu JSON für eine Liste oder ein Objekt, und einer ohne
 etwas dahinter lässt den Schritt mit `INVALID_BINDING` fehlschlagen und nennt ihn.
@@ -234,9 +255,10 @@ behalten.
 ### Die Daten eines Schritts, Testdaten und einen Schritt testen { #a-steps-data-pinning-and-testing-one-step }
 
 Beim Bearbeiten legt der Dialog die Parameter eines Schritts zwischen zwei Bereiche.
-**Input** zeigt, was jeder Schritt, aus dem er liest, weitergegeben hat, unter Name und
-Symbol dieses Schritts, und **Output**, was der Schritt selbst weitergegeben hat, beide
-aus dem letzten im Editor gestarteten Testlauf oder beim Öffnen aus dem neuesten.
+**Input** zeigt, was ein früherer Schritt weitergegeben hat, zunächst der
+nächstgelegene; gibt es mehrere, lässt sich über die Überschrift jeder Schritt wählen,
+aus dem dieser lesen darf. **Output** zeigt, was der Schritt selbst weitergegeben hat,
+beide aus dem letzten im Editor gestarteten Testlauf oder beim Öffnen aus dem neuesten.
 **Table** legt die Daten als Zeilen aus, eine Liste von Datensätzen mit einer Zeile je
 Datensatz. **JSON** zeigt sie, wie sie sind, und **Fields** listet jedes Feld nach Pfad
 mit einem einfachen Wort dafür, was es hält - text, number, list, ID: die Pfade, die ein
@@ -251,10 +273,13 @@ Wert.
 Eine Spalte oder ein Feld aus **Input** lässt sich auf einen Parameter ziehen, der es
 dann aus jenem Schritt liest, als wäre es unter **Data** gewählt - in Text als
 Platzhalter. Ein Feld, das nicht passt, wird mit Grund abgelehnt: ein Typ, den der
-Parameter nicht nimmt, oder ein Schritt, der nicht immer vor diesem läuft. Innerhalb
-eines Werts ohne festgelegte Form, etwa den `values` einer Zuordnung oder dem `payload`
-eines Triggers, gilt der Typ, den der Lauf zeigte. **Data** bietet solche Werte jedem
-Parameter an, mit **Field inside it** für den Pfad.
+Parameter nicht nimmt, oder ein Schritt, der nicht immer vor diesem läuft.
+
+Innerhalb eines Werts ohne festgelegte Form, etwa den `values` einer Zuordnung oder dem
+`payload` eines Triggers, gilt der Typ, den der Lauf zeigte. **Data** bietet solche Werte
+jedem Parameter an, mit **Field inside it** für den Pfad. Halten Sie ein gezogenes Feld
+nahe am oberen oder unteren Rand des Formulars, scrollt es, sodass sich auch ein
+Parameter außerhalb der Ansicht erreichen lässt.
 
 **Keep as test data** behält die Ausgabe am Schritt, und **Set test data** gibt welche
 als JSON-Objekt von höchstens 64.000 Bytes ein. Ein Testlauf gibt Testdaten weiter,
@@ -270,8 +295,10 @@ führen, und jeder davon mit bekannter Ausgabe, aus Testdaten oder dem letzten T
 gibt diese weiter, statt zu laufen. Der Rest läuft, und nichts nach dem Schritt. Ein
 Schritt, der schreibt, fragt zuerst, denn der Test schreibt wirklich. Ein Schritt in
 einer Schleife lässt sich nicht allein testen, weil er einmal je Element läuft, also
-testen Sie die Schleife. Über die API tut `step` auf `POST /api/v1/workflow-runs`
-dasselbe.
+testen Sie die Schleife. Während der Test läuft, stoppt ihn das Quadrat neben **Test step**.
+Endet er, ohne den Schritt auszuführen - gestoppt, in einen anderen Zweig
+geleitet oder schon davor beendet -, sagt ein Warnzeichen dort, was geschehen ist. Über
+die API tut `step` auf `POST /api/v1/workflow-runs` dasselbe.
 
 ### Ressourcen-Auswahlfelder { #resource-pickers }
 
@@ -358,7 +385,8 @@ der Run weiß, was der Wert enthält.
 Sie ziehen eine Kante, indem Sie einen Ausgangs-Port eines Knotens mit einem
 Eingangs-Port eines anderen Knotens verbinden. Der Editor lehnt eine Verbindung
 zwischen Ports, die unterschiedliche Formen tragen, ab, bevor er sie zeichnet,
-sodass eine inkompatible Verbindung nie auf der Zeichenfläche landet.
+sodass eine inkompatible Verbindung nie auf der Zeichenfläche landet, und eine
+Verbindung zu ziehen, die schon besteht, bewirkt nichts.
 
 Eine Kante legt fest, in welcher Reihenfolge die Schritte laufen; sie bewegt keine
 Daten. Die Werte, die ein Schritt liest, sind seine **Bindings**, beschrieben unter
@@ -376,8 +404,8 @@ Liste. Sonst wird nichts gebunden, und Sie wählen jede Quelle selbst mit **Data
 Bindings zurück, und das spätere Löschen einer Kante lässt ihre Bindings bestehen —
 entfernen oder binden Sie sie in den Einstellungen des Schritts neu.
 
-Um eine Verbindung zu löschen, wählen Sie sie aus: Klicken Sie auf die Linie, dann wird sie dicker gezeichnet, und auf ihr erscheint eine Schaltfläche **Delete connection**. Drücken Sie die Schaltfläche oder
-`Backspace`, dann verschwindet die Verbindung, und die beiden Schritte bleiben. Die
+Um eine Verbindung zu löschen, wählen Sie sie aus: Klicken Sie auf die Linie, dann wird sie dicker gezeichnet, und auf ihr erscheint eine Schaltfläche **Delete connection**. Drücken Sie die Schaltfläche,
+`Delete` oder `Backspace`, dann verschwindet die Verbindung, und die beiden Schritte bleiben. Die
 Verbindungen einer veröffentlichten Version lassen sich nicht auswählen und daher
 nicht löschen.
 
@@ -403,7 +431,9 @@ es falsch ist. Jeder Schritt mit einem Problem trägt eine rote Markierung auf d
 
 Die Einstellungen eines Schritts bleiben kurz. Was der Schritt braucht und was Sie
 bereits gesetzt haben, steht sofort da; optionale Einstellungen mit ihren Standardwerten
-warten unter **More options**, und wie der Schritt läuft, wartet unter **Settings**. Ein erforderlicher Wert, den Sie noch
+warten hinter einer Schaltfläche, die sie zählt - **3 more options** -, und
+erscheinen über ihr, bis **Fewer options** sie wieder einklappt; wie der Schritt
+läuft, wartet unter **Settings**. Ein erforderlicher Wert, den Sie noch
 nicht angegeben haben, wird neben seinem Feld erst markiert, wenn Sie das Feld verlassen
 oder ausführen oder veröffentlichen wollen: Die Markierung des Schritts auf der
 Zeichenfläche sagt es von Anfang an. Eine Beschreibung, die nur den
@@ -524,12 +554,19 @@ eigenen Grenzen jedes Schritts - darunter die Kostenobergrenze eines Agentenschr
 
 **Run** in der Kopfzeile des Editors testet den Draft sofort - `Strg`/`Cmd` +
 `Enter` ebenso - und fragt zuerst nach den Feldern, die ein Manual- oder API-Trigger
-deklariert. Der Run erscheint dann live auf der Zeichenfläche: Jeder Schritt zeigt
-Status, Versuche und Fehler, eine Verbindung sagt, wie viele Elemente über sie gingen,
-wenn der Schritt davor eine Liste weitergab, und eine Leiste unten sagt, wie der Run
-steht, mit **Open run** für seine Seite. Die nächste Bearbeitung blendet ihn aus und
-lässt eine Leiste stehen, dass sich der Graph seitdem geändert hat, weiter mit **Open
-run**. Ein Schritt, der gewartet hat und weiterging, zählt einen Versuch, nicht zwei. **Run** wartet,
+deklariert. Der Run erscheint dann live auf der Zeichenfläche. Ein Badge an der Ecke
+jedes Schritts zeigt, wo er steht - **Pending**, **Starting**, **Running** mit
+mitlaufender Zeit, **Waiting**, **Failed**, **Needs attention**,
+**Skipped** oder **Not reached** -, und ein erfolgreicher Schritt zeigt, wie
+lange er gebraucht hat. Die Verbindung in einen laufenden Schritt bewegt sich, der
+genommene Weg wird grün, und ein Zweig, den der Run nicht genommen hat, verblasst. Ein
+fehlgeschlagener Schritt zeigt seinen Fehler unter seiner Karte und wackelt einmal.
+Eine Verbindung sagt, wie viele Elemente über sie gingen, wenn der Schritt davor eine
+Liste weitergab, und eine Leiste unten sagt, wie der Run steht, mit **Open run** für
+seine Seite. Solange der Run läuft, stoppt ihn das Quadrat neben **Run** ohne
+Rückfrage. Die Zeichenfläche behält den Run, wenn er endet; die nächste Bearbeitung
+blendet ihn aus und lässt eine Leiste stehen, dass sich der Graph seitdem geändert hat,
+weiter mit **Open run**. Ein Schritt, der gewartet hat und weiterging, zählt einen Versuch, nicht zwei. **Run** wartet,
 solange eine Änderung noch gespeichert wird, und sagt, warum er nicht laufen kann,
 solange der Draft Probleme hat.
 
@@ -558,9 +595,10 @@ begonnen haben. Über die API ist es
 
 Ein Run öffnet mit seiner Dauer, seinen Kosten und der Zahl erledigter Schritte,
 dann mit dem Fehler, mit dem er endete, falls es einen gab. Daneben steht der Graph,
-den er ausgeführt hat, jeder Schritt markiert mit dem, was der Run mit ihm getan hat,
-seinen Versuchen und seinem Fehler, und die Schritte, die er nie erreicht hat,
-blass. **Open loop body** zeigt die Iterationen einer Schleife auf dieselbe Weise.
+den er ausgeführt hat, so gezeichnet, wie der Editor einen Run zeichnet: das Badge
+jedes Schritts, seine Versuche und sein Fehler, und die Schritte, die er nie erreicht
+hat, blass. Nur eine Seite, die offen war, während der Run lief, bewegt sich; eine
+später geöffnete bleibt still. **Open loop body** zeigt die Iterationen einer Schleife auf dieselbe Weise.
 
 Die Antwort des Runs - sein Text, sein strukturiertes Ergebnis, die Passagen, auf
 die er sich stützte, und wie viele Dateien er erzeugt hat, mit dem JSON selbst unter
@@ -859,18 +897,22 @@ sodass sie nie eine Taste einem Feld anderswo auf der Seite stehlen:
 
 | Tasten | Tut |
 |---|---|
+| `Tab` | Die Schrittauswahl öffnen |
+| `Ctrl`/`Cmd` + `Enter` | Den Draft testweise ausführen, wo auf der Seite der Fokus auch liegt |
 | `Ctrl`/`Cmd` + `Z` | Rückgängig |
 | `Ctrl`/`Cmd` + `Shift` + `Z` oder `Ctrl`/`Cmd` + `Y` | Wiederherstellen |
 | `Ctrl`/`Cmd` + `C` | Auswahl kopieren |
 | `Ctrl`/`Cmd` + `X` | Auswahl ausschneiden |
 | `Ctrl`/`Cmd` + `V` | Einfügen, versetzt, sodass es das Original nicht verdeckt |
+| `Delete` oder `Backspace` | Die Auswahl löschen |
 | `Escape` | Eine laufende Verbindung abbrechen |
+| `?` | Diese Kürzel anzeigen |
 
 Ein Einfügen bekommt frische ids und mappt die Bindings unter den kopierten
 Schritten um, sodass eingefügte Schritte voneinander lesen statt von den Originalen.
-Jedes Bearbeitungskürzel ist wirkungslos, während Sie eine veröffentlichte Version
-ansehen, die schreibgeschützt ist; `Escape` bricht eine übrig gebliebene Verbindung
-weiterhin ab.
+Jedes Bearbeitungskürzel ist wirkungslos, solange der Editor schreibgeschützt ist - in
+einer veröffentlichten Version oder im Modus **View only**; `Escape` bricht eine übrig
+gebliebene Verbindung weiterhin ab, und `?` zeigt weiterhin die Kürzel.
 
 Kopieren und Einfügen haben drei Grenzen:
 
@@ -903,7 +945,7 @@ Kopieren und Einfügen haben drei Grenzen:
   dem Server; frühere Versionen bleiben schreibgeschützt einsehbar, und **Restore to
   draft** macht eine davon wieder zum Draft.
 - Jede Aktion hat einen **Tastaturweg**, und die Bearbeitungskürzel sind auf einer
-  schreibgeschützten veröffentlichten Version wirkungslos.
+  schreibgeschützten veröffentlichten Version oder im Modus **View only** wirkungslos.
 - Ein Workflow startet mit einem **Trigger**-Knoten - von Hand oder per API, einer
   Chatnachricht, einem signierten **Webhook**, einem **Zeitplan** oder einem neuen
   Tabellen-Datensatz -, und das **Veröffentlichen** schaltet ihn ein, als das
