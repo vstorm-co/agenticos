@@ -1,5 +1,9 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render as renderBare, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { useOrgStore } from "@/stores/org-store";
 
 import { AcceptInvitation } from "./accept-invitation";
 import { registerHref } from "@/lib/invitation-links";
@@ -19,7 +23,13 @@ vi.mock("@/hooks", () => ({
 
 const TOKEN = "z6OPn2FNnpdtiNBBLB1Cn7WUgaGXGsYcdfrPADykQLg";
 
+/** The card refetches the organization list after an accept, so it needs a client. */
+function render(ui: ReactElement) {
+  return renderBare(<QueryClientProvider client={new QueryClient()}>{ui}</QueryClientProvider>);
+}
+
 afterEach(() => {
+  useOrgStore.setState({ activeOrgId: null });
   vi.clearAllMocks();
   vi.useRealTimers();
   auth.isAuthenticated = true;
@@ -58,13 +68,16 @@ describe("somebody who is not signed in", () => {
 describe("somebody who is signed in", () => {
   it("accepts the token it was given and sends them to their organizations", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    acceptInvitation.mockResolvedValue(undefined);
+    acceptInvitation.mockResolvedValue("org-acme");
+    useOrgStore.setState({ activeOrgId: "org-personal" });
 
     render(<AcceptInvitation token={TOKEN} />);
     screen.getByRole("button", { name: /accept/i }).click();
 
     await waitFor(() => expect(acceptInvitation).toHaveBeenCalledWith(TOKEN));
     await screen.findByText(/joined/i);
+    // Where they were invited to work, not still their personal organization (#2156).
+    expect(useOrgStore.getState().activeOrgId).toBe("org-acme");
 
     vi.advanceTimersByTime(2000);
     expect(push).toHaveBeenCalledWith("/orgs");
@@ -82,8 +95,8 @@ describe("somebody who is signed in", () => {
   });
 
   it("disables the button while the accept is out, so one click is one accept", async () => {
-    let settle: () => void = () => {};
-    acceptInvitation.mockReturnValue(new Promise<void>((resolve) => (settle = resolve)));
+    let settle: (organizationId: string) => void = () => {};
+    acceptInvitation.mockReturnValue(new Promise<string>((resolve) => (settle = resolve)));
 
     render(<AcceptInvitation token={TOKEN} />);
     screen.getByRole("button", { name: /accept/i }).click();
@@ -91,7 +104,7 @@ describe("somebody who is signed in", () => {
     const joining = await screen.findByRole("button", { name: /joining/i });
     expect(joining).toBeDisabled();
 
-    settle();
+    settle("org-acme");
     await waitFor(() => expect(acceptInvitation).toHaveBeenCalledTimes(1));
   });
 });

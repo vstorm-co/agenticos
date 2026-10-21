@@ -1,5 +1,5 @@
 ---
-source_sha: "070cabe564be"
+source_sha: "94cd032fa02a"
 ---
 
 # Arquitectura { #architecture }
@@ -445,7 +445,7 @@ transacción de la petición:
   legal y la clave sigue siendo alcanzable por la organización en lugar de quedar
   varada.
 - **Las organizaciones de quien las creó.** `organizations.created_by_user_id` es
-  `RESTRICT`, y cada alta crea una organización personal, así que un `DELETE users`
+  `RESTRICT`, y un alta crea por defecto una organización personal, así que un `DELETE users`
   desnudo nunca funcionó para una cuenta real. La organización personal se elimina
   con su dueño; una compartida se le entrega a otro dueño, o el borrado se rechaza
   cuando no hay a quién entregársela.

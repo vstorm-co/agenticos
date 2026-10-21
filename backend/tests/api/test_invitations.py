@@ -247,9 +247,19 @@ class TestStagingKeepsTheTokenOffTheSignInTrip:
             _token_url("/staged/accept"), headers={"X-Invitation-Handle": "an-opaque-handle"}
         )
 
-        assert response.status_code == 204
+        assert response.status_code == 200
+        assert response.json() == {"organization_id": str(_ORGANIZATION_ID)}
         assert staging.redeem.await_args.args[0] == "an-opaque-handle"
         assert service.accept.await_args.args[0] == _TOKEN
+
+    async def test_accepting_by_token_names_the_organization_joined(
+        self, client: AsyncClient, service: MagicMock
+    ) -> None:
+        """So the console can switch to it, rather than staying where it was (#2156)."""
+        response = await client.post(_token_url(f"/{_TOKEN}/accept"))
+
+        assert response.status_code == 200
+        assert response.json() == {"organization_id": str(_ORGANIZATION_ID)}
 
     async def test_a_replayed_or_expired_handle_is_a_clean_miss(
         self, client: AsyncClient, service: MagicMock, staging: MagicMock
