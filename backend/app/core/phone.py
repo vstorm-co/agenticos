@@ -5,8 +5,6 @@ National formats need a configured region; international (+) formats do not.
 Both callers check the scan limits before matching; see the guardrails README.
 """
 
-from __future__ import annotations
-
 import re
 import sys
 from collections.abc import Iterable, Sequence

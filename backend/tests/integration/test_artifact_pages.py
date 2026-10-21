@@ -7,8 +7,6 @@ through the listing's own visibility predicate. Each is something a mocked sessi
 is happy to pretend it did.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import Iterator
 from datetime import UTC, datetime

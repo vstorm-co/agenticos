@@ -15,8 +15,6 @@ still there - when it is fixed, the last test in this file fails and the module 
 away. What a client actually receives is `tests/api/test_method_not_allowed.py`.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 import pytest

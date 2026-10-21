@@ -19,8 +19,6 @@ display name - so they are flattened before they reach the instructions: no
 braces to open another variable, no line breaks to start a section of their own.
 """
 
-from __future__ import annotations
-
 import re
 from dataclasses import dataclass
 from datetime import datetime
@@ -103,7 +101,7 @@ def is_time_zone(name: str) -> bool:
     """Whether `name` is an IANA zone this deployment knows."""
     try:
         ZoneInfo(name)
-    except (ZoneInfoNotFoundError, ValueError):
+    except ZoneInfoNotFoundError, ValueError:
         return False
     return True
 

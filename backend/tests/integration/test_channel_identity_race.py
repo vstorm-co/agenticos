@@ -10,8 +10,6 @@ what makes it work is `ON CONFLICT` against the unique index across two
 transactions.
 """
 
-from __future__ import annotations
-
 import asyncio
 import contextlib
 import uuid

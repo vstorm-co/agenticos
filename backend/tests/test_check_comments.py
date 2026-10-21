@@ -10,8 +10,6 @@ these tests hold the pruning shut from both sides: skipped names are never
 descended into, and the files of this branch are still read.
 """
 
-from __future__ import annotations
-
 import importlib.util
 import os
 from pathlib import Path

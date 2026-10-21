@@ -9,8 +9,6 @@ thing that makes "delete my tenant" mean what it says about a table holding a
 copy of every prompt the tenant ever sent.
 """
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import MagicMock
 

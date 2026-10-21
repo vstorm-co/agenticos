@@ -10,8 +10,6 @@ which would confirm the id to a stranger. Only once the run is known to be the
 caller's organization's does a missing `runs:view` become a 403.
 """
 
-from __future__ import annotations
-
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 

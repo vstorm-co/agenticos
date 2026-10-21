@@ -11,8 +11,6 @@ Walks every compose file rather than naming services, because the next file to
 run uvicorn with `--workers` is the one nobody would think to add here.
 """
 
-from __future__ import annotations
-
 import re
 from pathlib import Path
 from typing import Any

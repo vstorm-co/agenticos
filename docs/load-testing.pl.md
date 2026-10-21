@@ -1,5 +1,5 @@
 ---
-source_sha: "53546688c766"
+source_sha: "d8f1a51c851b"
 ---
 
 # Testy obciążeniowe i odpornościowe { #load-and-resilience-testing }
@@ -110,9 +110,9 @@ nich, zamiast mierzyć wdrożenie, które nie może wykonać pracy:
 1. zmigrowana baza i Redis;
 2. odpowiadający model stub, **pod adresem, do którego API sięgnie** — patrz niżej;
 3. fikstura — `make load-seed`, raz;
-4. Prefect, jeśli obciążenie `trigger_fire` ma cokolwiek znaczyć. Bez niego
-   webhook jest przyjmowany, a jego dyspozycja zawodzi, co raport pokazuje jako
-   500 na tym obciążeniu, zamiast to ukrywać.
+4. worker (`python -m app.worker`), jeśli obciążenie `trigger_fire` ma cokolwiek
+   znaczyć. Bez niego webhook jest przyjmowany, a jego odpalenie czeka w kolejce,
+   więc obciążenie mierzy drzwi, a nie run.
 
 ### Gdzie ma słuchać stub { #where-the-stub-has-to-listen }
 
@@ -162,6 +162,20 @@ tempo scenariusza razy najwolniejsze żądanie — 3240 dla dostarczonych faz. L
 poniżej tego zamienia przebieg z otwartym napływem w zamknięty dokładnie w
 burście, czyli wtedy, kiedy to ma znaczenie: żądania kolejkują się w kliencie, a
 część opóźnień w raporcie należy do samego drivera.
+
+### Od zimnego startu i w CI { #from-a-cold-start-and-in-ci }
+
+`make load-cold` to cały przebieg od pustej bazy: wykonuje migracje, zakłada
+właściciela, uruchamia stub, API i workera na tym hoście, tworzy fixture,
+prowadzi scenariusz i wszystko zatrzymuje. Seed wgrywa korpus przez API i czeka,
+aż każdy dokument da się wyszukać, więc potrzebuje workera. Kod wyjścia jest
+werdyktem - próg, który nie przeszedł albo nie został zmierzony, oblewa przebieg
+- a `LOAD_SCALE` i `LOAD_REPORT` ustawiają długość i miejsce raportu.
+
+Workflow `Load` uruchamia dokładnie to co noc na `main`, na żądanie oraz na pull
+requeście z etykietą `load-test`, a raport publikuje jako podsumowanie joba i
+artefakt. Nie jest wymaganym checkiem: CPU współdzielonego runnera jest
+współdzielone, więc łapie regresję innego rzędu, a nie wolniejsze popołudnie.
 
 ## Czytanie raportu { #reading-the-report }
 

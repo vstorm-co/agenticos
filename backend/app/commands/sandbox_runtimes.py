@@ -14,8 +14,6 @@ library's own three-runtime default with nothing said - which is the class of
 silent failure this catalogue exists to remove.
 """
 
-from __future__ import annotations
-
 import re
 from pathlib import Path
 from typing import Literal

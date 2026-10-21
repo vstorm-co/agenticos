@@ -1,7 +1,5 @@
 """A Slack bot as a Slack app: buttons, the assistant pane, App Home, `/agent` (#2067)."""
 
-from __future__ import annotations
-
 import json
 import uuid
 from typing import Any

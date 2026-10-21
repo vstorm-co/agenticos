@@ -8,8 +8,6 @@ only, oldest first. Nothing expires a parked call, so the oldest row can be from
 months ago, and a queue that opened newest-first would bury exactly it.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any

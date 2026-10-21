@@ -14,8 +14,6 @@ against the real migration; here the schema comes from `create_all`, which is
 enough for the detection these tests assert.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

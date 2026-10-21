@@ -6,8 +6,6 @@ frontier ones. The model here is scripted, so what reaches the tool - and how
 many times the model was asked - is exactly what the run did.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 import pytest

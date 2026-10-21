@@ -15,8 +15,6 @@ checking later: a token that can be made to hold an arbitrary string is a
 stored-redirect surface even when the read is checked.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
@@ -46,7 +44,7 @@ class _User:
 
 
 @pytest.fixture
-async def client(mock_redis: MagicMock, mock_db_session) -> AsyncGenerator[AsyncClient, None]:
+async def client(mock_redis: MagicMock, mock_db_session) -> AsyncGenerator[AsyncClient]:
     service = MagicMock()
     service.issue_magic_link_token = AsyncMock(return_value=None)
     service.consume_magic_link_token = AsyncMock(return_value=(_User(), None))

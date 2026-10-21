@@ -6,8 +6,6 @@ did not even buy silence, since a flushed-then-abandoned session made the
 request's commit raise anyway (#20).
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from unittest.mock import MagicMock

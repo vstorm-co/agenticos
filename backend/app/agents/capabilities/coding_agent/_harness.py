@@ -17,8 +17,6 @@ which cannot start inside the sandbox container, and then even `cat` fails. At
 boundary and nobody sits at the harness's terminal.
 """
 
-from __future__ import annotations
-
 import base64
 import json
 import re

@@ -22,8 +22,6 @@ that is where a moved prefix most often hides. A turn served by another worker
 starts from no mark and is not compared.
 """
 
-from __future__ import annotations
-
 import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal

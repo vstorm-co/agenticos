@@ -8,8 +8,6 @@ database or not at all - the first from `Base.metadata.create_all`, the second
 from `information_schema` - so they are asked here (#339).
 """
 
-from __future__ import annotations
-
 import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker

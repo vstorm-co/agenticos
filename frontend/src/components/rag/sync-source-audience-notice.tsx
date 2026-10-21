@@ -64,7 +64,7 @@ export function SourceAudienceNotice({
 
   return (
     <div className="border-foreground/10 bg-foreground/[0.03] mt-5 rounded-xl border p-4">
-      <p className="text-foreground/80 flex items-center gap-2 text-xs font-medium tracking-wider uppercase">
+      <p className="text-foreground flex items-center gap-2 text-sm font-medium">
         <Eye className="h-3.5 w-3.5" aria-hidden />
         {t("audienceTitle")}
       </p>

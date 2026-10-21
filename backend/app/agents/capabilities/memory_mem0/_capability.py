@@ -11,8 +11,6 @@ live in mem0 and there is no local index to inject; `recall` is a tool call, and
 an agent that also binds `memory_files` gets its injected `MEMORY.md` from there.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 from typing import Any
 

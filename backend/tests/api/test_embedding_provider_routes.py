@@ -13,8 +13,6 @@ catalog the form is built out of has to be what the deployment will actually act
 on.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from typing import Any

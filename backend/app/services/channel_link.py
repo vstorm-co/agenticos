@@ -17,8 +17,6 @@ wrote `channel_identities.link_code`, so every identity kept `user_id = NULL` an
 every channel refused every message with "Link your account first" (#10).
 """
 
-from __future__ import annotations
-
 import secrets
 from datetime import UTC, datetime, timedelta
 from urllib.parse import urlparse

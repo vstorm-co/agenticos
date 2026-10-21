@@ -12,19 +12,16 @@ dashboard's oldest-waiting age inherits, and what run history shows for ever.
 
 import logging
 
-from prefect import flow
-
 from app.db.session import get_db_context
 from app.services.approvals import ApprovalService
 
 logger = logging.getLogger(__name__)
 
 
-@flow(name="approval-expiry-sweep")
-async def approval_expiry_sweep_flow() -> int:
+async def expire_approvals() -> int:
     """Deny by timeout every parked call past `APPROVAL_EXPIRY_HOURS`, and end its run.
 
-    Returns how many approvals were expired, so a flow run's result says what it
+    Returns how many approvals were expired, so a caller can say what the sweep
     found without anybody reading the logs.
     """
     async with get_db_context() as db:

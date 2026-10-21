@@ -11,8 +11,6 @@ Every test drives the real services, so what it asserts is what the platform
 does - not what a stub was told to return.
 """
 
-from __future__ import annotations
-
 import copy
 import uuid
 from collections.abc import AsyncIterator, Callable
@@ -1335,11 +1333,12 @@ class _AcceptingStore:
 
 @pytest.fixture
 def uploads(tmp_path, monkeypatch):
-    """Accept uploads without writing files or starting a parse.
+    """Accept uploads without writing files to permanent storage.
 
-    Storage and task dispatch are stubbed; everything that decides *how* a
-    document will be read is real, because that is what is under test. The
-    queued call is captured so a test can assert an upload was accepted at all.
+    Storage is stubbed; everything that decides *how* a document will be read is
+    real, because that is what is under test - and so is the parse job, queued
+    on the test's session like any other row. Its kind is recorded so a test can
+    assert an upload was accepted at all.
     """
     monkeypatch.setattr(settings, "MEDIA_DIR", str(tmp_path))
     storage = MagicMock()
@@ -1351,18 +1350,15 @@ def uploads(tmp_path, monkeypatch):
         lambda: storage,
     )
 
-    def capture(session, coroutine, *, name: str) -> None:
-        """Record the dispatch and close what would have parsed the file.
+    from app.services import rag_document
 
-        It patches `spawn_after_commit` rather than `spawn` because that is what
-        the upload path now hands the flow to (#417), and these tests run
-        against a real session: left queued, the flow would start for real when
-        the session committed.
-        """
-        coroutine.close()
-        queued.append(name)
+    real_enqueue = rag_document.enqueue
 
-    monkeypatch.setattr("app.core.background.spawn_after_commit", capture)
+    async def capture(db, task, payload, **options):
+        queued.append(task.kind)
+        return await real_enqueue(db, task, payload, **options)
+
+    monkeypatch.setattr(rag_document, "enqueue", capture)
     return queued
 
 
@@ -2625,9 +2621,11 @@ class TestBindingAnMcpServerToAnAgent:
         )
         seen: list[list[tuple[str, str]]] = []
 
-        async def fake_build(specs) -> list[tuple[Any, None]]:
+        # Answering: a server that did not would be briefed as unreachable, and
+        # the question here is only which connection the lookup found.
+        async def fake_build(specs) -> list[tuple[Any, str]]:
             seen.append([(spec.name, spec.url) for spec in specs])
-            return [(spec, None) for spec in specs]
+            return [(spec, spec.name) for spec in specs]
 
         monkeypatch.setattr("app.services.mcp_connection.probe_toolsets", fake_build)
 

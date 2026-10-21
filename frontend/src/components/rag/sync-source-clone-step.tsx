@@ -1,10 +1,10 @@
 "use client";
 
-import { Check, Database } from "lucide-react";
+import { Check } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Input, Label } from "@/components/ui";
-import { BrandIcon, connectorBrand } from "@/components/icons/brand-icon";
+import { ConnectorIcon } from "@/components/rag/connector-icon";
 import type { SyncSourceRead } from "@/lib/rag-api";
 import { cn } from "@/lib/utils";
 
@@ -26,13 +26,10 @@ export function CloneStep({
     <div className="space-y-5">
       <p className="text-foreground/65 text-sm">{t("pickExistingOrgIntegration")}</p>
       <div className="space-y-2">
-        <Label className="text-foreground/80 text-xs font-medium tracking-wider uppercase">
-          {t("orgIntegrations")}
-        </Label>
+        <Label>{t("orgIntegrations")}</Label>
         <div className="space-y-2">
           {integrations.map((src) => {
             const isSelected = cloneSourceId === src.id;
-            const brand = connectorBrand(src.connector_type);
             return (
               <button
                 key={src.id}
@@ -45,23 +42,10 @@ export function CloneStep({
                     : "border-foreground/10 bg-card hover:border-foreground/30",
                 )}
               >
-                <span
-                  className={cn(
-                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
-                    isSelected
-                      ? "bg-brand text-brand-foreground"
-                      : "bg-foreground/8 text-foreground",
-                  )}
-                >
-                  {brand ? (
-                    <BrandIcon name={brand} className="h-4 w-4" aria-hidden />
-                  ) : (
-                    <Database className="h-4 w-4" />
-                  )}
-                </span>
+                <ConnectorIcon type={src.connector_type} />
                 <div className="min-w-0 flex-1">
                   <p className="text-foreground text-sm font-semibold">{src.name}</p>
-                  <p className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
+                  <p className="text-muted-foreground text-xs">
                     {src.connector_type}
                     {src.collection_name ? ` · ${src.collection_name}` : " · unassigned"}
                   </p>
@@ -75,12 +59,7 @@ export function CloneStep({
 
       {cloneSourceId && (
         <div className="space-y-1.5">
-          <Label
-            htmlFor="clone-name"
-            className="text-foreground/80 text-xs font-medium tracking-wider uppercase"
-          >
-            {t("nameKbAposS")}
-          </Label>
+          <Label htmlFor="clone-name">{t("nameKbAposS")}</Label>
           <Input
             id="clone-name"
             placeholder={t("leaveEmptyAutoGenerate")}

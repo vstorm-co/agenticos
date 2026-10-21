@@ -50,7 +50,17 @@ describe("the sandbox connections client", () => {
     expect(apiClient.patch).toHaveBeenCalledWith("/sandbox-connections/c-1", { is_default: true });
 
     await api.deleteSandboxConnection("c-1");
-    expect(apiClient.delete).toHaveBeenCalledWith("/sandbox-connections/c-1");
+    expect(apiClient.delete).toHaveBeenCalledWith("/sandbox-connections/c-1", {
+      params: undefined,
+    });
+  });
+
+  it("says when the sandboxes left on the provider were deleted by hand", async () => {
+    // #2250: the only way to release a connection whose tombstones cannot be retried.
+    await api.deleteSandboxConnection("c-1", { forgetPendingDestroys: true });
+    expect(apiClient.delete).toHaveBeenCalledWith("/sandbox-connections/c-1", {
+      params: { forget_pending_destroys: "true" },
+    });
   });
 
   it("asks for the sessions without sampling usage unless told to", async () => {

@@ -6,8 +6,6 @@ The run itself is not refused - an agent bound to it answers whoever may run the
 agent - so the Builder says so instead.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import Awaitable, Callable
 from unittest.mock import AsyncMock

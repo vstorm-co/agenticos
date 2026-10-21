@@ -6,8 +6,6 @@ answers anonymous requests under another identity. Only the database's foreign
 key decides this, so only a real database can show it.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

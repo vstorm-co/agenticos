@@ -15,8 +15,6 @@ deciding fact decides), where the deciding fact is the `scope` parameter
 rather than a grant on a row.
 """
 
-from __future__ import annotations
-
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta

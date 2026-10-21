@@ -34,8 +34,6 @@ agent here measured 9 tokens where the provider had charged for 3,859, so a
 window the gauge showed at 77% sat beside a trigger that had noticed nothing.
 """
 
-from __future__ import annotations
-
 import logging
 from dataclasses import dataclass
 from typing import Any, Literal, cast

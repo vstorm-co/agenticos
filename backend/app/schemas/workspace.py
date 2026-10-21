@@ -1,7 +1,5 @@
 """What a person is shown about the files an agent kept."""
 
-from __future__ import annotations
-
 from datetime import datetime
 from uuid import UUID
 

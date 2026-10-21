@@ -8,8 +8,6 @@ either closes its own copy - when another worker holds the stream lease - or,
 when it is the holder, says on the channels listing what is in its way.
 """
 
-from __future__ import annotations
-
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -39,7 +37,7 @@ class TestTheWatch:
         make_request = AsyncMock(side_effect=_conflict(polling))
 
         with pytest.raises(TelegramConflictError):
-            await _ConflictWatch(heard)(make_request, MagicMock(), polling)
+            await _ConflictWatch(heard, AsyncMock())(make_request, MagicMock(), polling)
 
         heard.assert_awaited_once_with()
 
@@ -48,7 +46,9 @@ class TestTheWatch:
         call = GetMe()
 
         with pytest.raises(TelegramConflictError):
-            await _ConflictWatch(heard)(AsyncMock(side_effect=_conflict(call)), MagicMock(), call)
+            await _ConflictWatch(heard, AsyncMock())(
+                AsyncMock(side_effect=_conflict(call)), MagicMock(), call
+            )
 
         heard.assert_not_awaited()
 
@@ -56,10 +56,42 @@ class TestTheWatch:
         heard = AsyncMock()
         make_request = AsyncMock(return_value="updates")
 
-        answer = await _ConflictWatch(heard)(make_request, MagicMock(), GetUpdates())
+        answer = await _ConflictWatch(heard, AsyncMock())(make_request, MagicMock(), GetUpdates())
 
         assert answer == "updates"
         heard.assert_not_awaited()
+
+
+class TestTheRecovery:
+    """#2252: the poll after a conflict clears is what says the bot is back."""
+
+    async def test_the_first_poll_that_succeeds_after_a_conflict_records_up(self) -> None:
+        heard, recovered = AsyncMock(), AsyncMock()
+        watch = _ConflictWatch(heard, recovered)
+        polling = GetUpdates(timeout=10)
+
+        with pytest.raises(TelegramConflictError):
+            await watch(AsyncMock(side_effect=_conflict(polling)), MagicMock(), polling)
+        assert watch.conflicted
+
+        await watch(AsyncMock(return_value=[]), MagicMock(), polling)
+        await watch(AsyncMock(return_value=[]), MagicMock(), polling)
+
+        recovered.assert_awaited_once_with()
+        assert not watch.conflicted
+
+    async def test_another_call_succeeding_mid_conflict_is_not_a_recovery(self) -> None:
+        """A reply sent while the other poller still holds the bot says nothing about polling."""
+        recovered = AsyncMock()
+        watch = _ConflictWatch(AsyncMock(), recovered)
+        polling = GetUpdates()
+        with pytest.raises(TelegramConflictError):
+            await watch(AsyncMock(side_effect=_conflict(polling)), MagicMock(), polling)
+
+        await watch(AsyncMock(return_value="me"), MagicMock(), GetMe())
+
+        recovered.assert_not_awaited()
+        assert watch.conflicted
 
 
 class TestWhatTheAdapterDoes:

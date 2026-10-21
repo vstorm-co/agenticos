@@ -7,8 +7,6 @@ were checked against one; the vault and the database are in
 `tests/integration/test_browser_sign_ins.py`.
 """
 
-from __future__ import annotations
-
 import json
 from typing import Any
 from uuid import uuid4

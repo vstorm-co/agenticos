@@ -6,8 +6,6 @@ an assistant somebody renamed, are left as they are. The downgrade puts the old
 names back. It owns a database of its own, as every migration test here does.
 """
 
-from __future__ import annotations
-
 import json
 import os
 import subprocess

@@ -15,8 +15,6 @@ checked at publish and again when a browse starts - the second check is what
 stops a name that has been pointed somewhere private since.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass, replace
 from typing import Literal
 from urllib.parse import quote, urlencode, urlsplit, urlunsplit

@@ -1,14 +1,15 @@
 """Data access for agent workspaces."""
 
-from __future__ import annotations
-
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import and_, or_, select, update
+from sqlalchemy import and_, inspect, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import defer
+from sqlalchemy.orm.attributes import set_committed_value
 
 from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.conversation import Conversation, Message
@@ -281,8 +282,34 @@ async def list_for_reader(
                 and_(AgentWorkspace.scope == "agent", AgentWorkspace.agent_id.in_(my_agents)),
             )
         )
-    result = await db.execute(query.order_by(AgentWorkspace.last_used_at.desc().nullslast()))
+    # The stored files are left behind (#2248): a stored workspace's whole content
+    # is that column, up to `SANDBOX_STATE_MAX_BYTES` each, and a listing of every
+    # workspace a person can see read all of it to show a page of 25 - or, for an
+    # access check, none. `files_for` reads it for the rows that need it.
+    result = await db.execute(
+        query.options(defer(AgentWorkspace.files, raiseload=True)).order_by(
+            AgentWorkspace.last_used_at.desc().nullslast()
+        )
+    )
     return list(result.scalars().all())
+
+
+async def load_files(db: AsyncSession, rows: Sequence[AgentWorkspace]) -> None:
+    """Read the stored files `list_for_reader` left out, for the stored rows among these.
+
+    One query for all of them. A row whose column is already loaded is not read
+    again, and the column is set as loaded, so nothing marks the row changed.
+    """
+    pending = {
+        row.id: row for row in rows if row.backend == "state" and "files" in inspect(row).unloaded
+    }
+    if not pending:
+        return
+    result = await db.execute(
+        select(AgentWorkspace.id, AgentWorkspace.files).where(AgentWorkspace.id.in_(pending))
+    )
+    for workspace_id, files in result.tuples().all():
+        set_committed_value(pending[workspace_id], "files", files)
 
 
 async def delete(db: AsyncSession, *, workspace: AgentWorkspace) -> None:

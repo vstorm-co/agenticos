@@ -1,21 +1,11 @@
-"""The heartbeat's dispatch loop isolates each submission and preserves its marker.
+"""The trigger heartbeat claims and queues in one transaction (#2219).
 
-`check_agent_triggers` claims the due triggers in one committed transaction,
-then submits a run for each. Because the claim commits *before* the loop, a trigger
-whose `run_deployment` raises has already had its `next_fire_at` advanced *and* its
-`fire_in_flight_since` marker set - so a bare loop that let the exception propagate
-would abort after the first failure and leave the rest of the batch with an advanced
-schedule and no run: a missed fire nobody asked for. The loop isolates each dispatch
-instead.
-
-The marker of a failed dispatch is deliberately *left set*: `run_deployment` can
-accept the flow creation on the Prefect API and then lose or time out the response,
-so a submit that raised may still have started the child flow. Clearing the marker
-would let the next tick fire again on top of that accepted-but-queued run (#589), so
-`FIRE_LEASE`, not this loop, governs re-dispatch.
+`check_agent_triggers` used to claim the due triggers, commit, and then submit
+a Prefect run for each - and a submit that raised could not say whether the run
+had started (#589), so the marker had to be left for its lease. Now the claim,
+the advance and the queued fires are one session's work: they commit together
+or not at all, and the heartbeat has no second step left to fail.
 """
-
-from __future__ import annotations
 
 import contextlib
 import uuid
@@ -30,68 +20,24 @@ from app.worker.tasks import trigger_tasks
 pytestmark = pytest.mark.anyio
 
 
-@contextlib.asynccontextmanager
-async def _fake_db_context() -> AsyncGenerator[MagicMock, None]:
-    yield MagicMock()
-
-
-async def test_one_failed_dispatch_does_not_drop_the_rest_of_the_batch() -> None:
-    """Three triggers are claimed; the middle one's dispatch raises. The other two
-    are still submitted - one transient Prefect error costs its own trigger a fire,
-    never the whole batch - and each dispatch is handed the tick's own claim `now` as
-    `claimed_at`, the same timestamp the claim stamped on every marker, so the fire it
-    starts clears only the marker its claim set."""
-    triggers = [MagicMock(id=uuid.uuid4()) for _ in range(3)]
-    attempted: list[tuple[str, datetime | None]] = []
-
-    async def dispatch(
-        trigger_id: str, *, event_context: str | None = None, claimed_at: datetime | None = None
-    ) -> None:
-        attempted.append((trigger_id, claimed_at))
-        if trigger_id == str(triggers[1].id):
-            raise RuntimeError("prefect api 503")
-
-    service = MagicMock()
-    service.claim_and_advance = AsyncMock(return_value=triggers)
-    with (
-        patch.object(trigger_tasks, "get_worker_db_context", _fake_db_context),
-        patch.object(trigger_tasks, "dispatch_trigger_fire", side_effect=dispatch),
-        patch("app.services.agent_trigger.AgentTriggerService", return_value=service),
-    ):
-        await trigger_tasks.check_agent_triggers()  # must not raise
-
-    # Every trigger is attempted, and each with the exact `now` handed to the claim.
-    claimed_now = service.claim_and_advance.call_args.kwargs["now"]
-    assert attempted == [(str(t.id), claimed_now) for t in triggers]
-
-
-async def test_a_failed_dispatch_does_not_release_the_marker() -> None:
-    """A submit that raised may still have created the child flow, so the marker is
-    left for the lease rather than cleared - the loop opens no second session to
-    release it, and the trigger's own marker attribute is untouched."""
-    trigger = MagicMock(id=uuid.uuid4(), fire_in_flight_since=datetime(2026, 1, 1, tzinfo=UTC))
-    opened: list[object] = []
+async def test_the_heartbeat_claims_on_one_session_at_the_ticks_own_time() -> None:
+    opened: list[MagicMock] = []
 
     @contextlib.asynccontextmanager
-    async def tracking_context() -> AsyncGenerator[MagicMock, None]:
+    async def tracking_context() -> AsyncGenerator[MagicMock]:
         db = MagicMock()
         opened.append(db)
         yield db
 
-    async def dispatch(
-        trigger_id: str, *, event_context: str | None = None, claimed_at: datetime | None = None
-    ) -> None:
-        raise RuntimeError("prefect api 503")
-
     service = MagicMock()
-    service.claim_and_advance = AsyncMock(return_value=[trigger])
+    service.claim_and_advance = AsyncMock(return_value=[MagicMock(id=uuid.uuid4())])
+    before = datetime.now(UTC)
     with (
         patch.object(trigger_tasks, "get_worker_db_context", tracking_context),
-        patch.object(trigger_tasks, "dispatch_trigger_fire", side_effect=dispatch),
-        patch("app.services.agent_trigger.AgentTriggerService", return_value=service),
+        patch("app.services.agent_trigger.AgentTriggerService", return_value=service) as built,
     ):
-        await trigger_tasks.check_agent_triggers()  # must not raise
+        await trigger_tasks.check_agent_triggers()
 
-    # Exactly one session - the claim's. No second one is opened to release a marker.
-    assert len(opened) == 1
-    assert trigger.fire_in_flight_since == datetime(2026, 1, 1, tzinfo=UTC)
+    assert len(opened) == 1, "the claim and its fires share one transaction"
+    built.assert_called_once_with(opened[0])
+    assert before <= service.claim_and_advance.call_args.kwargs["now"] <= datetime.now(UTC)

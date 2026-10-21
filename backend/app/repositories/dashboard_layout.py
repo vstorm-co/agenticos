@@ -6,8 +6,6 @@ surface when the same person is looking at another, and dropping either half of
 the predicate is a cross-tenant read that "the query ran" would never notice.
 """
 
-from __future__ import annotations
-
 from typing import Any
 from uuid import UUID
 

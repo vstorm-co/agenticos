@@ -12,8 +12,6 @@ messages leave no lock behind, two messages in one chat still take turns, and
 the allowance is consumed from the Redis every worker shares.
 """
 
-from __future__ import annotations
-
 import asyncio
 import uuid
 from typing import Any

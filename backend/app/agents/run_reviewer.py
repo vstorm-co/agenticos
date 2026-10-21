@@ -18,16 +18,14 @@ differs is what a platform has to add to it:
 - **Never the run's failure.** The judge raises its failure on the run; a
   reviewer that cannot review is logged and the run goes on - a run must not be
   lost to the thing watching it.
-- **Not refused under Prefect.** The judge rejects a run inside a durable flow,
-  because its calls would repeat on replay. A routine or workflow here runs the
-  agent inside a Prefect flow that does not replay a run's steps: a retry starts
+- **Not refused in a background job.** The judge rejects a run inside a durable
+  flow, because its calls would repeat on replay. A routine or workflow here runs
+  the agent inside a job that does not replay a run's steps: a retry starts
   the run over, its own model calls with it, so a review there repeats exactly
   when the run's own requests do.
 - **Written down.** Each correction is kept on the run's manifest with the
   reviewer's name, so the run history shows what steered the run and who sent it.
 """
-
-from __future__ import annotations
 
 import asyncio
 import contextlib

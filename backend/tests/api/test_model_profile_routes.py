@@ -5,8 +5,6 @@ The service tests call `create_profile` directly, so a route that stopped passin
 a regional OpenAI endpoint that picked Responses quietly back on Chat Completions.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock

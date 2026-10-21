@@ -10,8 +10,6 @@ gets until the longer outer bound, and nothing here ever touches an
 out to.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 

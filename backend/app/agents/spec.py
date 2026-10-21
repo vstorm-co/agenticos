@@ -21,8 +21,6 @@ edit.
 scope is rejected when saved, so a broken agent never reaches a conversation.
 """
 
-from __future__ import annotations
-
 import logging
 from collections import Counter
 from enum import StrEnum

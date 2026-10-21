@@ -13,8 +13,6 @@ count is reported beside every percentile so a reader can see when a tail is
 being described by three samples.
 """
 
-from __future__ import annotations
-
 import math
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field

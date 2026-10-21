@@ -694,8 +694,8 @@ browser up -d browser`, reached as `http://browser:9222`. The host must be on
 default — refuses browser automation outright, at publish.
 
 The compose browser sits on a Docker network of its own, which only the API and the
-runner join to reach it: a page it opens, or is redirected to, cannot reach the
-database, Redis, Prefect or MinIO. It still reaches whatever the host's network
+worker join to reach it: a page it opens, or is redirected to, cannot reach the
+database, Redis or MinIO. It still reaches whatever the host's network
 allows, such as a cloud's metadata address, so block that on the host where it
 matters.
 

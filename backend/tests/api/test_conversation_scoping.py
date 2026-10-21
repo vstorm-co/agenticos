@@ -16,8 +16,6 @@ Cross-user reads still exist, on `/admin/conversations`, gated on
 `is_app_admin` - which is why removing this did not remove a capability.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock

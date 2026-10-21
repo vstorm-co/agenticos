@@ -26,8 +26,6 @@ The host is fixed `github.com`, so there is no SSRF surface and no discovery hop
 validate. The token POST does not follow redirects.
 """
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass

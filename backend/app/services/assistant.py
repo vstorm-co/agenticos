@@ -13,9 +13,8 @@ open the console first may not be allowed to create agents. Who may talk to it i
 through the platform's MCP server with a credential minted for them.
 """
 
-from __future__ import annotations
-
 import logging
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,16 +23,19 @@ from app.agents.spec import AgentSpec, BudgetSpec
 from app.core.exceptions import AppException, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent
+from app.db.models.agent_run import RunStatus
 from app.db.models.organization_assistant import OrganizationAssistant
 from app.db.models.resource_grant import Visibility
 from app.db.updates import writable
 from app.repositories import (
     agent_repo,
+    agent_run_repo,
     credential_repo,
     member_repo,
     organization_assistant_repo,
 )
-from app.schemas.assistant import AssistantRead, AssistantUpdate
+from app.repositories.agent_run import RunFilters
+from app.schemas.assistant import AssistantRead, AssistantSignals, AssistantUpdate
 from app.services import agent_templates
 from app.services.agent_registry import AgentRegistryService, slugify
 from app.services.sandbox_connection import SandboxConnectionService
@@ -45,6 +47,8 @@ TEMPLATE_KEY = "general/platform-assistant"
 # drawn - the catalog, a picker, the transcript, Slack - draws the Architect's.
 AVATAR = agent_templates.TEMPLATES_ROOT / TEMPLATE_KEY / "avatar.png"
 """The shipped template every organization's assistant is installed from."""
+RECENT_FAILURE = timedelta(days=1)
+"""How far back a failed run is still worth the bubble raising."""
 
 
 class AssistantService:
@@ -81,6 +85,38 @@ class AssistantService:
         if row.enabled and agent.current_version_id is None:
             agent = await self._publish_when_possible(ctx.organization_id, agent)
         return self._read(row, agent, can_use=can_use, can_configure=can_configure)
+
+    async def signals(self, ctx: AuthContext) -> AssistantSignals:
+        """What the widget's bubble may speak to, read the way each listing reads it.
+
+        One request on every page instead of three listings - every agent, the
+        approval queue and the reader's failed runs - fetched to count them (#2248).
+        Each is asked through the same scope its own page uses, so the bubble never
+        speaks to something its page would not show.
+        """
+        pending = 0
+        if ctx.has(Perm.APPROVALS_DECIDE):
+            _rows, pending = await agent_run_repo.list_approvals(
+                self.db, organization_id=ctx.organization_id, limit=1
+            )
+        failed_run_id = None
+        if ctx.has(Perm.RUNS_VIEW) and ctx.user_id is not None:
+            runs, _total = await agent_run_repo.list_runs(
+                self.db,
+                organization_id=ctx.organization_id,
+                filters=RunFilters(
+                    statuses=[RunStatus.FAILED.value],
+                    user_id=ctx.user_id,
+                    started_from=datetime.now(UTC) - RECENT_FAILURE,
+                ),
+                limit=1,
+            )
+            failed_run_id = runs[0].id if runs else None
+        return AssistantSignals(
+            pending_approvals=pending,
+            has_agents=ctx.has(Perm.AGENTS_VIEW) and await self.registry.any_visible(ctx),
+            failed_run_id=failed_run_id,
+        )
 
     async def update(self, ctx: AuthContext, data: AssistantUpdate) -> AssistantRead:
         """Change how the assistant greets people, or switch it off.

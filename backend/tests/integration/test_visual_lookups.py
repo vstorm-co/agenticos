@@ -5,8 +5,6 @@ is scoped to one conversation in its WHERE clause - and only reading rows from a
 second thread back proves the scope holds.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 

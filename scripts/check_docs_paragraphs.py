@@ -15,8 +15,6 @@ under `docs/design`, `docs/plans` and `docs/audits`, which are working notes
 rather than pages.
 """
 
-from __future__ import annotations
-
 import sys
 from pathlib import Path
 

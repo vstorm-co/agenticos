@@ -4,8 +4,6 @@ A mock can only say the client sent a script; whether Redis gives a lease back
 for its holder alone, and refuses everyone else, is Redis's to answer.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncGenerator
 from uuid import uuid4
 
@@ -17,7 +15,7 @@ pytestmark = pytest.mark.anyio
 
 
 @pytest.fixture
-async def redis() -> AsyncGenerator[RedisClient, None]:
+async def redis() -> AsyncGenerator[RedisClient]:
     client = RedisClient()
     await client.connect()
     if not await client.ping():

@@ -1,6 +1,6 @@
 # Publish the three images the compose files pull.
 #
-#   ghcr.io/vstorm-co/agenticos-backend    the API, the Prefect runner, the migrations
+#   ghcr.io/vstorm-co/agenticos-backend    the API, the background worker, the migrations
 #   ghcr.io/vstorm-co/agenticos-frontend   the console
 #   ghcr.io/vstorm-co/agenticos-browser    the browser `browser_use` drives (`browser` profile)
 #

@@ -16,8 +16,6 @@ the run cost, so a name taken since must not replace the run's own outcome.
 a reviewer one decision, not three copies of it.
 """
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import AsyncMock, MagicMock
 

@@ -25,8 +25,6 @@ from the origin the app runs on, and a stored name is what decides whether a
 browser treats it as a picture or as a script.
 """
 
-from __future__ import annotations
-
 import contextlib
 import logging
 from typing import Literal

@@ -17,8 +17,6 @@ whoever holds `edit` on an agent - one that could name a Docker image could name
 one whose entrypoint mounts the host.
 """
 
-from __future__ import annotations
-
 from typing import Any, Literal
 from uuid import UUID
 

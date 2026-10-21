@@ -1,5 +1,5 @@
 ---
-source_sha: "a2315efb4fdc"
+source_sha: "593e85034342"
 ---
 
 # Konfiguracja źródeł synchronizacji { #configure-sync-sources }
@@ -220,13 +220,14 @@ samoczynnie:
 | `120` | Co 2 godziny |
 | `1440` | Raz dziennie |
 
-!!! warning "Harmonogram wymaga runnera Prefect"
+!!! warning "Harmonogram wymaga workera"
 
-    `check_scheduled_syncs_flow` to deployment Prefect, który budzi się co 60
-    sekund i uruchamia to, czego termin nadszedł. Bez kontenerów
-    `prefect-server` i `prefect-runner`, które startuje `make dev`,
-    `schedule_minutes` nie robi nic. Gdy nie działa żaden z nich, cokolwiek
-    synchronizuje wyłącznie ręczne wyzwolenie (CLI, API lub interfejs).
+    Harmonogram `dispatch-due-syncs` budzi się co 60 sekund i kolejkuje
+    synchronizację każdego źródła, którego termin nadszedł, więc bez kontenera
+    `worker`, który startuje `make dev`, `schedule_minutes` nie robi nic. Bez
+    niego ręczne wyzwolenie (CLI, API lub interfejs) też kolejkuje swoją
+    synchronizację, która również czeka na workera. Jedno źródło nigdy nie ma
+    dwóch synchronizacji naraz.
 
 ## Konfiguracja Google Drive { #google-drive-setup }
 

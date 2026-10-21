@@ -6,8 +6,6 @@ rate limit, refusals carried to the sign-in page - because the service itself
 is `tests/test_directory_sign_in.py`'s.
 """
 
-from __future__ import annotations
-
 import base64
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock

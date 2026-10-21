@@ -1,7 +1,5 @@
 """Data access for remote sandboxes still to be destroyed (#2209)."""
 
-from __future__ import annotations
-
 from collections.abc import Sequence
 from datetime import datetime
 from uuid import UUID
@@ -75,3 +73,14 @@ async def count_on_connection(db: AsyncSession, *, connection_id: UUID) -> int:
         .where(PendingSandboxDestroy.connection_id == connection_id)
     )
     return result.scalar_one()
+
+
+async def remove_on_connection(db: AsyncSession, *, connection_id: UUID) -> int:
+    """Forget every sandbox still to be destroyed on a connection. Answers how many."""
+    result = await db.execute(
+        delete(PendingSandboxDestroy)
+        .where(PendingSandboxDestroy.connection_id == connection_id)
+        .returning(PendingSandboxDestroy.id)
+    )
+    await db.flush()
+    return len(result.all())

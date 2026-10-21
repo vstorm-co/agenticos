@@ -1,7 +1,5 @@
 """`agenticos cmd mcp-catalog-check`: which run prunes, and what it writes (#2103)."""
 
-from __future__ import annotations
-
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -23,7 +21,7 @@ _ROWS = [
 @pytest.fixture(autouse=True)
 def _session(monkeypatch):
     @asynccontextmanager
-    async def session() -> AsyncGenerator[object, None]:
+    async def session() -> AsyncGenerator[object]:
         yield object()
 
     monkeypatch.setattr(cmd, "get_db_context", session)

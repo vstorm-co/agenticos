@@ -7,8 +7,6 @@ keyed, or a model whose width nothing else agrees with, is an entry that fails
 on its first document rather than at import.
 """
 
-from __future__ import annotations
-
 import pytest
 
 from app.core import secret_purposes

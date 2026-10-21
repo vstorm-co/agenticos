@@ -357,7 +357,7 @@ page inside it, and stays the way you left it.
 | **Vault** | Credentials, sealed per organization | [Secrets](secrets.md) |
 | **Organizations** | Members, roles, invitations | [Permissions](permissions.md) |
 | **Settings** | Providers, ingestion defaults, notifications, your own profile | [Configuration](configuration.md) |
-| **Admin** | The deployment itself: users, tenants, system, deployment settings | [The deployment](deployment.md) |
+| **Admin** | The deployment itself: users, tenants, system, background jobs, deployment settings | [The deployment](deployment.md) |
 
 The **Agents** catalog can be filtered by **category** and **tag** — the editable,
 organization-local labels shown on each agent's card. Each filter is a menu of the

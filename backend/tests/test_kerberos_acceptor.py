@@ -7,8 +7,6 @@ KDC accepting a real ticket; that was checked by hand against an MIT KDC when
 this landed (#1773): a real SPNEGO token accepted, one for another service refused.
 """
 
-from __future__ import annotations
-
 import sys
 from types import ModuleType, SimpleNamespace
 

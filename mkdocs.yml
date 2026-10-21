@@ -337,6 +337,7 @@ nav:
           - rollout.md
           - deployment.md
           - deploy.md
+          - scaling.md
       - Keep it under control:
           - permissions.md
           - directory.md

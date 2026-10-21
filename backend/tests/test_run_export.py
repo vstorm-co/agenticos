@@ -7,8 +7,6 @@ answer on its own: an export with no date range, and one over the row cap. The
 and in integration as *the rows that come back* - a colleague's absent from both.
 """
 
-from __future__ import annotations
-
 import csv
 import io
 from datetime import UTC, datetime

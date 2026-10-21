@@ -7,8 +7,6 @@ groups", a mapped group admits past `invite_only`, and the sync runs for the
 deployment's own provider only - never for Google.
 """
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from urllib.parse import parse_qs, urlparse

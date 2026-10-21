@@ -1,5 +1,5 @@
 ---
-source_sha: "852d8bf0dfea"
+source_sha: "3a56d4c17513"
 ---
 
 # Sandbox { #the-sandbox }
@@ -351,13 +351,13 @@ przycisk.
 
 ## Kiedy pojawia się kontener { #when-a-container-appears }
 
-**Przy pierwszej operacji na workspasie, co nie jest tym samym co pierwsze
-wywołanie narzędzia przez agenta.** Run przygotowuje to, co ktoś załączył,
-i materializuje skille agenta *przed* wywołaniem modelu, a jedno i drugie otwiera
-sesję leniwie — więc kontener może istnieć w turze, w której agent nigdy nie
-sięgnął po powłokę. Warto o tym wiedzieć przy czytaniu listy sesji: sandbox,
-którego log aktywności nie zawiera nic poza zapisami, to sandbox, o który nic
-jeszcze nie poprosiło.
+**Przy pierwszej operacji na workspasie: narzędziu, które agent tam wywoła, albo
+pliku, który ktoś załączył i który trafia do workspace'u.** Skille agenta są
+zapisywane do workspace'u właśnie wtedy, tuż przed tą operacją, a nie podczas
+przygotowania runu, więc tura, która nie używa sandboxa, nie otwiera sesji i nie
+uruchamia kontenera. Tura, która go używa, ma skille na dysku od razu. Na liście
+sesji nadal może się pojawić sandbox, którego log aktywności zawiera same zapisy:
+taki, do którego załączono plik i który potem nie był używany.
 
 ## Co w nim zrobiono i gdzie żyje ten zapis { #what-was-done-in-one-and-where-that-record-lives }
 
@@ -591,7 +591,10 @@ tylko to go kończy.
 Połączenie wyłączone dalej ma swoje sandboxy usuwane, bo wyłączenie wstrzymuje
 nową pracę, a nie rachunek. Połączenia, na którym zostały tombstone'y, nie da się
 usunąć: zniknęłyby razem z nim, a to jedyny zapis tego, co nadal działa u
-dostawcy.
+dostawcy. Gdy sweep nie ma szans się udać, bo poświadczenie połączenia zostało
+usunięte albo unieważnione, usuń sandboxy w konsoli dostawcy. Potem usuń
+połączenie jeszcze raz i potwierdź, że to zrobiono: tombstone'y zostaną
+zapomniane, a ich liczba trafi do logu audytu.
 
 ## Podsumowanie { #recap }
 

@@ -14,8 +14,6 @@ to keep must say what it dropped, because a trimmed document that reads as a
 complete one is worse than no document.
 """
 
-from __future__ import annotations
-
 import json
 from contextlib import ExitStack
 from datetime import UTC, datetime

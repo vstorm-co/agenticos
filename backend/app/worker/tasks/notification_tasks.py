@@ -14,8 +14,6 @@ from collections import Counter
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from prefect import flow
-
 from app.db.models.notification import (
     NOTIFICATION_OUTER_RETENTION_DAYS,
     NOTIFICATION_READ_RETENTION_DAYS,
@@ -63,7 +61,7 @@ async def deliver_due_notifications() -> dict[str, int]:
     worker left behind. Returns outcome counts, so a test or a caller can say
     what it did without reading the logs.
 
-    One of the worker's in-process sweeps (`app/worker/sweeps.py`), every
+    The `deliver-notifications` schedule (`app/worker/schedules.py`), every
     minute: a pending delivery sits queued for at most one tick."""
     now = datetime.now(UTC)
     async with get_worker_db_context() as db:
@@ -95,8 +93,7 @@ async def deliver_due_notifications() -> dict[str, int]:
     return counts
 
 
-@flow(name="notification-retention-sweep", log_prints=True)
-async def notification_retention_sweep_flow() -> int:
+async def sweep_notifications() -> int:
     """Drop notifications past their retention window (Decision 8).
 
     Both cutoffs are age since the row was *created*, never since it was
@@ -107,7 +104,7 @@ async def notification_retention_sweep_flow() -> int:
     `NOTIFICATION_OUTER_RETENTION_DAYS`, so it does not vanish out from
     under someone who genuinely has not looked, but even that grace has a
     ceiling: a row that old is dropped either way. Daily,
-    matching `sweep_sandbox_operations_flow`: the exact hour a row leaves is
+    matching `sweep_sandbox_operations`: the exact hour a row leaves is
     nobody's business, and a delete over a many-day-old boundary is cheap
     run once rather than hourly.
     """

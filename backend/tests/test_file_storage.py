@@ -1,7 +1,5 @@
 """The local file store's one refusal: a storage path that leaves the root."""
 
-from __future__ import annotations
-
 import ast
 import inspect
 import os

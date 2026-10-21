@@ -10,8 +10,6 @@ refuses has already told the model the thread exists; and a transcript that name
 the thread's owner on a turn a colleague typed puts words in somebody's mouth.
 """
 
-from __future__ import annotations
-
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from types import SimpleNamespace

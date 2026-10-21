@@ -56,3 +56,17 @@ class AssistantUpdate(BaseSchema):
 
     enabled: bool | None = None
     greeting: str | None = Field(default=None, max_length=500)
+
+
+class AssistantSignals(BaseSchema):
+    """What the widget's bubble may speak to on any page (#2063)."""
+
+    pending_approvals: int = Field(
+        description="Tool calls waiting on a decision; 0 without `approvals:decide`"
+    )
+    has_agents: bool = Field(
+        description="Whether the caller can see an agent; false without `agents:view`"
+    )
+    failed_run_id: UUID | None = Field(
+        description=("The caller's latest failed run of the last day; null without `runs:view`")
+    )

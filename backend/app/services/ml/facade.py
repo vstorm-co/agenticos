@@ -20,8 +20,6 @@ because the transaction that would have carried it is the one being rolled back
 by the refusal it describes.
 """
 
-from __future__ import annotations
-
 import logging
 import time
 from collections.abc import Sequence

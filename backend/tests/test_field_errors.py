@@ -8,8 +8,6 @@ site cannot restate for itself: what the path looks like, and that nothing but
 the path and the sentence leaves the process.
 """
 
-from __future__ import annotations
-
 import pytest
 from pydantic import BaseModel, Field, ValidationError, model_validator
 from pydantic_core import ErrorDetails

@@ -12,14 +12,13 @@ check on that; the shape here is what keeps it true: read the sealed row, unseal
 at the moment of use, hand the plaintext to the client and nothing else.
 """
 
-from __future__ import annotations
-
 import logging
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
 from pydantic import SecretStr
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
@@ -231,7 +230,9 @@ class SandboxConnectionService:
             )
         return to_read(row)
 
-    async def delete(self, ctx: AuthContext, connection_id: UUID) -> None:
+    async def delete(
+        self, ctx: AuthContext, connection_id: UUID, *, forget_pending_destroys: bool = False
+    ) -> None:
         """Remove a connection.
 
         The workspaces keyed to it are left alone: their rows record what an
@@ -242,6 +243,13 @@ class SandboxConnectionService:
         Refused while a project is pinned to it. A project's files live in its
         container on this host, and a pin cleared to "the organization's
         default" would open an empty workspace elsewhere and strand them.
+
+        Refused too while sandboxes on it are still to be destroyed, unless
+        `forget_pending_destroys` says somebody removed them on the provider by
+        hand (#2250). A credential deleted or revoked leaves those tombstones
+        nothing to retry with, and before this nothing could ever clear them, so
+        the connection could never be deleted. How many were forgotten goes in
+        the audit entry.
         """
         row = await self.get(ctx, connection_id)
         projects = await project_repo.names_on_connection(
@@ -255,20 +263,23 @@ class SandboxConnectionService:
                 ),
                 details={"projects": projects},
             )
+        forgotten = 0
+        if forget_pending_destroys:
+            forgotten = await pending_destroy_repo.remove_on_connection(
+                self.db, connection_id=row.id
+            )
         pending = await pending_destroy_repo.count_on_connection(self.db, connection_id=row.id)
         if pending:
-            # The tombstones go with the connection, and they are the only record
-            # of sandboxes still standing on the provider - a Daytona one billed
-            # until somebody deletes it by hand (#2209).
-            raise BadRequestError(
-                message=(
-                    f"{pending} sandboxes on this connection are still waiting to be "
-                    "removed from the provider. Switch the connection off and keep "
-                    "it until they are gone, or delete them on the provider first."
-                ),
-                details={"pending_destroys": pending},
-            )
-        await sandbox_connection_repo.delete(self.db, connection=row)
+            raise self._sandboxes_pending(pending)
+        try:
+            async with self.db.begin_nested():
+                await sandbox_connection_repo.delete(self.db, connection=row)
+        except IntegrityError:
+            # A conversation deleted meanwhile wrote a tombstone the count above
+            # could not see; the foreign key refuses to take it with the
+            # connection, as it is the only record of that sandbox.
+            count = await pending_destroy_repo.count_on_connection(self.db, connection_id=row.id)
+            raise self._sandboxes_pending(count) from None
         notifications = NotificationService(self.db)
         # Before the audit entry, never after it: `record_audit` holds the
         # chain lock to the end of the transaction, and the notification
@@ -282,9 +293,23 @@ class SandboxConnectionService:
             action="sandbox_connection.deleted",
             target_type="sandbox_connection",
             target_id=str(connection_id),
-            details={"name": row.name},
+            details={"name": row.name, "forgotten_pending_destroys": forgotten},
         )
         await notifications.security_event(entry, recipients=audience)
+
+    @staticmethod
+    def _sandboxes_pending(pending: int) -> BadRequestError:
+        # The tombstones are the only record of sandboxes still standing on the
+        # provider - a Daytona one billed until somebody deletes it (#2209).
+        return BadRequestError(
+            message=(
+                f"{pending} sandboxes on this connection are still waiting to be "
+                "removed from the provider. Switch the connection off and keep it "
+                "until they are gone, or delete them on the provider and confirm "
+                "that you did."
+            ),
+            details={"pending_destroys": pending},
+        )
 
     @staticmethod
     def runtime_catalog() -> list[SandboxRuntimeOption]:

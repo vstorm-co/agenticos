@@ -123,7 +123,12 @@ describe("the AgenticOS server in the Builder", () => {
 
   it("reads a binding that names no policy as asking before writes, the server's own floor", async () => {
     tools.mockReturnValueOnce({ tools: [], isLoading: true, error: null });
-    render(<Harness initial={{ account: "platform" }} onChange={vi.fn()} />);
+    render(
+      <Harness
+        initial={{ account: "platform", allowed_tools: null, approval: "writes" }}
+        onChange={vi.fn()}
+      />,
+    );
     await userEvent.click(screen.getByText("Asks before any change"));
     expect(screen.getByRole("radio", { name: /Asks before any change/ })).toHaveAttribute(
       "aria-checked",

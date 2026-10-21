@@ -1094,7 +1094,7 @@
       "docsTitle": "Meine Dokumente zusammenfassen",
       "greeting": "Wie kann ich helfen, {name}?",
       "greetingAnonymous": "Wie kann ich heute helfen?",
-      "lead": "Fragen Sie, was Sie möchten – Antworten kommen im Stream, mit Tool-Aufrufen und Belegen aus Ihrem Wissen.",
+      "lead": "Fragen Sie etwas, hängen Sie eine Datei an oder beginnen Sie mit einem dieser Vorschläge.",
       "slashCommands": "Slash-Befehle",
       "emailTitle": "Eine E-Mail entwerfen",
       "emailPrompt": "Entwirf eine kurze, freundliche E-Mail, in der ein Kunde den Termin nächste Woche bestätigen soll.",
@@ -2310,6 +2310,14 @@
           "title": "Noch nichts gezeichnet",
           "description": "Bitten Sie einen Agent mit Visuals, etwas zu zeichnen - ein Diagramm, eine Erklärung, eine 3D-Szene - und es erscheint hier."
         }
+      },
+      "background-jobs": {
+        "title": "Hintergrundjobs",
+        "description": "Was die Job-Warteschlange in den letzten 24 Stunden beendet hat und wie viel davon gestorben ist.",
+        "empty": {
+          "title": "Noch nichts beendet",
+          "description": "In den letzten 24 Stunden wurde kein Hintergrundjob beendet."
+        }
       }
     },
     "edit": {
@@ -3257,7 +3265,8 @@
     "documents": "Dokumente",
     "signIns": "Anmeldungen",
     "projects": "Projekte",
-    "allProjects": "Alle Projekte"
+    "allProjects": "Alle Projekte",
+    "backgroundJobs": "Hintergrund-Jobs"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -4853,7 +4862,11 @@
       "sandboxConnections": "Sandbox-Verbindungen",
       "sandboxes2": "Sandboxes",
       "tabConnections": "Verbindungen",
-      "tabRunning": "Laufend"
+      "tabRunning": "Laufend",
+      "deleteFailed": "Die Verbindung konnte nicht gelöscht werden",
+      "strandedTitle": "{count, plural, one {Eine Sandbox ist} other {# Sandboxes sind}} noch beim Anbieter",
+      "strandedBody": "AgenticOS konnte {count, plural, one {eine Sandbox} other {# Sandboxes}} beim Anbieter hinter {name} nicht entfernen, und der Anbieter berechnet sie möglicherweise noch. Lösche sie zuerst in der Konsole des Anbieters und bestätige dann hier, um sie zu vergessen und die Verbindung zu löschen.",
+      "strandedConfirm": "Ich habe sie gelöscht, Verbindung löschen"
     },
     "settings": {
       "absencesWorthStatingBecause": "Auslassungen, die es wert sind genannt zu werden, weil eine Einstellungsseite das Gegenteil nahelegt.",
@@ -5079,6 +5092,81 @@
       "siteLabel": "Website",
       "sitePlaceholder": "linkedin.com/login",
       "title": "Browser-Anmeldungen"
+    },
+    "backgroundJobs": {
+      "status": {
+        "queued": "Wartend",
+        "running": "Laufend",
+        "succeeded": "Erledigt",
+        "dead": "Tot",
+        "cancelled": "Abgebrochen"
+      },
+      "pools": {
+        "agent": "Agent-Runs",
+        "ingest": "Ingestion",
+        "system": "System"
+      },
+      "kind": "Art",
+      "statusColumn": "Status",
+      "attempts": "Versuche",
+      "attemptsOf": "{attempts} von {max}",
+      "pool": "Pool",
+      "queued": "Eingereiht",
+      "actions": "Aktionen",
+      "retry": "Wiederholen",
+      "cancel": "Abbrechen",
+      "jobs": "Jobs",
+      "newestFirst": "Neueste zuerst",
+      "filterByPool": "Nach Pool filtern",
+      "allPools": "Alle Pools",
+      "jobsCouldNotBeRead": "Die Jobs konnten nicht gelesen werden.",
+      "noJobs": "Hier sind keine Jobs.",
+      "loadMore": "Mehr laden",
+      "workers": "Worker",
+      "workersAlive": "{count, plural, =0 {keiner aktiv} =1 {1 aktiv} other {# aktiv}}",
+      "noWorkers": "Kein Worker hat sich in den letzten zwei Minuten gemeldet, also läuft nichts aus der Warteschlange.",
+      "workerLine": "{pools} · zuletzt {beat}",
+      "schedules": "Zeitpläne",
+      "schedulesCount": "{count, plural, =1 {1 Zeitplan} other {# Zeitpläne}}",
+      "every": "{unit, select, day {{count, plural, =1 {täglich} other {alle # Tage}}} hour {{count, plural, =1 {stündlich} other {alle # Stunden}}} other {{count, plural, =1 {jede Minute} other {alle # Minuten}}}}",
+      "nextRun": "nächster {time}",
+      "pausedTitle": "{count, plural, =1 {Eine Job-Art ist pausiert} other {# Job-Arten sind pausiert}}",
+      "pausedSince": "Pausiert seit {time}",
+      "resume": "Fortsetzen",
+      "retried": "Der Job ist wieder eingereiht.",
+      "cancelled": "Der Job ist abgebrochen.",
+      "resumed": "Jobs dieser Art werden wieder abgeholt.",
+      "actionFailed": "Das hat nicht geklappt.",
+      "couldNotRead": "Die Warteschlange konnte nicht gelesen werden",
+      "couldNotReadBody": "Die Hintergrund-Jobs konnten nicht abgerufen werden. Die Datenbank ist möglicherweise nicht erreichbar.",
+      "activity": "Aktivität",
+      "windowLabel": "Zeitraum",
+      "window": {
+        "day": "24 Stunden",
+        "week": "7 Tage"
+      },
+      "finishedFigure": "Beendet",
+      "finishedCaption": "{window, select, day {in den letzten 24 Stunden} other {in den letzten 7 Tagen}}",
+      "deadFigure": "Tot",
+      "deadShare": "{share} der beendeten",
+      "noneDead": "keine",
+      "waitFigure": "Wartet am längsten",
+      "waitCaption": "ein fälliger Job, jetzt",
+      "waitNone": "nichts Fälliges wartet",
+      "slowestFigure": "Langsamste Abholung (p95)",
+      "byKind": "Nach Art",
+      "kindsCount": "{count, plural, =0 {keine Arten} =1 {1 Art} other {# Arten}}",
+      "columns": {
+        "finished": "Beendet",
+        "dead": "Tot",
+        "run": "Laufzeit p50 / p95",
+        "wait": "Wartezeit p95"
+      },
+      "noActivity": "In diesem Zeitraum wurde nichts beendet.",
+      "activityCouldNotBeRead": "Die Aktivität konnte nicht gelesen werden.",
+      "perSlice": "{window, select, day {etwa {count} pro Stunde} other {etwa {count} alle sechs Stunden}}",
+      "pausedEverywhere": "Für alle Organisationen pausiert",
+      "pausedFor": "Für {organization} pausiert"
     }
   },
   "profile": {
@@ -6005,7 +6093,18 @@
     "presetWeekdays9": "Werktags 09:00",
     "stepConfigure": "Konfigurieren",
     "stepMessage": "Nachricht",
-    "templateScratchHelpEvent": "Schreiben Sie Ihre eigene Nachricht."
+    "templateScratchHelpEvent": "Schreiben Sie Ihre eigene Nachricht.",
+    "overlapLabel": "Wenn der vorige Lauf noch läuft",
+    "overlap": {
+      "skip": "Diesen Lauf auslassen",
+      "queue": "Nach dessen Ende starten",
+      "allow": "Trotzdem starten"
+    },
+    "overlapHint": {
+      "skip": "Der Zeitplan wartet auf den nächsten Termin. Ein langsamer Agent läuft so oft, wie er fertig wird.",
+      "queue": "Startet einmal, sobald der vorige Lauf endet, egal wie viele Termine verpasst wurden.",
+      "allow": "Startet pünktlich neben dem laufenden Lauf. Beide Läufe werden bezahlt."
+    }
   },
   "portals": {
     "title": "Portale",
@@ -6018,10 +6117,10 @@
     "reauthorizeAction": "Neu autorisieren",
     "redirecting": "Weiterleitung …",
     "advancedWebhook": "API-Trigger",
-    "ambiguousOAuthApp": "Es sind zwei organisationsweit sichtbare GitHub-OAuth-App-Secrets gespeichert, deshalb lässt sich beim Verbinden nicht erkennen, welches gemeint ist. Entfernen Sie eines im Vault.",
+    "ambiguousOAuthApp": "Es sind zwei organisationsweit sichtbare Secrets für {credential} gespeichert, deshalb lässt sich beim Verbinden nicht erkennen, welches gemeint ist. Entfernen Sie eines im Vault.",
     "apiCategory": "Ihr eigener Code",
     "addCredentials": "Zugangsdaten hinzufügen",
-    "needsOAuthApp": "Zum Verbinden werden die GitHub-OAuth-App-Zugangsdaten Ihrer Organisation gebraucht. Fügen Sie sie hier oder im Vault hinzu.",
+    "needsOAuthApp": "Zum Verbinden werden die Zugangsdaten für {credential} Ihrer Organisation gebraucht. Fügen Sie sie hier oder im Vault hinzu.",
     "oauthUnavailable": "Ein Postfach zu verbinden braucht den eigenen Google-Client dieses Deployments, und es ist keiner konfiguriert. Ein Betreiber setzt GOOGLE_CLIENT_ID und GOOGLE_CLIENT_SECRET; im Vault lässt sich das nicht beheben.",
     "openVault": "Vault öffnen",
     "apiDescription": "Lösen Sie einen Agent mit einem signierten POST aus allem aus, was JSON senden kann.",
@@ -6054,7 +6153,8 @@
     "authorFilterLabel": "Autor enthält",
     "authorFilterPlaceholder": "z. B. Jane Doe",
     "textFilterLabel": "Text enthält",
-    "textFilterPlaceholder": "z. B. Einstellung"
+    "textFilterPlaceholder": "z. B. Einstellung",
+    "oauthAppFallback": "die OAuth-App"
   },
   "agentTemplates": {
     "browse": "Agent-Vorlagen",

@@ -1,7 +1,5 @@
 """#2130: how one agent's browses reach the web - its binding's settings, and the route a run gets."""
 
-from __future__ import annotations
-
 from typing import Any
 
 import pytest

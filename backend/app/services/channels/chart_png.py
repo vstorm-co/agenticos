@@ -15,8 +15,6 @@ width, and every element that is not a value or its label is one more thing to
 misread.
 """
 
-from __future__ import annotations
-
 import math
 from collections.abc import Callable
 from functools import partial

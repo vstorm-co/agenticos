@@ -10,8 +10,6 @@ Only a surface that draws visuals sets this - the web chat. Everywhere else the
 tool answers at once and says the drawing was not checked.
 """
 
-from __future__ import annotations
-
 import asyncio
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field

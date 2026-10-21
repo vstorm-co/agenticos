@@ -8,8 +8,6 @@ for its own organization, and then takes the raw envelope and shows it fails to
 unseal under a second organization's scope.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

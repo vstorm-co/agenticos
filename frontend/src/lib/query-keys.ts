@@ -173,6 +173,9 @@ export const qk = {
   },
   runs: {
     all: () => ["runs"] as const,
+    // The AI Architect's bubble: approvals waiting, no agents yet, the reader's
+    // failed run. Under `runs` because two of the three are run events.
+    assistantSignals: (orgId: string) => ["runs", "assistant-signals", orgId] as const,
     // The window is part of the key: the same agent over two windows is two
     // answers, and caching one as the other is how a figure ends up describing a
     // period nobody asked for. The sort, the minimum-duration filter and the
@@ -578,6 +581,13 @@ export const qk = {
     // read by everybody: invalidating one must not refetch the other, since the
     // form and the banner answer different questions about it.
     settings: () => ["admin", "settings"] as const,
+    // The deployment's job queue (#2219). One root, so a retry or a resume
+    // refreshes the header's counts and every filtered page under it at once.
+    backgroundJobs: () => ["admin", "background-jobs"] as const,
+    backgroundJobActivity: (window: string) =>
+      ["admin", "background-jobs", "activity", window] as const,
+    backgroundJobList: (filters: { status?: string; pool?: string }) =>
+      ["admin", "background-jobs", "list", filters] as const,
   },
   branding: {
     // The announcement banner. Not the public branding read - that one is

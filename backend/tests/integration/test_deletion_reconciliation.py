@@ -10,13 +10,11 @@ Integration rather than unit because the whole point is what the database does
 to neighbouring rows when one is deleted, which a mock cannot show.
 """
 
-from __future__ import annotations
-
 import asyncio
 import contextlib
 import uuid
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from sqlalchemy import select, text
@@ -51,28 +49,41 @@ pytestmark = pytest.mark.anyio
 
 
 @pytest.fixture(autouse=True)
-def _route_purge_dispatch_to_impl(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Run the org-purge cleanup in-process instead of submitting it to Prefect.
+def _run_queued_cleanups_after_the_commit(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run the queued cleanup jobs the moment the transaction that queued them commits.
 
-    `OrganizationService.purge` hands its external cleanup to a durable Prefect
-    deployment run (#1274); with no runner behind the test, `run_deployment`
-    would fail on an unregistered deployment. Routing that submission straight to
-    the cleanup it would have run keeps these tests exercising the real drop and
-    unlink through the commit/rollback gate that defers them - the submission
-    fires only after a committed teardown, so a rolled-back one still runs
-    nothing.
-
-    The parameter is an intent id, so this reads the row the purge committed and
-    deletes it afterwards - which is what the flow does, and what makes these
-    tests exercise the outbox rather than route around it (#1269).
+    `OrganizationService.purge` and the KB delete paths queue their external
+    cleanup as a job in their own transaction (#2219). With no worker behind the
+    test, the queueing is left as it is - the job is really written - and the
+    jobs are then claimed and run straight after the commit, the way a worker
+    would: so these tests exercise the real drop and unlink, and a rolled-back
+    teardown, whose job rolled back with it, still runs nothing.
     """
+    from datetime import timedelta
+
+    from app.core.background import spawn_after_commit
+    from app.db.session import get_worker_db_context
+    from app.repositories import background_job as job_repo
+    from app.worker.jobs import CLEANUP_EXTERNAL_STATE
     from app.worker.tasks import teardown_tasks
 
-    async def _run(*, name: str, parameters: dict[str, Any], timeout: float) -> None:
-        del name, timeout
-        await teardown_tasks.cleanup_external_state(**parameters)
+    queue = teardown_tasks.queue_external_state_cleanup
 
-    monkeypatch.setattr(teardown_tasks, "run_deployment", AsyncMock(side_effect=_run))
+    async def run_queued() -> None:
+        async with get_worker_db_context() as db:
+            while job := await job_repo.claim(
+                db, pool="system", worker_id="test", lease=timedelta(minutes=5)
+            ):
+                await teardown_tasks.run_external_state_cleanup(
+                    CLEANUP_EXTERNAL_STATE.load(job.payload)
+                )
+                await job_repo.complete(db, job.id, fence=job.attempts)
+
+    async def queue_then_run(db, *args, **kwargs) -> None:
+        await queue(db, *args, **kwargs)
+        spawn_after_commit(db, run_queued(), name="test-run-queued-cleanups")
+
+    monkeypatch.setattr(teardown_tasks, "queue_external_state_cleanup", queue_then_run)
 
 
 def _user(email: str | None = None) -> User:

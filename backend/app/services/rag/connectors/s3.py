@@ -13,8 +13,6 @@ What is left here is boto3's vocabulary and nothing else - the listing loop, the
 or GCS connector is a client rather than a second copy of them (#988).
 """
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Iterator
 from datetime import datetime
@@ -125,7 +123,7 @@ class S3Connector(ObjectStoreConnector):
         if endpoint:
             client_kwargs["endpoint_url"] = endpoint
         # Imported where a client is built: boto3 is the S3 sources' alone, and
-        # every API worker and flow run imports this module (#2225).
+        # every API worker and background worker imports this module (#2225).
         import boto3
         from botocore.config import Config
 

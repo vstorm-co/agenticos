@@ -10,8 +10,6 @@ bearer token for one outbound catalog request; and
 the provider's own token endpoint inside the connect flow and to nowhere else.
 """
 
-from __future__ import annotations
-
 from typing import cast
 from uuid import UUID
 

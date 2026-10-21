@@ -4,8 +4,6 @@ The model is scripted, so whether it looped - and what it was told - is exactly
 what the run did.
 """
 
-from __future__ import annotations
-
 from dataclasses import replace
 from typing import Any
 from unittest.mock import MagicMock

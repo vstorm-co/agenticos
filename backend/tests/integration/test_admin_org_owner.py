@@ -14,8 +14,6 @@ database answers - a unit test over a mocked session sees the arguments and not
 the rows they select.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal

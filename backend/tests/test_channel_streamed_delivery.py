@@ -1,7 +1,5 @@
 """How the router ends a streamed answer, rates an edited one and reacts (#2084)."""
 
-from __future__ import annotations
-
 import uuid
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch

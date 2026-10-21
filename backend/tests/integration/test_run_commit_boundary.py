@@ -8,8 +8,6 @@ still being called, and a run that failed or was cancelled is still in history,
 with its cost, for a reader who arrives later on a connection of their own.
 """
 
-from __future__ import annotations
-
 import asyncio
 import uuid
 from datetime import UTC, datetime

@@ -1,5 +1,5 @@
 ---
-source_sha: "a2315efb4fdc"
+source_sha: "593e85034342"
 ---
 
 # Configura las fuentes de sincronización { #configure-sync-sources }
@@ -219,13 +219,14 @@ por sí sola:
 | `120` | Cada 2 horas |
 | `1440` | Una vez al día |
 
-!!! warning "Un horario necesita el runner de Prefect"
+!!! warning "Un horario necesita el worker"
 
-    `check_scheduled_syncs_flow` es un deployment de Prefect que despierta cada
-    60 segundos y lanza lo que toque, así que `schedule_minutes` no hace nada sin
-    los contenedores `prefect-server` y `prefect-runner` que arranca `make dev`.
-    Si no hay ninguno de los dos en marcha, solo un disparo manual (CLI, API o la
-    interfaz) sincroniza algo.
+    La programación `dispatch-due-syncs` despierta cada 60 segundos y encola una
+    sincronización por cada fuente que toque, así que `schedule_minutes` no hace
+    nada sin el contenedor `worker` que arranca `make dev`. Sin él, un disparo
+    manual (CLI, API o la interfaz) también encola su sincronización, que
+    igualmente espera a un worker. Una fuente nunca tiene dos sincronizaciones a
+    la vez.
 
 ## Configurar Google Drive { #google-drive-setup }
 

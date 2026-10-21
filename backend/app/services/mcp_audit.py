@@ -23,8 +23,6 @@ anything. Whether a server's tools work once signed in is the connection's own
 test, which already exists.
 """
 
-from __future__ import annotations
-
 import asyncio
 import json
 from collections import Counter

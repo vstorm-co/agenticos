@@ -22,8 +22,6 @@ TLS is verified: the certificate chain against the system store or
 StartTLS is refused at startup unless plaintext is allowed explicitly.
 """
 
-from __future__ import annotations
-
 import logging
 import ssl
 import uuid
@@ -251,7 +249,7 @@ class LdapDirectory:
         return self._identity(entry, groups)
 
     @contextmanager
-    def _service_connection(self) -> Generator[Connection, None, None]:
+    def _service_connection(self) -> Generator[Connection]:
         """A connection bound as the service account (or anonymously), closed afterwards."""
         connection = self._connect(self._config.bind_dn, self._config.bind_password)
         try:

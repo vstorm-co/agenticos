@@ -18,8 +18,6 @@ This module is template-inherited and outside the coverage gate, which is why
 the behaviour is pinned by name rather than trusted to a percentage.
 """
 
-from __future__ import annotations
-
 import json
 import uuid
 from collections.abc import AsyncIterator

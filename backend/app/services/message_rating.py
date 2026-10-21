@@ -29,7 +29,7 @@ from app.services.stats import resolve_window
 class RatingExportResult:
     media_type: str
     content_disposition: str
-    payload: dict[str, Any] | AsyncGenerator[str, None]
+    payload: dict[str, Any] | AsyncGenerator[str]
 
 
 class MessageRatingService:
@@ -222,7 +222,7 @@ class MessageRatingService:
         *,
         rating_filter: int | None = None,
         with_comments_only: bool = False,
-    ) -> AsyncGenerator[list[MessageRatingWithDetails], None]:
+    ) -> AsyncGenerator[list[MessageRatingWithDetails]]:
         """Yield all ratings in chunks for memory-efficient export.
 
         Fetches ratings in pages to avoid loading all ORM objects into
@@ -326,8 +326,8 @@ class MessageRatingService:
 
     def _build_csv_rows(
         self, chunks: AsyncIterable[list[MessageRatingWithDetails]]
-    ) -> AsyncGenerator[str, None]:
-        async def _generate() -> AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[str]:
+        async def _generate() -> AsyncGenerator[str]:
             yield self._serialize_csv_row(self._CSV_HEADER)
             async for chunk in chunks:
                 for item in chunk:

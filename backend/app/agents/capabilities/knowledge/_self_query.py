@@ -30,8 +30,6 @@ within the still-enforced tenant/collection scope. No filter is a narrowing that
 did not happen, never a widening.
 """
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Sequence
 from datetime import UTC, date, datetime

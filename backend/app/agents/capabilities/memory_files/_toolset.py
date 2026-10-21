@@ -14,8 +14,6 @@ server-side from who is listening (`app.agents.memory_scope`) - so there is no
 argument the model can get wrong and no scope for it to reason about.
 """
 
-from __future__ import annotations
-
 from uuid import UUID
 
 from pydantic_ai.tools import RunContext

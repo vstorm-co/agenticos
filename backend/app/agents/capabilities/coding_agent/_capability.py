@@ -1,7 +1,5 @@
 """Claude Code or Codex, working in the agent's sandbox at the model's request."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 from typing import Any
 

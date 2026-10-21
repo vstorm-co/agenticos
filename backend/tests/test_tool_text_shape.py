@@ -11,8 +11,6 @@ the framework builds itself, and the rest assert that every tool this deployment
 offers says what it returns, whichever of the two routes it took.
 """
 
-from __future__ import annotations
-
 from unittest.mock import MagicMock
 
 import pytest

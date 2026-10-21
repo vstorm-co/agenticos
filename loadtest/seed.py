@@ -16,16 +16,12 @@ matters more here than usual, because a load run is repeated and re-seeding
 between runs would make retrieval times incomparable.
 """
 
-from __future__ import annotations
-
 import argparse
 import json
-import re
-import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
-from shutil import rmtree
 from typing import Any
 
 import httpx
@@ -38,6 +34,9 @@ script created, on a deployment somebody is load-testing. The deliveries it sign
 carry nothing but a counter.
 """
 
+INGEST_PATIENCE_SECONDS = 600
+"""How long the uploaded corpus may take to become searchable before seeding gives up."""
+
 EMBEDDING_MODEL = "nomic-embed-text"
 EMBEDDING_DIM = 768
 """Ollama's smallest catalogued width, and what `stub_model.py` serves by
@@ -45,7 +44,6 @@ default. The two have to agree: a collection's table is created at its model's
 width, and vectors of another length are refused by the store."""
 
 HERE = Path(__file__).resolve().parent
-BACKEND = HERE.parent / "backend"
 
 COLLECTION = "loadtest"
 AGENT_SLUG = "load-test-responder"
@@ -277,96 +275,42 @@ def document(index: int) -> bytes:
     return " ".join(words).encode()
 
 
-def corpus(directory: Path, count: int) -> Path:
-    """Write the synthetic corpus to disk for the ingestion command to read.
+def ingest(console: Console, *, name: str, count: int) -> int:
+    """Upload `count` documents through the API and wait until every one is searchable.
 
-    The directory is emptied first. `rag-ingest` walks it recursively, so a
-    previous seeding at a hundred documents left sixty files behind that a later
-    `--documents 40` would still submit - two runs reporting the same fixture
-    size while measuring collections of different sizes.
+    Through the upload endpoint, the way a person adds a document, so the seed
+    takes the path the platform actually runs: the job queue and the worker, or,
+    on an older deployment, the API's own background task. It used to call
+    `agenticos cmd rag-ingest`, which writes a deployment-wide collection - its
+    vectors carry no organization - into a knowledge base that belongs to one,
+    so every tenant-scoped search and count found nothing and the run refused to
+    start (#1684).
+
+    Idempotent: a collection that already holds the corpus is left as it is, so
+    a second seeding does not double the index and change what retrieval costs.
     """
-    if directory.exists():
-        rmtree(directory)
-    directory.mkdir(parents=True)
+    if _total_vectors(console, name) >= count:
+        return count
     for index in range(count):
-        (directory / f"record-{index:05d}.txt").write_bytes(document(index))
-    return directory
-
-
-def ingest(*, name: str, count: int) -> int:
-    """Index `count` documents into the collection, in this process.
-
-    Through `agenticos cmd rag-ingest` rather than through the upload endpoint,
-    and the difference is the whole reason this note exists. An upload answers
-    202 and hands the parse and the embedding to a Prefect flow, so seeding that
-    way needs the worker stack up and finishes whenever it finishes. The command
-    does the same work synchronously and reports when the corpus is actually
-    searchable, which is what a run has to know before it starts timing
-    retrieval.
-
-    It is not a shortcut around the product: the same parser, the same splitter,
-    the same embedding client and the same store. What it skips is the queue,
-    which the `ingest` workload measures on its own terms.
-    """
-    directory = corpus(HERE / "corpus", count)
-    result = subprocess.run(  # noqa: S603 - a literal argv, no shell
-        [
-            sys.executable,
-            "-m",
-            "cli.commands",
-            "cmd",
-            "rag-ingest",
-            str(directory),
-            "--collection",
-            name,
-            "--recursive",
-            "--sync-mode",
-            "new_only",
-        ],
-        cwd=BACKEND,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"rag-ingest failed:\n{result.stdout[-1500:]}\n{result.stderr[-1500:]}")
-    return _accounted(result.stdout, expected=count)
-
-
-_FAILED = re.compile(r"Failed:\s*(\d+) files")
-_DONE = re.compile(r"Done:\s*(\d+) ingested")
-_SKIPPED = re.compile(r",\s*(\d+) skipped")
-
-
-def _accounted(output: str, *, expected: int) -> int:
-    """How many documents the command actually indexed, refusing a short corpus.
-
-    The exit status cannot answer this: `ingest_path_async` counts a per-file
-    failure, prints it, and still returns zero. So its own summary is read
-    instead - "Done: N ingested" and "Failed: N files" - and every submitted file
-    has to be accounted for as ingested or skipped.
-
-    It matters because nothing downstream would notice. A run seeded against half
-    an index measures retrieval over half an index and reports the size it asked
-    for, and preflight cannot catch it: one search result is enough to look
-    healthy.
-    """
-    failed = _FAILED.search(output)
-    if failed and int(failed.group(1)):
-        raise RuntimeError(
-            f"{failed.group(1)} of {expected} documents failed to index (usually the "
-            f"embedding endpoint). The command says which:\n{output[-1200:]}"
+        console.post(
+            f"/rag/collections/{name}/ingest",
+            files={"file": (f"record-{index:05d}.txt", document(index), "text/plain")},
         )
-    done = _DONE.search(output)
-    skipped = _SKIPPED.search(output)
-    indexed = int(done.group(1)) if done else 0
-    unchanged = int(skipped.group(1)) if skipped else 0
-    if indexed + unchanged < expected:
-        raise RuntimeError(
-            f"{indexed} indexed and {unchanged} unchanged, against {expected} submitted - "
-            f"the command accounted for neither the rest nor a failure:\n{output[-1200:]}"
-        )
-    return expected
+    deadline = time.monotonic() + INGEST_PATIENCE_SECONDS
+    while _total_vectors(console, name) < count:
+        if time.monotonic() > deadline:
+            raise RuntimeError(
+                f"{count} documents uploaded into {name}, and after "
+                f"{INGEST_PATIENCE_SECONDS}s the collection holds "
+                f"{_total_vectors(console, name)} vectors - is a worker running?"
+            )
+        time.sleep(2)
+    return count
+
+
+def _total_vectors(console: Console, name: str) -> int:
+    stats = console.get(f"/rag/collections/{name}/info")
+    return int(stats.get("total_vectors") or 0)
 
 
 def vectors(console: Console, *, name: str, expected: int) -> int:
@@ -375,12 +319,10 @@ def vectors(console: Console, *, name: str, expected: int) -> int:
     A floor rather than an equality: how many chunks a document makes is the
     splitter's business, so the only safe statement is that a corpus of
     `expected` documents cannot be represented by fewer than `expected` vectors.
-    The exact accounting is the command's own, above; this catches what that one
-    cannot - an index that was dropped, or was never the collection the agent
+    It catches an index that was dropped, or was never the collection the agent
     searches.
     """
-    stats = console.get(f"/rag/collections/{name}/info")
-    total = int(stats.get("total_vectors") or 0)
+    total = _total_vectors(console, name)
     if total < expected:
         raise RuntimeError(
             f"Collection {name} holds {total} vectors for {expected} documents, so "
@@ -432,7 +374,7 @@ def build(*, base_url: str, stub_url: str, email: str, password: str, documents:
     endpoint_id = embedding_endpoint(console, stub_url=stub_url)
     agent_id = agent(console, profile_id=profile_id)
     name = collection(console, endpoint_id=endpoint_id)
-    added = ingest(name=name, count=documents)
+    added = ingest(console, name=name, count=documents)
     chunks = vectors(console, name=name, expected=documents)
     trigger_id, trigger_source = trigger(console, agent_id=agent_id)
     print(f"  organization {organization_id}")

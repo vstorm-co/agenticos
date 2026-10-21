@@ -5,8 +5,6 @@ in the company that their password is wrong. So each configuration that would
 send a password in the clear or find nobody is refused when the process starts.
 """
 
-from __future__ import annotations
-
 import pytest
 from pydantic import ValidationError
 

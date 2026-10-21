@@ -10,6 +10,9 @@ its own, and one of which is a Postgres that must have pgvector - which is
 already more than a `git push` deploy target models, and a guide that pretended
 otherwise would be describing a deployment nobody has run.
 
+Past one host - a managed Postgres, several API hosts, several deployments - is
+[Scale beyond one host](scaling.md).
+
 !!! tip "Read the [production checklist](configuration.md#production-checklist) first"
 
     Nine settings ship with defaults that are fine on a laptop and wrong on a host
@@ -26,8 +29,8 @@ otherwise would be describing a deployment nobody has run.
 | **A reverse proxy** | [Traefik](#option-a-traefik) or [Nginx](#option-b-nginx). It terminates TLS |
 | **No provider key** | chat models and embeddings are both keyed per organization, in the product's vault. The environment holds no credential for either — see [Data protection](data-protection.md#nothing-leaves-by-default) |
 
-The host also needs ports 80 and 443 open, and nothing else. Postgres, Redis and
-the Prefect API are published on no interface at all.
+The host also needs ports 80 and 443 open, and nothing else. Postgres and Redis
+are published on no interface at all, and the worker serves nothing.
 
 ### Why two hostnames
 
@@ -47,8 +50,7 @@ Measured on an idle deployment, not estimated:
 |---|---|---|
 | `app` (2 uvicorn workers) | ~1.0 GB | 2.5 GB at the default 4 workers |
 | `db` | ~1.3 GB with the tuning below | 2 GB |
-| `prefect-runner` | 241 MiB | 1.5 GB |
-| `prefect-server` | 245 MiB | 768 MB |
+| `worker` (one ingest child) | 387 MiB | 2.5 GB (`WORKER_MEMORY_LIMIT`) |
 | `frontend` | ~300 MB | 1 GB |
 | `redis` | 9 MiB | 512 MB |
 
@@ -86,6 +88,12 @@ Two settings keep a slow deployment diagnosable:
     which a parallel scan over a collection's vectors exhausts, reporting
     `could not resize shared memory segment`. Move the limit and move the tuning
     with it; they are written next to each other for that reason.
+
+    It also sets `max_connections=200`, because the pools can open more than
+    Postgres' stock 100: two pools of 15 per uvicorn worker, so 120 at the
+    default four, and 30 more for the background worker. Raise it with
+    `UVICORN_WORKERS` or `DB_POOL_SIZE`, or Postgres refuses connections with
+    "too many clients" before a pool can queue them or shed the load.
 
 ## Point the names at the host
 
@@ -132,7 +140,7 @@ it. What runs is the two images the repository publishes.
 
 | | |
 |---|---|
-| `ghcr.io/vstorm-co/agenticos-backend` | The API, the Prefect runner and the migrations - one image, three commands |
+| `ghcr.io/vstorm-co/agenticos-backend` | The API, the worker and the migrations - one image, three commands |
 | `ghcr.io/vstorm-co/agenticos-frontend` | The console |
 
 Both are built for `linux/amd64` and `linux/arm64` by `.github/workflows/images.yml`.
@@ -224,7 +232,7 @@ host was set up with rather than the one a script assumed.
 
     It is the one setting in `traefik/traefik.yml` worth reading before you run
     it. Only `app` and `frontend` carry `traefik.enable=true`, so Postgres, Redis,
-    the Prefect server and the sandbox daemon are reachable from nothing outside
+    the worker and the sandbox daemon are reachable from nothing outside
     the host — and that is a property of *not being labelled*, so it survives
     somebody adding a service without thinking about the proxy.
 
@@ -260,7 +268,7 @@ deliberately leaves to whatever terminates TLS.
     `agenticos` — and bringing the frontend up then reported the five backend
     containers as **orphans**, with compose's own suggestion to run the command
     again with `--remove-orphans`. Taking that advice stops the API, the
-    database, Redis and both Prefect services. The `make` targets and
+    database, Redis and the worker. The `make` targets and
     `scripts/deploy.sh` pass `-p agenticos-frontend`, so the warning is gone.
     The compose files fix no container names either - each project names its
     own, so two stacks on one host cannot take each other's containers over,
@@ -459,7 +467,6 @@ One volume matters, and it is not obvious which:
 |---|---|---|
 | `postgres_data` | everything — agents, conversations, sealed credentials | **yes** |
 | `media_data` | uploaded files, before ingestion | yes |
-| `prefect_data` | Prefect's database: deployments, run history, queued runs | no |
 
 The cache has no volume at all. Rate-limit buckets, channel dedupe claims and
 membership answers all carry a TTL and all rebuild themselves, so Valkey runs

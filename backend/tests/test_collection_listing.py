@@ -13,8 +13,6 @@ name this file could spell out - which is what the last test below is for. A
 collection genuinely called `documents_archive` has to keep listing.
 """
 
-from __future__ import annotations
-
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock

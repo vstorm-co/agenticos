@@ -1,5 +1,5 @@
 ---
-source_sha: "9a3d99efe68e"
+source_sha: "767b18fe1f07"
 ---
 
 # Inwentarz komponentów { #the-component-inventory }
@@ -54,7 +54,7 @@ komponentem firmy trzeciej i nic z tego nie pojawia się w notach.
 | Komponent | Gdzie | Czym jest | Dostarczany w |
 |---|---|---|---|
 | API i platforma | `backend/app` | Aplikacja FastAPI: routes, services, repositories, runner agentów, rejestr capability | `agenticos-backend` |
-| Worker w tle | `backend/app/worker` | Runner Prefecta dla ingestii, synchronizacji, sweepów i wyzwalaczy harmonogramu | `agenticos-backend` |
+| Worker w tle | `backend/app/worker` | Pobiera zadania z kolejki w PostgreSQL - runy agentów, ingestię, synchronizacje, sweepy - i odpala harmonogramy wdrożenia (`python -m app.worker`) | `agenticos-backend` |
 | Migracje | `backend/alembic` | Łańcuch schematu, stosowany przez usługę migracji przed startem API | `agenticos-backend` |
 | Wiersz poleceń | `backend/app/commands` | `agenticos cmd …` — bootstrap, doctor, polecenia RAG | `agenticos-backend` |
 | Konsola | `frontend/src` | Aplikacja Next.js, którą widzi operator i użytkownik | `agenticos-frontend` |
@@ -95,7 +95,7 @@ w dokumentach CycloneDX, bo generator czyta opublikowany obraz, a nie drzewo
 źródeł.
 
 Usługi, które wdrożenie uruchamia obok tych trzech — PostgreSQL z pgvector, Redis,
-reverse proxy, serwer Prefecta, proxy wyjściowe przeglądarki (Squid) — operator pobiera od ich własnych wydawców. Są
+reverse proxy, proxy wyjściowe przeglądarki (Squid) — operator pobiera od ich własnych wydawców. Są
 nazwane w plikach compose, nie są tu budowane i nie ma ich w SBOM-ie tego
 projektu.
 

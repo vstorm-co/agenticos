@@ -20,6 +20,30 @@ import { INVITATION_FLOW_PARAM } from "@/lib/invitation-links";
 let authCheckPromise: Promise<void> | null = null;
 let authChecked = false;
 
+/** What `/auth/me` answers: the account, and the token the chat socket needs. */
+type SessionAnswer = User & { access_token?: string };
+
+// The one `/auth/me` in flight in this tab. The auth guard asks before the
+// dashboard mounts and `useAuth` as it does, and on a cold load both start
+// before the persisted store says anybody is signed in - so each sent its own
+// request on every page load (#2248). Dropped wherever `authCheckPromise` is:
+// a read begun before a sign-in, a sign-out or a re-read is not shared past it.
+let sessionRead: Promise<SessionAnswer> | null = null;
+
+/** Who the session cookie belongs to, sharing a read already on its way. */
+export function readSession(): Promise<SessionAnswer> {
+  if (sessionRead) return sessionRead;
+  const read = apiClient.get<SessionAnswer>("/auth/me");
+  sessionRead = read;
+  // Beside the read rather than chained onto it, so the caller gets the answer
+  // when it lands rather than a tick later.
+  const forget = () => {
+    if (sessionRead === read) sessionRead = null;
+  };
+  read.then(forget, forget);
+  return read;
+}
+
 // Access tokens expire after 15 min. The in-memory token (used by the chat
 // WebSocket and proxied API calls) is set once on load and would otherwise go
 // stale while the tab stays open - causing WS auth failures / "Offline" chat.
@@ -130,6 +154,10 @@ export function useAdoptSession(): (user: User, accessToken: string | null) => v
     (user: User, accessToken: string | null) => {
       adoptUser(queryClient, setUser, user);
       useAuthStore.getState().setAccessToken(accessToken);
+      // What was adopted is the answer the once-per-page check would fetch: the
+      // guard's own `/auth/me` and then `useAuth`'s were two reads of one
+      // identity on every page load.
+      authChecked = true;
     },
     [queryClient, setUser],
   );
@@ -155,6 +183,7 @@ export function useReauthenticate(): () => Promise<void> {
     identityEpoch += 1;
     authChecked = false;
     authCheckPromise = null;
+    sessionRead = null;
     await runAuthCheck((u) => adoptUser(queryClient, setUser, u));
   }, [queryClient, setUser]);
 }
@@ -164,9 +193,9 @@ function runAuthCheck(setUser: (u: User | null) => void): Promise<void> {
   if (authCheckPromise) return authCheckPromise;
   const epoch = identityEpoch;
   authCheckPromise = (async () => {
-    let answer: (User & { access_token?: string }) | null;
+    let answer: SessionAnswer | null;
     try {
-      answer = await apiClient.get<User & { access_token?: string }>("/auth/me");
+      answer = await readSession();
     } catch {
       answer = null;
     }
@@ -211,6 +240,7 @@ export function useAuth() {
         // sign out the account that just arrived.
         identityEpoch += 1;
         authCheckPromise = null;
+        sessionRead = null;
         adoptUser(queryClient, setUser, response.user);
         useAuthStore.getState().setAccessToken(response.access_token);
         authChecked = true; // login already populated user + token; skip /auth/me
@@ -274,8 +304,12 @@ export function useAuth() {
     } catch {
       // Ignore logout errors
     } finally {
+      // A read that set out before this sign-out must not land after it and
+      // sign the person who just left back in.
+      identityEpoch += 1;
       authChecked = false; // re-check on next login
       authCheckPromise = null;
+      sessionRead = null;
       stopTokenRefresh();
       // The cache and the stores belong to a session, not to the browser tab.
       // Emptied here as well as on the next sign-in, so nothing of somebody's
