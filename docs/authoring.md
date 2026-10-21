@@ -114,7 +114,7 @@ capability or MCP server it refers to, never an identifier.
 | Model | Change the model profile |
 | Model settings | Set temperature, top-p, max tokens, timeout or parallel tool calls |
 | Step limit | Set `max_steps` |
-| Capabilities | Add or remove one, or change its settings |
+| Capabilities | Add or remove one, or change its settings. A safeguard - Guardrails - can only be added: never removed or reconfigured |
 | Approval | Make a capability or one of its tools ask first |
 | Specialists | Rewrite the description of an inline [specialist](reference/capabilities.md#delegation) |
 | Knowledge bases | Bind or unbind one |
