@@ -99,10 +99,11 @@ es `default-src 'self'` con un `connect-src` que nombra exactamente este origen,
 glifos de marca y los avatares, un `frame-src` que permite `'self'` y `blob:` para
 las vistas previas de documentos, además de la ruta de contenido de los artefactos
 (`{ARTIFACT_ORIGIN or PUBLIC_API_URL}/api/v1/artifact-content/`), `object-src
-'none'`, `base-uri 'self'` y `frame-ancestors 'none'`. La ruta de contenido se
-nombra por su ruta, no por su origen, de modo que un frame puede cargar una
-página publicada y nada más de lo que sirve la API; consulta
-[Cómo se aísla la página](artifacts.md#how-the-page-is-isolated).
+'none'`, `base-uri 'self'` y `frame-ancestors 'none'`.
+
+La ruta de contenido se nombra por su ruta, no por su origen, de modo que un
+frame puede cargar una página publicada y nada más de lo que sirve la API;
+consulta [Cómo se aísla la página](artifacts.md#how-the-page-is-isolated).
 
 `script-src` no lleva `'unsafe-inline'`. El middleware genera un nonce por
 petición, escribe `'nonce-…' 'strict-dynamic'` en la directiva, y Next estampa

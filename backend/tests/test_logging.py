@@ -232,6 +232,7 @@ def _view_token() -> str:
 
 
 class TestSecretPaths:
+    @pytest.mark.security
     @pytest.mark.parametrize(
         ("address", "expected"),
         [
@@ -273,28 +274,28 @@ class TestSecretPaths:
             # A static file under the content route.
             "/api/v1/artifact-content/lib/chart.umd.min.js",
             # An artifact's id in the members' own routes.
-            f"/api/v1/artifacts/0b3c8f4e-6a1d-4c2e-9f7a-5d8e1b2c3a4f/view",
+            "/api/v1/artifacts/0b3c8f4e-6a1d-4c2e-9f7a-5d8e1b2c3a4f/view",
             # A conversation's id, and the list of conversations shared with the caller.
-            f"/api/v1/conversations/0b3c8f4e-6a1d-4c2e-9f7a-5d8e1b2c3a4f",
+            "/api/v1/conversations/0b3c8f4e-6a1d-4c2e-9f7a-5d8e1b2c3a4f",
             "/api/v1/conversations/shared-with-me",
             # Opening a webhook test names only the workflow.
-            f"/api/v1/workflows/0b3c8f4e-6a1d-4c2e-9f7a-5d8e1b2c3a4f/webhook-test",
+            "/api/v1/workflows/0b3c8f4e-6a1d-4c2e-9f7a-5d8e1b2c3a4f/webhook-test",
             # The identity a DELETE unlinks, and the list of linked accounts.
-            f"/api/v1/me/channel-link/0b3c8f4e-6a1d-4c2e-9f7a-5d8e1b2c3a4f",
+            "/api/v1/me/channel-link/0b3c8f4e-6a1d-4c2e-9f7a-5d8e1b2c3a4f",
             "/api/v1/me/channel-link",
             # Staging and redeeming an invitation's handle carry no token in the path,
             # and an administrator lists, creates and revokes by the organization's
             # and the invitation's ids.
             "/api/v1/invitations/stage",
             "/api/v1/invitations/staged/accept",
-            f"/api/v1/orgs/0b3c8f4e-6a1d-4c2e-9f7a-5d8e1b2c3a4f/invitations?status=pending",
-            f"/api/v1/orgs/0b3c8f4e-6a1d-4c2e-9f7a-5d8e1b2c3a4f/invitations/link",
-            f"/api/v1/orgs/0b3c8f4e-6a1d-4c2e-9f7a-5d8e1b2c3a4f/invitations/7e2d1c9b-3f4a-4b5c-8d6e-1a2b3c4d5e6f",
+            "/api/v1/orgs/0b3c8f4e-6a1d-4c2e-9f7a-5d8e1b2c3a4f/invitations?status=pending",
+            "/api/v1/orgs/0b3c8f4e-6a1d-4c2e-9f7a-5d8e1b2c3a4f/invitations/link",
+            "/api/v1/orgs/0b3c8f4e-6a1d-4c2e-9f7a-5d8e1b2c3a4f/invitations/7e2d1c9b-3f4a-4b5c-8d6e-1a2b3c4d5e6f",
             # A run's own routes name only the run.
-            f"/api/v1/workflow-runs/0b3c8f4e-6a1d-4c2e-9f7a-5d8e1b2c3a4f/events",
+            "/api/v1/workflow-runs/0b3c8f4e-6a1d-4c2e-9f7a-5d8e1b2c3a4f/events",
             # Signed calls name an exposure, and a widget's key is public by design.
-            f"/api/v1/workflow-webhooks/0b3c8f4e-6a1d-4c2e-9f7a-5d8e1b2c3a4f",
-            f"/api/v1/workflow-github/0b3c8f4e-6a1d-4c2e-9f7a-5d8e1b2c3a4f",
+            "/api/v1/workflow-webhooks/0b3c8f4e-6a1d-4c2e-9f7a-5d8e1b2c3a4f",
+            "/api/v1/workflow-github/0b3c8f4e-6a1d-4c2e-9f7a-5d8e1b2c3a4f",
             "/api/v1/embed/pk_live_widget/ws",
             # A route template, as a span name or `http.route` carries it.
             "GET /api/v1/public/workflow-forms/{token}",
@@ -432,8 +433,8 @@ class TestSecretQueries:
         "address",
         [
             "/api/v1/agents?q=support&skip=50&limit=25",
-            f"/api/v1/artifacts/0b3c8f4e-6a1d-4c2e-9f7a-5d8e1b2c3a4f/view?version_id=7e2d1c9b-3f4a-4b5c-8d6e-1a2b3c4d5e6f",
-            f"/ws/agent?organization_id=0b3c8f4e-6a1d-4c2e-9f7a-5d8e1b2c3a4f",
+            "/api/v1/artifacts/0b3c8f4e-6a1d-4c2e-9f7a-5d8e1b2c3a4f/view?version_id=7e2d1c9b-3f4a-4b5c-8d6e-1a2b3c4d5e6f",
+            "/ws/agent?organization_id=0b3c8f4e-6a1d-4c2e-9f7a-5d8e1b2c3a4f",
             "/api/v1/oauth/oidc/login?client=desktop&desktop_nonce=3f1c",
             "/api/v1/tables/t/records?sort=created_at&direction=desc",
             # A name that only ends in one of the credential names is another parameter.

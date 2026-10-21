@@ -197,6 +197,7 @@ async def test_the_console_does_not_print_a_secret_from_the_path(configured: Cap
     assert "GET /api/v1/artifact-content/[REDACTED]" in printed
 
 
+@pytest.mark.security
 async def test_a_path_parameter_that_is_not_the_secret_keeps_its_value(
     configured: Captured,
 ) -> None:

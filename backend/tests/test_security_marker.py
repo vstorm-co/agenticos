@@ -43,6 +43,8 @@ KEYWORDS = ("tenant", "permission", "budget", "approval", "secret", "plaintext")
 # honest by `TestNoStaleExemptions`, which fails if an entry no longer exists or
 # no longer matches the net.
 EXEMPT: dict[str, str] = {
+    "tests/test_logfire_redaction.py::test_a_route_with_nothing_secret_in_its_path_keeps_its_arguments": "a span with no secret-bearing address keeps its arguments, the redaction's complement",
+    "tests/test_logging.py::TestSecretPaths::test_an_address_with_nothing_secret_in_it_is_left_alone": "an address with no credential segment is left alone, the redaction's complement",
     "tests/integration/test_workflow_error_foreach.py::test_an_approval_inside_an_iteration_resumes_that_iteration": "an approval resuming a loop iteration, not a refusal",
     "tests/test_workflow_node_guards.py::TestHttpConfig::test_a_step_without_a_credential_has_no_secret_to_check": "no credential configured means nothing to check, not a refusal",
     "tests/api/test_platform_routes.py::TestEveryPlatformRouteIsGuarded::test_every_gated_route_is_named_in_the_permission_table": "meta test that the CALLS gate fixture is complete, no runtime refusal",
