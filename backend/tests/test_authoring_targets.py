@@ -2,8 +2,9 @@
 
 The assistant is checked by evals, so it must never be able to change what checks
 it: an eval suite, a threshold, a dataset, a scorer or judge, an environment - nor
-widen what an agent may spend or reach. Every shape it can answer with is pinned
-here; a new target is a decision to make in review, not a field to slip in.
+what an agent may spend. Every shape it can answer with, and every field of the
+spec it may address, is pinned here; a new target is a decision to make in
+review, not a field to slip in.
 """
 
 from __future__ import annotations
@@ -11,7 +12,7 @@ from __future__ import annotations
 import pytest
 
 from app.agents.capabilities import ToolOverride
-from app.db.models.authoring import HunkKind, SpecProposalHunk
+from app.db.models.authoring import FieldOp, HunkKind, SpecProposalHunk
 from app.schemas.authoring import (
     Finding,
     ImprovementProposal,
@@ -22,6 +23,7 @@ from app.schemas.authoring import (
     VerifyFinding,
     VerifyReport,
 )
+from app.services import authoring_fields
 
 pytestmark = pytest.mark.security
 
@@ -51,23 +53,54 @@ NEVER_A_TARGET = (
     "scor",
     "judge",
     "environment",
-    "model",
     "budget",
-    "capabilit",
-    "approval",
     "eval",
+    "observability",
+    "notification",
+    "reviewer",
+    "secret",
 )
 
+SPEC_FIELDS = {
+    "description": {"set"},
+    "model_profile_id": {"set"},
+    "model_settings/temperature": {"set"},
+    "model_settings/top_p": {"set"},
+    "model_settings/max_tokens": {"set"},
+    "model_settings/timeout": {"set"},
+    "model_settings/parallel_tool_calls": {"set"},
+    "max_steps": {"set"},
+    "capabilities": {"add", "remove"},
+    "capabilities/{capability}/config": {"set"},
+    "capabilities/{capability}/approval": {"set"},
+    "capabilities/{capability}/tool_approval/{tool}": {"set"},
+    "capabilities/subagents/inline/{specialist}/description": {"set"},
+    "collection_ids": {"add", "remove"},
+    "context_ids": {"add", "remove"},
+    "mcp_servers/{server}/allowed_tools": {"set"},
+}
 
-def test_a_hunk_changes_instructions_or_a_tools_name_and_description_only():
-    assert {kind.value for kind in HunkKind} == {"instructions", "tool_override"}
+
+def test_a_hunk_changes_instructions_a_tool_or_one_allowed_field_only():
+    assert {kind.value for kind in HunkKind} == {"instructions", "tool_override", "spec_field"}
     (check,) = [
         constraint
         for constraint in SpecProposalHunk.__table__.constraints
         if constraint.name == "spec_proposal_hunks_ck_spec_proposal_hunk_kind_check"
     ]
-    assert str(check.sqltext) == "kind IN ('instructions', 'tool_override')"
+    assert str(check.sqltext) == "kind IN ('instructions', 'tool_override', 'spec_field')"
     assert set(ToolOverride.model_fields) == {"name", "description"}
+    assert {op.value for op in FieldOp} == {"set", "add", "remove"}
+
+
+def test_the_spec_fields_it_may_change_are_exactly_these():
+    assert {path: {op.value for op in ops} for path, ops in authoring_fields.TARGETS} == (
+        SPEC_FIELDS
+    )
+
+
+def test_no_spec_field_it_may_change_checks_the_agent_or_what_it_spends():
+    assert not {path for path in SPEC_FIELDS for word in NEVER_A_TARGET if word in path}
 
 
 @pytest.mark.parametrize("answer", list(ANSWERS), ids=lambda model: model.__name__)
