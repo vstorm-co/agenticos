@@ -299,19 +299,16 @@ class SpecProposalHunk(Base):
         JSONB(none_as_null=True), nullable=True
     )
 
-    # A `spec_field` hunk: the field, what it does there, and the values it was
-    # written against, proposes and was accepted as. The values are JSON, and a
-    # JSON null is a value - a temperature left to the provider - not an absence.
+    # `spec_field` values are JSON, where null is a value - a temperature left to
+    # the provider - not an absence.
     path: Mapped[str | None] = mapped_column(String(200), nullable=True)
     op: Mapped[str | None] = mapped_column(String(8), nullable=True)
     base_value: Mapped[Any] = mapped_column(JSONB, nullable=True)
     new_value: Mapped[Any] = mapped_column(JSONB, nullable=True)
     accepted_value: Mapped[Any] = mapped_column(JSONB, nullable=True)
-    # What the change is expected to do to cost or limits, measured on recent runs.
     effect: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
 
     rationale: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    # A field change's own prediction, written before any check measures it.
     expected_effect: Mapped[str] = mapped_column(
         Text, nullable=False, default="", server_default=""
     )
