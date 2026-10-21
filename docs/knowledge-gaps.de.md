@@ -1,5 +1,5 @@
 ---
-source_sha: "cab676070fd6"
+source_sha: "0ba5c5cdec1b"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -154,7 +154,7 @@ und die API verweigert ihm den Zugriff.
 | Die Lücken eines Agents zu lesen | `runs:view` und `agents:view` auf dem Agent; Themen von Wissensdatenbanken, die du nicht lesen darfst, werden ausgelassen |
 | Zu verwerfen, wieder zu öffnen oder neu zu gruppieren | `runs:view` und `collections:edit` auf der Wissensdatenbank, aus deiner Rolle oder einem Bearbeitungs-Grant darauf |
 | Ein Thema zu einem Dataset hinzuzufügen | `runs:view` und `datasets:edit` auf dem Dataset |
-| Den fehlenden Inhalt zu entwerfen | `runs:view`, `collections:view` auf der Wissensdatenbank und `agents:run` auf dem Knowledge gap drafter |
+| Den fehlenden Inhalt zu entwerfen | `runs:view`, `collections:edit` auf der Wissensdatenbank und `agents:run` auf dem Knowledge gap drafter |
 
 Eine Wissensdatenbank, ein Agent, ein Thema oder ein Dataset, auf das du keinen
 Zugriff hast, antwortet mit „nicht gefunden“, ebenso eines aus einer anderen
@@ -167,6 +167,11 @@ formuliert, was jemand gefragt hat. Sie wird mit dem Run gelöscht, in dem sie
 entstanden ist, und mit der Unterhaltung, aus der sie stammt. Das Löschen einer
 Person löscht die Suchen, die beim Beantworten ihrer Fragen gemacht wurden,
 auch in Runs ohne Unterhaltung. Ihr Export enthält sie.
+
+Jede Suche wird gespeichert, ein Treffer wie ein Fehltreffer, damit ein
+geänderter Schwellenwert auch für die bereits gemachten Suchen gilt. Keine
+überlebt ihren Run: Die Klasse der Runs in der
+[Aufbewahrung](governance.md#retention) löscht sie mit ihm.
 
 Ein Thema kopiert keine Fragen. Name, Beispiele und Anzahl werden aus den
 Suchen gelesen, die es noch enthält. Werden diese Suchen gelöscht, bleibt dem

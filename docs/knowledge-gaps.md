@@ -141,7 +141,7 @@ without it does not see the tab or the widget, and the API refuses them.
 | Read an agent's gaps | `runs:view` and `agents:view` on the agent; topics of knowledge bases you cannot read are left out |
 | Dismiss, reopen or regroup | `runs:view` and `collections:edit` on the knowledge base, from your role or an edit grant on it |
 | Add a topic to a dataset | `runs:view` and `datasets:edit` on the dataset |
-| Draft the missing content | `runs:view`, `collections:view` on the knowledge base, and `agents:run` on the Knowledge gap drafter |
+| Draft the missing content | `runs:view`, `collections:edit` on the knowledge base, and `agents:run` on the Knowledge gap drafter |
 
 A knowledge base, agent, topic or dataset you may not reach answers "not found",
 and so does one in another organization. See [Permissions](permissions.md).
@@ -153,6 +153,10 @@ asked. It is deleted with the run it was made in, and with the conversation
 it came from. Deleting a person deletes the searches made while answering
 them, including those in runs with no conversation. Their export includes
 them.
+
+Every search is kept, a hit as well as a miss, so a changed threshold applies
+to the searches already made. None outlives its run: the runs class of
+[retention](governance.md#retention) deletes them with it.
 
 A topic copies no question. Its name, its examples and its count are read from
 the searches it still holds, so when those searches are deleted the topic has

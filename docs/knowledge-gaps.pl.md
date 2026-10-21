@@ -1,5 +1,5 @@
 ---
-source_sha: "cab676070fd6"
+source_sha: "0ba5c5cdec1b"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -142,7 +142,7 @@ bez niego nie widzi karty ani widżetu, a API mu odmawia.
 | Czytać luki agenta | `runs:view` i `agents:view` na agencie; tematy baz wiedzy, których nie możesz czytać, są pomijane |
 | Odrzucić, otworzyć ponownie albo pogrupować | `runs:view` i `collections:edit` na bazie wiedzy, z twojej roli albo z grantu edycji na niej |
 | Dodać temat do datasetu | `runs:view` i `datasets:edit` na datasecie |
-| Napisać szkic brakującej treści | `runs:view`, `collections:view` na bazie wiedzy i `agents:run` na Knowledge gap drafter |
+| Napisać szkic brakującej treści | `runs:view`, `collections:edit` na bazie wiedzy i `agents:run` na Knowledge gap drafter |
 
 Baza wiedzy, agent, temat albo dataset, do którego nie masz dostępu, odpowiada „nie
 znaleziono”; tak samo ten z innej organizacji. Zobacz
@@ -154,6 +154,10 @@ Zapisane wyszukiwanie to treść użytkownika: agent sformułował je z tego, o 
 ktoś zapytał. Jest usuwane razem z runem, w którym powstało, i z rozmową, z
 której pochodzi. Usunięcie osoby usuwa wyszukiwania wykonane podczas
 odpowiadania jej, także w runach bez rozmowy. Jej eksport je zawiera.
+
+Zapisywane jest każde wyszukiwanie, trafione i chybione, więc zmieniony próg
+działa także na wyszukiwania już wykonane. Żadne nie przeżyje swojego runa:
+klasa runów w [retencji](governance.md#retention) usuwa je razem z nim.
 
 Temat nie kopiuje pytań. Jego nazwa, przykłady i liczba są czytane z
 wyszukiwań, które jeszcze zawiera, więc gdy te wyszukiwania zostaną usunięte,

@@ -1,5 +1,5 @@
 ---
-source_sha: "cab676070fd6"
+source_sha: "0ba5c5cdec1b"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, agrupadas por tema, para saber qué documento falta."
 ---
@@ -153,7 +153,7 @@ miembro sin él no ve la pestaña ni el widget, y la API se lo deniega.
 | Leer las lagunas de un agent | `runs:view` y `agents:view` en el agent; se omiten los temas de bases de conocimiento que no puedes leer |
 | Descartar, reabrir o reagrupar | `runs:view` y `collections:edit` en la base de conocimiento, por tu rol o por un grant de edición sobre ella |
 | Añadir un tema a un dataset | `runs:view` y `datasets:edit` en el dataset |
-| Redactar el contenido que falta | `runs:view`, `collections:view` en la base de conocimiento y `agents:run` en el Knowledge gap drafter |
+| Redactar el contenido que falta | `runs:view`, `collections:edit` en la base de conocimiento y `agents:run` en el Knowledge gap drafter |
 
 Una base de conocimiento, un agent, un tema o un dataset al que no tienes acceso responde
 «no encontrado», igual que uno de otra organización. Consulta
@@ -166,6 +166,10 @@ lo que alguien preguntó. Se borra con el run en el que se hizo y con la
 conversación de la que procede. Borrar a una persona borra las búsquedas hechas
 al responderle, también las de runs sin conversación. Su exportación las
 incluye.
+
+Se guarda cada búsqueda, acierto o fallo, para que un umbral cambiado se aplique
+también a las búsquedas ya hechas. Ninguna sobrevive a su run: la clase de runs
+de la [retención](governance.md#retention) las borra con él.
 
 Un tema no copia preguntas. Su nombre, sus ejemplos y su recuento se leen de
 las búsquedas que aún contiene, así que cuando esas búsquedas se borran al tema
