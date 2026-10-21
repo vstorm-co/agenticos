@@ -10,8 +10,10 @@ no question, and keeps only the draft a model wrote for it on request.
 
 `agents.kind` gains `drafter`, the kind of the system agent that writes those
 drafts. The downgrade makes such an agent an ordinary one, as dropping the
-column made a judge one, then drops the new tables and loses only what was
-written into them.
+column made a judge one, and clears its `system_key`, so an upgrade again seeds
+a fresh drafter rather than finding an agent anybody may chat with under the
+drafter's key. It then drops the new tables and loses only what was written
+into them.
 
 Revision ID: 0149_knowledge_gaps
 Revises: 0148_eval_runs
@@ -205,7 +207,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute("UPDATE agents SET kind = 'agent' WHERE kind = 'drafter'")
+    op.execute("UPDATE agents SET kind = 'agent', system_key = NULL WHERE kind = 'drafter'")
     op.drop_constraint("ck_agent_kind", "agents", type_="check")
     op.create_check_constraint("ck_agent_kind", "agents", "kind IN ('agent', 'judge')")
     op.drop_index(op.f("knowledge_gap_members_search_id_idx"), table_name="knowledge_gap_members")
