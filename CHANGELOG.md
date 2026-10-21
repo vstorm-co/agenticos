@@ -26,6 +26,11 @@ Two things are versioned separately from this file and worth knowing about:
   uploaded images, makes workspace thumbnails and draws channel charts with
   Pillow, and none of these uses an API that 13.0.0 removes or changes. Only
   the lockfile and the third-party notices change.
+- **`vite` moves to 8.2.4.** 8.2.0, which Vitest and `@vitejs/plugin-react`
+  pull in, bundles a `launch-editor` affected by GHSA-587h-7wmj-h5pm, and
+  `make audit-frontend` failed on it. Vite runs only the frontend unit tests,
+  not the built console, and the advisory is Windows-only. 8.2.4 brings
+  `rolldown` 1.2.14 with it, and only the frontend lockfile changes.
 
 ## [1.8.3] - 2026-10-20
 
