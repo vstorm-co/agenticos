@@ -256,8 +256,18 @@ class EvalRunWorker:
         )
 
     async def _wave(self, ctx: AuthContext) -> None:
-        drainers = [self._drain(ctx) for _ in range(max(1, settings.EVAL_RUN_CONCURRENCY))]
-        await asyncio.gather(*drainers)
+        drainers = [
+            asyncio.create_task(self._drain(ctx))
+            for _ in range(max(1, settings.EVAL_RUN_CONCURRENCY))
+        ]
+        try:
+            await asyncio.gather(*drainers)
+        finally:
+            # gather leaves the others running when one raises; they must stop
+            # before the run is failed, or they write answers to failed attempts.
+            for drainer in drainers:
+                drainer.cancel()
+            await asyncio.gather(*drainers, return_exceptions=True)
 
     async def _drain(self, ctx: AuthContext) -> None:
         """Claim and answer attempts until none is left, or the run stops."""

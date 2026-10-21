@@ -51,6 +51,7 @@ from app.db.models.intercepted_tool_call import InterceptedToolCall
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
 from app.db.models.user import User
+from app.repositories import eval_run_repo
 from app.schemas.agent_environment import EnvironmentCreate
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
 from app.schemas.eval_run import EvalRunRequest
@@ -1372,6 +1373,44 @@ async def test_a_run_its_worker_cannot_finish_ends_failed_at_once(db) -> None:
         select(EvalRunCase.status).where(EvalRunCase.eval_run_id == started.id)
     )
     assert sorted(statuses) == ["failed", "skipped", "skipped"]
+
+
+async def test_a_drainer_that_fails_stops_the_others_before_the_run_is_failed(db) -> None:
+    """A sibling left running would write answers to attempts the run already failed."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    started = await EvalRunService(db).start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    worker = EvalRunWorker(started.id, ctx.organization_id, sessions=_sessions(db))
+    events: list[str] = []
+    busy = asyncio.Event()
+
+    async def drain(_ctx: AuthContext) -> None:
+        if not busy.is_set():
+            busy.set()
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                events.append("sibling stopped")
+                raise
+        await busy.wait()
+        raise TimeoutError
+
+    fail_live = eval_run_repo.fail_live
+
+    async def failing(*args: object, **kwargs: Any) -> bool:
+        events.append("run failed")
+        return await fail_live(*args, **kwargs)
+
+    with (
+        patch("app.services.eval_run_worker.settings.EVAL_RUN_CONCURRENCY", 2),
+        patch.object(EvalRunWorker, "_drain", new=AsyncMock(side_effect=drain)),
+        patch("app.services.eval_run_worker.eval_run_repo.fail_live", new=failing),
+        pytest.raises(TimeoutError),
+    ):
+        await worker.run()
+
+    assert events == ["sibling stopped", "run failed"]
 
 
 async def test_a_run_the_worker_cannot_close_either_is_left_to_the_sweep(db, caplog) -> None:
