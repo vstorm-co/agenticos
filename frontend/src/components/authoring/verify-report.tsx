@@ -33,7 +33,10 @@ export function VerifyReport({ findings }: { findings: VerifyFinding[] }) {
             <div className="space-y-1">
               <p className="text-sm">{finding.text}</p>
               <EvidenceList
-                items={finding.evidence.map((item) => ({ run_id: item.run_id, quote: item.quote }))}
+                items={finding.evidence.map((item) => ({
+                  run_id: item.run_id,
+                  quote: item.quote ?? null,
+                }))}
                 dropped={finding.evidence_dropped}
               />
             </div>

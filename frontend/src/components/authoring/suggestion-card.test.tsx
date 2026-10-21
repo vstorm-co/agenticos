@@ -13,7 +13,7 @@ describe("SuggestionCard", () => {
     expect(screen.getByText("Readers corrected the refund window.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "run run-0123" })).toHaveAttribute(
       "href",
-      "/runs/run-0123456789",
+      "/runs?run=run-0123456789",
     );
   });
 

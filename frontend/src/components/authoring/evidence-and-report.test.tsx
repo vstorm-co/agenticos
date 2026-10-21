@@ -21,7 +21,10 @@ describe("EvidenceList", () => {
       />,
     );
     expect(screen.getByText("Wrong window")).toBeInTheDocument();
-    expect(screen.getAllByRole("link")).toHaveLength(2);
+    expect(screen.getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([
+      "/runs?run=run-aaaaaaaa",
+      "/runs?run=run-bbbbbbbb",
+    ]);
     expect(
       screen.getByText("2 cited items could not be found in the runs and were left out."),
     ).toBeInTheDocument();
@@ -34,6 +37,23 @@ describe("VerifyReport", () => {
     expect(
       screen.getByText("The assistant found nothing to say about your edits."),
     ).toBeInTheDocument();
+  });
+
+  it("shows a finding's runs without quotes to a reader who may not see them", () => {
+    render(
+      <VerifyReport
+        findings={[
+          {
+            verdict: "risk",
+            text: "Dropped the brevity rule",
+            evidence: [{ run_id: "run-dddddddd" }],
+            evidence_dropped: 0,
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByRole("link", { name: "run run-dddd" })).toBeInTheDocument();
+    expect(document.querySelector("q")).toBeNull();
   });
 
   it("lists each finding with what it rests on", () => {

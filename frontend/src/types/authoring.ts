@@ -22,7 +22,8 @@ export interface AuthoringEstimate {
 export interface VerifyFinding {
   verdict: "supports" | "risk" | "removed";
   text: string;
-  evidence: { run_id: string; quote: string }[];
+  /** `quote` is absent for a reader without `runs:view`. */
+  evidence: { run_id: string; quote?: string }[];
   evidence_dropped: number;
 }
 

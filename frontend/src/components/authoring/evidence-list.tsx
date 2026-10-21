@@ -25,7 +25,7 @@ export function EvidenceList({ items, dropped }: { items: EvidenceItem[]; droppe
           <li key={`${item.run_id}-${index}`} className="text-xs">
             {item.quote !== null && <q className="italic">{item.quote}</q>}{" "}
             <Link
-              href={`${ROUTES.RUNS}/${item.run_id}`}
+              href={`${ROUTES.RUNS}?run=${item.run_id}`}
               className="text-muted-foreground font-mono underline"
             >
               {t("run", { id: item.run_id.slice(0, 8) })}
