@@ -80,7 +80,12 @@ class BatchStatus(StrEnum):
 
 
 class HunkKind(StrEnum):
-    """What a hunk changes. The proposal targets are listed in `app.services.authoring_targets`."""
+    """What a hunk changes.
+
+    These, with a skill's body and description, are everything the assistant may
+    propose a change to; `tests/test_authoring_targets.py` pins the list, so no
+    eval suite, threshold, dataset, scorer or environment becomes a target.
+    """
 
     INSTRUCTIONS = "instructions"
     TOOL_OVERRIDE = "tool_override"
