@@ -53,6 +53,20 @@ POLL_REQUEST_SECONDS = 30.0
 """The longest one status read, or one wait for a downloaded chunk, may take -
 never past the job's own deadline."""
 
+CANCEL_SECONDS = 5.0
+"""The longest a best-effort cancel may take. It is sent once the deadline has
+passed, so it is bounded on its own rather than by the client's default."""
+
+
+def _until(deadline: float) -> float:
+    """A request's timeout: what is left of the job's deadline, never under a second.
+
+    A submission bounded by the client's default could hold a call past a binding's
+    time limit shorter than that default.
+    """
+    return max(deadline - asyncio.get_running_loop().time(), 1.0)
+
+
 DOWNLOAD_GRACE_SECONDS = 120.0
 """How far past the job's deadline the download of a finished clip may run. A clip
 done at the last moment is worth fetching; one trickling in for ever is not."""
@@ -146,7 +160,9 @@ def _failure_for(status: int, body: str) -> VideoFailure:
     which is how Gemini answers a bad key.
     """
     lowered = body.lower()
-    if status == 429:
+    if status in (402, 429):
+        # 402 is prepaid credit spent - Gemini's `payment_required` - which is the
+        # account's quota, not anything wrong with the request.
         return VideoFailure.RATE_LIMITED
     if status == 408 or status >= 500:
         return VideoFailure.UNAVAILABLE
@@ -310,6 +326,10 @@ async def _download(
                                 raise VideoProviderError(
                                     VideoFailure.TIMED_OUT, provider=call.provider
                                 )
+                        if not data:
+                            # A storage host answering 200 with nothing - a CDN
+                            # still publishing the object - is no clip.
+                            raise _unusable(call)
                         return bytes(data)
             except _TRANSIENT_ERRORS:
                 logger.warning(
@@ -422,7 +442,7 @@ async def gemini_interactions(client: httpx.AsyncClient, call: VideoCall, deadli
             "store": False,
             "stream": False,
         },
-        timeout=max(deadline - asyncio.get_running_loop().time(), 1.0),
+        timeout=_until(deadline),
     )
     _raise_for(call, response)
     video = next(
@@ -500,7 +520,10 @@ async def byteplus_tasks(client: httpx.AsyncClient, call: VideoCall, deadline: f
     if call.audio is not None:
         body["generate_audio"] = call.audio
     response = await client.post(
-        f"{call.base_url}/contents/generations/tasks", headers=headers, json=body
+        f"{call.base_url}/contents/generations/tasks",
+        headers=headers,
+        json=body,
+        timeout=_until(deadline),
     )
     _raise_for(call, response)
     task_id = _json(call, response).get("id")
@@ -512,7 +535,7 @@ async def byteplus_tasks(client: httpx.AsyncClient, call: VideoCall, deadline: f
         # Only a queued task can be cancelled; on a running one this is refused,
         # and either way the timeout is what the caller hears about.
         try:
-            await client.delete(task_url, headers=headers)
+            await client.delete(task_url, headers=headers, timeout=CANCEL_SECONDS)
         except httpx.HTTPError:
             logger.info("Cancelling video task at %s failed", call.provider, exc_info=True)
 
@@ -541,7 +564,9 @@ async def xai_videos(client: httpx.AsyncClient, call: VideoCall, deadline: float
     """`POST /videos/generations`, polled at `GET /videos/{request_id}`.
 
     xAI ignores an aspect ratio when it starts from an image - the image sets the
-    shape - so none is sent then. Its clips always carry sound.
+    shape - so none is sent then. Its clips carry sound unless `generate_audio` is
+    false, and a finished job whose `respect_moderation` is false was withheld by
+    its moderation: the address it may still carry is not to be used.
     """
     headers = {"Authorization": f"Bearer {call.api_key}"}
     body: dict[str, object] = {
@@ -551,11 +576,15 @@ async def xai_videos(client: httpx.AsyncClient, call: VideoCall, deadline: float
     }
     if call.duration is not None:
         body["duration"] = call.duration
+    if call.audio is not None:
+        body["generate_audio"] = call.audio
     if call.first_frame is not None:
         body["image"] = {"url": call.first_frame.data_uri()}
     else:
         body["aspect_ratio"] = call.aspect_ratio
-    response = await client.post(f"{call.base_url}/videos/generations", headers=headers, json=body)
+    response = await client.post(
+        f"{call.base_url}/videos/generations", headers=headers, json=body, timeout=_until(deadline)
+    )
     _raise_for(call, response)
     request_id = _json(call, response).get("request_id")
     if not isinstance(request_id, str):
@@ -573,10 +602,10 @@ async def xai_videos(client: httpx.AsyncClient, call: VideoCall, deadline: float
         error = job.get("error")
         raise _job_failure(call, error.get("code") if isinstance(error, dict) else "")
     video = _dict(call, job.get("video"))
-    if "url" in video and not video["url"]:
-        # `respect_moderation: false` comes back done with an empty address: the
-        # clip was made and withheld by xAI's own moderation. An answer with no
-        # address field at all is malformed, not moderated.
+    if video.get("respect_moderation") is False or ("url" in video and not video["url"]):
+        # Withheld by xAI's own moderation, which its documentation says to check
+        # before using the address - and which an empty address also means. An
+        # answer with no address field at all is malformed, not moderated.
         raise VideoProviderError(VideoFailure.POLICY, provider=call.provider)
     url = _storage_url(call, video.get("url"))
     duration = video.get("duration")
@@ -609,6 +638,7 @@ async def dashscope_tasks(client: httpx.AsyncClient, call: VideoCall, deadline: 
         f"{call.base_url}/services/aigc/video-generation/video-synthesis",
         headers={**headers, "X-DashScope-Async": "enable"},
         json={"model": call.model, "input": request_input, "parameters": parameters},
+        timeout=_until(deadline),
     )
     _raise_for(call, response)
     task_id = _dict(call, _json(call, response).get("output")).get("task_id")
