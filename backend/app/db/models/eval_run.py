@@ -255,6 +255,10 @@ class EvalRunArm(Base):
     skill_bodies: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB(none_as_null=True), nullable=True
     )
+    # `{context_id: {description, content}}`, the same for a context file change.
+    context_bodies: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
 
     __table_args__ = (
         UniqueConstraint("eval_run_id", "position", name="uq_eval_run_arm_position"),

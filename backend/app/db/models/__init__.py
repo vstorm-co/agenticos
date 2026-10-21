@@ -86,6 +86,7 @@ from app.db.models.purged_run_spend import PurgedRunSpend
 from app.db.models.credential import ModelProfile
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.context import ContextFile, ContextMode
+from app.db.models.context_proposal import ContextProposal
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.skill import Skill, SkillResource
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
@@ -240,6 +241,7 @@ __all__ = [
     "PendingSandboxDestroy",
     "Project",
     "ContextFile",
+    "ContextProposal",
     "ContextMode",
     "AgentMemoryFile",
     "Skill",
