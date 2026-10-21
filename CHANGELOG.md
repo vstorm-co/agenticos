@@ -29,6 +29,32 @@ Two things are versioned separately from this file and worth knowing about:
   the graph from the lock on every push to `main` that moves it. See
   [Dependency updates](docs/branching.md#dependency-updates).
 
+## [1.11.0] - 2026-10-21
+
+### Added
+
+- **A default organization for new accounts, and personal organizations made
+  optional** (#2156). Two settings under Admin → Deployment → New accounts: turn
+  personal organizations off, and name the organization every new account joins,
+  with a role other than owner - an account admitted only by another
+  organization's invitation does not join it. A session request naming no organization now acts
+  in the default organization first, then the personal one, then the only one,
+  and is refused with a `400` naming `X-Organization-Id` rather than guessing
+  between several. The console selects the default organization when nothing else
+  is selected, and switches to the organization an accepted invitation joined.
+
+## [1.10.2] - 2026-10-21
+
+### Added
+
+- **The background-job benchmark, as a docs page.** Why the job queue is rows
+  in Postgres: ten engines in seventeen configurations, from Prefect, Celery and
+  Taskiq to PgQueuer, DBOS and Hatchet, through four scenarios. One of them is a
+  job that runs its worker out of memory, which started three times on the
+  shipped queue and eight on PgQueuer. The page gives the tables, what shipped in
+  1.9.0, and what one run on one machine cannot show. See
+  [the background-job benchmark](docs/task-queue-benchmark.md).
+
 ## [1.10.1] - 2026-10-21
 
 ### Changed

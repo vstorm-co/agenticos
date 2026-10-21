@@ -40,6 +40,12 @@ export interface Organization {
   /** Chosen default-avatar colour slot (1..10); null is auto from the id. */
   avatar_color: number | null;
   is_personal: boolean;
+  /**
+   * The deployment's default organization: every new account joins it, a request
+   * naming no organization acts in it, and the console selects it when nothing
+   * else is selected (#2156).
+   */
+  is_default?: boolean;
   owner_id: string;
   stripe_customer_id: string | null;
   subscription_tier: string;
@@ -159,6 +165,11 @@ export interface NewInviteLink {
   role: OrgRole;
   max_uses?: number | null;
   email_domain?: string | null;
+}
+
+/** The reply to accepting an invitation: the organization joined (#2156). */
+export interface InvitationAccepted {
+  organization_id: string;
 }
 
 /** The reply to sending an invitation - the only one carrying the token. */

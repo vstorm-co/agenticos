@@ -283,7 +283,7 @@ def get_file_upload_service(db: DBSession) -> FileUploadService:
 
 
 FileUploadSvc = Annotated[FileUploadService, Depends(get_file_upload_service)]
-from app.repositories import member_repo, organization_repo
+from app.repositories import member_repo
 from app.services.organization import OrganizationService
 from app.services.retention import RetentionService
 from app.services.member import MemberService
@@ -599,8 +599,10 @@ async def get_active_organization(
     acts there and nowhere else; an `X-Organization-Id` naming another one is a
     400 naming the header rather than a silent switch (#1903).
 
-    A session reads the `X-Organization-Id` header and falls back to the user's
-    Personal Org when it is absent. Raises 404 if the user is not a member.
+    A session reads the `X-Organization-Id` header. Without it, the request acts
+    in the deployment's default organization when the user belongs to it, then
+    in their personal one, then in their only one; a user with a choice and no
+    header is a 400 asking for it (#2156). Raises 404 if the user is not a member.
     """
     caller = _key_caller(request)
     if caller is not None:
@@ -616,9 +618,14 @@ async def get_active_organization(
         return caller.organization
 
     if x_organization_id is None:
-        org = await organization_repo.get_personal_for_user(db, user.id)
-        if not org:
-            raise NotFoundError(message="Personal organization not found - please re-register")
+        org = await OrganizationService(db).fallback_for(user.id)
+        if org is None:
+            raise BadRequestError(
+                message=(
+                    "Name the organization this request acts in with the X-Organization-Id header."
+                ),
+                details={"header": "X-Organization-Id"},
+            )
         return org
 
     # The membership and the organization in one query, and the membership kept
@@ -1393,12 +1400,13 @@ async def get_active_organization_ws(
     token, an org id is not a secret - membership is verified here, so an id the
     user does not belong to closes the socket rather than granting anything.
 
-    Falls back to the user's Personal organization when the parameter is absent,
-    which keeps single-org clients working unchanged.
+    Falls back as the HTTP dependency does when the parameter is absent - the
+    default organization, the personal one, the only one - which keeps
+    single-org clients working unchanged.
 
     Raises:
-        WebSocketException: If the user has no Personal org (4001), or is not a
-            member of the requested org (4003). Membership failure and a
+        WebSocketException: If the fallback leaves a choice (4001), or the user is
+            not a member of the requested org (4003). Membership failure and a
             non-existent org return the same reason so the socket cannot be used
             to probe which organizations exist.
     """
@@ -1411,9 +1419,9 @@ async def get_active_organization_ws(
 
     async with get_db_context() as db:
         if organization_id is None:
-            org = await organization_repo.get_personal_for_user(db, user.id)
+            org = await OrganizationService(db).fallback_for(user.id)
             if org is None:
-                raise WebSocketException(code=4001, reason="Personal organization not found")
+                raise WebSocketException(code=4001, reason="Name the organization_id")
         else:
             # One query, as `get_active_organization` reads it: the foreign key
             # means a membership always names an organization that exists.
