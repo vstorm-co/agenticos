@@ -1,5 +1,5 @@
 ---
-source_sha: "5b4ba5d2602d"
+source_sha: "da763475f799"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -96,7 +96,8 @@ i które oceniacze datasetu oceniłyby przypadek w obecnym brzmieniu. Link do
 Zapisanie nowego przypadku, którego pytanie zadaje już inny przypadek - bez
 względu na wielkość liter i odstępy - zatrzymuje się, żeby o tym powiedzieć, z
 **Otwórz go**, by przeczytać tamten przypadek, i **Dodaj mimo to**, by zachować
-oba. Sprawdza to `GET /datasets/{id}/cases?same_input=`.
+oba. Sprawdza to `POST /datasets/{id}/cases/twins`, z pytaniem w treści żądania,
+żeby nie trafiało do logów dostępu.
 
 ### Z pliku { #import-and-export }
 

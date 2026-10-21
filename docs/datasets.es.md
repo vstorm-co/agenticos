@@ -1,5 +1,5 @@
 ---
-source_sha: "5b4ba5d2602d"
+source_sha: "da763475f799"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -97,8 +97,9 @@ abre un caso.
 
 Guardar un caso nuevo cuya pregunta ya hace otro caso (sin tener en cuenta
 mayúsculas ni espacios) se detiene para avisarlo, con **Open it** para leer ese
-caso en su lugar y **Add anyway** para conservar ambos. La comprobación es `GET
-/datasets/{id}/cases?same_input=`.
+caso en su lugar y **Add anyway** para conservar ambos. La comprobación es `POST
+/datasets/{id}/cases/twins`, con la pregunta en el cuerpo para que no llegue a
+los registros de acceso.
 
 ### Desde un archivo { #import-and-export }
 
