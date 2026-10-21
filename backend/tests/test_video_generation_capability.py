@@ -153,7 +153,7 @@ class TestConfiguration:
 
     def test_sound_is_set_only_where_the_model_makes_it_optional(self):
         with pytest.raises(ValidationError, match="has no sound setting"):
-            VideoGenerationConfig(provider="xai", model="grok-imagine-video-1.5", audio=False)
+            VideoGenerationConfig(provider="google", model="gemini-omni-1.1-flash", audio=False)
         assert (
             VideoGenerationConfig(provider="alibaba", model="wan3.0-video", audio=False).audio
             is False
@@ -273,7 +273,10 @@ class TestConfiguration:
                 },
                 [("seconds",), ("max_seconds",)],
             ),
-            ({"provider": "xai", "model": "grok-imagine-video-1.5", "audio": False}, [("audio",)]),
+            (
+                {"provider": "google", "model": "gemini-omni-1.1-flash", "audio": False},
+                [("audio",)],
+            ),
             (
                 {"provider": "xai", "model": "grok-imagine-video-1.5", "max_seconds": 20},
                 [("max_seconds",)],
