@@ -45,7 +45,7 @@ from app.core.secret_kinds import ApiKeySecret
 from app.services import text_to_speech_models
 from app.services.text_to_speech import SpeechFailure, SpeechProviderError
 from app.services.text_to_speech.synthesis import Speech
-from tests.workspaces import document_workspace
+from tests.workspaces import SandboxUnreachable, document_workspace
 
 pytestmark = pytest.mark.anyio
 
@@ -303,6 +303,18 @@ class TestSpeaking:
         assert speech is not None and speech.workspace_path is not None
         assert speech.workspace_path.startswith(f"{WORKSPACE_OUTPUT_DIR}/")
         assert document.read_bytes(speech.workspace_path) == MP3
+
+    async def test_a_sandbox_that_will_not_open_still_hands_back_the_clip(self, synthesis):
+        """The sandbox service answering 502 on `POST /sessions` failed the whole
+        turn: the clip was spoken, paid for and stored, and lost with the turn."""
+        workspace = SandboxUnreachable(document_workspace())
+
+        speech = parse_generated_speech(
+            await _speak(_toolset(), _ctx(uuid4(), workspace=workspace))
+        )
+
+        assert speech is not None and speech.url is not None
+        assert speech.workspace_path is None
 
     async def test_without_an_organization_the_clip_is_made_but_not_stored(self, synthesis):
         speech = parse_generated_speech(await _speak(_toolset(), _ctx(None)))
