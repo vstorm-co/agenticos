@@ -1,5 +1,5 @@
 ---
-source_sha: "ae21bc897eea"
+source_sha: "a6ff4cc6ff1f"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -543,9 +543,11 @@ und der Score wartet dann wieder auf eine Prüfung.
 ### Einen Run bewerten { #scoring-a-run }
 
 Öffnen Sie in **Aktivität** einen Run, öffnen Sie sein Menü **⋯** und wählen Sie
-**Gegen einen Fall bewerten**. Der Fall, der die Frage des Runs selbst stellt,
-wird für Sie ausgewählt; hat das Dataset keinen, bietet der Dialog an, die
-Antwort des Runs als Fall hinzuzufügen. Die Antwort und die Tool-Aufrufe des
+**Gegen einen Fall bewerten**. Der Dialog öffnet sich auf einem Dataset mit
+einem Fall, der die Frage des Runs selbst stellt, und wählt diesen Fall aus;
+haben mehrere Datasets einen, sagt er das und führt sie zuerst auf. Hat das
+gewählte Dataset keinen, bietet der Dialog an, die Antwort des Runs als Fall
+hinzuzufügen. Die Antwort und die Tool-Aufrufe des
 Runs werden mit jedem Scorer bewertet, den das Dataset konfiguriert. Ein Run
 ohne Transkript hat keine Antwort, die sich bewerten ließe.
 

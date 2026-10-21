@@ -44,6 +44,10 @@ vi.mock("@/components/runs/run-manifest", () => ({
   RunManifest: () => <div data-testid="manifest" />,
 }));
 vi.mock("@/stores", () => ({ useAuthStore: () => null }));
+const datasets = vi.hoisted(() => ({ runnable: [] as { can_run: boolean }[] }));
+vi.mock("@/hooks/use-eval-runs", () => ({
+  useEveryDataset: () => ({ datasets: datasets.runnable }),
+}));
 
 function run(overrides: Partial<AgentRun> = {}): AgentRun {
   return {
@@ -93,6 +97,7 @@ function renderRun(runId = "run-2", onFocusRun = vi.fn()) {
 beforeEach(() => {
   useRunMock.mockReset();
   prefetched.mockReset();
+  datasets.runnable = [];
 });
 
 describe("stepping to a neighbour", () => {
@@ -349,5 +354,29 @@ describe("the header a run opens on", () => {
     expect(screen.getAllByText("-").length).toBeGreaterThan(0);
     expect(screen.getByTitle(/no price/i)).toHaveTextContent("+");
     expect(screen.queryByText(/ago$/)).toBeNull();
+  });
+});
+
+describe("scoring a run against a case", () => {
+  it("is offered to who may run a dataset, whatever the role says", () => {
+    datasets.runnable = [{ can_run: false }, { can_run: true }];
+    serve({ run: run() });
+    renderRun();
+
+    expect(screen.getByRole("button", { name: "More actions for this run" })).toBeInTheDocument();
+  });
+
+  it("is not offered to who may run no dataset", () => {
+    datasets.runnable = [{ can_run: false }];
+    serve({ run: run() });
+    renderRun();
+    expect(screen.queryByRole("button", { name: "More actions for this run" })).toBeNull();
+  });
+
+  it("is not offered for a run with no transcript to score", () => {
+    datasets.runnable = [{ can_run: true }];
+    serve({ run: run({ conversation_id: null }) });
+    renderRun();
+    expect(screen.queryByRole("button", { name: "More actions for this run" })).toBeNull();
   });
 });

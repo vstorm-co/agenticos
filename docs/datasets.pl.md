@@ -1,5 +1,5 @@
 ---
-source_sha: "ae21bc897eea"
+source_sha: "a6ff4cc6ff1f"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -508,9 +508,11 @@ a wtedy wynik znowu czeka na przegląd.
 ### Ocenianie runa { #scoring-a-run }
 
 W **Aktywność** otwórz run, otwórz jego menu **⋯** i wybierz **Oceń względem
-przypadku**. Przypadek, który zadaje to samo pytanie co run, jest wybierany za
-ciebie; gdy dataset takiego nie ma, okno dialogowe proponuje dodanie odpowiedzi
-runa jako przypadku. Odpowiedź i wywołania narzędzi runa są oceniane każdym
+przypadku**. Okno dialogowe otwiera się na datasecie z przypadkiem, który zadaje
+to samo pytanie co run, i wybiera ten przypadek; gdy takich datasetów jest kilka,
+mówi o tym i pokazuje je na początku listy. Gdy wybrany dataset takiego
+przypadku nie ma, okno dialogowe proponuje dodanie odpowiedzi runa jako
+przypadku. Odpowiedź i wywołania narzędzi runa są oceniane każdym
 oceniaczem, który dataset konfiguruje. Run bez transkryptu nie ma odpowiedzi do
 oceny.
 
