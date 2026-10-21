@@ -370,11 +370,33 @@ class TestXai:
         assert "aspect_ratio" not in body and "duration" not in body
         assert clip.seconds is None
 
+    async def test_sound_is_sent_when_the_call_chose_it(self):
+        routes = {
+            ("POST", "/v1/videos/generations"): _json({"request_id": "r3"}),
+            ("GET", "/v1/videos/r3"): _json(
+                {"status": "done", "video": {"url": "https://vidgen.example/v.mp4"}}
+            ),
+            ("GET", "/v.mp4"): _bytes(),
+        }
+        with _answering(routes) as seen:
+            await _make("xai", "grok-imagine-video-1.5", audio=False)
+
+        assert _body(seen[0])["generate_audio"] is False
+
     @pytest.mark.parametrize(
         ("job", "failure"),
         [
             (
                 {"status": "done", "video": {"url": "", "respect_moderation": False}},
+                VideoFailure.POLICY,
+            ),
+            (
+                # Withheld with the address still there: xAI says to check the flag
+                # before using it, so it is not downloaded.
+                {
+                    "status": "done",
+                    "video": {"url": "https://vidgen.example/v.mp4", "respect_moderation": False},
+                },
                 VideoFailure.POLICY,
             ),
             (
@@ -388,7 +410,14 @@ class TestXai:
             ),
             ({"status": "failed"}, VideoFailure.UNAVAILABLE),
         ],
-        ids=["withheld by moderation", "key", "argument", "down", "no error"],
+        ids=[
+            "withheld by moderation",
+            "flagged with an address",
+            "key",
+            "argument",
+            "down",
+            "no error",
+        ],
     )
     async def test_a_settled_job_that_is_not_a_clip(self, job, failure):
         routes = {
@@ -513,6 +542,8 @@ class TestARefusedOrBrokenAnswer:
             (401, "bad key", VideoFailure.CREDENTIALS),
             (403, "no access", VideoFailure.CREDENTIALS),
             (429, "slow down", VideoFailure.RATE_LIMITED),
+            # Prepaid credit spent - Gemini's `payment_required` - is the quota.
+            (402, '{"error":{"status":"payment_required"}}', VideoFailure.RATE_LIMITED),
             (400, '{"code":"InputTextSensitiveContentDetected"}', VideoFailure.POLICY),
             (400, '{"code":"InvalidParameter"}', VideoFailure.REJECTED),
             (500, "boom", VideoFailure.UNAVAILABLE),
@@ -546,6 +577,21 @@ class TestARefusedOrBrokenAnswer:
 
         assert caplog.records[-1].getMessage().endswith("failed (400): InvalidParameter")
         assert KEY not in caplog.text and "red bicycle" not in caplog.text
+
+    async def test_an_empty_download_is_no_clip(self):
+        """A storage host answering 200 with nothing - a CDN still publishing the
+        object - would otherwise be stored and shown as a zero-byte video."""
+        routes = {
+            ("POST", "/v1/videos/generations"): _json({"request_id": "r4"}),
+            ("GET", "/v1/videos/r4"): _json(
+                {"status": "done", "video": {"url": "https://vidgen.example/v.mp4"}}
+            ),
+            ("GET", "/v.mp4"): _bytes(b""),
+        }
+        with _answering(routes), pytest.raises(VideoProviderError) as caught:
+            await _make("xai", "grok-imagine-video-1.5")
+
+        assert caught.value.failure is VideoFailure.UNAVAILABLE
 
     @pytest.mark.parametrize("body", [b"not json", b"[1, 2]"], ids=["not JSON", "not an object"])
     async def test_an_answer_that_is_not_an_object_is_unavailable(self, body):
