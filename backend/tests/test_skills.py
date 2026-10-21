@@ -43,6 +43,12 @@ def _used_nowhere(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("app.services.skills.groups_sharing", nowhere)
 
 
+@pytest.fixture(autouse=True)
+def _no_suites(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No eval suite watches a skill here; `integration/test_eval_suites` covers that."""
+    monkeypatch.setattr("app.services.eval_suite.EvalSuiteService.dependency_changed", AsyncMock())
+
+
 def _ctx(role: str = OrgRoleName.OWNER, *, org_id=None, user_id=None) -> AuthContext:
     return AuthContext(
         user_id=user_id or uuid.uuid4(),
@@ -715,6 +721,27 @@ class TestSkillManagement:
         assert delete.call_args.args[1] is skill
         assert audit.call_args.kwargs["action"] == "skill.deleted"
         assert audit.call_args.kwargs["target_id"] == str(skill.id)
+
+    @pytest.mark.anyio
+    async def test_deleting_a_skill_is_a_change_the_suites_of_its_agents_hear(self):
+        """A published spec keeps the deleted skill's id and runs without it."""
+        ctx = _ctx()
+        skill = _skill(ctx=ctx)
+
+        with (
+            patch("app.services.skills.skill_repo.get", new=AsyncMock(return_value=skill)),
+            patch("app.services.skills.resource_grant_repo.delete_for_resource", new=AsyncMock()),
+            patch("app.services.skills.skill_repo.delete", new=AsyncMock()),
+            patch("app.services.skills.record_audit", new=AsyncMock()),
+            patch(
+                "app.services.eval_suite.EvalSuiteService.dependency_changed", new=AsyncMock()
+            ) as changed,
+        ):
+            await SkillService(_db()).delete(ctx, skill.id)
+
+        changed.assert_awaited_once_with(
+            organization_id=skill.organization_id, kind="skill", resource_id=skill.id
+        )
 
 
 class TestTheListingOnlyReads:

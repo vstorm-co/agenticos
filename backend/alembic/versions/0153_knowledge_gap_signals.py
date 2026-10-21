@@ -13,7 +13,7 @@ so an upgrade seeds a fresh classifier, deletes the misses read from answers -
 which were never searches - and drops what this revision added.
 
 Revision ID: 0153_knowledge_gap_signals
-Revises: 0150_case_generation
+Revises: 0151_eval_suites
 Create Date: 2026-10-21
 """
 
@@ -24,7 +24,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0153_knowledge_gap_signals"
-down_revision: str | None = "0150_case_generation"
+down_revision: str | None = "0151_eval_suites"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

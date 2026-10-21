@@ -140,6 +140,9 @@ _FEEDS = (
     # Firing a routine by hand is a run, which publishes its own events.
     _Feed("/agents/{agent_id}/triggers/{trigger_id}/run", None),
     _Feed("/agents/{agent_id}/triggers", "trigger", "agent_id"),
+    # An estimate writes nothing.
+    _Feed("/agents/{agent_id}/eval-suites/estimate", None),
+    _Feed("/agents/{agent_id}/eval-suites", "eval_suite", "agent_id"),
     # An embed is its own row with its own page, not a change to an agent.
     _Feed("/agents/embeds", None),
     _shared("/agents", "agent"),
@@ -188,6 +191,7 @@ _FEEDS = (
 _OWNED: dict[ChangeResource, ResourceType] = {
     "agent": AGENT,
     "trigger": AGENT,
+    "eval_suite": AGENT,
     "skill": SKILL,
     "context": CONTEXT,
     "knowledge_base": COLLECTION,

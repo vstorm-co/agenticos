@@ -16,6 +16,7 @@ export type ChangeResource =
   | "secret"
   | "mcp_connection"
   | "run"
+  | "eval_suite"
   | "dataset"
   | "knowledge_gap";
 
@@ -44,10 +45,11 @@ export interface MadeChange extends ChangeEventBase {
 
 /**
  * A change a run made rather than a request: a run moving through its states -
- * started, parked, finished - or a dataset the case generator finished drafting into.
+ * started, parked, finished - an eval suite's result settling, or a dataset the
+ * case generator finished drafting into.
  */
 export interface RunChange extends ChangeEventBase {
-  resource: "run" | "dataset";
+  resource: "run" | "eval_suite" | "dataset";
   surface: "run";
   /** The member the run acts as, when it acts as one. */
   actor_user_id: string | null;

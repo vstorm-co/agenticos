@@ -1,5 +1,5 @@
 ---
-source_sha: "da763475f799"
+source_sha: "a259d6dd283d"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -514,9 +514,10 @@ esperar revisión.
 ### Puntuar un run { #scoring-a-run }
 
 En **Activity**, abre un run, abre su menú **⋯** y elige **Score against a
-case**. El caso que hace la misma pregunta que el run se elige por ti; cuando el
-dataset no tiene ninguno, el diálogo ofrece añadir la respuesta del run como
-caso. La respuesta y las llamadas a herramientas del run se califican con cada
+case**. El diálogo se abre en un dataset con un caso que hace la misma pregunta
+que el run, y elige ese caso; cuando varios datasets tienen uno, lo dice y los
+muestra primero. Cuando el dataset elegido no tiene ninguno, el diálogo ofrece
+añadir la respuesta del run como caso. La respuesta y las llamadas a herramientas del run se califican con cada
 evaluador que configura el dataset. Un run sin transcripción no tiene respuesta
 que calificar.
 

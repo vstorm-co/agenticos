@@ -2411,6 +2411,20 @@
           "title": "Nothing drawn yet",
           "description": "Ask an agent with Visuals to draw something - a diagram, an explainer, a 3D scene - and it appears here."
         }
+      },
+      "eval-suites": {
+        "title": "Eval suites",
+        "description": "Datasets agents are held to, and how each last came out.",
+        "empty": "No suites yet. Set one up on an agent's Evals tab.",
+        "never": "No result yet",
+        "row": "{suite} · {agent}",
+        "count": {
+          "failing": "{count} failing",
+          "inconclusive": "{count} inconclusive",
+          "passing": "{count} passing",
+          "waiting": "{count} waiting for a first run",
+          "paused": "{count} paused"
+        }
       }
     },
     "edit": {
@@ -4254,6 +4268,10 @@
       "chat-visual": {
         "title": "Drawings",
         "body": "An agent with Visuals draws diagrams, explainers and 3D scenes here, live while it writes them. Open one full screen, download it, ask about it, or save it as an app with a link you can share."
+      },
+      "agent-eval-suites": {
+        "title": "Suites",
+        "body": "Hold the agent to a dataset without remembering to: run it every night, on every publish or promotion, or when a skill or knowledge base it reads changes. You are told when a case breaks."
       }
     },
     "chooseLanguage": "Language"
@@ -5369,7 +5387,9 @@
       "prefMcpServerDown": "MCP server not answering",
       "prefMcpServerDownTrigger": "An organization MCP server stopped answering its check or a run. Sent once per outage to administrators and to the owners of agents bound to it.",
       "prefMcpServerRecovered": "MCP server answering again",
-      "prefMcpServerRecoveredTrigger": "A server that stopped answering is back, and agents bound to it have its tools again."
+      "prefMcpServerRecoveredTrigger": "A server that stopped answering is back, and agents bound to it have its tools again.",
+      "prefEvalSuiteFailed": "An eval suite failed",
+      "prefEvalSuiteFailedTrigger": "A suite you own fell below its threshold or could not run. Sent once per run of failures on a version, naming the cases that broke."
     },
     "skills": {
       "agentsBoundSkillWill": "Agents bound to this skill will run without it from their next run. This cannot be undone.",
@@ -6904,6 +6924,7 @@
       "unverified": "Quoted, but not in the answer: {quotes}",
       "decision": "Review decision",
       "noCaseAsks": "No case of this dataset asks this run's question.",
+      "askedInSeveral": "{count, plural, one {# dataset has a case asking this run's question; it comes first in the list.} other {# datasets have a case asking this run's question; they come first in the list.}}",
       "addAsCase": "Add it as a case",
       "pickCase": "Pick the case to grade against",
       "filterOutcome": "Outcome",
@@ -8558,6 +8579,157 @@
     "noAccess": {
       "title": "You can't open this eval run",
       "body": "Reading eval runs needs permission to view runs, and access to the agent and the dataset. Ask an admin of the organization."
+    },
+    "startedBySuite": "Started by the suite {name} {trigger, select, schedule {on its schedule} publish {when a version was published} promotion {when a version was promoted} dependency {after a skill or knowledge base changed} other {by hand}}.",
+    "suites": {
+      "title": "Suites",
+      "description": "Datasets this agent is held to, run on their own: on a schedule, when a version is published or promoted, or when a skill or knowledge base it reads changes.",
+      "new": "New suite",
+      "empty": {
+        "title": "No suites yet",
+        "body": "A suite runs a dataset against the agent without anyone remembering to - every night, on every publish, or when a skill it reads changes - and tells you when a case breaks."
+      },
+      "created": "Suite created",
+      "saved": "Suite saved",
+      "resumedToast": "Suite resumed",
+      "pausedToast": "Suite paused",
+      "runningToast": "Suite started",
+      "removed": "Suite removed",
+      "viewResults": "Results of {name}",
+      "holds": "{dataset} · {environment, select, none {current published version} other {{environment}}}",
+      "hiddenDataset": "a dataset you cannot see",
+      "when": {
+        "publish": "On publish",
+        "promotion": "On promotion",
+        "dependency": "When a skill or knowledge base changes",
+        "manualOnly": "Only when run by hand"
+      },
+      "schedule": {
+        "daily": "Daily at {time} ({zone})",
+        "weekdays": "Weekdays at {time} ({zone})",
+        "weekly": "Every {day} at {time} ({zone})",
+        "custom": "Cron {expression} ({zone})"
+      },
+      "status": {
+        "pending": "Waiting",
+        "running": "Running",
+        "passed": "Passed",
+        "failed": "Failed",
+        "inconclusive": "Inconclusive",
+        "skipped": "Did not run",
+        "error": "Error"
+      },
+      "lastResult": "{status} · {rate}",
+      "paused": {
+        "byPerson": "Paused",
+        "owner_inactive": "Paused: its owner left",
+        "owner_lacks_access": "Paused: its owner lost access",
+        "environment_gone": "Paused: its environment was removed"
+      },
+      "next": "Next {date}",
+      "runNow": "Run now",
+      "edit": "Edit",
+      "pause": "Pause",
+      "resume": "Resume",
+      "delete": "Delete",
+      "deleteTitle": "Delete this suite?",
+      "deleteConfirm": "{name} and its results are removed. The eval runs it started stay.",
+      "resultsCouldNotBeRead": "The results could not be read.",
+      "noResults": "No results yet. A result appears when the suite next runs.",
+      "resultCount": "{count, plural, =1 {1 result} other {# results}}",
+      "resultMeta": "{trigger, select, schedule {Scheduled} publish {On publish} promotion {On promotion} dependency {After a change} other {By hand}}{version, select, none {} other { · v{version}}} · {date}",
+      "openRun": "Open run",
+      "passRate": "Pass rate {rate} over {cases, plural, =1 {1 case} other {# cases}} · {regressions, plural, =0 {no confirmed regressions} =1 {1 confirmed regression} other {# confirmed regressions}}",
+      "enableAi": "Turn on AI assistance",
+      "failing": {
+        "regression": "Breaks reproducibly: {input}",
+        "failed": "Failed: {input}",
+        "ungraded": "Not graded: {input}"
+      },
+      "reason": {
+        "passRateBelow": "Pass rate {value} is below the {limit} minimum.",
+        "nothingGraded": "No case could be graded.",
+        "regressions": "{count, plural, =1 {1 case breaks} other {# cases break}} reproducibly; the suite allows {limit}.",
+        "costRise": "Cost per passed case rose {value}, past the {limit} ceiling.",
+        "p95Rise": "p95 latency rose {value}, past the {limit} ceiling.",
+        "invalid": "The two sides were graded differently, so they cannot be compared.",
+        "ungraded": "{count, plural, =1 {1 case} other {# cases}} could not be graded, so the suite cannot vouch for this result."
+      },
+      "skip": {
+        "budget": "It would cost more than the budget has left this month.",
+        "over_cost_cap": "Its estimate was above the suite's ceiling.",
+        "ai_assistance_off": "Only the judge could grade these cases, and AI assistance is off.",
+        "no_scorer": "Nothing in the dataset's grading can decide a case.",
+        "not_published": "The agent has no published version to check.",
+        "version_gone": "The version it was to check is gone.",
+        "owner_inactive": "Its owner is no longer a member.",
+        "owner_lacks_access": "Its owner can no longer run it.",
+        "not_runnable": "The eval run was refused.",
+        "run_gone": "Its eval run is gone.",
+        "cancelled": "Its eval run was stopped.",
+        "failed": "Its eval run failed.",
+        "budget_exceeded": "Its eval run ran out of budget.",
+        "start_failed": "The suite could not start its eval run.",
+        "settle_failed": "The suite could not read its eval run's result."
+      },
+      "form": {
+        "newTitle": "New suite",
+        "editTitle": "Edit suite",
+        "intro": "A suite runs a dataset against this agent on its own and holds every result to a threshold. It runs as you: saving it agrees to the spend shown below.",
+        "name": "Name",
+        "namePlaceholder": "Nightly regression",
+        "dataset": "Dataset",
+        "datasetPlaceholder": "Choose a dataset",
+        "datasetOption": "{name} · {count, plural, =1 {1 case} other {# cases}}",
+        "datasetHint": "Its latest version is answered on every run, graded as the dataset says.",
+        "environment": "Version checked",
+        "currentVersion": "Current published version",
+        "environmentHint": "A scheduled run checks the version this environment serves, on its test connections. On promotion means onto this environment.",
+        "when": "When it runs",
+        "onPublish": "On every publish",
+        "onPublishHint": "Each new version runs beside the one before it, so a regression is caught before anyone promotes it.",
+        "onPromotion": "On promotion",
+        "onPromotionHint": "When a version is promoted onto the environment above, measured against the version it replaced.",
+        "onDependency": "When a skill or knowledge base changes",
+        "onDependencyHint": "Skills and documents change with no publish. A burst of changes is one run, ten minutes after the first.",
+        "onSchedule": "On a schedule",
+        "onScheduleHint": "Run daily on the production version to catch a provider's model drifting and a knowledge base changing underneath it.",
+        "frequency": "Repeats",
+        "frequencies": {
+          "daily": "Every day",
+          "weekdays": "Weekdays",
+          "weekly": "Once a week",
+          "custom": "Custom (cron)"
+        },
+        "time": "At",
+        "weekday": "On",
+        "cron": "Cron expression",
+        "cronHint": "Five fields: minute, hour, day of month, month, day of week.",
+        "timezone": "Time zone",
+        "timezoneHint": "An IANA zone, such as Europe/Warsaw.",
+        "threshold": "Threshold",
+        "thresholdHint": "A result fails when more cases break reproducibly against the baseline than allowed, or when the pass rate - each case counted by the majority of its attempts - falls below the minimum.",
+        "maxRegressions": "Confirmed regressions allowed",
+        "maxRegressionsHint": "Zero by default: one case that breaks every time it is asked fails the suite.",
+        "minPassRate": "Minimum pass rate (%)",
+        "minPassRateHint": "Leave empty to hold only regressions.",
+        "none": "None",
+        "advanced": "Efficiency and spend",
+        "efficiencyHint": "Optional ceilings against the baseline. Left empty, nothing is checked.",
+        "costRise": "Cost per passed case may rise by (%)",
+        "p95Rise": "p95 latency may rise by (%)",
+        "maxRunUsd": "Skip a run estimated above ($)",
+        "maxRunUsdHint": "Scheduled runs start with nobody watching. A run estimated higher is skipped and you are told.",
+        "description": "Note",
+        "estimateRun": "One run: about {amount} for {count, plural, =1 {1 case} other {# cases}}.",
+        "estimatePaired": "On publish or promotion the previous version runs beside it: about {amount}.",
+        "estimateMonth": "The schedule: {count, plural, =1 {1 run} other {# runs}} in 30 days, about {amount}.",
+        "runsAsYou": "The suite runs as you. Somebody else who saves it takes it over.",
+        "enableAi": "Turn on AI assistance",
+        "cancel": "Cancel",
+        "save": "Save",
+        "create": "Create suite"
+      }
     }
   },
   "remoteAgents": {

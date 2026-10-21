@@ -61,6 +61,12 @@ from app.db.models.eval_run import (
     EvalRunPurpose,
     EvalRunStatus,
 )
+from app.db.models.eval_suite import (
+    EvalSuite,
+    EvalSuiteResult,
+    EvalSuiteResultStatus,
+    EvalSuiteTrigger,
+)
 from app.db.models.ingestion_spend import IngestionSpend
 from app.db.models.ml_service_call import MLCallStatus, MLServiceCall
 from app.db.models.pending_sandbox_destroy import PendingSandboxDestroy
@@ -191,6 +197,10 @@ __all__ = [
     "EvalRunCase",
     "EvalRunStatus",
     "EvalRunPurpose",
+    "EvalSuite",
+    "EvalSuiteResult",
+    "EvalSuiteResultStatus",
+    "EvalSuiteTrigger",
     "ArmRole",
     "ArmSource",
     "CaseAttemptStatus",

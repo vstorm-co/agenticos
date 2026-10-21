@@ -159,6 +159,11 @@ class EvalRun(Base):
     rerun_ceiling_usd: Mapped[Decimal] = mapped_column(
         Numeric(12, 6), nullable=False, default=Decimal(0)
     )
+    # An earlier run the candidate is measured against when no baseline runs
+    # beside it - an eval suite's last run of the same version, to see drift.
+    baseline_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("eval_runs.id", ondelete="SET NULL"), nullable=True
+    )
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

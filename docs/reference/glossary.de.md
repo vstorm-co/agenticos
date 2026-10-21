@@ -1,5 +1,5 @@
 ---
-source_sha: "4b8296efe34a"
+source_sha: "0635a87c3de1"
 ---
 
 # Glossar { #glossary }
@@ -37,6 +37,7 @@ nicht bricht.
 | Chat | Das Gespräch mit einem Agent im Browser | `conversation` |
 | Kanal | Slack, Telegram oder Mattermost, wo Menschen einen Agent erreichen | `channel_bot` |
 | Routine | Ein Agent, der selbstständig läuft, nach Zeitplan oder Ereignis | `trigger` |
+| Eval-Suite | Ein Dataset, an dem ein Agent gemessen wird, nach Zeitplan, bei Veröffentlichung oder Promotion oder nach einer Änderung | `eval_suite` |
 | Run | Ein Mal, dass ein Agent geantwortet hat, mit Kosten und Schritten | `agent_run` |
 | Environment | Eine benannte Stufe, etwa Produktion, die auf eine Version zeigt | `environment` |
 | MCP-Server | Ein externer Tool-Server, den Agents aufrufen, einmal verbunden | `mcp_connection` |

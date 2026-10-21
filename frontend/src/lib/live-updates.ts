@@ -38,6 +38,8 @@ const STALE: Record<ChangeResource, (orgId: string) => QueryKey[]> = {
   // by the API, a routine or another tab would otherwise leave it stale. The
   // lists only: refetching an open thread's messages under a stream is not this.
   run: () => [qk.runs.all(), qk.conversations.list()],
+  // A suite's result names the eval run behind it, so the runs move with it.
+  eval_suite: () => [qk.evalSuites.all(), qk.evalRuns.all()],
   // A dataset's cases, versions, grading, scores and drafts all live under it.
   dataset: () => [qk.datasets.all(), qk.sharing.all()],
   // A topic dismissed or drafted, or a grouping pass that placed new questions.
