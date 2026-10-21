@@ -535,6 +535,23 @@ async def test_several_answers_become_cases_in_one_version_and_foreign_ones_are_
     assert {c.source for c in cases} == {"conversation"}
 
 
+async def test_an_answer_the_dataset_holds_or_the_batch_names_twice_is_skipped(db) -> None:
+    ctx = await _owner(db)
+    agent = await _agent(db, ctx)
+    _, parking = await _turn(db, ctx, agent, question="Where do I park?")
+    _, wifi = await _turn(db, ctx, agent, question="What is the wifi password?")
+    datasets = DatasetService(db)
+    dataset = await datasets.create(ctx, DatasetCreate(name="Office gaps"))
+    await datasets.add_from_messages(ctx, dataset.id, [parking.id])
+
+    version, skipped = await datasets.add_from_messages(
+        ctx, dataset.id, [parking.id, wifi.id, wifi.id]
+    )
+
+    assert version is not None
+    assert (version.number, version.case_count, skipped) == (2, 2, 2)
+
+
 async def test_answers_none_of_which_can_be_read_add_no_version(db) -> None:
     ctx = await _owner(db)
     stranger = await _owner(db)
