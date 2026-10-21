@@ -35,6 +35,7 @@ async def create_request(
     target: str,
     agent_id: UUID | None,
     skill_id: UUID | None,
+    context_id: UUID | None = None,
     created_by_user_id: UUID | None,
     estimate_usd: Decimal,
     window_days: int,
@@ -45,6 +46,7 @@ async def create_request(
         target=target,
         agent_id=agent_id,
         skill_id=skill_id,
+        context_id=context_id,
         created_by_user_id=created_by_user_id,
         status=AuthoringStatus.QUEUED.value,
         estimate_usd=estimate_usd,
@@ -75,14 +77,17 @@ async def list_requests(
     organization_id: UUID,
     agent_id: UUID | None = None,
     skill_id: UUID | None = None,
+    context_id: UUID | None = None,
     limit: int = 10,
 ) -> list[AuthoringRequest]:
-    """The latest requests on one agent or one skill, newest first."""
+    """The latest requests on one agent, skill or context file, newest first."""
     statement = select(AuthoringRequest).where(AuthoringRequest.organization_id == organization_id)
     if agent_id is not None:
         statement = statement.where(AuthoringRequest.agent_id == agent_id)
     if skill_id is not None:
         statement = statement.where(AuthoringRequest.skill_id == skill_id)
+    if context_id is not None:
+        statement = statement.where(AuthoringRequest.context_id == context_id)
     result = await db.execute(statement.order_by(AuthoringRequest.created_at.desc()).limit(limit))
     return list(result.scalars().all())
 
@@ -379,6 +384,7 @@ async def evidence_runs(
     *,
     organization_id: UUID,
     agent_id: UUID | None = None,
+    agent_ids: Sequence[UUID] | None = None,
     skill_name: str | None = None,
     since: datetime,
     limit: int,
@@ -388,7 +394,8 @@ async def evidence_runs(
     Down-rated runs with a comment, then other down-rated runs, then failures,
     then up-rated runs as the contrast, newest first within each; unrated runs
     that succeeded are not evidence of anything. `agent_id` narrows the runs to
-    one agent's, `skill_name` to those whose model opened that skill.
+    one agent's, `agent_ids` to several agents' - those binding a context file -
+    and `skill_name` to those whose model opened that skill.
 
     A skill reaches a run as a deferred capability the model loads with
     `load_capability`, a framework tool no binding can rename, so the call's
@@ -433,6 +440,8 @@ async def evidence_runs(
     )
     if agent_id is not None:
         statement = statement.where(AgentRun.agent_id == agent_id)
+    if agent_ids is not None:
+        statement = statement.where(AgentRun.agent_id.in_(list(agent_ids)))
     if skill_name is not None:
         loaded = (
             select(ToolCall.id)

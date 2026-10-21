@@ -239,7 +239,7 @@ class Improver:
                     }
                 ],
             }
-        if prompt.startswith("Propose an improved body"):
+        if prompt.startswith("Propose an improved body for the skill"):
             return {
                 "summary": "The skill omits the window",
                 "expected_effect": "Answers name 30 days",

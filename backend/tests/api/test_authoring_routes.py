@@ -29,6 +29,7 @@ from app.schemas.authoring import (
     AuthoringWaiting,
     DecisionRead,
 )
+from app.schemas.context_proposal import ContextProposalList, ContextProposalRead
 from tests.api.test_eval_run_routes import _ESTIMATE, _RUN
 
 pytestmark = pytest.mark.anyio
@@ -76,17 +77,47 @@ def service() -> MagicMock:
     stub.waiting = AsyncMock(return_value=AuthoringWaiting(agents=[], skills=0))
     stub.estimate_skill_check = AsyncMock(return_value=_ESTIMATE)
     stub.check_skill = AsyncMock(return_value=_RUN)
+    stub.estimate_context = stub.estimate_agent
+    stub.start_context = AsyncMock(return_value=_REQUEST)
+    stub.for_context = AsyncMock(return_value=[_REQUEST])
+    stub.estimate_context_check = AsyncMock(return_value=_ESTIMATE)
+    stub.check_context = AsyncMock(return_value=_RUN)
+    return stub
+
+
+_CHANGE = ContextProposalRead(
+    id=uuid.uuid4(),
+    context_id=uuid.uuid4(),
+    context_name="returns",
+    description="Returns",
+    content="Returns take 30 days.",
+    current_description="Returns",
+    current_content="Returns take 90 days.",
+    status="pending",
+    stale=False,
+    created_at=datetime(2026, 10, 21, tzinfo=UTC),
+)
+
+
+@pytest.fixture
+def changes() -> MagicMock:
+    stub = MagicMock()
+    stub.list_read = AsyncMock(return_value=ContextProposalList(items=[_CHANGE], total=1))
+    stub.read = AsyncMock(return_value=_CHANGE)
+    stub.apply = AsyncMock(return_value=_CHANGE)
+    stub.discard = AsyncMock(return_value=_CHANGE)
     return stub
 
 
 @pytest.fixture
-def client(mock_redis: MagicMock, service: MagicMock) -> Iterator[OpenClient]:
+def client(mock_redis: MagicMock, service: MagicMock, changes: MagicMock) -> Iterator[OpenClient]:
     context = AuthContext(
         user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.OWNER
     )
     app.dependency_overrides[deps.get_auth_context] = lambda: context
     app.dependency_overrides[deps.get_redis] = lambda: mock_redis
     app.dependency_overrides[deps.get_authoring_service] = lambda: service
+    app.dependency_overrides[deps.get_context_proposal_service] = lambda: changes
 
     @asynccontextmanager
     async def open_client() -> AsyncIterator[AsyncClient]:
@@ -137,6 +168,29 @@ async def test_each_skill_route_answers_with_its_status(client: OpenClient) -> N
         assert (await http.post(_url(f"{skill}/check"), json=check)).status_code == 201
 
     assert listed.status_code == 200 and len(listed.json()) == 1
+
+
+async def test_each_context_route_answers_with_its_status(
+    client: OpenClient, changes: MagicMock
+) -> None:
+    context = f"/context/{uuid.uuid4()}/authoring"
+    proposal = uuid.uuid4()
+    async with client() as http:
+        assert (await http.post(_url(f"{context}/estimate"), json={})).status_code == 200
+        assert (await http.post(_url(context), json={})).status_code == 201
+        listed = await http.get(_url(context))
+        check = {"suite_id": str(uuid.uuid4()), "proposal_id": str(uuid.uuid4())}
+        assert (await http.post(_url(f"{context}/check/estimate"), json=check)).status_code == 200
+        assert (await http.post(_url(f"{context}/check"), json=check)).status_code == 201
+        waiting = await http.get(_url("/context-changes?status=pending"))
+        assert (await http.get(_url(f"/context-changes/{proposal}"))).status_code == 200
+        assert (await http.post(_url(f"/context-changes/{proposal}/apply"))).status_code == 200
+        assert (await http.post(_url(f"/context-changes/{proposal}/discard"))).status_code == 200
+
+    assert listed.status_code == 200 and len(listed.json()) == 1
+    assert waiting.json()["total"] == 1
+    assert changes.list_read.await_args.kwargs == {"status": "pending"}
+    assert changes.apply.await_args.args[1] == proposal
 
 
 async def test_what_waits_is_answered(client: OpenClient) -> None:

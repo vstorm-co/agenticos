@@ -123,7 +123,11 @@ from app.agents.capabilities.channel_tools import (
     ChannelDirectory,
 )
 from app.agents.capabilities.coding_agent import CODING_AGENT_ID
-from app.agents.capabilities.context import CONTEXT_FILES_RESOURCE
+from app.agents.capabilities.context import (
+    CONTEXT_BODIES_RESOURCE,
+    CONTEXT_FILES_RESOURCE,
+    ContextBody,
+)
 from app.agents.capabilities.guardrails import (
     GuardrailBlocked,
     GuardrailsConfig,
@@ -2654,6 +2658,7 @@ class AgentRunnerService:
                 ctx, agent_id, candidate, environment_id=effective_environment_id
             )
         skill_bodies = {} if candidate is None else candidate.skill_bodies
+        context_bodies = {} if candidate is None else candidate.context_bodies
         spec = await self._with_environment_observability(
             ctx, spec, environment_id=effective_environment_id
         )
@@ -2693,6 +2698,7 @@ class AgentRunnerService:
             is_test=test or draft,
             test_spec=test_spec,
             skill_bodies=skill_bodies,
+            context_bodies=context_bodies,
         )
         if on_compaction is not None:
             # Set on the built deps rather than passed into `_assemble`: it is a
@@ -2809,6 +2815,7 @@ class AgentRunnerService:
         is_test: bool = False,
         test_spec: dict[str, Any] | None = None,
         skill_bodies: Mapping[UUID, SkillBody] | None = None,
+        context_bodies: Mapping[UUID, ContextBody] | None = None,
         on_sandbox_wait: SandboxWaitSink | None = None,
     ) -> PreparedRun:
         """Build the agent for a run, opening its row unless one is being resumed.
@@ -2905,6 +2912,7 @@ class AgentRunnerService:
             "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
             CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(ctx, spec.context_ids),
             SKILL_BODIES_RESOURCE: dict(skill_bodies or {}),
+            CONTEXT_BODIES_RESOURCE: dict(context_bodies or {}),
         }
         # What an earlier turn of this thread wrote down. Read here rather than
         # beside the build below, because one of the three is a resource.

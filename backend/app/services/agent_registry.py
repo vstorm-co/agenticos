@@ -44,6 +44,7 @@ from app.agents.capabilities.browser_use import (
 )
 from app.agents.capabilities.browser_use._route import check_address
 from app.agents.capabilities.coding_agent import CODING_AGENT_ID, CodingAgentConfig
+from app.agents.capabilities.context import ContextBody
 from app.agents.capabilities.skills import SkillBody
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
@@ -194,6 +195,7 @@ class PublishedCandidate:
 
     version_id: UUID
     skill_bodies: Mapping[UUID, SkillBody] = field(default_factory=dict)
+    context_bodies: Mapping[UUID, ContextBody] = field(default_factory=dict)
     """Proposed skill bodies served in place of the stored ones, by skill id."""
 
 
@@ -207,6 +209,7 @@ class UnpublishedCandidate:
 
     spec: AgentSpec
     skill_bodies: Mapping[UUID, SkillBody] = field(default_factory=dict)
+    context_bodies: Mapping[UUID, ContextBody] = field(default_factory=dict)
     """Proposed skill bodies served in place of the stored ones, by skill id."""
 
 

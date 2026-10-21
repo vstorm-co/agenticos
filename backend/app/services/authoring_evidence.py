@@ -26,7 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import AuthContext
 from app.db.models.conversation import Message
-from app.repositories import authoring_repo, conversation_repo
+from app.repositories import agent_repo, authoring_repo, conversation_repo
 from app.repositories.authoring import EvidenceRun
 from app.schemas.authoring import MAX_EVIDENCE_ITEMS, MAX_QUOTE_CHARS, EvidenceQuote
 
@@ -200,6 +200,32 @@ class EvidenceService:
             self.db,
             organization_id=ctx.organization_id,
             skill_name=skill_name,
+            since=self._since(window_days),
+            limit=MAX_EVIDENCE_RUNS,
+        )
+        return await self._pack(rows)
+
+    async def for_context(
+        self, ctx: AuthContext, context_id: UUID, *, window_days: int
+    ) -> EvidencePack:
+        """The runs, of the agents whose draft binds the file, that were rated or failed.
+
+        A context file reaches every run of a bound agent - injected, or read on
+        demand - so every rated or failed run of those agents is evidence about it.
+        """
+        bound = await agent_repo.binding_resources(
+            self.db,
+            organization_id=ctx.organization_id,
+            field="context_ids",
+            resource_ids=[context_id],
+        )
+        agents = [agent.id for agent in bound[context_id]]
+        if not agents:
+            return EvidencePack()
+        rows = await authoring_repo.evidence_runs(
+            self.db,
+            organization_id=ctx.organization_id,
+            agent_ids=agents,
             since=self._since(window_days),
             limit=MAX_EVIDENCE_RUNS,
         )

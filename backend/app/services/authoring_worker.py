@@ -11,7 +11,7 @@ quotes - and the proposal is written from the digests. Every quote, the
 digests' and the proposal's, is checked against the runs before it is kept.
 
 **Nothing changes an agent.** An improve records a batch of hunks for the draft
-- or a skill proposal - and a person decides each; a verify adds its findings
+- or a skill or context file proposal - and a person decides each; a verify adds its findings
 to the open batch without replacing what is still waiting there.
 """
 
@@ -46,17 +46,21 @@ from app.db.models.authoring import (
     HunkOrigin,
     HunkStatus,
 )
+from app.db.models.context import ContextFile
 from app.db.models.skill import Skill
 from app.db.session import get_worker_db_context
 from app.repositories import (
     agent_repo,
     agent_run_repo,
     authoring_repo,
+    context_proposal_repo,
+    context_repo,
     member_repo,
     skill_proposal_repo,
     skill_repo,
 )
 from app.schemas.authoring import (
+    ContextImprovement,
     EvidenceQuote,
     ImprovementProposal,
     InstructionChange,
@@ -66,7 +70,7 @@ from app.schemas.authoring import (
     VerifyReport,
 )
 from app.services import authoring_hunks
-from app.services.access import AGENT, SKILL, resolve_access
+from app.services.access import AGENT, CONTEXT, SKILL, resolve_access
 from app.services.authoring_config import ConfigurationService
 from app.services.authoring_evidence import (
     EvidencePack,
@@ -190,6 +194,22 @@ def _skill_prompt(skill: Skill, pack: EvidencePack, digests: Sequence[RunFinding
     )
 
 
+def _context_prompt(
+    file: ContextFile, pack: EvidencePack, digests: Sequence[RunFindings] | None
+) -> str:
+    how = (
+        "It is put into every bound agent's instructions verbatim."
+        if file.mode == "inject"
+        else "Bound agents read it on demand, by its name and description."
+    )
+    return (
+        f'Propose an improved body for the context file "{file.name}". {how}\n\n'
+        f"# Its description\n{file.description or '(none)'}\n\n"
+        f"# Its current body\n<context>\n{file.content}\n</context>\n\n"
+        f"# Runs of the agents that use it\n{_evidence_section(pack, digests)}"
+    )
+
+
 def _verify_prompt(
     name: str,
     published: AgentSpec,
@@ -308,6 +328,8 @@ class AuthoringRun:
             raise Stopped("Whoever started this may no longer read runs.")
         if self.request.target == AuthoringTarget.SKILL.value:
             await self._improve_skill()
+        elif self.request.target == AuthoringTarget.CONTEXT.value:
+            await self._improve_context()
         elif self.request.kind == AuthoringKind.VERIFY.value:
             await self._verify()
         else:
@@ -477,6 +499,55 @@ class AuthoringRun:
                 "summary": proposal.summary,
                 "expected_effect": proposal.expected_effect,
                 "skill_proposal_id": str(proposal_row.id),
+            }
+        )
+
+    async def _improve_context(self) -> None:
+        context_id = self.request.context_id
+        org = self.ctx.organization_id
+        file = (
+            None
+            if context_id is None
+            else await context_repo.get(self.db, context_id, organization_id=org)
+        )
+        if file is None:
+            raise Stopped("The context file is gone.")
+        if not await resolve_access(
+            self.db, self.ctx, file, Perm.CONTEXT_EDIT, resource_type=CONTEXT
+        ):
+            raise Stopped("Whoever started this may no longer edit the context file.")
+        pack = await self.evidence.for_context(
+            self.ctx, file.id, window_days=self.request.window_days
+        )
+        self._record_evidence(pack)
+        digests = await self._digests(pack, f'agents using the context file "{file.name}"')
+        proposal = await self._ask(_context_prompt(file, pack, digests), ContextImprovement)
+        kept, dropped = pack.verify(proposal.evidence)
+        values = {
+            "base_updated_at": file.updated_at,
+            "description": proposal.description[:500],
+            "content": proposal.content,
+            "rationale": proposal.rationale,
+            "evidence": kept,
+            "evidence_dropped": dropped,
+            "expected_effect": proposal.expected_effect,
+            "authoring_request_id": self.request.id,
+        }
+        existing = await context_proposal_repo.get_pending_for_context(
+            self.db, organization_id=org, context_id=file.id
+        )
+        row = (
+            await context_proposal_repo.update(self.db, proposal=existing, values=values)
+            if existing is not None
+            else await context_proposal_repo.create(
+                self.db, organization_id=org, context_id=file.id, values=values
+            )
+        )
+        await self._finish(
+            {
+                "summary": proposal.summary,
+                "expected_effect": proposal.expected_effect,
+                "context_proposal_id": str(row.id),
             }
         )
 

@@ -161,3 +161,53 @@ async def check_skill_change(
     first. The agent runs its published version on both sides.
     """
     return await service.check_skill(ctx, skill_id, data)
+
+
+@router.post("/context/{context_id}/authoring/estimate", response_model=AuthoringEstimate)
+async def estimate_context_authoring(
+    context_id: UUID, data: AuthoringStart, service: AuthoringSvc, ctx: Auth
+) -> Any:
+    """How many runs an Improve on this context file would read, and what it would cost."""
+    return await service.estimate_context(ctx, context_id, data)
+
+
+@router.post(
+    "/context/{context_id}/authoring",
+    response_model=AuthoringRequestRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def start_context_authoring(
+    context_id: UUID, data: AuthoringStart, service: AuthoringSvc, ctx: Auth
+) -> Any:
+    """Start an Improve on a context file. Its proposal waits on the file's page."""
+    return await service.start_context(ctx, context_id, data)
+
+
+@router.get("/context/{context_id}/authoring", response_model=list[AuthoringRequestRead])
+async def list_context_authoring(context_id: UUID, service: AuthoringSvc, ctx: Auth) -> Any:
+    """The assistant's latest requests on this context file, newest first."""
+    return await service.for_context(ctx, context_id)
+
+
+@router.post("/context/{context_id}/authoring/check/estimate", response_model=EvalRunEstimate)
+async def estimate_context_check(
+    context_id: UUID, data: ProposalCheck, service: AuthoringSvc, ctx: Auth
+) -> Any:
+    """What checking a pending change to this file on one agent would cost. Writes nothing."""
+    return await service.estimate_context_check(ctx, context_id, data)
+
+
+@router.post(
+    "/context/{context_id}/authoring/check",
+    response_model=EvalRunRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def check_context_change(
+    context_id: UUID, data: ProposalCheck, service: AuthoringSvc, ctx: Auth
+) -> Any:
+    """Run a dataset on an agent using the file, serving the proposed body in its place.
+
+    Applying a context change is live for every agent bound to the file, so it is
+    checked first. The agent runs its published version on both sides.
+    """
+    return await service.check_context(ctx, context_id, data)

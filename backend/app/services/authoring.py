@@ -37,6 +37,7 @@ from pydantic_ai.usage import RunUsage
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import price_request
+from app.agents.capabilities.context import ContextBody
 from app.agents.capabilities.skills import SkillBody
 from app.agents.spec import AgentSpec
 from app.agents.system_agents import IMPROVER
@@ -69,6 +70,7 @@ from app.repositories import (
     agent_repo,
     agent_run_repo,
     authoring_repo,
+    context_proposal_repo,
     eval_run_repo,
     organization_repo,
     skill_proposal_repo,
@@ -93,6 +95,7 @@ from app.services.access import AGENT, accessible_ids
 from app.services.agent_registry import AgentRegistryService
 from app.services.authoring_config import ConfigurationService
 from app.services.authoring_evidence import EvidencePack, EvidenceService
+from app.services.context import ContextService
 from app.services.eval_run import EvalRunService
 from app.services.eval_suite import EvalSuiteService
 from app.services.model_profile import ModelProfileService
@@ -170,6 +173,7 @@ class AuthoringService:
         self.db = db
         self.registry = AgentRegistryService(db)
         self.skills = SkillService(db)
+        self.contexts = ContextService(db)
         self.runner = SystemAgentRunner(db)
         self.evidence = EvidenceService(db)
         self.models = ModelProfileService(db)
@@ -232,6 +236,21 @@ class AuthoringService:
             )
         improver = await self._improver(ctx)
         pack = await self.evidence.for_skill(ctx, skill.name, window_days=body.window_days)
+        return await self._estimate(ctx, improver, pack, None if pack.runs else "no_evidence")
+
+    async def estimate_context(
+        self, ctx: AuthContext, context_id: UUID, body: AuthoringStart
+    ) -> AuthoringEstimate:
+        """What an Improve on this context file would read and cost."""
+        self._require_runs_view(ctx)
+        file = await self.contexts.get(ctx, context_id, perm=Perm.CONTEXT_EDIT)
+        if body.kind != AuthoringKind.IMPROVE.value:
+            raise BadRequestError(
+                message="A context file has no draft to verify; review its pending change instead",
+                details={"kind": body.kind},
+            )
+        improver = await self._improver(ctx)
+        pack = await self.evidence.for_context(ctx, file.id, window_days=body.window_days)
         return await self._estimate(ctx, improver, pack, None if pack.runs else "no_evidence")
 
     async def _estimate(
@@ -330,6 +349,21 @@ class AuthoringService:
             skill_id=skill_id,
         )
 
+    async def start_context(
+        self, ctx: AuthContext, context_id: UUID, body: AuthoringStart
+    ) -> AuthoringRequestRead:
+        """Queue an Improve on a context file. Raises as :meth:`start_agent` does."""
+        estimate = await self.estimate_context(ctx, context_id, body)
+        return await self._start(
+            ctx,
+            estimate,
+            body,
+            target=AuthoringTarget.CONTEXT,
+            agent_id=None,
+            skill_id=None,
+            context_id=context_id,
+        )
+
     async def _start(
         self,
         ctx: AuthContext,
@@ -339,6 +373,7 @@ class AuthoringService:
         target: AuthoringTarget,
         agent_id: UUID | None,
         skill_id: UUID | None,
+        context_id: UUID | None = None,
     ) -> AuthoringRequestRead:
         if estimate.reason == "no_draft_change":
             raise BadRequestError(
@@ -368,6 +403,7 @@ class AuthoringService:
             target=target.value,
             agent_id=agent_id,
             skill_id=skill_id,
+            context_id=context_id,
             created_by_user_id=ctx.user_id,
             estimate_usd=estimate.estimate_usd,
             window_days=body.window_days,
@@ -378,7 +414,7 @@ class AuthoringService:
             organization_id=ctx.organization_id,
             action=f"authoring.{body.kind}_requested",
             target_type=target.value,
-            target_id=str(agent_id or skill_id),
+            target_id=str(agent_id or skill_id or context_id),
             details={"request_id": str(request.id), "estimate_usd": str(estimate.estimate_usd)},
         )
         from app.worker.tasks.authoring_tasks import dispatch_authoring_request
@@ -431,6 +467,11 @@ class AuthoringService:
             if ctx.has(Perm.SKILLS_EDIT)
             else 0
         )
+        contexts = (
+            await context_proposal_repo.count_pending(self.db, organization_id=ctx.organization_id)
+            if ctx.has(Perm.CONTEXT_EDIT)
+            else 0
+        )
         return AuthoringWaiting(
             agents=[
                 AgentWaiting(
@@ -444,6 +485,7 @@ class AuthoringService:
                 if agent.id in editable
             ],
             skills=skills,
+            contexts=contexts,
         )
 
     async def for_skill(self, ctx: AuthContext, skill_id: UUID) -> list[AuthoringRequestRead]:
@@ -453,6 +495,16 @@ class AuthoringService:
             AuthoringRequestRead.model_validate(await self._settled(request))
             for request in await authoring_repo.list_requests(
                 self.db, organization_id=ctx.organization_id, skill_id=skill.id
+            )
+        ]
+
+    async def for_context(self, ctx: AuthContext, context_id: UUID) -> list[AuthoringRequestRead]:
+        """The newest requests on one context file, for its page."""
+        file = await self.contexts.get(ctx, context_id)
+        return [
+            AuthoringRequestRead.model_validate(await self._settled(request))
+            for request in await authoring_repo.list_requests(
+                self.db, organization_id=ctx.organization_id, context_id=file.id
             )
         ]
 
@@ -983,6 +1035,97 @@ class AuthoringService:
             request,
             purpose=EvalRunPurpose.GATE,
             candidate_skills=bodies,
+            exclude_conversations=evidence,
+        )
+
+    async def _context_check(
+        self, ctx: AuthContext, context_id: UUID, body: ProposalCheck
+    ) -> tuple[Agent, EvalRunRequest, dict[UUID, ContextBody], list[UUID]]:
+        """The agent a context change is checked on, the run, the body, and what to leave out.
+
+        As for a skill: both sides run the agent's published version, and the
+        file's body is the one difference.
+
+        Raises:
+            NotFoundError: No such pending change to this file.
+            BadRequestError: No agent named, or one that does not bind the file.
+        """
+        file = await self.contexts.get(ctx, context_id, perm=Perm.CONTEXT_EDIT)
+        proposal = (
+            None
+            if body.proposal_id is None
+            else await context_proposal_repo.get(
+                self.db, body.proposal_id, organization_id=ctx.organization_id
+            )
+        )
+        if (
+            proposal is None
+            or proposal.context_id != file.id
+            or proposal.status != ProposalStatus.PENDING.value
+        ):
+            raise NotFoundError(
+                message="No change to this context file is waiting",
+                details={"context_id": file.id},
+            )
+        if body.agent_id is None:
+            raise BadRequestError(
+                message="Pick an agent that uses this context file to check the change on",
+                details={"context_id": file.id},
+            )
+        agent = await self.registry.get(ctx, body.agent_id, perm=Perm.AGENTS_RUN)
+        version = (
+            None
+            if agent.current_version_id is None
+            else await self.registry.get_version(ctx, agent.id, agent.current_version_id)
+        )
+        if version is None or file.id not in AgentSpec.model_validate(version.spec).context_ids:
+            raise BadRequestError(
+                message=f"'{agent.name}' does not use '{file.name}' in its published version",
+                details={"agent_id": agent.id, "context_id": file.id},
+            )
+        request = (
+            None
+            if proposal.authoring_request_id is None
+            else await authoring_repo.get_request(
+                self.db, proposal.authoring_request_id, organization_id=ctx.organization_id
+            )
+        )
+        evidence = [] if request is None else request.evidence.get("conversation_ids", [])
+        bodies = {file.id: ContextBody(description=proposal.description, content=proposal.content)}
+        checked = (await self._check_request(ctx, agent.id, body)).model_copy(
+            update={"version": version.version, "baseline_version": version.version}
+        )
+        return agent, checked, bodies, [UUID(str(conversation)) for conversation in evidence]
+
+    async def estimate_context_check(
+        self, ctx: AuthContext, context_id: UUID, body: ProposalCheck
+    ) -> EvalRunEstimate:
+        """What checking a pending context change on one agent would cost."""
+        agent, request, bodies, evidence = await self._context_check(ctx, context_id, body)
+        return await EvalRunService(self.db).estimate(
+            ctx,
+            agent.id,
+            request,
+            purpose=EvalRunPurpose.GATE,
+            candidate_contexts=bodies,
+            exclude_conversations=evidence,
+        )
+
+    async def check_context(
+        self, ctx: AuthContext, context_id: UUID, body: ProposalCheck
+    ) -> EvalRunRead:
+        """Run a dataset on an agent using the file, with the proposed body in place of its own.
+
+        Applying the change is live for every agent bound to the file, which is
+        why it is checked before.
+        """
+        agent, request, bodies, evidence = await self._context_check(ctx, context_id, body)
+        return await EvalRunService(self.db).start(
+            ctx,
+            agent.id,
+            request,
+            purpose=EvalRunPurpose.GATE,
+            candidate_contexts=bodies,
             exclude_conversations=evidence,
         )
 

@@ -2403,6 +2403,38 @@ async def test_a_published_version_can_carry_a_proposed_skill_body(db) -> None:
     }
 
 
+async def test_a_published_version_can_carry_a_proposed_context_body(db) -> None:
+    """A context file change is checked like a skill change: the published version on
+    both sides, the proposed body on the candidate alone, and no cached baseline."""
+    from app.agents.capabilities.context import ContextBody
+
+    ctx = await _owner(db)
+    agent, versions = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    context_id = uuid.uuid4()
+    body = ContextBody(description="Returns", content="Returns take 30 days.")
+    model = Model(db)
+
+    started = await EvalRunService(db).start(
+        ctx,
+        agent.id,
+        EvalRunRequest(dataset_id=dataset.id, version=7, baseline_version=7),
+        purpose=EvalRunPurpose.GATE,
+        candidate_contexts={context_id: body},
+    )
+    await _run_to_end(db, model, started.id, ctx)
+
+    candidates = [call["candidate"] for call in model.calls]
+    assert {type(c) for c in candidates} == {PublishedCandidate}
+    assert sorted(len(c.context_bodies) for c in candidates) == [0, 1]
+    read = await EvalRunService(db).get(ctx, started.id)
+    assert {arm.role: arm.context_ids for arm in read.arms} == {
+        "candidate": [context_id],
+        "baseline": [],
+    }
+    assert all(arm.reused_from_arm_id is None for arm in read.arms)
+
+
 async def test_a_skill_change_is_never_measured_against_a_cached_baseline(db) -> None:
     """A skill's stored body is not versioned with the agent, so a baseline cached
     before the skill changed would have read a body the change is not replacing."""

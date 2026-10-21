@@ -880,6 +880,16 @@ def get_skill_proposal_service(db: DBSession) -> SkillProposalService:
 
 SkillProposalSvc = Annotated[SkillProposalService, Depends(get_skill_proposal_service)]
 
+from app.services.context_proposal import ContextProposalService
+
+
+def get_context_proposal_service(db: DBSession) -> ContextProposalService:
+    """Create ContextProposalService instance with database session."""
+    return ContextProposalService(db)
+
+
+ContextProposalSvc = Annotated[ContextProposalService, Depends(get_context_proposal_service)]
+
 from app.core.permissions import AuthContext, Perm
 from app.services.sharing import SharingService
 

@@ -54,6 +54,7 @@ from app.repositories import api_key as api_key_repo
 from app.repositories import oauth as oauth_repo
 from app.repositories import artifact as artifact_repo
 from app.repositories import context as context_repo
+from app.repositories import context_proposal as context_proposal_repo
 from app.repositories import case_score as case_score_repo
 from app.repositories import dataset as dataset_repo
 from app.repositories import case_generation as case_generation_repo
@@ -143,6 +144,7 @@ __all__ = [
     "api_key_repo",
     "oauth_repo",
     "artifact_repo",
+    "context_proposal_repo",
     "context_repo",
     "case_score_repo",
     "dataset_repo",
