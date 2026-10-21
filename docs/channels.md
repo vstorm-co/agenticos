@@ -831,8 +831,8 @@ visitors can hold a [voice call](voice.md) with the agent: the same call a membe
 makes from `/chat`, with the same limits, run under the publisher's context and
 recorded with the `embed` surface.
 
-**Switching it on is refused** while the organization's voice switch is off or
-the agent has no Voice section a call can be held with. Only the switch is
+**Switching it on is refused** while the agent has no published Voice section a
+call can be held with. Only the switch is
 checked, so an embed whose agent loses its voice later can still be edited.
 While a call would not start, the public config says `voice_conversation: false`
 and visitors are offered no call; when it would, the config also says which
@@ -879,9 +879,8 @@ visitor sees of the work](#what-the-visitor-sees-of-the-work) filter a call's
 frames as they filter typed replies: without *What the agent is doing* a visitor
 is not told a tool ran, and without *What each step returned* a step does not
 carry what a tool was called with or what came back. The limit a visitor sees is
-the call's own, never the organization's minutes left, and a refusal about the
-operator's setup, price, minutes or budget says only that calls are not
-available right now. Pausing the embed, switching its calls off or pointing it
+the call's own, and a refusal about the operator's setup, price or budget says
+only that calls are not available right now. Pausing the embed, switching its calls off or pointing it
 at another agent ends the calls on it within a heartbeat. The frames are in [the
 API page](api.md#voice-calls).
 
@@ -919,13 +918,13 @@ cap on open calls; the open calls are bounded with everybody's by the embed's.
 
 !!! danger "The worst case for a leaked link"
 
-    Three calls open at once, each at most the organization's longest call -
-    10 minutes by default, 50 at most - spends at most three call-minutes a
-    minute. At that rate the default 600 monthly minutes last at least three
-    hours and twenty minutes of abuse, and then every call in the organization,
-    members' included, is refused until the month turns. Pause the embed, lower
-    the organization's monthly minutes, or switch its calls off if that is too
-    much.
+    Three calls open at once, each at most the agent's longest call - 10
+    minutes by default, 50 at most - spends at most three call-minutes a minute,
+    on the organization's provider account. The agent's and the organization's
+    budgets are what end it: each call is checked against what is left before it
+    starts, and ended when the budget runs out, members' runs included. Give the
+    agent a budget of its own, pause the embed, or switch its calls off if that
+    is too much.
 
 ---
 

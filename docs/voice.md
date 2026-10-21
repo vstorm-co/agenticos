@@ -1,7 +1,7 @@
 ---
 title: "Voice conversations"
 seo_title: "Voice conversations: talk to a published agent"
-description: "Call a published agent and talk to it: realtime models, approvals in the call, time and minute limits, hang-up safety nets, and transcripts saved as text."
+description: "Call a published agent and talk to it: realtime models, approvals in the call, time limits and budgets, hang-up safety nets, and transcripts saved as text."
 ---
 
 # Voice conversations
@@ -17,43 +17,44 @@ when an embed's own switch is on. Each call is one [run](concepts.md), with the
 realtime model's name on it, so Activity, the cost screen and the audit trail
 see it like any other run.
 
-In `/chat` the composer becomes a call bar for as long as the call lasts -
-state, time, a waveform, mute, push-to-talk and End - and the call happens in
-the conversation: captions inside the message being spoken, tool runs and
-approval cards. A hosted page uses the same bar without approval controls, and
-the widget loads a smaller call bar of its own. See
+In `/chat` the call is a pill floating above the composer, which does not
+change: state, time, a waveform, mute, push-to-talk and End. The call happens
+in the conversation, each turn drawn as the message it becomes, with tool runs
+and approval cards between them. A draft and its attachments are still in the
+composer when the call ends. A hosted page uses a call bar without approval
+controls, and the widget loads a smaller one of its own. See
 [Console](console.md#voice-calls) and
 [Channels](channels.md#voice-calls-on-a-widget-or-a-hosted-page).
 
 ## Turn it on
 
-Two switches and one Voice section have to agree before anybody can call.
+**Calls are switched on in the agent.** The organization has no call settings:
+a published agent with a voice takes calls, bounded by its own longest call and
+by the budgets, as any run is.
 
-**The organization.** Calls are **off** until an admin turns them on, in the
-Voice card on the organization's page, under "Voice conversations":
+**The agent.** Its Voice card in the Builder has a **Voice calls** tab, written
+to the spec's [`voice` field](reference/spec.md#voice). It names the provider,
+the model (or, for Azure, the deployment name and the base model it runs), the
+vault key calls are held with, the voice, an optional language, an optional
+longest call (10 minutes when unset, 50 at most) and an optional voice note. The
+note is added to the agent's instructions in calls only. The section takes
+effect when the agent is published.
 
-| Setting | Default | What it does |
-|---|---|---|
-| Allow voice conversations | off | The master switch. Off refuses every call, on every surface |
-| Offer calls in chat | on | Whether `/chat` offers calls once they are allowed. The widget and the hosted page are switched per embed |
-| Longest call | 10 min | Any whole number of minutes from 1 to 50 (stored as 60–3000 s). An agent can set a shorter limit, never a longer one |
-| Monthly call minutes | 600 | Every call in the organization counts, from its first second. Clear it to rely on budgets alone |
+**Hear the voice first.** The play button beside the voice picker plays the
+draft's voice saying one sentence, in the section's language or the console's,
+before anything is published. It is a short paid session on the section's key,
+outside the budgets like a dictation, so it is limited per person
+(`RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE`) and cached for a week per voice and
+language.
 
-The first three need `org:settings`. The monthly minutes are a spend limit, so
-changing them needs `budgets:manage`, like the organization's monthly budget; a
-member without it sees the figure read-only.
-
-**The agent.** Its Voice card in the Builder gains a "Voice conversations"
-section, written to the spec's [`voice` field](reference/spec.md#voice). It
-names the provider, the model (or, for Azure, the deployment name and the base
-model it runs), the vault key calls are held with, the voice, an optional
-language, an optional longest call and an optional voice note. The note is
-added to the agent's instructions in calls only. The section takes effect when
-the agent is published.
+**Every agent offers the button.** In `/chat` the call button sits beside the
+microphone for every agent. For one with no voice, or a key that can no longer
+hold a call, it is crossed out, and its reason links whoever may edit the agent
+to the Calls tab of its Voice card.
 
 **The embed.** A widget or a hosted page offers calls only when its own "Voice
-calls" switch is on. Saving the switch on is refused while the organization's
-switch is off or the agent has no voice it can call with. See
+calls" switch is on. Saving the switch on is refused while the agent has no
+published voice it can call with. See
 [Channels](channels.md#voice-calls-on-a-widget-or-a-hosted-page).
 
 ## Models and keys
@@ -217,26 +218,16 @@ A call ending, for any reason, expires whatever it was still waiting on.
 
 ## Limits and cost
 
-**Time.** A call runs at most the agent's longest call, the organization's
-longest call, or 50 minutes, whichever is shortest, and never longer than the
-month's minutes left. Its clock starts when the call is ready, as the call
-view's timer does, so setup time counts toward neither its time, its limit nor
-the month's minutes. A minute before the end
-the call view is warned. At the end the agent says one short sentence about why
-and the call stops. It ends as `time_limit`, or as `minutes` when the month's
-minutes set its limit.
+**Time.** A call runs at most the agent's longest call: 10 minutes when the
+Voice section names none, and never more than 50. Its clock starts when the call
+is ready, as the call view's timer does, so setup time does not count. A minute
+before the end the call view is warned. At the end the agent says one short
+sentence about why and the call stops, as `time_limit`.
 
-A visitor on a widget or a hosted page is not told the organization's minutes.
-Their call view shows the call's own limit, and a call that the month's minutes
-cut shorter ends at the real limit with no warning. The agent then says only
-that calls are not available right now.
-
-**Minutes.** The organization's monthly minutes are counted from the call rows
-(`voice_calls`): each call to its end, or to its last heartbeat while it is
-still running. A call that runs across the turn of the month counts in the new
-month only for its time after midnight UTC. When they run out, new calls are refused, and a running call is
-told and ended at its next heartbeat. The dashboard's "Voice minutes" figure and
-the organization's Voice card read the same rows.
+**Minutes.** Call minutes are counted from the call rows (`voice_calls`): each
+call to its end, or to its last heartbeat while it is still running. There is no
+monthly minute limit; the budgets below bound what calls spend. The dashboard's
+"Voice minutes" card and `GET /api/v1/voice/usage` read the same rows.
 
 **Money.** Calls count against the agent's and the organization's budgets, as
 text runs do:
@@ -261,9 +252,12 @@ text runs do:
   slightly under what the provider bills.
 
 **Concurrency.** One person holds one call at a time
-(`VOICE_MAX_CALLS_PER_USER`, default 1). One embed holds at most three open
-calls, from every visitor together (`VOICE_MAX_CALLS_PER_EMBED`); a fourth
-caller is refused as `line_busy`. See [Configuration](configuration.md#voice-calls).
+(`VOICE_MAX_CALLS_PER_USER`, default 1). A call hung up a moment ago still
+counts until its end is recorded, so a new call from the same person waits up to
+four seconds for it before refusing as `busy`: "Call again" right after End
+starts a call. One embed holds at most three open calls, from every visitor
+together (`VOICE_MAX_CALLS_PER_EMBED`); a fourth caller is refused as
+`line_busy`. See [Configuration](configuration.md#voice-calls).
 
 ## Ending a call, and what bounds a lost one
 
@@ -281,7 +275,7 @@ server's job, on every path:
 2. **Heartbeats.** The process holding a call writes its cost and seconds every
    15 seconds, from the start of setup, so a slow start is not mistaken for a
    lost call. Each heartbeat also re-checks the caller's session, their
-   membership, the agent's published state and the organization's switch, and
+   membership, their access to the agent and the agent's published state, and
    ends the call when any of them fails. A visitor's call also needs its embed
    still active, with calls on and pointed at the same agent.
 3. **The sweep.** A scheduled job, every minute and once at start-up, hangs up

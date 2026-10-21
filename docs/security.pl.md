@@ -1,5 +1,5 @@
 ---
-source_sha: "742982f139a5"
+source_sha: "4a196b77b3e4"
 ---
 
 # Bezpieczeństwo { #security }
@@ -244,7 +244,7 @@ w mocy. Ujęte względem zabezpieczeń technicznych HIPAA §164.312 i SOC 2 CC6�
 | HTTPS i HSTS | Terminowane na reverse proxy — dołączony `nginx/nginx.conf` ustawia HSTS; aplikacja z założenia nie | Sprawa wdrożenia; zobacz listę kontrolną hardeningu |
 | Strony pisane przez agentów nie mogą dosięgnąć konsoli | Opublikowana [aplikacja](artifacts.md) jest serwowana z trasy bez ciasteczek, za krótkożyjącym podpisanym tokenem, pod `Content-Security-Policy: sandbox` bez `allow-same-origin` — nieprzezroczysty origin — i bez `allow-popups`, plus `connect-src 'none'`, bez zdalnego źródła poza własną ścieżką bibliotek wdrożenia, i `frame-ancestors` wymieniające tylko konsolę (a dla publicznej strony, którą można osadzić, dokument osadzenia i wskazane witryny); link na stronie otwiera się dopiero, gdy człowiek potwierdzi jego adres; opcjonalnie z własnej domeny rejestrowalnej (`ARTIFACT_ORIGIN`) | `test_artifact_routes.py::TestTheContentRoute`, `test_artifact_service.py::TestThePolicy`, `test_artifact_pages.py`, `artifacts.test.tsx`, `csp.test.ts` |
 | Limity zapytań na publicznych powierzchniach | Limity oparte o Redis na API runów, widgecie embed, stronach hostowanych, publicznych linkach aplikacji i ich podpisanych adresach treści (`app/services/rate_limit.py`); limity per nadawca na botach kanałów (`app/services/channels/router.py`) | `test_rate_limited_surfaces.py`; limit bota kanału jest zaimplementowany, ale cienko przetestowany |
-| Wyciekły link embeda ogranicza, ile mogą kosztować rozmowy | Starty rozmów głosowych są limitowane per adres, per link i per podmiot `jwt`, na jednym embedzie otwartych jest najwyżej `VOICE_MAX_CALLS_PER_EMBED` rozmów, a każdą ogranicza limit długości rozmowy, miesięczne minuty i budżet (`app/services/rate_limit.py`, `app/services/voice/starter.py`) | `test_rate_limit.py`, `test_voice_starter.py`, `tests/integration/test_voice_call_slot.py` |
+| Wyciekły link embeda ogranicza, ile mogą kosztować rozmowy | Starty rozmów głosowych są limitowane per adres, per link i per podmiot `jwt`, na jednym embedzie otwartych jest najwyżej `VOICE_MAX_CALLS_PER_EMBED` rozmów, a każdą ogranicza limit długości rozmowy i budżet (`app/services/rate_limit.py`, `app/services/voice/starter.py`) | `test_rate_limit.py`, `test_voice_starter.py`, `tests/integration/test_voice_call_slot.py` |
 | Dyktowanie kosztuje najwyżej tyle, ile jego najdłuższa długość | Domyślnie tylko WAV z 16-bitowym PCM 16 kHz mono: parsowany ściśle, z policzonymi próbkami, odrzucany ponad `dictation_max_seconds`, zanim dostawca zostanie wywołany, i wysyłany za nagłówkiem zbudowanym przez serwer (`app/services/ml/pcm_wav.py`, `MLService.transcribe_dictation`). WebM, Ogg i MP4 dopiero wtedy, gdy app admin włączy `dictation_compressed_audio`, za oknem dialogowym, które nazywa ryzyko | `test_pcm_wav.py`, `test_ml_service.py`, `dictation-audio-card.integration.test.tsx` |
 
 ### Odmowy jako zbiór { #the-refusals-as-a-set }

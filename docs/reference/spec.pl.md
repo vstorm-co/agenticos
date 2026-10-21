@@ -1,5 +1,5 @@
 ---
-source_sha: "c9c4b3e79f13"
+source_sha: "892833d0bab5"
 ---
 
 # Spec agenta { #the-agent-spec }
@@ -86,7 +86,7 @@ speca z tym blokiem nie da się zaimportować do wdrożenia starszego niż ten b
 | `secret_id` | Klucz z vaultu, którym prowadzone są rozmowy - identyfikator, nigdy sam klucz |
 | `voice` | Jeden z głosów modelu; puste oznacza domyślny głos modelu |
 | `language` | Kod ISO-639-1 języka, w którym mówi agent; puste dostosowuje się do rozmówcy |
-| `max_call_seconds` | Najdłuższa rozmowa, od 60 do 3000, i nie dłuższa niż najdłuższa rozmowa organizacji |
+| `max_call_seconds` | Najdłuższa rozmowa, od 60 do 3000; puste to 600 (10 minut) |
 | `voice_note` | Do 1000 znaków dodawanych do instrukcji agenta tylko w rozmowach |
 
 Każda reguła obejmująca kilka pól jest sprawdzana przy publikacji wersji, a nie
@@ -103,8 +103,7 @@ gdy:
   przeznaczeniem nie jest ten provider, jego rodzaj nie jest rodzajem providera
   (`api_key` albo `azure_openai` dla Azure), należy do innej organizacji albo
   publikujący go nie widzi;
-- język nie jest kodem, który przyjmują rozmowy;
-- najdłuższa rozmowa przekracza najdłuższą rozmowę organizacji.
+- język nie jest kodem, który przyjmują rozmowy.
 
 Capabilities, których rozmowa nie może uruchomić, nie blokują publikacji; są
 pomijane w rozmowach, a Builder je wymienia.

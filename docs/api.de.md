@@ -1,5 +1,5 @@
 ---
-source_sha: "7c2f2983fde8"
+source_sha: "66cbedf36a2b"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -443,7 +443,7 @@ Abmeldung nicht überdauert.
 | Frame | Felder | Bedeutet |
 |---|---|---|
 | `answer` | `sdp` | WebRTC: die Antwort des Providers für die Peer-Verbindung des Browsers |
-| `ready` | `call_id`, `run_id`, `conversation_id`, `transport`, `input_sample_rate`, `output_sample_rate`, `cap_seconds`, `minutes_left`, `resume_token` | Der Anruf ist eingerichtet. `resume_token` wird nur hier gesendet, nur an diesen Anrufer; eine Wiederverbindung schickt es zurück |
+| `ready` | `call_id`, `run_id`, `conversation_id`, `transport`, `input_sample_rate`, `output_sample_rate`, `cap_seconds`, `resume_token` | Der Anruf ist eingerichtet. `resume_token` wird nur hier gesendet, nur an diesen Anrufer; eine Wiederverbindung schickt es zurück |
 | `state` | `state`: `connecting`, `listening`, `user_speaking`, `thinking`, `agent_speaking`, `interrupted`, `tool_running`, `awaiting_approval` | Wer spricht oder was der Agent gerade tut |
 | `caption` | `role`, `turn_id`, `part` und eines von `delta` (anhängen), `text` (durch den bisher geprüften Text ersetzen) oder `final` | Ein Live-Untertitel |
 | `turn_saved` | `message` | Eine abgeschlossene Runde, als die Nachricht, als die sie gespeichert wurde; sie ersetzt die Untertitel mit ihrer `turn_id` |
@@ -458,11 +458,9 @@ Abmeldung nicht überdauert.
 | *binär* | 16-Bit-PCM mit der Ausgangsrate des Modells | Das Relay: das Audio des Agents |
 
 **Ein Besucher eines Widgets oder einer gehosteten Seite erfährt weniger.** Sein
-`ready` enthält kein `run_id`, `minutes_left` kommt als `null`, und
-`cap_seconds` ist das eigene Limit des Anrufs - der längste Anruf der
-Organisation, der des Agents oder was von einem fortgesetzten Anruf übrig ist -
-statt eines Limits, das die Minuten der Organisation verrät. Der Server beendet
-den Anruf trotzdem am echten Limit. Die Tool-Frames folgen den Schaltern
+`ready` enthält kein `run_id`; `cap_seconds` ist das Limit des Anrufs - der
+längste Anruf des Agents oder was von einem fortgesetzten Anruf übrig ist. Die
+Tool-Frames folgen den Schaltern
 `show_tool_steps` und `show_tool_results` des Embeds, wie die einer getippten
 Antwort. Ohne Tool-Schritte wird kein `tool`-Frame gesendet, und
 `tool_running` kommt als `thinking`. Ohne Tool-Ergebnisse kommt
@@ -481,34 +479,35 @@ als `resume_refused` abgelehnt.
 
 Ein Socket, das innerhalb von 10 Sekunden kein `start` sendet, bekommt `ended`
 mit `no_start`. Ein Anruf, der nicht startet, antwortet mit `ended` und einem
-stabilen `reason`: `voice_off`, `no_agent`, `forbidden`, `not_configured`,
-`bad_offer`, `data_channel`, `resume_refused`, `minutes_exhausted`,
-`call_limit`, `not_priced`, `budget`, `busy` oder `line_busy`, mit einer
-`message`, die sich gefahrlos anzeigen lässt. Ein Start, der aus irgendeinem
+stabilen `reason`: `no_agent`, `forbidden`, `not_configured`, `bad_offer`,
+`data_channel`, `resume_refused`, `call_limit`, `not_priced`, `budget`, `busy`
+oder `line_busy`, mit einer `message`, die sich gefahrlos anzeigen lässt.
+`busy` kommt erst, nachdem ein Anruf, den dieselbe Person gerade aufgelegt hat,
+bis zu vier Sekunden hatte, um zu enden. Ein Start, der aus irgendeinem
 anderen Grund scheitert, antwortet mit `ended` und `error`.
 
 Ein Besucher, der
-als `not_configured`, `not_priced`, `minutes_exhausted` oder `budget` abgelehnt
-wird oder dessen Anruf als `budget` oder `minutes` endet, bekommt stattdessen
+als `not_configured`, `not_priced` oder `budget` abgelehnt wird oder dessen
+Anruf als `budget` endet, bekommt stattdessen
 `unavailable` mit der Meldung "Calls are not available right now.": Code und
 vollständige Meldung sind Sache des Betreibers des Agents. Ein Anruf in eine archivierte Unterhaltung wird als `forbidden`
 abgelehnt, so wie eine getippte Nachricht dorthin.
 
 Ein Anruf, der gelaufen ist, endet mit `user`, `time_limit`, `budget`,
-`minutes`, `disconnected`, `revoked`, `shutdown` oder `error`. Er endet mit
-`minutes`, wenn die Minuten des Monats sein Limit gesetzt haben, und mit
-`time_limit`, wenn die Einstellung für den längsten Anruf es gesetzt hat. Der Anruf eines Besuchers
+`disconnected`, `revoked`, `guardrail`, `shutdown` oder `error`; mit
+`time_limit`, wenn er den längsten Anruf des Agents erreicht hat. Der Anruf eines Besuchers
 endet mit `revoked`, wenn sein Embed pausiert wird, seine Anrufe abgeschaltet
 werden oder es auf einen anderen Agent zeigt. Kein Frame trägt je Zugangsdaten
 eines Providers.
 
-Vier HTTP-Routen gehören dazu:
+Fünf HTTP-Routen gehören dazu:
 
 | Route | Gate | Antwortet |
 |---|---|---|
-| `GET /api/v1/agents/{agent_id}/voice?surface=web` | `agents:run` auf diesem Agent, ein Grant eingeschlossen; sonst `404` | Ob ein Anruf starten würde, warum nicht, der Transport, der längste Anruf und die verbleibenden Minuten. `surface=embed` fragt für ein Widget oder eine gehostete Seite |
+| `GET /api/v1/agents/{agent_id}/voice` | `agents:run` auf diesem Agent, ein Grant eingeschlossen; sonst `404` | Ob ein Anruf starten würde, warum nicht (`no_voice`, `not_offered` oder `no_key`), der Transport und der längste Anruf |
+| `POST /api/v1/agents/{agent_id}/voice/preview` | `agents:edit` auf diesem Agent, ein Grant eingeschlossen; sonst `404` | Die Stimme aus dem Entwurf des Abschnitts „Stimme“, die einen festen Satz sagt, als `audio/wav`. Pro Stimme und Sprache im Cache; `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` pro Person |
 | `GET /api/v1/providers/realtime-models` | `agents:view` | Der Realtime-Katalog, aus dem der Abschnitt Stimme auswählt |
-| `GET /api/v1/voice/usage?start=…&end=…` | `runs:view` | Anrufsekunden und Anrufe für Anrufe, die zu oder nach `start` und vor `end` begonnen haben, nach Agent (die Anrufe eines gelöschten Agents als eine Zeile ohne ID oder Namen), und die Sekunden dieses Monats gegenüber den monatlichen Minuten der Organisation. Ein `end`, das nicht nach `start` liegt, wird mit `422` abgelehnt |
+| `GET /api/v1/voice/usage?start=…&end=…` | `runs:view` | Anrufsekunden und Anrufe für Anrufe, die zu oder nach `start` und vor `end` begonnen haben, nach Agent (die Anrufe eines gelöschten Agents als eine Zeile ohne ID oder Namen). Ein `end`, das nicht nach `start` liegt, wird mit `422` abgelehnt |
 | `GET /api/v1/runs?modality=voice` | `runs:view` | Nur Anrufe (`text` nur für getippte Runs); ein Anruf, der sich neu verbunden hat, ist eine Zeile mit `voice_chain`, alle Verbindungen summiert |
 
 Eine Freigabe, die zu einem laufenden Anruf gehört, wird im Anruf entschieden:

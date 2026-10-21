@@ -1885,7 +1885,8 @@ class AgentRegistryService:
         call that fails while somebody is talking: the pair is in the realtime
         catalog, the voice is one of the model's, the key passes the shared
         check (`provider_keys.key_problem`) with the kind its provider needs, and
-        the longest call fits the organization's maximum.
+        the language is one calls accept. The longest call's 50-minute ceiling is
+        the field's own bound.
         """
         if voice is None:
             return []

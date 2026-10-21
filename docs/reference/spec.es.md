@@ -1,5 +1,5 @@
 ---
-source_sha: "c9c4b3e79f13"
+source_sha: "892833d0bab5"
 ---
 
 # El spec del agent { #the-agent-spec }
@@ -89,7 +89,7 @@ despliegue anterior al bloque.
 | `secret_id` | La clave del vault con la que se sostienen las llamadas: un id, nunca la clave |
 | `voice` | Una de las voces del modelo; vacío usa la voz por defecto del modelo |
 | `language` | Un código ISO-639-1 en el que habla el agent; vacío sigue a quien llama |
-| `max_call_seconds` | La llamada más larga, de 60 a 3000, y como mucho la llamada más larga de la organización |
+| `max_call_seconds` | La llamada más larga, de 60 a 3000; vacío son 600 (10 minutos) |
 | `voice_note` | Hasta 1000 caracteres que se añaden a las instrucciones del agent solo en las llamadas |
 
 Toda regla que abarca varios campos se comprueba al publicar la versión, no al
@@ -106,8 +106,7 @@ cuando:
   propósito no es el provider, su tipo no es el del provider (`api_key`, o
   `azure_openai` para Azure), pertenece a otra organización o quien publica no
   puede verla;
-- el idioma no es un código que las llamadas acepten;
-- la llamada más larga supera la llamada más larga de la organización.
+- el idioma no es un código que las llamadas acepten.
 
 Las capabilities que una llamada no puede ejecutar no bloquean la publicación;
 se dejan fuera de las llamadas y el Builder las enumera.

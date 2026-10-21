@@ -1,5 +1,5 @@
 ---
-source_sha: "c9c4b3e79f13"
+source_sha: "892833d0bab5"
 ---
 
 # Der Agent-Spec { #the-agent-spec }
@@ -91,7 +91,7 @@ Deployment importieren, das älter ist als der Block.
 | `secret_id` | Der Vault-Schlüssel, mit dem Anrufe gehalten werden - eine ID, nie der Schlüssel |
 | `voice` | Eine der Stimmen des Modells; leer verwendet die Standardstimme des Modells |
 | `language` | Ein ISO-639-1-Code der Sprache, die der Agent spricht; leer folgt dem Anrufer |
-| `max_call_seconds` | Der längste Anruf, 60 bis 3000, und höchstens der längste Anruf der Organisation |
+| `max_call_seconds` | Der längste Anruf, 60 bis 3000; leer sind 600 (10 Minuten) |
 | `voice_note` | Bis zu 1000 Zeichen, die nur in Anrufen an die Anweisungen des Agents angehängt werden |
 
 Jede Regel, die mehrere Felder umfasst, wird beim Veröffentlichen der Version
@@ -109,8 +109,7 @@ Veröffentlichen wird abgelehnt, unter Nennung des Abschnitts Stimme (Voice), we
   besteht: Sein Zweck ist nicht der Provider, seine Art ist nicht die des
   Providers (`api_key`, oder `azure_openai` für Azure), er gehört einer anderen
   Organisation, oder der Veröffentlichende kann ihn nicht sehen;
-- die Sprache kein Code ist, den Anrufe annehmen;
-- der längste Anruf über dem längsten Anruf der Organisation liegt.
+- die Sprache kein Code ist, den Anrufe annehmen.
 
 Capabilities, die ein Anruf nicht ausführen kann, blockieren das Veröffentlichen
 nicht; sie werden aus Anrufen weggelassen, und der Builder listet sie auf.

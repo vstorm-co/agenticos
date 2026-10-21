@@ -1,8 +1,8 @@
 ---
-source_sha: "5b606a7b7b0f"
+source_sha: "e5f62723a4c7"
 title: "Rozmowy głosowe"
 seo_title: "Rozmowy głosowe: rozmawiaj z opublikowanym agentem"
-description: "Zadzwoń do opublikowanego agenta i porozmawiaj z nim: modele realtime, zatwierdzenia w rozmowie, limity czasu i minut, bezpieczne rozłączanie i transkrypcje."
+description: "Zadzwoń do opublikowanego agenta i porozmawiaj z nim: modele realtime, zatwierdzenia w rozmowie, limity czasu i budżety, bezpieczne rozłączanie i transkrypcje."
 ---
 
 # Rozmowy głosowe { #voice-conversations }
@@ -19,46 +19,45 @@ gdy włączony jest własny przełącznik embeda. Każda rozmowa to jeden
 [run](concepts.md) z nazwą modelu realtime, więc Aktywność (Activity), ekran
 kosztów i ślad audytowy widzą ją jak każdy inny run.
 
-W `/chat` pole wiadomości na czas rozmowy zamienia się w pasek rozmowy - stan,
-czas, wykres fali dźwiękowej, wyciszenie, „naciśnij, aby mówić” i Zakończ - a sama
-rozmowa toczy się w konwersacji: napisy pojawiają się w wypowiadanej właśnie
-wiadomości, obok uruchomień narzędzi i kart zatwierdzeń. Hostowana strona
-korzysta z tego samego paska, tylko bez obsługi zatwierdzeń, a widget wczytuje
-własny, mniejszy pasek. Zobacz [Konsola](console.md#voice-calls) i
+W `/chat` rozmowa to pigułka unosząca się nad polem wiadomości, które się nie
+zmienia: stan, czas, wykres fali dźwiękowej, wyciszenie, „naciśnij, aby mówić” i
+Zakończ. Rozmowa toczy się w konwersacji, a każda tura jest rysowana jako
+wiadomość, którą się stanie, z uruchomieniami narzędzi i kartami zatwierdzeń
+pomiędzy. Wersja robocza i jej załączniki zostają w polu, gdy rozmowa się
+skończy. Hostowana strona korzysta z paska rozmowy bez obsługi zatwierdzeń, a
+widget wczytuje własny, mniejszy. Zobacz [Konsola](console.md#voice-calls) i
 [Kanały](channels.md#voice-calls-on-a-widget-or-a-hosted-page).
 
 ## Włączanie { #turn-it-on }
 
-Zanim ktokolwiek będzie mógł zadzwonić, muszą się zgadzać dwa przełączniki i
-jedna sekcja głosu.
+**Rozmowy włącza się w agencie.** Organizacja nie ma ustawień rozmów:
+opublikowany agent z głosem odbiera rozmowy, ograniczony własną najdłuższą
+rozmową i budżetami, jak każdy run.
 
-**Organizacja.** Rozmowy są **wyłączone**, dopóki admin ich nie włączy, na karcie
-Głos (Voice) na stronie organizacji, w sekcji „Rozmowy głosowe (Voice
-conversations)”:
+**Agent.** Jego karta Głos (Voice) w Builderze ma zakładkę **Rozmowy głosowe**,
+zapisywaną w [polu `voice`](reference/spec.md#voice) spec. Wskazuje providera,
+model (albo, dla Azure, nazwę deploymentu i model bazowy, na którym działa),
+klucz z vaulta, którym prowadzi się rozmowy, głos, opcjonalny język,
+opcjonalną najdłuższą rozmowę (10 minut, gdy nieustawiona, najwyżej 50) i
+opcjonalną notkę głosową. Notka jest dodawana do instrukcji agenta tylko w
+rozmowach. Sekcja zaczyna działać po publikacji agenta.
 
-| Ustawienie | Domyślnie | Co robi |
-|---|---|---|
-| Zezwalaj na rozmowy głosowe (Allow voice conversations) | wyłączone | Główny przełącznik. Wyłączony odrzuca każdą rozmowę, na każdej powierzchni |
-| Oferuj rozmowy w czacie (Offer calls in chat) | włączone | Czy `/chat` oferuje rozmowy, gdy są dozwolone. Widget i hostowaną stronę przełącza się per embed |
-| Najdłuższa rozmowa (Longest call) | 10 min | Dowolna całkowita liczba minut od 1 do 50 (zapisywana jako 60–3000 s). Agent może ustawić krótszy limit, nigdy dłuższy |
-| Miesięczne minuty rozmów (Monthly call minutes) | 600 | Liczy się każda rozmowa w organizacji, od pierwszej sekundy. Wyczyść pole, żeby polegać wyłącznie na budżetach |
+**Najpierw posłuchaj głosu.** Przycisk odtwarzania obok wyboru głosu odtwarza
+głos z wersji roboczej mówiący jedno zdanie, w języku sekcji albo konsoli, zanim
+cokolwiek zostanie opublikowane. To krótka płatna sesja na kluczu sekcji, poza
+budżetami jak dyktowanie, więc jest limitowana na osobę
+(`RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE`) i trzymana w cache przez tydzień per
+głos i język.
 
-Pierwsze trzy wymagają `org:settings`. Miesięczne minuty są limitem wydatków,
-więc ich zmiana wymaga `budgets:manage`, tak jak miesięczny budżet organizacji;
-członek bez tego uprawnienia widzi tę liczbę tylko do odczytu.
+**Każdy agent ma przycisk.** W `/chat` przycisk rozmowy stoi obok mikrofonu przy
+każdym agencie. Dla agenta bez głosu albo z kluczem, który nie utrzyma już
+rozmowy, jest przekreślony, a jego powód prowadzi tego, kto może edytować
+agenta, do zakładki Rozmowy na jego karcie Głos (Voice).
 
-**Agent.** Jego karta Głos w Builderze dostaje sekcję „Rozmowy głosowe (Voice
-conversations)”, zapisywaną do [pola `voice`](reference/spec.md#voice) speca.
-Nazywa ona providera, model (albo, dla Azure, nazwę wdrożenia i model bazowy,
-który ono uruchamia), klucz z vaultu, którym prowadzone są rozmowy, głos,
-opcjonalny język, opcjonalną najdłuższą rozmowę i opcjonalne uwagi do głosu.
-Uwagi są dodawane do instrukcji agenta tylko w rozmowach. Sekcja zaczyna działać
-po opublikowaniu agenta.
-
-**Embed.** Widget albo hostowana strona oferuje rozmowy tylko wtedy, gdy włączony
-jest jego własny przełącznik „Rozmowy głosowe (Voice calls)”. Zapisanie
-włączonego przełącznika jest odrzucane, póki przełącznik organizacji jest
-wyłączony albo agent nie ma głosu, którym mógłby rozmawiać. Zobacz
+**Embed.** Widget albo hostowana strona proponuje rozmowy tylko wtedy, gdy
+włączony jest jego własny przełącznik „Rozmowy głosowe”. Zapisanie włączonego
+przełącznika jest odrzucane, póki agent nie ma opublikowanego głosu, którym
+można prowadzić rozmowę. Zobacz
 [Kanały](channels.md#voice-calls-on-a-widget-or-a-hosted-page).
 
 ## Modele i klucze { #models-and-keys }
@@ -233,27 +232,18 @@ jeszcze czekała.
 
 ## Limity i koszt { #limits-and-cost }
 
-**Czas.** Rozmowa trwa najwyżej tyle, ile najdłuższa rozmowa agenta, najdłuższa
-rozmowa organizacji albo 50 minut, w zależności od tego, co najkrótsze, i nigdy
-dłużej niż pozostałe minuty miesiąca. Jej zegar rusza, gdy rozmowa jest gotowa,
-razem z licznikiem w widoku rozmowy, więc czas zestawiania nie liczy się ani do
-jej czasu, ani do limitu, ani do minut miesiąca. Minutę przed końcem widok
-rozmowy dostaje ostrzeżenie. Na końcu agent mówi jedno
-krótkie zdanie o tym, dlaczego, i rozmowa się zatrzymuje. Kończy się jako
-`time_limit` albo jako `minutes`, gdy jej limit wyznaczyły minuty miesiąca.
+**Czas.** Rozmowa trwa najwyżej tyle, ile najdłuższa rozmowa agenta: 10 minut,
+gdy sekcja Voice żadnej nie wskazuje, i nigdy więcej niż 50. Jej zegar rusza,
+gdy rozmowa jest gotowa, razem z licznikiem w widoku rozmowy, więc czas
+zestawiania się nie liczy. Minutę przed końcem widok rozmowy dostaje
+ostrzeżenie. Na końcu agent mówi jedno krótkie zdanie o tym, dlaczego, i rozmowa
+się zatrzymuje, jako `time_limit`.
 
-Odwiedzający widget albo hostowaną stronę nie poznaje minut organizacji. Jego
-widok rozmowy pokazuje limit samej rozmowy, a rozmowa, którą minuty miesiąca
-skracają bardziej, kończy się na prawdziwym limicie bez ostrzeżenia. Agent mówi
-wtedy tylko, że rozmowy nie są teraz dostępne.
-
-**Minuty.** Miesięczne minuty organizacji są liczone z wierszy rozmów
-(`voice_calls`): każda rozmowa do swojego końca albo, póki jeszcze trwa, do
-swojego ostatniego heartbeatu. Rozmowa trwająca na przełomie miesięcy liczy się
-do nowego miesiąca tylko czasem po północy UTC. Gdy się wyczerpią, nowe rozmowy
-są odrzucane, a trwająca rozmowa dostaje o tym informację i jest kończona przy
-swoim następnym heartbeacie. Liczba „Minuty rozmów (Voice minutes)” na dashboardzie i karta Głos
-organizacji czytają te same wiersze.
+**Minuty.** Minuty rozmów są liczone z wierszy rozmów (`voice_calls`): każda
+rozmowa do swojego końca albo, póki jeszcze trwa, do swojego ostatniego
+heartbeatu. Nie ma miesięcznego limitu minut; to, co rozmowy wydają, ograniczają
+budżety poniżej. Karta „Minuty rozmów (Voice minutes)” na dashboardzie i
+`GET /api/v1/voice/usage` czytają te same wiersze.
 
 **Pieniądze.** Rozmowy liczą się do budżetów agenta i organizacji, tak jak runy
 tekstowe:
@@ -279,7 +269,10 @@ tekstowe:
   nieco niższy niż to, co nalicza provider.
 
 **Współbieżność.** Jedna osoba prowadzi naraz jedną rozmowę
-(`VOICE_MAX_CALLS_PER_USER`, domyślnie 1). Jeden embed ma najwyżej trzy otwarte
+(`VOICE_MAX_CALLS_PER_USER`, domyślnie 1). Rozmowa rozłączona przed chwilą
+liczy się, dopóki nie zostanie zapisany jej koniec, więc nowa rozmowa tej samej
+osoby czeka na nią do czterech sekund, zanim odmówi jako `busy`: „Zadzwoń
+ponownie” zaraz po Zakończ zaczyna rozmowę. Jeden embed ma najwyżej trzy otwarte
 rozmowy, od wszystkich odwiedzających razem (`VOICE_MAX_CALLS_PER_EMBED`);
 czwarty rozmówca jest odrzucany jako `line_busy`. Zobacz
 [Konfigurację](configuration.md#voice-calls).
@@ -300,7 +293,7 @@ Dlatego rozłączanie jest zadaniem serwera, na każdej ścieżce:
 2. **Heartbeaty.** Proces, który trzyma rozmowę, co 15 sekund zapisuje jej koszt
    i sekundy, już od początku zestawiania, więc powolny start nie zostaje wzięty
    za utraconą rozmowę. Każdy heartbeat sprawdza też na nowo sesję rozmówcy, jego
-   członkostwo, stan publikacji agenta i przełącznik organizacji i kończy
+   członkostwo, jego dostęp do agenta i stan publikacji agenta i kończy
    rozmowę, gdy którekolwiek z nich zawiedzie. Rozmowa odwiedzającego wymaga
    ponadto, by jej embed był nadal aktywny, miał włączone rozmowy i wskazywał
    tego samego agenta.

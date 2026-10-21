@@ -179,28 +179,32 @@ organization — and the person may dictate to any agent they may run, a Viewer
 with a `use` grant on it included. An agent they may not run answers 404, as
 everywhere else.
 
-What it reads from the organization, set on the
-[Voice card](console.md#the-voice-card) by somebody holding `org:settings`:
-`chat_dictation` (`off`, `browser` or `server`; anything but `server` is refused
-as `not_configured`), `speech_to_text_provider` and `speech_to_text_model` (a
-pair from the speech-to-text catalog), `speech_to_text_language` (an ISO-639-1
-code, or null to let the engine detect it) and `dictation_max_seconds` (10 to
-600, 300 by default). The engine and the longest dictation are always the
-organization's; the agent can only change which provider, model and language.
+**The switch is the agent's.** A recording is transcribed only while the agent's
+published Dictation switch, `speech_to_text.dictation`, is on; off, the composer
+uses the browser's own recognition, and a recording posted anyway is refused as
+`not_configured`, as it is for an archived agent. The provider, model and key
+then [resolve](#which-engine-a-recording-reaches) from the agent and the
+organization. From the organization, set on the
+[Voice card](console.md#the-voice-card) by somebody holding `org:settings`, come
+`speech_to_text_provider` and `speech_to_text_model` (a pair from the
+speech-to-text catalog), `speech_to_text_language` (an ISO-639-1 code, or null
+to let the engine detect it) and `dictation_max_seconds` (10 to 600, 300 by
+default), which only the organization sets.
 
-`GET /api/v1/agents/{agent_id}/dictation`, with the same access, says whether
-the microphone will work before anybody records: `engine`, `max_seconds`,
-`provider`, `format`, `ready`, `server_available` and `unavailable`.
-`server_available` needs a pair that resolves for this agent, the catalog still
-offering it, and a usable key named beside the pair - checked for existence,
-never opened; `ready` is that, the `server` engine and the agent not being
-archived.
+`GET /api/v1/agents/{agent_id}/dictation`, with the same access, says how the
+microphone will transcribe before anybody records: `engine` (`server` or
+`browser`), `requested` (the agent's switch), `server_available`,
+`unavailable`, `max_seconds`, `provider` and `format`. `server_available`
+needs a pair that resolves for this agent, the catalog still offering it, and a
+usable key named beside the pair - checked for existence, never opened;
+`engine` is `server` when that holds, the switch is on and the agent is not
+archived, and `browser` otherwise.
 
 Where it is false, `unavailable` says which half is missing:
 `no_provider` (no level names a pair), `not_offered` (the catalog withdrew it) or
 `no_key` (no usable key is named - choose one). The embed form reads
 `server_available`, because a [hosted page or a widget](channels.md#dictation-on-a-widget-or-a-hosted-page)
-is not gated by the `/chat` engine.
+is not gated by the agent's `/chat` switch.
 
 `provider` is the one a recording would reach, and `format` what to record in
 for it: `wav`, unless the deployment
@@ -271,7 +275,7 @@ organization's account for it, and the call is recorded.
 Three places can name a speech-to-text engine: the organization's
 [Voice card](console.md#the-voice-card), an agent's
 [`speech_to_text`](reference/spec.md#speech-to-text) override, set on its own
-[Voice card](console.md#an-agents-own-engine) and live once published, and a
+[Voice card](console.md#an-agents-voice-card) and live once published, and a
 [channel bot](channels.md#what-every-channel-shares). They resolve in two halves:
 
 | What | Comes from the first that sets it |

@@ -1,5 +1,5 @@
 ---
-source_sha: "e2efe341a181"
+source_sha: "d3a18b2e5b08"
 ---
 
 # Los servicios de ML { #the-ml-services }
@@ -186,29 +186,33 @@ de la organización— y la persona puede dictar a cualquier agent que pueda
 ejecutar, incluido un Viewer con un grant `use` sobre él. Un agent que no puede
 ejecutar responde 404, como en todas partes.
 
-Lo que lee de la organización, configurado en la
-[tarjeta Voice](console.md#the-voice-card) por alguien con `org:settings`:
-`chat_dictation` (`off`, `browser` o `server`; todo lo que no sea `server` se
-rechaza como `not_configured`), `speech_to_text_provider` y
-`speech_to_text_model` (un par del catálogo de speech-to-text),
-`speech_to_text_language` (un código ISO-639-1, o null para que el motor lo
-detecte) y `dictation_max_seconds` (de 10 a 600, 300 por defecto). El motor y
-el dictado más largo son siempre de la organización; el agent solo puede cambiar
-el proveedor, el modelo y el idioma.
+**El interruptor es del agent.** Una grabación se transcribe solo mientras el
+interruptor de Dictado publicado del agent, `speech_to_text.dictation`, esté
+encendido; apagado, el compositor usa el reconocimiento de voz del navegador, y
+una grabación enviada de todos modos se rechaza como `not_configured`, igual que
+para un agent archivado. El proveedor, el modelo y la clave se
+[resuelven](#which-engine-a-recording-reaches) entonces a partir del agent y de
+la organización. De la organización, configurado en la
+[tarjeta Voice](console.md#the-voice-card) por alguien con `org:settings`,
+vienen `speech_to_text_provider` y `speech_to_text_model` (un par del catálogo de
+speech-to-text), `speech_to_text_language` (un código ISO-639-1, o null para que
+el motor lo detecte) y `dictation_max_seconds` (de 10 a 600, 300 por defecto),
+que solo fija la organización.
 
-`GET /api/v1/agents/{agent_id}/dictation`, con el mismo acceso, dice si el
-micrófono funcionará antes de que nadie grabe: `engine`, `max_seconds`,
-`provider`, `format`, `ready`, `server_available` y `unavailable`.
-`server_available` exige un par que se resuelva para este agent, que el catálogo
-lo siga ofreciendo y una clave utilizable nombrada junto al par — se comprueba
-que existe, nunca se abre; `ready` es eso más el motor `server` y un agent que
-no esté archivado.
+`GET /api/v1/agents/{agent_id}/dictation`, con el mismo acceso, dice cómo
+transcribirá el micrófono antes de que nadie grabe: `engine` (`server` o
+`browser`), `requested` (el interruptor del agent), `server_available`,
+`unavailable`, `max_seconds`, `provider` y `format`. `server_available` exige un
+par que se resuelva para este agent, que el catálogo lo siga ofreciendo y una
+clave utilizable nombrada junto al par — se comprueba que existe, nunca se abre;
+`engine` es `server` cuando eso se cumple, el interruptor está encendido y el
+agent no está archivado, y `browser` en otro caso.
 
 Cuando es falso, `unavailable` dice qué falta: `no_provider`
 (ningún nivel nombra un par), `not_offered` (el catálogo lo retiró) o `no_key`
 (no hay una clave utilizable nombrada - elige una). El formulario del embed lee
 `server_available`, porque una [página alojada o un widget](channels.md#dictation-on-a-widget-or-a-hosted-page)
-no depende del motor de `/chat`.
+no depende del interruptor del agent en `/chat`.
 
 `provider` es aquel al que llegaría una grabación, y `format` en qué grabar para
 él: `wav`, salvo que el despliegue
@@ -285,7 +289,7 @@ queda registrada.
 Tres sitios pueden nombrar un motor de speech-to-text: la
 [tarjeta Voice](console.md#the-voice-card) de la organización, la anulación
 [`speech_to_text`](reference/spec.md#speech-to-text) de un agent, configurada en
-su propia [tarjeta Voice](console.md#an-agents-own-engine) y en vigor una vez
+su propia [tarjeta Voice](console.md#an-agents-voice-card) y en vigor una vez
 publicada, y un [bot de canal](channels.md#what-every-channel-shares). Se
 resuelven en dos mitades:
 

@@ -80,7 +80,7 @@ into a deployment older than the block.
 | `secret_id` | The vault key calls are held with - an id, never the key |
 | `voice` | One of the model's voices; empty uses the model's default |
 | `language` | An ISO-639-1 code the agent speaks; empty follows the caller |
-| `max_call_seconds` | The longest call, 60 to 3000, and at most the organization's longest call |
+| `max_call_seconds` | The longest call, 60 to 3000; empty is 600 (10 minutes) |
 | `voice_note` | Up to 1000 characters added to the agent's instructions in calls only |
 
 Every rule that spans fields is checked when the version is published, not while
@@ -94,8 +94,7 @@ picking its model. Publishing is refused, naming the voice section, when:
 - no key is chosen, or the key fails the shared check: its purpose is not the
   provider, its kind is not the provider's (`api_key`, or `azure_openai` for
   Azure), it belongs to another organization, or the publisher cannot see it;
-- the language is not a code calls accept;
-- the longest call is above the organization's longest call.
+- the language is not a code calls accept.
 
 Capabilities a call cannot run do not block publishing; they are left out of
 calls and the Builder lists them.

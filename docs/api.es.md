@@ -1,5 +1,5 @@
 ---
-source_sha: "7c2f2983fde8"
+source_sha: "66cbedf36a2b"
 ---
 
 # La API HTTP { #the-http-api }
@@ -426,7 +426,7 @@ la sesión, así que una llamada no sobrevive a un cierre de sesión.
 | Frame | Campos | Significa |
 |---|---|---|
 | `answer` | `sdp` | WebRTC: la respuesta del provider para la conexión peer del navegador |
-| `ready` | `call_id`, `run_id`, `conversation_id`, `transport`, `input_sample_rate`, `output_sample_rate`, `cap_seconds`, `minutes_left`, `resume_token` | La llamada está establecida. `resume_token` se envía solo aquí, solo a quien llama; una reconexión lo devuelve |
+| `ready` | `call_id`, `run_id`, `conversation_id`, `transport`, `input_sample_rate`, `output_sample_rate`, `cap_seconds`, `resume_token` | La llamada está establecida. `resume_token` se envía solo aquí, solo a quien llama; una reconexión lo devuelve |
 | `state` | `state`: `connecting`, `listening`, `user_speaking`, `thinking`, `agent_speaking`, `interrupted`, `tool_running`, `awaiting_approval` | Quién habla, o qué está haciendo el agent |
 | `caption` | `role`, `turn_id`, `part`, y uno de `delta` (añadir), `text` (sustituir por el texto revisado hasta ese momento) o `final` | Un subtítulo en vivo |
 | `turn_saved` | `message` | Un turno terminado, como el mensaje con el que se guardó; sustituye a los subtítulos que llevan su `turn_id` |
@@ -441,11 +441,9 @@ la sesión, así que una llamada no sobrevive a un cierre de sesión.
 | *binario* | PCM de 16 bits a la frecuencia de salida del modelo | El relay: el audio del agent |
 
 **A un visitante de un widget o de una página alojada se le dice menos.** Su
-`ready` no incluye `run_id`, `minutes_left` llega como `null`, y `cap_seconds`
-es el límite propio de la llamada - la llamada más larga de la organización, la
-del agent o lo que queda de una llamada que se reanuda - en lugar de uno que
-revele los minutos de la organización. El servidor sigue terminando la llamada
-en el límite real. Los frames de herramientas siguen los interruptores
+`ready` no incluye `run_id`; `cap_seconds` es el límite de la llamada - la
+llamada más larga del agent o lo que queda de una llamada que se reanuda. Los
+frames de herramientas siguen los interruptores
 `show_tool_steps` y `show_tool_results` del embed, como los de una respuesta
 escrita. Sin pasos de herramientas no se envía ningún frame `tool` y
 `tool_running` llega como `thinking`. Sin resultados de herramientas,
@@ -463,32 +461,32 @@ también se rechaza como `resume_refused`.
 
 Un socket que no envía `start` en 10 segundos recibe `ended` con `no_start`.
 Una llamada que no va a empezar responde con `ended` y un `reason` estable:
-`voice_off`, `no_agent`, `forbidden`, `not_configured`, `bad_offer`,
-`data_channel`, `resume_refused`, `minutes_exhausted`, `call_limit`,
-`not_priced`, `budget`, `busy` o `line_busy`, con un `message` que se puede
-mostrar. Un inicio que falla por cualquier otro motivo responde con `ended` y
+`no_agent`, `forbidden`, `not_configured`, `bad_offer`, `data_channel`,
+`resume_refused`, `call_limit`, `not_priced`, `budget`, `busy` o `line_busy`,
+con un `message` que se puede mostrar. `busy` solo llega después de que una
+llamada que la misma persona acaba de colgar haya tenido hasta cuatro segundos
+para terminar. Un inicio que falla por cualquier otro motivo responde con `ended` y
 `error`.
 
-Un visitante rechazado como `not_configured`, `not_priced`,
-`minutes_exhausted` o `budget`, o cuya llamada termina como `budget` o `minutes`,
-recibe en su lugar `unavailable` con el mensaje "Calls are not available right
+Un visitante rechazado como `not_configured`, `not_priced` o `budget`, o cuya
+llamada termina como `budget`, recibe en su lugar `unavailable` con el mensaje "Calls are not available right
 now.": el código y el mensaje completo son cosa del operador del agent. Una llamada a una conversación archivada se rechaza como
 `forbidden`, igual que un mensaje escrito en ella.
 
 Una llamada que se llegó a mantener termina con `user`, `time_limit`, `budget`,
-`minutes`, `disconnected`, `revoked`, `shutdown` o `error`. Termina con
-`minutes` cuando los minutos del mes fijaron su límite, y con `time_limit`
-cuando lo fijó el ajuste de la llamada más larga. La llamada de un visitante termina con
+`disconnected`, `revoked`, `guardrail`, `shutdown` o `error`; con `time_limit`
+cuando alcanzó la llamada más larga del agent. La llamada de un visitante termina con
 `revoked` cuando su embed se pausa, se le desactivan las llamadas o se apunta a
 otro agent. Ningún frame lleva nunca una credencial del provider.
 
-La acompañan cuatro rutas HTTP:
+La acompañan cinco rutas HTTP:
 
 | Ruta | Control | Responde |
 |---|---|---|
-| `GET /api/v1/agents/{agent_id}/voice?surface=web` | `agents:run` sobre ese agent, grant incluido; `404` en caso contrario | Si una llamada empezaría, por qué no, el transporte, la llamada más larga y los minutos restantes. `surface=embed` pregunta por un widget o una página alojada |
+| `GET /api/v1/agents/{agent_id}/voice` | `agents:run` sobre ese agent, grant incluido; `404` en caso contrario | Si una llamada empezaría, por qué no (`no_voice`, `not_offered` o `no_key`), el transporte y la llamada más larga |
+| `POST /api/v1/agents/{agent_id}/voice/preview` | `agents:edit` sobre ese agent, grant incluido; `404` en caso contrario | La voz del borrador de la sección Voice diciendo una frase fija, como `audio/wav`. En caché por voz e idioma; `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` por persona |
 | `GET /api/v1/providers/realtime-models` | `agents:view` | El catálogo en tiempo real del que elige la sección Voice |
-| `GET /api/v1/voice/usage?start=…&end=…` | `runs:view` | Segundos de llamada y llamadas de las llamadas iniciadas en `start` o después y antes de `end`, por agent (las llamadas de un agent eliminado como una sola fila sin id ni nombre), y los segundos de este mes frente a los minutos mensuales de la organización. Un `end` que no sea posterior a `start` se rechaza con `422` |
+| `GET /api/v1/voice/usage?start=…&end=…` | `runs:view` | Segundos de llamada y llamadas de las llamadas iniciadas en `start` o después y antes de `end`, por agent (las llamadas de un agent eliminado como una sola fila sin id ni nombre). Un `end` que no sea posterior a `start` se rechaza con `422` |
 | `GET /api/v1/runs?modality=voice` | `runs:view` | Solo llamadas (`text` para solo runs escritos); una llamada que se reconectó es una fila que lleva `voice_chain`, con todas las conexiones sumadas |
 
 Una aprobación que pertenece a una llamada en curso se decide en la llamada:

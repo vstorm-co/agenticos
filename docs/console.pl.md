@@ -1,5 +1,5 @@
 ---
-source_sha: "91ef94ad8214"
+source_sha: "eb356ae8cd01"
 ---
 
 # Konsola { #the-console }
@@ -348,45 +348,42 @@ Wymaga przeglądarki wdrożenia do logowania
 
 ### Dyktowanie { #dictation }
 
-Mikrofon w kompozytorze zamienia mowę na tekst w polu i nigdy go nie wysyła: to,
-co powiesz, trafia tam, gdzie był kursor w chwili naciśnięcia mikrofonu, gotowe
-do edycji, i nie idzie nigdzie, dopóki nie naciśniesz Wyślij. Sposób
-transkrypcji wybiera organizacja, na [karcie Głos (Voice)](#the-voice-card):
+Mikrofon stoi obok Wyślij przy każdym agencie, a także w menu `+`. Zamienia mowę
+na tekst w polu i nigdy go nie wysyła: to, co powiesz, trafia tam, gdzie był
+kursor, gdy nacisnąłeś mikrofon, gotowe do edycji, i nigdzie nie idzie, dopóki
+nie naciśniesz Wyślij. Sposób transkrypcji wybiera agent, na zakładce Dyktowanie
+[swojej karty Głos (Voice)](#an-agents-voice-card):
 
-- **Wyłączone (Off)** — brak mikrofonu.
-- **Przeglądarka (Browser)** — własne rozpoznawanie mowy przeglądarki, więc dźwięk trafia do jej
-  producenta (Google, Apple). Firefox go nie ma: jego mikrofon mówi o tym po
-  naciśnięciu.
-- **Serwer (Server)** — przeglądarka nagrywa, a to wdrożenie wysyła nagranie do providera
-  speech-to-text organizacji albo do
-  [własnego providera agenta](#an-agents-own-engine), jeśli agent go wskazuje. Działa w każdej przeglądarce, która potrafi nagrywać. Endpoint, jego limity i to, co jest zapisywane, opisuje
-  [Dyktowanie w czacie](ml-services.md#dictation-in-chat).
+- **Transkrybuj u providera** włączone — przeglądarka nagrywa, a ten deployment
+  wysyła nagranie do providera agenta albo do domyślnego providera organizacji.
+  Działa w każdej przeglądarce, która potrafi nagrywać. Endpoint, jego limity i
+  to, co jest zapisywane, opisuje [Dyktowanie w czacie](ml-services.md#dictation-in-chat).
+- Wyłączone albo bez klucza, którym można wysłać — własne rozpoznawanie mowy
+  przeglądarki, więc dźwięk trafia do jej dostawcy (Google, Apple) i nic nie
+  kosztuje. Firefox go nie ma: jego mikrofon mówi o tym po naciśnięciu. Gdy
+  przeglądarka słucha, notka nad kompozytorem mówi, że Dyktowanie agenta jest
+  wyłączone, a temu, kto może edytować agenta, daje link do jego zakładki
+  Dyktowanie.
 
-Przy ustawieniu **Serwer** naciśnięcie mikrofonu zastępuje kontrolki paskiem nagrywania:
-Anuluj, poziom dźwięku, licznik czasu i Stop. **Enter** zatrzymuje i
-transkrybuje, **Escape** anuluje, a nic, co zostanie wpisane albo naciśnięte w
-trakcie nagrywania lub transkrypcji, nie jest wysyłane. Nagranie zatrzymuje się
-samo na najdłuższym dyktowaniu organizacji i zostaje przetranskrybowane, a
-mikrofon odłączony w trakcie kończy je tak samo, zamiast je odrzucić. Gdy
-wysyłanie nagrania trwa dłużej niż sekundę, pasek pokazuje, jaka jego część już
-poszła; potem pokazuje **Przepisywanie**, dopóki nie przyjdzie tekst.
+Z providerem naciśnięcie mikrofonu wyświetla nad kompozytorem, który się nie
+zmienia, **pigułkę nagrywania**: Anuluj, poziom, licznik czasu i Stop. **Enter**
+zatrzymuje i transkrybuje, **Escape** anuluje, a nic, co wpiszesz albo naciśniesz
+w trakcie nagrywania lub transkrypcji, nie zostaje wysłane. Nagranie zatrzymuje
+się samo na najdłuższym dyktowaniu organizacji i jest transkrybowane, a mikrofon
+odłączony w trakcie kończy je tak samo, zamiast je odrzucać. Gdy wysyłanie trwa
+dłużej niż sekundę, pigułka pokazuje, ile już poszło; potem mówi
+**Przepisywanie**, dopóki nie przyjdzie tekst. Rozpoznawanie w przeglądarce ma
+własną pigułkę, z **Zakończ dyktowanie**.
 
-Wszystko, co dyktowanie ma do powiedzenia, pojawia się w pasku przyczepionym pod
-kompozytorem: prośba o uprawnienie, zablokowany albo brakujący mikrofon, ostatnie
-30 sekund, pięć sekund bez dźwięku, nagranie krótsze niż sekunda (niewysłane),
-nagranie zatrzymane na limicie, liczba wstawionych słów i każda porażka. Liczba
-słów znika po kilku sekundach albo przy następnym klawiszu. Nagranie, którego nie
-udało się przetranskrybować, jest zachowywane, dopóki nie naciśniesz **Ponów (Retry)**
-albo **Odrzuć (Discard)**.
+Wszystko, co dyktowanie ma do powiedzenia, pojawia się w pasku nad kompozytorem,
+obok pigułki: prośba o uprawnienia, zablokowany albo brakujący mikrofon, ostatnie
+30 sekund, pięć sekund bez dźwięku, nagranie krótsze niż sekunda (nie wysłane),
+nagranie zatrzymane na limicie i każda porażka. Ile słów wstawiono, słyszy
+czytnik ekranu, ale nie jest to pokazywane, bo słowa są w polu. Nagranie, którego
+nie udało się przetranskrybować, jest trzymane, dopóki nie naciśniesz **Ponów**
+albo **Odrzuć**.
 
-Gdy organizacja
-wybrała Server, ale dla wybranego agenta nic się nie rozwiązuje — brak providera
-na agencie i w organizacji albo nie wybrano do niego klucza — albo nie wybrano
-agenta, mikrofon jest przekreślony i mówi dlaczego; osoba z `org:settings`
-dostaje link do karty Głos (Voice), a osoba, która może edytować agenty — link do
-karty Głos (Voice) tego agenta.
-
-Poświata pod kompozytorem, gdy mówisz, idzie za ustawieniem **Animacja
+Poświata wokół pola na hostowanej stronie, gdy mówisz, idzie za ustawieniem **Animacja
 dyktowania (Voice glow)** w **Ustawienia → Profil → Wygląd (Settings → Profile →
 Appearance)**, obok motywu i ustawienia **Animacje (Motion)**: **Wyrazista
 (Vivid)**, **Subtelna (Subtle)** (domyślnie) albo **Wyłączona (Off)**. Jest
@@ -398,151 +395,130 @@ pojawia się bez wysuwania, a poziom dźwięku to pięciostopniowy wskaźnik.
 
 ### Karta Głos (Voice) { #the-voice-card }
 
-Na stronie **Members** organizacji, dla kogoś z `org:settings`. **Mowa na tekst
-(Speech to text)** wybiera silnik — Wyłączone, Przeglądarka albo Serwer (Off,
-Browser, Server), każdy z informacją, dokąd idzie dźwięk — a dla Serwera
-najdłuższe nagranie, od 10 sekund do 10 minut. **Domyślny provider (Default
-provider)**, pod nim, to provider i model z katalogu speech-to-text oraz język
-(automatyczne wykrywanie albo jeden ustalony język, co jest dokładniejsze). Jest
-pokazywany niezależnie od silnika, bo to także tam
-[boty kanałów](channels.md#what-every-channel-shares) ustawione na dziedziczenie
-wysyłają swoje wiadomości głosowe; **Brak (None)** go czyści.
+Na stronie **Członkowie (Members)** organizacji, dla kogoś z `org:settings`.
+Trzyma **domyślny** speech-to-text, który dziedziczą agenty i boty kanałów, oraz
+to, jak długo może trwać dyktowanie; to, czy agent dyktuje u providera albo
+odbiera rozmowy, włącza się na jego własnej karcie Głos (Voice). **Maksymalna
+długość nagrania** to od 10 sekund do 10 minut. **Domyślny provider** to provider
+i model z katalogu speech-to-text oraz język (automatyczne rozpoznawanie albo
+jeden stały język, co jest dokładniejsze). To także to, do czego
+[boty kanałów](channels.md#what-every-channel-shares) ustawione na
+dziedziczenie wysyłają swoje wiadomości głosowe; **Brak (None)** go czyści.
 
-**Klucz (Key)**, obok providera, to klucz z vaultu, z którym wysyłane jest
-ustawienie domyślne. Lista pokazuje klucze API, których przeznaczeniem jest ten
-provider i które widzi cała organizacja — platforma wydaje ten klucz na
-dyktowanie każdego członka i na każdego dziedziczącego bota, więc prywatny klucz
-członka nie jest oferowany i zostaje odrzucony, jeśli go wysłać. Gdy pasuje
-dokładnie jeden klucz, jest wybierany za ciebie, a i tak zapisywany po
-identyfikatorze; nic nie wybiera klucza w czasie działania. Provider bez klucza
-jest oznaczony **brak klucza dla tego providera**, a wybór linkuje do vaultu, by
-go dodać. Gdy zapisano Server, ale nie może działać — model wycofano z katalogu
-albo klucz usunięto lub uczyniono prywatnym — karta to mówi i prosi o
-**wybranie klucza**, gdy to jego brakuje, bo każdy członek widzi wtedy
-przekreślony mikrofon.
+**Klucz**, obok providera, to klucz z vaulta, którym wysyłany jest domyślny
+provider. Lista obejmuje klucze API, których przeznaczeniem jest ten provider i
+które widzi cała organizacja - platforma wydaje ten klucz na dyktowanie każdego
+członka i każdego dziedziczącego bota, więc prywatny klucz członka nie jest
+oferowany i zostaje odrzucony, jeśli zostanie wysłany. Gdy jest dokładnie jeden
+taki klucz, jest wybierany za ciebie i w każdym razie zapisywany po nazwie; nic
+nie wybiera klucza w trakcie działania. Provider bez klucza jest oznaczony **brak
+klucza dla tego providera**, a selektor prowadzi do vaulta, żeby go dodać. Gdy
+domyślny provider nie może działać - model wycofano z katalogu albo klucz
+usunięto lub uczyniono prywatnym - karta to mówi i prosi o **wybranie klucza**,
+gdy brakuje właśnie jego.
 
-Server bez domyślnego providera to ustawienie, a nie usterka: karta zaznacza, że dyktować mogą tylko agenty z własnym providerem. **Rozmowy głosowe (Voice conversations)**, pod nią, zawiera ustawienia rozmów organizacji — zobacz [Rozmowy głosowe](#voice-calls).
-
-Komuś, kto ma także `runs:view`, karta zaczyna się jedną linijką o tym, ile
+Dla kogoś, kto ma też `runs:view`, karta zaczyna się jedną linią o tym, co
 organizacja przetranskrybowała w ostatnich 30 dniach — „42 min · 118 nagrań (30
-bez długości)” — łącznie z dyktowania, wiadomości głosowych z kanałów i API.
-**Pokaż podział** rozpisuje to według agenta i według bota kanału. Minuty liczą
-tylko nagrania, których długość została podana, więc linijka mówi, ilu jej
-brakuje; jest ukryta, dopóki niczego nie przetranskrybowano. Liczby pochodzą z
+bez długości)” — w dyktowaniu, wiadomościach głosowych kanałów i API. **Pokaż
+podział** rozbija to na agenty i boty kanałów. Minuty liczą tylko nagrania,
+których długość została podana, więc linia mówi, ilu nie podano; jest ukryta,
+dopóki nic nie przetranskrybowano. Liczby pochodzą z
 [`GET /ml/calls/summary`](ml-services.md#what-is-recorded).
 
-### Własny silnik agenta { #an-agents-own-engine }
+### Karta Głos (Voice) agenta { #an-agents-voice-card }
 
-Zakładka **Build** agenta ma kartę **Głos (Voice)** po ustawieniach modelu, dla agenta,
-który ma transkrybować inaczej niż jego organizacja. **Dziedzicz (Inherit)** zachowuje
-providera, model i klucz organizacji i pokazuje, które to są; **Wybierz (Choose)**
-wybiera parę z katalogu i klucz, z którym jest wysyłana — klucz API dla tego
-providera, który widzisz, bo publikacja pożycza go każdemu, kto może uruchomić
-agenta.
+Zakładka **Build** agenta ma kartę **Głos (Voice)** po ustawieniach modelu, z
+dwiema zakładkami: **Rozmowy głosowe** i **Dyktowanie**.
 
-To nigdy nie jest klucz organizacji: agent z własną parą wskazuje własny
-klucz. Język wybiera się osobno: odziedzicz język organizacji albo ustal jeden —
-więc polski agent może zachować providera i klucz organizacji. To część speca, zapisywana z wersją
-roboczą i działająca, gdy agent zostanie opublikowany, i dotyczy
-[dyktowania](#dictation) do tego agenta oraz wiadomości głosowych, które
-dziedziczą jego boty kanałów. Resztę opisuje
+**Dyktowanie** trzyma **Transkrybuj u providera**. Włączone, mikrofon w czacie
+wysyła nagranie do providera: **Własny tego agenta** (domyślnie) wybiera parę z
+katalogu i klucz, którym ją wysłać - klucz API tego providera, który możesz
+zobaczyć, bo publikacja pożycza go każdemu, kto może uruchomić agenta - a dopóki
+go nie wybierzesz, używany jest domyślny provider organizacji, wskazany z nazwy.
+**Organizacji** zostawia providera, model i klucz organizacji. Wyłączone albo bez
+klucza, którym można wysłać, transkrybuje przeglądarka, co nic nie kosztuje.
+
+Język wybiera się osobno: dziedziczony z organizacji albo stały - więc polski
+agent może zachować providera i klucz organizacji. Karta jest częścią spec,
+zapisywana z wersją roboczą i aktywna po publikacji agenta, a dotyczy
+[dyktowania](#dictation) do tego agenta i wiadomości głosowych, które dziedziczą
+jego boty kanałów. Resztę opisuje
 [kolejność](ml-services.md#which-engine-a-recording-reaches).
-
-Karta mówi, kiedy nadpisanie zmienia mniej, niż się wydaje: gdy silnik
-organizacji jest na Off albo Browser, dociera tylko do wiadomości głosowych z
-kanałów, a gdy organizacja nie ma providera, to na nim działa dyktowanie do tego
-agenta.
 
 ### Rozmowy głosowe { #voice-calls }
 
-[Rozmowa głosowa](voice.md) to mówiona rozmowa z opublikowanym agentem: ty
-mówisz, on odpowiada na głos, a ty możesz mu przerwać. Konfigurują ją trzy
-miejsca w konsoli.
+[Rozmowa głosowa](voice.md) to mówiona rozmowa z opublikowanym agentem: mówisz,
+on odpowiada na głos, a ty możesz mu przerwać. Rozmowy włącza się w agencie;
+organizacja nie ma ustawień rozmów.
 
-- **Karta Głos (Voice) organizacji**, w sekcji **Rozmowy głosowe (Voice
-  conversations)**: **Zezwalaj na rozmowy głosowe (Allow voice conversations)**
-  (domyślnie wyłączone), **Oferuj rozmowy w czacie (Offer calls in chat)**,
-  **Najdłuższa rozmowa (minuty) (Longest call (minutes))**, od 1 do 50, oraz
-  **Miesięczne minuty rozmów (Monthly call minutes)** albo brak miesięcznego
-  limitu, by polegać tylko na budżetach. Pierwsze trzy wymagają `org:settings`;
-  minuty wymagają `budgets:manage`, a dla wszystkich innych są tylko do odczytu.
-  Posiadacz `runs:view` widzi też, ile minut z tego miesiąca zużyły rozmowy.
-- **Karta Głos (Voice) agenta**, na zakładce **Rozmowy głosowe (Voice
-  calls)**: **Zezwól na rozmowy głosowe (Allow voice calls)**, potem provider i
-  model rozmów (dla Azure nazwa wdrożenia i jej model bazowy), klucz, głos,
-  język mówiony (albo **Dopasuj do rozmówcy (Follow the caller)**), **Najdłuższa
-  rozmowa (Longest call)** i **Instrukcje do rozmów (Instructions for calls)**.
-  Karta wymienia, co agent w rozmowach
-  [przekazuje swojemu modelowi tekstowemu](voice.md#handing-work-off), mówi, że
-  guardraile nie mogą odfiltrować wypowiedzianych słów, zanim zostaną usłyszane,
-  i że rozmowy są zapisywane jako tekst, bez przechowywania dźwięku. Działa, gdy
-  agent zostanie opublikowany.
-- **Przełącznik Rozmowy głosowe (Voice calls) embeda**, w formularzach widgetu
-  i hostowanej strony — zobacz
-  [Kanały](channels.md#voice-calls-on-a-widget-or-a-hosted-page).
+- **Karta Głos (Voice) agenta**, na zakładce **Rozmowy głosowe**: provider i
+  model rozmowy (dla Azure nazwa deploymentu i jego model bazowy), klucz, głos z
+  przyciskiem **odtwarzania**, żeby go usłyszeć, język mówiony (albo **Za
+  rozmówcą**), **Najdłuższa rozmowa** (10 minut, gdy nieustawiona, najwyżej 50)
+  oraz **Instrukcje dla rozmów**. Karta wymienia, co agent
+  [przekazuje swojemu modelowi tekstowemu](voice.md#handing-work-off) w
+  rozmowach, mówi, że guardrails nie mogą odfiltrować wypowiedzianych słów, zanim
+  zostaną usłyszane, i że rozmowy są zapisywane jako tekst, bez zachowywania
+  dźwięku. Zaczyna działać po publikacji agenta.
+- **Przełącznik Rozmowy głosowe embeda**, w formularzach widżetu i hostowanej
+  strony - zobacz [Kanały](channels.md#voice-calls-on-a-widget-or-a-hosted-page).
 
 Zanim zaproponuje rozmowę, konsola pyta, czy ten agent może ją odebrać
-(`GET /agents/{id}/voice`), żeby nikt nie udzielał dostępu do mikrofonu tylko
-po to, by zostać odrzuconym. Odpowiedź mówi, czego brakuje: rozmowy wyłączone
-w organizacji albo w czacie, brak głosu skonfigurowanego u agenta, model, który
-nie jest już oferowany, brak klucza albo brak minut w tym miesiącu.
+(`GET /agents/{id}/voice`), żeby nikt nie udzielał dostępu do mikrofonu tylko po
+to, by zostać odrzuconym. Odpowiedź mówi, czego brakuje: głosu ustawionego w
+agencie, modelu, który nadal jest oferowany, albo klucza.
 
-**Przycisk rozmowy** jest w kompozytorze czatu, obok mikrofonu. Gdy rozmowy są
-wyłączone w organizacji albo w czacie, w ogóle go nie ma. Gdy ten agent nie może
-odebrać rozmowy, przycisk jest przekreślony, a po najechaniu na niego, ustawieniu
-na nim fokusu albo kliknięciu wyjaśnia dlaczego - a jeśli możesz skonfigurować
-rozmowy, także gdzie to zrobić.
+**Przycisk rozmowy** stoi w kompozytorze czatu, obok mikrofonu, przy każdym
+agencie. Gdy ten agent nie może odebrać rozmowy, przycisk jest przekreślony, a
+najechanie, fokus albo naciśnięcie mówi dlaczego. Ktoś, kto może edytować
+agenta, dostaje **Otwórz w Agent Builderze**, co otwiera jego kartę Głos (Voice)
+na zakładce Rozmowy; każdy inny słyszy, żeby poprosił kogoś, kto może.
 
-W trakcie rozmowy kompozytor zamienia się w **pasek rozmowy**: co się teraz
-dzieje w rozmowie, jej czas na tle limitu rozmowy i minut, które zostały w tym
-miesiącu, wykres fali dźwiękowej obu głosów, „naciśnij, aby mówić”, wyciszenie
-i **Zakończ (End)**. Z przycisków paska rozmowę kończy tylko Zakończ; rozłącza ją
-też otwarcie innej konwersacji albo nowego czatu. Domyślnie mówi się bez użycia
-rąk; **naciśnij, aby mówić (push-to-talk)** (przytrzymaj przycisk albo spację)
-to wybór zapamiętywany w twojej przeglądarce. Przy ograniczonym ruchu (reduced
-motion) zamiast wykresu fali pojawia się schodkowy wskaźnik poziomu.
+W trakcie rozmowy nad kompozytorem, który zostaje taki, jaki był, razem z wersją
+roboczą i załącznikami, unosi się **pigułka**: co robi rozmowa, jej czas, fala
+dźwięku obu głosów, push-to-talk, wyciszenie i **Zakończ rozmowę**. Rozmowę kończy tylko
+Zakończ rozmowę; otwarcie innej konwersacji albo nowego czatu ją rozłącza. Domyślnie
+mówi się bez trzymania przycisku; **push-to-talk** (przytrzymaj przycisk albo
+Spację) to wybór zapamiętywany w przeglądarce. Przy ograniczonym ruchu falę
+zastępuje schodkowy miernik poziomu.
 
-Rozmowa przechodzi przez stany, które pasek nazywa: łączenie, słuchanie, ty
-mówisz, myślenie, agent mówi, przerwano, praca nad narzędziem, oczekiwanie na
-twoje zatwierdzenie, zatwierdzenie, którego nie możesz udzielić, czas prawie się
-skończył i zakończona — przez ciebie, przez limit, zerwane połączenie albo błąd.
+Rozmowa przechodzi przez stany, które nazywa pigułka: łączenie, słuchanie, ty
+mówisz, myślenie, agent mówi, przerwanie, praca nad narzędziem, czekanie na twoje
+zatwierdzenie, zatwierdzenie, którego nie możesz udzielić, prawie koniec czasu i
+zakończenie - przez ciebie, przez limit, zerwane połączenie albo awarię.
 
-Rozmowa toczy się w konwersacji: napisy pojawiają się słowo po słowie
-w wypowiadanej właśnie wiadomości, czytnik ekranu odczytuje każdą linię, gdy
-jest już ostateczna, a każda zakończona tura ustępuje miejsca wiadomości
-zapisanej w konwersacji, więc rozmowa zostaje potem w twojej historii i możesz
-dalej pisać. Gdy agent myśli albo uruchamia narzędzie, konwersacja pokazuje to
-tam, gdzie pojawi się jego odpowiedź.
+Rozmowa toczy się w konwersacji: każda tura jest rysowana jako wiadomość, którą
+się stanie, rośnie słowo po słowie w miarę mówienia, czytnik ekranu słyszy każdą
+linię, gdy jest ostateczna, a zapisana wiadomość zajmuje jej miejsce bez
+żadnego przesunięcia, więc rozmowa zostaje potem w historii i możesz dalej
+pisać. Gdy agent myśli albo uruchamia narzędzie, konwersacja mówi o tym tam,
+gdzie pojawi się jego odpowiedź.
 
-**Zatwierdzenia** są rozstrzygane w rozmowie: karta w konwersacji pokazuje
-narzędzie, jego dokładne argumenty i to, co według transkrypcji powiedziałeś,
-z 60-sekundowym odliczaniem. Decydują tylko jej przyciski; powiedzenie „tak”
-niczego nie zatwierdza. Bez `approvals:decide` karta informuje, że narzędzie
-wymaga zatwierdzenia, którego nie możesz udzielić głosem, i proponuje zakończyć
-rozmowę i pisać dalej. **Pytania** agenta pojawiają się jako karta pytań z
-czatu i są też czytane na głos: stuknij odpowiedź albo po prostu ją powiedz.
-Praca, którą agent [przekazuje swojemu modelowi tekstowemu](voice.md#handing-work-off),
-pokazuje w pasku każdy krok w trakcie, a kroki zostają potem przy turze.
-**Limity** są wypowiadane: minutę przed końcem
-najdłuższej rozmowy dostajesz ostrzeżenie, a gdy skończy się czas, budżet albo
-minuty miesiąca, agent mówi jedno zdanie i rozmowa się kończy.
+**Zatwierdzenia** zapadają w rozmowie: karta w konwersacji pokazuje narzędzie,
+jego dokładne argumenty i to, co usłyszano, że powiedziałeś, z odliczaniem 60
+sekund. Decydują tylko jej przyciski; powiedzenie „tak” niczego nie zatwierdza.
+Bez `approvals:decide` karta mówi, że narzędzie wymaga zatwierdzenia, którego
+nie możesz udzielić głosem, i proponuje zakończyć rozmowę i kontynuować pisemnie.
+**Pytania**, które zadaje agent, pojawiają się jako karta pytania czatu, także
+czytana na głos: stuknij odpowiedź albo po prostu ją powiedz. Praca, którą agent
+[przekazuje swojemu modelowi tekstowemu](voice.md#handing-work-off), pokazuje
+każdy krok w trakcie, a kroki zostają potem na turze. **Limity** są mówione:
+minutę przed końcem najdłuższej rozmowy dostajesz ostrzeżenie, a gdy skończy się
+czas albo budżet, agent mówi jedno zdanie i rozmowa się kończy.
 
-Pod paskiem rozmowy **wiersz z komunikatem** wskazuje to, co wymaga twojej
-uwagi: prośbę przeglądarki o dostęp do mikrofonu, zatwierdzenie czekające wyżej
-(z przyciskiem **Pokaż kartę (Show card)**), ostatnią minutę, limit kończący
-rozmowę, ponowne łączenie albo to, jak działa „naciśnij, aby mówić”. Po
-zakończeniu rozmowy karta w konwersacji podaje, jak długo trwała i ile tur
-zapisano, albo który limit ją zakończył, i ma przycisk **Zadzwoń ponownie (Call
-again)**. Gdy rozmowa w ogóle się nie rozpoczęła, pod kompozytorem pojawia się
-powód i przycisk **Spróbuj ponownie (Try again)**.
+**Pasek nad kompozytorem** wskazuje to, co wymaga twojej uwagi: prośbę o
+mikrofon, czekające zatwierdzenie (z **Pokaż kartę**), ostatnią minutę, limit
+kończący rozmowę, ponowne łączenie albo to, jak działa push-to-talk. Gdy rozmowa
+się kończy, karta w konwersacji mówi, jak długo trwała i ile tur zapisano, albo
+jaki limit ją zakończył, z przyciskiem **Zadzwoń ponownie**. Rozmowa, która w
+ogóle się nie zaczęła, mówi dlaczego nad kompozytorem, z **Spróbuj ponownie**.
 
 W **Aktywności (Activity)** rozmowa to jeden wiersz z plakietką mikrofonu, a
-filtr rodzaju (**Tekst (Text)** albo **Rozmowy głosowe (Voice calls)**) zawęża
-listę do rozmów; rozmowa, która połączyła się ponownie, to nadal jeden wiersz,
-z czasem i kosztem wszystkich połączeń zsumowanymi. Karta dashboardu **Minuty
-rozmów (Voice minutes)**, w pasie Usage dla posiadacza `runs:view`, pokazuje
-minuty i liczbę rozmów w okresie, trzech najaktywniejszych agentów i minuty
-w tym miesiącu wobec limitu organizacji.
+filtr rodzaju (**Tekst** albo **Rozmowy głosowe**) zawęża do rozmów; rozmowa,
+która się ponownie połączyła, to nadal jeden wiersz, z czasem i kosztem
+wszystkich połączeń zsumowanymi. Karta pulpitu **Minuty rozmów (Voice minutes)**,
+w pasie Użycie dla posiadacza `runs:view`, pokazuje minuty i liczbę rozmów w
+okresie oraz trzech najczęstszych agentów.
 
 ## Do czego służy każdy obszar { #what-each-area-is-for }
 

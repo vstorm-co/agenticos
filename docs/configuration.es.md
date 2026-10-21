@@ -1,5 +1,5 @@
 ---
-source_sha: "cf9b53f132c2"
+source_sha: "75367be9f30d"
 ---
 
 # Configuración { #configuration }
@@ -1139,13 +1139,13 @@ pueden apuntar a endpoints locales como Ollama sin ninguna bandera
 
 ## Llamadas de voz { #voice-calls }
 
-Las [llamadas de voz](voice.md) se encienden, se limitan y reciben sus minutos
-mensuales por organización, en la aplicación. Dos techos son del despliegue:
+Las [llamadas de voz](voice.md) se encienden en cada agent, y las acotan su
+llamada más larga y los budgets. Dos techos son del despliegue:
 
 | Variable | Por defecto | Descripción |
 |----------|---------|-------------|
 | `VOICE_MAX_CALLS_PER_USER` | `1` | Llamadas que una persona puede mantener a la vez. La llamada de una segunda pestaña es casi siempre un error, y cada una se factura; un segundo inicio se rechaza como `busy` |
-| `VOICE_MAX_CALLS_PER_EMBED` | `3` | Llamadas que un widget o una página alojada pueden mantener a la vez, de todos los visitantes juntos; la siguiente se rechaza como `line_busy`. Los visitantes no tienen cuenta contra la que contar, así que esto es lo que impide que un enlace filtrado gaste en paralelo los minutos mensuales de la organización |
+| `VOICE_MAX_CALLS_PER_EMBED` | `3` | Llamadas que un widget o una página alojada pueden mantener a la vez, de todos los visitantes juntos; la siguiente se rechaza como `line_busy`. Los visitantes no tienen cuenta contra la que contar, así que esto es lo que impide que un enlace filtrado gaste en paralelo el budget de la organización |
 
 Los dos cuentan las llamadas cuyo latido está al día, así que una llamada cuyo
 proceso murió deja de contar en 45 segundos. Iniciar llamadas en un embed
@@ -1188,6 +1188,7 @@ esta.
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Archivos que un visitante puede guardar en una página alojada. Se cuenta **por dirección y por clave de visitante**, y las dos tienen que permitirlo — la clave la acuña el navegador, así que contar solo esa no acota nada |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | Los [servicios de ML](ml-services.md), por llamante. Estos endpoints hacen su trabajo de forma síncrona, así que un llamante sin límite ocupa el pool de parseo en vez de un presupuesto |
 | `RATE_LIMIT_DICTATION_PER_MINUTE` | `10` | [Dictado en el chat](ml-services.md#dictation-in-chat), por persona, en un contador propio para que dictar y una integración que llama a los servicios de ML no se gasten la cuota el uno al otro. Cada dictado es una llamada al provider de pago de la organización |
+| `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` | `6` | [Escuchar una voz](voice.md#turn-it-on) en el Builder, por persona. Cada vista previa fuera de caché es una sesión de pago corta en el provider realtime del agent, fuera de todo budget de modelo; una voz escuchada una vez queda en caché una semana |
 | `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` | `6` | [Dictado en un widget o en una página alojada](channels.md#dictation-on-a-widget-or-a-hosted-page), por dirección, y por visitante en un widget `jwt`. Cada dictado es una llamada al provider de pago de la organización, fuera de todo budget de modelo |
 | `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` | `10` | Lo mismo, por página o widget, de todos los visitantes a la vez - el techo de lo que cuesta un enlace filtrado: este número de grabaciones por minuto, cada una de hasta el dictado más largo de la organización |
 | `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` | `3` | [Llamadas de voz](channels.md#voice-calls-on-a-widget-or-a-hosted-page) iniciadas en un widget o una página alojada, por dirección, y por sujeto del token del visitante en un widget `jwt`. Se cuentan antes de buscar la clave; cada llamada es una sesión en tiempo real de pago |

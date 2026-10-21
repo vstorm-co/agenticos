@@ -1,5 +1,5 @@
 ---
-source_sha: "19fdd3a796d7"
+source_sha: "5931b7688a5d"
 ---
 
 # Governance { #governance }
@@ -482,7 +482,7 @@ wierszu dalej daje rachunek, bo koszt każdego dziecka jest dodawany przez jego
 własny wiersz i usuwany przez wiersz jego rodzica. Klucz działa tak samo i znaczy
 więcej: to klucz ktoś rotuje, gdy rachunek wygląda źle.
 
-### Budżet i minuty rozmowy głosowej { #a-voice-calls-budget-and-minutes }
+### Budżet rozmowy głosowej { #a-voice-calls-budget }
 
 [Rozmowa głosowa](voice.md) jest runem, a jej wydatki liczą się do budżetów
 agenta i organizacji jak każde inne. Różnią się trzy rzeczy, bo rozmowy nie da
@@ -496,10 +496,9 @@ się sprawdzić przed każdym żądaniem tak, jak sprawdza się run tekstowy:
   wydatki miesiąca są odczytywane na nowo co 15 sekund, więc widać runy, które w
   tym czasie wydają. Budżet, który wyczerpie się w trakcie rozmowy, dostaje jedno
   wypowiedziane zdanie i kończy rozmowę, zapisaną jako `budget_exceeded`.
-- **Rozmowy mają drugi, własny limit**: miesięczne minuty rozmów organizacji
-  (domyślnie 600, null oznacza tylko budżety), ustawiane przez tego, kto ma
-  `budgets:manage`. Liczy się je z wierszy rozmów, a nie z czasu trwania runów, a
-  rozmowa, która je osiągnie, jest kończona w ten sam sposób.
+- **Jej długość należy do agenta.** Rozmowa trwa najwyżej tyle, ile najdłuższa
+  rozmowa agenta, domyślnie 10 minut i najwyżej 50; nie ma osobnej puli minut
+  rozmów, więc budżety są jedynym limitem tego, co rozmowy wydają.
 
 Rozmowę, której proces umarł, zamyka przemiatanie rozmów głosowych z kosztem
 zapisanym przez jej ostatni heartbeat - inaczej niż run tekstowy, którego

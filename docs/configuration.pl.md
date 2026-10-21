@@ -1,5 +1,5 @@
 ---
-source_sha: "cf9b53f132c2"
+source_sha: "75367be9f30d"
 ---
 
 # Konfiguracja { #configuration }
@@ -1123,13 +1123,13 @@ sandboksa dla `run_python` są konfiguracją capability per agent
 
 ## Rozmowy głosowe { #voice-calls }
 
-[Rozmowy głosowe](voice.md) włącza się, ogranicza i przydziela im miesięczne
-minuty per organizacja, w aplikacji. Dwa sufity należą do deploymentu:
+[Rozmowy głosowe](voice.md) włącza się w każdym agencie, a ogranicza je jego
+najdłuższa rozmowa i budżety. Dwa sufity należą do deploymentu:
 
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|
 | `VOICE_MAX_CALLS_PER_USER` | `1` | Rozmowy, które jedna osoba może prowadzić jednocześnie. Rozmowa z drugiej karty to prawie zawsze pomyłka, a każda jest rozliczana; drugie rozpoczęcie jest odrzucane jako `busy` |
-| `VOICE_MAX_CALLS_PER_EMBED` | `3` | Rozmowy, które jeden widżet albo jedna hostowana strona może prowadzić jednocześnie, od wszystkich odwiedzających razem; następna jest odrzucana jako `line_busy`. Odwiedzający nie mają konta, na które można by liczyć, więc to właśnie powstrzymuje wyciekły link przed równoległym zużywaniem miesięcznych minut organizacji |
+| `VOICE_MAX_CALLS_PER_EMBED` | `3` | Rozmowy, które jeden widżet albo jedna hostowana strona może prowadzić jednocześnie, od wszystkich odwiedzających razem; następna jest odrzucana jako `line_busy`. Odwiedzający nie mają konta, na które można by liczyć, więc to właśnie powstrzymuje wyciekły link przed równoległym zużywaniem budżetu organizacji |
 
 Oba liczą rozmowy ze świeżym heartbeatem, więc rozmowa, której proces padł,
 przestaje się liczyć w ciągu 45 sekund. Rozpoczynanie rozmów w embedzie ma też
@@ -1170,6 +1170,7 @@ osobna decyzja, nie ta.
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Pliki, które odwiedzający może zapisać na hostowanej stronie. Liczone **na adres i na klucz odwiedzającego**, a pozwolić muszą oba — klucz bije przeglądarka, więc liczenie tylko jego niczego nie ogranicza |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | [Usługi ML](ml-services.md), na wywołującego. Te endpointy wykonują pracę synchronicznie, więc nieograniczony wywołujący zajmuje pulę parsowania, a nie budżet |
 | `RATE_LIMIT_DICTATION_PER_MINUTE` | `10` | [Dyktowanie w czacie](ml-services.md#dictation-in-chat), na osobę, na osobnym liczniku, żeby dyktowanie i integracja wywołująca usługi ML nie zużywały sobie nawzajem limitu. Każde dyktowanie to wywołanie płatnego providera organizacji |
+| `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` | `6` | [Odsłuchanie głosu](voice.md#turn-it-on) w Builderze, na osobę. Każdy podgląd spoza cache to krótka płatna sesja u providera realtime agenta, poza wszystkimi budżetami modelu; raz odsłuchany głos jest trzymany w cache przez tydzień |
 | `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` | `6` | [Dyktowanie w widżecie lub na hostowanej stronie](channels.md#dictation-on-a-widget-or-a-hosted-page), na adres, a w widżecie `jwt` także na odwiedzającego. Każde dyktowanie to wywołanie płatnego providera organizacji, poza każdym budżetem modelu |
 | `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` | `10` | To samo, na stronę albo widżet, od wszystkich odwiedzających razem — sufit tego, ile kosztuje wyciekły link: tyle nagrań na minutę, każde do najdłuższego dyktowania organizacji |
 | `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` | `3` | [Rozmowy głosowe](channels.md#voice-calls-on-a-widget-or-a-hosted-page) rozpoczynane w widżecie albo na hostowanej stronie, na adres, a w widżecie `jwt` także na subject tokena odwiedzającego. Liczone, zanim klucz zostanie odnaleziony; każda rozmowa to płatna sesja realtime |

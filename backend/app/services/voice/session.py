@@ -134,9 +134,8 @@ async def still_allowed(
 
     Re-read on every heartbeat rather than trusted from the start: the session
     token (revoked by signing out), the membership and its *current* role, the
-    caller's run access to the agent (a grant may have been withdrawn), the
-    agent's published state, and the organization's voice switches - the `/chat`
-    one too, for a call from the console. The role comes back in the context, so
+    caller's run access to the agent (a grant may have been withdrawn) and the
+    agent's published state. The role comes back in the context, so
     the call can stop taking approvals from somebody who lost `approvals:decide`.
     A visitor's call from an embed also needs that embed still active with its
     voice switch on, and still on this agent - pausing the page, switching calls

@@ -1,5 +1,5 @@
 ---
-source_sha: "872f30716dac"
+source_sha: "a71f2915fd7d"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -914,9 +914,8 @@ dem Agent führen: denselben Anruf, den ein Mitglied aus `/chat` führt, mit
 denselben Limits, ausgeführt im Kontext dessen, der veröffentlicht hat, und
 aufgezeichnet mit der Oberfläche `embed`.
 
-**Das Einschalten wird abgelehnt**, solange der Sprachschalter der Organisation
-aus ist oder der Agent keinen Abschnitt „Stimme“ hat, mit dem sich ein Anruf
-führen lässt. Geprüft wird nur der Schalter, sodass sich ein Embed, dessen Agent
+**Das Einschalten wird abgelehnt**, solange der Agent keinen veröffentlichten
+Abschnitt „Stimme“ hat, mit dem sich ein Anruf führen lässt. Geprüft wird nur der Schalter, sodass sich ein Embed, dessen Agent
 seine Stimme später verliert, weiterhin bearbeiten lässt. Solange ein Anruf
 nicht starten würde, sagt die öffentliche Konfiguration
 `voice_conversation: false`, und Besuchern wird kein Anruf angeboten; wenn er
@@ -975,9 +974,8 @@ die Frames eines Anrufs, wie sie getippte Antworten filtern: Ohne *Was der Agent
 gerade tut* erfährt ein Besucher nicht, dass ein Tool lief, und ohne *Was jeder
 Schritt zurückgegeben hat* trägt ein Schritt nicht mit, womit ein Tool
 aufgerufen wurde oder was zurückkam. Das Limit, das ein Besucher sieht, ist das
-eigene Limit des Anrufs, nie die verbleibenden Minuten der Organisation, und
-eine Ablehnung wegen Einrichtung, Preis, Minuten oder Budget des Betreibers sagt
-nur, dass Anrufe gerade nicht verfügbar sind. Das Embed zu pausieren, seine
+eigene Limit des Anrufs, und eine Ablehnung wegen Einrichtung, Preis oder
+Budget des Betreibers sagt nur, dass Anrufe gerade nicht verfügbar sind. Das Embed zu pausieren, seine
 Anrufe abzuschalten oder es auf einen anderen Agent zu richten, beendet die
 Anrufe darauf innerhalb eines Heartbeats. Die Frames stehen auf [der
 API-Seite](api.md#voice-calls).
@@ -1023,13 +1021,13 @@ mit denen aller anderen.
 !!! danger "Der schlimmste Fall für einen geleakten Link"
 
     Drei gleichzeitig offene Anrufe, jeder höchstens so lang wie der längste
-    Anruf der Organisation - standardmäßig 10 Minuten, höchstens 50 -,
-    verbrauchen höchstens drei Anrufminuten pro Minute. Bei dieser Rate reichen
-    die standardmäßigen 600 Monatsminuten für mindestens drei Stunden und
-    zwanzig Minuten Missbrauch, und danach wird jeder Anruf in der
-    Organisation, auch die der Mitglieder, abgelehnt, bis der Monat wechselt.
-    Pausieren Sie das Embed, senken Sie die monatlichen Minuten der
-    Organisation oder schalten Sie ihre Anrufe aus, wenn das zu viel ist.
+    Anruf des Agents - standardmäßig 10 Minuten, höchstens 50 -, verbrauchen
+    höchstens drei Anrufminuten pro Minute, über das Provider-Konto der
+    Organisation. Beendet wird das von den Budgets des Agents und der
+    Organisation: Jeder Anruf wird vor dem Start gegen das Verbleibende geprüft
+    und beendet, wenn das Budget ausgeht, die Runs der Mitglieder eingeschlossen.
+    Geben Sie dem Agent ein eigenes Budget, pausieren Sie das Embed oder
+    schalten Sie seine Anrufe aus, wenn das zu viel ist.
 
 ---
 

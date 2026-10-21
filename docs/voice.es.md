@@ -1,8 +1,8 @@
 ---
-source_sha: "5b606a7b7b0f"
+source_sha: "e5f62723a4c7"
 title: "Conversaciones de voz"
 seo_title: "Conversaciones de voz: habla con un agent publicado"
-description: "Llama a un agent publicado y habla con él: modelos realtime, aprobaciones en la llamada, límites de tiempo y minutos, redes de seguridad y transcripciones."
+description: "Llama a un agent publicado y habla con él: modelos realtime, aprobaciones en la llamada, límites de tiempo y budgets, redes de seguridad y transcripciones."
 ---
 
 # Conversaciones de voz { #voice-conversations }
@@ -19,48 +19,46 @@ página alojada cuando el interruptor propio del embed está activado. Cada llam
 es un [run](concepts.md), con el nombre del modelo realtime, así que Activity, la
 pantalla de coste y el registro de auditoría la ven como cualquier otro run.
 
-En `/chat`, mientras dura la llamada, el composer se convierte en una barra de
-llamada - estado, tiempo, una forma de onda, silenciar, push-to-talk y End - y la
-llamada transcurre en la propia conversación: subtítulos dentro del mensaje que se
-está diciendo, las herramientas que se ejecutan y las tarjetas de aprobación. Una
-página alojada usa la misma barra sin los controles de aprobación, y el widget
-carga una barra de llamada propia, más pequeña. Ver
+En `/chat` la llamada es una píldora que flota sobre el composer, que no cambia:
+estado, tiempo, una forma de onda, silenciar, push-to-talk y End. La llamada
+transcurre en la propia conversación, con cada turno dibujado como el mensaje en
+que se convertirá y las herramientas que se ejecutan y las tarjetas de
+aprobación entre ellos. Un borrador y sus adjuntos siguen en el composer cuando
+termina la llamada. Una página alojada usa una barra de llamada sin los
+controles de aprobación, y el widget carga una propia, más pequeña. Ver
 [Consola](console.md#voice-calls) y
 [Canales](channels.md#voice-calls-on-a-widget-or-a-hosted-page).
 
 ## Activarlo { #turn-it-on }
 
-Dos interruptores y una sección Voice tienen que coincidir antes de que nadie
-pueda llamar.
+**Las llamadas se activan en el agent.** La organización no tiene ajustes de
+llamadas: un agent publicado con una voz atiende llamadas, acotado por su propia
+llamada más larga y por los budgets, como cualquier run.
 
-**La organización.** Las llamadas están **desactivadas** hasta que un admin las
-activa, en la tarjeta Voice de la página de la organización, bajo «Voice
-conversations»:
+**El agent.** Su tarjeta Voice en el Builder tiene una pestaña **Voice calls**,
+que se escribe en el [campo `voice`](reference/spec.md#voice) de la spec. Nombra
+el provider, el modelo (o, para Azure, el nombre del deployment y el modelo base
+que ejecuta), la clave del vault con la que se mantienen las llamadas, la voz,
+un idioma opcional, una llamada más larga opcional (10 minutos si no se fija, 50
+como máximo) y una nota de voz opcional. La nota se añade a las instrucciones del
+agent solo en las llamadas. La sección entra en vigor cuando se publica el agent.
 
-| Ajuste | Por defecto | Qué hace |
-|---|---|---|
-| Allow voice conversations | desactivado | El interruptor general. Desactivado rechaza cada llamada, en cada superficie |
-| Offer calls in chat | activado | Si `/chat` ofrece llamadas una vez permitidas. El widget y la página alojada se activan por embed |
-| Longest call | 10 min | Cualquier número entero de minutos de 1 a 50 (guardado como 60–3000 s). Un agent puede fijar un límite más corto, nunca uno más largo |
-| Monthly call minutes | 600 | Cuenta cada llamada de la organización, desde su primer segundo. Vacíalo para depender solo de los budgets |
+**Oye la voz antes.** El botón de reproducir junto al selector de voz reproduce
+la voz del borrador diciendo una frase, en el idioma de la sección o de la
+consola, antes de publicar nada. Es una sesión de pago corta con la clave de la
+sección, fuera de los budgets como un dictado, así que se limita por persona
+(`RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE`) y queda en caché una semana por voz e
+idioma.
 
-Los tres primeros necesitan `org:settings`. Los minutos mensuales son un límite
-de gasto, así que cambiarlos necesita `budgets:manage`, como el budget mensual de
-la organización; un miembro sin él ve la cifra en solo lectura.
+**Todo agent ofrece el botón.** En `/chat` el botón de llamada está junto al
+micrófono en cada agent. Para uno sin voz, o con una clave que ya no puede
+mantener una llamada, aparece tachado, y su motivo lleva a quien puede editar el
+agent a la pestaña de llamadas de su tarjeta Voice.
 
-**El agent.** Su tarjeta Voice en el Builder gana una sección «Voice
-conversations», que se escribe en el [campo `voice`](reference/spec.md#voice) del
-spec. Nombra el provider, el modelo (o, para Azure, el nombre del deployment y el
-modelo base que ejecuta), la clave del vault con la que se sostienen las
-llamadas, la voz, un idioma opcional, una llamada más larga opcional y una nota
-de voz opcional. La nota se añade a las instrucciones del agent solo en las
-llamadas. La sección surte efecto cuando se publica el agent.
-
-**El embed.** Un widget o una página alojada solo ofrece llamadas cuando su
+**El embed.** Un widget o una página alojada ofrecen llamadas solo cuando su
 propio interruptor «Voice calls» está activado. Guardar el interruptor activado
-se rechaza mientras el interruptor de la organización esté desactivado o el agent
-no tenga una voz con la que pueda llamar. Ver
-[Canales](channels.md#voice-calls-on-a-widget-or-a-hosted-page).
+se rechaza mientras el agent no tenga una voz publicada con la que pueda llamar.
+Ver [Canales](channels.md#voice-calls-on-a-widget-or-a-hosted-page).
 
 ## Modelos y claves { #models-and-keys }
 
@@ -237,28 +235,18 @@ estuviera esperando.
 
 ## Límites y coste { #limits-and-cost }
 
-**Tiempo.** Una llamada dura como mucho la llamada más larga del agent, la
-llamada más larga de la organización o 50 minutos, lo que sea más corto, y nunca
-más que los minutos que le quedan al mes. Su reloj empieza cuando la llamada
-está lista, igual que el temporizador de la vista de llamada, así que el tiempo
-de establecimiento no cuenta ni para su tiempo, ni para su límite, ni para los
-minutos del mes. Un minuto antes del final se avisa a la vista de llamada.
-Al final el agent dice una frase corta sobre el motivo y la llamada se detiene.
-Termina como `time_limit`, o como `minutes` cuando los minutos del mes fijaron
-su límite.
+**Tiempo.** Una llamada dura como mucho la llamada más larga del agent: 10
+minutos cuando la sección Voice no nombra ninguna, y nunca más de 50. Su reloj
+empieza cuando la llamada está lista, igual que el temporizador de la vista de
+llamada, así que el tiempo de establecimiento no cuenta. Un minuto antes del
+final se avisa a la vista de llamada. Al final el agent dice una frase corta
+sobre el motivo y la llamada se detiene, como `time_limit`.
 
-A un visitante de un widget o de una página alojada no se le dicen los minutos
-de la organización. Su vista de llamada muestra el límite propio de la llamada,
-y una llamada que los minutos del mes acortan más termina en el límite real sin
-aviso. El agent dice entonces solo que las llamadas no están disponibles ahora.
-
-**Minutos.** Los minutos mensuales de la organización se cuentan a partir de las
-filas de llamada (`voice_calls`): cada llamada hasta su fin, o hasta su último
-heartbeat mientras sigue en curso. Una llamada que cruza el cambio de mes cuenta
-en el mes nuevo solo por su tiempo después de la medianoche UTC. Cuando se
-agotan, las llamadas nuevas se rechazan, y a una llamada en curso se le avisa y
-se termina en su siguiente heartbeat. La cifra «Voice minutes» del dashboard y la tarjeta Voice de la
-organización leen las mismas filas.
+**Minutos.** Los minutos de llamada se cuentan a partir de las filas de llamada
+(`voice_calls`): cada llamada hasta su fin, o hasta su último heartbeat mientras
+sigue en curso. No hay un límite mensual de minutos; lo que gastan las llamadas
+lo acotan los budgets de abajo. La tarjeta «Voice minutes» del dashboard y
+`GET /api/v1/voice/usage` leen las mismas filas.
 
 **Dinero.** Las llamadas cuentan contra los budgets del agent y de la
 organización, como los runs de texto:
@@ -284,10 +272,13 @@ organización, como los runs de texto:
   de una llamada queda algo por debajo de lo que factura el provider.
 
 **Concurrencia.** Una persona mantiene una llamada a la vez
-(`VOICE_MAX_CALLS_PER_USER`, 1 por defecto). Un embed mantiene como mucho tres
-llamadas abiertas, de todos los visitantes juntos (`VOICE_MAX_CALLS_PER_EMBED`);
-un cuarto llamante se rechaza como `line_busy`. Ver
-[Configuración](configuration.md#voice-calls).
+(`VOICE_MAX_CALLS_PER_USER`, 1 por defecto). Una llamada colgada hace un momento
+sigue contando hasta que se registra su fin, así que una llamada nueva de la
+misma persona la espera hasta cuatro segundos antes de rechazarse como `busy`:
+«Call again» justo después de End inicia una llamada. Un embed mantiene como
+mucho tres llamadas abiertas, de todos los visitantes juntos
+(`VOICE_MAX_CALLS_PER_EMBED`); un cuarto llamante se rechaza como `line_busy`.
+Ver [Configuración](configuration.md#voice-calls).
 
 ## Terminar una llamada, y qué acota una perdida { #ending-a-call-and-what-bounds-a-lost-one }
 
@@ -307,7 +298,7 @@ trabajo del servidor, en cada camino:
    segundos cada 15 segundos, desde el inicio del establecimiento, para que un
    arranque lento no se tome por una llamada perdida. Cada heartbeat vuelve a
    comprobar además la sesión de quien llama, su membresía, el estado publicado
-   del agent y el interruptor de la organización, y termina la llamada cuando
+   del agent y su acceso al agent, y termina la llamada cuando
    falla cualquiera de ellos. La llamada de un visitante necesita además que su
    embed siga activo, con las llamadas activadas y apuntando al mismo agent.
 3. **El barrido.** Un trabajo programado, cada minuto y una vez al arrancar,

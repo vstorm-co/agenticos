@@ -1,5 +1,5 @@
 ---
-source_sha: "91ef94ad8214"
+source_sha: "eb356ae8cd01"
 ---
 
 # Die Konsole { #the-console }
@@ -378,49 +378,45 @@ genauso behalten. Dafür braucht das Deployment seinen Anmelde-Browser
 
 ### Diktieren { #dictation }
 
-Das Mikrofon im Eingabefeld macht aus Sprache Text im Feld und sendet ihn nie:
-Was Sie sagen, landet dort, wo die Einfügemarke stand, als Sie das Mikrofon
-gedrückt haben, bereit zum Bearbeiten, und geht nirgendwohin, bis Sie auf Senden
-drücken. Wie transkribiert wird, entscheidet die Organisation auf
-[der Karte Stimme (Voice)](#the-voice-card):
+Das Mikrofon steht bei jedem Agent neben Senden und im Menü `+`. Es macht aus
+Sprache Text im Feld und sendet ihn nie: Was Sie gesagt haben, landet dort, wo
+der Cursor stand, als Sie das Mikrofon gedrückt haben, bereit zum Bearbeiten, und
+geht nirgendwohin, bis Sie Senden drücken. Wie transkribiert wird, entscheidet
+der Agent, auf dem Reiter Diktieren [seiner Karte Stimme (Voice)](#an-agents-voice-card):
 
-- **Aus (Off)** — kein Mikrofon.
-- **Browser** — die eigene Spracherkennung des Browsers, das Audio geht also an
-  den Browserhersteller (Google, Apple). Firefox hat keine: sein Mikrofon
-  sagt das, wenn man es drückt.
-- **Server** — der Browser nimmt auf, und dieses Deployment schickt die Aufnahme
-  an den Speech-to-Text-Provider der Organisation oder an
-  [den eigenen des Agents](#an-agents-own-engine), wo er einen nennt. Es
-  funktioniert in jedem Browser, der aufnehmen kann. Den Endpunkt, seine Grenzen
-  und was aufgezeichnet wird, beschreibt
+- **Mit einem Anbieter transkribieren** an — der Browser nimmt auf, und dieses
+  Deployment schickt die Aufnahme an den Anbieter des Agents oder den Standard
+  der Organisation. Das funktioniert in jedem Browser, der aufnehmen kann.
+  Endpunkt, Limits und was festgehalten wird, stehen unter
   [Diktieren im Chat](ml-services.md#dictation-in-chat).
+- Aus, oder ohne Schlüssel, mit dem gesendet werden kann — die eigene
+  Spracherkennung des Browsers, sodass der Ton an den Browserhersteller geht
+  (Google, Apple) und nichts kostet. Firefox hat keine: Sein Mikrofon sagt das,
+  wenn man es drückt. Während er zuhört, sagt ein Hinweis über dem Eingabefeld,
+  dass Diktieren für den Agent aus ist, und verlinkt für alle, die den Agent
+  bearbeiten dürfen, seinen Reiter Diktieren.
 
-Bei **Server** ersetzt ein Druck auf das Mikrofon die Steuerelemente durch eine
-Aufnahmeleiste: Abbrechen, den Pegel, einen Timer und Stopp. **Enter** stoppt
-und transkribiert, **Escape** bricht ab, und nichts, was während einer laufenden
-Aufnahme oder ihrer Transkription getippt oder gedrückt wird, wird gesendet. Die
-Aufnahme stoppt von selbst beim längsten Diktat der Organisation und wird
-transkribiert, und ein Mikrofon, das mittendrin abgezogen wird, beendet sie
-genauso, statt sie zu verwerfen. Dauert das Hochladen länger als eine Sekunde,
-zeigt die Leiste, wie viel davon schon hochgeladen ist; danach zeigt sie **Wird
-transkribiert**, bis der Text ankommt.
+Mit einem Anbieter schwebt nach dem Drücken des Mikrofons eine
+**Aufnahme-Pille** über dem Eingabefeld, das sich nicht ändert: Abbrechen, der
+Pegel, ein Timer und Stopp. **Enter** stoppt und transkribiert, **Escape** bricht
+ab, und nichts, was während einer laufenden oder transkribierten Aufnahme
+getippt oder gedrückt wird, wird gesendet. Die Aufnahme stoppt von selbst beim
+längsten Diktat der Organisation und wird transkribiert, und ein mittendrin
+abgestecktes Mikrofon beendet sie genauso, statt sie zu verwerfen. Dauert das
+Hochladen länger als eine Sekunde, zeigt die Pille, wie viel schon oben ist;
+danach sagt sie **Wird transkribiert**, bis der Text da ist. Die Erkennung im
+Browser hat eine eigene Pille, mit **Diktieren beenden**.
 
-Alles, was das Diktieren zu sagen hat, erscheint in einem Streifen, der unter dem
-Eingabefeld hängt: die Berechtigungsabfrage, ein blockiertes oder fehlendes
-Mikrofon, die letzten 30 Sekunden, fünf Sekunden ohne Ton, eine Aufnahme unter
-einer Sekunde (nicht gesendet), eine Aufnahme, die am Limit gestoppt hat, wie
-viele Wörter eingefügt wurden, und jeder Fehlschlag. Die Wortzahl verschwindet
-nach ein paar Sekunden oder bei Ihrer nächsten Taste. Eine Aufnahme, deren
-Transkription fehlgeschlagen ist, bleibt erhalten, bis Sie **Erneut versuchen (Retry)**
-oder **Verwerfen (Discard)** drücken.
+Alles, was das Diktieren zu sagen hat, erscheint in einem Streifen über dem
+Eingabefeld, neben der Pille: die Berechtigungsabfrage, ein blockiertes oder
+fehlendes Mikrofon, die letzten 30 Sekunden, fünf Sekunden ohne Ton, eine
+Aufnahme unter einer Sekunde (nicht gesendet), eine am Limit gestoppte Aufnahme
+und jeder Fehler. Wie viele Wörter eingefügt wurden, wird einem Screenreader
+angesagt statt angezeigt, denn die Wörter stehen im Feld. Eine Aufnahme, deren
+Transkription fehlschlug, bleibt, bis Sie **Erneut versuchen** oder
+**Verwerfen** drücken.
 
-Hat die Organisation Server gewählt, aber für den
-ausgewählten Agent löst sich nichts auf - kein Provider auf dem Agent oder der
-Organisation, oder kein Schlüssel dafür gewählt -, oder ist kein Agent ausgewählt,
-ist das Mikrofon durchgestrichen und sagt, warum; wer `org:settings` hält, bekommt einen Link zur
-Karte Stimme (Voice), und wer Agents bearbeiten darf, einen Link zur Karte Stimme (Voice) dieses Agents.
-
-Das Leuchten unter dem Eingabefeld, während Sie sprechen, folgt
+Das Leuchten um das Feld einer Hosted Page, während Sie sprechen, folgt
 **Diktieranimation (Voice glow)** unter **Einstellungen → Profil → Darstellung
 (Settings → Profile → Appearance)**, neben Design und **Bewegung (Motion)**:
 **Kräftig (Vivid)**, **Dezent (Subtle)** (der Standard) oder **Aus (Off)**. Es
@@ -434,165 +430,145 @@ und der Pegel ist eine fünfstufige Anzeige.
 
 ### Die Karte Stimme (Voice) { #the-voice-card }
 
-Auf der Seite **Members** der Organisation, für jemanden mit `org:settings`.
-**Sprache zu Text (Speech to text)** wählt die Engine — Aus, Browser oder Server
-(Off, Browser, Server), jede mit der Angabe, wohin das Audio geht — und für
-Server die längste Aufnahme, von 10 Sekunden bis 10 Minuten. **Standard-Provider
-(Default provider)** darunter ist der Provider und
-das Modell aus dem Speech-to-Text-Katalog und eine Sprache (automatische
-Erkennung oder eine feste Sprache, was genauer ist). Das Feld wird unabhängig
-von der Engine angezeigt, denn es ist auch das, wohin
-[Channel-Bots](channels.md#what-every-channel-shares), die auf Erben (Inherit)
-stehen, ihre Sprachnachrichten schicken; **Keiner (None)** leert es.
+Auf der Seite **Mitglieder (Members)** der Organisation, für jemanden mit
+`org:settings`. Sie hält den Speech-to-Text-**Standard**, den Agents und
+Channel-Bots erben, und wie lange ein Diktat dauern darf; ob ein Agent mit einem
+Anbieter diktiert oder Anrufe annimmt, wird auf seiner eigenen Karte Stimme
+(Voice) eingeschaltet. **Maximale Aufnahmelänge** reicht von 10 Sekunden bis 10
+Minuten. **Standardanbieter** ist Anbieter und Modell aus dem
+Speech-to-Text-Katalog und eine Sprache (automatisch erkennen oder eine feste
+Sprache, was genauer ist). Er ist auch das, wohin
+[Channel-Bots](channels.md#what-every-channel-shares), die erben, ihre
+Sprachnachrichten schicken; **Keiner (None)** löscht ihn.
 
-**Schlüssel (Key)** neben dem Provider ist der Vault-Schlüssel, mit dem die
-Voreinstellung gesendet wird. Die Liste zeigt die API-Schlüssel, deren Zweck
-dieser Provider ist und die die ganze Organisation sieht - die Plattform gibt
-diesen Schlüssel für das Diktat jedes Mitglieds und jeden erbenden Bot aus, daher
-wird der private Schlüssel eines Mitglieds nicht angeboten und abgelehnt, wenn er
-gesendet wird. Passt genau ein Schlüssel, wird er für Sie gewählt und in jedem
-Fall per ID gespeichert; zur Laufzeit wählt nichts einen Schlüssel. Ein Provider
-ohne Schlüssel ist mit **kein Schlüssel für diesen Provider** markiert, und die
-Auswahl verlinkt auf den Vault, um einen anzulegen. Ist Server gespeichert, kann
-aber nicht laufen — das Modell wurde aus dem Katalog genommen oder der Schlüssel
-gelöscht oder privat gemacht —, sagt die Karte es und bittet, **einen Schlüssel
-zu wählen**, wo dieser fehlt, denn dann sieht jedes Mitglied ein
-durchgestrichenes Mikrofon.
+**Schlüssel**, neben dem Anbieter, ist der Vault-Schlüssel, mit dem der Standard
+gesendet wird. Aufgeführt sind die API-Schlüssel, deren Zweck dieser Anbieter
+ist und die die ganze Organisation sehen kann - die Plattform gibt diesen
+Schlüssel für das Diktat jedes Mitglieds und jeden erbenden Bot aus, also wird
+der private Schlüssel eines Mitglieds nicht angeboten und abgelehnt, wenn er
+gesendet wird. Mit genau einem solchen Schlüssel wird er für Sie gewählt und in
+jedem Fall mit Namen gespeichert; nichts wählt zur Laufzeit einen Schlüssel. Ein
+Anbieter ohne Schlüssel ist als **kein Schlüssel für diesen Anbieter**
+markiert, und die Auswahl verlinkt in den Vault, um einen hinzuzufügen. Kann der
+Standard nicht laufen - das Modell wurde aus dem Katalog zurückgezogen, oder der
+Schlüssel wurde gelöscht oder privat gemacht -, sagt die Karte das und bittet,
+**einen Schlüssel zu wählen**, wo genau das fehlt.
 
-Server ohne Standard-Provider ist eine Einstellung, kein Fehler: Die Karte weist darauf hin, dass nur Agents mit eigenem Provider diktieren. **Sprachgespräche (Voice conversations)** darunter enthält
-die Anrufeinstellungen der Organisation - siehe [Sprachanrufe](#voice-calls).
-
-Wer zusätzlich `runs:view` hat, sieht oben auf der Karte eine Zeile dazu, wie viel
-die Organisation in den letzten 30 Tagen transkribiert hat — „42 Min. · 118
-Aufnahmen (30 ohne Länge)“ — aus Diktat, Sprachnachrichten in Kanälen und der
-API zusammen. **Aufschlüsselung anzeigen** listet es nach Agent und nach
-Kanal-Bot auf. Die Minuten zählen nur Aufnahmen, deren Länge gemeldet wurde,
-daher sagt die Zeile, wie viele ohne sind; solange nichts transkribiert wurde,
-ist sie ausgeblendet. Die Zahlen stammen aus
+Für jemanden, der auch `runs:view` hält, beginnt die Karte mit einer Zeile dazu,
+was die Organisation in den letzten 30 Tagen transkribiert hat — „42 Min · 118
+Aufnahmen (30 ohne Länge)“ — über Diktat, Sprachnachrichten der Channels und die
+API. **Aufschlüsselung anzeigen** listet es nach Agent und nach Channel-Bot. Die
+Minuten zählen nur Aufnahmen, deren Länge gemeldet wurde, also sagt die Zeile,
+wie viele es nicht wurden; sie ist verborgen, solange nichts transkribiert
+wurde. Die Zahlen kommen aus
 [`GET /ml/calls/summary`](ml-services.md#what-is-recorded).
 
-### Die eigene Engine eines Agents { #an-agents-own-engine }
+### Die Karte Stimme (Voice) eines Agents { #an-agents-voice-card }
 
-Der Tab **Build** eines Agents hat nach seinen Modelleinstellungen eine Karte
-**Stimme (Voice)**, für einen Agent, der anders transkribieren soll als seine
-Organisation. **Erben (Inherit)** behält Provider, Modell und Schlüssel der
-Organisation und zeigt, welche es sind; **Auswählen (Choose)** wählt ein Paar aus
-dem Katalog und den Schlüssel, mit dem es gesendet wird - einen API-Schlüssel für
-diesen Provider, den Sie sehen können, denn das Veröffentlichen leiht ihn jedem,
-der den Agent ausführen darf.
+Der Reiter **Build** eines Agents hat nach den Modelleinstellungen eine Karte
+**Stimme (Voice)** mit zwei Reitern: **Sprachanrufe** und **Diktieren**.
 
-Es ist nie der Schlüssel der Organisation: Ein
-Agent mit eigenem Paar benennt seinen eigenen Schlüssel. Die Sprache wird für
-sich gewählt: die der Organisation erben oder eine festlegen - so kann ein
-polnischer Agent Provider und Schlüssel der Organisation behalten.
+**Diktieren** hält **Mit einem Anbieter transkribieren**. An, schickt das
+Mikrofon im Chat die Aufnahme an einen Anbieter: **Eigener dieses Agents** (der
+Standard) wählt ein Paar aus dem Katalog und den Schlüssel, mit dem es gesendet
+wird - einen API-Schlüssel für diesen Anbieter, den Sie sehen dürfen, weil das
+Veröffentlichen ihn allen leiht, die den Agent ausführen dürfen -, und bis Sie
+einen wählen, wird der Standard der Organisation verwendet und genannt. **Der
+Organisation** behält Anbieter, Modell und Schlüssel der Organisation. Aus, oder
+ohne Schlüssel, mit dem gesendet werden kann, transkribiert stattdessen der
+Browser, was nichts kostet.
 
-Die Überschreibung ist Teil des Specs, wird mit dem Entwurf gespeichert und ist
-live, sobald der Agent veröffentlicht ist, und sie gilt für [das Diktieren](#dictation) an diesen Agent und für Sprachnachrichten,
-die seine Channel-Bots erben.
-[Die Reihenfolge](ml-services.md#which-engine-a-recording-reaches) erklärt den
-Rest.
-
-Die Karte sagt, wann die Überschreibung weniger ändert, als es aussieht: steht
-die Engine der Organisation auf Off oder Browser, erreicht sie nur
-Sprachnachrichten aus Channels, und ohne Provider der Organisation ist sie das,
-worauf das Diktieren an diesen Agent läuft.
+Die Sprache wird eigens gewählt: die der Organisation erben oder eine festlegen
+- so kann ein polnischer Agent Anbieter und Schlüssel der Organisation behalten.
+Die Karte ist Teil der Spec, wird mit dem Entwurf gespeichert und ist live,
+sobald der Agent veröffentlicht ist, und sie gilt für das
+[Diktieren](#dictation) an diesen Agent und für Sprachnachrichten, die seine
+Channel-Bots erben. [Die Reihenfolge](ml-services.md#which-engine-a-recording-reaches)
+hat den Rest.
 
 ### Sprachanrufe { #voice-calls }
 
 Ein [Sprachanruf](voice.md) ist ein gesprochenes Gespräch mit einem
 veröffentlichten Agent: Sie sprechen, er antwortet laut, und Sie können ihn
-unterbrechen. Drei Stellen in der Konsole richten ihn ein.
+unterbrechen. Anrufe werden im Agent eingeschaltet; die Organisation hat keine
+Anrufeinstellungen.
 
-- **Die Karte Stimme (Voice) der Organisation**, unter **Sprachgespräche (Voice
-  conversations)**: **Sprachgespräche erlauben (Allow voice conversations)**
-  (standardmäßig aus), **Anrufe im Chat anbieten (Offer calls in chat)**,
-  **Längster Anruf (Minuten) (Longest call (minutes))**, von 1 bis 50, und
-  **Monatliche Anrufminuten (Monthly call minutes)** oder kein monatliches Limit,
-  um sich allein auf Budgets zu verlassen. Die ersten drei brauchen
-  `org:settings`; die Minuten brauchen `budgets:manage` und sind für alle anderen
-  schreibgeschützt. Wer `runs:view` hat, sieht außerdem, wie viele der Minuten
-  dieses Monats Anrufe verbraucht haben.
-- **Die Karte Stimme (Voice) des Agents**, auf ihrem Tab **Sprachanrufe (Voice
-  calls)**: **Sprachanrufe erlauben (Allow voice calls)**, dann Provider und
-  Modell für Anrufe (bei Azure der Name des Deployments und sein Basismodell),
-  der Schlüssel, die Stimme, die gesprochene Sprache (oder **Sprache des
-  Anrufers (Follow the caller)**), **Längster Anruf (Longest call)** und
-  **Anweisungen für Anrufe (Instructions for calls)**. Die Karte listet auf, was
-  der Agent in Anrufen [seinem Textmodell übergibt](voice.md#handing-work-off),
-  sagt, dass Guardrails gesprochene Worte nicht filtern können, bevor sie zu
-  hören sind, und dass Anrufe als Text festgehalten werden, ohne dass Audio
-  gespeichert wird. Sie wird wirksam, sobald der Agent veröffentlicht ist.
-- **Der Schalter Sprachanrufe (Voice calls) eines Embeds**, in den Formularen für
-  Widget und gehostete Seite - siehe
-  [Kanäle](channels.md#voice-calls-on-a-widget-or-a-hosted-page).
+- **Die Karte Stimme (Voice) des Agents**, auf ihrem Reiter **Sprachanrufe**:
+  Anbieter und Modell des Anrufs (für Azure der Deployment-Name und sein
+  Basismodell), der Schlüssel, die Stimme mit einer **Abspielen**-Taste, um sie
+  zu hören, die gesprochene Sprache (oder **Dem Anrufer folgen**), der
+  **Längste Anruf** (10 Minuten, wenn nicht gesetzt, höchstens 50) und
+  **Anweisungen für Anrufe**. Die Karte listet, was der Agent in Anrufen
+  [an sein Textmodell übergibt](voice.md#handing-work-off), sagt, dass
+  Guardrails gesprochene Wörter nicht filtern können, bevor sie zu hören sind,
+  und dass Anrufe als Text ohne gespeicherten Ton festgehalten werden. Sie gilt,
+  sobald der Agent veröffentlicht ist.
+- **Der Schalter Sprachanrufe eines Embeds**, in den Formularen für Widget und
+  Hosted Page - siehe [Channels](channels.md#voice-calls-on-a-widget-or-a-hosted-page).
 
 Bevor sie einen Anruf anbietet, fragt die Konsole, ob dieser Agent einen
 annehmen kann (`GET /agents/{id}/voice`), damit niemand das Mikrofon freigibt,
-nur um abgelehnt zu werden. Die Antwort nennt, was fehlt: Anrufe in der
-Organisation oder im Chat ausgeschaltet, keine Stimme für den Agent eingerichtet,
-das Modell wird nicht mehr angeboten, kein Schlüssel oder keine Minuten mehr in
-diesem Monat.
+nur um abgelehnt zu werden. Die Antwort nennt, was fehlt: keine Stimme am Agent
+eingerichtet, das Modell nicht mehr angeboten, oder kein Schlüssel.
 
-Die **Anruftaste** sitzt im Eingabefeld des Chats, neben dem Mikrofon. Sind
-Anrufe für die Organisation oder im Chat ausgeschaltet, wird sie gar nicht
-angezeigt. Kann dieser Agent keinen Anruf annehmen, ist sie durchgestrichen, und
-beim Darüberfahren, Fokussieren oder Drücken erfahren Sie, warum - und, wenn Sie
-Anrufe einrichten dürfen, wo.
+Die **Anruftaste** steht im Eingabefeld des Chats neben dem Mikrofon, bei jedem
+Agent. Kann dieser Agent keinen Anruf annehmen, ist sie durchgestrichen, und
+Hovern, Fokussieren oder Drücken sagt, warum. Wer den Agent bearbeiten darf,
+bekommt **Im Agent Builder öffnen**, was seine Karte Stimme (Voice) auf dem
+Reiter Anrufe öffnet; allen anderen wird gesagt, jemanden zu fragen, der das
+darf.
 
-Während eines Anrufs wird das Eingabefeld zur **Anrufleiste**: was der Anruf
-gerade tut, seine Zeit gemessen am Limit des Anrufs und die verbleibenden
-Minuten des Monats, eine Wellenform beider Stimmen, Push-to-Talk, Stummschalten
-und **Beenden (End)**. Nur Beenden beendet einen Anruf; wenn Sie eine andere
-Unterhaltung oder einen neuen Chat öffnen, wird aufgelegt. Gesprochen wird
-standardmäßig freihändig; **Push-to-Talk** (die Taste oder die Leertaste halten)
-ist eine Wahl, die sich Ihr Browser merkt. Bei reduzierter Bewegung ersetzt eine
-gestufte Pegelanzeige die Wellenform.
+Während eines Anrufs schwebt eine **Pille** über dem Eingabefeld, das bleibt, wie
+es war, Entwurf und Anhänge eingeschlossen: was der Anruf gerade tut, seine
+Zeit, eine Wellenform beider Stimmen, Push-to-Talk, Stummschalten und **Anruf
+beenden**. Nur Anruf beenden beendet einen Anruf; eine andere Unterhaltung oder
+einen neuen Chat zu öffnen, legt ihn auf. Gesprochen wird standardmäßig
+freihändig; **Push-to-Talk** (die Taste oder die Leertaste halten) ist eine Wahl,
+die Ihr Browser sich merkt. Bei reduzierter Bewegung ersetzt eine gestufte
+Pegelanzeige die Wellenform.
 
-Ein Anruf durchläuft Zustände, die die Leiste benennt: Verbindungsaufbau,
-Zuhören, Sie sprechen, Nachdenken, der Agent spricht, unterbrochen, Arbeit an
-einem Tool, Warten auf Ihre Freigabe, eine Freigabe, die Sie nicht erteilen
-können, die Zeit ist fast um, und beendet - durch Sie, durch ein Limit, eine
-abgebrochene Verbindung oder einen Fehler.
+Ein Anruf durchläuft Zustände, die die Pille benennt: Verbinden, Zuhören, Sie
+sprechen, Denken, der Agent spricht, unterbrochen, arbeitet an einem Tool,
+wartet auf Ihre Freigabe, eine Freigabe, die Sie nicht erteilen können, fast
+keine Zeit mehr und beendet - von Ihnen, durch ein Limit, eine abgebrochene
+Verbindung oder einen Fehler.
 
-Der Anruf findet in der Unterhaltung statt: Untertitel erscheinen Wort für Wort
-in der Nachricht, die gerade gesprochen wird, ein Screenreader liest jede Zeile
-vor, sobald sie feststeht, und jede abgeschlossene Runde macht der in der
-Unterhaltung gespeicherten Nachricht Platz, sodass der Anruf danach in Ihrem
-Verlauf steht und Sie tippend weitermachen können. Während der Agent nachdenkt
-oder ein Tool ausführt, zeigt die Unterhaltung das an der Stelle an, an der
-seine Antwort erscheinen wird.
+Der Anruf findet in der Unterhaltung statt: Jeder Turn wird als die Nachricht
+gezeichnet, die er wird, und wächst Wort für Wort, während er gesprochen wird,
+ein Screenreader hört jede Zeile, sobald sie endgültig ist, und die gespeicherte
+Nachricht tritt an ihre Stelle, ohne dass sich etwas bewegt, sodass der Anruf
+danach in Ihrem Verlauf steht und Sie weitertippen können. Während der Agent
+nachdenkt oder ein Tool ausführt, sagt die Unterhaltung das dort, wo seine
+Antwort erscheinen wird.
 
 **Freigaben** werden im Anruf entschieden: Eine Karte in der Unterhaltung zeigt
-das Tool, seine exakten Argumente und was von Ihnen verstanden wurde, mit einem
-60-Sekunden-Countdown. Entschieden wird nur über ihre Schaltflächen; ein
-gesprochenes „Ja“ genügt nicht. Ohne `approvals:decide` sagt die Karte, dass das
-Tool eine Freigabe braucht, die Sie per Stimme nicht erteilen können, und bietet
-an, den Anruf zu beenden und schriftlich fortzufahren. **Fragen** des Agents
-erscheinen als die Fragekarte des Chats und werden auch vorgelesen: Tippen Sie
-eine Antwort an oder sagen Sie sie einfach. Arbeit, die der Agent
-[seinem Textmodell übergibt](voice.md#handing-work-off), zeigt jeden Schritt in
-der Leiste, während er läuft, und die Schritte bleiben danach am Turn. **Limits** werden
-ausgesprochen: Eine Minute vor dem Ende des längsten Anrufs werden Sie gewarnt,
-und wenn die Zeit, das Budget oder die Minuten des Monats aufgebraucht sind,
-sagt der Agent einen Satz, und der Anruf endet.
+das Tool, seine genauen Argumente und was Sie gesagt haben sollen, mit einem
+60-Sekunden-Countdown. Nur ihre Tasten entscheiden; „ja" zu sagen, gibt nichts
+frei. Ohne `approvals:decide` sagt die Karte, dass das Tool eine Freigabe
+braucht, die Sie per Stimme nicht erteilen können, und bietet an, den Anruf zu
+beenden und im Text weiterzumachen. **Fragen**, die der Agent stellt, erscheinen
+als Fragekarte des Chats und werden auch vorgelesen: Tippen Sie eine Antwort an
+oder sagen Sie sie einfach. Arbeit, die der Agent
+[an sein Textmodell übergibt](voice.md#handing-work-off), zeigt jeden Schritt,
+während er läuft, und die Schritte bleiben danach am Turn. **Limits** werden
+gesprochen: Eine Minute vor dem Ende des längsten Anrufs werden Sie gewarnt, und
+wenn die Zeit oder das Budget ausgeht, sagt der Agent einen Satz, und der Anruf
+endet.
 
-Ein **Hinweisstreifen unter der Leiste** zeigt, was gerade Ihre Aufmerksamkeit
-braucht: die Mikrofonabfrage, eine Freigabe, die weiter oben wartet (mit
-**Karte zeigen (Show card)**), die letzte Minute, ein Limit, das den Anruf
-beendet, das Wiederherstellen der Verbindung oder wie Push-to-Talk funktioniert.
-Endet der Anruf, nennt eine Karte in der Unterhaltung seine Dauer und die Zahl der
-gespeicherten Runden oder das Limit, das ihn beendet hat, mit einer Schaltfläche
-zum erneuten Anrufen. Ist ein Anruf gar nicht erst zustande gekommen, steht der
-Grund unter dem Eingabefeld, mit **Erneut versuchen (Try again)**.
+Ein **Streifen über dem Eingabefeld** zeigt auf das, was Sie braucht: die
+Mikrofonabfrage, eine wartende Freigabe (mit **Karte zeigen**), die letzte
+Minute, ein Limit, das den Anruf beendet, eine Wiederverbindung oder wie
+Push-to-Talk funktioniert. Endet der Anruf, sagt eine Karte in der Unterhaltung,
+wie lange er lief und wie viele Turns gespeichert wurden, oder welches Limit ihn
+beendet hat, mit **Erneut anrufen**. Ein Anruf, der nie begann, sagt über dem
+Eingabefeld, warum, mit **Erneut versuchen**.
 
 In **Aktivität (Activity)** ist ein Anruf eine Zeile mit einem Mikrofon-Abzeichen,
-und der Filter nach Art (**Text** oder **Sprachanrufe (Voice calls)**) grenzt auf
-Anrufe ein; ein Anruf, der sich neu verbunden hat, bleibt eine Zeile, mit
-summierter Zeit und summierten Kosten aller Verbindungen. Die Dashboard-Karte
-**Anrufminuten (Voice minutes)**, in der Gruppe Usage für jemanden mit
-`runs:view`, zeigt die Anrufminuten und Anrufe des Zeitraums, die drei
-häufigsten Agents und die Minuten dieses Monats gegenüber dem Limit der
-Organisation.
+und der Art-Filter (**Text** oder **Sprachanrufe**) grenzt auf Anrufe ein; ein
+Anruf, der sich neu verbunden hat, ist weiterhin eine Zeile, mit Zeit und Kosten
+aller Verbindungen summiert. Die Dashboard-Karte **Sprachminuten (Voice
+minutes)**, im Nutzungsband für jemanden mit `runs:view`, zeigt die
+Anrufminuten und Anrufe des Zeitraums und die drei häufigsten Agents.
 
 ## Wofür jeder Bereich da ist { #what-each-area-is-for }
 

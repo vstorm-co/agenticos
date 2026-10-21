@@ -447,7 +447,7 @@ to the bill, because each child's cost is added by its own row and removed by it
 parent's. A key works the same way, and matters more: a key is what somebody
 rotates when a bill looks wrong.
 
-### A voice call's budget and minutes
+### A voice call's budget
 
 A [voice call](voice.md) is a run, and its spend counts against the agent's and
 the organization's budgets like any other. Three things differ, because a call
@@ -460,10 +460,9 @@ cannot be checked before each request the way a text run is:
   month's spend is re-read every 15 seconds, so other runs spending meanwhile
   are seen. A budget that runs out mid-call gets one spoken sentence and ends
   the call, recorded `budget_exceeded`.
-- **Calls have a second limit of their own**: the organization's monthly call
-  minutes (600 by default, null for budgets only), set by whoever holds
-  `budgets:manage`. They are counted from the call rows, not from run
-  durations, and a call that reaches them is ended the same way.
+- **Its length is the agent's.** A call runs at most the agent's longest call,
+  10 minutes by default and 50 at most; there is no separate allowance of call
+  minutes, so the budgets are the one limit on what calls spend.
 
 A call whose process died is closed by the voice sweep at the cost its last
 heartbeat recorded, unlike a text run, whose spend dies with its process.

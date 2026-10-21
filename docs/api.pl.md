@@ -1,5 +1,5 @@
 ---
-source_sha: "7c2f2983fde8"
+source_sha: "66cbedf36a2b"
 ---
 
 # API HTTP { #the-http-api }
@@ -415,7 +415,7 @@ sesję ponownie, więc rozmowa nie przetrwa wylogowania.
 | Ramka | Pola | Znaczy |
 |---|---|---|
 | `answer` | `sdp` | WebRTC: odpowiedź providera dla połączenia peer przeglądarki |
-| `ready` | `call_id`, `run_id`, `conversation_id`, `transport`, `input_sample_rate`, `output_sample_rate`, `cap_seconds`, `minutes_left`, `resume_token` | Rozmowa jest zestawiona. `resume_token` jest wysyłany tylko tutaj i tylko temu dzwoniącemu; ponowne połączenie odsyła go z powrotem |
+| `ready` | `call_id`, `run_id`, `conversation_id`, `transport`, `input_sample_rate`, `output_sample_rate`, `cap_seconds`, `resume_token` | Rozmowa jest zestawiona. `resume_token` jest wysyłany tylko tutaj i tylko temu dzwoniącemu; ponowne połączenie odsyła go z powrotem |
 | `state` | `state`: `connecting`, `listening`, `user_speaking`, `thinking`, `agent_speaking`, `interrupted`, `tool_running`, `awaiting_approval` | Kto mówi albo co robi agent |
 | `caption` | `role`, `turn_id`, `part` oraz jedno z: `delta` (dopisz), `text` (zastąp dotychczasowym sprawdzonym tekstem) albo `final` | Napis na żywo |
 | `turn_saved` | `message` | Zakończona tura, jako wiadomość, w której została zapisana; zastępuje napisy niosące jej `turn_id` |
@@ -430,10 +430,8 @@ sesję ponownie, więc rozmowa nie przetrwa wylogowania.
 | *binarna* | 16-bitowy PCM z częstotliwością wyjściową modelu | Relay: audio agenta |
 
 **Odwiedzający widget lub hostowaną stronę dowiaduje się mniej.** Jego `ready`
-nie zawiera `run_id`, a `minutes_left` przychodzi jako `null`. `cap_seconds` to
-limit samej rozmowy - najdłuższa rozmowa organizacji, agenta albo to, co
-zostało ze wznawianej rozmowy - a nie limit zdradzający minuty organizacji.
-Serwer i tak kończy rozmowę na prawdziwym limicie. Ramki narzędzi podlegają
+nie zawiera `run_id`; `cap_seconds` to limit rozmowy - najdłuższa rozmowa
+agenta albo to, co zostało ze wznawianej rozmowy. Ramki narzędzi podlegają
 przełącznikom embeda `show_tool_steps` i `show_tool_results`, tak jak
 odpowiedź pisana. Bez kroków narzędzi nie jest wysyłana żadna ramka `tool`, a
 `tool_running` przychodzi jako `thinking`. Bez wyników narzędzi
@@ -452,34 +450,35 @@ ponownie: jej kolejne ponowne połączenie też jest odrzucane jako
 
 Socket, który w ciągu 10 sekund nie wyśle `start`, dostaje `ended` z `no_start`.
 Rozmowa, która się nie rozpocznie, odpowiada `ended` ze stałym `reason`:
-`voice_off`, `no_agent`, `forbidden`, `not_configured`, `bad_offer`,
-`data_channel`, `resume_refused`, `minutes_exhausted`, `call_limit`,
-`not_priced`, `budget`, `busy` albo `line_busy`, z `message`, który można
-bezpiecznie pokazać. Start, który nie powiedzie się z jakiegokolwiek innego
+`no_agent`, `forbidden`, `not_configured`, `bad_offer`, `data_channel`,
+`resume_refused`, `call_limit`, `not_priced`, `budget`, `busy` albo
+`line_busy`, z `message`, który można bezpiecznie pokazać. `busy` pada dopiero
+wtedy, gdy rozmowa, którą ta sama osoba rozłączyła przed chwilą, miała do
+czterech sekund na zakończenie. Start, który nie powiedzie się z jakiegokolwiek innego
 powodu, odpowiada `ended` z `error`.
 
 Odwiedzający odrzucony jako
-`not_configured`, `not_priced`, `minutes_exhausted` albo `budget`, oraz
-rozmowa odwiedzającego zakończona jako `budget` albo `minutes`, dostaje zamiast
+`not_configured`, `not_priced` albo `budget`, oraz rozmowa odwiedzającego
+zakończona jako `budget`, dostaje zamiast
 tego `unavailable` z komunikatem "Calls are not available right now.": kod i
 pełny komunikat są do wiadomości operatora agenta. Rozmowa w zarchiwizowanej
 konwersacji jest odrzucana jako `forbidden`, tak jak wiadomość pisana do niej.
 
-Rozmowa, która trwała, kończy się z `user`, `time_limit`, `budget`, `minutes`,
-`disconnected`, `revoked`, `shutdown` albo `error`. Kończy się z `minutes`, gdy
-jej limit wyznaczyły minuty miesiąca, a z `time_limit`, gdy wyznaczyło go
-ustawienie najdłuższej rozmowy. Rozmowa odwiedzającego kończy się z `revoked`, gdy jej
+Rozmowa, która trwała, kończy się z `user`, `time_limit`, `budget`,
+`disconnected`, `revoked`, `guardrail`, `shutdown` albo `error`; z `time_limit`,
+gdy osiągnęła najdłuższą rozmowę agenta. Rozmowa odwiedzającego kończy się z `revoked`, gdy jej
 embed zostanie wstrzymany, będzie miał wyłączone rozmowy albo zostanie
 skierowany na innego agenta. Żadna ramka nigdy nie niesie poświadczeń
 providera.
 
-Idą z tym cztery route'y HTTP:
+Idzie z tym pięć route'ów HTTP:
 
 | Route | Bramka | Odpowiada |
 |---|---|---|
-| `GET /api/v1/agents/{agent_id}/voice?surface=web` | `agents:run` na tym agencie, łącznie z grantem; w przeciwnym razie `404` | Czy rozmowa by się rozpoczęła, dlaczego nie, transport, najdłuższa rozmowa i pozostałe minuty. `surface=embed` pyta o widget albo hostowaną stronę |
+| `GET /api/v1/agents/{agent_id}/voice` | `agents:run` na tym agencie, łącznie z grantem; w przeciwnym razie `404` | Czy rozmowa by się rozpoczęła, dlaczego nie (`no_voice`, `not_offered` albo `no_key`), transport i najdłuższa rozmowa |
+| `POST /api/v1/agents/{agent_id}/voice/preview` | `agents:edit` na tym agencie, łącznie z grantem; w przeciwnym razie `404` | Głos z wersji roboczej sekcji Voice mówiący jedno stałe zdanie, jako `audio/wav`. W cache per głos i język; `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` na osobę |
 | `GET /api/v1/providers/realtime-models` | `agents:view` | Katalog realtime, z którego wybiera sekcja głosu |
-| `GET /api/v1/voice/usage?start=…&end=…` | `runs:view` | Sekundy rozmów i liczba rozmów dla rozmów rozpoczętych w chwili `start` lub później i przed `end`, według agenta (rozmowy usuniętego agenta jako jeden wiersz bez id i nazwy), oraz sekundy z tego miesiąca wobec miesięcznych minut organizacji. `end`, który nie jest późniejszy niż `start`, jest odrzucany z `422` |
+| `GET /api/v1/voice/usage?start=…&end=…` | `runs:view` | Sekundy rozmów i liczba rozmów dla rozmów rozpoczętych w chwili `start` lub później i przed `end`, według agenta (rozmowy usuniętego agenta jako jeden wiersz bez id i nazwy). `end`, który nie jest późniejszy niż `start`, jest odrzucany z `422` |
 | `GET /api/v1/runs?modality=voice` | `runs:view` | Tylko rozmowy (`text` tylko dla wpisanych runów); rozmowa, która połączyła się ponownie, to jeden wiersz z `voice_chain`, ze wszystkimi połączeniami zsumowanymi |
 
 Zatwierdzenie należące do trwającej rozmowy jest rozstrzygane w rozmowie:

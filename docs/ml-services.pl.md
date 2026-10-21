@@ -1,5 +1,5 @@
 ---
-source_sha: "e2efe341a181"
+source_sha: "d3a18b2e5b08"
 ---
 
 # Usługi ML { #the-ml-services }
@@ -181,23 +181,28 @@ osoba może dyktować do każdego agenta, którego może
 uruchomić, łącznie z osobą z rolą Viewer, która ma na nim grant `use`. Agent, którego
 nie może uruchomić, odpowiada 404, jak wszędzie indziej.
 
-Co odczytuje z organizacji, ustawione na
-[karcie Głos (Voice)](console.md#the-voice-card) przez kogoś z `org:settings`:
-`chat_dictation` (`off`, `browser` albo `server`; wszystko poza `server` zostaje
-odrzucone jako `not_configured`), `speech_to_text_provider` i
+**Przełącznik należy do agenta.** Nagranie jest transkrybowane tylko wtedy, gdy
+opublikowany przełącznik Dyktowania agenta, `speech_to_text.dictation`, jest
+włączony; wyłączony oznacza, że kompozytor używa rozpoznawania mowy przeglądarki,
+a nagranie wysłane mimo to jest odrzucane jako `not_configured`, tak jak dla
+zarchiwizowanego agenta. Dostawca, model i klucz
+[rozwiązują się](#which-engine-a-recording-reaches) wtedy z agenta i organizacji.
+Z organizacji, ustawione na [karcie Głos (Voice)](console.md#the-voice-card)
+przez kogoś z `org:settings`, pochodzą `speech_to_text_provider` i
 `speech_to_text_model` (para z katalogu speech-to-text),
 `speech_to_text_language` (kod ISO-639-1 albo null, by silnik sam go rozpoznał)
-oraz `dictation_max_seconds` (od 10 do 600, domyślnie 300). Silnik i najdłuższe
-dyktowanie zawsze należą do organizacji; agent może zmienić tylko dostawcę, model
-i język.
+oraz `dictation_max_seconds` (od 10 do 600, domyślnie 300), które ustawia tylko
+organizacja.
 
-`GET /api/v1/agents/{agent_id}/dictation`, z tym samym dostępem, mówi, czy
-mikrofon zadziała, zanim ktokolwiek zacznie nagrywać: `engine`, `max_seconds`,
-`provider`, `format`, `ready`, `server_available` i `unavailable`.
-`server_available` wymaga pary, która rozwiązuje się dla tego agenta, katalogu,
-który nadal ją oferuje, oraz użytecznego klucza wskazanego obok pary —
-sprawdzanego pod kątem istnienia, nigdy nie otwieranego; `ready` to to samo plus
-silnik `server` i agent, który nie jest zarchiwizowany.
+`GET /api/v1/agents/{agent_id}/dictation`, z tym samym dostępem, mówi, jak
+mikrofon będzie transkrybował, zanim ktokolwiek zacznie nagrywać: `engine`
+(`server` albo `browser`), `requested` (przełącznik agenta), `server_available`,
+`unavailable`, `max_seconds`, `provider` i `format`. `server_available` wymaga
+pary, która rozwiązuje się dla tego agenta, katalogu, który nadal ją oferuje,
+oraz użytecznego klucza wskazanego obok pary — sprawdzanego pod kątem
+istnienia, nigdy nie otwieranego; `engine` to `server`, gdy to zachodzi,
+przełącznik jest włączony, a agent nie jest zarchiwizowany, i `browser` w
+przeciwnym razie.
 
 Gdy jest fałszywe,
 `unavailable` mówi, czego brakuje: `no_provider` (żaden poziom nie wskazuje
@@ -205,7 +210,7 @@ pary), `not_offered` (katalog ją wycofał) albo `no_key` (nie wskazano
 użytecznego klucza — wybierz go).
 Formularz embeda czyta `server_available`, bo
 [hostowana strona i widget](channels.md#dictation-on-a-widget-or-a-hosted-page)
-nie zależą od silnika `/chat`.
+nie zależą od przełącznika agenta w `/chat`.
 
 `provider` to ten, do którego trafiłoby nagranie, a `format` to, w czym dla
 niego nagrywać: `wav`, chyba że wdrożenie
@@ -280,7 +285,7 @@ wywołanie zostaje zapisane.
 Silnik zamiany mowy na tekst mogą wskazać trzy miejsca:
 [karta Głos (Voice)](console.md#the-voice-card) organizacji, nadpisanie
 [`speech_to_text`](reference/spec.md#speech-to-text) agenta, ustawiane na jego
-własnej [karcie Głos (Voice)](console.md#an-agents-own-engine) i działające po
+własnej [karcie Głos (Voice)](console.md#an-agents-voice-card) i działające po
 opublikowaniu, oraz [bot kanału](channels.md#what-every-channel-shares).
 Rozwiązują się w dwóch połowach:
 

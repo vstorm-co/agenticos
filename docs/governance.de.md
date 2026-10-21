@@ -1,5 +1,5 @@
 ---
-source_sha: "19fdd3a796d7"
+source_sha: "5931b7688a5d"
 ---
 
 # Governance { #governance }
@@ -518,7 +518,7 @@ Zeile addiert und von der seines Parents entfernt werden. Ein Schlüssel
 funktioniert genauso, und er zählt mehr: Ein Schlüssel ist das, was jemand
 rotiert, wenn eine Rechnung falsch aussieht.
 
-### Budget und Minuten eines Sprachanrufs { #a-voice-calls-budget-and-minutes }
+### Das Budget eines Sprachanrufs { #a-voice-calls-budget }
 
 Ein [Sprachanruf](voice.md) ist ein Run, und seine Ausgaben zählen gegen die
 Budgets des Agents und der Organisation wie jede andere. Drei Dinge sind anders,
@@ -534,10 +534,10 @@ Text-Run geschieht:
   andere Runs, die inzwischen ausgeben, gesehen werden. Ein Budget, das mitten
   im Anruf ausgeht, bekommt einen gesprochenen Satz und beendet den Anruf,
   festgehalten als `budget_exceeded`.
-- **Anrufe haben ein zweites, eigenes Limit**: die monatlichen Anrufminuten der
-  Organisation (standardmäßig 600, null für nur Budgets), festgelegt von dem,
-  der `budgets:manage` hält. Sie werden aus den Anrufzeilen gezählt, nicht aus
-  Run-Dauern, und ein Anruf, der sie erreicht, wird auf dieselbe Weise beendet.
+- **Seine Länge ist die des Agents.** Ein Anruf dauert höchstens so lange wie
+  der längste Anruf des Agents, standardmäßig 10 Minuten und höchstens 50; ein
+  eigenes Kontingent an Anrufminuten gibt es nicht, die Budgets sind also die
+  einzige Grenze dessen, was Anrufe ausgeben.
 
 Einen Anruf, dessen Prozess gestorben ist, schließt der Voice-Sweep zu den
 Kosten, die sein letzter Heartbeat festgehalten hat — anders als einen Text-Run,

@@ -1,5 +1,5 @@
 ---
-source_sha: "872f30716dac"
+source_sha: "a71f2915fd7d"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -868,9 +868,8 @@ agent: la misma llamada que un miembro hace desde `/chat`, con los mismos
 límites, ejecutada en el contexto del publicador y registrada con la superficie
 `embed`.
 
-**Encenderlo se rechaza** mientras el interruptor de voz de la organización esté
-apagado o el agent no tenga una sección Voice con la que se pueda mantener una
-llamada. Solo se comprueba el cambio, así que un embed cuyo agent pierda la voz
+**Encenderlo se rechaza** mientras el agent no tenga una sección Voice
+publicada con la que se pueda mantener una llamada. Solo se comprueba el cambio, así que un embed cuyo agent pierda la voz
 más tarde todavía puede editarse. Mientras una llamada no pudiera empezar, la
 config pública dice `voice_conversation: false` y a los visitantes no se les
 ofrece ninguna llamada; cuando sí pudiera, la config indica además qué
@@ -927,10 +926,9 @@ trabajo](#what-the-visitor-sees-of-the-work) filtran los frames de una llamada
 igual que filtran las respuestas escritas: sin *Qué está haciendo el agent* un
 visitante no sabe que se ejecutó una herramienta, y sin *Qué devolvió cada paso*
 un paso no lleva con qué se llamó a la herramienta ni lo que volvió. El límite
-que ve un visitante es el límite propio de la llamada, nunca los minutos que le
-quedan a la organización, y un rechazo por la configuración, el precio, los
-minutos o el budget del operador dice solo que las llamadas no están disponibles
-ahora. Pausar el embed, desactivar sus llamadas o apuntarlo a otro agent termina
+que ve un visitante es el límite propio de la llamada, y un rechazo por la
+configuración, el precio o el budget del operador dice solo que las llamadas no
+están disponibles ahora. Pausar el embed, desactivar sus llamadas o apuntarlo a otro agent termina
 las llamadas en él en un heartbeat. Los frames están en [la página de la
 API](api.md#voice-calls).
 
@@ -972,12 +970,13 @@ llamadas abiertas quedan limitadas, junto con las de todos, por el del embed.
 !!! danger "El peor caso para un enlace filtrado"
 
     Tres llamadas abiertas a la vez, cada una como mucho la llamada más larga
-    de la organización - 10 minutos por defecto, 50 como máximo -, gastan como
-    mucho tres minutos de llamada por minuto. A ese ritmo, los 600 minutos
-    mensuales por defecto duran al menos tres horas y veinte minutos de abuso,
-    y después se rechaza toda llamada de la organización, incluidas las de los
-    miembros, hasta que cambie el mes. Pon el embed en pausa, baja los minutos
-    mensuales de la organización o apaga sus llamadas si eso es demasiado.
+    del agent - 10 minutos por defecto, 50 como máximo -, gastan como mucho tres
+    minutos de llamada por minuto, en la cuenta de la organización en el
+    provider. Lo que lo detiene son los budgets del agent y de la organización:
+    cada llamada se compara con lo que queda antes de empezar, y termina cuando
+    el budget se agota, incluidos los runs de los miembros. Dale al agent un
+    budget propio, pon el embed en pausa o apaga sus llamadas si eso es
+    demasiado.
 
 ---
 

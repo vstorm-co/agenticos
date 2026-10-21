@@ -407,7 +407,7 @@ not outlive a sign-out.
 | Frame | Fields | Means |
 |---|---|---|
 | `answer` | `sdp` | WebRTC: the provider's answer for the browser's peer connection |
-| `ready` | `call_id`, `run_id`, `conversation_id`, `transport`, `input_sample_rate`, `output_sample_rate`, `cap_seconds`, `minutes_left`, `resume_token` | The call is set up. `resume_token` is sent only here, to this caller; a reconnect sends it back |
+| `ready` | `call_id`, `run_id`, `conversation_id`, `transport`, `input_sample_rate`, `output_sample_rate`, `cap_seconds`, `resume_token` | The call is set up. `resume_token` is sent only here, to this caller; a reconnect sends it back |
 | `state` | `state`: `connecting`, `listening`, `user_speaking`, `thinking`, `agent_speaking`, `interrupted`, `tool_running`, `awaiting_approval` | Who is talking, or what the agent is doing |
 | `caption` | `role`, `turn_id`, `part`, and one of `delta` (append), `text` (replace with the screened text so far) or `final` | A live caption |
 | `turn_saved` | `message` | A finished turn, as the message it was saved as; it replaces the captions carrying its `turn_id` |
@@ -422,10 +422,8 @@ not outlive a sign-out.
 | *binary* | 16-bit PCM at the model's output rate | The relay: the agent's audio |
 
 **A visitor on a widget or a hosted page is told less.** `ready` leaves out
-`run_id` and sends `minutes_left` as `null`, and its `cap_seconds` is the call's
-own limit - the organization's longest call, the agent's, or what is left of a
-call being resumed - rather than one that gives away the organization's minutes.
-The server still ends the call at the real limit. The tool frames follow the
+`run_id`; its `cap_seconds` is the call's limit - the agent's longest call, or
+what is left of a call being resumed. The tool frames follow the
 embed's `show_tool_steps` and `show_tool_results` switches, as a typed reply's
 do. Without tool steps no `tool` frame is sent and `tool_running` is sent as
 `thinking`. Without tool results, `approval_unavailable` is sent with empty
@@ -442,31 +440,33 @@ of 20 connections is not resumed again: its next reconnect is refused as
 
 A socket that sends no `start` within 10 seconds gets `ended` with `no_start`.
 A call that will not start answers with `ended` and a stable `reason`:
-`voice_off`, `no_agent`, `forbidden`, `not_configured`, `bad_offer`,
-`data_channel`, `resume_refused`, `minutes_exhausted`, `call_limit`,
-`not_priced`, `budget`, `busy` or `line_busy`, with a `message` safe to show. A
-start that fails for any other reason answers `ended` with `error`.
+`no_agent`, `forbidden`, `not_configured`, `bad_offer`, `data_channel`,
+`resume_refused`, `call_limit`, `not_priced`, `budget`, `busy` or `line_busy`,
+with a `message` safe to show. `busy` is said only after a call the same person
+hung up a moment ago has had up to four seconds to finish ending. A start that
+fails for any other reason answers `ended` with `error`.
 
-A visitor refused as `not_configured`, `not_priced`, `minutes_exhausted` or `budget`, or a
-visitor's call that ends as `budget` or `minutes`, gets `unavailable` instead,
+A visitor refused as `not_configured`, `not_priced` or `budget`, or a visitor's
+call that ends as `budget`, gets `unavailable` instead,
 with the message "Calls are not available right now.": the code and the full
 message are the agent's operator's to know. A call into an archived
 conversation is refused as `forbidden`, as a typed message into one is refused.
 
-A call that ran ends with `user`, `time_limit`, `budget`, `minutes`,
-`disconnected`, `revoked`, `shutdown` or `error`. It ends as `minutes` when the
-month's minutes set its limit, and as `time_limit` when a longest call did. A
-visitor's call ends as `revoked` when its embed is paused, has its calls
+A call that ran ends with `user`, `time_limit`, `budget`, `disconnected`,
+`revoked`, `guardrail`, `shutdown` or `error`; `time_limit` when the agent's
+longest call was reached. A visitor's call ends as `revoked` when its embed is
+paused, has its calls
 switched off or is pointed at another agent. No frame ever carries a provider
 credential.
 
-Four HTTP routes go with it:
+Five HTTP routes go with it:
 
 | Route | Gate | Answers |
 |---|---|---|
-| `GET /api/v1/agents/{agent_id}/voice?surface=web` | `agents:run` on that agent, a grant included; `404` otherwise | Whether a call would start, why not, the transport, the longest call and the minutes left. `surface=embed` asks for a widget or a hosted page |
+| `GET /api/v1/agents/{agent_id}/voice` | `agents:run` on that agent, a grant included; `404` otherwise | Whether a call would start, why not (`no_voice`, `not_offered` or `no_key`), the transport and the longest call |
+| `POST /api/v1/agents/{agent_id}/voice/preview` | `agents:edit` on that agent, a grant included; `404` otherwise | A draft Voice section's voice saying one fixed sentence, as `audio/wav`. Cached per voice and language; `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` per person |
 | `GET /api/v1/providers/realtime-models` | `agents:view` | The realtime catalog the Voice section picks from |
-| `GET /api/v1/voice/usage?start=…&end=…` | `runs:view` | Call seconds and calls for calls started at or after `start` and before `end`, by agent (a deleted agent's calls as one row with no id or name), and this month's seconds against the organization's monthly minutes. An `end` not after `start` is refused with `422` |
+| `GET /api/v1/voice/usage?start=…&end=…` | `runs:view` | Call seconds and calls for calls started at or after `start` and before `end`, by agent (a deleted agent's calls as one row with no id or name). An `end` not after `start` is refused with `422` |
 | `GET /api/v1/runs?modality=voice` | `runs:view` | Calls only (`text` for typed runs only); a call that reconnected is one row carrying `voice_chain`, every connection summed |
 
 An approval that belongs to a live call is decided in the call:

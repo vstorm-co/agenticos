@@ -54,8 +54,8 @@ _DICTATION_DESCRIPTION = (
 
 _VOICE_CONVERSATION_DESCRIPTION = (
     "Offer visitors a voice call with the agent (#54). Off by default and separate from "
-    "dictation. Saving it on is refused while the organization's voice switch is off or "
-    "the agent has no voice it can call with. Visitors cannot approve anything, so tools "
+    "dictation. Saving it on is refused while the agent has no published voice it can call "
+    "with. Visitors cannot approve anything, so tools "
     "that need approval are left out of their calls."
 )
 
@@ -448,7 +448,7 @@ class PublicEmbedConfig(BaseSchema):
         default=False,
         description=(
             "Whether the visitor is offered a voice call. Sent true only while a call would "
-            "start - the organization's voice switch on and the agent's voice resolving - "
+            "start - the agent's published voice resolving - "
             "and false otherwise, with nothing about why."
         ),
     )
@@ -498,7 +498,7 @@ class PublicPageConfig(BaseSchema):
         default=False,
         description=(
             "Whether the visitor is offered a voice call. Sent true only while a call would "
-            "start - the organization's voice switch on and the agent's voice resolving - "
+            "start - the agent's published voice resolving - "
             "and false otherwise, with nothing about why."
         ),
     )

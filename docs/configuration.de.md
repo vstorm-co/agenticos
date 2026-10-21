@@ -1,5 +1,5 @@
 ---
-source_sha: "cf9b53f132c2"
+source_sha: "75367be9f30d"
 ---
 
 # Konfiguration { #configuration }
@@ -1196,14 +1196,14 @@ Profiles dürfen ohne jedes Flag auf lokale Endpunkte wie Ollama zeigen
 
 ## Sprachanrufe { #voice-calls }
 
-[Sprachanrufe](voice.md) werden pro Organisation in der App eingeschaltet,
-begrenzt und mit ihren monatlichen Minuten versehen. Zwei Obergrenzen gehören
-dem Deployment:
+[Sprachanrufe](voice.md) werden in jedem Agent eingeschaltet und durch seinen
+längsten Anruf und die Budgets begrenzt. Zwei Obergrenzen gehören dem
+Deployment:
 
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|
 | `VOICE_MAX_CALLS_PER_USER` | `1` | Anrufe, die eine Person gleichzeitig führen darf. Der Anruf eines zweiten Tabs ist fast immer ein Versehen, und jeder wird abgerechnet; ein zweiter Start wird als `busy` abgelehnt |
-| `VOICE_MAX_CALLS_PER_EMBED` | `3` | Anrufe, die ein Widget oder eine Hosted Page gleichzeitig führen darf, von allen Besuchenden zusammen; der nächste wird als `line_busy` abgelehnt. Besuchende haben kein Konto, auf das gezählt werden könnte, also ist das, was einen geleakten Link davon abhält, die monatlichen Minuten der Organisation parallel zu verbrauchen |
+| `VOICE_MAX_CALLS_PER_EMBED` | `3` | Anrufe, die ein Widget oder eine Hosted Page gleichzeitig führen darf, von allen Besuchenden zusammen; der nächste wird als `line_busy` abgelehnt. Besuchende haben kein Konto, auf das gezählt werden könnte, also ist das, was einen geleakten Link davon abhält, das Budget der Organisation parallel zu verbrauchen |
 
 Beide zählen Anrufe, deren Heartbeat frisch ist, sodass ein Anruf, dessen
 Prozess gestorben ist, innerhalb von 45 Sekunden nicht mehr zählt. Das Starten
@@ -1247,6 +1247,7 @@ sollte, ist eine eigene Entscheidung und nicht diese.
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Dateien, die eine besuchende Person auf einer Hosted Page ablegen darf. Gezählt **je Adresse und je Visitor Key**, und beide müssen es zulassen — der Key wird vom Browser erzeugt, nur ihn zu zählen begrenzt also nichts |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | Die [ML-Dienste](ml-services.md), pro Aufrufer. Diese Endpunkte erledigen ihre Arbeit synchron, ein unbegrenzter Aufrufer belegt also den Parsing-Pool statt eines Budgets |
 | `RATE_LIMIT_DICTATION_PER_MINUTE` | `10` | [Diktieren im Chat](ml-services.md#dictation-in-chat), pro Person, auf einem eigenen Zähler, damit Diktieren und eine Integration, die die ML-Dienste aufruft, einander nicht das Kontingent verbrauchen. Jedes Diktat ist ein Aufruf beim kostenpflichtigen Provider der Organisation |
+| `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` | `6` | [Eine Stimme anhören](voice.md#turn-it-on) im Builder, pro Person. Jede Vorschau außerhalb des Caches ist eine kurze kostenpflichtige Sitzung beim Realtime-Provider des Agents, außerhalb aller Modellbudgets; eine einmal gehörte Stimme bleibt eine Woche im Cache |
 | `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` | `6` | [Diktat in einem Widget oder auf einer Hosted Page](channels.md#dictation-on-a-widget-or-a-hosted-page), pro Adresse und bei einem `jwt`-Widget pro besuchender Person. Jedes Diktat ist ein Aufruf beim kostenpflichtigen Provider der Organisation, außerhalb jedes Modell-Budgets |
 | `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` | `10` | Dasselbe, pro Seite oder Widget, von allen Besuchenden zusammen - die Obergrenze dessen, was ein geleakter Link kostet: so viele Aufnahmen pro Minute, jede bis zum längsten Diktat der Organisation |
 | `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` | `3` | [Sprachanrufe](channels.md#voice-calls-on-a-widget-or-a-hosted-page), die in einem Widget oder auf einer Hosted Page gestartet werden, pro Adresse und bei einem `jwt`-Widget pro Token-Subject der besuchenden Person. Gezählt, bevor der Schlüssel nachgeschlagen wird; jeder Anruf ist eine kostenpflichtige Realtime-Session |

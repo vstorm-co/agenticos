@@ -58,9 +58,13 @@ Two things are versioned separately from this file and worth knowing about:
   calls, `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` (3) and
   `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` (6), and at most
   `VOICE_MAX_CALLS_PER_EMBED` (3) calls open per embed. The dashboard gains a
-  Voice minutes card and the walkthrough stops for both voice settings. Calls
-  run in an inline call bar: in `/chat`, on the hosted page (without approval
-  controls) and in the widget, whose `voice.js` loads only when calls are on.
+  Voice minutes card and the walkthrough stops for both voice settings. In
+  `/chat` a call is a pill above a composer that does not change, its turns
+  drawn as the messages they become; the hosted page (without approval
+  controls) and the widget, whose `voice.js` loads only when calls are on, use
+  a call bar. A play button beside the Builder's voice picker plays the draft's
+  voice (`POST /api/v1/agents/{agent_id}/voice/preview`, cached, per person
+  `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` (6)).
   What a realtime session cannot carry - sandbox, browser use, subagents, work
   while tools run - the call hands to the same agent on its own text model
   through one `hand_off` tool: same workspace, same budget, its approvals on

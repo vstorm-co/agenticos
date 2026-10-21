@@ -69,7 +69,7 @@ describe("EmbedVoiceField", () => {
     field({ available: null });
 
     expect(screen.queryByText(/can't be checked right now/)).toBeNull();
-    expect(screen.queryByText(/need the organization's voice switch on/)).toBeNull();
+    expect(screen.queryByText(/need a voice set up/)).toBeNull();
   });
 
   it("says visitors cannot approve, so gated tools are left out", () => {

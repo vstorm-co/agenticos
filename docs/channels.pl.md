@@ -1,5 +1,5 @@
 ---
-source_sha: "872f30716dac"
+source_sha: "a71f2915fd7d"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -859,8 +859,8 @@ Gdy jest włączony, odwiedzający mogą prowadzić z agentem
 z tymi samymi limitami, uruchamianą w kontekście publikującego i zapisywaną
 z powierzchnią `embed`.
 
-**Włączenie go jest odrzucane**, dopóki przełącznik głosu organizacji jest
-wyłączony albo agent nie ma sekcji głosu, z którą można prowadzić rozmowę.
+**Włączenie go jest odrzucane**, dopóki agent nie ma opublikowanej sekcji głosu,
+z którą można prowadzić rozmowę.
 Sprawdzane jest tylko samo przełączenie, więc embed, którego agent później
 straci głos, nadal można edytować. Dopóki rozmowa by się nie rozpoczęła,
 publiczna konfiguracja mówi `voice_conversation: false`, a odwiedzającym nie
@@ -912,9 +912,9 @@ sekcji [co odwiedzający widzi z tej pracy](#what-the-visitor-sees-of-the-work)
 filtrują ramki rozmowy tak, jak filtrują pisane odpowiedzi: bez *Co agent robi*
 odwiedzający nie dowiaduje się, że narzędzie zadziałało, a bez *Co zwrócił każdy
 krok* krok nie niesie tego, z czym narzędzie zostało wywołane ani co wróciło.
-Limit, który widzi odwiedzający, to własny limit rozmowy, nigdy pozostałe minuty
-organizacji, a odmowa dotycząca konfiguracji, ceny, minut albo budżetu operatora
-mówi tylko, że rozmowy nie są teraz dostępne. Wstrzymanie embeda, wyłączenie
+Limit, który widzi odwiedzający, to własny limit rozmowy, a odmowa dotycząca
+konfiguracji, ceny albo budżetu operatora mówi tylko, że rozmowy nie są teraz
+dostępne. Wstrzymanie embeda, wyłączenie
 jego rozmów albo skierowanie go na innego agenta kończy toczące się na nim
 rozmowy w ciągu jednego heartbeatu. Ramki są opisane na [stronie
 API](api.md#voice-calls).
@@ -957,12 +957,12 @@ ogranicza, razem z rozmowami wszystkich, limit embeda.
 !!! danger "Najgorszy przypadek dla wyciekniętego linku"
 
     Trzy rozmowy otwarte jednocześnie, każda co najwyżej tak długa jak
-    najdłuższa rozmowa organizacji — domyślnie 10 minut, najwyżej 50 — zużywają
-    najwyżej trzy minuty rozmów na minutę. W tym tempie domyślne 600 minut
-    miesięcznie wystarczy na co najmniej trzy godziny i dwadzieścia minut
-    nadużycia, a potem każda rozmowa w organizacji, łącznie z rozmowami
-    członków, jest odrzucana do końca miesiąca. Zapauzuj embed, obniż
-    miesięczne minuty organizacji albo wyłącz jej rozmowy, jeśli to za dużo.
+    najdłuższa rozmowa agenta — domyślnie 10 minut, najwyżej 50 — zużywają
+    najwyżej trzy minuty rozmów na minutę, na koncie organizacji u providera.
+    Kończą to budżety agenta i organizacji: każda rozmowa jest porównywana z
+    tym, co zostało, zanim się zacznie, i kończona, gdy budżet się wyczerpie,
+    razem z runami członków. Daj agentowi własny budżet, zapauzuj embed albo
+    wyłącz jego rozmowy, jeśli to za dużo.
 
 ---
 

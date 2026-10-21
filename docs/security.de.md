@@ -1,5 +1,5 @@
 ---
-source_sha: "742982f139a5"
+source_sha: "4a196b77b3e4"
 ---
 
 # Sicherheit { #security }
@@ -257,7 +257,7 @@ SOC 2 CC6–CC8.
 | HTTPS und HSTS | Am Reverse Proxy terminiert — die mitgelieferte `nginx/nginx.conf` setzt HSTS; die Anwendung bewusst nicht | Sache des Deployments; siehe die Härtungs-Checkliste |
 | Von Agents verfasste Seiten können die Konsole nicht erreichen | Eine veröffentlichte [App](artifacts.md) wird von einer Route ohne Cookies hinter einem kurzlebigen signierten Token ausgeliefert, unter `Content-Security-Policy: sandbox` ohne `allow-same-origin` — ein opaker Origin — und ohne `allow-popups`, plus `connect-src 'none'`, keine entfernte Quelle außer dem eigenen Bibliothekspfad des Deployments und `frame-ancestors`, das nur die Konsole nennt (und für eine einbettbare öffentliche Seite das Einbettungsdokument und die gelisteten Sites); ein Link in der Seite öffnet erst, nachdem eine Person seine Adresse bestätigt hat; optional von einer eigenen registrierbaren Domain (`ARTIFACT_ORIGIN`) | `test_artifact_routes.py::TestTheContentRoute`, `test_artifact_service.py::TestThePolicy`, `test_artifact_pages.py`, `artifacts.test.tsx`, `csp.test.ts` |
 | Rate-Limits auf öffentlichen Oberflächen | Redis-gestützte Limits auf der Run-API, dem Embed-Widget, den gehosteten Seiten, öffentlichen App-Links und deren signierten Inhaltsadressen (`app/services/rate_limit.py`); Limits pro Absender auf Kanal-Bots (`app/services/channels/router.py`) | `test_rate_limited_surfaces.py`; das Limit der Kanal-Bots ist implementiert, aber dünn getestet |
-| Was Anrufe über einen geleakten Embed-Link kosten können, ist begrenzt | Der Start von Sprachanrufen ist pro Adresse, pro Link und pro `jwt`-Subject begrenzt, auf einem Embed sind höchstens `VOICE_MAX_CALLS_PER_EMBED` Anrufe offen, und jeder ist durch die Anrufobergrenze, die monatlichen Minuten und das Budget begrenzt (`app/services/rate_limit.py`, `app/services/voice/starter.py`) | `test_rate_limit.py`, `test_voice_starter.py`, `tests/integration/test_voice_call_slot.py` |
+| Was Anrufe über einen geleakten Embed-Link kosten können, ist begrenzt | Der Start von Sprachanrufen ist pro Adresse, pro Link und pro `jwt`-Subject begrenzt, auf einem Embed sind höchstens `VOICE_MAX_CALLS_PER_EMBED` Anrufe offen, und jeder ist durch die Anrufobergrenze und das Budget begrenzt (`app/services/rate_limit.py`, `app/services/voice/starter.py`) | `test_rate_limit.py`, `test_voice_starter.py`, `tests/integration/test_voice_call_slot.py` |
 | Ein Diktat kostet höchstens die längste Diktatdauer | Standardmäßig nur WAV mit 16 kHz, Mono und 16-Bit-PCM: streng geparst, seine Samples gezählt und über `dictation_max_seconds` abgelehnt, bevor der Provider aufgerufen wird, und hinter einem Header gesendet, den der Server baut (`app/services/ml/pcm_wav.py`, `MLService.transcribe_dictation`). WebM, Ogg und MP4 erst, wenn ein App-Admin `dictation_compressed_audio` einschaltet, hinter einem Dialog, der das Risiko benennt | `test_pcm_wav.py`, `test_ml_service.py`, `dictation-audio-card.integration.test.tsx` |
 
 ### Die Refusals als Menge { #the-refusals-as-a-set }

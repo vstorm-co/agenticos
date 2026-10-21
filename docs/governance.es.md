@@ -1,5 +1,5 @@
 ---
-source_sha: "19fdd3a796d7"
+source_sha: "5931b7688a5d"
 ---
 
 # Governance { #governance }
@@ -478,7 +478,7 @@ dando la factura, porque el coste de cada hijo lo añade su propia fila y lo qui
 de su padre. Una clave funciona igual, e importa más: una clave es lo que alguien
 rota cuando una factura parece mal.
 
-### El budget y los minutos de una llamada de voz { #a-voice-calls-budget-and-minutes }
+### El budget de una llamada de voz { #a-voice-calls-budget }
 
 Una [llamada de voz](voice.md) es un run, y su gasto cuenta contra los budgets
 del agent y de la organización como cualquier otro. Tres cosas cambian, porque
@@ -492,11 +492,10 @@ una llamada no se puede comprobar antes de cada petición como un run de texto:
   del mes se vuelve a leer cada 15 segundos, así que se ve lo que otros runs
   gastan entretanto. Un budget que se agota a mitad de llamada recibe una frase
   hablada y termina la llamada, registrada como `budget_exceeded`.
-- **Las llamadas tienen un segundo límite propio**: los minutos de llamada
-  mensuales de la organización (600 por defecto, null para usar solo budgets),
-  que fija quien tenga `budgets:manage`. Se cuentan a partir de las filas de
-  llamada, no de la duración de los runs, y una llamada que los alcanza termina
-  de la misma forma.
+- **Su duración es la del agent.** Una llamada dura como mucho la llamada más
+  larga del agent, 10 minutos por defecto y 50 como máximo; no hay una bolsa
+  aparte de minutos de llamada, así que los budgets son el único límite de lo
+  que gastan las llamadas.
 
 Una llamada cuyo proceso murió la cierra el barrido de voz con el coste que
 registró su último heartbeat, a diferencia de un run de texto, cuyo gasto muere

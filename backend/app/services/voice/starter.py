@@ -477,8 +477,7 @@ class VoiceCallStarter:
 
         Visitors have no account to count against, so without this one leaked
         link could hold as many calls at once as its start rate allows and spend
-        the organization's monthly minutes - every member's calls with them - in
-        parallel. The same lock-then-count as `_claim_slot`.
+        the organization's budget - every member's runs with it - in parallel. The same lock-then-count as `_claim_slot`.
         """
         await hold_subject(self.db, LockScope.VOICE_CALLS_PER_EMBED, embed_id)
         await self._refuse_embed_when_full(embed_id, now=now)

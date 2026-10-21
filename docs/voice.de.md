@@ -1,8 +1,8 @@
 ---
 title: "Sprachgespräche"
 seo_title: "Sprachgespräche: mit einem veröffentlichten Agent sprechen"
-description: "Einen veröffentlichten Agent anrufen und mit ihm sprechen: Realtime-Modelle, Freigaben im Anruf, Minutenlimits, Auflege-Sicherungen, Transkripte als Text."
-source_sha: "5b606a7b7b0f"
+description: "Einen veröffentlichten Agent anrufen und mit ihm sprechen: Realtime-Modelle, Freigaben im Anruf, Zeitlimits und Budgets, Auflege-Sicherungen, Transkripte als Text."
+source_sha: "e5f62723a4c7"
 ---
 
 # Sprachgespräche { #voice-conversations }
@@ -20,49 +20,50 @@ Anruf ist ein [Run](concepts.md) mit dem Namen des Realtime-Modells darauf, also
 sehen Aktivität (Activity), der Kostenbildschirm und der Audit-Trail ihn wie
 jeden anderen Run.
 
-In `/chat` wird das Eingabefeld für die Dauer des Anrufs zur Anrufleiste -
-Status, Zeit, eine Wellenform, Stummschalten, Push-to-Talk und Beenden -, und
-der Anruf findet in der Unterhaltung statt: Untertitel in der Nachricht, die
-gerade gesprochen wird, Tool-Ausführungen und Freigabekarten. Eine gehostete
-Seite verwendet dieselbe Leiste ohne Freigabe-Bedienelemente, und das Widget
-lädt eine eigene, schlankere Anrufleiste. Siehe
+In `/chat` ist der Anruf eine Pille, die über dem Eingabefeld schwebt, das sich
+nicht ändert: Status, Zeit, eine Wellenform, Stummschalten, Push-to-Talk und
+Beenden. Der Anruf findet in der Unterhaltung statt, jeder Turn als die
+Nachricht gezeichnet, die er wird, mit Tool-Ausführungen und Freigabekarten
+dazwischen. Ein Entwurf und seine Anhänge stehen noch im Eingabefeld, wenn der
+Anruf endet. Eine gehostete Seite verwendet eine Anrufleiste ohne
+Freigabe-Bedienelemente, und das Widget lädt eine eigene, schlankere. Siehe
 [Konsole](console.md#voice-calls) und
 [Kanäle](channels.md#voice-calls-on-a-widget-or-a-hosted-page).
 
 ## Einschalten { #turn-it-on }
 
-Zwei Schalter und ein Abschnitt zur Stimme müssen übereinstimmen, bevor
-irgendjemand anrufen kann.
+**Anrufe werden im Agent eingeschaltet.** Die Organisation hat keine
+Anrufeinstellungen: Ein veröffentlichter Agent mit einer Stimme nimmt Anrufe an,
+begrenzt durch seinen eigenen längsten Anruf und durch die Budgets, wie jeder
+Run.
 
-**Die Organisation.** Anrufe sind **aus**, bis ein Admin sie einschaltet, auf
-der Karte Stimme (Voice) auf der Seite der Organisation, unter
-„Sprachgespräche“ (Voice conversations):
+**Der Agent.** Seine Karte Stimme (Voice) im Builder hat einen Reiter
+**Sprachanrufe**, geschrieben in das [Feld `voice`](reference/spec.md#voice) der
+Spec. Er nennt den Provider, das Modell (oder, für Azure, den Deployment-Namen
+und das Basismodell, das es betreibt), den Vault-Schlüssel, mit dem Anrufe
+geführt werden, die Stimme, optional eine Sprache, optional einen längsten
+Anruf (10 Minuten, wenn nicht gesetzt, höchstens 50) und optional eine
+Sprachnotiz. Die Notiz wird nur in Anrufen an die Anweisungen des Agents
+angehängt. Der Abschnitt wirkt, sobald der Agent veröffentlicht ist.
 
-| Einstellung | Standard | Was sie bewirkt |
-|---|---|---|
-| Sprachgespräche erlauben (Allow voice conversations) | aus | Der Hauptschalter. Aus lehnt jeden Anruf ab, auf jeder Oberfläche |
-| Anrufe im Chat anbieten (Offer calls in chat) | an | Ob `/chat` Anrufe anbietet, sobald sie erlaubt sind. Widget und gehostete Seite werden pro Embed geschaltet |
-| Längster Anruf (Longest call) | 10 Min. | Jede ganze Zahl von Minuten von 1 bis 50 (gespeichert als 60–3000 s). Ein Agent kann ein kürzeres Limit festlegen, nie ein längeres |
-| Monatliche Anrufminuten (Monthly call minutes) | 600 | Jeder Anruf in der Organisation zählt, ab seiner ersten Sekunde. Leeren Sie das Feld, um sich allein auf Budgets zu verlassen |
+**Erst die Stimme hören.** Die Abspieltaste neben der Stimmauswahl spielt die
+Stimme des Entwurfs mit einem Satz ab, in der Sprache des Abschnitts oder der
+Konsole, bevor irgendetwas veröffentlicht ist. Das ist eine kurze
+kostenpflichtige Sitzung auf dem Schlüssel des Abschnitts, außerhalb der Budgets
+wie ein Diktat, also ist sie pro Person begrenzt
+(`RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE`) und eine Woche lang pro Stimme und
+Sprache im Cache.
 
-Die ersten drei brauchen `org:settings`. Die monatlichen Minuten sind ein
-Ausgabenlimit, also braucht ihre Änderung `budgets:manage`, wie das monatliche
-Budget der Organisation; ein Mitglied ohne diese Berechtigung sieht den Wert nur
-lesend.
-
-**Der Agent.** Seine Karte Stimme im Builder bekommt einen Abschnitt
-„Sprachgespräche“, der in das [Feld `voice`](reference/spec.md#voice) des Specs
-geschrieben wird. Er benennt den Provider, das Modell (oder, für Azure, den
-Namen des Deployments und das Basismodell, das darauf läuft), den
-Vault-Schlüssel, mit dem Anrufe gehalten werden, die Stimme, optional eine
-Sprache, optional einen längsten Anruf und optional einen Hinweis zur Stimme.
-Der Hinweis wird nur in Anrufen an die Anweisungen des Agents angehängt. Der
-Abschnitt wird wirksam, wenn der Agent veröffentlicht wird.
+**Jeder Agent bietet die Taste an.** In `/chat` steht die Anruftaste bei jedem
+Agent neben dem Mikrofon. Für einen ohne Stimme, oder mit einem Schlüssel, der
+keinen Anruf mehr halten kann, ist sie durchgestrichen, und ihr Grund verlinkt
+für alle, die den Agent bearbeiten dürfen, den Reiter Anrufe seiner Karte Stimme
+(Voice).
 
 **Das Embed.** Ein Widget oder eine gehostete Seite bietet Anrufe nur an, wenn
 sein eigener Schalter „Sprachanrufe“ (Voice calls) an ist. Den Schalter
-eingeschaltet zu speichern wird abgelehnt, solange der Schalter der Organisation
-aus ist oder der Agent keine Stimme hat, mit der sich anrufen lässt. Siehe
+eingeschaltet zu speichern wird abgelehnt, solange der Agent keine
+veröffentlichte Stimme hat, mit der sich anrufen lässt. Siehe
 [Kanäle](channels.md#voice-calls-on-a-widget-or-a-hosted-page).
 
 ## Modelle und Schlüssel { #models-and-keys }
@@ -245,27 +246,18 @@ gewartet hat.
 
 ## Limits und Kosten { #limits-and-cost }
 
-**Zeit.** Ein Anruf läuft höchstens so lange wie der längste Anruf des Agents,
-der längste Anruf der Organisation oder 50 Minuten, je nachdem, was am kürzesten
-ist, und nie länger als die verbleibenden Minuten des Monats. Seine Uhr startet,
-sobald der Anruf bereit ist, zusammen mit dem Timer der Anrufansicht. Die
-Einrichtungszeit zählt also weder zu seiner Zeit noch zu seinem Limit noch zu
-den Minuten des Monats. Eine Minute vor dem Ende wird die Anrufansicht gewarnt. Am Ende sagt der Agent einen kurzen Satz
-dazu, warum, und der Anruf endet. Er endet als `time_limit`, oder als
-`minutes`, wenn die Minuten des Monats sein Limit gesetzt haben.
+**Zeit.** Ein Anruf läuft höchstens so lange wie der längste Anruf des Agents:
+10 Minuten, wenn der Abschnitt „Stimme“ keinen nennt, und nie mehr als 50. Seine
+Uhr startet, sobald der Anruf bereit ist, zusammen mit dem Timer der
+Anrufansicht, die Einrichtungszeit zählt also nicht. Eine Minute vor dem Ende
+wird die Anrufansicht gewarnt. Am Ende sagt der Agent einen kurzen Satz dazu,
+warum, und der Anruf endet, als `time_limit`.
 
-Ein Besucher eines Widgets oder einer gehosteten Seite erfährt die Minuten der
-Organisation nicht. Seine Anrufansicht zeigt das eigene Limit des Anrufs, und
-ein Anruf, den die Minuten des Monats stärker kürzen, endet ohne Warnung am
-echten Limit. Der Agent sagt dann nur, dass Anrufe gerade nicht verfügbar sind.
-
-**Minuten.** Die monatlichen Minuten der Organisation werden aus den Anrufzeilen
-(`voice_calls`) gezählt: jeder Anruf bis zu seinem Ende oder, solange er noch
-läuft, bis zu seinem letzten Heartbeat. Ein Anruf über den Monatswechsel zählt
-im neuen Monat nur mit seiner Zeit nach Mitternacht UTC. Wenn sie aufgebraucht
-sind, werden neue Anrufe abgelehnt, und ein laufender Anruf wird bei seinem
-nächsten Heartbeat informiert und beendet. Der Wert „Anrufminuten“ (Voice minutes) auf dem
-Dashboard und die Karte Stimme der Organisation lesen dieselben Zeilen.
+**Minuten.** Anrufminuten werden aus den Anrufzeilen (`voice_calls`) gezählt:
+jeder Anruf bis zu seinem Ende oder, solange er noch läuft, bis zu seinem
+letzten Heartbeat. Ein monatliches Minutenlimit gibt es nicht; was Anrufe
+ausgeben, begrenzen die Budgets unten. Die Dashboard-Karte „Anrufminuten“
+(Voice minutes) und `GET /api/v1/voice/usage` lesen dieselben Zeilen.
 
 **Geld.** Anrufe zählen gegen die Budgets des Agents und der Organisation, wie
 Text-Runs:
@@ -292,9 +284,12 @@ Text-Runs:
   abrechnet.
 
 **Gleichzeitigkeit.** Eine Person führt einen Anruf zur Zeit
-(`VOICE_MAX_CALLS_PER_USER`, Standard 1). Ein Embed hält höchstens drei offene
-Anrufe, von allen Besuchern zusammen (`VOICE_MAX_CALLS_PER_EMBED`); ein vierter
-Anrufer wird als `line_busy` abgelehnt. Siehe
+(`VOICE_MAX_CALLS_PER_USER`, Standard 1). Ein gerade aufgelegter Anruf zählt
+noch, bis sein Ende festgehalten ist, also wartet ein neuer Anruf derselben
+Person bis zu vier Sekunden auf ihn, bevor er als `busy` ablehnt: „Erneut
+anrufen“ direkt nach Beenden startet einen Anruf. Ein Embed hält höchstens drei
+offene Anrufe, von allen Besuchern zusammen (`VOICE_MAX_CALLS_PER_EMBED`); ein
+vierter Anrufer wird als `line_busy` abgelehnt. Siehe
 [Konfiguration](configuration.md#voice-calls).
 
 ## Einen Anruf beenden, und was einen verlorenen begrenzt { #ending-a-call-and-what-bounds-a-lost-one }
@@ -315,8 +310,8 @@ Das Auflegen ist also Aufgabe des Servers, auf jedem Pfad:
    dessen Kosten und Sekunden, schon ab Beginn der Einrichtung, damit ein
    langsamer Start nicht für einen verlorenen Anruf gehalten wird. Jeder
    Heartbeat prüft außerdem erneut die Sitzung des Anrufers, seine
-   Mitgliedschaft, den veröffentlichten Zustand des Agents und den Schalter der
-   Organisation und beendet den Anruf, wenn eines davon nicht mehr gilt. Der
+   Mitgliedschaft, ihren Zugriff auf den Agent und den veröffentlichten Zustand
+   des Agents und beendet den Anruf, wenn eines davon nicht mehr gilt. Der
    Anruf eines Besuchers braucht außerdem sein Embed weiterhin aktiv, mit
    eingeschalteten Anrufen und auf denselben Agent zeigend.
 3. **Der Sweep.** Ein geplanter Job, jede Minute und einmal beim Start, legt

@@ -13,8 +13,7 @@ import { Label, Switch } from "@/components/ui";
  * in it - and what it counts against.
  *
  * **Offered only where a call would start.** The backend refuses switching it
- * on while the organization's voice switch is off or the agent has no voice to
- * call with, so the switch is locked then with the reason beside it. An embed
+ * on while the agent has no published voice to call with, so the switch is locked then with the reason beside it. An embed
  * already on keeps it - a key deleted since must not lock the form - and says
  * visitors see no call button until the agent can take calls again. When the
  * agent's readiness could not be read at all, the switch says so rather than

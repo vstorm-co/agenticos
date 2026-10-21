@@ -1,5 +1,5 @@
 ---
-source_sha: "e2efe341a181"
+source_sha: "d3a18b2e5b08"
 ---
 
 # Die ML-Dienste { #the-ml-services }
@@ -190,23 +190,28 @@ diktieren, den sie ausführen darf, ein Viewer mit einem
 `use`-Grant darauf eingeschlossen. Ein Agent, den sie nicht ausführen darf,
 antwortet mit 404, wie überall sonst.
 
-Was es aus der Organisation liest, eingestellt auf der
-[Karte Stimme (Voice)](console.md#the-voice-card) von jemandem mit `org:settings`:
-`chat_dictation` (`off`, `browser` oder `server`; alles außer `server` wird als
-`not_configured` abgelehnt), `speech_to_text_provider` und
-`speech_to_text_model` (ein Paar aus dem Speech-to-Text-Katalog),
-`speech_to_text_language` (ein ISO-639-1-Code, oder null, damit die Engine ihn
-erkennt) und `dictation_max_seconds` (10 bis 600, standardmäßig 300). Die
-Engine und das längste Diktat gehören immer der Organisation; der Agent kann nur
-ändern, welcher Anbieter, welches Modell und welche Sprache.
+**Der Schalter gehört dem Agent.** Eine Aufnahme wird nur transkribiert, solange
+der veröffentlichte Diktier-Schalter des Agents, `speech_to_text.dictation`, an
+ist; aus, nutzt der Composer die Spracherkennung des Browsers, und eine trotzdem
+gesendete Aufnahme wird als `not_configured` abgelehnt, wie für einen
+archivierten Agent. Anbieter, Modell und Schlüssel
+[lösen sich](#which-engine-a-recording-reaches) dann aus Agent und Organisation
+auf. Aus der Organisation, eingestellt auf der
+[Karte Stimme (Voice)](console.md#the-voice-card) von jemandem mit
+`org:settings`, kommen `speech_to_text_provider` und `speech_to_text_model` (ein
+Paar aus dem Speech-to-Text-Katalog), `speech_to_text_language` (ein
+ISO-639-1-Code, oder null, damit die Engine ihn erkennt) und
+`dictation_max_seconds` (10 bis 600, standardmäßig 300), das nur die
+Organisation festlegt.
 
-`GET /api/v1/agents/{agent_id}/dictation` sagt mit demselben Zugriff, ob das
-Mikrofon funktionieren wird, bevor jemand aufnimmt: `engine`, `max_seconds`,
-`provider`, `format`, `ready`, `server_available` und `unavailable`.
-`server_available` verlangt ein Paar, das sich für diesen Agent auflöst, einen
-Katalog, der es noch anbietet, und einen brauchbaren Schlüssel, der neben dem
-Paar benannt ist - auf sein Vorhandensein geprüft, nie geöffnet; `ready` ist
-das, die Engine `server` und ein Agent, der nicht archiviert ist.
+`GET /api/v1/agents/{agent_id}/dictation` sagt mit demselben Zugriff, wie das
+Mikrofon transkribieren wird, bevor jemand aufnimmt: `engine` (`server` oder
+`browser`), `requested` (der Schalter des Agents), `server_available`,
+`unavailable`, `max_seconds`, `provider` und `format`. `server_available`
+verlangt ein Paar, das sich für diesen Agent auflöst, einen Katalog, der es noch
+anbietet, und einen brauchbaren Schlüssel, der neben dem Paar benannt ist - auf
+sein Vorhandensein geprüft, nie geöffnet; `engine` ist `server`, wenn das gilt,
+der Schalter an ist und der Agent nicht archiviert ist, und sonst `browser`.
 
 Ist es falsch,
 sagt `unavailable`, was fehlt: `no_provider` (keine Ebene benennt ein Paar),
@@ -214,7 +219,7 @@ sagt `unavailable`, was fehlt: `no_provider` (keine Ebene benennt ein Paar),
 Schlüssel benannt - einen wählen).
 Das Embed-Formular liest `server_available`, denn eine
 [gehostete Seite oder ein Widget](channels.md#dictation-on-a-widget-or-a-hosted-page)
-hängt nicht an der Engine von `/chat`.
+hängt nicht am `/chat`-Schalter des Agents.
 
 `provider` ist der Anbieter, den eine Aufnahme erreichen würde, und `format`,
 worin für ihn aufgenommen wird: `wav`, es sei denn, das Deployment
@@ -292,7 +297,7 @@ aufgezeichnet.
 Drei Stellen können eine Speech-to-Text-Engine nennen: die
 [Karte Stimme (Voice)](console.md#the-voice-card) der Organisation, die
 [`speech_to_text`](reference/spec.md#speech-to-text)-Überschreibung eines Agents,
-eingestellt auf seiner eigenen [Karte Stimme (Voice)](console.md#an-agents-own-engine)
+eingestellt auf seiner eigenen [Karte Stimme (Voice)](console.md#an-agents-voice-card)
 und live, sobald er veröffentlicht ist, und ein
 [Kanal-Bot](channels.md#what-every-channel-shares). Sie lösen sich in zwei
 Hälften auf:

@@ -81,8 +81,7 @@ export interface PageConfig {
    * Whether visitors are offered a voice call with the agent (#54).
    *
    * Off by default and separate from dictation. Switching it on is refused while
-   * the organization's voice switch is off or the agent has no voice to call
-   * with. Visitors cannot approve, so tools that need approval are left out of
+   * the agent has no published voice to call with. Visitors cannot approve, so tools that need approval are left out of
    * their calls.
    */
   voice_conversation: boolean;
