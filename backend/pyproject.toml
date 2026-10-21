@@ -1581,3 +1581,8 @@ exclude_also = [
 # release supports it yet. Allowing that one pre-release, only there, is what
 # lets the lock resolve for every Python this project claims; 3.12 is unaffected.
 constraint-dependencies = ["beartype>=0.23.0rc2; python_full_version >= '3.15'"]
+# xai-sdk caps packaging below 26, and virtualenv (pre-commit's) fixes
+# CVE-2026-113725 only from 21.14.7, which needs packaging 26.3 - so the cap
+# held a known advisory in the lock. xai-sdk reads versions with packaging's
+# stable API; the xAI realtime tests exercise it. Drop this once xai-sdk allows 26.
+override-dependencies = ["packaging>=26.3"]
