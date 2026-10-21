@@ -1,5 +1,5 @@
 ---
-source_sha: "39f077da4c2c"
+source_sha: "6c5ee025f646"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -35,11 +35,16 @@ En los ajustes de una capability, los límites, la vida de la caché, los prompt
 el resto del ajuste fino quedan plegados en **Ajustes avanzados**, que se abren
 solos donde alguno se haya establecido.
 
-Las capabilities que tiene el agente inicial - la plantilla **Claude Code like**,
-que una organización nueva recibe en su primer arranque - llevan la insignia
+Las capabilities que tiene el agente inicial - la plantilla **AgenticOS**, que una
+organización nueva recibe en su primer arranque - llevan la insignia
 **Recommended**, y un agente creado con **New agent** empieza con exactamente esas
-activadas, configuradas como las configura la plantilla. Su autor desactiva lo que
-el agente no deba hacer.
+activadas, configuradas como las configura la plantilla, junto con sus
+instrucciones, skills, herramientas de la plataforma y presupuesto. Su autor
+desactiva lo que el agente no deba hacer.
+
+Acabe con las capabilities que acabe, cada run recibe en sus instrucciones, bajo
+**Your setup**, cuáles tiene y cuáles no - así describe solo lo que puede hacer y
+dice qué habría que activar para el resto.
 
 Dos de ellas dependen de lo que ejecuta el despliegue. El espacio de trabajo es un
 contenedor en el servicio de sandbox del propio despliegue, que el bootstrap y la

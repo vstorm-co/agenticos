@@ -1,5 +1,5 @@
 ---
-source_sha: "d22e9f561f9c"
+source_sha: "ff0bd63bf9ef"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1002,10 +1002,14 @@ permiso que faltaba.
 | Herramienta | Necesita |
 |---|---|
 | `whoami` | — |
-| `list_agents`, `get_agent`, `list_capabilities` | `agents:view` |
-| `create_agent_draft` | `agents:edit` |
+| `list_agents`, `get_agent`, `list_capabilities`, `list_models`, `search_mcp_servers` | `agents:view` |
+| `create_agent_draft`, `update_agent_draft`, `test_agent_draft` | `agents:edit` |
+| `publish_agent` | `agents:publish` sobre ese agent |
 | `discard_agent_draft` | `agents:edit`, sobre un borrador tuyo que nunca se publicó |
 | `run_agent` | `agents:run` |
+| `list_routines` | `agents:view` |
+| `create_routine`, `run_routine_now` | `agents:run` sobre el agent |
+| `update_routine`, `delete_routine` | quien creó la rutina, o `agents:edit` sobre su agent |
 | `list_runs`, `get_run`, `get_spend` | `runs:view` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
 | `list_embedding_models` | — |
@@ -1013,10 +1017,19 @@ permiso que faltaba.
 | `list_skills` | `skills:view` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` y `roles:manage` |
+| `list_my_connections`, `set_my_language` | — (los de quien llama) |
 
-A propósito no hay: publicar un agent, tocar credenciales ni borrar nada salvo
-un borrador de agent que quien llama creó y nunca publicó: deshacer un borrador
-creado por error. Un borrador creado aquí lo publica una persona en la consola. Las aplicaciones conectadas
+Aquí se puede construir un agent de principio a fin: esbozarlo, editarlo, probarlo
+como borrador sin publicar con `test_agent_draft` - un run de prueba, con
+presupuesto y registrado, rechazado con el motivo cuando el borrador no se
+publicaría - y publicarlo con `publish_agent`, que hace las mismas comprobaciones
+que el botón **Publish** de la consola. El `cron_expression` de una rutina se
+evalúa en UTC. `set_my_language` cambia el idioma de la consola de quien llama
+(`en`, `pl` o `de`) en cada dispositivo en el que inicia sesión.
+
+A propósito no hay: tocar credenciales ni borrar nada salvo un borrador de agent
+que quien llama creó y nunca publicó - deshacer un borrador creado por error - o
+una rutina. Las aplicaciones conectadas
 aparecen en **Settings → MCP clients**, donde desconectar una termina su acceso y
 el de cada token que tiene. Las llamadas que cambian
 algo esperan aprobación, como explica [la sección de arriba](#which-calls-wait-for-a-person).
@@ -1035,15 +1048,19 @@ con los propios registros de la plataforma. En el Builder es la primera tarjeta 
   nadie está detrás del run - un widget público, una programación que no actúa por
   nadie - el enlace no está.
 - **Los cambios esperan aprobación.** `writes`, el valor predeterminado, retiene
-  cada herramienta que cambia algo (`create_agent_draft`, `run_agent`,
-  `invite_member` y las demás) hasta que la persona la apruebe; `all` retiene
-  también la lectura. `none` no se ofrece: estas herramientas actúan con la
-  autoridad de una persona.
+  cada herramienta que cambia algo (`create_agent_draft`, `publish_agent`,
+  `create_routine`, `run_agent`, `invite_member` y las demás) hasta que la persona
+  la apruebe; `all` retiene también la lectura. `none` no se ofrece: estas
+  herramientas actúan con la autoridad de una persona. La única escritura que nunca
+  espera es `set_my_language`: cambia la preferencia propia de quien pregunta, por
+  su palabra, y una tarjeta de aprobación para «cambia a inglés» sería toda la
+  conversación.
 - **Las herramientas se pueden acotar** en los ajustes de la tarjeta, que listan
   cada herramienta y marcan las que cambian algo.
 
-La plantilla **Claude Code like** lo enlaza así, de modo que un agent nuevo creado a
-partir de ella consulta la plataforma desde el principio.
+La plantilla **AgenticOS** lo enlaza así, igual que cada agent creado desde cero,
+de modo que un agent consulta la plataforma desde el principio - y configura una
+rutina o cambia el idioma de la consola cuando se lo piden.
 
 ## Lo que MCP no te da { #what-mcp-does-not-get-you }
 

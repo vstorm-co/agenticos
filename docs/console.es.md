@@ -1,5 +1,5 @@
 ---
-source_sha: "eb356ae8cd01"
+source_sha: "bf5deb5feff0"
 ---
 
 # La consola { #the-console }
@@ -149,12 +149,17 @@ ejecutar agents (`agents:run`). Está vinculado al
 Pregúntale qué agents responden dudas de reembolsos, por qué falló el run de anoche
 o qué hay en una base de conocimiento.
 
-Pídele que esboce un agent o invite a un
-compañero, y primero te mostrará lo que apruebas: el borrador
-de un agent como el propio borrador - dónde se crea, su nombre, qué puede hacer y
-sus instrucciones - y todo lo demás como la llamada exacta. Actúa con
-tus permisos, así que encuentra y hace lo que tú podrías, y nada más. Su coste
-cuenta como el de cualquier agent.
+Dile qué debe hacer un agent y lo construye contigo, una pregunta cada vez, cada
+una con respuestas propuestas: elige las capabilities, la base de conocimiento y el
+modelo, dice por qué en una línea, esboza el agent, lo prueba con tus propias
+preguntas como borrador sin publicar, corrige lo que estaba mal y lo publica cuando
+lo apruebas. Una rutina la configura igual.
+
+Antes de que cambie nada, te muestra lo que apruebas: el borrador de un agent
+como el propio borrador - dónde se crea, su nombre, qué puede hacer y sus
+instrucciones - y todo lo demás como la llamada exacta. Actúa con tus permisos,
+así que encuentra y hace lo que tú podrías, y nada más. Su coste cuenta como el
+de cualquier agent.
 
 Un bocadillo sobre él habla de lo que te espera — aprobaciones, una organización
 sin ningún agent — o de la página en la que estás, y de vez en cuando ofrece un
@@ -180,8 +185,9 @@ navegador pregunta qué pestaña compartir y una imagen se adjunta a tu próximo
 mensaje.
 
 Planifica los trabajos largos como una lista que puedes seguir, guarda
-notas sobre ti entre conversaciones, te dice cuánto cuestan tus agents y puede
-deshacer un borrador de agent que creó por error — nada más. Además de las
+notas sobre ti entre conversaciones, te dice cuánto cuestan tus agents y solo
+borra un borrador de agent que creó por error y una rutina que le pidas quitar.
+Además de las
 aprobaciones y de una organización vacía, su bocadillo avisa cuando un run tuyo
 acaba de fallar y cuando un formulario lleva un minuto abierto sin terminar.
 
@@ -278,6 +284,9 @@ frente a lo que el agent ya tiene. En el panel de pruebas del Builder el menú l
 el borrador que estás probando. Mientras una conversación está vacía, el cuadro muestra uno
 tras otro ejemplos hechos con lo que el agent puede usar - su servidor, una
 capability, un delegado, un skill - y `/`; desaparecen en cuanto haces clic en él.
+Encima, las tarjetas son los **primeros mensajes** propios del agent, definidos en
+el Builder bajo sus instrucciones; un agent sin ellos ofrece los cuatro del chat,
+entre ellos uno para preguntar qué puede hacer y otro para configurar una rutina.
 
 **Mientras el agent trabaja**, lo que envías espera su respuesta, como en
 cualquier chat: queda en una cola encima del cuadro de texto y sale cuando termina
@@ -571,8 +580,10 @@ momento, sin publicar una nueva versión.
 
 La consola habla inglés, polaco y alemán, en su totalidad salvo las páginas
 legales, que siguen en inglés. La primera tarjeta del recorrido ofrece los tres, y
-el menú de la cuenta cambia el idioma en cualquier momento; la elección se recuerda
-en el navegador. Las palabras del producto - agent, skill, run, budget, MCP y el
+el menú de la cuenta cambia el idioma en cualquier momento; la elección se guarda
+en tu cuenta, así que la consola se abre en él en cada dispositivo en el que
+inicias sesión. También puedes pedírselo a un agent - "cambia a inglés" - y la
+página cambia mientras responde, sin recargar. Las palabras del producto - agent, skill, run, budget, MCP y el
 resto de la lista de [traducir](howto/translate.md) - siguen en inglés en todos
 los idiomas.
 

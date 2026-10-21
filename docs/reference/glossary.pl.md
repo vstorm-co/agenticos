@@ -1,5 +1,5 @@
 ---
-source_sha: "c1a088854770"
+source_sha: "6d848482dac9"
 ---
 
 # Słownik { #glossary }
@@ -20,12 +20,14 @@ skrypt napisany pod nie nie przestał działać po zmianie nazwy.
 | Test | Czat obok Buildera, który odpowiada jako wersja robocza albo dowolna wersja | `is_test` na jego runach |
 | Instrukcje | To, co agent słyszy przed każdą rozmową | `instructions` |
 | Zmienne | `{{name}}` w instrukcjach, uzupełniane na starcie runu | `variables` |
+| Pierwsze wiadomości | To, co pusty czat proponuje komuś, kto otwiera agenta, każda jednym kliknięciem | `starters` |
 | Capability | Coś, co agent może robić, włączane w Builderze | `capabilities[]` |
 | Skill | Wiedza praktyczna zapisana raz i czytana przez każdego agenta, który jej potrzebuje | `skill` |
 | Kontekst | Stała wiedza, którą agent zawsze ma, np. słownik albo polityka | `context` |
 | Baza wiedzy | Dokumenty, które agent przeszukuje i cytuje | `collection` |
 | Aplikacja | Strona, którą publikuje agent, np. raport albo mały dashboard | `artifact` |
 | Architekt | Asystent w rogu każdej strony, który może budować z tobą agentów | `platform-assistant` |
+| AgenticOS | Agent ogólnego przeznaczenia, z którym nowa organizacja zaczyna w Chat, i to, od czego zaczyna nowy agent | `general/agenticos` |
 
 ## Gdzie to działa { #where-it-runs }
 

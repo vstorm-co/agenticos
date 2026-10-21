@@ -1,5 +1,5 @@
 ---
-source_sha: "ecc5b8b8c62c"
+source_sha: "23a69994dc8d"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
@@ -348,7 +348,7 @@ Produkt hinzugefügt, pro Organisation, aus dem Vault.
     innerhalb des Hosts nicht sehen kann.
 
 Dann, einmal, von Hand: melden Sie sich an, laden Sie jemanden ein (was `SMTP_*`
-nachweist) und schicken Sie Claude Code like eine Nachricht (was den Provider-Key
+nachweist) und schicken Sie AgenticOS eine Nachricht (was den Provider-Key
 und den WebSocket nachweist). Jedes davon übt einen Pfad aus, den hier sonst
 nichts prüft.
 

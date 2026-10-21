@@ -1,5 +1,5 @@
 ---
-source_sha: "67b5c3162745"
+source_sha: "7a628dbf307e"
 ---
 
 # Instalacja { #install }
@@ -174,18 +174,23 @@ potrzebuje klucza, klucz potrzebuje organizacji — a to przechodzi ten łańcuc
 | Właściciela | `admin@example.com` / `admin123` albo `--email` / `--password` |
 | Wpis w vault | Twój klucz providera, zapieczętowany dla tej organizacji |
 | Profil modelu | `gpt-4.1`, `claude-sonnet-4-6`, `gemini-2.5-pro` albo `openai/gpt-4.1`, zależnie od tego, którego providera dotyczy klucz |
-| Dwóch agentów | **Architekta** w rogu każdej strony i **Claude Code like**, obu opublikowanych, jeśli jest klucz |
+| Dwóch agentów | **Architekta** w rogu każdej strony i **AgenticOS**, obu opublikowanych, jeśli jest klucz |
 
 Teraz otwórz <http://localhost:3000>, zaloguj się jako `admin@example.com` /
-`admin123` i zapytaj któregoś z nich o coś: **Claude Code like** w **Chat** albo
+`admin123` i zapytaj któregoś z nich o coś: **AgenticOS** w **Chat** albo
 **Architekta** z rogu dowolnej strony.
 
-Claude Code like to agent ogólnego przeznaczenia: czyta, zanim zacznie działać,
-planuje pracę w kilku krokach, edytuje pliki i uruchamia polecenia w swoim
-sandboksie, szuka w internecie, deleguje pracę swoim specjalistom i sprawdza, co
-zrobił. Architekt zna tę platformę: znajduje agentów, runy i bazy wiedzy, wyjaśnia,
-dlaczego run się nie udał i ile kosztował, i przygotowuje agenta albo bazę wiedzy do
-twojego zatwierdzenia.
+AgenticOS to agent ogólnego przeznaczenia: czyta, zanim zacznie działać, planuje
+pracę w kilku krokach, edytuje pliki i uruchamia polecenia w swoim sandboksie,
+szuka w internecie, deleguje pracę swoim specjalistom i sprawdza, co zrobił. Po
+drodze pokazuje też, co potrafi platforma - proponuje rutynę, gdy prośba będzie
+wracać, mówi, co mógłby zrobić po włączeniu jakiejś capability, zapamiętuje twoje
+preferencje i przełącza język konsoli, gdy go o to poprosisz. Każdy agent, którego
+tworzysz od zera, zaczyna jako jego kopia.
+
+Architekt buduje z tobą agentów, jedną decyzję naraz - od tego, co agent ma
+robić, do przetestowanego, opublikowanego agenta; znajduje też agentów, runy i
+bazy wiedzy oraz wyjaśnia, dlaczego run się nie udał i ile kosztował.
 
 Otwórz któregoś w Builderze, żeby zobaczyć jak: każda z tych rzeczy to capability,
 którą ktoś włączył, a instrukcje agenta to pole tekstowe, które możesz zmienić.
@@ -197,7 +202,7 @@ którą ktoś włączył, a instrukcje agenta to pole tekstowe, które możesz z
     potrafi odpowiedzieć, a opublikowanie takiego, który zawiedzie na pierwszej
     wiadomości, jest gorsze niż nieopublikowanie go.
 
-    Dodaj klucz w **Settings → AI providers**, a potem opublikuj Claude Code like.
+    Dodaj klucz w **Settings → AI providers**, a potem opublikuj AgenticOS.
     Architekt opublikuje się sam na pierwszym modelu organizacji.
 
 !!! note "`make seed` to coś innego"

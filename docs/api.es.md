@@ -1,5 +1,5 @@
 ---
-source_sha: "66cbedf36a2b"
+source_sha: "b7df86ff6f95"
 ---
 
 # La API HTTP { #the-http-api }
@@ -161,6 +161,18 @@ curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
 
 La respuesta trae el id del run, la salida, el estado, los tokens y el coste.
 `environment_id` en el cuerpo elige [qué entorno](environments.md) responde.
+`"draft": true` ejecuta en su lugar el borrador sin publicar, como el panel de
+pruebas del Builder: un run de prueba, para una clave cuyo emisor puede editar el
+agent, rechazado con el motivo cuando el borrador no se publicaría, y nunca con
+`Prefer: respond-async`.
+
+Una clave también llega a las rutinas de un agent - `GET /api/v1/triggers` y
+`GET`, `POST`, `PATCH` y `DELETE` bajo `/api/v1/agents/{agent_id}/triggers`, más
+`POST .../{trigger_id}/run` para lanzar una ahora - y a los modelos de la
+organización en `GET /api/v1/providers/model-profiles`. Dos rutas actúan sobre el
+propio emisor: `GET /api/v1/me/mcp-connections` lista los servicios que conectó con
+su propia cuenta, y `PUT /api/v1/users/me/locale` le fija el idioma de la consola
+en cada dispositivo.
 
 **Un run continúa una conversación.** Una llamada sin `conversation_id` abre una
 conversación nueva para quien emitió la clave y devuelve su id como

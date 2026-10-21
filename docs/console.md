@@ -140,10 +140,17 @@ agents (`agents:run`). It is bound to the
 agents can answer refund questions, why last night's run failed, or what is in a
 knowledge base.
 
-Ask it to draft an agent or invite a colleague, and it first shows you what to approve: an
-agent draft as the draft itself - where it is created, its name, what it may do
-and its instructions - and anything else as the exact call. It acts with your permissions, so it finds
-and does what you could, and no more. Its cost counts like any agent's.
+Tell it what an agent should do and it builds one with you, one question at a
+time, each with proposed answers: it picks the capabilities, the knowledge base
+and the model, says why in a line, drafts the agent, tries it on your own
+questions as the unpublished draft, fixes what was wrong, and publishes it when
+you approve. It sets up a routine the same way.
+
+Before anything changes it shows you what to approve: an agent draft as the
+draft itself - where it is created, its name, what it may do and its
+instructions - and anything else as the exact call. It acts with your
+permissions, so it finds and does what you could, and no more. Its cost counts
+like any agent's.
 
 A speech bubble above it speaks to what is waiting for you — approvals, an
 organization with no agents yet — or to the page you are on, and now and then
@@ -168,8 +175,9 @@ browser asks which tab to share, and one picture is attached to your next
 message.
 
 It plans longer jobs as a checklist you can watch, keeps notes about
-you between conversations, can tell you what your agents cost, and can undo an
-agent draft it made by mistake — never anything else. Besides approvals and an
+you between conversations, can tell you what your agents cost, and deletes
+nothing but an agent draft it made by mistake and a routine you ask it to
+remove. Besides approvals and an
 empty organization, its bubble speaks up when a run of yours has just failed
 and when a form has been open, unfinished, for a minute.
 
@@ -260,7 +268,10 @@ widens what the agent may reach: the server checks each one again as you, agains
 what the agent already has. In the Builder's test panel the menu reads the draft
 you are testing. While a conversation is empty, the box cycles through examples
 built from what the agent can use - its server, a capability, a delegate, a
-skill - and `/`; they are gone the moment you click into it.
+skill - and `/`; they are gone the moment you click into it. Above it, the cards
+are the agent's own **first messages**, set under its instructions in the
+Builder; an agent with none offers the chat's own four, two of them to ask what it
+can do and to set up a routine.
 
 **While the agent works**, what you send waits for its answer, as in any chat:
 it sits in a queue above the composer and goes out when the run ends. Drag a
@@ -540,8 +551,10 @@ change takes effect at once, without publishing a new version.
 
 The console speaks English, Polish and German, all of it except the legal
 pages, which stay in English. The walkthrough's first card offers the three, and
-the account menu changes the language at any time; the choice is remembered in
-the browser. Product words - agent, skill, run, budget, MCP and the rest of the
+the account menu changes the language at any time; the choice is kept on your
+account, so the console opens in it on every device you sign in on. You can also
+ask an agent - "switch to English" - and the page changes as it answers, without a
+reload. Product words - agent, skill, run, budget, MCP and the rest of the
 list in [translating](howto/translate.md) - stay English in every language.
 
 ## The next step

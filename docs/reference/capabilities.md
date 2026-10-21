@@ -29,10 +29,15 @@ In a capability's settings, limits, cache lifetimes, prompts and other tuning si
 folded under **Advanced settings**, which opens by itself wherever one of them was
 set.
 
-The capabilities the starter agent binds - the **Claude Code like** template, which
-a fresh organization gets on its first run - carry a **Recommended** badge, and an
+The capabilities the starter agent binds - the **AgenticOS** template, which a
+fresh organization gets on its first run - carry a **Recommended** badge, and an
 agent made with **New agent** starts with exactly those switched on, configured as
-the template configures them. Its author switches off what it should not do.
+the template configures them, along with the template's instructions, skills,
+platform tools and budget. Its author switches off what it should not do.
+
+Whichever capabilities an agent ends up with, every run is told which it has and
+which it has not, under **Your setup** in its instructions - so it describes only
+what it can do, and says what would have to be switched on for the rest.
 
 Two of them depend on what the deployment runs. The workspace is a container on
 the deployment's own sandbox service, which bootstrap and the first publish

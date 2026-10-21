@@ -1,5 +1,5 @@
 ---
-source_sha: "c1a088854770"
+source_sha: "6d848482dac9"
 ---
 
 # Glosario { #glossary }
@@ -22,12 +22,14 @@ tal como se ven en pantalla.
 | Test panel | El chat junto al Builder que responde como el borrador o como cualquier versión | `is_test` en sus runs |
 | Instructions | Lo que se le dice al agent antes de cada conversación | `instructions` |
 | Variables | `{{name}}` en las instrucciones, que se rellena al empezar un run | `variables` |
+| Primeros mensajes | Lo que un chat vacío ofrece a quien abre el agent, cada uno con un clic | `starters` |
 | Capability | Algo que un agent puede hacer, activado en el Builder | `capabilities[]` |
 | Skill | Saber hacer escrito una vez y leído por cualquier agent que lo necesite | `skill` |
 | Context file | Conocimiento fijo que un agent siempre tiene, como un glosario o una política | `context` |
 | Knowledge base | Documentos que un agent busca y cita | `collection` |
 | App | Una página que publica un agent, como un informe o un pequeño panel | `artifact` |
 | Architect | El asistente en la esquina de cada página, que puede construir agents contigo | `platform-assistant` |
+| AgenticOS | El agent de uso general con el que una organización nueva empieza en Chat, y aquello con lo que empieza un agent nuevo | `general/agenticos` |
 
 ## Dónde se ejecuta { #where-it-runs }
 

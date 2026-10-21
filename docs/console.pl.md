@@ -1,5 +1,5 @@
 ---
-source_sha: "eb356ae8cd01"
+source_sha: "bf5deb5feff0"
 ---
 
 # Konsola { #the-console }
@@ -150,12 +150,17 @@ którzy mogą uruchamiać agentów (`agents:run`). Jest powiązany z
 którzy agenci odpowiadają na pytania o zwroty, dlaczego nocny run się nie udał
 albo co jest w bazie wiedzy.
 
-Poproś o szkic agenta albo zaproszenie
-współpracownika, a najpierw pokaże ci, co
-zatwierdzasz: szkic agenta jako sam szkic - gdzie powstanie, jego nazwę, co może
-robić i jego instrukcje - a wszystko inne jako dokładne wywołanie. Działa
-z twoimi uprawnieniami, więc znajduje i robi to, co ty mógłbyś, i nic więcej. Jego
-koszty liczą się jak każdego agenta.
+Powiedz mu, co agent ma robić, a zbuduje go z tobą, jedno pytanie naraz, każde z
+proponowanymi odpowiedziami: dobiera capabilities, bazę wiedzy i model, w jednym
+zdaniu mówi dlaczego, tworzy szkic agenta, sprawdza go na twoich własnych pytaniach
+jako nieopublikowany draft, poprawia to, co było źle, i publikuje go, gdy to
+zatwierdzisz. Tak samo ustawia rutynę.
+
+Zanim cokolwiek się zmieni, pokazuje ci, co zatwierdzasz: szkic agenta jako sam
+szkic - gdzie powstanie, jego nazwę, co może robić i jego instrukcje - a
+wszystko inne jako dokładne wywołanie. Działa z twoimi uprawnieniami, więc
+znajduje i robi to, co ty mógłbyś, i nic więcej. Jego koszty liczą się jak
+każdego agenta.
 
 Dymek nad nim mówi o tym, co na ciebie czeka — akceptacje, organizacja bez
 żadnego agenta — albo o stronie, na której jesteś, a czasem podsuwa wskazówkę.
@@ -181,7 +186,8 @@ wiadomości.
 
 Dłuższe zadania planuje jako listę kroków, którą widać na bieżąco,
 zapamiętuje notatki o tobie między rozmowami, powie, ile kosztują twoi agenci, i
-może cofnąć draft agenta, który utworzył przez pomyłkę — nic poza tym. Oprócz
+usuwa tylko draft agenta, który utworzył przez pomyłkę, oraz rutynę, o której
+usunięcie poprosisz. Oprócz
 akceptacji i pustej organizacji dymek odzywa się, gdy twój run właśnie się nie
 udał, i gdy formularz jest otwarty, niedokończony, od minuty.
 
@@ -271,7 +277,10 @@ pokazuje ikonę swojej strony nad polem i w wysłanej wiadomości. Wzmianka nigd
 poszerza tego, do czego agent sięga: serwer sprawdza każdą ponownie jako ty, wobec
 tego, co agent już ma. W panelu testowym Buildera menu czyta testowany szkic. Dopóki rozmowa jest pusta, pole pokazuje po kolei
 przykłady zbudowane z tego, czego agent może użyć - jego serwera, capability,
-delegata, skilla - oraz `/`; znikają, gdy tylko w nie klikniesz.
+delegata, skilla - oraz `/`; znikają, gdy tylko w nie klikniesz. Nad nim karty
+to własne **pierwsze wiadomości** agenta, ustawiane w Builderze pod jego
+instrukcjami; agent bez nich proponuje cztery własne wiadomości czatu, w tym jedną
+z pytaniem, co potrafi, i jedną z ustawieniem rutyny.
 
 **Gdy agent pracuje**, to, co wysyłasz, czeka na jego odpowiedź, jak w każdym
 czacie: stoi w kolejce nad kompozytorem i wychodzi, gdy run się skończy.
@@ -559,8 +568,10 @@ avatara, a zmiana działa od razu, bez publikowania nowej wersji.
 
 Konsola mówi po angielsku, polsku i niemiecku, w całości poza stronami
 prawnymi, które zostają po angielsku. Pierwsza karta przewodnika proponuje te trzy
-języki, a menu konta zmienia język w każdej chwili; wybór jest zapamiętywany w
-przeglądarce. Słowa produktu - agent, skill, run, budget, MCP i reszta listy z
+języki, a menu konta zmienia język w każdej chwili; wybór jest zapisywany na twoim
+koncie, więc konsola otwiera się w nim na każdym urządzeniu, na którym się
+logujesz. Możesz też poprosić agenta - "przełącz na angielski" - a strona zmieni
+się, gdy odpowie, bez przeładowania. Słowa produktu - agent, skill, run, budget, MCP i reszta listy z
 [tłumaczenia](howto/translate.md) - zostają angielskie w każdym języku.
 
 ## Następny krok { #the-next-step }

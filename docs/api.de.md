@@ -1,5 +1,5 @@
 ---
-source_sha: "66cbedf36a2b"
+source_sha: "b7df86ff6f95"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -167,7 +167,18 @@ curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
 
 Die Antwort trägt die Id des Runs, die Ausgabe, den Status, die Tokens und die
 Kosten. `environment_id` im Body wählt, [welche Umgebung](environments.md)
-antwortet.
+antwortet. `"draft": true` führt stattdessen den unveröffentlichten Entwurf aus, wie
+das Test-Panel des Builders: ein Test-Run, für einen Key, dessen Aussteller den
+Agent bearbeiten darf, mit Begründung abgelehnt, wenn der Entwurf nicht
+veröffentlicht werden könnte, und nie mit `Prefer: respond-async`.
+
+Ein Key erreicht auch die Routinen eines Agents - `GET /api/v1/triggers` sowie
+`GET`, `POST`, `PATCH` und `DELETE` unter `/api/v1/agents/{agent_id}/triggers`,
+dazu `POST .../{trigger_id}/run`, um eine sofort auszulösen - und die Modelle der
+Organisation unter `GET /api/v1/providers/model-profiles`. Zwei Routen wirken auf
+den Aussteller selbst: `GET /api/v1/me/mcp-connections` listet die Dienste, die er
+mit dem eigenen Konto verbunden hat, und `PUT /api/v1/users/me/locale` setzt ihm
+die Sprache der Konsole auf jedem Gerät.
 
 **Ein Run setzt eine Unterhaltung fort.** Ein Aufruf ohne `conversation_id`
 öffnet eine neue Unterhaltung für den Aussteller des Schlüssels und gibt ihre Id

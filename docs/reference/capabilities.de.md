@@ -1,5 +1,5 @@
 ---
-source_sha: "39f077da4c2c"
+source_sha: "6c5ee025f646"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -35,11 +35,16 @@ In den Einstellungen einer Capability liegen Grenzwerte, Cache-Lebensdauern,
 Prompts und andere Feinabstimmung eingeklappt unter **Erweiterte Einstellungen**,
 die sich von selbst öffnen, wo eines davon gesetzt wurde.
 
-Die Capabilities, die der Starter-Agent bindet - die Vorlage **Claude Code like**,
-die eine neue Organisation beim ersten Start bekommt - tragen das Abzeichen
+Die Capabilities, die der Starter-Agent bindet - die Vorlage **AgenticOS**, die
+eine neue Organisation beim ersten Start bekommt - tragen das Abzeichen
 **Empfohlen**, und ein mit **New agent** angelegter Agent startet mit genau diesen
-eingeschaltet, so konfiguriert wie in der Vorlage. Sein Autor schaltet ab, was der
+eingeschaltet, so konfiguriert wie in der Vorlage, dazu mit ihren Instruktionen,
+Skills, Plattform-Werkzeugen und ihrem Budget. Sein Autor schaltet ab, was der
 Agent nicht tun soll.
+
+Mit welchen Capabilities ein Agent auch endet: Jeder Run erfährt in seinen
+Instruktionen unter **Your setup**, welche er hat und welche nicht - so beschreibt
+er nur, was er kann, und sagt, was für den Rest eingeschaltet werden müsste.
 
 Zwei davon hängen davon ab, was die Installation betreibt. Der Arbeitsbereich ist
 ein Container auf dem eigenen Sandbox-Dienst der Installation, den Bootstrap und

@@ -148,6 +148,17 @@ curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
 
 The response carries the run id, the output, the status, the tokens and the cost.
 `environment_id` in the body picks [which environment](environments.md) answers.
+`"draft": true` runs the unpublished draft instead, as the Builder's test panel
+does: a test run, for a key whose issuer may edit the agent, refused with the
+reason when the draft would not publish, and never with `Prefer: respond-async`.
+
+A key also reaches an agent's routines - `GET /api/v1/triggers` and
+`GET`, `POST`, `PATCH` and `DELETE` under `/api/v1/agents/{agent_id}/triggers`,
+plus `POST .../{trigger_id}/run` to fire one now - and the organization's models
+at `GET /api/v1/providers/model-profiles`. Two routes act on the issuer
+themselves: `GET /api/v1/me/mcp-connections` lists the services they connected
+with their own account, and `PUT /api/v1/users/me/locale` sets the console's
+language for them on every device.
 
 **A run continues a conversation.** A call without `conversation_id` opens a new
 conversation for the key's issuer and returns its id as `conversation_id`; send

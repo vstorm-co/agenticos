@@ -940,10 +940,14 @@ would be; a refusal comes back as a tool error naming the missing permission.
 | Tool | Needs |
 |---|---|
 | `whoami` | — |
-| `list_agents`, `get_agent`, `list_capabilities` | `agents:view` |
-| `create_agent_draft` | `agents:edit` |
+| `list_agents`, `get_agent`, `list_capabilities`, `list_models`, `search_mcp_servers` | `agents:view` |
+| `create_agent_draft`, `update_agent_draft`, `test_agent_draft` | `agents:edit` |
+| `publish_agent` | `agents:publish` on that agent |
 | `discard_agent_draft` | `agents:edit`, on a draft you own that was never published |
 | `run_agent` | `agents:run` |
+| `list_routines` | `agents:view` |
+| `create_routine`, `run_routine_now` | `agents:run` on the agent |
+| `update_routine`, `delete_routine` | the routine's creator, or `agents:edit` on its agent |
 | `list_runs`, `get_run`, `get_spend` | `runs:view` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
 | `list_embedding_models` | — |
@@ -951,11 +955,18 @@ would be; a refusal comes back as a tool error naming the missing permission.
 | `list_skills` | `skills:view` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` and `roles:manage` |
+| `list_my_connections`, `set_my_language` | — (the caller's own) |
 
-Deliberately absent: publishing an agent, touching a credential, and deleting
-anything but an agent draft its caller created and never published - the undo
-for a draft made by mistake. A draft created here is published by a person in
-the console.
+An agent can be built end to end here: drafted, edited, tried as the unpublished
+draft with `test_agent_draft` - a test run, budgeted and recorded, refused with the
+reason when the draft would not publish - and published with `publish_agent`,
+which runs the checks the console's **Publish** button runs. A routine's
+`cron_expression` is evaluated in UTC. `set_my_language` switches the console's
+language for the caller (`en`, `pl` or `de`) on every device they sign in on.
+
+Deliberately absent: touching a credential, and deleting anything but an agent
+draft its caller created and never published - the undo for a draft made by
+mistake - or a routine.
 Connected applications are listed under **Settings → MCP clients**, where
 disconnecting one ends its access and every token it holds. Calls that change
 something wait for approval, as [below](#which-calls-wait-for-a-person) explains.
@@ -973,14 +984,18 @@ named after this deployment; switching it on binds it as
   can read and create nothing. Nothing new is granted, and where nobody is behind
   the run - a public widget, a schedule acting for nobody - the binding is absent.
 - **Changes wait for approval.** `writes`, the default, holds every tool that
-  changes something (`create_agent_draft`, `run_agent`, `invite_member` and the
-  rest) for the person to approve; `all` holds reading too. `none` is not offered:
-  these tools act with a person's authority.
+  changes something (`create_agent_draft`, `publish_agent`, `create_routine`,
+  `run_agent`, `invite_member` and the rest) for the person to approve; `all` holds
+  reading too. `none` is not offered: these tools act with a person's authority.
+  The one write that never waits is `set_my_language`: it changes the asker's own
+  preference, on their word, and an approval card for "switch to English" would be
+  the whole conversation.
 - **The tools can be narrowed** in the card's settings, which list every tool and
   mark the ones that change something.
 
-The **Claude Code like** template binds it this way, so a fresh agent from it can
-look the platform up out of the box.
+The **AgenticOS** template binds it this way, and so does every agent created from
+scratch, so an agent can look the platform up - and set up a routine, or switch the
+console's language when asked - out of the box.
 
 ## What MCP does not get you
 

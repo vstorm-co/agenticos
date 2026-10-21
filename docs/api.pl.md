@@ -1,5 +1,5 @@
 ---
-source_sha: "66cbedf36a2b"
+source_sha: "b7df86ff6f95"
 ---
 
 # API HTTP { #the-http-api }
@@ -156,6 +156,18 @@ curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
 
 Odpowiedź niesie identyfikator runa, wynik, status, tokeny i koszt.
 `environment_id` w ciele wybiera, [które środowisko](environments.md) odpowiada.
+`"draft": true` uruchamia zamiast tego nieopublikowany draft, jak panel testowy
+Buildera: run testowy, dla klucza, którego wystawca może edytować agenta,
+odrzucany z podaniem powodu, gdy draft by się nie opublikował, i nigdy z
+`Prefer: respond-async`.
+
+Klucz sięga też do rutyn agenta - `GET /api/v1/triggers` oraz `GET`, `POST`,
+`PATCH` i `DELETE` pod `/api/v1/agents/{agent_id}/triggers`, a także
+`POST .../{trigger_id}/run`, żeby uruchomić jedną od razu - i do modeli organizacji
+pod `GET /api/v1/providers/model-profiles`. Dwie ścieżki działają na samym
+wystawcy: `GET /api/v1/me/mcp-connections` wymienia usługi, które połączył własnym
+kontem, a `PUT /api/v1/users/me/locale` ustawia mu język konsoli na każdym
+urządzeniu.
 
 **Run kontynuuje rozmowę.** Wywołanie bez `conversation_id` otwiera nową rozmowę
 dla wystawcy klucza i zwraca jej identyfikator jako `conversation_id`; wyślij go

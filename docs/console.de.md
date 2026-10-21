@@ -1,5 +1,5 @@
 ---
-source_sha: "eb356ae8cd01"
+source_sha: "bf5deb5feff0"
 ---
 
 # Die Konsole { #the-console }
@@ -161,11 +161,18 @@ ausführen dürfen (`agents:run`). Er ist an
 Fragen Sie ihn, welche Agents Erstattungsfragen beantworten, warum der Run von
 letzter Nacht fehlschlug oder was in einer Wissensbasis steht.
 
-Lassen Sie ihn einen
-Agent entwerfen oder jemanden einladen, und er zeigt Ihnen zuerst, was Sie freigeben: einen
-Agent-Entwurf als den Entwurf selbst - wo er angelegt wird, sein Name, was er tun
-darf und seine Anweisungen - und alles andere als den genauen Aufruf. Er handelt mit Ihren Berechtigungen, findet und tut also, was
-Sie könnten, und nicht mehr. Seine Kosten zählen wie die jedes Agents.
+Sagen Sie ihm, was ein Agent tun soll, und er baut ihn mit Ihnen, eine Frage nach
+der anderen, jede mit vorgeschlagenen Antworten: Er wählt die Capabilities, die
+Wissensbasis und das Modell, sagt in einem Satz, warum, entwirft den Agent,
+probiert ihn als unveröffentlichten Entwurf an Ihren eigenen Fragen aus, korrigiert,
+was falsch war, und veröffentlicht ihn, wenn Sie zustimmen. Eine Routine richtet er
+genauso ein.
+
+Bevor sich etwas ändert, zeigt er Ihnen, was Sie freigeben: einen Agent-Entwurf
+als den Entwurf selbst - wo er angelegt wird, sein Name, was er tun darf und
+seine Anweisungen - und alles andere als den genauen Aufruf. Er handelt mit
+Ihren Berechtigungen, findet und tut also, was Sie könnten, und nicht mehr.
+Seine Kosten zählen wie die jedes Agents.
 
 Eine Sprechblase über ihm spricht an, was auf Sie wartet — Freigaben, eine
 Organisation ohne Agents — oder die Seite, auf der Sie sind, und bietet ab und zu
@@ -194,8 +201,8 @@ an Ihrer nächsten Nachricht.
 
 Längere Aufgaben plant er als Checkliste, die Sie
 verfolgen können, er merkt sich Notizen über Sie zwischen Unterhaltungen, sagt
-Ihnen, was Ihre Agents kosten, und kann einen versehentlich angelegten
-Agent-Entwurf rückgängig machen — sonst nichts. Neben Freigaben und einer leeren
+Ihnen, was Ihre Agents kosten, und löscht nur einen versehentlich angelegten
+Agent-Entwurf und eine Routine, deren Entfernen Sie verlangen. Neben Freigaben und einer leeren
 Organisation meldet sich seine Sprechblase, wenn ein Run von Ihnen gerade
 fehlgeschlagen ist und wenn ein Formular seit einer Minute unfertig offen ist.
 
@@ -296,7 +303,10 @@ Server prüft jede erneut als Sie, gegen das, was der Agent bereits hat. Im
 Testpanel des Builders liest das Menü den Entwurf, den Sie testen. Solange ein Gespräch leer ist, zeigt das Feld nacheinander
 Beispiele aus dem, was der Agent nutzen kann - seinem Server, einer Capability,
 einem Delegierten, einem Skill - und `/`; sie verschwinden, sobald Sie
-hineinklicken.
+hineinklicken. Darüber sind die Karten die eigenen **ersten Nachrichten** des
+Agents, im Builder unter seinen Instruktionen gesetzt; ein Agent ohne sie bietet
+die vier des Chats an, darunter eine, die fragt, was er kann, und eine, die eine
+Routine einrichtet.
 
 **Während der Agent arbeitet**, wartet das, was Sie senden, auf seine Antwort, wie
 in jedem Chat: Es steht in einer Warteschlange über dem Eingabefeld und geht
@@ -610,8 +620,10 @@ ohne dass eine neue Version veröffentlicht wird.
 
 Die Konsole spricht Englisch, Polnisch und Deutsch, vollständig bis auf die
 rechtlichen Seiten, die Englisch bleiben. Die erste Karte des Rundgangs bietet die
-drei an, und das Kontomenü wechselt die Sprache jederzeit; die Wahl wird im Browser
-gespeichert. Produktwörter - Agent, Skill, Run, Budget, MCP und der Rest der Liste
+drei an, und das Kontomenü wechselt die Sprache jederzeit; die Wahl wird in Ihrem
+Konto gespeichert, sodass die Konsole auf jedem Gerät, auf dem Sie sich anmelden,
+in ihr öffnet. Sie können auch einen Agent bitten - "auf Englisch umstellen" -, und
+die Seite wechselt, während er antwortet, ohne Neuladen. Produktwörter - Agent, Skill, Run, Budget, MCP und der Rest der Liste
 unter [Übersetzen](howto/translate.md) - bleiben in jeder Sprache Englisch.
 
 ## Der nächste Schritt { #the-next-step }

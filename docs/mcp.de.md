@@ -1,5 +1,5 @@
 ---
-source_sha: "d22e9f561f9c"
+source_sha: "ff0bd63bf9ef"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1020,10 +1020,14 @@ Tool-Fehler zurück, der die fehlende Berechtigung nennt.
 | Tool | Braucht |
 |---|---|
 | `whoami` | — |
-| `list_agents`, `get_agent`, `list_capabilities` | `agents:view` |
-| `create_agent_draft` | `agents:edit` |
+| `list_agents`, `get_agent`, `list_capabilities`, `list_models`, `search_mcp_servers` | `agents:view` |
+| `create_agent_draft`, `update_agent_draft`, `test_agent_draft` | `agents:edit` |
+| `publish_agent` | `agents:publish` auf diesem Agent |
 | `discard_agent_draft` | `agents:edit`, für Ihren eigenen, nie veröffentlichten Entwurf |
 | `run_agent` | `agents:run` |
+| `list_routines` | `agents:view` |
+| `create_routine`, `run_routine_now` | `agents:run` auf dem Agent |
+| `update_routine`, `delete_routine` | wer die Routine angelegt hat, oder `agents:edit` auf ihrem Agent |
 | `list_runs`, `get_run`, `get_spend` | `runs:view` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
 | `list_embedding_models` | — |
@@ -1031,11 +1035,20 @@ Tool-Fehler zurück, der die fehlende Berechtigung nennt.
 | `list_skills` | `skills:view` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` und `roles:manage` |
+| `list_my_connections`, `set_my_language` | — (die eigenen des Aufrufers) |
 
-Bewusst fehlt: einen Agent veröffentlichen, Zugangsdaten anfassen und etwas
-löschen außer einem Agent-Entwurf, den der Aufrufer selbst angelegt und nie
-veröffentlicht hat - das Rückgängigmachen eines versehentlichen Entwurfs. Einen
-hier angelegten Entwurf veröffentlicht eine Person in der Konsole.
+Ein Agent lässt sich hier von Anfang bis Ende bauen: entwerfen, bearbeiten, mit
+`test_agent_draft` als unveröffentlichter Entwurf ausprobieren - ein Test-Run,
+budgetiert und aufgezeichnet, mit Begründung abgelehnt, wenn der Entwurf nicht
+veröffentlicht werden könnte - und mit `publish_agent` veröffentlichen, das
+dieselben Prüfungen ausführt wie der Button **Publish** der Konsole. Der
+`cron_expression` einer Routine gilt in UTC. `set_my_language` stellt die Sprache
+der Konsole für den Aufrufer um (`en`, `pl` oder `de`), auf jedem Gerät, auf dem
+er sich anmeldet.
+
+Bewusst fehlt: Zugangsdaten anfassen und etwas löschen außer einem Agent-Entwurf,
+den der Aufrufer selbst angelegt und nie veröffentlicht hat - das Rückgängigmachen
+eines versehentlichen Entwurfs - oder einer Routine.
 Verbundene Anwendungen stehen unter **Einstellungen → MCP-Clients**, wo das
 Trennen ihren Zugriff samt jedem Token beendet. Aufrufe, die etwas ändern,
 warten auf eine Freigabe, wie [oben](#which-calls-wait-for-a-person) beschrieben.
@@ -1054,14 +1067,18 @@ einzuschalten bindet ihn als `mcp_servers: [{account: platform, approval: writes
   wird gewährt, und wo niemand hinter dem Run steht - ein öffentliches Widget, ein
   Zeitplan im Namen von niemandem - fehlt die Bindung.
 - **Änderungen warten auf Freigabe.** `writes`, der Standard, hält jedes Werkzeug,
-  das etwas ändert (`create_agent_draft`, `run_agent`, `invite_member` und die
-  übrigen), zur Freigabe zurück; `all` auch das Lesen. `none` wird nicht
-  angeboten: Diese Werkzeuge handeln mit der Befugnis eines Menschen.
+  das etwas ändert (`create_agent_draft`, `publish_agent`, `create_routine`,
+  `run_agent`, `invite_member` und die übrigen), zur Freigabe zurück; `all` auch
+  das Lesen. `none` wird nicht angeboten: Diese Werkzeuge handeln mit der Befugnis
+  eines Menschen. Der einzige Schreibzugriff, der nie wartet, ist
+  `set_my_language`: Er ändert die eigene Vorliebe des Fragenden, auf dessen Wort,
+  und eine Freigabekarte für „auf Englisch umstellen“ wäre die ganze Unterhaltung.
 - **Die Werkzeuge lassen sich einschränken** in den Einstellungen der Karte, die
   jedes Werkzeug auflisten und die ändernden markieren.
 
-Die Vorlage **Claude Code like** bindet ihn genau so, sodass ein neuer Agent daraus
-die Plattform sofort nachschlagen kann.
+Die Vorlage **AgenticOS** bindet ihn genau so, ebenso jeder von Grund auf
+angelegte Agent, sodass ein Agent die Plattform sofort nachschlagen kann - und eine
+Routine einrichtet oder die Sprache der Konsole umstellt, wenn man ihn darum bittet.
 
 ## Was MCP Ihnen nicht bringt { #what-mcp-does-not-get-you }
 
