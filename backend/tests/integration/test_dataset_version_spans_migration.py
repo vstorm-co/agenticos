@@ -15,6 +15,7 @@ for the reason `test_migrations.py` does.
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 import uuid
@@ -51,13 +52,13 @@ def _url(database: str, *, sync: bool = True) -> str:
     return f"{base.rsplit('/', 1)[0]}/{database}"
 
 
-def _alembic(*args: str) -> subprocess.CompletedProcess[str]:
+def _alembic(*args: str, **env: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, "-m", "alembic", *args],
         capture_output=True,
         text=True,
         cwd=".",
-        env={**os.environ, "POSTGRES_DB": MIGRATION_DATABASE},
+        env={**os.environ, "POSTGRES_DB": MIGRATION_DATABASE, **env},
         timeout=120,
     )
 
@@ -340,3 +341,18 @@ async def test_an_upgrade_stops_on_a_revision_held_by_another_dataset() -> None:
     assert str(dataset_id) in refused.stderr
     _sql("DELETE FROM datasets WHERE id IN (:a, :b)", a=dataset_id, b=other_id)
     _migrate("upgrade", _REVISION)
+
+
+async def test_a_downgrade_refuses_a_history_the_earlier_schema_could_not_hold() -> None:
+    """The old table holds a row per case per version, and its code capped them per org."""
+    _migrate("upgrade", _REVISION)
+    organization_id = await _seed()
+    before = await _read_through_the_repository(organization_id)
+
+    refused = _alembic("downgrade", "-1", DATASET_MAX_VERSION_ROWS_PER_ORG="20")
+
+    assert refused.returncode != 0
+    # The largest history is named; every organization seeded in this module holds 26.
+    assert re.search(r"Organization [0-9a-f-]{36}'s dataset versions hold 26 cases", refused.stderr)
+    assert "DATASET_MAX_VERSION_ROWS_PER_ORG" in refused.stderr
+    assert await _read_through_the_repository(organization_id) == before

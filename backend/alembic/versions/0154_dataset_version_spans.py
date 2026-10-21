@@ -15,13 +15,18 @@ by another dataset's version. Nothing is guessed, because a version that read
 differently afterwards would quietly change what an eval run compared.
 
 The downgrade rebuilds the membership rows from the three columns, one row per
-version a revision is held by, and drops them.
+version a revision is held by, and drops them. It first refuses when an
+organization's history needs more rows than the code it returns to allows -
+`DATASET_MAX_VERSION_ROWS_PER_ORG`, read from the environment as that code reads
+it - since history that stores only its changes can describe far more versions
+than the old table could hold, and writing them all could fill the disk.
 
 Revision ID: 0154_dataset_version_spans
 Revises: 0151_eval_suites
 Create Date: 2026-10-21
 """
 
+import os
 from collections.abc import Sequence
 
 import sqlalchemy as sa
@@ -107,6 +112,14 @@ JOIN datasets d ON d.id = s.dataset_id
 WHERE c.id = s.id
 """
 
+_LARGEST_HISTORY = """
+SELECT organization_id, sum(case_count) AS rows
+FROM dataset_versions
+GROUP BY organization_id
+ORDER BY rows DESC
+LIMIT 1
+"""
+
 _REBUILD = """
 INSERT INTO dataset_version_cases (version_id, case_revision_id, position)
 SELECT v.id, c.id, c.position
@@ -148,7 +161,22 @@ def upgrade() -> None:
     op.drop_table("dataset_version_cases")
 
 
+def _refuse_an_unholdable_history() -> None:
+    ceiling = int(os.environ.get("DATASET_MAX_VERSION_ROWS_PER_ORG", "5000000"))
+    largest = op.get_bind().execute(sa.text(_LARGEST_HISTORY)).first()
+    if largest is not None and largest.rows > ceiling:
+        raise RuntimeError(
+            f"Organization {largest.organization_id}'s dataset versions hold "
+            f"{largest.rows:,} cases between them, more than the "
+            f"{ceiling:,} rows DATASET_MAX_VERSION_ROWS_PER_ORG lets the earlier schema "
+            "store per organization. Delete datasets that organization no longer needs, "
+            "or set DATASET_MAX_VERSION_ROWS_PER_ORG higher for this downgrade if the "
+            "database has room for that many rows, and downgrade again."
+        )
+
+
 def downgrade() -> None:
+    _refuse_an_unholdable_history()
     op.create_table(
         "dataset_version_cases",
         sa.Column("version_id", sa.UUID(), nullable=False),
