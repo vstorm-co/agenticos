@@ -184,6 +184,10 @@ Three turns of one conversation refining the same skill leave **one** proposal, 
 three. A reviewer asked the same question three times has been given more work
 rather than more information.
 
+The [authoring assistant](authoring.md#skills) proposes skill changes the same way,
+with its rationale and the runs behind it. Its change records the skill version it
+was written against, and Apply refuses it once somebody has changed the skill since.
+
 ## Getting skills into an organization
 
 **Write one.** Skills → New, in the UI. This is the normal path.

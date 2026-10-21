@@ -67,6 +67,7 @@ const GATE_TABLE: Record<WidgetId, Permission | "app_admin" | "everyone"> = {
   "review-queue": Perm.datasetsView,
   "eval-runs": Perm.runsView,
   "eval-suites": Perm.runsView,
+  suggestions: Perm.agentsEdit,
   projects: Perm.projectsView,
   "recent-visuals": Perm.agentsRun,
   "sandbox-capacity": Perm.connectionsView,
@@ -76,8 +77,8 @@ const GATE_TABLE: Record<WidgetId, Permission | "app_admin" | "everyone"> = {
 };
 
 describe("the widget catalog", () => {
-  it("holds all forty-seven widgets", () => {
-    expect(WIDGET_IDS).toHaveLength(47);
+  it("holds all forty-eight widgets", () => {
+    expect(WIDGET_IDS).toHaveLength(48);
   });
 
   it.each(WIDGET_IDS)("%s has a title and a description under its own id", (id) => {

@@ -813,6 +813,8 @@
     "classifierKindHint": "Er liest Antworten und Kommentare zu negativen Bewertungen auf Wissenslücken, wenn jemand um eine Prüfung bittet.",
     "generatorKind": "{count, plural, =1 {Fallgenerator (1)} other {Fallgeneratoren (#)}}",
     "generatorKindHint": "Er entwirft Testfälle für ein Dataset aus einem Agent, seiner Wissensbasis, echten Chats und Red Teaming; jeden Entwurf nimmt ein Mensch an oder verwirft ihn.",
+    "improverKind": "{count, plural, =1 {Authoring-Assistent (1)} other {Authoring-Assistenten (#)}}",
+    "improverKindHint": "Er liest schlecht bewertete Antworten und fehlgeschlagene Runs und schlägt Änderungen an Agents und Skills vor, wenn jemand um eine Verbesserung bittet.",
     "defaultJudge": "Standard-Bewerter",
     "defaultJudgeHint": "Bewertet jedes Dataset ohne eigenen Bewerter.",
     "judgeUsedBy": "{more, plural, =0 {Genutzt von {names}} other {Genutzt von {names} und # weiteren}}",
@@ -2148,7 +2150,7 @@
         "title": "Ausgaben",
         "unit": "in diesem Zeitraum",
         "description": "Was der Zeitraum gekostet hat und was dieser Kalendermonat bisher. Die Monatszahl stimmt mit der Rechnung überein und ignoriert den Zeitraumfilter deshalb absichtlich.",
-        "split": "{models} auf Modelle{evals, select, none {} other { · {evals} auf Evals}}{ingestion, select, none {} other { · {ingestion} auf Indexierung}}",
+        "split": "{models} auf Modelle{evals, select, none {} other { · {evals} auf Evals}}{improving, select, none {} other { · {improving} auf Verbesserungen}}{ingestion, select, none {} other { · {ingestion} auf Indexierung}}",
         "spentLabel": "{amount} ausgegeben"
       },
       "surfaces": {
@@ -2425,6 +2427,16 @@
           "waiting": "{count} warten auf den ersten Lauf",
           "paused": "{count} pausiert"
         }
+      },
+      "suggestions": {
+        "title": "Wartende Vorschläge",
+        "description": "Was der Authoring-Assistent für Ihre Agents und Skills vorgeschlagen hat und auf Ihre Entscheidung wartet.",
+        "empty": {
+          "title": "Nichts wartet",
+          "description": "Bitten Sie den Assistenten auf dem Build-Tab eines Agents um Verbesserungen."
+        },
+        "counts": "{instructions, plural, =0 {} =1 {1 Änderung an Anweisungen} other {# Änderungen an Anweisungen}}{tools, plural, =0 {} other { · {tools, plural, =1 {1 Tool-Änderung} other {# Tool-Änderungen}}}}",
+        "skills": "{count, plural, =1 {1 Skill-Änderung} other {# Skill-Änderungen}} zu prüfen"
       }
     },
     "edit": {
@@ -4154,6 +4166,10 @@
       "agent-eval-suites": {
         "title": "Suites",
         "body": "Miss den Agent an einem Dataset, ohne daran denken zu müssen: jede Nacht, bei jeder Veröffentlichung oder Promotion, oder wenn sich ein Skill oder eine Wissensbasis ändert, die er liest. Du wirst benachrichtigt, wenn ein Fall bricht."
+      },
+      "agent-assistant-strip": {
+        "title": "Der Authoring-Assistent",
+        "body": "Lassen Sie ihn den Agent anhand negativ bewerteter Antworten verbessern oder Ihre eigenen Änderungen prüfen. Jeder Vorschlag wartet, bis Sie ihn in den Draft übernehmen."
       }
     },
     "chooseLanguage": "Sprache"
@@ -5842,7 +5858,8 @@
     },
     "moreFiles": "{count, plural, =1 {+1 Datei} other {+# Dateien}}",
     "bodyPlaceholder": "# Erstattungen\n\nNutzen Sie dies, wenn ein Kunde sein Geld zurückmöchte.\n\n## Schritte\n\n1. Prüfen Sie das Bestelldatum.\n2. Innerhalb von 14 Tagen ohne Nachfrage erstatten.\n3. Danach eine Person um Freigabe bitten.",
-    "whoCanUseIt": "Wer es nutzen darf"
+    "whoCanUseIt": "Wer es nutzen darf",
+    "expectedEffect": "Erwartete Wirkung:"
   },
   "states": {
     "loading": "Wird geladen"
@@ -8613,7 +8630,10 @@
         "save": "Speichern",
         "create": "Suite anlegen"
       }
-    }
+    },
+    "excludedEvidence": "{count, plural, =1 {1 Case wurde} other {# Cases wurden}} weggelassen: sie stammen aus den Gesprächen, aus denen die geprüfte Änderung abgeleitet wurde.",
+    "backToSuggestions": "Zurück zu den Vorschlägen",
+    "backToSkillChange": "Zurück zur Skill-Änderung"
   },
   "remoteAgents": {
     "title": "Remote Agents",
@@ -8727,5 +8747,105 @@
     "noFilesYet": "Noch nichts in diesem Projekt",
     "noFilesHint": "Legen Sie Dateien oder einen ganzen Ordner hier ab, oder laden Sie sie hoch. Jeder Chat im Projekt liest sie und arbeitet damit.",
     "noFilesViewer": "Dateien, die dem Projekt hinzugefügt werden, erscheinen hier."
+  },
+  "authoring": {
+    "strip": {
+      "title": "Authoring-Assistent",
+      "chip": "{count, plural, =1 {1 Vorschlag} other {# Vorschläge}} · aus {ratedDown, plural, =1 {1 negativ bewerteten Antwort} other {# negativ bewerteten Antworten}} in {runs, plural, =1 {1 Run} other {# Runs}}",
+      "working": "Lese die Runs…",
+      "improve": "Verbessern",
+      "verify": "Meine Änderungen prüfen",
+      "check": "Mit Evals prüfen",
+      "dismissAll": "Alle verwerfen",
+      "empty": "Der Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen und Tool-Beschreibungen vor. Nichts ändert sich, bevor Sie es annehmen, und nichts geht live, bevor Sie veröffentlichen.",
+      "verifyReport": "Was der Assistent zu Ihren Änderungen sagt"
+    },
+    "suggestion": {
+      "tool": "Tool {tool}",
+      "instructions": "Anweisungen",
+      "fromVerify": "Aus der Prüfung Ihrer Änderungen",
+      "status": {
+        "accepted": "In den Draft übernommen",
+        "dismissed": "Verworfen"
+      },
+      "stale": "Passt nicht mehr zum Draft",
+      "editLabel": "Ihre Fassung des Vorschlags",
+      "saveAndAccept": "Speichern und annehmen",
+      "cancel": "Abbrechen",
+      "accept": "Annehmen",
+      "edit": "Bearbeiten",
+      "dismiss": "Verwerfen",
+      "undo": "Rückgängig"
+    },
+    "evidence": {
+      "none": "Keine Belege, die sich prüfen ließen.",
+      "run": "Run {id}",
+      "dropped": "{count, plural, =1 {1 zitierter Beleg wurde} other {# zitierte Belege wurden}} in den Runs nicht gefunden und weggelassen."
+    },
+    "batch": {
+      "closed": {
+        "superseded": "Eine neuere Anfrage hat diese Vorschläge ersetzt. Sie bleiben als Protokoll erhalten.",
+        "published": "Über diese Vorschläge wurde in einer Version entschieden, die jetzt veröffentlicht ist."
+      },
+      "expected": "Erwartete Wirkung:",
+      "checks": "Mit Evals geprüft:",
+      "checkRun": "Run {index}"
+    },
+    "verify": {
+      "nothing": "Der Assistent hat zu Ihren Änderungen nichts anzumerken.",
+      "verdict": {
+        "supports": "Von den Belegen gestützt",
+        "risk": "Ein Risiko",
+        "removed": "Etwas entfernt, auf das sich die Belege stützten"
+      }
+    },
+    "improve": {
+      "improve": {
+        "title": "Diesen Agent verbessern",
+        "body": "Der Assistent liest bewertete und fehlgeschlagene Runs der letzten 30 Tage - nie Eval-Runs - und schlägt Änderungen vor. Über jede entscheiden Sie."
+      },
+      "verify": {
+        "title": "Ihre Änderungen prüfen",
+        "body": "Der Assistent vergleicht Ihren Draft mit der veröffentlichten Version anhand derselben Belege: was die Änderungen verbessern, riskieren oder entfernen."
+      },
+      "quote": "Er liest {runs, plural, =1 {1 Run} other {# Runs}}, davon {ratedDown} negativ bewertet, in {calls, plural, =1 {1 Aufruf} other {# Aufrufen}}, für etwa {cost}.",
+      "reason": {
+        "no_evidence": "Noch nichts, woraus sich lernen lässt: kein Run der letzten 30 Tage wurde bewertet oder ist fehlgeschlagen.",
+        "no_draft_change": "Der Draft entspricht der veröffentlichten Version, es gibt also nichts zu prüfen."
+      },
+      "overBudget": "Das ist mehr, als im Monatsbudget des Assistenten oder der Organisation übrig ist.",
+      "cancel": "Abbrechen",
+      "start": "Starten"
+    },
+    "check": {
+      "title": "Mit Evals prüfen",
+      "body": "Führt ein Dataset gegen den Draft aus, wie er mit allen wartenden Vorschlägen wäre, neben der veröffentlichten Version. Cases aus den Gesprächen, aus denen die Vorschläge stammen, werden weggelassen. Durch die Prüfung wird nichts angenommen.",
+      "skillBody": "Führt ein Dataset auf einem Agent aus, der den Skill nutzt: auf beiden Seiten seine veröffentlichte Version, nur der Inhalt des Skills unterscheidet sich. Cases aus den Gesprächen, aus denen die Änderung stammt, werden weggelassen. Durch die Prüfung wird nichts angewendet.",
+      "agent": "Agent, der den Skill nutzt",
+      "agentPlaceholder": "Agent wählen",
+      "target": "Prüfen gegen",
+      "targetPlaceholder": "Suite oder Dataset wählen",
+      "suites": "Suites",
+      "datasets": "Datasets",
+      "cancel": "Abbrechen",
+      "start": "Prüfung starten"
+    },
+    "aiOff": {
+      "body": "KI-Unterstützung ist für diese Organisation ausgeschaltet, daher kann der Assistent nicht laufen.",
+      "enable": "Einschalten",
+      "askAdmin": "Bitten Sie einen Admin, sie einzuschalten."
+    },
+    "skill": {
+      "improve": "Mit dem Assistenten verbessern",
+      "working": "Lese die Runs…",
+      "aiOff": "KI-Unterstützung ist für diese Organisation ausgeschaltet",
+      "check": "Mit Evals prüfen"
+    },
+    "describe": {
+      "label": "Oder beschreiben Sie ihn, und {name} entwirft ihn mit Ihnen",
+      "placeholder": "Ein Support-Agent, der Rückgabefragen anhand unserer Richtlinie beantwortet und verärgerte Kunden an einen Menschen übergibt.",
+      "send": "Dem Architekten beschreiben",
+      "prompt": "Entwirf mir einen Agent: {description}"
+    }
   }
 }

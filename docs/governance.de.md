@@ -1,5 +1,5 @@
 ---
-source_sha: "f3140bb4c970"
+source_sha: "a2a5b8893b6f"
 ---
 
 # Governance { #governance }
@@ -1682,6 +1682,13 @@ Monatsbudget des Bewerters und das der Organisation geprüft, seine Kosten werde
 aufgezeichnet, und er wird in Activity unter der Oberfläche `eval` aufgeführt.
 Ein Bewerter startet mit einem eigenen Budget - 5 $ im Monat -, das sich wie das
 jedes Agents ändern lässt.
+
+Der [Authoring-Assistent](authoring.md) ist auf dieselbe Weise ein System-Agent,
+mit einem eigenen Budget von 5 $. Auf dem Dashboard wird, was er kostet, getrennt
+von den Evals ausgewiesen, als Ausgabe für Verbesserungen. Ebenso, was der
+Klassifizierer und der Entwerfer für [Wissenslücken](knowledge-gaps.md) kosten:
+Sie füllen, was einer Wissensbasis fehlt, statt einen Agent zu messen. Der Judge
+und der Fall-Generator bleiben bei den Evals.
 
 Ein Bewerter wird nie bereitgestellt: Kein Kanal, kein Embed, keine
 öffentliche Seite und kein Zeitplan lassen sich an ihn hängen, kein Agent kann

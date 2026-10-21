@@ -9,6 +9,7 @@ import type { AssistantState } from "@/types/assistant";
 
 import { BUBBLE_VISIBLE_MS } from "./assistant-bubble";
 import { AssistantWidget, DOCK_AFTER_MS } from "./assistant-widget";
+import { useArchitectAskStore } from "@/stores/architect-ask-store";
 
 const state = vi.hoisted(() => ({
   assistant: null as AssistantState | null,
@@ -193,6 +194,14 @@ describe("the Architect widget", () => {
     expect(document.querySelector("iframe")).toBeNull();
     expect(chat()).toHaveAttribute("data-prompt", expect.stringMatching(/new agent/));
     expect(screen.queryByText(/Want a new agent/)).toBeNull();
+  });
+
+  it("opens on a question handed over from the create dialog, once", () => {
+    render(<AssistantWidget />);
+    act(() => useArchitectAskStore.getState().ask("Draft an agent for me: refunds"));
+
+    expect(screen.getByRole("dialog", { name: "Architect" })).not.toHaveClass("hidden");
+    expect(chat()).toHaveAttribute("data-prompt", "Draft an agent for me: refunds");
   });
 
   it("lets a bubble fade when nobody answers it, and holds it while the pointer rests on it", () => {

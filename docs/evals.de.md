@@ -1,5 +1,5 @@
 ---
-source_sha: "00e4ed42af6a"
+source_sha: "ed8f0bf377ed"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -174,6 +174,14 @@ wird:
 - ein Agent, der nie veröffentlicht wurde, für den eine Version verlangt wird -
   starte stattdessen seinen Draft;
 - eine Baseline für eine erste Version, vor der es nichts gibt.
+
+### Vorschläge prüfen { #checking-suggestions }
+
+Der [Authoring-Assistent](authoring.md#check-with-evals) startet Eval Runs, um zu
+prüfen, was er vorschlägt: den Draft mit den wartenden Vorschlägen, neben der
+veröffentlichten Version. Ein solcher Run lässt die Fälle aus den Gesprächen weg,
+aus denen die Vorschläge stammen, und nennt ihre Zahl, sodass eine kleinere
+Stichprobe als das Dataset sich selbst erklärt.
 
 ## Als was jeder Fall läuft { #what-each-case-runs-as }
 

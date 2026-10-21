@@ -10,6 +10,7 @@ export const SYSTEM_AGENT_KINDS: readonly SystemAgentKind[] = [
   "drafter",
   "generator",
   "classifier",
+  "improver",
 ];
 
 /** Whether only the platform runs an agent of this kind; an unknown kind is an ordinary agent. */

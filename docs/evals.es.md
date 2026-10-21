@@ -1,5 +1,5 @@
 ---
-source_sha: "00e4ed42af6a"
+source_sha: "ed8f0bf377ed"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -163,6 +163,14 @@ Un run que no podría decirle nada a nadie se rechaza antes de estimarse:
 - un agent que nunca se publicó, para el que se pide una versión: ejecuta su
   borrador en su lugar;
 - un baseline para una primera versión, que no tiene nada antes.
+
+### Comprobar sugerencias { #checking-suggestions }
+
+El [asistente de autoría](authoring.md#check-with-evals) inicia eval runs para
+comprobar lo que sugiere: el draft con las sugerencias pendientes aplicadas,
+junto a la versión publicada. Un run así deja fuera los casos tomados de las
+conversaciones de las que salieron las sugerencias y dice cuántos son, de modo
+que una muestra menor que el dataset se explica sola.
 
 ## Cómo se ejecuta cada caso { #what-each-case-runs-as }
 

@@ -25,6 +25,13 @@ export interface SkillChangeRecord {
   status: ProposalStatus;
   decided_by_user_id: string | null;
   decided_at: string | null;
+  /** The skill version an assistant's proposal was written against; Apply refuses past it. */
+  base_version?: number | null;
+  rationale?: string;
+  /** Run ids and quotes, each checked against its run; no quote without `runs:view`. */
+  evidence?: { run_id: string; quote: string | null }[];
+  evidence_dropped?: number;
+  expected_effect?: string;
   created_at: string;
   updated_at: string | null;
 }

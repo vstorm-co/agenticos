@@ -229,6 +229,38 @@ for measurement and isolation, not its mechanisms.
   router. Immutable dataset versions follow `AgentVersion`, not the skill's
   informational version counter.
 
+### As built in #2117 { #as-built-in-2117 }
+
+Where the implementation departs from the decisions below, this is what holds;
+[docs/authoring.md](../authoring.md) describes the result for a reader.
+
+- **No `authoring` capability, no read tools.** The evidence is gathered by
+  `app/services/authoring_evidence.py` and handed to the improver in the prompt;
+  it answers with a typed result through `SystemAgentRunner`, as the judge does.
+  Blindness to evals is a property of the queries - no eval-surface run, no case
+  score - not a rule the model is asked to follow. Decision 3's tool table is
+  superseded.
+- **The improver's runs are stamped `eval`**, because a system agent runs only on
+  that surface; the evidence reads leave its own runs out with every other eval
+  run. The dashboard names its cost apart, as `authoring_usd`.
+- **No draft revision column.** The Builder already holds its autosave on a change
+  made elsewhere (#2061). A decision stores the page's edit first and adopts the
+  draft the server wrote; a hunk whose accepted text was later overwritten reads as
+  no longer fitting, by the same anchor Undo uses.
+- **A decision locks its batch row** before the hunk's compare-and-set, so it and
+  a newer request superseding the batch serialize.
+- **Skills load through `load_capability`**; `load_skill` no longer exists. The
+  runs that opened a skill are found by that call's `id` argument.
+- **Mode 1 is the Architect.** The create dialog hands a description to the
+  Architect, which already drafts agents; there is no `propose_agent`.
+- **Check with evals runs on a dataset** until suites (#2115) land, and a skill
+  change is checked with its proposed body served to one agent that uses it.
+- **The improver is listed with the system agents**, grouped by its `improver`
+  kind, not among the organization's agents - which supersedes Resolved #1.
+- **The expected effect is shown beside the checks**, not matched to flipped
+  cases: the improver never sees cases, so it cannot name the ones it expects to
+  flip.
+
 ## 0. What already exists — corrected
 
 The issue was filed on 2026-08-01 and three of its premises have moved since.

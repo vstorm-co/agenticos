@@ -381,6 +381,12 @@ export const qk = {
     reviewQueue: (query: { skip: number; limit: number }) =>
       ["datasets", "review-queue", query] as const,
   },
+  authoring: {
+    all: () => ["authoring"] as const,
+    agent: (agentId: string) => ["authoring", "agent", agentId] as const,
+    skill: (skillId: string) => ["authoring", "skill", skillId] as const,
+    waiting: () => ["authoring", "waiting"] as const,
+  },
   knowledgeGaps: {
     all: () => ["knowledge-gaps"] as const,
     /** `scope` is `organization`, `collection:<id>` or `agent:<id>`. */

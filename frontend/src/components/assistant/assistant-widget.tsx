@@ -25,6 +25,7 @@ import { AssistantBubble } from "./assistant-bubble";
 import { architectName, AssistantLauncher, WidgetRoot } from "./assistant-launcher";
 import { AssistantSetup } from "./assistant-setup";
 import { AssistantWindow } from "./assistant-window";
+import { useArchitectAskStore } from "@/stores/architect-ask-store";
 
 /** How long a page is looked at before the bubble speaks. */
 const BUBBLE_DELAY_MS = 3000;
@@ -187,6 +188,22 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
     openWindow();
     setPrompt((last) => ({ id: (last?.id ?? 0) + 1, text }));
   };
+
+  // A question handed over from elsewhere - the create dialog's "Describe it" -
+  // taken off the store as it arrives, so a later mount does not ask it again.
+  useEffect(
+    () =>
+      useArchitectAskStore.subscribe((state) => {
+        if (state.asked === null) return;
+        const { text } = state.asked;
+        state.clear();
+        dock(false);
+        setOpen(true);
+        setEverOpened(true);
+        setPrompt((last) => ({ id: (last?.id ?? 0) + 1, text }));
+      }),
+    [dock],
+  );
 
   const followLink = (link: ConsoleLink) => {
     // On a phone the full-screen window steps aside so the page can be seen.
