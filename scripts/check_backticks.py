@@ -26,8 +26,6 @@ Usage::
 Exits 1 when anything is found (so it can gate CI), 0 when clean.
 """
 
-from __future__ import annotations
-
 import argparse
 import os
 import re

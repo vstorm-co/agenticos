@@ -8,8 +8,6 @@ built on real SQL (`ON CONFLICT`, a forced `IntegrityError`, `resolve_access`
 against a real grant-less row) that a mocked repository cannot exercise.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 

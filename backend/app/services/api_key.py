@@ -10,8 +10,6 @@ The plaintext is in exactly one response, the one that creates it. It is never
 logged, audited or returned again; refusals name the key by its prefix at most.
 """
 
-from __future__ import annotations
-
 import hashlib
 import secrets
 from dataclasses import dataclass
@@ -346,6 +344,29 @@ class ApiKeyService:
         if key is None or not secrets.compare_digest(key.key_hash, _digest(raw)):
             raise AuthenticationError(message=_REFUSED)
         now = datetime.now(UTC)
+        caller = await self._caller(key, now)
+        await api_key_repo.touch(self.db, key.id, at=now, stale_before=now - _TOUCH_EVERY)
+        return caller
+
+    async def context_for_key(self, api_key_id: UUID, *, organization_id: UUID) -> AuthContext:
+        """The context a key stands for *now*, for work it asked for earlier.
+
+        An asynchronous run executes after the request that queued it, and the
+        key may have been revoked, or its issuer demoted or removed, in between.
+        So the worker re-establishes the context by the same checks
+        `authenticate` makes - minus the secret, which it never had - rather
+        than trusting the one the request was answered under.
+
+        Raises:
+            AuthenticationError: The key is gone, revoked or expired, or its
+                issuer is no longer an active member of its organization.
+        """
+        key = await api_key_repo.get(self.db, api_key_id, organization_id=organization_id)
+        if key is None:
+            raise AuthenticationError(message=_REFUSED)
+        return (await self._caller(key, datetime.now(UTC))).context
+
+    async def _caller(self, key: ApiKey, now: datetime) -> KeyCaller:
         if _status(key, now) != "active":
             raise AuthenticationError(message=_REFUSED, details={"prefix": key.prefix})
         membership = await member_repo.get_active(
@@ -355,7 +376,6 @@ class ApiKeyService:
         organization = await organization_repo.get_by_id(self.db, key.organization_id)
         if membership is None or issuer is None or not issuer.is_active or organization is None:
             raise AuthenticationError(message=_REFUSED, details={"prefix": key.prefix})
-        await api_key_repo.touch(self.db, key.id, at=now, stale_before=now - _TOUCH_EVERY)
         return KeyCaller(
             user=issuer,
             organization=organization,

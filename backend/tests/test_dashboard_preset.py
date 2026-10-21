@@ -8,8 +8,6 @@ the cascades) are asserted against a real database in
 tests/integration/test_dashboard_preset.py.
 """
 
-from __future__ import annotations
-
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 

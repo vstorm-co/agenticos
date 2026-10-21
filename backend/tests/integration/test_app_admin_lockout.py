@@ -13,8 +13,6 @@ and that it is refused once it can see the first one's commit - because what mak
 it work is `SELECT ... FOR UPDATE` over the app-admin set across two transactions.
 """
 
-from __future__ import annotations
-
 import asyncio
 import contextlib
 import uuid

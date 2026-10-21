@@ -8,8 +8,6 @@ the duplicate name is refused by the constraint and not only by the service,
 and deleting either side of the key leaves no orphan preset behind.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

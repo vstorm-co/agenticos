@@ -18,8 +18,6 @@ the whole reason `include_sandbox` is a parameter rather than something this mod
 decides for itself.
 """
 
-from __future__ import annotations
-
 import logging
 from dataclasses import dataclass
 from decimal import Decimal

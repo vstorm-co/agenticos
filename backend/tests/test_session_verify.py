@@ -1,8 +1,6 @@
 """`SessionService.verify_access_session` - the #1501 refusal that lets signing
 out everywhere reach an ordinary access token."""
 
-from __future__ import annotations
-
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4

@@ -7,8 +7,6 @@ anything else has it dropped, so a mention can never widen what a run reaches, a
 none ever changes which agent answers.
 """
 
-from __future__ import annotations
-
 import uuid
 from types import SimpleNamespace
 from typing import Any
@@ -52,7 +50,12 @@ class _World:
 
     def __init__(self) -> None:
         self.connection = SimpleNamespace(
-            id=uuid.uuid4(), name="github-work", label=None, catalog_key="github", is_enabled=True
+            id=uuid.uuid4(),
+            name="github-work",
+            label=None,
+            catalog_key="github",
+            is_enabled=True,
+            url="https://api.githubcopilot.com/mcp/?token=secret",
         )
         self.collection = SimpleNamespace(id=uuid.uuid4(), name="Contracts", organization_id=ORG)
         self.stranger_collection = SimpleNamespace(
@@ -191,6 +194,10 @@ class TestWhatIsOffered:
         assert "context" not in by_kind
         github = offered[0]
         assert (github.detail, github.icon) == ("github_work_*", "github")
+        # The host its logo is drawn from, and nothing more of an address that can
+        # carry a credential.
+        assert github.host == "api.githubcopilot.com"
+        assert offered[3].host is None
         assert [item.id for item in offered if item.kind == "agent"][2] == "inline:summariser"
 
     async def test_capabilities_are_offered_whole_and_named_as_people_know_them(

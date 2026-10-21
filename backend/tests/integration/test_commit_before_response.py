@@ -46,7 +46,7 @@ _SELECT = "SELECT 1 FROM commit_ordering_probe WHERE id = :id"
 
 
 @pytest.fixture
-async def probe_table(engine: AsyncEngine) -> AsyncGenerator[AsyncEngine, None]:
+async def probe_table(engine: AsyncEngine) -> AsyncGenerator[AsyncEngine]:
     """A table to write one row into, and the engine that watches for it.
 
     Not one of the product's own tables on purpose: this asserts a property of

@@ -1,5 +1,5 @@
 ---
-source_sha: "5e7cbb840c77"
+source_sha: "0925d704b4b2"
 ---
 
 # Befehle { #commands }
@@ -155,17 +155,19 @@ die Meldungen holt.
 | `make user-create` | Neuen Nutzer anlegen (interaktiv) |
 | `make user-list` | Alle Nutzer auflisten |
 
-### Prefect { #prefect }
+### Hintergrund-Jobs { #background-jobs }
 
-Prefect läuft im Dev-Stack als zwei Container — sie starten automatisch mit `make dev`:
+Der Worker läuft im Dev-Stack als ein Container und startet mit `make dev`:
 
-- **`prefect-server`** — Orchestrierungs-API + Web-UI unter <http://localhost:4200>
-- **`prefect-runner`** — registriert die geplanten Deployments und fragt nach Arbeit
+- **`worker`** — `python -m app.worker`, aus dem Backend-Image. Er holt Jobs aus
+  der Tabelle `background_jobs` ab, führt den Ingest-Pool in Kindprozessen aus
+  und löst die Zeitpläne des Deployments aus.
 
-Der Runner ist `python -m app.worker.prefect_app`; Flows liegen in `app/worker/tasks/`.
-Öffnen Sie die UI, um Flow-Läufe zu beobachten, Logs zu prüfen und Deployments von
-Hand auszulösen.
-Standardmäßig selbst gehostet — setzen Sie `PREFECT_API_KEY` (und eine Cloud-`PREFECT_API_URL`), um stattdessen Prefect Cloud zu nutzen.
+Job-Arten sind in `app/worker/jobs.py` deklariert, ihre Handler liegen in
+`app/worker/tasks/` und werden in `app/worker/handlers.py` gebunden, die
+Zeitpläne stehen in `app/worker/schedules.py`. Beobachten, wiederholen,
+abbrechen und fortsetzen Sie auf der Konsolenseite **Admin → Background jobs**,
+als Eigentümer des Deployments.
 
 ### Docker (Entwicklung) { #docker-development }
 
@@ -335,9 +337,9 @@ uv run agenticos cmd bootstrap --org "Acme"
 # Can this deployment actually run an agent? Database, vault, a usable model,
 # and every registered sandbox connection - probed one by one, credential
 # included, because `/healthz` is unauthenticated and answers for a service
-# holding the wrong token. Then whether scheduled jobs run: a trigger heartbeat
-# that has not completed for five intervals fails it, whatever Prefect's own
-# health endpoint says.
+# holding the wrong token. Then whether background work runs: no worker heard
+# from in two minutes, a minute schedule that has not fired for five intervals,
+# or a kind of job paused by its circuit breaker fails it.
 uv run agenticos cmd doctor
 
 # Dasselbe plus ein zweites Blatt: eine Zeile je Kontrolle eines

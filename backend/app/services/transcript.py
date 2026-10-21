@@ -22,8 +22,6 @@ answer for a person appending a turn, the wrong one here: archiving a thread
 must not make the run inside it unaccountable.
 """
 
-from __future__ import annotations
-
 import json
 import logging
 from collections.abc import Collection, Mapping, Sequence
@@ -123,7 +121,7 @@ def tool_result_text(content: Any) -> str:
         return content
     try:
         return json.dumps(content, ensure_ascii=False, default=str)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         # `default=` is consulted for a *value* json cannot write and never for a
         # key, so a mapping keyed by a tuple raises `TypeError` and escaped this
         # fallback - taking the stream down on a tool call that had succeeded.

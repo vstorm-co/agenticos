@@ -12,8 +12,6 @@ was wrong was what that raise became on the wire - and it became it twice, at
 both addresses an upload can arrive at.
 """
 
-from __future__ import annotations
-
 import json
 import uuid
 from typing import Any

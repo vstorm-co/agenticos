@@ -1094,7 +1094,7 @@
       "docsTitle": "Podsumuj dokumenty",
       "greeting": "W czym mogę pomóc, {name}?",
       "greetingAnonymous": "W czym mogę dziś pomóc?",
-      "lead": "Pytaj o cokolwiek - odpowiedzi strumieniują się z wywołaniami narzędzi i cytatami z Twojej wiedzy.",
+      "lead": "Zapytaj o cokolwiek, dołącz plik albo zacznij od jednego z tych pomysłów.",
       "slashCommands": "komendy slash",
       "emailTitle": "Napisz e-mail",
       "emailPrompt": "Napisz krótki, uprzejmy e-mail z prośbą do klienta o potwierdzenie spotkania w przyszłym tygodniu.",
@@ -2310,6 +2310,14 @@
           "title": "Nic jeszcze nie narysowano",
           "description": "Poproś agenta z Wizualizacjami, żeby coś narysował - diagram, explainer, scenę 3D - a pojawi się tutaj."
         }
+      },
+      "background-jobs": {
+        "title": "Zadania w tle",
+        "description": "Co kolejka zadań zakończyła w ostatnich 24 godzinach i ile z tego zginęło.",
+        "empty": {
+          "title": "Jeszcze nic się nie zakończyło",
+          "description": "W ostatnich 24 godzinach nie zakończyło się żadne zadanie w tle."
+        }
       }
     },
     "edit": {
@@ -3145,7 +3153,8 @@
     "documents": "Dokumenty",
     "signIns": "Logowania",
     "projects": "Projekty",
-    "allProjects": "Wszystkie projekty"
+    "allProjects": "Wszystkie projekty",
+    "backgroundJobs": "Zadania w tle"
   },
   "navigation": {
     "dashboard": "Panel",
@@ -4741,7 +4750,11 @@
       "sandboxConnections": "Połączenia sandboxów",
       "sandboxes2": "Sandboxy",
       "tabConnections": "Połączenia",
-      "tabRunning": "Działające"
+      "tabRunning": "Działające",
+      "deleteFailed": "Nie udało się usunąć połączenia",
+      "strandedTitle": "{count, plural, one {Sandbox wciąż jest} few {# sandboxy wciąż są} many {# sandboxów wciąż jest} other {# sandboxa wciąż jest}} u dostawcy",
+      "strandedBody": "AgenticOS nie zdołał usunąć {count, plural, one {sandboxa} few {# sandboxów} many {# sandboxów} other {# sandboxa}} u dostawcy połączenia {name}, a dostawca może wciąż za nie naliczać opłaty. Najpierw usuń je w konsoli dostawcy, potem potwierdź tutaj, żeby o nich zapomnieć i usunąć połączenie.",
+      "strandedConfirm": "Są usunięte, usuń połączenie"
     },
     "settings": {
       "absencesWorthStatingBecause": "Braki warte wymienienia, bo strona ustawień sugeruje coś przeciwnego.",
@@ -4967,6 +4980,81 @@
       "siteLabel": "Strona",
       "sitePlaceholder": "linkedin.com/login",
       "title": "Logowania w przeglądarce"
+    },
+    "backgroundJobs": {
+      "status": {
+        "queued": "W kolejce",
+        "running": "W trakcie",
+        "succeeded": "Zakończone",
+        "dead": "Martwe",
+        "cancelled": "Anulowane"
+      },
+      "pools": {
+        "agent": "Runy agentów",
+        "ingest": "Ingestion",
+        "system": "Systemowe"
+      },
+      "kind": "Rodzaj",
+      "statusColumn": "Status",
+      "attempts": "Próby",
+      "attemptsOf": "{attempts} z {max}",
+      "pool": "Pula",
+      "queued": "Dodane",
+      "actions": "Akcje",
+      "retry": "Ponów",
+      "cancel": "Anuluj",
+      "jobs": "Zadania",
+      "newestFirst": "Od najnowszych",
+      "filterByPool": "Filtruj po puli",
+      "allPools": "Wszystkie pule",
+      "jobsCouldNotBeRead": "Nie udało się odczytać zadań.",
+      "noJobs": "Brak zadań.",
+      "loadMore": "Pokaż więcej",
+      "workers": "Workery",
+      "workersAlive": "{count, plural, =0 {żaden nie działa} one {1 działa} few {# działają} many {# działa} other {# działa}}",
+      "noWorkers": "Żaden worker nie odezwał się w ciągu ostatnich dwóch minut, więc nic z kolejki się nie wykonuje.",
+      "workerLine": "{pools} · widziany {beat}",
+      "schedules": "Harmonogramy",
+      "schedulesCount": "{count, plural, one {1 harmonogram} few {# harmonogramy} many {# harmonogramów} other {# harmonogramu}}",
+      "every": "{unit, select, day {{count, plural, =1 {codziennie} other {co # dni}}} hour {{count, plural, =1 {co godzinę} few {co # godziny} many {co # godzin} other {co # godziny}}} other {{count, plural, =1 {co minutę} few {co # minuty} many {co # minut} other {co # minuty}}}}",
+      "nextRun": "następne {time}",
+      "pausedTitle": "{count, plural, one {Jeden rodzaj zadań jest wstrzymany} few {# rodzaje zadań są wstrzymane} many {# rodzajów zadań jest wstrzymanych} other {# rodzaju zadań jest wstrzymane}}",
+      "pausedSince": "Wstrzymane od {time}",
+      "resume": "Wznów",
+      "retried": "Zadanie wróciło do kolejki.",
+      "cancelled": "Zadanie anulowane.",
+      "resumed": "Zadania tego rodzaju znów są pobierane.",
+      "actionFailed": "Nie udało się.",
+      "couldNotRead": "Nie udało się odczytać kolejki",
+      "couldNotReadBody": "Nie udało się pobrać zadań w tle. Baza danych może być niedostępna.",
+      "activity": "Aktywność",
+      "windowLabel": "Okres",
+      "window": {
+        "day": "24 godziny",
+        "week": "7 dni"
+      },
+      "finishedFigure": "Zakończone",
+      "finishedCaption": "{window, select, day {w ostatnich 24 godzinach} other {w ostatnich 7 dniach}}",
+      "deadFigure": "Martwe",
+      "deadShare": "{share} zakończonych",
+      "noneDead": "żadne",
+      "waitFigure": "Najdłużej czeka",
+      "waitCaption": "zadanie do wykonania, teraz",
+      "waitNone": "nic nie czeka",
+      "slowestFigure": "Najwolniejszy odbiór (p95)",
+      "byKind": "Według rodzaju",
+      "kindsCount": "{count, plural, =0 {brak rodzajów} one {1 rodzaj} few {# rodzaje} many {# rodzajów} other {# rodzaju}}",
+      "columns": {
+        "finished": "Zakończone",
+        "dead": "Martwe",
+        "run": "Czas p50 / p95",
+        "wait": "Czekanie p95"
+      },
+      "noActivity": "W tym okresie nic się nie zakończyło.",
+      "activityCouldNotBeRead": "Nie udało się odczytać aktywności.",
+      "perSlice": "{window, select, day {ok. {count} na godzinę} other {ok. {count} na sześć godzin}}",
+      "pausedEverywhere": "Wstrzymane dla wszystkich organizacji",
+      "pausedFor": "Wstrzymane dla {organization}"
     }
   },
   "profile": {
@@ -5896,7 +5984,18 @@
     "stepMessage": "Wiadomość",
     "templateScratchHelpEvent": "Napisz własną wiadomość.",
     "sourceEmail": "Przychodzącym e-mailu",
-    "sourceHelpEmail": "Skieruj przekaźnik poczty przychodzącej na ten webhook. Przekaźnik musi podpisać każdą dostawę (HMAC) - Zapier i Make potrafią to tylko przez krok z kodem; zwykła akcja webhooka bez kodu przychodzi niepodpisana i jest odrzucana."
+    "sourceHelpEmail": "Skieruj przekaźnik poczty przychodzącej na ten webhook. Przekaźnik musi podpisać każdą dostawę (HMAC) - Zapier i Make potrafią to tylko przez krok z kodem; zwykła akcja webhooka bez kodu przychodzi niepodpisana i jest odrzucana.",
+    "overlapLabel": "Jeśli poprzednie uruchomienie wciąż trwa",
+    "overlap": {
+      "skip": "Pomiń to uruchomienie",
+      "queue": "Uruchom, gdy się skończy",
+      "allow": "Uruchom mimo to"
+    },
+    "overlapHint": {
+      "skip": "Harmonogram czeka na kolejny termin. Wolny agent działa tak często, jak zdąży skończyć.",
+      "queue": "Uruchamia się raz po zakończeniu poprzedniego, niezależnie od liczby pominiętych terminów.",
+      "allow": "Startuje o czasie obok trwającego uruchomienia. Płacisz za oba."
+    }
   },
   "portals": {
     "title": "Portale",
@@ -5909,10 +6008,10 @@
     "reauthorizeAction": "Autoryzuj ponownie",
     "redirecting": "Przekierowanie…",
     "advancedWebhook": "Zaawansowane: wyzwalacz API",
-    "ambiguousOAuthApp": "Zapisane są dwa widoczne dla organizacji sekrety GitHub OAuth App, więc łączenie nie wie, o który chodzi. Usuń jeden w vault.",
+    "ambiguousOAuthApp": "Zapisane są dwa widoczne dla organizacji sekrety {credential}, więc łączenie nie wie, o który chodzi. Usuń jeden w vault.",
     "apiCategory": "Twój własny kod",
     "addCredentials": "Dodaj dane uwierzytelniające",
-    "needsOAuthApp": "Łączenie wymaga danych GitHub OAuth App Twojej organizacji. Dodaj je tutaj albo w vault.",
+    "needsOAuthApp": "Łączenie wymaga danych {credential} Twojej organizacji. Dodaj je tutaj albo w vault.",
     "oauthUnavailable": "Podłączenie skrzynki wymaga własnego klienta Google tego wdrożenia, a żaden nie jest skonfigurowany. Operator ustawia GOOGLE_CLIENT_ID i GOOGLE_CLIENT_SECRET; nic w vault tego nie naprawi.",
     "openVault": "Otwórz vault",
     "apiDescription": "Uruchom agenta podpisanym POST-em z czegokolwiek, co potrafi wysłać JSON.",
@@ -5945,7 +6044,8 @@
     "authorFilterLabel": "Autor zawiera",
     "authorFilterPlaceholder": "np. Jan Kowalski",
     "textFilterLabel": "Treść zawiera",
-    "textFilterPlaceholder": "np. rekrutacja"
+    "textFilterPlaceholder": "np. rekrutacja",
+    "oauthAppFallback": "aplikacji OAuth"
   },
   "agentTemplates": {
     "browse": "Szablony agentów",

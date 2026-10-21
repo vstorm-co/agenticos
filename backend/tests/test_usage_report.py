@@ -17,8 +17,6 @@ And the cost of measuring: a container's memory is a daemon round trip, so a
 report nobody will see is never fetched.
 """
 
-from __future__ import annotations
-
 import uuid
 from decimal import Decimal
 from typing import Any

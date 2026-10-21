@@ -1,5 +1,5 @@
 ---
-source_sha: "29cf0b5c3b94"
+source_sha: "67523cafdf32"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -197,6 +197,41 @@ Kosten, für einen Schlüssel mit `runs:view`.
 
     Das ist der Sinn eines einzigen Runners, und deshalb gibt es keinen
     "schnellen Weg", der ihn überspringt.
+
+### Ohne die Verbindung zu halten { #without-holding-the-connection }
+
+Ein Run von Minuten - ein Browse, eine lange Tool-Kette - hält die Anfrage die
+ganze Zeit offen, und das Lese-Timeout eines Proxys kann sie abschneiden,
+während der Run weiterläuft. Senden Sie `Prefer: respond-async`, und der Aufruf
+antwortet sofort mit `202` und einer Run-Anfrage zum Abfragen:
+
+```bash
+curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Prefer: respond-async" \
+  -H "Idempotency-Key: ticket-4711" \
+  -d '{"prompt": "Summarise this quarter for the board"}'
+# 202, Location: /api/v1/run-requests/{id}, Preference-Applied: respond-async
+
+curl "$BASE/api/v1/run-requests/$REQUEST_ID" -H "Authorization: Bearer $AGENTICOS_KEY"
+```
+
+Die Anfrage steht auf `queued`, `running`, dann `completed` mit `result` -
+demselben Body, mit dem der synchrone Aufruf antwortet - oder `failed` mit
+`error`. Ihre `conversation_id` ist ab der ersten Antwort bekannt, eine
+Folgenachricht kann also gesendet werden, bevor der Run endet. Ein Worker führt
+sie aus, durch denselben Runner, dasselbe Budget und dieselben Freigaben wie
+jede andere Oberfläche.
+
+Was sich sofort prüfen lässt, wird sofort geprüft: Eine unbekannte Konversation
+oder Anlage ist ein `404` auf den `POST`, kein Fehler, auf den man warten muss.
+Die Rechte des Schlüssels werden beim Start des Runs erneut geprüft, ein
+Schlüssel, der widerrufen wurde, während sein Run wartete, führt ihn also nicht
+aus. Nur die Person, die angefragt hat, oder ein Schlüssel von ihr kann eine
+Run-Anfrage lesen; die eines anderen antwortet `404`. Ein asynchroner Run hat
+einen Versuch - ein gescheiterter Run wird mit dem festgehalten, was er
+ausgegeben hat, und nicht wiederholt, um es nicht zweimal auszugeben.
 
 Die Route trägt eine **Rate-Limitierung und kein Berechtigungs-Tor**. Über die
 Berechtigung entscheidet der Service, anhand der Grants genau dieses Agents — ein
@@ -409,9 +444,9 @@ neuen Run.
 
 ## Wiederholungen, Idempotenz und Revisionen { #retries-idempotency-and-revisions }
 
-v1 hat keinen `Idempotency-Key`-Header und keine Revisions-Vorbedingungen: kein
-`ETag`, kein `If-Match`. Ein Schreibzugriff wird angewendet, wenn er ankommt,
-und der letzte gewinnt.
+v1 hat keine Revisions-Vorbedingungen: kein `ETag`, kein `If-Match`. Ein
+Schreibzugriff wird angewendet, wenn er ankommt, und der letzte gewinnt.
+`Idempotency-Key` wird auf einer Route beachtet, dem asynchronen Run.
 
 - **`GET`, `PUT` und `DELETE` lassen sich gefahrlos wiederholen.** Zweimal lesen
   liest zweimal; etwas zu löschen, das schon weg ist, antwortet `404`, was eine
@@ -424,6 +459,13 @@ und der letzte gewinnt.
   schauen Sie nach, bevor Sie wiederholen: `GET /api/v1/runs?agent_id=…&surface=api`
   listet die Runs, neueste zuerst, und ein Listenabruf findet eine Zeile, die der
   erste Versuch doch angelegt hat.
+- **Ein asynchroner Run schon, mit einem `Idempotency-Key`.** Senden Sie
+  `Prefer: respond-async` und einen Schlüssel Ihrer Wahl, höchstens 255 Zeichen,
+  und eine Wiederholung mit demselben Schlüssel und demselben Body antwortet mit
+  derselben Run-Anfrage, in welchem Zustand sie auch ist. Derselbe Schlüssel mit
+  einem anderen Body ist ein `409`, nie ein zweiter Run. Schlüssel gelten pro
+  Organisation. Ein synchroner Aufruf mit dem Header wird mit `400` abgelehnt,
+  statt glauben zu lassen, eine Wiederholung sei sicher.
 - **`429` ist die einzige Ablehnung zum Wiederholen**, nach dem `Retry-After`,
   das sie trägt. Jedes andere `4xx` ist für diese Anfrage endgültig.
 
@@ -491,6 +533,9 @@ versioniert und bewegt sich nur vorwärts.
 - Ein Skript holt sich seinen eigenen Schlüssel **ohne Browser** — anmelden,
   ausstellen, widerrufen — und `examples/public-api.sh` geht diesen Weg ganz.
 - **Nur `429` lohnt eine Wiederholung**; ein `POST` ist nicht idempotent, also
-  schauen Sie nach, bevor Sie ihn wiederholen.
+  schauen Sie nach, bevor Sie ihn wiederholen - außer bei einem asynchronen Run
+  mit `Idempotency-Key`.
+- **`Prefer: respond-async`** macht aus einem Run ein `202` und eine Run-Anfrage
+  zum Abfragen, ein langer Run hält also keine Verbindung offen.
 - **Die öffentliche API steht in `/api/v1/public/openapi.json`** und ändert
   sich in v1 nur additiv, mit 90 Tagen Deprecation; ein SDK gibt es noch nicht.

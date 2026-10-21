@@ -1094,7 +1094,7 @@
       "docsTitle": "Summarize my docs",
       "greeting": "How can I help, {name}?",
       "greetingAnonymous": "How can I help today?",
-      "lead": "Ask anything - get streaming answers with tool calls and citations from your knowledge.",
+      "lead": "Ask anything, attach a file, or start from one of these.",
       "slashCommands": "slash commands",
       "emailTitle": "Draft an email",
       "emailPrompt": "Draft a short, friendly email asking a client to confirm next week's meeting.",
@@ -2310,6 +2310,14 @@
           "title": "Nothing drawn yet",
           "description": "Ask an agent with Visuals to draw something - a diagram, an explainer, a 3D scene - and it appears here."
         }
+      },
+      "background-jobs": {
+        "title": "Background jobs",
+        "description": "What the job queue finished in the last 24 hours, and how much of it died.",
+        "empty": {
+          "title": "Nothing finished yet",
+          "description": "No background job has finished in the last 24 hours."
+        }
       }
     },
     "edit": {
@@ -3375,7 +3383,8 @@
     "documents": "Documents",
     "signIns": "Sign-ins",
     "projects": "Projects",
-    "allProjects": "All projects"
+    "allProjects": "All projects",
+    "backgroundJobs": "Background jobs"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -4971,7 +4980,11 @@
       "sandboxConnections": "Sandbox connections",
       "sandboxes2": "Sandboxes",
       "tabConnections": "Connections",
-      "tabRunning": "Running"
+      "tabRunning": "Running",
+      "deleteFailed": "Could not delete the connection",
+      "strandedTitle": "{count, plural, one {A sandbox is} other {# sandboxes are}} still on the provider",
+      "strandedBody": "AgenticOS could not remove {count, plural, one {a sandbox} other {# sandboxes}} from the provider behind {name}, and the provider may still be billing for {count, plural, one {it} other {them}}. Delete {count, plural, one {it} other {them}} in the provider's console first, then confirm here to forget {count, plural, one {it} other {them}} and delete the connection.",
+      "strandedConfirm": "I deleted them, delete the connection"
     },
     "settings": {
       "absencesWorthStatingBecause": "Absences worth stating, because a settings page implies the opposite.",
@@ -5197,6 +5210,81 @@
       "siteLabel": "Site",
       "sitePlaceholder": "linkedin.com/login",
       "title": "Browser sign-ins"
+    },
+    "backgroundJobs": {
+      "status": {
+        "queued": "Queued",
+        "running": "Running",
+        "succeeded": "Succeeded",
+        "dead": "Dead",
+        "cancelled": "Cancelled"
+      },
+      "pools": {
+        "agent": "Agent runs",
+        "ingest": "Ingestion",
+        "system": "System"
+      },
+      "kind": "Kind",
+      "statusColumn": "Status",
+      "attempts": "Attempts",
+      "attemptsOf": "{attempts} of {max}",
+      "pool": "Pool",
+      "queued": "Queued",
+      "actions": "Actions",
+      "retry": "Retry",
+      "cancel": "Cancel",
+      "jobs": "Jobs",
+      "newestFirst": "Newest first",
+      "filterByPool": "Filter by pool",
+      "allPools": "All pools",
+      "jobsCouldNotBeRead": "The jobs could not be read.",
+      "noJobs": "No jobs here.",
+      "loadMore": "Load more",
+      "workers": "Workers",
+      "workersAlive": "{count, plural, =0 {none alive} =1 {1 alive} other {# alive}}",
+      "noWorkers": "No worker has said it is alive in the last two minutes, so nothing in the queue is running.",
+      "workerLine": "{pools} · seen {beat}",
+      "schedules": "Schedules",
+      "schedulesCount": "{count, plural, =1 {1 schedule} other {# schedules}}",
+      "every": "{unit, select, day {{count, plural, =1 {every day} other {every # days}}} hour {{count, plural, =1 {every hour} other {every # hours}}} other {{count, plural, =1 {every minute} other {every # minutes}}}}",
+      "nextRun": "next {time}",
+      "pausedTitle": "{count, plural, =1 {A kind of job is paused} other {# kinds of job are paused}}",
+      "pausedSince": "Paused since {time}",
+      "resume": "Resume",
+      "retried": "The job is queued again.",
+      "cancelled": "The job is cancelled.",
+      "resumed": "Jobs of this kind are claimed again.",
+      "actionFailed": "That did not go through.",
+      "couldNotRead": "Couldn't read the queue",
+      "couldNotReadBody": "The background jobs could not be fetched. The database may be unreachable.",
+      "activity": "Activity",
+      "windowLabel": "Window",
+      "window": {
+        "day": "24 hours",
+        "week": "7 days"
+      },
+      "finishedFigure": "Finished",
+      "finishedCaption": "{window, select, day {in the last 24 hours} other {in the last 7 days}}",
+      "deadFigure": "Dead",
+      "deadShare": "{share} of finished",
+      "noneDead": "none",
+      "waitFigure": "Waiting longest",
+      "waitCaption": "a due job, now",
+      "waitNone": "nothing due is waiting",
+      "slowestFigure": "Slowest pickup (p95)",
+      "byKind": "By kind",
+      "kindsCount": "{count, plural, =0 {no kinds} =1 {1 kind} other {# kinds}}",
+      "columns": {
+        "finished": "Finished",
+        "dead": "Dead",
+        "run": "Run p50 / p95",
+        "wait": "Wait p95"
+      },
+      "noActivity": "Nothing finished in this window.",
+      "activityCouldNotBeRead": "The activity could not be read.",
+      "perSlice": "{window, select, day {about {count} an hour} other {about {count} every six hours}}",
+      "pausedEverywhere": "Paused for every organization",
+      "pausedFor": "Paused for {organization}"
     }
   },
   "profile": {
@@ -6122,7 +6210,18 @@
     "presetWeekdays9": "Weekdays 09:00",
     "stepConfigure": "Configure",
     "stepMessage": "Message",
-    "templateScratchHelpEvent": "Write your own message."
+    "templateScratchHelpEvent": "Write your own message.",
+    "overlapLabel": "If the previous run is still going",
+    "overlap": {
+      "skip": "Skip this run",
+      "queue": "Run when it finishes",
+      "allow": "Run anyway"
+    },
+    "overlapHint": {
+      "skip": "The schedule waits for its next time. A slow agent runs as often as it can finish.",
+      "queue": "Runs once the previous run ends, however many times were missed.",
+      "allow": "Starts on time alongside the run still going. Both runs are paid for."
+    }
   },
   "portals": {
     "title": "Portals",
@@ -6135,10 +6234,10 @@
     "reauthorizeAction": "Re-authorize",
     "redirecting": "Redirecting…",
     "advancedWebhook": "API trigger",
-    "ambiguousOAuthApp": "Two org-visible GitHub OAuth App secrets are stored, so connecting cannot tell which one you meant. Remove one in the vault.",
+    "ambiguousOAuthApp": "Two org-visible {credential} secrets are stored, so connecting cannot tell which one you meant. Remove one in the vault.",
     "apiCategory": "Your own code",
     "addCredentials": "Add credentials",
-    "needsOAuthApp": "Connecting needs your organization's GitHub OAuth App credentials. Add them here, or in the vault.",
+    "needsOAuthApp": "Connecting needs your organization's {credential} credentials. Add them here, or in the vault.",
     "oauthUnavailable": "Connecting a mailbox needs this deployment's own Google client, and none is configured. An operator sets GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET; nothing in the vault fixes it.",
     "openVault": "Open the vault",
     "apiDescription": "Trigger an agent with a signed POST from anything that can send JSON.",
@@ -6171,7 +6270,8 @@
     "authorFilterLabel": "Author contains",
     "authorFilterPlaceholder": "e.g. Jane Doe",
     "textFilterLabel": "Text contains",
-    "textFilterPlaceholder": "e.g. hiring"
+    "textFilterPlaceholder": "e.g. hiring",
+    "oauthAppFallback": "OAuth app"
   },
   "agentTemplates": {
     "browse": "Agent templates",

@@ -135,7 +135,7 @@ async def _run(
                         done = await service.refresh_from_library(
                             ctx, skill.key, replace_edited=replace
                         )
-                except (AlreadyExistsError, IntegrityError):
+                except AlreadyExistsError, IntegrityError:
                     click.echo(
                         f"    {skill.name} - installed by somebody else meanwhile, left alone"
                     )

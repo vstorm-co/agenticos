@@ -13,8 +13,6 @@ link an account in order to say "this was helpful" is a worse experience than th
 thumbs simply not counting.
 """
 
-from __future__ import annotations
-
 import logging
 from uuid import UUID
 

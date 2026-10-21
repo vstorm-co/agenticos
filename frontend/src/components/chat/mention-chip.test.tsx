@@ -1,12 +1,16 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { MCP_LOGOS } from "@/lib/mcp-logos.generated";
 import type { Mentionable } from "@/types/mention";
 import { LinkFavicon } from "./link-favicon";
 import { MentionChip, RichText } from "./mention-chip";
 
 vi.mock("@/components/agents/agent-avatar", () => ({
   AgentAvatar: ({ slug }: { slug: string }) => <span data-testid="face">{slug}</span>,
+}));
+vi.mock("@/components/branding/brand-mark", () => ({
+  BrandMark: () => <span data-testid="brand-mark" />,
 }));
 
 describe("a mention chip", () => {
@@ -19,6 +23,24 @@ describe("a mention chip", () => {
     const { container } = render(<MentionChip item={item} />);
     expect(container.querySelector(`.${icon}`)).not.toBeNull();
     expect(screen.getByTitle(item.name)).toHaveTextContent(item.name);
+  });
+
+  it("draws the platform's own server in the deployment's mark, not a monogram", () => {
+    render(
+      <MentionChip
+        item={{ kind: "mcp", id: "platform", name: "agenticos", detail: "agenticos_*" }}
+      />,
+    );
+
+    expect(screen.getByTestId("brand-mark")).toBeInTheDocument();
+  });
+
+  it("draws a server in its brand's colours, from the host it is reached on", () => {
+    const { container } = render(
+      <MentionChip item={{ kind: "mcp", id: "c", name: "Linear", host: "mcp.linear.app" }} />,
+    );
+
+    expect(container.querySelector("img")).toHaveAttribute("src", MCP_LOGOS["mcp.linear.app"]);
   });
 
   it("draws an agent's face, by its handle or its name", () => {

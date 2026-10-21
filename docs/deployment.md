@@ -522,6 +522,38 @@ the same fallback upstream already uses in the branch it did guard. Still unfixe
 upstream as of 0.65b0, and `tests/test_otel_route_details.py` fails when it is fixed,
 which is when the module goes away.
 
+## Background jobs
+
+**Admin → Background jobs** (`/admin/background-jobs`) is the queue as the
+deployment's owner sees it, and only an app admin can open it: the queue is the
+deployment's, so an organization's own owner is refused. The header counts the
+jobs in each state, names any kind that is paused and why, lists the workers
+alive and the next time each schedule fires. Below it the jobs, newest first,
+filtered by state and pool, each with its attempts and the error it last ended
+on.
+
+Under the counts, **Activity** charts what finished over the last 24 hours
+or 7 days, stacked by how it ended, beside the longest wait of a job that is
+due now. **By kind** gives each kind's volume, its deaths, its run time at the
+median and 95th percentile, and how long its jobs waited for a worker: a wait
+that grows says a pool needs more workers. The deployment's dashboard carries
+the same day as a card.
+
+Three actions, each audited with who took it:
+
+- **Retry** gives a dead job a fresh set of attempts.
+- **Cancel** withdraws a job nobody has started.
+- **Resume** lets workers claim a paused kind again.
+
+A kind is paused by the worker's circuit breaker: its jobs killed their worker
+`WORKER_BREAKER_DEATHS` times in a row, most often a document that runs a parse
+out of memory. Every owner is told in the app and by email, and the
+notification cannot be switched off - work of that kind piles up until one of
+them resumes it. A pause names the organization whose jobs caused it, and the
+kind keeps running for every other. Retry the dead jobs only once the cause is fixed, or they die
+the same way. The settings are in
+[Configuration](configuration.md#background-work).
+
 ## Recap
 
 - The deployment's identity is **one row**, edited from `/admin/settings`, and a

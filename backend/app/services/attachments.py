@@ -17,8 +17,6 @@ filesystem. So an image goes both ways, up to a ceiling past which paying for
 the bytes twice stops being worth it.
 """
 
-from __future__ import annotations
-
 import functools
 import logging
 import re

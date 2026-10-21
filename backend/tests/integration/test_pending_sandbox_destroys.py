@@ -5,8 +5,6 @@ What is due, in which order, and that two sweeps never take the same row are
 mock's. The cascades are the schema's.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -103,6 +101,35 @@ async def test_a_connections_tombstones_are_counted_for_its_deletion(db: AsyncSe
     await _tombstone(db, other, "o-1")
 
     assert await repo.count_on_connection(db, connection_id=connection.id) == 2
+
+
+async def test_a_connection_holding_a_tombstone_cannot_be_deleted_under_it(
+    db: AsyncSession,
+) -> None:
+    """#2250: the cascade used to erase a tombstone written while the delete ran."""
+    from sqlalchemy.exc import IntegrityError
+
+    connection = await _connection(db)
+    await _tombstone(db, connection, "dt-1")
+
+    with pytest.raises(IntegrityError):
+        async with db.begin_nested():
+            await db.execute(delete(SandboxConnection).where(SandboxConnection.id == connection.id))
+
+    assert await repo.count_on_connection(db, connection_id=connection.id) == 1
+
+
+async def test_forgetting_a_connections_tombstones_leaves_the_others(db: AsyncSession) -> None:
+    connection = await _connection(db)
+    other = await _connection(db)
+    await _tombstone(db, connection, "c-1")
+    await _tombstone(db, connection, "c-2")
+    await _tombstone(db, other, "o-1")
+
+    assert await repo.remove_on_connection(db, connection_id=connection.id) == 2
+
+    assert await repo.count_on_connection(db, connection_id=connection.id) == 0
+    assert await repo.count_on_connection(db, connection_id=other.id) == 1
 
 
 async def test_a_deleted_organization_takes_its_tombstones_with_it(db: AsyncSession) -> None:

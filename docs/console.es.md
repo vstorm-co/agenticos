@@ -1,5 +1,5 @@
 ---
-source_sha: "feaf26c4bab8"
+source_sha: "b52b40a93089"
 ---
 
 # La consola { #the-console }
@@ -380,7 +380,7 @@ cualquier página que le pertenezca, y se queda como lo dejaste.
 | **Vault** | Credenciales, selladas por organización | [Secretos](secrets.md) |
 | **Organizations** | Miembros, roles, invitaciones | [Permisos](permissions.md) |
 | **Settings** | Providers, valores de ingesta por defecto, notificaciones, tu propio perfil | [Configuración](configuration.md) |
-| **Admin** | El despliegue en sí: usuarios, inquilinos, sistema, ajustes del despliegue | [El despliegue](deployment.md) |
+| **Admin** | El despliegue en sí: usuarios, inquilinos, sistema, jobs en segundo plano, ajustes del despliegue | [El despliegue](deployment.md) |
 
 El catálogo de **Agents** se puede filtrar por **category** y **tag** — las
 etiquetas editables y locales a la organización que se muestran en la tarjeta de

@@ -24,8 +24,6 @@ large named in the reply rather than silently dropped: an agent told its file wa
 delivered when it was not will confidently tell the user the same.
 """
 
-from __future__ import annotations
-
 import logging
 import mimetypes
 import posixpath

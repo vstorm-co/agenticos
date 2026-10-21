@@ -10,8 +10,6 @@ around it; :mod:`._oauth` answers its authorization-server decisions from the
 database.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
@@ -95,7 +93,7 @@ ROUTE_PATHS = (
 
 
 @asynccontextmanager
-async def serve_platform_mcp(app: ASGIApp, state: object) -> AsyncGenerator[None, None]:
+async def serve_platform_mcp(app: ASGIApp, state: object) -> AsyncGenerator[None]:
     """Run the MCP server for one lifespan of `app`, reachable through :func:`forward`.
 
     Built per lifespan rather than once: FastMCP's session manager runs once per

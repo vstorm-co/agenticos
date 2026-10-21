@@ -23,8 +23,6 @@ only, so there is nothing here for the budget to miss (#16 is the live example
 of what forgetting this costs).
 """
 
-from __future__ import annotations
-
 from typing import Literal
 
 from pydantic_ai.capabilities import ToolSearch, ToolSearchStrategy

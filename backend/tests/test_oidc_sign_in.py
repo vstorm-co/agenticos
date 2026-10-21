@@ -10,8 +10,6 @@ itself is authlib's and is stubbed; the conditions around it are not, and each
 one below is a way somebody gets in who should not.
 """
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from urllib.parse import parse_qs, urlparse

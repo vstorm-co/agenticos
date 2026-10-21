@@ -17,8 +17,6 @@ is refused somewhere; isolating a single permission is what makes "this route is
 gated on *this* permission, and nothing else" an assertion rather than a hope.
 """
 
-from __future__ import annotations
-
 import re
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager

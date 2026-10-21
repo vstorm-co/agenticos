@@ -11,8 +11,6 @@ the turn is run several calls below the router and every one of those calls
 would otherwise grow two parameters it does nothing with.
 """
 
-from __future__ import annotations
-
 from collections.abc import Generator
 from contextlib import contextmanager
 from contextvars import ContextVar

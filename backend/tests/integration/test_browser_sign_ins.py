@@ -6,8 +6,6 @@ nobody else - not another member, not the same person in another organization,
 and never anybody through the API, which names sites and nothing more.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator
 from unittest.mock import MagicMock

@@ -125,9 +125,10 @@ conversation in **Routines**.
   sent. `echo` adds a trailing newline that may or may not match what was signed;
   use `printf '%s'` and `curl --data-raw`, and never let a client re-encode a
   dict after you signed the string.
-- **`202` but no run appears.** That means accepted, not finished — a
-  Prefect flow runs it in the worker. Give it a few seconds and check Activity,
-  filtered to the agent.
+- **`202` but no run appears.** That means accepted, not finished — a job
+  runs it in the worker. Give it a few seconds and check Activity, filtered to
+  the agent; if nothing ever appears, look for the `fire-trigger` job on the
+  Background jobs page.
 - **The security flag did not fire.** The flag is instructions, not a built-in
   classifier — reread the trigger's prompt and tighten what counts as a security
   report if a synthetic case like T-1003 is missed.

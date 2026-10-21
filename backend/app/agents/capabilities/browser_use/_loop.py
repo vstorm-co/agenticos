@@ -25,8 +25,6 @@ page, three times running, ends the browse as `blocked` while there is still
 something useful to say.
 """
 
-from __future__ import annotations
-
 import time
 from collections.abc import Awaitable, Callable, Sequence
 from contextlib import AbstractAsyncContextManager, nullcontext

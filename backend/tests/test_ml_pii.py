@@ -11,8 +11,6 @@ checks they apply, since a run of digits reported as a payment card would be a
 service nobody could use.
 """
 
-from __future__ import annotations
-
 import pytest
 
 from app.core.exceptions import BadRequestError

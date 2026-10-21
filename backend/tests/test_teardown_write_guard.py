@@ -8,8 +8,6 @@ active sync keeps its row, so the row survives while its table is reserved to be
 dropped, and re-indexing would recreate the very table the drop is about to destroy.
 """
 
-from __future__ import annotations
-
 from contextlib import asynccontextmanager
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch

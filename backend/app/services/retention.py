@@ -25,8 +25,6 @@ the next pass retries it, because a batch that removed nothing simply comes roun
 again.
 """
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field

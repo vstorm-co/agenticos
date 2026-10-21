@@ -1,5 +1,5 @@
 ---
-source_sha: "0c5e08e96b12"
+source_sha: "4610ace395a3"
 ---
 
 # Testowanie { #testing }
@@ -585,51 +585,35 @@ dotknięciu `alembic/versions/`, ale wskazuje na to, co mówi `backend/.env`, cz
 laptopie na bazę danych z twoją własną pracą. Wybierz raczej
 `uv run pytest tests/test_migrations.py`, które sięgnąć jej nie może.
 
-## Prefect i dlaczego żaden test nie sięga serwera { #prefect-and-why-no-test-reaches-a-server }
+## Testy workera { #the-workers-tests }
 
-**Wywołanie `@flow` jest wywołaniem sieciowym, a suita kieruje je donikąd.** Prefect
-rozwiązuje własne ustawienia z `backend/.env` — jego model ustawień niesie
-`env_file=".env"` — więc `PREFECT_API_URL=http://localhost:4200/api`, linia, której
-potrzebuje `make dev`, była też adresem, do którego próbowało sięgnąć wywołanie
-`@flow` w teście. Bez stojącego serwera daje to `RuntimeError: Failed to reach API at
-http://localhost:4200/api/` z testu, który zamockował każdego współpracownika,
-jakiego ma, a CI nigdy tego nie widziało: bez `.env` nie ma URL-a, więc to, co
-uruchamiał laptop, nigdy nie było tym, co uruchamiało CI
-([#536](https://github.com/vstorm-co/agenticos/issues/536)).
+**Gwarancje kolejki są testowane tam, gdzie obowiązują: w PostgreSQL i w
+prawdziwych procesach.** `FOR UPDATE SKIP LOCKED`, częściowe indeksy unikalne
+za `dedupe_key` i `concurrency_key` oraz `NOTIFY`, który wycofanie transakcji
+odwołuje, to rzeczy, z którymi zmockowana sesja po prostu by się zgodziła.
+Dlatego `tests/integration/test_background_job_queue.py` sprawdza je na
+prawdziwej tabeli, a `tests/integration/test_worker_runtime.py` uruchamia całego
+workera: parsowanie, które zjada pamięć, aż zatrzyma je watchdog, proces
+potomny, który wysyła sobie `SIGKILL`, bazę odrzucającą dwadzieścia połączeń,
+wyłączenie w trakcie zadania.
 
-`tests/conftest.py` przypisuje więc `PREFECT_API_URL` **pusty**, zanim Prefect
-zostanie zaimportowany, obok nazwy bazy danych i hasła powyżej i z tego samego
-powodu.
+Procesy potomne uruchamiane przez te testy ładują
+`tests.worker_handlers:handlers`, zestaw rodzajów zadań, które celowo źle się
+zachowują - pożeracz pamięci, samobójca, zadanie kończące proces w połowie.
+Nowy sposób, w jaki zadanie może się skończyć, należy właśnie tam, z testem,
+który naprawdę do niego doprowadza.
 
-Skasowanie zmiennej by nie wystarczyło: nieustawiona zmienna zostawia odpowiedź
-źródłu dotenv, a to źródło dotenv trzyma ten URL.
+**Rzadkie gałęzie są dodatkowo przypięte atrapami.** Linia osiągana tylko przez
+prawdziwy proces potomny albo prawdziwy błąd bazy, po `await`, nie zawsze jest
+rejestrowana przez tracer pokrycia, więc bramka by na niej migotała.
+`tests/test_worker_runtime_edges.py` i `tests/test_worker_child_run.py`
+przechodzą przez te same gałęzie na zmockowanych repozytoriach i zastępczym
+procesie, przy każdym uruchomieniu.
 
-Puste przypisanie je przebija, bo model ustawień Prefecta niesie
-`env_ignore_empty=False` — co jest regułą Prefecta, a nie naszą. `app/core/config.py`
-ustawia to odwrotnie, więc ta sama linia wobec *naszych* ustawień zostałaby odrzucona
-i `.env` i tak by odpowiedział.
-
-Prefect czyta pusty URL jako brak URL-a i startuje na potrzeby wywołania własny
-tymczasowy serwer, co CI robiło zawsze. Przebieg nie zależy więc już od tego, czy
-serwer Prefecta akurat stoi, w żadną ze stron.
-
-**Stan tamtego serwera to baza SQLite pod `PREFECT_HOME`, a suita daje mu własne.**
-Zostawione samo sobie jest to `~/.prefect`, więc przebieg jednostkowy pisałby swoje
-flow runy do danych Prefecta developera, a tam, gdzie Prefect działa na hoście, a nie
-w Dockerze, do pliku, który trzyma otwarty działający `prefect server`.
-`tests/conftest.py` kieruje to na `agenticos-prefect-test` w systemowym katalogu
-tymczasowym, z tego samego powodu, dla którego nazwa Postgresa powyżej jest bazą
-testową. Jeden katalog, a nie jeden na proces: kosztuje jego tworzenie.
-
-Tworzenie go jest migracją, a suita podnosi 20-sekundowy przydział Prefecta na
-wystartowanie tego serwera do 90 — **jako zapas, a nie dlatego, że widziano, jak 20
-zawodzi.** Wobec `PREFECT_HOME`, do którego nic jeszcze nie pisało, cały start zajmuje
-jakieś sześć sekund na laptopie i jakieś dziewięć na kontenerze CI, który jest zimny
-przy każdym przebiegu i na wartości domyślnej nigdy nie był czerwony. Podniesiony
-przydział kupuje to, że jedyny krok, którego kosztu nic tutaj nie ogranicza —
-migracja na obciążonej maszynie albo katalog tymczasowy, który został zamieciony —
-czeka, zamiast wywalać suitę, którą drugi przebieg by przepuścił.
-`tests/test_prefect_test_environment.py` przypina wszystkie cztery właściwości.
+Nic tu nie potrzebuje serwera ani zmiennej środowiskowej. Test jednostkowy
+serwisu, który kolejkuje zadanie, podmienia `enqueue` tam, gdzie serwis je
+zaimportował, i sprawdza payload, tak jak fixture `queued_fires` w
+`tests/test_agent_triggers.py`.
 
 ## Podsumowanie { #recap }
 

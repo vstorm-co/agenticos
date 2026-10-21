@@ -14,8 +14,6 @@ properties below are the ones whose loss would put it back where it started -
 joining the group it watches, or being able to approve what it found.
 """
 
-from __future__ import annotations
-
 from pathlib import Path
 from typing import Any
 

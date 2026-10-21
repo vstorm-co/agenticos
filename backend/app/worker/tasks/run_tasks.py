@@ -1,4 +1,4 @@
-"""Scheduled upkeep for run history.
+"""Agent runs the API queued, and the scheduled upkeep for run history.
 
 One flow, for the one state a run can be left in that nothing in-process will
 ever resolve: `running` with its process dead underneath it. Everything else a
@@ -8,23 +8,20 @@ the runs that never got one.
 
 import logging
 
-from prefect import flow
-
 from app.db.session import get_worker_db_context
+from app.schemas.agent import AgentRunResult
+from app.services.api_runs import ApiRunService
 from app.services.run_reaper import RunReaperService
+from app.worker.jobs import RunAgent
 
 logger = logging.getLogger(__name__)
 
 
-@flow(name="stale-run-sweep")
-async def stale_run_sweep_flow() -> int:
+async def reap_stale_runs() -> int:
     """Fail every run left `running` past `STALE_RUN_REAPED_AFTER_HOURS`.
 
-    On the worker context, not the pooled one: successive flow runs do not
-    share an event loop, and a pooled connection made on one loop breaks
-    whoever checks it out on the next - the reason `get_worker_db_context`
-    exists. Returns how many runs were reaped, so a flow run's result says
-    what it found without anybody reading the logs.
+    Returns how many runs were reaped, so a caller can say what the sweep
+    found without anybody reading the logs.
     """
     async with get_worker_db_context() as db:
         reaped = await RunReaperService(db).reap_stale()
@@ -34,3 +31,9 @@ async def stale_run_sweep_flow() -> int:
         # work in hand, and the spend it made is recorded nowhere.
         logger.warning("Stale-run sweep: %d run(s) reaped", reaped)
     return reaped
+
+
+async def run_agent(job: RunAgent) -> AgentRunResult:
+    """An asynchronous API run: the synchronous call, made by the worker (`app.services.api_runs`)."""
+    async with get_worker_db_context() as db:
+        return await ApiRunService(db).run(job)

@@ -468,8 +468,12 @@ two long names stay two tools. The server is still called by its real name.
     otherwise abort the whole turn: one expired token on one connection would take
     down every agent that names it, including the ones that never needed it.
 
-    The model then answers **without** those tools — right for a chat turn, wrong
-    if you assumed a tool was always there.
+    The model then answers **without** those tools, and is told so: the turn's
+    instructions name the server, say it did not answer or refused the
+    connection, and ask the model to say it could not be reached rather than
+    report an empty result. That holds for a server that answered a moment ago and
+    fails when the turn connects. It is right for a chat turn, wrong if you
+    assumed a tool was always there.
 
 That is a deliberate trade. The `/test` endpoint and `last_status` are how you find
 out, and the [audit trail](governance.md#audit) records what actually ran.

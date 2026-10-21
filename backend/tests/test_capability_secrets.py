@@ -7,8 +7,6 @@ no further - not into `AgentDeps`, not into a tool argument, not into the
 model's context, not into a log line.
 """
 
-from __future__ import annotations
-
 import logging
 import uuid
 from collections.abc import Iterator

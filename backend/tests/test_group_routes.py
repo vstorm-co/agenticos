@@ -7,8 +7,6 @@ caller and the body to the service, and serializes what comes back - including
 the directory `source` a client branches on.
 """
 
-from __future__ import annotations
-
 from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace

@@ -5,8 +5,6 @@ actually flip, and that the caller's own session is the one spared (#1439). Only
 database shows a `WHERE id != :sid` sparing exactly one of several open rows.
 """
 
-from __future__ import annotations
-
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 

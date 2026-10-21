@@ -19,8 +19,6 @@ isolation:
   towards the organization's.
 """
 
-from __future__ import annotations
-
 import asyncio
 import uuid
 from dataclasses import dataclass

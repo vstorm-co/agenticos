@@ -42,8 +42,6 @@ Builder; `config_schema` is both validation and the source of the form.
 scope is rejected while someone is looking at a form, not mid-conversation.
 """
 
-from __future__ import annotations
-
 import logging
 import re
 from collections.abc import Callable, Iterable, Mapping

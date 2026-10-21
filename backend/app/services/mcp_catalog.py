@@ -12,8 +12,6 @@ the auth flow works, that the description is honest - and a mirrored registry
 cannot make that promise. Adding an entry is cheap; the URL is what varies.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from enum import StrEnum
 

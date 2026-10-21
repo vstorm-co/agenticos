@@ -7,8 +7,6 @@ credential to edit, and an organization query that matched a personal one would
 put somebody's private token inside a published agent.
 """
 
-from __future__ import annotations
-
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any

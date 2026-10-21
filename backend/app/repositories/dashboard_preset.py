@@ -5,8 +5,6 @@ tenant boundary as the active layout: a preset saved in one organization must
 not list, apply or delete from another, even for the person who owns the row.
 """
 
-from __future__ import annotations
-
 from typing import Any
 from uuid import UUID
 

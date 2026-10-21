@@ -39,8 +39,6 @@ TTL as well, so a write that never reached Redis heals on its own instead of
 leaving the deployment open during a window somebody scheduled.
 """
 
-from __future__ import annotations
-
 import json
 import logging
 

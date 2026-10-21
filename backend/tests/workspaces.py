@@ -1,7 +1,5 @@
 """In-memory workspaces for tests: a stored document, worked in as a run works in one."""
 
-from __future__ import annotations
-
 from pydantic_ai.workspaces import Workspace, WorkspaceError, WorkspaceRef, WrapperWorkspace
 from pydantic_ai_backends import StateBackend
 from pydantic_ai_backends.workspaces import StateWorkspaceBackend

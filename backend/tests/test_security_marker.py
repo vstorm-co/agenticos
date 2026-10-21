@@ -24,8 +24,6 @@ two ways, and the assertion in `TestTheMarkerIsLive` fails loudly if that stops
 being true.
 """
 
-from __future__ import annotations
-
 import ast
 import tomllib
 from pathlib import Path

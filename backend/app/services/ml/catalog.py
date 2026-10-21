@@ -17,8 +17,6 @@ service, which is why the engine is a field: a reader can see what is actually
 doing the work before believing the state beside it.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from enum import StrEnum
 

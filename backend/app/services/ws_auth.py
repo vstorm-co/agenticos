@@ -13,8 +13,6 @@ connection with the same token: whatever would refuse a new handshake refuses
 the next frame.
 """
 
-from __future__ import annotations
-
 from typing import TYPE_CHECKING
 from uuid import UUID
 

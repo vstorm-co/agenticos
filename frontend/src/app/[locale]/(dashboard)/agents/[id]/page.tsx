@@ -1177,6 +1177,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
               account: "organization",
               connection_id: connection.id,
               allowed_tools: null,
+              approval: "none",
             };
             update({ mcp_servers: [...spec.mcp_servers, ref] });
             setToolBinding(bindingKey(ref));

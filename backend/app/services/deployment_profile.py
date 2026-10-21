@@ -24,8 +24,6 @@ because a profile that quietly skipped what it cannot see would be a sheet that
 reads as complete and is not.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from ipaddress import ip_address
 from typing import Final, Literal

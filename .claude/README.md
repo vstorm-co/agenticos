@@ -56,7 +56,7 @@ nothing until one is relevant.
 | `mcp-connections` | MCP servers, the catalog, OAuth, prefixing |
 | `rag-knowledge` | Ingestion, retrieval, connectors, parsers |
 | `channel-bot` | Telegram / Slack / Mattermost, mentions, webhooks |
-| `background-task` | Prefect flows and the in-process handoff |
+| `background-task` | The job queue, schedules, the worker, and the in-process handoff |
 | `alembic-migration` | Schema changes and backfills |
 | `backend-tests` | The four test layers and the 100% platform gate |
 | `e2e-tests` | Playwright journeys and seeded fixtures |

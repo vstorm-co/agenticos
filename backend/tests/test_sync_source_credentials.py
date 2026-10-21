@@ -19,8 +19,6 @@ say:
   that cannot authenticate and say nothing about why.
 """
 
-from __future__ import annotations
-
 import uuid
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock

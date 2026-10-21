@@ -25,8 +25,6 @@ threads. That is the right trade for a feature whose whole purpose is to stop
 bytes accumulating.
 """
 
-from __future__ import annotations
-
 from collections.abc import Mapping
 from typing import TYPE_CHECKING
 from uuid import UUID

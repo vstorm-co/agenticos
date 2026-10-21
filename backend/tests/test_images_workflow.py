@@ -22,8 +22,6 @@ laptop, where the override file builds the image locally under another name.
     publishes, at the `AGENTICOS_VERSION` interpolation and nothing hard-coded.
 """
 
-from __future__ import annotations
-
 import re
 from pathlib import Path
 from typing import Any

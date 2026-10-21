@@ -69,6 +69,8 @@ from app.api.routes.v1 import catalog_icons
 from app.api.routes.v1 import org_integrations
 from app.api.routes.v1 import notifications
 from app.api.routes.v1 import admin_announcements
+from app.api.routes.v1 import admin_background_jobs
+from app.api.routes.v1 import run_requests
 
 v1_router = APIRouter()
 
@@ -87,6 +89,10 @@ v1_router.include_router(notifications.router, tags=["notifications"])
 v1_router.include_router(
     admin_announcements.router, prefix="/admin/announcements", tags=["admin:announcements"]
 )
+v1_router.include_router(
+    admin_background_jobs.router, prefix="/admin/background-jobs", tags=["admin:background-jobs"]
+)
+v1_router.include_router(run_requests.router, tags=["agents"])
 v1_router.include_router(model_providers.router, prefix="/providers", tags=["providers"])
 v1_router.include_router(catalog_icons.router, prefix="/catalog", tags=["catalog"])
 v1_router.include_router(secrets.router, prefix="/secrets", tags=["secrets"])

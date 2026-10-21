@@ -17,8 +17,6 @@ Two things live here because both the frame and a saved app must agree on them:
   and the isolation comes from a response header rather than a `srcdoc` meta tag.
 """
 
-from __future__ import annotations
-
 import asyncio
 import base64
 import hashlib

@@ -10,8 +10,6 @@ text - a guard that counted them would be answered by exempting the page, which
 is how a gate stops gating.
 """
 
-from __future__ import annotations
-
 import importlib.util
 from pathlib import Path
 

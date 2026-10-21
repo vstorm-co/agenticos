@@ -4,9 +4,10 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useLiveUpdates } from "./use-live-updates";
-import { onRemoteChange } from "@/lib/live-updates";
+import { onRemoteChange, staleQueries } from "@/lib/live-updates";
+import { COALESCE_MS } from "@/lib/coalesced-invalidation";
 import { qk } from "@/lib/query-keys";
-import { useAuthStore, useOrgStore } from "@/stores";
+import { useAuthStore, useLiveFeedStore, useOrgStore } from "@/stores";
 import type { ChangeEvent } from "@/types/change-events";
 
 interface SocketOptions {
@@ -14,6 +15,8 @@ interface SocketOptions {
   identity?: string;
   protocols: () => string[] | undefined;
   onMessage: (message: MessageEvent) => void;
+  onOpen: () => void;
+  onClose: () => void;
 }
 
 const socket = vi.hoisted(() => ({
@@ -93,6 +96,7 @@ describe("useLiveUpdates", () => {
   });
 
   it("marks what the change made stale and tells whoever is listening", () => {
+    vi.useFakeTimers();
     const invalidate = vi.spyOn(client, "invalidateQueries");
     const heard = vi.fn();
     const stop = onRemoteChange(heard);
@@ -101,7 +105,85 @@ describe("useLiveUpdates", () => {
     socket.options?.onMessage(new MessageEvent("message", { data: JSON.stringify(EVENT) }));
     stop();
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.agents.all() });
+    // Told at once; marked stale with whatever else arrives in the same window.
     expect(heard).toHaveBeenCalledWith(EVENT);
+    vi.advanceTimersByTime(COALESCE_MS);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.agents.all() });
+    vi.useRealTimers();
+  });
+
+  it("marks one change heard twice stale once", () => {
+    vi.useFakeTimers();
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    renderHook(() => useLiveUpdates(), { wrapper });
+
+    socket.options?.onMessage(new MessageEvent("message", { data: JSON.stringify(EVENT) }));
+    socket.options?.onMessage(new MessageEvent("message", { data: JSON.stringify(EVENT) }));
+    vi.advanceTimersByTime(COALESCE_MS);
+
+    // Each key the change stales, once - not once per time it was heard.
+    expect(invalidate).toHaveBeenCalledTimes(new Set(staleQueries(EVENT).map(String)).size);
+    vi.useRealTimers();
+  });
+});
+
+describe("whether the feed is live", () => {
+  it("follows the socket opening and closing, and is down once the hook goes", () => {
+    const { unmount } = renderHook(() => useLiveUpdates(), { wrapper });
+
+    socket.options?.onOpen();
+    expect(useLiveFeedStore.getState().connected).toBe(true);
+    socket.options?.onClose();
+    expect(useLiveFeedStore.getState().connected).toBe(false);
+    socket.options?.onOpen();
+    unmount();
+    expect(useLiveFeedStore.getState().connected).toBe(false);
+  });
+});
+
+describe("coming back after a drop", () => {
+  it("marks every cached answer stale, since the changes meanwhile were missed", () => {
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    const { unmount } = renderHook(() => useLiveUpdates(), { wrapper });
+
+    socket.options?.onOpen();
+    expect(invalidate).not.toHaveBeenCalled();
+    socket.options?.onClose();
+    socket.options?.onOpen();
+
+    expect(invalidate).toHaveBeenCalledWith();
+    unmount();
+  });
+
+  it("marks the cache stale on returning to an organization the tab visited before", () => {
+    // Codex on #2248: A, then B, then A again - A's feed was closed while B's was
+    // open, and its half-hour answers would have been shown as they were.
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    const { rerender, unmount } = renderHook(() => useLiveUpdates(), { wrapper });
+    socket.options?.onOpen();
+    useOrgStore.setState({ activeOrgId: "org-2" });
+    rerender();
+    socket.options?.onOpen();
+    expect(invalidate).not.toHaveBeenCalled();
+
+    useOrgStore.setState({ activeOrgId: "org-1" });
+    rerender();
+    socket.options?.onOpen();
+
+    expect(invalidate).toHaveBeenCalledWith();
+    unmount();
+  });
+
+  it("leaves another organization's first open alone - its queries are new keys", () => {
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    const { rerender, unmount } = renderHook(() => useLiveUpdates(), { wrapper });
+    socket.options?.onOpen();
+
+    useOrgStore.setState({ activeOrgId: "org-2" });
+    rerender();
+    socket.options?.onOpen();
+
+    expect(invalidate).not.toHaveBeenCalled();
+    unmount();
   });
 });

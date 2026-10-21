@@ -38,8 +38,6 @@ dependency reconciliation and the tail reminder. Those are the library's job and
 does them; a second copy here would be one more thing to keep in step.
 """
 
-from __future__ import annotations
-
 from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic_ai_harness.planning import InMemoryPlanStore, PlanItem, Planning

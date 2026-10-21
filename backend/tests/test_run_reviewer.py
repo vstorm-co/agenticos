@@ -5,8 +5,6 @@ answers with a correction, so whether the correction arrived - and whether the
 run carried on when the reviewer could not review - is what the run did.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 from typing import Any

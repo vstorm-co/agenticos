@@ -11,8 +11,6 @@ thing, compared in both directions, so a row added to the code and not to the
 page fails here rather than shipping as a page that under-reports.
 """
 
-from __future__ import annotations
-
 import re
 from pathlib import Path
 from typing import get_args

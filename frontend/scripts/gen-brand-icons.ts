@@ -48,11 +48,15 @@ const SOURCES: Readonly<Record<IconSet, (slug: string) => string>> = {
 interface Source {
   readonly set: IconSet;
   readonly slug: string;
+  /** Drawn in the colours the file carries, one per path, rather than in one. */
+  readonly coloured?: true;
 }
 
 const simple = (slug: string): Source => ({ set: "simple", slug });
 const fontawesome = (slug: string): Source => ({ set: "fontawesome", slug });
 const lobehub = (slug: string): Source => ({ set: "lobehub", slug });
+/** A lobehub `-color` file: the mark in the brand's own colours, path by path. */
+const lobehubColour = (slug: string): Source => ({ set: "lobehub", slug, coloured: true });
 
 /**
  * Service and connector marks, keyed by the name the product uses.
@@ -205,6 +209,7 @@ const PROVIDERS: Readonly<Record<string, Source>> = {
 interface GlyphPath {
   readonly d: string;
   readonly fillOpacity?: number;
+  readonly fill?: string;
 }
 
 interface Glyph {
@@ -317,9 +322,10 @@ function stripAll(text: string, pattern: RegExp): string {
  * Deliberately narrow: a `viewBox`, an optional `fill-rule`, and paths. Anything
  * else in the file - a `<g>`, a `<circle>`, a gradient, a literal `fill` colour -
  * throws rather than being dropped, because a mark that silently loses a layer
- * still renders, still looks like a logo, and is the wrong logo.
+ * still renders, still looks like a logo, and is the wrong logo. A `coloured`
+ * source is the one exception to the last: its paths keep their hex colours.
  */
-function parseGlyph(name: string, svg: string): Glyph {
+function parseGlyph(name: string, svg: string, coloured = false): Glyph {
   // The title is dropped because a mark is decorative here - `BrandIcon` adds
   // `role="img"` and a label where a caller wants it announced. The comment is
   // Font Awesome's licence banner, which is not dropped: it moves to the
@@ -341,11 +347,20 @@ function parseGlyph(name: string, svg: string): Glyph {
     const d = attr("d", tag[0]);
     if (d === undefined) throw new GlyphError(`${name}: a <path> has no d`);
     const fill = attr("fill", tag[0]);
-    if (fill !== undefined && fill !== "currentColor" && fill !== "none") {
+    const hex =
+      fill !== undefined && /^#[0-9A-Fa-f]{6}$/.test(fill) ? fill.toUpperCase() : undefined;
+    if (coloured && hex === undefined) {
+      throw new GlyphError(`${name}: a <path> of a coloured mark has no hex fill`);
+    }
+    if (!coloured && fill !== undefined && fill !== "currentColor" && fill !== "none") {
       throw new GlyphError(`${name}: a <path> is drawn in ${fill}, not currentColor`);
     }
     const opacity = attr("fill-opacity", tag[0]);
-    paths.push(opacity === undefined ? { d } : { d, fillOpacity: Number(opacity) });
+    paths.push({
+      d,
+      ...(opacity === undefined ? {} : { fillOpacity: Number(opacity) }),
+      ...(hex === undefined ? {} : { fill: hex }),
+    });
   }
   if (paths.length === 0) throw new GlyphError(`${name}: no <path> to draw`);
 
@@ -363,7 +378,8 @@ async function fetchGlyph(name: string, source: Source): Promise<Glyph> {
   const url = SOURCES[source.set](source.slug);
   const res = await fetch(url, { redirect: "follow" });
   if (!res.ok) throw new GlyphError(`${name}: ${url} answered ${res.status}`);
-  const glyph = parseGlyph(name, await res.text());
+  const glyph = parseGlyph(name, await res.text(), source.coloured);
+  if (source.coloured) return glyph;
   const color = colorFor(name, source);
   return color === undefined ? glyph : { ...glyph, color };
 }
@@ -383,7 +399,8 @@ async function fetchAll(table: Readonly<Record<string, Source>>): Promise<Map<st
 
 function renderPath(path: GlyphPath): string {
   const opacity = path.fillOpacity === undefined ? "" : `, fillOpacity: ${path.fillOpacity}`;
-  return `{ d: ${JSON.stringify(path.d)}${opacity} }`;
+  const fill = path.fill === undefined ? "" : `, fill: ${JSON.stringify(path.fill)}`;
+  return `{ d: ${JSON.stringify(path.d)}${opacity}${fill} }`;
 }
 
 function renderGlyph(glyph: Glyph): string {
@@ -415,6 +432,8 @@ export interface GlyphPath {
   readonly d: string;
   /** Set where the mark layers one shape over another - Azure's three sheets. */
   readonly fillOpacity?: number;
+  /** This shape's own colour, in a mark drawn in several - Google's four. */
+  readonly fill?: string;
 }
 
 /** A brand mark, drawn at whatever size the caller asks for. */
@@ -458,13 +477,26 @@ console.log(
 // `BrandIcon` reads the 89-mark table by dynamic key, which no bundler can
 // tree-shake, so the auth pages get their own tiny module of the marks they
 // draw rather than shipping every mark on the sign-in critical path (#955).
-const authKeys = ["github", "google", "microsoft"] as const;
+//
+// A sign-in button is where a provider's guidelines ask for the full-colour
+// mark - Google's four-colour G, Microsoft's four squares - so those two are
+// fetched in colour here, while the catalogue keeps one colour per mark. GitHub
+// has no colour form; it stays the mark the catalogue draws.
+const AUTH_SOURCES: Readonly<Record<"github" | "google" | "microsoft", Source | null>> = {
+  github: null,
+  google: lobehubColour("google-color"),
+  microsoft: lobehubColour("microsoft-color"),
+};
+const authKeys = Object.keys(AUTH_SOURCES) as (keyof typeof AUTH_SOURCES)[];
 const authGlyphs = new Map(
-  authKeys.map((key) => {
-    const glyph = brands.get(key);
-    if (!glyph) throw new Error(`auth glyph missing from BRANDS: ${key}`);
-    return [key, glyph] as const;
-  }),
+  await Promise.all(
+    authKeys.map(async (key) => {
+      const source = AUTH_SOURCES[key];
+      const glyph = source === null ? brands.get(key) : await fetchGlyph(key, source);
+      if (!glyph) throw new Error(`auth glyph missing from BRANDS: ${key}`);
+      return [key, glyph] as const;
+    }),
+  ),
 );
 const authUnion = authKeys.map((name) => `  | ${JSON.stringify(name)}`).join("\n");
 const authBody =

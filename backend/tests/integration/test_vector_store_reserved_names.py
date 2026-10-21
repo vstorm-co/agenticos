@@ -12,8 +12,6 @@ The second test is the other half, and the reason the refusal is derived from
 pgvector, index and all.
 """
 
-from __future__ import annotations
-
 import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker

@@ -31,8 +31,6 @@ had wrong, and both change what the implementation has to do:
   an id the replayed parent never asks about.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any

@@ -16,8 +16,6 @@ written with distinct ids at the run's terminal write, and the session is still
 usable, which the parent's committed terminal row is the evidence of.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from typing import Any

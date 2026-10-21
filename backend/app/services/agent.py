@@ -54,7 +54,7 @@ async def send_event(websocket: WebSocket, event_type: str, data: Any) -> bool:
     try:
         await websocket.send_json({"type": event_type, "data": data})
         return True
-    except (WebSocketDisconnect, RuntimeError):
+    except WebSocketDisconnect, RuntimeError:
         return False
 
 

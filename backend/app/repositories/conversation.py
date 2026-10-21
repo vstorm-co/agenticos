@@ -16,12 +16,13 @@ from sqlalchemy import (
     or_,
     select,
     type_coerce,
+    union_all,
 )
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import load_only, raiseload, selectinload
 from sqlalchemy.orm.attributes import set_committed_value
 
 from app.db.models.agent import Agent
@@ -52,8 +53,8 @@ async def agents_in_conversations(
 ) -> dict[UUID, list[Agent]]:
     """Which agents each of these conversations was with, oldest turn first.
 
-    One query per source for the whole page rather than one per row: a conversation
-    list is fifty rows, and the alternative is fifty round trips to render a chip.
+    One query for the whole page rather than one per row: a conversation list is
+    fifty rows, and the alternative is fifty round trips to render a chip.
 
     An agent appears once however many times it answered - the list says who took
     part, not how often. Ordering by the first evidence of it answering makes that
@@ -87,43 +88,40 @@ async def agents_in_conversations(
     if not conversation_ids:
         return {}
 
-    first_turn = func.min(Message.created_at).label("first_turn")
-    from_messages = await db.execute(
-        select(Message.conversation_id, Agent, first_turn)
-        .join(Agent, Agent.id == Message.agent_id)
-        .where(Message.conversation_id.in_(conversation_ids))
-        .group_by(Message.conversation_id, Agent.id)
-        .order_by(Message.conversation_id, first_turn)
-    )
-
-    first_run = func.min(AgentRun.created_at).label("first_run")
-    from_runs = await db.execute(
-        select(AgentRun.conversation_id, Agent, first_run)
-        .join(Agent, Agent.id == AgentRun.agent_id)
-        .where(
+    # Both sources in one statement, aggregated on ids before the agents are
+    # joined: the chip needs five columns, and grouping whole rows carried each
+    # agent's draft spec through the aggregate, once per conversation (#2248).
+    evidence = union_all(
+        select(
+            Message.conversation_id.label("conversation_id"),
+            Message.agent_id.label("agent_id"),
+            Message.created_at.label("at"),
+        ).where(Message.conversation_id.in_(conversation_ids), Message.agent_id.is_not(None)),
+        select(AgentRun.conversation_id, AgentRun.agent_id, AgentRun.created_at).where(
             AgentRun.conversation_id.in_(conversation_ids),
             AgentRun.parent_run_id.is_(None),
-        )
-        .group_by(AgentRun.conversation_id, Agent.id)
-        .order_by(AgentRun.conversation_id, first_run)
+        ),
+    ).subquery()
+    first = func.min(evidence.c.at).label("first")
+    firsts = (
+        select(evidence.c.conversation_id, evidence.c.agent_id, first)
+        .where(evidence.c.conversation_id.is_not(None))
+        .group_by(evidence.c.conversation_id, evidence.c.agent_id)
+        .subquery()
     )
-
-    # Merged on the earliest evidence from either source, so the order is the order
-    # the agents appeared however the row was recorded.
-    seen: dict[UUID, dict[UUID, tuple[datetime, Agent]]] = {}
-    for rows in (from_messages.all(), from_runs.all()):
-        for conversation_id, agent, at in rows:
-            if conversation_id is None:
-                continue
-            found = seen.setdefault(conversation_id, {})
-            existing = found.get(agent.id)
-            if existing is None or at < existing[0]:
-                found[agent.id] = (at, agent)
-
-    return {
-        conversation_id: [agent for _at, agent in sorted(agents.values(), key=lambda p: p[0])]
-        for conversation_id, agents in seen.items()
-    }
+    result = await db.execute(
+        select(firsts.c.conversation_id, Agent)
+        .join(Agent, Agent.id == firsts.c.agent_id)
+        .options(
+            load_only(Agent.id, Agent.slug, Agent.name, Agent.avatar_url, Agent.avatar_color),
+            raiseload("*"),
+        )
+        .order_by(firsts.c.conversation_id, firsts.c.first, Agent.id)
+    )
+    found: dict[UUID, list[Agent]] = {}
+    for conversation_id, agent in result.all():
+        found.setdefault(conversation_id, []).append(agent)
+    return found
 
 
 class ConversationHead(NamedTuple):
@@ -380,6 +378,25 @@ async def participation_claims(
         query = query.where(Message.conversation_id == conversation_id)
     result = await db.execute(query)
     return [ParticipationClaim(*row) for row in result.all()]
+
+
+# What a listing reads of each row - what `ConversationRead` draws, and no more.
+# The rest is a run's working state: `summary_messages` is the summarised history
+# itself, 3.7 KB on average in production and over 500 KB on a long thread, and a
+# sidebar fetched and decoded it for thirty rows on every refresh. `raiseload`, so a
+# caller that starts reading one of them from a listed row fails in a test rather
+# than lazily loading per row.
+_LISTED_COLUMNS = (
+    Conversation.id,
+    Conversation.user_id,
+    Conversation.organization_id,
+    Conversation.title,
+    Conversation.is_archived,
+    Conversation.project_id,
+    Conversation.origin,
+    Conversation.created_at,
+    Conversation.updated_at,
+)
 
 
 def _sort_columns() -> dict[str, Any]:
@@ -685,7 +702,11 @@ async def get_conversations_by_user(
     `visible_project_ids` widens it to every chat in the projects the caller
     decided this person may see.
     """
-    query = select(Conversation).where(Conversation.organization_id == organization_id)
+    query = (
+        select(Conversation)
+        .options(load_only(*_LISTED_COLUMNS, raiseload=True))
+        .where(Conversation.organization_id == organization_id)
+    )
     if user_id:
         query = query.where(
             _reachable_by(user_id, participant_conversation_ids, visible_project_ids)

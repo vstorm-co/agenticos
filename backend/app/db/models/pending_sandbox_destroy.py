@@ -41,9 +41,13 @@ class PendingSandboxDestroy(Base, TimestampMixin):
         nullable=False,
         index=True,
     )
+    # Not CASCADE (#2250): a tombstone written by a conversation deleted while the
+    # connection was being deleted went with it, and with it the only record of a
+    # sandbox still billed on the provider. NO ACTION is checked at the end of the
+    # statement, so an organization's purge, which cascades to both, still works.
     connection_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("sandbox_connections.id", ondelete="CASCADE"),
+        ForeignKey("sandbox_connections.id"),
         nullable=False,
         index=True,
     )

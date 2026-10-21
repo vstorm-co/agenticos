@@ -7,8 +7,6 @@ the service reaches them as this API's own error envelope rather than as
 whatever the engine underneath said.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch

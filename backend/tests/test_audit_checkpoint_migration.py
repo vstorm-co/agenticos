@@ -9,8 +9,6 @@ through `0080` - and then asserts both (#1648). It creates and drops that databa
 itself, as `tests/test_migrations.py` and `tests/test_audit_chain_backfill.py` do.
 """
 
-from __future__ import annotations
-
 import os
 import subprocess
 import sys

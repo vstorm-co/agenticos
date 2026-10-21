@@ -5,8 +5,6 @@ fail for different reasons: a broken registry means an agent cannot be built, a
 broken tool means it is built and then answers wrongly.
 """
 
-from __future__ import annotations
-
 import asyncio
 import json
 from decimal import Decimal

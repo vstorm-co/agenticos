@@ -30,8 +30,6 @@ progress and `None` everywhere else - the same shape, and the same reasoning, as
 a surface that cannot narrate one still runs; it is simply not narrated.
 """
 
-from __future__ import annotations
-
 from collections.abc import Awaitable, Callable
 from typing import Literal, Protocol
 

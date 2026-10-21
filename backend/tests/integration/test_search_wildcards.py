@@ -22,8 +22,6 @@ checked against. A test that cannot fail is worth as little here as anywhere,
 so both directions were run rather than assumed.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

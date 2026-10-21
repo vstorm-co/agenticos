@@ -9,8 +9,6 @@ without disconnecting the previous client. The `try/finally` around the session
 is what makes each of those release the client (#33).
 """
 
-from __future__ import annotations
-
 import asyncio
 from typing import Any
 from unittest.mock import AsyncMock

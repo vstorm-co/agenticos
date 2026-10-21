@@ -1,5 +1,5 @@
 ---
-source_sha: "2bdccaa6ec15"
+source_sha: "0a08ac08ea50"
 ---
 
 # Eine Seite übersetzen { #translate-a-page }
@@ -142,7 +142,7 @@ Lassen Sie das Folgende genau so, wie es auf Englisch steht:
 | Berechtigungsnamen | `agents:edit` ist eine Zeichenkette, die das Produkt vergleicht |
 | Datei- und Verzeichnispfade | `backend/app/core/vault.py` |
 | Namen von Fehler- und Ausnahmeklassen | `AuthorizationError` |
-| Produktnamen | Docker Compose, PostgreSQL, Slack, Prefect |
+| Produktnamen | Docker Compose, PostgreSQL, Slack, Logfire |
 | Mermaid-Blöcke | Ein Label mit einer Klammer oder einem Anführungszeichen bricht den Graphen, und der Build kann es Ihnen nicht sagen - Mermaid rendert im Browser |
 | Eine Beschriftung der Konsole, die der Leser auf dem Bildschirm finden muss | Die Oberfläche ist englisch, `Admin → Response Ratings` ist also ein Orientierungspunkt und keine Formulierung |
 | Bildpfade | Ein Screenshot bedient alle vier Locales |

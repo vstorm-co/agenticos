@@ -7,8 +7,6 @@ cascade or a sum the ORM performs, which is exactly what a mocked session is
 happy to pretend it did.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal

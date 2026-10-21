@@ -19,15 +19,15 @@ __all__ = [
     "register_adapter",
 ]
 
-_adapters: dict[str, "ChannelAdapter"] = {}
+_adapters: dict[str, ChannelAdapter] = {}
 
 
-def register_adapter(adapter: "ChannelAdapter") -> None:
+def register_adapter(adapter: ChannelAdapter) -> None:
     """Register a channel adapter by its platform name."""
     _adapters[adapter.platform] = adapter
 
 
-def get_adapter(platform: str) -> "ChannelAdapter":
+def get_adapter(platform: str) -> ChannelAdapter:
     """Retrieve a registered adapter by platform name.
 
     Raises:

@@ -1,7 +1,5 @@
 """What a bootstrapped organization opens with: the Architect and Claude Code like."""
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import AsyncMock
 

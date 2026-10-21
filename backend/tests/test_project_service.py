@@ -6,8 +6,6 @@ reaching the files, and a path outside the project or in the platform's own
 directory is refused before anything is written.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from typing import Any

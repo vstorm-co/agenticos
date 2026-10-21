@@ -7,6 +7,7 @@ import {
   KeyRound,
   Megaphone,
   PanelsTopLeft,
+  PauseCircle,
   Plug,
   PlugZap,
   Settings2,
@@ -46,6 +47,7 @@ const KINDS: Record<string, { icon: LucideIcon; tone: string }> = {
   resource_shared: { icon: Share2, tone: NEUTRAL },
   mcp_server_down: { icon: PlugZap, tone: BAD },
   mcp_server_recovered: { icon: Plug, tone: GOOD },
+  background_task_paused: { icon: PauseCircle, tone: BAD },
 };
 
 /** A kind this console has not met yet: a bell, rather than nothing. */

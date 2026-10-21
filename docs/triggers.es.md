@@ -1,5 +1,5 @@
 ---
-source_sha: "3c3d227eb5e7"
+source_sha: "6b3fe7395da4"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -33,6 +33,22 @@ qué tiene que contener la entrega, y cómo probarlo todo desde un portátil.
     issue», «redacta una respuesta al correo» — rellena de antemano el prompt en
     el paso de mensaje de su propia fuente. Ninguna de las dos parte de una caja
     en blanco.
+
+## Una programación cuyo último run sigue en marcha { #a-schedule-whose-last-run-is-still-going }
+
+Una programación puede vencer mientras el run que disparó la vez anterior sigue
+en marcha: una sincronización nocturna que dura más que una noche, o un run
+aparcado en una aprobación que nadie ha decidido. **If the previous run is still
+going** en el formulario de la programación, `overlap` en la API, decide qué
+pasa:
+
+| Opción | `overlap` | Qué hace |
+|---|---|---|
+| Skip this run | `skip` (por defecto) | La ocurrencia se pierde y la programación espera a su siguiente hora. Un agent lento se ejecuta tan a menudo como alcanza a terminar |
+| Run when it finishes | `queue` | Dispara una vez cuando termina el run anterior, por muchas ocurrencias que hayan pasado |
+| Run anyway | `allow` | Dispara a su hora, en el mismo registro de runs, así que dos runs se solapan y se pagan los dos |
+
+Un trigger de evento no tiene este ajuste: cada entrega es su propio disparo.
 
 Todo lo de abajo es para el caso de los eventos.
 
@@ -76,7 +92,7 @@ flowchart TD
     J -->|no| R400["400"]
     J -->|yes| F{trigger active,<br/>filter matches?}
     F -->|no| R202["202 - nothing to do"]
-    F -->|yes| SUB["submit a capped Prefect flow"]
+    F -->|yes| SUB["queue a fire-trigger job"]
     SUB --> R202b["202 - accepted, not finished"]
     SUB -.->|later, in the worker| RUN[the agent runs, spending the org's budget]
 ```
@@ -127,10 +143,9 @@ aparece en una lectura, en un listado ni en la URL.
 
 !!! info "El `202` significa aceptado, no terminado"
 
-    Una entrega que coincide se envía como su propio flow
-    `run-scheduled-trigger` y el agent se ejecuta en el worker, así que el
-    provider recibe su respuesta en una llamada rápida a Prefect en vez de
-    esperar a un modelo. No leas un `202` como «el agent ya ha respondido» - para
+    Una entrega que coincide se encola como un job `fire-trigger` en la propia
+    transacción de la petición y el agent se ejecuta en el worker, así que el
+    provider recibe su respuesta tras un insert en vez de esperar a un modelo. No leas un `202` como «el agent ya ha respondido» - para
     eso lee el run en Activity.
 
 Una entrega verificada que no tiene nada que hacer - un trigger inactivo, o una

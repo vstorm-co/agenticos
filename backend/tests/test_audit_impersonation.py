@@ -8,8 +8,6 @@ beside the actor - so the trail answers "who read this customer's conversation"
 rather than pointing at the customer (#943).
 """
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import MagicMock
 

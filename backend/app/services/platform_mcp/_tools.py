@@ -10,8 +10,6 @@ it will be refused. Nothing here publishes or touches a credential, and the one
 thing that deletes is undoing an agent draft its caller owns and never published.
 """
 
-from __future__ import annotations
-
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, Literal
