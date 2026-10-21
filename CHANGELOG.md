@@ -17,6 +17,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **A catalog of text-to-speech providers.** `GET
+  /providers/text-to-speech-models` lists the providers that can speak a text
+  aloud - OpenAI, ElevenLabs and Gemini - with each model's voices, formats and
+  per-request limit, gated like the image catalog. ElevenLabs joins the vault
+  as a purpose (#2259).
+
 ### Changed
 
 - **Audio and video play in the file viewer.** An MP3, WAV, Ogg, Opus, M4A,

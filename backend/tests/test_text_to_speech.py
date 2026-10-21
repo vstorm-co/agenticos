@@ -297,8 +297,10 @@ class TestAFailedCall:
             ),
             (401, '{"detail":{"status":"quota_exceeded"}}', SpeechFailure.RATE_LIMITED),
             (408, "slow", SpeechFailure.UNAVAILABLE),
+            (400, '{"detail":{"status":"voice_not_found"}}', SpeechFailure.NOT_FOUND),
+            (402, '{"detail":{"status":"paid_plan_required"}}', SpeechFailure.CREDENTIALS),
         ],
-        ids=["gemini bad key", "elevenlabs quota", "request timeout"],
+        ids=["gemini bad key", "elevenlabs quota", "request timeout", "voice gone", "plan lacking"],
     )
     async def test_the_providers_reason_outranks_its_status(self, status, body, failure):
         """Gemini answers a bad key 400 and ElevenLabs a spent quota 401; by status
