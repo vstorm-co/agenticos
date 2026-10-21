@@ -2,6 +2,7 @@
 
 from app.services.voice.embed import embed_caller as embed_voice_caller
 from app.services.voice.exceptions import VoiceRefused
+from app.services.voice.preview import VoicePreviewService
 from app.services.voice.reaper import VoiceCallReaper
 from app.services.voice.registry import LIVE_CALLS
 from app.services.voice.session import VoiceCallSession, socket_caller
@@ -20,6 +21,7 @@ __all__ = [
     "VoiceCallReaper",
     "VoiceCallSession",
     "VoiceCaller",
+    "VoicePreviewService",
     "VoiceReadiness",
     "VoiceRefused",
     "VoiceSettingsService",

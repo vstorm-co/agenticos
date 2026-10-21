@@ -598,6 +598,10 @@ class Settings(BaseSettings):
     # Composer dictations per person per minute (#1797). Its own bucket so a person
     # dictating does not spend an integration's ML quota, or the other way round.
     RATE_LIMIT_DICTATION_PER_MINUTE: int = 10
+    # Voice previews per person per minute (#54): the Builder's ▶ beside a voice.
+    # Each uncached one is a short paid session on the organization's realtime
+    # provider, outside every model budget.
+    RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE: int = 6
     # Dictations a visitor may send from a hosted page or a widget, per minute
     # (#1797). Counted per address first, then - for a `jwt` widget - per visitor
     # by the token's subject. Each one is a paid call to the organization's

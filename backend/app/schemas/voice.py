@@ -6,6 +6,7 @@ from uuid import UUID
 
 from pydantic import Field, StringConstraints
 
+from app.agents.spec import VoiceSpec
 from app.schemas.base import BaseSchema
 
 # An SDP description, kept byte for byte. `BaseSchema` strips whitespace from every
@@ -294,4 +295,14 @@ class VoiceUsageRead(BaseSchema):
     calls: int
     by_agent: list[AgentMinutesRead] = Field(
         description="Most seconds first; one row with no id for deleted agents"
+    )
+
+
+class VoicePreviewRequest(BaseSchema):
+    """What to listen to: the draft's Voice section, and the console's language."""
+
+    voice: VoiceSpec = Field(description="The Voice section as the Builder holds it, unpublished")
+    locale: Literal["en", "pl", "de"] = Field(
+        default="en",
+        description="The console's language: the sentence is said in it unless the section names one",
     )

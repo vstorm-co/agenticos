@@ -1070,6 +1070,16 @@ async def limit_dictation(ctx: Auth) -> None:
     _refuse_if_over(decision, "Too many dictations in the last minute. Wait and try again.")
 
 
+async def limit_voice_preview(ctx: Auth) -> None:
+    """Refuse a person listening to more voices than their share - each is a paid session."""
+    decision = await rate_limit.consume(
+        surface="voice_preview",
+        caller=f"user:{ctx.subject_id}",
+        limit=rate_limit.voice_preview_limit(),
+    )
+    _refuse_if_over(decision, "Too many voice previews in the last minute. Wait and try again.")
+
+
 def _refuse_if_over(decision: rate_limit.Decision, message: str) -> None:
     """Turn a rate limiter's refusal into this API's own 429.
 
@@ -1644,7 +1654,7 @@ def get_announcement_service(db: DBSession) -> AnnouncementService:
 
 
 AnnouncementSvc = Annotated[AnnouncementService, Depends(get_announcement_service)]
-from app.services.voice import VoiceSettingsService, VoiceUsageService
+from app.services.voice import VoicePreviewService, VoiceSettingsService, VoiceUsageService
 
 
 def get_voice_settings_service(db: DBSession) -> VoiceSettingsService:
@@ -1661,6 +1671,14 @@ def get_voice_usage_service(db: DBSession) -> VoiceUsageService:
 
 
 VoiceUsageSvc = Annotated[VoiceUsageService, Depends(get_voice_usage_service)]
+
+
+def get_voice_preview_service(db: DBSession, redis: Redis) -> VoicePreviewService:
+    """Create VoicePreviewService instance with database session and Redis."""
+    return VoicePreviewService(db, redis)
+
+
+VoicePreviewSvc = Annotated[VoicePreviewService, Depends(get_voice_preview_service)]
 from app.services.background_jobs import BackgroundJobService
 
 

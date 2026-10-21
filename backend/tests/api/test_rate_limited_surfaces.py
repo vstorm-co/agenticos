@@ -134,6 +134,26 @@ class TestComposerDictation:
         )
 
 
+class TestVoicePreview:
+    """Each uncached preview is a paid realtime session, so a person has a bucket of
+    their own for listening to voices in the Builder."""
+
+    async def test_a_person_over_their_preview_allowance_is_refused_with_429(self, signed_in):
+        client_mock = _redis(used=settings.RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE + 1)
+        rate_limit.configure(client_mock)
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post(
+                f"/api/v1/agents/{uuid4()}/voice/preview",
+                json={"voice": {}, "locale": "en"},
+            )
+
+        assert response.status_code == 429
+        assert client_mock.count_in_window.await_args.args[0] == (
+            f"ratelimit:voice_preview:user:{_CALLER}"
+        )
+
+
 class TestTheWidgetsAdmission:
     async def test_a_config_request_over_the_allowance_is_refused(self, mock_redis: MagicMock):
         app.dependency_overrides[deps.get_redis] = lambda: mock_redis

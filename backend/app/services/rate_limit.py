@@ -262,6 +262,11 @@ def dictation_limit() -> Limit:
     return Limit(attempts=settings.RATE_LIMIT_DICTATION_PER_MINUTE)
 
 
+def voice_preview_limit() -> Limit:
+    """How many voices one person may listen to in the Builder, per minute."""
+    return Limit(attempts=settings.RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE)
+
+
 def export_limit() -> Limit:
     """What one caller may ask for a personal-data export, per hour.
 

@@ -4,19 +4,21 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, WebSocket
+from fastapi import APIRouter, Depends, Query, Response, WebSocket
 
 from app.api.deps import (
     ActiveOrgWS,
     AgentRegistrySvc,
     Auth,
     CurrentUserWS,
+    VoicePreviewSvc,
     VoiceSettingsSvc,
     VoiceUsageSvc,
+    limit_voice_preview,
     require,
 )
 from app.core.permissions import Perm
-from app.schemas.voice import VoiceReadinessRead, VoiceUsageRead
+from app.schemas.voice import VoicePreviewRequest, VoiceReadinessRead, VoiceUsageRead
 from app.services.api_key import KeyCaller
 from app.services.voice import VoiceCallSession, socket_caller
 
@@ -41,6 +43,36 @@ async def voice_readiness(
     agent = await registry.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
     readiness = await voice.readiness(organization_id=ctx.organization_id, agent=agent)
     return VoiceReadinessRead.model_validate(readiness)
+
+
+@router.post(
+    "/agents/{agent_id}/voice/preview",
+    response_class=Response,
+    response_model=None,
+    responses={200: {"content": {"audio/wav": {}}, "description": "A few seconds of the voice"}},
+    # A rate limit, not a permission gate: access is per agent, decided below.
+    dependencies=[Depends(limit_voice_preview)],
+)
+async def preview_voice(
+    agent_id: UUID,
+    data: VoicePreviewRequest,
+    registry: AgentRegistrySvc,
+    preview: VoicePreviewSvc,
+    ctx: Auth,
+) -> Any:
+    """Hear the draft's voice say one fixed sentence, as WAV.
+
+    For whoever may edit the agent - a grant included, so a per-resource check -
+    and a 404 for an agent they may not. The section is the Builder's draft, not
+    what is published: a voice is judged before anybody calls it. A short paid
+    session on the organization's realtime provider, cached per voice and
+    language and outside every model budget. Refusals: 400 `incomplete` or a
+    named field (`language`, `secret_id`); 503 `provider_error` or `timeout`;
+    429 past `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE`.
+    """
+    await registry.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
+    audio = await preview.preview(ctx, data.voice, locale=data.locale)
+    return Response(content=audio, media_type="audio/wav", headers={"Cache-Control": "no-store"})
 
 
 @router.get(
