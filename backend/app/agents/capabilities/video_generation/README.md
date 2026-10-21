@@ -49,8 +49,8 @@ billed, and a second attempt would be billed again.
 
 It is not a background job that outlives the run. A cancelled run cancels the
 wait, and the clip - if the provider finishes it - is not collected. That is the
-trade for behaving exactly like image generation; a durable job would be a Prefect
-flow and a decision of its own.
+trade for behaving exactly like image generation; a durable job would be one for
+the background job queue (`app/worker/`) and a decision of its own.
 
 ## Cost
 
