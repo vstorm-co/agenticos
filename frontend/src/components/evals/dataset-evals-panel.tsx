@@ -7,25 +7,25 @@ import { useLocale, useTranslations } from "next-intl";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Button, ListCard, Pager } from "@/components/ui";
+import { useDataset } from "@/hooks/use-datasets";
 import { useDatasetEvalRuns, useEveryAgent } from "@/hooks/use-eval-runs";
-import { usePermissions } from "@/hooks/use-permissions";
 import { getErrorMessage } from "@/lib/api-error";
 import type { Agent } from "@/types/agents";
 import type { EvalRun } from "@/types/eval-runs";
-import { Perm } from "@/types/permissions";
 import { PassRateChart, passRateLines } from "./pass-rate-chart";
 import { EvalRunRow } from "./run-row";
 import { StartEvalDialog } from "./start-eval-dialog";
 
 /**
  * Starting a run from a dataset: the dialog opens on this dataset and asks
- * which agent to test. Offered to who may run a dataset.
+ * which agent to test. Offered to who may run this dataset - a run grant on it
+ * counts as much as the role.
  */
 export function DatasetRunEvalsButton({ datasetId }: { datasetId: string }) {
   const t = useTranslations("evals");
-  const { can } = usePermissions();
+  const { dataset } = useDataset(datasetId);
   const [open, setOpen] = useState(false);
-  if (!can(Perm.datasetsRun)) return null;
+  if (dataset?.can_run !== true) return null;
   return (
     <>
       <Button size="sm" onClick={() => setOpen(true)} data-tour="dataset-run-evals">
