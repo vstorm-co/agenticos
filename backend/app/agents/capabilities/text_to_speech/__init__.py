@@ -2,9 +2,9 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, ValidationError, model_validator
-from pydantic_core import InitErrorDetails, PydanticCustomError
+from pydantic import BaseModel, Field, model_validator
 
+from app.agents.capabilities._config_refusal import Refusal, refused_at
 from app.agents.capabilities._registry import (
     CapabilityBuildContext,
     CapabilityToolInfo,
@@ -104,7 +104,10 @@ class TextToSpeechConfig(BaseModel):
         title="Longest text",
         default=5000,
         ge=1,
-        le=100_000,
+        # A clip is held whole before it is stored, and WAV runs about 48 kB a
+        # second: ten thousand characters is some eleven minutes and 32 MB, where
+        # a hundred thousand was half a gigabyte buffered several times over.
+        le=10_000,
         description="The most text one call may speak, which caps what a single call can cost.",
     )
 
@@ -116,7 +119,10 @@ class TextToSpeechConfig(BaseModel):
         against the catalog, because each fails differently mid-run: an unknown
         model is a bad request, a voice the model lacks is a not-found, and a format
         the provider does not return would be bytes stored under the wrong extension.
+        Each is refused at its own field, so the Builder can mark the control it is
+        about.
         """
+        title = type(self).__name__
         entry = by_provider(self.provider)
         model = entry.model(self.model) if entry is not None else None
         if entry is None or model is None:
@@ -124,18 +130,17 @@ class TextToSpeechConfig(BaseModel):
                 f"{candidate.provider}: {', '.join(item.id for item in candidate.models)}"
                 for candidate in providers()
             )
-            raise ValueError(f"{self.provider}/{self.model} cannot speak. Offered: {offered}.")
+            reason = f"{self.provider}/{self.model} cannot speak. Offered: {offered}."
+            raise refused_at(title, [(("model",), reason, self.model)])
         if entry.account_voices and not (self.voice or "").strip():
-            raise ValueError(
-                f"{entry.name} voices belong to your account: name one by its voice id."
-            )
+            reason = f"{entry.name} voices belong to your account: name one by its voice id."
+            raise refused_at(title, [(("voice",), reason, self.voice)])
         if self.voice is not None and (problem := _voice_problem(entry, model, self.voice)):
-            raise ValueError(problem)
+            raise refused_at(title, [(("voice",), problem, self.voice)])
         _refuse_listed_voices(entry, model, self.voices)
         if self.output_format is not None and self.output_format not in entry.formats:
-            raise ValueError(
-                f"{entry.name} returns {', '.join(entry.formats)}, not {self.output_format}."
-            )
+            reason = f"{entry.name} returns {', '.join(entry.formats)}, not {self.output_format}."
+            raise refused_at(title, [(("output_format",), reason, self.output_format)])
         return self
 
     def offering(self) -> TextToSpeechProvider:
@@ -203,13 +208,9 @@ def _voice_problem(entry: TextToSpeechProvider, model: SpeechModel, voice: str) 
 def _refuse_listed_voices(
     entry: TextToSpeechProvider, model: SpeechModel, voices: list[VoiceChoice]
 ) -> None:
-    """Refuse the allowed voices row by row, each at its own `voices.N.id`.
-
-    A model validator's own error has no location, so the Builder could mark no
-    row and the publish refusal read only "Invalid configuration". Raised as a
-    `ValidationError` located at the row, every bad row is named at once.
-    """
-    errors: list[InitErrorDetails] = []
+    """Refuse the allowed voices row by row, each at its own `voices.N.id`, so the
+    Builder marks every bad row at once."""
+    refusals: list[Refusal] = []
     seen: set[str] = set()
     for index, choice in enumerate(voices):
         voice = choice.id.strip()
@@ -219,15 +220,9 @@ def _refuse_listed_voices(
         )
         seen.add(voice)
         if problem is not None:
-            errors.append(
-                InitErrorDetails(
-                    type=PydanticCustomError("voice", "{problem}", {"problem": problem}),
-                    loc=("voices", index, "id"),
-                    input=choice.id,
-                )
-            )
-    if errors:
-        raise ValidationError.from_exception_data("TextToSpeechConfig", errors)
+            refusals.append((("voices", index, "id"), problem, choice.id))
+    if refusals:
+        raise refused_at("TextToSpeechConfig", refusals)
 
 
 @register(

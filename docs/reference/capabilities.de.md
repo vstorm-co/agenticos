@@ -1,5 +1,5 @@
 ---
-source_sha: "db197b5a7d42"
+source_sha: "f0e5620ad1df"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1170,7 +1170,7 @@ gezeigt und unter `output/` abgelegt, wenn ein Workspace offen ist (#2259).
 | `voice` | die erste des Modells | Die Voreinstellung, mit der der Agent spricht; er darf pro Clip innerhalb von `voices` wechseln. Eine Katalogstimme für OpenAI und Gemini; eine ID aus Ihrer eigenen Stimmenbibliothek für ElevenLabs |
 | `voices` | keine: jede Stimme des Modells | Bis zu 20 Stimmen, zu denen der Agent pro Clip wechseln darf, jede als `id` und, für eine Kontostimme, eine `note` mit bis zu 120 Zeichen, die sagt, wer es ist. Leer erlaubt jede Stimme des Modells - bei ElevenLabs jede Stimmen-ID im Konto |
 | `output_format` | das erste des Providers | `mp3`, `wav` (Gemini liefert nur `wav`) |
-| `max_characters` | `5000` | 1–100 000; der meiste Text, den ein Aufruf sprechen darf |
+| `max_characters` | `5000` | 1–10 000; der meiste Text, den ein Aufruf sprechen darf |
 
 **Provider, Modelle, Stimmen und Preise sind Daten** in der Katalogdatei. Ein
 Provider ist ein [Secret-Zweck](../secrets.md) mit einem einfachen API-Schlüssel -
@@ -1294,11 +1294,14 @@ Clip dort zur längsten Länge des Modells bepreist und gebucht.
 stärker: Ein Clip ist der teuerste einzelne Aufruf, den ein Agent macht.
 
 **Fehler gehen an den, der sie beheben kann.** Ein leerer Prompt, eine Länge oder
-Form, die das Modell nicht erzeugt, ein Bild, das nicht gelesen werden kann, und
-ein Prompt, den die Inhaltsrichtlinie des Providers abgelehnt hat, gehen an das
-Modell zurück, ebenso ein Provider, der drosselt oder ausgefallen ist. Ein
-abgelehnter Schlüssel, ein ausgeschöpftes Budget und ein Job über dem Zeitlimit
-werden als Ergebnis beantwortet.
+ein Seitenverhältnis, die das Modell nicht macht, und ein Bild, das sich nicht
+lesen lässt, gehen mit einem Hinweis an das Modell zurück, ebenso ein Provider,
+der drosselt oder ausgefallen ist. Ein abgelehnter Schlüssel, ein aufgebrauchtes
+Budget, ein Prompt, den die Inhaltsrichtlinie des Providers abgelehnt hat, und ein
+Job über dem Zeitlimit werden als Ergebnis beantwortet: ein Wiederholungshinweis
+bei einer Ablehnung würde zu ihrer Umgehung einladen. Ein Job über dem Zeitlimit
+wird mit seiner Schätzung gebucht, weil der Provider ihn noch beenden und
+abrechnen kann.
 
 ## Coding Agent { #coding-agent }
 

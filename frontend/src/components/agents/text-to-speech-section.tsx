@@ -3,6 +3,7 @@
 import { CapabilityDetail } from "@/components/agents/capability-settings";
 import { useCapabilityFieldCopy } from "@/components/agents/capability-field-copy";
 import {
+  DrawnFieldErrors,
   ProviderModelFields,
   resolveOffering,
   withoutConfig,
@@ -124,7 +125,10 @@ export function TextToSpeechSection({
           (name !== "output_format" || sameProvider),
       ),
     );
-    onChange({ ...binding, config: withVoices({ ...kept, ...patch }, others) });
+    // A key is the provider's: kept across a switch it would be sent to the next
+    // one, since publish checks only that it is an API key.
+    const secret_id = patch.provider === undefined ? binding.secret_id : null;
+    onChange({ ...binding, secret_id, config: withVoices({ ...kept, ...patch }, others) });
   };
 
   const controls = (
@@ -224,6 +228,12 @@ export function TextToSpeechSection({
           <p className="text-muted-foreground text-xs">{t("speechFormatDetail")}</p>
         </div>
       )}
+
+      {/* `voices` says its own, beside the rows it is about. */}
+      <DrawnFieldErrors
+        errors={configErrors}
+        fields={HAND_ROLLED.filter((field) => field !== "voices")}
+      />
 
       {isError && <p className="text-destructive text-xs">{t("speechProvidersUnavailable")}</p>}
       {isLoading && <p className="text-muted-foreground text-xs">{t("speechProvidersLoading")}</p>}

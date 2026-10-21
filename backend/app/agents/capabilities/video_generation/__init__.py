@@ -2,6 +2,7 @@
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.agents.capabilities._config_refusal import refused_at
 from app.agents.capabilities._registry import (
     CapabilityBuildContext,
     CapabilityToolInfo,
@@ -112,7 +113,12 @@ class VideoGenerationConfig(BaseModel):
 
     @model_validator(mode="after")
     def _must_be_offered(self) -> VideoGenerationConfig:
-        """Refuse a choice the provider would refuse on the first call."""
+        """Refuse a choice the provider would refuse on the first call.
+
+        Each at its own field, so the Builder can mark the control it is about
+        rather than calling the whole configuration invalid.
+        """
+        title = type(self).__name__
         entry = by_provider(self.provider)
         model = entry.model(self.model) if entry is not None else None
         if entry is None or model is None:
@@ -120,48 +126,54 @@ class VideoGenerationConfig(BaseModel):
                 f"{candidate.provider}: {', '.join(item.id for item in candidate.models)}"
                 for candidate in providers()
             )
-            raise ValueError(f"{self.provider}/{self.model} cannot make video. Offered: {offered}.")
+            reason = f"{self.provider}/{self.model} cannot make video. Offered: {offered}."
+            raise refused_at(title, [(("model",), reason, self.model)])
         if self.resolution is not None and self.resolution not in model.resolutions:
-            raise ValueError(
-                f"{self.model} renders {', '.join(model.resolutions)}, not {self.resolution}."
-            )
+            reason = f"{self.model} renders {', '.join(model.resolutions)}, not {self.resolution}."
+            raise refused_at(title, [(("resolution",), reason, self.resolution)])
         if self.max_resolution is not None:
             if self.max_resolution not in model.resolutions:
-                raise ValueError(
+                reason = (
                     f"{self.model} renders {', '.join(model.resolutions)}, "
                     f"not {self.max_resolution}."
                 )
+                raise refused_at(title, [(("max_resolution",), reason, self.max_resolution)])
             usual = self.resolved_resolution()
             if resolution_lines(usual) > resolution_lines(self.max_resolution):
-                raise ValueError(
+                reason = (
                     f"The highest resolution, {self.max_resolution}, cannot be lower than "
                     f"the usual one, {usual}."
                 )
+                raise refused_at(title, [(("max_resolution",), reason, self.max_resolution)])
         if self.aspect_ratio is not None and self.aspect_ratio not in model.aspect_ratios:
-            raise ValueError(
+            reason = (
                 f"{self.model} renders {', '.join(model.aspect_ratios)}, not {self.aspect_ratio}."
             )
-        if not model.duration_choosable and (
-            self.seconds is not None or self.max_seconds is not None
-        ):
-            raise ValueError(
-                f"{self.model} decides its own length, so a length and a longest clip have no effect."
-            )
+            raise refused_at(title, [(("aspect_ratio",), reason, self.aspect_ratio)])
+        lengths = (("seconds", self.seconds), ("max_seconds", self.max_seconds))
+        if not model.duration_choosable:
+            reason = f"{self.model} decides its own length, so a length has no effect."
+            refused = [((name,), reason, value) for name, value in lengths if value is not None]
+            if refused:
+                raise refused_at(title, refused)
         if self.audio is not None and model.audio != "optional":
             has = "always have" if model.audio == "always" else "never have"
-            raise ValueError(f"{self.model} has no sound setting: its clips {has} sound.")
-        for name, value in (("seconds", self.seconds), ("max_seconds", self.max_seconds)):
+            reason = f"{self.model} has no sound setting: its clips {has} sound."
+            raise refused_at(title, [(("audio",), reason, self.audio)])
+        for name, value in lengths:
             if value is not None and not model.min_seconds <= value <= model.max_seconds:
-                raise ValueError(
+                reason = (
                     f"{self.model} makes {model.min_seconds} to {model.max_seconds} seconds, "
                     f"so {name} cannot be {value}."
                 )
+                raise refused_at(title, [((name,), reason, value)])
         if (
             self.seconds is not None
             and self.max_seconds is not None
             and self.seconds > self.max_seconds
         ):
-            raise ValueError("The usual length cannot be longer than the longest clip.")
+            reason = "The usual length cannot be longer than the longest clip."
+            raise refused_at(title, [(("seconds",), reason, self.seconds)])
         return self
 
     def chosen_model(self) -> VideoModel:

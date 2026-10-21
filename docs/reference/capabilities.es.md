@@ -1,5 +1,5 @@
 ---
-source_sha: "db197b5a7d42"
+source_sha: "f0e5620ad1df"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1118,7 +1118,7 @@ reproductor y se escribe en `output/` cuando hay un workspace abierto (#2259).
 | `voice` | la primera del modelo | La voz por defecto del agente; puede cambiarla en cada clip dentro de `voices`. Una voz del catálogo para OpenAI y Gemini; un id de tu propia biblioteca de voces para ElevenLabs |
 | `voices` | ninguna: cualquier voz del modelo | Hasta 20 voces a las que el agente puede cambiar en cada clip, cada una con un `id` y, para una voz de la cuenta, una `note` de hasta 120 caracteres que dice quién es. Vacía permite todas las voces del modelo; en ElevenLabs, cualquier id de voz de la cuenta |
 | `output_format` | el primero del provider | `mp3`, `wav` (Gemini solo devuelve `wav`) |
-| `max_characters` | `5000` | 1–100 000; el máximo de texto que puede decir una llamada |
+| `max_characters` | `5000` | 1–10 000; el máximo de texto que puede decir una llamada |
 
 **Providers, modelos, voces y precios son datos**, en el fichero del catálogo. Un
 provider es un [propósito de secreto](../secrets.md) con una clave de API simple -
@@ -1242,10 +1242,13 @@ se registra con la duración máxima del modelo.
 imágenes, y más: un clip es la llamada individual más cara que hace un agente.
 
 **Los fallos van a quien puede arreglarlos.** Un prompt vacío, una duración o
-forma que el modelo no hace, una imagen que no se puede leer y un prompt que
-rechazó la política de contenido del provider vuelven al modelo, igual que un
-provider que limita el tráfico o no responde. Una clave rechazada, un budget
-agotado y un trabajo que supera el límite de tiempo se responden como resultado.
+proporción que el modelo no hace y una imagen que no se puede leer vuelven al
+modelo con una indicación, igual que un provider que limita o está caído. Una
+clave rechazada, un presupuesto agotado, un prompt que la política de contenido
+del provider rechazó y un trabajo que pasa el límite de tiempo se responden como
+resultado: una indicación de reintento ante un rechazo invitaría a sortearlo. Un
+trabajo que pasa el límite de tiempo se contabiliza con su estimación, porque el
+provider aún puede terminarlo y cobrarlo.
 
 ## Coding agent { #coding-agent }
 

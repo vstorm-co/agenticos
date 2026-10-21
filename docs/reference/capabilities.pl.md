@@ -1,5 +1,5 @@
 ---
-source_sha: "db197b5a7d42"
+source_sha: "f0e5620ad1df"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1106,7 +1106,7 @@ odtwarzacz i zapisywane w `output/`, gdy workspace jest otwarty (#2259).
 | `voice` | pierwszy głos modelu | Domyślny głos agenta; może przełączyć się dla każdego klipu w obrębie `voices`. Głos z katalogu dla OpenAI i Gemini; id z własnej biblioteki głosów dla ElevenLabs |
 | `voices` | brak: dowolny głos modelu | Do 20 głosów, na które agent może się przełączyć dla każdego klipu, każdy jako `id` i - dla głosu z konta - `note` do 120 znaków mówiąca, kto to jest. Pusta lista dopuszcza każdy głos modelu - dla ElevenLabs dowolne id głosu z konta |
 | `output_format` | pierwszy format providera | `mp3`, `wav` (Gemini zwraca tylko `wav`) |
-| `max_characters` | `5000` | 1–100 000; najwięcej tekstu, jaki może wypowiedzieć jedno wywołanie |
+| `max_characters` | `5000` | 1–10 000; najwięcej tekstu, jaki może wypowiedzieć jedno wywołanie |
 
 **Providerzy, modele, głosy i ceny to dane** w pliku katalogu. Provider jest
 [celem sekretu](../secrets.md) przyjmującym zwykły klucz API - ElevenLabs nie
@@ -1223,10 +1223,12 @@ najdłuższego klipu modelu.
 bardziej: klip to najdroższe pojedyncze wywołanie, jakie robi agent.
 
 **Błędy trafiają do tego, kto może je naprawić.** Pusty prompt, długość albo
-kształt, których model nie robi, obraz, którego nie da się odczytać, i prompt
-odrzucony przez politykę treści providera wracają do modelu, podobnie provider,
-który ogranicza ruch albo nie działa. Odrzucony klucz, wyczerpany budget i
-zadanie po limicie czasu są zwracane jako wynik.
+proporcje, których model nie robi, i obraz, którego nie da się odczytać, wracają
+do modelu ze wskazówką, podobnie jak provider, który ogranicza ruch albo nie
+działa. Odrzucony klucz, wyczerpany budżet, prompt odrzucony przez politykę
+treści providera i zadanie po limicie czasu są zwracane jako wynik: wskazówka
+ponowienia przy odmowie zachęcałaby do jej obejścia. Zadanie po limicie czasu jest
+księgowane według szacunku, bo provider może je jeszcze dokończyć i rozliczyć.
 
 ## Coding agent { #coding-agent }
 

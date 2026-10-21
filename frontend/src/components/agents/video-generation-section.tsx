@@ -3,6 +3,7 @@
 import { CapabilityDetail } from "@/components/agents/capability-settings";
 import { useCapabilityFieldCopy } from "@/components/agents/capability-field-copy";
 import {
+  DrawnFieldErrors,
   ProviderModelFields,
   resolveOffering,
   withoutConfig,
@@ -107,11 +108,21 @@ export function VideoGenerationSection({
   };
 
   /** A resolution, a length or a shape chosen for one model means nothing on another. */
-  const chooseOffering = (patch: { provider?: string; model: string }) =>
+  const chooseOffering = (patch: { provider?: string; model: string }) => {
+    // A key is the provider's: kept across a switch it would be sent to the next
+    // one, since publish checks only that it is an API key.
+    const secret_id = patch.provider === undefined ? binding.secret_id : null;
     onChange({
       ...binding,
+      secret_id,
       config: { ...withoutConfig(binding.config, MODEL_SPECIFIC), ...patch },
     });
+  };
+
+  // Everything the generated form below does not show - including the lengths a
+  // model that decides its own leaves out - so a refusal of any of them is said.
+  const drawn =
+    model?.duration_choosable === false ? [...HAND_ROLLED, ...LENGTH_FIELDS] : HAND_ROLLED;
 
   const controls = (
     <div className="space-y-4">
@@ -233,16 +244,15 @@ export function VideoGenerationSection({
         </p>
       )}
 
+      <DrawnFieldErrors errors={configErrors} fields={drawn} />
+
       {isError && <p className="text-destructive text-xs">{t("videoProvidersUnavailable")}</p>}
       {isLoading && <p className="text-muted-foreground text-xs">{t("videoProvidersLoading")}</p>}
 
       {definition.config_schema && (
         <SchemaForm
           idPrefix={binding.id}
-          schema={withoutFields(
-            definition.config_schema,
-            model?.duration_choosable === false ? [...HAND_ROLLED, ...LENGTH_FIELDS] : HAND_ROLLED,
-          )}
+          schema={withoutFields(definition.config_schema, drawn)}
           value={binding.config}
           disabled={disabled}
           errors={configErrors}

@@ -93,10 +93,10 @@ guess - which is the gap to check against a provider's console.
 | Failure | Answer |
 |---|---|
 | Empty prompt, a length or shape the model does not make, an unreadable image | `steer` - the model can fix its call |
-| Content policy refused the prompt or image | `steer` - describe the shot differently |
 | Provider refused the request, rate limiting, or down | `steer` - worth one more try |
 | Key refused, model dropped from the catalog, budget spent | Returned - only the author or the operator can fix it |
-| Not ready within `timeout_seconds` | Returned - a retry is billed again |
+| Content policy refused the prompt or image | Returned - a retry prompt on a refusal invites a way around it |
+| Not ready within `timeout_seconds` | Returned and booked at its estimate - a retry is billed again, and the job may still be |
 
 The provider's own error text is logged where it is received and never reaches the
 model.

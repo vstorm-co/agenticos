@@ -89,6 +89,8 @@ const DEFINITION: CapabilityCatalogEntry = {
 function mount(
   config: Record<string, unknown> = { provider: "xai", model: "grok-imagine-video-1.5" },
   definition: CapabilityCatalogEntry = DEFINITION,
+  configProblems: { field: string; message: string }[] = [],
+  secretId: string | null = null,
 ) {
   const onChange = vi.fn();
   render(
@@ -101,11 +103,12 @@ function mount(
           approval: "default",
           tool_approval: {},
           tool_overrides: {},
-          secret_id: null,
+          secret_id: secretId,
           enabled: true,
         } satisfies CapabilityBindingSpec
       }
       onChange={onChange}
+      configProblems={configProblems}
     />,
   );
   return onChange;
@@ -476,5 +479,67 @@ describe("the highest resolution the agent may ask for", () => {
     await userEvent.click(await screen.findByRole("option", { name: /Google Gemini/ }));
 
     expect(onChange.mock.lastCall?.[0].config).not.toHaveProperty("max_resolution");
+  });
+});
+
+describe("what publish refused, and the key", () => {
+  it("forgets the key when the provider changes, so one provider's key is not sent to the next", async () => {
+    const onChange = mount(
+      { provider: "xai", model: "grok-imagine-video-1.5" },
+      DEFINITION,
+      [],
+      "sec-xai",
+    );
+
+    await userEvent.click(screen.getByLabelText("Provider"));
+    await userEvent.click(await screen.findByRole("option", { name: /Google Gemini/ }));
+
+    expect(onChange.mock.lastCall?.[0].config).not.toHaveProperty("max_resolution");
+
+    expect(onChange.mock.lastCall?.[0].secret_id).toBeNull();
+  });
+
+  it("keeps the key when only the model changes", async () => {
+    const lite = { ...XAI.models[0], id: "grok-imagine-video-1.5-lite", name: "Grok Lite" };
+    providers.mockReturnValue({
+      providers: [{ ...XAI, models: [...XAI.models, lite] }, GOOGLE, ALIBABA],
+      isLoading: false,
+      isError: false,
+    });
+    const onChange = mount(
+      { provider: "xai", model: "grok-imagine-video-1.5" },
+      DEFINITION,
+      [],
+      "sec-xai",
+    );
+
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(await screen.findByRole("option", { name: /Grok Lite/ }));
+
+    expect(onChange.mock.lastCall?.[0].secret_id).toBe("sec-xai");
+  });
+
+  it("says what publish refused about a control the panel draws itself", () => {
+    mount({ provider: "xai", model: "grok-imagine-video-1.5", resolution: "4k" }, DEFINITION, [
+      {
+        field: "capabilities.video_generation.config.resolution",
+        message: "grok-imagine-video-1.5 renders 720p, 480p, 1080p, not 4k.",
+      },
+    ]);
+
+    expect(screen.getByText(/renders 720p, 480p, 1080p, not 4k/)).toBeInTheDocument();
+  });
+
+  it("says a refused length the form does not show for a model that decides its own", () => {
+    mount({ provider: "google", model: "gemini-omni-1.1-flash", seconds: 5 }, DEFINITION, [
+      {
+        field: "capabilities.video_generation.config.seconds",
+        message: "gemini-omni-1.1-flash decides its own length, so a length has no effect.",
+      },
+    ]);
+
+    expect(
+      screen.getByText(/decides its own length, so a length has no effect/),
+    ).toBeInTheDocument();
   });
 });

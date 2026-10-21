@@ -1048,7 +1048,7 @@ and written under `output/` when a workspace is open (#2259).
 | `voice` | the model's first | The default the agent speaks in; it may switch per clip within `voices`. A catalog voice for OpenAI and Gemini; an id from your own voice library for ElevenLabs |
 | `voices` | none: any voice the model has | Up to 20 voices the agent may switch to per clip, each an `id` and, for an account voice, a `note` of up to 120 characters saying who it is. Empty allows every voice the model has - for ElevenLabs, any voice id in the account |
 | `output_format` | the provider's first | `mp3`, `wav` (Gemini returns `wav` only) |
-| `max_characters` | `5000` | 1–100 000; the most text one call may speak |
+| `max_characters` | `5000` | 1–10 000; the most text one call may speak |
 
 **Providers, models, voices and prices are data**, in the catalog file. A provider
 is a [secret purpose](../secrets.md) taking a plain API key - ElevenLabs runs no
@@ -1163,10 +1163,12 @@ reports none, so a clip there is priced and booked at the model's longest.
 clip is the most expensive single call an agent makes.
 
 **Failures go to whoever can fix them.** An empty prompt, a length or shape the
-model does not make, an image that cannot be read and a prompt the provider's
-content policy refused are steered back to the model, as is a provider that is
-rate limiting or down. A refused key, a spent budget and a job past the time limit
-are answered as the result.
+model does not make and an image that cannot be read are steered back to the
+model, as is a provider that is rate limiting or down. A refused key, a spent
+budget, a prompt the provider's content policy refused and a job past the time
+limit are answered as the result: a retry prompt on a refusal would invite a way
+around it. A job past the time limit is booked at its estimate, since the
+provider may still finish and bill it.
 
 ## Coding agent { #coding-agent }
 

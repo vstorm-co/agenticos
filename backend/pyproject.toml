@@ -808,6 +808,7 @@ include = [
     "app/services/video_generation/clients.py",
     "app/services/video_generation/exceptions.py",
     "app/services/video_generation/generation.py",
+    "app/services/provider_error_code.py",
     # The rest of `app/services/rag/` came with the template and is reported
     # rather than gated. This module is ours and is only refusals - where a
     # remote file may be written, and what may reach a Drive query - so the
@@ -1296,6 +1297,7 @@ include = [
     "app/services/video_generation/clients.py",
     "app/services/video_generation/exceptions.py",
     "app/services/video_generation/generation.py",
+    "app/services/provider_error_code.py",
     # The rest of `app/services/rag/` came with the template and is reported
     # rather than gated. This module is ours and is only refusals - where a
     # remote file may be written, and what may reach a Drive query - so the
