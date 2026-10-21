@@ -35,4 +35,20 @@
         <item>Zawsze włączona</item>
         <item>Zawsze wyłączona</item>
     </string-array>
+    <!-- The composer's attach sheet and the offer of a photo just taken. -->
+    <string name="attach_title">Dodaj do wiadomości</string>
+    <string name="attach_camera">Aparat</string>
+    <string name="attach_photos">Zdjęcia</string>
+    <string name="attach_files">Pliki</string>
+    <string name="attach_add">Dodaj</string>
+    <string name="attach_photo">Zdjęcie</string>
+    <string name="attach_allow_recent">Pokaż tu ostatnie zdjęcia</string>
+    <string name="attach_offer">Dodać zdjęcie sprzed chwili?</string>
+    <string name="attach_offer_dismiss">Nie teraz</string>
+    <plurals name="attach_add_n">
+        <item quantity="one">Dodaj %d zdjęcie</item>
+        <item quantity="few">Dodaj %d zdjęcia</item>
+        <item quantity="many">Dodaj %d zdjęć</item>
+        <item quantity="other">Dodaj %d zdjęcia</item>
+    </plurals>
 </resources>

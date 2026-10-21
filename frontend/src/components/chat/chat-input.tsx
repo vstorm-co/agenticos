@@ -61,6 +61,10 @@ import {
 import type { Mentionable } from "@/types/mention";
 import { FileDropOverlay } from "@/components/files";
 import { useChanged } from "@/hooks/use-changed";
+import { useShell } from "@/hooks/use-shell";
+import { isMobileShell, reportShellFailure } from "@/lib/desktop/shell";
+import { offerRecentPhoto, openAttachSheet } from "@/lib/mobile/attach";
+import type { SharedContent } from "@/lib/mobile/shared";
 import { useFileDrop } from "@/hooks/use-file-drop";
 import { useTranslations } from "next-intl";
 import type { UseMicrophoneResult } from "voice-glow";
@@ -653,6 +657,49 @@ export function ChatInput({
     void uploadFiles(incoming.files);
     if (incoming.text) editorRef.current?.focus();
   }, [incoming, uploadFiles]);
+
+  // The phone app (#2097): "+" opens its own attach sheet, and opening the
+  // chat offers a photo taken a moment ago - both drawn by the app, which
+  // hands over only what the person tapped.
+  const onPhone = isMobileShell(useShell());
+  const tShare = useTranslations("mobile.share");
+  const takeFromPhone = useCallback(
+    (chosen: SharedContent | null) => {
+      if (chosen === null) return;
+      if (chosen.refused.length > 0) {
+        toast.warning(tShare("notAttached", { names: chosen.refused.join(", ") }));
+      }
+      if (chosen.files.length > 0) void uploadFiles(chosen.files);
+    },
+    [tShare, uploadFiles],
+  );
+  const attach = () => {
+    if (!onPhone) {
+      fileInputRef.current?.click();
+      return;
+    }
+    openAttachSheet()
+      .then(takeFromPhone)
+      .catch((error: unknown) => reportShellFailure("could not open the attach sheet", error));
+  };
+  useEffect(() => {
+    if (!onPhone) return;
+    let gone = false;
+    const offer = () => {
+      if (document.visibilityState !== "visible") return;
+      offerRecentPhoto()
+        .then((chosen) => {
+          if (!gone) takeFromPhone(chosen);
+        })
+        .catch((error: unknown) => reportShellFailure("could not offer a recent photo", error));
+    };
+    offer();
+    document.addEventListener("visibilitychange", offer);
+    return () => {
+      gone = true;
+      document.removeEventListener("visibilitychange", offer);
+    };
+  }, [onPhone, takeFromPhone]);
   // The words that came with them, once per hand-off and after whatever is
   // already typed - written during render, as state that follows a prop is.
   const [wroteIncoming, setWroteIncoming] = useState<number | null>(null);
@@ -833,7 +880,7 @@ export function ChatInput({
           className="hidden"
         />
         <ComposerSheet
-          onAttach={() => fileInputRef.current?.click()}
+          onAttach={attach}
           // The agent's engine: the browser's recogniser, or a recording sent
           // to its provider.
           onVoice={server ? startDictation : toggleMic}

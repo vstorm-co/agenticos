@@ -6,4 +6,6 @@
     <color name="widget_text">#FF18181B</color>
     <color name="widget_muted">#FF71717A</color>
     <color name="widget_tile">#FFF4F4F5</color>
+    <!-- A tile on the attach sheet, which Material draws a shade off the surface. -->
+    <color name="sheet_tile">#FFFFFFFF</color>
 </resources>

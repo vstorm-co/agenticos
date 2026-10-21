@@ -3,6 +3,10 @@
 //!
 //! Android's half is `ShareTargetPlugin.kt`, which reads the shared content
 //! where its read grant lives; the iOS share extension needs the Xcode project.
+//!
+//! The composer's attach sheet and the offer of a photo just taken
+//! (`AttachPlugin.kt`) answer in the same shape: the phone draws them, and the
+//! console - a page of a server - is handed only what the person tapped.
 
 use serde::{Deserialize, Serialize};
 use tauri::plugin::{Builder, TauriPlugin};
@@ -40,6 +44,9 @@ impl Shared {
 #[cfg(target_os = "android")]
 struct Native<R: Runtime>(tauri::plugin::PluginHandle<R>);
 
+#[cfg(target_os = "android")]
+struct Attach<R: Runtime>(tauri::plugin::PluginHandle<R>);
+
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::new("share-target")
         .setup(|app, api| {
@@ -48,6 +55,10 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
                 "co.vstorm.agenticos",
                 "ShareTargetPlugin",
             )?));
+            #[cfg(target_os = "android")]
+            app.manage(Attach(
+                api.register_android_plugin("co.vstorm.agenticos", "AttachPlugin")?,
+            ));
             #[cfg(not(target_os = "android"))]
             let _ = (app, api);
             Ok(())
@@ -70,6 +81,25 @@ pub fn take<R: Runtime>(app: &AppHandle<R>) -> Result<Option<Shared>, String> {
 
 #[cfg(not(target_os = "android"))]
 pub fn take<R: Runtime>(_app: &AppHandle<R>) -> Result<Option<Shared>, String> {
+    Ok(None)
+}
+
+/// What the attach sheet or the offer handed back, once the person answered.
+/// Blocks until then - call it off the main thread.
+#[cfg(target_os = "android")]
+pub fn ask<R: Runtime>(app: &AppHandle<R>, command: &str) -> Result<Option<Shared>, String> {
+    let native = app
+        .try_state::<Attach<R>>()
+        .ok_or("Attaching is not set up.")?;
+    let chosen: Shared = native
+        .0
+        .run_mobile_plugin(command, ())
+        .map_err(|e| e.to_string())?;
+    Ok((!chosen.is_empty()).then_some(chosen))
+}
+
+#[cfg(not(target_os = "android"))]
+pub fn ask<R: Runtime>(_app: &AppHandle<R>, _command: &str) -> Result<Option<Shared>, String> {
     Ok(None)
 }
 

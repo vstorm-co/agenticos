@@ -1,6 +1,16 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
+    <!-- The app's own native surfaces - the attach sheet, the photo offer -
+         in the console's neutral palette: no accent hue, strong text, quiet
+         fills (widget_colors.xml holds the values, light and dark). -->
     <style name="Theme.agenticos_mobile" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your theme here. -->
+        <item name="colorPrimary">@color/widget_text</item>
+        <item name="colorOnPrimary">@color/widget_surface</item>
+        <item name="colorSecondary">@color/widget_text</item>
+        <item name="colorSurface">@color/widget_surface</item>
+        <item name="colorOnSurface">@color/widget_text</item>
+        <item name="colorSurfaceContainerLow">@color/widget_surface</item>
+        <item name="colorSurfaceContainer">@color/widget_surface</item>
+        <item name="colorSurfaceContainerHigh">@color/widget_tile</item>
+        <item name="colorOutline">@color/widget_tile</item>
     </style>
 </resources>

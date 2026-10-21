@@ -246,6 +246,8 @@ fn grant_console(app: &AppHandle, server: &Url) -> Result<(), String> {
             .permission("allow-update-widget")
             .permission("allow-take-activity-action")
             .permission("allow-take-shared")
+            .permission("allow-attach-sheet")
+            .permission("allow-offer-recent-photo")
             .permission("core:event:allow-listen")
             .permission("core:event:allow-unlisten"),
     )
@@ -431,6 +433,39 @@ fn take_shared(app: AppHandle) -> Result<Option<share::Shared>, String> {
     share::take(&app)
 }
 
+/// The composer's "+": the phone's attach sheet - the camera, the photo and file
+/// pickers, the latest photos to tick. Answers with what the person chose.
+#[tauri::command]
+async fn attach_sheet(app: AppHandle) -> Result<Option<share::Shared>, String> {
+    ask_unless_locked(app, "openSheet").await
+}
+
+/// On opening the chat: a photo taken a moment ago, if the person adds it.
+#[tauri::command]
+async fn offer_recent_photo(app: AppHandle) -> Result<Option<share::Shared>, String> {
+    ask_unless_locked(app, "offerRecent").await
+}
+
+/// Ask the attach plugin, off the main thread - it answers when the person
+/// does - and never while the console is locked.
+async fn ask_unless_locked(
+    app: AppHandle,
+    command: &'static str,
+) -> Result<Option<share::Shared>, String> {
+    let locked = app
+        .state::<Lock>()
+        .0
+        .lock()
+        .map(|state| state.locked)
+        .unwrap_or(true);
+    if locked {
+        return Ok(None);
+    }
+    tauri::async_runtime::spawn_blocking(move || share::ask(&app, command))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 /// A live activity's button or a shortcut: kept for the console, which is told
 /// to come and take it. A decision, a call or dictation first puts the console
 /// behind the lock, if it has one, so what is done from the lock screen is done
@@ -506,6 +541,8 @@ pub fn run() {
             unlock,
             take_activity_action,
             take_shared,
+            attach_sheet,
+            offer_recent_photo,
             live::show_activity,
             live::end_activity,
             widget::update_widget

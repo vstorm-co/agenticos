@@ -31,4 +31,18 @@
         <item>Immer an</item>
         <item>Immer aus</item>
     </string-array>
+    <!-- The composer's attach sheet and the offer of a photo just taken. -->
+    <string name="attach_title">Zur Nachricht hinzufügen</string>
+    <string name="attach_camera">Kamera</string>
+    <string name="attach_photos">Fotos</string>
+    <string name="attach_files">Dateien</string>
+    <string name="attach_add">Hinzufügen</string>
+    <string name="attach_photo">Foto</string>
+    <string name="attach_allow_recent">Deine letzten Fotos hier zeigen</string>
+    <string name="attach_offer">Das gerade aufgenommene Foto hinzufügen?</string>
+    <string name="attach_offer_dismiss">Nicht jetzt</string>
+    <plurals name="attach_add_n">
+        <item quantity="one">%d Foto hinzufügen</item>
+        <item quantity="other">%d Fotos hinzufügen</item>
+    </plurals>
 </resources>

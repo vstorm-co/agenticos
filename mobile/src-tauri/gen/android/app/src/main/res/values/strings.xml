@@ -39,4 +39,18 @@
         <item>on</item>
         <item>off</item>
     </string-array>
+    <!-- The composer's attach sheet and the offer of a photo just taken. -->
+    <string name="attach_title">Add to message</string>
+    <string name="attach_camera">Camera</string>
+    <string name="attach_photos">Photos</string>
+    <string name="attach_files">Files</string>
+    <string name="attach_add">Add</string>
+    <string name="attach_photo">Photo</string>
+    <string name="attach_allow_recent">Show your recent photos here</string>
+    <string name="attach_offer">Add the photo you just took?</string>
+    <string name="attach_offer_dismiss">Not now</string>
+    <plurals name="attach_add_n">
+        <item quantity="one">Add %d photo</item>
+        <item quantity="other">Add %d photos</item>
+    </plurals>
 </resources>

@@ -11,6 +11,8 @@ fn main() {
             "unlock",
             "take_activity_action",
             "take_shared",
+            "attach_sheet",
+            "offer_recent_photo",
             "show_activity",
             "end_activity",
             "update_widget",

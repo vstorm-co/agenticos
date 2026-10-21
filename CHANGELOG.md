@@ -101,6 +101,12 @@ Two things are versioned separately from this file and worth knowing about:
   Windows, `/etc/agenticos/managed.json` on Linux, managed configurations on
   Android. A policy that cannot be read is ignored rather than locking anybody
   out.
+- **Photos into the phone chat, like a messenger** (#2097, Android): the
+  composer's "+" opens the app's own sheet - Camera, Photos, Files and a strip
+  of your latest photos to tick - and opening the chat offers a photo taken in
+  the last few minutes ("Add the photo you just took?"). The app draws both, so
+  the server never sees the gallery: only the photos you tap reach the message.
+  Recent photos are asked for from the sheet, the first time it is opened.
 - **Push notifications in the browser** (#2097): Settings → Notifications turns
   push on for this browser - or for AgenticOS added to a phone's home screen -
   sends a test, and adds a Push column to the per-event choices, on by default
