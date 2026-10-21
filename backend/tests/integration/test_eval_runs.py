@@ -2249,6 +2249,11 @@ async def test_a_published_version_can_carry_a_proposed_skill_body(db) -> None:
     assert {type(c) for c in candidates} == {PublishedCandidate}
     assert {c.version_id for c in candidates} == {versions[7].id}
     assert sorted(len(c.skill_bodies) for c in candidates) == [0, 1]
+    read = await EvalRunService(db).get(ctx, started.id)
+    assert {arm.role: arm.skill_ids for arm in read.arms} == {
+        "candidate": [skill_id],
+        "baseline": [],
+    }
 
 
 async def test_a_skill_change_is_never_measured_against_a_cached_baseline(db) -> None:
