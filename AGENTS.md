@@ -252,6 +252,7 @@ retranslated is how a stale translation stops being visible.
 | Adding a feature end to end | `docs/adding_features.md` |
 | Test layers and what belongs in each | `docs/testing.md` |
 | The load suite: the workload, the thresholds, the measured runs | `docs/load-testing.md` |
+| Why the job queue is Postgres: ten engines, the OOM test, the limits | `docs/task-queue-benchmark.md` |
 | The automated pull request reviewer | `docs/code-review.md` |
 | Branches, rulesets and what protects `main` | `docs/branching.md` |
 | Recurring patterns | `docs/patterns.md` |

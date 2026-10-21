@@ -130,6 +130,8 @@ five minutes on the others.
 Run as many worker processes as the work needs, on any hosts. They claim jobs
 with `SKIP LOCKED`, so no two run the same job, and any of them fires a due
 schedule. A worker that dies gives its jobs back within `WORKER_LEASE_SECONDS`.
+Why the queue is rows in Postgres, measured against nine other engines, is on
+[the background-job benchmark](task-queue-benchmark.md).
 
 Split the pools when parsing competes with agent runs. `WORKER_POOLS=agent,system`
 on one set of processes and `WORKER_POOLS=ingest` on hosts with memory to spare

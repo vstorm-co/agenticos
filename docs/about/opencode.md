@@ -8,7 +8,7 @@ description: "OpenCode is an MIT coding agent for one developer. AgenticOS is an
 
 OpenCode is an open-source coding agent under the MIT licence. It runs in a terminal, a desktop app or an IDE and connects to more than 75 model providers. It is a strong choice for a developer who wants their own agent in their own repository. AgenticOS is open source too, and it is built for a different job: many agents, many users, one governed deployment.
 
-Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS baseline: v0.0.504. OpenCode scope: its documentation at opencode.ai and the `anomalyco/opencode` repository at v1.18.32, not a tested enterprise rollout.
+Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. OpenCode scope: its documentation at opencode.ai, including the OpenCode 2 Console pages under `/v2/`, and the `anomalyco/opencode` repository at v1.19.3, the 1.x line, not a tested enterprise rollout.
 
 ## At a glance
 
@@ -18,12 +18,11 @@ Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS b
 | Where it runs | The developer's machine; `opencode serve` for a local HTTP server | A shared service on your infrastructure |
 | Source | MIT | Apache-2.0 |
 | Models | 75+ providers through Models.dev, including local | 28 providers, including local |
-| Users and access | One user; Zen teams have Admin and Member | Organizations, six roles, 27 permissions, per-resource grants |
+| Users and access | One user; Console workspaces have owners, admins and members | Organizations, six roles, 33 permissions, per-resource grants |
 | Approvals | `allow`, `ask` or `deny` per tool, answered at the keyboard | A person with `approvals:decide`, from a shared queue |
-| Spend control | Monthly limits on its Zen gateway | A budget per agent and per organization, checked before each model request |
+| Spend control | Monthly budgets for a Console workspace and each member | A budget per agent and per organization, checked before each model request |
 | Audit | Not documented | Tamper-evident audit log |
-| Sharing | Public share links on `opncd.ai` until unshared | Grants, hosted pages and apps with owner and visibility |
-| Pricing | Free; optional Zen pay-as-you-go and Go at $10 a month; Enterprise per seat | No licence fee; model usage and infrastructure |
+| Pricing | Free; optional pay-as-you-go Console credits, Go at $10 or Go Plus at $40 a month; Enterprise per seat | No licence fee; model usage and infrastructure |
 
 ## Where AgenticOS goes further
 
@@ -85,5 +84,4 @@ Yes. A capability is typed Python in the repository, and OpenCode can help write
 - [Repository](https://github.com/anomalyco/opencode): the MIT licence and releases.
 - [Providers](https://opencode.ai/docs/providers/): 75+ providers and local models.
 - [Permissions](https://opencode.ai/docs/permissions/): `allow`, `ask` and `deny`.
-- [Share](https://opencode.ai/docs/share/): public share links.
-- [Zen](https://opencode.ai/docs/zen/), [Go](https://opencode.ai/docs/go/) and [Enterprise](https://opencode.ai/docs/enterprise/): paid options and limits.
+- [Console models](https://opencode.ai/v2/docs/console/models/), [Go](https://opencode.ai/v2/docs/console/go/) and [Enterprise](https://opencode.ai/docs/enterprise/): workspaces, budgets, paid plans and per-seat Enterprise.

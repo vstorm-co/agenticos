@@ -2,7 +2,7 @@
 title: "AgenticOS vs OpenAI Frontier"
 seo_title: "AgenticOS vs OpenAI Frontier: una alternativa de código abierto"
 description: "OpenAI Frontier gestiona compañeros de IA de empresa con modelos de OpenAI. Compáralo con AgenticOS: código abierto, cualquier modelo, en tus servidores."
-source_sha: "604c3b920001"
+source_sha: "22f62b5b3fff"
 ---
 
 # AgenticOS vs OpenAI Frontier { #agenticos-vs-openai-frontier }
@@ -11,7 +11,7 @@ OpenAI Frontier es una plataforma empresarial para crear y gestionar "compañero
 
 Si apuestas por OpenAI y quieres que sea él quien entregue la plataforma, Frontier es la respuesta del propio proveedor. Si quieres que la plataforma sea tuya, leer su código y elegir los modelos, AgenticOS está hecho para eso.
 
-Mantenido por el equipo de AgenticOS. Fuentes revisadas el 14 de octubre de 2026. Versión de referencia de AgenticOS: v0.0.535. Alcance de Frontier: el anuncio de OpenAI del 5 de febrero de 2026 según la prensa; no se publicaron precios y no se probó ninguna cuenta.
+Mantenido por el equipo de AgenticOS. Fuentes revisadas el 14 de octubre de 2026. Versión de referencia de AgenticOS: v1.10.0. Alcance de Frontier: el anuncio de OpenAI del 5 de febrero de 2026 según la prensa; no se publicaron precios y no se probó ninguna cuenta.
 
 ## De un vistazo { #at-a-glance }
 
