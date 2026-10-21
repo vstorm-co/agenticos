@@ -7,7 +7,6 @@ import type { User } from "@/types/auth";
 import type { EvalRun } from "@/types/eval-runs";
 import { FLIP, SUMMARY, arm, attempt, comparison, evalCase, evalRun } from "@/test-utils/eval-runs";
 import { ApiError } from "@/lib/api-error";
-import { Perm } from "@/types/permissions";
 import { EvalRunView } from "./eval-run-view";
 
 const toastError = vi.fn();
@@ -26,19 +25,20 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: navigation.replace }),
 }));
 
-const review = vi.hoisted(() => ({ canEdit: false, mutate: vi.fn(), rescore: vi.fn() }));
+const review = vi.hoisted(() => ({
+  canEdit: false,
+  canRun: false,
+  mutate: vi.fn(),
+  rescore: vi.fn(),
+}));
 const loaded = vi.hoisted(() => ({
-  agent: { can_run: true, can_edit: true } as { can_run: boolean; can_edit: boolean } | undefined,
+  agent: { can_run: true, can_edit: true } as
+    { can_run: boolean; can_edit: boolean; can_publish?: boolean } | undefined,
 }));
 vi.mock("@/hooks/use-agents", () => ({ useAgent: () => ({ agent: loaded.agent }) }));
 
 vi.mock("@/hooks/use-datasets", () => ({
-  useDataset: () => ({ dataset: { can_edit: review.canEdit } }),
-}));
-
-const access = vi.hoisted(() => ({ allowed: new Set<string>() }));
-vi.mock("@/hooks/use-permissions", () => ({
-  usePermissions: () => ({ can: (permission: string) => access.allowed.has(permission) }),
+  useDataset: () => ({ dataset: { can_edit: review.canEdit, can_run: review.canRun } }),
 }));
 
 const state = vi.hoisted(() => ({
@@ -110,11 +110,11 @@ function worseDraft() {
 beforeEach(() => {
   vi.clearAllMocks();
   review.canEdit = false;
+  review.canRun = false;
   review.mutate = vi.fn();
   review.rescore = vi.fn();
   loaded.agent = { can_run: true, can_edit: true };
   navigation.params = new URLSearchParams();
-  access.allowed = new Set();
   useAuthStore.setState({ user: null });
   state.comparisonError = null;
   state.casesArgs = [];
@@ -171,7 +171,7 @@ describe("EvalRunView", () => {
 
   it("says a draft made things worse, what changed, and shows the cases that broke", async () => {
     worseDraft();
-    access.allowed = new Set([Perm.agentsPublish]);
+    loaded.agent = { can_run: true, can_edit: true, can_publish: true };
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
 
     expect(
@@ -224,7 +224,7 @@ describe("EvalRunView", () => {
         { ...FLIP, flip: "fixed", baseline: false, candidate: true, candidate_reruns: [true] },
       ],
     };
-    access.allowed = new Set([Perm.agentsPublish]);
+    loaded.agent = { can_run: true, can_edit: true, can_publish: true };
     const { unmount } = render(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(
       screen.getByRole("heading", {
@@ -473,7 +473,7 @@ describe("EvalRunView", () => {
     expect(screen.queryByRole("button", { name: "Grade again" })).toBeNull();
     unmount();
 
-    access.allowed = new Set([Perm.datasetsRun]);
+    review.canRun = true;
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
     await userEvent.click(screen.getByRole("button", { name: "Grade again" }));
     expect(review.rescore).toHaveBeenCalledWith(["s1", "s2"], expect.any(Object));
@@ -598,7 +598,7 @@ describe("EvalRunView", () => {
         ],
       }),
     };
-    access.allowed = new Set([Perm.agentsPublish]);
+    loaded.agent = { can_run: true, can_edit: true, can_publish: true };
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(
       screen.getByText(
@@ -670,14 +670,14 @@ describe("EvalRunView", () => {
   it("offers to test again, not to publish, once the draft moved on", async () => {
     worseDraft();
     state.run = { ...state.run, run: { ...(state.run.run as object), draft_changed: true } };
-    access.allowed = new Set([Perm.agentsPublish]);
+    loaded.agent = { can_run: true, can_edit: true, can_publish: true };
     const { unmount } = render(<EvalRunView agentId="agent-1" runId="run-1" />);
     // Testing again starts a run of the draft, which this reader may not.
     expect(screen.getByText("The draft changed after this run.")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Test again" })).toBeNull();
     unmount();
 
-    access.allowed = new Set([Perm.agentsPublish, Perm.datasetsRun, Perm.agentsEdit]);
+    review.canRun = true;
     loaded.agent = undefined;
     const again = render(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.queryByRole("button", { name: "Test again" })).toBeNull();
@@ -700,9 +700,8 @@ describe("EvalRunView", () => {
     expect(screen.queryByRole("link", { name: "Publish" })).toBeNull();
     unmount();
 
-    // A role that publishes, on an agent this caller may not edit.
-    access.allowed = new Set([Perm.agentsPublish]);
-    loaded.agent = { can_run: true, can_edit: false };
+    // An editor of this agent who may not publish it - a Member on their own.
+    loaded.agent = { can_run: true, can_edit: true, can_publish: false };
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.queryByRole("link", { name: "Publish" })).toBeNull();
   });
@@ -778,7 +777,6 @@ describe("EvalRunView", () => {
 
     // Somebody else may not, unless they may edit this agent - whatever the role.
     useAuthStore.setState({ user: { id: "u2" } as User });
-    access.allowed = new Set([Perm.agentsEdit]);
     loaded.agent = { can_run: true, can_edit: false };
     const other = render(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();

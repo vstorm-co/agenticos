@@ -56,6 +56,7 @@ vi.mock("@/hooks", async () => {
         name: "Support",
         status: "draft",
         has_avatar: false,
+        can_edit: true,
         draft_spec: {
           name: "Support",
           instructions: "Be helpful.",
@@ -119,7 +120,10 @@ vi.mock("@/hooks", async () => {
   };
 });
 
-vi.mock("@/hooks/use-eval-runs", () => ({ useEvalArmSpec: () => ({ spec: undefined }) }));
+vi.mock("@/hooks/use-eval-runs", () => ({
+  useEvalArmSpec: () => ({ spec: undefined }),
+  useEveryDataset: () => ({ datasets: [] }),
+}));
 vi.mock("@/hooks/use-context", () => ({
   useContextFiles: () => ({ files: [], total: 0 }),
 }));

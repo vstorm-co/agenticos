@@ -434,10 +434,16 @@ export interface Agent {
   /**
    * Whether the current caller may edit this agent - resolved per caller like
    * `can_run`, so an edit grant on one agent reads true where the role check
-   * would not. What eval controls (testing the draft, stopping a run, publishing
-   * from one) read; the backend re-checks every edit.
+   * would not. What the agent page's edit controls, testing the draft and stopping
+   * an eval run read; the backend re-checks every edit.
    */
   can_edit?: boolean;
+  /**
+   * Whether the current caller may publish this agent - a version, a rollback, its
+   * embeds, exposures and environments. Resolved like `can_edit`, and not the same
+   * answer: a Member edits the agents they own but publishes none.
+   */
+  can_publish?: boolean;
   /** Whether other systems may reach it over A2A, by its agent card (#2092). */
   a2a_enabled?: boolean;
   /** How many members hold an explicit grant. Filled by the listing only. */

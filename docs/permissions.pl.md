@@ -1,5 +1,5 @@
 ---
-source_sha: "6cb5b2cda7af"
+source_sha: "c1a9d4c2f45f"
 ---
 
 # Uprawnienia { #permissions }
@@ -364,11 +364,14 @@ którym powinno zostać zawężone do niczego.
 już strony wierszy zwraca ten podzbiór, na którym wywołujący może skorzystać z
 uprawnienia, stosując tę samą regułę `max(role scope, grant)` na każdym wierszu,
 ale czytając wszystkie granty w jednym odczycie zamiast po jednym na wiersz (i
-wcale, kiedy rola sięga wszystkiego). To ono wypełnia flagi możliwości przy
+wcale, kiedy rola sięga wszystkiego).
+
+To `accessible_ids` wypełnia flagi możliwości przy
 każdym wierszu listowania — `AgentRead.can_run`, podłogę dla zaoferowania „new
-trigger” na karcie, oraz `AgentRead.can_edit`, z którego konsola czyta, czy
-zaoferować test draftu oraz zatrzymanie i publikację z eval runa — więc Viewer z
-przyznanym runem na jednym agencie widzi tę kontrolkę tam i nigdzie indziej.
+trigger” na karcie, `AgentRead.can_edit`, z którego konsola czyta, czy
+zaoferować kontrolki edycji na stronie agenta, test draftu i zatrzymanie eval
+runa, oraz `AgentRead.can_publish` dla publikacji — więc Viewer z przyznanym
+runem na jednym agencie widzi tę kontrolkę tam i nigdzie indziej.
 
 Kontekst bez podmiotu oraz puste wejście rozwiązują się oba do pustego zbioru
 przed jakimkolwiek zapytaniem.

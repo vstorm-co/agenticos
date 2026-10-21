@@ -10,12 +10,11 @@ import { toast } from "sonner";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui";
 import { useAgent } from "@/hooks/use-agents";
+import { useDataset } from "@/hooks/use-datasets";
 import { isLive, useEvalComparison, useEvalRun } from "@/hooks/use-eval-runs";
-import { usePermissions } from "@/hooks/use-permissions";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { useAuthStore } from "@/stores/auth-store";
-import { Perm } from "@/types/permissions";
 import { ArmsTable } from "./arms-table";
 import { ALL, CaseTable, FilterSelect } from "./case-table";
 import { ComparisonCard } from "./comparison-card";
@@ -37,11 +36,12 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
   const tCases = useTranslations("evals.cases");
   const tc = useTranslations("common");
   const { run, isLoading, error, refetch, cancel } = useEvalRun(runId);
-  const { can } = usePermissions();
   const { agent } = useAgent(agentId);
+  const { dataset } = useDataset(run?.dataset_id ?? "");
   const me = useAuthStore((state) => state.user?.id);
-  // Testing the draft again starts a run of it, which these three decide.
-  const canTestAgain = agent?.can_run === true && agent.can_edit === true && can(Perm.datasetsRun);
+  // Testing the draft again starts a run of it on the same dataset, which these three decide.
+  const canTestAgain =
+    agent?.can_run === true && agent.can_edit === true && dataset?.can_run === true;
   const candidates = run?.arms.filter((arm) => arm.role === "candidate") ?? [];
   const [arm, setArm] = useState<string | null>(null);
   const [tag, setTag] = useState<string | null>(null);
@@ -116,7 +116,7 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
         agentId={agentId}
         run={run}
         candidate={candidate}
-        canPublish={can(Perm.agentsPublish) && agent?.can_edit === true}
+        canPublish={agent?.can_publish === true}
         comparison={live ? undefined : comparison}
         onCancel={
           live && (run.created_by_user_id === me || agent?.can_edit === true)

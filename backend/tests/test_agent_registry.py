@@ -1106,7 +1106,7 @@ class TestList:
         ):
             rows, _total = await AgentRegistryService(_db()).list_agents(ctx)
 
-        assert (rows[0].can_run, rows[0].can_edit) == (True, True)
+        assert (rows[0].can_run, rows[0].can_edit, rows[0].can_publish) == (True, True, True)
         shared_ids.assert_not_awaited()
 
 
@@ -1142,6 +1142,53 @@ class TestMayEdit:
                 new=AsyncMock(return_value=level),
             ):
                 assert await AgentRegistryService(_db()).may_edit(ctx, agent) is False
+
+
+class TestMayPublish:
+    @pytest.mark.anyio
+    async def test_an_owner_may_publish_without_a_grant(self):
+        ctx = _ctx(OrgRoleName.OWNER)
+        agent = _agent(ctx, owner_user_id=uuid.uuid4())
+
+        with patch("app.services.access.resource_grant_repo.get_level", new=AsyncMock()) as level:
+            assert await AgentRegistryService(_db()).may_publish(ctx, agent) is True
+        level.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_member_edits_their_own_agent_but_does_not_publish_it(self):
+        """Why the console reads a publish flag of its own rather than `can_edit`."""
+        ctx = _ctx(OrgRoleName.MEMBER)
+        agent = _agent(ctx)
+        registry = AgentRegistryService(_db())
+
+        with patch(
+            "app.services.access.resource_grant_repo.get_level", new=AsyncMock(return_value=None)
+        ):
+            assert await registry.may_edit(ctx, agent) is True
+            assert await registry.may_publish(ctx, agent) is False
+
+    @pytest.mark.anyio
+    async def test_an_edit_grant_lets_a_viewer_publish_that_agent(self):
+        ctx = _ctx(OrgRoleName.VIEWER)
+        agent = _agent(ctx, owner_user_id=uuid.uuid4())
+
+        with patch(
+            "app.services.access.resource_grant_repo.get_level",
+            new=AsyncMock(return_value=GrantLevel.EDIT),
+        ):
+            assert await AgentRegistryService(_db()).may_publish(ctx, agent) is True
+
+    @pytest.mark.anyio
+    async def test_a_read_or_use_grant_does_not(self):
+        ctx = _ctx(OrgRoleName.VIEWER)
+        agent = _agent(ctx, owner_user_id=uuid.uuid4())
+
+        for level in (GrantLevel.READ, GrantLevel.USE):
+            with patch(
+                "app.services.access.resource_grant_repo.get_level",
+                new=AsyncMock(return_value=level),
+            ):
+                assert await AgentRegistryService(_db()).may_publish(ctx, agent) is False
 
 
 class TestMayRun:
