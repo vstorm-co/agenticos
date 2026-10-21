@@ -3753,7 +3753,8 @@
     "loadingPage": "Opening the page",
     "blobby": "Blobby",
     "desktopApp": "Desktop app",
-    "shortcuts": "Shortcuts"
+    "shortcuts": "Shortcuts",
+    "mobileApp": "Mobile app"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -8407,6 +8408,30 @@
         "title": "You're all set",
         "body": "Everything here is in Settings when you want to change it."
       }
+    }
+  },
+  "mobile": {
+    "settings": {
+      "heading": "Mobile app",
+      "headingHint": "AgenticOS on your phone: approvals and your agents' questions where you are."
+    },
+    "addPhone": {
+      "title": "Add a phone",
+      "description": "Sign the AgenticOS app in as you by scanning a code. The code works once, for a minute.",
+      "step1": "Install AgenticOS on your phone and open it.",
+      "step2": "Choose Scan a code, or point the phone's camera here.",
+      "step3": "Scan the code. The phone signs in as you.",
+      "show": "Show a code",
+      "again": "Show a new code",
+      "expiresIn": "{seconds, plural, =1 {Works for 1 more second} other {Works for # more seconds}}",
+      "expired": "That code has expired.",
+      "failed": "A code could not be made. Try again.",
+      "qrLabel": "A code that signs the AgenticOS app in as you"
+    },
+    "pair": {
+      "signingIn": "Signing you in",
+      "failed": "This code no longer works",
+      "failedHint": "Codes work once, for a minute. Show a new one in the console, under Settings, Mobile app, and scan it again."
     }
   }
 }

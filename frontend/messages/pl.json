@@ -3523,7 +3523,8 @@
     "loadingPage": "Otwieranie strony",
     "blobby": "Blobby",
     "desktopApp": "Aplikacja desktopowa",
-    "shortcuts": "Skróty"
+    "shortcuts": "Skróty",
+    "mobileApp": "Aplikacja mobilna"
   },
   "navigation": {
     "dashboard": "Panel",
@@ -8192,6 +8193,30 @@
         "title": "Wszystko gotowe",
         "body": "Wszystko to znajdziesz w Ustawieniach, kiedy zechcesz coś zmienić."
       }
+    }
+  },
+  "mobile": {
+    "settings": {
+      "heading": "Aplikacja mobilna",
+      "headingHint": "AgenticOS na telefonie: akceptacje i pytania twoich agentów tam, gdzie jesteś."
+    },
+    "addPhone": {
+      "title": "Dodaj telefon",
+      "description": "Zaloguj aplikację AgenticOS na swoje konto, skanując kod. Kod działa raz, przez minutę.",
+      "step1": "Zainstaluj AgenticOS na telefonie i otwórz aplikację.",
+      "step2": "Wybierz Zeskanuj kod albo skieruj tu aparat telefonu.",
+      "step3": "Zeskanuj kod. Telefon zaloguje się na twoje konto.",
+      "show": "Pokaż kod",
+      "again": "Pokaż nowy kod",
+      "expiresIn": "{seconds, plural, one {Działa jeszcze 1 sekundę} few {Działa jeszcze # sekundy} many {Działa jeszcze # sekund} other {Działa jeszcze # sekundy}}",
+      "expired": "Ten kod wygasł.",
+      "failed": "Nie udało się utworzyć kodu. Spróbuj ponownie.",
+      "qrLabel": "Kod, który loguje aplikację AgenticOS na twoje konto"
+    },
+    "pair": {
+      "signingIn": "Logowanie",
+      "failed": "Ten kod już nie działa",
+      "failedHint": "Kod działa raz, przez minutę. Pokaż nowy w konsoli, w Ustawieniach, w zakładce Aplikacja mobilna, i zeskanuj go ponownie."
     }
   }
 }

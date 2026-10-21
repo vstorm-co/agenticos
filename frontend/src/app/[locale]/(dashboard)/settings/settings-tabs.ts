@@ -9,6 +9,7 @@ import {
   Plug,
   Shield,
   Slash,
+  Smartphone,
   Smile,
   UserCircle,
 } from "lucide-react";
@@ -50,6 +51,7 @@ export const SETTINGS_TABS: readonly PageTab[] = [
   { labelKey: "api", href: ROUTES.SETTINGS_API_KEYS, icon: KeyRound },
   { labelKey: "mcpClients", href: ROUTES.SETTINGS_MCP, icon: Plug },
   { labelKey: "assistant", href: ROUTES.SETTINGS_ASSISTANT, icon: Bot },
+  { labelKey: "mobileApp", href: ROUTES.SETTINGS_MOBILE, icon: Smartphone },
   // The desktop app's own settings, last and only inside the app: a browser has
   // no blobby, no window and no global shortcut to configure.
   { labelKey: "blobby", href: ROUTES.SETTINGS_BLOBBY, icon: Smile, shellOnly: true },

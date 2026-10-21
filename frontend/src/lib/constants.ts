@@ -13,6 +13,7 @@ export const ROUTES = {
   PROFILE: "/profile",
   SETTINGS: "/settings",
   SETTINGS_PROFILE: "/settings/profile",
+  SETTINGS_MOBILE: "/settings/mobile",
   SETTINGS_BLOBBY: "/settings/blobby",
   SETTINGS_DESKTOP: "/settings/desktop",
   SETTINGS_SHORTCUTS: "/settings/shortcuts",

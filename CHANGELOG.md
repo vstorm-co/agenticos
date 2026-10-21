@@ -44,6 +44,10 @@ Two things are versioned separately from this file and worth knowing about:
   short welcome in the console follows: blobby, the shortcuts, notifications.
 - **Blobby can be resized**: pinch it, scroll over it with ⌘ held, pick a size
   from its menu, or use the slider in Settings.
+- **Pair a phone by QR** (#2097): Settings → Mobile app shows a code that
+  signs the AgenticOS app in as you. It works once, for a minute, and the
+  phone's session is opened only when it scans, under the phone's own name.
+  `POST /api/v1/auth/pairing-codes` and `/pairing-codes/redeem`.
 - **Quick ask** (`⌥Space`, rebindable): a floating panel to ask any agent from
   anywhere, with the answer streamed under the question and ⌘↩ to carry the
   conversation into the console.

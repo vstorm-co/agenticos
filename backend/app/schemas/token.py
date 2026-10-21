@@ -43,3 +43,19 @@ class OAuthExchangeRequest(BaseSchema):
     """Request body swapping a single-use OAuth code for its token pair."""
 
     code: str
+
+
+class PairingCodeRead(BaseSchema):
+    """A single-use code that signs one phone in as the caller (#2097).
+
+    The console draws it as a QR; it expires after `expires_in` seconds.
+    """
+
+    code: str
+    expires_in: int
+
+
+class PairingRedeem(BaseSchema):
+    """The code a phone scanned, redeemed for a session of its own."""
+
+    code: str
