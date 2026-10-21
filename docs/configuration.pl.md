@@ -1,5 +1,5 @@
 ---
-source_sha: "ef111b36345c"
+source_sha: "1253cba3b629"
 ---
 
 # Konfiguracja { #configuration }
@@ -731,7 +731,7 @@ Przypadki testowe, na których działają evale. Zobacz [Datasety](datasets.md).
 
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|
-| `DATASET_MAX_VERSION_ROWS_PER_ORG` | `5000000` | Ile wierszy przypadków mogą łącznie trzymać wersje datasetów jednej organizacji. Każda zmiana zapisuje wersję z wierszem na przypadek, więc dataset z 10 000 przypadków edytowany 500 razy trzyma 5 milionów. Zmiana ponad limit jest odrzucana z podaniem, ile jest zajęte; usunięcie niepotrzebnych datasetów zwalnia ich wiersze. Limit jest przybliżony: każda zmiana jest sprawdzana osobno, więc zmiany w różnych datasetach w tej samej chwili mogą go nieznacznie przekroczyć. Chroni miejsce w bazie, nie służy do rozliczeń |
+| `DATASET_MAX_VERSION_ROWS_PER_ORG` | `5000000` | Ile rewizji przypadków mogą łącznie przechowywać datasety jednej organizacji. Każdy dodany przypadek i każda edycja to rewizja, przechowywana dla wersji, które ją zawierają; wersja zapisuje tylko to, co zmieniła, więc dataset z 10 000 przypadków edytowany 500 razy przechowuje 10 500, a nie 5 milionów. Dodanie albo edycja ponad limit jest odrzucana z podaniem, ile jest przechowywane; usunięcie przypadku nic nie zapisuje i jest zawsze dozwolone, a usunięcie niepotrzebnych datasetów zwalnia ich rewizje. Nazwa jest starsza niż to znaczenie: liczyła każdy przypadek każdej wersji, dopóki wersje kopiowały swoje przypadki. Limit jest przybliżony: każda zmiana jest sprawdzana osobno, więc zmiany w różnych datasetach w tej samej chwili mogą go nieznacznie przekroczyć. Chroni miejsce w bazie, nie służy do rozliczeń |
 
 ## Workspace'y agentów { #agent-workspaces }
 

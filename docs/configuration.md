@@ -722,7 +722,7 @@ The test cases evals run over. See [Datasets](datasets.md).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DATASET_MAX_VERSION_ROWS_PER_ORG` | `5000000` | Case rows one organization's dataset versions may hold together. Every change writes a version holding a row per case, so a dataset of 10,000 cases edited 500 times holds 5 million. A change past the limit is refused, naming how many are held; deleting datasets nobody needs frees their rows. The limit is approximate: each change is checked on its own, so changes made at the same moment to different datasets can pass it by a little. It protects storage; it is not a bill |
+| `DATASET_MAX_VERSION_ROWS_PER_ORG` | `5000000` | Case revisions one organization's datasets may store together. Every case added and every edit is a revision, kept for the versions that hold it; a version stores only what it changed, so a dataset of 10,000 cases edited 500 times stores 10,500, not 5 million. An add or an edit past the limit is refused, naming how many are stored; removing a case stores nothing and is always allowed, and deleting datasets nobody needs frees their revisions. The name is older than this meaning: it counted every case of every version until versions stopped copying their cases. The limit is approximate: each change is checked on its own, so changes made at the same moment to different datasets can pass it by a little. It protects storage; it is not a bill |
 
 ## Agent workspaces
 

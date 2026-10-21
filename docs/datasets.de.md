@@ -1,5 +1,5 @@
 ---
-source_sha: "da763475f799"
+source_sha: "ae21bc897eea"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -75,12 +75,16 @@ Beschreibung zu ändern erzeugt keine Version, weil keines von beiden einen Fall
 ändert.
 
 Die Versionsliste zeigt die hundert neuesten Versionen; eine ältere öffnen Sie,
-indem Sie ihre Nummer eingeben. Jede Version hält eine Zeile pro Fall, daher
-halten die Versionen einer Organisation zusammen höchstens
-`DATASET_MAX_VERSION_ROWS_PER_ORG` Zeilen (standardmäßig 5 Millionen, siehe
-[Konfiguration](configuration.md#datasets)). Eine Änderung darüber wird
-abgelehnt und nennt, wie viele belegt sind; das Löschen eines Datasets gibt
-seine Zeilen frei.
+indem Sie ihre Nummer eingeben. Eine Version speichert nur,
+was sie geändert hat: Ein hinzugefügter oder bearbeiteter Fall ist eine neue
+Fallrevision, ein entfernter speichert nichts, daher kostet eine lange
+Historie, was sich geändert hat, nicht jeden Fall in jeder Version. Die Datasets
+einer Organisation speichern zusammen höchstens
+`DATASET_MAX_VERSION_ROWS_PER_ORG` Fallrevisionen (standardmäßig 5 Millionen,
+siehe [Konfiguration](configuration.md#datasets)). Ein Hinzufügen oder
+Bearbeiten darüber wird abgelehnt und nennt, wie viele gespeichert sind; einen
+Fall zu entfernen ist immer erlaubt, und das Löschen eines Datasets gibt seine
+Revisionen frei.
 
 ## Fälle hinzufügen { #adding-cases }
 
