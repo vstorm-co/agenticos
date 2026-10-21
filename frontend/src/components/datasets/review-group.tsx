@@ -15,6 +15,8 @@ interface ReviewGroupHeadingProps {
   /** Scores these of the group's answers again; absent for somebody who may not. */
   onRescore?: (scoreIds: string[]) => void;
   busy: boolean;
+  /** Link the eval run, which only a reader with `runs:view` may open. */
+  linksRuns?: boolean;
 }
 
 /**
@@ -27,6 +29,7 @@ export function ReviewGroupHeading({
   onWithdraw,
   onRescore,
   busy,
+  linksRuns = false,
 }: ReviewGroupHeadingProps) {
   const t = useTranslations("datasets.scoring");
   const locale = useLocale();
@@ -34,7 +37,7 @@ export function ReviewGroupHeading({
   const when = formatDateTime(first!.created_at, locale);
   const ungraded = group.scores.filter((score) => score.unscored_reason !== null);
   const link =
-    group.evalRunId !== null && first!.agent_id !== null
+    linksRuns && group.evalRunId !== null && first!.agent_id !== null
       ? `${ROUTES.AGENTS}/${first!.agent_id}/evals/${group.evalRunId}`
       : null;
 
