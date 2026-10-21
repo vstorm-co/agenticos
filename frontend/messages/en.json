@@ -4529,6 +4529,8 @@
       "moreActions": "More actions",
       "n100Default": "100 (default)",
       "namedMissing": "{name} (missing)",
+      "agentUnavailable": "Agent not available",
+      "backToAgents": "Back to agents",
       "eachPersonsOwnNamed": "{name} (each person's own)",
       "namedPointersAtPublished": "A publish mints a version; putting it somewhere is a separate decision. An environment either waits to be promoted onto or follows every publish. Production follows while it is the only environment; pin it once a dev or staging sits beside it. A bot bound to an environment serves its version.",
       "newAgent": "New agent",
