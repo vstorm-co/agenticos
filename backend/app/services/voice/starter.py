@@ -502,17 +502,27 @@ class VoiceCallStarter:
         after, is.
         """
         if caller.user_id is not None:
-            await self._refuse_user_when_full(caller.user_id, now=now)
+            # A call hung up a moment ago is still open until its teardown writes
+            # the end, so the count is given a moment to drop before it refuses.
+            with anyio.move_on_after(limits.ENDING_GRACE_SECONDS):
+                while True:
+                    if not await self._user_is_full(caller.user_id, now=datetime.now(UTC)):
+                        break
+                    await anyio.sleep(0.25)
+            await self._refuse_user_when_full(caller.user_id, now=datetime.now(UTC))
         elif caller.embed_id is not None:
             await self._refuse_embed_when_full(caller.embed_id, now=now)
 
-    async def _refuse_user_when_full(self, user_id: UUID, *, now: datetime) -> None:
+    async def _user_is_full(self, user_id: UUID, *, now: datetime) -> bool:
         open_calls = await voice_call_repo.count_open_for_user(
             self.db,
             user_id=user_id,
             fresh_since=now - timedelta(seconds=limits.STALE_AFTER_SECONDS),
         )
-        if open_calls >= settings.VOICE_MAX_CALLS_PER_USER:
+        return open_calls >= settings.VOICE_MAX_CALLS_PER_USER
+
+    async def _refuse_user_when_full(self, user_id: UUID, *, now: datetime) -> None:
+        if await self._user_is_full(user_id, now=now):
             raise VoiceRefused("busy", "You are already on a call. End it before starting another.")
 
     async def _refuse_embed_when_full(self, embed_id: UUID, *, now: datetime) -> None:

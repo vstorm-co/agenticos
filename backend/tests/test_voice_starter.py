@@ -110,6 +110,7 @@ def world(monkeypatch):
     monkeypatch.setattr(f"{_R}.agent_run_repo.expire_pending_approvals", AsyncMock(return_value=0))
     monkeypatch.setattr(f"{_M}.hold_subject", AsyncMock())
     monkeypatch.setattr(f"{_M}.build_realtime_model", MagicMock())
+    monkeypatch.setattr(f"{_M}.limits.ENDING_GRACE_SECONDS", 0)
     w.prepared = prepared
     return w
 
@@ -149,6 +150,24 @@ async def test_each_refusal_rolls_back_and_names_its_reason(world, breaks, reaso
         )
     assert refused.value.reason == reason
     db.commit.assert_not_awaited()
+
+
+async def test_call_again_waits_for_the_call_just_hung_up_to_finish_ending(world, monkeypatch):
+    """ "Call again" right after End: the old call's row is still open until its teardown
+    writes the end, so the start waits for the count to drop instead of refusing `busy`."""
+    counts = iter([1, 1, 0])
+    monkeypatch.setattr(
+        f"{_M}.voice_call_repo.count_open_for_user",
+        AsyncMock(side_effect=lambda db, **kw: next(counts, 0)),
+    )
+    monkeypatch.setattr(f"{_M}.limits.ENDING_GRACE_SECONDS", 5)
+    starter, db = _starter()
+
+    await starter.start(
+        world.caller(), StartFrame(type="start", agent_id=world.agent.id, sdp_offer=_OFFER)
+    )
+
+    db.commit.assert_awaited_once()
 
 
 async def test_a_model_the_price_snapshot_cannot_price_is_refused(world, monkeypatch):

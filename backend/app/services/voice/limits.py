@@ -28,6 +28,10 @@ RESUME_WINDOW_SECONDS = 10
 RESUME_WAIT_SECONDS = 3.0
 """How long a reconnect waits for a half-open previous connection to finish ending."""
 
+ENDING_GRACE_SECONDS = 4.0
+"""How long a start waits for a call its caller just hung up to finish ending before
+counting the person as busy: "Call again" lands before the old call's teardown."""
+
 
 def call_cap_seconds(*, agent_max: int | None, chain_elapsed: int) -> int:
     """The longest this connection may run: the agent's longest call, never negative.
