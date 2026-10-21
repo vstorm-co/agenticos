@@ -5218,7 +5218,11 @@ class TestTellingTheAgentWhatItCannotReach:
             spec.instructions
         )
         assert "none of its semrush_* tools are attached" in spec.instructions
+        # A probe also fails on a refused token or a protocol error, not only a
+        # timeout: a retry may work, and a failure that persists is the connection.
+        assert "did not answer, or refused the connection" in spec.instructions
         assert "trying again may work" in spec.instructions
+        assert "if it keeps failing the connection needs checking" in spec.instructions
         assert "is bound to the account" not in spec.instructions
 
     def test_same_named_bindings_are_told_apart_by_binding_not_by_name(self):

@@ -25,7 +25,7 @@ import json
 import logging
 import re
 import time
-from collections.abc import AsyncGenerator, Iterable
+from collections.abc import AsyncGenerator, Iterable, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
 from typing import Any
@@ -35,6 +35,7 @@ from uuid import UUID
 # and lazily that was a few hundred milliseconds - seconds on a host short of CPU -
 # inside the first chat turn each process served, before the model was asked.
 from pydantic_ai.mcp import MCPToolset, infer_transport_type_from_url
+from pydantic_ai.messages import InstructionPart
 from pydantic_ai.tools import RunContext, ToolDefinition
 from pydantic_ai.toolsets import WrapperToolset
 from pydantic_ai.toolsets.abstract import ToolsetTool
@@ -421,6 +422,25 @@ class ToolOrigins(WrapperToolset[Any]):
         return tools
 
 
+def unreachable_briefing(server: str, *, binding: str | None) -> str:
+    """What the model is told about a bound server that did not answer this turn.
+
+    Told nothing, the model reads the missing tools as an empty answer and
+    reports "no data". The failure may be a timeout, a refused token or a
+    protocol error, so the text promises neither that a retry works nor that it
+    does not.
+    """
+    named = f"{server} server ({binding})" if binding else f"{server} server"
+    return (
+        f"The {named} is not available this turn: it did not answer, or refused the "
+        f"connection, when the turn started, so none of its {tool_prefix(server)}_* tools "
+        f"are attached. If asked for anything that needs {server}, say it could not be "
+        "reached just now - trying again may work, and if it keeps failing the connection "
+        "needs checking. Do not answer as though it returned nothing, and do not guess "
+        "what it would have said."
+    )
+
+
 @dataclass
 class AnsweredRecently(WrapperToolset[Any]):
     """A server attached on a recent probe's word, left out of the turn if it is down now.
@@ -428,6 +448,8 @@ class AnsweredRecently(WrapperToolset[Any]):
     Entering is where pydantic-ai connects, so a server that stopped answering
     since its probe fails here; the turn goes on without its tools, as it would
     have had the probe run, and the memo is dropped so the next turn probes again.
+    The probe's own failure is briefed by the turn that ran it; this one happens
+    after that briefing was written, so the toolset briefs it itself.
     """
 
     name: str = ""
@@ -458,6 +480,13 @@ class AnsweredRecently(WrapperToolset[Any]):
         if self.down:
             return {}
         return await super().get_tools(ctx)
+
+    async def get_instructions(
+        self, ctx: RunContext[Any]
+    ) -> str | InstructionPart | Sequence[str | InstructionPart] | None:
+        if self.down:
+            return unreachable_briefing(self.name, binding=None)
+        return await super().get_instructions(ctx)
 
 
 PLATFORM_MCP_NAME = "agenticos"

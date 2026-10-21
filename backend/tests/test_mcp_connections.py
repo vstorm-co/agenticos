@@ -23,7 +23,11 @@ import pydantic_ai.mcp  # noqa: F401
 import pytest
 from mcp.shared.auth import OAuthMetadata, OAuthToken
 from pydantic import AnyUrl, SecretStr, ValidationError
+from pydantic_ai import Agent
+from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
+from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.tools import ToolDefinition
+from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai.toolsets.abstract import ToolsetTool
 from sqlalchemy.exc import IntegrityError
 
@@ -628,6 +632,49 @@ class TestRecentAnswers:
         # Forgotten, so the next turn asks the server again and can report it down.
         await build_mcp_toolsets([spec])
         assert len(calls) == 2
+
+    @pytest.mark.anyio
+    async def test_a_server_down_since_its_answer_is_briefed_to_the_model(self, monkeypatch):
+        """No probe ran, so no gap was briefed before the turn: the toolset briefs it.
+
+        Left out silently, the model read the missing tools as an empty answer -
+        the same "no data" the probe's own briefing exists to prevent."""
+        monkeypatch.setattr("app.agents.mcp.probe_mcp_server", self._counting_probe([]))
+        spec = McpServerSpec(name="semrush", url="https://example.com/mcp")
+        await build_mcp_toolsets([spec])
+        (toolset,) = await build_mcp_toolsets([spec])
+
+        async def refuse(*_args):
+            raise ConnectionError("connection refused")
+
+        monkeypatch.setattr(toolset.wrapped, "__aenter__", refuse)
+        seen: list[str | None] = []
+
+        def answer(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            seen.append(info.instructions)
+            return ModelResponse(parts=[TextPart("Semrush could not be reached.")])
+
+        await Agent(FunctionModel(answer), toolsets=[toolset]).run("Keyword volume?")
+
+        assert seen and seen[0] is not None
+        assert "The semrush server is not available this turn" in seen[0]
+        assert "none of its semrush_* tools are attached" in seen[0]
+        assert "if it keeps failing the connection needs checking" in seen[0]
+
+    @pytest.mark.anyio
+    async def test_an_answering_server_keeps_its_own_instructions(self):
+        toolset = AnsweredRecently(
+            FunctionToolset(instructions="Use search first."), name="live", key="k"
+        )
+        seen: list[str | None] = []
+
+        def answer(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            seen.append(info.instructions)
+            return ModelResponse(parts=[TextPart("ok")])
+
+        await Agent(FunctionModel(answer), toolsets=[toolset]).run("Search.")
+
+        assert seen == ["Use search first."]
 
     @pytest.mark.anyio
     async def test_a_cancelled_connect_is_not_taken_for_an_outage(self, monkeypatch):
