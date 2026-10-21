@@ -197,11 +197,19 @@ provider allows the organization.
 
 Cancelling (`POST /api/v1/eval-runs/{id}/cancel`, by whoever started it or
 anyone who may edit the agent) stops what has not started: cases already running
-finish and are kept, and no other case starts. A running run's worker says it is
-alive every `EVAL_HEARTBEAT_SECONDS`; one that has not, and whose cases have not
-moved, for `EVAL_ABANDONED_AFTER_MINUTES` is failed by the hourly stale-run
-sweep, which also frees its slots. A queued run has no worker yet - it waits for
-a runner slot - so the sweep gives up on it only after
+finish and are kept, and no other case starts.
+
+A run its worker cannot finish - the database lost mid-run, say - ends `failed`
+at once, as an agent run does: its running cases fail, the rest are skipped, and
+its page says it stopped on an error and should be run again. It is not resumed.
+
+A worker can also die without a word. A running run's worker says it is alive
+every `EVAL_HEARTBEAT_SECONDS`; one that has not, and whose cases have not
+moved, for `EVAL_ABANDONED_AFTER_MINUTES` is failed by a sweep the worker runs
+every minute, which also frees its slots. A worker whose heartbeats fail that
+long - on a host too loaded to reach its database - is failed the same way while
+it still works, and its run has to be started again. A queued run has no worker
+yet - it waits for a runner slot - so the sweep gives up on it only after
 `EVAL_QUEUED_ABANDONED_AFTER_HOURS`.
 
 While a run is queued or running, the environment it names and the model profile
@@ -444,7 +452,7 @@ channel yet.
 | `EVAL_FALLBACK_OUTPUT_TOKENS` | `400` | The output tokens a case is priced at on a model with no history |
 | `EVAL_FALLBACK_CASE_COST_USD` | `0.05` | The estimate per case on a model with no history and no known price |
 | `EVAL_ESTIMATE_SAMPLE` | `50` | How many recent runs the estimate averages |
-| `EVAL_ABANDONED_AFTER_MINUTES` | `30` | How long a running run may stand still, its worker silent, before the sweep fails it |
+| `EVAL_ABANDONED_AFTER_MINUTES` | `10` | How long a running run may stand still, its worker silent, before the sweep fails it |
 | `EVAL_HEARTBEAT_SECONDS` | `60` | How often a working run says it is alive |
 | `EVAL_QUEUED_ABANDONED_AFTER_HOURS` | `24` | How long a run may wait for a worker before the sweep fails it |
 | `EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS` | `600` | How long a suite waits after a skill or knowledge base changed, so a burst of changes is one run |

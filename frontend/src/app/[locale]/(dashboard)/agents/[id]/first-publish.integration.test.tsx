@@ -67,6 +67,8 @@ vi.mock("@/hooks", async () => {
         name: "Support",
         status: "draft",
         has_avatar: false,
+        can_edit: true,
+        can_publish: true,
         draft_spec: {
           name: "Support",
           instructions: "Be helpful.",
@@ -135,7 +137,10 @@ vi.mock("@/hooks", async () => {
 });
 
 // The page's eval parts read their own queries; this test is not about them.
-vi.mock("@/hooks/use-eval-runs", () => ({ useEvalArmSpec: () => ({ spec: undefined }) }));
+vi.mock("@/hooks/use-eval-runs", () => ({
+  useEvalArmSpec: () => ({ spec: undefined }),
+  useEveryDataset: () => ({ datasets: [] }),
+}));
 vi.mock("@/components/evals/draft-eval-note", () => ({ DraftEvalNote: () => null }));
 vi.mock("@/components/evals/evals-panel", () => ({ EvalsPanel: () => null }));
 vi.mock("@/components/evals/start-eval-dialog", () => ({ StartEvalDialog: () => null }));

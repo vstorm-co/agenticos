@@ -184,7 +184,7 @@ export function ScoreRunDialog({ open, onOpenChange, runId }: ScoreRunDialogProp
           <DialogDescription>{t("scoreRunBody")}</DialogDescription>
         </DialogHeader>
         {result !== null ? (
-          <ScoreCard score={result} />
+          <ScoreCard score={result} linksRuns />
         ) : listed.error ? (
           <ErrorState
             description={getErrorMessage(listed.error, tErrors)}

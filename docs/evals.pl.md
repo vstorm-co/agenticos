@@ -1,5 +1,5 @@
 ---
-source_sha: "7d204fe63485"
+source_sha: "00e4ed42af6a"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -211,12 +211,21 @@ pozwala organizacji.
 Anulowanie (`POST /api/v1/eval-runs/{id}/cancel`, przez osobę, która run
 uruchomiła, albo każdego, kto może edytować agenta) zatrzymuje to, co się nie
 zaczęło: przypadki, które już działają, kończą się i są zachowywane, a żaden
-inny się nie zaczyna. Worker działającego runu co `EVAL_HEARTBEAT_SECONDS` daje
-znać, że żyje; run, którego worker milczy i którego przypadki nie ruszyły się
-przez `EVAL_ABANDONED_AFTER_MINUTES`, kończy się błędem w cogodzinnym sweepie
-zawieszonych runów, który zwalnia też jego miejsca. Run w kolejce nie ma jeszcze
-workera - czeka na wolny runner - więc sweep rezygnuje z niego dopiero po
-`EVAL_QUEUED_ABANDONED_AFTER_HOURS`.
+inny się nie zaczyna.
+
+Run, którego worker nie może dokończyć - bo na przykład w trakcie stracił bazę -
+od razu kończy się jako `failed`, tak jak run agenta: jego działające przypadki
+kończą się błędem, pozostałe są pomijane, a strona runu mówi, że zatrzymał się
+na błędzie i trzeba go uruchomić ponownie. Run nie jest wznawiany.
+
+Worker może też umrzeć bez słowa. Worker działającego runu co
+`EVAL_HEARTBEAT_SECONDS` daje znać, że żyje; run, którego worker milczy i którego
+przypadki nie ruszyły się przez `EVAL_ABANDONED_AFTER_MINUTES`, kończy się błędem
+w sweepie, który worker uruchamia co minutę i który zwalnia też jego miejsca.
+Worker, któremu heartbeaty padają tak długo - na maszynie zbyt obciążonej, by
+sięgnąć bazy - kończy się tak samo, choć jeszcze pracuje, i run trzeba uruchomić
+ponownie. Run w kolejce nie ma jeszcze workera - czeka na wolny runner - więc
+sweep rezygnuje z niego dopiero po `EVAL_QUEUED_ABANDONED_AFTER_HOURS`.
 
 Dopóki run czeka w kolejce albo działa, nie da się usunąć środowiska, które
 wskazuje, ani profilu modelu, na którym działa któraś z jego stron: pozostałe
@@ -476,7 +485,7 @@ włączył. Slack nie jest jeszcze kanałem powiadomień.
 | `EVAL_FALLBACK_OUTPUT_TOKENS` | `400` | Tokeny wyjściowe, według których wyceniany jest przypadek na modelu bez historii |
 | `EVAL_FALLBACK_CASE_COST_USD` | `0.05` | Szacunek na przypadek na modelu bez historii i bez znanej ceny |
 | `EVAL_ESTIMATE_SAMPLE` | `50` | Ile ostatnich runów uśrednia szacunek |
-| `EVAL_ABANDONED_AFTER_MINUTES` | `30` | Jak długo działający run może stać przy milczącym workerze, zanim sweep zakończy go błędem |
+| `EVAL_ABANDONED_AFTER_MINUTES` | `10` | Jak długo działający run może stać przy milczącym workerze, zanim sweep zakończy go błędem |
 | `EVAL_HEARTBEAT_SECONDS` | `60` | Jak często pracujący run daje znać, że żyje |
 | `EVAL_QUEUED_ABANDONED_AFTER_HOURS` | `24` | Jak długo run może czekać na workera, zanim sweep zakończy go błędem |
 | `EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS` | `600` | Jak długo suita czeka po zmianie skilla albo bazy wiedzy, żeby seria zmian była jednym runem |

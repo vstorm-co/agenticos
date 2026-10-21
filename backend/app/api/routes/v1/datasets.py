@@ -19,10 +19,10 @@ from app.api.deps import Auth, DatasetSvc, ScoringSvc, require
 from app.api.responses import csv_response, jsonl_response
 from app.core.permissions import Perm
 from app.schemas.dataset import (
-    MAX_CASE_TEXT,
     DatasetCaseCreate,
     DatasetCaseFromMessage,
     DatasetCaseList,
+    DatasetCaseQuestion,
     DatasetCaseRead,
     DatasetCaseUpdate,
     DatasetCreate,
@@ -162,17 +162,25 @@ async def list_dataset_cases(
     version: int | None = Query(None, ge=1, description="A version number; the newest if omitted"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
-    same_input: str | None = Query(
-        None,
-        min_length=1,
-        max_length=MAX_CASE_TEXT,
-        description="Only the cases asking this question, ignoring case and spacing",
-    ),
 ) -> Any:
     """A page of the cases one version holds, in their order."""
-    return await service.list_cases(
-        ctx, dataset_id, version=version, skip=skip, limit=limit, same_input=same_input
-    )
+    return await service.list_cases(ctx, dataset_id, version=version, skip=skip, limit=limit)
+
+
+@router.post("/{dataset_id}/cases/twins", response_model=DatasetCaseList)
+async def find_dataset_case_twins(
+    dataset_id: UUID,
+    data: DatasetCaseQuestion,
+    service: DatasetSvc,
+    ctx: Auth,
+    limit: int = Query(50, ge=1, le=100),
+) -> Any:
+    """The newest version's cases asking this question, ignoring case and spacing.
+
+    A read, posted: the question travels in the body, so it stays out of the
+    access logs a query string is written to.
+    """
+    return await service.list_cases(ctx, dataset_id, limit=limit, same_input=data.input)
 
 
 @router.post(

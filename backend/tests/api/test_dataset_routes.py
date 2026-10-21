@@ -112,7 +112,9 @@ async def test_each_route_answers_with_its_status(client: OpenClient, service: M
         renamed = await http.patch(_url(dataset), json={"description": "x"})
         versions = await http.get(_url(f"{dataset}/versions"))
         cases = await http.get(_url(f"{dataset}/cases?version=1"))
-        twins = await http.get(_url(f"{dataset}/cases?same_input=Refund%20window%3F"))
+        twins = await http.post(
+            _url(f"{dataset}/cases/twins?limit=1"), json={"input": "Refund window?"}
+        )
         added = await http.post(
             _url(f"{dataset}/cases"), json={"input": "q", "reference_answer": "a"}
         )
@@ -131,6 +133,7 @@ async def test_each_route_answers_with_its_status(client: OpenClient, service: M
     assert cases.json()["version"] == 1
     assert twins.status_code == 200
     assert service.list_cases.call_args.kwargs["same_input"] == "Refund window?"
+    assert twins.request.url.query == b"limit=1"
     assert added.status_code == 201
     assert from_message.status_code == 201
     assert edited.status_code == 200

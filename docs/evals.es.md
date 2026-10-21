@@ -1,5 +1,5 @@
 ---
-source_sha: "7d204fe63485"
+source_sha: "00e4ed42af6a"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -209,11 +209,20 @@ ocupe todas las peticiones que un provider permite a la organización.
 
 Cancelar (`POST /api/v1/eval-runs/{id}/cancel`, quien lo inició o cualquiera que
 pueda editar el agent) detiene lo que no ha empezado: los casos que ya se están
-ejecutando terminan y se conservan, y no empieza ningún otro. El worker de un
-run en marcha avisa cada `EVAL_HEARTBEAT_SECONDS` de que sigue vivo; un run cuyo
-worker calla y cuyos casos no han avanzado durante
-`EVAL_ABANDONED_AFTER_MINUTES` se da por fallido en el barrido horario de runs
-colgados, que además libera sus plazas. Un run en cola aún no tiene worker -
+ejecutando terminan y se conservan, y no empieza ningún otro.
+
+Un run que su worker no puede terminar - porque pierde la base de datos a mitad,
+por ejemplo - acaba `failed` en el acto, como un run de agent: sus casos en
+marcha fallan, los demás se omiten, y su página dice que se detuvo por un error
+y que hay que lanzarlo de nuevo. No se reanuda.
+
+Un worker también puede morir sin avisar. El worker de un run en marcha avisa
+cada `EVAL_HEARTBEAT_SECONDS` de que sigue vivo; un run cuyo worker calla y cuyos
+casos no han avanzado durante `EVAL_ABANDONED_AFTER_MINUTES` se da por fallido en
+un barrido que el worker ejecuta cada minuto, que además libera sus plazas. Un
+worker cuyos heartbeats fallan durante ese tiempo - en una máquina demasiado
+cargada para llegar a su base de datos - se da por fallido igual aunque siga
+trabajando, y hay que lanzar su run de nuevo. Un run en cola aún no tiene worker -
 espera un runner libre - así que el barrido lo abandona solo tras
 `EVAL_QUEUED_ABANDONED_AFTER_HOURS`.
 
@@ -475,7 +484,7 @@ Slack todavía no es un canal de notificaciones.
 | `EVAL_FALLBACK_OUTPUT_TOKENS` | `400` | Los tokens de salida con los que se calcula el precio de un caso en un modelo sin historial |
 | `EVAL_FALLBACK_CASE_COST_USD` | `0.05` | La estimación por caso en un modelo sin historial ni precio conocido |
 | `EVAL_ESTIMATE_SAMPLE` | `50` | Cuántos runs recientes promedia la estimación |
-| `EVAL_ABANDONED_AFTER_MINUTES` | `30` | Cuánto puede estar parado un run en marcha, con su worker callado, antes de que el barrido lo dé por fallido |
+| `EVAL_ABANDONED_AFTER_MINUTES` | `10` | Cuánto puede estar parado un run en marcha, con su worker callado, antes de que el barrido lo dé por fallido |
 | `EVAL_HEARTBEAT_SECONDS` | `60` | Cada cuánto avisa un run que trabaja de que sigue vivo |
 | `EVAL_QUEUED_ABANDONED_AFTER_HOURS` | `24` | Cuánto puede esperar un run a un worker antes de que el barrido lo dé por fallido |
 | `EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS` | `600` | Cuánto espera una suite tras cambiar un skill o una base de conocimiento, para que una ráfaga de cambios sea una ejecución |
