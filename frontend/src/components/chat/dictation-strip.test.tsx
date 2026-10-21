@@ -325,7 +325,7 @@ describe("dictationHint", () => {
     expect(names).toEqual(buttons);
   });
 
-  it("keeps the words that landed out of the live region where the composer says them", () => {
+  it("says nothing of the words that landed where the composer announces them itself", () => {
     const input = {
       actions: fakeActions(),
       maxSeconds: 300,
@@ -334,14 +334,13 @@ describe("dictationHint", () => {
     };
     const state = dictationState({ inserted: true, transcript: { id: 1, text: "hello" } });
     const { rerender } = render(<Harness {...input} state={state} />);
-    // The default: a page with no announcement of its own reads it from here.
+    // The default: a page with no announcement of its own says it from here.
+    expect(screen.getByTestId("dictation-strip-text")).toHaveTextContent("Inserted 1 word");
     expect(screen.getByTestId("dictation-strip")).toHaveAttribute("aria-live", "polite");
 
     rerender(<Harness {...input} state={state} insertAnnounced />);
 
-    expect(screen.getByTestId("dictation-strip")).toHaveAttribute("aria-live", "off");
-    expect(screen.getByTestId("dictation-strip-text")).toHaveTextContent("Inserted 1 word");
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("dictation-strip-text")).not.toBeInTheDocument();
   });
 
   it.each<[string, Record<string, unknown>, string, [number, string][]]>([

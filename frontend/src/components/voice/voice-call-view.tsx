@@ -70,6 +70,7 @@ export function VoiceCallFeed({
   agentAvatar,
   endingCopy,
   renderTurn,
+  renderThinking,
 }: {
   session: VoiceSession;
   agentName: string;
@@ -86,6 +87,12 @@ export function VoiceCallFeed({
   endingCopy?: VoiceEndingCopy;
   /** How a turn is drawn while it is spoken - see `VoiceCaptions`. */
   renderTurn?: (turn: LiveTurn) => ReactNode;
+  /**
+   * How the agent thinking is drawn, where the page has a look of its own for
+   * it - `/chat`'s is the agent's message with its thinking capsule, which the
+   * spoken answer then takes over in place.
+   */
+  renderThinking?: () => ReactNode;
 }) {
   const t = useTranslations("chat");
   const tTools = useTranslations("chat.tools");
@@ -107,7 +114,8 @@ export function VoiceCallFeed({
         agentAvatar={agentAvatar}
         renderTurn={renderTurn}
       />
-      {live && view === "thinking" && (
+      {live && view === "thinking" && renderThinking?.()}
+      {live && view === "thinking" && !renderThinking && (
         <AgentRow>
           <span
             role="status"

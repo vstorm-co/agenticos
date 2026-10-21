@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { useTranslations } from "next-intl";
+import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DictationStrip } from "@/components/chat/dictation-strip";
@@ -500,6 +501,32 @@ describe("the call view", () => {
   it("tells a call whose audio failed mid-call apart from one that never connected", () => {
     render(<View session={fake(live({ type: "media_failed", now: NOW + 5000 }))} />);
     expect(screen.getByRole("alert")).toHaveTextContent("The call's audio couldn't get through");
+  });
+});
+
+describe("the call feed's thinking", () => {
+  it("is the page's own where it draws one, and the feed's row otherwise", () => {
+    const session = fake((STATES.thinking as () => CallState)());
+    const feed = (renderThinking?: () => ReactNode) => (
+      <VoiceCallFeed
+        session={session}
+        agentName="Support"
+        canDecide
+        hidden={new Set()}
+        onCallAgain={() => {}}
+        onContinueInText={() => {}}
+        renderThinking={renderThinking}
+      />
+    );
+    const { rerender } = render(feed(() => <p data-testid="page-thinking" />));
+    expect(screen.getByTestId("page-thinking")).toBeInTheDocument();
+    const feedRow = () =>
+      screen.queryAllByRole("status").find((node) => node.querySelector(".h-7.w-7") !== null);
+    expect(feedRow()).toBeUndefined();
+
+    rerender(feed());
+    expect(screen.queryByTestId("page-thinking")).toBeNull();
+    expect(feedRow()).toBeDefined();
   });
 });
 

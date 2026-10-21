@@ -1220,6 +1220,21 @@ function ChatUI({
                   agents={knownAgents}
                 />
               )}
+              // The agent's message, thinking - where its spoken answer will be.
+              renderThinking={() => (
+                <MessageItem
+                  message={{
+                    id: "voice-thinking",
+                    role: "assistant",
+                    content: "",
+                    timestamp: callStartedAt,
+                    agentId: callAgent?.id,
+                    isStreaming: true,
+                  }}
+                  agent={callAgent}
+                  agents={knownAgents}
+                />
+              )}
             />
           </div>
         </div>

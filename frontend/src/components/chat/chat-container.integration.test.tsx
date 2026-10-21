@@ -528,13 +528,13 @@ describe("the chat container - server dictation", () => {
     expect(glow).toHaveAttribute("data-processing", "false");
   });
 
-  it("shows the words that landed without reading them out a second time", async () => {
-    // `ChatInput`'s status region says "Inserted 2 words" already.
+  it("shows no note for the words that landed: they are in the box", async () => {
+    // `ChatInput`'s status region tells a screen reader "Inserted 2 words".
     dictation.inserted = true;
     mount();
 
-    expect(await screen.findByTestId("dictation-strip-text")).toHaveTextContent("Inserted 2 words");
-    expect(screen.getByTestId("dictation-strip")).toHaveAttribute("aria-live", "off");
+    expect(await screen.findByRole("textbox")).toBeInTheDocument();
+    expect(screen.queryByText("Inserted 2 words")).not.toBeInTheDocument();
   });
 
   it("puts a failure in the strip on top of the box, which loses its top corners", async () => {

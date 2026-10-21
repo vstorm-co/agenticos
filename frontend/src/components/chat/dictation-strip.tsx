@@ -52,9 +52,9 @@ export interface DictationHintInput {
    */
   visitor?: boolean;
   /**
-   * The composer announces an insertion itself, in words this strip would
-   * repeat; the note then stays out of the live region. A hosted page has no
-   * announcement of its own, and the strip is it.
+   * The composer announces an insertion to screen readers itself, and the words
+   * are there in the box to see, so the strip says nothing of it. A hosted page
+   * has no announcement of its own, and the strip is it.
    */
   insertAnnounced?: boolean;
 }
@@ -240,14 +240,13 @@ export function dictationHint(input: DictationHintInput, t: Translate): StripHin
       message: t.rich("hint.stoppedAtLimit", { strong, limit: clock(maxSeconds) }),
     };
   }
-  if (state.inserted) {
+  if (state.inserted && !insertAnnounced) {
     return {
       // Per transcript, so a second insertion cross-fades rather than sitting still.
       key: `inserted-${state.transcript!.id}`,
       tone: "hint",
       icon: Check,
       message: strong(t("announceInserted", { count: wordCount(state.transcript!.text) })),
-      quiet: insertAnnounced,
     };
   }
   if (state.phase === "too_short") {
