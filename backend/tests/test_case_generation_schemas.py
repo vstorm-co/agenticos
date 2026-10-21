@@ -50,3 +50,11 @@ def test_a_request_names_each_source_once_in_one_order() -> None:
         CaseGenerationRequest(agent_id=agent, sources=[])
     with pytest.raises(ValidationError):
         CaseGenerationRequest(agent_id=agent, sources=["web"])
+
+
+def test_a_request_asks_for_at_least_one_case_per_source() -> None:
+    agent = uuid.uuid4()
+    assert CaseGenerationRequest(agent_id=agent, sources=["agent", "red_team"], count=2).count == 2
+    with pytest.raises(ValidationError) as refused:
+        CaseGenerationRequest(agent_id=agent, sources=["agent", "knowledge", "red_team"], count=2)
+    assert [error["loc"] for error in refused.value.errors()] == [("count",)]

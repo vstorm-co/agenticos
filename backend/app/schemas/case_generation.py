@@ -7,7 +7,8 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import Field, field_validator
+from pydantic import Field, ValidationError, field_validator, model_validator
+from pydantic_core import InitErrorDetails, PydanticCustomError
 
 from app.schemas.base import BaseSchema
 from app.schemas.dataset import DatasetCaseContent, StoredCaseContent
@@ -96,6 +97,24 @@ class CaseGenerationRequest(BaseSchema):
     def _sources(cls, sources: list[CaseOriginLiteral]) -> list[CaseOriginLiteral]:
         # One order whatever was sent, so the same request always asks the same quotas.
         return [origin for origin in CASE_ORIGINS if origin in sources]
+
+    @model_validator(mode="after")
+    def _a_case_per_source(self) -> CaseGenerationRequest:
+        """Refuse fewer cases than sources: a source asked for none would draft nothing."""
+        if self.count >= len(self.sources):
+            return self
+        raise ValidationError.from_exception_data(
+            type(self).__name__,
+            [
+                InitErrorDetails(
+                    type=PydanticCustomError(
+                        "count_below_sources", "Ask for at least one case per source"
+                    ),
+                    loc=("count",),
+                    input=self.count,
+                )
+            ],
+        )
 
 
 class SourcePlan(BaseSchema):
