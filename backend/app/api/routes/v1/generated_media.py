@@ -40,4 +40,6 @@ async def get_generated_media(
     """
     organization_id: UUID = ctx.organization_id
     data = await load_generated_media(organization_id, filename)
-    return file_response(data, path=filename, download=download, byte_range=range_header)
+    return file_response(
+        data, path=filename, download=download, byte_range=range_header, serves_ranges=True
+    )
