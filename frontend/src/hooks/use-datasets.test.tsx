@@ -196,19 +196,20 @@ describe("useDatasetCases", () => {
     );
   });
 
-  it("finds the case already asking a question, or none", async () => {
+  it("finds the case already asking a question, or none, with the question kept out of the URL", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0, version: 1 });
+    vi.mocked(apiClient.post).mockResolvedValue({ items: [], total: 0, version: 1 });
     const { result } = renderHook(() => useDatasetCases("d1"), { wrapper });
 
     expect(await result.current.findTwin("Return window?")).toBeNull();
-    expect(apiClient.get).toHaveBeenLastCalledWith(
-      "/datasets/d1/cases?same_input=Return+window%3F&limit=1",
-    );
-    vi.mocked(apiClient.get).mockResolvedValue({ items: [{ id: "r1" }], total: 1, version: 1 });
+    expect(apiClient.post).toHaveBeenLastCalledWith("/datasets/d1/cases/twins?limit=1", {
+      input: "Return window?",
+    });
+    vi.mocked(apiClient.post).mockResolvedValue({ items: [{ id: "r1" }], total: 1, version: 1 });
     expect(await result.current.findTwin("Return window?")).toEqual({ id: "r1" });
-    vi.mocked(apiClient.get).mockClear();
-    expect(await result.current.findTwin("q".repeat(2_001))).toBeNull();
-    expect(apiClient.get).not.toHaveBeenCalledWith(expect.stringContaining("same_input"));
+    // However long: a body has no length a proxy refuses.
+    expect(await result.current.findTwin("q".repeat(2_001))).toEqual({ id: "r1" });
+    expect(apiClient.get).not.toHaveBeenCalledWith(expect.stringContaining("Return"));
   });
 
   it("reads an empty answer as no cases at version 0", async () => {

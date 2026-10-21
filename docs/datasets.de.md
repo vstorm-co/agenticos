@@ -1,5 +1,5 @@
 ---
-source_sha: "7d7ccccb386d"
+source_sha: "63548841af88"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -101,8 +101,9 @@ Datasets öffnet einen einzelnen Fall.
 Das Speichern eines neuen Falls, dessen Frage ein Fall bereits stellt - ohne
 Rücksicht auf Groß- und Kleinschreibung oder Leerraum -, hält an und sagt das,
 mit **Öffnen**, um stattdessen jenen Fall zu lesen, und **Trotzdem
-hinzufügen**, um beide zu behalten. Geprüft wird mit `GET
-/datasets/{id}/cases?same_input=`.
+hinzufügen**, um beide zu behalten. Geprüft wird mit `POST
+/datasets/{id}/cases/twins`, mit der Frage im Body, damit sie nicht in
+Zugriffsprotokollen landet.
 
 ### Aus einer Datei { #import-and-export }
 

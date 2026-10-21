@@ -88,8 +88,9 @@ of the dataset's scorers would grade the case as written. A link to
 
 Saving a new case whose question a case already asks - compared without regard
 to case or spacing - stops to say so, with **Open it** to read that case instead
-and **Add anyway** to keep both. The check is `GET
-/datasets/{id}/cases?same_input=`.
+and **Add anyway** to keep both. The check is `POST
+/datasets/{id}/cases/twins`, with the question in the body so it stays out of
+access logs.
 
 ### From a file { #import-and-export }
 
