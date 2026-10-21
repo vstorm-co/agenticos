@@ -98,10 +98,10 @@ export function VideoGenerationSection({
 
   const usual = model === undefined ? "" : shown("resolution", model.resolutions);
 
-  /** A usual resolution at or above the ceiling leaves the ceiling nothing to allow. */
+  /** A usual resolution above the ceiling would be one the agent may not ask for. */
   const chooseResolution = (next: string) => {
     const ceiling = binding.config.max_resolution;
-    const stale = typeof ceiling === "string" && resolutionLines(ceiling) <= resolutionLines(next);
+    const stale = typeof ceiling === "string" && resolutionLines(ceiling) < resolutionLines(next);
     const kept = stale ? withoutConfig(binding.config, ["max_resolution"]) : binding.config;
     onChange({ ...binding, config: { ...kept, resolution: next } });
   };
@@ -169,6 +169,7 @@ export function VideoGenerationSection({
                 ))}
               </SelectContent>
             </Select>
+            <p className="text-muted-foreground text-xs">{t("videoAspectRatioDetail")}</p>
           </div>
         </div>
       )}
@@ -220,6 +221,7 @@ export function VideoGenerationSection({
               ))}
             </SelectContent>
           </Select>
+          <p className="text-muted-foreground text-xs">{t("videoAudioDetail")}</p>
         </div>
       )}
 

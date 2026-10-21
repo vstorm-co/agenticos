@@ -1,15 +1,14 @@
 """What a media tool lets the model choose, stated in the tool's own schema.
 
-A generated clip's shape, resolution or voice is the author's decision first: the
-binding names the usual one and, where it allows more, the others. The model
-chooses among exactly those per call. Offering them as an `enum` in the
-parameter's schema, rather than a free string a docstring describes, is what
-keeps a value the provider would refuse - or one the author ruled out - from being
-sent at all; the tool still refuses one, for a model that ignores the schema.
+A binding names the usual shape, resolution and voice - a default the model may
+override per call - and the author bounds what it may override them with: a
+highest resolution, a list of allowed voices. The model chooses among exactly
+those. Offering them as an `enum` in the parameter's schema, rather than a free
+string a docstring describes, is what keeps a value the provider would refuse -
+or one the author ruled out - from being sent at all; the tool still refuses one,
+for a model that ignores the schema.
 
-A parameter with nothing to choose between is taken out of the schema altogether,
-so a binding that allows no choice shows the model exactly the tool it saw before
-the choice existed.
+A parameter with nothing to choose between is taken out of the schema altogether.
 """
 
 from __future__ import annotations
@@ -34,9 +33,13 @@ class Choice:
     resolutions are listed shortest first, not usual first. `notes` maps a value
     to a few words appended to the description - a voice's character, which an
     id alone does not say. Values without a note are listed bare.
+
+    `values` of `None` is an open choice - a voice id from the account, which no
+    catalog lists: the parameter stays a free string, with the usual one named,
+    and the tool checks what it is sent.
     """
 
-    values: tuple[str, ...]
+    values: tuple[str, ...] | None
     usual: str
     notes: Mapping[str, str | None] | None = None
 
@@ -47,7 +50,8 @@ def offer_choices(schema: Mapping[str, Any], choices: Mapping[str, Choice]) -> d
     Args:
         schema: A tool's parameters JSON schema, as Pydantic AI generated it.
         choices: Per parameter name, the values it may take. Fewer than two
-            removes the parameter, since there is nothing to choose.
+            removes the parameter, since there is nothing to choose; `None`
+            leaves it open.
 
     Returns:
         A new schema; `schema` itself is left as it was.
@@ -57,12 +61,18 @@ def offer_choices(schema: Mapping[str, Any], choices: Mapping[str, Choice]) -> d
     for name, choice in choices.items():
         if name not in properties:
             raise KeyError(f"The tool has no parameter {name!r} to offer choices for.")
+        prop = properties[name]
+        if choice.values is None:
+            prop["default"] = choice.usual
+            prop["description"] = (
+                f"{prop.get('description', '')} The usual one is {choice.usual}.".strip()
+            )
+            continue
         if len(choice.values) < 2:
             del properties[name]
             continue
         if choice.usual not in choice.values:
             raise ValueError(f"{name}: the usual {choice.usual!r} is not one of the values.")
-        prop = properties[name]
         # `str | None` is generated as an `anyOf` with a `null` default. The enum
         # replaces both: a `null` default outside the enum contradicts it, and a
         # strict transformer reads the parameter as required.

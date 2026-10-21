@@ -1,9 +1,17 @@
 "use client";
 
-import { Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, Plus, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { Button, Checkbox, IconButton, Input, Label } from "@/components/ui";
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Checkbox,
+  IconButton,
+  Input,
+  Label,
+} from "@/components/ui";
 import type { TextToSpeechProvider, TextToSpeechVoice } from "@/hooks/use-model-providers";
 
 /** One more voice the agent may speak in, as `voices` stores it. */
@@ -45,11 +53,13 @@ interface SpeechVoiceChoicesProps {
 }
 
 /**
- * Which other voices the agent may choose per clip.
+ * Which voices the agent may switch to per clip - the one limit on it.
  *
- * A provider's own voices are a list to tick, described by the catalog. An
- * account's voices are ids only the author knows, so each is typed with a few
- * words saying who it is - which is all the agent will read about it.
+ * The usual voice is only a default. A provider's own voices are a list to tick,
+ * described by the catalog; an account's voices are ids only the author knows, so
+ * each is typed with a few words saying who it is - which is all the agent will
+ * read about it. An empty list allows any voice, which is said as a warning: on
+ * an account that includes every cloned voice in it.
  */
 export function SpeechVoiceChoices({
   provider,
@@ -94,6 +104,16 @@ export function SpeechVoiceChoices({
         </div>
       )}
       {errors?.voices !== undefined && <p className="text-destructive text-xs">{errors.voices}</p>}
+      {value.length === 0 && (
+        <Alert variant="warning">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            {provider.account_voices
+              ? t("speechAnyAccountVoiceWarning", { provider: provider.name })
+              : t("speechAnyVoiceWarning", { count: offered.length })}
+          </AlertDescription>
+        </Alert>
+      )}
       <p className="text-muted-foreground text-xs">
         {full ? t("speechOtherVoicesFull", { count: MAX_VOICES }) : t("speechOtherVoicesDetail")}
       </p>

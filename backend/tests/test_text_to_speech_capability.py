@@ -221,10 +221,18 @@ class TestConfiguration:
         with pytest.raises(ValidationError, match=says):
             TextToSpeechConfig(**config)
 
-    def test_with_no_other_voices_only_the_usual_one_is_offered(self):
-        config = TextToSpeechConfig(provider="openai", model="tts-1")
+    def test_with_no_voices_listed_every_voice_of_the_model_is_offered(self):
+        config = TextToSpeechConfig(provider="openai", model="tts-1", voice="echo")
 
-        assert config.offered_voices() == (OfferedVoice("alloy", "Alloy"),)
+        offered = config.offered_voices()
+
+        assert offered is not None and offered[0] == OfferedVoice("echo", "Echo")
+        assert len(offered) == 9 and "alloy" in {voice.id for voice in offered}
+
+    def test_with_no_voices_listed_an_account_provider_leaves_any_id_open(self):
+        config = TextToSpeechConfig(provider="elevenlabs", model="eleven_v4", voice="n1")
+
+        assert config.offered_voices() is None
 
     def test_catalog_voices_are_described_by_the_catalog_and_listed_once(self):
         """The usual voice first, a repeat of it dropped, and a note on a catalog
@@ -302,7 +310,8 @@ def test_the_builder_reads_the_key_and_resolves_voice_and_format():
 
     assert isinstance(built, TextToSpeech)
     assert (built.provider, built.voice, built.audio_format) == ("google", "Kore", "wav")
-    assert [offered.id for offered in built.voices] == ["Kore"]
+    # No voices listed: the usual one is a default among every voice the model has.
+    assert built.voices is not None and built.voices[0].id == "Kore" and len(built.voices) > 1
     assert built.api_key == "sk-gemini"
     assert "sk-gemini" not in repr(built)
 
@@ -445,6 +454,27 @@ class TestChoosingTheVoice:
         tools = await _toolset().get_tools(_ctx(uuid4()))
 
         assert "voice" not in tools["generate_speech"].tool_def.parameters_json_schema["properties"]
+
+
+class TestAnyAccountVoice:
+    """An account provider with no voices listed: any id in the account is open."""
+
+    async def test_another_id_speaks(self, synthesis):
+        await _speak(_toolset(voices=None), _ctx(uuid4()), voice=" villain2 ")
+
+        assert synthesis.calls[0]["voice"] == "villain2"
+
+    async def test_something_that_is_not_an_id_is_steered(self, synthesis):
+        with pytest.raises(ModelRetry, match="voice id from the account"):
+            await _speak(_toolset(voices=None), _ctx(uuid4()), voice="../other")
+        assert synthesis.calls == []
+
+    async def test_the_schema_leaves_the_voice_open_and_names_the_usual_one(self):
+        tools = await _toolset(voices=None).get_tools(_ctx(uuid4()))
+
+        voice = tools["generate_speech"].tool_def.parameters_json_schema["properties"]["voice"]
+        assert "enum" not in voice and voice["default"] == "marin"
+        assert voice["description"].endswith("The usual one is marin.")
 
 
 class TestRefusingBeforeSpending:

@@ -385,6 +385,15 @@ describe("the key it speaks with", () => {
 });
 
 describe("the other voices the agent may choose", () => {
+  it("warns that with none ticked any of the model's voices may speak", () => {
+    mount({ provider: "openai", model: "gpt-4o-mini-tts" });
+
+    expect(
+      screen.getByText("None allowed: the agent may speak in any of this model's 2 voices."),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/The default - the agent may switch to another/)).toBeInTheDocument();
+  });
+
   it("offers the model's voices but the usual one, and stores the ticked ones", async () => {
     const onChange = mount({ provider: "openai", model: "gpt-4o-mini-tts", voice: "marin" });
 
@@ -581,11 +590,19 @@ describe("the other voices the agent may choose", () => {
       expect(screen.getByText("Too long")).toBeInTheDocument();
     });
 
-    it("says nothing about ticking, since there is nothing to tick", () => {
+    it("warns that with none listed any voice in the account may speak", () => {
       account();
 
       expect(screen.queryByRole("checkbox")).toBeNull();
-      expect(screen.getByText(/Left empty, it always speaks in the usual one/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/any voice in your ElevenLabs account by its id - cloned voices included/),
+      ).toBeInTheDocument();
+    });
+
+    it("drops the warning once a voice is listed", () => {
+      account([{ id: "villain2" }]);
+
+      expect(screen.queryByText(/cloned voices included/)).toBeNull();
     });
 
     it("removes a row", async () => {

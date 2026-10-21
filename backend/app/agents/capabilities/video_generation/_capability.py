@@ -31,6 +31,7 @@ class VideoGeneration(AbstractCapability[AgentDepsT]):
     seconds: int
     max_seconds: int
     audio: bool | None
+    audio_optional: bool
     timeout_seconds: int
     # Unsealed from the vault by the factory. `repr=False` because a dataclass
     # repr ends up in log lines and traceback frames, and a provider key in
@@ -54,6 +55,7 @@ class VideoGeneration(AbstractCapability[AgentDepsT]):
                     seconds=self.seconds,
                     max_seconds=self.max_seconds,
                     audio=self.audio,
+                    audio_optional=self.audio_optional,
                     timeout_seconds=self.timeout_seconds,
                 ),
                 api_key=self.api_key,
