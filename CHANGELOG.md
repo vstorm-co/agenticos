@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-10-21
+
 ### Added
 
 - **A default organization for new accounts, and personal organizations made
