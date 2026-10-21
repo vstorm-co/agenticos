@@ -19,12 +19,6 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
-### Fixed
-
-- **The desktop app opens on the console, not on the sign-in form.** It
-  opened the server's root, which sends everybody to the form, so a person
-  with a perfectly good session was asked to sign in on every launch.
-
 ### Added
 
 - **The desktop app looks and behaves like an application** (#2305). On macOS
@@ -66,6 +60,26 @@ Two things are versioned separately from this file and worth knowing about:
 - **Native notifications** for new approvals, with Approve and Reject on the
   notification, and for new inbox rows, plus a count on the Dock icon and
   beside the tray icon.
+
+### Fixed
+
+- **The desktop app opens on the console, not on the sign-in form.** It
+  opened the server's root, which sends everybody to the form, so a person
+  with a perfectly good session was asked to sign in on every launch.
+
+## [1.10.2] - 2026-10-21
+
+### Added
+
+- **The background-job benchmark, as a docs page.** Why the job queue is rows
+  in Postgres: ten engines in seventeen configurations, from Prefect, Celery and
+  Taskiq to PgQueuer, DBOS and Hatchet, through four scenarios. One of them is a
+  job that runs its worker out of memory, which started three times on the
+  shipped queue and eight on PgQueuer. The page gives the tables, what shipped in
+  1.9.0, and what one run on one machine cannot show. See
+  [the background-job benchmark](docs/task-queue-benchmark.md).
+
+## [1.10.1] - 2026-10-21
 
 ### Changed
 
