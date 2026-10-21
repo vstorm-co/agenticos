@@ -19,6 +19,19 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **An MCP server that does not answer is named to the model, not left out in
+  silence.** A bound server whose probe fails is still skipped for that turn,
+  but the turn's instructions now say it did not answer or refused the
+  connection, that trying again may work, and that a failure that persists
+  means the connection needs checking. The same holds for a server that
+  answered within the last two minutes and fails when the turn connects. The
+  model used to see only the servers that answered, and reported a slow server
+  as "no data": a Semrush bridge that took ten seconds to list its tools read
+  to the agent as Semrush returning nothing. (Reported and first fixed by
+  Michał Sikorski in #2261.)
+
 ## [1.9.0] - 2026-10-21
 
 ### Added
