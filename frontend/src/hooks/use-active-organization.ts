@@ -8,7 +8,7 @@ import { toast } from "sonner";
 
 import { localePrefixOf } from "@/lib/locale-routing";
 import { usePermissions } from "@/hooks/use-permissions";
-import { preferredOrg, useOrganizationList } from "@/hooks/use-organizations";
+import { preferredOrg, serverFallbackOrg, useOrganizationList } from "@/hooks/use-organizations";
 import { ApiError } from "@/lib/api-client";
 import { resetTenantState, useOrgStore } from "@/stores";
 
@@ -134,13 +134,16 @@ export function organizationInQuery(search: URLSearchParams): string | null {
 function useTenantCacheReset(activeOrgId: string | null): void {
   const queryClient = useQueryClient();
   const { data: orgs } = useOrganizationList();
-  const personalId = orgs?.find((org) => org.is_personal)?.id ?? null;
-  const tenant = activeOrgId ?? personalId;
+  // Where requests act before anything is selected - the default organization
+  // first (#2156). Read as the personal one, selecting the default afterwards
+  // looked like a switch and threw away the queries the page had just loaded.
+  const fallbackId = orgs ? (serverFallbackOrg(orgs)?.id ?? null) : null;
+  const tenant = activeOrgId ?? fallbackId;
   const cacheBelongsTo = useRef<string | null>(null);
 
   useLayoutEffect(() => {
     // Nothing has identified the tenant yet - no selection, and no list to
-    // resolve the personal organization from. Anything cached now is cached
+    // resolve the fallback organization from. Anything cached now is cached
     // under whoever this turns out to be.
     if (tenant === null) return;
     const previous = cacheBelongsTo.current;

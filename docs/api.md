@@ -131,11 +131,15 @@ organization; naming another one answers `400` with
 **A session token takes the tenant from `X-Organization-Id`.** A caller who
 belongs to three organizations is a different principal in each, with a
 different role and different grants, so send the header on every request. When
-it is absent the request falls back to the caller's **personal organization** —
-a script that forgets it acts there, with whatever agents, grants and budget
-that organization has, and gets no error. Send the wrong one and you get a
-refusal that looks exactly like the resource not existing — deliberately, so ids
-stay unprobeable.
+it is absent the request falls back to the deployment's **default organization**
+if the caller belongs to it, then to their **personal organization**, then to
+their only one — a script that forgets the header acts there, with whatever
+agents, grants and budget that organization has, and gets no error. A caller who
+belongs to several and has neither gets a `400` with
+`details.header = "X-Organization-Id"` rather than a guess
+([where a new account starts](deployment.md#where-a-new-account-starts)). Send
+the wrong one and you get a refusal that looks exactly like the resource not
+existing — deliberately, so ids stay unprobeable.
 
 ## Running an agent
 
@@ -582,8 +586,8 @@ only moves forward.
 - A key carries its issuer's authority **narrowed to its permissions and to the
   issuer's current role**, is shown once, and works on the public API only.
 - **A key acts in its own organization; a session reads `X-Organization-Id`**
-  and falls back to the personal organization without it. The wrong one looks
-  like a missing resource.
+  and falls back to the default, personal or only organization without it. The
+  wrong one looks like a missing resource.
 - Running an agent over HTTP is the **same runner** — budget, approval and audit
   all apply.
 - A script gets its own key **without a browser** — sign in, issue, revoke — and

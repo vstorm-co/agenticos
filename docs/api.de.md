@@ -1,5 +1,5 @@
 ---
-source_sha: "66cbedf36a2b"
+source_sha: "c10b3f38d92b"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -150,11 +150,16 @@ und `details.header = "X-Organization-Id"`, statt den Tenant zu wechseln.
 **Ein Sitzungs-Token nimmt den Tenant aus `X-Organization-Id`.** Ein Aufrufer,
 der drei Organisationen angehört, ist in jeder ein anderer Akteur, mit einer
 anderen Rolle und anderen Freigaben, also senden Sie den Header bei jeder Anfrage.
-Fehlt er, fällt die Anfrage auf die **persönliche Organisation** des Aufrufers
-zurück — ein Skript, das ihn vergisst, handelt dort, mit den Agents, Freigaben
-und dem Budget dieser Organisation, und bekommt keinen Fehler. Senden Sie den
-falschen, erhalten Sie eine Ablehnung, die genau wie eine nicht existierende
-Ressource aussieht — absichtlich, damit sich IDs nicht abtasten lassen.
+Fehlt er, fällt die Anfrage auf die **Standardorganisation** des Deployments
+zurück, wenn der Aufrufer ihr angehört, dann auf seine **persönliche
+Organisation**, dann auf seine einzige — ein Skript, das den Header vergisst,
+handelt dort, mit den Agents, Freigaben und dem Budget dieser Organisation, und
+bekommt keinen Fehler. Wer mehreren angehört und keine davon hat, erhält `400`
+mit `details.header = "X-Organization-Id"` statt einer Vermutung
+([wo ein neues Konto beginnt](deployment.md#where-a-new-account-starts)). Senden
+Sie den falschen, erhalten Sie eine Ablehnung, die genau wie eine nicht
+existierende Ressource aussieht — absichtlich, damit sich IDs nicht abtasten
+lassen.
 
 ## Einen Agent ausführen { #running-an-agent }
 
@@ -633,8 +638,9 @@ versioniert und bewegt sich nur vorwärts.
   seine Berechtigungen und die aktuelle Rolle des Ausstellers**, wird einmal
   angezeigt und funktioniert nur in der öffentlichen API.
 - **Ein Schlüssel handelt in seiner eigenen Organisation; eine Sitzung liest
-  `X-Organization-Id`** und fällt ohne ihn auf die persönliche Organisation
-  zurück. Der falsche sieht aus wie eine fehlende Ressource.
+  `X-Organization-Id`** und fällt ohne ihn auf die Standard-, die persönliche
+  oder die einzige Organisation zurück. Der falsche sieht aus wie eine fehlende
+  Ressource.
 - Einen Agent über HTTP auszuführen ist **derselbe Runner** — Budget, Freigabe
   und Audit gelten alle.
 - Ein Skript holt sich seinen eigenen Schlüssel **ohne Browser** — anmelden,

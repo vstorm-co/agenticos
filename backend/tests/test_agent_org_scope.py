@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock, MagicMock, create_autospec, patch
 import pytest
 from fastapi import WebSocketException
 
-from app.api.deps import get_active_organization_ws
+from app.api.deps import get_active_organization, get_active_organization_ws
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.schemas.conversation import MessageReplyRef
 from app.services.agent import persist_user_turn
@@ -63,6 +63,39 @@ async def _fake_db_context():
     yield db
 
 
+class TestActiveOrganizationHTTP:
+    """A session request with no `X-Organization-Id` (#2156)."""
+
+    @pytest.mark.anyio
+    async def test_it_acts_where_a_session_lands(self):
+        landing = _org()
+        request = MagicMock(state=SimpleNamespace())
+
+        with patch(
+            "app.api.deps.OrganizationService.fallback_for", new=AsyncMock(return_value=landing)
+        ):
+            org = await get_active_organization(request, _user(), MagicMock(), None)
+
+        assert org is landing
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_user_with_a_choice_is_asked_for_the_header(self):
+        """Guessing would be a script that forgot the header quietly acting in
+        another tenant."""
+        request = MagicMock(state=SimpleNamespace())
+
+        with (
+            patch(
+                "app.api.deps.OrganizationService.fallback_for", new=AsyncMock(return_value=None)
+            ),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await get_active_organization(request, _user(), MagicMock(), None)
+
+        assert refused.value.details == {"header": "X-Organization-Id"}
+
+
 class TestActiveOrganizationWS:
     """Resolving the organization a WebSocket session runs as."""
 
@@ -87,15 +120,15 @@ class TestActiveOrganizationWS:
         assert refused.value.code == 4003
 
     @pytest.mark.anyio
-    async def test_falls_back_to_personal_org(self):
-        """No organization_id parameter -> the user's Personal org."""
+    async def test_falls_back_to_the_organization_a_session_lands_in(self):
+        """No organization_id parameter -> where a request naming none acts (#2156)."""
         user = _user()
         personal = _org()
 
         with (
             patch("app.api.deps.get_db_context", _fake_db_context),
             patch(
-                "app.api.deps.organization_repo.get_personal_for_user",
+                "app.api.deps.OrganizationService.fallback_for",
                 new=AsyncMock(return_value=personal),
             ),
         ):
@@ -104,12 +137,12 @@ class TestActiveOrganizationWS:
         assert org.id == personal.id
 
     @pytest.mark.anyio
-    async def test_missing_personal_org_closes_socket(self):
-        """A user without a Personal org cannot open a session."""
+    async def test_a_user_with_a_choice_must_name_the_organization(self):
+        """No fallback - two organizations, neither default nor personal - closes the socket."""
         with (
             patch("app.api.deps.get_db_context", _fake_db_context),
             patch(
-                "app.api.deps.organization_repo.get_personal_for_user",
+                "app.api.deps.OrganizationService.fallback_for",
                 new=AsyncMock(return_value=None),
             ),
             pytest.raises(WebSocketException) as exc,

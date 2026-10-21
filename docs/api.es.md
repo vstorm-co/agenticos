@@ -1,5 +1,5 @@
 ---
-source_sha: "66cbedf36a2b"
+source_sha: "c10b3f38d92b"
 ---
 
 # La API HTTP { #the-http-api }
@@ -145,10 +145,15 @@ organización; nombrar otra responde `400` con
 **Un token de sesión toma el inquilino de `X-Organization-Id`.** Quien pertenece
 a tres organizaciones es un principal distinto en cada una, con otro rol y otros
 permisos concedidos, así que envía la cabecera en cada petición. Si falta, la
-petición vuelve a la **organización personal** del llamante: un script que la
-olvide actúa allí, con los agents, permisos y budget de esa organización, y no
-recibe ningún error. Envía la equivocada y obtendrás un rechazo idéntico al de un
-recurso inexistente, a propósito, para que los ids no se puedan sondear.
+petición vuelve a la **organización por defecto** del despliegue si el llamante
+pertenece a ella, luego a su **organización personal**, luego a la única que
+tenga: un script que olvide la cabecera actúa allí, con los agents, permisos y
+budget de esa organización, y no recibe ningún error. Quien pertenece a varias y
+no tiene ninguna de ellas recibe un `400` con
+`details.header = "X-Organization-Id"` en vez de una suposición
+([dónde empieza una cuenta nueva](deployment.md#where-a-new-account-starts)).
+Envía la equivocada y obtendrás un rechazo idéntico al de un recurso inexistente,
+a propósito, para que los ids no se puedan sondear.
 
 ## Ejecutar un agent { #running-an-agent }
 
@@ -610,8 +615,8 @@ solo avanza.
 - Una clave lleva la autoridad de su emisor **limitada a sus permisos y al rol
   actual del emisor**, se muestra una vez y solo funciona en la API pública.
 - **Una clave actúa en su propia organización; una sesión lee
-  `X-Organization-Id`** y sin ella vuelve a la organización personal. La
-  equivocada parece un recurso inexistente.
+  `X-Organization-Id`** y sin ella vuelve a la organización por defecto, la
+  personal o la única. La equivocada parece un recurso inexistente.
 - Ejecutar un agent por HTTP usa el **mismo runner** — budget, aprobación y
   auditoría se aplican igual.
 - Un script consigue su propia clave **sin navegador** — iniciar sesión, emitir,

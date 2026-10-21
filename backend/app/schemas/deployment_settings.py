@@ -28,6 +28,7 @@ import re
 from datetime import datetime
 from typing import Literal
 from urllib.parse import urlparse
+from uuid import UUID
 
 from pydantic import Field, field_validator
 
@@ -39,6 +40,13 @@ SignupMode = Literal["open", "invite_only", "closed"]
 """Who may create an account. `app/services/signup_policy.py` is where it is applied."""
 
 NoticeLevel = Literal["info", "warning", "critical"]
+
+DefaultOrganizationRole = Literal["admin", "builder", "operator", "member", "viewer"]
+"""The roles a new account may join the default organization with.
+
+Every role but `owner`: a setting that made each new colleague an owner of the
+company's organization would hand all of them its keys, its budget and the power
+to remove the people who run it."""
 
 _DOMAIN = re.compile(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$")
 """A hostname with at least one dot. Deliberately not an email regex: the column
@@ -152,6 +160,11 @@ class DeploymentSettingsRead(BrandingRead):
     administrator access is the administrator's business, not a stranger's on the
     sign-in page.
     """
+    personal_organizations: bool = True
+    """Whether a new account gets an organization of its own (#2156)."""
+    default_organization_id: UUID | None = None
+    """The organization every new account joins, or null for none (#2156)."""
+    default_organization_role: DefaultOrganizationRole = "member"
     dictation_compressed_audio: bool = False
     """Whether dictation accepts WebM, Ogg and MP4 as well as raw PCM (#1797).
 
@@ -203,6 +216,12 @@ class DeploymentSettingsUpdate(BaseSchema):
 
     notify_impersonated_users: bool | None = None
     dictation_compressed_audio: bool | None = None
+
+    # Where a new account starts (#2156). A null `default_organization_id` clears
+    # it; the other two are `NOT NULL`, so a null for them is "not provided".
+    personal_organizations: bool | None = None
+    default_organization_id: UUID | None = None
+    default_organization_role: DefaultOrganizationRole | None = None
 
     # The three bounds retention resolves against (#1420). Mappings with holes
     # rather than integers, because "unset" and "keep for ever" are different
