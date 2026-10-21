@@ -1,5 +1,5 @@
 ---
-source_sha: "d8a950528ed9"
+source_sha: "de3d15f1689a"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -53,7 +53,7 @@ obejmują też rzeczy, które nie są narzędziami w ogóle — dlatego `thinkin
 | `compaction` | Zarządzanie kontekstem | użytkowe | brak, celowo | — | — |
 | `media` | Odciążanie mediów | użytkowe | brak, celowo | — | — |
 | `tool_output_limits` | Limity wyjścia narzędzi | użytkowe | `read_tool_result` | — | — |
-| `artifacts` | Artefakty | użytkowe | `publish_artifact`, `read_artifact` | — | — |
+| `artifacts` | Artefakty | użytkowe | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact` | — | — |
 | `channel_tools` | Podgląd kanału czatu | kanały | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 
 Siedem z nich celowo nie ma narzędzi. `thinking` zmienia sposób, w jaki model
@@ -645,8 +645,11 @@ oraz nie udało się połączyć z przeglądarką.
 Chromium w obrazie API: `cdp_url` wskazuje na usługę przeglądarki, którą operator
 uruchamia i izoluje. Host musi być na liście
 [`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md), a pusta allowlista — domyślna —
-odrzuca automatyzację przeglądarki całkowicie. Sprawdzane **przy publikacji**, przy
-zapisie spec, a nie przy każdym runie.
+odrzuca automatyzację przeglądarki całkowicie. Host z
+[`ARTIFACT_RENDER_CDP_URL`](../configuration.md#published-artifacts) jest
+odrzucany, nawet gdy allowlista go wymienia: ta przeglądarka rysuje strony ludzi
+dla `preview_artifact` i nigdy nie należy do autora. Sprawdzane **przy
+publikacji**, przy zapisie spec, a nie przy każdym runie.
 
 To allowlista, a nie kontrola SSRF, przez którą przechodzi każdy inny adres podany
 przez tenanta, i powodem jest to, czym jest `cdp_url`: leży w spec, który pisze
@@ -1007,11 +1010,16 @@ nie ma gdzie niczego z nich zbudować.
 podsumowanie — pod stałym linkiem.*
 `read_artifact` — *Przeczytaj bieżącą wersję strony opublikowanej przez tego
 agenta, taką, jaką ją napisano.*
+`list_artifacts` — *Wymień strony opublikowane przez tego agenta, które ten run
+może otworzyć, od najnowszej.*
+`preview_artifact` — *Zobacz opublikowaną stronę tak, jak zobaczy ją ktoś, kto ją
+otworzy: obraz i to, co poszło nie tak.*
 
 Publikuje jeden samodzielny dokument HTML albo Markdown jako
 [artefakt](../artifacts.md): współdzielony zasób z właścicielem, widocznością i
-grantami, otwierany w przeglądarce pod linkiem, który się nie zmienia. Bez
-konfiguracji.
+grantami, otwierany w przeglądarce pod linkiem, który się nie zmienia. Jedno
+ustawienie: `preview_screenshot` (domyślnie włączone) przekazuje modelowi obraz
+narysowany przez podgląd; wyłącz je dla modelu, który nie czyta obrazów.
 
 **Nazwa jest tożsamością.** `(organization, agent, environment, name)` wybiera
 artefakt, więc następny run tego samego agenta, który publikuje `weekly-report` — z
@@ -1035,6 +1043,26 @@ a nie retry.
 runa może otworzyć w konsoli, i nic na publicznym widgecie, w embedzie, w harmonogramie ani w triggerze
 zdarzeń, gdzie nie słucha żadna zidentyfikowana osoba.
 
+**Lista.** `list_artifacts` zwraca JSON: strony tego agenta w środowisku runa, od
+najnowszej, najwyżej 50, z `total`, każdą z nazwą, tytułem, wersją, formatem,
+bindingami, widocznością, publicznym linkiem, czasem publikacji, `url` w konsoli i
+`may_edit` (czy publikacja pod tą nazwą z tego runa ją zaktualizuje). Jest czytana
+jako słuchająca osoba, według zasady listowania konsoli; w czacie grupowym
+wymieniane są tylko strony całej organizacji, nigdy taka, do której ta osoba ma
+dostęp sama. Tam, gdzie nie słucha żadna zidentyfikowana osoba, nic nie jest
+wymieniane.
+
+**Podgląd.** `preview_artifact` rysuje bieżącą wersję w szerokości 1280 pikseli, o
+wysokości najwyżej 2400, w przeglądarce uruchomionej przez operatora
+([`ARTIFACT_RENDER_CDP_URL`](../configuration.md#published-artifacts)), z danymi
+czytanymi jako słuchająca osoba. W czacie grupowym otwiera tylko stronę całej
+organizacji i rysuje ją bez danych. Zwraca raport tekstowy (dane każdego bindingu,
+nieprzechwycone błędy, błędy konsoli, odmowy polityki, odrzucone żądania, okna
+dialogowe, ostrzeżenia przy publikacji) i obraz jako część obrazkową. Na każde
+żądanie renderu odpowiada API albo je odrzuca. Bez renderera albo dodatku
+`browser`, albo po przekroczeniu 15 sekund, raport przychodzi sam i mówi dlaczego.
+Resztę opisuje [Jak wygląda strona](../artifacts.md#seeing-the-page-preview).
+
 **Bez skutków ubocznych.** Pierwsza publikacja jest prywatna dla osoby, dla której
 był run, i tylko człowiek poszerza grono czytelników, więc bramka zatwierdzeń
 jedynie wstrzymałaby zaplanowany raport, dla którego to istnieje. Autor, który
@@ -1045,6 +1073,17 @@ chce zatwierdzać każdą ponowną publikację udostępnionej strony, ustawia
 `sandbox` z `connect-src 'none'`, a tekst narzędzia mówi modelowi, żeby własne dane
 wstawiał inline, a wykresy ładował z [zestawu bibliotek](../artifacts.md#the-library-set)
 wdrożenia zamiast z CDN. Zobacz [jak strona jest izolowana](../artifacts.md#how-the-page-is-isolated).
+
+**Jak wygląda strona.** Capability dodaje do instrukcji agenta krótki, statyczny
+kontrakt strony: szkielet, najczęściej używane klasy biblioteki, ikony Lucide
+zamiast emoji i `AO.records` dla związanych danych. Gdy run oferuje skill
+`artifact-pages`, a ten nie jest załadowany, pierwsza cała strona HTML w runie to
+retry z prośbą, żeby model go załadował i zbudował stronę od nowa; raz na run, a
+przy ostatniej próbie strona publikuje się zamiast tego z tą radą. Każda
+opublikowana strona HTML jest sprawdzana, a `warning` w wyniku wymienia, co
+wygląda źle, jeden problem na wiersz — zobacz
+[kontrakt strony i ostrzeżenia przy publikacji](../artifacts.md#the-page-contract-and-the-publish-warnings).
+Ostrzeżenie nigdy nie zatrzymuje publikacji.
 
 **Dane na żywo.** `bindings` w `publish_artifact` wiążą stronę HTML z zapisanymi
 [widokami tabel](../virtual-tables.md#saved-views) w postaci `{name: {view, fields}}`,
