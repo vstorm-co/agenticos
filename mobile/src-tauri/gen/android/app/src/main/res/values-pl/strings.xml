@@ -25,4 +25,14 @@
         <item quantity="many">w toku</item>
         <item quantity="other">w toku</item>
     </plurals>
+    <!-- What device management may set (app_restrictions.xml). -->
+    <string name="managed_server_url">Adres serwera</string>
+    <string name="managed_server_url_hint">Serwer AgenticOS, z którym łączy się aplikacja.</string>
+    <string name="managed_server_locked">Tylko ten serwer</string>
+    <string name="managed_biometric_lock">Blokada biometryczna</string>
+    <string-array name="managed_lock_entries">
+        <item>Decyduje użytkownik</item>
+        <item>Zawsze włączona</item>
+        <item>Zawsze wyłączona</item>
+    </string-array>
 </resources>

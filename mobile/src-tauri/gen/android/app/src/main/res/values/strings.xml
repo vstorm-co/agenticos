@@ -24,4 +24,19 @@
         <item quantity="one">running</item>
         <item quantity="other">running</item>
     </plurals>
+    <!-- What device management may set (app_restrictions.xml). -->
+    <string name="managed_server_url">Server address</string>
+    <string name="managed_server_url_hint">The AgenticOS server the app connects to.</string>
+    <string name="managed_server_locked">Only this server</string>
+    <string name="managed_biometric_lock">Biometric lock</string>
+    <string-array name="managed_lock_entries">
+        <item>Up to the person</item>
+        <item>Always on</item>
+        <item>Always off</item>
+    </string-array>
+    <string-array name="managed_lock_values" translatable="false">
+        <item>person</item>
+        <item>on</item>
+        <item>off</item>
+    </string-array>
 </resources>

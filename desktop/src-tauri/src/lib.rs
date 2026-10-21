@@ -18,6 +18,7 @@ mod blobby;
 mod console;
 mod context;
 mod local_stack;
+mod managed;
 mod notify;
 mod quick_ask;
 mod settings;
@@ -421,6 +422,7 @@ async fn connect(app: AppHandle, window: WebviewWindow, url: String) -> Result<(
 /// Point the shell at a console that answers, remember where it lives, and
 /// open it: on the welcome the first time, on the console after that.
 fn arrive(app: &AppHandle, window: &WebviewWindow, server: Url, deployment: Deployment) -> Result<(), String> {
+    managed::check(app, &server)?;
     let (settings, ()) = settings::update(app, |settings| {
         settings.server_url = Some(server.clone());
         settings.deployment = Some(deployment);
@@ -477,6 +479,8 @@ async fn local_status() -> Result<local_stack::Status, String> {
 /// Set AgenticOS up on this computer and sign the console in to it.
 #[tauri::command]
 async fn set_up_local(app: AppHandle, window: WebviewWindow, owner: local_stack::Owner) -> Result<(), String> {
+    // Before installing anything the organization would then refuse.
+    managed::check(&app, &Url::parse(local_stack::CONSOLE).expect("a literal URL parses"))?;
     let handle = app.clone();
     let console = tauri::async_runtime::spawn_blocking(move || local_stack::set_up(&handle, &owner))
         .await
@@ -805,7 +809,14 @@ impl ShellMenu {
             quick_ask: MenuItem::with_id(app, QUICK_ASK, "Quick Ask", true, None::<&str>)?,
             screenshot: MenuItem::with_id(app, SCREENSHOT_CHAT, "Screenshot to New Chat", true, None::<&str>)?,
             settings: MenuItem::with_id(app, SETTINGS, "Settings…", true, Some("CmdOrCtrl+,"))?,
-            change_server: MenuItem::with_id(app, CHANGE_SERVER, "Change Server…", true, None::<&str>)?,
+            // Off where the organization manages the server.
+            change_server: MenuItem::with_id(
+                app,
+                CHANGE_SERVER,
+                "Change Server…",
+                !managed::current(app).server_locked,
+                None::<&str>,
+            )?,
             local: [
                 MenuItem::with_id(app, LOCAL_START, "Start", local, None::<&str>)?,
                 MenuItem::with_id(app, LOCAL_STOP, "Stop", local, None::<&str>)?,
@@ -1161,6 +1172,19 @@ pub fn run() {
                     Err(e) => eprintln!("--server: {e}"),
                 }
             }
+            // The organization's server: where the app opens before the person
+            // has chosen one, and the only one it opens while it is locked.
+            let policy = managed::load();
+            if let Some(server) = policy.server_for(settings.server_url.as_ref()) {
+                if settings.server_url.as_ref() != Some(&server) {
+                    settings.server_url = Some(server);
+                    settings.deployment = Some(Deployment::Server);
+                    if let Err(e) = settings::save(handle, &settings) {
+                        eprintln!("{e}");
+                    }
+                }
+            }
+            app.manage(managed::Managed(policy));
             install_menu(handle, &settings)?;
             let (start, notice) = console_start(settings.server_url.clone());
             app.manage(StartupNotice(Mutex::new(notice.or(unreadable))));

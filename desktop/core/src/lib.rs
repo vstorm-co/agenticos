@@ -187,6 +187,58 @@ pub fn is_console_path(path: &str) -> bool {
         && !path.contains("://")
 }
 
+/// What an organization's device management set for the app (#2305, #2097):
+/// macOS managed preferences, Android app restrictions, a policy file on
+/// Windows and Linux. Each shell reads its own source; the rules are here.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct ManagedPolicy {
+    /// The organization's server.
+    pub server: Option<Url>,
+    /// Whether the person may point the app anywhere else.
+    pub server_locked: bool,
+    /// The phone app's biometric lock, forced on or off; `None` leaves it to the person.
+    pub biometric_lock: Option<bool>,
+}
+
+impl ManagedPolicy {
+    /// The policy as managed, its address held to the same rules as a typed one.
+    pub fn new(
+        server_url: Option<&str>,
+        server_locked: bool,
+        biometric_lock: Option<bool>,
+        lan_http: bool,
+    ) -> Result<Self, String> {
+        let server = server_url
+            .map(str::trim)
+            .filter(|url| !url.is_empty())
+            .map(|url| parse_server_url_with(url, lan_http))
+            .transpose()?;
+        Ok(Self {
+            server_locked: server_locked && server.is_some(),
+            server,
+            biometric_lock,
+        })
+    }
+
+    /// The server to open: the managed one while it is locked, otherwise the
+    /// person's own choice, and the managed one before they have made one.
+    pub fn server_for(&self, chosen: Option<&Url>) -> Option<Url> {
+        if self.server_locked {
+            return self.server.clone();
+        }
+        chosen.cloned().or_else(|| self.server.clone())
+    }
+
+    /// Whether the person may connect to this server.
+    pub fn allows(&self, server: &Url) -> bool {
+        !self.server_locked
+            || self
+                .server
+                .as_ref()
+                .is_some_and(|managed| managed.origin() == server.origin())
+    }
+}
+
 /// The scheme the shell registers for a sign-in coming back from the browser.
 ///
 /// Must match `DESKTOP_DEEP_LINK_SCHEME` on the deployment, which is what builds
@@ -346,7 +398,8 @@ mod tests {
 
     use super::{
         activity_link, constant_time_eq, deep_link_return, external_sign_in_url, is_oauth_start,
-        mint_nonce, pairing_link, parse_server_url, parse_server_url_with, ActivityAction, Mode,
+        mint_nonce, pairing_link, parse_server_url, parse_server_url_with, ActivityAction,
+        ManagedPolicy, Mode,
     };
 
     fn url(spelled: &str) -> Url {
@@ -701,6 +754,38 @@ mod tests {
         }
         .needs_presence());
         assert!(!ActivityAction::Open("/chat".into()).needs_presence());
+    }
+
+    #[test]
+    fn a_managed_server_is_the_default_and_a_locked_one_the_only_one() {
+        let ours = Url::parse("https://agenticos.acme.com/").unwrap();
+        let elsewhere = Url::parse("https://other.example/").unwrap();
+
+        let suggested = ManagedPolicy::new(Some("agenticos.acme.com"), false, None, false).unwrap();
+        assert_eq!(suggested.server_for(None), Some(ours.clone()));
+        assert_eq!(
+            suggested.server_for(Some(&elsewhere)),
+            Some(elsewhere.clone())
+        );
+        assert!(suggested.allows(&elsewhere));
+
+        let locked =
+            ManagedPolicy::new(Some("https://agenticos.acme.com"), true, Some(true), false)
+                .unwrap();
+        assert_eq!(locked.server_for(Some(&elsewhere)), Some(ours.clone()));
+        assert!(locked.allows(&ours.join("login").unwrap()));
+        assert!(!locked.allows(&elsewhere));
+        assert_eq!(locked.biometric_lock, Some(true));
+    }
+
+    #[test]
+    fn a_lock_with_no_server_locks_nothing_and_a_bad_address_is_refused() {
+        let nothing = ManagedPolicy::new(Some("  "), true, None, false).unwrap();
+        assert_eq!(nothing, ManagedPolicy::default());
+        let anywhere = Url::parse("https://other.example/").unwrap();
+        assert!(nothing.allows(&anywhere));
+        assert_eq!(nothing.server_for(Some(&anywhere)), Some(anywhere));
+        assert!(ManagedPolicy::new(Some("http://agenticos.acme.com"), true, None, false).is_err());
     }
 
     #[test]

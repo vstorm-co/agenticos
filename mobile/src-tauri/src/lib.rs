@@ -15,6 +15,7 @@
 //! only once the person is through the lock.
 
 mod live;
+mod managed;
 mod share;
 mod widget;
 
@@ -26,7 +27,8 @@ use std::time::{Duration, Instant};
 
 use agenticos_shell_core::{
     activity_link, deep_link_return, external_sign_in_url, is_oauth_start, mint_nonce,
-    pairing_link, parse_server_url_with, ActivityAction, Mode, Pairing, PendingSignIn,
+    pairing_link, parse_server_url_with, ActivityAction, ManagedPolicy, Mode, Pairing,
+    PendingSignIn,
 };
 use serde::{Deserialize, Serialize};
 use tauri::webview::PageLoadEvent;
@@ -255,8 +257,33 @@ fn console(app: &AppHandle) -> Result<WebviewWindow, String> {
         .ok_or_else(|| "The app has no window.".to_owned())
 }
 
+/// The organization's device management, read once at start-up.
+struct Managed(ManagedPolicy);
+
+fn managed(app: &AppHandle) -> ManagedPolicy {
+    app.try_state::<Managed>()
+        .map(|managed| managed.0.clone())
+        .unwrap_or_default()
+}
+
+/// Refuse a server the organization does not allow.
+fn check_managed(app: &AppHandle, server: &Url) -> Result<(), String> {
+    if managed(app).allows(server) {
+        Ok(())
+    } else {
+        Err("Your organization manages which server this app connects to.".to_owned())
+    }
+}
+
+/// Whether the console locks behind the biometrics: the organization's word
+/// where it has one, the person's otherwise.
+fn lock_enabled(app: &AppHandle, stored: &Settings) -> bool {
+    managed(app).biometric_lock.unwrap_or(stored.lock)
+}
+
 /// Sign in with a scanned code: remember its console and send the webview to redeem it.
 fn pair(app: &AppHandle, pairing: &Pairing) -> Result<(), String> {
+    check_managed(app, &pairing.server)?;
     grant_console(app, &pairing.server)?;
     let mut stored = settings(app);
     stored.server_url = Some(pairing.server.clone());
@@ -282,6 +309,7 @@ fn pair_with(app: AppHandle, link: String) -> Result<(), String> {
 #[tauri::command]
 fn connect(app: AppHandle, url: String) -> Result<(), String> {
     let server = parse_server_url_with(&url, LAN_HTTP)?;
+    check_managed(&app, &server)?;
     grant_console(&app, &server)?;
     let mut stored = settings(&app);
     stored.server_url = Some(server.clone());
@@ -412,7 +440,7 @@ fn on_activity(app: &AppHandle, action: ActivityAction) {
     if let Ok(mut state) = app.state::<Lock>().0.lock() {
         state.asked = Some(action);
     }
-    if needs_presence && settings(app).lock && lock(app) {
+    if needs_presence && lock_enabled(app, &settings(app)) && lock(app) {
         return;
     }
     nudge(app);
@@ -464,6 +492,7 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_biometric::init())
         .plugin(live::init())
+        .plugin(managed::init())
         .plugin(share::init())
         .plugin(widget::init());
     // The camera scanner is a phone's; the same app on a laptop types the address.
@@ -486,7 +515,17 @@ pub fn run() {
         .setup(|app| {
             let handle = app.handle();
             app.manage(SettingsPath(resolve_settings_path(handle)?));
-            let start = match settings(handle).server_url {
+            // The organization's server: where the app opens before the person
+            // has chosen one, and the only one it opens while it is locked.
+            let policy = managed::load(handle, LAN_HTTP);
+            let mut stored = settings(handle);
+            let server = policy.server_for(stored.server_url.as_ref());
+            if server != stored.server_url {
+                stored.server_url = server;
+                save(handle, &stored)?;
+            }
+            app.manage(Managed(policy));
+            let start = match stored.server_url {
                 // The dashboard, not the root: the root sends everyone to the
                 // sign-in form, and a session kept in the app's cookies would be
                 // asked to sign in again on every launch.
@@ -507,7 +546,7 @@ pub fn run() {
         .run(|app, event| {
             if let RunEvent::Ready | RunEvent::Resumed = event {
                 let stored = settings(app);
-                let enabled = stored.lock && stored.server_url.is_some();
+                let enabled = lock_enabled(app, &stored) && stored.server_url.is_some();
                 let unlocked_at = app
                     .state::<Lock>()
                     .0

@@ -92,6 +92,15 @@ Two things are versioned separately from this file and worth knowing about:
   sessions, and revoking it there signs that app out at once. The console marks
   the session you are using. `PUT /api/v1/sessions/current/app`; migration
   `0160_session_app` adds two nullable columns to `sessions`.
+- **Device management for the apps** (#2305, #2097): an organization can set
+  the server the desktop and Android apps connect to, lock it so the person
+  cannot point the app elsewhere, and on Android force the biometric lock on
+  or off. Keys `serverUrl`, `serverLocked` and (Android) `biometricLock` =
+  `person` | `on` | `off`: a configuration profile for the domain
+  `co.vstorm.agenticos` on macOS, `%ProgramData%\AgenticOS\managed.json` on
+  Windows, `/etc/agenticos/managed.json` on Linux, managed configurations on
+  Android. A policy that cannot be read is ignored rather than locking anybody
+  out.
 - **Native notifications** for new approvals, with Approve and Reject on the
   notification, and for new inbox rows, plus a count on the Dock icon and
   beside the tray icon.

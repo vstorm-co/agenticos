@@ -21,4 +21,14 @@
         <item quantity="one">läuft</item>
         <item quantity="other">laufen</item>
     </plurals>
+    <!-- What device management may set (app_restrictions.xml). -->
+    <string name="managed_server_url">Serveradresse</string>
+    <string name="managed_server_url_hint">Der AgenticOS-Server, mit dem sich die App verbindet.</string>
+    <string name="managed_server_locked">Nur dieser Server</string>
+    <string name="managed_biometric_lock">Biometrische Sperre</string>
+    <string-array name="managed_lock_entries">
+        <item>Entscheidet die Person</item>
+        <item>Immer an</item>
+        <item>Immer aus</item>
+    </string-array>
 </resources>
