@@ -63,6 +63,23 @@ async def regroup_collection_gaps(
     await service.regroup(ctx, knowledge_base_id)
 
 
+@router.post(
+    "/collections/{knowledge_base_id}/classify",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=None,
+)
+async def classify_collection_answers(
+    knowledge_base_id: UUID, service: KnowledgeGapSvc, ctx: Auth
+) -> None:
+    """Have a model read the knowledge base's recent answers for questions it could not answer.
+
+    Refused while the organization has AI assistance switched off. The reading
+    runs after the response, as the caller, in metered runs of the knowledge
+    gap classifier that Activity lists; what it finds joins the topics.
+    """
+    await service.classify(ctx, knowledge_base_id)
+
+
 @router.get("/agents/{agent_id}", response_model=KnowledgeGapTopicList)
 async def list_agent_gaps(
     agent_id: UUID,

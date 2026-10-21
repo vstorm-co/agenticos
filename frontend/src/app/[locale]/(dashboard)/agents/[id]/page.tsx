@@ -79,8 +79,7 @@ import { useGuardedPromotion } from "@/components/agents/promotion-dialog";
 import { DraftEvalNote } from "@/components/evals/draft-eval-note";
 import { EvalsPanel } from "@/components/evals/evals-panel";
 import { EvalSuitesCard } from "@/components/evals/suites/eval-suites-card";
-import { useEvalArmSpec, useEveryDataset } from "@/hooks/use-eval-runs";
-import { isRunnable } from "@/lib/datasets";
+import { useEvalArmSpec, useRunsADataset } from "@/hooks/use-eval-runs";
 import { StartEvalDialog } from "@/components/evals/start-eval-dialog";
 import { TestPanel } from "@/components/agents/test-panel/test-panel";
 import { useTestShortcut } from "@/components/agents/test-panel/use-test-shortcut";
@@ -383,11 +382,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
     ...(canViewRuns && !isSystem ? ["gaps"] : []),
   ];
   const tab = tabParam !== null && tabs.includes(tabParam) ? tabParam : "build";
-  // An eval needs a dataset this caller may run - a grant on one is enough - so
-  // the datasets are read for who may start one, and only for them.
+  // An eval needs a dataset with a case this caller may run - a grant on one is
+  // enough - asked only for who may start one.
   const mayStartEvals = canViewRuns && !isSystem && agent?.can_run === true;
-  const { datasets: evalDatasets } = useEveryDataset({ enabled: mayStartEvals });
-  const canStartEvals = mayStartEvals && evalDatasets.some(isRunnable);
+  const runsADataset = useRunsADataset({ enabled: mayStartEvals });
+  const canStartEvals = mayStartEvals && runsADataset;
   // Testing the draft runs it - the editors' work in progress - on a dataset.
   const canTestDraft = canStartEvals && canEdit;
   const [testingDraft, setTestingDraft] = useState(false);

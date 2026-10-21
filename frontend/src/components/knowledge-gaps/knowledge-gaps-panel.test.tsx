@@ -17,6 +17,10 @@ vi.mock("@/hooks/use-knowledge-gaps", () => ({
   useRegroupKnowledgeGaps: () => ({ mutate: vi.fn(), isPending: false }),
   useSetKnowledgeGapStatus: () => ({ mutate: vi.fn(), isPending: false }),
 }));
+vi.mock("./knowledge-gaps-check", () => ({
+  CheckAnswersButton: () => null,
+  CheckAnswersAiOff: ({ unchecked }: { unchecked: number }) => <p>{`ai off ${unchecked}`}</p>,
+}));
 vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({ can: (perm: string) => state.granted.includes(perm) }),
 }));
@@ -107,6 +111,16 @@ describe("KnowledgeGapsPanel", () => {
     answer({ canRegroup: false });
     render(<KnowledgeGapsPanel scope={{ kind: "collection", id: "kb1" }} />);
     expect(screen.queryByRole("button", { name: "Group now" })).toBeNull();
+  });
+
+  it("says answers wait for a check only to somebody who may change the base", () => {
+    answer({ canRegroup: true, unchecked: 5 });
+    const { unmount } = render(<KnowledgeGapsPanel scope={{ kind: "collection", id: "kb1" }} />);
+    expect(screen.getByText("ai off 5")).toBeInTheDocument();
+    unmount();
+    answer({ canRegroup: false, unchecked: 5 });
+    render(<KnowledgeGapsPanel scope={{ kind: "collection", id: "kb1" }} />);
+    expect(screen.queryByText(/ai off/)).toBeNull();
   });
 
   it("renders a failed request as an error with a retry, never as an empty list", async () => {

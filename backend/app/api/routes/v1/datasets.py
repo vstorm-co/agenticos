@@ -68,6 +68,12 @@ async def list_datasets(
     editable: bool = Query(
         False, description="Only the datasets the caller may change, by role or by a grant"
     ),
+    runnable: bool = Query(
+        False,
+        description=(
+            "Only the datasets the caller may run, by role or by a grant, that hold a case"
+        ),
+    ),
     judge: UUID | None = Query(None, description="Only the datasets of this judge"),
     asks_run: UUID | None = Query(
         None,
@@ -84,6 +90,7 @@ async def list_datasets(
         ctx,
         shared_with_me=shared_with_me,
         editable=editable,
+        runnable=runnable,
         search=q,
         judge_id=judge,
         asked_by_run=asks_run,

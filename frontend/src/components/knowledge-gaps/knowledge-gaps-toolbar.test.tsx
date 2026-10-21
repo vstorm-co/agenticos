@@ -8,6 +8,15 @@ const state = vi.hoisted(() => ({
   regroup: vi.fn(),
   regroupedFor: [] as string[],
 }));
+vi.mock("./knowledge-gaps-check", () => ({
+  CheckAnswersButton: ({
+    knowledgeBaseId,
+    unchecked,
+  }: {
+    knowledgeBaseId: string;
+    unchecked: number;
+  }) => <p>{`check ${knowledgeBaseId} ${unchecked}`}</p>,
+}));
 vi.mock("@/hooks/use-knowledge-gaps", () => ({
   useRegroupKnowledgeGaps: (id: string) => {
     state.regroupedFor.push(id);
@@ -26,6 +35,7 @@ describe("KnowledgeGapsToolbar", () => {
       <KnowledgeGapsToolbar
         scope={{ kind: "collection", id: "kb1" }}
         canRegroup
+        unchecked={4}
         status="open"
         onStatus={vi.fn()}
       />,
@@ -33,6 +43,7 @@ describe("KnowledgeGapsToolbar", () => {
     await userEvent.click(screen.getByRole("button", { name: "Group now" }));
     expect(state.regroupedFor).toContain("kb1");
     expect(state.regroup).toHaveBeenCalled();
+    expect(screen.getByText("check kb1 4")).toBeInTheDocument();
   });
 
   it("does not offer it to a caller who only reads the collection", () => {
@@ -40,11 +51,13 @@ describe("KnowledgeGapsToolbar", () => {
       <KnowledgeGapsToolbar
         scope={{ kind: "collection", id: "kb1" }}
         canRegroup={false}
+        unchecked={4}
         status="open"
         onStatus={vi.fn()}
       />,
     );
     expect(screen.queryByRole("button", { name: "Group now" })).toBeNull();
+    expect(screen.queryByText(/^check/)).toBeNull();
   });
 
   it("does not offer it on an agent's list, which spans knowledge bases", () => {
@@ -52,6 +65,7 @@ describe("KnowledgeGapsToolbar", () => {
       <KnowledgeGapsToolbar
         scope={{ kind: "agent", id: "a1" }}
         canRegroup
+        unchecked={4}
         status="dismissed"
         onStatus={vi.fn()}
       />,
@@ -65,6 +79,7 @@ describe("KnowledgeGapsToolbar", () => {
       <KnowledgeGapsToolbar
         scope={{ kind: "agent", id: "a1" }}
         canRegroup={false}
+        unchecked={4}
         status="dismissed"
         onStatus={onStatus}
       />,
