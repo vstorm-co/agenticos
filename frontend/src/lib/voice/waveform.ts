@@ -91,8 +91,13 @@ export function barTarget(
       const at = ((t * 0.00045) % 1.3) - 0.15;
       return 0.05 + 0.42 * Math.exp(-((x - at) ** 2) / 0.0025) + (index % 6 === 0 ? 0.04 : 0);
     }
-    case "connecting":
-      return centre < 0.12 ? 0.08 + 0.3 * Math.max(0, Math.sin(t * 0.008 - index * 0.9)) : 0.03;
+    case "connecting": {
+      // A wave running across the whole width: setting up takes a second or
+      // three (the microphone, the provider's session), and a pulse at the
+      // centre alone read as nothing happening.
+      const wave = Math.max(0, Math.sin(t * 0.006 - index * 0.32));
+      return 0.05 + 0.32 * profile * wave * wave;
+    }
     case "approval":
       return 0.05 + (0.05 * (Math.sin(t * 0.003 - index * 0.12) + 1)) / 2;
     case "quiet":

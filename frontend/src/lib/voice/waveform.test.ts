@@ -48,11 +48,19 @@ describe("barTarget", () => {
     }
   });
 
-  it("marks every sixth bar while a tool runs, and lights only the centre while connecting", () => {
+  it("marks every sixth bar while a tool runs", () => {
     expect(barTarget("tool", 6, 21, 1e6, SILENT, 0)).toBeGreaterThan(
       barTarget("tool", 7, 21, 1e6, SILENT, 0),
     );
-    expect(barTarget("connecting", 0, 21, 0, SILENT, 0)).toBe(0.03);
+  });
+
+  it("runs a wave across the whole width while connecting, the edges included", () => {
+    const at = (index: number, t: number) => barTarget("connecting", index, 21, t, SILENT, 0);
+    // Some moment lifts the first bar and some the last: the wave travels.
+    const times = Array.from({ length: 60 }, (_, step) => step * 50);
+    expect(Math.max(...times.map((t) => at(0, t)))).toBeGreaterThan(0.1);
+    expect(Math.max(...times.map((t) => at(20, t)))).toBeGreaterThan(0.1);
+    expect(Math.min(...times.map((t) => at(10, t)))).toBeCloseTo(0.05);
   });
 
   it("holds the quiet bars flat, and a single bar sits in the centre", () => {

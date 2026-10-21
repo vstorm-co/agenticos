@@ -1,5 +1,6 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import type { VoiceEndingCopy } from "./voice-call-strip";
@@ -67,13 +68,17 @@ export function VoiceCallStatus({
   const timed = call.startedAt !== null && call.capSeconds !== null;
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
-      <p
-        className={cn(
-          "truncate text-sm font-semibold",
-          WORKING.has(view) && !ending && "voice-call-shimmer",
+      <p className="flex min-w-0 items-center gap-1.5 text-sm font-semibold">
+        {(view === "connecting" || view === "reconnecting") && (
+          <Loader2
+            data-testid="voice-call-connecting"
+            className="text-muted-foreground h-3.5 w-3.5 shrink-0 motion-safe:animate-spin"
+            aria-hidden
+          />
         )}
-      >
-        {label}
+        <span className={cn("truncate", WORKING.has(view) && !ending && "voice-call-shimmer")}>
+          {label}
+        </span>
       </p>
       <p className="text-muted-foreground truncate text-xs">
         {!timed ? (

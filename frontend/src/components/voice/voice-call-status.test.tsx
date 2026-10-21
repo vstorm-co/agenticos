@@ -42,6 +42,7 @@ describe("VoiceCallStatus", () => {
   it("says it is setting up before the call is live, with a working shimmer", () => {
     show({ ...initialCall, phase: "connecting" });
     expect(screen.getByText("Connecting…")).toHaveClass("voice-call-shimmer");
+    expect(screen.getByTestId("voice-call-connecting")).toHaveClass("motion-safe:animate-spin");
     expect(screen.getByText("Setting up a secure connection")).toBeInTheDocument();
   });
 
