@@ -40,6 +40,7 @@ TENANT_REQUIRED = [
     (conversation_repo, "count_conversations"),
     (conversation_repo, "create_conversation"),
     (conversation_repo, "list_tool_calls_for_run"),
+    (conversation_repo, "question_of_run"),
     (channel_bot_repo, "get_for_org"),
     (channel_bot_repo, "get_by_platform"),
     (channel_bot_repo, "list_for_org"),

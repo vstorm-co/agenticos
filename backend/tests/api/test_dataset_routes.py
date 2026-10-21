@@ -41,6 +41,7 @@ pytestmark = pytest.mark.anyio
 OpenClient = Callable[[], AbstractAsyncContextManager[AsyncClient]]
 
 _NOW = datetime(2026, 10, 13, tzinfo=UTC)
+_RUN_ID = uuid.uuid4()
 _DATASET = DatasetRead(
     id=uuid.uuid4(),
     name="refunds",
@@ -107,6 +108,7 @@ async def test_each_route_answers_with_its_status(client: OpenClient, service: M
     case = f"{dataset}/cases/{_CASE.case_id}"
     async with client() as http:
         listed = await http.get(_url())
+        asking = await http.get(_url(f"?asks_run={_RUN_ID}"))
         created = await http.post(_url(), json={"name": "refunds"})
         read = await http.get(_url(dataset))
         renamed = await http.patch(_url(dataset), json={"description": "x"})
@@ -124,6 +126,8 @@ async def test_each_route_answers_with_its_status(client: OpenClient, service: M
         deleted = await http.delete(_url(dataset))
 
     assert listed.json()["total"] == 1
+    assert asking.status_code == 200
+    assert service.list_readable.call_args.kwargs["asked_by_run"] == _RUN_ID
     assert created.status_code == 201
     assert read.json()["can_edit"] is True
     assert renamed.status_code == 200
