@@ -1,5 +1,5 @@
 ---
-source_sha: "88fd384cb2a0"
+source_sha: "53c45109ee05"
 ---
 
 # Versionshinweise { #release-notes }
@@ -11,7 +11,10 @@ nicht auseinanderlaufen können. Die Einträge selbst bleiben englisch, denn sie
 sind die Commit-Historie.
 
 Das Format folgt [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), die
-Versionen folgen [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+Versionen folgen [Semantic Versioning](https://semver.org/spec/v2.0.0.html) mit
+einer Ausnahme: AgenticOS bleibt bei Hauptversion 1, eine Änderung, auf die ein
+Deployment reagieren muss, erscheint also in einem MINOR-Release. Lesen Sie vor
+dem Upgrade die Hinweise eines MINOR-Releases.
 
 Zwei Dinge werden getrennt von der Liste unten versioniert.
 
