@@ -80,3 +80,32 @@ class AdminConversationList(BaseSchema):
 
     items: list[AdminConversationRead]
     total: int
+
+
+class SharedMessageRead(BaseSchema):
+    """One message of a conversation opened by its share link."""
+
+    id: UUID
+    role: str
+    content: str | None = None
+    created_at: datetime | None = None
+
+
+class SharedConversationBody(BaseSchema):
+    id: UUID
+    title: str | None = None
+    messages: list[SharedMessageRead]
+
+
+class SharedConversationShare(BaseSchema):
+    """The link itself, without its token: whoever opened it already holds that."""
+
+    id: UUID
+    permission: Literal["view", "edit"]
+
+
+class SharedConversationRead(BaseSchema):
+    """A conversation opened by its share link, with no account."""
+
+    conversation: SharedConversationBody
+    share: SharedConversationShare

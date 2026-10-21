@@ -8,6 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AlreadyExistsError, AuthorizationError, NotFoundError
 from app.repositories import conversation_repo, conversation_share_repo, member_repo, user_repo
+from app.schemas.conversation_share import (
+    SharedConversationBody,
+    SharedConversationRead,
+    SharedConversationShare,
+    SharedMessageRead,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -152,7 +158,7 @@ class ConversationShareService:
             item.is_favourite = item.id in starred  # ty: ignore[unresolved-attribute]
         return items, total
 
-    async def get_by_token(self, token: str) -> dict:
+    async def get_by_token(self, token: str) -> SharedConversationRead:
         """Get a shared conversation by its public token."""
         share = await conversation_share_repo.get_by_token(self.db, token)
         if not share:
@@ -162,23 +168,18 @@ class ConversationShareService:
         )
         if not conv:
             raise NotFoundError(message="Conversation not found")
-        return {
-            "conversation": {
-                "id": str(conv.id),
-                "title": conv.title,
-                "messages": [
-                    {
-                        "id": str(m.id),
-                        "role": m.role,
-                        "content": m.content,
-                        "created_at": m.created_at.isoformat() if m.created_at else None,
-                    }
+        return SharedConversationRead(
+            conversation=SharedConversationBody(
+                id=conv.id,
+                title=conv.title,
+                messages=[
+                    SharedMessageRead(
+                        id=m.id, role=m.role, content=m.content, created_at=m.created_at
+                    )
                     for m in (conv.messages or [])
                 ],
-            },
-            "share": {
-                "id": str(share.id),
-                "permission": share.permission,
-                "share_token": share.share_token,
-            },
-        }
+            ),
+            share=SharedConversationShare.model_validate(
+                {"id": share.id, "permission": share.permission}
+            ),
+        )
