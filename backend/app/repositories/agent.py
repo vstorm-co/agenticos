@@ -70,6 +70,17 @@ async def get(db: AsyncSession, agent_id: UUID, *, organization_id: UUID) -> Age
     return result.scalar_one_or_none()
 
 
+async def lock(db: AsyncSession, agent_id: UUID, *, organization_id: UUID) -> Agent | None:
+    """The agent locked until the transaction ends, its draft read afresh."""
+    result = await db.execute(
+        select(Agent)
+        .where(Agent.id == agent_id, Agent.organization_id == organization_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_served_over_a2a(db: AsyncSession, agent_id: UUID) -> Agent | None:
     """A published agent its organization chose to serve over A2A, whatever the tenant.
 

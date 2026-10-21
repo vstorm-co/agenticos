@@ -83,6 +83,7 @@ TENANT_REQUIRED = [
     (conversation_repo, "get_messages_before"),
     (personal_data_repo, "unlink_dataset_cases_from_conversation"),
     (agent_repo, "get_system"),
+    (agent_repo, "lock"),
     (credential_repo, "oldest_profile"),
     (case_score_repo, "create"),
     (case_score_repo, "get"),

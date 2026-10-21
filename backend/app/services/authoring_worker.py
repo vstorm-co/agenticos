@@ -26,14 +26,14 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.capabilities import REGISTRY, TOOL_NAME_PATTERN, load_builtins
+from app.agents.capabilities import REGISTRY, TOOL_NAME_PATTERN, ToolOverride, load_builtins
 from app.agents.spec import AgentSpec
 from app.agents.system_agents import IMPROVER
-from app.core.exceptions import AppException
-from app.core.permissions import AuthContext
+from app.core.exceptions import AppException, SystemAgentOutputError, SystemAgentRunError
+from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent
 from app.db.models.authoring import (
     AuthoringKind,
@@ -49,6 +49,7 @@ from app.db.models.skill import Skill
 from app.db.session import get_worker_db_context
 from app.repositories import (
     agent_repo,
+    agent_run_repo,
     authoring_repo,
     member_repo,
     skill_proposal_repo,
@@ -64,6 +65,7 @@ from app.schemas.authoring import (
     VerifyReport,
 )
 from app.services import authoring_hunks
+from app.services.access import AGENT, SKILL, resolve_access
 from app.services.authoring_evidence import (
     EvidencePack,
     EvidenceService,
@@ -113,13 +115,34 @@ def _evidence_section(pack: EvidencePack, digests: Sequence[RunFindings] | None)
     return "\n".join(lines) or "(The runs showed nothing in particular.)"
 
 
-def _improve_prompt(
-    name: str, spec: AgentSpec, pack: EvidencePack, digests: Sequence[RunFindings] | None
-) -> str:
-    tools = "\n".join(
+def _tool_lines(spec: AgentSpec) -> str:
+    return "\n".join(
         f"- {capability} / {tool}: {label} - {description}"
         for capability, tool, label, description in tool_catalog(spec)
     )
+
+
+def _tool_diff(published: AgentSpec, draft: AgentSpec) -> str:
+    """Each tool the edit added, removed, renamed or re-described, one line each."""
+    before = {(row[0], row[1]): row[2:] for row in tool_catalog(published)}
+    after = {(row[0], row[1]): row[2:] for row in tool_catalog(draft)}
+    lines: list[str] = []
+    for key in sorted(before.keys() | after.keys()):
+        label = f"{key[0]} / {key[1]}"
+        old, new = before.get(key), after.get(key)
+        if old is None:
+            lines.append(f"+ {label}: added")
+        elif new is None:
+            lines.append(f"- {label}: removed")
+        elif old != new:
+            lines.append(f"~ {label}: {old[0]} - {old[1]}\n  now: {new[0]} - {new[1]}")
+    return "\n".join(lines)
+
+
+def _improve_prompt(
+    name: str, spec: AgentSpec, pack: EvidencePack, digests: Sequence[RunFindings] | None
+) -> str:
+    tools = _tool_lines(spec)
     return (
         f'Propose improvements to the agent "{name}".\n\n'
         f"# Its current instructions\n<instructions>\n{spec.instructions}\n</instructions>\n\n"
@@ -158,7 +181,10 @@ def _verify_prompt(
         "evidence: what the edits improve, what they risk, and what they removed that the "
         "evidence relied on. Propose changes only where the evidence asks for them.\n\n"
         f"# The edit to its instructions\n{diff or '(no change to the instructions)'}\n\n"
+        f"# The edit to its tools\n{_tool_diff(published, draft) or '(no change to the tools)'}\n\n"
         f"# The draft's instructions\n<instructions>\n{draft.instructions}\n</instructions>\n\n"
+        "# The draft's tools (capability_id / tool_id: name - description)\n"
+        f"{_tool_lines(draft) or '(none)'}\n\n"
         f"# What its runs show\n{_evidence_section(pack, digests)}"
     )
 
@@ -196,11 +222,23 @@ class AuthoringRun:
         self.run_ids: list[UUID] = []
 
     async def _ask[T: BaseModel](self, prompt: str, output_type: type[T]) -> T:
-        result = await self.runner.run(
-            self.ctx, key=IMPROVER.key, prompt=prompt, output_type=output_type
-        )
-        self.run_ids.append(result.run.id)
-        self.cost += result.run.cost_usd
+        try:
+            result = await self.runner.run(
+                self.ctx, key=IMPROVER.key, prompt=prompt, output_type=output_type
+            )
+        except (SystemAgentRunError, SystemAgentOutputError) as exc:
+            # The call was made and priced even though it gave no answer.
+            run = await agent_run_repo.get_run(
+                self.db, exc.run_id, organization_id=self.ctx.organization_id
+            )
+            await self._count(exc.run_id, Decimal(0) if run is None else run.cost_usd)
+            raise
+        await self._count(result.run.id, result.run.cost_usd)
+        return result.output
+
+    async def _count(self, run_id: UUID, cost: Decimal) -> None:
+        self.run_ids.append(run_id)
+        self.cost += cost
         await authoring_repo.update_request(
             self.db,
             request=self.request,
@@ -210,7 +248,6 @@ class AuthoringRun:
                 "heartbeat_at": datetime.now(UTC),
             },
         )
-        return result.output
 
     async def _digests(self, pack: EvidencePack, subject: str) -> list[RunFindings] | None:
         """The groups' findings, quotes checked - or `None` when the runs are read whole."""
@@ -227,6 +264,10 @@ class AuthoringRun:
         return digests
 
     async def execute(self) -> None:
+        # Authority is read as it is now: what the starter could do when they
+        # asked may have been taken away while the request waited.
+        if not self.ctx.has(Perm.RUNS_VIEW):
+            raise Stopped("Whoever started this may no longer read runs.")
         if self.request.target == AuthoringTarget.SKILL.value:
             await self._improve_skill()
         elif self.request.kind == AuthoringKind.VERIFY.value:
@@ -237,11 +278,16 @@ class AuthoringRun:
     async def _target_agent(self) -> Agent | None:
         agent_id = self.request.agent_id
         org = self.ctx.organization_id
-        return (
+        agent = (
             None
             if agent_id is None
             else await agent_repo.get(self.db, agent_id, organization_id=org)
         )
+        if agent is not None and not await resolve_access(
+            self.db, self.ctx, agent, Perm.AGENTS_EDIT, resource_type=AGENT
+        ):
+            raise Stopped("Whoever started this may no longer edit the agent.")
+        return agent
 
     async def _improve_agent(self) -> None:
         agent = await self._target_agent()
@@ -317,6 +363,10 @@ class AuthoringRun:
         )
         if skill is None:
             raise Stopped("The skill is gone.")
+        if not await resolve_access(
+            self.db, self.ctx, skill, Perm.SKILLS_EDIT, resource_type=SKILL
+        ):
+            raise Stopped("Whoever started this may no longer edit the skill.")
         pack = await self.evidence.for_skill(
             self.ctx, skill.name, window_days=self.request.window_days
         )
@@ -423,6 +473,10 @@ class AuthoringRun:
                 continue
             if change.name is None and change.description is None:
                 continue
+            try:
+                ToolOverride(name=change.name, description=change.description)
+            except ValidationError:
+                continue
             _, base_name, base_description = authoring_hunks.current_override(
                 spec, change.capability_id, change.tool_id
             )
@@ -452,6 +506,7 @@ class AuthoringRun:
         A change somebody dismissed in the batch being replaced is not proposed again.
         """
         started = self.request.started_at or self.request.created_at
+        await self._serialize(agent_id)
         current = await authoring_repo.get_open_batch(
             self.db, organization_id=self.ctx.organization_id, agent_id=agent_id, lock=True
         )
@@ -501,6 +556,7 @@ class AuthoringRun:
         """
         if not hunks:
             return 0
+        await self._serialize(agent_id)
         batch = await authoring_repo.get_open_batch(
             self.db, organization_id=self.ctx.organization_id, agent_id=agent_id, lock=True
         )
@@ -523,6 +579,13 @@ class AuthoringRun:
             self.db, organization_id=self.ctx.organization_id, batch_id=batch.id, hunks=hunks
         )
         return len(hunks)
+
+    async def _serialize(self, agent_id: UUID) -> None:
+        """Lock the agent, so two requests finishing at once do not both open a batch.
+
+        The open batch is unique per agent, and there may be no batch row yet to lock.
+        """
+        await agent_repo.lock(self.db, agent_id, organization_id=self.ctx.organization_id)
 
     async def _finish(self, report: dict[str, Any]) -> None:
         await authoring_repo.update_request(

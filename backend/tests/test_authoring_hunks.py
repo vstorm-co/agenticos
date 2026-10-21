@@ -256,3 +256,33 @@ def test_the_tool_catalog_skips_a_capability_the_registry_does_not_know():
     )
 
     assert [row[:2] for row in tool_catalog(spec)] == [("charts", "create_chart")]
+
+
+def test_verify_reads_an_edit_to_the_tools_beside_one_to_the_instructions():
+    """An edit that only reworded a tool is still an edit Verify must be shown."""
+    from app.services.authoring_worker import _tool_diff
+
+    published = AgentSpec(
+        name="Clerk",
+        instructions="",
+        capabilities=[CapabilityBindingSpec(id="charts"), CapabilityBindingSpec(id="ask_user")],
+    )
+    draft = AgentSpec(
+        name="Clerk",
+        instructions="",
+        capabilities=[
+            CapabilityBindingSpec(
+                id="charts",
+                tool_overrides={"create_chart": ToolOverride(description="Only for trends.")},
+            ),
+            CapabilityBindingSpec(id="artifacts"),
+        ],
+    )
+
+    lines = _tool_diff(published, draft).splitlines()
+
+    assert "- ask_user / ask_user_question: removed" in lines
+    assert "+ artifacts / publish_artifact: added" in lines
+    assert any(line.startswith("~ charts / create_chart:") for line in lines)
+    assert "  now: create_chart - Only for trends." in lines
+    assert _tool_diff(published, published) == ""
