@@ -8386,7 +8386,18 @@
       "continueInConsole": "Continue in the console",
       "listening": "Listening - let go to stop",
       "transcribing": "Writing down what you said",
-      "noDictation": "This agent takes no dictation. Turn on its Dictation switch to talk to it here."
+      "noDictation": "This agent takes no dictation. Turn on its Dictation switch to talk to it here.",
+      "context": {
+        "selectedIn": "Selected in {source}:",
+        "fromClipboard": "From the clipboard:",
+        "anApp": "another app",
+        "selection": "Selection from {app}",
+        "files": "{count, plural, one {# file} other {# files}} from Finder",
+        "clipboard": "Clipboard",
+        "allow": "Let AgenticOS read what you select",
+        "attaching": "Attaching the selected files",
+        "attachFailed": "The selected files could not be attached, so nothing was asked. Take them off to ask without them."
+      }
     },
     "notifications": {
       "approvalTitle": "{agent} wants to run {tool}",

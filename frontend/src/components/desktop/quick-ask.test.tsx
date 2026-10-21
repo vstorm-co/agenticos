@@ -29,6 +29,16 @@ const env = vi.hoisted(() => ({
     showConsole: vi.fn(async () => {}),
   },
   report: vi.fn(),
+  takeFiles: vi.fn(async (): Promise<File[]> => []),
+  allow: vi.fn(async () => {}),
+  upload: vi.fn(async (file: File) => ({
+    id: `f-${file.name}`,
+    filename: file.name,
+    mime_type: "application/pdf",
+    size: 1,
+    file_type: "pdf",
+    preview: null,
+  })),
   resize: null as null | ((entries: { contentRect: { height: number } }[]) => void),
 }));
 vi.mock("@/hooks/use-auth", () => ({ useAuth: () => env.auth }));
@@ -49,6 +59,12 @@ vi.mock("@/hooks/use-agent-dictation", () => ({
   },
 }));
 vi.mock("@/lib/desktop/commands", () => env.commands);
+vi.mock("@/lib/desktop/context", async (original) => ({
+  ...(await original<typeof import("@/lib/desktop/context")>()),
+  takeContextFiles: env.takeFiles,
+  openAccessibilitySettings: env.allow,
+}));
+vi.mock("@/lib/file-api", () => ({ uploadFile: env.upload }));
 vi.mock("@/lib/desktop/shell", async (original) => ({
   ...(await original<typeof import("@/lib/desktop/shell")>()),
   reportShellFailure: env.report,
@@ -239,6 +255,88 @@ describe("QuickAsk", () => {
       expect(env.dictation.agent).toBeNull();
       press("sideways");
       expect(env.report).toHaveBeenCalledWith("an unknown push-to-talk state", "sideways");
+    });
+  });
+
+  describe("what was in front", () => {
+    const FOUND = {
+      app: "Mail",
+      window: "Refund for order 1182",
+      selection: "Please refund me",
+      clipboard: "order 1182",
+      files: ["invoice.pdf"],
+      accessibility: true,
+    };
+    const open = (payload: unknown) => act(() => env.listeners.get("desktop:quick-ask")?.(payload));
+
+    it("sends the selection and the files with the question, the clipboard only when put on", async () => {
+      env.takeFiles.mockResolvedValue([new File(["x"], "invoice.pdf")]);
+      render(<QuickAsk />);
+      open(FOUND);
+      expect(screen.getByRole("button", { name: "Selection from Mail" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      expect(screen.getByRole("button", { name: "Clipboard" })).toHaveAttribute(
+        "aria-pressed",
+        "false",
+      );
+      await userEvent.type(question(), "Draft a reply{Enter}");
+      await vi.waitFor(() => expect(env.chat.sendMessage).toHaveBeenCalled());
+      expect(env.chat.sendMessage).toHaveBeenCalledWith(
+        "Draft a reply\n\nSelected in Mail - Refund for order 1182:\n> Please refund me",
+        ["f-invoice.pdf"],
+        [expect.objectContaining({ id: "f-invoice.pdf" })],
+      );
+      expect(screen.queryByRole("button", { name: "Selection from Mail" })).toBeNull();
+    });
+
+    it("leaves off what was taken off, and adds the clipboard when put on", async () => {
+      render(<QuickAsk />);
+      open({ ...FOUND, window: null, files: [] });
+      await userEvent.click(screen.getByRole("button", { name: "Selection from Mail" }));
+      await userEvent.click(screen.getByRole("button", { name: "Clipboard" }));
+      await userEvent.type(question(), "What is this?{Enter}");
+      expect(env.chat.sendMessage).toHaveBeenCalledWith(
+        "What is this?\n\nFrom the clipboard:\n> order 1182",
+      );
+      expect(env.takeFiles).not.toHaveBeenCalled();
+    });
+
+    it("asks nothing when the files cannot be attached, and says so", async () => {
+      env.takeFiles.mockRejectedValueOnce(new Error("gone"));
+      render(<QuickAsk />);
+      open(FOUND);
+      await userEvent.type(question(), "Summarise{Enter}");
+      expect(await screen.findByText(/could not be attached/)).toBeInTheDocument();
+      expect(env.chat.sendMessage).not.toHaveBeenCalled();
+      expect(question()).toHaveValue("Summarise");
+    });
+
+    it("offers the permission it needs, and takes the files off on request", async () => {
+      render(<QuickAsk />);
+      open({ ...FOUND, selection: null, clipboard: null, accessibility: false });
+      await userEvent.click(
+        screen.getByRole("button", { name: "Let AgenticOS read what you select" }),
+      );
+      expect(env.allow).toHaveBeenCalled();
+      await userEvent.click(screen.getByRole("button", { name: "1 file from Finder" }));
+      await userEvent.type(question(), "Hi{Enter}");
+      expect(env.chat.sendMessage).toHaveBeenCalledWith("Hi");
+    });
+
+    it("names no app it does not know, and reports a capture it cannot read", () => {
+      render(<QuickAsk />);
+      open({ ...FOUND, app: null });
+      expect(
+        screen.getByRole("button", { name: "Selection from another app" }),
+      ).toBeInTheDocument();
+      open("nonsense");
+      expect(env.report).toHaveBeenCalledWith(
+        "could not read what was in front",
+        expect.anything(),
+      );
+      expect(screen.queryByRole("button", { name: "Selection from another app" })).toBeNull();
     });
   });
 });

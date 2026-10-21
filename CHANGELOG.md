@@ -81,6 +81,12 @@ Two things are versioned separately from this file and worth knowing about:
   brings the chat forward and calls the selected agent. The app now declares
   its use of the microphone, which macOS requires before the console's
   dictation or calls can record.
+- **Quick ask knows what you were looking at** (#2305, macOS): the text
+  selected in the app in front, the files selected in Finder and the
+  clipboard sit under the question as chips. The selection and the files go
+  with the question unless you take them off; the clipboard only when you put
+  it on. Reading another app's selection needs the Accessibility permission,
+  which the panel offers to open.
 - **Native notifications** for new approvals, with Approve and Reject on the
   notification, and for new inbox rows, plus a count on the Dock icon and
   beside the tray icon.

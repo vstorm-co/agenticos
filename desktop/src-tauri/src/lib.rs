@@ -16,6 +16,7 @@
 mod appearance;
 mod blobby;
 mod console;
+mod context;
 mod local_stack;
 mod notify;
 mod quick_ask;
@@ -1137,12 +1138,15 @@ pub fn run() {
             finish_onboarding,
             shortcuts::set_shortcut,
             quick_ask::resize_quick_ask,
-            quick_ask::hide_quick_ask
+            quick_ask::hide_quick_ask,
+            context::take_context_files,
+            context::open_accessibility_settings
         ])
         .manage(PendingSignIn::default())
         .manage(console::Granted::default())
         .manage(notify::Delivered::default())
         .manage(shortcuts::Bindings::default())
+        .manage(context::CapturedFiles::default())
         .setup(|app| {
             let handle = app.handle();
             let (mut settings, unreadable) = settings::load_or_quarantine(handle);

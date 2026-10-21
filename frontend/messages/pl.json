@@ -8171,7 +8171,18 @@
       "continueInConsole": "Kontynuuj w konsoli",
       "listening": "Słucham - puść, żeby skończyć",
       "transcribing": "Zapisuję Twoje słowa",
-      "noDictation": "Ten agent nie przyjmuje dyktowania. Włącz jego przełącznik Dyktowanie, żeby mówić do niego tutaj."
+      "noDictation": "Ten agent nie przyjmuje dyktowania. Włącz jego przełącznik Dyktowanie, żeby mówić do niego tutaj.",
+      "context": {
+        "selectedIn": "Zaznaczone w {source}:",
+        "fromClipboard": "Ze schowka:",
+        "anApp": "innej aplikacji",
+        "selection": "Zaznaczenie z {app}",
+        "files": "{count, plural, one {# plik} few {# pliki} many {# plików} other {# pliku}} z Findera",
+        "clipboard": "Schowek",
+        "allow": "Pozwól AgenticOS czytać to, co zaznaczasz",
+        "attaching": "Dołączam zaznaczone pliki",
+        "attachFailed": "Nie udało się dołączyć zaznaczonych plików, więc pytanie nie zostało wysłane. Zdejmij je, żeby zapytać bez nich."
+      }
     },
     "notifications": {
       "approvalTitle": "{agent} chce uruchomić {tool}",

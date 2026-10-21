@@ -23,6 +23,8 @@ const COMMANDS: &[&str] = &[
     "set_shortcut",
     "resize_quick_ask",
     "hide_quick_ask",
+    "take_context_files",
+    "open_accessibility_settings",
     "onboarding_state",
     "local_status",
     "set_up_local",

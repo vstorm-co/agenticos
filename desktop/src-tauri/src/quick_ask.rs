@@ -89,9 +89,16 @@ pub fn toggle(app: &AppHandle, server: Option<&Url>, appearance: Appearance) -> 
     if window.is_visible().map_err(|e| e.to_string())? {
         return window.hide().map_err(|e| e.to_string());
     }
-    place(app, &window)?;
-    present(&window)?;
-    app.emit_to(WINDOW, OPEN_EVENT, ()).map_err(|e| e.to_string())
+    open(app, &window)
+}
+
+/// Bring the panel up with what was in front a moment before it: read first,
+/// since once the panel is up, the panel is what is in front.
+fn open(app: &AppHandle, window: &WebviewWindow) -> Result<(), String> {
+    let context = crate::context::capture(app);
+    place(app, window)?;
+    present(window)?;
+    app.emit_to(WINDOW, OPEN_EVENT, context).map_err(|e| e.to_string())
 }
 
 /// Push to talk: held, the panel comes up - if it is not already - and records;
@@ -99,8 +106,7 @@ pub fn toggle(app: &AppHandle, server: Option<&Url>, appearance: Appearance) -> 
 pub fn dictate(app: &AppHandle, server: Option<&Url>, appearance: Appearance, held: bool) -> Result<(), String> {
     let window = panel(app, server, appearance)?;
     if held && !window.is_visible().map_err(|e| e.to_string())? {
-        place(app, &window)?;
-        present(&window)?;
+        open(app, &window)?;
     }
     app.emit_to(WINDOW, DICTATE_EVENT, if held { "start" } else { "stop" })
         .map_err(|e| e.to_string())

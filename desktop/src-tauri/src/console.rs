@@ -77,6 +77,8 @@ pub const GRANTS: &[(&str, &[&str])] = &[
             "allow-desktop-state",
             "allow-resize-quick-ask",
             "allow-hide-quick-ask",
+            "allow-take-context-files",
+            "allow-open-accessibility-settings",
             "allow-open-in-console",
             "allow-page-error",
             "core:event:allow-listen",

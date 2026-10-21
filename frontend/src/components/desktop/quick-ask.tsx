@@ -2,7 +2,16 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
-import { ArrowUpRight, CornerDownLeft, Loader2, Mic } from "lucide-react";
+import {
+  ArrowUpRight,
+  Clipboard,
+  CornerDownLeft,
+  Files,
+  Loader2,
+  Mic,
+  Quote,
+  ShieldCheck,
+} from "lucide-react";
 
 import { AgentPicker } from "@/components/chat/agent-picker";
 import { MarkdownContent } from "@/components/chat/markdown-content";
@@ -12,6 +21,16 @@ import { useChanged } from "@/hooks/use-changed";
 import { useChat } from "@/hooks/use-chat";
 import { useShellEvent } from "@/hooks/use-desktop";
 import { hideQuickAsk, openInConsole, resizeQuickAsk, showConsole } from "@/lib/desktop/commands";
+import {
+  openAccessibilitySettings,
+  parseActiveContext,
+  takeContextFiles,
+  withContext,
+  type ActiveContext,
+  type ContextPassage,
+} from "@/lib/desktop/context";
+import { uploadFile, type FileUploadResponse } from "@/lib/file-api";
+import { cn } from "@/lib/utils";
 import { reportShellFailure, SHELL_EVENTS } from "@/lib/desktop/shell";
 import { useAgentSelectionStore } from "@/stores/agent-selection-store";
 
@@ -27,6 +46,11 @@ function run(what: string, command: () => Promise<void>) {
  * same conversation saved under your name - in a panel that grows with the
  * answer. Enter asks, ⌘↩ (Ctrl+Enter) carries the conversation into the
  * console, ⌘N starts over and Escape puts the panel away.
+ *
+ * What was in front when it opened - the text selected there, the clipboard,
+ * the files selected in Finder - sits under the question as chips. The
+ * selection and the files go with the question unless taken off; the
+ * clipboard, which can hold anything, only when put on.
  *
  * Push to talk: while its shortcut is held the panel records for the selected
  * agent, and on release the words are written into the question - the agent's
@@ -85,11 +109,74 @@ export function QuickAsk() {
     input.current?.focus();
   }, []);
 
-  // The panel was summoned: the question field is where the hands go.
-  useShellEvent(SHELL_EVENTS.quickAsk, () => {
+  const [context, setContext] = useState<ActiveContext | null>(null);
+  const [include, setInclude] = useState({ selection: false, clipboard: false, files: false });
+  const [attaching, setAttaching] = useState(false);
+  const [attachFailed, setAttachFailed] = useState(false);
+  const toggle = (what: keyof typeof include) =>
+    setInclude((current) => ({ ...current, [what]: !current[what] }));
+
+  // The panel was summoned: the question field is where the hands go, and
+  // what was in front a moment ago is offered beside it.
+  useShellEvent(SHELL_EVENTS.quickAsk, (payload) => {
     input.current?.focus();
     input.current?.select();
+    setAttachFailed(false);
+    try {
+      const found = parseActiveContext(payload);
+      setContext(found);
+      setInclude({
+        selection: found.selection !== null,
+        clipboard: false,
+        files: found.files.length > 0,
+      });
+    } catch (error) {
+      setContext(null);
+      reportShellFailure("could not read what was in front", error);
+    }
   });
+
+  const source = context?.app
+    ? context.window
+      ? `${context.app} - ${context.window}`
+      : context.app
+    : t("context.anApp");
+
+  const ask = async (text: string) => {
+    const passages: ContextPassage[] = [];
+    if (context?.selection && include.selection) {
+      passages.push({ heading: t("context.selectedIn", { source }), text: context.selection });
+    }
+    if (context?.clipboard && include.clipboard) {
+      passages.push({ heading: t("context.fromClipboard"), text: context.clipboard });
+    }
+    let attached: FileUploadResponse[] = [];
+    if (context && include.files && context.files.length > 0) {
+      setAttaching(true);
+      try {
+        attached = await Promise.all((await takeContextFiles()).map(uploadFile));
+      } catch (error) {
+        // Asked without the files it was meant to carry is a different question.
+        setAttachFailed(true);
+        reportShellFailure("could not attach the selected files", error);
+        return;
+      } finally {
+        setAttaching(false);
+      }
+    }
+    const content = withContext(text, passages);
+    if (attached.length > 0) {
+      sendMessage(
+        content,
+        attached.map((file) => file.id),
+        attached,
+      );
+    } else {
+      sendMessage(content);
+    }
+    setQuestion("");
+    setContext(null);
+  };
 
   // The window is as tall as the panel, so the answer never scrolls a window
   // that has room to grow; the shell keeps it between the question row and a ceiling.
@@ -128,9 +215,8 @@ export function QuickAsk() {
     } else if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       const text = question.trim();
-      if (!text || isProcessing) return;
-      sendMessage(text);
-      setQuestion("");
+      if (!text || isProcessing || attaching) return;
+      void ask(text);
     } else if (event.key.toLowerCase() === "n" && command) {
       event.preventDefault();
       startOver();
@@ -171,6 +257,19 @@ export function QuickAsk() {
           />
         ) : null}
       </div>
+      {context && !signedOut ? (
+        <ContextChips
+          context={context}
+          include={include}
+          onToggle={toggle}
+          onAllow={() => run("could not open the privacy settings", openAccessibilitySettings)}
+        />
+      ) : null}
+      {attaching || attachFailed ? (
+        <p role="status" className="border-border text-muted-foreground border-t px-4 py-2 text-xs">
+          {attaching ? t("context.attaching") : t("context.attachFailed")}
+        </p>
+      ) : null}
       {listening || phase === "transcribing" || noDictation ? (
         <p role="status" className="border-border text-muted-foreground border-t px-4 py-2 text-xs">
           {noDictation ? t("noDictation") : listening ? t("listening") : t("transcribing")}
@@ -212,6 +311,77 @@ export function QuickAsk() {
             </button>
           </div>
         </>
+      ) : null}
+    </div>
+  );
+}
+
+const CHIP =
+  "flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors";
+
+/** One chip per thing found in front: on, it goes with the question; off, it does not. */
+function ContextChips({
+  context,
+  include,
+  onToggle,
+  onAllow,
+}: {
+  context: ActiveContext;
+  include: { selection: boolean; clipboard: boolean; files: boolean };
+  onToggle: (what: "selection" | "clipboard" | "files") => void;
+  onAllow: () => void;
+}) {
+  const t = useTranslations("desktop.quickAsk.context");
+  const chip = (on: boolean) =>
+    cn(
+      CHIP,
+      on
+        ? "bg-muted text-foreground border-transparent"
+        : "text-muted-foreground border-dashed hover:text-foreground",
+    );
+  return (
+    <div className="flex flex-wrap gap-1.5 px-3 pb-3">
+      {context.selection ? (
+        <button
+          type="button"
+          aria-pressed={include.selection}
+          onClick={() => onToggle("selection")}
+          title={context.selection}
+          className={chip(include.selection)}
+        >
+          <Quote className="size-3 shrink-0" aria-hidden />
+          <span className="truncate">{t("selection", { app: context.app ?? t("anApp") })}</span>
+        </button>
+      ) : null}
+      {context.files.length > 0 ? (
+        <button
+          type="button"
+          aria-pressed={include.files}
+          onClick={() => onToggle("files")}
+          title={context.files.join("\n")}
+          className={chip(include.files)}
+        >
+          <Files className="size-3 shrink-0" aria-hidden />
+          <span className="truncate">{t("files", { count: context.files.length })}</span>
+        </button>
+      ) : null}
+      {context.clipboard ? (
+        <button
+          type="button"
+          aria-pressed={include.clipboard}
+          onClick={() => onToggle("clipboard")}
+          title={context.clipboard}
+          className={chip(include.clipboard)}
+        >
+          <Clipboard className="size-3 shrink-0" aria-hidden />
+          <span className="truncate">{t("clipboard")}</span>
+        </button>
+      ) : null}
+      {!context.accessibility && context.app ? (
+        <button type="button" onClick={onAllow} className={chip(false)}>
+          <ShieldCheck className="size-3 shrink-0" aria-hidden />
+          <span className="truncate">{t("allow")}</span>
+        </button>
       ) : null}
     </div>
   );
